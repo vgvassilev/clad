@@ -1497,6 +1497,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return StmtDiff();
     }
 
+    // Determine the base of the call if any.
+    const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+    const Expr* baseOriginalE = nullptr;
+    if (MD && MD->isInstance()) {
+      if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
+        baseOriginalE = MCE->getImplicitObjectArgument();
+      else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
+        baseOriginalE = OCE->getArg(0);
+    }
+
     // FIXME: consider moving non-diff analysis to DiffPlanner.
     bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
 
@@ -1508,7 +1518,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // derived function. In the case of member functions, `implicit`
     // this object is always passed by reference.
     if (!nonDiff && !dfdx() && !utils::HasAnyReferenceOrPointerArgument(FD) &&
-        !isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE))
+        (!baseOriginalE || baseOriginalE->getType().isConstQualified()))
       nonDiff = true;
 
     // If all arguments are constant literals, then this does not contribute to
@@ -1524,7 +1534,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
-    if (nonDiff) {
+    QualType returnType = FD->getReturnType();
+    bool needsReverseForw = utils::isNonConstReferenceType(returnType) ||
+                            returnType->isPointerType();
+
+    // FIXME: if the call is non-differentiable but needs a reverse forward
+    // call, we still don't need to generate the pullback. The only challenge is
+    // to refactor the code to be able to jump over the pullback part (maybe
+    // move some functionality to subroutines).
+    if (nonDiff && !needsReverseForw) {
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg);
         CallArgs.push_back(ArgDiff.getExpr());
@@ -1543,7 +1561,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
 
-    const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     // Method operators have a base like methods do but it's included in the
     // call arguments so we have to shift the indexing of call arguments.
     bool isMethodOperatorCall = MD && isa<CXXOperatorCallExpr>(CE);
@@ -1743,11 +1760,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               StmtDiff(Clone(dyn_cast<CXXOperatorCallExpr>(CE)->getArg(0)),
                        new (m_Context) CXXNullPtrLiteralExpr(ptrType, Loc));
         } else if (MD->isInstance()) {
-          const Expr* baseOriginalE = nullptr;
-          if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
-            baseOriginalE = MCE->getImplicitObjectArgument();
-          else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
-            baseOriginalE = OCE->getArg(0);
           if (baseOriginalE->isXValue()) {
             QualType dBaseTy =
                 getNonConstType(baseOriginalE->getType(), m_Context, m_Sema);
@@ -1950,8 +1962,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return StmtDiff(Clone(CE));
 
     Expr* call = nullptr;
-
-    QualType returnType = FD->getReturnType();
     // Stores the dx of the call arguments for the function to be derived
     for (std::size_t i = 0, e = CE->getNumArgs() - isMethodOperatorCall; i != e;
          ++i) {
@@ -1966,8 +1976,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (Expr* customForwardPassCE =
             BuildCallToCustomForwPassFn(CE, CallArgs, CallArgDx, baseExpr)) {
-      if (!utils::isNonConstReferenceType(returnType) &&
-          !returnType->isPointerType())
+      if (!needsReverseForw)
         return StmtDiff{customForwardPassCE};
       Expr* callRes = nullptr;
       if (isInsideLoop)
@@ -1981,8 +1990,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
       return StmtDiff(resValue, resAdjoint);
     }
-    if (utils::isNonConstReferenceType(returnType) ||
-        returnType->isPointerType()) {
+    if (needsReverseForw) {
       DiffRequest calleeFnForwPassReq;
       calleeFnForwPassReq.Function = FD;
       calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
