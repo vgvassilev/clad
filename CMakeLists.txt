@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.7.0)
 
+if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
+  project(clad)
+endif()
+
 enable_language(CXX)
 set(CMAKE_CXX_EXTENSIONS NO)
 
@@ -33,19 +37,17 @@ set(CMAKE_MODULE_PATH
   )
 
 # Define clad supported version of clang and llvm.
-set(CLANG_MIN_SUPPORTED 8.0)
-set(CLANG_MAX_SUPPORTED "18.1.x")
-set(CLANG_VERSION_UPPER_BOUND 18.2.0)
-set(LLVM_MIN_SUPPORTED 8.0)
-set(LLVM_MAX_SUPPORTED "18.1.x")
-set(LLVM_VERSION_UPPER_BOUND 18.2.0)
+set(CLANG_MIN_SUPPORTED 9.0)
+set(CLANG_MAX_SUPPORTED "19.2.x")
+set(CLANG_VERSION_UPPER_BOUND 19.2.0)
+set(LLVM_MIN_SUPPORTED 9.0)
+set(LLVM_MAX_SUPPORTED "19.2.x")
+set(LLVM_VERSION_UPPER_BOUND 19.2.0)
 
 # If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set(CLAD_BUILT_STANDALONE 1)
-
-  project(clad)
 
   if (NOT DEFINED Clang_DIR)
     set(Clang_DIR ${LLVM_DIR})
@@ -103,7 +105,11 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   endif()
 
   if (LLVM_PACKAGE_VERSION VERSION_LESS LLVM_MIN_SUPPORTED OR LLVM_PACKAGE_VERSION VERSION_GREATER_EQUAL LLVM_VERSION_UPPER_BOUND)
-    message(FATAL_ERROR "Found unsupported version: LLVM ${LLVM_PACKAGE_VERSION};\nPlease set LLVM_DIR pointing to the llvm version ${LLVM_MIN_SUPPORTED} to ${LLVM_MAX_SUPPORTED} build or installation folder")
+    set(diag_kind FATAL_ERROR)
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+      set(diag_kind WARNING)
+    endif()
+    message(${diag_kind} "Found unsupported version: LLVM ${LLVM_PACKAGE_VERSION};\nPlease set LLVM_DIR pointing to the llvm version ${LLVM_MIN_SUPPORTED} to ${LLVM_MAX_SUPPORTED} build or installation folder")
   endif()
 
   message(STATUS "Found supported version: LLVM ${LLVM_PACKAGE_VERSION}")
@@ -136,7 +142,11 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   endif()
 
   if (LLVM_PACKAGE_VERSION VERSION_LESS CLANG_MIN_SUPPORTED OR LLVM_PACKAGE_VERSION VERSION_GREATER_EQUAL CLANG_VERSION_UPPER_BOUND)
-    message(FATAL_ERROR "Found unsupported version: Clang ${LLVM_PACKAGE_VERSION};\nPlease set Clang_DIR pointing to the clang version ${CLANG_MIN_SUPPORTED} to ${CLANG_MAX_SUPPORTED} build or installation folder")
+    set(diag_kind FATAL_ERROR)
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+      set(diag_kind WARNING)
+    endif()
+    message(${diag_kind} "Found unsupported version: Clang ${LLVM_PACKAGE_VERSION};\nPlease set Clang_DIR pointing to the clang version ${CLANG_MIN_SUPPORTED} to ${CLANG_MAX_SUPPORTED} build or installation folder")
   endif()
 
   message(STATUS "Found supported version: Clang ${LLVM_PACKAGE_VERSION}")

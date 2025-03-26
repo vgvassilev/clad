@@ -11,6 +11,7 @@
 #include "clang/AST/Type.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <clang/AST/DeclCXX.h>
 #include <string>
 
 namespace clang {
@@ -222,6 +223,9 @@ namespace clad {
     /// is neither an array nor a pointer type, then simply returns `T`.
     clang::QualType GetValueType(clang::QualType T);
 
+    /// Returns the same type as GetValueType but without const qualifier.
+    clang::QualType GetNonConstValueType(clang::QualType T);
+
     /// Builds and returns the init expression to initialise `clad::array` and
     /// `clad::array_ref` from a constant array.
     ///
@@ -322,6 +326,8 @@ namespace clad {
     void GetInnermostReturnExpr(const clang::Expr* E,
                                 llvm::SmallVectorImpl<clang::Expr*>& Exprs);
 
+    clang::Expr* getZeroInit(clang::QualType T, clang::Sema& S);
+
     bool ContainsFunctionCalls(const clang::Stmt* E);
 
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
@@ -334,6 +340,12 @@ namespace clad {
 
     /// Returns true if QT is a non-const reference type.
     bool isNonConstReferenceType(clang::QualType QT);
+
+    bool isCopyable(const clang::CXXRecordDecl* RD);
+
+    bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
+                             const clang::ASTContext& C);
+
     } // namespace utils
     } // namespace clad
 

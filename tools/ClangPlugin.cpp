@@ -30,6 +30,7 @@
 #include "clad/Differentiator/Compatibility.h"
 
 #include <algorithm>
+#include <iostream> // for std::cerr
 
 using namespace clang;
 
@@ -74,7 +75,6 @@ namespace clad {
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
-#if CLANG_VERSION_MAJOR > 8
       FrontendOptions& Opts = CI.getFrontendOpts();
       // Find the path to clad.
       llvm::StringRef CladSoPath;
@@ -89,7 +89,6 @@ namespace clad {
         CodeGenOptions& CGOpts = CI.getCodeGenOpts();
         CGOpts.PassPlugins.push_back(CladSoPath.str());
       }
-#endif // CLANG_VERSION_MAJOR > 8
 
       // Add define for __CLAD__, so that CladFunction::CladFunction()
       // doesn't throw an error.
@@ -154,8 +153,47 @@ namespace clad {
         FinalizeTranslationUnit();
     }
 
+    static void printDerivative(clang::Decl* D, bool DeclarationOnly,
+                                const DifferentiationOptions& DO) {
+      clang::LangOptions LangOpts;
+      LangOpts.CPlusPlus = true;
+      clang::PrintingPolicy Policy(LangOpts);
+      Policy.Bool = true;
+
+      // if enabled, print source code of the derivatives
+      if (DO.DumpDerivedFn) {
+        D->print(llvm::outs(), Policy);
+        if (DeclarationOnly)
+          llvm::outs() << ";\n";
+      }
+
+      // if enabled, print ASTs of the derivatives
+      if (DO.DumpDerivedAST)
+        D->dumpColor();
+
+      // if enabled, print the derivatives in a file
+      if (DO.GenerateSourceFile) {
+        std::error_code err;
+        llvm::raw_fd_ostream f("Derivatives.cpp", err,
+                               CLAD_COMPAT_llvm_sys_fs_Append);
+        D->print(f, Policy);
+        if (DeclarationOnly)
+          f << ";\n";
+        f.flush();
+      }
+    }
+
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
+      if (request.Global) {
+        auto deriveResult = m_DerivativeBuilder->Derive(request);
+        auto* VDDiff = cast_or_null<VarDecl>(deriveResult.derivative);
+        ProcessTopLevelDecl(VDDiff);
+        // Dump the declaration if requested.
+        printDerivative(VDDiff, request.DeclarationOnly, m_DO);
+        return nullptr;
+      }
+
       // Required due to custom derivatives function templates that might be
       // used in the function that we need to derive.
       // FIXME: Remove the call to PerformPendingInstantiations().
@@ -164,11 +202,12 @@ namespace clad {
         request.Function = request.Function->getDefinition();
       request.UpdateDiffParamsInfo(m_CI.getSema());
       const FunctionDecl* FD = request.Function;
-      // set up printing policy
-      clang::LangOptions LangOpts;
-      LangOpts.CPlusPlus = true;
-      clang::PrintingPolicy Policy(LangOpts);
-      Policy.Bool = true;
+      ASTContext& C = S.getASTContext();
+      clang::PrintingPolicy Policy = C.getPrintingPolicy();
+#if CLANG_VERSION_MAJOR > 10
+      // Our testsuite expects 'a<b<c> >' rather than 'a<b<c>>'.
+      Policy.SplitTemplateClosers = true;
+#endif
       // if enabled, print source code of the original functions
       if (m_DO.DumpSourceFn) {
         FD->print(llvm::outs(), Policy);
@@ -183,11 +222,9 @@ namespace clad {
         std::string Err;
         if (llvm::sys::DynamicLibrary::
                 LoadLibraryPermanently(m_DO.CustomModelName.c_str(), &Err)) {
-          auto& SemaInst = m_CI.getSema();
-          unsigned diagID = SemaInst.Diags.getCustomDiagID(
+          unsigned diagID = S.Diags.getCustomDiagID(
               DiagnosticsEngine::Error, "Failed to load '%0', %1. Aborting.");
-          clang::Sema::SemaDiagnosticBuilder stream = SemaInst.Diag(noLoc,
-                                                                    diagID);
+          clang::Sema::SemaDiagnosticBuilder stream = S.Diag(noLoc, diagID);
           stream << m_DO.CustomModelName << Err;
           return nullptr;
         }
@@ -232,7 +269,7 @@ namespace clad {
                                 request.BaseFunctionName);
 
           auto deriveResult = m_DerivativeBuilder->Derive(request);
-          DerivativeDecl = deriveResult.derivative;
+          DerivativeDecl = cast_or_null<FunctionDecl>(deriveResult.derivative);
           OverloadedDerivativeDecl = deriveResult.overload;
           if (WantTiming)
             m_CTG.StopTimer();
@@ -244,28 +281,7 @@ namespace clad {
           m_DFC.Add(
               DerivedFnInfo(request, DerivativeDecl, OverloadedDerivativeDecl));
 
-          // if enabled, print source code of the derived functions
-          if (m_DO.DumpDerivedFn) {
-            DerivativeDecl->print(llvm::outs(), Policy);
-            if (request.DeclarationOnly)
-              llvm::outs() << ";\n";
-          }
-
-          // if enabled, print ASTs of the derived functions
-          if (m_DO.DumpDerivedAST) {
-            DerivativeDecl->dumpColor();
-          }
-
-          // if enabled, print the derivatives in a file.
-          if (m_DO.GenerateSourceFile) {
-            std::error_code err;
-            llvm::raw_fd_ostream f("Derivatives.cpp", err,
-                                   CLAD_COMPAT_llvm_sys_fs_Append);
-            DerivativeDecl->print(f, Policy);
-            if (request.DeclarationOnly)
-              f << ";\n";
-            f.flush();
-          }
+          printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
           if (OverloadedDerivativeDecl)
@@ -286,7 +302,7 @@ namespace clad {
           // decl or is contained in a namespace decl.
           // FIXME: We could get rid of this by prepending the produced
           // derivatives in CladPlugin::HandleTranslationUnitDecl
-          DeclContext* derivativeDC = DerivativeDecl->getDeclContext();
+          DeclContext* derivativeDC = DerivativeDecl->getLexicalDeclContext();
           bool isTUorND =
               derivativeDC->isTranslationUnit() || derivativeDC->isNamespace();
           if (isTUorND) {
@@ -399,7 +415,7 @@ namespace clad {
       DeclarationName Name = &C.Idents.get("clad");
       Sema &SemaR = m_CI.getSema();
       LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
-                     Sema::ForVisibleRedeclaration);
+                     CLAD_COMPAT_Sema_ForVisibleRedeclaration);
       SemaR.LookupQualifiedName(R, C.getTranslationUnitDecl(),
                                 /*allowBuiltinCreation*/ false);
       m_HasRuntime = !R.empty();
@@ -412,7 +428,7 @@ namespace clad {
       if (DO.EnableTBRAnalysis || DO.DisableTBRAnalysis)
         opts.EnableTBRAnalysis = DO.EnableTBRAnalysis && !DO.DisableTBRAnalysis;
       else
-        opts.EnableTBRAnalysis = false; // Default mode.
+        opts.EnableTBRAnalysis = true; // Default mode.
     }
 
     static void SetActivityAnalysisOptions(const DifferentiationOptions& DO,
@@ -444,7 +460,7 @@ namespace clad {
         // HandleTopLevelDecl can be called recursively in non-standard
         // setup for code generation.
         DiffRequest request = m_DiffRequestGraph.getNextToProcessNode();
-        while (request.Function) {
+        while (request.Function || request.Global) {
           m_DiffRequestGraph.setCurrentProcessingNode(request);
           ProcessDiffRequest(request);
           m_DiffRequestGraph.markCurrentNodeProcessed();
@@ -527,7 +543,7 @@ namespace clad {
 
       // Print the graph of the diff requests.
       llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
-      m_DiffRequestGraph.print();
+      m_DiffRequestGraph.dump();
 
       m_Multiplexer->PrintStats();
     }
@@ -573,9 +589,6 @@ X("clad", "Produces derivatives or arbitrary functions");
 static PragmaHandlerRegistry::Add<CladPragmaHandler>
     Y("clad", "Clad pragma directives handler.");
 
-#include "clang/Basic/Version.h" // for CLANG_VERSION_MAJOR
-#if CLANG_VERSION_MAJOR > 8
-
 // Attach the backend plugin.
 
 #include "ClangBackendPlugin.h"
@@ -589,5 +602,3 @@ llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, BACKEND_PLUGIN_NAME, BACKEND_PLUGIN_VERSION,
           clad::ClangBackendPluginPass::registerCallbacks};
 }
-
-#endif // CLANG_VERSION_MAJOR

@@ -7,6 +7,9 @@
 
 #include "clang/AST/Decl.h"
 
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/SmallVector.h>
+
 using namespace clang;
 
 namespace clad {
@@ -281,25 +284,23 @@ void ErrorEstimationHandler::ActBeforeCreatingDerivedFnParamTypes(
 
 void ErrorEstimationHandler::ActAfterCreatingDerivedFnParamTypes(
     llvm::SmallVectorImpl<QualType>& paramTypes) {
-  m_ParamTypes = &paramTypes;
   // If we are performing error estimation, our gradient function
   // will have an extra argument which will hold the final error value
-  paramTypes.push_back(
-      m_RMV->m_Context.getLValueReferenceType(m_RMV->m_Context.DoubleTy));
+  ASTContext& C = m_RMV->m_Context;
+  paramTypes.push_back(C.getLValueReferenceType(C.DoubleTy));
 }
 
 void ErrorEstimationHandler::ActAfterCreatingDerivedFnParams(
     llvm::SmallVectorImpl<ParmVarDecl*>& params) {
   m_Params = &params;
   // If in error estimation mode, create the error parameter
-  ASTContext& context = m_RMV->m_Context;
+  ASTContext& C = m_RMV->m_Context;
   // Repeat the above but for the error ouput var "_final_error"
+  QualType LastParamTy = C.getLValueReferenceType(C.DoubleTy);
   ParmVarDecl* errorVarDecl = ParmVarDecl::Create(
-      context, m_RMV->m_Derivative, noLoc, noLoc,
-      &context.Idents.get("_final_error"), m_ParamTypes->back(),
-      context.getTrivialTypeSourceInfo(m_ParamTypes->back(), noLoc),
-      params.front()->getStorageClass(),
-      /*DefArg=*/nullptr);
+      C, m_RMV->m_Derivative, noLoc, noLoc, &C.Idents.get("_final_error"),
+      LastParamTy, C.getTrivialTypeSourceInfo(LastParamTy, noLoc),
+      params.front()->getStorageClass(), /*DefArg=*/nullptr);
   params.push_back(errorVarDecl);
   m_RMV->m_Sema.PushOnScopeChains(params.back(), m_RMV->getCurrentScope(),
                                   /*AddToContext=*/false);
@@ -341,9 +342,8 @@ void ErrorEstimationHandler::ActAfterProcessingArraySubscriptExpr(
         return;
 
       // We only need to know the size of independent arrays.
-      auto& indVars = m_RMV->m_IndependentVars;
-      auto* it = std::find(indVars.begin(), indVars.end(), VD);
-      if (it == indVars.end())
+      auto params = m_RMV->m_Derivative->parameters();
+      if (llvm::find(params, VD) == params.end())
         return;
 
       // Construct `var_size = max(var_size, idx);`
@@ -353,8 +353,8 @@ void ErrorEstimationHandler::ActAfterProcessingArraySubscriptExpr(
       idx =
           m_RMV->m_Sema.ImpCastExprToType(idx, size->getType(), CK_IntegralCast)
               .get();
-      llvm::SmallVector<clang::Expr*, 2> params{size, idx};
-      Expr* extendedSize = m_EstModel->GetFunctionCall("max", "std", params);
+      llvm::SmallVector<clang::Expr*, 2> args{size, idx};
+      Expr* extendedSize = m_EstModel->GetFunctionCall("max", "std", args);
       size = m_RMV->Clone(size);
       Stmt* updateSize = m_RMV->BuildOp(BO_Assign, size, extendedSize);
       m_RMV->addToCurrentBlock(updateSize, direction::reverse);

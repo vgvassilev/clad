@@ -1,6 +1,6 @@
-// RUN: %cladclang %s -I%S/../../include -oReverseLoops.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oReverseLoops.out 2>&1 | %filecheck %s
 // RUN: ./ReverseLoops.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oReverseLoops.out
+// RUN: %cladclang %s -I%S/../../include -oReverseLoops.out
 // RUN: ./ReverseLoops.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
@@ -321,7 +321,12 @@ double f_sum(double *p, int n) {
 // CHECK-NEXT: }
 
 double sq(double x) { return x * x; }
-//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x);
+//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
+//CHECK-NEXT:       {
+//CHECK-NEXT:           *_d_x += _d_y * x;
+//CHECK-NEXT:           *_d_x += x * _d_y;
+//CHECK-NEXT:       }
+//CHECK-NEXT:   }
 
 double f_sum_squares(double *p, int n) {
   double s = 0;
@@ -363,7 +368,7 @@ double f_sum_squares(double *p, int n) {
 // CHECK-NEXT: }
 
 // log-likelihood of n-dimensional gaussian distribution with covariance sigma^2*I
-double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
+double f_log_gaus(const double* x, double* p /*means*/, double n, double sigma) {
   double power = 0;
   for (int i = 0; i < n; i++)
     power += sq(x[i] - p[i]);
@@ -371,7 +376,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
   double gaus = 1./std::sqrt(std::pow(2*M_PI, n) * sigma) * std::exp(power);
   return std::log(gaus);
 }
-// CHECK: void f_log_gaus_grad_1(double *x, double *p, double n, double sigma, double *_d_p) {
+// CHECK: void f_log_gaus_grad_1(const double *x, double *p, double n, double sigma, double *_d_p) {
 // CHECK-NEXT:     double _d_n = 0.;
 // CHECK-NEXT:     double _d_sigma = 0.;
 // CHECK-NEXT:     int _d_i = 0;
@@ -1773,7 +1778,7 @@ double fn21(double x) {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, arr) , arr = {1, x, 2};
+// CHECK-NEXT:         clad::push(_t1, std::move(arr)) , arr = {1, x, 2};
 // CHECK-NEXT:         clad::push(_t2, res);
 // CHECK-NEXT:         res += arr[0] + arr[1];
 // CHECK-NEXT:     }
@@ -1825,7 +1830,7 @@ double fn22(double param) {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, arr) , arr = {1.};
+// CHECK-NEXT:         clad::push(_t1, std::move(arr)) , arr = {1.};
 // CHECK-NEXT:         clad::push(_t2, out);
 // CHECK-NEXT:         clad::push(_t3, arr[0]);
 // CHECK-NEXT:         out += clad::back(_t3) * param;
@@ -3351,10 +3356,3 @@ int main() {
   TEST_2(fn40, 2, 3); // CHECK-EXEC: {14.00, 0.00}
   TEST_2(fn41, 2, 3); // CHECK-EXEC: {1.00, 0.00}
 }
-
-//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
-//CHECK-NEXT:       {
-//CHECK-NEXT:           *_d_x += _d_y * x;
-//CHECK-NEXT:           *_d_x += x * _d_y;
-//CHECK-NEXT:       }
-//CHECK-NEXT:   }

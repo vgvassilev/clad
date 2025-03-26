@@ -126,7 +126,7 @@ namespace utils {
     DECLARE_CLONE_FN(SubstNonTypeTemplateParmExpr)
     DECLARE_CLONE_FN(CXXScalarValueInitExpr)
     DECLARE_CLONE_FN(ConstantExpr)
-    CLAD_COMPAT_8_DECLARE_CLONE_FN(ValueStmt)
+    DECLARE_CLONE_FN(ValueStmt)
 
     clang::Stmt* VisitStmt(clang::Stmt*);
   };

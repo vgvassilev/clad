@@ -1,6 +1,6 @@
-// RUN: %cladclang %s -I%S/../../include -oInterface.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oInterface.out 2>&1 | %filecheck %s
 // RUN: ./Interface.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oInterface.out
+// RUN: %cladclang %s -I%S/../../include -oInterface.out
 // RUN: ./Interface.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
@@ -14,13 +14,13 @@ struct array_ref_interface {
   std::size_t size;
 };
 
-Double_t f(Double_t* x, Double_t* p) {
+Double_t f(const Double_t* x, Double_t* p) {
   return p[0] + x[0] * p[1];
 }
 
-void f_grad_1(Double_t* x, Double_t* p, Double_t *_d_p);
+void f_grad_1(const Double_t* x, Double_t* p, Double_t *_d_p);
 
-// CHECK: void f_grad_1(Double_t *x, Double_t *p, Double_t *_d_p) {
+// CHECK: void f_grad_1(const Double_t *x, Double_t *p, Double_t *_d_p) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_p[0] += 1;
 // CHECK-NEXT:         _d_p[1] += x[0] * 1;

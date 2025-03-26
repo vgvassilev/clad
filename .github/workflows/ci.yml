@@ -24,11 +24,6 @@ jobs:
       matrix:
 
         include:
-          - name: osx14-arm-clang-runtime13
-            os: macos-14
-            compiler: clang
-            clang-runtime: '13'
-
           - name: osx14-arm-clang-runtime14
             os: macos-14
             compiler: clang
@@ -54,15 +49,15 @@ jobs:
             compiler: clang
             clang-runtime: '18'
 
+          - name: osx14-arm-clang-runtime19
+            os: macos-14
+            compiler: clang
+            clang-runtime: '19'
+
           - name: osx13-x86-clang-runtime12
             os: macos-13
             compiler: clang
             clang-runtime: '12'
-
-          - name: osx13-x86-clang-runtime13
-            os: macos-13
-            compiler: clang
-            clang-runtime: '13'
 
           - name: osx13-x86-clang-runtime14
             os: macos-13
@@ -88,6 +83,11 @@ jobs:
             os: macos-13
             compiler: clang
             clang-runtime: '18'
+
+          - name: osx13-x86-clang-runtime19
+            os: macos-13
+            compiler: clang
+            clang-runtime: '19'
 
           - name: win2022-msvc-runtime14
             os: windows-2022
@@ -117,8 +117,13 @@ jobs:
           - name: win2022-msvc-runtime18-debug
             os: windows-2022
             compiler: clang
-            clang-runtime: '18'
+            clang-runtime: '20'
             debug_build: true
+
+          - name: win2022-msvc-runtime19
+            os: windows-2022
+            compiler: msvc
+            clang-runtime: '19'
 
           - name: ubu22-clang15-runtime16-debug
             os: ubuntu-22.04
@@ -484,12 +489,33 @@ jobs:
             compiler: clang-16
             clang-runtime: '18'
 
-          # Оld, still supported versions
+          - name: ubu22-clang17-runtime19
+            os: ubuntu-22.04
+            compiler: clang-17
+            clang-runtime: '19'
 
-          - name: ubu20-gcc9-runtime8
-            os: ubuntu-20.04
-            compiler: gcc-9
-            clang-runtime: '8'
+          - name: ubu24-arm-clang16-runtime17
+            os: ubuntu-24.04-arm
+            compiler: clang-16
+            clang-runtime: '17'
+
+          - name: ubu24-arm-clang16-runtime17-shared-libs
+            os: ubuntu-24.04-arm
+            compiler: clang-16
+            extra_cmake_options: '-DBUILD_SHARED_LIBS=On'
+            clang-runtime: '17'
+
+          - name: ubu24-arm-clang16-runtime17-kokkos
+            os: ubuntu-24.04-arm
+            compiler: clang-16
+            clang-runtime: '17'
+            extra_packages: 'libtrilinos-kokkos-dev ninja-build'
+            extra_cmake_options: '-G Ninja'
+
+          - name: ubu24-arm-clang16-runtime18
+            os: ubuntu-24.04-arm
+            compiler: clang-16
+            clang-runtime: '18'
 
     steps:
     - uses: actions/checkout@v4
@@ -573,12 +599,22 @@ jobs:
     - name: Setup Ubuntu apt sources
       if: runner.os == 'Linux'
       run: |
-        if ! sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev ; then
-          curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          os_codename="`cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2`"
-          echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
-          sudo apt update
-        fi
+        export ARCHITECHURE=$(uname -m)
+        
+        if [[ "$ARCHITECHURE" == "x86_64" ]]; then
+          if ! sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev ; then
+            curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+            os_codename="`cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2`"
+            echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
+            sudo apt update
+          fi
+        else
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/llvm-snapshot.gpg
+          sudo chmod a+r /etc/apt/keyrings/llvm-snapshot.gpg
+          echo   "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/"$(. /etc/os-release && echo "$VERSION_CODENAME")"/ llvm-toolchain-"$(. /etc/os-release && echo "$VERSION_CODENAME")" main" | sudo tee /etc/apt/sources.list.d/llvm-snapshot.list > /dev/null
+          echo   "deb-src [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/"$(. /etc/os-release && echo "$VERSION_CODENAME")"/ llvm-toolchain-"$(. /etc/os-release && echo "$VERSION_CODENAME")" main" | sudo tee -a /etc/apt/sources.list.d/llvm-snapshot.list > /dev/null
+          cat /etc/apt/sources.list.d/llvm-snapshot.list
+        fi        
         sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev \
                          llvm-${{ matrix.clang-runtime }}-tools \
                          clang-${{ matrix.clang-runtime }} \
@@ -748,7 +784,7 @@ jobs:
     - name: Build LLVM/Cling on Windows systems if the cache is invalid
       if: ${{ (matrix.debug_build == true) && runner.os == 'windows' && steps.cache.outputs.cache-hit != 'true' }}
       run: |
-        git clone --depth=1 -b llvm-export-api-18.0 https://github.com/fsfod/llvm-project.git
+        git clone --depth=1 -b llvm-export-api-20.0 https://github.com/fsfod/llvm-project.git
         cd llvm-project
         cmake -S ./llvm/ -B build -G Ninja                `
               -DCMAKE_ASM_MASM_FLAGS="-m64"     `
@@ -797,13 +833,6 @@ jobs:
       run: |
         UNIX_DISTRO=$(lsb_release -rs)
         PATH_TO_LLVM_BUILD=/usr/lib/llvm-${{ matrix.clang-runtime }}/
-        # llvm-8-tools is broken as it depends on python2.7 we use FileCheck from llvm-7-tools
-        if [[ '${{ matrix.clang-runtime }}' == '8' ]]; then
-          if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
-            sudo apt install -y llvm-9-dev llvm-9-tools
-            sudo ln -s /usr/lib/llvm-9/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-          fi
-        fi
         # Add -H to silence 'The directory '/home/..../pip/http' or its parent
         # directory is not owned by the current user and the cache has been disabled.
         pip3 install lit # LLVM lit is not part of the llvm releases...

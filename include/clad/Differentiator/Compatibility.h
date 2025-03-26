@@ -65,13 +65,21 @@ static inline Stmt* UnresolvedLookupExpr_Create(
                                       // OverloadExpr, so we are safe.
                                       Args, Begin, End);
 
-#else
+#elif CLANG_VERSION_MAJOR == 18
   bool KnownDependent = false;
   return UnresolvedLookupExpr::Create(Ctx, NamingClass, QualifierLoc,
                                       TemplateKWLoc, NameInfo, RequiresADL,
                                       // They get copied again by
                                       // OverloadExpr, so we are safe.
                                       Args, Begin, End, KnownDependent);
+#else
+  bool KnownDependent = false;
+  bool KnownInstantiationDependent = false;
+  return UnresolvedLookupExpr::Create(
+      Ctx, NamingClass, QualifierLoc, TemplateKWLoc, NameInfo, RequiresADL,
+      // They get copied again by
+      // OverloadExpr, so we are safe.
+      Args, Begin, End, KnownDependent, KnownInstantiationDependent);
 #endif
 }
 
@@ -309,46 +317,11 @@ static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
 #endif
 }
 
-// Compatibility helper function for getConstexprKind(). Clang 9
-
 template<class T>
 static inline T GetResult(ActionResult<T> Res)
 {
    return Res.get();
 }
-
-
-// Compatibility helper function for getConstexprKind(). Clang 9 define new method
-// ConstexprKind getConstexprKing() and old bool isConstexpr().
-
-#if CLANG_VERSION_MAJOR < 9
-static inline bool Function_GetConstexprKind(const FunctionDecl* F)
-{
-   return F->isConstexpr();
-}
-#elif CLANG_VERSION_MAJOR >= 9
-static inline ConstexprSpecKind Function_GetConstexprKind(const FunctionDecl* F)
-{
-   return F->getConstexprKind();
-}
-#endif
-
-
-// Clang 9 add one extra param (Ctx) in some constructors.
-
-#if CLANG_VERSION_MAJOR < 9
-   #define CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR) /**/
-#elif CLANG_VERSION_MAJOR >= 9
-   #define CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR) ,NOUR
-#endif
-
-
-
-// Clang 9 change PragmaIntroducerKind ===> PragmaIntroducer.
-
-#if CLANG_VERSION_MAJOR < 9
-   #define PragmaIntroducer PragmaIntroducerKind
-#endif
 
 // Clang 10 change add new param in getConstantArrayType.
 // clang 18 clang::ArrayType::ArraySizeModifier became clang::ArraySizeModifier
@@ -449,22 +422,6 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
    #define CLAD_COMPAT_CLANG12_LR_ExtraParams(Node) ,Node->getLParenLoc(),Node->getRParenLoc()
 #endif
 
-/// Clang < 9, do not provide `Sema::BuildCXXThisExpr` function.
-static inline CXXThisExpr* Sema_BuildCXXThisExpr(Sema& SemaRef,
-                                                 const CXXMethodDecl* method) {
-  auto thisType = method->getThisType();
-  SourceLocation noLoc;
-#if CLANG_VERSION_MAJOR >= 9
-  return cast<CXXThisExpr>(
-      SemaRef.BuildCXXThisExpr(noLoc, thisType, /*IsImplicit=*/true));
-#elif CLANG_VERSION_MAJOR < 9
-  auto thisExpr = new (SemaRef.getASTContext())
-      CXXThisExpr(noLoc, thisType, /*IsImplicit=*/true);
-  SemaRef.CheckCXXThisCapture(thisExpr->getExprLoc());
-  return thisExpr;
-#endif
-}
-
 /// clang >= 11 added more source locations parameters in `Sema::ActOnWhileStmt`
 static inline StmtResult
 Sema_ActOnWhileStmt(Sema& SemaRef, Sema::ConditionResult cond, Stmt* body) {
@@ -492,16 +449,12 @@ Sema_ActOnStartOfSwitchStmt(Sema& SemaRef, Stmt* initStmt,
 #endif
 }
 
-/// Clang 9 added an extra parameter for result storage kind in
-/// ConstantExpr::Create 
 /// Clang 11 added an extra parameter for immediate invocation in
 /// ConstantExpr::Create
-#if CLANG_VERSION_MAJOR < 9
-#define CLAD_COMPAT_ConstantExpr_Create_ExtraParams
-#elif CLANG_VERSION_MAJOR < 11
+#if CLANG_VERSION_MAJOR < 11
 #define CLAD_COMPAT_ConstantExpr_Create_ExtraParams\
   , Node->getResultStorageKind()
-#elif CLANG_VERSION_MAJOR >= 11
+#else
 #define CLAD_COMPAT_ConstantExpr_Create_ExtraParams\
   , Node->getResultStorageKind(), Node->isImmediateInvocation()
 #endif
@@ -518,21 +471,11 @@ Sema_ActOnStartOfSwitchStmt(Sema& SemaRef, Stmt* initStmt,
 #define CLAD_COMPAT_llvm_sys_fs_Append llvm::sys::fs::OF_Append
 #endif
 
-#if CLANG_VERSION_MAJOR > 8
-static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* MD) {
-   return MD->getMethodQualifiers();
-}
-#elif CLANG_VERSION_MAJOR == 8
-static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* MD) {
-   return MD->getTypeQualifiers();
-}
-#endif
-
-// Clone declarations. `ValueStmt` node is only available after clang 8.
-#if CLANG_VERSION_MAJOR <= 8
-#define CLAD_COMPAT_8_DECLARE_CLONE_FN(ValueStmt) /**/
-#elif CLANG_VERSION_MAJOR > 8
-#define CLAD_COMPAT_8_DECLARE_CLONE_FN(ValueStmt) DECLARE_CLONE_FN(ValueStmt)
+#if CLANG_VERSION_MAJOR < 19
+#define CLAD_COMPAT_Sema_ForVisibleRedeclaration Sema::ForVisibleRedeclaration
+#else
+#define CLAD_COMPAT_Sema_ForVisibleRedeclaration                               \
+  RedeclarationKind::ForVisibleRedeclaration
 #endif
 
 #if CLANG_VERSION_MAJOR <= 13
@@ -547,18 +490,16 @@ static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* 
 #define CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node) Node->getStatementKind()
 #endif
 
-#if CLANG_VERSION_MAJOR < 9
+#if CLANG_VERSION_MAJOR < 19
 static inline MemberExpr* BuildMemberExpr(
     Sema& semaRef, Expr* base, bool isArrow, SourceLocation opLoc,
     const CXXScopeSpec* SS, SourceLocation templateKWLoc, ValueDecl* member,
     DeclAccessPair foundDecl, bool hadMultipleCandidates,
     const DeclarationNameInfo& memberNameInfo, QualType ty, ExprValueKind VK,
     ExprObjectKind OK, const TemplateArgumentListInfo* templateArgs = nullptr) {
-  auto& C = semaRef.getASTContext();
-  auto NNSLoc = SS->getWithLocInContext(C);
-  return MemberExpr::Create(C, base, isArrow, opLoc, NNSLoc, templateKWLoc,
-                            member, foundDecl, memberNameInfo, templateArgs, ty,
-                            VK, OK);
+  return semaRef.BuildMemberExpr(base, isArrow, opLoc, SS, templateKWLoc,
+                                 member, foundDecl, hadMultipleCandidates,
+                                 memberNameInfo, ty, VK, OK, templateArgs);
 }
 #else
 static inline MemberExpr* BuildMemberExpr(
@@ -567,7 +508,10 @@ static inline MemberExpr* BuildMemberExpr(
     DeclAccessPair foundDecl, bool hadMultipleCandidates,
     const DeclarationNameInfo& memberNameInfo, QualType ty, ExprValueKind VK,
     ExprObjectKind OK, const TemplateArgumentListInfo* templateArgs = nullptr) {
-  return semaRef.BuildMemberExpr(base, isArrow, opLoc, SS, templateKWLoc,
+  NestedNameSpecifierLoc NNS =
+      SS ? SS->getWithLocInContext(semaRef.getASTContext())
+         : NestedNameSpecifierLoc();
+  return semaRef.BuildMemberExpr(base, isArrow, opLoc, NNS, templateKWLoc,
                                  member, foundDecl, hadMultipleCandidates,
                                  memberNameInfo, ty, VK, OK, templateArgs);
 }
@@ -583,17 +527,6 @@ static inline Expr* GetSubExpr(const MaterializeTemporaryExpr* MTE) {
 }
 #endif
 
-#if CLANG_VERSION_MAJOR < 9
-static inline QualType
-CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
-  ASTContext& C = semaRef.getASTContext();
-  const CXXRecordDecl* RD = MD->getParent();
-  auto RDType = RD->getTypeForDecl();
-  auto thisObjectQType = C.getQualifiedType(
-      RDType, clad_compat::CXXMethodDecl_getMethodQualifiers(MD));
-  return thisObjectQType;
-}
-#else
 static inline QualType
 CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
 // clang-18 renamed getThisObjectType to getFunctionObjectParameterType
@@ -603,7 +536,6 @@ CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
   return MD->getFunctionObjectParameterType();
 #endif
 }
-#endif
 
 #if CLANG_VERSION_MAJOR < 12
 #define CLAD_COMPAT_SubstNonTypeTemplateParmExpr_isReferenceParameter_ExtraParam( \
@@ -650,17 +582,7 @@ template <typename T> T& llvm_Optional_GetValue(std::optional<T>& opt) {
 }
 #endif
 
-#if CLANG_VERSION_MAJOR < 9
-static inline Expr* ArraySize_None() { return nullptr; }
-#else
-static inline llvm_Optional<Expr*> ArraySize_None() {
-  return llvm_Optional<Expr*>();
-}
-#endif
-
-#if CLANG_VERSION_MAJOR < 9
-static inline const Expr* ArraySize_GetValue(const Expr* val) { return val; }
-#elif CLANG_VERSION_MAJOR < 16
+#if CLANG_VERSION_MAJOR < 16
 static inline const Expr*
 ArraySize_GetValue(const llvm::Optional<const Expr*>& opt) {
   return opt.getValue();
@@ -736,17 +658,6 @@ static inline const DeclSpec& Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
 #elif CLANG_VERSION_MAJOR >= 17
 #define CLAD_COMPAT_CLANG17_IsTransparent(Node) \
   ,Node->isTransparent()
-#endif
-
-// Clang 9 above added isa_and_nonnull.
-#if CLANG_VERSION_MAJOR < 9
-template <typename X, typename Y> bool isa_and_nonnull(const Y* Val) {
-  return Val && isa<X>(Val);
-}
-#else
-template <typename X, typename Y> bool isa_and_nonnull(const Y* Val) {
-  return llvm::isa_and_nonnull<X>(Val);
-}
 #endif
 
 } // namespace clad_compat

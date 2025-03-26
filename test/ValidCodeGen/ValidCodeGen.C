@@ -1,6 +1,7 @@
-// RUN: %cladclang -std=c++14 %s -I%S/../../include -oValidCodeGen.out 2>&1 | %filecheck %s
+// FIXME: Add `-Xclang -verify` once #1294 is fixed
+// RUN: %cladclang -std=c++14 -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oValidCodeGen.out 2>&1 | %filecheck %s
 // RUN: ./ValidCodeGen.out | %filecheck_exec %s
-// RUN: %cladclang -std=c++14 -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oValidCodeGenWithTBR.out
+// RUN: %cladclang -std=c++14 %s -I%S/../../include -oValidCodeGenWithTBR.out
 // RUN: ./ValidCodeGenWithTBR.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -10,7 +11,7 @@
 #include "../PrintOverloads.h"
 
 namespace TN {
-    int coefficient = 3;
+    int coefficient = 3; // FIXME: Add once #1294 is fixed: `expected-warning {{The gradient utilizes a global variable 'coefficient'. Please make sure to properly reset 'coefficient' before re-running the gradient.}}`
 
     template <typename T>
     struct Test2 {
@@ -57,12 +58,22 @@ int main() {
 //CHECK-NEXT:         return _d_x * TN::coefficient + x * 0;
 //CHECK-NEXT:     }
 
+//  FIXME: Introduce once #1294 is fixed.
+//  int _d_coefficient = 0;
+//  void fn_grad(double x, double *_d_x) {
+//      _d_coefficient = 0;
+//      {
+//          *_d_x += 1 * TN::coefficient;
+//          _d_coefficient += x * 1;
+//      }
+//  }
+
 //CHECK:     void fn_grad(double x, double *_d_x) {
 //CHECK-NEXT:         *_d_x += 1 * TN::coefficient;
 //CHECK-NEXT:     }
 
 //CHECK:     void fn2_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:         TN::Test2<double> _d_t({});
+//CHECK-NEXT:         TN::Test2<double> _d_t = {};
 //CHECK-NEXT:         TN::Test2<double> t;
 //CHECK-NEXT:         TN::Test2<double> _t0 = t;
 //CHECK-NEXT:         double _d_q = 0.;

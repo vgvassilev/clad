@@ -2,9 +2,11 @@
 #define CLAD_STL_BUILTINS_H
 
 #include <array>
+#include <clad/Differentiator/Array.h>
 #include <clad/Differentiator/BuiltinDerivatives.h>
 #include <clad/Differentiator/FunctionTraits.h>
 #include <initializer_list>
+#include <memory>
 #include <tuple>
 #include <vector>
 
@@ -452,25 +454,37 @@ void at_pullback(::std::vector<T>* vec,
 }
 
 template <typename T, typename S, typename U>
-::clad::ValueAndAdjoint<::std::vector<T>, ::std::vector<T>>
-constructor_reverse_forw(::clad::ConstructorReverseForwTag<::std::vector<T>>,
-                         S count, U val,
-                         typename ::std::vector<T>::allocator_type alloc,
-                         S d_count, U d_val,
-                         typename ::std::vector<T>::allocator_type d_alloc) {
-  ::std::vector<T> v(count, val);
-  ::std::vector<T> d_v(count, 0);
-  return {v, d_v};
-}
-
-template <typename T, typename S, typename U>
-void constructor_pullback(::std::vector<T>* v, S count, U val,
+void constructor_pullback(S count, U val,
                           typename ::std::vector<T>::allocator_type alloc,
-                          ::std::vector<T>* d_v, S* d_count, U* d_val,
+                          ::std::vector<T>* d_this, S* d_count, U* d_val,
                           typename ::std::vector<T>::allocator_type* d_alloc) {
   for (unsigned i = 0; i < count; ++i)
-    *d_val += (*d_v)[i];
-  d_v->clear();
+    *d_val += (*d_this)[i];
+  d_this->clear();
+}
+
+// A specialization for std::initializer_list (which is replaced with
+// clad::array).
+template <typename T>
+void constructor_pullback(
+    clad::array<T> init, const typename ::std::vector<T>::allocator_type& alloc,
+    ::std::vector<T>* d_this, clad::array<T>* d_init,
+    const typename ::std::vector<T>::allocator_type* d_alloc) {
+  for (unsigned i = 0; i < init.size(); ++i) {
+    (*d_init)[i] += (*d_this)[i];
+    (*d_this)[i] = 0;
+  }
+}
+
+// A specialization for std::initializer_list (which is replaced with
+// clad::array).
+template <typename T>
+void constructor_pullback(clad::array<T> init, ::std::vector<T>* d_this,
+                          clad::array<T>* d_init) {
+  for (unsigned i = 0; i < init.size(); ++i) {
+    (*d_init)[i] += (*d_this)[i];
+    (*d_this)[i] = 0;
+  }
 }
 
 template <typename T, typename U, typename dU>
@@ -585,10 +599,11 @@ template <typename T, ::std::size_t N, typename U>
 void size_pullback(::std::array<T, N>* /*a*/, U /*d_y*/,
                    ::std::array<T, N>* /*d_a*/) noexcept {}
 template <typename T, ::std::size_t N>
-void constructor_pullback(::std::array<T, N>* a, const ::std::array<T, N>& arr,
-                          ::std::array<T, N>* d_a, ::std::array<T, N>* d_arr) {
+void constructor_pullback(const ::std::array<T, N>& arr,
+                          ::std::array<T, N>* d_this,
+                          ::std::array<T, N>* d_arr) {
   for (size_t i = 0; i < N; ++i)
-    (*d_arr)[i] += (*d_a)[i];
+    (*d_arr)[i] += (*d_this)[i];
 }
 
 // tuple forward mode
@@ -602,6 +617,26 @@ operator_equal_pushforward(::std::tuple<Args1...>* tu,
   ::std::tuple<Args1...> t1 = (*tu = in);
   ::std::tuple<Args1...> t2 = (*d_tu = d_in);
   return {t1, t2};
+}
+
+// std::unique_ptr<T> custom derivatives...
+template <typename T, typename U>
+clad::ValueAndAdjoint<::std::unique_ptr<T>, ::std::unique_ptr<T>>
+constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::unique_ptr<T>>,
+                         U* p, U* d_p) {
+  return {::std::unique_ptr<T>(p), ::std::unique_ptr<T>(d_p)};
+}
+
+template <typename T>
+clad::ValueAndAdjoint<T&, T&>
+operator_star_reverse_forw(::std::unique_ptr<T>* u, ::std::unique_ptr<T>* d_u) {
+  return {**u, **d_u};
+}
+
+template <typename T, typename U>
+void operator_star_pullback(::std::unique_ptr<T>* u, U pullback,
+                            ::std::unique_ptr<T>* d_u) {
+  **d_u += pullback;
 }
 
 } // namespace class_functions

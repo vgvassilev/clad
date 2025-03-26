@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oReverseMode.out | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oReverseMode.out | %filecheck %s
 // RUN: ./ReverseMode.out | %filecheck_exec %s
 // REQUIRES: Enzyme
 

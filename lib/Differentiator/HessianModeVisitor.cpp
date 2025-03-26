@@ -314,7 +314,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
         clad_compat::makeArrayRef(params.data(), params.size());
     hessianFD->setParams(paramsRef);
-    Expr* m_Result = BuildDeclRef(params.back());
+    Expr* Result = BuildDeclRef(params.back());
     std::vector<Stmt*> CompStmtSave;
 
     beginScope(Scope::FnScope | Scope::DeclScope);
@@ -356,9 +356,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
           // variable is of `const` type. This behaviour is consistent with the built-in
           // scalar numerical types as well.
           thisObjectType.removeLocalConst();
-          auto dThisVD = BuildVarDecl(thisObjectType, "_d_this",
-                                      /*Init=*/nullptr, false, /*TSI=*/nullptr,
-                                      VarDecl::InitializationStyle::CallInit);
+          VarDecl* dThisVD = BuildVarDecl(thisObjectType, "_d_this");
           CompStmtSave.push_back(BuildDeclStmt(dThisVD));
           Expr* dThisExpr = BuildDeclRef(dThisVD);
           DeclRefToParams.push_back(
@@ -377,7 +375,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
             IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
         // Create a assignment expression to store the value of call expression
         // into the diagonalHessianVector with index HessianMatrixStartIndex.
-        Expr* SliceExprLHS = BuildOp(BO_Add, m_Result, OffsetArg);
+        Expr* SliceExprLHS = BuildOp(BO_Add, Result, OffsetArg);
         Expr* DerefExpr = BuildOp(UO_Deref, BuildParens(SliceExprLHS));
         Expr* AssignExpr = BuildOp(BO_Assign, DerefExpr, call);
         CompStmtSave.push_back(AssignExpr);
@@ -392,7 +390,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
           Expr* OffsetArg =
               IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
           // Create the hessianMatrix + OffsetArg expression.
-          Expr* SliceExpr = BuildOp(BO_Add, m_Result, OffsetArg);
+          Expr* SliceExpr = BuildOp(BO_Add, Result, OffsetArg);
 
           DeclRefToParams.push_back(SliceExpr);
           columnIndex += indArgSize;

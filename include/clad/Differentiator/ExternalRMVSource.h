@@ -52,14 +52,6 @@ public:
   /// function.
   virtual void ActOnEndOfDerive() {}
 
-  /// This is called just after differentiation arguments are parsed
-  /// in `ReverseModeVisitor::Derive`.
-  ///
-  ///\param[in] request differentiation request
-  ///\param[in] args differentiation args
-  virtual void ActAfterParsingDiffArgs(const DiffRequest& request,
-                                       DiffParams& args) {}
-
   /// This is called after processing array subscript expressions.
   virtual void
   ActAfterProcessingArraySubscriptExpr(const clang::Expr* revArrSub) {}

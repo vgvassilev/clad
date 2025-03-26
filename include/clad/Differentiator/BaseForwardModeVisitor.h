@@ -8,6 +8,8 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
 
+#include "llvm/ADT/SmallVector.h"
+
 #include <array>
 #include <stack>
 #include <unordered_map>
@@ -35,13 +37,7 @@ public:
   ///
   DerivativeAndOverload Derive();
 
-  DerivativeAndOverload DerivePushforward();
-
-  /// Returns the return type for the pushforward function of the function
-  /// `m_DiffReq->Function`.
-  clang::QualType ComputePushforwardFnReturnType();
-
-  virtual void ExecuteInsidePushforwardFunctionBlock();
+  virtual void ExecuteInsidePushforwardFunctionBlock() {}
 
   static bool IsDifferentiableType(clang::QualType T);
 
@@ -149,6 +145,21 @@ protected:
       const clang::CXXConstructExpr* CE,
       llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
       llvm::SmallVectorImpl<clang::Expr*>& derivedArgs);
+
+private:
+  /// Computes the return type of the derivative in `m_DiffReq->Function`.
+  clang::QualType ComputeDerivativeFunctionType();
+
+  /// Prepares the derivative function parameters.
+  void
+  SetupDerivativeParameters(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
+
+  /// Generate a seed initializing each independent argument with 1 and 0
+  /// otherwise:
+  /// double f_darg0(double x, double y) {
+  ///   double _d_x = 1;
+  ///   double _d_y = 0;
+  void GenerateSeeds(const clang::FunctionDecl* dFD);
 };
 } // end namespace clad
 

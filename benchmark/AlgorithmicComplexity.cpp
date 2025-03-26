@@ -11,7 +11,8 @@
 // FIXME: Make the benchmark work with a range of inputs. That's currently
 // problematic for reverse mode.
 
-// inline double gaus(double* x, double* p /*means*/, double sigma, int dim);
+// inline double gaus(const double* x, double* p /*means*/, double sigma, int
+// dim);
 static void BM_NumericGausP(benchmark::State& state) {
   using namespace numerical_diff;
   long double sum = 0;

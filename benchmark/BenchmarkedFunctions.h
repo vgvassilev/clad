@@ -13,7 +13,7 @@ inline double sum(double* p, int dim) {
 ///\returns the gaussian distribution. We need always_inline to improve the
 /// performance of reverse mode.
 __attribute__((always_inline)) inline double
-gaus(double* x, double* p /*means*/, double sigma, int dim) {
+gaus(const double* x, double* p /*means*/, double sigma, int dim) {
   double t = 0;
   for (int i = 0; i < dim; i++)
     t += (x[i] - p[i]) * (x[i] - p[i]);

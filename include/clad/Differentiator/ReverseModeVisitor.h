@@ -8,20 +8,28 @@
 #define CLAD_REVERSE_MODE_VISITOR_H
 
 #include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/VisitorBase.h"
-#include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
+#include "clad/Differentiator/VisitorBase.h"
+
+#include "clang/AST/DeclCXX.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
 
 #include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/SmallVector.h>
 
 #include <array>
 #include <limits>
 #include <memory>
 #include <stack>
 #include <unordered_map>
+
+namespace llvm {
+template <typename T> class SmallVectorImpl;
+}
 
 namespace clad {
   class ErrorEstimationHandler;
@@ -39,12 +47,7 @@ namespace clad {
     // a separate namespace, as well as add getters/setters function of
     // several private/protected members of the visitor classes.
     friend class ErrorEstimationHandler;
-    llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
-    /// Set used to keep track of parameter variables w.r.t which the
-    /// the derivative (gradient) is being computed. This is separate from the
-    /// m_Variables map because all other intermediate variables will
-    /// not be stored here.
-    std::unordered_set<const clang::ValueDecl*> m_ParamVarsWithDiff;
+    llvm::SmallVector<const clang::ParmVarDecl*, 16> m_NonIndepParams;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
@@ -58,10 +61,6 @@ namespace clad {
     /// that will be put immediately in the beginning of derivative function
     /// block.
     Stmts m_Globals;
-    /// Global GPU args of the function.
-    std::unordered_set<const clang::ParmVarDecl*> m_CUDAGlobalArgs;
-    //// A reference to the output parameter of the gradient function.
-    clang::Expr* m_Result;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// Output variable of vector-valued function
@@ -131,28 +130,6 @@ namespace clad {
       return result;
     }
 
-    /// This visit method explicitly sets `dfdx` to `nullptr` for this visit.
-    ///
-    /// This method is helpful when we need derivative of some expression but we
-    /// do not want `_d_expression += dfdx` statments to be (automatically)
-    /// added.
-    ///
-    /// FIXME: Think of a better way for handling this situation. Maybe we
-    /// should improve the overall dfdx design and approach. One other way of
-    /// designing `VisitWithExplicitNoDfDx` in a more general way is
-    /// to develop a function that takes an expression E and returns the
-    /// corresponding derivative without any side effects. The difference
-    /// between this function and the current `VisitWithExplicitNoDfDx` will be
-    /// 1) better intent through the function name 2) We will also get
-    /// derivatives of expressions other than `DeclRefExpr` and `MemberExpr`.
-    StmtDiff VisitWithExplicitNoDfDx(const clang::Stmt* stmt) {
-      m_Stack.push(nullptr);
-      auto result =
-          clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
-      m_Stack.pop();
-      return result;
-    }
-
     /// Get the latest block of code (i.e. place for statements output).
     Stmts& getCurrentBlock(direction d = direction::forward) {
       if (d == direction::forward)
@@ -203,6 +180,14 @@ namespace clad {
     /// \returns True if the statement was added to the block, false otherwise.
     bool AddToGlobalBlock(clang::Stmt* S) { return addToBlock(S, m_Globals); }
 
+    /// Updates size references in VariableArrayType and replaces
+    /// std::initializer_list with clad::array.
+    clang::QualType CloneType(clang::QualType T);
+
+    /// If E is a CXXSTDInializerListExpr, returns its size expr.
+    /// Otherwise, returns nullptr;
+    clang::Expr* getStdInitListSizeExpr(const clang::Expr* E);
+
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.
     /// If force decl creation is true, this will allways create a temporary
@@ -211,26 +196,22 @@ namespace clad {
     /// direct references in intermediate variables)
     clang::Expr* StoreAndRef(clang::Expr* E, direction d = direction::forward,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false,
-                             clang::VarDecl::InitializationStyle IS =
-                                 clang::VarDecl::InitializationStyle::CInit) {
+                             bool forceDeclCreation = false) {
       assert(E && "cannot infer type from null expression");
       return StoreAndRef(E, getNonConstType(E->getType(), m_Context, m_Sema), d,
-                         prefix, forceDeclCreation, IS);
+                         prefix, forceDeclCreation);
     }
 
     /// An overload allowing to specify the type for the variable.
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type,
                              direction d = direction::forward,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false,
-                             clang::VarDecl::InitializationStyle IS =
-                                 clang::VarDecl::InitializationStyle::CInit) {
+                             bool forceDeclCreation = false) {
       // Name reverse temporaries as "_r" instead of "_t".
       if ((d == direction::reverse) && (prefix == "_t"))
         prefix = "_r";
       return VisitorBase::StoreAndRef(E, Type, getCurrentBlock(d), prefix,
-                                      forceDeclCreation, IS);
+                                      forceDeclCreation);
     }
 
     /// For an expr E, decides if it is useful to store it in a global temporary
@@ -271,7 +252,8 @@ namespace clad {
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
                                    bool force = false);
-    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t");
+    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",
+                             bool moveToTape = false);
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global
@@ -334,7 +316,8 @@ namespace clad {
     /// \returns A struct containg necessary call expressions for the built
     /// tape
     CladTapeResult MakeCladTapeFor(clang::Expr* E,
-                                   llvm::StringRef prefix = "_t");
+                                   llvm::StringRef prefix = "_t",
+                                   clang::QualType type = {});
 
     /// A function to get the multi-argument "central_difference"
     /// call expression for the given arguments.
@@ -382,16 +365,18 @@ namespace clad {
     /// the requested parameters to 'f_grad', i.e. in the previous example "x,
     /// y" will give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
     DerivativeAndOverload Derive();
-    DerivativeAndOverload DerivePullback();
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
     virtual StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
     StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
+    StmtDiff VisitCXXBindTemporaryExpr(const clang::CXXBindTemporaryExpr* BTE);
     StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);
     StmtDiff VisitStringLiteral(const clang::StringLiteral* SL);
     StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
+    StmtDiff
+    VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
     virtual StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
@@ -420,6 +405,8 @@ namespace clad {
     StmtDiff VisitBreakStmt(const clang::BreakStmt* BS);
     StmtDiff
     VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);
+    StmtDiff
+    VisitCXXTemporaryObjectExpr(const clang::CXXTemporaryObjectExpr* TOE);
     StmtDiff VisitCXXThisExpr(const clang::CXXThisExpr* CTE);
     StmtDiff VisitCXXNewExpr(const clang::CXXNewExpr* CNE);
     StmtDiff VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE);
@@ -428,18 +415,20 @@ namespace clad {
     VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
     StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* SCE);
     StmtDiff VisitCXXConstCastExpr(const clang::CXXConstCastExpr* CCE);
+    StmtDiff VisitCXXDefaultInitExpr(const clang::CXXDefaultInitExpr* DIE);
     StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
     StmtDiff VisitCaseStmt(const clang::CaseStmt* CS);
     StmtDiff VisitDefaultStmt(const clang::DefaultStmt* DS);
     DeclDiff<clang::VarDecl> DifferentiateVarDecl(const clang::VarDecl* VD,
                                                   bool keepLocal = false);
+    clang::Stmt* DifferentiateCtorInit(clang::CXXCtorInitializer* CI);
     StmtDiff VisitSubstNonTypeTemplateParmExpr(
         const clang::SubstNonTypeTemplateParmExpr* NTTP);
     StmtDiff
     VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPE);
     StmtDiff VisitNullStmt(const clang::NullStmt* NS) {
       return StmtDiff{Clone(NS), Clone(NS)};
-    };
+    }
 
     /// Helper function that checks whether the function to be derived
     /// is meant to be executed only by the GPU
@@ -493,15 +482,12 @@ namespace clad {
     }
 
     /// Returns the type that should be used to represent the derivative of a
-    /// variable of type `yType` with respect to a parameter variable of type
-    /// `xType`.
     ///
     /// FIXME: Parameter derivative type rules are different from the derivative
     /// type rules for local variables. We should remove this inconsistency.
     /// See the following issue for more details:
     /// https://github.com/vgvassilev/clad/issues/385
-    clang::QualType GetParameterDerivativeType(clang::QualType yType,
-                                               clang::QualType xType);
+    clang::QualType GetParameterDerivativeType(clang::QualType Type);
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop.
@@ -689,22 +675,13 @@ namespace clad {
     ///\paramp[in] source An external RMV source
     void AddExternalSource(ExternalRMVSource& source);
 
-    /// Computes and returns the sequence of derived function parameter types.
-    ///
-    /// Information about the original function and the differentiation mode
-    /// are taken from the data member variables.
-    llvm::SmallVector<clang::QualType, 8> ComputeParamTypes(const DiffParams& diffParams);
+    /// Computes and returns the derived function prototype.
+    clang::QualType ComputeDerivativeFunctionType();
 
     /// Builds and returns the sequence of derived function parameters.
-    ///
-    /// Information about the original function, derived function, derived
-    /// function parameter types and the differentiation mode are implicitly
-    /// taken from the data member variables.
-    llvm::SmallVector<clang::ParmVarDecl*, 8>
-    BuildParams(DiffParams& diffParams);
+    void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
 
     clang::QualType ComputeAdjointType(clang::QualType T);
-    clang::QualType ComputeParamType(clang::QualType T);
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {
       llvm::SmallVector<clang::SwitchCase*, 16> cases;
@@ -726,34 +703,15 @@ namespace clad {
 
     void PopSwitchStmtInfo() { m_SwitchStmtsData.pop_back(); }
 
-    struct ConstructorPullbackCallInfo {
-      clang::CallExpr* pullbackCE = nullptr;
-      size_t thisAdjointArgIdx = std::numeric_limits<size_t>::max();
-      void updateThisParmArgs(clang::Expr* thisE, clang::Expr* dThisE) const;
-      ConstructorPullbackCallInfo() = default;
-      ConstructorPullbackCallInfo(clang::CallExpr* pPullbackCE,
-                                  size_t pThisAdjointArgIdx)
-          : pullbackCE(pPullbackCE), thisAdjointArgIdx(pThisAdjointArgIdx) {}
-
-      bool empty() const { return !pullbackCE; }
-    };
-
-    void setConstructorPullbackCallInfo(clang::CallExpr* pullbackCE,
-                                        size_t thisAdjointArgIdx) {
-      m_ConstructorPullbackCallInfo = {pullbackCE, thisAdjointArgIdx};
-    }
-
-    ConstructorPullbackCallInfo getConstructorPullbackCallInfo() {
-      return m_ConstructorPullbackCallInfo;
-    }
-
-    void resetConstructorPullbackCallInfo() {
-      m_ConstructorPullbackCallInfo = ConstructorPullbackCallInfo{};
-    }
-
   private:
-    ConstructorPullbackCallInfo m_ConstructorPullbackCallInfo;
-    bool m_TrackConstructorPullbackInfo = false;
+    // FIXME: This variable is used to track
+    // whether we're currently visiting an init of a var decl.
+    // This is only necessary because we don't create constructors
+    // explicitly, instead we create a ParenListExpr and expect clang to
+    // build the constructor. However, this only works as var decl inits. In
+    // other cases, we have to use InitListExpr and change the constructor
+    // style. Remove this once we generate constructors explicitly.
+    bool m_TrackVarDeclConstructor = false;
   };
 } // end namespace clad
 

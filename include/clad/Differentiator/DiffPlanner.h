@@ -1,14 +1,20 @@
 #ifndef CLAD_DIFF_PLANNER_H
 #define CLAD_DIFF_PLANNER_H
 
-#include "clang/AST/RecursiveASTVisitor.h"
-#include "llvm/ADT/SmallSet.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
+#include "clang/AST/RecursiveASTVisitor.h"
+
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Support/SaveAndRestore.h"
+#include "llvm/Support/raw_ostream.h"
+
 #include <iterator>
 #include <set>
+
 namespace clang {
 class CallExpr;
 class CompilerInstance;
@@ -79,6 +85,11 @@ public:
   /// order derivatives.
   const clang::CXXRecordDecl* Functor = nullptr;
 
+  /// Global VarDecl to differentiate, if any.
+  ///
+  /// DiffRequests are also used to differentiate global variables.
+  const clang::VarDecl* Global = nullptr;
+
   /// Stores differentiation parameters information. Stored information
   /// includes info on indices range for array parameters, and nested data
   /// member information for record (class) type parameters.
@@ -116,34 +127,37 @@ public:
   ///      function will be differentiated w.r.t. to its every parameter.
   void UpdateDiffParamsInfo(clang::Sema& semaRef);
 
-  /// Define the == operator for DiffRequest.
+  /// Allow comparing DiffRequests.
   bool operator==(const DiffRequest& other) const {
-    // either function match or previous declaration match
+    // Note that CallContext is always different and we should ignore it.
     return Function == other.Function &&
            BaseFunctionName == other.BaseFunctionName &&
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
-           CallContext == other.CallContext && Args == other.Args &&
-           Mode == other.Mode && EnableTBRAnalysis == other.EnableTBRAnalysis &&
+           Args == other.Args && Mode == other.Mode &&
+           EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
-           DeclarationOnly == other.DeclarationOnly;
+           DeclarationOnly == other.DeclarationOnly && Global == other.Global;
   }
 
   const clang::FunctionDecl* operator->() const { return Function; }
 
-  // String operator for printing the node.
   operator std::string() const {
-    std::string res = BaseFunctionName + "__order_" +
-                      std::to_string(CurrentDerivativeOrder) + "__mode_" +
-                      DiffModeToString(Mode);
-    if (EnableTBRAnalysis)
-      res += "__TBR";
+    std::string res;
+    llvm::raw_string_ostream s(res);
+    print(s);
+    s.flush();
     return res;
   }
+  void print(llvm::raw_ostream& Out) const;
+  LLVM_DUMP_METHOD void dump() const { print(llvm::errs()); }
 
   bool shouldBeRecorded(clang::Expr* E) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
+  bool isVaried(const clang::Expr* E) const;
+  std::string ComputeDerivativeName() const;
+  bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;
@@ -167,16 +181,30 @@ public:
     /// If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///
-    const clang::FunctionDecl* m_TopMostFD = nullptr;
+    const DiffRequest* m_TopMostReq = nullptr;
+
+    const DiffRequest* m_ParentReq = nullptr;
     clang::Sema& m_Sema;
 
-    RequestOptions& m_Options;
+    const RequestOptions& m_Options;
+
+    llvm::DenseSet<const clang::FunctionDecl*> m_Traversed;
+
+    bool m_IsTraversingTopLevelDecl = true;
 
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
                   RequestOptions& opts);
     bool VisitCallExpr(clang::CallExpr* E);
+    bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+    bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
+      llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
+      if (m_Traversed.count(FD))
+        return true;
+      m_Traversed.insert(FD);
+      return TraverseDecl(const_cast<clang::FunctionDecl*>(FD));
+    }
 
   private:
     bool isInInterval(clang::SourceLocation Loc) const;
@@ -186,11 +214,16 @@ public:
 // Define the hash function for DiffRequest.
 template <> struct std::hash<clad::DiffRequest> {
     std::size_t operator()(const clad::DiffRequest& DR) const {
+      const clang::Decl* D = nullptr;
+      if (DR.Function)
+        D = DR.Function;
+      else
+        D = DR.Global;
       // Use the function pointer as the hash of the DiffRequest, it
       // is sufficient to break a reasonable number of collisions.
-      if (DR.Function->getPreviousDecl())
-        return std::hash<const void*>{}(DR.Function->getPreviousDecl());
-      return std::hash<const void*>{}(DR.Function);
+      if (D->getPreviousDecl())
+        return std::hash<const void*>{}(D->getPreviousDecl());
+      return std::hash<const void*>{}(D);
     }
 };
 

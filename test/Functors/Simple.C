@@ -32,7 +32,7 @@ public:
   float operator_call_darg0(float x, float y);
 };
 
-// CHECK: float operator_call_darg0(float x, float y) {
+// CHECK: float SimpleExpression::operator_call_darg0(float x, float y) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
 // CHECK-NEXT: SimpleExpression _d_this_obj;

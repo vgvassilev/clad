@@ -5,6 +5,8 @@
 
 #include "clang/AST/TemplateName.h"
 #include "clang/Sema/Lookup.h"
+#include <clang/AST/Decl.h>
+
 #include "llvm/Support/SaveAndRestore.h"
 
 using namespace clang;
@@ -28,7 +30,7 @@ QualType
 VectorForwardModeVisitor::GetPushForwardDerivativeType(QualType ParamType) {
   if (ParamType == m_Context.VoidTy)
     return ParamType;
-  QualType valueType = utils::GetValueType(ParamType);
+  QualType valueType = utils::GetNonConstValueType(ParamType);
   QualType resType;
   if (utils::isArrayOrPointerType(ParamType)) {
     // If the parameter is a pointer or an array, then the derivative will be a
@@ -59,24 +61,11 @@ DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
   const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == DiffMode::vector_forward_mode);
 
+  // Generate the function type for the derivative.
   DiffParams args{};
   for (const auto& dParam : m_DiffReq.DVI)
     args.push_back(dParam.param);
 
-  // Generate name for the derivative function.
-  std::string derivedFnName = m_DiffReq.BaseFunctionName + "_dvec";
-  if (args.size() != FD->getNumParams()) {
-    for (auto arg : args) {
-      auto it = std::find(FD->param_begin(), FD->param_end(), arg);
-      auto idx = std::distance(FD->param_begin(), it);
-      derivedFnName += ('_' + std::to_string(idx));
-    }
-  }
-  IdentifierInfo* II = &m_Context.Idents.get(derivedFnName);
-  SourceLocation loc{m_DiffReq->getLocation()};
-  DeclarationNameInfo name(II, loc);
-
-  // Generate the function type for the derivative.
   llvm::SmallVector<clang::QualType, 8> paramTypes;
   paramTypes.reserve(m_DiffReq->getNumParams() + args.size());
   for (auto* PVD : m_DiffReq->parameters())
@@ -86,8 +75,7 @@ DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
     if (it == std::end(args))
       continue; // This parameter is not in the diff list.
 
-    QualType valueType = utils::GetValueType(PVD->getType());
-    valueType.removeLocalConst();
+    QualType valueType = utils::GetNonConstValueType(PVD->getType());
     QualType dParamType;
     if (utils::isArrayOrPointerType(PVD->getType())) {
       // Generate array reference type for the derivative.
@@ -106,6 +94,12 @@ DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
       dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo());
 
   // Create the function declaration for the derivative.
+  std::string derivedFnName = m_DiffReq.ComputeDerivativeName();
+
+  IdentifierInfo* II = &m_Context.Idents.get(derivedFnName);
+  SourceLocation loc{m_DiffReq->getLocation()};
+  DeclarationNameInfo name(II, loc);
+
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
@@ -165,7 +159,7 @@ DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
     bool is_array =
         utils::isArrayOrPointerType(m_DiffReq->getParamDecl(i)->getType());
     auto param = params[i];
-    QualType dParamType = clad::utils::GetValueType(param->getType());
+    QualType dParamType = clad::utils::GetNonConstValueType(param->getType());
 
     Expr* dVectorParam = nullptr;
     if (m_IndependentVars.size() > independentVarIndex &&
@@ -508,10 +502,10 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   Expr* derivedRetValE = retValDiff.getExpr_dx();
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
-  QualType cladArrayType = GetCladArrayOfType(utils::GetValueType(retType));
-  auto dVectorParamDecl =
-      BuildVarDecl(cladArrayType, "_d_vector_return", derivedRetValE, false,
-                   nullptr, VarDecl::InitializationStyle::CallInit);
+  QualType cladArrayType =
+      GetCladArrayOfType(utils::GetNonConstValueType(retType));
+  VarDecl* dVectorParamDecl = BuildVarDecl(cladArrayType, "_d_vector_return",
+                                           derivedRetValE, /*DirectInit=*/true);
   // Create an array of statements to hold the return statement and the
   // assignments to the derivatives of the parameters.
   Stmts returnStmts;
@@ -585,13 +579,12 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
-  VarDecl* VDClone =
-      BuildVarDecl(VD->getType(), VD->getNameAsString(), initDiff.getExpr(),
-                   VD->isDirectInit(), nullptr, VD->getInitStyle());
-  VarDecl* VDDerived =
-      BuildVarDecl(GetCladArrayOfType(utils::GetValueType(VD->getType())),
-                   "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
-                   false, nullptr, VarDecl::InitializationStyle::CallInit);
+  VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+                                  initDiff.getExpr(), VD->isDirectInit());
+  VarDecl* VDDerived = BuildVarDecl(
+      GetCladArrayOfType(utils::GetNonConstValueType(VD->getType())),
+      "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
+      /*DirectInit=*/true);
 
   m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return DeclDiff<VarDecl>(VDClone, VDDerived);

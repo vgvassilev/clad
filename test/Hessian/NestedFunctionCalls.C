@@ -1,6 +1,6 @@
-// RUN: %cladclang %s -I%S/../../include -oNestedFunctionCalls.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oNestedFunctionCalls.out 2>&1 | %filecheck %s
 // RUN: ./NestedFunctionCalls.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oNestedFunctionCalls.out
+// RUN: %cladclang %s -I%S/../../include -oNestedFunctionCalls.out
 // RUN: ./NestedFunctionCalls.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
@@ -36,7 +36,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     return _d_ans;
 // CHECK-NEXT: }
 
-// CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x, double *_d_y, double *_d__d_x, double *_d__d_y);
+// CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1, double *_d__d_x, double *_d__d_y);
 
 // CHECK: void f2_darg0_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     double _d__d_x = 0.;
@@ -54,7 +54,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}}ValueAndPushforward<double, double> _r0 = {0., 0.};
-// CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, f_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
+// CHECK-NEXT:         {{.*}}constructor_pullback(f_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
 // CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         double _r2 = 0.;
 // CHECK-NEXT:         double _r3 = 0.;
@@ -92,7 +92,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}}ValueAndPushforward<double, double> _r0 = {0., 0.};
-// CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, f_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
+// CHECK-NEXT:         {{.*}}constructor_pullback(f_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
 // CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         double _r2 = 0.;
 // CHECK-NEXT:         double _r3 = 0.;
@@ -109,19 +109,19 @@ double f2(double x, double y){
 // CHECK-NEXT:     return {x * x + y * y, _d_x * x + x * _d_x + _d_y * y + y * _d_y};
 // CHECK-NEXT: }
 
-// CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x, double *_d_y, double *_d__d_x, double *_d__d_y) {
+// CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1, double *_d__d_x, double *_d__d_y) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         *_d_x += _d_y0.value * x;
-// CHECK-NEXT:         *_d_x += x * _d_y0.value;
-// CHECK-NEXT:         *_d_y += _d_y0.value * y;
-// CHECK-NEXT:         *_d_y += y * _d_y0.value;
+// CHECK-NEXT:         *_d_x0 += _d_y0.value * x;
+// CHECK-NEXT:         *_d_x0 += x * _d_y0.value;
+// CHECK-NEXT:         *_d_y1 += _d_y0.value * y;
+// CHECK-NEXT:         *_d_y1 += y * _d_y0.value;
 // CHECK-NEXT:         *_d__d_x += _d_y0.pushforward * x;
-// CHECK-NEXT:         *_d_x += _d_x * _d_y0.pushforward;
-// CHECK-NEXT:         *_d_x += _d_y0.pushforward * _d_x;
+// CHECK-NEXT:         *_d_x0 += _d_x * _d_y0.pushforward;
+// CHECK-NEXT:         *_d_x0 += _d_y0.pushforward * _d_x;
 // CHECK-NEXT:         *_d__d_x += x * _d_y0.pushforward;
 // CHECK-NEXT:         *_d__d_y += _d_y0.pushforward * y;
-// CHECK-NEXT:         *_d_y += _d_y * _d_y0.pushforward;
-// CHECK-NEXT:         *_d_y += _d_y0.pushforward * _d_y;
+// CHECK-NEXT:         *_d_y1 += _d_y * _d_y0.pushforward;
+// CHECK-NEXT:         *_d_y1 += _d_y0.pushforward * _d_y;
 // CHECK-NEXT:         *_d__d_y += y * _d_y0.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

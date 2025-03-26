@@ -275,26 +275,27 @@ Clad can compute the
      auto jacobian = clad::jacobian(fn_jacobian);
 
      // Creates an empty matrix to store the Jacobian in
-     // Must have enough space, 2 columns (independent variables) times 3 rows (2*3=6)
-     double matrix[6];
+     // Must have enough space, 5 columns (the sum of independent variable sizes) and 3 rows (the size of res)
+     clad::matrix<double> d_res(3, 5);
 
      // Prints the generated Hessian function
      jacobian.dump();
 
      // Substitutes these values into the Jacobian function and pipes the result
-     // into the matrix variable.
+     // into the d_res variable.
      double res[3] = {0, 0, 0};
-     jacobian.execute(3, 5, res, matrix);
+     jacobian.execute(3, 5, res, &d_res);
+     // Now, you can access the derivatives with d_res[i][j].
    }
 
  Few important things to note through this example:
 
  - ``clad::jacobian`` supports differentiating w.r.t multiple paramters.
 
- - The array that will store the computed jacobian matrix needs to be passed as the 
-   last argument to ``CladFunction::execute`` call. The array size 
-   needs to be greater or equal to the size required to store the jacobian matrix. 
-   Passing an array of a smaller size will result in undefined behaviour.
+ - The clad::matrix args are generated for all array/pointer parameters. They need to be passed
+   after the original parameters to ``CladFunction::execute`` call. The size of every matrix
+   needs to be exactly the size required to store the derivative of the corresponding parameter
+   w.r.t. all input parameters. Passing a matrix of a different size will result in undefined behaviour.
 
 Array Support 
 ----------------

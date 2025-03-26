@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
 // RUN: ./Pointers.out | %filecheck_exec %s
 
 // FIXME: This test does not work with enable-tbr flag, because the
@@ -472,7 +472,17 @@ double* ptrValFn (double* x, int n) {
   return x;
 }
 
-// CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n);
+// CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n) {
+// CHECK-NEXT:     double *_t0 = x;
+// CHECK-NEXT:     double *_t1 = _d_x;
+// CHECK-NEXT:     _d_x += n;
+// CHECK-NEXT:     x += n;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         x = _t0;
+// CHECK-NEXT:         _d_x = _t1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 // CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n);
 
 double nestedPtrFn (double x, double y) {
@@ -496,6 +506,33 @@ double nestedPtrFn (double x, double y) {
 // CHECK-NEXT:         *_d_x += _d_arr[0];
 // CHECK-NEXT:         *_d_y += _d_arr[1];
 // CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double listInitPtrFn (double x, double y) {
+  double* ptr{&x};
+  *ptr += y;
+  return *ptr;
+}
+
+// CHECK:  void listInitPtrFn_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      double *_d_ptr = &*_d_x;
+// CHECK-NEXT:      double *ptr{&x};
+// CHECK-NEXT:      double _t0 = *ptr;
+// CHECK-NEXT:      *ptr += y;
+// CHECK-NEXT:      *_d_ptr += 1;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *ptr = _t0;
+// CHECK-NEXT:          double _r_d0 = *_d_ptr;
+// CHECK-NEXT:          *_d_y += _r_d0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n) {
+// CHECK-NEXT:     double *_t0 = x;
+// CHECK-NEXT:     double *_t1 = _d_x;
+// CHECK-NEXT:     _d_x += n;
+// CHECK-NEXT:     x += n;
+// CHECK-NEXT:     return {x, _d_x};
 // CHECK-NEXT: }
 
 #define NON_MEM_FN_TEST(var)\
@@ -610,23 +647,9 @@ int main() {
   d_i = 0; d_j = 0;
   d_nestedPtrFn.execute(5, 7, &d_i, &d_j);
   printf("%.2f %.2f\n", d_i, d_j); // CHECK-EXEC: 0.00 1.00
+
+  auto d_listInitPtrFn = clad::gradient(listInitPtrFn);
+  d_i = 0; d_j = 0;
+  d_listInitPtrFn.execute(5, 7, &d_i, &d_j);
+  printf("%.2f %.2f\n", d_i, d_j); // CHECK-EXEC: 1.00 1.00
 }
-
-// CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n) {
-// CHECK-NEXT:     double *_t0 = x;
-// CHECK-NEXT:     double *_t1 = _d_x;
-// CHECK-NEXT:     _d_x += n;
-// CHECK-NEXT:     x += n;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         _d_x = _t1;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n) {
-// CHECK-NEXT:     double *_t0 = x;
-// CHECK-NEXT:     double *_t1 = _d_x;
-// CHECK-NEXT:     _d_x += n;
-// CHECK-NEXT:     x += n;
-// CHECK-NEXT:     return {x, _d_x};
-// CHECK-NEXT: }

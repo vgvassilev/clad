@@ -1,11 +1,11 @@
 // The Test checks whether a clad gradient can be successfully be generated on
 // the device having all the dependencies also as device functions.
 
-// RUN: %cladclang_cuda -I%S/../../include -fsyntax-only \
+// RUN: %cladclang_cuda -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include -fsyntax-only \
 // RUN:     --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath -Xclang -verify \
 // RUN:     %s 2>&1 | %filecheck %s
 //
-// RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch \
+// RUN: %cladclang_cuda -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include --cuda-gpu-arch=%cudaarch \
 // RUN:      --cuda-path=%cudapath %cudaldflags -oGradientCuda.out %s
 //
 // RUN: ./GradientCuda.out | %filecheck_exec %s
@@ -19,7 +19,7 @@
 
 #define N 3
 
-__device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
+__device__ __host__ double gauss(const double* x, double* p, double sigma, int dim) {
    double t = 0;
    for (int i = 0; i< dim; i++)
        t += (x[i] - p[i]) * (x[i] - p[i]);
@@ -28,7 +28,7 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 }
 
 
-// CHECK: __attribute__((device)) __attribute__((host)) void gauss_grad_1(double *x, double *p, double sigma, int dim, double *_d_p) {
+// CHECK: __attribute__((device)) __attribute__((host)) void gauss_grad_1(const double *x, double *p, double sigma, int dim, double *_d_p) {
 //CHECK-NEXT:     double _d_sigma = 0.;
 //CHECK-NEXT:     int _d_dim = 0;
 //CHECK-NEXT:     int _d_i = 0;

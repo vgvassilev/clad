@@ -1,4 +1,5 @@
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/Compatibility.h"
 
 #include "ConstantFolder.h"
 
@@ -6,12 +7,14 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
-#include "llvm/ADT/SmallVector.h"
 #include <clang/AST/DeclCXX.h>
-#include "clad/Differentiator/Compatibility.h"
+
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
 
 using namespace clang;
 namespace clad {
@@ -155,9 +158,9 @@ namespace clad {
       ASTContext& C = semaRef.getASTContext();
 
       if (auto ND = dyn_cast<NamespaceDecl>(DC)) {
-        CSS.Extend(C, ND,
-                   /*NamespaceLoc=*/utils::GetValidSLoc(semaRef),
-                   /*ColonColonLoc=*/utils::GetValidSLoc(semaRef));
+        if (!ND->isInline())
+          CSS.Extend(C, ND, /*NamespaceLoc=*/utils::GetValidSLoc(semaRef),
+                     /*ColonColonLoc=*/utils::GetValidSLoc(semaRef));
       } else if (auto RD = dyn_cast<CXXRecordDecl>(DC)) {
         auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
         auto RDTypeSourceInfo = C.getTrivialTypeSourceInfo(RDQType);
@@ -260,6 +263,10 @@ namespace clad {
       if (!DC)
         DC = C.getTranslationUnitDecl();
       S.LookupQualifiedName(Result, DC);
+
+      if (auto* CXXRD = dyn_cast<CXXRecordDecl>(DC))
+        Result.setNamingClass(CXXRD);
+
       return Result;
     }
 
@@ -271,7 +278,7 @@ namespace clad {
       // Find the builtin derivatives/numerical diff namespace
       DeclarationName Name = &C.Idents.get(namespc);
       LookupResult R(S, Name, SourceLocation(), Sema::LookupNamespaceName,
-                     Sema::ForVisibleRedeclaration);
+                     CLAD_COMPAT_Sema_ForVisibleRedeclaration);
       S.LookupQualifiedName(R, DC,
                             /*allowBuiltinCreation*/ false);
       if (!shouldExist && R.empty())
@@ -300,6 +307,29 @@ namespace clad {
       return QT->isArrayType() || QT->isPointerType();
     }
 
+    bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
+                             const clang::ASTContext& C) {
+      // Trivial constructors are linear
+      if (CD->isTrivial())
+        return true;
+      // If the body is not empty, the constructor is not considered linear
+      if (!isa<CompoundStmt>(CD->getBody()))
+        return false;
+      auto* CS = cast<CompoundStmt>(CD->getBody());
+      if (!CS->body_empty())
+        return false;
+      // If some of the inits is non-linear, the constructor is not
+      for (CXXCtorInitializer* CI : CD->inits()) {
+        Expr* init = CI->getInit()->IgnoreImplicit();
+        Expr::EvalResult dummy;
+        if (!(isa<DeclRefExpr>(init) ||
+              clad_compat::Expr_EvaluateAsConstantExpr(init, dummy, C)))
+          return false;
+      }
+      // The constructor is linear
+      return true;
+    }
+
     clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
                                                         llvm::StringRef name) {
       ASTContext& C = S.getASTContext();
@@ -309,18 +339,22 @@ namespace clad {
 
     bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD) {
       for (auto PVD : FD->parameters()) {
-        if (PVD->getType()->isReferenceType() ||
-            isArrayOrPointerType(PVD->getType()))
+        QualType paramTy = PVD->getType();
+        bool isConstTy = paramTy.getNonReferenceType().isConstQualified();
+        if ((paramTy->isReferenceType() || isArrayOrPointerType(paramTy)) &&
+            !isConstTy)
           return true;
       }
       return false;
     }
 
     bool IsReferenceOrPointerArg(const Expr* arg) {
-      // The argument is passed by reference if it's passed as an L-value.
-      // However, if arg is a MaterializeTemporaryExpr, then arg is a
-      // temporary variable passed as a const reference.
-      bool isRefType = arg->isLValue() && !isa<MaterializeTemporaryExpr>(arg);
+      // The argument is passed by reference if it's an L-value
+      // and the parameter type is L-value too.
+      const Expr* subExpr = arg->IgnoreImplicit();
+      if (const auto* DAE = dyn_cast<CXXDefaultArgExpr>(subExpr))
+        subExpr = DAE->getExpr()->IgnoreImplicit();
+      bool isRefType = arg->isLValue() && subExpr->isLValue();
       return isRefType || isArrayOrPointerType(arg->getType());
     }
 
@@ -380,14 +414,17 @@ namespace clad {
         valueType = T->getPointeeType();
       else if (T->isReferenceType())
         valueType = T.getNonReferenceType();
-      // FIXME: `QualType::getPointeeOrArrayElementType` loses type qualifiers.
-      else if (T->isArrayType())
-        valueType =
-            T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
+      else if (const auto* AT = dyn_cast<clang::ArrayType>(T))
+        valueType = AT->getElementType();
       else if (T->isEnumeralType()) {
         if (const auto* ET = dyn_cast<EnumType>(T))
           valueType = ET->getDecl()->getIntegerType();
       }
+      return valueType;
+    }
+
+    clang::QualType GetNonConstValueType(clang::QualType T) {
+      QualType valueType = GetValueType(T);
       valueType.removeLocalConst();
       return valueType;
     }
@@ -437,7 +474,7 @@ namespace clad {
               .BuildCXXNew(
                   SourceRange(), false, noLoc, MultiExprArg(), noLoc,
                   SourceRange(), qType, TSI,
-                  (arraySize ? arraySize : clad_compat::ArraySize_None()),
+                  arraySize ? arraySize : clad_compat::llvm_Optional<Expr*>(),
                   initializer ? GetValidSRange(semaRef) : SourceRange(),
                   initializer)
               .getAs<CXXNewExpr>();
@@ -728,6 +765,41 @@ namespace clad {
     bool isNonConstReferenceType(clang::QualType QT) {
       return QT->isReferenceType() &&
              !QT.getNonReferenceType().isConstQualified();
+    }
+
+    bool isCopyable(const clang::CXXRecordDecl* RD) {
+      if (RD->defaultedCopyConstructorIsDeleted())
+        return false;
+      if (RD->hasUserDeclaredCopyConstructor()) {
+        std::string qualifiedName = RD->getQualifiedNameAsString();
+        // FIXME: I don't know why Clang things that unique_ptr has
+        // user-declared copy constructor.
+        if (qualifiedName == "std::unique_ptr")
+          return false;
+      }
+      return true;
+    }
+
+    Expr* getZeroInit(QualType T, Sema& S) {
+      // FIXME: Consolidate other uses of synthesizeLiteral for creation 0 or 1.
+      if (T->isVoidType() || isa<VariableArrayType>(T))
+        return nullptr;
+      if ((T->isScalarType() || T->isPointerType()) && !T->isReferenceType())
+        return ConstantFolder::synthesizeLiteral(T, S.getASTContext(),
+                                                 /*val=*/0);
+      if (isa<ConstantArrayType>(T)) {
+        Expr* zero =
+            ConstantFolder::synthesizeLiteral(T, S.getASTContext(), /*val=*/0);
+        return S.ActOnInitList(noLoc, {zero}, noLoc).get();
+      }
+      if (const auto* RD = T->getAsCXXRecordDecl())
+        if (RD->hasDefinition() && !RD->isUnion() && RD->isAggregate()) {
+          llvm::SmallVector<Expr*, 4> adjParams;
+          for (const FieldDecl* FD : RD->fields())
+            adjParams.push_back(getZeroInit(FD->getType(), S));
+          return S.ActOnInitList(noLoc, adjParams, noLoc).get();
+        }
+      return S.ActOnInitList(noLoc, {}, noLoc).get();
     }
   } // namespace utils
 } // namespace clad

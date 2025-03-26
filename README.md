@@ -134,8 +134,7 @@ int main() {
 
 ### Jacobian mode - `clad::jacobian`
 
-Clad can produce the jacobian of a function using its reverse mode. It returns the jacobian matrix as a flattened
-vector in row major format.
+Clad can produce the jacobian of a function using its reverse mode. It returns the jacobian matrix as a `clad::matrix` for every pointer/array parameter.
 
 `clad::jacobian(f, /*optional*/ ARGS)` takes 1 or 2 arguments:
 1. `f` is a pointer to a function or a method to be differentiated
@@ -143,9 +142,9 @@ vector in row major format.
     * not provided, then `f` is differentiated w.r.t. its every argument
     * a string literal with comma-separated names of independent variables (e.g. `"x"` or `"y"` or `"x, y"` or `"y, x"`)
 
-The generated function has `void` return type and same input arguments. The function has an additional argument of
-type `T *`, where `T` is the pointee type of the output (the last variable) of `f`. This variable stores the jacobian 
-matrix. *The caller is responsible for allocating and zeroing-out the jacobian storage*. Example:
+The generated function has `void` return type and same input arguments. For every pointer/array parameter `arr`, the function has an additional argument `_d_vector_arr`. Its
+type is `clad::matrix<T>`, where `T` is the pointee type of `arr`. These variables store their derivatives w.r.t. all inputs.
+*The caller is responsible for allocating the matrices*. Example:
 
 ```cpp
 #include "clad/Differentiator/Differentiator.h"
@@ -158,19 +157,57 @@ void h(double a, double b, double output[]) {
 }
 
 int main() {
-    // This sets all the input variables (i.e a and b) as independent variables 
+    // This sets all the input variables (i.e a, b, and output) as independent variables 
     auto h_jac = clad::jacobian(h);
     
-    // The jacobian matrix size should be the number of 
-    // independent variables * the number of outputs of the original function
-    // In this case it is 2 * 3 = 6
-    double jac[6] = {0};
+    // The jacobian matrix size should be
+    // the size of the output x the number of independent variables
+    // In this case it is 3 x (1 + 1 + 3)
+    clad::matrix<double> d_output(3, 5);
     double output[3] = {0};
-    h_jac.execute(/*a=*/3, /*b=*/4, output, jac);
+    h_jac.execute(/*a=*/3, /*b=*/4, output, &d_output);
+
+    // d_output[i][j] is the derivative of the i-th element of `output` w.r.t. the j-th input
+    std::cout << d_output[0][0] << " " << d_output[0][1] << std::endl
+              << d_output[1][0] << " " << d_output[1][1] << std::endl
+              << d_output[2][0] << " " << d_output[2][1] << std::endl;
+}
+```
+
+Or in the case of multiple array parameters:
+
+```cpp
+#include "clad/Differentiator/Differentiator.h"
+#include <iostream>
+
+void h(double a, double b, double arr[], double* ptr) {
+    arr[0] = a * a * a;
+    ptr[0] = arr[0] + b * b * b;
+    arr[1] = 2 * (a + b);
+}
+
+int main() {
+    auto h_jac = clad::jacobian(h);
+
+    // The jacobian matrix size should be
+    // the size of the output x the number of independent variables
+
+    // 3 x (1 + 1 + 2 + 1)
+    clad::matrix<double> d_arr(2, 5);
+    double arr[2] = {0};
+
+    // 1 x (1 + 1 + 2 + 1)
+    clad::matrix<double> d_ptr(1, 5);
+    double ptr[1] = {0};
+
+    h_jac.execute(/*a=*/3, /*b=*/4, arr, ptr, &d_arr, &d_ptr);
     
-    std::cout << jac[0] << " " << jac[1] << std::endl
-              << jac[2] << " " << jac[3] << std::endl
-              << jac[4] << " " << jac[5] << std::endl;
+    // d_arr[i][j] is the derivative of the i-th element of `arr` w.r.t. the j-th input
+    std::cout << d_arr[0][0] << " " << d_arr[0][1] << std::endl
+              << d_arr[1][0] << " " << d_arr[1][1] << std::endl;
+
+    // Likewise, with `ptr`
+    std::cout << d_ptr[0][0] << " " << d_ptr[0][1] << std::endl;
 }
 ```
 
@@ -272,7 +309,11 @@ cmake ../clad -DLLVM_DIR=/opt/homebrew/opt/llvm@12/lib/cmake/llvm -DClang_DIR=/o
 make && make install
 make check-clad
 ```
-###  Developer Environment - Build LLVM, Clang and Clad from source:
+
+> **NOTE**: If you are using clad as a clang plugin after building it from source, please make sure that you uses the same compiler version you built clad against. Apple distributed clang does not work because Apple has disabled clang plugins.
+
+### Developer Environment - Build LLVM, Clang and Clad from source:
+
 ```
 pip3 install lit
 ```
@@ -282,7 +323,7 @@ Clone the LLVM project and checkout the required LLVM version (Currently support
 git clone https://github.com/llvm/llvm-project.git
 git clone https://github.com/vgvassilev/clad.git
 cd llvm-project
-git checkout llvmorg-18.0.0
+git checkout release/18.x
 ```
 
 Build Clad with Clang and LLVM:
@@ -290,8 +331,32 @@ Build Clad with Clang and LLVM:
 mkdir build && cd build
 cmake -DLLVM_ENABLE_PROJECTS="clang" -DLLVM_EXTERNAL_PROJECTS=clad -DLLVM_EXTERNAL_CLAD_SOURCE_DIR=../../clad -DCMAKE_BUILD_TYPE="Debug" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
 cmake --build . --target clad --parallel $(nproc --all)
-cd ../..
 ```
+Note: However, on some systems, the above command may not build Clang and Clad in parallel. In such cases, you need to build Clang separately and then build Clad using that Clang binary. Use the following commands:
+
+Building Clang Separately
+```
+mkdir build && cd build
+cmake -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
+cmake --build . --target clang --parallel $(nproc --all)
+make -j8 check-clang  # This installs llvm-config, required by lit
+cd ../..
+
+```
+Cloning and Building Clad:
+```
+cd clad
+mkdir build && cd build
+cmake -DLLVM_DIR=PATH/TO/llvm-project/build -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_EXTERNAL_LIT="$(which lit)" ../
+make -j8 clad
+
+
+```
+If you have limited memory (less than 16GB of RAM + swap), you can use the following build configuration to compile Clang more efficiently:
+```
+cmake -G Ninja /path/to/llvm-project/llvm -DLLVM_USE_LINKER=gold -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DBUILD_SHARED_LIBS=On -DLLVM_USE_SPLIT_DWARF=On -DLLVM_OPTIMIZED_TABLEGEN=On -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=../inst
+```
+
 
 Run the Clad tests:
 ```
@@ -312,11 +377,11 @@ Note: If for any reason clad is unable to algorithmically differentiate a functi
 ### Specifying custom derivatives
 Sometimes Clad may be unable to differentiate your function (e.g. if its definition is in a library and source code is not available). Alternatively, an efficient/more numerically stable expression for derivatives may be know. In such cases, it is useful to be able to specify a custom derivatives for your function.
 
-Clad supports that functionality by allowing to specify your own derivatives in `namespace custom_derivatives`. For a function named `FNAME` you can specify:
-* a custom derivative w.r.t `I`-th argument by defining a function `FNAME_dargI` inside `namespace custom_derivatives`
-* a custom gradient w.r.t every argument by defining a function `FNAME_grad` inside `namespace custom_derivatives`
+Clad supports that functionality by allowing to specify your own derivatives in `namespace clad::custom_derivatives`. For a function named `FNAME` you can specify:
+* a custom derivative w.r.t `I`-th argument by defining a function `FNAME_dargI` inside `namespace clad::custom_derivatives`
+* a custom gradient w.r.t every argument by defining a function `FNAME_grad` inside `namespace clad::custom_derivatives`
 
-When Clad will encounter a function `FNAME`, it will first do a lookup inside the `custom_derivatives` namespace to try to find a suitable custom function, and only if none is found will proceed to automatically derive it.
+When Clad will encounter a function `FNAME`, it will first do a lookup inside the `clad::custom_derivatives` namespace to try to find a suitable custom function, and only if none is found will proceed to automatically derive it.
 
 Example:
 * Suppose that you have a function `my_pow(x, y)` which computes `x` to the power of `y`. However, Clad is not able to differentiate `my_pow`'s body (e.g. it calls an external library or uses some non-differentiable approximation):
@@ -325,14 +390,14 @@ double my_pow(double x, double y) { // something non-differentiable here... }
 ```
 However, you know analytical formulas of its derivatives, and you can easily specify custom derivatives:
 ```cpp
-namespace custom_derivatives {
+namespace clad::custom_derivatives {
   double my_pow_darg0(double x, double y) { return y * my_pow(x, y - 1); }
-  double my_pow_darg1(dobule x, double y) { return my_pow(x, y) * std::log(x); }
+  double my_pow_darg1(double x, double y) { return my_pow(x, y) * std::log(x); }
 }
 ```
 You can also specify a custom gradient:
 ```cpp
-namespace custom_derivatives {
+namespace clad::custom_derivatives {
   void my_pow_grad(double x, double y, array_ref<double> _d_x, array_ref<double> _d_y) {
      double t = my_pow(x, y - 1);
      *_d_x = y * t;

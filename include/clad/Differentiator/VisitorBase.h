@@ -9,11 +9,15 @@
 
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
+#include "clad/Differentiator/CladUtils.h"
 
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
+#include <clang/AST/Type.h>
+#include <llvm/ADT/StringRef.h>
+
 #include <array>
 #include <stack>
 #include <unordered_map>
@@ -30,15 +34,12 @@ namespace clad {
   class StmtDiff {
   private:
     std::array<clang::Stmt*, 2> data;
-    clang::Stmt* m_DerivativeForForwSweep;
     clang::Stmt* m_ValueForRevSweep;
 
   public:
     StmtDiff(clang::Stmt* orig = nullptr, clang::Stmt* diff = nullptr,
-             clang::Stmt* forwSweepDiff = nullptr,
              clang::Stmt* valueForRevSweep = nullptr)
-        : m_DerivativeForForwSweep(forwSweepDiff),
-          m_ValueForRevSweep(valueForRevSweep) {
+        : m_ValueForRevSweep(valueForRevSweep) {
       data[1] = orig;
       data[0] = diff;
     }
@@ -57,8 +58,6 @@ namespace clad {
     // Stmt_dx goes first!
     std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
 
-    clang::Stmt* getForwSweepStmt_dx() { return m_DerivativeForForwSweep; }
-
     clang::Expr* getRevSweepAsExpr() {
       return llvm::cast_or_null<clang::Expr>(getRevSweepStmt());
     }
@@ -70,12 +69,6 @@ namespace clad {
         return data[1];
       return m_ValueForRevSweep;
     }
-
-    clang::Expr* getForwSweepExpr_dx() {
-      return llvm::cast_or_null<clang::Expr>(m_DerivativeForForwSweep);
-    }
-
-    void setForwSweepStmt_dx(clang::Stmt* S) { m_DerivativeForForwSweep = S; }
   };
 
   template <typename T> class DeclDiff {
@@ -130,8 +123,6 @@ namespace clad {
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
-    /// Stores output variables for vector-valued functions
-    VectorOutputs m_VectorOutput;
     /// Stores derivative expression of the implicit `this` pointer.
     ///
     /// In the forward mode, `this` pointer derivative expression is of pointer
@@ -199,7 +190,7 @@ namespace clad {
     }
     /// For a qualtype QT returns if it's type is Array or Pointer Type
     static bool isArrayOrPointerType(const clang::QualType QT) {
-      return QT->isArrayType() || QT->isPointerType();
+      return utils::isArrayOrPointerType(QT);
     }
 
     clang::CompoundStmt* MakeCompoundStmt(const Stmts& Stmts);
@@ -275,8 +266,22 @@ namespace clad {
     /// either LHS or RHS is null.
     clang::Expr* BuildOp(clang::BinaryOperatorKind OpCode, clang::Expr* L,
                          clang::Expr* R, clang::SourceLocation OpLoc = noLoc);
-
+    /// Function to resolve Unary Minus. If the leftmost operand
+    /// has a Unary Minus then adds parens before adding the unary minus.
+    /// \param[in] E Expression fed to the recursive call.
+    /// \param[in] OpLoc Location to add Unary Minus if needed.
+    /// \returns Expression with correct Unary Operator placement.
+    clang::Expr* ResolveUnaryMinus(clang::Expr* E, clang::SourceLocation OpLoc);
     clang::Expr* BuildParens(clang::Expr* E);
+    /// Sets Init as the initializer of the declaration VD and compute its
+    /// initialization kind.
+    ///\param[in] VD - variable declaration
+    ///\param[in] Init - can be nullptr, then only initialization kind is
+    /// computed.
+    ///\param[in] DirectInit - tells whether the initialization is
+    /// direct.
+    void SetDeclInit(clang::VarDecl* VD, clang::Expr* Init = nullptr,
+                     bool DirectInit = false);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -291,9 +296,7 @@ namespace clad {
     clang::VarDecl*
     BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
                  clang::Scope* scope, clang::Expr* Init = nullptr,
-                 bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr,
-                 clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+                 bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -305,12 +308,11 @@ namespace clad {
     /// C style initalization.
     /// \param[in] TSI The type source information of the variable declaration.
     /// \returns The newly built variable declaration.
-    clang::VarDecl*
-    BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
-                 clang::Expr* Init = nullptr, bool DirectInit = false,
-                 clang::TypeSourceInfo* TSI = nullptr,
-                 clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+    clang::VarDecl* BuildVarDecl(clang::QualType Type,
+                                 clang::IdentifierInfo* Identifier,
+                                 clang::Expr* Init = nullptr,
+                                 bool DirectInit = false,
+                                 clang::TypeSourceInfo* TSI = nullptr);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -321,20 +323,18 @@ namespace clad {
     /// C style initalization.
     /// \param[in] TSI The type source information of the variable declaration.
     /// \returns The newly built variable declaration.
-    clang::VarDecl*
-    BuildVarDecl(clang::QualType Type, llvm::StringRef prefix = "_t",
-                 clang::Expr* Init = nullptr, bool DirectInit = false,
-                 clang::TypeSourceInfo* TSI = nullptr,
-                 clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+    clang::VarDecl* BuildVarDecl(clang::QualType Type,
+                                 llvm::StringRef prefix = "_t",
+                                 clang::Expr* Init = nullptr,
+                                 bool DirectInit = false,
+                                 clang::TypeSourceInfo* TSI = nullptr);
     /// Builds variable declaration to be used inside the derivative
     /// body in the derivative function global scope.
-    clang::VarDecl*
-    BuildGlobalVarDecl(clang::QualType Type, llvm::StringRef prefix = "_t",
-                       clang::Expr* Init = nullptr, bool DirectInit = false,
-                       clang::TypeSourceInfo* TSI = nullptr,
-                       clang::VarDecl::InitializationStyle IS =
-                           clang::VarDecl::InitializationStyle::CInit);
+    clang::VarDecl* BuildGlobalVarDecl(clang::QualType Type,
+                                       llvm::StringRef prefix = "_t",
+                                       clang::Expr* Init = nullptr,
+                                       bool DirectInit = false,
+                                       clang::TypeSourceInfo* TSI = nullptr);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until
     /// m_Sema.PopDeclContextIsUsed.
@@ -375,20 +375,14 @@ namespace clad {
     /// direct references in intermediate variables)
     clang::Expr* StoreAndRef(clang::Expr* E, Stmts& block,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false,
-                             clang::VarDecl::InitializationStyle IS =
-                                 clang::VarDecl::InitializationStyle::CInit);
+                             bool forceDeclCreation = false);
     /// A shorthand to store directly to the current block.
     clang::Expr* StoreAndRef(clang::Expr* E, llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false,
-                             clang::VarDecl::InitializationStyle IS =
-                                 clang::VarDecl::InitializationStyle::CInit);
+                             bool forceDeclCreation = false);
     /// An overload allowing to specify the type for the variable.
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type, Stmts& block,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false,
-                             clang::VarDecl::InitializationStyle IS =
-                                 clang::VarDecl::InitializationStyle::CInit);
+                             bool forceDeclCreation = false);
     /// For an expr E, decides if it is useful to store it in a temporary
     /// variable and replace E's further usage by a reference to that variable
     /// to avoid recomputation.
@@ -493,7 +487,7 @@ namespace clad {
                                      clang::Sema::AA_Casting);
       assert(!ICAR.isInvalid() && "Invalid implicit conversion!");
       // Assign the resulting expression to the variable declaration
-      VD->setInit(ICAR.get());
+      SetDeclInit(VD, ICAR.get());
     }
 
     /// Build a call to member function through Base expr and using the function
