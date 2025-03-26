@@ -1518,7 +1518,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // derived function. In the case of member functions, `implicit`
     // this object is always passed by reference.
     if (!nonDiff && !dfdx() && !utils::HasAnyReferenceOrPointerArgument(FD) &&
-        (!baseOriginalE || baseOriginalE->getType().isConstQualified()))
+        (!baseOriginalE || MD->isConst()))
       nonDiff = true;
 
     // If all arguments are constant literals, then this does not contribute to

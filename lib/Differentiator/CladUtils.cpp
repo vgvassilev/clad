@@ -339,8 +339,10 @@ namespace clad {
 
     bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD) {
       for (auto PVD : FD->parameters()) {
-        if (PVD->getType()->isReferenceType() ||
-            isArrayOrPointerType(PVD->getType()))
+        QualType paramTy = PVD->getType();
+        bool isConstTy = paramTy.getNonReferenceType().isConstQualified();
+        if ((paramTy->isReferenceType() || isArrayOrPointerType(paramTy)) &&
+            !isConstTy)
           return true;
       }
       return false;
