@@ -880,6 +880,36 @@ double fn23(double x) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double unused_return(double& x) {
+  return x *= 2;
+}
+
+// CHECK:  void unused_return_pullback(double &x, double _d_y, double *_d_x) {
+// CHECK-NEXT:      double _t0 = x;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_x += _d_y;
+// CHECK-NEXT:          x = _t0;
+// CHECK-NEXT:          double _r_d0 = *_d_x;
+// CHECK-NEXT:          *_d_x = 0.;
+// CHECK-NEXT:          *_d_x += _r_d0 * 2;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+double fn24(double x) {
+  unused_return(x);
+  return x;
+}
+
+// CHECK:  void fn24_grad(double x, double *_d_x) {
+// CHECK-NEXT:      double _t0 = x;
+// CHECK-NEXT:      unused_return(x);
+// CHECK-NEXT:      *_d_x += 1;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          x = _t0;
+// CHECK-NEXT:          unused_return_pullback(_t0, 0., &*_d_x);
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -994,6 +1024,9 @@ int main() {
 
   INIT(fn23);
   TEST1(fn23, 3);  // CHECK-EXEC: {1.00}
+
+  INIT(fn24);
+  TEST1(fn24, 3);  // CHECK-EXEC: {2.00}
 }
 
 double sq_defined_later(double x) {

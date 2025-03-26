@@ -1808,14 +1808,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
       Expr* pullback = dfdx();
 
-      if ((pullback == nullptr) && FD->getReturnType()->isLValueReferenceType())
-        pullback = getZeroInit(FD->getReturnType().getNonReferenceType());
-
-      if (FD->getReturnType()->isVoidType()) {
-        assert(pullback == nullptr && FD->getReturnType()->isVoidType() &&
+      if (returnType->isVoidType()) {
+        assert(pullback == nullptr && returnType->isVoidType() &&
                "Call to function returning void type should not have any "
                "corresponding dfdx().");
       }
+
+      if ((pullback == nullptr) &&
+          !(returnType->isPointerType() || returnType->isVoidType()))
+        pullback = getZeroInit(returnType.getNonReferenceType());
 
       for (Expr* arg : DerivedCallOutputArgs)
         if (arg)
