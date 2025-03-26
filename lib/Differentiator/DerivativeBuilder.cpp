@@ -151,7 +151,7 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
               m_Sema.CurContext->lookup(name.getName());
 
           for (NamedDecl* ND : Lookup) {
-            if (FunctionTemplateDecl* FTD =
+            if (auto* FTD =
                     dyn_cast<FunctionTemplateDecl>(ND)) {
               // Check if this template matches what we need
               FunctionDecl* FD1 = FTD->getTemplatedDecl();
