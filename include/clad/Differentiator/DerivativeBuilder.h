@@ -93,6 +93,9 @@ namespace clad {
     // A pointer to a the handler to be used for estimation requests.
     llvm::SmallVector<std::unique_ptr<ErrorEstimationHandler>, 4>
         m_ErrorEstHandler;
+    std::vector<clang::CallExpr*> m_CallExprQueue;
+    std::string GetParamString(const clang::FunctionDecl* FD);
+    void InsertTextAfter(clang::SourceLocation loc, const std::string& text);
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
                                   clad::VisitorBase& VB, clang::DeclContext* DC,
                                   clang::SourceLocation& noLoc,
@@ -214,6 +217,8 @@ namespace clad {
     /// \param[in] Request The request to be processed.
     /// \returns The derivative function if found, nullptr otherwise.
     clang::FunctionDecl* HandleNestedDiffRequest(DiffRequest& request);
+    bool IsUsedInGradient(const clang::FunctionDecl* FD);
+    void HandlePullbackDecl(clang::FunctionDecl* FD);
   };
 
 } // end namespace clad
