@@ -565,6 +565,10 @@ struct S {
   double getVal() const{
     return val;
   }
+  
+  S operator-(const double& x) const {
+    return {val - x, cond};
+  }
 };
 
 double fn8(double x, double y) {
@@ -586,7 +590,6 @@ double fn8(double x, double y) {
 // CHECK-NEXT:      *_d_x += _d_s.val;
 // CHECK-NEXT:  }
 
-
 double fn9(double x, double y) {
   S* s = new S{x, false};
   return s->getVal();
@@ -600,6 +603,30 @@ double fn9(double x, double y) {
 // CHECK-NEXT:      *_d_x += *_d_s.val;
 // CHECK-NEXT:  }
 
+// CHECK:  void operator_minus_pullback(const double &x, S _d_y, S *_d_this, double *_d_x) const;
+
+double fn10(double x, double y) {
+  S s = {x, false};
+  return ((s - 4*x) - y).getVal();
+}
+
+// CHECK:  void fn10_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      S _d_s = {0., false};
+// CHECK-NEXT:      S s = {x, false};
+// CHECK-NEXT:      S _t0 = s;
+// CHECK-NEXT:      S _t1 = s.operator-(4 * x);
+// CHECK-NEXT:      S _t2 = (s - 4 * x).operator-(y);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          S _r0 = {0., false};
+// CHECK-NEXT:          _t2.getVal_pullback(1, &_r0);
+// CHECK-NEXT:          S _r1 = {0., false};
+// CHECK-NEXT:          _t1.operator_minus_pullback(y, _r0, &_r1, &*_d_y);
+// CHECK-NEXT:          double _r2 = 0.;
+// CHECK-NEXT:          _t0.operator_minus_pullback(4 * x, _r1, &_d_s, &_r2);
+// CHECK-NEXT:          *_d_x += 4 * _r2;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      *_d_x += _d_s.val;
+// CHECK-NEXT:  }
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
   auto d_const_mem_fn = clad::gradient(&SimpleFunctions::const_mem_fn);
@@ -673,6 +700,12 @@ int main() {
   d_fn9.execute(3, -5, &dx, &dy);
   printf("%.2f", dx); //CHECK-EXEC: 1.00
   printf("%.2f", dy); //CHECK-EXEC: 0.00
+
+  dx = 0, dy = 0;
+  auto d_fn10 = clad::gradient(fn10);
+  d_fn10.execute(3, -5, &dx, &dy);
+  printf("%.2f", dx); //CHECK-EXEC: -3.00
+  printf("%.2f", dy); //CHECK-EXEC: -1.00
   
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 
@@ -786,6 +819,14 @@ int main() {
 
 // CHECK: static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x) {
 // CHECK-NEXT: }
+
+// CHECK:  void operator_minus_pullback(const double &x, S _d_y, S *_d_this, double *_d_x) const {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_this->val += _d_y.val;
+// CHECK-NEXT:          *_d_x += -_d_y.val;
+// CHECK-NEXT:          _d_this->cond += _d_y.cond;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
 
 // CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {
 // CHECK-NEXT:     {
