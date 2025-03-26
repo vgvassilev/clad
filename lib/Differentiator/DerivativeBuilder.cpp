@@ -139,75 +139,53 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
       // Check if we're dealing with a template specialization
       if (FD->isFunctionTemplateSpecialization()) {
         const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
-        if (TAL && TAL->size() > 0) {
-          FunctionTemplateDecl* OriginalFTD = FD->getPrimaryTemplate();
+        FunctionTemplateDecl* OriginalFTD = FD->getPrimaryTemplate();
 
-          // Check if returnedFD is already associated with a template
-          if (!returnedFD->getDescribedFunctionTemplate() &&
-              !returnedFD->isFunctionTemplateSpecialization()) {
+        // Check if returnedFD is already associated with a template
+        if (!returnedFD->getDescribedFunctionTemplate() &&
+            !returnedFD->isFunctionTemplateSpecialization()) {
 
-            // Look for existing template in current context
-            FunctionTemplateDecl* ExistingFTD = nullptr;
-            DeclContext::lookup_result Lookup =
-                m_Sema.CurContext->lookup(name.getName());
+          // Look for existing template in current context
+          FunctionTemplateDecl* ExistingFTD = nullptr;
+          DeclContext::lookup_result Lookup =
+              m_Sema.CurContext->lookup(name.getName());
 
-            for (NamedDecl* ND : Lookup) {
-              if (FunctionTemplateDecl* FTD =
-                      dyn_cast<FunctionTemplateDecl>(ND)) {
-                // Check if this template matches what we need
-                FunctionDecl* FD1 = FTD->getTemplatedDecl();
-                FunctionDecl* FD2 = OriginalFTD->getTemplatedDecl();
+          for (NamedDecl* ND : Lookup) {
+            if (FunctionTemplateDecl* FTD =
+                    dyn_cast<FunctionTemplateDecl>(ND)) {
+              // Check if this template matches what we need
+              FunctionDecl* FD1 = FTD->getTemplatedDecl();
 
-                // Compare return types
-                if (!m_Context.hasSameType(FD1->getReturnType(),
-                                           FD2->getReturnType()))
-                  continue;
+              // Compare return types
+              if (!m_Context.hasSameType(FD1->getReturnType(),
+                                         FD->getReturnType()))
+                continue;
 
-                // Compare parameter types
-                if (FD1->getNumParams() != FD2->getNumParams())
-                  continue;
-
-                bool ParamsMatch = true;
-                for (unsigned i = 0; i < FD1->getNumParams(); ++i) {
-                  if (!m_Context.hasSameType(FD1->getParamDecl(i)->getType(),
-                                             FD2->getParamDecl(i)->getType())) {
-                    ParamsMatch = false;
-                    break;
-                  }
-                }
-                if (!ParamsMatch)
-                  continue;
-                // Check if this template matches what we need
-                if (clad_compat::isSameTemplateParameterList(
-                        FTD->getTemplateParameters(),
-                        OriginalFTD->getTemplateParameters(), m_Context)) {
-                  ExistingFTD = FTD;
-                  break;
-                }
-              }
+              ExistingFTD = FTD->getCanonicalDecl();
+              break;
             }
-
-            // Create a template declaration only if needed
-            if (!ExistingFTD) {
-              TemplateParameterList* TemplateParams =
-                  OriginalFTD->getTemplateParameters();
-
-              ExistingFTD = FunctionTemplateDecl::Create(
-                  m_Context, m_Sema.CurContext, noLoc, name.getName(),
-                  TemplateParams, returnedFD);
-
-              // Add to context to make it findable
-              m_Sema.CurContext->addDecl(ExistingFTD);
-            }
-
-            // Now specialize the function correctly
-            TemplateArgumentList* TALCopy =
-                TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
-
-            returnedFD->setFunctionTemplateSpecialization(
-                ExistingFTD, TALCopy, nullptr,
-                FD->getTemplateSpecializationKindForInstantiation());
           }
+
+          // Create a template declaration only if needed
+          if (!ExistingFTD) {
+            TemplateParameterList* TemplateParams =
+                OriginalFTD->getTemplateParameters();
+
+            ExistingFTD = FunctionTemplateDecl::Create(
+                m_Context, m_Sema.CurContext, noLoc, name.getName(),
+                TemplateParams, returnedFD);
+
+            // Add to context to make it findable
+            m_Sema.CurContext->addDecl(ExistingFTD);
+          }
+
+          // Now specialize the function correctly
+          TemplateArgumentList* TALCopy =
+              TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+
+          returnedFD->setFunctionTemplateSpecialization(
+              ExistingFTD, TALCopy, nullptr,
+              FD->getTemplateSpecializationKindForInstantiation());
         }
       }
     }
