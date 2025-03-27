@@ -647,8 +647,8 @@ namespace clad {
 
     if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
         !isa<MemberExpr>(E) &&
-        !(isa<UnaryOperator>(E) &&
-          cast<UnaryOperator>(E)->getOpcode() == UO_Deref))
+        (!isa<UnaryOperator>(E) ||
+         cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
       return true;
 
     // FIXME: currently, we allow all pointer operations to be stored.
