@@ -1084,7 +1084,8 @@ namespace clad {
           // Try to match it against the global arguments
           Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
           if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
-            const auto* PVD = cast<ParmVarDecl>(DRE->getDecl());
+            const ParmVarDecl* PVD =
+                static_cast<const ParmVarDecl*>(DRE->getDecl());
             request.DVI.push_back(PVD);
             if (m_TopMostReq->HasIndependentParameter(PVD))
               request.CUDAGlobalArgsIndexes.push_back(i);
