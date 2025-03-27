@@ -12,6 +12,7 @@
 #include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 #include "clad/Differentiator/VisitorBase.h"
 
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
@@ -414,18 +415,20 @@ namespace clad {
     VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
     StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* SCE);
     StmtDiff VisitCXXConstCastExpr(const clang::CXXConstCastExpr* CCE);
+    StmtDiff VisitCXXDefaultInitExpr(const clang::CXXDefaultInitExpr* DIE);
     StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
     StmtDiff VisitCaseStmt(const clang::CaseStmt* CS);
     StmtDiff VisitDefaultStmt(const clang::DefaultStmt* DS);
     DeclDiff<clang::VarDecl> DifferentiateVarDecl(const clang::VarDecl* VD,
                                                   bool keepLocal = false);
+    clang::Stmt* DifferentiateCtorInit(clang::CXXCtorInitializer* CI);
     StmtDiff VisitSubstNonTypeTemplateParmExpr(
         const clang::SubstNonTypeTemplateParmExpr* NTTP);
     StmtDiff
     VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPE);
     StmtDiff VisitNullStmt(const clang::NullStmt* NS) {
       return StmtDiff{Clone(NS), Clone(NS)};
-    };
+    }
 
     /// Helper function that checks whether the function to be derived
     /// is meant to be executed only by the GPU

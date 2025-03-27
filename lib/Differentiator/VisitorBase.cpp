@@ -443,23 +443,7 @@ namespace clad {
   }
 
   Expr* VisitorBase::getZeroInit(QualType T) {
-    // FIXME: Consolidate other uses of synthesizeLiteral for creation 0 or 1.
-    if (T->isVoidType() || isa<VariableArrayType>(T))
-      return nullptr;
-    if ((T->isScalarType() || T->isPointerType()) && !T->isReferenceType())
-      return ConstantFolder::synthesizeLiteral(T, m_Context, /*val=*/0);
-    if (isa<ConstantArrayType>(T)) {
-      Expr* zero = ConstantFolder::synthesizeLiteral(T, m_Context, /*val=*/0);
-      return m_Sema.ActOnInitList(noLoc, {zero}, noLoc).get();
-    }
-    if (const auto* RD = T->getAsCXXRecordDecl())
-      if (RD->hasDefinition() && !RD->isUnion() && RD->isAggregate()) {
-        llvm::SmallVector<Expr*, 4> adjParams;
-        for (const FieldDecl* FD : RD->fields())
-          adjParams.push_back(getZeroInit(FD->getType()));
-        return m_Sema.ActOnInitList(noLoc, adjParams, noLoc).get();
-      }
-    return m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
+    return utils::getZeroInit(T, m_Sema);
   }
 
   std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>
@@ -717,8 +701,9 @@ namespace clad {
                                        llvm::MutableArrayRef<Expr*> argExprs,
                                        bool useRefQualifiedThisObj /*=false*/) {
     Expr* call = nullptr;
-    if (auto derMethod = dyn_cast<CXXMethodDecl>(FD)) {
-      call = BuildCallExprToMemFn(derMethod, argExprs, useRefQualifiedThisObj);
+    if (auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
+      if (MD->isInstance())
+        call = BuildCallExprToMemFn(MD, argExprs, useRefQualifiedThisObj);
     } else {
       Expr* exprFunc = BuildDeclRef(FD);
       call = m_Sema

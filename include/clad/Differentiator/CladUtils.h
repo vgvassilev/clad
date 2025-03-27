@@ -326,6 +326,8 @@ namespace clad {
     void GetInnermostReturnExpr(const clang::Expr* E,
                                 llvm::SmallVectorImpl<clang::Expr*>& Exprs);
 
+    clang::Expr* getZeroInit(clang::QualType T, clang::Sema& S);
+
     bool ContainsFunctionCalls(const clang::Stmt* E);
 
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
@@ -340,6 +342,9 @@ namespace clad {
     bool isNonConstReferenceType(clang::QualType QT);
 
     bool isCopyable(const clang::CXXRecordDecl* RD);
+
+    bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
+                             const clang::ASTContext& C);
 
     } // namespace utils
     } // namespace clad

@@ -93,6 +93,7 @@ __global__ void add_kernel_4(int *out, int *in, int N) {
     }
     out[index] = sum;
   }
+  return;
 }
 
 // CHECK: void add_kernel_4_grad_0_1(int *out, int *in, int N, int *_d_out, int *_d_in) {
@@ -490,13 +491,13 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        unsigned long _r2 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r3 = static_cast<cudaMemcpyKind>(0U);
-//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost, _d_out_host, _d_out, &_r2, &_r3);
+//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost, static_cast<cudaError>(0U), _d_out_host, _d_out, &_r2, &_r3);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    kernel_call_pullback<<<1, 10>>>(out, in_dev, _d_out, _d_in_dev);
 //CHECK-NEXT:    {
 //CHECK-NEXT:        unsigned long _r0 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r1 = static_cast<cudaMemcpyKind>(0U);
-//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(in_dev, in, 10 * sizeof(double), cudaMemcpyHostToDevice, _d_in_dev, _d_in, &_r0, &_r1);
+//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(in_dev, in, 10 * sizeof(double), cudaMemcpyHostToDevice, static_cast<cudaError>(0U), _d_in_dev, _d_in, &_r0, &_r1);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    free(out_host);
 //CHECK-NEXT:    free(_d_out_host);
@@ -599,7 +600,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        unsigned long _r6 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r7 = static_cast<cudaMemcpyKind>(0U);
-//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out, out_dev, N * sizeof(int), cudaMemcpyDeviceToHost, _d_out, _d_out_dev, &_r6, &_r7);
+//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out, out_dev, N * sizeof(int), cudaMemcpyDeviceToHost, static_cast<cudaError>(0U), _d_out, _d_out_dev, &_r6, &_r7);
 //CHECK-NEXT:        _d_N += _r6 * sizeof(int);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
@@ -615,13 +616,13 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        unsigned long _r2 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r3 = static_cast<cudaMemcpyKind>(0U);
-//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out_dev, out, N * sizeof(int), cudaMemcpyHostToDevice, _d_out_dev, _d_out, &_r2, &_r3);
+//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out_dev, out, N * sizeof(int), cudaMemcpyHostToDevice, static_cast<cudaError>(0U), _d_out_dev, _d_out, &_r2, &_r3);
 //CHECK-NEXT:        _d_N += _r2 * sizeof(int);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
 //CHECK-NEXT:        unsigned long _r0 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r1 = static_cast<cudaMemcpyKind>(0U);
-//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(in_dev, in, N * sizeof(int), cudaMemcpyHostToDevice, _d_in_dev, _d_in, &_r0, &_r1);
+//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(in_dev, in, N * sizeof(int), cudaMemcpyHostToDevice, static_cast<cudaError>(0U), _d_in_dev, _d_in, &_r0, &_r1);
 //CHECK-NEXT:        _d_N += _r0 * sizeof(int);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    cudaFree(in_dev);
