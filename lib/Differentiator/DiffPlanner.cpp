@@ -642,8 +642,13 @@ namespace clad {
     if (!EnableTBRAnalysis)
       return true;
 
+    if (isa<CXXConstCastExpr>(E))
+      E = cast<CXXConstCastExpr>(E)->getSubExpr();
+
     if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
-        !isa<MemberExpr>(E))
+        !isa<MemberExpr>(E) &&
+        (!isa<UnaryOperator>(E) ||
+         cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
       return true;
 
     // FIXME: currently, we allow all pointer operations to be stored.

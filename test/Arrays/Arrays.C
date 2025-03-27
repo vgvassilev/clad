@@ -221,6 +221,19 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //:       }
 //:   }
 
+void f25(double x, const double *y) { 
+  const_cast<double &>(*y) = 3 * x; 
+}
+
+// CHECK: void f25_grad(double x, const double *y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:    const_cast<double &>(*y) = 3 * x;
+// CHECK-NEXT:    {
+// CHECK-NEXT:      double _r_d0 = *_d_y;
+// CHECK-NEXT:      *_d_y = 0.;
+// CHECK-NEXT:      *_d_x += 3 * _r_d0;
+// CHECK-NEXT:    }
+// CHECK-NEXT:  }
+
 int main () { // expected-no-diagnostics
   auto dsum = clad::differentiate(sum, 0);
   printf("%.2f\n", dsum.execute(11, 12, 13)); // CHECK-EXEC: 1.00
@@ -244,5 +257,14 @@ int main () { // expected-no-diagnostics
 //  grad.execute(
 //      11, 12, 13, 14, &result2[0], &result2[1], &result2[2], &result2[3]);
 //  printf("{%.2f, %.2f, %.2f, %.2f}\n", result2[0], result2[1], result2[2], result2[3]); // : {3.00, 7.00, 3.00, 7.00}
+
+  auto const_output_test = clad::gradient(f25);
+  double const_output_test_result[2] = {0.0, 1.0};
+  const double y[1] = {4.0};
+  const_output_test.execute(3, y, &const_output_test_result[0],
+                            &const_output_test_result[1]);
+  printf("{%.2f, %.2f}\n", const_output_test_result[0],
+         const_output_test_result[1]); // CHECK-EXEC: {3.00, 0.00}
+
   return 0;
 }
