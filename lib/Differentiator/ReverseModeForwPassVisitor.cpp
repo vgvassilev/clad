@@ -144,9 +144,7 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
         m_Sema.PushOnScopeChains(thisDerivativePVD, getCurrentScope(),
                                  /*AddToContext=*/false);
 
-      Expr* deref =
-          BuildOp(UnaryOperatorKind::UO_Deref, BuildDeclRef(thisDerivativePVD));
-      m_ThisExprDerivative = utils::BuildParenExpr(m_Sema, deref);
+      m_ThisExprDerivative = BuildDeclRef(thisDerivativePVD);
       ++dParamTypesIdx;
     }
   }
@@ -246,7 +244,8 @@ ReverseModeForwPassVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
       if (MD->isInstance()) {
         diff = Visit(UnOp->getSubExpr());
         Expr* cloneE = BuildOp(UnaryOperatorKind::UO_Deref, diff.getExpr());
-        Expr* derivedE = diff.getExpr_dx();
+        Expr* derivedE =
+            BuildOp(UnaryOperatorKind::UO_Deref, diff.getExpr_dx());
         return {cloneE, derivedE};
       }
     }

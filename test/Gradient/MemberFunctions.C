@@ -23,8 +23,8 @@ public:
 
   // CHECK: void SimpleFunctions::mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -35,8 +35,8 @@ public:
 
   // CHECK: void SimpleFunctions::const_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) const {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -50,8 +50,8 @@ public:
   // CHECK: void SimpleFunctions::volatile_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) volatile {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -65,8 +65,8 @@ public:
   // CHECK: void SimpleFunctions::const_volatile_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) const volatile {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -77,8 +77,8 @@ public:
 
   // CHECK: void SimpleFunctions::lval_ref_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) & {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -91,8 +91,8 @@ public:
 
   // CHECK: void SimpleFunctions::const_lval_ref_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) const & {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -106,8 +106,8 @@ public:
   // CHECK: void SimpleFunctions::volatile_lval_ref_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) volatile & {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -121,8 +121,8 @@ public:
   // CHECK: void SimpleFunctions::const_volatile_lval_ref_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) const volatile & {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -133,8 +133,8 @@ public:
 
   // CHECK: void SimpleFunctions::rval_ref_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) && {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -147,8 +147,8 @@ public:
 
   // CHECK: void SimpleFunctions::const_rval_ref_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) const && {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -162,8 +162,8 @@ public:
   // CHECK: void SimpleFunctions::volatile_rval_ref_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) volatile && {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -177,8 +177,8 @@ public:
   // CHECK: void SimpleFunctions::const_volatile_rval_ref_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) const volatile && {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -191,8 +191,8 @@ public:
 
   // CHECK: void SimpleFunctions::noexcept_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) noexcept {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -205,8 +205,8 @@ public:
 
   // CHECK: void SimpleFunctions::const_noexcept_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) const noexcept {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -220,8 +220,8 @@ public:
   // CHECK: void SimpleFunctions::volatile_noexcept_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) volatile noexcept {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -235,8 +235,8 @@ public:
   // CHECK: void SimpleFunctions::const_volatile_noexcept_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) const volatile noexcept {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -249,8 +249,8 @@ public:
 
   // CHECK: void SimpleFunctions::lval_ref_noexcept_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) & noexcept {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -263,8 +263,8 @@ public:
 
   // CHECK: void SimpleFunctions::const_lval_ref_noexcept_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) const & noexcept {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -278,8 +278,8 @@ public:
   // CHECK: void SimpleFunctions::volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) volatile & noexcept {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -293,8 +293,8 @@ public:
   // CHECK: void SimpleFunctions::const_volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) const volatile & noexcept {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -307,8 +307,8 @@ public:
 
   // CHECK: void SimpleFunctions::rval_ref_noexcept_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) && noexcept {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -321,8 +321,8 @@ public:
 
   // CHECK: void SimpleFunctions::const_rval_ref_noexcept_mem_fn_grad(double i, double j, SimpleFunctions *_d_this, double *_d_i, double *_d_j) const && noexcept {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -336,8 +336,8 @@ public:
   // CHECK: void SimpleFunctions::volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) volatile && noexcept {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -351,8 +351,8 @@ public:
   // CHECK: void SimpleFunctions::const_volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i, double *_d_j) const volatile && noexcept {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += _t0 * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         *_d_j += i * 1;
@@ -364,11 +364,21 @@ public:
   // CHECK: void partial_mem_fn_grad_0(double i, double j, SimpleFunctions *_d_this, double *_d_i) {
   // CHECK-NEXT:     double _d_j = 0.;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * i;
-  // CHECK-NEXT:         (*_d_this).y += 1 * i;
+  // CHECK-NEXT:         _d_this->x += 1 * i;
+  // CHECK-NEXT:         _d_this->y += 1 * i;
   // CHECK-NEXT:         *_d_i += (this->x + this->y) * 1;
   // CHECK-NEXT:         *_d_i += 1 * j;
   // CHECK-NEXT:         _d_j += i * 1;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
+
+
+  static double static_mem_fn(double u, double v) { return u + v; }
+  
+  // CHECK: static void static_mem_fn_grad(double u, double v, double *_d_u, double *_d_v) {
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         *_d_u += 1;
+  // CHECK-NEXT:         *_d_v += 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -509,7 +519,6 @@ namespace class_functions {
     constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>) {
         return {SafeTestClass(), SafeTestClass()};
     }
-
     void constructor_pullback(double x, double* y, SafeTestClass *d_this, double* d_x, double* d_y) {
         *d_x += *d_y;
         *d_y = 0;
@@ -524,6 +533,8 @@ double fn6(double u, double v) {
     return v;
 }
 
+// CHECK:  static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x);
+
 // CHECK: void fn6_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      double &_d_w = *_d_u;
 // CHECK-NEXT:      double &w = u;
@@ -537,10 +548,85 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      SafeTestClass s3(_t2.value);
 // CHECK-NEXT:      SafeTestClass _d_s3 = _t2.adjoint;
 // CHECK-NEXT:      *_d_v += 1;
+// CHECK-NEXT:      SafeTestClass::constructor_pullback(w, &_d_s3, &_d_w);
 // CHECK-NEXT:      {{.*}}constructor_pullback(u, &v, &_d_s2, &*_d_u, &*_d_v);
 // CHECK-NEXT:  }
 
+double fn7(double u, double v) {
+  return SimpleFunctions::static_mem_fn(u, v);
+}
 
+struct S {
+  double val;
+  bool cond;
+  bool Cond(const double& t) const {
+    return t > 0 || cond;
+  }
+  double getVal() const{
+    return val;
+  }
+  
+  S operator-(const double& x) const {
+    return {val - x, cond};
+  }
+};
+
+double fn8(double x, double y) {
+  S s = {x, false};
+  if (s.Cond(y))
+    return 0;
+  return y;
+}
+
+// CHECK:  void fn8_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      S _d_s = {0., false};
+// CHECK-NEXT:      S s = {x, false};
+// CHECK-NEXT:      if (s.Cond(y))
+// CHECK-NEXT:          goto _label0;
+// CHECK-NEXT:      *_d_y += 1;
+// CHECK-NEXT:      if (s.Cond(y))
+// CHECK-NEXT:        _label0:
+// CHECK-NEXT:          ;
+// CHECK-NEXT:      *_d_x += _d_s.val;
+// CHECK-NEXT:  }
+
+double fn9(double x, double y) {
+  S* s = new S{x, false};
+  return s->getVal();
+}
+
+// CHECK:  void fn9_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      S *_d_s = new S();
+// CHECK-NEXT:      S *s = new S({x, false});
+// CHECK-NEXT:      S *_t0 = s;
+// CHECK-NEXT:      _t0->getVal_pullback(1, _d_s);
+// CHECK-NEXT:      *_d_x += *_d_s.val;
+// CHECK-NEXT:  }
+
+// CHECK:  void operator_minus_pullback(const double &x, S _d_y, S *_d_this, double *_d_x) const;
+
+double fn10(double x, double y) {
+  S s = {x, false};
+  return ((s - 4*x) - y).getVal();
+}
+
+// CHECK:  void fn10_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      S _d_s = {0., false};
+// CHECK-NEXT:      S s = {x, false};
+// CHECK-NEXT:      S _t0 = s;
+// CHECK-NEXT:      S _t1 = s.operator-(4 * x);
+// CHECK-NEXT:      S _t2 = (s - 4 * x).operator-(y);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          S _r0 = {0., false};
+// CHECK-NEXT:          _t2.getVal_pullback(1, &_r0);
+// CHECK-NEXT:          S _r1 = {0., false};
+// CHECK-NEXT:          _t1.operator_minus_pullback(y, _r0, &_r1, &*_d_y);
+// CHECK-NEXT:          double _r2 = 0.;
+// CHECK-NEXT:          _t0.operator_minus_pullback(4 * x, _r1, &_d_s, &_r2);
+// CHECK-NEXT:          *_d_x += 4 * _r2;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      *_d_x += _d_s.val;
+// CHECK-NEXT:  }
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
   auto d_const_mem_fn = clad::gradient(&SimpleFunctions::const_mem_fn);
@@ -567,6 +653,7 @@ int main() {
   auto d_volatile_rval_ref_noexcept_mem_fn = clad::gradient(&SimpleFunctions::volatile_rval_ref_noexcept_mem_fn);
   auto d_const_volatile_rval_ref_noexcept_mem_fn = clad::gradient(&SimpleFunctions::const_volatile_rval_ref_noexcept_mem_fn);
   auto d_partial_mem_fn = clad::gradient(&SimpleFunctions::partial_mem_fn, "i");
+  auto d_static_mem_fn = clad::gradient(&SimpleFunctions::static_mem_fn);
 
   auto d_fn = clad::gradient(fn);
   double result[2] = {};
@@ -595,15 +682,39 @@ int main() {
   d_fn6.execute(3, 5, &dx, &dy);
   printf("%.2f", dx); //CHECK-EXEC: 1.00
   printf("%.2f", dy); //CHECK-EXEC: 0.00
+  
+  double du = 0, dv = 0;
+  auto d_fn7 = clad::gradient(fn7);
+  d_fn7.execute(3, 5, &du, &dv);
+  printf("%.2f", du); //CHECK-EXEC: 1.00
+  printf("%.2f", dv); //CHECK-EXEC: 1.00
 
+  dx = 0, dy = 0;
+  auto d_fn8 = clad::gradient(fn8);
+  d_fn8.execute(3, -5, &dx, &dy);
+  printf("%.2f", dx); //CHECK-EXEC: 0.00
+  printf("%.2f", dy); //CHECK-EXEC: 1.00
+
+  dx = 0, dy = 0;
+  auto d_fn9 = clad::gradient(fn9);
+  d_fn9.execute(3, -5, &dx, &dy);
+  printf("%.2f", dx); //CHECK-EXEC: 1.00
+  printf("%.2f", dy); //CHECK-EXEC: 0.00
+
+  dx = 0, dy = 0;
+  auto d_fn10 = clad::gradient(fn10);
+  d_fn10.execute(3, -5, &dx, &dy);
+  printf("%.2f", dx); //CHECK-EXEC: -3.00
+  printf("%.2f", dy); //CHECK-EXEC: -1.00
+  
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 
   // CHECK:   void const_volatile_lval_ref_mem_fn_grad_0(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i) const volatile & {
   // CHECK-NEXT:       double _d_j = 0.;
   // CHECK-NEXT:       double _t0 = (this->x + this->y);
   // CHECK-NEXT:       {
-  // CHECK-NEXT:           (*_d_this).x += 1 * i;
-  // CHECK-NEXT:           (*_d_this).y += 1 * i;
+  // CHECK-NEXT:           _d_this->x += 1 * i;
+  // CHECK-NEXT:           _d_this->y += 1 * i;
   // CHECK-NEXT:           *_d_i += _t0 * 1;
   // CHECK-NEXT:           *_d_i += 1 * j;
   // CHECK-NEXT:           _d_j += i * 1;
@@ -616,8 +727,8 @@ int main() {
   // CHECK-NEXT:       double _d_i = 0.;
   // CHECK-NEXT:       double _t0 = (this->x + this->y);
   // CHECK-NEXT:       {
-  // CHECK-NEXT:           (*_d_this).x += 1 * i;
-  // CHECK-NEXT:           (*_d_this).y += 1 * i;
+  // CHECK-NEXT:           _d_this->x += 1 * i;
+  // CHECK-NEXT:           _d_this->y += 1 * i;
   // CHECK-NEXT:           _d_i += _t0 * 1;
   // CHECK-NEXT:           _d_i += 1 * j;
   // CHECK-NEXT:           *_d_j += i * 1;
@@ -643,6 +754,7 @@ int main() {
 // CHECK-NEXT:             *_d_i += _r0;
 // CHECK-NEXT:             *_d_j += _r1;
 // CHECK-NEXT:         }
+// CHECK-NEXT:     SimpleFunctions::constructor_pullback(x, y, &_d_sf, &_d_x, &_d_y);
 // CHECK-NEXT:     }
 
 
@@ -651,17 +763,17 @@ int main() {
 // CHECK-NEXT:     this->x = +i;
 // CHECK-NEXT:     double _t1 = this->x;
 // CHECK-NEXT:     this->x = -i;
-// CHECK-NEXT:     (*_d_this).x += _d_y;
+// CHECK-NEXT:     _d_this->x += _d_y;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         this->x = _t1;
-// CHECK-NEXT:         double _r_d1 = (*_d_this).x;
-// CHECK-NEXT:         (*_d_this).x = 0.;
+// CHECK-NEXT:         double _r_d1 = _d_this->x;
+// CHECK-NEXT:         _d_this->x = 0.;
 // CHECK-NEXT:         *_d_i += -_r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         this->x = _t0;
-// CHECK-NEXT:         double _r_d0 = (*_d_this).x;
-// CHECK-NEXT:         (*_d_this).x = 0.;
+// CHECK-NEXT:         double _r_d0 = _d_this->x;
+// CHECK-NEXT:         _d_this->x = 0.;
 // CHECK-NEXT:         *_d_i += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -671,7 +783,7 @@ int main() {
 // CHECK-NEXT:     this->x = +i;
 // CHECK-NEXT:     double _t1 = this->x;
 // CHECK-NEXT:     this->x = -i;
-// CHECK-NEXT:     return {this->x, (*_d_this).x};
+// CHECK-NEXT:     return {this->x, _d_this->x};
 // CHECK-NEXT: }
 
 // CHECK: void operator_plus_equal_pullback(double value, SimpleFunctions _d_y, SimpleFunctions *_d_this, double *_d_value) {
@@ -679,7 +791,7 @@ int main() {
 // CHECK-NEXT:     this->x += value;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         this->x = _t0;
-// CHECK-NEXT:         double _r_d0 = (*_d_this).x;
+// CHECK-NEXT:         double _r_d0 = _d_this->x;
 // CHECK-NEXT:         *_d_value += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -687,7 +799,7 @@ int main() {
 // CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_forw(double value, SimpleFunctions *_d_this, double _d_value) {
 // CHECK-NEXT:     double _t0 = this->x;
 // CHECK-NEXT:     this->x += value;
-// CHECK-NEXT:     return {*this, (*_d_this)};
+// CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }
 
 // CHECK: void operator_plus_plus_pullback(SimpleFunctions _d_y, SimpleFunctions *_d_this) {
@@ -695,13 +807,35 @@ int main() {
 // CHECK-NEXT:     this->x += 1.;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         this->x = _t0;
-// CHECK-NEXT:         double _r_d0 = (*_d_this).x;
+// CHECK-NEXT:         double _r_d0 = _d_this->x;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_forw(SimpleFunctions *_d_this) {
 // CHECK-NEXT:     double _t0 = this->x;
 // CHECK-NEXT:     this->x += 1.;
-// CHECK-NEXT:     return {*this, (*_d_this)};
+// CHECK-NEXT:     return {*this, *_d_this};
+// CHECK-NEXT: }
+
+// CHECK: static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x) {
+// CHECK-NEXT: }
+
+// CHECK:  void operator_minus_pullback(const double &x, S _d_y, S *_d_this, double *_d_x) const {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_this->val += _d_y.val;
+// CHECK-NEXT:          *_d_x += -_d_y.val;
+// CHECK-NEXT:          _d_this->cond += _d_y.cond;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_p_y += _d_this->y;
+// CHECK-NEXT:         _d_this->y = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_p_x += _d_this->x;
+// CHECK-NEXT:         _d_this->x = 0.;
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
 }

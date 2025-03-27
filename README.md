@@ -332,6 +332,31 @@ mkdir build && cd build
 cmake -DLLVM_ENABLE_PROJECTS="clang" -DLLVM_EXTERNAL_PROJECTS=clad -DLLVM_EXTERNAL_CLAD_SOURCE_DIR=../../clad -DCMAKE_BUILD_TYPE="Debug" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
 cmake --build . --target clad --parallel $(nproc --all)
 ```
+Note: However, on some systems, the above command may not build Clang and Clad in parallel. In such cases, you need to build Clang separately and then build Clad using that Clang binary. Use the following commands:
+
+Building Clang Separately
+```
+mkdir build && cd build
+cmake -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
+cmake --build . --target clang --parallel $(nproc --all)
+make -j8 check-clang  # This installs llvm-config, required by lit
+cd ../..
+
+```
+Cloning and Building Clad:
+```
+cd clad
+mkdir build && cd build
+cmake -DLLVM_DIR=PATH/TO/llvm-project/build -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_EXTERNAL_LIT="$(which lit)" ../
+make -j8 clad
+
+
+```
+If you have limited memory (less than 16GB of RAM + swap), you can use the following build configuration to compile Clang more efficiently:
+```
+cmake -G Ninja /path/to/llvm-project/llvm -DLLVM_USE_LINKER=gold -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DBUILD_SHARED_LIBS=On -DLLVM_USE_SPLIT_DWARF=On -DLLVM_OPTIMIZED_TABLEGEN=On -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=../inst
+```
+
 
 Run the Clad tests:
 ```

@@ -153,8 +153,47 @@ namespace clad {
         FinalizeTranslationUnit();
     }
 
+    static void printDerivative(clang::Decl* D, bool DeclarationOnly,
+                                const DifferentiationOptions& DO) {
+      clang::LangOptions LangOpts;
+      LangOpts.CPlusPlus = true;
+      clang::PrintingPolicy Policy(LangOpts);
+      Policy.Bool = true;
+
+      // if enabled, print source code of the derivatives
+      if (DO.DumpDerivedFn) {
+        D->print(llvm::outs(), Policy);
+        if (DeclarationOnly)
+          llvm::outs() << ";\n";
+      }
+
+      // if enabled, print ASTs of the derivatives
+      if (DO.DumpDerivedAST)
+        D->dumpColor();
+
+      // if enabled, print the derivatives in a file
+      if (DO.GenerateSourceFile) {
+        std::error_code err;
+        llvm::raw_fd_ostream f("Derivatives.cpp", err,
+                               CLAD_COMPAT_llvm_sys_fs_Append);
+        D->print(f, Policy);
+        if (DeclarationOnly)
+          f << ";\n";
+        f.flush();
+      }
+    }
+
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
+      if (request.Global) {
+        auto deriveResult = m_DerivativeBuilder->Derive(request);
+        auto* VDDiff = cast_or_null<VarDecl>(deriveResult.derivative);
+        ProcessTopLevelDecl(VDDiff);
+        // Dump the declaration if requested.
+        printDerivative(VDDiff, request.DeclarationOnly, m_DO);
+        return nullptr;
+      }
+
       // Required due to custom derivatives function templates that might be
       // used in the function that we need to derive.
       // FIXME: Remove the call to PerformPendingInstantiations().
@@ -230,7 +269,7 @@ namespace clad {
                                 request.BaseFunctionName);
 
           auto deriveResult = m_DerivativeBuilder->Derive(request);
-          DerivativeDecl = deriveResult.derivative;
+          DerivativeDecl = cast_or_null<FunctionDecl>(deriveResult.derivative);
           OverloadedDerivativeDecl = deriveResult.overload;
           if (WantTiming)
             m_CTG.StopTimer();
@@ -242,28 +281,7 @@ namespace clad {
           m_DFC.Add(
               DerivedFnInfo(request, DerivativeDecl, OverloadedDerivativeDecl));
 
-          // if enabled, print source code of the derived functions
-          if (m_DO.DumpDerivedFn) {
-            DerivativeDecl->print(llvm::outs(), Policy);
-            if (request.DeclarationOnly)
-              llvm::outs() << ";\n";
-          }
-
-          // if enabled, print ASTs of the derived functions
-          if (m_DO.DumpDerivedAST) {
-            DerivativeDecl->dumpColor();
-          }
-
-          // if enabled, print the derivatives in a file.
-          if (m_DO.GenerateSourceFile) {
-            std::error_code err;
-            llvm::raw_fd_ostream f("Derivatives.cpp", err,
-                                   CLAD_COMPAT_llvm_sys_fs_Append);
-            DerivativeDecl->print(f, Policy);
-            if (request.DeclarationOnly)
-              f << ";\n";
-            f.flush();
-          }
+          printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
           if (OverloadedDerivativeDecl)
@@ -442,7 +460,7 @@ namespace clad {
         // HandleTopLevelDecl can be called recursively in non-standard
         // setup for code generation.
         DiffRequest request = m_DiffRequestGraph.getNextToProcessNode();
-        while (request.Function) {
+        while (request.Function || request.Global) {
           m_DiffRequestGraph.setCurrentProcessingNode(request);
           ProcessDiffRequest(request);
           m_DiffRequestGraph.markCurrentNodeProcessed();
