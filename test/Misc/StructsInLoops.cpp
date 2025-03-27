@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -o %t
-// RUN: %t | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oStructsInLoops..out 2>&1
+// RUN: ./StructsInLoops..out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include <stdio.h>
@@ -39,11 +39,11 @@ int main() {
 
     double d_a = 0;
     grad.execute(a, &d_a);
-    printf("fn1 derivative: %.1f\n", d_a); // CHECK: fn1 derivative: 2.0
+    printf("fn1 derivative: %.1f\n", d_a); //CHECK-EXEC: fn1 derivative: 2.0
     
     double d_b = 0;
     grad2.execute(b, &d_b);
-    printf("fn2 derivative: %.1f\n", d_b); // CHECK: fn2 derivative: 12.0
+    printf("fn2 derivative: %.1f\n", d_b); //CHECK-EXEC: fn2 derivative: 12.0
     
     return 0;
 }
