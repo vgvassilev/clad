@@ -93,6 +93,7 @@ __global__ void add_kernel_4(int *out, int *in, int N) {
     }
     out[index] = sum;
   }
+  return;
 }
 
 // CHECK: void add_kernel_4_grad_0_1(int *out, int *in, int N, int *_d_out, int *_d_in) {
