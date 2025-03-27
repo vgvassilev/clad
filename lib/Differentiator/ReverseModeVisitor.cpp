@@ -1138,6 +1138,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     // Initially, df/df = 1.
+    if (m_DiffReq->getReturnType()->isVoidType())
+      return {nullptr, nullptr};
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
     auto* dfdf = m_Pullback;
