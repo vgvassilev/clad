@@ -900,6 +900,17 @@ double f24(double x, double y) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+short int f25(short int x, short int y) {
+  return x * y;
+}
+
+// CHECK: void f25_grad_0(short x, short y, short *_d_x) {
+//CHECK-NEXT:    short _d_y = 0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        *_d_x += 1 * y;
+//CHECK-NEXT:        _d_y += x * 1;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
 
 #define TEST(F, x, y)                                                          \
   {                                                                            \
@@ -983,4 +994,10 @@ int main() {
   printf("%.2f\n", const_test_input_result); // CHECK-EXEC: 1.00
 
   TEST(f24, 7, 5); // CHECK-EXEC: {1.00, 1.00}
+
+  auto f25_grad = clad::gradient(f25, "x");
+  short int x = 3, y = 4;
+  short int grad_x = 0, grad_y = 0;
+  f25_grad.execute(x, y, &grad_x, &grad_y);
+  printf("{%d, %d}\n", grad_x, grad_y); // CHECK-EXEC: {4, 0}
 }
