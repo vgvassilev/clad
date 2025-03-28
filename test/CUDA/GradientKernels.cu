@@ -413,6 +413,33 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+__global__ void fn1(double *out, const double *in, double val) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  double temp = val;
+  out[index] = device_fn(in[index], temp);
+}
+
+// CHECK: void fn1_grad_0_2(double *out, const double *in, double val, double *_d_out, double *_d_val) {
+// CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+// CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+// CHECK-NEXT:    int _d_index = 0;
+// CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+// CHECK-NEXT:    double _d_temp = 0.;
+// CHECK-NEXT:    double temp = val;
+// CHECK-NEXT:    double _t2 = out[index0];
+// CHECK-NEXT:    out[index0] = device_fn(in[index0], temp);
+// CHECK-NEXT:    {
+// CHECK-NEXT:        out[index0] = _t2;
+// CHECK-NEXT:        double _r_d0 = _d_out[index0];
+// CHECK-NEXT:        _d_out[index0] = 0.;
+// CHECK-NEXT:        double _r0 = 0.;
+// CHECK-NEXT:        double _r1 = 0.;
+// CHECK-NEXT:        device_fn_pullback_1(in[index0], temp, _r_d0, &_r0, &_r1);
+// CHECK-NEXT:        _d_temp += _r1;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    atomicAdd(_d_val, _d_temp);
+// CHECK-NEXT: }
+
 __global__ void kernel_call(double *a, double *b) {
   int index = threadIdx.x + blockIdx.x * blockDim.x;
   a[index] = *b;
@@ -921,6 +948,13 @@ int main(void) {
   test_device_4.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, val, d_out_double, d_in_double, d_val);
   cudaMemcpy(res, d_in_double, 10 * sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f, %0.2f, %0.2f\n", res[0], res[1], res[2]); // CHECK-EXEC: 5.00, 5.00, 5.00
+  cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
+  printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
+
+  INIT(dummy_in_double, dummy_out_double, val, d_in_double, d_out_double, d_val);
+
+  auto local_param = clad::gradient(fn1, "out, val");
+  local_param.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_val);
   cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
 
