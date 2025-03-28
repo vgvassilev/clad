@@ -162,7 +162,7 @@ namespace clad {
     } else if (QT->isIntegralType(C)) {
       if (QT->isAnyCharacterType())
         QT = C.IntTy;
-      if (auto* BT = dyn_cast<BuiltinType>(QT.getTypePtr()))
+      if (const auto* BT = dyn_cast<BuiltinType>(QT.getTypePtr()))
         if (BT->getKind() == BuiltinType::Short)
           QT = C.IntTy;
       llvm::APInt APVal(C.getIntWidth(QT), val,
