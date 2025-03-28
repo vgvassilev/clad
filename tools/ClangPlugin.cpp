@@ -123,20 +123,6 @@ namespace clad {
     }
 
     void CladPlugin::HandleTopLevelDeclForClad(DeclGroupRef DGR) {
-      if (!CheckBuiltins())
-        return;
-
-      Sema& S = m_CI.getSema();
-
-      if (!m_DerivativeBuilder)
-        m_DerivativeBuilder.reset(
-            new DerivativeBuilder(S, *this, m_DFC, m_DiffRequestGraph));
-
-      RequestOptions opts{};
-      SetRequestOptions(opts);
-      DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph, S,
-                              opts);
-
 #if CLANG_VERSION_MAJOR > 16
       for (DiffRequest& request : m_DiffRequestGraph.getNodes()) {
         if (request.ImmediateMode && request.Function->isConstexpr()) {
@@ -478,6 +464,19 @@ namespace clad {
     }
 
     void CladPlugin::HandleTranslationUnit(ASTContext& C) {
+      if (!CheckBuiltins())
+        return;
+      Sema& S = m_CI.getSema();
+      if (!m_DerivativeBuilder)
+        m_DerivativeBuilder.reset(
+            new DerivativeBuilder(S, *this, m_DFC, m_DiffRequestGraph));
+      RequestOptions opts{};
+      SetRequestOptions(opts);
+
+      for (auto DCI : m_DelayedCalls)
+        DiffCollector collector(DCI.m_DGR, CladEnabledRange, m_DiffRequestGraph,
+                                S, opts);
+
       FinalizeTranslationUnit();
       SendToMultiplexer();
       m_Multiplexer->HandleTranslationUnit(C);
