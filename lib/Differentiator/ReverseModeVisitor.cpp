@@ -2651,14 +2651,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDDerivedInit = BuildOp(UO_Deref, dummy);
     }
 
+    bool isDirectInit = VD->isDirectInit();
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
     if (promoteToFnScope)
-      if (const auto* AT = dyn_cast<ArrayType>(VDType))
+      if (const auto* AT = dyn_cast<ArrayType>(VDType)) {
         // If an array-type declaration is promoted to function global,
         // its type is changed for clad::array. In that case we should
         // initialize it with its size.
         initDiff = getArraySizeExpr(AT, m_Context, *this);
+        isDirectInit = true;
+      }
     // If VD is a reference to a local variable, then the initial value is set
     // to the derived variable of the corresponding local variable.
     // If VD is a reference to a non-local variable (global variable, struct
@@ -2788,10 +2791,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDClone = BuildGlobalVarDecl(
           VDCloneType, VD->getNameAsString(),
           BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),
-          VD->isDirectInit());
+          isDirectInit);
     else
       VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
-                                   initDiff.getExpr(), VD->isDirectInit());
+                                   initDiff.getExpr(), isDirectInit);
 
     if (isConstructInit) {
       if (initDiff.getStmt_dx()) {
