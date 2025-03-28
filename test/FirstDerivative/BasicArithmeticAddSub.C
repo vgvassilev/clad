@@ -6,13 +6,13 @@
 extern "C" int printf(const char* fmt, ...);
 
 int a_1(int x) {
-  short int y = 4;
+  int y = 4;
   return y + y; // == 0
 }
 // CHECK: int a_1_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: short _d_y = 0;
-// CHECK-NEXT: short y = 4;
+// CHECK-NEXT: int _d_y = 0;
+// CHECK-NEXT: int y = 4;
 // CHECK-NEXT: return _d_y + _d_y;
 // CHECK-NEXT: }
 
