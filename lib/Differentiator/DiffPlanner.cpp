@@ -1084,11 +1084,20 @@ namespace clad {
           // Try to match it against the global arguments
           Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
           if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
-            const ParmVarDecl* PVD =
-                static_cast<const ParmVarDecl*>(DRE->getDecl());
-            request.DVI.push_back(PVD);
-            if (m_TopMostReq->HasIndependentParameter(PVD))
+            auto* VD = DRE->getDecl();
+            // check if it's a kernel param
+            if (isa<ParmVarDecl>(VD)) {
+              const auto* PVD = cast<ParmVarDecl>(VD);
+              request.DVI.push_back(PVD);
+              // we know we should use atomic ops here
               request.CUDAGlobalArgsIndexes.push_back(i);
+            } else {
+              // create a param from the VarDecl
+              const ParmVarDecl* PVD =
+                  utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext,
+                                          VD->getIdentifier(), VD->getType());
+              request.DVI.push_back(PVD);
+            }
           }
         }
       }
