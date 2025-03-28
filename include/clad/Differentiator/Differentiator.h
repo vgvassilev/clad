@@ -107,11 +107,11 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   template <class T>
   struct is_range : decltype(zero_init_detail::is_range<T>(0)) {};
 
-  template <class T> void zero_init(T& t);
+  template <class T> CUDA_HOST_DEVICE void zero_init(T& t);
 
   template <class T,
             typename std::enable_if<!is_range<T>::value, int>::type = 0>
-  void zero_impl(volatile T& t) {
+  CUDA_HOST_DEVICE void zero_impl(volatile T& t) {
     // Fill an array with zeros.
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
     unsigned char tmp[sizeof(T)] = {};
@@ -124,7 +124,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   }
 
   template <class T, typename std::enable_if<is_range<T>::value, int>::type = 0>
-  void zero_impl(T& t) {
+  CUDA_HOST_DEVICE void zero_impl(T& t) {
     for (auto& x : t)
       zero_init(x);
   }
@@ -135,7 +135,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
     zero_init(p.second);
   }
 
-  template <class T> void zero_init(T& t) { zero_impl(t); }
+  template <class T> CUDA_HOST_DEVICE void zero_init(T& t) { zero_impl(t); }
 
   /// Initialize a const sized array.
   // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
