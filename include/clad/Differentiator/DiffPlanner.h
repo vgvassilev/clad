@@ -40,7 +40,7 @@ private:
   } m_TbrRunInfo;
 
   mutable struct ActivityRunInfo {
-    std::set<const clang::VarDecl*> ToBeRecorded;
+    std::set<const clang::VarDecl*> VariedDecls;
     bool HasAnalysisRun = false;
   } m_ActivityRunInfo;
 
@@ -158,6 +158,13 @@ public:
   bool isVaried(const clang::Expr* E) const;
   std::string ComputeDerivativeName() const;
   bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
+
+  void addVariedDecl(const clang::VarDecl* init) {
+    m_ActivityRunInfo.VariedDecls.insert(init);
+  }
+  std::set<const clang::VarDecl*>& getVariedDecls() const {
+    return m_ActivityRunInfo.VariedDecls;
+  }
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;

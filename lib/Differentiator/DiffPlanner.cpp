@@ -626,11 +626,12 @@ namespace clad {
         << "args='";
     if (Args)
       Args->printPretty(Out, /*Helper=*/nullptr, P);
-    for (unsigned i = 0, e = DVI.size(); i < e; i++) {
-      DVI[i].print(Out);
-      if (i != e - 1)
-        Out << ',';
-    }
+    else
+      for (unsigned i = 0, e = DVI.size(); i < e; i++) {
+        DVI[i].print(Out);
+        if (i != e - 1)
+          Out << ',';
+      }
     Out << "'";
     if (EnableTBRAnalysis)
       Out << ", tbr";
@@ -670,30 +671,8 @@ namespace clad {
   bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
     if (!EnableVariedAnalysis)
       return true;
-
-    if (!m_ActivityRunInfo.HasAnalysisRun) {
-      ArrayRef<ParmVarDecl*> FDparam = Function->parameters();
-      std::vector<ParmVarDecl*> derivedParam;
-
-      for (auto* parameter : FDparam) {
-        QualType parType = parameter->getType();
-        while (parType->isPointerType())
-          parType = parType->getPointeeType();
-        if (!parType.isConstQualified())
-          derivedParam.push_back(parameter);
-      }
-
-      std::copy(derivedParam.begin(), derivedParam.end(),
-                std::inserter(m_ActivityRunInfo.ToBeRecorded,
-                              m_ActivityRunInfo.ToBeRecorded.end()));
-
-      VariedAnalyzer analyzer(Function->getASTContext(),
-                              m_ActivityRunInfo.ToBeRecorded);
-      analyzer.Analyze(Function);
-      m_ActivityRunInfo.HasAnalysisRun = true;
-    }
-    auto found = m_ActivityRunInfo.ToBeRecorded.find(VD);
-    return found != m_ActivityRunInfo.ToBeRecorded.end();
+    auto found = m_ActivityRunInfo.VariedDecls.find(VD);
+    return found != m_ActivityRunInfo.VariedDecls.end();
   }
 
   bool DiffRequest::isVaried(const Expr* E) const {
@@ -1038,6 +1017,15 @@ namespace clad {
       // FIXME: We should call UpdateDiffParamsInfo unconditionally, however,
       // in the DiffRequest we have the move away from pointer comparisons of
       // the ParmVarDecls (of the DVI).
+
+      // As above, we should call UpdateDiffParamsInfo no matter what.
+      if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis) {
+        request.UpdateDiffParamsInfo(m_Sema);
+        if (request.Args)
+          for (const auto& dParam : request.DVI)
+            request.addVariedDecl(cast<VarDecl>(dParam.param));
+      }
+
       if (request.Function->hasAttr<CUDAGlobalAttr>()) {
         request.UpdateDiffParamsInfo(m_Sema);
         for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i)
@@ -1113,7 +1101,19 @@ namespace clad {
     request.CallContext = E;
     request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
 
+    if (m_ParentReq)
+      for (auto decl : m_ParentReq->getVariedDecls())
+        request.addVariedDecl(decl);
+
     llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
+
+    if (m_TopMostReq->EnableVariedAnalysis &&
+        m_TopMostReq->Mode == DiffMode::reverse) {
+      VariedAnalyzer analyzer(request.Function->getASTContext(),
+                              request.getVariedDecls());
+      analyzer.Analyze(request.Function);
+    }
+
     // Recurse into call graph.
     TraverseFunctionDeclOnce(request.Function);
     if (!HasCustomDerivativeForDiffReq(m_Sema, request))
