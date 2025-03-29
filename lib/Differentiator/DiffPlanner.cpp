@@ -992,6 +992,7 @@ namespace clad {
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     DiffRequest request;
+    m_Sema.PerformPendingInstantiations();
 
     FunctionDecl* FD = E->getDirectCallee();
     if (!FD)
@@ -1033,6 +1034,7 @@ namespace clad {
       // The root of the differentiation request graph should update the
       // CladFunction object with the generated call.
       request.CallUpdateRequired = true;
+      request.CallContext = E;
 
       request.Args = E->getArg(1);
       // FIXME: We should call UpdateDiffParamsInfo unconditionally, however,
@@ -1068,6 +1070,7 @@ namespace clad {
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+      request.CallContext = E;
 
       // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       if (m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
@@ -1110,14 +1113,17 @@ namespace clad {
 
     if (isCallOperator(m_Sema.getASTContext(), request.Function))
       request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
-    request.CallContext = E;
     request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
 
     llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
-    // Recurse into call graph.
-    TraverseFunctionDeclOnce(request.Function);
-    if (!HasCustomDerivativeForDiffReq(m_Sema, request))
+    if (request.Function->getDefinition())
+      request.Function = request.Function->getDefinition();
+
+    if (!HasCustomDerivativeForDiffReq(m_Sema, request)) {
+      // Recurse into call graph.
+      TraverseFunctionDeclOnce(request.Function);
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+    }
 
     if (m_IsTraversingTopLevelDecl)
       m_TopMostReq = nullptr;
