@@ -67,7 +67,7 @@ double fn2 (double a) {
     return result;
 }
 
-// CHECK: void fn2_grad(double a, double *_d_a)
+// CHECK: void fn2_grad(double a, double *_d_a) {
 // CHECK-NEXT:     clad::tape<Struct> _t1 = {};
 // CHECK-NEXT:     Struct _d_s1 = {0.};
 // CHECK-NEXT:     Struct s1 = {0.};
