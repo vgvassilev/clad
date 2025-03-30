@@ -614,8 +614,8 @@ double fn10(double x, double y) {
 // CHECK-NEXT:      S _d_s = {0., false};
 // CHECK-NEXT:      S s = {x, false};
 // CHECK-NEXT:      S _t0 = s;
-// CHECK-NEXT:      S _t1 = s.operator-(4 * x);
-// CHECK-NEXT:      S _t2 = (s - 4 * x).operator-(y);
+// CHECK-NEXT:      S _t1 = (_t0 - 4 * x);
+// CHECK-NEXT:      S _t2 = (_t1 - y);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          S _r0 = {0., false};
 // CHECK-NEXT:          _t2.getVal_pullback(1, &_r0);

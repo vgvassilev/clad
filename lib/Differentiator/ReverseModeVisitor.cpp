@@ -2030,24 +2030,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return StmtDiff(resValue, resAdjoint);
     } // Recreate the original call expression.
 
-    if (isMethodOperatorCall) {
-      const auto* OCE = cast<CXXOperatorCallExpr>(CE);
-      auto* FD = const_cast<CXXMethodDecl*>(
-          dyn_cast<CXXMethodDecl>(OCE->getCalleeDecl()));
-
-      NestedNameSpecifierLoc NNS(FD->getQualifier(),
-                                 /*Data=*/nullptr);
-      auto DAP = DeclAccessPair::make(FD, FD->getAccess());
-      auto* memberExpr = MemberExpr::Create(
-          m_Context, Clone(OCE->getArg(0)), /*isArrow=*/false, Loc, NNS, noLoc,
-          FD, DAP, FD->getNameInfo(),
-          /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
-          CLAD_COMPAT_ExprValueKind_R_or_PR_Value, ExprObjectKind::OK_Ordinary,
-          NOUR_None);
-      call = m_Sema
-                 .BuildCallToMemberFunction(getCurrentScope(), memberExpr, Loc,
-                                            CallArgs, Loc)
-                 .get();
+    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+      if (isMethodOperatorCall)
+        CallArgs.insert(CallArgs.begin(), baseDiff.getExpr());
+      call = BuildOperatorCall(OCE->getOperator(), CallArgs);
       return StmtDiff(call);
     }
 

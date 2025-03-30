@@ -70,7 +70,7 @@ int main() {
 //CHECK-NEXT:         TN::Test2<double> t;
 //CHECK-NEXT:         TN::Test2<double> _t0 = t;
 //CHECK-NEXT:         double _d_q = 0.;
-//CHECK-NEXT:         double q = t.operator[](x);
+//CHECK-NEXT:         double q = _t0[x];
 //CHECK-NEXT:         _d_q += 1;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             double _r0 = 0.;

@@ -13,11 +13,13 @@
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -1078,5 +1080,47 @@ namespace clad {
     endScope(); // Function decl scope
 
     return diffOverloadFD;
+  }
+
+  Expr* VisitorBase::BuildOperatorCall(OverloadedOperatorKind OOK,
+                                       MutableArrayRef<Expr*> ArgExprs,
+                                       SourceLocation OpLoc) {
+    // First check operator kinds that are not considered binary/unary.
+
+    // FIXME: Currently, Clad never uses arrow operators, all of them
+    // are replaced with reverse_forw functions. This bit might become
+    // useful in the future when Clad can remove some reverse_forw
+    // functions in favor of original functions.
+    // if (OOK == OO_Arrow)
+    //   return m_Sema
+    //       .BuildOverloadedArrowExpr(getCurrentScope(), ArgExprs[0], OpLoc)
+    //       .get();
+
+    if (OOK == OO_Call)
+      return m_Sema
+          .BuildCallToObjectOfClassType(getCurrentScope(), ArgExprs[0], OpLoc,
+                                        ArgExprs.drop_front(), OpLoc)
+          .get();
+
+    if (OOK == OO_Subscript)
+      return m_Sema
+          .CreateOverloadedArraySubscriptExpr(OpLoc, OpLoc, ArgExprs[0],
+                                              ArgExprs[1])
+          .get();
+
+    // Now deduce the kind based on the number of args.
+    // Note for debugging: if the number of args is wrong,
+    // the kind will be deduced incorrectly, and
+    // getOverloadedOpcode will crash Clang.
+    if (ArgExprs.size() == 2) {
+      BinaryOperatorKind kind = BinaryOperator::getOverloadedOpcode(OOK);
+      return BuildOp(kind, ArgExprs[0], ArgExprs[1], OpLoc);
+    }
+
+    if (ArgExprs.size() == 1) {
+      UnaryOperatorKind kind = UnaryOperator::getOverloadedOpcode(OOK, true);
+      return BuildOp(kind, ArgExprs[0], OpLoc);
+    }
+    return nullptr;
   }
 } // end namespace clad
