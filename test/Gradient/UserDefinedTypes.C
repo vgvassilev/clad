@@ -608,7 +608,7 @@ double fn16(double i, double j) {
 // CHECK-NEXT:    SimpleFunctions1 _d_obj2(obj2);
 // CHECK-NEXT:    clad::zero_init(_d_obj2);
 // CHECK-NEXT:    SimpleFunctions1 _t0 = obj1;
-// CHECK-NEXT:    SimpleFunctions1 _t1 = obj1.operator+(obj2);
+// CHECK-NEXT:    SimpleFunctions1 _t1 = (_t0 + obj2);
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r4 = 0.;
 // CHECK-NEXT:        double _r5 = 0.;
@@ -685,7 +685,7 @@ double fn19(double i, double j) {
 // CHECK-NEXT:      SimpleFunctions1 _d_sf2(sf2);
 // CHECK-NEXT:      clad::zero_init(_d_sf2);
 // CHECK-NEXT:      SimpleFunctions1 _t0 = sf1;
-// CHECK-NEXT:      SimpleFunctions1 _t1 = sf1.operator*(sf2);
+// CHECK-NEXT:      SimpleFunctions1 _t1 = (_t0 * sf2);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r2 = 0.;
 // CHECK-NEXT:          double _r3 = 0.;
@@ -753,7 +753,7 @@ double fn22(double x, double y) {
 // CHECK-NEXT:      Identity di{};
 // CHECK-NEXT:      Identity _t0 = di;
 // CHECK-NEXT:      double _d_val = 0.;
-// CHECK-NEXT:      double val = di.operator()(x);
+// CHECK-NEXT:      double val = _t0(x);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_val += 1 * val;
 // CHECK-NEXT:          _d_val += val * 1;
@@ -927,13 +927,13 @@ double fn27(double x, double y) {
 // CHECK-NEXT:      Vector3 v(x, x, y);
 // CHECK-NEXT:      Vector3 _d_v(v);
 // CHECK-NEXT:      clad::zero_init(_d_v);
-// CHECK-NEXT:      Vector3 w = operator*(2, v);
+// CHECK-NEXT:      Vector3 w = 2 * v;
 // CHECK-NEXT:      Vector3 _d_w(w);
 // CHECK-NEXT:      clad::zero_init(_d_w);
 // CHECK-NEXT:      _d_w.x += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          Vector3 _r0 = {};
-// CHECK-NEXT:          Vector3::constructor_pullback(operator*(2, v), &_d_w, &_r0);
+// CHECK-NEXT:          Vector3::constructor_pullback(2 * v, &_d_w, &_r0);
 // CHECK-NEXT:          double _r1 = 0.;
 // CHECK-NEXT:          operator_star_pullback(2, v, _r0, &_r1, &_d_v);
 // CHECK-NEXT:      }

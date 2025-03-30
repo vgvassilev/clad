@@ -16,6 +16,8 @@
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 #include <clang/AST/Type.h>
+#include <clang/Basic/OperatorKinds.h>
+#include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/StringRef.h>
 
 #include <array>
@@ -266,6 +268,16 @@ namespace clad {
     /// either LHS or RHS is null.
     clang::Expr* BuildOp(clang::BinaryOperatorKind OpCode, clang::Expr* L,
                          clang::Expr* R, clang::SourceLocation OpLoc = noLoc);
+
+    /// A shorthand to simplify syntax for creation of CXXOperatorCallExpr.
+    /// We need it because Clang doesn't have a common ActOn- function to
+    /// generate operator calls based on the operator kind. \param[in] OOK The
+    /// kind of the operator. \param[in] ArgExprs The arguments of the operator.
+    /// \param[in] OpLoc The source location, if necessary.
+    /// \returns An expression of the built operator.
+    clang::Expr* BuildOperatorCall(clang::OverloadedOperatorKind OOK,
+                                   llvm::MutableArrayRef<clang::Expr*> ArgExprs,
+                                   clang::SourceLocation OpLoc = noLoc);
     /// Function to resolve Unary Minus. If the leftmost operand
     /// has a Unary Minus then adds parens before adding the unary minus.
     /// \param[in] E Expression fed to the recursive call.

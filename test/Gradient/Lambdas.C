@@ -39,7 +39,7 @@ double f2(double i, double j) {
 // CHECK-NEXT:                 return t + k;
 // CHECK-NEXT:             }{{;?}}
 // CHECK:        double _d_x = 0.;
-// CHECK-NEXT:             double x = _f.operator()(i + j, i);
+// CHECK-NEXT:             double x = _f(i + j, i);
 // CHECK-NEXT:             _d_x += 1;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 double _r0 = 0.;
