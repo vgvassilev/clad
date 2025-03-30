@@ -1,5 +1,7 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oStructsInLoops.out 2>&1 | %filecheck %s
 // RUN: ./StructsInLoops.out | %filecheck_exec %s
+// RUN: %cladnumdiffclang %s  -I%S/../../include -oGradients.out
+// RUN: ./Gradients.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include <stdio.h>
