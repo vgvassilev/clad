@@ -1502,7 +1502,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Determine the base of the call if any.
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     const Expr* baseOriginalE = nullptr;
-    if (MD && MD->isInstance()) {
+    if (MD && MD->isInstance() && !isLambdaCallOperator(MD)) {
       if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
         baseOriginalE = MCE->getImplicitObjectArgument();
       else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
@@ -1747,6 +1747,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Stores differentiation result of implicit `this` object, if any.
     StmtDiff baseDiff;
     Expr* baseExpr = nullptr;
+    Stmt* baseDiffPush = nullptr;
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
     if (!OverloadedDerivedFn) {
@@ -1781,11 +1782,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           CXXRecordDecl* baseRD = baseTy->getAsCXXRecordDecl();
           bool shouldStore = utils::isCopyable(baseRD);
           if (shouldStore) {
-            Expr* baseDiffStore =
-                GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
-            if (!isPassedByRef)
+            if (!isPassedByRef || MD->isConst()) {
+              // FIXME: Custom _reverse_forw functions take the base by pointer.
+              // This means we cannot pass temporary values and because of that,
+              // we need to store. For now, only emit the store stmt if a custom
+              // reverse_forw is found.
+              beginBlock(direction::forward);
+              Expr* baseDiffStore =
+                  StoreAndRef(baseDiff.getExpr(), direction::forward);
+              baseDiffPush =
+                  utils::unwrapIfSingleStmt(endBlock(direction::forward));
               baseExpr = baseDiffStore;
-            baseDiff.updateStmt(baseDiffStore);
+            } else {
+              Expr* baseDiffStore =
+                  GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
+              baseDiff.updateStmt(baseDiffStore);
+            }
           }
           Expr* baseDerivative = baseDiff.getExpr_dx();
           if (!baseDerivative->getType()->isPointerType())
@@ -1983,6 +1995,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (Expr* customForwardPassCE =
             BuildCallToCustomForwPassFn(CE, CallArgs, CallArgDx, baseExpr)) {
+      addToCurrentBlock(baseDiffPush, direction::forward);
       if (!needsReverseForw)
         return StmtDiff{customForwardPassCE};
       Expr* callRes = nullptr;
