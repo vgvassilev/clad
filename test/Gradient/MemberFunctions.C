@@ -598,8 +598,7 @@ double fn9(double x, double y) {
 // CHECK:  void fn9_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      S *_d_s = new S();
 // CHECK-NEXT:      S *s = new S({x, false});
-// CHECK-NEXT:      S *_t0 = s;
-// CHECK-NEXT:      _t0->getVal_pullback(1, _d_s);
+// CHECK-NEXT:      s->getVal_pullback(1, _d_s);
 // CHECK-NEXT:      *_d_x += *_d_s.val;
 // CHECK-NEXT:  }
 
@@ -613,16 +612,13 @@ double fn10(double x, double y) {
 // CHECK:  void fn10_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      S _d_s = {0., false};
 // CHECK-NEXT:      S s = {x, false};
-// CHECK-NEXT:      S _t0 = s;
-// CHECK-NEXT:      S _t1 = (_t0 - 4 * x);
-// CHECK-NEXT:      S _t2 = (_t1 - y);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          S _r0 = {0., false};
-// CHECK-NEXT:          _t2.getVal_pullback(1, &_r0);
+// CHECK-NEXT:          ((s - 4 * x) - y).getVal_pullback(1, &_r0);
 // CHECK-NEXT:          S _r1 = {0., false};
-// CHECK-NEXT:          _t1.operator_minus_pullback(y, _r0, &_r1, &*_d_y);
+// CHECK-NEXT:          (s - 4 * x).operator_minus_pullback(y, _r0, &_r1, &*_d_y);
 // CHECK-NEXT:          double _r2 = 0.;
-// CHECK-NEXT:          _t0.operator_minus_pullback(4 * x, _r1, &_d_s, &_r2);
+// CHECK-NEXT:          s.operator_minus_pullback(4 * x, _r1, &_d_s, &_r2);
 // CHECK-NEXT:          *_d_x += 4 * _r2;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      *_d_x += _d_s.val;
