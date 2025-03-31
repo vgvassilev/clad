@@ -445,10 +445,11 @@ double fn2(SimpleFunctions& sf, double i) {
 
 // CHECK: void fn2_grad(SimpleFunctions &sf, double i, SimpleFunctions *_d_sf, double *_d_i) {
 // CHECK-NEXT:     SimpleFunctions _t0 = sf;
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = _t0.ref_mem_fn_forw(i, &(*_d_sf), 0.);
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = sf.ref_mem_fn_forw(i, &(*_d_sf), 0.);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _t0.ref_mem_fn_pullback(i, 1, &(*_d_sf), &_r0);
+// CHECK-NEXT:         sf = _t0;
+// CHECK-NEXT:         sf.ref_mem_fn_pullback(i, 1, &(*_d_sf), &_r0);
 // CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -469,11 +470,12 @@ double fn5(SimpleFunctions& v, double value) {
 
 // CHECK: void fn5_grad(SimpleFunctions &v, double value, SimpleFunctions *_d_v, double *_d_value) {
 // CHECK-NEXT:     SimpleFunctions _t0 = v;
-// CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = _t0.operator_plus_equal_forw(value, &(*_d_v), 0.);
+// CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = v.operator_plus_equal_forw(value, &(*_d_v), 0.);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _t0.operator_plus_equal_pullback(value, {}, &(*_d_v), &_r0);
+// CHECK-NEXT:         v = _t0;
+// CHECK-NEXT:         v.operator_plus_equal_pullback(value, {}, &(*_d_v), &_r0);
 // CHECK-NEXT:         *_d_value += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -489,9 +491,12 @@ double fn4(SimpleFunctions& v) {
 
 // CHECK: void fn4_grad(SimpleFunctions &v, SimpleFunctions *_d_v) {
 // CHECK-NEXT:     SimpleFunctions _t0 = v;
-// CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = _t0.operator_plus_plus_forw(&(*_d_v));
+// CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = v.operator_plus_plus_forw(&(*_d_v));
 // CHECK-NEXT:     (*_d_v).x += 1;
-// CHECK-NEXT:     _t0.operator_plus_plus_pullback({}, &(*_d_v));
+// CHECK-NEXT:     {
+// CHECK-NEXT:         v = _t0;
+// CHECK-NEXT:         v.operator_plus_plus_pullback({}, &(*_d_v));
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 class SafeTestClass {
@@ -623,6 +628,56 @@ double fn10(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      *_d_x += _d_s.val;
 // CHECK-NEXT:  }
+
+class A {
+public:
+  void increment() { data++; }
+  void setData(double u) { data = u; }
+  double data = 0;
+};
+
+// CHECK:  void setData_pullback(double u, A *_d_this, double *_d_u);
+// CHECK:  void increment_pullback(A *_d_this);
+
+double fn11(double u, double v) {
+  double res = 0;
+  A a;
+  a.setData(u);
+  res += a.data * v;
+  a.increment();
+  return res;
+}
+
+// CHECK:  void fn11_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:      double _d_res = 0.;
+// CHECK-NEXT:      double res = 0;
+// CHECK-NEXT:      A _d_a = {0.};
+// CHECK-NEXT:      A a;
+// CHECK-NEXT:      A _t0 = a;
+// CHECK-NEXT:      a.setData(u);
+// CHECK-NEXT:      double _t1 = res;
+// CHECK-NEXT:      res += a.data * v;
+// CHECK-NEXT:      A _t2 = a;
+// CHECK-NEXT:      a.increment();
+// CHECK-NEXT:      _d_res += 1;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          a = _t2;
+// CHECK-NEXT:          a.increment_pullback(&_d_a);
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          res = _t1;
+// CHECK-NEXT:          double _r_d0 = _d_res;
+// CHECK-NEXT:          _d_a.data += _r_d0 * v;
+// CHECK-NEXT:          *_d_v += a.data * _r_d0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r0 = 0.;
+// CHECK-NEXT:          a = _t0;
+// CHECK-NEXT:          a.setData_pullback(u, &_d_a, &_r0);
+// CHECK-NEXT:          *_d_u += _r0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
   auto d_const_mem_fn = clad::gradient(&SimpleFunctions::const_mem_fn);
@@ -702,6 +757,12 @@ int main() {
   d_fn10.execute(3, -5, &dx, &dy);
   printf("%.2f", dx); //CHECK-EXEC: -3.00
   printf("%.2f", dy); //CHECK-EXEC: -1.00
+
+  dx = 0, dy = 0;
+  auto d_fn11 = clad::gradient(fn11);
+  d_fn11.execute(3, 5, &dx, &dy);
+  printf("%.2f", dx); //CHECK-EXEC: 5.00
+  printf("%.2f", dy); //CHECK-EXEC: 3.00
   
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 
@@ -746,7 +807,8 @@ int main() {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r0 = 0.;
 // CHECK-NEXT:             double _r1 = 0.;
-// CHECK-NEXT:             _t0.mem_fn_pullback(i, j, 1, &_d_sf, &_r0, &_r1);
+// CHECK-NEXT:             sf = _t0;
+// CHECK-NEXT:             sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r0, &_r1);
 // CHECK-NEXT:             *_d_i += _r0;
 // CHECK-NEXT:             *_d_j += _r1;
 // CHECK-NEXT:         }
@@ -822,6 +884,22 @@ int main() {
 // CHECK-NEXT:          *_d_x += -_d_y.val;
 // CHECK-NEXT:          _d_this->cond += _d_y.cond;
 // CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK:  void setData_pullback(double u, A *_d_this, double *_d_u) {
+// CHECK-NEXT:      double _t0 = this->data;
+// CHECK-NEXT:      this->data = u;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          this->data = _t0;
+// CHECK-NEXT:          double _r_d0 = _d_this->data;
+// CHECK-NEXT:          _d_this->data = 0.;
+// CHECK-NEXT:          *_d_u += _r_d0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK:  void increment_pullback(A *_d_this) {
+// CHECK-NEXT:      this->data++;
+// CHECK-NEXT:      this->data--;
 // CHECK-NEXT:  }
 
 // CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {

@@ -152,7 +152,8 @@ int main() {
     // CHECK-NEXT:     {
     // CHECK-NEXT:         double _r2 = 0.;
     // CHECK-NEXT:         double _r3 = 0.;
-    // CHECK-NEXT:         _t0.mem_fn_1_pullback(i, j, 1, &_d_obj, &_r2, &_r3);
+    // CHECK-NEXT:         obj = _t0;
+    // CHECK-NEXT:         obj.mem_fn_1_pullback(i, j, 1, &_d_obj, &_r2, &_r3);
     // CHECK-NEXT:         *_d_i += _r2;
     // CHECK-NEXT:         *_d_j += _r3;
     // CHECK-NEXT:         *_d_i += 1 * j;

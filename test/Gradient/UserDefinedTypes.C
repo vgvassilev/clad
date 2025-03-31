@@ -267,7 +267,8 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _t0.real_pullback(5 * i, &(*_d_c), &_r0);
+// CHECK-NEXT:         c = _t0;
+// CHECK-NEXT:         c.real_pullback(5 * i, &(*_d_c), &_r0);
 // CHECK-NEXT:         *_d_i += 5 * _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -288,7 +289,8 @@ double fn7(dcomplex c1, dcomplex c2) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _t1.real_pullback(c2.imag() + 5 * _t0, &(*_d_c1), &_r0);
+// CHECK-NEXT:         c1 = _t1;
+// CHECK-NEXT:         c1.real_pullback(c2.imag() + 5 * _t0, &(*_d_c1), &_r0);
 // CHECK-NEXT:         c2.imag_pullback(_r0, &(*_d_c2));
 // CHECK-NEXT:         c2.real_pullback(5 * _r0, &(*_d_c2));
 // CHECK-NEXT:     }
@@ -311,7 +313,8 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _t0.updateTo_pullback(c.real(), &(*_d_t), &_r0);
+// CHECK-NEXT:         t = _t0;
+// CHECK-NEXT:         t.updateTo_pullback(c.real(), &(*_d_t), &_r0);
 // CHECK-NEXT:         c.real_pullback(_r0, &(*_d_c));
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -434,10 +437,11 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
 
 // CHECK: void fn12_grad(MyStruct s, MyStruct *_d_s) {
 // CHECK-NEXT:     MyStruct _t0 = s;
-// CHECK-NEXT:     clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = _t0.operator_equal_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
+// CHECK-NEXT:     clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = s.operator_equal_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
 // CHECK-NEXT:    {
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
-// CHECK-NEXT:        _t0.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, {0., 0.}, &(*_d_s), &_r0);
+// CHECK-NEXT:        s = _t0;
+// CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, {0., 0.}, &(*_d_s), &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
 // CHECK-NEXT:    }
@@ -618,7 +622,8 @@ double fn17(double i, double j) {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r2 = 0.;
 // CHECK-NEXT:        double _r3 = 0.;
-// CHECK-NEXT:        _t0.mem_fn_pullback(i, j, 1, &_d_sf, &_r2, &_r3);
+// CHECK-NEXT:        sf = _t0;
+// CHECK-NEXT:        sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r2, &_r3);
 // CHECK-NEXT:        *_d_i += _r2;
 // CHECK-NEXT:        *_d_j += _r3;
 // CHECK-NEXT:    }
@@ -639,7 +644,8 @@ double fn18(double i, double j) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r2 = 0.;
 // CHECK-NEXT:          double _r3 = 0.;
-// CHECK-NEXT:          _t0.mem_fn_pullback(i, j, 1, &_d_sf, &_r2, &_r3);
+// CHECK-NEXT:          sf = _t0;
+// CHECK-NEXT:          sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r2, &_r3);
 // CHECK-NEXT:          *_d_i += _r2;
 // CHECK-NEXT:          *_d_j += _r3;
 // CHECK-NEXT:      }
@@ -685,10 +691,11 @@ void fn20(MyStruct s) {
 
 // CHECK: void fn20_grad(MyStruct s, MyStruct *_d_s) {
 // CHECK-NEXT:     MyStruct _t0 = s;
-// CHECK-NEXT:     clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = _t0.operator_equal_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
+// CHECK-NEXT:     clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = s.operator_equal_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
 // CHECK-NEXT:    {
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
-// CHECK-NEXT:        _t0.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, {0., 0.}, &(*_d_s), &_r0);
+// CHECK-NEXT:        s = _t0;
+// CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, {0., 0.}, &(*_d_s), &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
 // CHECK-NEXT:    }
@@ -734,14 +741,15 @@ double fn22(double x, double y) {
 // CHECK-NEXT:      Identity di{};
 // CHECK-NEXT:      Identity _t0 = di;
 // CHECK-NEXT:      double _d_val = 0.;
-// CHECK-NEXT:      double val = _t0(x);
+// CHECK-NEXT:      double val = di(x);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_val += 1 * val;
 // CHECK-NEXT:          _d_val += val * 1;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          _t0.operator_call_pullback(x, _d_val, &_d_di, &_r0);
+// CHECK-NEXT:          di = _t0;
+// CHECK-NEXT:          di.operator_call_pullback(x, _d_val, &_d_di, &_r0);
 // CHECK-NEXT:          *_d_x += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
@@ -938,14 +946,15 @@ double fn28(double x, double y) {
 // CHECK-NEXT:      Vector3 _d_v(v);
 // CHECK-NEXT:      clad::zero_init(_d_v);
 // CHECK-NEXT:      Vector3 _t0 = v;
-// CHECK-NEXT:      Vector3 w = - _t0;
+// CHECK-NEXT:      Vector3 w = - v;
 // CHECK-NEXT:      Vector3 _d_w(w);
 // CHECK-NEXT:      clad::zero_init(_d_w);
 // CHECK-NEXT:      _d_w.x += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          Vector3 _r0 = {};
-// CHECK-NEXT:          Vector3::constructor_pullback(- _t0, &_d_w, &_r0);
-// CHECK-NEXT:          _t0.operator_minus_pullback(_r0, &_d_v);
+// CHECK-NEXT:          Vector3::constructor_pullback(- v, &_d_w, &_r0);
+// CHECK-NEXT:          v = _t0;
+// CHECK-NEXT:          v.operator_minus_pullback(_r0, &_d_v);
 // CHECK-NEXT:      }
 // CHECK-NEXT:      Vector3::constructor_pullback(x, x, y, &_d_v, &*_d_x, &*_d_x, &*_d_y);
 // CHECK-NEXT:  }

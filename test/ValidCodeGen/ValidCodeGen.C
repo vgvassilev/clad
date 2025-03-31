@@ -70,11 +70,12 @@ int main() {
 //CHECK-NEXT:         TN::Test2<double> t;
 //CHECK-NEXT:         TN::Test2<double> _t0 = t;
 //CHECK-NEXT:         double _d_q = 0.;
-//CHECK-NEXT:         double q = _t0[x];
+//CHECK-NEXT:         double q = t[x];
 //CHECK-NEXT:         _d_q += 1;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             double _r0 = 0.;
-//CHECK-NEXT:             clad::custom_derivatives::class_functions::operator_subscript_pullback(&_t0, x, _d_q, &_d_t, &_r0);
+//CHECK-NEXT:             t = _t0;
+//CHECK-NEXT:             clad::custom_derivatives::class_functions::operator_subscript_pullback(&t, x, _d_q, &_d_t, &_r0);
 //CHECK-NEXT:             *_d_x += _r0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }

@@ -1796,7 +1796,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             } else {
               Expr* baseDiffStore =
                   GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
-              baseDiff.updateStmt(baseDiffStore);
+              Expr* assign =
+                  BuildOp(BO_Assign, baseDiff.getExpr(), baseDiffStore);
+              PreCallStmts.push_back(assign);
             }
           }
           Expr* baseDerivative = baseDiff.getExpr_dx();

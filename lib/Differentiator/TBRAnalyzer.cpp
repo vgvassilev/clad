@@ -332,8 +332,11 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
   if (MD && !MD->isStatic()) {
     const Type* recordType = MD->getParent()->getTypeForDecl();
-    getCurBlockVarsData()[nullptr] =
-        VarData(QualType::getFromOpaquePtr(recordType), m_Context);
+    VarData& thisData = getCurBlockVarsData()[nullptr];
+    thisData = VarData(QualType::getFromOpaquePtr(recordType), m_Context);
+    // We have to set all pointer/reference parameters to tbr
+    // since method pullbacks aren't supposed to change objects.
+    setIsRequired(thisData);
   }
   auto paramsRef = FD->parameters();
   for (std::size_t i = 0; i < FD->getNumParams(); ++i)
