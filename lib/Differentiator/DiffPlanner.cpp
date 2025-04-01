@@ -715,6 +715,9 @@ namespace clad {
           return false;
         return true;
       }
+      // FIXME: This is a temporary measure until we add support for
+      // `this` in varied analysis.
+      bool VisitCXXThisExpr(const clang::CXXThisExpr* TE) { return false; }
     } analyzer(*this);
     return analyzer.isVariedE(E);
   }
