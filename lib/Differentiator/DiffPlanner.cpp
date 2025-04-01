@@ -1119,8 +1119,10 @@ namespace clad {
     if (!HasCustomDerivativeForDiffReq(m_Sema, request))
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
-    if (m_IsTraversingTopLevelDecl)
+    if (m_IsTraversingTopLevelDecl) {
       m_TopMostReq = nullptr;
+      m_Traversed.clear();
+    }
 
     return true;
   }
