@@ -25,7 +25,7 @@ double fn1(double a) {
     return result;
 }
 
-// CHECK-NEXT: void fn1_grad(double a, double *_d_a) {
+// CHECK: void fn1_grad(double a, double *_d_a) {
 // CHECK-NEXT:    int _d_i = 0;
 // CHECK-NEXT:    int i = 0;
 // CHECK-NEXT:    clad::tape<Struct> _t1 = {};
