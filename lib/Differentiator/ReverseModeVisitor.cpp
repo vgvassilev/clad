@@ -3014,8 +3014,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             // ...
             auto* constrExpr = dyn_cast<CXXConstructExpr>(VD->getInit());
             if (constrExpr) {
-              if (constrExpr->getConstructor()->isImplicit()) 
+              if (constrExpr->getConstructor()->isImplicit()) {
                 initExpr = m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
+              }
             }
             auto* declRef = BuildDeclRef(decl);
             auto* assignment = BuildOp(BO_Assign, declRef, initExpr);
