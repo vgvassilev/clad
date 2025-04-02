@@ -182,7 +182,7 @@ float fn3(float a) {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _d_size = 0.F;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             _d_s = {{}};
+// CHECK-NEXT:             _d_s = \{\{\}\}\;
 // CHECK-NEXT:             s = clad::pop(_t1);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
