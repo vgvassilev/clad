@@ -716,13 +716,13 @@ class Identity {
 
 // CHECK:  void operator_call_pullback(double u, double _d_y, Identity *_d_this, double *_d_u);
 
-double fn22(double x, double y) {
+double fn21(double x, double y) {
     Identity di{};
     double val = di(x);
     return val * val;
 }
 
-// CHECK:  void fn22_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:  void fn21_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Identity _d_di = {};
 // CHECK-NEXT:      Identity di{};
 // CHECK-NEXT:      Identity _t0 = di;
@@ -743,12 +743,12 @@ struct StructNoDefConstr {
   StructNoDefConstr(int){}
 };
 
-double fn23(double x){
+double fn22(double x){
   StructNoDefConstr t{0};
   return x;
 }
 
-// CHECK:  void fn23_grad(double x, double *_d_x) {
+// CHECK:  void fn22_grad(double x, double *_d_x) {
 // CHECK-NEXT:      StructNoDefConstr t(0);
 // CHECK-NEXT:      StructNoDefConstr _d_t(t);
 // CHECK-NEXT:      clad::zero_init(_d_t);
@@ -771,7 +771,7 @@ double add(B b, double u) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-double fn24(double u, double v) {
+double fn23(double u, double v) {
     B b;
     b.data = v;
     double res = 0;
@@ -781,7 +781,7 @@ double fn24(double u, double v) {
 
 // CHECK:  static inline constexpr void constructor_pullback(const B &arg, B *_d_this, B *_d_arg) noexcept;
 
-// CHECK:  void fn24_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK:  void fn23_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      B _d_b = {0.};
 // CHECK-NEXT:      B b;
 // CHECK-NEXT:      double _t0 = b.data;
@@ -839,7 +839,7 @@ const Vector3 operator*(double a, const Vector3& v) {
   return {a * v.x, a * v.y, a * v.z};
 }
 
-double fn27(double x, double y) {
+double fn24(double x, double y) {
   Vector3 v(x, x, y);
   Vector3 w = 2*v;
   return w.x;
@@ -847,7 +847,7 @@ double fn27(double x, double y) {
 
 // CHECK:  static inline constexpr void constructor_pullback(const Vector3 &arg, Vector3 *_d_this, Vector3 *_d_arg) noexcept;
 
-// CHECK:  void fn27_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:  void fn24_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Vector3 v(x, x, y);
 // CHECK-NEXT:      Vector3 _d_v(v);
 // CHECK-NEXT:      clad::zero_init(_d_v);
@@ -867,13 +867,13 @@ double fn27(double x, double y) {
 // CHECK:  void operator_minus_pullback(Vector3 _d_y, Vector3 *_d_this);
 // CHECK:  static inline constexpr void constructor_pullback(Vector3 &&arg, Vector3 *_d_this, Vector3 *_d_arg) noexcept;
 
-double fn28(double x, double y) {
+double fn25(double x, double y) {
   Vector3 v{x, x, y};
   Vector3 w = -v;
   return w.x;
 }
 
-// CHECK:  void fn28_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:  void fn25_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Vector3 v{x, x, y};
 // CHECK-NEXT:      Vector3 _d_v(v);
 // CHECK-NEXT:      clad::zero_init(_d_v);
@@ -981,20 +981,20 @@ int main() {
     fn20_test.execute(s, &d_s);
     print(d_s); // CHECK-EXEC: {2.00, 2.00}
 
+    INIT_GRADIENT(fn21);
+    TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {8.00, 0.00}
+
     INIT_GRADIENT(fn22);
-    TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {8.00, 0.00}
 
     INIT_GRADIENT(fn23);
+    TEST_GRADIENT(fn23, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+
 
     INIT_GRADIENT(fn24);
-    TEST_GRADIENT(fn24, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+    TEST_GRADIENT(fn24, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {2.00, 0.00}
 
-
-    INIT_GRADIENT(fn27);
-    TEST_GRADIENT(fn27, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {2.00, 0.00}
-
-    INIT_GRADIENT(fn28);
-    TEST_GRADIENT(fn28, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {-1.00, 0.00}
+    INIT_GRADIENT(fn25);
+    TEST_GRADIENT(fn25, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {-1.00, 0.00}
 }
 
 // CHECK: void someMemFn2_pullback(double i, double j, double _d_y, Tangent *_d_this, double *_d_i, double *_d_j) const {
