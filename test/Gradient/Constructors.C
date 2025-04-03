@@ -80,9 +80,140 @@ double fn1(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct S1{
+  double p;
+  double d;
+  S1(double x) : p(x), d([](){return 12.;}()) {}
+};
+
+struct S2{
+  double p;
+  double i;
+  double d;
+  S2(double x) : p(x), i(1.), d([&](){i *= 32; return 12.;}()) {}
+};
+
+struct S3{
+  double p;
+  S3(double x) {
+    p = x * x;
+  }
+};
+
+struct S4{
+  double i = 9;
+  double p;
+  S4(double x) : p(x) {}
+};
+
+struct S5{
+  double i;
+  S5(double x) 
+    try {
+      i = x;
+    } catch(...) {
+      printf("caught\n");
+    }
+};
+
+double fn2(double u, double v) {
+  S1 s1(u);
+  S2 s2(v);
+  S3 s3(v);
+  S5 s5(u);
+  return 1;
+}
+
+// CHECK-NOT: void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
+// CHECK-NOT: void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
+// CHECK-NOT: void constructor_pullback(double x, S3 *_d_this, double *_d_x) {
+// CHECK-NOT: void constructor_pullback(double x, S5 *_d_this, double *_d_x) {
+
+double fn3(double u, double v) {
+  S4 s(u);
+  return s.i * s.p;
+}
+
+// CHECK: static void constructor_pullback(double x, S4 *_d_this, double *_d_x) {
+// CHECK-NEXT:    {
+// CHECK-NEXT:        *_d_x += _d_this->p;
+// CHECK-NEXT:        _d_this->p = 0.;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    {
+// CHECK-NEXT:        _d_this->i = 0.;
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
+
+// CHECK: void fn3_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:    S4 s(u);
+// CHECK-NEXT:    S4 _d_s(s);
+// CHECK-NEXT:    clad::zero_init(_d_s);
+// CHECK-NEXT:    {
+// CHECK-NEXT:        _d_s.i += 1 * s.p;
+// CHECK-NEXT:        _d_s.p += s.i * 1;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    {
+// CHECK-NEXT:        double _r0 = 0.;
+// CHECK-NEXT:        S4::constructor_pullback(u, &_d_s, &_r0);
+// CHECK-NEXT:        *_d_u += _r0;
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
+
+class SimpleFunctions1 {
+public:
+  SimpleFunctions1() noexcept : x(0), y(0) {}
+  SimpleFunctions1(double px) : x(px), y(0) {}
+  double x;
+  double y;
+};
+
+double operator+(const double& val, const SimpleFunctions1& a) {
+  return a.x + val;
+}
+
+// CHECK:  void operator_plus_pullback(const double &val, const SimpleFunctions1 &a, double _d_y, double *_d_val, SimpleFunctions1 *_d_a) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_a).x += _d_y;
+// CHECK-NEXT:          *_d_val += _d_y;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+double fn4(double i, double j) {
+  return 2 + SimpleFunctions1(i);
+}
+
+// CHECK: static void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_this->y = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_px += _d_this->x;
+// CHECK-NEXT:          _d_this->x = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK:  void fn4_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r0 = 0.;
+// CHECK-NEXT:          SimpleFunctions1 _r1 = {};
+// CHECK-NEXT:          operator_plus_pullback(2, SimpleFunctions1(i), 1, &_r0, &_r1);
+// CHECK-NEXT:          double _r2 = 0.;
+// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(i, &_r1, &_r2);
+// CHECK-NEXT:          *_d_i += _r2;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 int main() {
     double d_i, d_j;
 
     INIT_GRADIENT(fn1);
     TEST_GRADIENT(fn1, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {7.00, 0.00}
+
+    INIT_GRADIENT(fn2);
+
+    INIT_GRADIENT(fn3);
+    TEST_GRADIENT(fn3, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {9.00, 0.00}
+    
+    INIT_GRADIENT(fn4);
+    TEST_GRADIENT(fn4, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
 }
