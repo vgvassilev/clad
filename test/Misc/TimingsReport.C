@@ -7,7 +7,7 @@
 // CHECK_STATS: *** INFORMATION ABOUT THE DIFF REQUESTS
 // CHECK_STATS-NEXT: <double nested1(double c)>[name=nested1, order=1, mode=pushforward, args='c']: #0 (source), (done)
 // CHECK_STATS-NEXT: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"']: #1 (source), (done)
-// CHECK_STATS-NEXT: <double nested2(double z)>[name=nested2, order=1, mode=pullback, args='z']: #2 (source), (done)
+// CHECK_STATS-NEXT: <double nested2(double z, double j)>[name=nested2, order=1, mode=pullback, args='z,j']: #2 (source), (done)
 // CHECK_STATS-NEXT: <double test2(double a, double b)>[name=test2, order=1, mode=reverse, args='']: #3 (source), (done)
 // CHECK_STATS-NEXT: <double addArrImpl(double *arr)>[name=addArrImpl, order=1, mode=pullback, args='arr']: #4 (source), (done)
 // CHECK_STATS-NEXT: <double addArr(double *arr)>[name=addArr, order=1, mode=reverse, args='"arr[0:1]"']: #5 (source), (done)
@@ -18,7 +18,7 @@ double nested1(double c){
   return c*3*c;
 }
 
-double nested2(double z){
+double nested2(double z, double j){
   return 4*z*z;
 }
 
@@ -27,7 +27,7 @@ double test1(double x, double y) {
 }
 
 double test2(double a, double b) {
-  return 3*a*a + b * nested2(a) + a * b;
+  return 3*a*a + b * nested2(a, b) + a * b;
 }
 
 double addArrImpl(double *arr) {
