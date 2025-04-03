@@ -412,13 +412,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     for (Stmt* S : m_Globals)
       addToCurrentBlock(S, direction::forward);
     // Forward pass.
-    if (auto* CS = dyn_cast<CompoundStmt>(Forward))
+    if (auto* CS = dyn_cast_or_null<CompoundStmt>(Forward))
       for (Stmt* S : CS->body())
         addToCurrentBlock(S, direction::forward);
     else
       addToCurrentBlock(Forward, direction::forward);
     // Reverse pass.
-    if (auto* RCS = dyn_cast<CompoundStmt>(Reverse))
+    if (auto* RCS = dyn_cast_or_null<CompoundStmt>(Reverse))
       for (Stmt* S : RCS->body())
         addToCurrentBlock(S, direction::forward);
     else
@@ -444,6 +444,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (m_ExternalSource)
       m_ExternalSource->ActOnEndOfDerivedFnBody();
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCXXTryStmt(const CXXTryStmt* TS) {
+    // FIXME: Add support for try statements.
+    diag(DiagnosticsEngine::Warning, TS->getBeginLoc(),
+         "Try statements are not supported, ignored.");
+    return StmtDiff();
   }
 
   Stmt* ReverseModeVisitor::DifferentiateCtorInit(CXXCtorInitializer* CI) {
