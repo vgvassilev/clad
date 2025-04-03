@@ -142,8 +142,16 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       returnedFD->setAccess(FD->getAccess());
 
       // Check if we're dealing with a template specialization
-      if (FD->isFunctionTemplateSpecialization()) {
-        const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
+      if (FD->isFunctionTemplateSpecialization() && !FD->getTemplateInstantiationPattern()->isVariadic()) {
+        bool isVariadic = 0;
+        for (auto param : FD->getPrimaryTemplate()->getTemplateParameters()->asArray()) {
+          if (param->isParameterPack()) {
+            isVariadic = true;
+            break;
+          }
+        }
+        if (!isVariadic) {
+        const TemplateArgumentList *TAL = FD->getTemplateSpecializationArgs();
         FunctionTemplateDecl* OriginalFTD = FD->getPrimaryTemplate();
 
         // Check if returnedFD is already associated with a template
@@ -191,6 +199,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               ExistingFTD, TALCopy, nullptr,
               FD->getTemplateSpecializationKindForInstantiation());
         }
+       }
       }
     }
     returnedFD->setImplicitlyInline(FD->isInlined());
