@@ -144,8 +144,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // Check if we're dealing with a template specialization
       if (FD->isFunctionTemplateSpecialization() &&
           !FD->getTemplateInstantiationPattern()->isVariadic()) {
-        bool isVariadic = 0;
-        for (auto param :
+        bool isVariadic = false;
+        for (auto* param :
              FD->getPrimaryTemplate()->getTemplateParameters()->asArray()) {
           if (param->isParameterPack()) {
             isVariadic = true;
