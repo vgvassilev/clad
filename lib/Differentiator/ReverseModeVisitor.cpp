@@ -1519,6 +1519,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         baseOriginalE = OCE->getArg(0);
     }
 
+    // FIXME: Add support for lambdas used directly, e.g.
+    // [](){return 12.;}()
+    if (MD && isLambdaCallOperator(MD) &&
+        !isa<DeclRefExpr>(baseOriginalE->IgnoreImplicit())) {
+      diag(DiagnosticsEngine::Warning, baseOriginalE->getBeginLoc(),
+           "Direct lambda calls are not supported, ignored.");
+      return getZeroInit(CE->getType());
+    }
+
     // FIXME: consider moving non-diff analysis to DiffPlanner.
     bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
 
