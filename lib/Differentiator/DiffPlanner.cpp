@@ -626,11 +626,12 @@ namespace clad {
         << "args='";
     if (Args)
       Args->printPretty(Out, /*Helper=*/nullptr, P);
-    for (unsigned i = 0, e = DVI.size(); i < e; i++) {
-      DVI[i].print(Out);
-      if (i != e - 1)
-        Out << ',';
-    }
+    else
+      for (unsigned i = 0, e = DVI.size(); i < e; i++) {
+        DVI[i].print(Out);
+        if (i != e - 1)
+          Out << ',';
+      }
     Out << "'";
     if (EnableTBRAnalysis)
       Out << ", tbr";
