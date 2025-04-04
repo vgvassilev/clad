@@ -39,8 +39,6 @@ public:
 
   virtual void ExecuteInsidePushforwardFunctionBlock() {}
 
-  static bool IsDifferentiableType(clang::QualType T);
-
   virtual StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
