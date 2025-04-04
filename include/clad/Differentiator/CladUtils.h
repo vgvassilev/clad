@@ -348,6 +348,8 @@ namespace clad {
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
 
+    bool IsDifferentiableType(clang::QualType T);
+
     } // namespace utils
     } // namespace clad
 

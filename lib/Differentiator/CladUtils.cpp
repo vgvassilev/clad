@@ -814,5 +814,20 @@ namespace clad {
         }
       return S.ActOnInitList(noLoc, {}, noLoc).get();
     }
+
+    bool IsDifferentiableType(QualType T) {
+      QualType origType = T;
+      // FIXME: arbitrary dimension array type as well.
+      while (utils::isArrayOrPointerType(T))
+        T = utils::GetValueType(T);
+      T = T.getNonReferenceType();
+      if (T->isEnumeralType())
+        return false;
+      if (T->isRealType() || T->isStructureOrClassType())
+        return true;
+      if (origType->isPointerType() && T->isVoidType())
+        return true;
+      return false;
+    }
   } // namespace utils
 } // namespace clad

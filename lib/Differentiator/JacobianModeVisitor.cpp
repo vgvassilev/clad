@@ -88,7 +88,7 @@ DerivativeAndOverload JacobianModeVisitor::DeriveJacobian() {
                                     /*cloneDefaultArg=*/false);
     params.push_back(newPVD);
 
-    if (!BaseForwardModeVisitor::IsDifferentiableType(PVD->getType()))
+    if (!utils::IsDifferentiableType(PVD->getType()))
       continue;
     auto derivedPVDName = "_d_vector_" + std::string(PVDII->getName());
     IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
