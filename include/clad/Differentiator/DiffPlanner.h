@@ -12,6 +12,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <clang/AST/Decl.h>
 #include <iterator>
 #include <set>
 
