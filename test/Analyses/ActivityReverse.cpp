@@ -168,18 +168,13 @@ double f4(double x){
   double c = f4_1(x, 1);
   return c;
 }
-// CHECK: void f4_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
-// CHECK-NEXT:     double _d_k = 0.;
-// CHECK-NEXT:     double k = 2 * u;
-// CHECK-NEXT:     double _d_n = 0.;
-// CHECK-NEXT:     double n = 2 * v;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         _d_n += _d_y * k;
-// CHECK-NEXT:         _d_k += n * _d_y;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     *_d_v += 2 * _d_n;
-// CHECK-NEXT:     *_d_u += 2 * _d_k;
-// CHECK-NEXT: }
+// CHECK: void f4_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {  
+// CHECK-NEXT:     double k = 2 * u;  
+// CHECK-NEXT:     double _d_n = 0.;  
+// CHECK-NEXT:     double n = 2 * v;  
+// CHECK-NEXT:     _d_n += _d_y * k;  
+// CHECK-NEXT:     *_d_v += 2 * _d_n;  
+// CHECK-NEXT: }  
 
 // CHECK-NEXT: void f4_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _d_c = 0.;
@@ -388,11 +383,110 @@ double f11(double x){
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-#define TEST(F, x) { \
+double gaussian(double x, double mean, double sigma)
+{
+   const double arg = x - mean;
+   const double sig = sigma;
+   return std::exp(-0.5 * arg * arg / (sig * sig));
+}
+
+double f12_1(double a, double b){
+  double c3 = gaussian(1, 1, b);
+  return c3;
+}
+
+double f12(double x, double y){
+  double c1 = f12_1(x, y);
+  double c2 = gaussian(x, y, 1);
+  return c1*c2;
+}
+// CHECK: void gaussian_pullback(double x, double mean, double sigma, double _d_y, double *_d_x, double *_d_mean, double *_d_sigma) {  
+// CHECK-NEXT:     double _d_arg = 0.;  
+// CHECK-NEXT:     const double arg = x - mean;  
+// CHECK-NEXT:     double _d_sig = 0.;  
+// CHECK-NEXT:     const double sig = sigma;  
+// CHECK-NEXT:     double _t0 = (sig * sig);  
+// CHECK-NEXT:     {  
+// CHECK-NEXT:         double _r0 = 0.;  
+// CHECK-NEXT:         _r0 += _d_y * clad::custom_derivatives::std::exp_pushforward(-0.5 * arg * arg / _t0, 1.).pushforward;  
+// CHECK-NEXT:         _d_arg += -0.5 * _r0 / _t0 * arg;  
+// CHECK-NEXT:         _d_arg += -0.5 * arg * _r0 / _t0;  
+// CHECK-NEXT:         double _r1 = _r0 * -(-0.5 * arg * arg / (_t0 * _t0));  
+// CHECK-NEXT:         _d_sig += _r1 * sig;  
+// CHECK-NEXT:         _d_sig += sig * _r1;  
+// CHECK-NEXT:     }  
+// CHECK-NEXT:     *_d_sigma += _d_sig;  
+// CHECK-NEXT:     {  
+// CHECK-NEXT:         *_d_x += _d_arg;  
+// CHECK-NEXT:         *_d_mean += -_d_arg;  
+// CHECK-NEXT:     }  
+// CHECK-NEXT: }  
+// CHECK-NEXT: void f12_1_pullback(double a, double b, double _d_y, double *_d_a, double *_d_b) {  
+// CHECK-NEXT:     double _d_c3 = 0.;  
+// CHECK-NEXT:     double c3 = gaussian(1, 1, b);  
+// CHECK-NEXT:     _d_c3 += _d_y;  
+// CHECK-NEXT:     {  
+// CHECK-NEXT:         double _r0 = 0.;  
+// CHECK-NEXT:         double _r1 = 0.;  
+// CHECK-NEXT:         double _r2 = 0.;  
+// CHECK-NEXT:         gaussian_pullback(1, 1, b, _d_c3, &_r0, &_r1, &_r2);  
+// CHECK-NEXT:         *_d_b += _r2;  
+// CHECK-NEXT:     }  
+// CHECK-NEXT: }  
+// CHECK-NEXT: void f12_grad(double x, double y, double *_d_x, double *_d_y) {  
+// CHECK-NEXT:     double _d_c1 = 0.;  
+// CHECK-NEXT:     double c1 = f12_1(x, y);  
+// CHECK-NEXT:     double _d_c2 = 0.;  
+// CHECK-NEXT:     double c2 = gaussian(x, y, 1);  
+// CHECK-NEXT:     {  
+// CHECK-NEXT:         _d_c1 += 1 * c2;  
+// CHECK-NEXT:         _d_c2 += c1 * 1;  
+// CHECK-NEXT:     }  
+// CHECK-NEXT:     {  
+// CHECK-NEXT:         double _r2 = 0.;  
+// CHECK-NEXT:         double _r3 = 0.;  
+// CHECK-NEXT:         double _r4 = 0.;  
+// CHECK-NEXT:         gaussian_pullback(x, y, 1, _d_c2, &_r2, &_r3, &_r4);  
+// CHECK-NEXT:         *_d_x += _r2;  
+// CHECK-NEXT:         *_d_y += _r3;  
+// CHECK-NEXT:     }  
+// CHECK-NEXT:     {  
+// CHECK-NEXT:         double _r0 = 0.;  
+// CHECK-NEXT:         double _r1 = 0.;  
+// CHECK-NEXT:         f12_1_pullback(x, y, _d_c1, &_r0, &_r1);  
+// CHECK-NEXT:         *_d_x += _r0;  
+// CHECK-NEXT:         *_d_y += _r1;  
+// CHECK-NEXT:     }  
+// CHECK-NEXT: }  
+
+double f13_1(double low, double const* vals)
+{
+  return low * vals[0];
+}
+
+double f13(double x, const double* obs){
+  double g = f13_1(1, obs);
+  return g;
+}
+
+// CHECK: void f13_grad_0(double x, const double *obs, double *_d_x) {
+// CHECK-NEXT:    double g = f13_1(1, obs);
+// CHECK-NEXT:}
+
+
+#define TEST1(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_va>(F);\
   F##grad.execute(x, result);\
   printf("{%.2f}\n", result[0]); \
+}
+
+#define TEST2(F, x, y) { \
+  result[0] = 0; \
+  result[1] = 0; \
+  auto F##grad = clad::gradient<clad::opts::enable_va>(F);\
+  F##grad.execute(x,y, &result[0], &result[1]);\
+  printf("{%.2f, %.2f}\n", result[0], result[1]); \
 }
 
 int main(){
@@ -400,17 +494,22 @@ int main(){
     double darr[] = {0,0,0,0,0};
     double result[3] = {};
     double dx = 0;
-    TEST(f1, 3);// CHECK-EXEC: {6.00}
-    TEST(f2, 3);// CHECK-EXEC: {6.00}
-    TEST(f3, 3);// CHECK-EXEC: {0.00}
-    TEST(f4, 3);// CHECK-EXEC: {4.00}
-    TEST(f5, 3);// CHECK-EXEC: {0.00}
-    TEST(f6, 3);// CHECK-EXEC: {0.00}
-    TEST(f7, 3);// CHECK-EXEC: {1.00}
-    TEST(f8, 3);// CHECK-EXEC: {1.00}
-    auto grad = clad::gradient<clad::opts::enable_va>(f9, "x");
-    grad.execute(3, arr, &dx, darr);
-    printf("%.2f\n", dx);// CHECK-EXEC: 2.00
-    TEST(f10, 3);// CHECK-EXEC: {1.00}
-    TEST(f11, 3);// CHECK-EXEC: {1.00}
+    TEST1(f1, 3);// CHECK-EXEC: {6.00}
+    TEST1(f2, 3);// CHECK-EXEC: {6.00}
+    TEST1(f3, 3);// CHECK-EXEC: {0.00}
+    TEST1(f4, 3);// CHECK-EXEC: {4.00}
+    TEST1(f5, 3);// CHECK-EXEC: {0.00}
+    TEST1(f6, 3);// CHECK-EXEC: {0.00}
+    TEST1(f7, 3);// CHECK-EXEC: {1.00}
+    TEST1(f8, 3);// CHECK-EXEC: {1.00}
+    auto grad9 = clad::gradient<clad::opts::enable_va>(f9, "x");
+    grad9.execute(3, arr, &dx, darr);
+    printf("{%.2f}\n", dx);// CHECK-EXEC: {2.00}
+    TEST1(f10, 3);// CHECK-EXEC: {1.00}
+    TEST1(f11, 3);// CHECK-EXEC: {1.00}
+    TEST2(f12, 3, 1);// CHECK-EXEC: {-0.27, 0.27}
+    dx = 0;
+    auto grad13 = clad::gradient<clad::opts::enable_va>(f13, "x");
+    grad13.execute(3, arr, &dx, darr);
+    printf("{%.2f}\n", dx); // CHECK-EXEC: {0.00}
 }
