@@ -74,10 +74,6 @@ namespace clad {
 
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
-    // FIXME: Should we make this an object instead of a pointer?
-    // Downside of making it an object: We will need to include
-    // 'MultiplexExternalRMVSource.h' file
-    MultiplexExternalRMVSource* m_ExternalSource = nullptr;
     clang::Expr* m_Pullback = nullptr;
     const char* funcPostfix() const {
       if (m_DiffReq.Mode == DiffMode::jacobian)
@@ -474,7 +470,7 @@ namespace clad {
     /// type rules for local variables. We should remove this inconsistency.
     /// See the following issue for more details:
     /// https://github.com/vgvassilev/clad/issues/385
-    clang::QualType GetParameterDerivativeType(clang::QualType Type);
+    clang::QualType GetParameterDerivativeType(clang::QualType Type) override;
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop.
@@ -661,9 +657,6 @@ namespace clad {
     /// multiple times.
     ///\paramp[in] source An external RMV source
     void AddExternalSource(ExternalRMVSource& source);
-
-    /// Computes and returns the derived function prototype.
-    clang::QualType ComputeDerivativeFunctionType();
 
     /// Builds and returns the sequence of derived function parameters.
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);

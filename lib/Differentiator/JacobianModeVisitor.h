@@ -3,6 +3,8 @@
 
 #include "clad/Differentiator/VectorPushForwardModeVisitor.h"
 
+#include "clang/AST/Type.h"
+
 namespace clad {
 class JacobianModeVisitor : public VectorPushForwardModeVisitor {
 
@@ -11,7 +13,7 @@ public:
 
   DerivativeAndOverload DeriveJacobian();
 
-  clang::QualType getParamAdjointType(clang::QualType T);
+  clang::QualType GetParameterDerivativeType(clang::QualType T) override;
 
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
 };

@@ -148,7 +148,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
 
   m_Sema.CurContext = DC;
-  QualType derivedFnType = ComputeDerivativeFunctionType();
+  QualType derivedFnType = GetDerivativeType();
   DeclWithContext result =
       m_Builder.cloneFunction(FD, *this, DC, validLoc, name, derivedFnType);
   FunctionDecl* derivedFD = result.first;
@@ -219,51 +219,6 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
                                /*OverloadFunctionDecl=*/nullptr};
 }
 
-QualType BaseForwardModeVisitor::ComputeDerivativeFunctionType() {
-  const FunctionDecl* FD = m_DiffReq.Function;
-
-  if (m_DiffReq.Mode == DiffMode::forward)
-    return FD->getType();
-
-  assert(m_DiffReq.Mode == GetPushForwardMode());
-
-  const auto* FnProtoTy = cast<FunctionProtoType>(FD->getType());
-  llvm::SmallVector<QualType, 16> FnTypes(FnProtoTy->getParamTypes().begin(),
-                                          FnProtoTy->getParamTypes().end());
-
-  bool HasThis = false;
-  if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
-    if (MD->isInstance()) {
-      FnTypes.push_back(MD->getThisType());
-      HasThis = true;
-    }
-  }
-
-  // Iterate over all but the "this" type and extend the signature to add the
-  // extra parameters.
-  for (size_t i = 0, e = FnTypes.size() - HasThis; i < e; ++i) {
-    QualType PVDTy = FnTypes[i];
-    if (utils::IsDifferentiableType(PVDTy))
-      FnTypes.push_back(GetPushForwardDerivativeType(PVDTy));
-  }
-
-  QualType oRetTy = FD->getReturnType();
-  QualType dRetTy;
-  if (oRetTy->isVoidType()) {
-    dRetTy = m_Context.VoidTy;
-  } else {
-    TemplateDecl* valueAndPushforward =
-        LookupTemplateDeclInCladNamespace("ValueAndPushforward");
-    assert(valueAndPushforward &&
-           "clad::ValueAndPushforward template not found!!");
-    // FIXME: Sink GetPushForwardDerivativeType here.
-    QualType PushFwdTy = GetPushForwardDerivativeType(oRetTy);
-    dRetTy = InstantiateTemplate(valueAndPushforward, {oRetTy, PushFwdTy});
-  }
-  FunctionProtoType::ExtProtoInfo EPI = FnProtoTy->getExtProtoInfo();
-  return m_Context.getFunctionType(dRetTy, FnTypes, EPI);
-}
-
 void BaseForwardModeVisitor::SetupDerivativeParameters(
     llvm::SmallVectorImpl<ParmVarDecl*>& params) {
   const FunctionDecl* FD = m_DiffReq.Function;
@@ -332,7 +287,7 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
 
     IdentifierInfo* II = &m_Context.Idents.get("_d_" + PVD->getNameAsString());
     auto* dPVD = utils::BuildParmVarDecl(
-        m_Sema, m_Derivative, II, GetPushForwardDerivativeType(PVD->getType()),
+        m_Sema, m_Derivative, II, GetParameterDerivativeType(PVD->getType()),
         PVD->getStorageClass());
     params.push_back(dPVD);
     m_Variables[PVD] = BuildDeclRef(dPVD);
@@ -1009,11 +964,6 @@ BaseForwardModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
   auto* constant0 =
       FloatingLiteral::Create(m_Context, zero, true, FL->getType(), noLoc);
   return StmtDiff(Clone(FL), constant0);
-}
-
-QualType
-BaseForwardModeVisitor::GetPushForwardDerivativeType(QualType ParamType) {
-  return ParamType;
 }
 
 std::string BaseForwardModeVisitor::GetPushForwardFunctionSuffix() {

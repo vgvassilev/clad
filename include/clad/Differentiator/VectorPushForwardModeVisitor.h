@@ -4,6 +4,8 @@
 #include "PushForwardModeVisitor.h"
 #include "VectorForwardModeVisitor.h"
 
+#include "clang/AST/Type.h"
+
 namespace clad {
 class VectorPushForwardModeVisitor : public VectorForwardModeVisitor {
 
@@ -14,6 +16,8 @@ public:
 
   void ExecuteInsidePushforwardFunctionBlock() override;
 
+  clang::QualType
+  GetParameterDerivativeType(clang::QualType ParamType) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
 };
 } // end namespace clad

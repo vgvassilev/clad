@@ -33,22 +33,7 @@ DerivativeAndOverload JacobianModeVisitor::DeriveJacobian() {
   SourceLocation loc{m_DiffReq->getLocation()};
   DeclarationNameInfo name(II, loc);
 
-  llvm::SmallVector<QualType, 8> paramTypes;
-
-  // Generate the function type for the derivative.
-  paramTypes.reserve(m_DiffReq->getNumParams() + args.size());
-  for (auto* PVD : m_DiffReq->parameters())
-    paramTypes.push_back(PVD->getType());
-  for (auto* PVD : m_DiffReq->parameters()) {
-    QualType paramTy = PVD->getType();
-    if (utils::isArrayOrPointerType(paramTy) || paramTy->isReferenceType())
-      paramTypes.push_back(getParamAdjointType(paramTy));
-  }
-  QualType vectorDiffFunctionType = m_Context.getFunctionType(
-      m_Context.VoidTy,
-      llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
-      // Cast to function pointer.
-      dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo());
+  QualType vectorDiffFunctionType = GetDerivativeType();
 
   // Create the function declaration for the derivative.
   // FIXME: We should not use const_cast to get the decl context here.
@@ -96,7 +81,7 @@ DerivativeAndOverload JacobianModeVisitor::DeriveJacobian() {
     if (utils::isArrayOrPointerType(PVD->getType())) {
       ParmVarDecl* derivedPVD = utils::BuildParmVarDecl(
           m_Sema, m_Derivative, derivedPVDII,
-          getParamAdjointType(PVD->getType()), PVD->getStorageClass());
+          GetParameterDerivativeType(PVD->getType()), PVD->getStorageClass());
       derivedParams.push_back(derivedPVD);
       derivedExpr =
           BuildOp(UO_Deref, BuildDeclRef(derivedPVD), PVD->getBeginLoc());
@@ -110,14 +95,15 @@ DerivativeAndOverload JacobianModeVisitor::DeriveJacobian() {
     } else if (PVD->getType()->isReferenceType()) {
       ParmVarDecl* derivedPVD = utils::BuildParmVarDecl(
           m_Sema, m_Derivative, derivedPVDII,
-          getParamAdjointType(PVD->getType()), PVD->getStorageClass());
+          GetParameterDerivativeType(PVD->getType()), PVD->getStorageClass());
       derivedParams.push_back(derivedPVD);
       derivedExpr =
           BuildOp(UO_Deref, BuildDeclRef(derivedPVD), PVD->getBeginLoc());
       nonArrayIndVarCount += 1;
     } else {
       VarDecl* derivedPVD = BuildVarDecl(
-          GetPushForwardDerivativeType(PVD->getType()), derivedPVDII);
+          GetParameterDerivativeType(PVD->getType())->getPointeeType(),
+          derivedPVDII);
       adjointDecls.push_back(BuildDeclStmt(derivedPVD));
       derivedExpr = BuildDeclRef(derivedPVD);
       nonArrayIndVarCount += 1;
@@ -259,8 +245,9 @@ DerivativeAndOverload JacobianModeVisitor::DeriveJacobian() {
   return DerivativeAndOverload{vectorDiffFD, overloadFD};
 }
 
-QualType JacobianModeVisitor::getParamAdjointType(QualType T) {
-  QualType derivedTy = GetPushForwardDerivativeType(T);
+QualType JacobianModeVisitor::GetParameterDerivativeType(QualType T) {
+  QualType derivedTy =
+      this->VectorPushForwardModeVisitor::GetParameterDerivativeType(T);
   derivedTy = m_Context.getPointerType(derivedTy.getNonReferenceType());
   return derivedTy;
 }
