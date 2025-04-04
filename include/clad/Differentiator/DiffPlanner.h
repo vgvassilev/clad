@@ -191,11 +191,12 @@ public:
     llvm::DenseSet<const clang::FunctionDecl*> m_Traversed;
 
     bool m_IsTraversingTopLevelDecl = true;
+    bool m_CollectOnlyConstExpr;
 
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
-                  RequestOptions& opts);
+                  RequestOptions& opts, bool collectconstexpr);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {

@@ -39,14 +39,19 @@ namespace clad {
   ///
   /// \param[in] call A clad differentiation function call expression
   /// \param SemaRef Reference to Sema
-  DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
+  DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef,
+                              bool emitdiags = true) {
     struct Finder :
       RecursiveASTVisitor<Finder> {
         Sema& m_SemaRef;
         SourceLocation m_BeginLoc;
         DeclRefExpr* m_FnDRE = nullptr;
-        Finder(Sema& SemaRef, SourceLocation beginLoc)
-            : m_SemaRef(SemaRef), m_BeginLoc(beginLoc) {}
+        // FIXME: Remove once there is a better approach to handle constexpr
+        // DiffRequests.
+        bool m_EmitDiags;
+        Finder(Sema& SemaRef, SourceLocation beginLoc, bool emitdiags)
+            : m_SemaRef(SemaRef), m_BeginLoc(beginLoc), m_EmitDiags(emitdiags) {
+        }
 
         // Required for visiting lambda declarations.
         bool shouldVisitImplicitCode() const { return true; }
@@ -86,7 +91,8 @@ namespace clad {
             auto diagId =
                 m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
                                                 diagFmt);
-            m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
+            if (m_EmitDiags)
+              m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
             return false;
           } else if (!R.isSingleResult()) {
             const char diagFmt[] =
@@ -95,14 +101,16 @@ namespace clad {
             auto diagId =
                 m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
                                                 diagFmt);
-            m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
+            if (m_EmitDiags)
+              m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
 
             // Emit diagnostics for candidate functions
             for (auto oper = R.begin(), operEnd = R.end(); oper != operEnd;
                  ++oper) {
               auto candidateFn = cast<CXXMethodDecl>(oper.getDecl());
-              m_SemaRef.NoteOverloadCandidate(candidateFn,
-                                              cast<FunctionDecl>(candidateFn));
+              if (m_EmitDiags)
+                m_SemaRef.NoteOverloadCandidate(
+                    candidateFn, cast<FunctionDecl>(candidateFn));
             }
             return false;
           } else if (R.isSingleResult() == 1 &&
@@ -122,8 +130,9 @@ namespace clad {
                          AccessSpecifier::AS_private
                      ? "private"
                      : "protected");
-            m_SemaRef.Diag(m_BeginLoc, diagId)
-                << RD->getName() << callOperatorAS;
+            if (m_EmitDiags)
+              m_SemaRef.Diag(m_BeginLoc, diagId)
+                  << RD->getName() << callOperatorAS;
             auto callOperator = cast<CXXMethodDecl>(R.getFoundDecl());
 
             bool isImplicit = true;
@@ -140,11 +149,12 @@ namespace clad {
             }
 
             // Emit diagnostics for the found call operator
-            m_SemaRef.Diag(callOperator->getBeginLoc(),
-                           diag::note_access_natural)
-                << (unsigned)(callOperator->getAccess() ==
-                              AccessSpecifier::AS_protected)
-                << isImplicit;
+            if (m_EmitDiags)
+              m_SemaRef.Diag(callOperator->getBeginLoc(),
+                             diag::note_access_natural)
+                  << (unsigned)(callOperator->getAccess() ==
+                                AccessSpecifier::AS_protected)
+                  << isImplicit;
 
             return false;
           }
@@ -176,7 +186,7 @@ namespace clad {
           m_FnDRE = cast<DeclRefExpr>(newFnDRE);          
           return false;
         }
-    } finder(SemaRef, call->getArg(0)->getBeginLoc());
+    } finder(SemaRef, call->getArg(0)->getBeginLoc(), emitdiags);
     finder.TraverseStmt(call->getArg(0));
 
     assert(cast<NamespaceDecl>(call->getDirectCallee()->getDeclContext())
@@ -278,9 +288,10 @@ namespace clad {
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
-                               clang::Sema& S, RequestOptions& opts)
+                               clang::Sema& S, RequestOptions& opts,
+                               bool collectconstexpr)
       : m_Interval(Interval), m_DiffRequestGraph(requestGraph), m_Sema(S),
-        m_Options(opts) {
+        m_Options(opts), m_CollectOnlyConstExpr(collectconstexpr) {
 
     if (Interval.empty())
       return;
@@ -996,6 +1007,7 @@ namespace clad {
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     DiffRequest request;
+    m_Sema.PerformPendingInstantiations();
 
     FunctionDecl* FD = E->getDirectCallee();
     if (!FD)
@@ -1025,9 +1037,12 @@ namespace clad {
         return true;
 
       // A call to clad::differentiate or clad::gradient was found.
-      if (DeclRefExpr* DRE = getArgFunction(E, m_Sema))
+      if (DeclRefExpr* DRE = getArgFunction(E, m_Sema, !m_CollectOnlyConstExpr))
         request.Function = cast<FunctionDecl>(DRE->getDecl());
       else
+        return true;
+
+      if (m_CollectOnlyConstExpr && !request.Function->isConstexpr())
         return true;
 
       if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
@@ -1037,6 +1052,7 @@ namespace clad {
       // The root of the differentiation request graph should update the
       // CladFunction object with the generated call.
       request.CallUpdateRequired = true;
+      request.CallContext = E;
 
       request.Args = E->getArg(1);
       // FIXME: We should call UpdateDiffParamsInfo unconditionally, however,
@@ -1072,6 +1088,7 @@ namespace clad {
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+      request.CallContext = E;
 
       // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       if (m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
@@ -1114,14 +1131,17 @@ namespace clad {
 
     if (isCallOperator(m_Sema.getASTContext(), request.Function))
       request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
-    request.CallContext = E;
     request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
 
     llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
-    // Recurse into call graph.
-    TraverseFunctionDeclOnce(request.Function);
-    if (!HasCustomDerivativeForDiffReq(m_Sema, request))
+    if (request.Function->getDefinition())
+      request.Function = request.Function->getDefinition();
+
+    if (!HasCustomDerivativeForDiffReq(m_Sema, request)) {
+      // Recurse into call graph.
+      TraverseFunctionDeclOnce(request.Function);
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+    }
 
     if (m_IsTraversingTopLevelDecl) {
       m_TopMostReq = nullptr;
