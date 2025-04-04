@@ -101,8 +101,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     E = E->IgnoreImplicit();
     if (type.isNull())
       type = E->getType();
-    QualType TapeType =
-        GetCladTapeOfType(getNonConstType(type, m_Context, m_Sema));
+    QualType TapeType = GetCladTapeOfType(utils::getNonConstType(type, m_Sema));
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
     Expr* TapeRef =
@@ -390,7 +389,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           }
           continue;
         }
-        auto VDDerivedType = getNonConstType(paramTy, m_Context, m_Sema);
+        auto VDDerivedType = utils::getNonConstType(paramTy, m_Sema);
         auto* VDDerived =
             BuildGlobalVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
                                getZeroInit(VDDerivedType));
@@ -1588,7 +1587,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // is done to reduce cloning complexity and only clone once. The type is
         // same as the call expression as it is the type used to declare the
         // _gradX array
-        QualType dArgTy = getNonConstType(arg->getType(), m_Context, m_Sema);
+        QualType dArgTy = utils::getNonConstType(arg->getType(), m_Sema);
         VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
         PreCallStmts.push_back(BuildDeclStmt(dArgDecl));
         DeclRefExpr* dArgRef = BuildDeclRef(dArgDecl);
@@ -1766,7 +1765,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           bool isPassedByRef = utils::IsReferenceOrPointerArg(baseOriginalE);
           if (!isPassedByRef) {
             QualType dBaseTy =
-                getNonConstType(baseOriginalE->getType(), m_Context, m_Sema);
+                utils::getNonConstType(baseOriginalE->getType(), m_Sema);
             VarDecl* dBaseDecl =
                 BuildVarDecl(dBaseTy, "_r", getZeroInit(dBaseTy));
             PreCallStmts.push_back(BuildDeclStmt(dBaseDecl));
@@ -1932,7 +1931,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               /*numArgs=*/1, DerivedCallArgs, CUDAExecConfig);
           asGrad = !OverloadedDerivedFn;
         } else {
-          auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
+          auto CEType = utils::getNonConstType(CE->getType(), m_Sema);
           OverloadedDerivedFn = GetMultiArgCentralDiffCall(
               Clone(CE->getCallee()), CEType.getCanonicalType(),
               CE->getNumArgs(), dfdx(), PreCallStmts, PostCallStmts,
@@ -2606,7 +2605,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             GetCladArrayOfType(m_Context.getBaseElementType(VDCloneType));
     } else {
       VDCloneType = CloneType(VDType);
-      VDDerivedType = getNonConstType(VDCloneType, m_Context, m_Sema);
+      VDDerivedType = utils::getNonConstType(VDCloneType, m_Sema);
     }
 
     bool isRefType = VDType->isLValueReferenceType();
@@ -2699,7 +2698,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (constPointer && !isInitializedByNewExpr && !initDiff.getExpr_dx())
         initializeDerivedVar = false;
       else {
-        VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
+        VDDerivedType = utils::getNonConstType(VDDerivedType, m_Sema);
         // If it's a pointer to a constant type, then remove the constness.
         if (constPointer) {
           // first extract the pointee type
@@ -3306,15 +3305,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
                                               bool force) {
     assert(E && "cannot infer type");
-    return GlobalStoreAndRef(
-        E, getNonConstType(E->getType(), m_Context, m_Sema), prefix, force);
+    return GlobalStoreAndRef(E, utils::getNonConstType(E->getType(), m_Sema),
+                             prefix, force);
   }
 
   StmtDiff ReverseModeVisitor::StoreAndRestore(clang::Expr* E,
                                                llvm::StringRef prefix,
                                                bool moveToTape) {
     assert(E && "must be provided");
-    auto Type = getNonConstType(E->getType(), m_Context, m_Sema);
+    auto Type = utils::getNonConstType(E->getType(), m_Sema);
 
     if (isInsideLoop) {
       Expr* clone = Clone(E);
@@ -3463,7 +3462,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool isFnScope = getCurrentScope()->isFunctionScope() ||
                      m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
     VarDecl* VD = BuildGlobalVarDecl(
-        getNonConstType(E->getType(), m_Context, m_Sema), prefix);
+        utils::getNonConstType(E->getType(), m_Sema), prefix);
     Expr* Ref = BuildDeclRef(VD);
     if (!isFnScope)
       addToBlock(BuildDeclStmt(VD), m_Globals);
@@ -4123,7 +4122,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // double _r0 = 0;
         // SomeClass_pullback(c, u, ..., &_d_c, &_r0, ...);
         // _d_u += _r0;
-        QualType dArgTy = getNonConstType(CloneType(ArgTy), m_Context, m_Sema);
+        QualType dArgTy = utils::getNonConstType(CloneType(ArgTy), m_Sema);
         Expr* init = getStdInitListSizeExpr(arg);
         if (!init)
           init = getZeroInit(dArgTy);
@@ -4391,7 +4390,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     QualType oRetTy = FD->getReturnType();
     QualType dRetTy = oRetTy.getNonReferenceType();
-    dRetTy = getNonConstType(dRetTy, m_Context, m_Sema);
+    dRetTy = utils::getNonConstType(dRetTy, m_Sema);
 
     // FIXME: We ignore the pointer return type for pullbacks.
     bool HasRet = false;
@@ -4451,7 +4450,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool HasRet = false;
     // FIXME: We ignore the pointer return type for pullbacks.
     QualType dRetTy = FD->getReturnType().getNonReferenceType();
-    dRetTy = getNonConstType(dRetTy, m_Context, m_Sema);
+    dRetTy = utils::getNonConstType(dRetTy, m_Sema);
     if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
         !dRetTy->isVoidType() && !dRetTy->isPointerType()) {
       auto paramNameExists = [&params](llvm::StringRef name) {
