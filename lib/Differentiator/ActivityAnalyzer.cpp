@@ -1,4 +1,5 @@
 #include "ActivityAnalyzer.h"
+#include "clang/AST/Type.h"
 
 using namespace clang;
 
@@ -126,18 +127,20 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
       clang::Expr* arg = CE->getArg(i);
 
       QualType parType = FDparam[i]->getType();
-      while (parType->isPointerType())
-        parType = parType->getPointeeType();
-      if ((parType->isReferenceType() ||
-           utils::isArrayOrPointerType(parType)) &&
-          !parType.isConstQualified()) {
+      QualType innerMostType = parType;
+      while (innerMostType->isPointerType())
+        innerMostType = innerMostType->getPointeeType();
+      if ((utils::isArrayOrPointerType(parType) &&
+           !innerMostType.isConstQualified()) ||
+          (parType->isReferenceType() &&
+           !parType.getNonReferenceType().isConstQualified())) {
         m_Marking = true;
         m_Varied = true;
       }
 
       TraverseStmt(arg);
 
-      if (!parType.isConstQualified() || m_Varied)
+      if (m_Varied)
         m_VariedDecls.insert(FDparam[i]);
 
       m_Marking = false;

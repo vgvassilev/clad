@@ -1577,8 +1577,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
-      if (utils::IsReferenceOrPointerArg(arg) ||
-          !m_DiffReq.shouldHaveAdjoint(PVD)) {
+      if (utils::IsReferenceOrPointerArg(arg)) {
         argDiff = Visit(arg);
         CallArgDx.push_back(argDiff.getExpr_dx());
       } else {

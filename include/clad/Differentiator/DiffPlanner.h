@@ -5,6 +5,7 @@
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
 #include "llvm/ADT/DenseSet.h"

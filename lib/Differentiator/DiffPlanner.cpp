@@ -1104,18 +1104,23 @@ namespace clad {
     request.CallContext = E;
     request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
 
+    // FIXME: Here we copy all varied declarations down to the pullback, has to
+    // be removed once AA and TBR are completely reworked, with better
+    // branch-merging.
     if (m_ParentReq)
       for (auto decl : m_ParentReq->getVariedDecls())
         request.addVariedDecl(decl);
 
     llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
 
-    if (m_TopMostReq->EnableVariedAnalysis &&
-        m_TopMostReq->Mode == DiffMode::reverse) {
-      VariedAnalyzer analyzer(request.Function->getASTContext(),
-                              request.getVariedDecls());
-      analyzer.Analyze(request.Function);
-    }
+    // FIXME: Move once #1325 is merged.
+    if (!HasCustomDerivativeForDiffReq(m_Sema, request))
+      if (m_TopMostReq->EnableVariedAnalysis &&
+          m_TopMostReq->Mode == DiffMode::reverse) {
+        VariedAnalyzer analyzer(request.Function->getASTContext(),
+                                request.getVariedDecls());
+        analyzer.Analyze(request.Function);
+      }
 
     // Recurse into call graph.
     TraverseFunctionDeclOnce(request.Function);
