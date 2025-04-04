@@ -7,6 +7,7 @@
 #ifndef CLAD_REVERSE_MODE_VISITOR_H
 #define CLAD_REVERSE_MODE_VISITOR_H
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
@@ -86,20 +87,6 @@ namespace clad {
       return "_grad";
     }
 
-    /// Removes the local const qualifiers from a QualType and returns a new
-    /// type.
-    static clang::QualType
-    getNonConstType(clang::QualType T, clang::ASTContext& C, clang::Sema& S) {
-      bool isLValueRefType = T->isLValueReferenceType();
-      T = T.getNonReferenceType();
-      clang::Qualifiers quals(T.getQualifiers());
-      quals.removeConst();
-      clang::QualType nonConstType =
-          S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
-      if (isLValueRefType)
-        return C.getLValueReferenceType(nonConstType);
-      return nonConstType;
-    }
     // Function to Differentiate with Clad as Backend
     void DifferentiateWithClad();
 
@@ -198,7 +185,7 @@ namespace clad {
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false) {
       assert(E && "cannot infer type from null expression");
-      return StoreAndRef(E, getNonConstType(E->getType(), m_Context, m_Sema), d,
+      return StoreAndRef(E, utils::getNonConstType(E->getType(), m_Sema), d,
                          prefix, forceDeclCreation);
     }
 
