@@ -30,11 +30,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
       clad::utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_forw";
   auto fnDNI = utils::BuildDeclarationNameInfo(m_Sema, fnName);
 
-  auto paramTypes = ComputeParamTypes(args);
-  auto returnType = ComputeReturnType();
-  const auto* sourceFnType = dyn_cast<FunctionProtoType>(m_DiffReq->getType());
-  auto fnType = m_Context.getFunctionType(returnType, paramTypes,
-                                          sourceFnType->getExtProtoInfo());
+  auto fnType = GetDerivativeType();
 
   llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
   llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
@@ -87,39 +83,6 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   m_Sema.PopDeclContext();
   endScope();
   return DerivativeAndOverload{m_Derivative, nullptr};
-}
-
-llvm::SmallVector<clang::QualType, 8>
-ReverseModeForwPassVisitor::ComputeParamTypes(const DiffParams& diffParams) {
-  llvm::SmallVector<clang::QualType, 8> paramTypes;
-  paramTypes.reserve(m_DiffReq->getNumParams() * 2);
-  for (auto* PVD : m_DiffReq->parameters())
-    paramTypes.push_back(PVD->getType());
-
-  if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
-    const CXXRecordDecl* RD = MD->getParent();
-    if (MD->isInstance() && !RD->isLambda()) {
-      QualType thisType = MD->getThisType();
-      paramTypes.push_back(thisType);
-    }
-  }
-
-  for (auto* PVD : m_DiffReq->parameters()) {
-    const auto* it =
-        std::find(std::begin(diffParams), std::end(diffParams), PVD);
-    if (it != std::end(diffParams)) {
-      paramTypes.push_back(PVD->getType());
-    }
-  }
-  return paramTypes;
-}
-
-clang::QualType ReverseModeForwPassVisitor::ComputeReturnType() {
-  auto* valAndAdjointTempDecl =
-      LookupTemplateDeclInCladNamespace("ValueAndAdjoint");
-  auto RT = m_DiffReq->getReturnType();
-  auto T = InstantiateTemplate(valAndAdjointTempDecl, {RT, RT});
-  return T;
 }
 
 llvm::SmallVector<clang::ParmVarDecl*, 8>

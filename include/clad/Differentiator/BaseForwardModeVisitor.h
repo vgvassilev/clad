@@ -111,8 +111,6 @@ public:
   static DeclDiff<clang::StaticAssertDecl>
   DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 
-  virtual clang::QualType
-  GetPushForwardDerivativeType(clang::QualType ParamType);
   virtual std::string GetPushForwardFunctionSuffix();
   virtual DiffMode GetPushForwardMode();
 
@@ -145,9 +143,6 @@ protected:
       llvm::SmallVectorImpl<clang::Expr*>& derivedArgs);
 
 private:
-  /// Computes the return type of the derivative in `m_DiffReq->Function`.
-  clang::QualType ComputeDerivativeFunctionType();
-
   /// Prepares the derivative function parameters.
   void
   SetupDerivativeParameters(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);

@@ -29,6 +29,7 @@ class NestedNameSpecifier;
 } // namespace clang
 
 namespace clad {
+  class MultiplexExternalRMVSource;
   /// A class that represents the result of Visit of ForwardModeVisitor.
   /// Stmt() allows to access the original (cloned) Stmt and Stmt_dx() allows
   /// to access its derivative (if exists, otherwise null). If Visit produces
@@ -133,6 +134,11 @@ namespace clad {
     // FIXME: Fix this inconsistency, by making `this` pointer derivative
     // expression to be of object type in the reverse mode as well.
     clang::Expr* m_ThisExprDerivative = nullptr;
+
+    // FIXME: Should we make this an object instead of a pointer?
+    // Downside of making it an object: We will need to include
+    // 'MultiplexExternalRMVSource.h' file
+    MultiplexExternalRMVSource* m_ExternalSource = nullptr;
 
     /// A function used to wrap result of visiting E in a lambda. Returns a call
     /// to the built lambda. Func is a functor that will be invoked inside
@@ -614,6 +620,8 @@ namespace clad {
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
 
+    clang::QualType GetDerivativeType();
+
     /// Returns clad::Identify template declaration.
     clang::TemplateDecl* GetCladConstructorPushforwardTag();
 
@@ -631,6 +639,11 @@ namespace clad {
     /// original derivative function internally. Used in gradient and jacobian
     /// modes.
     clang::FunctionDecl* CreateDerivativeOverload();
+
+    virtual clang::QualType
+    GetParameterDerivativeType(clang::QualType ParamType) {
+      return ParamType;
+    }
 
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.

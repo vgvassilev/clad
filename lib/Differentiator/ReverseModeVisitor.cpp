@@ -267,7 +267,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // R*) . the type of the jacobian function is void(A1, A2, ..., An, R*, R*)
     // and for error estimation, the function type is
     // void(A1, A2, ..., An, R*, R*, ..., R*, double&)
-    QualType dFnType = ComputeDerivativeFunctionType();
+    QualType dFnType = GetDerivativeType();
 
     // Check if the function is already declared as a custom derivative.
     std::string name = m_DiffReq.ComputeDerivativeName();
@@ -4378,54 +4378,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         return true;
     }
     return false;
-  }
-
-  // FIXME: Merge with BaseForwardModeVisitor::ComputeDerivativeFunctionType.
-  clang::QualType ReverseModeVisitor::ComputeDerivativeFunctionType() {
-    const FunctionDecl* FD = m_DiffReq.Function;
-
-    const auto* FnProtoTy = cast<FunctionProtoType>(FD->getType());
-    llvm::SmallVector<QualType, 16> FnTypes(FnProtoTy->getParamTypes().begin(),
-                                            FnProtoTy->getParamTypes().end());
-
-    QualType oRetTy = FD->getReturnType();
-    QualType dRetTy = oRetTy.getNonReferenceType();
-    dRetTy = utils::getNonConstType(dRetTy, m_Sema);
-
-    // FIXME: We ignore the pointer return type for pullbacks.
-    bool HasRet = false;
-    if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
-        !dRetTy->isVoidType() && !dRetTy->isPointerType()) {
-      FnTypes.push_back(dRetTy);
-      HasRet = true;
-    }
-
-    bool HasThis = needsDThis(FD);
-    if (HasThis) {
-      const auto* MD = cast<CXXMethodDecl>(FD);
-      QualType thisTy = GetParameterDerivativeType(MD->getThisType());
-      FnTypes.push_back(thisTy);
-    }
-
-    // Iterate over all but the "this" type and extend the signature to add the
-    // extra parameters.
-    for (size_t i = 0, e = FnTypes.size() - HasThis - HasRet; i < e; ++i) {
-      QualType PVDTy = FnTypes[i];
-      // Check if (IsDifferentiableType(PVDTy))
-      // FIXME: We can't use std::find(DVI.begin(), DVI.end()) because the
-      // operator== considers params and intervals as different entities and
-      // breaks the hessian tests. We should implement more robust checks in
-      // DiffInputVarInfo to check if this is a variable we differentiate wrt.
-      for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
-        if (VarInfo.param == FD->getParamDecl(i))
-          FnTypes.push_back(GetParameterDerivativeType(PVDTy));
-    }
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(FnTypes);
-
-    FunctionProtoType::ExtProtoInfo EPI = FnProtoTy->getExtProtoInfo();
-    return m_Context.getFunctionType(m_Context.VoidTy, FnTypes, EPI);
   }
 
   void
