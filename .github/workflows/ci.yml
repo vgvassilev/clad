@@ -628,7 +628,13 @@ jobs:
 
         if [[ ${{ matrix.clang-runtime }} -gt 11 ]]; then
           # If the version of clang is in brew then install it.
-          if [[ $(brew info --json llvm | jq -r '.[].aliases[],.[].versioned_formulae[]' | grep llvm@${{ matrix.clang-runtime }}) ]]; then
+          HAVE_LLVM=$(brew info --json llvm | jq -r '.[].aliases[],.[].versioned_formulae[]' | grep llvm@${{ matrix.clang-runtime }})
+          if [[ -z "$HAVE_LLVM" ]]; then
+            brew update
+            HAVE_LLVM=$(brew info --json llvm | jq -r '.[].aliases[],.[].versioned_formulae[]' | grep llvm@${{ matrix.clang-runtime }})
+          fi
+
+          if [[ -n "$HAVE_LLVM" ]]; then
             echo "!!!BREW INSTALL"
             brew install llvm@${{ matrix.clang-runtime }}
             PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
