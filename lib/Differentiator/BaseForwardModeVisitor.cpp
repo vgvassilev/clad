@@ -267,7 +267,8 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
   // parameter for representing derivative of `this` pointer with respect to the
   // independent parameter.
   if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
-    if (MD->isInstance()) {
+    const CXXRecordDecl* RD = MD->getParent();
+    if (MD->isInstance() && !RD->isLambda()) {
       IdentifierInfo* dThisII = &m_Context.Idents.get("_d_this");
       auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext, dThisII,
                                            MD->getThisType());
@@ -1020,16 +1021,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   StmtDiff baseDiff;
   // Add derivative of the implicit `this` pointer to the `diffArgs`.
   if (isLambda) {
-    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
-      QualType ptrType = m_Context.getPointerType(m_Context.getRecordType(
-          FD->getDeclContext()->getOuterLexicalRecordContext()));
-      // For now, only lambdas with no captures are supported, so we just pass
-      // a nullptr instead of the diff object.
-      baseDiff =
-          StmtDiff(Clone(OCE->getArg(0)),
-                   new (m_Context) CXXNullPtrLiteralExpr(ptrType, validLoc));
-      diffArgs.push_back(baseDiff.getExpr_dx());
-    }
+    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
+      baseDiff = Clone(OCE->getArg(0));
   } else if (const auto* MD =
                  dyn_cast<CXXMethodDecl>(FD)) { // isLambda == false
     if (MD->isInstance()) {
