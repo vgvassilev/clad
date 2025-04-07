@@ -1126,9 +1126,7 @@ namespace clad {
 
     if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
       const CXXRecordDecl* RD = MD->getParent();
-      if (MD->isInstance() &&
-          (!RD->isLambda() ||
-           m_DiffReq.Mode == DiffMode::experimental_pushforward) &&
+      if (MD->isInstance() && !RD->isLambda() &&
           m_DiffReq.Mode != DiffMode::jacobian) {
         QualType thisTy = GetParameterDerivativeType(MD->getThisType());
         FnTypes.push_back(thisTy);
