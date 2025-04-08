@@ -11,7 +11,7 @@ class JacobianModeVisitor : public VectorPushForwardModeVisitor {
 public:
   JacobianModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
 
-  DerivativeAndOverload DeriveJacobian();
+  DerivativeAndOverload Derive() override;
 
   clang::QualType GetParameterDerivativeType(clang::QualType T) override;
 

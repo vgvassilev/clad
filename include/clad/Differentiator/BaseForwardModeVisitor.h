@@ -35,7 +35,7 @@ public:
   ///\returns The differentiated and potentially created enclosing
   /// context.
   ///
-  DerivativeAndOverload Derive();
+  DerivativeAndOverload Derive() override;
 
   virtual void ExecuteInsidePushforwardFunctionBlock() {}
 

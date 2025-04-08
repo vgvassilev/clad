@@ -47,6 +47,10 @@ void VectorPushForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
   BaseForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock();
 }
 
+DerivativeAndOverload VectorPushForwardModeVisitor::Derive() {
+  return BaseForwardModeVisitor::Derive();
+}
+
 QualType
 VectorPushForwardModeVisitor::GetParameterDerivativeType(QualType ParamType) {
   QualType valueType = utils::GetNonConstValueType(ParamType);
