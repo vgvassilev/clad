@@ -394,23 +394,23 @@ jobs:
             compiler: gcc-10
             clang-runtime: '14'
 
-          - name: ubu22-gcc11-runtime14
-            os: ubuntu-22.04
+          - name: ubu24-gcc11-runtime14
+            os: ubuntu-24.04
             compiler: gcc-11
             clang-runtime: '14'
 
-          - name: ubu22-gcc12-runtime14
-            os: ubuntu-22.04
+          - name: ubu24-gcc12-runtime14
+            os: ubuntu-24.04
             compiler: gcc-12
             clang-runtime: '14'
 
-          - name: ubu22-gcc12-runtime15
-            os: ubuntu-22.04
+          - name: ubu24-gcc12-runtime15
+            os: ubuntu-24.04
             compiler: gcc-12
             clang-runtime: '15'
 
-          - name: ubu22-gcc12-runtime16
-            os: ubuntu-22.04
+          - name: ubu24-gcc12-runtime16
+            os: ubuntu-24.04
             compiler: gcc-12
             clang-runtime: '16'
 
@@ -429,13 +429,13 @@ jobs:
             compiler: clang-13
             clang-runtime: '14'
 
-          - name: ubu22-clang14-runtime14
-            os: ubuntu-22.04
+          - name: ubu24-clang14-runtime14
+            os: ubuntu-24.04
             compiler: clang-14
             clang-runtime: '14'
 
-          - name: ubu22-clang14-runtime15
-            os: ubuntu-22.04
+          - name: ubu24-clang14-runtime15
+            os: ubuntu-24.04
             compiler: clang-14
             clang-runtime: '15'
 
@@ -444,13 +444,13 @@ jobs:
             compiler: clang-15
             clang-runtime: '14'
 
-          - name: ubu22-clang15-runtime15
-            os: ubuntu-22.04
+          - name: ubu24-clang15-runtime15
+            os: ubuntu-24.04
             compiler: clang-15
             clang-runtime: '15'
 
-          - name: ubu22-clang15-runtime16
-            os: ubuntu-22.04
+          - name: ubu24-clang15-runtime16
+            os: ubuntu-24.04
             compiler: clang-15
             clang-runtime: '16'
 
@@ -460,13 +460,13 @@ jobs:
             clang-runtime: '16'
             doc_build: true
 
-          - name: ubu22-clang16-runtime17
-            os: ubuntu-22.04
+          - name: ubu24-clang16-runtime17
+            os: ubuntu-24.04
             compiler: clang-16
             clang-runtime: '17'
 
-          - name: ubu22-clang16-runtime17-shared-libs
-            os: ubuntu-22.04
+          - name: ubu24-clang16-runtime17-shared-libs
+            os: ubuntu-24.04
             compiler: clang-16
             extra_cmake_options: '-DBUILD_SHARED_LIBS=On'
             clang-runtime: '17'
@@ -478,13 +478,13 @@ jobs:
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
-          - name: ubu22-clang16-runtime18
-            os: ubuntu-22.04
+          - name: ubu24-clang16-runtime18
+            os: ubuntu-24.04
             compiler: clang-16
             clang-runtime: '18'
 
-          - name: ubu22-clang17-runtime19
-            os: ubuntu-22.04
+          - name: ubu24-clang17-runtime19
+            os: ubuntu-24.04
             compiler: clang-17
             clang-runtime: '19'
 
