@@ -196,10 +196,10 @@ jobs:
             compiler: clang-13
             clang-runtime: '12'
 
-          - name: ubu22-clang13-runtime10-cuda
+          - name: ubu22-clang13-runtime13-cuda
             os: ubuntu-22.04
             compiler: clang-13
-            clang-runtime: '10'
+            clang-runtime: '13'
             cuda: true
 
           - name: selfh-ubu22-clang16-runtime18-cuda
@@ -239,11 +239,6 @@ jobs:
             compiler: gcc-12
             clang-runtime: '11'
 
-          - name: ubu22-gcc13-runtime11
-            os: ubuntu-22.04
-            compiler: gcc-13
-            clang-runtime: '11'
-
           - name: ubu22-clang12-runtime11
             os: ubuntu-22.04
             compiler: clang-12
@@ -279,11 +274,6 @@ jobs:
             compiler: gcc-12
             clang-runtime: '12'
 
-          - name: ubu22-gcc13-runtime12
-            os: ubuntu-22.04
-            compiler: gcc-13
-            clang-runtime: '12'
-
           - name: ubu22-clang12-runtime12
             os: ubuntu-22.04
             compiler: clang-12
@@ -312,16 +302,6 @@ jobs:
           - name: ubu22-gcc12-runtime13
             os: ubuntu-22.04
             compiler: gcc-12
-            clang-runtime: '13'
-
-          - name: ubu22-gcc13-runtime13
-            os: ubuntu-22.04
-            compiler: gcc-13
-            clang-runtime: '13'
-
-          - name: ubu22-gcc14-runtime13
-            os: ubuntu-22.04
-            compiler: gcc-14
             clang-runtime: '13'
 
           - name: ubu22-clang12-runtime13
