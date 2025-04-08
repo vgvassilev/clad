@@ -937,9 +937,7 @@ namespace clad {
     DeclContext* DC = customDerNS;
 
     if (isa<RecordDecl>(originalFnDC)) {
-      return true;
-      // FIXME: Re-enable
-      // DC = utils::LookupNSD(S, "class_functions", /*shouldExist=*/false, DC);
+      DC = utils::LookupNSD(S, "class_functions", /*shouldExist=*/false, DC);
     } else
       DC = utils::FindDeclContext(S, DC, originalFnDC);
 
@@ -1034,12 +1032,21 @@ namespace clad {
           request.CUDAGlobalArgsIndexes.push_back(i);
       }
       m_TopMostReq = &request;
+
+      if (isCallOperator(m_Sema.getASTContext(), request.Function))
+        request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
     } else {
       // If the function contains annotation of non_differentiable, then Clad
       // should not produce any derivative expression for that function call,
       // and the function call in the primal should be used as it is.
       if (clad::utils::hasNonDifferentiableAttribute(E))
         return true;
+
+      if (const CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(FD)) {
+        const CXXRecordDecl* CD = MD->getParent();
+        if (clad::utils::hasNonDifferentiableAttribute(CD))
+          return true;
+      }
 
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
@@ -1112,8 +1119,6 @@ namespace clad {
       }
     }
 
-    if (isCallOperator(m_Sema.getASTContext(), request.Function))
-      request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
     request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
 
     // FIXME: Here we copy all varied declarations down to the pullback, has to
