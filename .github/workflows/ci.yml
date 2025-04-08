@@ -123,15 +123,6 @@ jobs:
             clang-runtime: '16'
             debug_build: true
 
-          #- name: ubu20-gcc7-runtime11-analyzers
-          #  os: ubuntu-20.04
-          #  compiler: gcc-7
-          #  clang-runtime: '11'
-          #  coverage: true
-          #  cuda: true
-          #  #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
-          #  #clang-format: true
-
           - name: selfh-ubu22-gcc12-runtime18-analyzers
             os: self-hosted #ubuntu-22.04
             compiler: gcc-12
@@ -141,136 +132,53 @@ jobs:
             #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
             #clang-format: true
 
-          - name: ubu20-gcc7-runtime11-benchmarks
-            os: ubuntu-20.04
-            compiler: gcc-7
+          - name: ubu22-gcc10-runtime11-benchmarks
+            os: ubuntu-22.04
+            compiler: gcc-10
             clang-runtime: '11'
             extra_cmake_options: '-DCLAD_ENABLE_BENCHMARKS=On -DCLAD_ENABLE_ENZYME_BACKEND=On'
             benchmark: true
 
-          - name: ubu20-gcc8-runtime11-coverity
-            os: ubuntu-20.04
-            compiler: gcc-8
+          - name: ubu22-gcc10-runtime11-coverity
+            os: ubuntu-22.04
+            compiler: gcc-10
             clang-runtime: '11'
             coverity: true
 
-          - name: ubu20-gcc9-runtime9
-            os: ubuntu-20.04
-            compiler: gcc-9
-            clang-runtime: '9'
-
-          - name: ubu20-clang8-runtime9
-            os: ubuntu-20.04
-            compiler: clang-8
-            clang-runtime: '9'
-
-          - name: ubu20-clang9-runtime9
-            os: ubuntu-20.04
-            compiler: clang-9
-            clang-runtime: '9'
-
-          - name: ubu20-gcc7-runtime10
-            os: ubuntu-20.04
-            compiler: gcc-7
-            clang-runtime: '10'
-
-          - name: ubu20-gcc8-runtime10
-            os: ubuntu-20.04
-            compiler: gcc-8
-            clang-runtime: '10'
-
-          - name: ubu20-gcc9-runtime10
-            os: ubuntu-20.04
-            compiler: gcc-9
-            clang-runtime: '10'
-
-          - name: ubu20-clang8-runtime10
-            os: ubuntu-20.04
-            compiler: clang-8
-            clang-runtime: '10'
-
-          - name: ubu20-clang9-runtime10
-            os: ubuntu-20.04
-            compiler: clang-9
-            clang-runtime: '10'
-
-          - name: ubu20-gcc7-runtime11
-            os: ubuntu-20.04
-            compiler: gcc-7
-            clang-runtime: '11'
-
-          - name: ubu20-gcc8-runtime11
-            os: ubuntu-20.04
-            compiler: gcc-8
-            clang-runtime: '11'
-
-          - name: ubu20-gcc9-runtime11
-            os: ubuntu-20.04
-            compiler: gcc-9
-            clang-runtime: '11'
-
-          - name: ubu20-clang8-runtime11
-            os: ubuntu-20.04
-            compiler: clang-8
-            clang-runtime: '11'
-
-          - name: ubu20-clang9-runtime11
-            os: ubuntu-20.04
-            compiler: clang-9
-            clang-runtime: '11'
-
-          - name: ubu20-gcc7-runtime12
-            os: ubuntu-20.04
-            compiler: gcc-7
-            clang-runtime: '12'
-
-          - name: ubu20-gcc8-runtime12
-            os: ubuntu-20.04
-            compiler: gcc-8
-            clang-runtime: '12'
-
-          - name: ubu20-gcc9-runtime12
-            os: ubuntu-20.04
-            compiler: gcc-9
-            clang-runtime: '12'
-
-          - name: ubu20-clang8-runtime12
-            os: ubuntu-20.04
-            compiler: clang-8
-            clang-runtime: '12'
-
-          - name: ubu20-clang9-runtime12
-            os: ubuntu-20.04
-            compiler: clang-9
-            clang-runtime: '12'
-
-          - name: ubu20-clang9-runtime10-cuda
-            os: ubuntu-20.04
-            compiler: clang-9
-            clang-runtime: '10'
-            cuda: true
-
-          - name: selfh-ubu22-clang16-runtime18-cuda
-            os: self-hosted #ubuntu-22.04
-            runs-on: cuda
-            compiler: clang-16
-            clang-runtime: '18'
-            cuda: true
-
-          - name: ubu20-clang9-runtime15
-            os: ubuntu-20.04
-            compiler: clang-9
-            clang-runtime: '15'
-
-          - name: ubu20-clang9-runtime16
-            os: ubuntu-20.04
-            compiler: clang-9
-            clang-runtime: '16'
-
-          - name: ubu22-gcc9-runtime11
+          - name: ubu22-gcc11-runtime9
             os: ubuntu-22.04
-            compiler: gcc-9
-            clang-runtime: '11'
+            compiler: gcc-11
+            clang-runtime: '9'
+
+          - name: ubu22-clang12-runtime9
+            os: ubuntu-22.04
+            compiler: clang-12
+            clang-runtime: '9'
+
+          - name: ubu22-clang13-runtime9
+            os: ubuntu-22.04
+            compiler: clang-13
+            clang-runtime: '9'
+
+          - name: ubu22-gcc10-runtime10
+            os: ubuntu-22.04
+            compiler: gcc-10
+            clang-runtime: '10'
+
+          - name: ubu22-gcc11-runtime10
+            os: ubuntu-22.04
+            compiler: gcc-11
+            clang-runtime: '10'
+
+          - name: ubu22-clang12-runtime10
+            os: ubuntu-22.04
+            compiler: clang-12
+            clang-runtime: '10'
+
+          - name: ubu22-clang13-runtime10
+            os: ubuntu-22.04
+            compiler: clang-13
+            clang-runtime: '10'
 
           - name: ubu22-gcc10-runtime11
             os: ubuntu-22.04
@@ -282,9 +190,72 @@ jobs:
             compiler: gcc-11
             clang-runtime: '11'
 
-          - name: ubu22-clang11-runtime11
+          - name: ubu22-clang12-runtime11
             os: ubuntu-22.04
-            compiler: 'clang-11'
+            compiler: clang-12
+            clang-runtime: '11'
+
+          - name: ubu22-clang13-runtime11
+            os: ubuntu-22.04
+            compiler: clang-13
+            clang-runtime: '11'
+
+          - name: ubu22-gcc10-runtime12
+            os: ubuntu-22.04
+            compiler: gcc-10
+            clang-runtime: '12'
+
+          - name: ubu22-gcc11-runtime12
+            os: ubuntu-22.04
+            compiler: gcc-11
+            clang-runtime: '12'
+
+          - name: ubu22-clang12-runtime12
+            os: ubuntu-22.04
+            compiler: clang-12
+            clang-runtime: '12'
+
+          - name: ubu22-clang13-runtime12
+            os: ubuntu-22.04
+            compiler: clang-13
+            clang-runtime: '12'
+
+          - name: ubu22-clang13-runtime10-cuda
+            os: ubuntu-22.04
+            compiler: clang-13
+            clang-runtime: '10'
+            cuda: true
+
+          - name: selfh-ubu22-clang16-runtime18-cuda
+            os: self-hosted #ubuntu-22.04
+            runs-on: cuda
+            compiler: clang-16
+            clang-runtime: '18'
+            cuda: true
+
+          - name: ubu22-clang13-runtime15
+            os: ubuntu-22.04
+            compiler: clang-13
+            clang-runtime: '15'
+
+          - name: ubu22-clang13-runtime16
+            os: ubuntu-22.04
+            compiler: clang-13
+            clang-runtime: '16'
+
+          - name: ubu22-gcc11-runtime11
+            os: ubuntu-22.04
+            compiler: gcc-11
+            clang-runtime: '11'
+
+          - name: ubu22-gcc12-runtime11
+            os: ubuntu-22.04
+            compiler: gcc-12
+            clang-runtime: '11'
+
+          - name: ubu22-gcc13-runtime11
+            os: ubuntu-22.04
+            compiler: gcc-13
             clang-runtime: '11'
 
           - name: ubu22-clang12-runtime11
@@ -307,24 +278,24 @@ jobs:
             compiler: clang-15
             clang-runtime: '11'
 
-          - name: ubu22-gcc9-runtime12
+          - name: ubu22-clang16-runtime11
             os: ubuntu-22.04
-            compiler: gcc-9
-            clang-runtime: '12'
-
-          - name: ubu22-gcc10-runtime12
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '12'
+            compiler: 'clang-16'
+            clang-runtime: '11'
 
           - name: ubu22-gcc11-runtime12
             os: ubuntu-22.04
             compiler: gcc-11
             clang-runtime: '12'
 
-          - name: ubu22-clang11-runtime12
+          - name: ubu22-gcc12-runtime12
             os: ubuntu-22.04
-            compiler: 'clang-11'
+            compiler: gcc-12
+            clang-runtime: '12'
+
+          - name: ubu22-gcc13-runtime12
+            os: ubuntu-22.04
+            compiler: gcc-13
             clang-runtime: '12'
 
           - name: ubu22-clang12-runtime12
@@ -347,24 +318,24 @@ jobs:
             compiler: clang-15
             clang-runtime: '12'
 
-          - name: ubu22-gcc10-runtime13
+          - name: ubu22-clang16-runtime12
             os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '13'
-
-          - name: ubu22-gcc11-runtime13
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '13'
+            compiler: 'clang-16'
+            clang-runtime: '12'
 
           - name: ubu22-gcc12-runtime13
             os: ubuntu-22.04
             compiler: gcc-12
             clang-runtime: '13'
 
-          - name: ubu22-clang11-runtime13
+          - name: ubu22-gcc13-runtime13
             os: ubuntu-22.04
-            compiler: clang-11
+            compiler: gcc-13
+            clang-runtime: '13'
+
+          - name: ubu22-gcc14-runtime13
+            os: ubuntu-22.04
+            compiler: gcc-14
             clang-runtime: '13'
 
           - name: ubu22-clang12-runtime13
@@ -387,35 +358,35 @@ jobs:
             compiler: clang-15
             clang-runtime: '13'
 
-          - name: ubu22-gcc10-runtime14
+          - name: ubu22-clang16-runtime13
             os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '14'
+            compiler: clang-16
+            clang-runtime: '13'
 
-          - name: ubu24-gcc11-runtime14
-            os: ubuntu-24.04
-            compiler: gcc-11
-            clang-runtime: '14'
-
-          - name: ubu24-gcc12-runtime14
-            os: ubuntu-24.04
+          - name: ubu22-gcc12-runtime14
+            os: ubuntu-22.04
             compiler: gcc-12
             clang-runtime: '14'
 
-          - name: ubu24-gcc12-runtime15
+          - name: ubu24-gcc13-runtime14
             os: ubuntu-24.04
-            compiler: gcc-12
+            compiler: gcc-13
+            clang-runtime: '14'
+
+          - name: ubu24-gcc14-runtime14
+            os: ubuntu-24.04
+            compiler: gcc-14
+            clang-runtime: '14'
+
+          - name: ubu24-gcc14-runtime15
+            os: ubuntu-24.04
+            compiler: gcc-14
             clang-runtime: '15'
 
-          - name: ubu24-gcc12-runtime16
+          - name: ubu24-gcc14-runtime16
             os: ubuntu-24.04
-            compiler: gcc-12
+            compiler: gcc-14
             clang-runtime: '16'
-
-          - name: ubu22-clang11-runtime14
-            os: ubuntu-22.04
-            compiler: clang-11
-            clang-runtime: '14'
 
           - name: ubu22-clang12-runtime14
             os: ubuntu-22.04
@@ -434,13 +405,13 @@ jobs:
 
           - name: ubu24-clang14-runtime15
             os: ubuntu-24.04
-            compiler: clang-14
-            clang-runtime: '15'
-
-          - name: ubu22-clang15-runtime14
-            os: ubuntu-22.04
             compiler: clang-15
             clang-runtime: '14'
+
+          - name: ubu22-clang14-runtime15
+            os: ubuntu-22.04
+            compiler: clang-14
+            clang-runtime: '15'
 
           - name: ubu24-clang15-runtime15
             os: ubuntu-24.04
