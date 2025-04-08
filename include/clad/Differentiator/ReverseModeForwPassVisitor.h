@@ -22,7 +22,7 @@ private:
 public:
   ReverseModeForwPassVisitor(DerivativeBuilder& builder,
                              const DiffRequest& request);
-  DerivativeAndOverload Derive();
+  DerivativeAndOverload Derive() override;
 
   StmtDiff ProcessSingleStmt(const clang::Stmt* S);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS) override;
