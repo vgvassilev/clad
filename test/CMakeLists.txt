@@ -31,9 +31,6 @@ if(CUDAToolkit_FOUND)
 
   set(LIBOMPTARGET_DEP_CUDA_ARCH "sm_60")
 
-  if(TARGET nvptx-arch)
-    get_property(LIBOMPTARGET_NVPTX_ARCH TARGET nvptx-arch PROPERTY LOCATION)
-  endif()
   if (NOT EXISTS ${LIBOMPTARGET_NVPTX_ARCH})
     find_program(LIBOMPTARGET_NVPTX_ARCH NAMES nvptx-arch)
   endif()
