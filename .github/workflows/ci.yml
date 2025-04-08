@@ -145,50 +145,26 @@ jobs:
             clang-runtime: '11'
             coverity: true
 
-          - name: ubu22-gcc11-runtime9
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '9'
-
-          - name: ubu22-clang12-runtime9
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '9'
-
-          - name: ubu22-clang13-runtime9
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '9'
-
-          - name: ubu22-gcc10-runtime10
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '10'
-
-          - name: ubu22-gcc11-runtime10
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '10'
-
-          - name: ubu22-clang12-runtime10
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '10'
-
-          - name: ubu22-clang13-runtime10
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '10'
 
           - name: ubu22-gcc10-runtime11
             os: ubuntu-22.04
             compiler: gcc-10
             clang-runtime: '11'
 
+          - name: ubu22-gcc10-runtime19
+            os: ubuntu-22.04
+            compiler: gcc-10
+            clang-runtime: '19'
+
           - name: ubu22-gcc11-runtime11
             os: ubuntu-22.04
             compiler: gcc-11
             clang-runtime: '11'
+
+          - name: ubu22-gcc11-runtime19
+            os: ubuntu-22.04
+            compiler: gcc-11
+            clang-runtime: '19'
 
           - name: ubu22-clang12-runtime11
             os: ubuntu-22.04
@@ -242,6 +218,16 @@ jobs:
             os: ubuntu-22.04
             compiler: clang-13
             clang-runtime: '16'
+
+          - name: ubu22-clang13-runtime17
+            os: ubuntu-22.04
+            compiler: clang-13
+            clang-runtime: '17'
+
+          - name: ubu22-clang13-runtime18
+            os: ubuntu-22.04
+            compiler: clang-13
+            clang-runtime: '18'
 
           - name: ubu22-gcc11-runtime11
             os: ubuntu-22.04
@@ -388,10 +374,25 @@ jobs:
             compiler: gcc-14
             clang-runtime: '16'
 
+          - name: ubu24-gcc14-runtime17
+            os: ubuntu-24.04
+            compiler: gcc-14
+            clang-runtime: '17'
+
           - name: ubu22-clang12-runtime14
             os: ubuntu-22.04
             compiler: clang-12
             clang-runtime: '14'
+
+          - name: ubu22-clang12-runtime15
+            os: ubuntu-22.04
+            compiler: clang-12
+            clang-runtime: '15'
+
+          - name: ubu22-clang12-runtime16
+            os: ubuntu-22.04
+            compiler: clang-12
+            clang-runtime: '16'
 
           - name: ubu22-clang13-runtime14
             os: ubuntu-22.04
