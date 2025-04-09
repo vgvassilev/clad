@@ -1049,12 +1049,25 @@ namespace clad {
         return true;
 
       request.Function = FD;
-      if (m_TopMostReq->Mode == DiffMode::forward)
+      // FIXME: hessians require second derivatives,
+      // i.e. apart from the pushforward, we also need
+      // to schedule pushforward_pullback.
+      if (m_TopMostReq->Mode == DiffMode::forward ||
+          m_TopMostReq->Mode == DiffMode::hessian)
         request.Mode = DiffMode::experimental_pushforward;
       else if (m_TopMostReq->Mode == DiffMode::reverse)
         request.Mode = DiffMode::experimental_pullback;
-      else {
-        // propagatorReq.Mode = request.Mode;
+      else if (m_TopMostReq->Mode == DiffMode::vector_forward_mode ||
+               m_TopMostReq->Mode == DiffMode::jacobian ||
+               m_TopMostReq->Mode ==
+                   DiffMode::experimental_vector_pushforward) {
+        request.Mode = DiffMode::experimental_vector_pushforward;
+      } else if (m_TopMostReq->Mode == DiffMode::error_estimation) {
+        // FIXME: Add support for static graphs in error estimation.
+        return true;
+      } else {
+        assert(0 && "unexpected mode.");
+        return true;
       }
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
