@@ -59,8 +59,13 @@ void f_3(double x, double y, double z, double *_result) {
 // CHECK-NEXT:     *_d_vector__result[2] = _t4.pushforward * constant + _t5 * _d_vector_constant;
 // CHECK-NEXT:     _result[2] = _t5 * constant;
 // CHECK-NEXT: }
+
 double multiply(double x, double y) { return x * y; }
-// CHECK: clad::ValueAndPushforward<double, clad::array<double> > multiply_vector_pushforward(double x, double y, clad::array<double> _d_x, clad::array<double> _d_y);
+
+// CHECK: clad::ValueAndPushforward<double, clad::array<double> > multiply_vector_pushforward(double x, double y, clad::array<double> _d_x, clad::array<double> _d_y) {
+// CHECK-NEXT:     unsigned long indepVarCount = _d_y.size();
+// CHECK-NEXT:     return {x * y, _d_x * y + x * _d_y};
+// CHECK-NEXT: }
 
 void f_4(double x, double y, double z, double *_result) {
   double constant = 42;
@@ -251,8 +256,3 @@ int main() {
   df9.execute(3, outputarr, &result);
   printf("Result is = {%.2f, %.2f}\n", result[0][0], result[1][0]); // CHECK-EXEC: Result is = {6.00, 18.00}
 }
-
-// CHECK: clad::ValueAndPushforward<double, clad::array<double> > multiply_vector_pushforward(double x, double y, clad::array<double> _d_x, clad::array<double> _d_y) {
-// CHECK-NEXT:     unsigned long indepVarCount = _d_y.size();
-// CHECK-NEXT:     return {x * y, _d_x * y + x * _d_y};
-// CHECK-NEXT: }

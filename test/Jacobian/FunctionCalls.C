@@ -29,7 +29,10 @@ void fn1(double i, double j, double* output) {
 
 double add(double a, double b) { return a + b ;}
 
-// CHECK: clad::ValueAndPushforward<double, clad::array<double> > add_vector_pushforward(double a, double b, clad::array<double> _d_a, clad::array<double> _d_b);
+// CHECK: clad::ValueAndPushforward<double, clad::array<double> > add_vector_pushforward(double a, double b, clad::array<double> _d_a, clad::array<double> _d_b) {
+// CHECK-NEXT:     unsigned long indepVarCount = _d_b.size();
+// CHECK-NEXT:     return {a + b, _d_a + _d_b};
+// CHECK-NEXT: }
 
 void fn2(double a, double b, double* res){ 
     res[0] = a*10 + b*b*9;
@@ -83,7 +86,3 @@ int main() {
   test<2>(DERIVED_FN(fn2), 3, 5); // CHECK-EXEC: {10.00, 90.00, 54.00, 100.00}
 }
 
-// CHECK: clad::ValueAndPushforward<double, clad::array<double> > add_vector_pushforward(double a, double b, clad::array<double> _d_a, clad::array<double> _d_b) {
-// CHECK-NEXT:     unsigned long indepVarCount = _d_b.size();
-// CHECK-NEXT:     return {a + b, _d_a + _d_b};
-// CHECK-NEXT: }
