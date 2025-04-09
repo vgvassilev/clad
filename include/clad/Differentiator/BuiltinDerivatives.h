@@ -1357,7 +1357,7 @@ clamp_pushforward(const T& v, const T& lo, const T& hi, const T& d_v,
 
 template <typename T, typename U>
 CUDA_HOST_DEVICE void clamp_pullback(const T& v, const T& lo, const T& hi,
-                                     const U& d_y, T* d_v, T* d_lo, T* d_hi) {
+                                     U d_y, T* d_v, T* d_lo, T* d_hi) {
   if (v < lo)
     *d_lo += d_y;
   else if (hi < v)

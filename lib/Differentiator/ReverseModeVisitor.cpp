@@ -1908,11 +1908,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
 
       if (pullbackFD) {
-        if (MD && MD->isInstance()) {
-          Expr* baseE = baseDiff.getExpr();
+        auto* pullbackMD = dyn_cast<CXXMethodDecl>(pullbackFD);
+        Expr* baseE = baseDiff.getExpr();
+        if (pullbackMD && pullbackMD->isInstance()) {
           OverloadedDerivedFn = BuildCallExprToMemFn(
               baseE, pullbackFD->getName(), pullbackCallArgs, Loc);
         } else {
+          if (baseE) {
+            baseE = BuildOp(UO_AddrOf, baseE);
+            pullbackCallArgs.insert(pullbackCallArgs.begin(), baseE);
+          }
           OverloadedDerivedFn =
               m_Sema
                   .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),

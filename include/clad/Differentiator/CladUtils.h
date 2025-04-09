@@ -3,17 +3,17 @@
 #ifndef CLAD_UTILS_CLADUTILS_H
 #define CLAD_UTILS_CLADUTILS_H
 
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/Decl.h"
-#include "clang/AST/DeclarationName.h"
-#include "clang/Basic/Diagnostic.h"
-#include "clang/Sema/Sema.h"
-#include "clang/AST/Type.h"
-#include "llvm/ADT/StringRef.h"
-
 #include "DiffMode.h"
 
-#include <clang/AST/DeclCXX.h>
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclarationName.h"
+#include "clang/AST/Type.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Sema/Sema.h"
+#include "llvm/ADT/StringRef.h"
+
 #include <string>
 
 namespace clang {

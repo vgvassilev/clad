@@ -1,6 +1,7 @@
 #ifndef CLAD_DIFF_PLANNER_H
 #define CLAD_DIFF_PLANNER_H
 
+#include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
@@ -215,10 +216,12 @@ public:
 
     bool m_IsTraversingTopLevelDecl = true;
 
+    DerivedFnCollector& m_DFC;
+
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
-                  RequestOptions& opts);
+                  RequestOptions& opts, DerivedFnCollector& DFC);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
@@ -228,6 +231,12 @@ public:
       m_Traversed.insert(FD);
       return TraverseDecl(const_cast<clang::FunctionDecl*>(FD));
     }
+    /// Looks up if the user has defined a custom derivative for the given
+    /// derivative function. If found, it is automatically attached to the
+    /// request in derived function collector.
+    /// \param[in] request The request for the derivative to lookup.
+    /// \returns true if a custom derivative was found, false otherwise
+    bool LookupCustomDerivativeDecl(const DiffRequest& request);
 
   private:
     bool isInInterval(clang::SourceLocation Loc) const;
