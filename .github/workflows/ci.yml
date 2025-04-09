@@ -597,11 +597,7 @@ jobs:
     - name: Setup LLVM/Clang on macOS
       if: runner.os == 'macOS'
       run: |
-        #brew update
-        brew install --ignore-dependencies llvm
-        brew install z3
-
-        # For now Package llvm@18 is unsuported on brew, llvm <=@11 are deprecated or deleted.
+        # llvm <=@11 are deprecated or deleted.
         # Install llvm from github releases.
         if [[ ${{ matrix.clang-runtime }} -le 11 ]]; then
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
