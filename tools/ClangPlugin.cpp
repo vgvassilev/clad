@@ -140,7 +140,7 @@ namespace clad {
         FunctionDecl* FD = cast<FunctionDecl>(D);
         if (FD->isConstexpr() || !m_Multiplexer) {
           DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph, S,
-                                  opts);
+                                  opts, m_DFC);
           break;
         }
       }
@@ -507,7 +507,7 @@ namespace clad {
             if (FD->isConstexpr())
               continue;
           DiffCollector collector(DCI.m_DGR, CladEnabledRange,
-                                  m_DiffRequestGraph, S, opts);
+                                  m_DiffRequestGraph, S, opts, m_DFC);
           break;
         }
 

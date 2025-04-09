@@ -26,6 +26,7 @@
 #include "clad/Differentiator/CladConfig.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 
 #include <algorithm>
 #include <string>
@@ -33,156 +34,145 @@
 using namespace clang;
 
 namespace clad {
-  static SourceLocation noLoc;
+/// Returns `DeclRefExpr` node corresponding to the function, method or
+/// functor argument which is to be differentiated.
+///
+/// \param[in] call A clad differentiation function call expression
+/// \param SemaRef Reference to Sema
+DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
+  struct Finder : RecursiveASTVisitor<Finder> {
+    Sema& m_SemaRef;
+    SourceLocation m_BeginLoc;
+    DeclRefExpr* m_FnDRE = nullptr;
+    Finder(Sema& SemaRef, SourceLocation beginLoc)
+        : m_SemaRef(SemaRef), m_BeginLoc(beginLoc) {}
 
-  /// Returns `DeclRefExpr` node corresponding to the function, method or
-  /// functor argument which is to be differentiated.
-  ///
-  /// \param[in] call A clad differentiation function call expression
-  /// \param SemaRef Reference to Sema
-  DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
-    struct Finder :
-      RecursiveASTVisitor<Finder> {
-        Sema& m_SemaRef;
-        SourceLocation m_BeginLoc;
-        DeclRefExpr* m_FnDRE = nullptr;
-        Finder(Sema& SemaRef, SourceLocation beginLoc)
-            : m_SemaRef(SemaRef), m_BeginLoc(beginLoc) {}
+    // Required for visiting lambda declarations.
+    bool shouldVisitImplicitCode() const { return true; }
 
-        // Required for visiting lambda declarations.
-        bool shouldVisitImplicitCode() const { return true; }
-
-        bool VisitDeclRefExpr(DeclRefExpr* DRE) {
-          if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-            auto varType = VD->getType().getTypePtr();
-            // If variable is of class type, set `m_FnDRE` to
-            // `DeclRefExpr` of overloaded call operator method of
-            // the class type.
-            if (varType->isStructureOrClassType()) {
-              auto RD = varType->getAsCXXRecordDecl();
-              TraverseDecl(RD);
-            } else {
-              TraverseStmt(VD->getInit());
-            }
-          } else if (isa<FunctionDecl>(DRE->getDecl()))
-            m_FnDRE = DRE;
-          return false;
+    bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+      if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+        auto varType = VD->getType().getTypePtr();
+        // If variable is of class type, set `m_FnDRE` to
+        // `DeclRefExpr` of overloaded call operator method of
+        // the class type.
+        if (varType->isStructureOrClassType()) {
+          auto RD = varType->getAsCXXRecordDecl();
+          TraverseDecl(RD);
+        } else {
+          TraverseStmt(VD->getInit());
         }
+      } else if (isa<FunctionDecl>(DRE->getDecl()))
+        m_FnDRE = DRE;
+      return false;
+    }
 
-        bool VisitCXXRecordDecl(CXXRecordDecl* RD) {
-          auto callOperatorDeclName =
-              m_SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(
-                  OverloadedOperatorKind::OO_Call);
-          LookupResult R(m_SemaRef,
-                         callOperatorDeclName,
-                         noLoc,
-                         Sema::LookupNameKind::LookupMemberName);
-          // We do not want diagnostics that would fire because of this lookup.
-          R.suppressDiagnostics();
-          m_SemaRef.LookupQualifiedName(R, RD);
+    bool VisitCXXRecordDecl(CXXRecordDecl* RD) {
+      auto callOperatorDeclName =
+          m_SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(
+              OverloadedOperatorKind::OO_Call);
+      LookupResult R(m_SemaRef, callOperatorDeclName, noLoc,
+                     Sema::LookupNameKind::LookupMemberName);
+      // We do not want diagnostics that would fire because of this lookup.
+      R.suppressDiagnostics();
+      m_SemaRef.LookupQualifiedName(R, RD);
 
-          // Emit error diagnostics
-          if (R.empty()) {
-            const char diagFmt[] = "'%0' has no defined operator()";
-            auto diagId = m_SemaRef.Diags.getCustomDiagID(
-                DiagnosticsEngine::Level::Error, diagFmt);
-            m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
-            return false;
-          } else if (!R.isSingleResult()) {
-            const char diagFmt[] =
-                "'%0' has multiple definitions of operator(). "
-                "Multiple definitions of call operators are not supported.";
-            auto diagId = m_SemaRef.Diags.getCustomDiagID(
-                DiagnosticsEngine::Level::Error, diagFmt);
-            m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
+      // Emit error diagnostics
+      if (R.empty()) {
+        const char diagFmt[] = "'%0' has no defined operator()";
+        auto diagId = m_SemaRef.Diags.getCustomDiagID(
+            DiagnosticsEngine::Level::Error, diagFmt);
+        m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
+        return false;
+      } else if (!R.isSingleResult()) {
+        const char diagFmt[] =
+            "'%0' has multiple definitions of operator(). "
+            "Multiple definitions of call operators are not supported.";
+        auto diagId = m_SemaRef.Diags.getCustomDiagID(
+            DiagnosticsEngine::Level::Error, diagFmt);
+        m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
 
-            // Emit diagnostics for candidate functions
-            for (auto oper = R.begin(), operEnd = R.end(); oper != operEnd;
-                 ++oper) {
-              auto candidateFn = cast<CXXMethodDecl>(oper.getDecl());
-              m_SemaRef.NoteOverloadCandidate(candidateFn,
-                                              cast<FunctionDecl>(candidateFn));
-            }
-            return false;
-          } else if (R.isSingleResult() == 1 &&
-                     cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() !=
-                         AccessSpecifier::AS_public) {
-            const char diagFmt[] =
-                "'%0' contains %1 call operator. Differentiation of "
-                "private/protected call operator is not supported.";
+        // Emit diagnostics for candidate functions
+        for (auto oper = R.begin(), operEnd = R.end(); oper != operEnd;
+             ++oper) {
+          auto candidateFn = cast<CXXMethodDecl>(oper.getDecl());
+          m_SemaRef.NoteOverloadCandidate(candidateFn,
+                                          cast<FunctionDecl>(candidateFn));
+        }
+        return false;
+      } else if (R.isSingleResult() == 1 &&
+                 cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() !=
+                     AccessSpecifier::AS_public) {
+        const char diagFmt[] =
+            "'%0' contains %1 call operator. Differentiation of "
+            "private/protected call operator is not supported.";
 
-            auto diagId =
-                m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
-                                                diagFmt);
-            // Compute access specifier name so that it can be used in
-            // diagnostic message.
-            const char* callOperatorAS =
-                (cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() ==
-                         AccessSpecifier::AS_private
-                     ? "private"
-                     : "protected");
-            m_SemaRef.Diag(m_BeginLoc, diagId)
-                << RD->getName() << callOperatorAS;
-            auto callOperator = cast<CXXMethodDecl>(R.getFoundDecl());
+        auto diagId = m_SemaRef.Diags.getCustomDiagID(
+            DiagnosticsEngine::Level::Error, diagFmt);
+        // Compute access specifier name so that it can be used in
+        // diagnostic message.
+        const char* callOperatorAS =
+            (cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() ==
+                     AccessSpecifier::AS_private
+                 ? "private"
+                 : "protected");
+        m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName() << callOperatorAS;
+        auto callOperator = cast<CXXMethodDecl>(R.getFoundDecl());
 
-            bool isImplicit = true;
+        bool isImplicit = true;
 
-            // compute if the corresponding access specifier of the found
-            // call operator is implicit or explicit.
-            for (auto decl : RD->decls()) {
-              if (decl == callOperator)
-                break;
-              if (isa<AccessSpecDecl>(decl)) {
-                isImplicit = false;
-                break;
-              }
-            }
-
-            // Emit diagnostics for the found call operator
-            m_SemaRef.Diag(callOperator->getBeginLoc(),
-                           diag::note_access_natural)
-                << (unsigned)(callOperator->getAccess() ==
-                              AccessSpecifier::AS_protected)
-                << isImplicit;
-
-            return false;
+        // compute if the corresponding access specifier of the found
+        // call operator is implicit or explicit.
+        for (auto decl : RD->decls()) {
+          if (decl == callOperator)
+            break;
+          if (isa<AccessSpecDecl>(decl)) {
+            isImplicit = false;
+            break;
           }
-
-          assert(R.isSingleResult() &&
-                 "Multiple definitions of call operators are not supported");
-          assert(R.isSingleResult() == 1 &&
-                 cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() ==
-                     AccessSpecifier::AS_public &&
-                 "Differentiation of private/protected call operators are "
-                 "not supported");
-          auto callOperator = cast<CXXMethodDecl>(R.getFoundDecl());
-          // Creating `DeclRefExpr` of the found overloaded call operator
-          // method, to maintain consistency with member function
-          // differentiation.
-          CXXScopeSpec CSS;
-          utils::BuildNNS(m_SemaRef, callOperator->getDeclContext(), CSS,
-                          /*addGlobalNS=*/true);
-
-          // `ExprValueKind::VK_RValue` is used because functions are
-          // decomposed to function pointers and thus a temporary is
-          // created for the function pointer.
-          auto newFnDRE = clad_compat::GetResult<Expr*>(
-              m_SemaRef.BuildDeclRefExpr(callOperator,
-                                         callOperator->getType(),
-                                         CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
-                                         noLoc,
-                                         &CSS));
-          m_FnDRE = cast<DeclRefExpr>(newFnDRE);          
-          return false;
         }
-    } finder(SemaRef, call->getArg(0)->getBeginLoc());
-    finder.TraverseStmt(call->getArg(0));
 
-    assert(cast<NamespaceDecl>(call->getDirectCallee()->getDeclContext())
-                   ->getName() == "clad" &&
-           "Should be called for clad:: special functions!");
-    return finder.m_FnDRE;
-  }
+        // Emit diagnostics for the found call operator
+        m_SemaRef.Diag(callOperator->getBeginLoc(), diag::note_access_natural)
+            << (unsigned)(callOperator->getAccess() ==
+                          AccessSpecifier::AS_protected)
+            << isImplicit;
+
+        return false;
+      }
+
+      assert(R.isSingleResult() &&
+             "Multiple definitions of call operators are not supported");
+      assert(R.isSingleResult() == 1 &&
+             cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() ==
+                 AccessSpecifier::AS_public &&
+             "Differentiation of private/protected call operators are "
+             "not supported");
+      auto callOperator = cast<CXXMethodDecl>(R.getFoundDecl());
+      // Creating `DeclRefExpr` of the found overloaded call operator
+      // method, to maintain consistency with member function
+      // differentiation.
+      CXXScopeSpec CSS;
+      utils::BuildNNS(m_SemaRef, callOperator->getDeclContext(), CSS,
+                      /*addGlobalNS=*/true);
+
+      // `ExprValueKind::VK_RValue` is used because functions are
+      // decomposed to function pointers and thus a temporary is
+      // created for the function pointer.
+      auto newFnDRE = clad_compat::GetResult<Expr*>(m_SemaRef.BuildDeclRefExpr(
+          callOperator, callOperator->getType(),
+          CLAD_COMPAT_ExprValueKind_R_or_PR_Value, noLoc, &CSS));
+      m_FnDRE = cast<DeclRefExpr>(newFnDRE);
+      return false;
+    }
+  } finder(SemaRef, call->getArg(0)->getBeginLoc());
+  finder.TraverseStmt(call->getArg(0));
+
+  assert(cast<NamespaceDecl>(call->getDirectCallee()->getDeclContext())
+                 ->getName() == "clad" &&
+         "Should be called for clad:: special functions!");
+  return finder.m_FnDRE;
+}
 
   void DiffRequest::updateCall(FunctionDecl* FD, FunctionDecl* OverloadedFD,
                                Sema& SemaRef) {
@@ -277,9 +267,10 @@ namespace clad {
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
-                               clang::Sema& S, RequestOptions& opts)
+                               clang::Sema& S, RequestOptions& opts,
+                               DerivedFnCollector& DFC)
       : m_Interval(Interval), m_DiffRequestGraph(requestGraph), m_Sema(S),
-        m_Options(opts) {
+        m_Options(opts), m_DFC(DFC) {
 
     if (Interval.empty())
       return;
@@ -933,14 +924,39 @@ namespace clad {
     return false;
   }
 
-  static bool HasCustomDerivativeForDiffReq(Sema& S, const DiffRequest& R) {
-    NamespaceDecl* cladNS = utils::LookupNSD(S, "clad", /*shouldExist=*/true);
+  static bool allArgumentsAreLiterals(const CallExpr* CE,
+                                      const DiffRequest* request) {
+    for (const Expr* A : CE->arguments())
+      if (request->isVaried(A))
+        return false; // non-constant found.
+    return true;      // all constants.
+  }
+
+  static FunctionDecl* matchTemplate(clang::Sema& S,
+                                     clang::FunctionTemplateDecl* Template,
+                                     QualType DerivativeType) {
+    clang::FunctionDecl* Specialization = nullptr;
+    clang::sema::TemplateDeductionInfo Info(noLoc);
+    clang::TemplateArgumentListInfo ExplicitTemplateArgs;
+    S.DeduceTemplateArguments(Template, &ExplicitTemplateArgs, DerivativeType,
+                              Specialization, Info);
+    return Specialization;
+  }
+
+  bool DiffCollector::LookupCustomDerivativeDecl(const DiffRequest& request) {
+    auto DFI = m_DFC.Find(request);
+    if (DFI.IsValid())
+      return true;
+    NamespaceDecl* cladNS =
+        utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
     NamespaceDecl* customDerNS = utils::LookupNSD(
-        S, "custom_derivatives", /*shouldExist=*/false, cladNS);
+        m_Sema, "custom_derivatives", /*shouldExist=*/false, cladNS);
     if (!customDerNS)
       return false;
 
-    const Expr* callSite = R.CallContext;
+    const Expr* callSite = request.CallContext;
+    assert(callSite && "Called lookup without CallContext");
+
     const DeclContext* originalFnDC = nullptr;
     // Check if the callSite is not associated with a shadow declaration.
     if (const auto* ME = dyn_cast<CXXMemberCallExpr>(callSite)) {
@@ -957,39 +973,54 @@ namespace clad {
 
     DeclContext* DC = customDerNS;
 
-    if (isa<RecordDecl>(originalFnDC)) {
-      DC = utils::LookupNSD(S, "class_functions", /*shouldExist=*/false, DC);
-    } else
-      DC = utils::FindDeclContext(S, DC, originalFnDC);
+    if (isa<RecordDecl>(originalFnDC))
+      DC = utils::LookupNSD(m_Sema, "class_functions", /*shouldExist=*/false,
+                            DC);
+    else
+      DC = utils::FindDeclContext(m_Sema, DC, originalFnDC);
 
     if (!DC)
       return false;
 
-    std::string Name = R.BaseFunctionName;
-    const FunctionDecl* FD = R.Function;
-    bool usePushforwardInRevMode =
-        FD->getNumParams() == 1 &&
-        !utils::HasAnyReferenceOrPointerArgument(FD) && !isa<CXXMethodDecl>(FD);
-    if (R.Mode == DiffMode::experimental_pullback && !usePushforwardInRevMode)
-      Name += "_pullback";
-    else // if (Mode == DiffMode::experimental_pullback)
-      Name += "_pushforward";
+    assert(request.Mode != DiffMode::unknown &&
+           "Called lookup without specified DiffMode");
+    std::string Name =
+        request.BaseFunctionName + "_" + DiffModeToString(request.Mode);
+    llvm::SmallVector<const ValueDecl*, 4> diffParams{};
+    for (const DiffInputVarInfo& VarInfo : request.DVI)
+      diffParams.push_back(VarInfo.param);
+    QualType DerivativeType =
+        utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
+                                 diffParams, /*moveBaseToParams=*/true);
 
-    IdentifierInfo* II = &S.getASTContext().Idents.get(Name);
-    DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(S));
-    LookupResult Found(S, DNInfo, Sema::LookupOrdinaryName);
-    S.LookupQualifiedName(Found, DC);
+    IdentifierInfo* II = &m_Sema.getASTContext().Idents.get(Name);
+    DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(m_Sema));
+    LookupResult Found(m_Sema, DNInfo, Sema::LookupOrdinaryName);
+    m_Sema.LookupQualifiedName(Found, DC);
 
-    return !Found.empty();
-  }
-
-  static bool allArgumentsAreLiterals(const CallExpr* CE,
-                                      const DiffRequest* request) {
-    for (const Expr* A : CE->arguments()) {
-      if (request->isVaried(A))
-        return false; // non-constant found.
+    FunctionDecl* result = nullptr;
+    for (NamedDecl* candidate : Found) {
+      if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
+        candidate = usingShadow->getTargetDecl();
+      if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate)) {
+        if (FunctionDecl* spec = matchTemplate(m_Sema, FTD, DerivativeType)) {
+          result = spec;
+          break;
+        }
+      } else if (auto* FD = dyn_cast<FunctionDecl>(candidate)) {
+        if (utils::SameCanonicalType(FD->getType(), DerivativeType)) {
+          result = FD;
+          break;
+        }
+      }
     }
-    return true; // all constants.
+    if (result) {
+      // Overload found. Add the derivative in derivative function collector.
+      m_DFC.Add(DerivedFnInfo(request, result, /*overload=*/nullptr));
+      return true;
+    }
+
+    return false;
   }
 
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
@@ -1165,7 +1196,7 @@ namespace clad {
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
 
-    if (!HasCustomDerivativeForDiffReq(m_Sema, request)) {
+    if (!LookupCustomDerivativeDecl(request)) {
       if (m_TopMostReq->EnableVariedAnalysis &&
           m_TopMostReq->Mode == DiffMode::reverse) {
         VariedAnalyzer analyzer(request.Function->getASTContext(),
@@ -1221,4 +1252,4 @@ namespace clad {
     }
     return true;
   }
-} // end namespace
+  } // namespace clad

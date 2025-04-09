@@ -585,9 +585,6 @@ namespace clad {
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
 
-    clang::QualType
-    GetDerivativeType(llvm::ArrayRef<clang::QualType> customParams = {});
-
     /// Returns clad::Identify template declaration.
     clang::TemplateDecl* GetCladConstructorPushforwardTag();
 
@@ -620,6 +617,13 @@ namespace clad {
     /// Initiates the differentiation process.
     /// Returns the derivative and its overload, if any.
     virtual DerivativeAndOverload Derive() = 0;
+
+    /// Builds the QualType of the derivative to be generated.
+    ///
+    /// \param[in] moveBaseToParams If true, turns member functions into regular
+    /// functions by moving the base to the parameters.
+    clang::QualType
+    GetDerivativeType(llvm::ArrayRef<clang::QualType> customParams = {});
 
     /// Computes effective derivative operands. It should be used when operands
     /// might be of pointer types.

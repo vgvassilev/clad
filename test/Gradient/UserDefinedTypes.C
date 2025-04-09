@@ -747,7 +747,17 @@ double fn19(double i, double j) {
     return (sf1 * sf2).mem_fn(i, j);
 }
 
-// CHECK: void operator_star_pullback(const SimpleFunctions1 &rhs, SimpleFunctions1 _d_y, SimpleFunctions1 *_d_this, SimpleFunctions1 *_d_rhs) const;
+// CHECK: void operator_star_pullback(const SimpleFunctions1 &rhs, SimpleFunctions1 _d_y, SimpleFunctions1 *_d_this, SimpleFunctions1 *_d_rhs) const {
+// CHECK-NEXT:    {
+// CHECK-NEXT:        double _r0 = 0.;
+// CHECK-NEXT:        double _r1 = 0.;
+// CHECK-NEXT:        SimpleFunctions1::constructor_pullback(this->x * rhs.x, this->y * rhs.y, &_d_y, &_r0, &_r1);
+// CHECK-NEXT:        _d_this->x += _r0 * rhs.x;
+// CHECK-NEXT:        (*_d_rhs).x += this->x * _r0;
+// CHECK-NEXT:        _d_this->y += _r1 * rhs.y;
+// CHECK-NEXT:        (*_d_rhs).y += this->y * _r1;
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
 
 // CHECK:  void fn19_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:      SimpleFunctions1 sf1(3, 5);
@@ -1073,8 +1083,11 @@ constructor_reverse_forw(::clad::ConstructorReverseForwTag<ptrClass>, double* mp
 }
 }}}
 
+// CHECK:  void operator_star_pullback(double _d_y, ptrClass *_d_this) {
+// CHECK-NEXT:      *_d_this->ptr += _d_y;
+// CHECK-NEXT:  }
+
 // CHECK:  static void constructor_pullback(double *mptr, ptrClass *_d_this, double *_d_mptr);
-// CHECK:  void operator_star_pullback(double _d_y, ptrClass *_d_this);
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_forw(ptrClass *_d_this);
 
 double fn29(double x, double y) {
@@ -1243,18 +1256,6 @@ int main() {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-// CHECK: void operator_star_pullback(const SimpleFunctions1 &rhs, SimpleFunctions1 _d_y, SimpleFunctions1 *_d_this, SimpleFunctions1 *_d_rhs) const {
-// CHECK-NEXT:    {
-// CHECK-NEXT:        double _r0 = 0.;
-// CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        SimpleFunctions1::constructor_pullback(this->x * rhs.x, this->y * rhs.y, &_d_y, &_r0, &_r1);
-// CHECK-NEXT:        _d_this->x += _r0 * rhs.x;
-// CHECK-NEXT:        (*_d_rhs).x += this->x * _r0;
-// CHECK-NEXT:        _d_this->y += _r1 * rhs.y;
-// CHECK-NEXT:        (*_d_rhs).y += this->y * _r1;
-// CHECK-NEXT:    }
-// CHECK-NEXT:}
-
 // CHECK:  static void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_this->y = 0.;
@@ -1330,10 +1331,6 @@ int main() {
 // CHECK:  static void constructor_pullback(double *mptr, ptrClass *_d_this, double *_d_mptr) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-// CHECK:  void operator_star_pullback(double _d_y, ptrClass *_d_this) {
-// CHECK-NEXT:      *_d_this->ptr += _d_y;
 // CHECK-NEXT:  }
 
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_forw(ptrClass *_d_this) {
