@@ -27,16 +27,6 @@ jobs:
             compiler: clang
             clang-runtime: '14'
 
-          - name: osx14-arm-clang-runtime15
-            os: macos-14
-            compiler: clang
-            clang-runtime: '15'
-
-          - name: osx14-arm-clang-runtime16
-            os: macos-14
-            compiler: clang
-            clang-runtime: '16'
-
           - name: osx14-arm-clang-runtime17
             os: macos-14
             compiler: clang
@@ -56,16 +46,6 @@ jobs:
             os: macos-13
             compiler: clang
             clang-runtime: '12'
-
-          - name: osx13-x86-clang-runtime14
-            os: macos-13
-            compiler: clang
-            clang-runtime: '14'
-
-          - name: osx13-x86-clang-runtime15
-            os: macos-13
-            compiler: clang
-            clang-runtime: '15'
 
           - name: osx13-x86-clang-runtime16
             os: macos-13
@@ -91,16 +71,6 @@ jobs:
             os: windows-2022
             compiler: msvc
             clang-runtime: '14'
-
-          - name: win2022-msvc-runtime15
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '15'
-
-          - name: win2022-msvc-runtime16
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '16'
 
           - name: win2022-msvc-runtime17
             os: windows-2022
