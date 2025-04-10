@@ -233,169 +233,175 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
   // Combines all generated second derivative functions into a
   // single hessian function by creating CallExprs to each individual
   // secon derivative function in FunctionBody.
-DerivativeAndOverload
-HessianModeVisitor::Merge(std::vector<FunctionDecl*> secDerivFuncs,
-                          SmallVector<size_t, 16> IndependentArgsSize,
-                          size_t TotalIndependentArgsSize,
-                          const std::string& hessianFuncName, DeclContext* DC,
-                          QualType hessianFunctionType) {
-  DiffParams args;
-  std::copy(m_DiffReq->param_begin(), m_DiffReq->param_end(),
-            std::back_inserter(args));
+  DerivativeAndOverload
+  HessianModeVisitor::Merge(std::vector<FunctionDecl*> secDerivFuncs,
+                            SmallVector<size_t, 16> IndependentArgsSize,
+                            size_t TotalIndependentArgsSize,
+                            const std::string& hessianFuncName, DeclContext* DC,
+                            QualType hessianFunctionType) {
+    DiffParams args;
+    std::copy(m_DiffReq->param_begin(), m_DiffReq->param_end(),
+              std::back_inserter(args));
 
-  IdentifierInfo* II = &m_Context.Idents.get(hessianFuncName);
-  DeclarationNameInfo name(II, noLoc);
+    IdentifierInfo* II = &m_Context.Idents.get(hessianFuncName);
+    DeclarationNameInfo name(II, noLoc);
 
-  // Create the gradient function declaration.
-  llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
-                                         getEnclosingNamespaceOrTUScope());
-  m_Sema.CurContext = DC;
+    // Create the gradient function declaration.
+    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
+                                           getEnclosingNamespaceOrTUScope());
+    m_Sema.CurContext = DC;
 
-  DeclWithContext result = m_Builder.cloneFunction(
-      m_DiffReq.Function, *this, DC, noLoc, name, hessianFunctionType);
-  FunctionDecl* hessianFD = result.first;
+    DeclWithContext result = m_Builder.cloneFunction(
+        m_DiffReq.Function, *this, DC, noLoc, name, hessianFunctionType);
+    FunctionDecl* hessianFD = result.first;
 
-  beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
-             Scope::DeclScope);
-  m_Sema.PushFunctionScope();
-  m_Sema.PushDeclContext(getCurrentScope(), hessianFD);
+    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
+               Scope::DeclScope);
+    m_Sema.PushFunctionScope();
+    m_Sema.PushDeclContext(getCurrentScope(), hessianFD);
 
-  llvm::ArrayRef<QualType> paramTypes =
-      llvm::cast<FunctionProtoType>(hessianFunctionType)->getParamTypes();
-  llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
-  std::transform(m_DiffReq->param_begin(), m_DiffReq->param_end(),
-                 std::begin(params), [&](const ParmVarDecl* PVD) {
-                   auto VD = ParmVarDecl::Create(
-                       m_Context, hessianFD, noLoc, noLoc, PVD->getIdentifier(),
-                       PVD->getType(), PVD->getTypeSourceInfo(),
-                       PVD->getStorageClass(),
-                       /*DefArg=*/nullptr);
-                   if (VD->getIdentifier())
-                     m_Sema.PushOnScopeChains(VD, getCurrentScope(),
-                                              /*AddToContext*/ false);
-                   auto it = std::find(std::begin(args), std::end(args), PVD);
-                   if (it != std::end(args))
-                     *it = VD;
-                   return VD;
-                 });
-
-  // The output parameter "hessianMatrix" or "diagonalHessianVector"
-  std::string outputParamName = "hessianMatrix";
-  if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
-    outputParamName = "diagonalHessianVector";
-  params.back() = ParmVarDecl::Create(
-      m_Context, hessianFD, noLoc, noLoc,
-      &m_Context.Idents.get(outputParamName), paramTypes.back(),
-      m_Context.getTrivialTypeSourceInfo(paramTypes.back(), noLoc),
-      params.front()->getStorageClass(),
-      /* No default value */ nullptr);
-
-  if (params.back()->getIdentifier())
-    m_Sema.PushOnScopeChains(params.back(), getCurrentScope(),
-                             /*AddToContext*/ false);
-
-  llvm::ArrayRef<ParmVarDecl*> paramsRef =
-      clad_compat::makeArrayRef(params.data(), params.size());
-  hessianFD->setParams(paramsRef);
-  Expr* Result = BuildDeclRef(params.back());
-  std::vector<Stmt*> CompStmtSave;
-
-  beginScope(Scope::FnScope | Scope::DeclScope);
-  m_DerivativeFnScope = getCurrentScope();
-
-  // Creates callExprs to the second derivative functions genereated
-  // and creates maps array elements to input array.
-  for (size_t i = 0, e = secDerivFuncs.size(); i < e; ++i) {
-    auto size_type = m_Context.getSizeType();
-    auto size_type_bits = m_Context.getIntWidth(size_type);
-
-    // Transforms ParmVarDecls into Expr paramters for insertion into function
-    std::vector<Expr*> DeclRefToParams;
-    DeclRefToParams.resize(params.size());
-    std::transform(params.begin(), std::prev(params.end()),
-                   std::begin(DeclRefToParams), [&](ParmVarDecl* PVD) {
-                     auto VD = BuildDeclRef(PVD);
+    llvm::ArrayRef<QualType> paramTypes =
+        llvm::cast<FunctionProtoType>(hessianFunctionType)->getParamTypes();
+    llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
+    std::transform(m_DiffReq->param_begin(), m_DiffReq->param_end(),
+                   std::begin(params), [&](const ParmVarDecl* PVD) {
+                     auto VD =
+                         ParmVarDecl::Create(m_Context,
+                                             hessianFD,
+                                             noLoc,
+                                             noLoc,
+                                             PVD->getIdentifier(),
+                                             PVD->getType(),
+                                             PVD->getTypeSourceInfo(),
+                                             PVD->getStorageClass(),
+                                             /*DefArg=*/nullptr);
+                     if (VD->getIdentifier())
+                       m_Sema.PushOnScopeChains(VD,
+                                                getCurrentScope(),
+                                                /*AddToContext*/ false);
+                     auto it = std::find(std::begin(args), std::end(args), PVD);
+                     if (it != std::end(args))
+                       *it = VD;
                      return VD;
                    });
-    DeclRefToParams.pop_back();
 
-    /// If we are differentiating a member function then create a parameter
-    /// that can represent the derivative for the implicit `this` pointer. It
-    /// is required because reverse mode derived function expects an explicit
-    /// parameter for storing derivative with respect to `implicit` this
-    /// object.
-    ///
-    // FIXME: Add support for class type in the hessian matrix. For this, we
-    // need to add a way to represent hessian matrix when class type objects
-    // are involved.
-    if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
-      const CXXRecordDecl* RD = MD->getParent();
-      if (MD->isInstance() && !RD->isLambda()) {
-        QualType thisObjectType =
-            clad_compat::CXXMethodDecl_GetThisObjectType(m_Sema, MD);
-        // Derivatives should never be of `const` types. Even if the original
-        // variable is of `const` type. This behaviour is consistent with the
-        // built-in scalar numerical types as well.
-        thisObjectType.removeLocalConst();
-        VarDecl* dThisVD = BuildVarDecl(thisObjectType, "_d_this");
-        CompStmtSave.push_back(BuildDeclStmt(dThisVD));
-        Expr* dThisExpr = BuildDeclRef(dThisVD);
-        DeclRefToParams.push_back(
-            BuildOp(UnaryOperatorKind::UO_AddrOf, dThisExpr));
+    // The output parameter "hessianMatrix" or "diagonalHessianVector"
+    std::string outputParamName = "hessianMatrix";
+    if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
+      outputParamName = "diagonalHessianVector";
+    params.back() = ParmVarDecl::Create(
+        m_Context, hessianFD, noLoc, noLoc,
+        &m_Context.Idents.get(outputParamName), paramTypes.back(),
+        m_Context.getTrivialTypeSourceInfo(paramTypes.back(), noLoc),
+        params.front()->getStorageClass(),
+        /* No default value */ nullptr);
+
+    if (params.back()->getIdentifier())
+      m_Sema.PushOnScopeChains(params.back(),
+                               getCurrentScope(),
+                               /*AddToContext*/ false);
+
+    llvm::ArrayRef<ParmVarDecl*> paramsRef =
+        clad_compat::makeArrayRef(params.data(), params.size());
+    hessianFD->setParams(paramsRef);
+    Expr* Result = BuildDeclRef(params.back());
+    std::vector<Stmt*> CompStmtSave;
+
+    beginScope(Scope::FnScope | Scope::DeclScope);
+    m_DerivativeFnScope = getCurrentScope();
+
+    // Creates callExprs to the second derivative functions genereated
+    // and creates maps array elements to input array.
+    for (size_t i = 0, e = secDerivFuncs.size(); i < e; ++i) {
+      auto size_type = m_Context.getSizeType();
+      auto size_type_bits = m_Context.getIntWidth(size_type);
+
+      // Transforms ParmVarDecls into Expr paramters for insertion into function
+      std::vector<Expr*> DeclRefToParams;
+      DeclRefToParams.resize(params.size());
+      std::transform(params.begin(),
+                     std::prev(params.end()),
+                     std::begin(DeclRefToParams),
+                     [&](ParmVarDecl* PVD) {
+                       auto VD = BuildDeclRef(PVD);
+                       return VD;
+                     });
+      DeclRefToParams.pop_back();
+
+      /// If we are differentiating a member function then create a parameter
+      /// that can represent the derivative for the implicit `this` pointer. It
+      /// is required because reverse mode derived function expects an explicit
+      /// parameter for storing derivative with respect to `implicit` this
+      /// object.
+      ///
+      // FIXME: Add support for class type in the hessian matrix. For this, we
+      // need to add a way to represent hessian matrix when class type objects
+      // are involved.
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
+        const CXXRecordDecl* RD = MD->getParent();
+        if (MD->isInstance() && !RD->isLambda()) {
+          QualType thisObjectType =
+              clad_compat::CXXMethodDecl_GetThisObjectType(m_Sema, MD);
+          // Derivatives should never be of `const` types. Even if the original 
+          // variable is of `const` type. This behaviour is consistent with the built-in
+          // scalar numerical types as well.
+          thisObjectType.removeLocalConst();
+          VarDecl* dThisVD = BuildVarDecl(thisObjectType, "_d_this");
+          CompStmtSave.push_back(BuildDeclStmt(dThisVD));
+          Expr* dThisExpr = BuildDeclRef(dThisVD);
+          DeclRefToParams.push_back(
+              BuildOp(UnaryOperatorKind::UO_AddrOf, dThisExpr));
+        }
       }
-    }
 
-    if (m_DiffReq.Mode == DiffMode::hessian_diagonal) {
-      const size_t HessianMatrixStartIndex = i;
-      // Call the derived function for second derivative.
-      Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
+      if (m_DiffReq.Mode == DiffMode::hessian_diagonal) {
+        const size_t HessianMatrixStartIndex = i;
+        // Call the derived function for second derivative.
+        Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
 
-      // Create the offset argument.
-      llvm::APInt offsetValue(size_type_bits, HessianMatrixStartIndex);
-      Expr* OffsetArg =
-          IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
-      // Create a assignment expression to store the value of call expression
-      // into the diagonalHessianVector with index HessianMatrixStartIndex.
-      Expr* SliceExprLHS = BuildOp(BO_Add, Result, OffsetArg);
-      Expr* DerefExpr = BuildOp(UO_Deref, BuildParens(SliceExprLHS));
-      Expr* AssignExpr = BuildOp(BO_Assign, DerefExpr, call);
-      CompStmtSave.push_back(AssignExpr);
-    } else {
-      const size_t HessianMatrixStartIndex = i * TotalIndependentArgsSize;
-      size_t columnIndex = 0;
-      // Create Expr parameters for each independent arg in the CallExpr
-      for (size_t indArgSize : IndependentArgsSize) {
-        llvm::APInt offsetValue(size_type_bits,
-                                HessianMatrixStartIndex + columnIndex);
         // Create the offset argument.
+        llvm::APInt offsetValue(size_type_bits, HessianMatrixStartIndex);
         Expr* OffsetArg =
             IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
-        // Create the hessianMatrix + OffsetArg expression.
-        Expr* SliceExpr = BuildOp(BO_Add, Result, OffsetArg);
+        // Create a assignment expression to store the value of call expression
+        // into the diagonalHessianVector with index HessianMatrixStartIndex.
+        Expr* SliceExprLHS = BuildOp(BO_Add, Result, OffsetArg);
+        Expr* DerefExpr = BuildOp(UO_Deref, BuildParens(SliceExprLHS));
+        Expr* AssignExpr = BuildOp(BO_Assign, DerefExpr, call);
+        CompStmtSave.push_back(AssignExpr);
+      } else {
+        const size_t HessianMatrixStartIndex = i * TotalIndependentArgsSize;
+        size_t columnIndex = 0;
+        // Create Expr parameters for each independent arg in the CallExpr
+        for (size_t indArgSize : IndependentArgsSize) {
+          llvm::APInt offsetValue(size_type_bits,
+                                  HessianMatrixStartIndex + columnIndex);
+          // Create the offset argument.
+          Expr* OffsetArg =
+              IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
+          // Create the hessianMatrix + OffsetArg expression.
+          Expr* SliceExpr = BuildOp(BO_Add, Result, OffsetArg);
 
-        DeclRefToParams.push_back(SliceExpr);
-        columnIndex += indArgSize;
+          DeclRefToParams.push_back(SliceExpr);
+          columnIndex += indArgSize;
+        }
+        Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
+        CompStmtSave.push_back(call);
       }
-      Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
-      CompStmtSave.push_back(call);
     }
+
+    auto StmtsRef =
+        clad_compat::makeArrayRef(CompStmtSave.data(), CompStmtSave.size());
+    CompoundStmt* CS =
+        clad_compat::CompoundStmt_Create(m_Context, StmtsRef /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(clang::FPOptionsOverride()), noLoc, noLoc);
+    hessianFD->setBody(CS);
+    endScope(); // Function body scope
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+    endScope(); // Function decl scope
+
+    return DerivativeAndOverload{result.first,
+                                 /*OverloadFunctionDecl=*/nullptr};
   }
-
-  auto StmtsRef =
-      clad_compat::makeArrayRef(CompStmtSave.data(), CompStmtSave.size());
-  CompoundStmt* CS = clad_compat::CompoundStmt_Create(
-      m_Context,
-      StmtsRef /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(
-          clang::FPOptionsOverride()),
-      noLoc, noLoc);
-  hessianFD->setBody(CS);
-  endScope(); // Function body scope
-  m_Sema.PopFunctionScopeInfo();
-  m_Sema.PopDeclContext();
-  endScope(); // Function decl scope
-
-  return DerivativeAndOverload{result.first,
-                               /*OverloadFunctionDecl=*/nullptr};
-}
 } // end namespace clad
