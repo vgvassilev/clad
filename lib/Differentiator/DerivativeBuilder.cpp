@@ -140,70 +140,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                   FD->getTrailingRequiresClause()));
 
       returnedFD->setAccess(FD->getAccess());
-
-      // Check if we're dealing with a template specialization
-      if (FD->isFunctionTemplateSpecialization() &&
-          !FD->getTemplateInstantiationPattern()->isVariadic()) {
-        bool isVariadic = false;
-        for (auto* param :
-             FD->getPrimaryTemplate()->getTemplateParameters()->asArray()) {
-          if (param->isParameterPack()) {
-            isVariadic = true;
-            break;
-          }
-        }
-        if (!isVariadic) {
-          const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
-          FunctionTemplateDecl* OriginalFTD = FD->getPrimaryTemplate();
-
-          // Check if returnedFD is already associated with a template
-          if (!returnedFD->getDescribedFunctionTemplate() &&
-              !returnedFD->isFunctionTemplateSpecialization()) {
-
-            // Look for existing template in current context
-            FunctionTemplateDecl* ExistingFTD = nullptr;
-            DeclContext::lookup_result Lookup =
-                m_Sema.CurContext->lookup(name.getName());
-
-            for (NamedDecl* ND : Lookup) {
-              if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
-                // Check if this template matches what we need
-                FunctionDecl* FD1 = FTD->getTemplatedDecl();
-
-                // Compare return types
-                if (!m_Context.hasSameType(FD1->getReturnType(),
-                                           FD->getReturnType()))
-                  continue;
-
-                ExistingFTD = FTD->getCanonicalDecl();
-                break;
-              }
-            }
-
-            // Create a template declaration only if needed
-            if (!ExistingFTD) {
-              TemplateParameterList* TemplateParams =
-                  OriginalFTD->getTemplateParameters();
-
-              ExistingFTD = FunctionTemplateDecl::Create(
-                  m_Context, m_Sema.CurContext, noLoc, name.getName(),
-                  TemplateParams, returnedFD);
-
-              // Add to context to make it findable
-              m_Sema.CurContext->addDecl(ExistingFTD);
-            }
-
-            // Now specialize the function correctly
-            TemplateArgumentList* TALCopy =
-                TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
-
-            returnedFD->setFunctionTemplateSpecialization(
-                ExistingFTD, TALCopy, nullptr,
-                FD->getTemplateSpecializationKindForInstantiation());
-          }
-        }
-      }
     }
+
     returnedFD->setImplicitlyInline(FD->isInlined());
 
     for (const FunctionDecl* NFD : FD->redecls()) {
