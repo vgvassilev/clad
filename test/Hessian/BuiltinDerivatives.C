@@ -179,9 +179,9 @@ int main() {
 // CHECK-NEXT:     return _t0.pushforward + _t1.pushforward;
 // CHECK-NEXT: }
 
-// CHECK: template<> void sin_pushforward_pullback<float, float>(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
+// CHECK: void sin_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
 
-// CHECK: template<> void cos_pushforward_pullback<float, float>(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
+// CHECK: void cos_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
 
 // CHECK: void f1_darg0_grad(float x, float *_d_x) {
 // CHECK-NEXT:     float _d__d_x = 0.F;
@@ -220,7 +220,7 @@ int main() {
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
-// CHECK: template<> void exp_pushforward_pullback<float, float>(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
+// CHECK: void exp_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
 
 // CHECK: void f2_darg0_grad(float x, float *_d_x) {
 // CHECK-NEXT:     float _d__d_x = 0.F;
@@ -245,7 +245,7 @@ int main() {
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
-// CHECK: template<> void log_pushforward_pullback<float>(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
+// CHECK: void log_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x);
 
 // CHECK: void f3_darg0_grad(float x, float *_d_x) {
 // CHECK-NEXT:     float _d__d_x = 0.F;
@@ -270,7 +270,7 @@ int main() {
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
-// CHECK: template<> void pow_pushforward_pullback<float, float, float, float, float, float>(float x, float exponent, float d_x, float d_exponent, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_exponent, float *_d_d_x, float *_d_d_exponent);
+// CHECK: void pow_pushforward_pullback(float x, float exponent, float d_x, float d_exponent, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_exponent, float *_d_d_x, float *_d_d_exponent);
 
 // CHECK: void f4_darg0_grad(float x, float *_d_x) {
 // CHECK-NEXT:     float _d__d_x = 0.F;
@@ -384,7 +384,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: template<> void sin_pushforward_pullback<float, float>(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
+// CHECK: void sin_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
 // CHECK-NEXT:     float _t0 = ::std::cos(x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0.F;
@@ -397,7 +397,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: template<> void cos_pushforward_pullback<float, float>(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
+// CHECK: void cos_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
 // CHECK-NEXT:     float _t0 = ::std::sin(x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0.F;
@@ -410,7 +410,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: template<> void exp_pushforward_pullback<float, float>(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
+// CHECK: void exp_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
 // CHECK-NEXT:     float _t0 = ::std::exp(x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0.F;
@@ -423,7 +423,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: template<> void log_pushforward_pullback<float>(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
+// CHECK: void log_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0.F;
 // CHECK-NEXT:         _r0 += _d_y.value * clad::custom_derivatives::std::log_pushforward(x, 1.F).pushforward;
@@ -434,7 +434,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: template<> void pow_pushforward_pullback<float, float, float, float, float, float>(float x, float exponent, float d_x, float d_exponent, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_exponent, float *_d_d_x, float *_d_d_exponent) {
+// CHECK: void pow_pushforward_pullback(float x, float exponent, float d_x, float d_exponent, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_exponent, float *_d_d_x, float *_d_d_exponent) {
 // CHECK-NEXT:     bool _cond0;
 // CHECK-NEXT:     float _t1;
 // CHECK-NEXT:     float _t2;
