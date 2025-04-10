@@ -83,18 +83,16 @@ namespace clad {
           // Emit error diagnostics
           if (R.empty()) {
             const char diagFmt[] = "'%0' has no defined operator()";
-            auto diagId =
-                m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
-                                                diagFmt);
+            auto diagId = m_SemaRef.Diags.getCustomDiagID(
+                DiagnosticsEngine::Level::Error, diagFmt);
             m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
             return false;
           } else if (!R.isSingleResult()) {
             const char diagFmt[] =
                 "'%0' has multiple definitions of operator(). "
                 "Multiple definitions of call operators are not supported.";
-            auto diagId =
-                m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
-                                                diagFmt);
+            auto diagId = m_SemaRef.Diags.getCustomDiagID(
+                DiagnosticsEngine::Level::Error, diagFmt);
             m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
 
             // Emit diagnostics for candidate functions
@@ -1015,6 +1013,7 @@ namespace clad {
       // The root of the differentiation request graph should update the
       // CladFunction object with the generated call.
       request.CallUpdateRequired = true;
+      request.CallContext = E;
 
       request.Args = E->getArg(1);
       // FIXME: We should call UpdateDiffParamsInfo unconditionally, however,
@@ -1072,6 +1071,7 @@ namespace clad {
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+      request.CallContext = E;
 
       // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       if (m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
@@ -1114,7 +1114,6 @@ namespace clad {
 
     if (isCallOperator(m_Sema.getASTContext(), request.Function))
       request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
-    request.CallContext = E;
     request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
 
     // FIXME: Here we copy all varied declarations down to the pullback, has to
@@ -1125,9 +1124,11 @@ namespace clad {
         request.addVariedDecl(decl);
 
     llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
+    m_Sema.PerformPendingInstantiations();
+    if (request.Function->getDefinition())
+      request.Function = request.Function->getDefinition();
 
-    // FIXME: Move once #1325 is merged.
-    if (!HasCustomDerivativeForDiffReq(m_Sema, request))
+    if (!HasCustomDerivativeForDiffReq(m_Sema, request)) {
       if (m_TopMostReq->EnableVariedAnalysis &&
           m_TopMostReq->Mode == DiffMode::reverse) {
         VariedAnalyzer analyzer(request.Function->getASTContext(),
@@ -1135,10 +1136,10 @@ namespace clad {
         analyzer.Analyze(request.Function);
       }
 
-    // Recurse into call graph.
-    TraverseFunctionDeclOnce(request.Function);
-    if (!HasCustomDerivativeForDiffReq(m_Sema, request))
+      // Recurse into call graph.
+      TraverseFunctionDeclOnce(request.Function);
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+    }
 
     if (m_IsTraversingTopLevelDecl) {
       m_TopMostReq = nullptr;

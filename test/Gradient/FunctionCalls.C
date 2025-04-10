@@ -909,6 +909,25 @@ double fn24(double x) {
 // CHECK-NEXT:          unused_return_pullback(_t0, 0., &*_d_x);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
+ 
+double fn25_defined_later(double);
+
+
+double fn25(double x) {
+  return x;
+}
+
+// CHECK: void fn25_pullback(double x, double _d_y, double *_d_x) {
+// CHECK-NEXT:    *_d_x += _d_y;
+// CHECK-NEXT:}
+
+// CHECK:void fn25_defined_later_grad(double x, double *_d_x) {
+// CHECK-NEXT:    {
+// CHECK-NEXT:        double _r0 = 0.;
+// CHECK-NEXT:        fn25_pullback(x, 1, &_r0);
+// CHECK-NEXT:        *_d_x += _r0;
+// CHECK-NEXT:    }
+// CHECK-NEXT: }
 
 template<typename T>
 void reset(T* arr, int n) {
@@ -1027,13 +1046,18 @@ int main() {
 
   INIT(fn24);
   TEST1(fn24, 3);  // CHECK-EXEC: {2.00}
+
+  INIT(fn25_defined_later);
+  TEST1(fn25_defined_later, 3); // CHECK-EXEC: {1.00}
 }
 
 double sq_defined_later(double x) {
     return x*x;
 }
 
-
+double fn25_defined_later(double x) {
+    return fn25(x);
+}
 // CHECK: clad::ValueAndAdjoint<double &, double &> identity_forw(double &i, double &_d_i) {
 // CHECK-NEXT:     MyStruct::myFunction();
 // CHECK-NEXT:     double _d__d_i = 0.;
