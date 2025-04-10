@@ -29,50 +29,48 @@ class NestedNameSpecifier;
 } // namespace clang
 
 namespace clad {
-  class MultiplexExternalRMVSource;
-  /// A class that represents the result of Visit of ForwardModeVisitor.
-  /// Stmt() allows to access the original (cloned) Stmt and Stmt_dx() allows
-  /// to access its derivative (if exists, otherwise null). If Visit produces
-  /// other (intermediate) statements, they are output to the current block.
-  class StmtDiff {
-  private:
-    std::array<clang::Stmt*, 2> data;
-    clang::Stmt* m_ValueForRevSweep;
+class MultiplexExternalRMVSource;
+/// A class that represents the result of Visit of ForwardModeVisitor.
+/// Stmt() allows to access the original (cloned) Stmt and Stmt_dx() allows
+/// to access its derivative (if exists, otherwise null). If Visit produces
+/// other (intermediate) statements, they are output to the current block.
+class StmtDiff {
+private:
+  std::array<clang::Stmt*, 2> data;
+  clang::Stmt* m_ValueForRevSweep;
 
-  public:
-    StmtDiff(clang::Stmt* orig = nullptr, clang::Stmt* diff = nullptr,
-             clang::Stmt* valueForRevSweep = nullptr)
-        : m_ValueForRevSweep(valueForRevSweep) {
-      data[1] = orig;
-      data[0] = diff;
-    }
+public:
+  StmtDiff(clang::Stmt* orig = nullptr, clang::Stmt* diff = nullptr,
+           clang::Stmt* valueForRevSweep = nullptr)
+      : m_ValueForRevSweep(valueForRevSweep) {
+    data[1] = orig;
+    data[0] = diff;
+  }
 
-    clang::Stmt* getStmt() { return data[1]; }
-    clang::Stmt* getStmt_dx() { return data[0]; }
-    clang::Expr* getExpr() {
-      return llvm::cast_or_null<clang::Expr>(getStmt());
-    }
-    clang::Expr* getExpr_dx() {
-      return llvm::cast_or_null<clang::Expr>(getStmt_dx());
-    }
+  clang::Stmt* getStmt() { return data[1]; }
+  clang::Stmt* getStmt_dx() { return data[0]; }
+  clang::Expr* getExpr() { return llvm::cast_or_null<clang::Expr>(getStmt()); }
+  clang::Expr* getExpr_dx() {
+    return llvm::cast_or_null<clang::Expr>(getStmt_dx());
+  }
 
-    void updateStmt(clang::Stmt* S) { data[1] = S; }
-    void updateStmtDx(clang::Stmt* S) { data[0] = S; }
-    // Stmt_dx goes first!
-    std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
+  void updateStmt(clang::Stmt* S) { data[1] = S; }
+  void updateStmtDx(clang::Stmt* S) { data[0] = S; }
+  // Stmt_dx goes first!
+  std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
 
-    clang::Expr* getRevSweepAsExpr() {
-      return llvm::cast_or_null<clang::Expr>(getRevSweepStmt());
-    }
+  clang::Expr* getRevSweepAsExpr() {
+    return llvm::cast_or_null<clang::Expr>(getRevSweepStmt());
+  }
 
-    clang::Stmt* getRevSweepStmt() {
-      /// If there is no specific value for
-      /// the reverse sweep, use Stmt_dx.
-      if (!m_ValueForRevSweep)
-        return data[1];
-      return m_ValueForRevSweep;
-    }
-  };
+  clang::Stmt* getRevSweepStmt() {
+    /// If there is no specific value for
+    /// the reverse sweep, use Stmt_dx.
+    if (!m_ValueForRevSweep)
+      return data[1];
+    return m_ValueForRevSweep;
+  }
+};
 
   template <typename T> class DeclDiff {
   private:

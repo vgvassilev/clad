@@ -190,8 +190,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                   TemplateParams, returnedFD);
 
               CLAD_COMPAT_CLANG_RecursivePrimaryTemplateFix(returnedFD,
-                                                      ExistingFTD);
-
+                                                            ExistingFTD);
               // Add to context to make it findable
               m_Sema.CurContext->addDecl(ExistingFTD);
             }
