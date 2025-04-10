@@ -170,7 +170,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
                 // Check if this template matches what we need
                 FunctionDecl* FD1 = FTD->getTemplatedDecl();
-
                 // Compare return types
                 if (!m_Context.hasSameType(FD1->getReturnType(),
                                            FD->getReturnType()))
@@ -189,6 +188,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               ExistingFTD = FunctionTemplateDecl::Create(
                   m_Context, m_Sema.CurContext, noLoc, name.getName(),
                   TemplateParams, returnedFD);
+
+              CLAD_COMPAT_CLANG_RecursivePrimaryTemplateFix(returnedFD,
+                                                      ExistingFTD);
 
               // Add to context to make it findable
               m_Sema.CurContext->addDecl(ExistingFTD);

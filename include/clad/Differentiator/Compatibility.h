@@ -621,5 +621,17 @@ static inline const DeclSpec& Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
   ,Node->isTransparent()
 #endif
 
+// This is a temporari fix for the issue where
+// clang::FunctionDecl::isImmediateFunction recurses infinitely on template
+// specializations derived by clad. Will be removed when a proper way of
+// differentiating templates is added
+
+#if CLANG_VERSION_MAJOR > 17
+#define CLAD_COMPAT_CLANG_RecursivePrimaryTemplateFix(returnedFD, NewFTD)      \
+  returnedFD->setDescribedFunctionTemplate(NewFTD);
+#elif CLANG_VERSION_MAJOR <= 17
+#define CLAD_COMPAT_CLANG_RecursivePrimaryTemplateFix(returnedFD, NewFTD)
+#endif
+
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY
