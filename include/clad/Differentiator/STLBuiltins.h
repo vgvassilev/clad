@@ -11,6 +11,20 @@
 #include <vector>
 
 namespace clad {
+
+// zero_init specializations
+
+// std::pair<T1, T2> is almost trivially copyable. Specialize it.
+template <class T1, class T2> void zero_init(std::pair<T1, T2>& p) {
+  zero_init(p.first);
+  zero_init(p.second);
+}
+
+//  is almost trivially copyable. Specialize it.
+template <class T> void zero_init(typename std::allocator<T>&) {
+  // do nothing, unclear if allocators have differentiable properties.
+}
+
 namespace custom_derivatives {
 namespace class_functions {
 

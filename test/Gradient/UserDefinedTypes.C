@@ -5,6 +5,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#include "clad/Differentiator/STLBuiltins.h"
+
 #include <utility>
 #include <complex>
 
