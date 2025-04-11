@@ -2010,7 +2010,7 @@ StmtDiff BaseForwardModeVisitor::VisitMaterializeTemporaryExpr(
     const clang::MaterializeTemporaryExpr* MTE) {
   // `MaterializeTemporaryExpr` node will be created automatically if it is
   // required by `ActOn`/`Build` Sema functions.
-  StmtDiff MTEDiff = Visit(clad_compat::GetSubExpr(MTE));
+  StmtDiff MTEDiff = Visit(MTE->getSubExpr());
   return MTEDiff;
 }
 

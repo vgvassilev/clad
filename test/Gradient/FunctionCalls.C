@@ -7,7 +7,7 @@
 
 namespace A {
   template <typename T> T constantFn(T i) { return 3; }
-  // CHECK: template<> void constantFn_pullback<float>(float i, float _d_y, float *_d_i) {
+  // CHECK: void constantFn_pullback(float i, float _d_y, float *_d_i) {
   // CHECK-NEXT: }
 } // namespace A
 
@@ -788,7 +788,7 @@ T templated_fn(double x) {
   return x;
 }
 
-// CHECK: template<> void templated_fn_pullback<double>(double x, double _d_y, double *_d_x) {
+// CHECK: void templated_fn_pullback(double x, double _d_y, double *_d_x) {
 // CHECK-NEXT:     *_d_x += _d_y;
 // CHECK-NEXT: }
 
