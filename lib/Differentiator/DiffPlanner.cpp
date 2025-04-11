@@ -670,19 +670,6 @@ namespace clad {
   bool DiffRequest::shouldHaveAdjointForw(const VarDecl* VD) const {
     if (!EnableUsefulAnalysis)
       return true;
-
-    if (!m_UsefulRunInfo.HasAnalysisRun) {
-
-      UsefulAnalyzer analyzer(Function->getASTContext(),
-                              m_UsefulRunInfo.UsefulDecls,
-                              m_UsefulRunInfo.UsefulFuncs);
-      analyzer.Analyze(Function);
-      m_UsefulRunInfo.HasAnalysisRun = true;
-      // llvm::errs() << "ToBeRecorded:  ";
-      // for (auto* i : m_UsefulRunInfo.UsefulDecls)
-      //   llvm::errs() << i->getNameAsString() << "  ";
-      // llvm::errs() << "\n";
-    }
     auto found = m_UsefulRunInfo.UsefulDecls.find(VD);
     return found != m_UsefulRunInfo.UsefulDecls.end();
   }
@@ -1105,6 +1092,7 @@ namespace clad {
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+      request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
       request.CallContext = E;
 
       // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
@@ -1167,6 +1155,12 @@ namespace clad {
           m_TopMostReq->Mode == DiffMode::reverse) {
         VariedAnalyzer analyzer(request.Function->getASTContext(),
                                 request.getVariedDecls());
+        analyzer.Analyze(request.Function);
+      }
+
+      if (m_TopMostReq->EnableUsefulAnalysis) {
+        UsefulAnalyzer analyzer(request.Function->getASTContext(),
+                                request.getUsefulDecls());
         analyzer.Analyze(request.Function);
       }
 

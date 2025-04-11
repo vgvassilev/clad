@@ -24,6 +24,7 @@ StmtDiff PushForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // If there is no return value, we must not attempt to differentiate
   if (!RS->getRetValue())
     return nullptr;
+
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Expr* retVal = retValDiff.getExpr();
   Expr* retVal_dx = retValDiff.getExpr_dx();

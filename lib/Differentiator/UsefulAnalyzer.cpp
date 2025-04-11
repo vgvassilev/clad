@@ -115,7 +115,7 @@ bool UsefulAnalyzer::VisitDeclStmt(DeclStmt* DS) {
         m_Useful = true;
         m_Marking = true;
       }
-      if (Expr* init = cast<VarDecl>(D)->getInit())
+      if (Expr* init = dyn_cast<VarDecl>(D)->getInit())
         TraverseStmt(init);
       m_Marking = false;
     }
@@ -128,16 +128,11 @@ bool UsefulAnalyzer::VisitReturnStmt(ReturnStmt* RS) {
   m_Marking = true;
   auto* rv = RS->getRetValue();
   TraverseStmt(rv);
+  m_Marking = false;
   return true;
 }
 
-bool UsefulAnalyzer::VisitCallExpr(CallExpr* CE) {
-  if (m_Useful)
-    return true;
-  FunctionDecl* FD = CE->getDirectCallee();
-  m_UsefulFuncs.insert(FD);
-  return true;
-}
+bool UsefulAnalyzer::VisitCallExpr(CallExpr* CE) { return true; }
 
 bool UsefulAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
   auto* VD = dyn_cast<VarDecl>(DRE->getDecl());

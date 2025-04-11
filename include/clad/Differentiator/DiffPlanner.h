@@ -47,14 +47,12 @@ private:
 
   mutable struct UsefulRunInfo {
     std::set<const clang::VarDecl*> UsefulDecls;
-    std::set<const clang::FunctionDecl*> UsefulFuncs;
     bool HasAnalysisRun = false;
   } m_UsefulRunInfo;
 
 public:
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
-  bool ReqAdj = true;
   /// Name of the base function to be differentiated. Can be different from
   /// function->getNameAsString() when higher-order derivatives are computed.
   std::string BaseFunctionName = {};
@@ -175,6 +173,12 @@ public:
   }
   std::set<const clang::VarDecl*>& getVariedDecls() const {
     return m_ActivityRunInfo.VariedDecls;
+  }
+  void addUsefulDecl(const clang::VarDecl* init) {
+    m_UsefulRunInfo.UsefulDecls.insert(init);
+  }
+  std::set<const clang::VarDecl*>& getUsefulDecls() const {
+    return m_UsefulRunInfo.UsefulDecls;
   }
 };
 

@@ -948,13 +948,11 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   if (clonedDRE->getType()->isPointerType())
     return StmtDiff(clonedDRE, nullptr);
 
-  if (auto* i = dyn_cast<VarDecl>(DRE->getDecl())) {
-    if (!m_DiffReq.shouldHaveAdjointForw(i))
+  if (const auto* decl = dyn_cast<VarDecl>(DRE->getDecl()))
+    if (!m_DiffReq.shouldHaveAdjointForw(decl))
       return StmtDiff(clonedDRE, nullptr);
-  }
 
   QualType literalTy = utils::GetValueType(clonedDRE->getType());
-
   return StmtDiff(clonedDRE, ConstantFolder::synthesizeLiteral(
                                  literalTy, m_Context, /*val=*/0));
 }
@@ -1098,7 +1096,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   }
 
   llvm::SmallVector<Expr*, 16> pushforwardFnArgs;
-  //
   pushforwardFnArgs.insert(pushforwardFnArgs.end(), CallArgs.begin(),
                            CallArgs.end());
   pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
@@ -1344,7 +1341,8 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       derivedR = BuildParens(derivedR);
     opDiff = BuildOp(opCode, derivedL, derivedR);
   } else if (BinOp->isAssignmentOp()) {
-    if ((Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
+    if (Ldiff.getExpr_dx() &&
+        (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
          Expr::MLV_Valid) &&
         !isCladArrayType(Ldiff.getExpr_dx()->getType())) {
       diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
@@ -1471,14 +1469,17 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
         new (m_Context) CXXNullPtrLiteralExpr(VD->getType(), VD->getBeginLoc());
     // NOLINTEND(cppcoreguidelines-owned-memory)
   }
-  VarDecl* VDDerived = BuildVarDecl(
-      VD->getType(), "_d_" + VD->getNameAsString(), initDx, VD->isDirectInit());
-  m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+  VarDecl* VDDerived = nullptr;
+  if (m_DiffReq.shouldHaveAdjointForw(VD))
+    VDDerived = BuildVarDecl(VD->getType(), "_d_" + VD->getNameAsString(),
+                             initDx, VD->isDirectInit());
+
+  if (VDDerived)
+    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
-  // llvm::errs() << "\nVisitDeclStmt";
   llvm::SmallVector<Decl*, 4> decls;
   llvm::SmallVector<Decl*, 4> declsDiff;
   // If the type is marked as non_differentiable, skip generating its derivative
@@ -1541,7 +1542,7 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
         m_DeclReplacements[VD] = VDDiff.getDecl();
       decls.push_back(VDDiff.getDecl());
-      if (m_DiffReq.shouldHaveAdjointForw(VD))
+      if (VDDiff.getDecl_dx())
         declsDiff.push_back(VDDiff.getDecl_dx());
     } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
       DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
@@ -1561,8 +1562,6 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
     DSClone = BuildDeclStmt(decls);
   if (!declsDiff.empty())
     DSDiff = BuildDeclStmt(declsDiff);
-  // llvm::errs() << "\n=====";
-  // DSDiff->dump();
   return StmtDiff(DSClone, DSDiff);
 }
 

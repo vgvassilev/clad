@@ -7,6 +7,7 @@
 #include "clad/Differentiator/Compatibility.h"
 
 #include <algorithm>
+#include <memory>
 #include <stack>
 
 namespace clad {
@@ -17,7 +18,6 @@ class UsefulAnalyzer : public clang::RecursiveASTVisitor<UsefulAnalyzer> {
   bool m_Marking = false;
 
   std::set<const clang::VarDecl*>& m_UsefulDecls;
-  std::set<const clang::FunctionDecl*>& m_UsefulFuncs;
   // std::set<const clang::VarDecl*>& m_VariedDecls;
   using VarsData = std::set<const clang::VarDecl*>;
   /// A helper method to allocate VarsData
@@ -46,9 +46,8 @@ class UsefulAnalyzer : public clang::RecursiveASTVisitor<UsefulAnalyzer> {
 public:
   /// Constructor
   UsefulAnalyzer(clang::ASTContext& Context,
-                 std::set<const clang::VarDecl*>& Decls,
-                 std::set<const clang::FunctionDecl*>& Funcs)
-      : m_UsefulDecls(Decls), m_UsefulFuncs(Funcs), m_Context(Context) {}
+                 std::set<const clang::VarDecl*>& Decls)
+      : m_UsefulDecls(Decls), m_Context(Context) {}
 
   /// Destructor
   ~UsefulAnalyzer() = default;
