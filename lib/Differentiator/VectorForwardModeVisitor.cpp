@@ -2,6 +2,7 @@
 
 #include "ConstantFolder.h"
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
 #include "clang/AST/Decl.h"
@@ -41,7 +42,7 @@ void VectorForwardModeVisitor::SetIndependentVarsExpr(Expr* IndVarCountExpr) {
   m_IndVarCountExpr = IndVarCountExpr;
 }
 
-DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
+DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == DiffMode::vector_forward_mode);
 

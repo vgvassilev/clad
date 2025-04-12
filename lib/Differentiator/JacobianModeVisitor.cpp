@@ -2,6 +2,7 @@
 
 #include "ConstantFolder.h"
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 
@@ -12,7 +13,7 @@ JacobianModeVisitor::JacobianModeVisitor(DerivativeBuilder& builder,
                                          const DiffRequest& request)
     : VectorPushForwardModeVisitor(builder, request) {}
 
-DerivativeAndOverload JacobianModeVisitor::DeriveJacobian() {
+DerivativeAndOverload JacobianModeVisitor::Derive() {
   const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == DiffMode::jacobian);
 

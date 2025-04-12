@@ -47,7 +47,7 @@ namespace clad {
     /// ReverseModeVisitor to generate second derivatives that correspond to
     /// columns of the Hessian. uses Merge to return a FunctionDecl
     /// containing CallExprs to the generated second derivatives.
-    DerivativeAndOverload Derive();
+    DerivativeAndOverload Derive() override;
   };
 } // end namespace clad
 

@@ -1,6 +1,7 @@
 #ifndef CLAD_DIFFERENTIATOR_REVERSEMODEFORWPASSVISITOR_H
 #define CLAD_DIFFERENTIATOR_REVERSEMODEFORWPASSVISITOR_H
 
+#include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
 
@@ -22,7 +23,7 @@ private:
 public:
   ReverseModeForwPassVisitor(DerivativeBuilder& builder,
                              const DiffRequest& request);
-  DerivativeAndOverload Derive();
+  DerivativeAndOverload Derive() override;
 
   StmtDiff ProcessSingleStmt(const clang::Stmt* S);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS) override;

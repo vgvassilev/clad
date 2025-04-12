@@ -2,6 +2,7 @@
 
 #include "ConstantFolder.h"
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 
@@ -45,6 +46,10 @@ void VectorPushForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
   SetIndependentVarsExpr(BuildDeclRef(totalIndVars));
 
   BaseForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock();
+}
+
+DerivativeAndOverload VectorPushForwardModeVisitor::Derive() {
+  return BaseForwardModeVisitor::Derive();
 }
 
 QualType

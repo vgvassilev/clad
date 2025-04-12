@@ -2,6 +2,7 @@
 #define CLAD_VECTOR_FORWARD_MODE_VISITOR_H
 
 #include "BaseForwardModeVisitor.h"
+#include "DerivativeBuilder.h"
 
 #include <unordered_map>
 
@@ -33,7 +34,7 @@ public:
   ///\returns The differentiated and potentially created enclosing
   /// context.
   ///
-  DerivativeAndOverload DeriveVectorMode();
+  DerivativeAndOverload Derive() override;
 
   /// Builds an overload for the vector mode function that has derived params
   /// for all the arguments of the requested function and it calls the original

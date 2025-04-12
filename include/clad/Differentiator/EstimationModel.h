@@ -37,6 +37,9 @@ namespace clad {
     /// Clear the variable estimate map so that we can start afresh.
     void clearEstimationVariables() { m_EstimateVar.clear(); }
 
+    // FIXME: This is a dummy override needed because Derive is abstract.
+    DerivativeAndOverload Derive() override { return {}; }
+
     /// User overridden function to return the error expression of a
     /// specific estimation model. The error expression is returned in the form
     /// of a clang::Expr, the user may use BuildOp() to build the final

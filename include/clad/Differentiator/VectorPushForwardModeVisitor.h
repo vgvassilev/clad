@@ -1,6 +1,7 @@
 #ifndef CLAD_DIFFERENTIATOR_VECTORPUSHFORWARDMODEVISITOR_H
 #define CLAD_DIFFERENTIATOR_VECTORPUSHFORWARDMODEVISITOR_H
 
+#include "DerivativeBuilder.h"
 #include "PushForwardModeVisitor.h"
 #include "VectorForwardModeVisitor.h"
 
@@ -15,6 +16,8 @@ public:
   ~VectorPushForwardModeVisitor() override;
 
   void ExecuteInsidePushforwardFunctionBlock() override;
+
+  DerivativeAndOverload Derive() override;
 
   clang::QualType
   GetParameterDerivativeType(clang::QualType ParamType) override;
