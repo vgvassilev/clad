@@ -959,6 +959,46 @@ double fn28(double x, double y) {
 // CHECK-NEXT:      Vector3::constructor_pullback(x, x, y, &_d_v, &*_d_x, &*_d_x, &*_d_y);
 // CHECK-NEXT:  }
 
+struct ptrClass {
+  double* ptr = nullptr;
+  ptrClass() = default;
+  ptrClass(double* mptr): ptr(mptr) {}
+  double& operator*() {
+    return *ptr;
+  }
+};
+
+namespace clad {
+namespace custom_derivatives {
+namespace class_functions {
+::clad::ValueAndAdjoint<ptrClass, ptrClass>
+constructor_reverse_forw(::clad::ConstructorReverseForwTag<ptrClass>, double* mptr, double* d_mptr) {
+  return {ptrClass(mptr), ptrClass(d_mptr)};
+}
+}}}
+
+// CHECK:  static void constructor_pullback(double *mptr, ptrClass *_d_this, double *_d_mptr);
+// CHECK:  void operator_star_pullback(double _d_y, ptrClass *_d_this);
+// CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_forw(ptrClass *_d_this);
+
+double fn29(double x, double y) {
+  ptrClass p(&x);
+  return *p;
+}
+
+// CHECK:  void fn29_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      ::clad::ValueAndAdjoint<ptrClass, ptrClass> _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<ptrClass>(), &x, &*_d_x);
+// CHECK-NEXT:      ptrClass p(_t0.value);
+// CHECK-NEXT:      ptrClass _d_p = _t0.adjoint;
+// CHECK-NEXT:      ptrClass _t1 = p;
+// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t2 = p.operator_star_forw(&_d_p);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          p = _t1;
+// CHECK-NEXT:          p.operator_star_pullback(1, &_d_p);
+// CHECK-NEXT:      }
+// CHECK-NEXT:      ptrClass::constructor_pullback(&x, &_d_p, &*_d_x);
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1072,6 +1112,9 @@ int main() {
 
     INIT_GRADIENT(fn28);
     TEST_GRADIENT(fn28, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {-1.00, 0.00}
+
+    INIT_GRADIENT(fn29);
+    TEST_GRADIENT(fn29, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
 }
 
 // CHECK: void someMemFn2_pullback(double i, double j, double _d_y, Tangent *_d_this, double *_d_i, double *_d_j) const {
@@ -1218,6 +1261,10 @@ int main() {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+// CHECK:  void operator_call_pullback(double u, double _d_y, Identity *_d_this, double *_d_u) {
+// CHECK-NEXT:      *_d_u += _d_y;
+// CHECK-NEXT:  }
+
 // CHECK:  static inline constexpr void constructor_pullback(const B &arg, B *_d_this, B *_d_arg) noexcept {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          (*_d_arg).data += _d_this->data;
@@ -1280,6 +1327,19 @@ int main() {
 // CHECK-NEXT:          (*_d_arg).x += _d_this->x;
 // CHECK-NEXT:          _d_this->x = 0.;
 // CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK:  static void constructor_pullback(double *mptr, ptrClass *_d_this, double *_d_mptr) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK:  void operator_star_pullback(double _d_y, ptrClass *_d_this) {
+// CHECK-NEXT:      *_d_this->ptr += _d_y;
+// CHECK-NEXT:  }
+
+// CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_forw(ptrClass *_d_this) {
+// CHECK-NEXT:      return {*this->ptr, *_d_this->ptr};
 // CHECK-NEXT:  }
 
 // CHECK:  static inline constexpr void constructor_pullback(SimpleFunctions1 &&arg, SimpleFunctions1 *_d_this, SimpleFunctions1 *_d_arg) noexcept {
