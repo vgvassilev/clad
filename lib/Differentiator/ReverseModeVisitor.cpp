@@ -1343,21 +1343,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           return StmtDiff(clonedDRE);
       }
       // Create the (_d_param[idx] += dfdx) statement.
-      if (dfdx()) {
-        // FIXME: not sure if this is generic.
-        // Don't update derivatives of record types.
-        if (!VD->getType()->isRecordType()) {
-          Expr* base = it->second;
-          if (auto* UO = dyn_cast<UnaryOperator>(it->second))
-            base = UO->getSubExpr()->IgnoreImpCasts();
-          Expr* add_assign = nullptr;
-          if (shouldUseCudaAtomicOps(base))
-            add_assign = BuildCallToCudaAtomicAdd(it->second, dfdx());
-          else
-            add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+      QualType diffTy = it->second->getType();
+      diffTy = diffTy.getNonReferenceType();
+      if (dfdx() && diffTy->isRealType()) {
+        Expr* base = it->second;
+        if (auto* UO = dyn_cast<UnaryOperator>(it->second))
+          base = UO->getSubExpr()->IgnoreImpCasts();
+        Expr* add_assign = nullptr;
+        if (shouldUseCudaAtomicOps(base))
+          add_assign = BuildCallToCudaAtomicAdd(it->second, dfdx());
+        else
+          add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
 
-          addToCurrentBlock(add_assign, direction::reverse);
-        }
+        addToCurrentBlock(add_assign, direction::reverse);
       }
       return StmtDiff(clonedDRE, it->second);
     }
