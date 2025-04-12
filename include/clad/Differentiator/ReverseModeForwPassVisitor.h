@@ -1,6 +1,7 @@
 #ifndef CLAD_DIFFERENTIATOR_REVERSEMODEFORWPASSVISITOR_H
 #define CLAD_DIFFERENTIATOR_REVERSEMODEFORWPASSVISITOR_H
 
+#include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
 

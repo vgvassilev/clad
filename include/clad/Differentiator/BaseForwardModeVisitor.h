@@ -10,6 +10,8 @@
 
 #include "llvm/ADT/SmallVector.h"
 
+#include "clad/Differentiator/DerivativeBuilder.h"
+
 #include <array>
 #include <stack>
 #include <unordered_map>

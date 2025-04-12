@@ -2,6 +2,7 @@
 
 #include "ConstantFolder.h"
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
 #include "clang/AST/Decl.h"

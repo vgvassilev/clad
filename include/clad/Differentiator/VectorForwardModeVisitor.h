@@ -2,6 +2,7 @@
 #define CLAD_VECTOR_FORWARD_MODE_VISITOR_H
 
 #include "BaseForwardModeVisitor.h"
+#include "DerivativeBuilder.h"
 
 #include <unordered_map>
 
