@@ -658,7 +658,7 @@ namespace clad {
 
     /// Initiates the differentiation process.
     /// Returns the derivative and its overload, if any.
-    virtual DerivativeAndOverload Derive() { return {}; };
+    virtual DerivativeAndOverload Derive() = 0;
 
     /// Computes effective derivative operands. It should be used when operands
     /// might be of pointer types.
