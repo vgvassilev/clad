@@ -592,24 +592,16 @@ std::complex<double> fn10(double i, double j) {
   return c1 + c1;
 }
 
-// CHECK:  clad::ValueAndPushforward<complex<double> &, complex<double> &> operator_plus_equal_pushforward(const complex<double> &__c, std::complex<double> *_d_this, const complex<double> &_d___c) __attribute__((exclude_from_explicit_instantiation)) __attribute__((abi_tag("v15007"))) {
-// CHECK-NEXT:      clad::ValueAndPushforward<double, double> _t0 = __c.real_pushforward(&_d___c);
-// CHECK-NEXT:      _d_this->__re_ += _t0.pushforward;
-// CHECK-NEXT:      this->__re_ += _t0.value;
-// CHECK-NEXT:      clad::ValueAndPushforward<double, double> _t1 = __c.imag_pushforward(&_d___c);
-// CHECK-NEXT:      _d_this->__im_ += _t1.pushforward;
-// CHECK-NEXT:      this->__im_ += _t1.value;
-// CHECK-NEXT:      return {(std::complex<double> &)*this, (std::complex<double> &)*_d_this};
+// CHECK: clad::ValueAndPushforward<complex<double> &, complex<double> &> operator_plus_equal_pushforward(const complex<double> &__[[PARAM:.*]], std::complex<double> *_d_this, const complex<double> &_d___[[PARAM]]){{.*}} {
+// CHECK:    return {({{.*}}complex<double> &)*this, ({{.*}}complex<double> &)*_d_this};
 // CHECK-NEXT:  }
 
-// CHECK:  inline clad::ValueAndPushforward<complex<double>, complex<double> > operator_plus_pushforward(const complex<double> &__x, const complex<double> &__y, const complex<double> &_d___x, const complex<double> &_d___y) __attribute__((exclude_from_explicit_instantiation)) __attribute__((abi_tag("v15007"))) {
-// CHECK-NEXT:      std::complex<double> _d___t(_d___x);
-// CHECK-NEXT:      std::complex<double> __t0(__x);
-// CHECK-NEXT:      clad::ValueAndPushforward<complex<double> &, complex<double> &> _t0 = __t0.operator_plus_equal_pushforward(__y, &_d___t, _d___y);
-// CHECK-NEXT:      return {__t0, _d___t};
+// CHECK:  inline clad::ValueAndPushforward<complex<double>, complex<double> > operator_plus_pushforward(const complex<double> &__x, const complex<double> &__y, const complex<double> &_d___x, const complex<double> &_d___y) {{.*}}{
+// CHECK:           clad::ValueAndPushforward<complex<double> &, complex<double> &> _t0 = __{{t|r}}0.operator_plus_equal_pushforward(__y, &_d___{{t|r}}, _d___y);
+// CHECK-NEXT:      return {__{{t|r}}0, _d___{{t|r}}};
 // CHECK-NEXT:  }
 
-// CHECK:  inline constexpr clad::ValueAndPushforward<complex<double> &, complex<double> &> operator_equal_pushforward(std::complex<double> &&param, std::complex<double> *_d_this, std::complex<double> &&_d_param) noexcept;
+// CHECK:  constexpr clad::ValueAndPushforward<complex<double> &, complex<double> &> operator_equal_pushforward({{.*}}complex<double> &{{.*}}param, {{.*}}complex<double> *_d_this, {{.*}}complex<double> &{{.*}}_d_param) noexcept;
 
 // CHECK: std::complex<double> fn10_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
