@@ -945,7 +945,11 @@ namespace clad {
       return false;
 
     std::string Name = R.BaseFunctionName;
-    if (R.Mode == DiffMode::experimental_pullback && R->getNumParams() > 1)
+    const FunctionDecl* FD = R.Function;
+    bool usePushforwardInRevMode =
+        FD->getNumParams() == 1 &&
+        !utils::HasAnyReferenceOrPointerArgument(FD) && !isa<CXXMethodDecl>(FD);
+    if (R.Mode == DiffMode::experimental_pullback && !usePushforwardInRevMode)
       Name += "_pullback";
     else // if (Mode == DiffMode::experimental_pullback)
       Name += "_pushforward";
@@ -1052,6 +1056,12 @@ namespace clad {
       // differentiable way to the result.
       if (!isa<CXXMemberCallExpr>(E) && !isa<CXXOperatorCallExpr>(E) &&
           allArgumentsAreLiterals(E, m_ParentReq))
+        return true;
+
+      // FIXME: Generalize this to other functions that we don't need
+      // pullbacks of.
+      std::string FDName = FD->getNameAsString();
+      if (FDName == "begin" || FDName == "end")
         return true;
 
       request.Function = FD;
