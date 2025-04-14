@@ -56,7 +56,8 @@ public:
             DumpDerivedAST(false), GenerateSourceFile(false),
             ValidateClangVersion(true), EnableTBRAnalysis(false),
             DisableTBRAnalysis(false), EnableVariedAnalysis(false),
-            DisableActivityAnalysis(false), CustomEstimationModel(false),
+            DisableVariedAnalysis(false), EnableUsefulAnalysis(false),
+            DisableUsefulAnalysis(false), CustomEstimationModel(false),
             PrintNumDiffErrorInfo(false) {}
 
       bool DumpSourceFn : 1;
@@ -68,7 +69,9 @@ public:
       bool EnableTBRAnalysis : 1;
       bool DisableTBRAnalysis : 1;
       bool EnableVariedAnalysis : 1;
-      bool DisableActivityAnalysis : 1;
+      bool DisableVariedAnalysis : 1;
+      bool EnableUsefulAnalysis : 1;
+      bool DisableUsefulAnalysis : 1;
       bool CustomEstimationModel : 1;
       bool PrintNumDiffErrorInfo : 1;
       std::string CustomModelName;
@@ -322,7 +325,11 @@ public:
           } else if (args[i] == "-enable-va") {
             m_DO.EnableVariedAnalysis = true;
           } else if (args[i] == "-disable-va") {
-            m_DO.DisableActivityAnalysis = true;
+            m_DO.DisableVariedAnalysis = true;
+          } else if (args[i] == "-enable-ua") {
+            m_DO.EnableUsefulAnalysis = true;
+          } else if (args[i] == "-disable-ua") {
+            m_DO.DisableUsefulAnalysis = true;
           } else if (args[i] == "-fcustom-estimation-model") {
             m_DO.CustomEstimationModel = true;
             if (++i == e) {
@@ -376,8 +383,13 @@ public:
                           "be used together.\n";
           return false;
         }
-        if (m_DO.EnableVariedAnalysis && m_DO.DisableActivityAnalysis) {
+        if (m_DO.EnableVariedAnalysis && m_DO.DisableVariedAnalysis) {
           llvm::errs() << "clad: Error: -enable-va and -disable-va cannot "
+                          "be used together.\n";
+          return false;
+        }
+        if (m_DO.EnableUsefulAnalysis && m_DO.DisableUsefulAnalysis) {
+          llvm::errs() << "clad: Error: -enable-ua and -disable-ua cannot "
                           "be used together.\n";
           return false;
         }
