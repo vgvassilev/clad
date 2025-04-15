@@ -138,7 +138,7 @@ namespace clad {
         if (!isa<FunctionDecl>(D))
           continue;
         FunctionDecl* FD = cast<FunctionDecl>(D);
-        if (FD->isConstexpr()) {
+        if (FD->isConstexpr() || !m_Multiplexer) {
           DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph, S,
                                   opts);
           break;
