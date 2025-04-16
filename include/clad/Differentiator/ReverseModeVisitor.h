@@ -328,7 +328,7 @@ namespace clad {
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
-    virtual ~ReverseModeVisitor();
+    ~ReverseModeVisitor() override;
 
     ///\brief Produces the gradient of a given function.
     ///

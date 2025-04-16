@@ -30,7 +30,7 @@ protected:
 public:
   BaseForwardModeVisitor(DerivativeBuilder& builder,
                          const DiffRequest& request);
-  virtual ~BaseForwardModeVisitor();
+  ~BaseForwardModeVisitor() override;
 
   ///\brief Produces the first derivative of a given function.
   ///

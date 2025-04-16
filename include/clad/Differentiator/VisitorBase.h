@@ -694,6 +694,8 @@ namespace clad {
                                    clang::Expr*& derivedL,
                                    clang::Expr*& derivedR);
 
+    virtual ~VisitorBase() = 0;
+
   private:
     clang::TemplateDecl* m_CladConstructorPushforwardTag = nullptr;
     clang::TemplateDecl* m_CladConstructorReverseForwTag = nullptr;
