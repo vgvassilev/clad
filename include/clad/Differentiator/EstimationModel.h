@@ -32,7 +32,7 @@ namespace clad {
     FPErrorEstimationModel(DerivativeBuilder& builder,
                            const DiffRequest& request)
         : VisitorBase(builder, request) {}
-    virtual ~FPErrorEstimationModel();
+    ~FPErrorEstimationModel() override;
 
     /// Clear the variable estimate map so that we can start afresh.
     void clearEstimationVariables() { m_EstimateVar.clear(); }

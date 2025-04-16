@@ -1084,6 +1084,8 @@ namespace clad {
     return diffOverloadFD;
   }
 
+  VisitorBase::~VisitorBase() = default;
+
   QualType VisitorBase::GetDerivativeType() {
     const FunctionDecl* FD = m_DiffReq.Function;
 
