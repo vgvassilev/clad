@@ -24,14 +24,14 @@ template <typename T> struct Experiment {
 // CHECK-NEXT:     double &_t1 = this->y;
 // CHECK-NEXT:     double _t2 = _t0 * _t1;
 // CHECK-NEXT:     double _t3 = _t2 * i;
-// CHECK-NEXT:     *_d_vector_output[0] = ((0 * _t1 + _t0 * 0) * i + _t2 * _d_vector_i) * j + _t3 * _d_vector_j;
+// CHECK-NEXT:     (*_d_vector_output)[0] = ((0 * _t1 + _t0 * 0) * i + _t2 * _d_vector_i) * j + _t3 * _d_vector_j;
 // CHECK-NEXT:     output[0] = _t3 * j;
 // CHECK-NEXT:     double &_t4 = this->x;
 // CHECK-NEXT:     double _t5 = 2 * _t4;
 // CHECK-NEXT:     double &_t6 = this->y;
 // CHECK-NEXT:     double _t7 = _t5 * _t6;
 // CHECK-NEXT:     double _t8 = _t7 * i;
-// CHECK-NEXT:     *_d_vector_output[1] = ((((clad::zero_vector(indepVarCount)) * _t4 + 2 * 0) * _t6 + _t5 * 0) * i + _t7 * _d_vector_i) * j + _t8 * _d_vector_j;
+// CHECK-NEXT:     (*_d_vector_output)[1] = ((((clad::zero_vector(indepVarCount)) * _t4 + 2 * 0) * _t6 + _t5 * 0) * i + _t7 * _d_vector_i) * j + _t8 * _d_vector_j;
 // CHECK-NEXT:     output[1] = _t8 * j;
 // CHECK-NEXT: }
 
@@ -55,7 +55,7 @@ template <> struct Experiment<long double> {
 // CHECK-NEXT:     long double _t2 = _t0 * _t1;
 // CHECK-NEXT:     long double _t3 = _t2 * i;
 // CHECK-NEXT:     long double _t4 = _t3 * i;
-// CHECK-NEXT:     *_d_vector_output[0] = (((0 * _t1 + _t0 * 0) * i + _t2 * _d_vector_i) * i + _t3 * _d_vector_i) * j + _t4 * _d_vector_j;
+// CHECK-NEXT:     (*_d_vector_output)[0] = (((0 * _t1 + _t0 * 0) * i + _t2 * _d_vector_i) * i + _t3 * _d_vector_i) * j + _t4 * _d_vector_j;
 // CHECK-NEXT:     output[0] = _t4 * j;
 // CHECK-NEXT:     long double &_t5 = this->x;
 // CHECK-NEXT:     long double _t6 = 2 * _t5;
@@ -63,7 +63,7 @@ template <> struct Experiment<long double> {
 // CHECK-NEXT:     long double _t8 = _t6 * _t7;
 // CHECK-NEXT:     long double _t9 = _t8 * i;
 // CHECK-NEXT:     long double _t10 = _t9 * i;
-// CHECK-NEXT:     *_d_vector_output[1] = (((((clad::zero_vector(indepVarCount)) * _t5 + 2 * 0) * _t7 + _t6 * 0) * i + _t8 * _d_vector_i) * i + _t9 * _d_vector_i) * j + _t10 * _d_vector_j;
+// CHECK-NEXT:     (*_d_vector_output)[1] = (((((clad::zero_vector(indepVarCount)) * _t5 + 2 * 0) * _t7 + _t6 * 0) * i + _t8 * _d_vector_i) * i + _t9 * _d_vector_i) * j + _t10 * _d_vector_j;
 // CHECK-NEXT:     output[1] = _t10 * j;
 // CHECK-NEXT: }
 

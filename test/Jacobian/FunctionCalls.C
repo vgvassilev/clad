@@ -20,10 +20,10 @@ void fn1(double i, double j, double* output) {
 // CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
 // CHECK-NEXT:     {{.*}} _t0 = clad::custom_derivatives::std::pow_pushforward(i, j, _d_vector_i, _d_vector_j);
-// CHECK-NEXT:     *_d_vector_output[0] = _t0.pushforward;
+// CHECK-NEXT:     (*_d_vector_output)[0] = _t0.pushforward;
 // CHECK-NEXT:     output[0] = _t0.value;
 // CHECK-NEXT:     {{.*}} _t1 = clad::custom_derivatives::std::pow_pushforward(j, i, _d_vector_j, _d_vector_i);
-// CHECK-NEXT:     *_d_vector_output[1] = _t1.pushforward;
+// CHECK-NEXT:     (*_d_vector_output)[1] = _t1.pushforward;
 // CHECK-NEXT:     output[1] = _t1.value;
 // CHECK-NEXT: }
 
@@ -46,14 +46,14 @@ void fn2(double a, double b, double* res){
 // CHECK-NEXT:     clad::array<double> _d_vector_b = clad::one_hot_vector(indepVarCount, 1UL);
 // CHECK-NEXT:     *_d_vector_res = clad::identity_matrix(_d_vector_res->rows(), indepVarCount, 2UL);
 // CHECK-NEXT:     double _t0 = b * b;
-// CHECK-NEXT:     *_d_vector_res[0] = _d_vector_a * 10 + a * (clad::zero_vector(indepVarCount)) + (_d_vector_b * b + b * _d_vector_b) * 9 + _t0 * (clad::zero_vector(indepVarCount));
+// CHECK-NEXT:     (*_d_vector_res)[0] = _d_vector_a * 10 + a * (clad::zero_vector(indepVarCount)) + (_d_vector_b * b + b * _d_vector_b) * 9 + _t0 * (clad::zero_vector(indepVarCount));
 // CHECK-NEXT:     res[0] = a * 10 + _t0 * 9;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, clad::array<double> > _t1 = add_vector_pushforward(res[0], 10, *_d_vector_res[0], clad::zero_vector(indepVarCount));
-// CHECK-NEXT:     *_d_vector_res[0] = _t1.pushforward;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, clad::array<double> > _t1 = add_vector_pushforward(res[0], 10, (*_d_vector_res)[0], clad::zero_vector(indepVarCount));
+// CHECK-NEXT:     (*_d_vector_res)[0] = _t1.pushforward;
 // CHECK-NEXT:     res[0] = _t1.value;
 // CHECK-NEXT:     double _t2 = a * a;
 // CHECK-NEXT:     double _t3 = b * b;
-// CHECK-NEXT:     *_d_vector_res[1] = (_d_vector_a * a + a * _d_vector_a) * 9 + _t2 * (clad::zero_vector(indepVarCount)) + (_d_vector_b * b + b * _d_vector_b) * 10 + _t3 * (clad::zero_vector(indepVarCount));
+// CHECK-NEXT:     (*_d_vector_res)[1] = (_d_vector_a * a + a * _d_vector_a) * 9 + _t2 * (clad::zero_vector(indepVarCount)) + (_d_vector_b * b + b * _d_vector_b) * 10 + _t3 * (clad::zero_vector(indepVarCount));
 // CHECK-NEXT:     res[1] = _t2 * 9 + _t3 * 10;
 // CHECK-NEXT: }
 
