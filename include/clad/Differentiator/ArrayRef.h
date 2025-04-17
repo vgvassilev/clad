@@ -46,12 +46,14 @@ public:
       m_arr[i] = a[i];
     return *this;
   }
-  template <typename U>
+
   constexpr CUDA_HOST_DEVICE array_ref<T>& operator=(const array_ref<T>& a) {
-    m_arr = a.ptr();
-    m_size = a.size();
+    assert(m_size == a.size());
+    for (std::size_t i = 0; i < m_size; ++i)
+      m_arr[i] = a[i];
     return *this;
   }
+
   template <typename L, typename BinaryOp, typename R>
   CUDA_HOST_DEVICE array_ref<T>&
   operator=(const array_expression<L, BinaryOp, R>& arr_exp) {
