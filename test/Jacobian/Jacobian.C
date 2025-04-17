@@ -208,6 +208,21 @@ void f_9(float a, double output[]){
 // CHECK-NEXT:     output[1] = output[0] * 3;
 // CHECK-NEXT: }
 
+void f_10(float a, double output[]){
+  output[0]=a*a;  
+  output[1]=output[0];
+}
+
+// CHECK: void f_10_jac(float a, double output[], clad::matrix<double> *_d_vector_output) {
+// CHECK-NEXT:    unsigned long indepVarCount = _d_vector_output->rows() + 1UL;
+// CHECK-NEXT:    clad::array<float> _d_vector_a = clad::one_hot_vector(indepVarCount, 0UL);
+// CHECK-NEXT:    *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, 1UL);
+// CHECK-NEXT:    *_d_vector_output[0] = _d_vector_a * a + a * _d_vector_a;
+// CHECK-NEXT:    output[0] = a * a;
+// CHECK-NEXT:   *_d_vector_output[1] = *_d_vector_output[0];
+// CHECK-NEXT:    output[1] = output[0];
+// CHECK-NEXT:}
+
 #define TEST(F, ...) { \
   outputarr[0] = 0; outputarr[1] = 1; outputarr[2] = 0;\
   auto j = clad::jacobian(F);\
@@ -236,7 +251,6 @@ int main() {
   TEST_F_1_SINGLE_PARAM(1, 2, 3); // CHECK-EXEC: Result is = {3.00, 3.00, -2.00}
 
   auto df5 = clad::jacobian(f_5);
-  result[0] = 0; result[1] = 0;
   df5.execute(3, outputarr, &result);
   printf("Result is = {%.2f, %.2f}\n", result[0][0], result[1][0]); // CHECK-EXEC: Result is = {6.00, 1.00}
   
@@ -255,4 +269,8 @@ int main() {
   auto df9 = clad::jacobian(f_9);
   df9.execute(3, outputarr, &result);
   printf("Result is = {%.2f, %.2f}\n", result[0][0], result[1][0]); // CHECK-EXEC: Result is = {6.00, 18.00}
+
+  auto df10 = clad::jacobian(f_10);
+  df10.execute(3, outputarr, &result);
+  printf("Result is = {%.2f, %.2f}\n", result[0][0], result[1][0]); // CHECK-EXEC: Result is = {6.00, 6.00}
 }
