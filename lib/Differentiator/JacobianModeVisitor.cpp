@@ -86,6 +86,7 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
       derivedParams.push_back(derivedPVD);
       derivedExpr =
           BuildOp(UO_Deref, BuildDeclRef(derivedPVD), PVD->getBeginLoc());
+      derivedExpr = utils::BuildParenExpr(m_Sema, derivedExpr);
       Expr* getSize = BuildCallExprToMemFn(BuildDeclRef(derivedPVD),
                                            /*MemberFunctionName=*/"rows", {});
       if (!m_IndVarCountExpr)
@@ -157,7 +158,7 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
     bool is_array =
         utils::isArrayOrPointerType(m_DiffReq->getParamDecl(i)->getType());
     ParmVarDecl* param = params[i];
-    Expr* paramDiff = m_Variables[param];
+    Expr* paramDiff = m_Variables[param]->IgnoreParens();
     QualType dParamType = clad::utils::GetValueType(param->getType());
     // Desugaring the type is necessary to pass it to other templates
     dParamType = dParamType.getDesugaredType(m_Context);
