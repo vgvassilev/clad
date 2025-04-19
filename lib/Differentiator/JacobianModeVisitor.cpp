@@ -67,7 +67,12 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
   llvm::SmallVector<ParmVarDecl*, 16> params;
   llvm::SmallVector<ParmVarDecl*, 16> derivedParams;
   llvm::SmallVector<DeclStmt*, 8> adjointDecls;
-  for (const auto* PVD : FD->parameters()) {
+
+  auto origParams = FD->parameters();
+  for (size_t i = 0; i < origParams.size(); ++i) {
+    const ParmVarDecl* PVD = origParams[i];
+    bool isLast = (i == origParams.size() - 1);
+
     IdentifierInfo* PVDII = PVD->getIdentifier();
     auto* newPVD = CloneParmVarDecl(PVD, PVDII,
                                     /*pushOnScopeChains=*/true,
@@ -88,11 +93,13 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
           BuildOp(UO_Deref, BuildDeclRef(derivedPVD), PVD->getBeginLoc());
       Expr* getSize = BuildCallExprToMemFn(BuildDeclRef(derivedPVD),
                                            /*MemberFunctionName=*/"rows", {});
-      if (!m_IndVarCountExpr)
-        m_IndVarCountExpr = getSize;
-      else
-        m_IndVarCountExpr =
-            BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr, getSize);
+      if (!isLast) {
+        if (!m_IndVarCountExpr)
+          m_IndVarCountExpr = getSize;
+        else
+          m_IndVarCountExpr =
+              BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr, getSize);
+      }
     } else if (PVD->getType()->isReferenceType()) {
       ParmVarDecl* derivedPVD = utils::BuildParmVarDecl(
           m_Sema, m_Derivative, derivedPVDII,
