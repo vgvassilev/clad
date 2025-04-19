@@ -16,7 +16,7 @@ template <typename T> struct Experiment {
 };
 
 // CHECK: void operator_call_jac(double i, double j, double *output, clad::matrix<double> *_d_vector_output) {
-// CHECK-NEXT:     unsigned long indepVarCount = _d_vector_output->rows() + {{2U|2UL|2ULL}};
+// CHECK-NEXT:     unsigned long indepVarCount = {{2U|2UL|2ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
@@ -46,7 +46,7 @@ template <> struct Experiment<long double> {
 };
 
 // CHECK: void operator_call_jac(long double i, long double j, long double *output, clad::matrix<long double> *_d_vector_output) {
-// CHECK-NEXT:     unsigned long indepVarCount = _d_vector_output->rows() + {{2U|2UL|2ULL}};
+// CHECK-NEXT:     unsigned long indepVarCount = {{2U|2UL|2ULL}};
 // CHECK-NEXT:     clad::array<long double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<long double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
