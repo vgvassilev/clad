@@ -426,6 +426,14 @@ namespace clad {
     clang::QualType GetNonConstValueType(clang::QualType T) {
       QualType valueType = GetValueType(T);
       valueType.removeLocalConst();
+      // If the const-ness of the type is hidden with sugar, e.g.
+      // `class_name<double>::const_value_type`, the approach above
+      // does not work and we have to desugar the type explicitly.
+      QualType canonicalType = valueType.getCanonicalType();
+      if (canonicalType.isConstQualified()) {
+        canonicalType.removeLocalConst();
+        return canonicalType;
+      }
       return valueType;
     }
 

@@ -1844,45 +1844,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                     static_cast<int>(isMethodOperatorCall),
                                 pullback);
 
-      // Try to find it in builtin derivatives.
-      // FIXME: resort to ComputeDerivativeName somehow.
-      std::string customPullback =
-          clad::utils::ComputeEffectiveFnName(FD) + "_pullback";
-      // Add the indexes of the global args to the custom pullback name
-      for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
-        customPullback += "_" + std::to_string(index);
-
-      if (Expr* Base = baseDiff.getExpr())
-        pullbackCallArgs.insert(pullbackCallArgs.begin(), Base);
-
-      OverloadedDerivedFn =
-          m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-              customPullback, pullbackCallArgs, getCurrentScope(), CE,
-              /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
-              CUDAExecConfig);
-      if (baseDiff.getExpr())
-        pullbackCallArgs.erase(pullbackCallArgs.begin());
-    }
-
-    // Derivative was not found, check if it is a recursive call
-    if (!OverloadedDerivedFn) {
-      if (m_ExternalSource)
-        m_ExternalSource->ActBeforeDifferentiatingCallExpr(
-            pullbackCallArgs, PreCallStmts, dfdx());
-
-      // Overloaded derivative was not found, request the CladPlugin to
-      // derive the called function.
+      // Build the DiffRequest
       DiffRequest pullbackRequest{};
       pullbackRequest.Function = FD;
 
       pullbackRequest.BaseFunctionName =
           clad::utils::ComputeEffectiveFnName(FD);
       pullbackRequest.Mode = DiffMode::experimental_pullback;
+      bool hasDynamicNonDiffParams = false;
 
-      // Silence diag outputs in nested derivation process.
-      pullbackRequest.VerboseDiags = false;
-      pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-      pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
       for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
         const auto* PVD = FD->getParamDecl(i);
         // static member function doesn't have `this` pointer
@@ -1894,18 +1864,41 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               m_DiffReq.HasIndependentParameter(PVD))
             pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
           pullbackRequest.DVI.push_back(PVD);
-        }
+        } else
+          hasDynamicNonDiffParams = true;
       }
 
       FunctionDecl* pullbackFD = nullptr;
-      if (m_ExternalSource)
-        // FIXME: Error estimation currently uses singleton objects -
-        // m_ErrorEstHandler and m_EstModel, which is cleared after each
-        // error_estimate request. This requires the pullback to be derived
-        // at the same time to access the singleton objects.
-        pullbackFD = plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
-      else
-        pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
+      // FIXME: Error estimation currently uses singleton objects -
+      // m_ErrorEstHandler and m_EstModel, which is cleared after each
+      // error_estimate request. This requires the pullback to be derived
+      // at the same time to access the singleton objects.
+      // No call context corresponds to second derivatives used in hessians,
+      // which aren't scheduled statically yet.
+      if (m_ExternalSource || !m_DiffReq.CallContext ||
+          hasDynamicNonDiffParams || FD->getNameAsString() == "cudaMemcpy") {
+        // Try to find it in builtin derivatives.
+        std::string customPullback = pullbackRequest.ComputeDerivativeName();
+        OverloadedDerivedFn =
+            m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+                customPullback, pullbackCallArgs, getCurrentScope(), CE,
+                /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
+                CUDAExecConfig);
+        if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))
+          pullbackFD = foundCE->getDirectCallee();
+
+        // Derivative was not found, request differentiation
+        if (!pullbackFD) {
+          if (m_ExternalSource) {
+            m_ExternalSource->ActBeforeDifferentiatingCallExpr(
+                pullbackCallArgs, PreCallStmts, dfdx());
+            pullbackFD =
+                plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
+          } else
+            pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
+        }
+      } else
+        pullbackFD = FindDerivedFunction(pullbackRequest);
 
       if (pullbackFD) {
         auto* pullbackMD = dyn_cast<CXXMethodDecl>(pullbackFD);

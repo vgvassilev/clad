@@ -16,6 +16,7 @@ struct DerivedFnInfo {
   clang::FunctionDecl* m_OverloadedDerivedFn = nullptr;
   DiffMode m_Mode = DiffMode::unknown;
   DiffInputVarsInfo m_DiffVarsInfo;
+  std::vector<size_t> m_CUDAGlobalArgsIndexes;
   bool m_UsesEnzyme = false;
   bool m_DeclarationOnly = false;
 

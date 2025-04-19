@@ -938,9 +938,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     clang::FunctionDecl* Specialization = nullptr;
     clang::sema::TemplateDeductionInfo Info(noLoc);
     clang::TemplateArgumentListInfo ExplicitTemplateArgs;
-    S.DeduceTemplateArguments(Template, &ExplicitTemplateArgs, DerivativeType,
-                              Specialization, Info);
-    return Specialization;
+    auto R = S.DeduceTemplateArguments(Template, &ExplicitTemplateArgs,
+                                       DerivativeType, Specialization, Info);
+    if (R == clad_compat::CLAD_COMPAT_TemplateSuccess)
+      return Specialization;
+    return nullptr;
   }
 
   bool DiffCollector::LookupCustomDerivativeDecl(const DiffRequest& request) {
@@ -1113,7 +1115,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       // FIXME: Generalize this to other functions that we don't need
       // pullbacks of.
       std::string FDName = FD->getNameAsString();
-      if (FDName == "begin" || FDName == "end")
+      if (FDName == "cudaMemcpy" || utils::IsMemoryFunction(FD) ||
+          FDName == "begin" || FDName == "end")
         return true;
 
       request.Function = FD;
@@ -1143,39 +1146,30 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
       request.CallContext = E;
 
-      // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
-      if (m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
-        for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
-          // if (MD && isLambdaCallOperator(MD)) {
-          const auto* paramDecl = FD->getParamDecl(i);
-          request.DVI.push_back(paramDecl);
+      for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
+        // if (MD && isLambdaCallOperator(MD)) {
+        const auto* paramDecl = FD->getParamDecl(i);
+        request.DVI.push_back(paramDecl);
 
-          //}
-          // FIXME: The following code is also part of the decision making in
-          // case the pullbacks are built on demand. We need to check if it is
-          // still needed.
-          // else if (DerivedCallOutputArgs[i + (bool)MD]) {
-          //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
-          //}
-        }
-      } else { // CUDA device function call in global kernel gradient
+        //}
+        // FIXME: The following code is also part of the decision making in
+        // case the pullbacks are built on demand. We need to check if it is
+        // still needed.
+        // else if (DerivedCallOutputArgs[i + (bool)MD]) {
+        //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
+        //}
+      }
+      // CUDA device function call in global kernel gradient
+      if (!m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
         for (size_t i = 0, e = E->getNumArgs(); i < e; i++) {
           // Try to match it against the global arguments
           Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
           if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
-            auto* VD = DRE->getDecl();
             // check if it's a kernel param
-            if (isa<ParmVarDecl>(VD)) {
-              const auto* PVD = cast<ParmVarDecl>(VD);
-              request.DVI.push_back(PVD);
+            const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
+            if (PVD && m_ParentReq->HasIndependentParameter(PVD)) {
               // we know we should use atomic ops here
               request.CUDAGlobalArgsIndexes.push_back(i);
-            } else {
-              // create a param from the VarDecl
-              const ParmVarDecl* PVD =
-                  utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext,
-                                          VD->getIdentifier(), VD->getType());
-              request.DVI.push_back(PVD);
             }
           }
         }
