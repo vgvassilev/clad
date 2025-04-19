@@ -11,7 +11,7 @@ void nonMemFn(double i, double j, double* out) {
 }
 
 // CHECK: void nonMemFn_jac(double i, double j, double *out, clad::matrix<double> *_d_vector_out) {
-// CHECK-NEXT:     unsigned long indepVarCount = _d_vector_out->rows() + {{2U|2UL|2ULL}};
+// CHECK-NEXT:     unsigned long indepVarCount = {{2U|2UL|2ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     *_d_vector_out = clad::identity_matrix(_d_vector_out->rows(), indepVarCount, {{2U|2UL|2ULL}});
