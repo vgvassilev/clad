@@ -5,7 +5,7 @@
 #include "clad/Differentiator/Differentiator.h"
 // CHECK: Timers for Clad Funcs
 // CHECK_STATS: *** INFORMATION ABOUT THE DIFF REQUESTS
-// CHECK_STATS-NEXT: <double nested1(double c)>[name=nested1, order=1, mode=pushforward, args='c']: #0 (source), (done)
+// CHECK_STATS-NEXT: <double nested1(double c)>[name=nested1, order=1, mode=pushforward, args='']: #0 (source), (done)
 // CHECK_STATS-NEXT: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"']: #1 (source), (done)
 // CHECK_STATS-NEXT: <double nested2(double z, double j)>[name=nested2, order=1, mode=pullback, args='z,j']: #2 (source), (done)
 // CHECK_STATS-NEXT: <double test2(double a, double b)>[name=test2, order=1, mode=reverse, args='']: #3 (source), (done)
