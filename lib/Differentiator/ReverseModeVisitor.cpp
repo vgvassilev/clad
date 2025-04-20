@@ -47,6 +47,8 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include <algorithm>
+#include <cstddef>
+#include <iterator>
 #include <numeric>
 
 #include "clad/Differentiator/CladUtils.h"
@@ -1716,28 +1718,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       CallArgs.push_back(argDiff.getExpr());
       DerivedCallArgs.push_back(argDiffStore);
     }
-
-    Expr* OverloadedDerivedFn = nullptr;
-    // If the function has a single arg and does not return a reference or take
-    // arg by reference, we look for a derivative w.r.t. to this arg using the
-    // forward mode(it is unlikely that we need gradient of a one-dimensional
-    // function).
-    bool asGrad = true;
-
-    if (NArgs == 1 && !utils::HasAnyReferenceOrPointerArgument(FD) &&
-        !isa<CXXMethodDecl>(FD)) {
-      std::string customPushforward = FD->getNameAsString() + "_pushforward";
-      auto pushforwardCallArgs = DerivedCallArgs;
-      pushforwardCallArgs.push_back(ConstantFolder::synthesizeLiteral(
-          DerivedCallArgs.front()->getType(), m_Context, 1));
-      OverloadedDerivedFn =
-          m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-              customPushforward, pushforwardCallArgs, getCurrentScope(), CE,
-              /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
-              CUDAExecConfig);
-      if (OverloadedDerivedFn)
-        asGrad = false;
-    }
     // Store all the derived call output args (if any)
     llvm::SmallVector<Expr*, 16> DerivedCallOutputArgs{};
     // It is required because call to numerical diff and reverse mode diff
@@ -1748,111 +1728,124 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff baseDiff;
     Expr* baseExpr = nullptr;
     Stmt* baseDiffPush = nullptr;
-    // If it has more args or f_darg0 was not found, we look for its pullback
-    // function.
-    if (!OverloadedDerivedFn) {
-      size_t idx = 0;
+    size_t idx = 0;
 
-      /// Add base derivative expression in the derived call output args list if
-      /// `CE` is a call to an instance member function.
-      if (MD) {
-        if (isLambdaCallOperator(MD)) {
-          QualType ptrType = m_Context.getPointerType(m_Context.getRecordType(
-              FD->getDeclContext()->getOuterLexicalRecordContext()));
-          baseDiff =
-              StmtDiff(Clone(dyn_cast<CXXOperatorCallExpr>(CE)->getArg(0)),
-                       new (m_Context) CXXNullPtrLiteralExpr(ptrType, Loc));
-        } else if (MD->isInstance()) {
-          bool isPassedByRef = utils::IsReferenceOrPointerArg(baseOriginalE);
-          if (!isPassedByRef) {
-            QualType dBaseTy =
-                utils::getNonConstType(baseOriginalE->getType(), m_Sema);
-            VarDecl* dBaseDecl =
-                BuildVarDecl(dBaseTy, "_r", getZeroInit(dBaseTy));
-            PreCallStmts.push_back(BuildDeclStmt(dBaseDecl));
-            DeclRefExpr* dBaseRef = BuildDeclRef(dBaseDecl);
-            baseDiff = Visit(baseOriginalE, dBaseRef);
-            baseDiff.updateStmtDx(Clone(dBaseRef));
-          } else
-            baseDiff = Visit(baseOriginalE);
-          baseExpr = baseDiff.getExpr();
-          QualType baseTy = baseExpr->getType();
-          if (baseTy->isPointerType())
-            baseTy = baseTy->getPointeeType();
-          CXXRecordDecl* baseRD = baseTy->getAsCXXRecordDecl();
-          bool shouldStore = utils::isCopyable(baseRD);
-          if (shouldStore) {
-            if (!isPassedByRef || MD->isConst()) {
-              // FIXME: Custom _reverse_forw functions take the base by pointer.
-              // This means we cannot pass temporary values and because of that,
-              // we need to store. For now, only emit the store stmt if a custom
-              // reverse_forw is found.
-              beginBlock(direction::forward);
-              Expr* baseDiffStore =
-                  StoreAndRef(baseDiff.getExpr(), direction::forward);
-              baseDiffPush =
-                  utils::unwrapIfSingleStmt(endBlock(direction::forward));
-              baseExpr = baseDiffStore;
-            } else {
-              Expr* baseDiffStore =
-                  GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
-              Expr* assign =
-                  BuildOp(BO_Assign, baseDiff.getExpr(), baseDiffStore);
-              PreCallStmts.push_back(assign);
-            }
+    /// Add base derivative expression in the derived call output args list if
+    /// `CE` is a call to an instance member function.
+    if (MD) {
+      if (isLambdaCallOperator(MD)) {
+        QualType ptrType = m_Context.getPointerType(m_Context.getRecordType(
+            FD->getDeclContext()->getOuterLexicalRecordContext()));
+        baseDiff =
+            StmtDiff(Clone(dyn_cast<CXXOperatorCallExpr>(CE)->getArg(0)),
+                     new (m_Context) CXXNullPtrLiteralExpr(ptrType, Loc));
+      } else if (MD->isInstance()) {
+        bool isPassedByRef = utils::IsReferenceOrPointerArg(baseOriginalE);
+        if (!isPassedByRef) {
+          QualType dBaseTy =
+              utils::getNonConstType(baseOriginalE->getType(), m_Sema);
+          VarDecl* dBaseDecl =
+              BuildVarDecl(dBaseTy, "_r", getZeroInit(dBaseTy));
+          PreCallStmts.push_back(BuildDeclStmt(dBaseDecl));
+          DeclRefExpr* dBaseRef = BuildDeclRef(dBaseDecl);
+          baseDiff = Visit(baseOriginalE, dBaseRef);
+          baseDiff.updateStmtDx(Clone(dBaseRef));
+        } else
+          baseDiff = Visit(baseOriginalE);
+        baseExpr = baseDiff.getExpr();
+        QualType baseTy = baseExpr->getType();
+        if (baseTy->isPointerType())
+          baseTy = baseTy->getPointeeType();
+        CXXRecordDecl* baseRD = baseTy->getAsCXXRecordDecl();
+        bool shouldStore = utils::isCopyable(baseRD);
+        if (shouldStore) {
+          if (!isPassedByRef || MD->isConst()) {
+            // FIXME: Custom _reverse_forw functions take the base by pointer.
+            // This means we cannot pass temporary values and because of that,
+            // we need to store. For now, only emit the store stmt if a custom
+            // reverse_forw is found.
+            beginBlock(direction::forward);
+            Expr* baseDiffStore =
+                StoreAndRef(baseDiff.getExpr(), direction::forward);
+            baseDiffPush =
+                utils::unwrapIfSingleStmt(endBlock(direction::forward));
+            baseExpr = baseDiffStore;
+          } else {
+            Expr* baseDiffStore =
+                GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
+            Expr* assign =
+                BuildOp(BO_Assign, baseDiff.getExpr(), baseDiffStore);
+            PreCallStmts.push_back(assign);
           }
-          Expr* baseDerivative = baseDiff.getExpr_dx();
-          if (!baseDerivative->getType()->isPointerType())
-            baseDerivative =
-                BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
-          DerivedCallOutputArgs.push_back(baseDerivative);
         }
+        Expr* baseDerivative = baseDiff.getExpr_dx();
+        if (!baseDerivative->getType()->isPointerType())
+          baseDerivative =
+              BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
+        DerivedCallOutputArgs.push_back(baseDerivative);
       }
+    }
 
-      for (auto* argDerivative : CallArgDx) {
-        Expr* gradArgExpr = nullptr;
-        QualType paramTy = FD->getParamDecl(idx)->getType();
-        if (!argDerivative || utils::isArrayOrPointerType(paramTy) ||
-            isCladArrayType(argDerivative->getType()) ||
-            isa<CUDAKernelCallExpr>(CE))
-          gradArgExpr = argDerivative;
-        else
-          gradArgExpr =
-              BuildOp(UO_AddrOf, argDerivative, m_DiffReq->getLocation());
-        DerivedCallOutputArgs.push_back(gradArgExpr);
-        idx++;
-      }
-      Expr* pullback = dfdx();
+    for (auto* argDerivative : CallArgDx) {
+      Expr* gradArgExpr = nullptr;
+      QualType paramTy = FD->getParamDecl(idx)->getType();
+      if (!argDerivative || utils::isArrayOrPointerType(paramTy) ||
+          isCladArrayType(argDerivative->getType()) ||
+          isa<CUDAKernelCallExpr>(CE))
+        gradArgExpr = argDerivative;
+      else
+        gradArgExpr =
+            BuildOp(UO_AddrOf, argDerivative, m_DiffReq->getLocation());
+      DerivedCallOutputArgs.push_back(gradArgExpr);
+      idx++;
+    }
+    Expr* pullback = dfdx();
 
-      if (returnType->isVoidType()) {
-        assert(pullback == nullptr && returnType->isVoidType() &&
-               "Call to function returning void type should not have any "
-               "corresponding dfdx().");
-      }
+    if (returnType->isVoidType()) {
+      assert(pullback == nullptr && returnType->isVoidType() &&
+             "Call to function returning void type should not have any "
+             "corresponding dfdx().");
+    }
 
-      if ((pullback == nullptr) &&
-          !(returnType->isPointerType() || returnType->isVoidType()))
-        pullback = getZeroInit(returnType.getNonReferenceType());
+    if ((pullback == nullptr) &&
+        !(returnType->isPointerType() || returnType->isVoidType()))
+      pullback = getZeroInit(returnType.getNonReferenceType());
 
-      for (Expr* arg : DerivedCallOutputArgs)
-        if (arg)
-          DerivedCallArgs.push_back(arg);
-      pullbackCallArgs = DerivedCallArgs;
+    for (Expr* arg : DerivedCallOutputArgs)
+      if (arg)
+        DerivedCallArgs.push_back(arg);
+    pullbackCallArgs = DerivedCallArgs;
 
-      if (pullback)
-        pullbackCallArgs.insert(pullbackCallArgs.begin() + CE->getNumArgs() -
-                                    static_cast<int>(isMethodOperatorCall),
-                                pullback);
+    if (pullback)
+      pullbackCallArgs.insert(pullbackCallArgs.begin() + CE->getNumArgs() -
+                                  static_cast<int>(isMethodOperatorCall),
+                              pullback);
 
-      // Build the DiffRequest
-      DiffRequest pullbackRequest{};
-      pullbackRequest.Function = FD;
+    // Build the DiffRequest
+    DiffRequest pullbackRequest{};
+    pullbackRequest.Function = FD;
 
-      pullbackRequest.BaseFunctionName =
-          clad::utils::ComputeEffectiveFnName(FD);
-      pullbackRequest.Mode = DiffMode::experimental_pullback;
-      bool hasDynamicNonDiffParams = false;
+    // If the function has a single arg and does not return a reference or take
+    // arg by reference, we can request a derivative w.r.t. to this arg using
+    // the forward mode.
+    bool asGrad = NArgs != 1 || utils::HasAnyReferenceOrPointerArgument(FD) ||
+                  isa<CXXMethodDecl>(FD);
+    if (!asGrad) {
+      pullbackCallArgs.resize(1);
+      pullbackCallArgs.push_back(ConstantFolder::synthesizeLiteral(
+          DerivedCallArgs.front()->getType(), m_Context, /*val=*/1));
+    }
 
+    pullbackRequest.BaseFunctionName = clad::utils::ComputeEffectiveFnName(FD);
+    pullbackRequest.Mode = asGrad ? DiffMode::experimental_pullback
+                                  : DiffMode::experimental_pushforward;
+    bool hasDynamicNonDiffParams = false;
+
+    // Silence diag outputs in nested derivation process.
+    pullbackRequest.VerboseDiags = false;
+    pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
+    pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+    if (asGrad)
       for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
         const auto* PVD = FD->getParamDecl(i);
         // static member function doesn't have `this` pointer
@@ -1868,111 +1861,112 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           hasDynamicNonDiffParams = true;
       }
 
-      FunctionDecl* pullbackFD = nullptr;
-      // FIXME: Error estimation currently uses singleton objects -
-      // m_ErrorEstHandler and m_EstModel, which is cleared after each
-      // error_estimate request. This requires the pullback to be derived
-      // at the same time to access the singleton objects.
-      // No call context corresponds to second derivatives used in hessians,
-      // which aren't scheduled statically yet.
-      if (m_ExternalSource || !m_DiffReq.CallContext ||
-          hasDynamicNonDiffParams || FD->getNameAsString() == "cudaMemcpy") {
-        // Try to find it in builtin derivatives.
-        std::string customPullback = pullbackRequest.ComputeDerivativeName();
-        OverloadedDerivedFn =
-            m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-                customPullback, pullbackCallArgs, getCurrentScope(), CE,
-                /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
-                CUDAExecConfig);
-        if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))
-          pullbackFD = foundCE->getDirectCallee();
+    FunctionDecl* pullbackFD = nullptr;
+    Expr* OverloadedDerivedFn = nullptr;
 
-        // Derivative was not found, request differentiation
-        if (!pullbackFD) {
-          if (m_ExternalSource) {
-            m_ExternalSource->ActBeforeDifferentiatingCallExpr(
-                pullbackCallArgs, PreCallStmts, dfdx());
-            pullbackFD =
-                plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
-          } else
-            pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
-        }
-      } else
-        pullbackFD = FindDerivedFunction(pullbackRequest);
+    // FIXME: Error estimation currently uses singleton objects -
+    // m_ErrorEstHandler and m_EstModel, which is cleared after each
+    // error_estimate request. This requires the pullback to be derived
+    // at the same time to access the singleton objects.
+    // No call context corresponds to second derivatives used in hessians,
+    // which aren't scheduled statically yet.
+    if (m_ExternalSource || !m_DiffReq.CallContext || hasDynamicNonDiffParams ||
+        FD->getNameAsString() == "cudaMemcpy") {
+      // Try to find it in builtin derivatives.
+      std::string customPullback = pullbackRequest.ComputeDerivativeName();
+      OverloadedDerivedFn =
+          m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+              customPullback, pullbackCallArgs, getCurrentScope(), CE,
+              /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
+              CUDAExecConfig);
+      if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))
+        pullbackFD = foundCE->getDirectCallee();
 
-      if (pullbackFD) {
-        auto* pullbackMD = dyn_cast<CXXMethodDecl>(pullbackFD);
-        Expr* baseE = baseDiff.getExpr();
-        if (pullbackMD && pullbackMD->isInstance()) {
-          OverloadedDerivedFn = BuildCallExprToMemFn(
-              baseE, pullbackFD->getName(), pullbackCallArgs, Loc);
-        } else {
-          if (baseE) {
-            baseE = BuildOp(UO_AddrOf, baseE);
-            pullbackCallArgs.insert(pullbackCallArgs.begin(), baseE);
-          }
-          OverloadedDerivedFn =
-              m_Sema
-                  .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),
-                                 Loc, pullbackCallArgs, Loc, CUDAExecConfig)
-                  .get();
-        }
-      } else if (!utils::HasAnyReferenceOrPointerArgument(FD) && !MD) {
-        // FIXME: Add support for reference arguments to the numerical diff. If
-        // it already correctly support reference arguments then confirm the
-        // support and add tests for the same.
-        //
-        // Clad failed to derive it. Try numerically deriving it.
-        if (NArgs == 1) {
-          OverloadedDerivedFn = GetSingleArgCentralDiffCall(
-              Clone(CE->getCallee()), DerivedCallArgs[0],
-              /*targetPos=*/0,
-              /*numArgs=*/1, DerivedCallArgs, CUDAExecConfig);
-          asGrad = !OverloadedDerivedFn;
-        } else {
-          auto CEType = utils::getNonConstType(CE->getType(), m_Sema);
-          OverloadedDerivedFn = GetMultiArgCentralDiffCall(
-              Clone(CE->getCallee()), CEType.getCanonicalType(),
-              CE->getNumArgs(), dfdx(), PreCallStmts, PostCallStmts,
-              DerivedCallArgs, CallArgDx, CUDAExecConfig);
-        }
-        CallExprDiffDiagnostics(FD, CE->getBeginLoc());
-        if (!OverloadedDerivedFn) {
-          Stmts& block = getCurrentBlock(direction::reverse);
-          block.insert(block.begin(), PreCallStmts.begin(), PreCallStmts.end());
-          return StmtDiff(Clone(CE));
-        }
+      // Derivative was not found, request differentiation
+      if (!pullbackFD) {
+        if (m_ExternalSource) {
+          m_ExternalSource->ActBeforeDifferentiatingCallExpr(
+              pullbackCallArgs, PreCallStmts, dfdx());
+          pullbackFD =
+              plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
+        } else
+          pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
       }
-    }
+    } else
+      pullbackFD = FindDerivedFunction(pullbackRequest);
 
-    if (OverloadedDerivedFn) {
-      // Derivative was found.
-      FunctionDecl* fnDecl = dyn_cast<CallExpr>(OverloadedDerivedFn)
-                                 ->getDirectCallee();
-      // Put Result array declaration in the function body.
-      // Call the gradient, passing Result as the last Arg.
-      Stmts& block = getCurrentBlock(direction::reverse);
-      Stmts::iterator it = std::begin(block) + insertionPoint;
-      // Insert PreCallStmts
-      it = block.insert(it, PreCallStmts.begin(), PreCallStmts.end());
-      it += PreCallStmts.size();
-      if (!asGrad) {
-        if (utils::IsCladValueAndPushforwardType(fnDecl->getReturnType()))
-          OverloadedDerivedFn = utils::BuildMemberExpr(
-              m_Sema, getCurrentScope(), OverloadedDerivedFn, "pushforward");
-        // If the derivative is called through _darg0 instead of _grad.
-        Expr* d = BuildOp(BO_Mul, dfdx(), OverloadedDerivedFn);
-        Expr* addGrad = BuildOp(BO_AddAssign, Clone(CallArgDx[0]), d);
-        it = block.insert(it, addGrad);
-        it++;
+    if (pullbackFD) {
+      auto* pullbackMD = dyn_cast<CXXMethodDecl>(pullbackFD);
+      Expr* baseE = baseDiff.getExpr();
+      if (pullbackMD && pullbackMD->isInstance()) {
+        OverloadedDerivedFn = BuildCallExprToMemFn(baseE, pullbackFD->getName(),
+                                                   pullbackCallArgs, Loc);
       } else {
-        // Insert the CallExpr to the derived function
-        it = block.insert(it, OverloadedDerivedFn);
-        it++;
+        if (baseE) {
+          baseE = BuildOp(UO_AddrOf, baseE);
+          pullbackCallArgs.insert(pullbackCallArgs.begin(), baseE);
+        }
+        OverloadedDerivedFn =
+            m_Sema
+                .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD), Loc,
+                               pullbackCallArgs, Loc, CUDAExecConfig)
+                .get();
       }
-      // Insert PostCallStmts
-      block.insert(it, PostCallStmts.begin(), PostCallStmts.end());
+    } else if (!utils::HasAnyReferenceOrPointerArgument(FD) && !MD) {
+      // FIXME: Add support for reference arguments to the numerical diff. If
+      // it already correctly support reference arguments then confirm the
+      // support and add tests for the same.
+      //
+      // Clad failed to derive it. Try numerically deriving it.
+      if (NArgs == 1) {
+        OverloadedDerivedFn = GetSingleArgCentralDiffCall(
+            Clone(CE->getCallee()), DerivedCallArgs[0],
+            /*targetPos=*/0,
+            /*numArgs=*/1, DerivedCallArgs, CUDAExecConfig);
+        asGrad = !OverloadedDerivedFn;
+      } else {
+        auto CEType = utils::getNonConstType(CE->getType(), m_Sema);
+        OverloadedDerivedFn = GetMultiArgCentralDiffCall(
+            Clone(CE->getCallee()), CEType.getCanonicalType(), CE->getNumArgs(),
+            dfdx(), PreCallStmts, PostCallStmts, DerivedCallArgs, CallArgDx,
+            CUDAExecConfig);
+      }
+      CallExprDiffDiagnostics(FD, CE->getBeginLoc());
     }
+
+    if (!OverloadedDerivedFn) {
+      Stmts& block = getCurrentBlock(direction::reverse);
+      block.insert(block.begin(), PreCallStmts.begin(), PreCallStmts.end());
+      return StmtDiff(Clone(CE));
+    }
+
+    // Derivative was found.
+    FunctionDecl* fnDecl =
+        dyn_cast<CallExpr>(OverloadedDerivedFn)->getDirectCallee();
+    // Put Result array declaration in the function body.
+    // Call the gradient, passing Result as the last Arg.
+    Stmts& block = getCurrentBlock(direction::reverse);
+    Stmts::iterator it = std::begin(block) + insertionPoint;
+    // Insert PreCallStmts
+    it = block.insert(it, PreCallStmts.begin(), PreCallStmts.end());
+    it += PreCallStmts.size();
+    if (!asGrad) {
+      if (utils::IsCladValueAndPushforwardType(fnDecl->getReturnType()))
+        OverloadedDerivedFn = utils::BuildMemberExpr(
+            m_Sema, getCurrentScope(), OverloadedDerivedFn, "pushforward");
+      // If the derivative is called through _darg0 instead of _grad.
+      Expr* d = BuildOp(BO_Mul, dfdx(), OverloadedDerivedFn);
+      Expr* addGrad = BuildOp(BO_AddAssign, Clone(CallArgDx[0]), d);
+      it = block.insert(it, addGrad);
+      it++;
+    } else {
+      // Insert the CallExpr to the derived function
+      it = block.insert(it, OverloadedDerivedFn);
+      it++;
+    }
+    // Insert PostCallStmts
+    block.insert(it, PostCallStmts.begin(), PostCallStmts.end());
+
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeFinalizingVisitCallExpr(
           CE, OverloadedDerivedFn, DerivedCallArgs, CallArgDx, asGrad);
