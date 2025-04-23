@@ -101,6 +101,24 @@ double f5(double x){
 // CHECK-NEXT:     double a = _t0.value;
 // CHECK-NEXT:     return _d_a;
 
+double f6(double x){
+  double j = 0;
+  for(int i = 0; i<5; i++){
+    j += x + x;
+  }
+  return j;
+}
+
+// CHECK: double f6_darg0(double x) {
+// CHECK-NEXT:    double _d_x = 1;
+// CHECK-NEXT:    double _d_j = 0;
+// CHECK-NEXT:    double j = 0;
+// CHECK-NEXT:    for (int i = 0; i < 5; i++) {
+// CHECK-NEXT:        _d_j += _d_x + _d_x;
+// CHECK-NEXT:        j += x + x;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return _d_j;
+// CHECK-NEXT:}
 
 int main(){
     INIT_DIFFERENTIATE_UA(f1, "x");
@@ -108,11 +126,13 @@ int main(){
     INIT_DIFFERENTIATE_UA(f3, "x");
     INIT_DIFFERENTIATE_UA(f4, "x");
     INIT_DIFFERENTIATE_UA(f5, "x");
+    INIT_DIFFERENTIATE_UA(f6, "x");
 
     TEST_DIFFERENTIATE(f1, 3); // CHECK-EXEC: {1.00}
     TEST_DIFFERENTIATE(f2, 3); // CHECK-EXEC: {1.00}
     TEST_DIFFERENTIATE(f3, 3); // CHECK-EXEC: {0.00}
     TEST_DIFFERENTIATE(f4, 3); // CHECK-EXEC: {0.00}
     TEST_DIFFERENTIATE(f5, 3); // CHECK-EXEC: {1.00}
+    TEST_DIFFERENTIATE(f6, 3); // CHECK-EXEC: {10.00}
     return 0;
 }
