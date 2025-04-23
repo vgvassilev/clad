@@ -1253,13 +1253,16 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
   else if (opKind == UO_PostInc || opKind == UO_PostDec ||
            opKind == UO_PreInc || opKind == UO_PreDec) {
     Expr* derivedOp = diff.getExpr_dx();
-    if (diff.getExpr_dx()->getType()->isPointerType())
+    if (derivedOp && diff.getExpr_dx()->getType()->isPointerType())
       derivedOp = BuildOp(opKind, diff.getExpr_dx());
     return StmtDiff(op, derivedOp);
   } /* For supporting complex types */
   else if (opKind == UnaryOperatorKind::UO_Real ||
            opKind == UnaryOperatorKind::UO_Imag) {
-    return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    Expr* derivedOp = diff.getExpr_dx();
+    if (derivedOp)
+      derivedOp = BuildOp(opKind, diff.getExpr_dx());
+    return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_Deref) {
     if (Expr* dx = diff.getExpr_dx())
       return StmtDiff(op, BuildOp(opKind, dx));
@@ -1268,7 +1271,10 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     return StmtDiff(
         op, ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0));
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
-    return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    Expr* derivedOp = diff.getExpr_dx();
+    if (derivedOp)
+      derivedOp = BuildOp(opKind, diff.getExpr_dx());
+    return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_LNot) {
     Expr* zero = getZeroInit(UnOp->getType());
     if (diff.getExpr_dx() && !isUnusedResult(diff.getExpr_dx()))
