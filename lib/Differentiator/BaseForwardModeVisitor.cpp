@@ -287,9 +287,10 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
       continue;
 
     IdentifierInfo* II = &m_Context.Idents.get("_d_" + PVD->getNameAsString());
-    auto* dPVD = utils::BuildParmVarDecl(
-        m_Sema, m_Derivative, II, GetParameterDerivativeType(PVD->getType()),
-        PVD->getStorageClass());
+    QualType diffTy = utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
+                                                        PVD->getType());
+    auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, diffTy,
+                                         PVD->getStorageClass());
     params.push_back(dPVD);
     m_Variables[PVD] = BuildDeclRef(dPVD);
   }

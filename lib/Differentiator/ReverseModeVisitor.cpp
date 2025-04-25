@@ -83,7 +83,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   Expr* ReverseModeVisitor::CladTapeResult::Last() {
     LookupResult& Back = V.GetCladTapeBack();
     CXXScopeSpec CSS;
-    CSS.Extend(V.m_Context, V.GetCladNamespace(), noLoc, noLoc);
+    CSS.Extend(V.m_Context, utils::GetCladNamespace(V.m_Sema), noLoc, noLoc);
     Expr* BackDRE = V.m_Sema
                         .BuildDeclarationNameExpr(CSS, Back,
                                                   /*AcceptInvalidDecl=*/false)
@@ -110,7 +110,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Add fake location, since Clang AST does assert(Loc.isValid()) somewhere.
     VD->setLocation(m_DiffReq->getLocation());
     CXXScopeSpec CSS;
-    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
     auto* PopDRE = m_Sema
                        .BuildDeclarationNameExpr(CSS, Pop,
                                                  /*AcceptInvalidDecl=*/false)
@@ -267,7 +267,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // R*) . the type of the jacobian function is void(A1, A2, ..., An, R*, R*)
     // and for error estimation, the function type is
     // void(A1, A2, ..., An, R*, R*, ..., R*, double&)
-    QualType dFnType = GetDerivativeType();
+    llvm::SmallVector<QualType, 1> customParams{};
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(customParams);
+    QualType dFnType = GetDerivativeType(customParams);
 
     // Check if the function is already declared as a custom derivative.
     std::string name = m_DiffReq.ComputeDerivativeName();
@@ -511,14 +514,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType QT;
     if (!enzymeRealParams.empty()) {
       // Find the EnzymeGradient datastructure
-      auto* gradDecl = LookupTemplateDeclInCladNamespace("EnzymeGradient");
+      auto* gradDecl =
+          utils::LookupTemplateDeclInCladNamespace(m_Sema, "EnzymeGradient");
 
       TemplateArgumentListInfo TLI{};
       llvm::APSInt argValue(std::to_string(enzymeRealParams.size()));
       TemplateArgument TA(m_Context, argValue, m_Context.UnsignedIntTy);
       TLI.addArgument(TemplateArgumentLoc(TA, TemplateArgumentLocInfo()));
 
-      QT = InstantiateTemplate(gradDecl, TLI);
+      QT = utils::InstantiateTemplate(m_Sema, gradDecl, TLI);
     } else {
       QT = m_Context.VoidTy;
     }
@@ -2569,7 +2573,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // adjoints.
     QualType elemType;
     if (m_Sema.isStdInitializerList(utils::GetValueType(T), &elemType))
-      dT = GetCladArrayOfType(elemType);
+      dT = utils::GetCladArrayOfType(m_Sema, elemType);
 
     if (isLValueRefType)
       return m_Context.getLValueReferenceType(dT);
@@ -2598,8 +2602,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDDerivedType = ComputeAdjointType(CloneType(VDType));
       VDCloneType = VDDerivedType;
       if (isa<ArrayType>(VDCloneType) && !isa<IncompleteArrayType>(VDCloneType))
-        VDCloneType =
-            GetCladArrayOfType(m_Context.getBaseElementType(VDCloneType));
+        VDCloneType = utils::GetCladArrayOfType(
+            m_Sema, m_Context.getBaseElementType(VDCloneType));
     } else {
       VDCloneType = CloneType(VDType);
       VDDerivedType = utils::getNonConstType(VDCloneType, m_Sema);
@@ -3258,7 +3262,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     VarDecl* Var = nullptr;
     if (isa<ArrayType>(Type))
-      Type = GetCladArrayOfType(m_Context.getBaseElementType(Type));
+      Type =
+          utils::GetCladArrayOfType(m_Sema, m_Context.getBaseElementType(Type));
     Var = BuildVarDecl(Type, identifier, init);
 
     // Add the declaration to the body of the gradient function.
@@ -4341,12 +4346,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return DeclDiff<StaticAssertDecl>(nullptr, nullptr);
   }
 
-  QualType ReverseModeVisitor::GetParameterDerivativeType(QualType Type) {
-    QualType ValueType = utils::GetNonConstValueType(Type);
-    QualType nonRefValueType = ValueType.getNonReferenceType();
-    return m_Context.getPointerType(nonRefValueType);
-  }
-
   StmtDiff ReverseModeVisitor::VisitCXXStaticCastExpr(
       const clang::CXXStaticCastExpr* SCE) {
     StmtDiff subExprDiff = Visit(SCE->getSubExpr(), dfdx());
@@ -4438,7 +4437,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (HasThis) {
       IdentifierInfo* dThisII = &m_Context.Idents.get("_d_this");
       const auto* MD = cast<CXXMethodDecl>(FD);
-      QualType thisTy = GetParameterDerivativeType(MD->getThisType());
+      QualType thisTy = utils::GetParameterDerivativeType(
+          m_Sema, m_DiffReq.Mode, MD->getThisType());
 
       auto* dPVD =
           utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext, dThisII, thisTy);

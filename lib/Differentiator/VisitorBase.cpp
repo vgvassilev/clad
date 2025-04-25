@@ -481,72 +481,16 @@ namespace clad {
     return result;
   }
 
-  NamespaceDecl* VisitorBase::GetCladNamespace() {
-    static NamespaceDecl* Result = nullptr;
-    if (Result)
-      return Result;
-    DeclarationName CladName = &m_Context.Idents.get("clad");
-    LookupResult CladR(m_Sema, CladName, noLoc, Sema::LookupNamespaceName,
-                       CLAD_COMPAT_Sema_ForVisibleRedeclaration);
-    m_Sema.LookupQualifiedName(CladR, m_Context.getTranslationUnitDecl());
-    assert(!CladR.empty() && "cannot find clad namespace");
-    Result = cast<NamespaceDecl>(CladR.getFoundDecl());
-    return Result;
-  }
-
-  TemplateDecl*
-  VisitorBase::LookupTemplateDeclInCladNamespace(llvm::StringRef ClassName) {
-    NamespaceDecl* CladNS = GetCladNamespace();
-    CXXScopeSpec CSS;
-    CSS.Extend(m_Context, CladNS, noLoc, noLoc);
-    DeclarationName TapeName = &m_Context.Idents.get(ClassName);
-    LookupResult TapeR(m_Sema, TapeName, noLoc, Sema::LookupUsingDeclName,
-                       CLAD_COMPAT_Sema_ForVisibleRedeclaration);
-    m_Sema.LookupQualifiedName(TapeR, CladNS, CSS);
-    assert(!TapeR.empty() && isa<TemplateDecl>(TapeR.getFoundDecl()) &&
-           "cannot find clad::tape");
-    return cast<TemplateDecl>(TapeR.getFoundDecl());
-  }
-
-  QualType VisitorBase::InstantiateTemplate(TemplateDecl* CladClassDecl,
-                                            TemplateArgumentListInfo& TLI) {
-    // This will instantiate tape<T> type and return it.
-    QualType TT = m_Sema.CheckTemplateIdType(TemplateName(CladClassDecl),
-                                             utils::GetValidSLoc(m_Sema), TLI);
-    // Get clad namespace and its identifier clad::.
-    CXXScopeSpec CSS;
-    CSS.Extend(m_Context, GetCladNamespace(), utils::GetValidSLoc(m_Sema),
-               utils::GetValidSLoc(m_Sema));
-    NestedNameSpecifier* NS = CSS.getScopeRep();
-
-    // Create elaborated type with namespace specifier,
-    // i.e. class<T> -> clad::class<T>
-    return m_Context.getElaboratedType(clad_compat::ElaboratedTypeKeyword_None,
-                                       NS, TT);
-  }
-
-  QualType VisitorBase::InstantiateTemplate(TemplateDecl* CladClassDecl,
-                                            ArrayRef<QualType> TemplateArgs) {
-    // Create a list of template arguments.
-    TemplateArgumentListInfo TLI{};
-    for (auto T : TemplateArgs) {
-      TemplateArgument TA = T;
-      TLI.addArgument(
-          TemplateArgumentLoc(TA, m_Context.getTrivialTypeSourceInfo(T)));
-    }
-
-    return VisitorBase::InstantiateTemplate(CladClassDecl, TLI);
-  }
-
   TemplateDecl* VisitorBase::GetCladTapeDecl() {
     static TemplateDecl* Result = nullptr;
     if (!Result)
-      Result = LookupTemplateDeclInCladNamespace(/*ClassName=*/"tape");
+      Result = utils::LookupTemplateDeclInCladNamespace(m_Sema,
+                                                        /*ClassName=*/"tape");
     return Result;
   }
 
   LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
-    NamespaceDecl* CladNS = GetCladNamespace();
+    NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, CladNS, noLoc, noLoc);
     DeclarationName Name = &m_Context.Idents.get(name);
@@ -596,7 +540,7 @@ namespace clad {
   DeclRefExpr* VisitorBase::GetCladTapePushDRE() {
     LookupResult& pushLR = GetCladTapePush();
     CXXScopeSpec CSS;
-    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
     DeclRefExpr* pushDRE = m_Sema.BuildDeclarationNameExpr(CSS, pushLR, false)
                                .getAs<DeclRefExpr>();
     return pushDRE;
@@ -617,7 +561,7 @@ namespace clad {
   }
 
   QualType VisitorBase::GetCladTapeOfType(QualType T) {
-    return InstantiateTemplate(GetCladTapeDecl(), {T});
+    return utils::InstantiateTemplate(m_Sema, GetCladTapeDecl(), {T});
   }
 
   Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base,
@@ -730,7 +674,7 @@ namespace clad {
     clang::LookupResult R(m_Sema, declName, noLoc, Sema::LookupOrdinaryName);
 
     // Find function declaration
-    NamespaceDecl* CladNS = GetCladNamespace();
+    NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, CladNS, loc, loc);
     m_Sema.LookupQualifiedName(R, CladNS, CSS);
@@ -748,39 +692,6 @@ namespace clad {
 
     return BuildCallExprToFunction(FD, argExprs,
                                    /*useRefQualifiedThisObj=*/false);
-  }
-
-  TemplateDecl* VisitorBase::GetCladArrayRefDecl() {
-    static TemplateDecl* Result = nullptr;
-    if (!Result)
-      Result = LookupTemplateDeclInCladNamespace(/*ClassName=*/"array_ref");
-    return Result;
-  }
-
-  QualType VisitorBase::GetCladArrayRefOfType(clang::QualType T) {
-    return InstantiateTemplate(GetCladArrayRefDecl(), {T});
-  }
-
-  TemplateDecl* VisitorBase::GetCladArrayDecl() {
-    static TemplateDecl* Result = nullptr;
-    if (!Result)
-      Result = LookupTemplateDeclInCladNamespace(/*ClassName=*/"array");
-    return Result;
-  }
-
-  QualType VisitorBase::GetCladArrayOfType(clang::QualType T) {
-    return InstantiateTemplate(GetCladArrayDecl(), {T});
-  }
-
-  TemplateDecl* VisitorBase::GetCladMatrixDecl() {
-    static TemplateDecl* Result = nullptr;
-    if (!Result)
-      Result = LookupTemplateDeclInCladNamespace(/*ClassName=*/"matrix");
-    return Result;
-  }
-
-  QualType VisitorBase::GetCladMatrixOfType(clang::QualType T) {
-    return InstantiateTemplate(GetCladMatrixDecl(), {T});
   }
 
   Expr* VisitorBase::BuildIdentityMatrixExpr(clang::QualType T,
@@ -908,7 +819,7 @@ namespace clad {
       Result = LookupCladTapeMethod("zero_init");
     LookupResult& init = clad_compat::llvm_Optional_GetValue(Result);
     CXXScopeSpec CSS;
-    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
     auto* pushDRE =
         m_Sema.BuildDeclarationNameExpr(CSS, init, false).getAs<DeclRefExpr>();
     return m_Sema.ActOnCallExpr(getCurrentScope(), pushDRE, noLoc, args, noLoc)
@@ -918,25 +829,29 @@ namespace clad {
   clang::TemplateDecl* VisitorBase::GetCladConstructorPushforwardTag() {
     if (!m_CladConstructorPushforwardTag)
       m_CladConstructorPushforwardTag =
-          LookupTemplateDeclInCladNamespace("ConstructorPushforwardTag");
+          utils::LookupTemplateDeclInCladNamespace(m_Sema,
+                                                   "ConstructorPushforwardTag");
     return m_CladConstructorPushforwardTag;
   }
 
   clang::QualType
   VisitorBase::GetCladConstructorPushforwardTagOfType(clang::QualType T) {
-    return InstantiateTemplate(GetCladConstructorPushforwardTag(), {T});
+    return utils::InstantiateTemplate(m_Sema,
+                                      GetCladConstructorPushforwardTag(), {T});
   }
 
   clang::TemplateDecl* VisitorBase::GetCladConstructorReverseForwTag() {
     if (!m_CladConstructorPushforwardTag)
       m_CladConstructorReverseForwTag =
-          LookupTemplateDeclInCladNamespace("ConstructorReverseForwTag");
+          utils::LookupTemplateDeclInCladNamespace(m_Sema,
+                                                   "ConstructorReverseForwTag");
     return m_CladConstructorReverseForwTag;
   }
 
   clang::QualType
   VisitorBase::GetCladConstructorReverseForwTagOfType(clang::QualType T) {
-    return InstantiateTemplate(GetCladConstructorReverseForwTag(), {T});
+    return utils::InstantiateTemplate(m_Sema,
+                                      GetCladConstructorReverseForwTag(), {T});
   }
 
   FunctionDecl* VisitorBase::CreateDerivativeOverload() {
@@ -1086,80 +1001,14 @@ namespace clad {
 
   VisitorBase::~VisitorBase() = default;
 
-  QualType VisitorBase::GetDerivativeType() {
-    const FunctionDecl* FD = m_DiffReq.Function;
-
-    if (m_DiffReq.Mode == DiffMode::forward)
-      return FD->getType();
-
-    const auto* FnProtoTy = llvm::cast<FunctionProtoType>(FD->getType());
-    FunctionProtoType::ExtProtoInfo EPI = FnProtoTy->getExtProtoInfo();
-    llvm::SmallVector<QualType, 16> FnTypes(FnProtoTy->getParamTypes().begin(),
-                                            FnProtoTy->getParamTypes().end());
-
-    QualType oRetTy = FD->getReturnType();
-    QualType dRetTy = m_Context.VoidTy;
-    bool returnVoid = m_DiffReq.Mode == DiffMode::reverse ||
-                      m_DiffReq.Mode == DiffMode::experimental_pullback ||
-                      m_DiffReq.Mode == DiffMode::error_estimation ||
-                      m_DiffReq.Mode == DiffMode::vector_forward_mode;
-    if (m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass) {
-      TemplateDecl* valAndAdjointTempDecl =
-          LookupTemplateDeclInCladNamespace("ValueAndAdjoint");
-      dRetTy = InstantiateTemplate(valAndAdjointTempDecl, {oRetTy, oRetTy});
-    } else if (m_DiffReq.Mode == DiffMode::hessian ||
-               m_DiffReq.Mode == DiffMode::hessian_diagonal) {
-      QualType argTy = m_Context.getPointerType(oRetTy);
-      FnTypes.push_back(argTy);
-      return m_Context.getFunctionType(dRetTy, FnTypes, EPI);
-    } else if (!returnVoid && !oRetTy->isVoidType()) {
-      // Handle pushforwards
-      TemplateDecl* valueAndPushforward =
-          LookupTemplateDeclInCladNamespace("ValueAndPushforward");
-      QualType PushFwdTy = GetParameterDerivativeType(oRetTy);
-      dRetTy = InstantiateTemplate(valueAndPushforward, {oRetTy, PushFwdTy});
-    } else if (m_DiffReq.Mode == DiffMode::experimental_pullback) {
-      // Handle pullbacks
-      QualType argTy = oRetTy.getNonReferenceType();
-      argTy = utils::getNonConstType(argTy, m_Sema);
-      if (!argTy->isVoidType() && !argTy->isPointerType())
-        FnTypes.push_back(argTy);
-    }
-
-    if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
-      const CXXRecordDecl* RD = MD->getParent();
-      if (MD->isInstance() && !RD->isLambda() &&
-          m_DiffReq.Mode != DiffMode::jacobian) {
-        QualType thisTy = GetParameterDerivativeType(MD->getThisType());
-        FnTypes.push_back(thisTy);
-      }
-    }
-
-    // Iterate over all but the "this" type and extend the signature to add the
-    // extra parameters.
-    for (size_t i = 0, e = FnProtoTy->getNumParams(); i < e; ++i) {
-      QualType PVDTy = FnTypes[i];
-      if (m_DiffReq.Mode == DiffMode::jacobian &&
-          !(utils::isArrayOrPointerType(PVDTy) || PVDTy->isReferenceType()))
-        continue;
-      // FIXME: Make this system consistent across modes.
-      if (returnVoid) {
-        // Check if (IsDifferentiableType(PVDTy))
-        // FIXME: We can't use std::find(DVI.begin(), DVI.end()) because the
-        // operator== considers params and intervals as different entities and
-        // breaks the hessian tests. We should implement more robust checks in
-        // DiffInputVarInfo to check if this is a variable we differentiate wrt.
-        for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
-          if (VarInfo.param == FD->getParamDecl(i))
-            FnTypes.push_back(GetParameterDerivativeType(PVDTy));
-      } else if (utils::IsDifferentiableType(PVDTy))
-        FnTypes.push_back(GetParameterDerivativeType(PVDTy));
-    }
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(FnTypes);
-
-    return m_Context.getFunctionType(dRetTy, FnTypes, EPI);
+  QualType
+  VisitorBase::GetDerivativeType(llvm::ArrayRef<QualType> customParams) {
+    llvm::SmallVector<const ValueDecl*, 4> diffParams{};
+    for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
+      diffParams.push_back(VarInfo.param);
+    return utils::GetDerivativeType(m_Sema, m_DiffReq.Function, m_DiffReq.Mode,
+                                    diffParams, /*moveBaseToParams=*/false,
+                                    customParams);
   }
 
   Expr* VisitorBase::BuildOperatorCall(OverloadedOperatorKind OOK,

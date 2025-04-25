@@ -793,6 +793,19 @@ namespace clad {
       return true;
     }
 
+    NamespaceDecl* GetCladNamespace(Sema& S) {
+      static NamespaceDecl* Result = nullptr;
+      if (Result)
+        return Result;
+      DeclarationName CladName = &S.getASTContext().Idents.get("clad");
+      LookupResult CladR(S, CladName, noLoc, Sema::LookupNamespaceName,
+                         CLAD_COMPAT_Sema_ForVisibleRedeclaration);
+      S.LookupQualifiedName(CladR, S.getASTContext().getTranslationUnitDecl());
+      assert(!CladR.empty() && "cannot find clad namespace");
+      Result = cast<NamespaceDecl>(CladR.getFoundDecl());
+      return Result;
+    }
+
     Expr* getZeroInit(QualType T, Sema& S) {
       // FIXME: Consolidate other uses of synthesizeLiteral for creation 0 or 1.
       if (T->isVoidType() || isa<VariableArrayType>(T))
@@ -815,6 +828,66 @@ namespace clad {
       return S.ActOnInitList(noLoc, {}, noLoc).get();
     }
 
+    QualType InstantiateTemplate(Sema& S, TemplateDecl* CladClassDecl,
+                                 TemplateArgumentListInfo& TLI) {
+      // This will instantiate tape<T> type and return it.
+      QualType TT = S.CheckTemplateIdType(TemplateName(CladClassDecl),
+                                          GetValidSLoc(S), TLI);
+      // Get clad namespace and its identifier clad::.
+      CXXScopeSpec CSS;
+      CSS.Extend(S.getASTContext(), GetCladNamespace(S), GetValidSLoc(S),
+                 GetValidSLoc(S));
+      NestedNameSpecifier* NS = CSS.getScopeRep();
+
+      // Create elaborated type with namespace specifier,
+      // i.e. class<T> -> clad::class<T>
+      return S.getASTContext().getElaboratedType(
+          clad_compat::ElaboratedTypeKeyword_None, NS, TT);
+    }
+
+    TemplateDecl* LookupTemplateDeclInCladNamespace(Sema& S,
+                                                    llvm::StringRef ClassName) {
+      NamespaceDecl* CladNS = GetCladNamespace(S);
+      CXXScopeSpec CSS;
+      CSS.Extend(S.getASTContext(), CladNS, noLoc, noLoc);
+      DeclarationName TapeName = &S.getASTContext().Idents.get(ClassName);
+      LookupResult TapeR(S, TapeName, noLoc, Sema::LookupUsingDeclName,
+                         CLAD_COMPAT_Sema_ForVisibleRedeclaration);
+      S.LookupQualifiedName(TapeR, CladNS, CSS);
+      assert(!TapeR.empty() && isa<TemplateDecl>(TapeR.getFoundDecl()) &&
+             "cannot find clad::tape");
+      return cast<TemplateDecl>(TapeR.getFoundDecl());
+    }
+
+    QualType InstantiateTemplate(Sema& S, TemplateDecl* CladClassDecl,
+                                 ArrayRef<QualType> TemplateArgs) {
+      // Create a list of template arguments.
+      TemplateArgumentListInfo TLI{};
+      for (auto T : TemplateArgs) {
+        TemplateArgument TA = T;
+        TLI.addArgument(TemplateArgumentLoc(
+            TA, S.getASTContext().getTrivialTypeSourceInfo(T)));
+      }
+
+      return InstantiateTemplate(S, CladClassDecl, TLI);
+    }
+
+    QualType GetCladMatrixOfType(Sema& S, clang::QualType T) {
+      static TemplateDecl* matrixDecl = nullptr;
+      if (!matrixDecl)
+        matrixDecl =
+            utils::LookupTemplateDeclInCladNamespace(S,
+                                                     /*ClassName=*/"matrix");
+      return InstantiateTemplate(S, matrixDecl, {T});
+    }
+
+    QualType GetCladArrayOfType(Sema& S, clang::QualType T) {
+      static TemplateDecl* arrayDecl = nullptr;
+      if (!arrayDecl)
+        arrayDecl = LookupTemplateDeclInCladNamespace(S, /*ClassName=*/"array");
+      return utils::InstantiateTemplate(S, arrayDecl, {T});
+    }
+
     bool IsDifferentiableType(QualType T) {
       QualType origType = T;
       // FIXME: arbitrary dimension array type as well.
@@ -828,6 +901,156 @@ namespace clad {
       if (origType->isPointerType() && T->isVoidType())
         return true;
       return false;
+    }
+
+    QualType GetCladArrayRefOfType(Sema& S, QualType T) {
+      static TemplateDecl* arrayRefDecl = nullptr;
+      if (!arrayRefDecl)
+        arrayRefDecl = utils::LookupTemplateDeclInCladNamespace(
+            S, /*ClassName=*/"array_ref");
+      return utils::InstantiateTemplate(S, arrayRefDecl, {T});
+    }
+
+    QualType GetParameterDerivativeType(Sema& S, DiffMode Mode, QualType Type) {
+      ASTContext& C = S.getASTContext();
+      if (Mode == DiffMode::experimental_vector_pushforward ||
+          Mode == DiffMode::jacobian) {
+        QualType valueType = GetNonConstValueType(Type);
+        QualType resType;
+        if (isArrayOrPointerType(Type)) {
+          // If the parameter is a pointer or an array, then the derivative will
+          // be a reference to the matrix.
+          resType = GetCladMatrixOfType(S, valueType);
+          resType = C.getLValueReferenceType(resType);
+        } else {
+          // If the parameter is not a pointer or an array, then the derivative
+          // will be a clad array.
+          resType = GetCladArrayOfType(S, valueType);
+
+          // Add const qualifier if the parameter is const.
+          if (Type.getNonReferenceType().isConstQualified())
+            resType.addConst();
+
+          // Add reference qualifier if the parameter is a reference.
+          if (Type->isReferenceType())
+            resType = C.getLValueReferenceType(resType);
+        }
+        if (Mode == DiffMode::jacobian)
+          resType = C.getPointerType(resType.getNonReferenceType());
+        return resType;
+      }
+
+      if (Mode == DiffMode::reverse ||
+          Mode == DiffMode::experimental_pullback ||
+          Mode == DiffMode::error_estimation) {
+        QualType ValueType = GetNonConstValueType(Type);
+        QualType nonRefValueType = ValueType.getNonReferenceType();
+        return C.getPointerType(nonRefValueType);
+      }
+
+      if (Mode == DiffMode::vector_forward_mode) {
+        QualType valueType = GetNonConstValueType(Type);
+        if (isArrayOrPointerType(Type))
+          // Generate array reference type for the derivative.
+          return GetCladArrayRefOfType(S, valueType);
+        // Generate pointer type for the derivative.
+        return C.getPointerType(valueType);
+      }
+
+      return Type;
+    }
+
+    QualType
+    GetDerivativeType(Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
+                      llvm::ArrayRef<const clang::ValueDecl*> diffParams,
+                      bool moveBaseToParams,
+                      llvm::ArrayRef<QualType> customParams) {
+      ASTContext& C = S.getASTContext();
+      if (mode == DiffMode::forward)
+        return FD->getType();
+
+      const auto* FnProtoTy = llvm::cast<FunctionProtoType>(FD->getType());
+      FunctionProtoType::ExtProtoInfo EPI = FnProtoTy->getExtProtoInfo();
+      llvm::SmallVector<QualType, 16> FnTypes(
+          FnProtoTy->getParamTypes().begin(), FnProtoTy->getParamTypes().end());
+
+      QualType oRetTy = FD->getReturnType();
+      QualType dRetTy = C.VoidTy;
+      bool returnVoid = mode == DiffMode::reverse ||
+                        mode == DiffMode::experimental_pullback ||
+                        mode == DiffMode::error_estimation ||
+                        mode == DiffMode::vector_forward_mode;
+      if (mode == DiffMode::reverse_mode_forward_pass) {
+        TemplateDecl* valAndAdjointTempDecl =
+            utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
+        dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
+                                            {oRetTy, oRetTy});
+      } else if (mode == DiffMode::hessian ||
+                 mode == DiffMode::hessian_diagonal) {
+        QualType argTy = C.getPointerType(oRetTy);
+        FnTypes.push_back(argTy);
+        return C.getFunctionType(dRetTy, FnTypes, EPI);
+      } else if (!returnVoid && !oRetTy->isVoidType()) {
+        // Handle pushforwards
+        TemplateDecl* valueAndPushforward =
+            utils::LookupTemplateDeclInCladNamespace(S, "ValueAndPushforward");
+        QualType PushFwdTy = utils::GetParameterDerivativeType(S, mode, oRetTy);
+        dRetTy = utils::InstantiateTemplate(S, valueAndPushforward,
+                                            {oRetTy, PushFwdTy});
+      } else if (mode == DiffMode::experimental_pullback) {
+        // Handle pullbacks
+        QualType argTy = oRetTy.getNonReferenceType();
+        argTy = utils::getNonConstType(argTy, S);
+        if (!argTy->isVoidType() && !argTy->isPointerType())
+          FnTypes.push_back(argTy);
+      }
+
+      QualType thisTy;
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
+        const CXXRecordDecl* RD = MD->getParent();
+        if (MD->isInstance() && !RD->isLambda() && mode != DiffMode::jacobian) {
+          thisTy = MD->getThisType();
+          QualType dthisTy = utils::GetParameterDerivativeType(S, mode, thisTy);
+          FnTypes.push_back(dthisTy);
+          if (MD->isConst()) {
+            QualType constObjTy = C.getConstType(thisTy->getPointeeType());
+            thisTy = C.getPointerType(constObjTy);
+          }
+        }
+      }
+
+      // Iterate over all but the "this" type and extend the signature to add
+      // the extra parameters.
+      for (size_t i = 0, e = FnProtoTy->getNumParams(); i < e; ++i) {
+        QualType PVDTy = FnTypes[i];
+        if (mode == DiffMode::jacobian &&
+            !(utils::isArrayOrPointerType(PVDTy) || PVDTy->isReferenceType()))
+          continue;
+        // FIXME: Make this system consistent across modes.
+        if (returnVoid) {
+          // Check if (IsDifferentiableType(PVDTy))
+          // FIXME: We can't use std::find(DVI.begin(), DVI.end()) because the
+          // operator== considers params and intervals as different entities and
+          // breaks the hessian tests. We should implement more robust checks in
+          // DiffInputVarInfo to check if this is a variable we differentiate
+          // wrt.
+          for (const ValueDecl* param : diffParams)
+            if (param == FD->getParamDecl(i))
+              FnTypes.push_back(
+                  utils::GetParameterDerivativeType(S, mode, PVDTy));
+        } else if (utils::IsDifferentiableType(PVDTy))
+          FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
+      }
+
+      if (moveBaseToParams && !thisTy.isNull()) {
+        FnTypes.insert(FnTypes.begin(), thisTy);
+        EPI.TypeQuals.removeConst();
+      }
+
+      for (QualType customTy : customParams)
+        FnTypes.push_back(customTy);
+
+      return C.getFunctionType(dRetTy, FnTypes, EPI);
     }
   } // namespace utils
 } // namespace clad

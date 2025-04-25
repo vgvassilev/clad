@@ -11,6 +11,8 @@
 #include "clang/AST/Type.h"
 #include "llvm/ADT/StringRef.h"
 
+#include "DiffMode.h"
+
 #include <clang/AST/DeclCXX.h>
 #include <string>
 
@@ -318,6 +320,35 @@ namespace clad {
     ComputeMemExprPathType(clang::Sema& semaRef, clang::RecordDecl* RD,
                            llvm::ArrayRef<llvm::StringRef> fields);
 
+    /// Instantiate clad::class<TemplateArgs> type
+    ///
+    /// \param[in] CladClassDecl the decl of the class that is going to be used
+    /// in the creation of the type \param[in] TemplateArgs an array of template
+    /// arguments \returns The created type clad::class<TemplateArgs>
+    clang::QualType
+    InstantiateTemplate(clang::Sema& S, clang::TemplateDecl* CladClassDecl,
+                        llvm::ArrayRef<clang::QualType> TemplateArgs);
+    clang::QualType InstantiateTemplate(clang::Sema& S,
+                                        clang::TemplateDecl* CladClassDecl,
+                                        clang::TemplateArgumentListInfo& TLI);
+    /// Builds the QualType of the derivative to be generated.
+    ///
+    /// \param[in] moveBaseToParams If true, turns member functions into regular
+    /// functions by moving the base to the parameters.
+    clang::QualType
+    GetDerivativeType(clang::Sema& S, const clang::FunctionDecl* FD,
+                      DiffMode mode,
+                      llvm::ArrayRef<const clang::ValueDecl*> diffParams,
+                      bool moveBaseToParams = false,
+                      llvm::ArrayRef<clang::QualType> customParams = {});
+    /// Find declaration of clad::class templated type
+    ///
+    /// \param[in] className name of the class to be found
+    /// \returns The declaration of the class with the name ClassName
+    clang::TemplateDecl*
+    LookupTemplateDeclInCladNamespace(clang::Sema& S,
+                                      llvm::StringRef ClassName);
+
     bool hasNonDifferentiableAttribute(const clang::Decl* D);
 
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
@@ -331,6 +362,18 @@ namespace clad {
     clang::Expr* getZeroInit(clang::QualType T, clang::Sema& S);
 
     bool ContainsFunctionCalls(const clang::Stmt* E);
+
+    /// Find namespace clad declaration.
+    clang::NamespaceDecl* GetCladNamespace(clang::Sema& S);
+    /// Create clad::array<T> type.
+    clang::QualType GetCladArrayOfType(clang::Sema& S, clang::QualType T);
+    /// Create clad::matrix<T> type.
+    clang::QualType GetCladMatrixOfType(clang::Sema& S, clang::QualType T);
+    /// Create clad::array_ref<T> type.
+    clang::QualType GetCladArrayRefOfType(clang::Sema& S, clang::QualType T);
+
+    clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
+                                               clang::QualType Type);
 
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
