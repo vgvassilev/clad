@@ -79,8 +79,6 @@ public:
   DeclDiff<clang::VarDecl>
   DifferentiateVarDecl(const clang::VarDecl* VD) override;
 
-  clang::QualType
-  GetParameterDerivativeType(clang::QualType ParamType) override;
   std::string GetPushForwardFunctionSuffix() override;
   DiffMode GetPushForwardMode() override;
 

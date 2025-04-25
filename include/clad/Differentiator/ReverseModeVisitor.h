@@ -49,6 +49,10 @@ namespace clad {
     // a separate namespace, as well as add getters/setters function of
     // several private/protected members of the visitor classes.
     friend class ErrorEstimationHandler;
+    // FIXME: Should we make this an object instead of a pointer?
+    // Downside of making it an object: We will need to include
+    // 'MultiplexExternalRMVSource.h' file
+    MultiplexExternalRMVSource* m_ExternalSource = nullptr;
     llvm::SmallVector<const clang::ParmVarDecl*, 16> m_NonIndepParams;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
@@ -464,14 +468,6 @@ namespace clad {
            "attempt to differentiate unsupported operator, ignored.",
            args);
     }
-
-    /// Returns the type that should be used to represent the derivative of a
-    ///
-    /// FIXME: Parameter derivative type rules are different from the derivative
-    /// type rules for local variables. We should remove this inconsistency.
-    /// See the following issue for more details:
-    /// https://github.com/vgvassilev/clad/issues/385
-    clang::QualType GetParameterDerivativeType(clang::QualType Type) override;
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop.

@@ -16,9 +16,6 @@ private:
   Stmts m_Globals;
 
   llvm::SmallVector<clang::ParmVarDecl*, 8> BuildParams(DiffParams& diffParams);
-  clang::QualType GetParameterDerivativeType(clang::QualType Type) override {
-    return Type;
-  }
 
 public:
   ReverseModeForwPassVisitor(DerivativeBuilder& builder,
