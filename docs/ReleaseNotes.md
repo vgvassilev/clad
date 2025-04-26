@@ -21,41 +21,75 @@ described first.
 External Dependencies
 ---------------------
 
-* Clad now works with clang-8 to clang-18
+* Clad now works with clang-10 to clang-20
 
 
 Forward Mode & Reverse Mode
 ---------------------------
-*
+* Improved diagnostics for unsupported features​.
+* Add custom derivatives for standard math functions.
+
 
 Forward Mode
 ------------
-*
+* Add support of variadic functions.
+
 
 Reverse Mode
 ------------
-*
+
+* Refined function analysis to mark const methods as non-differentiable​.
+* Make to-be-recorded (TBR) analysis default.
+* Automatically generate some constructor pullbacks.
+* Implemented "store per change" for method bases to reduce tape usage.
+* Enabled differentiation of global variables.
+* Enabled differentiation for static member functions.
+* Improved handling of object variables, differentiation more consistent across types​
+* Improved support for default arguments in reverse mode​.
+* Added primitive support for `std::unique_ptr<T>​`.
+* Refactored handling of custom STL pullbacks​.
+* Reduce tape usage for objects.
+
 
 CUDA
 ----
-*
 
-Error Estimation
-----------------
-*
+* Added `CUDA_HOST_DEVICE` attributes to `zero_impl` and `zero_init​`.
+* Created `ParmVarDecl` for local kernel variables in device pullbacks​.
+* Reworked indexing of pullbacks to better handle CUDA differentiation​
+
 
 Misc
 ----
-*
+
+* Support for LLVM 20, dropped LLVM 9.
+* Updated GoogleTest to latest version​.
+* General CI improvements: Ubuntu 22/24 support, dropped older configs​.
+* Improved varied analysis.
+
 
 Fixed Bugs
 ----------
 
-[XXX](https://github.com/vgvassilev/clad/issues/XXX)
-
- <!---Get release bugs. Check for close, fix, resolve
- git log v1.9..master | grep -i "close" | grep '#' | sed -E 's,.*\#([0-9]*).*,\[\1\]\(https://github.com/vgvassilev/clad/issues/\1\),g' | sort
- --->
+[685](https://github.com/vgvassilev/clad/issues/685)
+[760](https://github.com/vgvassilev/clad/issues/760)
+[772](https://github.com/vgvassilev/clad/issues/772)
+[800](https://github.com/vgvassilev/clad/issues/800)
+[871](https://github.com/vgvassilev/clad/issues/871)
+[879](https://github.com/vgvassilev/clad/issues/879)
+[1009](https://github.com/vgvassilev/clad/issues/1009)
+[1044](https://github.com/vgvassilev/clad/issues/1044)
+[1095](https://github.com/vgvassilev/clad/issues/1095)
+[1125](https://github.com/vgvassilev/clad/issues/1125)
+[1262](https://github.com/vgvassilev/clad/issues/1262)
+[1269](https://github.com/vgvassilev/clad/issues/1269)
+[1270](https://github.com/vgvassilev/clad/issues/1270)
+[1276](https://github.com/vgvassilev/clad/issues/1276)
+[1294](https://github.com/vgvassilev/clad/issues/1294)
+[1295](https://github.com/vgvassilev/clad/issues/1295)
+[1302](https://github.com/vgvassilev/clad/issues/1302)
+[1304](https://github.com/vgvassilev/clad/issues/1304)
+[1353](https://github.com/vgvassilev/clad/issues/1353)
 
 Special Kudos
 =============
@@ -67,6 +101,16 @@ FirstName LastName (#commits)
 
 A B (N)
 
-<!---Find contributor list for this release
- git log --pretty=format:"%an"  v1.9...master | sort | uniq -c | sort -rn | sed -E 's,^ *([0-9]+) (.*)$,\2 \(\1\),'
---->
+petro.zarytskyi (44)
+Vassil Vassilev (21)
+Max Andriychuk (11)
+Christina Koutsou (7)
+petro (1)
+Shubhanjan-GGOD (1)
+Rohan-T144 (1)
+Petro Mozil (1)
+Parth Arora (1)
+Jayant (1)
+Greg Hazel (1)
+Errant (1)
+Abdelrhman Elrawy (1)
