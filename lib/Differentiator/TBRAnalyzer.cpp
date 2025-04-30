@@ -282,17 +282,6 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
   if (utils::IsAutoOrAutoPtrType(varType))
     varType = VD->getInit()->getType();
 
-  // FIXME: If the pointer points to an object we represent it with a OBJ_TYPE
-  // VarData. This is done for '_d_this' pointer to be processed correctly in
-  // hessian mode. This should be removed once full support for pointers in
-  // analysis is introduced.
-  if (const auto* const pointerType = dyn_cast<clang::PointerType>(varType)) {
-    const auto* elemType = pointerType->getPointeeType().getTypePtrOrNull();
-    if (elemType && elemType->isRecordType()) {
-      curBranch[VD] = VarData(QualType::getFromOpaquePtr(elemType), m_Context);
-      return;
-    }
-  }
   curBranch[VD] = VarData(varType, m_Context, forceNonRefType);
 }
 
