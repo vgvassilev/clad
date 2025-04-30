@@ -1,5 +1,6 @@
 #include "TBRAnalyzer.h"
 
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "clad-tbr"
@@ -121,11 +122,13 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
                               bool addNonConstIdx) {
   const auto* idxExpr = ASE->getIdx();
   ProfileID idxID;
+  bool currentIdxIsNonConst = false;
   if (const auto* IL = dyn_cast<IntegerLiteral>(idxExpr)) {
     idxID = getProfileID(IL);
   } else {
-    m_NonConstIndexFound = true;
     // Non-const indices are represented with default FoldingSetNodeID.
+    m_NonConstIndexFound = true;
+    currentIdxIsNonConst = true;
   }
 
   const auto* base = ASE->getBase()->IgnoreImpCasts();
@@ -136,8 +139,8 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
 
   // if non-const index was found and it is not supposed to be added just
   // return the current VarData*.
-  if (m_NonConstIndexFound && !addNonConstIdx)
-    return baseData;
+  if (currentIdxIsNonConst && !addNonConstIdx)
+    return nullptr;
 
   auto* baseArrMap = baseData->m_Val.m_ArrData.get();
   auto it = baseArrMap->find(idxID);
@@ -241,16 +244,22 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
       if (const auto* FD = dyn_cast<clang::FieldDecl>(ME->getMemberDecl()))
         IDSequence.push_back(getProfileID(FD));
       E = ME->getBase();
-    } else if (isa<clang::DeclRefExpr>(E)) {
-      innermostDRE = dyn_cast<clang::DeclRefExpr>(E);
+    } else if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E)) {
+      const auto* VD = cast<VarDecl>(DRE->getDecl());
+      if (VD->getType()->isReferenceType()) {
+        VarData& refData = getCurBlockVarsData()[VD];
+        E = refData.m_Val.m_RefData;
+        continue;
+      }
+      innermostDRE = DRE;
       cond = false;
     } else
       return;
   }
 
   // Overlay on all the VarData's recursively.
-  if (const auto* VD = dyn_cast<clang::VarDecl>(innermostDRE->getDecl()))
-    overlay(getCurBlockVarsData()[VD], IDSequence, IDSequence.size());
+  VarData& data = *getExprVarData(innermostDRE, /*addNonConstIdx=*/true);
+  overlay(data, IDSequence, IDSequence.size());
 }
 // NOLINTEND(cppcoreguidelines-pro-type-union-access)
 

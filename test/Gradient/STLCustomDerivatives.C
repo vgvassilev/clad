@@ -226,6 +226,25 @@ double fn26(double u, double v) {
     return u;
 }
 
+constexpr int nVals = 2;
+
+struct Session {
+   std::vector<float> vec = std::vector<float>(nVals);
+   float *arr = vec.data();
+};
+
+float fn27(Session const *session, float const *tensor_x, float *tensor_theory_params) {
+   Session const &sess = session[0];
+   for (int id = 0; id < nVals; id++) {
+      sess.arr[id] = tensor_x[id] * tensor_theory_params[0];
+   }
+   float out = 0.;
+   for (int id = 0; id < nVals; id++) {
+      out += std::exp(-sess.arr[id]);
+   }
+   return out;
+}
+
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn10);
@@ -263,6 +282,7 @@ int main() {
     TEST_GRADIENT(fn24, /*NumOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 5.00}
     TEST_GRADIENT(fn25, /*NumOfDerivativeArgs=*/2, 3, 1, &d_i, &d_j);  // CHECK-EXEC: {48.00, 48.00}
     TEST_GRADIENT(fn26, /*numOfDerivativeArgs=*/2, 1, 1, &d_i, &d_j);  // CHECK-EXEC: {1.00, 3.00}
+    auto d_fn27 = clad::gradient(fn27, "tensor_theory_params");
 }
 
 // CHECK: void fn10_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -1231,3 +1251,65 @@ int main() {
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
+
+// CHECK: void fn27_grad_2(const Session *session, const float *tensor_x, float *tensor_theory_params, float *_d_tensor_theory_params) {
+// CHECK-NEXT:     int _d_id = 0;
+// CHECK-NEXT:     int id = 0;
+// CHECK-NEXT:     clad::tape<float> _t1 = {};
+// CHECK-NEXT:     int _d_id0 = 0;
+// CHECK-NEXT:     int id0 = 0;
+// CHECK-NEXT:     clad::tape<float> _t3 = {};
+// CHECK-NEXT:     Session _d_sess = {{.*}}, nullptr};
+// CHECK-NEXT:     const Session &sess = session[0];
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (id = 0; ; id++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(id < nVals))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, sess.arr[id]);
+// CHECK-NEXT:         sess.arr[id] = tensor_x[id] * tensor_theory_params[0];
+// CHECK-NEXT:     }
+// CHECK-NEXT:     float _d_out = 0.F;
+// CHECK-NEXT:     float out = 0.;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t2 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (id0 = 0; ; id0++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(id0 < nVals))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t2++;
+// CHECK-NEXT:         clad::push(_t3, out);
+// CHECK-NEXT:         out += std::exp(-sess.arr[id0]);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_out += 1;
+// CHECK-NEXT:     for (;; _t2--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t2)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         id0--;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             out = clad::pop(_t3);
+// CHECK-NEXT:             float _r_d1 = _d_out;
+// CHECK-NEXT:             float _r0 = 0.F;
+// CHECK-NEXT:             _r0 += _r_d1 * clad::custom_derivatives::std::exp_pushforward(-sess.arr[id0], 1.F).pushforward;
+// CHECK-NEXT:             _d_sess.arr[id0] += -_r0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         id--;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             sess.arr[id] = clad::pop(_t1);
+// CHECK-NEXT:             float _r_d0 = _d_sess.arr[id];
+// CHECK-NEXT:             _d_sess.arr[id] = 0.F;
+// CHECK-NEXT:             _d_tensor_theory_params[0] += tensor_x[id] * _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+

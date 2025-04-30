@@ -89,7 +89,6 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
         m_Val.m_FundData = other.m_Val.m_FundData;
       } else if (m_Type == OBJ_TYPE || m_Type == ARR_TYPE) {
         m_Val.m_ArrData = std::move(other.m_Val.m_ArrData);
-        other.m_Val.m_ArrData = nullptr;
       } else if (m_Type == REF_TYPE) {
         m_Val.m_RefData = other.m_Val.m_RefData;
       }
