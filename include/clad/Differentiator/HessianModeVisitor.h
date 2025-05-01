@@ -31,12 +31,11 @@ namespace clad {
     Merge(std::vector<clang::FunctionDecl*> secDerivFuncs,
           llvm::SmallVector<size_t, 16> IndependentArgsSize,
           size_t TotalIndependentArgsSize, const std::string& hessianFuncName,
-          clang::DeclContext* FD, clang::QualType hessianFuncType,
-          llvm::SmallVector<clang::QualType, 16> paramTypes);
+          clang::DeclContext* FD, clang::QualType hessianFuncType);
 
   public:
     HessianModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
-    ~HessianModeVisitor() = default;
+    ~HessianModeVisitor() override = default;
 
     ///\brief Produces the hessian second derivative columns of a given
     /// function.
@@ -48,7 +47,7 @@ namespace clad {
     /// ReverseModeVisitor to generate second derivatives that correspond to
     /// columns of the Hessian. uses Merge to return a FunctionDecl
     /// containing CallExprs to the generated second derivatives.
-    DerivativeAndOverload Derive();
+    DerivativeAndOverload Derive() override;
   };
 } // end namespace clad
 

@@ -19,14 +19,14 @@ void f_1(double a, double b, double c, double output[]) {
 // CHECK-NEXT:     clad::array<double> _d_vector_c = clad::one_hot_vector(indepVarCount, {{2U|2UL|2ULL}});
 // CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, {{3U|3UL|3ULL}});
 // CHECK-NEXT:     double _t0 = a * a;
-// CHECK-NEXT:     *_d_vector_output[0] = (_d_vector_a * a + a * _d_vector_a) * a + _t0 * _d_vector_a;
+// CHECK-NEXT:     (*_d_vector_output)[0] = (_d_vector_a * a + a * _d_vector_a) * a + _t0 * _d_vector_a;
 // CHECK-NEXT:     output[0] = _t0 * a;
 // CHECK-NEXT:     double _t1 = a * a;
 // CHECK-NEXT:     double _t2 = b * b;
-// CHECK-NEXT:     *_d_vector_output[1] = (_d_vector_a * a + a * _d_vector_a) * a + _t1 * _d_vector_a + (_d_vector_b * b + b * _d_vector_b) * b + _t2 * _d_vector_b;
+// CHECK-NEXT:     (*_d_vector_output)[1] = (_d_vector_a * a + a * _d_vector_a) * a + _t1 * _d_vector_a + (_d_vector_b * b + b * _d_vector_b) * b + _t2 * _d_vector_b;
 // CHECK-NEXT:     output[1] = _t1 * a + _t2 * b;
 // CHECK-NEXT:     double _t3 = c * c;
-// CHECK-NEXT:     *_d_vector_output[2] = (_d_vector_c * c + c * _d_vector_c) * 10 + _t3 * (clad::zero_vector(indepVarCount)) - (_d_vector_a * a + a * _d_vector_a);
+// CHECK-NEXT:     (*_d_vector_output)[2] = (_d_vector_c * c + c * _d_vector_c) * 10 + _t3 * (clad::zero_vector(indepVarCount)) - (_d_vector_a * a + a * _d_vector_a);
 // CHECK-NEXT:     output[2] = _t3 * 10 - a * a;
 // CHECK-NEXT: }
 
@@ -48,19 +48,24 @@ void f_3(double x, double y, double z, double *_result) {
 // CHECK-NEXT:     double constant = 42;
 // CHECK-NEXT:     {{.*}} _t0 = clad::custom_derivatives::sin_pushforward(x, _d_vector_x);
 // CHECK-NEXT:     double &_t1 = _t0.value;
-// CHECK-NEXT:     *_d_vector__result[0] = _t0.pushforward * constant + _t1 * _d_vector_constant;
+// CHECK-NEXT:     (*_d_vector__result)[0] = _t0.pushforward * constant + _t1 * _d_vector_constant;
 // CHECK-NEXT:     _result[0] = _t1 * constant;
 // CHECK-NEXT:     {{.*}} _t2 = clad::custom_derivatives::sin_pushforward(y, _d_vector_y);
 // CHECK-NEXT:     double &_t3 = _t2.value;
-// CHECK-NEXT:     *_d_vector__result[1] = _t2.pushforward * constant + _t3 * _d_vector_constant;
+// CHECK-NEXT:     (*_d_vector__result)[1] = _t2.pushforward * constant + _t3 * _d_vector_constant;
 // CHECK-NEXT:     _result[1] = _t3 * constant;
 // CHECK-NEXT:     {{.*}} _t4 = clad::custom_derivatives::sin_pushforward(z, _d_vector_z);
 // CHECK-NEXT:     double &_t5 = _t4.value;
-// CHECK-NEXT:     *_d_vector__result[2] = _t4.pushforward * constant + _t5 * _d_vector_constant;
+// CHECK-NEXT:     (*_d_vector__result)[2] = _t4.pushforward * constant + _t5 * _d_vector_constant;
 // CHECK-NEXT:     _result[2] = _t5 * constant;
 // CHECK-NEXT: }
+
 double multiply(double x, double y) { return x * y; }
-// CHECK: clad::ValueAndPushforward<double, clad::array<double> > multiply_vector_pushforward(double x, double y, clad::array<double> _d_x, clad::array<double> _d_y);
+
+// CHECK: clad::ValueAndPushforward<double, clad::array<double> > multiply_vector_pushforward(double x, double y, clad::array<double> _d_x, clad::array<double> _d_y) {
+// CHECK-NEXT:     unsigned long indepVarCount = _d_y.size();
+// CHECK-NEXT:     return {x * y, _d_x * y + x * _d_y};
+// CHECK-NEXT: }
 
 void f_4(double x, double y, double z, double *_result) {
   double constant = 42;
@@ -80,15 +85,15 @@ void f_4(double x, double y, double z, double *_result) {
 // CHECK-NEXT:     double constant = 42;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, clad::array<double> > _t0 = multiply_vector_pushforward(x, y, _d_vector_x, _d_vector_y);
 // CHECK-NEXT:     double &_t1 = _t0.value;
-// CHECK-NEXT:     *_d_vector__result[0] = _t0.pushforward * constant + _t1 * _d_vector_constant;
+// CHECK-NEXT:     (*_d_vector__result)[0] = _t0.pushforward * constant + _t1 * _d_vector_constant;
 // CHECK-NEXT:     _result[0] = _t1 * constant;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, clad::array<double> > _t2 = multiply_vector_pushforward(y, z, _d_vector_y, _d_vector_z);
 // CHECK-NEXT:     double &_t3 = _t2.value;
-// CHECK-NEXT:     *_d_vector__result[1] = _t2.pushforward * constant + _t3 * _d_vector_constant;
+// CHECK-NEXT:     (*_d_vector__result)[1] = _t2.pushforward * constant + _t3 * _d_vector_constant;
 // CHECK-NEXT:     _result[1] = _t3 * constant;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, clad::array<double> > _t4 = multiply_vector_pushforward(z, x, _d_vector_z, _d_vector_x);
 // CHECK-NEXT:     double &_t5 = _t4.value;
-// CHECK-NEXT:     *_d_vector__result[2] = _t4.pushforward * constant + _t5 * _d_vector_constant;
+// CHECK-NEXT:     (*_d_vector__result)[2] = _t4.pushforward * constant + _t5 * _d_vector_constant;
 // CHECK-NEXT:     _result[2] = _t5 * constant;
 // CHECK-NEXT: }
 
@@ -98,14 +103,14 @@ void f_4(double x, double y, double z, double *_result) {
 // CHECK-NEXT:     clad::array<double> _d_vector_b = clad::zero_vector(indepVarCount);
 // CHECK-NEXT:     clad::array<double> _d_vector_c = clad::zero_vector(indepVarCount);
 // CHECK-NEXT:     double _t0 = a * a;
-// CHECK-NEXT:     *_d_vector_output[0] = (_d_vector_a * a + a * _d_vector_a) * a + _t0 * _d_vector_a;
+// CHECK-NEXT:     (*_d_vector_output)[0] = (_d_vector_a * a + a * _d_vector_a) * a + _t0 * _d_vector_a;
 // CHECK-NEXT:     output[0] = _t0 * a;
 // CHECK-NEXT:     double _t1 = a * a;
 // CHECK-NEXT:     double _t2 = b * b;
-// CHECK-NEXT:     *_d_vector_output[1] = (_d_vector_a * a + a * _d_vector_a) * a + _t1 * _d_vector_a + (_d_vector_b * b + b * _d_vector_b) * b + _t2 * _d_vector_b;
+// CHECK-NEXT:     (*_d_vector_output)[1] = (_d_vector_a * a + a * _d_vector_a) * a + _t1 * _d_vector_a + (_d_vector_b * b + b * _d_vector_b) * b + _t2 * _d_vector_b;
 // CHECK-NEXT:     output[1] = _t1 * a + _t2 * b;
 // CHECK-NEXT:     double _t3 = c * c;
-// CHECK-NEXT:     *_d_vector_output[2] = (_d_vector_c * c + c * _d_vector_c) * 10 + _t3 * (clad::zero_vector(indepVarCount)) - (_d_vector_a * a + a * _d_vector_a);
+// CHECK-NEXT:     (*_d_vector_output)[2] = (_d_vector_c * c + c * _d_vector_c) * 10 + _t3 * (clad::zero_vector(indepVarCount)) - (_d_vector_a * a + a * _d_vector_a);
 // CHECK-NEXT:     output[2] = _t3 * 10 - a * a;
 // CHECK-NEXT: }
 
@@ -118,9 +123,9 @@ void f_5(float a, double output[]){
 // CHECK-NEXT:     unsigned long indepVarCount = _d_vector_output->rows() + {{1U|1UL|1ULL}};
 // CHECK-NEXT:     clad::array<float> _d_vector_a = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, {{1U|1UL|1ULL}});
-// CHECK-NEXT:     *_d_vector_output[1] = _d_vector_a;
+// CHECK-NEXT:     (*_d_vector_output)[1] = _d_vector_a;
 // CHECK-NEXT:     output[1] = a;
-// CHECK-NEXT:     *_d_vector_output[0] = _d_vector_a * a + a * _d_vector_a;
+// CHECK-NEXT:     (*_d_vector_output)[0] = _d_vector_a * a + a * _d_vector_a;
 // CHECK-NEXT:     output[0] = a * a;
 // CHECK-NEXT: }
 
@@ -136,14 +141,14 @@ void f_6(double a[3], double b, double output[]) {
 // CHECK-NEXT:     *_d_vector_a = clad::identity_matrix(_d_vector_a->rows(), indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, _d_vector_a->rows() + {{1U|1UL|1ULL}});
 // CHECK-NEXT:     double _t0 = a[0] * a[0];
-// CHECK-NEXT:     *_d_vector_output[0] = ((*_d_vector_a[0]) * a[0] + a[0] * (*_d_vector_a[0])) * a[0] + _t0 * (*_d_vector_a[0]);
+// CHECK-NEXT:     (*_d_vector_output)[0] = (((*_d_vector_a)[0]) * a[0] + a[0] * ((*_d_vector_a)[0])) * a[0] + _t0 * ((*_d_vector_a)[0]);
 // CHECK-NEXT:     output[0] = _t0 * a[0];
 // CHECK-NEXT:     double _t1 = a[0] * a[0];
 // CHECK-NEXT:     double _t2 = b * b;
-// CHECK-NEXT:     *_d_vector_output[1] = ((*_d_vector_a[0]) * a[0] + a[0] * (*_d_vector_a[0])) * a[0] + _t1 * (*_d_vector_a[0]) + (_d_vector_b * b + b * _d_vector_b) * b + _t2 * _d_vector_b;
+// CHECK-NEXT:     (*_d_vector_output)[1] = (((*_d_vector_a)[0]) * a[0] + a[0] * ((*_d_vector_a)[0])) * a[0] + _t1 * ((*_d_vector_a)[0]) + (_d_vector_b * b + b * _d_vector_b) * b + _t2 * _d_vector_b;
 // CHECK-NEXT:     output[1] = _t1 * a[0] + _t2 * b;
 // CHECK-NEXT:     double _t3 = (a[0] + b);
-// CHECK-NEXT:     *_d_vector_output[2] = (clad::zero_vector(indepVarCount)) * _t3 + 2 * (*_d_vector_a[0] + _d_vector_b);
+// CHECK-NEXT:     (*_d_vector_output)[2] = (clad::zero_vector(indepVarCount)) * _t3 + 2 * ((*_d_vector_a)[0] + _d_vector_b);
 // CHECK-NEXT:     output[2] = 2 * _t3;
 // CHECK-NEXT: }
 
@@ -178,13 +183,13 @@ void f_8(double a, double b, double output[]) {
 // CHECK-NEXT:     double _t0 = a * a;
 // CHECK-NEXT:     clad::array<double> _d_vector_a3((_d_vector_a * a + a * _d_vector_a) * a + _t0 * _d_vector_a);
 // CHECK-NEXT:     double a3 = _t0 * a;
-// CHECK-NEXT:     *_d_vector_output[0] = _d_vector_a3;
+// CHECK-NEXT:     (*_d_vector_output)[0] = _d_vector_a3;
 // CHECK-NEXT:     output[0] = a3;
 // CHECK-NEXT:     double _t1 = b * b;
-// CHECK-NEXT:     *_d_vector_output[1] = _d_vector_a3 + (_d_vector_b * b + b * _d_vector_b) * b + _t1 * _d_vector_b;
+// CHECK-NEXT:     (*_d_vector_output)[1] = _d_vector_a3 + (_d_vector_b * b + b * _d_vector_b) * b + _t1 * _d_vector_b;
 // CHECK-NEXT:     output[1] = a3 + _t1 * b;
 // CHECK-NEXT:     double _t2 = (a + b);
-// CHECK-NEXT:     *_d_vector_output[2] = (clad::zero_vector(indepVarCount)) * _t2 + 2 * (_d_vector_a + _d_vector_b);
+// CHECK-NEXT:     (*_d_vector_output)[2] = (clad::zero_vector(indepVarCount)) * _t2 + 2 * (_d_vector_a + _d_vector_b);
 // CHECK-NEXT:     output[2] = 2 * _t2;
 // CHECK-NEXT: }
 
@@ -197,11 +202,26 @@ void f_9(float a, double output[]){
 // CHECK-NEXT:     unsigned long indepVarCount = _d_vector_output->rows() + 1UL;
 // CHECK-NEXT:     clad::array<float> _d_vector_a = clad::one_hot_vector(indepVarCount, 0UL);
 // CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, 1UL);
-// CHECK-NEXT:     *_d_vector_output[0] = _d_vector_a * a + a * _d_vector_a;
+// CHECK-NEXT:     (*_d_vector_output)[0] = _d_vector_a * a + a * _d_vector_a;
 // CHECK-NEXT:     output[0] = a * a;
-// CHECK-NEXT:     *_d_vector_output[1] = (*_d_vector_output[0]) * 3 + output[0] * (clad::zero_vector(indepVarCount));
+// CHECK-NEXT:     (*_d_vector_output)[1] = ((*_d_vector_output)[0]) * 3 + output[0] * (clad::zero_vector(indepVarCount));
 // CHECK-NEXT:     output[1] = output[0] * 3;
 // CHECK-NEXT: }
+
+void f_10(float a, double output[]){
+  output[0]=a*a;  
+  output[1]=output[0];
+}
+
+// CHECK: void f_10_jac(float a, double output[], clad::matrix<double> *_d_vector_output) {
+// CHECK-NEXT:    unsigned long indepVarCount = _d_vector_output->rows() + 1UL;
+// CHECK-NEXT:    clad::array<float> _d_vector_a = clad::one_hot_vector(indepVarCount, 0UL);
+// CHECK-NEXT:    *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, 1UL);
+// CHECK-NEXT:    (*_d_vector_output)[0] = _d_vector_a * a + a * _d_vector_a;
+// CHECK-NEXT:    output[0] = a * a;
+// CHECK-NEXT:   (*_d_vector_output)[1] = (*_d_vector_output)[0];
+// CHECK-NEXT:    output[1] = output[0];
+// CHECK-NEXT:}
 
 #define TEST(F, ...) { \
   outputarr[0] = 0; outputarr[1] = 1; outputarr[2] = 0;\
@@ -231,7 +251,6 @@ int main() {
   TEST_F_1_SINGLE_PARAM(1, 2, 3); // CHECK-EXEC: Result is = {3.00, 3.00, -2.00}
 
   auto df5 = clad::jacobian(f_5);
-  result[0] = 0; result[1] = 0;
   df5.execute(3, outputarr, &result);
   printf("Result is = {%.2f, %.2f}\n", result[0][0], result[1][0]); // CHECK-EXEC: Result is = {6.00, 1.00}
   
@@ -250,9 +269,8 @@ int main() {
   auto df9 = clad::jacobian(f_9);
   df9.execute(3, outputarr, &result);
   printf("Result is = {%.2f, %.2f}\n", result[0][0], result[1][0]); // CHECK-EXEC: Result is = {6.00, 18.00}
-}
 
-// CHECK: clad::ValueAndPushforward<double, clad::array<double> > multiply_vector_pushforward(double x, double y, clad::array<double> _d_x, clad::array<double> _d_y) {
-// CHECK-NEXT:     unsigned long indepVarCount = _d_y.size();
-// CHECK-NEXT:     return {x * y, _d_x * y + x * _d_y};
-// CHECK-NEXT: }
+  auto df10 = clad::jacobian(f_10);
+  df10.execute(3, outputarr, &result);
+  printf("Result is = {%.2f, %.2f}\n", result[0][0], result[1][0]); // CHECK-EXEC: Result is = {6.00, 6.00}
+}

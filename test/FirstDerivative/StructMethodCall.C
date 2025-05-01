@@ -63,9 +63,13 @@ public:
     return f(x) + g_1(x, y);
   }
 
-  // CHECK: clad::ValueAndPushforward<int, int> f_pushforward(int x, A *_d_this, int _d_x);
+  // CHECK: clad::ValueAndPushforward<int, int> f_pushforward(int x, A *_d_this, int _d_x) {
+  // CHECK-NEXT:     return {x, _d_x};
+  // CHECK-NEXT: }
 
-  // CHECK: clad::ValueAndPushforward<int, int> g_1_pushforward(int x, int y, A *_d_this, int _d_x, int _d_y);
+  // CHECK: clad::ValueAndPushforward<int, int> g_1_pushforward(int x, int y, A *_d_this, int _d_x, int _d_y) {
+  // CHECK-NEXT:     return {x * x + y, _d_x * x + x * _d_x + _d_y};
+  // CHECK-NEXT: }
 
   // CHECK: int m_darg0(int x, int y) {
   // CHECK-NEXT:     int _d_x = 1;
@@ -105,12 +109,4 @@ int main () {
   auto m_dy = clad::differentiate(&A::m, 1);
   printf("Result is = {%d, %d}\n", m_dx.execute(a, 1, 2), m_dy.execute(a, 1, 2)); // CHECK-EXEC: Result is = {3, 1}
   return 0;
-
-  // CHECK: clad::ValueAndPushforward<int, int> f_pushforward(int x, A *_d_this, int _d_x) {
-  // CHECK-NEXT:     return {x, _d_x};
-  // CHECK-NEXT: }
-
-  // CHECK: clad::ValueAndPushforward<int, int> g_1_pushforward(int x, int y, A *_d_this, int _d_x, int _d_y) {
-  // CHECK-NEXT:     return {x * x + y, _d_x * x + x * _d_x + _d_y};
-  // CHECK-NEXT: }
 }

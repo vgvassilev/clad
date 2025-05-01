@@ -83,18 +83,16 @@ namespace clad {
           // Emit error diagnostics
           if (R.empty()) {
             const char diagFmt[] = "'%0' has no defined operator()";
-            auto diagId =
-                m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
-                                                diagFmt);
+            auto diagId = m_SemaRef.Diags.getCustomDiagID(
+                DiagnosticsEngine::Level::Error, diagFmt);
             m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
             return false;
           } else if (!R.isSingleResult()) {
             const char diagFmt[] =
                 "'%0' has multiple definitions of operator(). "
                 "Multiple definitions of call operators are not supported.";
-            auto diagId =
-                m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
-                                                diagFmt);
+            auto diagId = m_SemaRef.Diags.getCustomDiagID(
+                DiagnosticsEngine::Level::Error, diagFmt);
             m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
 
             // Emit diagnostics for candidate functions
@@ -626,11 +624,12 @@ namespace clad {
         << "args='";
     if (Args)
       Args->printPretty(Out, /*Helper=*/nullptr, P);
-    for (unsigned i = 0, e = DVI.size(); i < e; i++) {
-      DVI[i].print(Out);
-      if (i != e - 1)
-        Out << ',';
-    }
+    else
+      for (unsigned i = 0, e = DVI.size(); i < e; i++) {
+        DVI[i].print(Out);
+        if (i != e - 1)
+          Out << ',';
+      }
     Out << "'";
     if (EnableTBRAnalysis)
       Out << ", tbr";
@@ -642,8 +641,13 @@ namespace clad {
     if (!EnableTBRAnalysis)
       return true;
 
+    if (isa<CXXConstCastExpr>(E))
+      E = cast<CXXConstCastExpr>(E)->getSubExpr();
+
     if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
-        !isa<MemberExpr>(E))
+        !isa<MemberExpr>(E) &&
+        (!isa<UnaryOperator>(E) ||
+         cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
       return true;
 
     // FIXME: currently, we allow all pointer operations to be stored.
@@ -665,30 +669,8 @@ namespace clad {
   bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
     if (!EnableVariedAnalysis)
       return true;
-
-    if (!m_ActivityRunInfo.HasAnalysisRun) {
-      ArrayRef<ParmVarDecl*> FDparam = Function->parameters();
-      std::vector<ParmVarDecl*> derivedParam;
-
-      for (auto* parameter : FDparam) {
-        QualType parType = parameter->getType();
-        while (parType->isPointerType())
-          parType = parType->getPointeeType();
-        if (!parType.isConstQualified())
-          derivedParam.push_back(parameter);
-      }
-
-      std::copy(derivedParam.begin(), derivedParam.end(),
-                std::inserter(m_ActivityRunInfo.ToBeRecorded,
-                              m_ActivityRunInfo.ToBeRecorded.end()));
-
-      VariedAnalyzer analyzer(Function->getASTContext(),
-                              m_ActivityRunInfo.ToBeRecorded);
-      analyzer.Analyze(Function);
-      m_ActivityRunInfo.HasAnalysisRun = true;
-    }
-    auto found = m_ActivityRunInfo.ToBeRecorded.find(VD);
-    return found != m_ActivityRunInfo.ToBeRecorded.end();
+    auto found = m_ActivityRunInfo.VariedDecls.find(VD);
+    return found != m_ActivityRunInfo.VariedDecls.end();
   }
 
   bool DiffRequest::isVaried(const Expr* E) const {
@@ -710,6 +692,9 @@ namespace clad {
           return false;
         return true;
       }
+      // FIXME: This is a temporary measure until we add support for
+      // `this` in varied analysis.
+      bool VisitCXXThisExpr(const clang::CXXThisExpr* TE) { return false; }
     } analyzer(*this);
     return analyzer.isVariedE(E);
   }
@@ -952,9 +937,7 @@ namespace clad {
     DeclContext* DC = customDerNS;
 
     if (isa<RecordDecl>(originalFnDC)) {
-      return true;
-      // FIXME: Re-enable
-      // DC = utils::LookupNSD(S, "class_functions", /*shouldExist=*/false, DC);
+      DC = utils::LookupNSD(S, "class_functions", /*shouldExist=*/false, DC);
     } else
       DC = utils::FindDeclContext(S, DC, originalFnDC);
 
@@ -962,7 +945,11 @@ namespace clad {
       return false;
 
     std::string Name = R.BaseFunctionName;
-    if (R.Mode == DiffMode::experimental_pullback && R->getNumParams() > 1)
+    const FunctionDecl* FD = R.Function;
+    bool usePushforwardInRevMode =
+        FD->getNumParams() == 1 &&
+        !utils::HasAnyReferenceOrPointerArgument(FD) && !isa<CXXMethodDecl>(FD);
+    if (R.Mode == DiffMode::experimental_pullback && !usePushforwardInRevMode)
       Name += "_pullback";
     else // if (Mode == DiffMode::experimental_pullback)
       Name += "_pushforward";
@@ -1028,17 +1015,30 @@ namespace clad {
       // The root of the differentiation request graph should update the
       // CladFunction object with the generated call.
       request.CallUpdateRequired = true;
+      request.CallContext = E;
 
       request.Args = E->getArg(1);
       // FIXME: We should call UpdateDiffParamsInfo unconditionally, however,
       // in the DiffRequest we have the move away from pointer comparisons of
       // the ParmVarDecls (of the DVI).
+
+      // As above, we should call UpdateDiffParamsInfo no matter what.
+      if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis) {
+        request.UpdateDiffParamsInfo(m_Sema);
+        if (request.Args)
+          for (const auto& dParam : request.DVI)
+            request.addVariedDecl(cast<VarDecl>(dParam.param));
+      }
+
       if (request.Function->hasAttr<CUDAGlobalAttr>()) {
         request.UpdateDiffParamsInfo(m_Sema);
         for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i)
           request.CUDAGlobalArgsIndexes.push_back(i);
       }
       m_TopMostReq = &request;
+
+      if (isCallOperator(m_Sema.getASTContext(), request.Function))
+        request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
     } else {
       // If the function contains annotation of non_differentiable, then Clad
       // should not produce any derivative expression for that function call,
@@ -1046,23 +1046,49 @@ namespace clad {
       if (clad::utils::hasNonDifferentiableAttribute(E))
         return true;
 
+      if (const CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(FD)) {
+        const CXXRecordDecl* CD = MD->getParent();
+        if (clad::utils::hasNonDifferentiableAttribute(CD))
+          return true;
+      }
+
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
       if (!isa<CXXMemberCallExpr>(E) && !isa<CXXOperatorCallExpr>(E) &&
           allArgumentsAreLiterals(E, m_ParentReq))
         return true;
 
+      // FIXME: Generalize this to other functions that we don't need
+      // pullbacks of.
+      std::string FDName = FD->getNameAsString();
+      if (FDName == "begin" || FDName == "end")
+        return true;
+
       request.Function = FD;
-      if (m_TopMostReq->Mode == DiffMode::forward)
+      // FIXME: hessians require second derivatives,
+      // i.e. apart from the pushforward, we also need
+      // to schedule pushforward_pullback.
+      if (m_TopMostReq->Mode == DiffMode::forward ||
+          m_TopMostReq->Mode == DiffMode::hessian)
         request.Mode = DiffMode::experimental_pushforward;
       else if (m_TopMostReq->Mode == DiffMode::reverse)
         request.Mode = DiffMode::experimental_pullback;
-      else {
-        // propagatorReq.Mode = request.Mode;
+      else if (m_TopMostReq->Mode == DiffMode::vector_forward_mode ||
+               m_TopMostReq->Mode == DiffMode::jacobian ||
+               m_TopMostReq->Mode ==
+                   DiffMode::experimental_vector_pushforward) {
+        request.Mode = DiffMode::experimental_vector_pushforward;
+      } else if (m_TopMostReq->Mode == DiffMode::error_estimation) {
+        // FIXME: Add support for static graphs in error estimation.
+        return true;
+      } else {
+        assert(0 && "unexpected mode.");
+        return true;
       }
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+      request.CallContext = E;
 
       // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       if (m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
@@ -1084,28 +1110,56 @@ namespace clad {
           // Try to match it against the global arguments
           Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
           if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
-            const auto* PVD = cast<ParmVarDecl>(DRE->getDecl());
-            request.DVI.push_back(PVD);
-            if (m_TopMostReq->HasIndependentParameter(PVD))
+            auto* VD = DRE->getDecl();
+            // check if it's a kernel param
+            if (isa<ParmVarDecl>(VD)) {
+              const auto* PVD = cast<ParmVarDecl>(VD);
+              request.DVI.push_back(PVD);
+              // we know we should use atomic ops here
               request.CUDAGlobalArgsIndexes.push_back(i);
+            } else {
+              // create a param from the VarDecl
+              const ParmVarDecl* PVD =
+                  utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext,
+                                          VD->getIdentifier(), VD->getType());
+              request.DVI.push_back(PVD);
+            }
           }
         }
       }
     }
 
-    if (isCallOperator(m_Sema.getASTContext(), request.Function))
-      request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
-    request.CallContext = E;
     request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
 
-    llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
-    // Recurse into call graph.
-    TraverseFunctionDeclOnce(request.Function);
-    if (!HasCustomDerivativeForDiffReq(m_Sema, request))
-      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+    // FIXME: Here we copy all varied declarations down to the pullback, has to
+    // be removed once AA and TBR are completely reworked, with better
+    // branch-merging.
+    if (m_ParentReq)
+      for (auto decl : m_ParentReq->getVariedDecls())
+        request.addVariedDecl(decl);
 
-    if (m_IsTraversingTopLevelDecl)
+    llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
+    m_Sema.PerformPendingInstantiations();
+    if (request.Function->getDefinition())
+      request.Function = request.Function->getDefinition();
+
+    if (!HasCustomDerivativeForDiffReq(m_Sema, request)) {
+      if (m_TopMostReq->EnableVariedAnalysis &&
+          m_TopMostReq->Mode == DiffMode::reverse) {
+        VariedAnalyzer analyzer(request.Function->getASTContext(),
+                                request.getVariedDecls());
+        analyzer.Analyze(request.Function);
+      }
+
+      // Recurse into call graph.
+      TraverseFunctionDeclOnce(request.Function);
+      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+    }
+
+    if (m_IsTraversingTopLevelDecl) {
       m_TopMostReq = nullptr;
+      m_Traversed.clear();
+    }
 
     return true;
   }

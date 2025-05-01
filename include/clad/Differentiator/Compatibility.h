@@ -21,6 +21,13 @@ namespace clad_compat {
 using namespace clang;
 using namespace llvm;
 
+// clang-20 clang::Sema::AA_Casting became scoped
+#if CLANG_VERSION_MAJOR < 20
+#define CLAD_COMPAT_CLANG20_SemaAACasting clang::Sema::AA_Casting
+#else
+#define CLAD_COMPAT_CLANG20_SemaAACasting clang::AssignmentAction::Casting
+#endif
+
 // clang-18 CXXThisExpr got extra argument
 
 #if CLANG_VERSION_MAJOR > 17
@@ -331,12 +338,8 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
                      const APInt& ArySize, const Expr* SizeExpr,
                      clang::ArrayType::ArraySizeModifier ASM,
                      unsigned IndexTypeQuals) {
-#if CLANG_VERSION_MAJOR < 10
-   return Ctx.getConstantArrayType(EltTy, ArySize, ASM, IndexTypeQuals);
-#elif CLANG_VERSION_MAJOR >= 10
   return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM,
                                   IndexTypeQuals);
-#endif
 }
 #else
 static inline QualType
@@ -346,31 +349,6 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
   return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM,
                                   IndexTypeQuals);
 }
-#endif
-
-// Clang 10 add new last param TrailingRequiresClause in FunctionDecl::Create
-
-#if CLANG_VERSION_MAJOR < 10
-   #define CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(x) /**/
-#elif CLANG_VERSION_MAJOR >= 10
-#define CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(x)                 \
-  , ((x) ? VB.Clone((x)) : nullptr)
-#endif
-
-// Clang 10 remove GetTemporaryExpr(). Use getSubExpr() instead
-
-#if CLANG_VERSION_MAJOR < 10
-   #define CLAD_COMPAT_CLANG10_GetTemporaryExpr(x) (x)->GetTemporaryExpr()
-#elif CLANG_VERSION_MAJOR >= 10
-   #define CLAD_COMPAT_CLANG10_GetTemporaryExpr(x) (x)->getSubExpr()?Clone((x)->getSubExpr()):nullptr
-#endif
-
-// Clang 10 add one param to StmtExpr constructor: unsigned TemplateDepth
-
-#if CLANG_VERSION_MAJOR < 10
-   #define CLAD_COMPAT_CLANG10_StmtExpr_Create_ExtraParams /**/
-#elif CLANG_VERSION_MAJOR >= 10
-   #define CLAD_COMPAT_CLANG10_StmtExpr_Create_ExtraParams ,Node->getTemplateDepth()
 #endif
 
 // Clang 11 add one extra param in UnaryOperator constructor.
@@ -517,16 +495,6 @@ static inline MemberExpr* BuildMemberExpr(
 }
 #endif
 
-#if CLANG_VERSION_MAJOR < 10
-static inline Expr* GetSubExpr(const MaterializeTemporaryExpr* MTE) {
-  return MTE->GetTemporaryExpr();
-}
-#else
-static inline Expr* GetSubExpr(const MaterializeTemporaryExpr* MTE) {
-  return MTE->getSubExpr();
-}
-#endif
-
 static inline QualType
 CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
 // clang-18 renamed getThisObjectType to getFunctionObjectParameterType
@@ -598,13 +566,6 @@ ArraySize_GetValue(const std::optional<const Expr*>& opt) {
 static inline bool IsPRValue(const Expr* E) { return E->isRValue(); }
 #else
 static inline bool IsPRValue(const Expr* E) { return E->isPRValue(); }
-#endif
-
-#if CLANG_VERSION_MAJOR >= 9
-#define CLAD_COMPAT_CLANG9_CXXDefaultArgExpr_getUsedContext_Param(Node)               \
-  , Node->getUsedContext()
-#else
-#define CLAD_COMPAT_CLANG9_CXXDefaultArgExpr_getUsedContext_Param(Node) /**/
 #endif
 
 #if CLANG_VERSION_MAJOR >= 16

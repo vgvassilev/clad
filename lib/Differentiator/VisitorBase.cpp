@@ -8,16 +8,20 @@
 
 #include "ConstantFolder.h"
 
+#include "llvm/Support/Casting.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
+#include "clad/Differentiator/MultiplexExternalRMVSource.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -1078,5 +1082,125 @@ namespace clad {
     endScope(); // Function decl scope
 
     return diffOverloadFD;
+  }
+
+  VisitorBase::~VisitorBase() = default;
+
+  QualType VisitorBase::GetDerivativeType() {
+    const FunctionDecl* FD = m_DiffReq.Function;
+
+    if (m_DiffReq.Mode == DiffMode::forward)
+      return FD->getType();
+
+    const auto* FnProtoTy = llvm::cast<FunctionProtoType>(FD->getType());
+    FunctionProtoType::ExtProtoInfo EPI = FnProtoTy->getExtProtoInfo();
+    llvm::SmallVector<QualType, 16> FnTypes(FnProtoTy->getParamTypes().begin(),
+                                            FnProtoTy->getParamTypes().end());
+
+    QualType oRetTy = FD->getReturnType();
+    QualType dRetTy = m_Context.VoidTy;
+    bool returnVoid = m_DiffReq.Mode == DiffMode::reverse ||
+                      m_DiffReq.Mode == DiffMode::experimental_pullback ||
+                      m_DiffReq.Mode == DiffMode::error_estimation ||
+                      m_DiffReq.Mode == DiffMode::vector_forward_mode;
+    if (m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass) {
+      TemplateDecl* valAndAdjointTempDecl =
+          LookupTemplateDeclInCladNamespace("ValueAndAdjoint");
+      dRetTy = InstantiateTemplate(valAndAdjointTempDecl, {oRetTy, oRetTy});
+    } else if (m_DiffReq.Mode == DiffMode::hessian ||
+               m_DiffReq.Mode == DiffMode::hessian_diagonal) {
+      QualType argTy = m_Context.getPointerType(oRetTy);
+      FnTypes.push_back(argTy);
+      return m_Context.getFunctionType(dRetTy, FnTypes, EPI);
+    } else if (!returnVoid && !oRetTy->isVoidType()) {
+      // Handle pushforwards
+      TemplateDecl* valueAndPushforward =
+          LookupTemplateDeclInCladNamespace("ValueAndPushforward");
+      QualType PushFwdTy = GetParameterDerivativeType(oRetTy);
+      dRetTy = InstantiateTemplate(valueAndPushforward, {oRetTy, PushFwdTy});
+    } else if (m_DiffReq.Mode == DiffMode::experimental_pullback) {
+      // Handle pullbacks
+      QualType argTy = oRetTy.getNonReferenceType();
+      argTy = utils::getNonConstType(argTy, m_Sema);
+      if (!argTy->isVoidType() && !argTy->isPointerType())
+        FnTypes.push_back(argTy);
+    }
+
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
+      const CXXRecordDecl* RD = MD->getParent();
+      if (MD->isInstance() && !RD->isLambda() &&
+          m_DiffReq.Mode != DiffMode::jacobian) {
+        QualType thisTy = GetParameterDerivativeType(MD->getThisType());
+        FnTypes.push_back(thisTy);
+      }
+    }
+
+    // Iterate over all but the "this" type and extend the signature to add the
+    // extra parameters.
+    for (size_t i = 0, e = FnProtoTy->getNumParams(); i < e; ++i) {
+      QualType PVDTy = FnTypes[i];
+      if (m_DiffReq.Mode == DiffMode::jacobian &&
+          !(utils::isArrayOrPointerType(PVDTy) || PVDTy->isReferenceType()))
+        continue;
+      // FIXME: Make this system consistent across modes.
+      if (returnVoid) {
+        // Check if (IsDifferentiableType(PVDTy))
+        // FIXME: We can't use std::find(DVI.begin(), DVI.end()) because the
+        // operator== considers params and intervals as different entities and
+        // breaks the hessian tests. We should implement more robust checks in
+        // DiffInputVarInfo to check if this is a variable we differentiate wrt.
+        for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
+          if (VarInfo.param == FD->getParamDecl(i))
+            FnTypes.push_back(GetParameterDerivativeType(PVDTy));
+      } else if (utils::IsDifferentiableType(PVDTy))
+        FnTypes.push_back(GetParameterDerivativeType(PVDTy));
+    }
+
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(FnTypes);
+
+    return m_Context.getFunctionType(dRetTy, FnTypes, EPI);
+  }
+
+  Expr* VisitorBase::BuildOperatorCall(OverloadedOperatorKind OOK,
+                                       MutableArrayRef<Expr*> ArgExprs,
+                                       SourceLocation OpLoc) {
+    // First check operator kinds that are not considered binary/unary.
+
+    // FIXME: Currently, Clad never uses arrow operators, all of them
+    // are replaced with reverse_forw functions. This bit might become
+    // useful in the future when Clad can remove some reverse_forw
+    // functions in favor of original functions.
+    // if (OOK == OO_Arrow)
+    //   return m_Sema
+    //       .BuildOverloadedArrowExpr(getCurrentScope(), ArgExprs[0], OpLoc)
+    //       .get();
+
+    if (OOK == OO_Call)
+      return m_Sema
+          .BuildCallToObjectOfClassType(getCurrentScope(), ArgExprs[0], OpLoc,
+                                        ArgExprs.drop_front(), OpLoc)
+          .get();
+
+    if (OOK == OO_Subscript)
+      return m_Sema
+          .CreateOverloadedArraySubscriptExpr(OpLoc, OpLoc, ArgExprs[0],
+                                              ArgExprs[1])
+          .get();
+
+    // Now deduce the kind based on the number of args.
+    // Note for debugging: if the number of args is wrong,
+    // the kind will be deduced incorrectly, and
+    // getOverloadedOpcode will crash Clang.
+    if (ArgExprs.size() == 2) {
+      BinaryOperatorKind kind = BinaryOperator::getOverloadedOpcode(OOK);
+      return BuildOp(kind, ArgExprs[0], ArgExprs[1], OpLoc);
+    }
+
+    if (ArgExprs.size() == 1) {
+      UnaryOperatorKind kind = UnaryOperator::getOverloadedOpcode(OOK, true);
+      return BuildOp(kind, ArgExprs[0], OpLoc);
+    }
+    return nullptr;
   }
 } // end namespace clad

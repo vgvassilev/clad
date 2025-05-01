@@ -142,7 +142,15 @@ int main() {
 
   TEST_FUNC(fn_non_diff_call, 3, 5) // CHECK-EXEC: 5.00 3.00
 
-    // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j);
+    // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {
+    // CHECK-NEXT:     {
+    // CHECK-NEXT:         _d_this->x += _d_y * i;
+    // CHECK-NEXT:         *_d_i += (this->x + this->y) * _d_y;
+    // CHECK-NEXT:         *_d_i += _d_y * j * j;
+    // CHECK-NEXT:         *_d_j += i * _d_y * j;
+    // CHECK-NEXT:         *_d_j += i * j * _d_y;
+    // CHECK-NEXT:     }
+    // CHECK-NEXT: }
 
     // CHECK: void fn_s1_mem_fn_grad(double i, double j, double *_d_i, double *_d_j) {
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
@@ -152,7 +160,8 @@ int main() {
     // CHECK-NEXT:     {
     // CHECK-NEXT:         double _r2 = 0.;
     // CHECK-NEXT:         double _r3 = 0.;
-    // CHECK-NEXT:         _t0.mem_fn_1_pullback(i, j, 1, &_d_obj, &_r2, &_r3);
+    // CHECK-NEXT:         obj = _t0;
+    // CHECK-NEXT:         obj.mem_fn_1_pullback(i, j, 1, &_d_obj, &_r2, &_r3);
     // CHECK-NEXT:         *_d_i += _r2;
     // CHECK-NEXT:         *_d_j += _r3;
     // CHECK-NEXT:         *_d_i += 1 * j;
@@ -198,16 +207,6 @@ int main() {
     // CHECK-NEXT:     {
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
-    // CHECK-NEXT:     }
-    // CHECK-NEXT: }
-    
-    // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {
-    // CHECK-NEXT:     {
-    // CHECK-NEXT:         _d_this->x += _d_y * i;
-    // CHECK-NEXT:         *_d_i += (this->x + this->y) * _d_y;
-    // CHECK-NEXT:         *_d_i += _d_y * j * j;
-    // CHECK-NEXT:         *_d_j += i * _d_y * j;
-    // CHECK-NEXT:         *_d_j += i * j * _d_y;
     // CHECK-NEXT:     }
     // CHECK-NEXT: }
 }

@@ -2,6 +2,7 @@
 
 #include "ConstantFolder.h"
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 
@@ -45,6 +46,35 @@ void VectorPushForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
   SetIndependentVarsExpr(BuildDeclRef(totalIndVars));
 
   BaseForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock();
+}
+
+DerivativeAndOverload VectorPushForwardModeVisitor::Derive() {
+  return BaseForwardModeVisitor::Derive();
+}
+
+QualType
+VectorPushForwardModeVisitor::GetParameterDerivativeType(QualType ParamType) {
+  QualType valueType = utils::GetNonConstValueType(ParamType);
+  QualType resType;
+  if (utils::isArrayOrPointerType(ParamType)) {
+    // If the parameter is a pointer or an array, then the derivative will be a
+    // reference to the matrix.
+    resType = GetCladMatrixOfType(valueType);
+    resType = m_Context.getLValueReferenceType(resType);
+  } else {
+    // If the parameter is not a pointer or an array, then the derivative will
+    // be a clad array.
+    resType = GetCladArrayOfType(valueType);
+
+    // Add const qualifier if the parameter is const.
+    if (ParamType.getNonReferenceType().isConstQualified())
+      resType.addConst();
+
+    // Add reference qualifier if the parameter is a reference.
+    if (ParamType->isReferenceType())
+      resType = m_Context.getLValueReferenceType(resType);
+  }
+  return resType;
 }
 
 StmtDiff

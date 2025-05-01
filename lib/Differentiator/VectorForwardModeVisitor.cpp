@@ -2,10 +2,12 @@
 
 #include "ConstantFolder.h"
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/ParseDiffArgsTypes.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/Sema/Lookup.h"
-#include <clang/AST/Decl.h>
 
 #include "llvm/Support/SaveAndRestore.h"
 
@@ -27,71 +29,25 @@ DiffMode VectorForwardModeVisitor::GetPushForwardMode() {
 }
 
 QualType
-VectorForwardModeVisitor::GetPushForwardDerivativeType(QualType ParamType) {
-  if (ParamType == m_Context.VoidTy)
-    return ParamType;
+VectorForwardModeVisitor::GetParameterDerivativeType(QualType ParamType) {
   QualType valueType = utils::GetNonConstValueType(ParamType);
-  QualType resType;
-  if (utils::isArrayOrPointerType(ParamType)) {
-    // If the parameter is a pointer or an array, then the derivative will be a
-    // reference to the matrix.
-    resType = GetCladMatrixOfType(valueType);
-    resType = m_Context.getLValueReferenceType(resType);
-  } else {
-    // If the parameter is not a pointer or an array, then the derivative will
-    // be a clad array.
-    resType = GetCladArrayOfType(valueType);
-
-    // Add const qualifier if the parameter is const.
-    if (ParamType.getNonReferenceType().isConstQualified())
-      resType.addConst();
-
-    // Add reference qualifier if the parameter is a reference.
-    if (ParamType->isReferenceType())
-      resType = m_Context.getLValueReferenceType(resType);
-  }
-  return resType;
+  if (utils::isArrayOrPointerType(ParamType))
+    // Generate array reference type for the derivative.
+    return GetCladArrayRefOfType(valueType);
+  // Generate pointer type for the derivative.
+  return m_Context.getPointerType(valueType);
 }
 
 void VectorForwardModeVisitor::SetIndependentVarsExpr(Expr* IndVarCountExpr) {
   m_IndVarCountExpr = IndVarCountExpr;
 }
 
-DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
+DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == DiffMode::vector_forward_mode);
 
   // Generate the function type for the derivative.
-  DiffParams args{};
-  for (const auto& dParam : m_DiffReq.DVI)
-    args.push_back(dParam.param);
-
-  llvm::SmallVector<clang::QualType, 8> paramTypes;
-  paramTypes.reserve(m_DiffReq->getNumParams() + args.size());
-  for (auto* PVD : m_DiffReq->parameters())
-    paramTypes.push_back(PVD->getType());
-  for (auto* PVD : m_DiffReq->parameters()) {
-    auto it = std::find(std::begin(args), std::end(args), PVD);
-    if (it == std::end(args))
-      continue; // This parameter is not in the diff list.
-
-    QualType valueType = utils::GetNonConstValueType(PVD->getType());
-    QualType dParamType;
-    if (utils::isArrayOrPointerType(PVD->getType())) {
-      // Generate array reference type for the derivative.
-      dParamType = GetCladArrayRefOfType(valueType);
-    } else {
-      // Generate pointer type for the derivative.
-      dParamType = m_Context.getPointerType(valueType);
-    }
-    paramTypes.push_back(dParamType);
-  }
-
-  QualType vectorDiffFunctionType = m_Context.getFunctionType(
-      m_Context.VoidTy,
-      llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
-      // Cast to function pointer.
-      dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo());
+  QualType vectorDiffFunctionType = GetDerivativeType();
 
   // Create the function declaration for the derivative.
   std::string derivedFnName = m_DiffReq.ComputeDerivativeName();
@@ -126,6 +82,9 @@ DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
   m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
 
   // Set the parameters for the derivative.
+  DiffParams args{};
+  for (const auto& dParam : m_DiffReq.DVI)
+    args.push_back(dParam.param);
   auto params = BuildVectorModeParams(args);
   vectorDiffFD->setParams(
       clad_compat::makeArrayRef(params.data(), params.size()));

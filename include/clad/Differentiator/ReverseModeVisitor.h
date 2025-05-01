@@ -7,7 +7,9 @@
 #ifndef CLAD_REVERSE_MODE_VISITOR_H
 #define CLAD_REVERSE_MODE_VISITOR_H
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 #include "clad/Differentiator/VisitorBase.h"
@@ -73,10 +75,6 @@ namespace clad {
 
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
-    // FIXME: Should we make this an object instead of a pointer?
-    // Downside of making it an object: We will need to include
-    // 'MultiplexExternalRMVSource.h' file
-    MultiplexExternalRMVSource* m_ExternalSource = nullptr;
     clang::Expr* m_Pullback = nullptr;
     const char* funcPostfix() const {
       if (m_DiffReq.Mode == DiffMode::jacobian)
@@ -86,20 +84,6 @@ namespace clad {
       return "_grad";
     }
 
-    /// Removes the local const qualifiers from a QualType and returns a new
-    /// type.
-    static clang::QualType
-    getNonConstType(clang::QualType T, clang::ASTContext& C, clang::Sema& S) {
-      bool isLValueRefType = T->isLValueReferenceType();
-      T = T.getNonReferenceType();
-      clang::Qualifiers quals(T.getQualifiers());
-      quals.removeConst();
-      clang::QualType nonConstType =
-          S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
-      if (isLValueRefType)
-        return C.getLValueReferenceType(nonConstType);
-      return nonConstType;
-    }
     // Function to Differentiate with Clad as Backend
     void DifferentiateWithClad();
 
@@ -198,7 +182,7 @@ namespace clad {
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false) {
       assert(E && "cannot infer type from null expression");
-      return StoreAndRef(E, getNonConstType(E->getType(), m_Context, m_Sema), d,
+      return StoreAndRef(E, utils::getNonConstType(E->getType(), m_Sema), d,
                          prefix, forceDeclCreation);
     }
 
@@ -344,7 +328,7 @@ namespace clad {
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
-    virtual ~ReverseModeVisitor();
+    ~ReverseModeVisitor() override;
 
     ///\brief Produces the gradient of a given function.
     ///
@@ -364,7 +348,7 @@ namespace clad {
     /// Improved naming scheme is required. Hence, we append the indices to of
     /// the requested parameters to 'f_grad', i.e. in the previous example "x,
     /// y" will give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
-    DerivativeAndOverload Derive();
+    DerivativeAndOverload Derive() override;
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
@@ -487,7 +471,7 @@ namespace clad {
     /// type rules for local variables. We should remove this inconsistency.
     /// See the following issue for more details:
     /// https://github.com/vgvassilev/clad/issues/385
-    clang::QualType GetParameterDerivativeType(clang::QualType Type);
+    clang::QualType GetParameterDerivativeType(clang::QualType Type) override;
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop.
@@ -674,9 +658,6 @@ namespace clad {
     /// multiple times.
     ///\paramp[in] source An external RMV source
     void AddExternalSource(ExternalRMVSource& source);
-
-    /// Computes and returns the derived function prototype.
-    clang::QualType ComputeDerivativeFunctionType();
 
     /// Builds and returns the sequence of derived function parameters.
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);

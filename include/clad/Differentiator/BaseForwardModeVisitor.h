@@ -10,6 +10,8 @@
 
 #include "llvm/ADT/SmallVector.h"
 
+#include "clad/Differentiator/DerivativeBuilder.h"
+
 #include <array>
 #include <stack>
 #include <unordered_map>
@@ -28,18 +30,16 @@ protected:
 public:
   BaseForwardModeVisitor(DerivativeBuilder& builder,
                          const DiffRequest& request);
-  virtual ~BaseForwardModeVisitor();
+  ~BaseForwardModeVisitor() override;
 
   ///\brief Produces the first derivative of a given function.
   ///
   ///\returns The differentiated and potentially created enclosing
   /// context.
   ///
-  DerivativeAndOverload Derive();
+  DerivativeAndOverload Derive() override;
 
   virtual void ExecuteInsidePushforwardFunctionBlock() {}
-
-  static bool IsDifferentiableType(clang::QualType T);
 
   virtual StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
@@ -113,8 +113,6 @@ public:
   static DeclDiff<clang::StaticAssertDecl>
   DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 
-  virtual clang::QualType
-  GetPushForwardDerivativeType(clang::QualType ParamType);
   virtual std::string GetPushForwardFunctionSuffix();
   virtual DiffMode GetPushForwardMode();
 
@@ -147,9 +145,6 @@ protected:
       llvm::SmallVectorImpl<clang::Expr*>& derivedArgs);
 
 private:
-  /// Computes the return type of the derivative in `m_DiffReq->Function`.
-  clang::QualType ComputeDerivativeFunctionType();
-
   /// Prepares the derivative function parameters.
   void
   SetupDerivativeParameters(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);

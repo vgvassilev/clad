@@ -1,4 +1,5 @@
 #include "ActivityAnalyzer.h"
+#include "clang/AST/Type.h"
 
 using namespace clang;
 
@@ -123,9 +124,27 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
   if (noHiddenParam) {
     MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
-      clang::Expr* par = CE->getArg(i);
-      TraverseStmt(par);
-      m_VariedDecls.insert(FDparam[i]);
+      clang::Expr* arg = CE->getArg(i);
+
+      QualType parType = FDparam[i]->getType();
+      QualType innerMostType = parType;
+      while (innerMostType->isPointerType())
+        innerMostType = innerMostType->getPointeeType();
+      if ((utils::isArrayOrPointerType(parType) &&
+           !innerMostType.isConstQualified()) ||
+          (parType->isReferenceType() &&
+           !parType.getNonReferenceType().isConstQualified())) {
+        m_Marking = true;
+        m_Varied = true;
+      }
+
+      TraverseStmt(arg);
+
+      if (m_Varied)
+        m_VariedDecls.insert(FDparam[i]);
+
+      m_Marking = false;
+      m_Varied = false;
     }
   }
   return true;
@@ -133,12 +152,16 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
 
 bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
   for (Decl* D : DS->decls()) {
+    QualType VDTy = cast<VarDecl>(D)->getType();
+    if (utils::isArrayOrPointerType(VDTy)) {
+      copyVarToCurBlock(cast<VarDecl>(D));
+      continue;
+    }
     if (Expr* init = cast<VarDecl>(D)->getInit()) {
       m_Varied = false;
       TraverseStmt(init);
       m_Marking = true;
-      QualType VDTy = cast<VarDecl>(D)->getType();
-      if (m_Varied || utils::isArrayOrPointerType(VDTy))
+      if (m_Varied)
         copyVarToCurBlock(cast<VarDecl>(D));
       m_Marking = false;
     }

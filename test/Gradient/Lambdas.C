@@ -12,7 +12,13 @@ double f1(double i, double j) {
   return i + _f(j);
 }
 
-// CHECK:     inline void operator_call_pullback(double t, double _d_y, double *_d_t) const;
+// CHECK:     inline void operator_call_pullback(double t, double _d_y, double *_d_t) const {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             *_d_t += _d_y * t;
+// CHECK-NEXT:             *_d_t += t * _d_y;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+
 // CHECK:     void f1_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:         auto _f = []{{ ?}}(double t) {
 // CHECK-NEXT:             return t * t + 1.;
@@ -33,13 +39,19 @@ double f2(double i, double j) {
   return x;
 }
 
-// CHECK:     inline void operator_call_pullback(double t, double k, double _d_y, double *_d_t, double *_d_k) const;
+// CHECK-NEXT:     inline void operator_call_pullback(double t, double k, double _d_y, double *_d_t, double *_d_k) const {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             *_d_t += _d_y;
+// CHECK-NEXT:             *_d_k += _d_y;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+
 // CHECK:     void f2_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:             auto _f = []{{ ?}}(double t, double k) {
 // CHECK-NEXT:                 return t + k;
 // CHECK-NEXT:             }{{;?}}
 // CHECK:        double _d_x = 0.;
-// CHECK-NEXT:             double x = _f.operator()(i + j, i);
+// CHECK-NEXT:             double x = _f(i + j, i);
 // CHECK-NEXT:             _d_x += 1;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 double _r0 = 0.;
@@ -63,16 +75,3 @@ int main() {
   df2.execute(3, 4, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 2.00 1.00
 }
-
-// CHECK:     inline void operator_call_pullback(double t, double _d_y, double *_d_t) const {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             *_d_t += _d_y * t;
-// CHECK-NEXT:             *_d_t += t * _d_y;
-// CHECK-NEXT:         }
-// CHECK-NEXT:     }
-// CHECK-NEXT:     inline void operator_call_pullback(double t, double k, double _d_y, double *_d_t, double *_d_k) const {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             *_d_t += _d_y;
-// CHECK-NEXT:             *_d_k += _d_y;
-// CHECK-NEXT:         }
-// CHECK-NEXT:     }

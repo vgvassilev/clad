@@ -1,8 +1,11 @@
 #ifndef CLAD_DIFFERENTIATOR_VECTORPUSHFORWARDMODEVISITOR_H
 #define CLAD_DIFFERENTIATOR_VECTORPUSHFORWARDMODEVISITOR_H
 
+#include "DerivativeBuilder.h"
 #include "PushForwardModeVisitor.h"
 #include "VectorForwardModeVisitor.h"
+
+#include "clang/AST/Type.h"
 
 namespace clad {
 class VectorPushForwardModeVisitor : public VectorForwardModeVisitor {
@@ -14,6 +17,10 @@ public:
 
   void ExecuteInsidePushforwardFunctionBlock() override;
 
+  DerivativeAndOverload Derive() override;
+
+  clang::QualType
+  GetParameterDerivativeType(clang::QualType ParamType) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
 };
 } // end namespace clad

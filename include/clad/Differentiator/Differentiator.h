@@ -107,11 +107,11 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   template <class T>
   struct is_range : decltype(zero_init_detail::is_range<T>(0)) {};
 
-  template <class T> void zero_init(T& t);
+  template <class T> CUDA_HOST_DEVICE void zero_init(T& t);
 
   template <class T,
             typename std::enable_if<!is_range<T>::value, int>::type = 0>
-  void zero_impl(volatile T& t) {
+  CUDA_HOST_DEVICE void zero_impl(volatile T& t) {
     // Fill an array with zeros.
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
     unsigned char tmp[sizeof(T)] = {};
@@ -124,18 +124,12 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   }
 
   template <class T, typename std::enable_if<is_range<T>::value, int>::type = 0>
-  void zero_impl(T& t) {
+  CUDA_HOST_DEVICE void zero_impl(T& t) {
     for (auto& x : t)
       zero_init(x);
   }
 
-  // std::pair<T1, T2> is almost trivially copyable. Specialize it.
-  template <class T1, class T2> void zero_init(std::pair<T1, T2>& p) {
-    zero_init(p.first);
-    zero_init(p.second);
-  }
-
-  template <class T> void zero_init(T& t) { zero_impl(t); }
+  template <class T> CUDA_HOST_DEVICE void zero_init(T& t) { zero_impl(t); }
 
   /// Initialize a const sized array.
   // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
@@ -290,10 +284,15 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
                            "you pass clad.so to clang.");
 #endif
       size_t length = GetLength(code);
-      char* temp = (char*)malloc(length + 1);
-      m_Code = temp;
-      while ((*temp++ = *code++))
-        ;
+      m_Code = (char*)malloc(length + 1);
+      if (m_Code)
+        memcpy((void*)m_Code, code, length + 1);
+      else
+#ifdef __CUDACC__
+        printf("stderr: Error: Failed to allocate memory for m_Code\n");
+#else
+        fprintf(stderr, "Error: Failed to allocate memory for m_Code\n");
+#endif
     }
 #endif
 

@@ -13,10 +13,13 @@
 
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/AST/Type.h"
+#include "clang/Basic/OperatorKinds.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
-#include <clang/AST/Type.h>
-#include <llvm/ADT/StringRef.h>
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
 
 #include <array>
 #include <stack>
@@ -27,6 +30,7 @@ class NestedNameSpecifier;
 } // namespace clang
 
 namespace clad {
+  class MultiplexExternalRMVSource;
   /// A class that represents the result of Visit of ForwardModeVisitor.
   /// Stmt() allows to access the original (cloned) Stmt and Stmt_dx() allows
   /// to access its derivative (if exists, otherwise null). If Visit produces
@@ -131,6 +135,11 @@ namespace clad {
     // FIXME: Fix this inconsistency, by making `this` pointer derivative
     // expression to be of object type in the reverse mode as well.
     clang::Expr* m_ThisExprDerivative = nullptr;
+
+    // FIXME: Should we make this an object instead of a pointer?
+    // Downside of making it an object: We will need to include
+    // 'MultiplexExternalRMVSource.h' file
+    MultiplexExternalRMVSource* m_ExternalSource = nullptr;
 
     /// A function used to wrap result of visiting E in a lambda. Returns a call
     /// to the built lambda. Func is a functor that will be invoked inside
@@ -266,6 +275,16 @@ namespace clad {
     /// either LHS or RHS is null.
     clang::Expr* BuildOp(clang::BinaryOperatorKind OpCode, clang::Expr* L,
                          clang::Expr* R, clang::SourceLocation OpLoc = noLoc);
+
+    /// A shorthand to simplify syntax for creation of CXXOperatorCallExpr.
+    /// We need it because Clang doesn't have a common ActOn- function to
+    /// generate operator calls based on the operator kind. \param[in] OOK The
+    /// kind of the operator. \param[in] ArgExprs The arguments of the operator.
+    /// \param[in] OpLoc The source location, if necessary.
+    /// \returns An expression of the built operator.
+    clang::Expr* BuildOperatorCall(clang::OverloadedOperatorKind OOK,
+                                   llvm::MutableArrayRef<clang::Expr*> ArgExprs,
+                                   clang::SourceLocation OpLoc = noLoc);
     /// Function to resolve Unary Minus. If the leftmost operand
     /// has a Unary Minus then adds parens before adding the unary minus.
     /// \param[in] E Expression fed to the recursive call.
@@ -482,9 +501,8 @@ namespace clad {
     void PerformImplicitConversionAndAssign(clang::VarDecl* VD,
                                             clang::Expr* Init) {
       // Implicitly convert Init into the type of VD
-      clang::ActionResult<clang::Expr*> ICAR = m_Sema
-          .PerformImplicitConversion(Init, VD->getType(),
-                                     clang::Sema::AA_Casting);
+      clang::ActionResult<clang::Expr*> ICAR = m_Sema.PerformImplicitConversion(
+          Init, VD->getType(), CLAD_COMPAT_CLANG20_SemaAACasting);
       assert(!ICAR.isInvalid() && "Invalid implicit conversion!");
       // Assign the resulting expression to the variable declaration
       SetDeclInit(VD, ICAR.get());
@@ -602,6 +620,8 @@ namespace clad {
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
 
+    clang::QualType GetDerivativeType();
+
     /// Returns clad::Identify template declaration.
     clang::TemplateDecl* GetCladConstructorPushforwardTag();
 
@@ -620,6 +640,11 @@ namespace clad {
     /// modes.
     clang::FunctionDecl* CreateDerivativeOverload();
 
+    virtual clang::QualType
+    GetParameterDerivativeType(clang::QualType ParamType) {
+      return ParamType;
+    }
+
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.
     clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);
@@ -630,6 +655,10 @@ namespace clad {
     /// Cloning types is necessary since VariableArrayType
     /// store a pointer to their size expression.
     clang::QualType CloneType(clang::QualType T);
+
+    /// Initiates the differentiation process.
+    /// Returns the derivative and its overload, if any.
+    virtual DerivativeAndOverload Derive() = 0;
 
     /// Computes effective derivative operands. It should be used when operands
     /// might be of pointer types.
@@ -664,6 +693,8 @@ namespace clad {
     void ComputeEffectiveDOperands(StmtDiff& LDiff, StmtDiff& RDiff,
                                    clang::Expr*& derivedL,
                                    clang::Expr*& derivedR);
+
+    virtual ~VisitorBase() = 0;
 
   private:
     clang::TemplateDecl* m_CladConstructorPushforwardTag = nullptr;

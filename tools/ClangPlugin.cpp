@@ -125,19 +125,26 @@ namespace clad {
     void CladPlugin::HandleTopLevelDeclForClad(DeclGroupRef DGR) {
       if (!CheckBuiltins())
         return;
-
+#if CLANG_VERSION_MAJOR > 16
       Sema& S = m_CI.getSema();
-
       if (!m_DerivativeBuilder)
         m_DerivativeBuilder.reset(
             new DerivativeBuilder(S, *this, m_DFC, m_DiffRequestGraph));
-
       RequestOptions opts{};
       SetRequestOptions(opts);
-      DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph, S,
-                              opts);
+      // Traverse all constextr FunctionDecls for the static graph only once to
+      // differentiate them immeditely.
+      for (Decl* D : DGR) {
+        if (!isa<FunctionDecl>(D))
+          continue;
+        FunctionDecl* FD = cast<FunctionDecl>(D);
+        if (FD->isConstexpr() || !m_Multiplexer) {
+          DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph, S,
+                                  opts);
+          break;
+        }
+      }
 
-#if CLANG_VERSION_MAJOR > 16
       for (DiffRequest& request : m_DiffRequestGraph.getNodes()) {
         if (request.ImmediateMode && request.Function->isConstexpr()) {
           m_DiffRequestGraph.setCurrentProcessingNode(request);
@@ -377,12 +384,10 @@ namespace clad {
           m_Multiplexer->CompleteTentativeDefinition(
               cast<VarDecl>(D.getSingleDecl()));
           break;
-#if CLANG_VERSION_MAJOR > 9
         case CallKind::CompleteExternalDeclaration:
           m_Multiplexer->CompleteExternalDeclaration(
               cast<VarDecl>(D.getSingleDecl()));
           break;
-#endif
         case CallKind::AssignInheritanceModel:
           m_Multiplexer->AssignInheritanceModel(
               cast<CXXRecordDecl>(D.getSingleDecl()));
@@ -478,6 +483,24 @@ namespace clad {
     }
 
     void CladPlugin::HandleTranslationUnit(ASTContext& C) {
+      Sema& S = m_CI.getSema();
+      if (!m_DerivativeBuilder)
+        m_DerivativeBuilder.reset(
+            new DerivativeBuilder(S, *this, m_DFC, m_DiffRequestGraph));
+      RequestOptions opts{};
+      SetRequestOptions(opts);
+      // Traverse all collected DeclGroupRef only once to create the static
+      // graph.
+      for (auto DCI : m_DelayedCalls)
+        for (Decl* D : DCI.m_DGR) {
+          if (const auto* FD = dyn_cast<FunctionDecl>(D))
+            if (FD->isConstexpr())
+              continue;
+          DiffCollector collector(DCI.m_DGR, CladEnabledRange,
+                                  m_DiffRequestGraph, S, opts);
+          break;
+        }
+
       FinalizeTranslationUnit();
       SendToMultiplexer();
       m_Multiplexer->HandleTranslationUnit(C);
@@ -518,11 +541,9 @@ namespace clad {
         case CallKind::CompleteTentativeDefinition:
           llvm::errs() << "CompleteTentativeDefinition";
           break;
-#if CLANG_VERSION_MAJOR > 9
         case CallKind::CompleteExternalDeclaration:
           llvm::errs() << "CompleteExternalDeclaration";
           break;
-#endif
         case CallKind::AssignInheritanceModel:
           llvm::errs() << "AssignInheritanceModel";
           break;

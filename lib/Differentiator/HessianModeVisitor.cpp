@@ -18,6 +18,8 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
@@ -125,19 +127,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
     }
   }
 
-  llvm::SmallVector<QualType, 16> paramTypes(m_DiffReq->getNumParams() + 1);
-  std::transform(m_DiffReq->param_begin(), m_DiffReq->param_end(),
-                 std::begin(paramTypes),
-                 [](const ParmVarDecl* PVD) { return PVD->getType(); });
-  paramTypes.back() = m_Context.getPointerType(m_DiffReq->getReturnType());
-
-  const auto* originalFnProtoType =
-      cast<FunctionProtoType>(m_DiffReq->getType());
-  QualType hessianFunctionType = m_Context.getFunctionType(
-      m_Context.VoidTy,
-      llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
-      // Cast to function pointer.
-      originalFnProtoType->getExtProtoInfo());
+  QualType hessianFunctionType = GetDerivativeType();
 
   // Check if the function is already declared as a custom derivative.
   // FIXME: We should not use const_cast to get the decl context here.
@@ -237,7 +227,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
   }
   return Merge(secondDerivativeFuncs, IndependentArgsSize,
                TotalIndependentArgsSize, hessianFuncName, DC,
-               hessianFunctionType, paramTypes);
+               hessianFunctionType);
 }
 
   // Combines all generated second derivative functions into a
@@ -248,8 +238,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
                             SmallVector<size_t, 16> IndependentArgsSize,
                             size_t TotalIndependentArgsSize,
                             const std::string& hessianFuncName, DeclContext* DC,
-                            QualType hessianFunctionType,
-                            llvm::SmallVector<QualType, 16> paramTypes) {
+                            QualType hessianFunctionType) {
     DiffParams args;
     std::copy(m_DiffReq->param_begin(), m_DiffReq->param_end(),
               std::back_inserter(args));
@@ -272,6 +261,8 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(getCurrentScope(), hessianFD);
 
+    llvm::ArrayRef<QualType> paramTypes =
+        llvm::cast<FunctionProtoType>(hessianFunctionType)->getParamTypes();
     llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
     std::transform(m_DiffReq->param_begin(), m_DiffReq->param_end(),
                    std::begin(params), [&](const ParmVarDecl* PVD) {

@@ -481,6 +481,19 @@ namespace clad {
       return newExpr;
     }
 
+    /// Removes the local const qualifiers from a QualType and returns a new
+    /// type.
+    clang::QualType getNonConstType(clang::QualType T, clang::Sema& S) {
+      bool isLValueRefType = T->isLValueReferenceType();
+      T = T.getNonReferenceType();
+      clang::Qualifiers quals(T.getQualifiers());
+      quals.removeConst();
+      clang::QualType nonConstType =
+          S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
+      if (isLValueRefType)
+        return S.getASTContext().getLValueReferenceType(nonConstType);
+      return nonConstType;
+    }
     clang::Expr* BuildStaticCastToRValue(clang::Sema& semaRef, clang::Expr* E) {
       ASTContext& C = semaRef.getASTContext();
       QualType T = E->getType();
@@ -800,6 +813,21 @@ namespace clad {
           return S.ActOnInitList(noLoc, adjParams, noLoc).get();
         }
       return S.ActOnInitList(noLoc, {}, noLoc).get();
+    }
+
+    bool IsDifferentiableType(QualType T) {
+      QualType origType = T;
+      // FIXME: arbitrary dimension array type as well.
+      while (utils::isArrayOrPointerType(T))
+        T = utils::GetValueType(T);
+      T = T.getNonReferenceType();
+      if (T->isEnumeralType())
+        return false;
+      if (T->isRealType() || T->isStructureOrClassType())
+        return true;
+      if (origType->isPointerType() && T->isVoidType())
+        return true;
+      return false;
     }
   } // namespace utils
 } // namespace clad

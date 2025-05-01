@@ -32,10 +32,13 @@ namespace clad {
     FPErrorEstimationModel(DerivativeBuilder& builder,
                            const DiffRequest& request)
         : VisitorBase(builder, request) {}
-    virtual ~FPErrorEstimationModel();
+    ~FPErrorEstimationModel() override;
 
     /// Clear the variable estimate map so that we can start afresh.
     void clearEstimationVariables() { m_EstimateVar.clear(); }
+
+    // FIXME: This is a dummy override needed because Derive is abstract.
+    DerivativeAndOverload Derive() override { return {}; }
 
     /// User overridden function to return the error expression of a
     /// specific estimation model. The error expression is returned in the form

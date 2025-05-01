@@ -226,6 +226,8 @@ namespace clad {
     /// Returns the same type as GetValueType but without const qualifier.
     clang::QualType GetNonConstValueType(clang::QualType T);
 
+    clang::QualType getNonConstType(clang::QualType T, clang::Sema& S);
+
     /// Builds and returns the init expression to initialise `clad::array` and
     /// `clad::array_ref` from a constant array.
     ///
@@ -345,6 +347,8 @@ namespace clad {
 
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
+
+    bool IsDifferentiableType(clang::QualType T);
 
     } // namespace utils
     } // namespace clad

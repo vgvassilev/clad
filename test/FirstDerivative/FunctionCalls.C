@@ -178,7 +178,9 @@ double test_9(double x) {
   return A::static_method(x);
 }
 
-// CHECK: static clad::ValueAndPushforward<double, double> static_method_pushforward(double x, double _d_x);
+// CHECK: static clad::ValueAndPushforward<double, double> static_method_pushforward(double x, double _d_x) {
+// CHECK-NEXT: return {x, _d_x};
+// CHECK-NEXT: }
 
 // CHECK: double test_9_darg0(double x) {
 // CHECK-NEXT: double _d_x = 1;
@@ -217,9 +219,4 @@ int main () {
   clad::differentiate(test_9);
   clad::differentiate(test_10);
   return 0;
-
-
-// CHECK: static clad::ValueAndPushforward<double, double> static_method_pushforward(double x, double _d_x) {
-// CHECK-NEXT: return {x, _d_x};
-// CHECK-NEXT: }
 }

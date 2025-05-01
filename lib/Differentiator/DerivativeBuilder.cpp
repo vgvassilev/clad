@@ -135,12 +135,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           FD->getCanonicalDecl()->getStorageClass()
               CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
           FD->isInlineSpecified(), FD->hasWrittenPrototype(),
-          FD->getConstexprKind()
-              CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(
-                  FD->getTrailingRequiresClause()));
+          FD->getConstexprKind(),
+          FD->getTrailingRequiresClause()
+              ? VB.Clone(FD->getTrailingRequiresClause())
+              : nullptr);
 
       returnedFD->setAccess(FD->getAccess());
     }
+
     returnedFD->setImplicitlyInline(FD->isInlined());
 
     for (const FunctionDecl* NFD : FD->redecls()) {
@@ -535,7 +537,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       result = V.Derive();
     } else if (request.Mode == DiffMode::vector_forward_mode) {
       VectorForwardModeVisitor V(*this, request);
-      result = V.DeriveVectorMode();
+      result = V.Derive();
     } else if (request.Mode == DiffMode::experimental_vector_pushforward) {
       VectorPushForwardModeVisitor V(*this, request);
       result = V.Derive();
@@ -560,7 +562,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       result = H.Derive();
     } else if (request.Mode == DiffMode::jacobian) {
       JacobianModeVisitor J(*this, request);
-      result = J.DeriveJacobian();
+      result = J.Derive();
     } else if (request.Mode == DiffMode::error_estimation) {
       ReverseModeVisitor R(*this, request);
       InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
@@ -614,4 +616,4 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                                          bool alreadyDerived /*=false*/) {
     m_DiffRequestGraph.addEdgeToCurrentNode(request, alreadyDerived);
   }
-}// end namespace clad
+  } // end namespace clad

@@ -51,21 +51,6 @@ BaseForwardModeVisitor::BaseForwardModeVisitor(DerivativeBuilder& builder,
 
 BaseForwardModeVisitor::~BaseForwardModeVisitor() {}
 
-bool BaseForwardModeVisitor::IsDifferentiableType(QualType T) {
-  QualType origType = T;
-  // FIXME: arbitrary dimension array type as well.
-  while (utils::isArrayOrPointerType(T))
-    T = utils::GetValueType(T);
-  T = T.getNonReferenceType();
-  if (T->isEnumeralType())
-    return false;
-  if (T->isRealType() || T->isStructureOrClassType())
-    return true;
-  if (origType->isPointerType() && T->isVoidType())
-    return true;
-  return false;
-}
-
 bool IsRealNonReferenceType(QualType T) {
   return T.getNonReferenceType()->isRealType();
 }
@@ -163,7 +148,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
 
   m_Sema.CurContext = DC;
-  QualType derivedFnType = ComputeDerivativeFunctionType();
+  QualType derivedFnType = GetDerivativeType();
   DeclWithContext result =
       m_Builder.cloneFunction(FD, *this, DC, validLoc, name, derivedFnType);
   FunctionDecl* derivedFD = result.first;
@@ -234,59 +219,30 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
                                /*OverloadFunctionDecl=*/nullptr};
 }
 
-QualType BaseForwardModeVisitor::ComputeDerivativeFunctionType() {
-  const FunctionDecl* FD = m_DiffReq.Function;
-
-  if (m_DiffReq.Mode == DiffMode::forward)
-    return FD->getType();
-
-  assert(m_DiffReq.Mode == GetPushForwardMode());
-
-  const auto* FnProtoTy = cast<FunctionProtoType>(FD->getType());
-  llvm::SmallVector<QualType, 16> FnTypes(FnProtoTy->getParamTypes().begin(),
-                                          FnProtoTy->getParamTypes().end());
-
-  bool HasThis = false;
-  if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
-    if (MD->isInstance()) {
-      FnTypes.push_back(MD->getThisType());
-      HasThis = true;
-    }
-  }
-
-  // Iterate over all but the "this" type and extend the signature to add the
-  // extra parameters.
-  for (size_t i = 0, e = FnTypes.size() - HasThis; i < e; ++i) {
-    QualType PVDTy = FnTypes[i];
-    if (BaseForwardModeVisitor::IsDifferentiableType(PVDTy))
-      FnTypes.push_back(GetPushForwardDerivativeType(PVDTy));
-  }
-
-  QualType oRetTy = FD->getReturnType();
-  QualType dRetTy;
-  if (oRetTy->isVoidType()) {
-    dRetTy = m_Context.VoidTy;
-  } else {
-    TemplateDecl* valueAndPushforward =
-        LookupTemplateDeclInCladNamespace("ValueAndPushforward");
-    assert(valueAndPushforward &&
-           "clad::ValueAndPushforward template not found!!");
-    // FIXME: Sink GetPushForwardDerivativeType here.
-    QualType PushFwdTy = GetPushForwardDerivativeType(oRetTy);
-    dRetTy = InstantiateTemplate(valueAndPushforward, {oRetTy, PushFwdTy});
-  }
-  FunctionProtoType::ExtProtoInfo EPI = FnProtoTy->getExtProtoInfo();
-  return m_Context.getFunctionType(dRetTy, FnTypes, EPI);
-}
-
 void BaseForwardModeVisitor::SetupDerivativeParameters(
     llvm::SmallVectorImpl<ParmVarDecl*>& params) {
   const FunctionDecl* FD = m_DiffReq.Function;
-  for (ParmVarDecl* PVD : FD->parameters()) {
+  const FunctionDecl* FDPattern = nullptr;
+  unsigned FDPatternNumParams = 0;
+  if (FD->isTemplateInstantiation()) {
+    FDPattern = FD->getTemplateInstantiationPattern();
+    FDPatternNumParams = FDPattern->getNumParams();
+  }
+  for (unsigned i = 0, n = FD->getNumParams(); i < n; ++i) {
+    const ParmVarDecl* PVD = FD->getParamDecl(i);
     IdentifierInfo* PVDII = PVD->getIdentifier();
     // Implicitly created special member functions have no parameter names.
     if (!PVD->getDeclName())
       PVDII = CreateUniqueIdentifier("param");
+
+    if (FDPattern) {
+      const ParmVarDecl* OrigPVD =
+          i >= FDPatternNumParams
+              ? FDPattern->getParamDecl(FDPatternNumParams - 1)
+              : FDPattern->getParamDecl(i);
+      if (OrigPVD->isParameterPack())
+        PVDII = CreateUniqueIdentifier(PVDII->getName());
+    }
 
     auto* newPVD = CloneParmVarDecl(PVD, PVDII,
                                     /*pushOnScopeChains=*/true,
@@ -296,7 +252,8 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
     if (PVD == m_IndependentVar)
       m_IndependentVar = newPVD;
 
-    if (!PVD->getDeclName()) // We can't use lookup-based replacements
+    // We can't use lookup-based replacements
+    if (PVD->getDeclName() != newPVD->getDeclName())
       m_DeclReplacements[PVD] = newPVD;
 
     params.push_back(newPVD);
@@ -310,7 +267,8 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
   // parameter for representing derivative of `this` pointer with respect to the
   // independent parameter.
   if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
-    if (MD->isInstance()) {
+    const CXXRecordDecl* RD = MD->getParent();
+    if (MD->isInstance() && !RD->isLambda()) {
       IdentifierInfo* dThisII = &m_Context.Idents.get("_d_this");
       auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext, dThisII,
                                            MD->getThisType());
@@ -325,12 +283,12 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
   for (size_t i = 0, e = params.size() - HasThis; i < e; ++i) {
     const ParmVarDecl* PVD = params[i];
 
-    if (!BaseForwardModeVisitor::IsDifferentiableType(PVD->getType()))
+    if (!utils::IsDifferentiableType(PVD->getType()))
       continue;
 
     IdentifierInfo* II = &m_Context.Idents.get("_d_" + PVD->getNameAsString());
     auto* dPVD = utils::BuildParmVarDecl(
-        m_Sema, m_Derivative, II, GetPushForwardDerivativeType(PVD->getType()),
+        m_Sema, m_Derivative, II, GetParameterDerivativeType(PVD->getType()),
         PVD->getStorageClass());
     params.push_back(dPVD);
     m_Variables[PVD] = BuildDeclRef(dPVD);
@@ -346,7 +304,7 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
     // non-reference type for creating the derivatives.
     QualType dParamType = param->getType().getNonReferenceType();
     // We do not create derived variable for array/pointer parameters.
-    if (!BaseForwardModeVisitor::IsDifferentiableType(dParamType) ||
+    if (!utils::IsDifferentiableType(dParamType) ||
         utils::isArrayOrPointerType(dParamType))
       continue;
     Expr* dParam = nullptr;
@@ -1009,11 +967,6 @@ BaseForwardModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
   return StmtDiff(Clone(FL), constant0);
 }
 
-QualType
-BaseForwardModeVisitor::GetPushForwardDerivativeType(QualType ParamType) {
-  return ParamType;
-}
-
 std::string BaseForwardModeVisitor::GetPushForwardFunctionSuffix() {
   return "_pushforward";
 }
@@ -1068,16 +1021,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   StmtDiff baseDiff;
   // Add derivative of the implicit `this` pointer to the `diffArgs`.
   if (isLambda) {
-    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
-      QualType ptrType = m_Context.getPointerType(m_Context.getRecordType(
-          FD->getDeclContext()->getOuterLexicalRecordContext()));
-      // For now, only lambdas with no captures are supported, so we just pass
-      // a nullptr instead of the diff object.
-      baseDiff =
-          StmtDiff(Clone(OCE->getArg(0)),
-                   new (m_Context) CXXNullPtrLiteralExpr(ptrType, validLoc));
-      diffArgs.push_back(baseDiff.getExpr_dx());
-    }
+    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
+      baseDiff = Clone(OCE->getArg(0));
   } else if (const auto* MD =
                  dyn_cast<CXXMethodDecl>(FD)) { // isLambda == false
     if (MD->isInstance()) {
@@ -1110,6 +1055,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     skipFirstArg = true;
 
   // For f(g(x)) = f'(x) * g'(x)
+  std::size_t numParams = FD->getNumParams();
   Expr* Multiplier = nullptr;
   for (size_t i = skipFirstArg, e = CE->getNumArgs(); i < e; ++i) {
     const Expr* arg = CE->getArg(i);
@@ -1118,7 +1064,11 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // If original argument is an RValue and function expects an RValue
     // parameter, then convert the cloned argument and the corresponding
     // derivative to RValue if they are not RValue.
-    QualType paramType = FD->getParamDecl(i - skipFirstArg)->getType();
+    QualType paramType;
+    if (FD->isVariadic() && (i - skipFirstArg) >= numParams)
+      paramType = CE->getArg(i - skipFirstArg)->getType();
+    else
+      paramType = FD->getParamDecl(i - skipFirstArg)->getType();
     if (utils::IsRValue(arg) && paramType->isRValueReferenceType()) {
       if (!utils::IsRValue(argDiff.getExpr())) {
         Expr* castE = utils::BuildStaticCastToRValue(m_Sema, argDiff.getExpr());
@@ -1131,7 +1081,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       }
     }
     CallArgs.push_back(argDiff.getExpr());
-    if (BaseForwardModeVisitor::IsDifferentiableType(arg->getType())) {
+    if (utils::IsDifferentiableType(arg->getType())) {
       Expr* dArg = argDiff.getExpr_dx();
       if (!dArg)
         dArg = getZeroInit(arg->getType());
@@ -2060,7 +2010,7 @@ StmtDiff BaseForwardModeVisitor::VisitMaterializeTemporaryExpr(
     const clang::MaterializeTemporaryExpr* MTE) {
   // `MaterializeTemporaryExpr` node will be created automatically if it is
   // required by `ActOn`/`Build` Sema functions.
-  StmtDiff MTEDiff = Visit(clad_compat::GetSubExpr(MTE));
+  StmtDiff MTEDiff = Visit(MTE->getSubExpr());
   return MTEDiff;
 }
 
