@@ -49,7 +49,6 @@ static void mergeVarsData(std::set<const clang::VarDecl*>* targetData,
 }
 
 void UsefulAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
-
   for (auto ib = block.end(); ib != block.begin() - 1; ib--) {
     if (ib->getKind() == clang::CFGElement::Statement) {
 
