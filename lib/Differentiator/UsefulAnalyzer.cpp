@@ -54,8 +54,6 @@ void UsefulAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
     if (ib->getKind() == clang::CFGElement::Statement) {
 
       const clang::Stmt* S = ib->castAs<clang::CFGStmt>().getStmt();
-      llvm::errs() << "\nblockid: " << m_CurBlockID << "\n";
-      S->dump();
       // The const_cast is inevitable, since there is no
       // ConstRecusiveASTVisitor.
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
