@@ -31,6 +31,8 @@ enum opts : unsigned {
   disable_tbr = 1 << (ORDER_BITS + 3),
   enable_va = 1 << (ORDER_BITS + 5),
   disable_va = 1 << (ORDER_BITS + 6),
+  enable_ua = 1 << (ORDER_BITS + 9),
+  disable_ua = 1 << (ORDER_BITS + 10),
 
   // Specifying whether we only want the diagonal of the hessian.
   diagonal_only = 1 << (ORDER_BITS + 4),

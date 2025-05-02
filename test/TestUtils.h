@@ -201,6 +201,9 @@ void EssentiallyEqualArrays(A* a, B* b, unsigned size) {
 #define INIT_DIFFERENTIATE(fn, ...)                                            \
   auto fn##_diff = clad::differentiate(fn, __VA_ARGS__);
 
+#define INIT_DIFFERENTIATE_UA(fn, ...)                                         \
+  auto fn##_diff = clad::differentiate<clad::opts::enable_ua>(fn, __VA_ARGS__);
+
 #define INIT_GRADIENT_SPECIFIC(fn, args)                                       \
   auto fn##_grad = clad::gradient(fn, args);
 

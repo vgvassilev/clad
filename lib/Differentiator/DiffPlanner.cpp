@@ -4,6 +4,7 @@
 
 #include "ActivityAnalyzer.h"
 #include "TBRAnalyzer.h"
+#include "UsefulAnalyzer.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -666,6 +667,13 @@ namespace clad {
     return found != m_TbrRunInfo.ToBeRecorded.end();
   }
 
+  bool DiffRequest::shouldHaveAdjointForw(const VarDecl* VD) const {
+    if (!EnableUsefulAnalysis)
+      return true;
+    auto found = m_UsefulRunInfo.UsefulDecls.find(VD);
+    return found != m_UsefulRunInfo.UsefulDecls.end();
+  }
+
   bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
     if (!EnableVariedAnalysis)
       return true;
@@ -811,6 +819,7 @@ namespace clad {
 
     request.EnableTBRAnalysis = ReqOpts.EnableTBRAnalysis;
     request.EnableVariedAnalysis = ReqOpts.EnableVariedAnalysis;
+    request.EnableUsefulAnalysis = ReqOpts.EnableUsefulAnalysis;
 
     const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
     assert(TAL && "Call must have specialization args!");
@@ -831,7 +840,10 @@ namespace clad {
         clad::HasOption(bitmasked_opts_value, clad::opts::enable_va);
     bool disable_va_in_req =
         clad::HasOption(bitmasked_opts_value, clad::opts::disable_va);
-
+    bool enable_ua_in_req =
+        clad::HasOption(bitmasked_opts_value, clad::opts::enable_ua);
+    bool disable_ua_in_req =
+        clad::HasOption(bitmasked_opts_value, clad::opts::disable_ua);
     // Sanity checks.
     if (enable_tbr_in_req && disable_tbr_in_req) {
       utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
@@ -841,6 +853,11 @@ namespace clad {
     if (enable_va_in_req && disable_va_in_req) {
       utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
                       "Both enable and disable VA options are specified.");
+      return true;
+    }
+    if (enable_ua_in_req && disable_ua_in_req) {
+      utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
+                      "Both enable and disable UA options are specified.");
       return true;
     }
     if (enable_tbr_in_req && request.Mode == DiffMode::forward) {
@@ -861,9 +878,13 @@ namespace clad {
     if (enable_tbr_in_req || disable_tbr_in_req)
       request.EnableTBRAnalysis = enable_tbr_in_req && !disable_tbr_in_req;
 
-    // Override the default value of TBR analysis.
+    // Override the default value of VA analysis.
     if (enable_va_in_req || disable_va_in_req)
       request.EnableVariedAnalysis = enable_va_in_req && !disable_va_in_req;
+
+    // Override the default value of UA analysis.
+    if (enable_ua_in_req || disable_ua_in_req)
+      request.EnableUsefulAnalysis = enable_ua_in_req && !disable_ua_in_req;
 
     // Check for clad::hessian<diagonal_only>.
     if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only)) {
@@ -1088,6 +1109,7 @@ namespace clad {
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+      request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
       request.CallContext = E;
 
       // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
@@ -1148,6 +1170,12 @@ namespace clad {
           m_TopMostReq->Mode == DiffMode::reverse) {
         VariedAnalyzer analyzer(request.Function->getASTContext(),
                                 request.getVariedDecls());
+        analyzer.Analyze(request.Function);
+      }
+
+      if (m_TopMostReq->EnableUsefulAnalysis) {
+        UsefulAnalyzer analyzer(request.Function->getASTContext(),
+                                request.getUsefulDecls());
         analyzer.Analyze(request.Function);
       }
 

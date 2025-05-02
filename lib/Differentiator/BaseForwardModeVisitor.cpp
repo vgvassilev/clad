@@ -947,6 +947,11 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   // If DRE is of type pointer, then the derivative is a null pointer.
   if (clonedDRE->getType()->isPointerType())
     return StmtDiff(clonedDRE, nullptr);
+
+  if (const auto* decl = dyn_cast<VarDecl>(DRE->getDecl()))
+    if (!m_DiffReq.shouldHaveAdjointForw(decl))
+      return StmtDiff(clonedDRE, nullptr);
+
   QualType literalTy = utils::GetValueType(clonedDRE->getType());
   return StmtDiff(clonedDRE, ConstantFolder::synthesizeLiteral(
                                  literalTy, m_Context, /*val=*/0));
@@ -1174,6 +1179,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     pushforwardFnRequest.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
     // Silence diag outputs in nested derivation process.
     pushforwardFnRequest.VerboseDiags = false;
+    pushforwardFnRequest.EnableUsefulAnalysis = m_DiffReq.EnableUsefulAnalysis;
 
     // Check if request already derived in DerivedFunctions.
     FunctionDecl* pushforwardFD =
@@ -1247,13 +1253,16 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
   else if (opKind == UO_PostInc || opKind == UO_PostDec ||
            opKind == UO_PreInc || opKind == UO_PreDec) {
     Expr* derivedOp = diff.getExpr_dx();
-    if (diff.getExpr_dx()->getType()->isPointerType())
+    if (derivedOp && diff.getExpr_dx()->getType()->isPointerType())
       derivedOp = BuildOp(opKind, diff.getExpr_dx());
     return StmtDiff(op, derivedOp);
   } /* For supporting complex types */
   else if (opKind == UnaryOperatorKind::UO_Real ||
            opKind == UnaryOperatorKind::UO_Imag) {
-    return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    Expr* derivedOp = diff.getExpr_dx();
+    if (derivedOp)
+      derivedOp = BuildOp(opKind, diff.getExpr_dx());
+    return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_Deref) {
     if (Expr* dx = diff.getExpr_dx())
       return StmtDiff(op, BuildOp(opKind, dx));
@@ -1262,7 +1271,10 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     return StmtDiff(
         op, ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0));
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
-    return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    Expr* derivedOp = diff.getExpr_dx();
+    if (derivedOp)
+      derivedOp = BuildOp(opKind, diff.getExpr_dx());
+    return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_LNot) {
     Expr* zero = getZeroInit(UnOp->getType());
     if (diff.getExpr_dx() && !isUnusedResult(diff.getExpr_dx()))
@@ -1335,7 +1347,8 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       derivedR = BuildParens(derivedR);
     opDiff = BuildOp(opCode, derivedL, derivedR);
   } else if (BinOp->isAssignmentOp()) {
-    if ((Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
+    if (Ldiff.getExpr_dx() &&
+        (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
          Expr::MLV_Valid) &&
         !isCladArrayType(Ldiff.getExpr_dx()->getType())) {
       diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
@@ -1462,9 +1475,13 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
         new (m_Context) CXXNullPtrLiteralExpr(VD->getType(), VD->getBeginLoc());
     // NOLINTEND(cppcoreguidelines-owned-memory)
   }
-  VarDecl* VDDerived = BuildVarDecl(
-      VD->getType(), "_d_" + VD->getNameAsString(), initDx, VD->isDirectInit());
-  m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+  VarDecl* VDDerived = nullptr;
+  if (m_DiffReq.shouldHaveAdjointForw(VD))
+    VDDerived = BuildVarDecl(VD->getType(), "_d_" + VD->getNameAsString(),
+                             initDx, VD->isDirectInit());
+
+  if (VDDerived)
+    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
 
@@ -1531,7 +1548,8 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
         m_DeclReplacements[VD] = VDDiff.getDecl();
       decls.push_back(VDDiff.getDecl());
-      declsDiff.push_back(VDDiff.getDecl_dx());
+      if (VDDiff.getDecl_dx())
+        declsDiff.push_back(VDDiff.getDecl_dx());
     } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
       DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
       if (SADDiff.getDecl())
