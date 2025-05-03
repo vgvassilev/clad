@@ -80,6 +80,7 @@ public:
   bool EnableTBRAnalysis = false;
   bool EnableVariedAnalysis = false;
   bool EnableUsefulAnalysis = false;
+  bool EnableSparsity = false;
   /// A flag specifying whether this differentiation is to be used
   /// in immediate contexts.
   bool ImmediateMode = false;
@@ -146,6 +147,7 @@ public:
            Args == other.Args && Mode == other.Mode &&
            EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
+           EnableSparsity == other.EnableSparsity &&
            EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
@@ -193,6 +195,7 @@ public:
     bool EnableTBRAnalysis = false;
     bool EnableVariedAnalysis = false;
     bool EnableUsefulAnalysis = false;
+    bool EnableSparsity = false;
   };
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {

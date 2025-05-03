@@ -31,6 +31,7 @@ enum opts : unsigned {
   disable_tbr = 1 << (ORDER_BITS + 3),
   enable_va = 1 << (ORDER_BITS + 5),
   disable_va = 1 << (ORDER_BITS + 6),
+  enable_sp = 1 << (ORDER_BITS + 8),
   enable_ua = 1 << (ORDER_BITS + 9),
   disable_ua = 1 << (ORDER_BITS + 10),
 
