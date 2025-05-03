@@ -807,6 +807,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     request.EnableTBRAnalysis = ReqOpts.EnableTBRAnalysis;
     request.EnableVariedAnalysis = ReqOpts.EnableVariedAnalysis;
     request.EnableUsefulAnalysis = ReqOpts.EnableUsefulAnalysis;
+    request.EnableSparsity = ReqOpts.EnableSparsity;
 
     const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
     assert(TAL && "Call must have specialization args!");
@@ -831,6 +832,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         clad::HasOption(bitmasked_opts_value, clad::opts::enable_ua);
     bool disable_ua_in_req =
         clad::HasOption(bitmasked_opts_value, clad::opts::disable_ua);
+    bool enable_sp_in_req =
+        clad::HasOption(bitmasked_opts_value, clad::opts::enable_sp);
     // Sanity checks.
     if (enable_tbr_in_req && disable_tbr_in_req) {
       utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
@@ -852,6 +855,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
                       "TBR analysis is not meant for forward mode AD.");
       return true;
     }
+    if (enable_sp_in_req)
+      request.EnableSparsity = enable_sp_in_req;
 
     // reverse vector mode is not yet supported.
     if (request.Mode == DiffMode::reverse &&
