@@ -24,7 +24,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/Timer.h"
+
+#include <string>
 
 namespace clang {
   class ASTContext;
@@ -39,16 +40,6 @@ namespace clang {
 namespace clad {
 
 bool checkClangVersion();
-class CladTimerGroup {
-  llvm::TimerGroup m_Tg;
-  std::vector<std::unique_ptr<llvm::Timer>> m_Timers;
-
-public:
-  CladTimerGroup();
-  void StartNewTimer(llvm::StringRef TimerName, llvm::StringRef TimerDesc);
-  void StopTimer();
-};
-
   namespace plugin {
     struct DifferentiationOptions {
       DifferentiationOptions()
@@ -107,7 +98,6 @@ public:
     DifferentiationOptions m_DO;
     std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
     bool m_HasRuntime = false;
-    CladTimerGroup m_CTG;
     DerivedFnCollector m_DFC;
     DynamicGraph<DiffRequest> m_DiffRequestGraph;
     enum class CallKind {

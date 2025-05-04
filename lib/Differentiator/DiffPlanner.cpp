@@ -6,6 +6,13 @@
 #include "TBRAnalyzer.h"
 #include "UsefulAnalyzer.h"
 
+#include "clad/Differentiator/CladConfig.h"
+#include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DerivedFnCollector.h"
+#include "clad/Differentiator/Timers.h"
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclarationName.h"
@@ -23,13 +30,9 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
 
-#include "clad/Differentiator/CladConfig.h"
-#include "clad/Differentiator/CladUtils.h"
-#include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/DerivativeBuilder.h"
-
 #include <algorithm>
 #include <string>
+#include <utility>
 
 using namespace clang;
 
@@ -276,10 +279,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return;
 
     assert(!m_TopMostReq && "Traversal already in flight!");
-    for (Decl* D : DGR) {
+
+    for (Decl* D : DGR)
       TraverseDecl(D);
-    }
-    m_TopMostReq = nullptr;
   }
 
   /// Returns true if `FD` is a call operator; otherwise returns false.
@@ -587,11 +589,20 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
   }
 
   void DiffRequest::print(llvm::raw_ostream& Out) const {
+    const NamedDecl* ND = nullptr;
+    if (Function)
+      ND = Function;
+    else
+      ND = Global;
+    if (!ND) {
+      Out << "<- INVALID ->";
+      return;
+    }
     Out << '<';
-    PrintingPolicy P(Function->getASTContext().getLangOpts());
+    PrintingPolicy P(ND->getASTContext().getLangOpts());
     P.TerseOutput = true;
     P.FullyQualifiedName = true;
-    Function->print(Out, P, /*Indentation=*/0, /*PrintInstantiation=*/true);
+    ND->print(Out, P, /*Indentation=*/0, /*PrintInstantiation=*/true);
     Out << ">[name=" << BaseFunctionName << ", "
         << "order=" << CurrentDerivativeOrder << ", "
         << "mode=" << DiffModeToString(Mode) << ", "
@@ -631,6 +642,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return true;
 
     if (!m_TbrRunInfo.HasAnalysisRun) {
+      TimedAnalysisRegion R("TBR " + BaseFunctionName);
+
       TBRAnalyzer analyzer(Function->getASTContext(),
                            m_TbrRunInfo.ToBeRecorded);
       analyzer.Analyze(Function);
@@ -1181,12 +1194,15 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (!LookupCustomDerivativeDecl(request)) {
       if (m_TopMostReq->EnableVariedAnalysis &&
           m_TopMostReq->Mode == DiffMode::reverse) {
+        TimedAnalysisRegion R("VA " + request.BaseFunctionName);
         VariedAnalyzer analyzer(request.Function->getASTContext(),
                                 request.getVariedDecls());
         analyzer.Analyze(request.Function);
       }
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
+        TimedAnalysisRegion R("UA " + request.BaseFunctionName);
+
         UsefulAnalyzer analyzer(request.Function->getASTContext(),
                                 request.getUsefulDecls());
         analyzer.Analyze(request.Function);
