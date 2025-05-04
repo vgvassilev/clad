@@ -127,12 +127,9 @@ namespace clad {
         return;
 #if CLANG_VERSION_MAJOR > 16
       Sema& S = m_CI.getSema();
-      if (!m_DerivativeBuilder)
-        m_DerivativeBuilder.reset(
-            new DerivativeBuilder(S, *this, m_DFC, m_DiffRequestGraph));
       RequestOptions opts{};
       SetRequestOptions(opts);
-      // Traverse all constextr FunctionDecls for the static graph only once to
+      // Traverse all constexpr FunctionDecls for the static graph only once to
       // differentiate them immeditely.
       for (Decl* D : DGR) {
         if (!isa<FunctionDecl>(D))
@@ -192,6 +189,10 @@ namespace clad {
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
+      if (!m_DerivativeBuilder)
+        m_DerivativeBuilder.reset(
+            new DerivativeBuilder(S, *this, m_DFC, m_DiffRequestGraph));
+
       if (request.Global) {
         auto deriveResult = m_DerivativeBuilder->Derive(request);
         auto* VDDiff = cast_or_null<VarDecl>(deriveResult.derivative);
@@ -494,9 +495,6 @@ namespace clad {
 
     void CladPlugin::HandleTranslationUnit(ASTContext& C) {
       Sema& S = m_CI.getSema();
-      if (!m_DerivativeBuilder)
-        m_DerivativeBuilder.reset(
-            new DerivativeBuilder(S, *this, m_DFC, m_DiffRequestGraph));
       RequestOptions opts{};
       SetRequestOptions(opts);
       // Traverse all collected DeclGroupRef only once to create the static
