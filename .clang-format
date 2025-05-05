@@ -9,7 +9,7 @@ QualifierAlignment: Left
 IncludeCategories:
   - Regex:           '^"[^/]+\"'
     Priority:        10
-  - Regex:           '^"cling/'
+  - Regex:           '^"clad/'
     Priority:        20
   - Regex:           '^"clang/'
     Priority:        30
