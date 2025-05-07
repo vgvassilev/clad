@@ -40,33 +40,33 @@ namespace clang {
 namespace clad {
 
 bool checkClangVersion();
-  namespace plugin {
-    struct DifferentiationOptions {
-      DifferentiationOptions()
-          : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
-            DumpDerivedAST(false), GenerateSourceFile(false),
-            ValidateClangVersion(true), EnableTBRAnalysis(false),
-            DisableTBRAnalysis(false), EnableVariedAnalysis(false),
-            DisableVariedAnalysis(false), EnableUsefulAnalysis(false),
-            DisableUsefulAnalysis(false), CustomEstimationModel(false),
-            PrintNumDiffErrorInfo(false) {}
+namespace plugin {
+struct DifferentiationOptions {
+  DifferentiationOptions()
+      : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
+        DumpDerivedAST(false), GenerateSourceFile(false),
+        ValidateClangVersion(true), EnableTBRAnalysis(false),
+        DisableTBRAnalysis(false), EnableVariedAnalysis(false),
+        DisableVariedAnalysis(false), EnableUsefulAnalysis(false),
+        DisableUsefulAnalysis(false), CustomEstimationModel(false),
+        PrintNumDiffErrorInfo(false) {}
 
-      bool DumpSourceFn : 1;
-      bool DumpSourceFnAST : 1;
-      bool DumpDerivedFn : 1;
-      bool DumpDerivedAST : 1;
-      bool GenerateSourceFile : 1;
-      bool ValidateClangVersion : 1;
-      bool EnableTBRAnalysis : 1;
-      bool DisableTBRAnalysis : 1;
-      bool EnableVariedAnalysis : 1;
-      bool DisableVariedAnalysis : 1;
-      bool EnableUsefulAnalysis : 1;
-      bool DisableUsefulAnalysis : 1;
-      bool CustomEstimationModel : 1;
-      bool PrintNumDiffErrorInfo : 1;
-      std::string CustomModelName;
-    };
+  bool DumpSourceFn : 1;
+  bool DumpSourceFnAST : 1;
+  bool DumpDerivedFn : 1;
+  bool DumpDerivedAST : 1;
+  bool GenerateSourceFile : 1;
+  bool ValidateClangVersion : 1;
+  bool EnableTBRAnalysis : 1;
+  bool DisableTBRAnalysis : 1;
+  bool EnableVariedAnalysis : 1;
+  bool DisableVariedAnalysis : 1;
+  bool EnableUsefulAnalysis : 1;
+  bool DisableUsefulAnalysis : 1;
+  bool CustomEstimationModel : 1;
+  bool PrintNumDiffErrorInfo : 1;
+  std::string CustomModelName;
+};
 
     class CladExternalSource : public clang::ExternalSemaSource {
     // ExternalSemaSource
