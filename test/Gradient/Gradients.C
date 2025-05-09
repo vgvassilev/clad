@@ -1197,6 +1197,18 @@ double f_reuse_global(double x, double t) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double f_static_assert(double x, double y) {
+  static_assert(sizeof(double) == 8, "unexpected double size");
+  return x + y;
+}
+
+//CHECK: void f_static_assert_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += 1;
+//CHECK-NEXT:         *_d_y += 1;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -1296,4 +1308,7 @@ int main() {
 
   INIT_GRADIENT(f_reuse_global);
   TEST_GRADIENT(f_reuse_global, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {-4.00, 3.00}
+
+  INIT_GRADIENT(f_static_assert);
+  TEST_GRADIENT(f_static_assert, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
 }
