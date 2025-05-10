@@ -921,8 +921,7 @@ namespace clad {
 
     QualType GetParameterDerivativeType(Sema& S, DiffMode Mode, QualType Type) {
       ASTContext& C = S.getASTContext();
-      if (Mode == DiffMode::experimental_vector_pushforward ||
-          Mode == DiffMode::jacobian) {
+      if (Mode == DiffMode::vector_pushforward || Mode == DiffMode::jacobian) {
         QualType valueType = GetNonConstValueType(Type);
         QualType resType;
         if (isArrayOrPointerType(Type)) {
@@ -948,8 +947,7 @@ namespace clad {
         return resType;
       }
 
-      if (Mode == DiffMode::reverse ||
-          Mode == DiffMode::experimental_pullback ||
+      if (Mode == DiffMode::reverse || Mode == DiffMode::pullback ||
           Mode == DiffMode::error_estimation) {
         QualType ValueType = GetNonConstValueType(Type);
         QualType nonRefValueType = ValueType.getNonReferenceType();
@@ -985,7 +983,7 @@ namespace clad {
       QualType oRetTy = FD->getReturnType();
       QualType dRetTy = C.VoidTy;
       bool returnVoid = mode == DiffMode::reverse ||
-                        mode == DiffMode::experimental_pullback ||
+                        mode == DiffMode::pullback ||
                         mode == DiffMode::error_estimation ||
                         mode == DiffMode::vector_forward_mode;
       if (mode == DiffMode::reverse_mode_forward_pass) {
@@ -1005,7 +1003,7 @@ namespace clad {
         QualType PushFwdTy = utils::GetParameterDerivativeType(S, mode, oRetTy);
         dRetTy = utils::InstantiateTemplate(S, valueAndPushforward,
                                             {oRetTy, PushFwdTy});
-      } else if (mode == DiffMode::experimental_pullback) {
+      } else if (mode == DiffMode::pullback) {
         // Handle pullbacks
         QualType argTy = oRetTy.getNonReferenceType();
         argTy = utils::getNonConstType(argTy, S);

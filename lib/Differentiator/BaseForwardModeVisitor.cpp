@@ -58,8 +58,8 @@ bool IsRealNonReferenceType(QualType T) {
 DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == DiffMode::forward ||
-         m_DiffReq.Mode == DiffMode::experimental_pushforward ||
-         m_DiffReq.Mode == DiffMode::experimental_vector_pushforward);
+         m_DiffReq.Mode == DiffMode::pushforward ||
+         m_DiffReq.Mode == DiffMode::vector_pushforward);
   assert(!m_DerivativeInFlight &&
          "Doesn't support recursive diff. Use DiffPlan.");
 
@@ -173,7 +173,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
     beginBlock();
 
     // FIXME: Remove the override in VectorPushForwardModeVisitor.
-    if (m_DiffReq.Mode == DiffMode::experimental_vector_pushforward)
+    if (m_DiffReq.Mode == DiffMode::vector_pushforward)
       ExecuteInsidePushforwardFunctionBlock();
 
     if (m_DiffReq.Mode == DiffMode::forward)
@@ -978,7 +978,7 @@ std::string BaseForwardModeVisitor::GetPushForwardFunctionSuffix() {
 }
 
 DiffMode BaseForwardModeVisitor::GetPushForwardMode() {
-  return DiffMode::experimental_pushforward;
+  return DiffMode::pushforward;
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {

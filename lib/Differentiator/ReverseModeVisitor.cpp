@@ -1837,8 +1837,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     pullbackRequest.BaseFunctionName = clad::utils::ComputeEffectiveFnName(FD);
-    pullbackRequest.Mode = asGrad ? DiffMode::experimental_pullback
-                                  : DiffMode::experimental_pushforward;
+    pullbackRequest.Mode = asGrad ? DiffMode::pullback : DiffMode::pushforward;
     bool hasDynamicNonDiffParams = false;
 
     // Silence diag outputs in nested derivation process.
@@ -4206,7 +4205,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // pullbackRequest.CUDAGlobalArgsIndexes = globalCallArgs;
 
         pullbackRequest.BaseFunctionName = "constructor";
-        pullbackRequest.Mode = DiffMode::experimental_pullback;
+        pullbackRequest.Mode = DiffMode::pullback;
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
         pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
@@ -4391,8 +4390,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // FIXME: We ignore the pointer return type for pullbacks.
     QualType dRetTy = FD->getReturnType().getNonReferenceType();
     dRetTy = utils::getNonConstType(dRetTy, m_Sema);
-    if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
-        !dRetTy->isVoidType() && !dRetTy->isPointerType()) {
+    if (m_DiffReq.Mode == DiffMode::pullback && !dRetTy->isVoidType() &&
+        !dRetTy->isPointerType()) {
       auto paramNameExists = [&params](llvm::StringRef name) {
         for (ParmVarDecl* PVD : params)
           if (PVD->getName() == name)
