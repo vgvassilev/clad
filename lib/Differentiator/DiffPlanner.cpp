@@ -312,7 +312,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
     // Diff info for pullbacks is generated automatically,
     // its parameters are not provided by the user.
-    if (Mode == DiffMode::experimental_pullback)
+    if (Mode == DiffMode::pullback)
       return;
 
     DVI.clear();
@@ -1112,14 +1112,13 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       // to schedule pushforward_pullback.
       if (m_TopMostReq->Mode == DiffMode::forward ||
           m_TopMostReq->Mode == DiffMode::hessian || usePushforwardInRevMode)
-        request.Mode = DiffMode::experimental_pushforward;
+        request.Mode = DiffMode::pushforward;
       else if (m_TopMostReq->Mode == DiffMode::reverse)
-        request.Mode = DiffMode::experimental_pullback;
+        request.Mode = DiffMode::pullback;
       else if (m_TopMostReq->Mode == DiffMode::vector_forward_mode ||
                m_TopMostReq->Mode == DiffMode::jacobian ||
-               m_TopMostReq->Mode ==
-                   DiffMode::experimental_vector_pushforward) {
-        request.Mode = DiffMode::experimental_vector_pushforward;
+               m_TopMostReq->Mode == DiffMode::vector_pushforward) {
+        request.Mode = DiffMode::vector_pushforward;
       } else if (m_TopMostReq->Mode == DiffMode::error_estimation) {
         // FIXME: Add support for static graphs in error estimation.
         return true;
@@ -1133,7 +1132,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
       request.CallContext = E;
 
-      if (request.Mode != DiffMode::experimental_pushforward) {
+      if (request.Mode != DiffMode::pushforward) {
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
           // if (MD && isLambdaCallOperator(MD)) {
           const auto* paramDecl = FD->getParamDecl(i);
@@ -1211,7 +1210,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return true;
     // FIXME: Add support for globals in other modes.
     if (m_ParentReq->Mode != DiffMode::reverse &&
-        m_ParentReq->Mode != DiffMode::experimental_pullback)
+        m_ParentReq->Mode != DiffMode::pullback)
       return true;
 
     // FIXME: In some cases, custom overloads are not found by DiffPlanner and

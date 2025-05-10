@@ -25,7 +25,7 @@ std::string VectorForwardModeVisitor::GetPushForwardFunctionSuffix() {
 }
 
 DiffMode VectorForwardModeVisitor::GetPushForwardMode() {
-  return DiffMode::experimental_vector_pushforward;
+  return DiffMode::vector_pushforward;
 }
 
 void VectorForwardModeVisitor::SetIndependentVarsExpr(Expr* IndVarCountExpr) {

@@ -533,19 +533,19 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     if (request.Mode == DiffMode::forward) {
       BaseForwardModeVisitor V(*this, request);
       result = V.Derive();
-    } else if (request.Mode == DiffMode::experimental_pushforward) {
+    } else if (request.Mode == DiffMode::pushforward) {
       PushForwardModeVisitor V(*this, request);
       result = V.Derive();
     } else if (request.Mode == DiffMode::vector_forward_mode) {
       VectorForwardModeVisitor V(*this, request);
       result = V.Derive();
-    } else if (request.Mode == DiffMode::experimental_vector_pushforward) {
+    } else if (request.Mode == DiffMode::vector_pushforward) {
       VectorPushForwardModeVisitor V(*this, request);
       result = V.Derive();
     } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this, request);
       result = V.Derive();
-    } else if (request.Mode == DiffMode::experimental_pullback) {
+    } else if (request.Mode == DiffMode::pullback) {
       ReverseModeVisitor V(*this, request);
       if (!m_ErrorEstHandler.empty()) {
         InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
