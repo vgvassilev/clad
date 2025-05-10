@@ -107,7 +107,7 @@ jobs:
             compiler: msvc
             clang-runtime: '20'
 
-          - name: selfh-ubu22-clang15-runtime18-debug
+          - name: selfh-ubu22-clang15-runtime16-debug
             os: self-hosted #ubuntu-22.04
             compiler: clang-15
             clang-runtime: '18'
