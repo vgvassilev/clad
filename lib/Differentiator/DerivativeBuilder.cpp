@@ -23,6 +23,7 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
+#include <cinttypes>
 #include <clad/Differentiator/DiffMode.h>
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
 #include "clad/Differentiator/CladUtils.h"
@@ -40,6 +41,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <memory_resource>
 #include <string>
 
 #include "clad/Differentiator/CladUtils.h"
@@ -142,6 +144,43 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               : nullptr);
 
       returnedFD->setAccess(FD->getAccess());
+
+      if (FD->getTemplatedKind() == FunctionDecl::TK_FunctionTemplateSpecialization) {
+        FunctionTemplateDecl *returnedFTD = nullptr;
+        auto Results = m_Context.getTranslationUnitDecl()->lookup(returnedFD->getNameInfo().getName());
+        for (NamedDecl *ND : Results) {
+          if (auto *FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+            returnedFTD = FTD;
+            break;
+          }
+
+          if (auto *FD = dyn_cast<FunctionDecl>(ND)) {
+            if (auto *FTD = FD->getDescribedFunctionTemplate()) {
+              returnedFTD = FTD;
+              break;
+            }
+          }
+        }
+
+        assert((returnedFTD != nullptr) &&
+            "Function specialization derived before primary temaplate. This shouldn't happen");
+
+        const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
+        TemplateArgumentList* TALCopy =
+              TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+
+        returnedFD->setFunctionTemplateSpecialization(
+              returnedFTD, TALCopy, nullptr,
+              FD->getTemplateSpecializationKindForInstantiation());
+
+        std::cout << "\n--------------------------------------------------------------------------------\n";
+        returnedFD->dump();
+        std::cout << "\n--------------------------------------------------------------------------------\n";
+        for (auto x : returnedFTD->specializations()) {
+          x->dump();
+        }
+        std::cout << "\n--------------------------------------------------------------------------------\n";
+      }
     }
 
     returnedFD->setImplicitlyInline(FD->isInlined());
@@ -495,6 +534,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       if (!request.DeclarationOnly)
         FD = FD->getDefinition();
 
+
       // check if the function is non-differentiable.
       if (clad::utils::hasNonDifferentiableAttribute(FD)) {
         diag(DiagnosticsEngine::Error,
@@ -517,6 +557,43 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                "non-differentiable",
                {MD->getNameAsString(), CD->getNameAsString()});
           return {};
+        }
+      }
+
+      if (FD->getTemplatedKind() == FunctionDecl::TK_FunctionTemplateSpecialization) {
+        DiffRequest primaryFDRequest = request;
+        primaryFDRequest.Function = FD->getPrimaryTemplate()->getTemplatedDecl();
+
+        auto *primaryFD = HandleNestedDiffRequest(primaryFDRequest);
+
+        FunctionTemplateDecl *NewFTD = nullptr;
+        auto Results = m_Context.getTranslationUnitDecl()->lookup(primaryFD->getNameInfo().getName());
+
+        for (NamedDecl *ND : Results) {
+          // Direct match
+          if (auto *FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+            NewFTD = FTD;
+            break;
+          }
+
+          if (auto *FD = dyn_cast<FunctionDecl>(ND)) {
+            if (auto *FTD = FD->getDescribedFunctionTemplate()) {
+              NewFTD = FTD;
+              break;
+            }
+          }
+        }
+
+        if (NewFTD == nullptr) {
+            TemplateParameterList* TemplateParams =
+                    FD->getPrimaryTemplate()->getTemplateParameters();
+
+            NewFTD = FunctionTemplateDecl::Create(
+                        m_Context,
+                        m_Sema.CurContext, noLoc, primaryFD->getNameInfo().getName(),
+                        TemplateParams, primaryFD);
+            NewFTD->setLexicalDeclContext(m_Sema.CurContext);
+            primaryFD->setDescribedFunctionTemplate(NewFTD);
         }
       }
     } else if (const VarDecl* VD = request.Global) {
