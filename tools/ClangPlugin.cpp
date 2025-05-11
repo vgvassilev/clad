@@ -76,8 +76,8 @@ public:
           assert(CladEnabledRange.back().getEnd().isInvalid());
           CladEnabledRange.back().setEnd(TokLoc);
         }
-      }
-    };
+  }
+};
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
@@ -579,7 +579,7 @@ public:
       m_Multiplexer->PrintStats();
     }
 
-  } // end namespace plugin
+    } // end namespace plugin
 
   // Routine to check clang version at runtime against the clang version for
   // which clad was built.

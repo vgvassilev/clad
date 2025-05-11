@@ -7,23 +7,6 @@
 #include "clad/Differentiator/DerivativeBuilder.h"
 
 #include "JacobianModeVisitor.h"
-
-#include "clad/Differentiator/BaseForwardModeVisitor.h"
-#include "clad/Differentiator/CladUtils.h"
-#include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/DiffMode.h"
-#include "clad/Differentiator/DiffPlanner.h"
-#include "clad/Differentiator/DynamicGraph.h"
-#include "clad/Differentiator/ErrorEstimator.h"
-#include "clad/Differentiator/HessianModeVisitor.h"
-#include "clad/Differentiator/PushForwardModeVisitor.h"
-#include "clad/Differentiator/ReverseModeForwPassVisitor.h"
-#include "clad/Differentiator/ReverseModeVisitor.h"
-#include "clad/Differentiator/StmtClone.h"
-#include "clad/Differentiator/Timers.h"
-#include "clad/Differentiator/VectorForwardModeVisitor.h"
-#include "clad/Differentiator/VectorPushForwardModeVisitor.h"
-
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"

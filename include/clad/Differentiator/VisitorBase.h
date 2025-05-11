@@ -71,7 +71,7 @@ public:
       return data[1];
     return m_ValueForRevSweep;
   }
-  };
+};
 
   template <typename T> class DeclDiff {
   private:
