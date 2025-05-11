@@ -8,13 +8,13 @@
 
 #include "ConstantFolder.h"
 
-#include "llvm/Support/Casting.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
+#include "llvm/Support/Casting.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
