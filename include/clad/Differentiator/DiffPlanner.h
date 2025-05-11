@@ -5,6 +5,7 @@
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/Timers.h"
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -147,7 +148,8 @@ public:
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
            EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
-           DeclarationOnly == other.DeclarationOnly && Global == other.Global;
+           DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
+           CUDAGlobalArgsIndexes == other.CUDAGlobalArgsIndexes;
   }
 
   const clang::FunctionDecl* operator->() const { return Function; }
@@ -229,6 +231,7 @@ public:
       if (m_Traversed.count(FD))
         return true;
       m_Traversed.insert(FD);
+      TimedAnalysisRegion R(FD->getNameAsString());
       return TraverseDecl(const_cast<clang::FunctionDecl*>(FD));
     }
     /// Looks up if the user has defined a custom derivative for the given

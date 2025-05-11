@@ -109,8 +109,8 @@ float helper(float x) {
   return 2 * x;
 }
 
-// CHECK: void helper_pullback(float x, float _d_y, float *_d_x) {
-// CHECK-NEXT:     *_d_x += 2 * _d_y;
+// CHECK: clad::ValueAndPushforward<float, float> helper_pushforward(float x, float _d_x) {
+// CHECK-NEXT:     return {2 * x, 0 * x + 2 * _d_x};
 // CHECK-NEXT: }
 
 float func2(float* a) {
@@ -146,7 +146,7 @@ float func2(float* a) {
 //CHECK-NEXT:         sum = clad::pop(_t1);
 //CHECK-NEXT:         float _r_d0 = _d_sum;
 //CHECK-NEXT:         float _r0 = 0.F;
-//CHECK-NEXT:         helper_pullback(a[i], _r_d0, &_r0);
+//CHECK-NEXT:         _r0 += _r_d0 * helper_pushforward(a[i], 1.F).pushforward;
 //CHECK-NEXT:         _d_a[i] += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }

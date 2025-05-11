@@ -7,17 +7,23 @@
 #include "clad/Differentiator/DerivativeBuilder.h"
 
 #include "JacobianModeVisitor.h"
+
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/HessianModeVisitor.h"
 #include "clad/Differentiator/PushForwardModeVisitor.h"
 #include "clad/Differentiator/ReverseModeForwPassVisitor.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/StmtClone.h"
+#include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/VectorForwardModeVisitor.h"
 #include "clad/Differentiator/VectorPushForwardModeVisitor.h"
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -34,18 +40,14 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
-#include <cinttypes>
-#include <clad/Differentiator/DiffMode.h>
 
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
 #include <cstddef>
-#include <memory_resource>
+#include <memory>
 #include <string>
-
-#include "clad/Differentiator/CladUtils.h"
-#include "clad/Differentiator/Compatibility.h"
+#include <utility>
 
 using namespace clang;
 
@@ -516,6 +518,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
   DerivativeAndOverload
   DerivativeBuilder::Derive(const DiffRequest& request) {
+    TimedGenerationRegion G([&request]() { return (std::string)request; });
     if (const FunctionDecl* FD = request.Function) {
       // Perform diagnostics for functions
       // If FD is only a declaration, try to find its definition.
@@ -616,19 +619,19 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     if (request.Mode == DiffMode::forward) {
       BaseForwardModeVisitor V(*this, request);
       result = V.Derive();
-    } else if (request.Mode == DiffMode::experimental_pushforward) {
+    } else if (request.Mode == DiffMode::pushforward) {
       PushForwardModeVisitor V(*this, request);
       result = V.Derive();
     } else if (request.Mode == DiffMode::vector_forward_mode) {
       VectorForwardModeVisitor V(*this, request);
       result = V.Derive();
-    } else if (request.Mode == DiffMode::experimental_vector_pushforward) {
+    } else if (request.Mode == DiffMode::vector_pushforward) {
       VectorPushForwardModeVisitor V(*this, request);
       result = V.Derive();
     } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this, request);
       result = V.Derive();
-    } else if (request.Mode == DiffMode::experimental_pullback) {
+    } else if (request.Mode == DiffMode::pullback) {
       ReverseModeVisitor V(*this, request);
       if (!m_ErrorEstHandler.empty()) {
         InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);

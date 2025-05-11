@@ -621,5 +621,12 @@ static inline const DeclSpec& Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
   ,Node->isTransparent()
 #endif
 
+// Clang 19 renamed the enum representing template resolution results
+#if CLANG_VERSION_MAJOR >= 19
+#define CLAD_COMPAT_TemplateSuccess TemplateDeductionResult::Success
+#else
+#define CLAD_COMPAT_TemplateSuccess Sema::TDK_Success
+#endif
+
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY

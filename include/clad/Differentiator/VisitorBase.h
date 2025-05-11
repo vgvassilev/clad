@@ -602,6 +602,12 @@ namespace clad {
     /// original derivative function internally. Used in gradient and jacobian
     /// modes.
     clang::FunctionDecl* CreateDerivativeOverload();
+    /// Find the derived function if present in the DerivedFnCollector.
+    ///
+    /// \param[in] request The request to find the derived function.
+    ///
+    /// \returns The derived function if found, nullptr otherwise.
+    clang::FunctionDecl* FindDerivedFunction(DiffRequest& request);
 
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.

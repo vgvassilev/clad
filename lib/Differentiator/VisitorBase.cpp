@@ -1011,6 +1011,17 @@ namespace clad {
                                     customParams);
   }
 
+  FunctionDecl* VisitorBase::FindDerivedFunction(DiffRequest& request) {
+    // Check if the call is recursive
+    if (request == m_DiffReq)
+      return m_Derivative;
+    // Only definitions are differentiated
+    if (request.Function->getDefinition())
+      request.Function = request.Function->getDefinition();
+    // Look for the derivative
+    return m_Builder.FindDerivedFunction(request);
+  }
+
   Expr* VisitorBase::BuildOperatorCall(OverloadedOperatorKind OOK,
                                        MutableArrayRef<Expr*> ArgExprs,
                                        SourceLocation OpLoc) {

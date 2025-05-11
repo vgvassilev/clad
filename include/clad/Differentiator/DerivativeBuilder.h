@@ -8,13 +8,16 @@
 #define CLAD_DERIVATIVE_BUILDER_H
 
 #include "Compatibility.h"
-#include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/AST/StmtVisitor.h"
-#include "clang/Sema/Sema.h"
+
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/StmtVisitor.h"
+#include "clang/Sema/Sema.h"
+
 #include <array>
+#include <memory>
 #include <stack>
 #include <unordered_map>
 

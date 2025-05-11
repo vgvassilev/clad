@@ -7,22 +7,24 @@
 #include "ClangPlugin.h"
 
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/EstimationModel.h"
-
 #include "clad/Differentiator/Sins.h"
+#include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/Version.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Lex/LexDiagnostic.h"
-#include "clang/Sema/Sema.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/Sema.h"
 
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
@@ -30,11 +32,15 @@
 #include "clad/Differentiator/Compatibility.h"
 
 #include <algorithm>
+#include <cstdlib>  // for getenv
 #include <iostream> // for std::cerr
+#include <memory>
 
 using namespace clang;
 
 namespace clad {
+void InitTimers();
+
   namespace plugin {
     /// Keeps track if we encountered #pragma clad on/off.
     // FIXME: Figure out how to make it a member of CladPlugin.
@@ -75,6 +81,15 @@ namespace clad {
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
+#if CLANG_VERSION_MAJOR > 11
+      bool WantTiming = m_CI.getCodeGenOpts().TimePasses;
+#else
+      bool WantTiming = m_CI.getFrontendOpts().ShowTimers;
+#endif
+
+      if (WantTiming || getenv("CLAD_ENABLE_TIMING"))
+        InitTimers();
+
       FrontendOptions& Opts = CI.getFrontendOpts();
       // Find the path to clad.
       llvm::StringRef CladSoPath;
@@ -131,14 +146,17 @@ namespace clad {
       SetRequestOptions(opts);
       // Traverse all constexpr FunctionDecls for the static graph only once to
       // differentiate them immeditely.
-      for (Decl* D : DGR) {
-        if (!isa<FunctionDecl>(D))
-          continue;
-        FunctionDecl* FD = cast<FunctionDecl>(D);
-        if (FD->isConstexpr() || !m_Multiplexer) {
-          DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph, S,
-                                  opts, m_DFC);
-          break;
+      {
+        TimedAnalysisRegion R("Rest of constexpr TU");
+        for (Decl* D : DGR) {
+          if (!isa<FunctionDecl>(D))
+            continue;
+          auto* FD = cast<FunctionDecl>(D);
+          if (FD->isConstexpr() || !m_Multiplexer) {
+            DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph,
+                                    S, opts, m_DFC);
+            break;
+          }
         }
       }
 
@@ -190,8 +208,8 @@ namespace clad {
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
       if (!m_DerivativeBuilder)
-        m_DerivativeBuilder.reset(
-            new DerivativeBuilder(S, *this, m_DFC, m_DiffRequestGraph));
+        m_DerivativeBuilder = std::make_unique<DerivativeBuilder>(
+            S, *this, m_DFC, m_DiffRequestGraph);
 
       if (request.Global) {
         auto deriveResult = m_DerivativeBuilder->Derive(request);
@@ -255,32 +273,15 @@ namespace clad {
       bool alreadyDerived = false;
       FunctionDecl* OverloadedDerivativeDecl = nullptr;
       {
-        // FIXME: Move the timing inside the DerivativeBuilder. This would
-        // require to pass in the DifferentiationOptions in the DiffPlan.
-        // derive the collected functions
-
-#if CLANG_VERSION_MAJOR > 11
-        bool WantTiming = m_CI.getCodeGenOpts().TimePasses;
-#else
-        bool WantTiming = m_CI.getFrontendOpts().ShowTimers;
-#endif
-
         auto DFI = m_DFC.Find(request);
         if (DFI.IsValid()) {
           DerivativeDecl = DFI.DerivedFn();
           OverloadedDerivativeDecl = DFI.OverloadedDerivedFn();
           alreadyDerived = true;
         } else {
-          // Only time the function when it is first encountered
-          if (WantTiming)
-            m_CTG.StartNewTimer("Timer for clad func",
-                                request.BaseFunctionName);
-
           auto deriveResult = m_DerivativeBuilder->Derive(request);
           DerivativeDecl = cast_or_null<FunctionDecl>(deriveResult.derivative);
           OverloadedDerivativeDecl = deriveResult.overload;
-          if (WantTiming)
-            m_CTG.StopTimer();
         }
       }
 
@@ -499,6 +500,7 @@ namespace clad {
       SetRequestOptions(opts);
       // Traverse all collected DeclGroupRef only once to create the static
       // graph.
+      TimedAnalysisRegion R("Rest of TU");
       for (auto DCI : m_DelayedCalls)
         for (Decl* D : DCI.m_DGR) {
           if (const auto* FD = dyn_cast<FunctionDecl>(D))
@@ -578,23 +580,6 @@ namespace clad {
     }
 
   } // end namespace plugin
-
-  clad::CladTimerGroup::CladTimerGroup()
-      : m_Tg("Timers for Clad Funcs", "Timers for Clad Funcs") {}
-
-  void clad::CladTimerGroup::StartNewTimer(llvm::StringRef TimerName,
-                                           llvm::StringRef TimerDesc) {
-      std::unique_ptr<llvm::Timer> tm(
-          new llvm::Timer(TimerName, TimerDesc, m_Tg));
-      m_Timers.push_back(std::move(tm));
-      m_Timers.back()->startTimer();
-  }
-
-  void clad::CladTimerGroup::StopTimer() {
-      m_Timers.back()->stopTimer();
-      if (m_Timers.size() != 1)
-        m_Timers.pop_back();
-  }
 
   // Routine to check clang version at runtime against the clang version for
   // which clad was built.

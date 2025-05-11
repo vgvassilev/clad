@@ -6,6 +6,13 @@
 #include "TBRAnalyzer.h"
 #include "UsefulAnalyzer.h"
 
+#include "clad/Differentiator/CladConfig.h"
+#include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DerivedFnCollector.h"
+#include "clad/Differentiator/Timers.h"
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclarationName.h"
@@ -23,13 +30,9 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
 
-#include "clad/Differentiator/CladConfig.h"
-#include "clad/Differentiator/CladUtils.h"
-#include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/DerivativeBuilder.h"
-
 #include <algorithm>
 #include <string>
+#include <utility>
 
 using namespace clang;
 
@@ -276,10 +279,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return;
 
     assert(!m_TopMostReq && "Traversal already in flight!");
-    for (Decl* D : DGR) {
+
+    for (Decl* D : DGR)
       TraverseDecl(D);
-    }
-    m_TopMostReq = nullptr;
   }
 
   /// Returns true if `FD` is a call operator; otherwise returns false.
@@ -312,27 +314,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
     // Diff info for pullbacks is generated automatically,
     // its parameters are not provided by the user.
-    if (Mode == DiffMode::experimental_pullback) {
-      // Might need to update DVI args, as they may be pointing to the
-      // declaration parameters, not the definition parameters.
-      if (!Function->getPreviousDecl())
-        // If the function was never declared before, we can safely assume
-        // that the parameters are correctly referring to the definition ones.
-        return;
-      const FunctionDecl* FD = Function->getPreviousDecl();
-      for (size_t i = 0, e = DVI.size(), paramIdx = 0;
-           i < e && paramIdx < FD->getNumParams(); ++i) {
-        const auto* param = DVI[i].param;
-        while (paramIdx < FD->getNumParams() &&
-               FD->getParamDecl(paramIdx) != param) {
-            ++paramIdx;
-        }
-        if (paramIdx != FD->getNumParams())
-            // Update the parameter to point to the definition parameter.
-            DVI[i].param = Function->getParamDecl(paramIdx);
-      }
+    if (Mode == DiffMode::pullback)
       return;
-    }
+
     DVI.clear();
     auto& C = semaRef.getASTContext();
     const Expr* diffArgs = Args;
@@ -605,11 +589,20 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
   }
 
   void DiffRequest::print(llvm::raw_ostream& Out) const {
+    const NamedDecl* ND = nullptr;
+    if (Function)
+      ND = Function;
+    else
+      ND = Global;
+    if (!ND) {
+      Out << "<- INVALID ->";
+      return;
+    }
     Out << '<';
-    PrintingPolicy P(Function->getASTContext().getLangOpts());
+    PrintingPolicy P(ND->getASTContext().getLangOpts());
     P.TerseOutput = true;
     P.FullyQualifiedName = true;
-    Function->print(Out, P, /*Indentation=*/0, /*PrintInstantiation=*/true);
+    ND->print(Out, P, /*Indentation=*/0, /*PrintInstantiation=*/true);
     Out << ">[name=" << BaseFunctionName << ", "
         << "order=" << CurrentDerivativeOrder << ", "
         << "mode=" << DiffModeToString(Mode) << ", "
@@ -649,6 +642,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return true;
 
     if (!m_TbrRunInfo.HasAnalysisRun) {
+      TimedAnalysisRegion R("TBR " + BaseFunctionName);
+
       TBRAnalyzer analyzer(Function->getASTContext(),
                            m_TbrRunInfo.ToBeRecorded);
       analyzer.Analyze(Function);
@@ -938,9 +933,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     clang::FunctionDecl* Specialization = nullptr;
     clang::sema::TemplateDeductionInfo Info(noLoc);
     clang::TemplateArgumentListInfo ExplicitTemplateArgs;
-    S.DeduceTemplateArguments(Template, &ExplicitTemplateArgs, DerivativeType,
-                              Specialization, Info);
-    return Specialization;
+    auto R = S.DeduceTemplateArguments(Template, &ExplicitTemplateArgs,
+                                       DerivativeType, Specialization, Info);
+    if (R == clad_compat::CLAD_COMPAT_TemplateSuccess)
+      return Specialization;
+    return nullptr;
   }
 
   bool DiffCollector::LookupCustomDerivativeDecl(const DiffRequest& request) {
@@ -1113,23 +1110,28 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       // FIXME: Generalize this to other functions that we don't need
       // pullbacks of.
       std::string FDName = FD->getNameAsString();
-      if (FDName == "begin" || FDName == "end")
+      if (FDName == "cudaMemcpy" || utils::IsMemoryFunction(FD) ||
+          FDName == "begin" || FDName == "end")
         return true;
 
       request.Function = FD;
+
+      bool usePushforwardInRevMode =
+          m_TopMostReq->Mode == DiffMode::reverse && FD->getNumParams() == 1 &&
+          !utils::HasAnyReferenceOrPointerArgument(FD) &&
+          !isa<CXXMethodDecl>(FD);
       // FIXME: hessians require second derivatives,
       // i.e. apart from the pushforward, we also need
       // to schedule pushforward_pullback.
       if (m_TopMostReq->Mode == DiffMode::forward ||
-          m_TopMostReq->Mode == DiffMode::hessian)
-        request.Mode = DiffMode::experimental_pushforward;
+          m_TopMostReq->Mode == DiffMode::hessian || usePushforwardInRevMode)
+        request.Mode = DiffMode::pushforward;
       else if (m_TopMostReq->Mode == DiffMode::reverse)
-        request.Mode = DiffMode::experimental_pullback;
+        request.Mode = DiffMode::pullback;
       else if (m_TopMostReq->Mode == DiffMode::vector_forward_mode ||
                m_TopMostReq->Mode == DiffMode::jacobian ||
-               m_TopMostReq->Mode ==
-                   DiffMode::experimental_vector_pushforward) {
-        request.Mode = DiffMode::experimental_vector_pushforward;
+               m_TopMostReq->Mode == DiffMode::vector_pushforward) {
+        request.Mode = DiffMode::vector_pushforward;
       } else if (m_TopMostReq->Mode == DiffMode::error_estimation) {
         // FIXME: Add support for static graphs in error estimation.
         return true;
@@ -1143,8 +1145,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
       request.CallContext = E;
 
-      // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
-      if (m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
+      if (request.Mode != DiffMode::pushforward) {
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
           // if (MD && isLambdaCallOperator(MD)) {
           const auto* paramDecl = FD->getParamDecl(i);
@@ -1158,24 +1159,18 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
           //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
           //}
         }
-      } else { // CUDA device function call in global kernel gradient
-        for (size_t i = 0, e = E->getNumArgs(); i < e; i++) {
-          // Try to match it against the global arguments
-          Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
-          if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
-            auto* VD = DRE->getDecl();
-            // check if it's a kernel param
-            if (isa<ParmVarDecl>(VD)) {
-              const auto* PVD = cast<ParmVarDecl>(VD);
-              request.DVI.push_back(PVD);
-              // we know we should use atomic ops here
-              request.CUDAGlobalArgsIndexes.push_back(i);
-            } else {
-              // create a param from the VarDecl
-              const ParmVarDecl* PVD =
-                  utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext,
-                                          VD->getIdentifier(), VD->getType());
-              request.DVI.push_back(PVD);
+        // CUDA device function call in global kernel gradient
+        if (!m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
+          for (size_t i = 0, e = E->getNumArgs(); i < e; i++) {
+            // Try to match it against the global arguments
+            Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
+            if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
+              // check if it's a kernel param
+              const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
+              if (PVD && m_ParentReq->HasIndependentParameter(PVD)) {
+                // we know we should use atomic ops here
+                request.CUDAGlobalArgsIndexes.push_back(i);
+              }
             }
           }
         }
@@ -1199,12 +1194,15 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (!LookupCustomDerivativeDecl(request)) {
       if (m_TopMostReq->EnableVariedAnalysis &&
           m_TopMostReq->Mode == DiffMode::reverse) {
+        TimedAnalysisRegion R("VA " + request.BaseFunctionName);
         VariedAnalyzer analyzer(request.Function->getASTContext(),
                                 request.getVariedDecls());
         analyzer.Analyze(request.Function);
       }
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
+        TimedAnalysisRegion R("UA " + request.BaseFunctionName);
+
         UsefulAnalyzer analyzer(request.Function->getASTContext(),
                                 request.getUsefulDecls());
         analyzer.Analyze(request.Function);
@@ -1228,7 +1226,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return true;
     // FIXME: Add support for globals in other modes.
     if (m_ParentReq->Mode != DiffMode::reverse &&
-        m_ParentReq->Mode != DiffMode::experimental_pullback)
+        m_ParentReq->Mode != DiffMode::pullback)
       return true;
 
     // FIXME: In some cases, custom overloads are not found by DiffPlanner and
