@@ -1147,6 +1147,34 @@ double fn30(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+double vecSum(const Vector3& v) {
+  return v.x + v.y + v.z;
+}
+
+// CHECK:  void vecSum_pullback(const Vector3 &v, double _d_y, Vector3 *_d_v) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_v).x += _d_y;
+// CHECK-NEXT:          (*_d_v).y += _d_y;
+// CHECK-NEXT:          (*_d_v).z += _d_y;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+double fn31(double x, double y) {
+  double z = vecSum({x, y, x});
+  return z;
+}
+
+// CHECK:  void fn31_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      double _d_z = 0.;
+// CHECK-NEXT:      double z = vecSum({x, y, x});
+// CHECK-NEXT:      _d_z += 1;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          Vector3 _r0 = {};
+// CHECK-NEXT:          vecSum_pullback({x, y, x}, _d_z, &_r0);
+// CHECK-NEXT:          Vector3::constructor_pullback(x, y, x, &_r0, &*_d_x, &*_d_y, &*_d_x);
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1266,6 +1294,9 @@ int main() {
 
     INIT_GRADIENT(fn30);
     TEST_GRADIENT(fn30, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {30.00, 22.00}
+
+    INIT_GRADIENT(fn31);
+    TEST_GRADIENT(fn31, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {2.00, 1.00}
 }
 
 // CHECK: inline constexpr clad::ValueAndAdjoint<MyStruct &, MyStruct &> operator_equal_forw(MyStruct &&arg, MyStruct *_d_this, MyStruct &&_d_arg) noexcept {

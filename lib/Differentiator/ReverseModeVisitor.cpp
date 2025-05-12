@@ -1828,8 +1828,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // If the function has a single arg and does not return a reference or take
     // arg by reference, we can request a derivative w.r.t. to this arg using
     // the forward mode.
-    bool asGrad = NArgs != 1 || utils::HasAnyReferenceOrPointerArgument(FD) ||
-                  isa<CXXMethodDecl>(FD);
+    bool asGrad = !utils::canUsePushforwardInRevMode(FD);
     if (!asGrad) {
       pullbackCallArgs.resize(1);
       pullbackCallArgs.push_back(ConstantFolder::synthesizeLiteral(
