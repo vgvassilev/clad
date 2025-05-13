@@ -485,9 +485,9 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
 
 // CHECK: inline constexpr void operator_equal_pullback(MyStruct &&arg, MyStruct _d_y, MyStruct *_d_this, MyStruct *_d_arg) noexcept {
 // CHECK-NEXT:    double _t0 = this->a;
-// CHECK-NEXT:    this->a = arg.a;
+// CHECK-NEXT:    this->a = static_cast<MyStruct &&>(arg).a;
 // CHECK-NEXT:    double _t1 = this->b;
-// CHECK-NEXT:    this->b = arg.b;
+// CHECK-NEXT:    this->b = static_cast<MyStruct &&>(arg).b;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        this->b = _t1;
 // CHECK-NEXT:        double _r_d1 = _d_this->b;
@@ -1108,6 +1108,45 @@ double fn29(double x, double y) {
 // CHECK-NEXT:      ptrClass::constructor_pullback(&x, &_d_p, &*_d_x);
 // CHECK-NEXT:  }
 
+struct MyStructWrapper {
+  MyStruct val;
+};
+
+// CHECK:  inline constexpr void operator_equal_pullback(MyStructWrapper &&arg, MyStructWrapper _d_y, MyStructWrapper *_d_this, MyStructWrapper *_d_arg) noexcept {
+// CHECK-NEXT:      MyStruct _t0 = this->val;
+// CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = this->val.operator_equal_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, {0., 0.});
+// CHECK-NEXT:      {
+// CHECK-NEXT:          this->val = _t0;
+// CHECK-NEXT:          this->val.operator_equal_pullback(static_cast<MyStructWrapper &&>(arg).val, {0., 0.}, &_d_this->val, &(*_d_arg).val);
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+double fn30(double x, double y) {
+  MyStructWrapper s;
+  s = {2 * y, 3 * x + 2};
+  return s.val.a * s.val.b;
+}
+
+// CHECK:  inline constexpr clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> operator_equal_forw(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper &&_d_arg) noexcept;
+
+// CHECK:  void fn30_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      MyStructWrapper _d_s = {{.*0., 0..*}};
+// CHECK-NEXT:      MyStructWrapper s;
+// CHECK-NEXT:      MyStructWrapper _t0 = s;
+// CHECK-NEXT:      clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> _t1 = s.operator_equal_forw({{.*2 \* y, 3 \* x \+ 2.*}}, &_d_s, {{.*0., 0..*}});
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_s.val.a += 1 * s.val.b;
+// CHECK-NEXT:          _d_s.val.b += s.val.a * 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          MyStructWrapper _r0 = {{.*0., 0..*}};
+// CHECK-NEXT:          s = _t0;
+// CHECK-NEXT:          s.operator_equal_pullback({{.*2 \* y, 3 \* x \+ 2.*}}, {{.*0., 0..*}}, &_d_s, &_r0);
+// CHECK-NEXT:          *_d_y += 2 * _r0.val.a;
+// CHECK-NEXT:          *_d_x += 3 * _r0.val.b;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1224,13 +1263,16 @@ int main() {
 
     INIT_GRADIENT(fn29);
     TEST_GRADIENT(fn29, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
+
+    INIT_GRADIENT(fn30);
+    TEST_GRADIENT(fn30, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {30.00, 22.00}
 }
 
 // CHECK: inline constexpr clad::ValueAndAdjoint<MyStruct &, MyStruct &> operator_equal_forw(MyStruct &&arg, MyStruct *_d_this, MyStruct &&_d_arg) noexcept {
 // CHECK-NEXT:    double _t0 = this->a;
-// CHECK-NEXT:    this->a = arg.a;
+// CHECK-NEXT:    this->a = static_cast<MyStruct &&>(arg).a;
 // CHECK-NEXT:    double _t1 = this->b;
-// CHECK-NEXT:    this->b = arg.b;
+// CHECK-NEXT:    this->b = static_cast<MyStruct &&>(arg).b;
 // CHECK-NEXT:    return {*this, *_d_this};
 // CHECK-NEXT:}
 
@@ -1335,4 +1377,10 @@ int main() {
 
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_forw(ptrClass *_d_this) {
 // CHECK-NEXT:      return {*this->ptr, *_d_this->ptr};
+// CHECK-NEXT:  }
+
+// CHECK:  inline constexpr clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> operator_equal_forw(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper &&_d_arg) noexcept {
+// CHECK-NEXT:      MyStruct _t0 = this->val;
+// CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = this->val.operator_equal_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, {0., 0.});
+// CHECK-NEXT:      return {*this, *_d_this};
 // CHECK-NEXT:  }

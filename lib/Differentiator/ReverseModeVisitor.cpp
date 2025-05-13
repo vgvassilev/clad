@@ -1978,7 +1978,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     for (std::size_t i = 0, e = CE->getNumArgs() - isMethodOperatorCall; i != e;
          ++i) {
       const Expr* arg = CE->getArg(i + isMethodOperatorCall);
-      if (!utils::IsReferenceOrPointerArg(arg))
+      if (!utils::IsReferenceOrPointerArg(arg) || arg->isXValue())
         CallArgDx[i] = getZeroInit(arg->getType());
     }
     if (baseDiff.getExpr_dx() &&
@@ -3192,7 +3192,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!fieldName.empty())
       derivedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                          baseDiff.getExpr_dx(), fieldName);
-    if (dfdx()) {
+    if (dfdx() && clonedME->getType()->isRealType()) {
       Expr* addAssign =
           BuildOp(BinaryOperatorKind::BO_AddAssign, derivedME, dfdx());
       addToCurrentBlock(addAssign, direction::reverse);
@@ -4340,6 +4340,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff ReverseModeVisitor::VisitCXXStaticCastExpr(
       const clang::CXXStaticCastExpr* SCE) {
     StmtDiff subExprDiff = Visit(SCE->getSubExpr(), dfdx());
+
+    // Reconstruct the cast
+    TypeSourceInfo* TSI = SCE->getTypeInfoAsWritten();
+    SourceLocation KWLoc = SCE->getOperatorLoc();
+    SourceLocation RParenLoc = SCE->getRParenLoc();
+    Expr* castExpr =
+        m_Sema
+            .BuildCXXNamedCast(KWLoc, tok::kw_static_cast, TSI,
+                               subExprDiff.getExpr(), SCE->getAngleBrackets(),
+                               SourceRange(KWLoc, RParenLoc))
+            .get();
+    subExprDiff.updateStmt(castExpr);
+
     return subExprDiff;
   }
 

@@ -354,7 +354,7 @@ namespace clad {
       const Expr* subExpr = arg->IgnoreImplicit();
       if (const auto* DAE = dyn_cast<CXXDefaultArgExpr>(subExpr))
         subExpr = DAE->getExpr()->IgnoreImplicit();
-      bool isRefType = arg->isLValue() && subExpr->isLValue();
+      bool isRefType = arg->isGLValue() && subExpr->isGLValue();
       return isRefType || isArrayOrPointerType(arg->getType());
     }
 
