@@ -579,7 +579,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t0 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>());
 // CHECK-NEXT:      SafeTestClass s1(_t0.value);
 // CHECK-NEXT:      SafeTestClass _d_s1 = _t0.adjoint;
-// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t1 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>(), u, &v, *_d_u, &*_d_v);
+// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t1 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>(), u, &v, 0., &*_d_v);
 // CHECK-NEXT:      SafeTestClass s2(_t1.value);
 // CHECK-NEXT:      SafeTestClass _d_s2 = _t1.adjoint;
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t2 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>(), w, _d_w);
@@ -587,7 +587,11 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      SafeTestClass _d_s3 = _t2.adjoint;
 // CHECK-NEXT:      *_d_v += 1;
 // CHECK-NEXT:      SafeTestClass::constructor_pullback(w, &_d_s3, &_d_w);
-// CHECK-NEXT:      {{.*}}constructor_pullback(u, &v, &_d_s2, &*_d_u, &*_d_v);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r0 = 0.;  
+// CHECK-NEXT:          {{.*}}constructor_pullback(u, &v, &_d_s2, &_r0, &*_d_v);
+// CHECK-NEXT:          *_d_u += _r0;
+// CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
 double fn7(double u, double v) {
@@ -856,15 +860,21 @@ int main() {
 // CHECK-NEXT:     SimpleFunctions _d_sf(sf);
 // CHECK-NEXT:     clad::zero_init(_d_sf);
 // CHECK-NEXT:     SimpleFunctions _t0 = sf;
-// CHECK-NEXT:         {
-// CHECK-NEXT:             double _r0 = 0.;
-// CHECK-NEXT:             double _r1 = 0.;
-// CHECK-NEXT:             sf = _t0;
-// CHECK-NEXT:             sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r0, &_r1);
-// CHECK-NEXT:             *_d_i += _r0;
-// CHECK-NEXT:             *_d_j += _r1;
-// CHECK-NEXT:         }
-// CHECK-NEXT:     SimpleFunctions::constructor_pullback(x, y, &_d_sf, &_d_x, &_d_y);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r2 = 0.;
+// CHECK-NEXT:         double _r3 = 0.;
+// CHECK-NEXT:         sf = _t0;
+// CHECK-NEXT:         sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r2, &_r3);
+// CHECK-NEXT:         *_d_i += _r2;
+// CHECK-NEXT:         *_d_j += _r3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         SimpleFunctions::constructor_pullback(x, y, &_d_sf, &_r0, &_r1);
+// CHECK-NEXT:         _d_x += _r0;
+// CHECK-NEXT:         _d_y += _r1;
+// CHECK-NEXT:     }
 // CHECK-NEXT:     }
 
 // CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_forw(double i, SimpleFunctions *_d_this, double _d_i) {

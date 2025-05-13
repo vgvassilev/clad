@@ -560,19 +560,23 @@ int main() {
 // CHECK-NEXT:     std::vector<double> _t4 = vec;
 // CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t5 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 2, &_d_vec, {{0U|0UL|0}});
 // CHECK-NEXT:     {
-// CHECK-NEXT:             {{.*}} _r0 = {{0U|0UL}};
-// CHECK-NEXT:             vec = _t0;
-// CHECK-NEXT:             {{.*}}operator_subscript_pullback(&vec, 0, 1, &_d_vec, &_r0);
-// CHECK-NEXT:             {{.*}} _r1 = {{0U|0UL}};
-// CHECK-NEXT:             vec = _t2;
-// CHECK-NEXT:             {{.*}}operator_subscript_pullback(&vec, 1, 1, &_d_vec, &_r1);
-// CHECK-NEXT:             {{.*}} _r2 = {{0U|0UL}};
-// CHECK-NEXT:             vec = _t4;
-// CHECK-NEXT:             {{.*}}operator_subscript_pullback(&vec, 2, 1, &_d_vec, &_r2);
-// CHECK-NEXT:         }
-// CHECK-NEXT:         {{.*}}constructor_pullback(count, u, allocator, &_d_vec, &_d_count, &*_d_u, &_d_allocator);
-// CHECK-NEXT:        *_d_u += _d_res;
+// CHECK-NEXT:         {{.*}} _r1 = {{0U|0UL}};
+// CHECK-NEXT:         vec = _t0;
+// CHECK-NEXT:         {{.*}}operator_subscript_pullback(&vec, 0, 1, &_d_vec, &_r1);
+// CHECK-NEXT:         {{.*}} _r2 = {{0U|0UL}};
+// CHECK-NEXT:         vec = _t2;
+// CHECK-NEXT:         {{.*}}operator_subscript_pullback(&vec, 1, 1, &_d_vec, &_r2);
+// CHECK-NEXT:         {{.*}} _r3 = {{0U|0UL}};
+// CHECK-NEXT:         vec = _t4;
+// CHECK-NEXT:         {{.*}}operator_subscript_pullback(&vec, 2, 1, &_d_vec, &_r3);
 // CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         {{.*}} _r0 = {{0U|0UL}};
+// CHECK-NEXT:         {{.*}}constructor_pullback(count, u, allocator, &_d_vec, &_r0, &*_d_u, &_d_allocator);
+// CHECK-NEXT:         _d_count += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_u += _d_res;
+// CHECK-NEXT: }
 
 // CHECK:      void fn14_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:          std::vector<double> a;
@@ -1153,18 +1157,20 @@ int main() {
 // CHECK-NEXT:             double _r_d0 = _d_prod;
 // CHECK-NEXT:             _d_prod = 0.;
 // CHECK-NEXT:             _d_prod += _r_d0 * clad::back(_t5).value;
-// CHECK-NEXT:             {{.*}}size_type _r1 = 0{{.*}};
+// CHECK-NEXT:             {{.*}}size_type _r2 = 0{{.*}};
 // CHECK-NEXT:             vec = clad::back(_t4);
-// CHECK-NEXT:             clad::custom_derivatives::class_functions::operator_subscript_pullback(&vec, i - 1, prod * _r_d0, &_d_vec, &_r1);
-// CHECK-NEXT:             _d_i += _r1;
+// CHECK-NEXT:             clad::custom_derivatives::class_functions::operator_subscript_pullback(&vec, i - 1, prod * _r_d0, &_d_vec, &_r2);
+// CHECK-NEXT:             _d_i += _r2;
 // CHECK-NEXT:             clad::pop(_t4);
 // CHECK-NEXT:             clad::pop(_t5);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             {{.*}}value_type _r0 = 0.;
-// CHECK-NEXT:             clad::custom_derivatives::class_functions::constructor_pullback(i, v + u, alloc, &_d_vec, &_d_i, &_r0, &_d_alloc);
-// CHECK-NEXT:             *_d_v += _r0;
-// CHECK-NEXT:             *_d_u += _r0;
+// CHECK-NEXT:             {{.*}}size_type _r0 = 0{{.*}};
+// CHECK-NEXT:             {{.*}}value_type _r1 = 0.;
+// CHECK-NEXT:             clad::custom_derivatives::class_functions::constructor_pullback(i, v + u, alloc, &_d_vec, &_r0, &_r1, &_d_alloc);
+// CHECK-NEXT:             _d_i += _r0;
+// CHECK-NEXT:             *_d_v += _r1;
+// CHECK-NEXT:             *_d_u += _r1;
 // CHECK-NEXT:             _d_vec = clad::pop(_t1);
 // CHECK-NEXT:             vec = clad::pop(_t2);
 // CHECK-NEXT:         }

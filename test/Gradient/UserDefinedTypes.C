@@ -767,15 +767,21 @@ double fn19(double i, double j) {
 // CHECK-NEXT:      SimpleFunctions1 _d_sf2(sf2);
 // CHECK-NEXT:      clad::zero_init(_d_sf2);
 // CHECK-NEXT:      {
+// CHECK-NEXT:          double _r4 = 0.;
+// CHECK-NEXT:          double _r5 = 0.;
+// CHECK-NEXT:          SimpleFunctions1 _r6 = {};
+// CHECK-NEXT:          (sf1 * sf2).mem_fn_pullback(i, j, 1, &_r6, &_r4, &_r5);
+// CHECK-NEXT:          *_d_i += _r4;
+// CHECK-NEXT:          *_d_j += _r5;
+// CHECK-NEXT:          sf1.operator_star_pullback(sf2, _r6, &_d_sf1, &_d_sf2);
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
 // CHECK-NEXT:          double _r2 = 0.;
 // CHECK-NEXT:          double _r3 = 0.;
-// CHECK-NEXT:          SimpleFunctions1 _r4 = {};
-// CHECK-NEXT:          (sf1 * sf2).mem_fn_pullback(i, j, 1, &_r4, &_r2, &_r3);
+// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(i, j, &_d_sf2, &_r2, &_r3);
 // CHECK-NEXT:          *_d_i += _r2;
 // CHECK-NEXT:          *_d_j += _r3;
-// CHECK-NEXT:          sf1.operator_star_pullback(sf2, _r4, &_d_sf1, &_d_sf2);
 // CHECK-NEXT:      }
-// CHECK-NEXT:      SimpleFunctions1::constructor_pullback(i, j, &_d_sf2, &*_d_i, &*_d_j);
 // CHECK-NEXT:  }
 
 void fn20(MyStruct s) {
@@ -812,7 +818,9 @@ double fn21(double i, double j) {
 // CHECK-NEXT:          double _r0 = 0.;
 // CHECK-NEXT:          SimpleFunctions1 _r1 = {};
 // CHECK-NEXT:          operator_plus_pullback(2, SimpleFunctions1(i), 1, &_r0, &_r1);
-// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(i, &_r1, &*_d_i);
+// CHECK-NEXT:          double _r2 = 0.;
+// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(i, &_r1, &_r2);
+// CHECK-NEXT:          *_d_i += _r2;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
@@ -1020,12 +1028,20 @@ double fn27(double x, double y) {
 // CHECK-NEXT:      clad::zero_init(_d_w);
 // CHECK-NEXT:      _d_w.x += 1;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          Vector3 _r0 = {};
-// CHECK-NEXT:          Vector3::constructor_pullback(2 * v, &_d_w, &_r0);
-// CHECK-NEXT:          double _r1 = 0.;
-// CHECK-NEXT:          operator_star_pullback(2, v, _r0, &_r1, &_d_v);
+// CHECK-NEXT:          Vector3 _r3 = {};
+// CHECK-NEXT:          Vector3::constructor_pullback(2 * v, &_d_w, &_r3);
+// CHECK-NEXT:          double _r4 = 0.;
+// CHECK-NEXT:          operator_star_pullback(2, v, _r3, &_r4, &_d_v);
 // CHECK-NEXT:      }
-// CHECK-NEXT:      Vector3::constructor_pullback(x, x, y, &_d_v, &*_d_x, &*_d_x, &*_d_y);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r0 = 0.;
+// CHECK-NEXT:          double _r1 = 0.;
+// CHECK-NEXT:          double _r2 = 0.;
+// CHECK-NEXT:          Vector3::constructor_pullback(x, x, y, &_d_v, &_r0, &_r1, &_r2);
+// CHECK-NEXT:          *_d_x += _r0;
+// CHECK-NEXT:          *_d_x += _r1;
+// CHECK-NEXT:          *_d_y += _r2;
+// CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
 // CHECK:  void operator_minus_pullback(Vector3 _d_y, Vector3 *_d_this) {
@@ -1057,12 +1073,20 @@ double fn28(double x, double y) {
 // CHECK-NEXT:      clad::zero_init(_d_w);
 // CHECK-NEXT:      _d_w.x += 1;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          Vector3 _r0 = {};
-// CHECK-NEXT:          Vector3::constructor_pullback(- v, &_d_w, &_r0);
+// CHECK-NEXT:          Vector3 _r3 = {};
+// CHECK-NEXT:          Vector3::constructor_pullback(- v, &_d_w, &_r3);
 // CHECK-NEXT:          v = _t0;
-// CHECK-NEXT:          v.operator_minus_pullback(_r0, &_d_v);
+// CHECK-NEXT:          v.operator_minus_pullback(_r3, &_d_v);
 // CHECK-NEXT:      }
-// CHECK-NEXT:      Vector3::constructor_pullback(x, x, y, &_d_v, &*_d_x, &*_d_x, &*_d_y);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r0 = 0.;
+// CHECK-NEXT:          double _r1 = 0.;
+// CHECK-NEXT:          double _r2 = 0.;
+// CHECK-NEXT:          Vector3::constructor_pullback(x, x, y, &_d_v, &_r0, &_r1, &_r2);
+// CHECK-NEXT:          *_d_x += _r0;
+// CHECK-NEXT:          *_d_x += _r1;
+// CHECK-NEXT:          *_d_y += _r2;
+// CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
 struct ptrClass {
@@ -1171,7 +1195,13 @@ double fn31(double x, double y) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          Vector3 _r0 = {};
 // CHECK-NEXT:          vecSum_pullback({x, y, x}, _d_z, &_r0);
-// CHECK-NEXT:          Vector3::constructor_pullback(x, y, x, &_r0, &*_d_x, &*_d_y, &*_d_x);
+// CHECK-NEXT:          double _r1 = 0.;
+// CHECK-NEXT:          double _r2 = 0.;
+// CHECK-NEXT:          double _r3 = 0.;
+// CHECK-NEXT:          Vector3::constructor_pullback(x, y, x, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:          *_d_x += _r1;
+// CHECK-NEXT:          *_d_y += _r2;
+// CHECK-NEXT:          *_d_x += _r3;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
