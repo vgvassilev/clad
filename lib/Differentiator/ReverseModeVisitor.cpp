@@ -4095,7 +4095,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       QualType ArgTy = arg->getType();
       StmtDiff argDiff{};
       Expr* adjointArg = nullptr;
-      if (utils::IsReferenceOrPointerArg(arg->IgnoreParenImpCasts())) {
+      if (utils::IsReferenceOrPointerArg(arg)) {
         argDiff = Visit(arg);
         adjointArg = argDiff.getExpr_dx();
       } else {
@@ -4128,7 +4128,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         reverseForwAdjointArgs.push_back(adjointArg);
         adjointArgs.push_back(adjointArg);
       } else {
-        if (utils::IsReferenceOrPointerArg(arg->IgnoreParenImpCasts()))
+        if (utils::IsReferenceOrPointerArg(arg))
           reverseForwAdjointArgs.push_back(adjointArg);
         else
           reverseForwAdjointArgs.push_back(getZeroInit(ArgTy));
