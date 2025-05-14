@@ -90,6 +90,64 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // or prototype for the currently derived function.
       dFD->setPreviousDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
     }
+
+    if (R.Function->getTemplatedKind() != FunctionDecl::TK_NonTemplate) {
+      FunctionTemplateDecl* NewFTD = nullptr;
+      auto Results = S.getASTContext().getTranslationUnitDecl()->lookup(
+          dFD->getNameInfo().getName());
+
+      for (NamedDecl* ND : Results) {
+        // Direct match
+        if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+          NewFTD = FTD;
+          break;
+        }
+
+        if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+          if (auto* FTD = FD->getDescribedFunctionTemplate()) {
+            NewFTD = FTD;
+            break;
+          }
+        }
+      }
+
+      if (NewFTD == nullptr) {
+        assert((R.Function->getTemplatedKind() ==
+                FunctionDecl::TK_FunctionTemplate) &&
+               "Function specialization derived before primary temaplate. This "
+               "shouldn't happen");
+        TemplateParameterList* TemplateParams =
+            R.Function->getDescribedFunctionTemplate()->getTemplateParameters();
+
+        NewFTD = FunctionTemplateDecl::Create(
+            S.getASTContext(), S.CurContext, noLoc,
+            dFD->getNameInfo().getName(), TemplateParams, dFD);
+        NewFTD->setLexicalDeclContext(S.CurContext);
+        dFD->setDescribedFunctionTemplate(NewFTD);
+      }
+
+      if (R.Function->getTemplatedKind() ==
+          FunctionDecl::TK_FunctionTemplateSpecialization) {
+        const TemplateArgumentList* TAL =
+            R.Function->getTemplateSpecializationArgs();
+        TemplateArgumentList* TALCopy =
+            TemplateArgumentList::CreateCopy(S.getASTContext(), TAL->asArray());
+
+        dFD->setFunctionTemplateSpecialization(
+            NewFTD, TALCopy, nullptr,
+            R.Function->getTemplateSpecializationKindForInstantiation());
+      }
+
+      std::cout << "\n-------------------------------------------------------"
+                   "-------------------------\n";
+      dFD->dump();
+      std::cout << "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                   "!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+      for (auto x : NewFTD->specializations())
+        x->dump();
+      std::cout << "\n-------------------------------------------------------"
+                   "-------------------------\n\n\n\n";
+    }
   } else if (auto* dVD = dyn_cast<VarDecl>(D))
     // Add the identifier to the scope and IdResolver
     S.PushOnScopeChains(dVD, S.TUScope, /*AddToContext*/ false);
@@ -143,47 +201,37 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
       returnedFD->setAccess(FD->getAccess());
 
-      if (FD->getTemplatedKind() ==
-          FunctionDecl::TK_FunctionTemplateSpecialization) {
-        FunctionTemplateDecl* returnedFTD = nullptr;
-        auto Results = m_Context.getTranslationUnitDecl()->lookup(
-            returnedFD->getNameInfo().getName());
-        for (NamedDecl* ND : Results) {
-          if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
-            returnedFTD = FTD;
-            break;
-          }
-
-          if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
-            if (auto* FTD = FD->getDescribedFunctionTemplate()) {
-              returnedFTD = FTD;
-              break;
-            }
-          }
-        }
-
-        assert((returnedFTD != nullptr) &&
-               "Function specialization derived before primary temaplate. This "
-               "shouldn't happen");
-
-        const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
-        TemplateArgumentList* TALCopy =
-            TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
-
-        returnedFD->setFunctionTemplateSpecialization(
-            returnedFTD, TALCopy, nullptr,
-            FD->getTemplateSpecializationKindForInstantiation());
-
-        std::cout << "\n-------------------------------------------------------"
-                     "-------------------------\n";
-        returnedFD->dump();
-        std::cout << "\n-------------------------------------------------------"
-                     "-------------------------\n";
-        for (auto x : returnedFTD->specializations())
-          x->dump();
-        std::cout << "\n-------------------------------------------------------"
-                     "-------------------------\n";
-      }
+      // if (FD->getTemplatedKind() ==
+      //     FunctionDecl::TK_FunctionTemplateSpecialization) {
+      //   FunctionTemplateDecl* returnedFTD = nullptr;
+      //   auto Results = m_Context.getTranslationUnitDecl()->lookup(
+      //       returnedFD->getNameInfo().getName());
+      //   for (NamedDecl* ND : Results) {
+      //     if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+      //       returnedFTD = FTD;
+      //       break;
+      //     }
+      //
+      //     if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+      //       if (auto* FTD = FD->getDescribedFunctionTemplate()) {
+      //         returnedFTD = FTD;
+      //         break;
+      //       }
+      //     }
+      //   }
+      //
+      //   assert((returnedFTD != nullptr) &&
+      //          "Function specialization derived before primary temaplate.
+      //          This " "shouldn't happen");
+      //
+      //   const TemplateArgumentList* TAL =
+      //   FD->getTemplateSpecializationArgs(); TemplateArgumentList* TALCopy =
+      //       TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+      //
+      //   returnedFD->setFunctionTemplateSpecialization(
+      //       returnedFTD, TALCopy,nullptr,
+      //       FD->getTemplateSpecializationKindForInstantiation());
+      // }
     }
 
     returnedFD->setImplicitlyInline(FD->isInlined());
@@ -569,37 +617,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         primaryFDRequest.Function =
             FD->getPrimaryTemplate()->getTemplatedDecl();
 
-        auto* primaryFD = HandleNestedDiffRequest(primaryFDRequest);
-
-        FunctionTemplateDecl* NewFTD = nullptr;
-        auto Results = m_Context.getTranslationUnitDecl()->lookup(
-            primaryFD->getNameInfo().getName());
-
-        for (NamedDecl* ND : Results) {
-          // Direct match
-          if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
-            NewFTD = FTD;
-            break;
-          }
-
-          if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
-            if (auto* FTD = FD->getDescribedFunctionTemplate()) {
-              NewFTD = FTD;
-              break;
-            }
-          }
-        }
-
-        if (NewFTD == nullptr) {
-          TemplateParameterList* TemplateParams =
-              FD->getPrimaryTemplate()->getTemplateParameters();
-
-          NewFTD = FunctionTemplateDecl::Create(
-              m_Context, m_Sema.CurContext, noLoc,
-              primaryFD->getNameInfo().getName(), TemplateParams, primaryFD);
-          NewFTD->setLexicalDeclContext(m_Sema.CurContext);
-          primaryFD->setDescribedFunctionTemplate(NewFTD);
-        }
+        HandleNestedDiffRequest(primaryFDRequest);
       }
     } else if (const VarDecl* VD = request.Global) {
       // Warn the user about the usage of global variables.
