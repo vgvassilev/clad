@@ -144,6 +144,8 @@ CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
 __builtin_pow_pushforward(double x, double exponent, double d_x,
                           double d_exponent) {
   auto val = __builtin_pow(x, exponent);
+  if (exponent == 0 && d_exponent == 0)
+    return {val, 0};
   double derivative = (exponent * __builtin_pow(x, exponent - 1)) * d_x;
   // Only add directional derivative of base^exp w.r.t exp if the directional
   // seed d_exponent is non-zero. This is required because if base is less than
@@ -160,6 +162,8 @@ CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
 __builtin_powf_pushforward(float x, float exponent, float d_x,
                            float d_exponent) {
   auto val = __builtin_powf(x, exponent);
+  if (exponent == 0 && d_exponent == 0)
+    return {val, 0};
   float derivative = (exponent * __builtin_powf(x, exponent - 1)) * d_x;
   // Only add directional derivative of base^exp w.r.t exp if the directional
   // seed d_exponent is non-zero. This is required because if base is less than
@@ -1296,6 +1300,8 @@ template <typename T1, typename T2, typename dT1, typename dT2,
 CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
 pow_pushforward(T1 x, T2 exponent, dT1 d_x, dT2 d_exponent) {
   T_out val = ::std::pow(x, exponent);
+  if (exponent == static_cast<T2>(0) && d_exponent == static_cast<dT2>(0))
+    return {val, static_cast<dT_out>(0)};
   dT_out derivative = (exponent * ::std::pow(x, exponent - 1)) * d_x;
   // Only add directional derivative of base^exp w.r.t exp if the directional
   // seed d_exponent is non-zero. This is required because if base is less than
