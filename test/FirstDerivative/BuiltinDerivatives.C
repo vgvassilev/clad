@@ -490,6 +490,14 @@ double f_erfc(double x) { return std::erfc(x); }
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
+double f_pow_zero(double x, double y) { return std::pow(x, y); }
+// CHECK: double f_pow_zero_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}pow_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -660,6 +668,9 @@ int main () { //expected-no-diagnostics
 
   auto d_erfc = clad::differentiate(f_erfc, 0);
   printf("Result is = %.6f\n", d_erfc.execute(0.5)); // CHECK-EXEC: Result is = -0.878783
-  
+
+  auto d_pow_zero =  clad::differentiate(f_pow_zero, 0);
+  printf("Result is = %.6f\n", d_pow_zero.execute(0, 0)); // CHECK-EXEC: Result is = 0.000000
+
   return 0;
 }
