@@ -421,6 +421,20 @@ void f_norm_grad(double x,
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
+double f_pow_zero(double x, double y) {
+  return std::pow(x, y);
+}
+void f_pow_zero_grad(double x, double y, double *_d_x, double *_d_y);
+// CHECK:   void f_pow_zero_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:       {
+// CHECK-NEXT:           double _r0 = 0.;
+// CHECK-NEXT:           double _r1 = 0.;
+// CHECK-NEXT:           clad::custom_derivatives::std::pow_pullback(x, y, 1, &_r0, &_r1);
+// CHECK-NEXT:           *_d_x += _r0;
+// CHECK-NEXT:           *_d_y += _r1;
+// CHECK-NEXT:       }
+// CHECK-NEXT:   }
+
 double f_sin(double x, double y) {
   return (std::sin(x) + std::sin(y))*(x + y);
 }
@@ -1241,6 +1255,7 @@ int main() {
   TEST(f_if2, -5, -4); // CHECK-EXEC: Result is = {0.00, -1.00}
   clad::gradient(&S::f);
   clad::gradient(f_norm);
+  clad::gradient(f_pow_zero);
   clad::gradient(f_sin);
   clad::gradient(f_types);
   TEST(f_decls1, 3, 3); // CHECK-EXEC: Result is = {6.00, 10.00}
