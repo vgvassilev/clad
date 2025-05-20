@@ -878,21 +878,17 @@ int main() {
 // CHECK-NEXT:     }
 
 // CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_forw(double i, SimpleFunctions *_d_this, double _d_i) {
-// CHECK-NEXT:     double _t0 = this->x;
 // CHECK-NEXT:     this->x = +i;
-// CHECK-NEXT:     double _t1 = this->x;
 // CHECK-NEXT:     this->x = -i;
 // CHECK-NEXT:     return {this->x, _d_this->x};
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_forw(double value, SimpleFunctions *_d_this, double _d_value) {
-// CHECK-NEXT:     double _t0 = this->x;
 // CHECK-NEXT:     this->x += value;
 // CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_forw(SimpleFunctions *_d_this) {
-// CHECK-NEXT:     double _t0 = this->x;
 // CHECK-NEXT:     this->x += 1.;
 // CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }
