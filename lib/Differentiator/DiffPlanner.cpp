@@ -1,5 +1,6 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "clad/Differentiator/DependencySparsityAnalyzer.h"
 #include "clad/Differentiator/DiffMode.h"
 
 #include "ActivityAnalyzer.h"
@@ -1212,8 +1213,21 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         analyzer.Analyze(request.Function);
       }
 
+      // if(request.EnableSparsity)
+      //   llvm::errs() << "\n============\n";
+
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
+      if (request.EnableSparsity) {
+        request.EnableSparsity = false;
+        request.CallUpdateRequired = false;
+        m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+        request.CallUpdateRequired = true;
+        request.EnableSparsity = true;
+        DependencySparsityAnalyzer analyzer(request.Function->getASTContext(),
+                                            request.getDependencySet());
+        analyzer.Analyze(request.Function);
+      }
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
     }
 
