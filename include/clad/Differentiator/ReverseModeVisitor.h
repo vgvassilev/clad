@@ -101,7 +101,7 @@ namespace clad {
 
   public:
     using direction = rmv::direction;
-    clang::Expr* dfdx() {
+    virtual clang::Expr* dfdx() {
       if (m_Stack.empty())
         return nullptr;
       return m_Stack.top();
@@ -240,8 +240,9 @@ namespace clad {
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
                                    bool force = false);
-    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",
-                             bool moveToTape = false);
+    virtual StmtDiff StoreAndRestore(clang::Expr* E,
+                                     llvm::StringRef prefix = "_t",
+                                     bool moveToTape = false);
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global

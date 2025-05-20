@@ -1059,7 +1059,6 @@ double fn25_defined_later(double x) {
 // CHECK-NEXT:     MyStruct::myFunction();
 // CHECK-NEXT:     double _d__d_i = 0.;
 // CHECK-NEXT:     double _d_i0 = i;
-// CHECK-NEXT:     double _t0 = _d_i0;
 // CHECK-NEXT:     _d_i0 += 1;
 // CHECK-NEXT:     return {i, _d_i};
 // CHECK-NEXT: }

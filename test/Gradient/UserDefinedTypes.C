@@ -1330,9 +1330,7 @@ int main() {
 }
 
 // CHECK: inline constexpr clad::ValueAndAdjoint<MyStruct &, MyStruct &> operator_equal_forw(MyStruct &&arg, MyStruct *_d_this, MyStruct &&_d_arg) noexcept {
-// CHECK-NEXT:    double _t0 = this->a;
 // CHECK-NEXT:    this->a = static_cast<MyStruct &&>(arg).a;
-// CHECK-NEXT:    double _t1 = this->b;
 // CHECK-NEXT:    this->b = static_cast<MyStruct &&>(arg).b;
 // CHECK-NEXT:    return {*this, *_d_this};
 // CHECK-NEXT:}

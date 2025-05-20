@@ -528,8 +528,6 @@ double listInitPtrFn (double x, double y) {
 // CHECK-NEXT:  }
 
 // CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n) {
-// CHECK-NEXT:     double *_t0 = x;
-// CHECK-NEXT:     double *_t1 = _d_x;
 // CHECK-NEXT:     _d_x += n;
 // CHECK-NEXT:     x += n;
 // CHECK-NEXT:     return {x, _d_x};
