@@ -1148,6 +1148,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
           // if (MD && isLambdaCallOperator(MD)) {
           const auto* paramDecl = FD->getParamDecl(i);
+          QualType paramElemTy = utils::GetValueType(paramDecl->getType());
+          const CXXRecordDecl* RD = paramElemTy->getAsCXXRecordDecl();
+          if (RD && clad::utils::hasNonDifferentiableAttribute(RD))
+            continue;
+
           request.DVI.push_back(paramDecl);
 
           //}
