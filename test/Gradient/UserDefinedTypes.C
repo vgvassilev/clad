@@ -674,13 +674,13 @@ double fn16(double i, double j) {
 // CHECK-NEXT:    SimpleFunctions1 _d_obj2(obj2);
 // CHECK-NEXT:    clad::zero_init(_d_obj2);
 // CHECK-NEXT:    {
-// CHECK-NEXT:        double _r4 = 0.;
-// CHECK-NEXT:        double _r5 = 0.;
-// CHECK-NEXT:        SimpleFunctions1 _r6 = {};
-// CHECK-NEXT:        (obj1 + obj2).mem_fn_1_pullback(i, j, 1, &_r6, &_r4, &_r5);
-// CHECK-NEXT:        *_d_i += _r4;
-// CHECK-NEXT:        *_d_j += _r5;
-// CHECK-NEXT:        obj1.operator_plus_pullback(obj2, _r6, &_d_obj1, &_d_obj2);
+// CHECK-NEXT:        double _r0 = 0.;
+// CHECK-NEXT:        double _r1 = 0.;
+// CHECK-NEXT:        SimpleFunctions1 _r2 = {};
+// CHECK-NEXT:        (obj1 + obj2).mem_fn_1_pullback(i, j, 1, &_r2, &_r0, &_r1);
+// CHECK-NEXT:        *_d_i += _r0;
+// CHECK-NEXT:        *_d_j += _r1;
+// CHECK-NEXT:        obj1.operator_plus_pullback(obj2, _r2, &_d_obj1, &_d_obj2);
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
@@ -705,12 +705,12 @@ double fn17(double i, double j) {
 // CHECK-NEXT:    clad::zero_init(_d_sf);
 // CHECK-NEXT:    SimpleFunctions1 _t0 = sf;
 // CHECK-NEXT:    {
-// CHECK-NEXT:        double _r2 = 0.;
-// CHECK-NEXT:        double _r3 = 0.;
+// CHECK-NEXT:        double _r0 = 0.;
+// CHECK-NEXT:        double _r1 = 0.;
 // CHECK-NEXT:        sf = _t0;
-// CHECK-NEXT:        sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r2, &_r3);
-// CHECK-NEXT:        *_d_i += _r2;
-// CHECK-NEXT:        *_d_j += _r3;
+// CHECK-NEXT:        sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r0, &_r1);
+// CHECK-NEXT:        *_d_i += _r0;
+// CHECK-NEXT:        *_d_j += _r1;
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
@@ -767,20 +767,20 @@ double fn19(double i, double j) {
 // CHECK-NEXT:      SimpleFunctions1 _d_sf2(sf2);
 // CHECK-NEXT:      clad::zero_init(_d_sf2);
 // CHECK-NEXT:      {
-// CHECK-NEXT:          double _r4 = 0.;
-// CHECK-NEXT:          double _r5 = 0.;
-// CHECK-NEXT:          SimpleFunctions1 _r6 = {};
-// CHECK-NEXT:          (sf1 * sf2).mem_fn_pullback(i, j, 1, &_r6, &_r4, &_r5);
-// CHECK-NEXT:          *_d_i += _r4;
-// CHECK-NEXT:          *_d_j += _r5;
-// CHECK-NEXT:          sf1.operator_star_pullback(sf2, _r6, &_d_sf1, &_d_sf2);
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
 // CHECK-NEXT:          double _r2 = 0.;
 // CHECK-NEXT:          double _r3 = 0.;
-// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(i, j, &_d_sf2, &_r2, &_r3);
+// CHECK-NEXT:          SimpleFunctions1 _r4 = {};
+// CHECK-NEXT:          (sf1 * sf2).mem_fn_pullback(i, j, 1, &_r4, &_r2, &_r3);
 // CHECK-NEXT:          *_d_i += _r2;
 // CHECK-NEXT:          *_d_j += _r3;
+// CHECK-NEXT:          sf1.operator_star_pullback(sf2, _r4, &_d_sf1, &_d_sf2);
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r0 = 0.;
+// CHECK-NEXT:          double _r1 = 0.;
+// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(i, j, &_d_sf2, &_r0, &_r1);
+// CHECK-NEXT:          *_d_i += _r0;
+// CHECK-NEXT:          *_d_j += _r1;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 

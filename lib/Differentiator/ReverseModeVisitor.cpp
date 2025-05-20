@@ -4090,12 +4090,36 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // before the statements inserted by 'Visit(arg, ...)' calls for arguments.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
 
+    // FIXME: consider moving non-diff analysis to DiffPlanner.
+    bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
+
+    // If the result does not depend on the result of the call, just clone
+    // the call and visit arguments (since they may contain side-effects like
+    // f(x = y))
+    // If the callee function takes arguments by reference then it can affect
+    // derivatives even if there is no `dfdx()` and thus we should call the
+    // derived function.
+    if (!nonDiff && !dfdx())
+      nonDiff = true;
+
+    // If all arguments are constant literals, then this does not contribute to
+    // the gradient.
+    if (!nonDiff) {
+      nonDiff = true;
+      for (const Expr* arg : CE->arguments()) {
+        if (m_DiffReq.isVaried(arg)) {
+          nonDiff = false;
+          break;
+        }
+      }
+    }
+
     // FIXME: Restore arguments passed as non-const reference.
     for (const auto* arg : CE->arguments()) {
       QualType ArgTy = arg->getType();
       StmtDiff argDiff{};
       Expr* adjointArg = nullptr;
-      if (utils::IsReferenceOrPointerArg(arg)) {
+      if (utils::IsReferenceOrPointerArg(arg) || nonDiff) {
         argDiff = Visit(arg);
         adjointArg = argDiff.getExpr_dx();
       } else {
@@ -4124,7 +4148,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         argDiff = Visit(arg, BuildDeclRef(dArgDecl));
       }
 
-      if (utils::isArrayOrPointerType(ArgTy)) {
+      if (utils::isArrayOrPointerType(ArgTy) || nonDiff) {
         reverseForwAdjointArgs.push_back(adjointArg);
         adjointArgs.push_back(adjointArg);
       } else {
@@ -4149,30 +4173,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     const CXXRecordDecl* RD = CD->getParent();
-
-    // FIXME: consider moving non-diff analysis to DiffPlanner.
-    bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
-
-    // If the result does not depend on the result of the call, just clone
-    // the call and visit arguments (since they may contain side-effects like
-    // f(x = y))
-    // If the callee function takes arguments by reference then it can affect
-    // derivatives even if there is no `dfdx()` and thus we should call the
-    // derived function.
-    if (!nonDiff && !dfdx())
-      nonDiff = true;
-
-    // If all arguments are constant literals, then this does not contribute to
-    // the gradient.
-    if (!nonDiff) {
-      nonDiff = true;
-      for (const Expr* arg : CE->arguments()) {
-        if (m_DiffReq.isVaried(arg)) {
-          nonDiff = false;
-          break;
-        }
-      }
-    }
 
     if (!nonDiff) {
       // Try to create a pullback constructor call
