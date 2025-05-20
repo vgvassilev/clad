@@ -2617,6 +2617,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         VD->getInit() && isa<CXXConstructExpr>(VD->getInit()->IgnoreImplicit());
     const CXXRecordDecl* RD = VD->getType()->getAsCXXRecordDecl();
     bool isNonAggrClass = RD && !RD->isAggregate();
+    if (RD && clad::utils::hasNonDifferentiableAttribute(RD))
+      initializeDerivedVar = false;
 
     // We initialize adjoints with original variables as part of
     // the strategy to maintain the structure of the original variable.
@@ -2787,7 +2789,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
                                    initDiff.getExpr(), isDirectInit);
 
-    if (isConstructInit) {
+    if (isConstructInit && VDDerived) {
       if (initDiff.getStmt_dx()) {
         SetDeclInit(VDDerived, initDiff.getExpr_dx());
       } else if (shouldCopyInitialize) {
@@ -2934,7 +2936,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // If the DeclStmt is not empty, check the first declaration in case it is a
     // lambda function. This case it is treated separately for now and we don't
     // create a variable for its derivative.
-    bool isLambda = false;
     const auto* declsBegin = DS->decls().begin();
     if (declsBegin != DS->decls().end() && isa<VarDecl>(*declsBegin)) {
       auto* VD = dyn_cast<VarDecl>(*declsBegin);
@@ -2946,9 +2947,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // We should also simply copy the original lambda. The differentiation
       // of lambdas is happening in the `VisitCallExpr`. For now, only the
       // declarations with lambda expressions without captures are supported.
-      isLambda = typeDecl && typeDecl->isLambda();
-      if (isLambda ||
-          (typeDecl && clad::utils::hasNonDifferentiableAttribute(typeDecl))) {
+      if (typeDecl && typeDecl->isLambda()) {
         for (auto* D : DS->decls())
           if (auto* VD = dyn_cast<VarDecl>(D))
             decls.push_back(VD);
@@ -2966,8 +2965,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (auto* VD = dyn_cast<VarDecl>(D)) {
         DeclDiff<VarDecl> VDDiff;
 
-        if (!isLambda)
-          VDDiff = DifferentiateVarDecl(VD);
+        VDDiff = DifferentiateVarDecl(VD);
 
         // Here, we move the declaration to the function global scope.
         // Initialization is replaced with an assignment operation at the same
