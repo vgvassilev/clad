@@ -474,10 +474,12 @@ void at_pullback(::std::vector<T>* vec,
   (*d_vec)[idx] += d_y;
 }
 
-template <typename T, typename S, typename U>
-void constructor_pullback(S count, U val,
+template <typename T, typename U>
+void constructor_pullback(typename ::std::vector<T>::size_type count, U val,
                           typename ::std::vector<T>::allocator_type alloc,
-                          ::std::vector<T>* d_this, S* d_count, U* d_val,
+                          ::std::vector<T>* d_this,
+                          typename ::std::vector<T>::size_type* d_count,
+                          U* d_val,
                           typename ::std::vector<T>::allocator_type* d_alloc) {
   for (unsigned i = 0; i < count; ++i)
     *d_val += (*d_this)[i];

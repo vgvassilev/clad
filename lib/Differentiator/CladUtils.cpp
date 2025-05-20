@@ -1058,5 +1058,14 @@ namespace clad {
 
       return C.getFunctionType(dRetTy, FnTypes, EPI);
     }
+
+    bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
+      if (FD->getNumParams() != 1 ||
+          utils::HasAnyReferenceOrPointerArgument(FD) || isa<CXXMethodDecl>(FD))
+        return false;
+      QualType paramTy = FD->getParamDecl(0)->getType();
+      paramTy = paramTy.getNonReferenceType();
+      return paramTy->isRealType();
+    }
   } // namespace utils
 } // namespace clad

@@ -1828,8 +1828,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // If the function has a single arg and does not return a reference or take
     // arg by reference, we can request a derivative w.r.t. to this arg using
     // the forward mode.
-    bool asGrad = NArgs != 1 || utils::HasAnyReferenceOrPointerArgument(FD) ||
-                  isa<CXXMethodDecl>(FD);
+    bool asGrad = !utils::canUsePushforwardInRevMode(FD);
     if (!asGrad) {
       pullbackCallArgs.resize(1);
       pullbackCallArgs.push_back(ConstantFolder::synthesizeLiteral(
@@ -4096,7 +4095,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       QualType ArgTy = arg->getType();
       StmtDiff argDiff{};
       Expr* adjointArg = nullptr;
-      if (utils::IsReferenceOrPointerArg(arg->IgnoreParenImpCasts())) {
+      if (utils::IsReferenceOrPointerArg(arg)) {
         argDiff = Visit(arg);
         adjointArg = argDiff.getExpr_dx();
       } else {
@@ -4129,7 +4128,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         reverseForwAdjointArgs.push_back(adjointArg);
         adjointArgs.push_back(adjointArg);
       } else {
-        if (utils::IsReferenceOrPointerArg(arg->IgnoreParenImpCasts()))
+        if (utils::IsReferenceOrPointerArg(arg))
           reverseForwAdjointArgs.push_back(adjointArg);
         else
           reverseForwAdjointArgs.push_back(getZeroInit(ArgTy));

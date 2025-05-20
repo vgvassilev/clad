@@ -1115,16 +1115,15 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         return true;
 
       request.Function = FD;
+      bool canUsePushforwardInRevMode =
+          m_TopMostReq->Mode == DiffMode::reverse &&
+          utils::canUsePushforwardInRevMode(FD);
 
-      bool usePushforwardInRevMode =
-          m_TopMostReq->Mode == DiffMode::reverse && FD->getNumParams() == 1 &&
-          !utils::HasAnyReferenceOrPointerArgument(FD) &&
-          !isa<CXXMethodDecl>(FD);
       // FIXME: hessians require second derivatives,
       // i.e. apart from the pushforward, we also need
       // to schedule pushforward_pullback.
       if (m_TopMostReq->Mode == DiffMode::forward ||
-          m_TopMostReq->Mode == DiffMode::hessian || usePushforwardInRevMode)
+          m_TopMostReq->Mode == DiffMode::hessian || canUsePushforwardInRevMode)
         request.Mode = DiffMode::pushforward;
       else if (m_TopMostReq->Mode == DiffMode::reverse)
         request.Mode = DiffMode::pullback;
