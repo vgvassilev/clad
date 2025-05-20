@@ -459,10 +459,10 @@ void InitTimers();
     }
 
     static void SetSparsityOptions(const DifferentiationOptions& DO,
-                                           RequestOptions& opts) {
+                                   RequestOptions& opts) {
       opts.EnableSparsity = DO.EnableSparsity;
     }
-    
+
     void CladPlugin::SetRequestOptions(RequestOptions& opts) const {
       SetTBRAnalysisOptions(m_DO, opts);
       SetActivityAnalysisOptions(m_DO, opts);

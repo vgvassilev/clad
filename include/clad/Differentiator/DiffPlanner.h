@@ -1,6 +1,7 @@
 #ifndef CLAD_DIFF_PLANNER_H
 #define CLAD_DIFF_PLANNER_H
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DynamicGraph.h"
@@ -18,6 +19,7 @@
 
 #include <iterator>
 #include <set>
+#include <utility>
 
 namespace clang {
 class CallExpr;
@@ -52,6 +54,11 @@ private:
     std::set<const clang::VarDecl*> UsefulDecls;
     bool HasAnalysisRun = false;
   } m_UsefulRunInfo;
+
+  mutable struct DependencySparsityInfo {
+    std::set<std::pair<int, int>, utils::compare> OutputDependencySet;
+    bool HasAnalysisRun = false;
+  } m_DependencySparsityInfo;
 
 public:
   /// Function to be differentiated.
@@ -191,6 +198,9 @@ public:
   }
   std::set<const clang::VarDecl*>& getUsefulDecls() const {
     return m_UsefulRunInfo.UsefulDecls;
+  }
+  std::set<std::pair<int, int>, utils::compare>& getDependencySet() const {
+    return m_DependencySparsityInfo.OutputDependencySet;
   }
 };
 

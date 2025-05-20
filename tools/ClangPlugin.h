@@ -48,8 +48,8 @@ struct DifferentiationOptions {
         ValidateClangVersion(true), EnableTBRAnalysis(false),
         DisableTBRAnalysis(false), EnableVariedAnalysis(false),
         DisableVariedAnalysis(false), EnableUsefulAnalysis(false),
-        DisableUsefulAnalysis(false), EnableSparsity(false), CustomEstimationModel(false),
-        PrintNumDiffErrorInfo(false) {}
+        DisableUsefulAnalysis(false), EnableSparsity(false),
+        CustomEstimationModel(false), PrintNumDiffErrorInfo(false) {}
 
   bool DumpSourceFn : 1;
   bool DumpSourceFnAST : 1;
