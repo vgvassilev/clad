@@ -95,6 +95,15 @@ double fn_non_diff_call(double i, double j) {
   return fn_non_diff(i, j) + i * j;
 }
 
+double fn_non_diff_param(double i, SimpleFunctions2& S) {
+  return S.mem_fn(i, i) + i;
+}
+
+double fn_non_diff_param_call(double i, double j) {
+  SimpleFunctions2 obj1(j, j);
+  return fn_non_diff_param(i, obj1);
+}
+
 #define INIT_EXPR(classname)                                                   \
   classname expr_1(2, 3);                                                      \
   classname expr_2(3, 5);
@@ -142,6 +151,7 @@ int main() {
 
   TEST_FUNC(fn_non_diff_call, 3, 5) // CHECK-EXEC: 5.00 3.00
 
+  TEST_FUNC(fn_non_diff_param_call, 3, 5) // CHECK-EXEC: 1.00 0.00
     // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {
     // CHECK-NEXT:     {
     // CHECK-NEXT:         _d_this->x += _d_y * i;
@@ -209,4 +219,19 @@ int main() {
     // CHECK-NEXT:         *_d_j += i * 1;
     // CHECK-NEXT:     }
     // CHECK-NEXT: }
+
+    // CHECK:     void fn_non_diff_param_pullback(double i, SimpleFunctions2 &S, double _d_y, double *_d_i) {
+    // CHECK-NEXT:         *_d_i += _d_y;
+    // CHECK-NEXT:     }
+
+    // CHECK:     void fn_non_diff_param_call_grad(double i, double j, double *_d_i, double *_d_j) {
+    // CHECK-NEXT:         SimpleFunctions2 obj1(j, j);
+    // CHECK-NEXT:         SimpleFunctions2 _t0 = obj1;
+    // CHECK-NEXT:         {
+    // CHECK-NEXT:             obj1 = _t0;
+    // CHECK-NEXT:             double _r0 = 0.;
+    // CHECK-NEXT:             fn_non_diff_param_pullback(i, _t0, 1, &_r0);
+    // CHECK-NEXT:             *_d_i += _r0;
+    // CHECK-NEXT:         }
+    // CHECK-NEXT:     }
 }
