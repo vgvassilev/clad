@@ -593,6 +593,12 @@ namespace clad {
       for (auto* Attr : D->specific_attrs<clang::AnnotateAttr>())
         if (Attr->getAnnotation() == "non_differentiable")
           return true;
+      if (const auto* VD = dyn_cast<VarDecl>(D)) {
+        QualType VDElemTy = utils::GetValueType(VD->getType());
+        const CXXRecordDecl* RD = VDElemTy->getAsCXXRecordDecl();
+        if (RD && clad::utils::hasNonDifferentiableAttribute(RD))
+          return true;
+      }
       return false;
     }
 
