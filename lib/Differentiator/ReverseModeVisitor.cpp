@@ -2617,8 +2617,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         VD->getInit() && isa<CXXConstructExpr>(VD->getInit()->IgnoreImplicit());
     const CXXRecordDecl* RD = VD->getType()->getAsCXXRecordDecl();
     bool isNonAggrClass = RD && !RD->isAggregate();
-    if (RD && clad::utils::hasNonDifferentiableAttribute(RD))
-      initializeDerivedVar = false;
 
     // We initialize adjoints with original variables as part of
     // the strategy to maintain the structure of the original variable.
