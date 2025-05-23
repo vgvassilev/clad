@@ -146,6 +146,71 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               : nullptr);
 
       returnedFD->setAccess(FD->getAccess());
+
+      if (FD->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate &&
+          returnedFD->getDescribedFunctionTemplate() == nullptr) {
+        FunctionTemplateDecl* NewFTD = nullptr;
+        auto Results = m_Sema.getASTContext().getTranslationUnitDecl()->lookup(
+            returnedFD->getNameInfo().getName());
+
+        for (NamedDecl* ND : Results) {
+          // Direct match
+          if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+            NewFTD = FTD;
+            break;
+          }
+
+          if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+            if (auto* FTD = FD->getDescribedFunctionTemplate()) {
+              NewFTD = FTD;
+              break;
+            }
+          }
+        }
+
+        if (NewFTD == nullptr) {
+          TemplateParameterList* TemplateParams =
+              FD->getDescribedFunctionTemplate()->getTemplateParameters();
+
+          NewFTD = FunctionTemplateDecl::Create(
+              m_Sema.getASTContext(), m_Sema.CurContext, noLoc,
+              returnedFD->getNameInfo().getName(), TemplateParams, returnedFD);
+          NewFTD->setLexicalDeclContext(m_Sema.CurContext);
+          returnedFD->setDescribedFunctionTemplate(NewFTD);
+        }
+      }
+
+      if (FD->getTemplatedKind() ==
+          FunctionDecl::TK_FunctionTemplateSpecialization) {
+        FunctionTemplateDecl* returnedFTD = nullptr;
+        auto Results = m_Context.getTranslationUnitDecl()->lookup(
+            returnedFD->getNameInfo().getName());
+        for (NamedDecl* ND : Results) {
+          if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+            returnedFTD = FTD;
+            break;
+          }
+
+          if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+            if (auto* FTD = FD->getDescribedFunctionTemplate()) {
+              returnedFTD = FTD;
+              break;
+            }
+          }
+        }
+
+        assert((returnedFTD != nullptr) &&
+               "Function specialization derived before primary temaplate. This "
+               "shouldn't happen");
+
+        const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
+        TemplateArgumentList* TALCopy =
+            TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+
+        returnedFD->setFunctionTemplateSpecialization(
+            returnedFTD, TALCopy, nullptr,
+            FD->getTemplateSpecializationKindForInstantiation());
+      }
     }
 
     returnedFD->setImplicitlyInline(FD->isInlined());
@@ -302,7 +367,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, const clang::Expr* callSite,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
-      Expr* CUDAExecConfig /*=nullptr*/) {
+      Expr* CUDAExecConfig /*=nullptr*/,
+      const clang::TemplateArgumentList* SpecializationTAL /*=nullptr*/) {
     DeclContext* originalFnDC = nullptr;
 
     // FIXME: callSite must not be null but it comes when we try to build
@@ -384,8 +450,63 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           CallArgs[0] =
               m_Sema.BuildUnaryOp(S, noLoc, UO_AddrOf, CallArgs[0]).get();
       }
-      Expr* UnresolvedLookup =
-          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+
+      Expr* UnresolvedLookup = nullptr;
+
+      // Handle template specialization case
+      if (SpecializationTAL) {
+        // Prepare the lookup result for template name
+        LookupResult R(m_Sema, &m_Context.Idents.get(Name), Loc,
+                       Sema::LookupOrdinaryName);
+
+        // Perform the lookup in the appropriate context
+        if (originalFnDC)
+          m_Sema.LookupQualifiedName(R, originalFnDC);
+        else
+          m_Sema.LookupName(R, S);
+
+        if (!R.empty()) {
+          TemplateArgumentListInfo TemplateArgs;
+          for (unsigned i = 0; i < SpecializationTAL->size(); ++i) {
+            const TemplateArgument& Arg = SpecializationTAL->get(i);
+            TemplateArgumentLoc ArgLoc =
+                TemplateArgumentLoc(Arg, Arg.getAsExpr());
+            TemplateArgs.addArgument(ArgLoc);
+          }
+
+          FunctionDecl* SpecFD = nullptr;
+          for (NamedDecl* ND : R) {
+            if (FunctionDecl* FD = dyn_cast<FunctionDecl>(ND)) {
+              if (FD->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate) {
+                FunctionTemplateDecl* FTD = FD->getDescribedFunctionTemplate();
+
+                void* location = nullptr;
+                SpecFD = FTD->findSpecialization(SpecializationTAL->asArray(),
+                                                 location);
+                (void)(location);
+                break;
+              }
+            }
+          }
+
+          assert((SpecFD != nullptr) &&
+                 "The given specialization couldn't be found for function "
+                 "template. This shouldn't happen");
+
+          DeclarationNameInfo NameInfo(SpecFD->getDeclName(), noLoc);
+          UnresolvedLookup =
+              m_Sema
+                  .BuildDeclarationNameExpr(SS, NameInfo, SpecFD, SpecFD,
+                                            &TemplateArgs,
+                                            /*ADL*/ false)
+                  .get();
+        }
+      }
+
+      if (UnresolvedLookup == nullptr) {
+        UnresolvedLookup =
+            m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+      }
 
       if (noOverloadExists(UnresolvedLookup, MARargs))
         return nullptr;
@@ -523,6 +644,16 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                {MD->getNameAsString(), CD->getNameAsString()});
           return {};
         }
+      }
+
+      if (FD->getTemplatedKind() ==
+          FunctionDecl::TK_FunctionTemplateSpecialization) {
+        DiffRequest primaryFDRequest = request;
+        primaryFDRequest.DeclarationOnly = false;
+        primaryFDRequest.Function =
+            FD->getPrimaryTemplate()->getTemplatedDecl();
+
+        HandleNestedDiffRequest(primaryFDRequest);
       }
     } else if (const VarDecl* VD = request.Global) {
       // Warn the user about the usage of global variables.
