@@ -15,6 +15,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <string>
+#include <utility>
 
 namespace clang {
   class ASTContext;
@@ -24,6 +25,15 @@ namespace clang {
 
 namespace clad {
   namespace utils {
+  // move
+  struct compare {
+    bool operator()(const std::pair<int, int> a,
+                    const std::pair<int, int> b) const {
+      if (a.second == b.second)
+        return (a.first < b.first);
+      return (a.second <= b.second);
+    }
+  };
     /// If `FD` is an overloaded operator, returns a name, unique for
     /// each operator, that can be used to create valid C++ identifiers.
     /// Otherwise if `FD` is an ordinary function, returns the name of the
@@ -371,6 +381,8 @@ namespace clad {
     clang::QualType GetCladMatrixOfType(clang::Sema& S, clang::QualType T);
     /// Create clad::array_ref<T> type.
     clang::QualType GetCladArrayRefOfType(clang::Sema& S, clang::QualType T);
+
+    clang::QualType GetCladArrayOfPairs(clang::Sema& S);
 
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);

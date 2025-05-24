@@ -1,6 +1,7 @@
 #ifndef CLAD_DIFF_PLANNER_H
 #define CLAD_DIFF_PLANNER_H
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DynamicGraph.h"
@@ -17,6 +18,7 @@
 
 #include <iterator>
 #include <set>
+#include <utility>
 
 namespace clang {
 class CallExpr;
@@ -52,6 +54,11 @@ private:
     bool HasAnalysisRun = false;
   } m_UsefulRunInfo;
 
+  mutable struct DependencySparsityInfo {
+    std::set<std::pair<int, int>, utils::compare> OutputDependencySet;
+    bool HasAnalysisRun = false;
+  } m_DependencySparsityInfo;
+
 public:
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
@@ -80,6 +87,7 @@ public:
   bool EnableTBRAnalysis = false;
   bool EnableVariedAnalysis = false;
   bool EnableUsefulAnalysis = false;
+  bool EnableSparsity = false;
   /// A flag specifying whether this differentiation is to be used
   /// in immediate contexts.
   bool ImmediateMode = false;
@@ -146,6 +154,7 @@ public:
            Args == other.Args && Mode == other.Mode &&
            EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
+           EnableSparsity == other.EnableSparsity &&
            EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
@@ -183,6 +192,9 @@ public:
   std::set<const clang::VarDecl*>& getUsefulDecls() const {
     return m_UsefulRunInfo.UsefulDecls;
   }
+  std::set<std::pair<int, int>, utils::compare>& getDependencySet() const {
+    return m_DependencySparsityInfo.OutputDependencySet;
+  }
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;
@@ -193,6 +205,7 @@ public:
     bool EnableTBRAnalysis = false;
     bool EnableVariedAnalysis = false;
     bool EnableUsefulAnalysis = false;
+    bool EnableSparsity = false;
   };
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
