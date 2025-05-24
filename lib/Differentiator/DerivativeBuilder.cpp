@@ -41,7 +41,8 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <memory_resource>
+#include <exception>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -89,6 +90,40 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // Size >= current derivative order means that there exists a declaration
       // or prototype for the currently derived function.
       dFD->setPreviousDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
+    }
+
+    if (R.Function->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate) {
+      FunctionTemplateDecl* NewFTD = nullptr;
+      auto Results = S.getASTContext().getTranslationUnitDecl()->lookup(
+          dFD->getNameInfo().getName());
+
+      for (NamedDecl* ND : Results) {
+        // Direct match
+        if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+          NewFTD = FTD;
+          break;
+        }
+
+        if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+          if (auto* FTD = FD->getDescribedFunctionTemplate()) {
+            NewFTD = FTD;
+            break;
+          }
+        }
+      }
+
+      if (NewFTD == nullptr) {
+        TemplateParameterList* TemplateParams =
+            R.Function->getDescribedFunctionTemplate()->getTemplateParameters();
+
+        NewFTD = FunctionTemplateDecl::Create(
+            S.getASTContext(), DC, dFD->getLocation(),
+            dFD->getNameInfo().getName(), TemplateParams, dFD);
+        NewFTD->setLexicalDeclContext(DC);
+        DC->addDecl(NewFTD);
+      }
+
+      dFD->setDescribedFunctionTemplate(NewFTD);
     }
   } else if (auto* dVD = dyn_cast<VarDecl>(D))
     // Add the identifier to the scope and IdResolver
@@ -143,41 +178,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
       returnedFD->setAccess(FD->getAccess());
 
-      if (FD->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate &&
-          returnedFD->getDescribedFunctionTemplate() == nullptr) {
-        FunctionTemplateDecl* NewFTD = nullptr;
-        auto Results = m_Sema.getASTContext().getTranslationUnitDecl()->lookup(
-            returnedFD->getNameInfo().getName());
-
-        for (NamedDecl* ND : Results) {
-          // Direct match
-          if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
-            NewFTD = FTD;
-            break;
-          }
-
-          if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
-            if (auto* FTD = FD->getDescribedFunctionTemplate()) {
-              NewFTD = FTD;
-              break;
-            }
-          }
-        }
-
-        if (NewFTD == nullptr) {
-          TemplateParameterList* TemplateParams =
-              FD->getDescribedFunctionTemplate()->getTemplateParameters();
-
-          NewFTD = FunctionTemplateDecl::Create(
-              m_Sema.getASTContext(), m_Sema.CurContext, noLoc,
-              returnedFD->getNameInfo().getName(), TemplateParams, returnedFD);
-          NewFTD->setLexicalDeclContext(m_Sema.CurContext);
-          returnedFD->setDescribedFunctionTemplate(NewFTD);
-        }
-      }
-
-      if (FD->getTemplatedKind() ==
-          FunctionDecl::TK_FunctionTemplateSpecialization) {
+      if (FD->getTemplateSpecializationArgs() != nullptr) {
         FunctionTemplateDecl* returnedFTD = nullptr;
         auto Results = m_Context.getTranslationUnitDecl()->lookup(
             returnedFD->getNameInfo().getName());
@@ -359,6 +360,44 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return nullptr;
   }
 
+  TemplateArgumentLoc createTemplateArgumentLoc(const TemplateArgument& Arg,
+                                                ASTContext& Context) {
+    switch (Arg.getKind()) {
+    case TemplateArgument::Type: {
+      QualType T = Arg.getAsType();
+      TypeSourceInfo* TSI = Context.getTrivialTypeSourceInfo(T);
+      return TemplateArgumentLoc(Arg, TSI);
+    }
+
+    case TemplateArgument::Expression:
+      return TemplateArgumentLoc(Arg, Arg.getAsExpr());
+
+    case TemplateArgument::Declaration: {
+      ValueDecl* D = Arg.getAsDecl();
+      // Create a DeclRefExpr for the declaration
+      DeclRefExpr* DRE =
+          DeclRefExpr::Create(Context, NestedNameSpecifierLoc(), noLoc, D,
+                              false, noLoc, D->getType(), VK_LValue);
+      return TemplateArgumentLoc(Arg, DRE);
+    }
+
+    case TemplateArgument::Integral: {
+      QualType T = Arg.getIntegralType();
+      llvm::APSInt Value = Arg.getAsIntegral();
+      IntegerLiteral* IL = IntegerLiteral::Create(Context, Value, T, noLoc);
+      return TemplateArgumentLoc(Arg, IL);
+    }
+
+    case TemplateArgument::Pack:
+      // Pack arguments should be handled by expanding the pack
+      llvm_unreachable("Pack arguments should be expanded separately!");
+
+    default:
+      llvm_unreachable("Unsupported template argument kind!");
+    }
+    llvm_unreachable("Unsupportred template argument kind!");
+  }
+
   Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, const clang::Expr* callSite,
@@ -465,9 +504,20 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           TemplateArgumentListInfo TemplateArgs;
           for (unsigned i = 0; i < SpecializationTAL->size(); ++i) {
             const TemplateArgument& Arg = SpecializationTAL->get(i);
-            TemplateArgumentLoc ArgLoc =
-                TemplateArgumentLoc(Arg, Arg.getAsExpr());
-            TemplateArgs.addArgument(ArgLoc);
+
+            if (Arg.getKind() == TemplateArgument::Pack) {
+              // Handle parameter packs by expanding them
+              for (const auto& PackArg : Arg.pack_elements()) {
+                TemplateArgumentLoc ArgLoc =
+                    createTemplateArgumentLoc(PackArg, m_Context);
+                TemplateArgs.addArgument(ArgLoc);
+              }
+            } else {
+              // Handle regular arguments
+              TemplateArgumentLoc ArgLoc =
+                  createTemplateArgumentLoc(Arg, m_Context);
+              TemplateArgs.addArgument(ArgLoc);
+            }
           }
 
           FunctionDecl* SpecFD = nullptr;
