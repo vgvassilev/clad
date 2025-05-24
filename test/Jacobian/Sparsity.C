@@ -42,5 +42,6 @@ int main(){
 
     auto df1 = clad::jacobian(f1);
     df1.execute(1, 2, 3, outputarr, &jacobian, &pattern);
+    printf("Jacobian is = {%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f}\n", jacobian[0][0], jacobian[0][1], jacobian[0][2], jacobian[1][0], jacobian[1][1], jacobian[1][2], jacobian[2][0], jacobian[2][1], jacobian[2][2]); // CHECK-EXEC: Jacobian is = {1.00, 0.00, 0.00, 2.00, 3.00, 0.00, 4.00, 5.00, 6.00}
     printf("nnz: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", pattern[0], pattern[1], pattern[2], pattern[3], pattern[4], pattern[5]); // CHECK-EXEC: nnz: 1.00, 2.00, 3.00, 4.00, 5.00, 6.00
 }
