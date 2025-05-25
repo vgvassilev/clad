@@ -47,9 +47,8 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     endwhile()
   endif(LLVM_LINK_LLVM_DYLIB)
 
-  add_llvm_loadable_module(
-    clad ${CLAD_PLUGIN_SRC} DISABLE_LLVM_LINK_LLVM_DYLIB PLUGIN_TOOL clang
-    )
+
+  add_llvm_library(clad MODULE ${CLAD_PLUGIN_SRC} DISABLE_LLVM_LINK_LLVM_DYLIB PLUGIN_TOOL clang)
 
   target_link_libraries(clad PRIVATE ${link_libs})
 
