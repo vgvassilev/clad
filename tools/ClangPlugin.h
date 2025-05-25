@@ -359,6 +359,9 @@ struct DifferentiationOptions {
                    "by -DCLAD_NO_NUM_DIFF.\n";
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
+          } else if (args[i] == "-version" || args[i] == "-v") {
+            // CI.getFrontendOpts().ShowHelp does not give us control.
+            llvm::errs() << getCladFullVersion() << "\n";
           } else {
             llvm::errs() << "clad: Error: invalid option " << args[i] << "\n";
             return false; // Tells clang not to create the plugin.
