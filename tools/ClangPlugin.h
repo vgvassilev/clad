@@ -331,9 +331,9 @@ struct DifferentiationOptions {
             m_DO.PrintNumDiffErrorInfo = true;
           } else if (args[i] == "-help") {
             // Print some help info.
+            // CI.getFrontendOpts().ShowHelp does not give us control.
             llvm::errs()
-                << "Option set for the clang-based automatic differentiator - "
-                   "clad:\n\n"
+                << "Options specific to Clad (preceded by -plugin-arg-clad):"
                 << "-fdump-source-fn - Prints out the source code of the "
                    "function.\n"
                 << "-fdump-source-fn-ast - Prints out the AST of the "
