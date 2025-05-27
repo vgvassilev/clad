@@ -178,7 +178,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
       returnedFD->setAccess(FD->getAccess());
 
-      if (FD->getTemplateSpecializationArgs() != nullptr) {
+      if (FD->getTemplatedKind() ==
+              FunctionDecl::TK_FunctionTemplateSpecialization &&
+          FD->getTemplateSpecializationKind() == TSK_ExplicitSpecialization) {
         FunctionTemplateDecl* returnedFTD = nullptr;
         auto Results = m_Context.getTranslationUnitDecl()->lookup(
             returnedFD->getNameInfo().getName());
@@ -205,8 +207,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
             TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
 
         returnedFD->setFunctionTemplateSpecialization(
-            returnedFTD, TALCopy, nullptr,
-            FD->getTemplateSpecializationKindForInstantiation());
+            returnedFTD, TALCopy, nullptr, FD->getTemplateSpecializationKind());
       }
     }
 
@@ -502,6 +503,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
         if (!R.empty()) {
           TemplateArgumentListInfo TemplateArgs;
+          TemplateArgs.setLAngleLoc(noLoc);
+          TemplateArgs.setRAngleLoc(noLoc);
           for (unsigned i = 0; i < SpecializationTAL->size(); ++i) {
             const TemplateArgument& Arg = SpecializationTAL->get(i);
 
@@ -692,14 +695,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         }
       }
 
-      if (FD->getTemplatedKind() ==
-          FunctionDecl::TK_FunctionTemplateSpecialization) {
+      if (FD->getPrimaryTemplate() != nullptr) {
         DiffRequest primaryFDRequest = request;
         primaryFDRequest.DeclarationOnly = false;
         primaryFDRequest.Function =
             FD->getPrimaryTemplate()->getTemplatedDecl();
 
-        HandleNestedDiffRequest(primaryFDRequest);
+        plugin::ProcessDiffRequest(m_CladPlugin, primaryFDRequest);
+        this->AddEdgeToGraph(primaryFDRequest, true);
       }
     } else if (const VarDecl* VD = request.Global) {
       // Warn the user about the usage of global variables.
