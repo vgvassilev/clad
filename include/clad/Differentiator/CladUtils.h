@@ -397,6 +397,11 @@ namespace clad {
     /// And be used in the reverse mode.
     bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD);
 
+    /// We need to replace std::initializer_list with clad::array in the reverse
+    /// mode because the former is temporary by design and it's not possible to
+    /// create modifiable adjoints.
+    clang::QualType replaceStdInitListWithCladArray(clang::Sema& S,
+                                                    clang::QualType origTy);
     } // namespace utils
     } // namespace clad
 

@@ -1073,5 +1073,16 @@ namespace clad {
       paramTy = paramTy.getNonReferenceType();
       return paramTy->isRealType();
     }
+
+    QualType replaceStdInitListWithCladArray(Sema& S, QualType origTy) {
+      QualType T = origTy.getNonReferenceType();
+      QualType elemType;
+      if (!S.isStdInitializerList(utils::GetValueType(T), &elemType))
+        return origTy;
+      T = utils::GetCladArrayOfType(S, elemType);
+      if (origTy->isLValueReferenceType())
+        return S.getASTContext().getLValueReferenceType(T);
+      return T;
+    }
   } // namespace utils
 } // namespace clad
