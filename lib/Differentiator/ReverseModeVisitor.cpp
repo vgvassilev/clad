@@ -2554,21 +2554,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   QualType ReverseModeVisitor::CloneType(QualType T) {
     QualType dT = VisitorBase::CloneType(T);
-
-    bool isLValueRefType = dT->isLValueReferenceType();
-    dT = dT.getNonReferenceType();
-
-    // We need to replace std::initializer_list with clad::array because the
-    // former is temporary by design and it's not possible to create modifiable
-    // adjoints.
-    QualType elemType;
-    if (m_Sema.isStdInitializerList(utils::GetValueType(T), &elemType))
-      dT = utils::GetCladArrayOfType(m_Sema, elemType);
-
-    if (isLValueRefType)
-      return m_Context.getLValueReferenceType(dT);
-
-    return dT;
+    return utils::replaceStdInitListWithCladArray(m_Sema, dT);
   }
 
   DeclDiff<VarDecl> ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
