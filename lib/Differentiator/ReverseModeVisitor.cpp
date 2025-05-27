@@ -4171,13 +4171,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       curRevBlock.insert(it, prePullbackCallStmts.begin(),
                          prePullbackCallStmts.end());
       it += prePullbackCallStmts.size();
-      std::string customPullbackName = "constructor_pullback";
-      pullbackCall = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-          customPullbackName, pullbackArgs, getCurrentScope(), CE);
-      // FIXME: Support all constructors.
-      // Overloaded derivative was not found, request the CladPlugin to
-      // derive the called constructor.
-      if (!pullbackCall && utils::isLinearConstructor(CD, m_Context)) {
+
+      // FIXME: No call context corresponds to second derivatives used in
+      // hessians, which aren't scheduled statically yet.
+      if (!m_DiffReq.CallContext) {
+        std::string customPullbackName = "constructor_pullback";
+        pullbackCall = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+            customPullbackName, pullbackArgs, getCurrentScope(), CE);
+      }
+
+      if (!pullbackCall) {
         DiffRequest pullbackRequest{};
         pullbackRequest.Function = CD;
 
@@ -4195,18 +4198,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           if (adjointArgs[i])
             pullbackRequest.DVI.push_back(CD->getParamDecl(i));
 
-        FunctionDecl* pullbackFD =
-            m_Builder.HandleNestedDiffRequest(pullbackRequest);
+        FunctionDecl* pullbackFD = FindDerivedFunction(pullbackRequest);
 
-        // FIXME: Remove once BuildDeclRef can automatically deduce class
-        // namespace specifiers.
-        IdentifierInfo* II = &m_Context.Idents.get(RD->getNameAsString());
-        NestedNameSpecifier* NNS = NestedNameSpecifier::Create(m_Context, II);
         if (pullbackFD) {
           pullbackCall =
               m_Sema
-                  .ActOnCallExpr(getCurrentScope(),
-                                 BuildDeclRef(pullbackFD, NNS),
+                  .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),
                                  m_DiffReq->getLocation(), pullbackArgs,
                                  m_DiffReq->getLocation())
                   .get();

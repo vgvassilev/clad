@@ -658,7 +658,27 @@ double operator+(const double& val, const SimpleFunctions1& a) {
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
-// CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions1 *_d_this, double *_d_p_x, double *_d_p_y) noexcept;
+// CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions1 *_d_this, double *_d_p_x, double *_d_p_y) noexcept {
+// CHECK-NEXT:    {
+// CHECK-NEXT:        *_d_p_y += _d_this->y;
+// CHECK-NEXT:        _d_this->y = 0.;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    {
+// CHECK-NEXT:        *_d_p_x += _d_this->x;
+// CHECK-NEXT:        _d_this->x = 0.;
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
+
+// CHECK: static inline constexpr void constructor_pullback(SimpleFunctions1 &&arg, SimpleFunctions1 *_d_this, SimpleFunctions1 *_d_arg) noexcept {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).y += _d_this->y;
+// CHECK-NEXT:          _d_this->y = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).x += _d_this->x;
+// CHECK-NEXT:          _d_this->x = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
 
 double fn16(double i, double j) {
   SimpleFunctions1 obj1(2, 3);
@@ -811,7 +831,15 @@ double fn21(double i, double j) {
     return 2 + SimpleFunctions1(i);
 }
 
-// CHECK: static void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px);
+// CHECK: static void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_this->y = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_px += _d_this->x;
+// CHECK-NEXT:          _d_this->x = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
 
 // CHECK:  void fn21_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:      {
@@ -898,7 +926,12 @@ double fn24(double u, double v) {
     return res;
 }
 
-// CHECK:  static inline constexpr void constructor_pullback(const B &arg, B *_d_this, B *_d_arg) noexcept;
+// CHECK: static inline constexpr void constructor_pullback(const B &arg, B *_d_this, B *_d_arg) noexcept {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).data += _d_this->data;
+// CHECK-NEXT:          _d_this->data = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
 
 // CHECK:  void fn24_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      B _d_b = {0.};
@@ -954,6 +987,16 @@ struct S4{
   S4(double x) : p(x) {}
 };
 
+// CHECK: static void constructor_pullback(double x, S4 *_d_this, double *_d_x) {
+// CHECK-NEXT:    {
+// CHECK-NEXT:        *_d_x += _d_this->p;
+// CHECK-NEXT:        _d_this->p = 0.;
+// CHECK-NEXT:    }
+// CHECK-NEXT:   {
+// CHECK-NEXT:        _d_this->i = 0.;
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
+
 struct S5{
   double i;
   S5(double x) 
@@ -990,7 +1033,35 @@ struct Vector3 {
     }
 };
 
-// CHECK:  static void constructor_pullback(double px, double py, double pz, Vector3 *_d_this, double *_d_px, double *_d_py, double *_d_pz);
+// CHECK: static void constructor_pullback(double px, double py, double pz, Vector3 *_d_this, double *_d_px, double *_d_py, double *_d_pz) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_pz += _d_this->z;
+// CHECK-NEXT:          _d_this->z = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_py += _d_this->y;
+// CHECK-NEXT:          _d_this->y = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_px += _d_this->x;
+// CHECK-NEXT:          _d_this->x = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK: static inline constexpr void constructor_pullback(const Vector3 &arg, Vector3 *_d_this, Vector3 *_d_arg) noexcept {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).z += _d_this->z;
+// CHECK-NEXT:          _d_this->z = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).y += _d_this->y;
+// CHECK-NEXT:          _d_this->y = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).x += _d_this->x;
+// CHECK-NEXT:          _d_this->x = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
 
 // CHECK:  void operator_star_pullback(double a, const Vector3 &v, Vector3 _d_y, double *_d_a, Vector3 *_d_v) {
 // CHECK-NEXT:      {
@@ -1017,8 +1088,6 @@ double fn27(double x, double y) {
   return w.x;
 }
 
-// CHECK:  static inline constexpr void constructor_pullback(const Vector3 &arg, Vector3 *_d_this, Vector3 *_d_arg) noexcept;
-
 // CHECK:  void fn27_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Vector3 v(x, x, y);
 // CHECK-NEXT:      Vector3 _d_v(v);
@@ -1044,6 +1113,21 @@ double fn27(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+// CHECK: static inline constexpr void constructor_pullback(Vector3 &&arg, Vector3 *_d_this, Vector3 *_d_arg) noexcept {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).z += _d_this->z;
+// CHECK-NEXT:          _d_this->z = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).y += _d_this->y;
+// CHECK-NEXT:          _d_this->y = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).x += _d_this->x;
+// CHECK-NEXT:          _d_this->x = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 // CHECK:  void operator_minus_pullback(Vector3 _d_y, Vector3 *_d_this) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
@@ -1055,7 +1139,6 @@ double fn27(double x, double y) {
 // CHECK-NEXT:          _d_this->z += -_r2;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
-// CHECK:  static inline constexpr void constructor_pullback(Vector3 &&arg, Vector3 *_d_this, Vector3 *_d_arg) noexcept;
 
 double fn28(double x, double y) {
   Vector3 v{x, x, y};
@@ -1107,11 +1190,15 @@ constructor_reverse_forw(::clad::ConstructorReverseForwTag<ptrClass>, double* mp
 }
 }}}
 
+// CHECK: static void constructor_pullback(double *mptr, ptrClass *_d_this, double *_d_mptr) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 // CHECK:  void operator_star_pullback(double _d_y, ptrClass *_d_this) {
 // CHECK-NEXT:      *_d_this->ptr += _d_y;
 // CHECK-NEXT:  }
 
-// CHECK:  static void constructor_pullback(double *mptr, ptrClass *_d_this, double *_d_mptr);
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_forw(ptrClass *_d_this);
 
 double fn29(double x, double y) {
@@ -1334,105 +1421,6 @@ int main() {
 // CHECK-NEXT:    this->b = static_cast<MyStruct &&>(arg).b;
 // CHECK-NEXT:    return {*this, *_d_this};
 // CHECK-NEXT:}
-
-// CHECK:   static void constructor_pullback(double p_x, double p_y, SimpleFunctions1 *_d_this, double *_d_p_x, double *_d_p_y) noexcept {
-// CHECK-NEXT:    {
-// CHECK-NEXT:        *_d_p_y += _d_this->y;
-// CHECK-NEXT:        _d_this->y = 0.;
-// CHECK-NEXT:    }
-// CHECK-NEXT:    {
-// CHECK-NEXT:        *_d_p_x += _d_this->x;
-// CHECK-NEXT:        _d_this->x = 0.;
-// CHECK-NEXT:    }
-// CHECK-NEXT:}
-
-// CHECK:  static inline constexpr void constructor_pullback(SimpleFunctions1 &&arg, SimpleFunctions1 *_d_this, SimpleFunctions1 *_d_arg) noexcept {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).y += _d_this->y;
-// CHECK-NEXT:          _d_this->y = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).x += _d_this->x;
-// CHECK-NEXT:          _d_this->x = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-// CHECK:  static void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _d_this->y = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          *_d_px += _d_this->x;
-// CHECK-NEXT:          _d_this->x = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-// CHECK:  static inline constexpr void constructor_pullback(const B &arg, B *_d_this, B *_d_arg) noexcept {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).data += _d_this->data;
-// CHECK-NEXT:          _d_this->data = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-// CHECK:   static void constructor_pullback(double x, S4 *_d_this, double *_d_x) {
-// CHECK-NEXT:    {
-// CHECK-NEXT:        *_d_x += _d_this->p;
-// CHECK-NEXT:        _d_this->p = 0.;
-// CHECK-NEXT:    }
-// CHECK-NEXT:   {
-// CHECK-NEXT:        _d_this->i = 0.;
-// CHECK-NEXT:    }
-// CHECK-NEXT:}
-
-// CHECK:  static void constructor_pullback(double px, double py, double pz, Vector3 *_d_this, double *_d_px, double *_d_py, double *_d_pz) {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          *_d_pz += _d_this->z;
-// CHECK-NEXT:          _d_this->z = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          *_d_py += _d_this->y;
-// CHECK-NEXT:          _d_this->y = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          *_d_px += _d_this->x;
-// CHECK-NEXT:          _d_this->x = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-// CHECK:  static inline constexpr void constructor_pullback(const Vector3 &arg, Vector3 *_d_this, Vector3 *_d_arg) noexcept {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).z += _d_this->z;
-// CHECK-NEXT:          _d_this->z = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).y += _d_this->y;
-// CHECK-NEXT:          _d_this->y = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).x += _d_this->x;
-// CHECK-NEXT:          _d_this->x = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-// CHECK:  static inline constexpr void constructor_pullback(Vector3 &&arg, Vector3 *_d_this, Vector3 *_d_arg) noexcept {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).z += _d_this->z;
-// CHECK-NEXT:          _d_this->z = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).y += _d_this->y;
-// CHECK-NEXT:          _d_this->y = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).x += _d_this->x;
-// CHECK-NEXT:          _d_this->x = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-// CHECK:  static void constructor_pullback(double *mptr, ptrClass *_d_this, double *_d_mptr) {
-// CHECK-NEXT:      {
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
 
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_forw(ptrClass *_d_this) {
 // CHECK-NEXT:      return {*this->ptr, *_d_this->ptr};

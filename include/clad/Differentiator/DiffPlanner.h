@@ -8,6 +8,7 @@
 #include "clad/Differentiator/Timers.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
 #include "llvm/ADT/DenseSet.h"
@@ -64,7 +65,7 @@ public:
   unsigned RequestedDerivativeOrder = 1;
   /// Context in which the function is being called, or a call to
   /// clad::gradient/differentiate, where function is the first arg.
-  clang::CallExpr* CallContext = nullptr;
+  clang::Expr* CallContext = nullptr;
   /// Args provided to the call to clad::gradient/differentiate.
   const clang::Expr* Args = nullptr;
   /// Indexes of global GPU args of function as a subset of Args.
@@ -226,6 +227,7 @@ public:
                   RequestOptions& opts, DerivedFnCollector& DFC);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+    bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
       llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
       if (m_Traversed.count(FD))
