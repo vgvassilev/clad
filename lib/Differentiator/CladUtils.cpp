@@ -986,6 +986,10 @@ namespace clad {
       llvm::SmallVector<QualType, 16> FnTypes(
           FnProtoTy->getParamTypes().begin(), FnProtoTy->getParamTypes().end());
 
+      if (mode == DiffMode::reverse || mode == DiffMode::pullback)
+        for (QualType& T : FnTypes)
+          T = utils::replaceStdInitListWithCladArray(S, T);
+
       QualType oRetTy = FD->getReturnType();
       QualType dRetTy = C.VoidTy;
       bool returnVoid = mode == DiffMode::reverse ||
@@ -1054,7 +1058,8 @@ namespace clad {
           FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
       }
 
-      if (moveBaseToParams && !thisTy.isNull()) {
+      if (moveBaseToParams && !thisTy.isNull() &&
+          !isa<CXXConstructorDecl>(FD)) {
         FnTypes.insert(FnTypes.begin(), thisTy);
         EPI.TypeQuals.removeConst();
       }

@@ -571,7 +571,8 @@ double fn6(double u, double v) {
     return v;
 }
 
-// CHECK:  static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x);
+// CHECK: static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x) {
+// CHECK-NEXT: }
 
 // CHECK: void fn6_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      double &_d_w = *_d_u;
@@ -853,6 +854,17 @@ int main() {
   d_fn3.execute(2, 3, 4, 5, &result[0], &result[1]);
   printf("%.2f %.2f", result[0], result[1]); // CHECK-EXEC: 10.00 4.00
 
+// CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_p_y += _d_this->y;
+// CHECK-NEXT:         _d_this->y = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_p_x += _d_this->x;
+// CHECK-NEXT:         _d_this->x = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 // CHECK: void fn3_grad_2_3(double x, double y, double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_x = 0.;
 // CHECK-NEXT:     double _d_y = 0.;
@@ -891,19 +903,5 @@ int main() {
 // CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_forw(SimpleFunctions *_d_this) {
 // CHECK-NEXT:     this->x += 1.;
 // CHECK-NEXT:     return {*this, *_d_this};
-// CHECK-NEXT: }
-
-// CHECK: static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x) {
-// CHECK-NEXT: }
-
-// CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         *_d_p_y += _d_this->y;
-// CHECK-NEXT:         _d_this->y = 0.;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         *_d_p_x += _d_this->x;
-// CHECK-NEXT:         _d_this->x = 0.;
-// CHECK-NEXT:     }
 // CHECK-NEXT: }
 }

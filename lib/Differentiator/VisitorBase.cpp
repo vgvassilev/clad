@@ -262,6 +262,15 @@ namespace clad {
                                          ExprValueKind VK /*=VK_LValue*/) {
     CXXScopeSpec CSS;
     SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
+    // FIXME: Remove once BuildDeclRef can automatically deduce class
+    // namespace specifiers.
+    auto* MD = dyn_cast<CXXMethodDecl>(D);
+    if (!NNS && MD && MD->isStatic()) {
+      const CXXRecordDecl* RD = MD->getParent();
+      IdentifierInfo* II = &m_Context.Idents.get(RD->getNameAsString());
+      NNS = NestedNameSpecifier::Create(m_Context, II);
+    }
+
     if (NNS) {
       CSS.MakeTrivial(m_Context, NNS, fakeLoc);
     } else {

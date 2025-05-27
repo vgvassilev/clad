@@ -179,7 +179,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
   void DiffRequest::updateCall(FunctionDecl* FD, FunctionDecl* OverloadedFD,
                                Sema& SemaRef) {
-    CallExpr* call = this->CallContext;
+    assert(isa<CallExpr>(this->CallContext) &&
+           "Trying to update an unsupported expression");
+    auto* call = cast<CallExpr>(this->CallContext);
 
     assert(call && "Must be set");
     assert(FD && "Trying to update with null FunctionDecl");
@@ -919,12 +921,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     return false;
   }
 
-  static bool allArgumentsAreLiterals(const CallExpr* CE,
+  static bool allArgumentsAreLiterals(const CallExpr::arg_range& args,
                                       const DiffRequest* request) {
-    for (const Expr* A : CE->arguments())
-      if (request->isVaried(A))
-        return false; // non-constant found.
-    return true;      // all constants.
+    return std::none_of(args.begin(), args.end(), [&request](const Expr* A) {
+      return request->isVaried(A);
+    });
   }
 
   static FunctionDecl* matchTemplate(clang::Sema& S,
@@ -1104,7 +1105,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
       if (!isa<CXXMemberCallExpr>(E) && !isa<CXXOperatorCallExpr>(E) &&
-          allArgumentsAreLiterals(E, m_ParentReq))
+          allArgumentsAreLiterals(E->arguments(), m_ParentReq))
         return true;
 
       // FIXME: Generalize this to other functions that we don't need
@@ -1250,6 +1251,58 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         m_DiffRequestGraph.addNode(request, /*isSource=*/true);
       }
     }
+    return true;
+  }
+
+  bool DiffCollector::VisitCXXConstructExpr(CXXConstructExpr* E) {
+    // Don't visit CXXConstructExpr in outside differentiated functions.
+    if (!m_TopMostReq)
+      return true;
+
+    // FIXME: add support for the forward mode
+    if (m_TopMostReq->Mode != DiffMode::reverse)
+      return true;
+
+    // Don't build propagators for calls that do not contribute in
+    // differentiable way to the result.
+    if (allArgumentsAreLiterals(E->arguments(), m_ParentReq))
+      return true;
+
+    CXXConstructorDecl* CD = E->getConstructor();
+    if (clad::utils::hasNonDifferentiableAttribute(CD->getParent()))
+      return true;
+
+    DiffRequest request;
+    request.Function = CD;
+    request.Mode = DiffMode::pullback;
+    request.VerboseDiags = false;
+    request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
+    request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+
+    for (const auto* paramDecl : CD->parameters())
+      request.DVI.push_back(paramDecl);
+
+    request.BaseFunctionName = "constructor";
+    request.CallContext = E;
+
+    llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
+    m_Sema.PerformPendingInstantiations();
+    if (request.Function->getDefinition())
+      request.Function = request.Function->getDefinition();
+
+    QualType recordTy = CD->getThisType()->getPointeeType();
+    bool isSTDInitList =
+        m_Sema.isStdInitializerList(recordTy, /*elemType=*/nullptr);
+
+    // FIXME: For now, only linear constructors are supported.
+    if (!LookupCustomDerivativeDecl(request) &&
+        utils::isLinearConstructor(CD, m_Sema.getASTContext()) &&
+        !isSTDInitList) {
+      // Recurse into call graph.
+      TraverseFunctionDeclOnce(request.Function);
+      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+    }
+
     return true;
   }
   } // namespace clad

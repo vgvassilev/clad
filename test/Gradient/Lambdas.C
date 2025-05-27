@@ -39,7 +39,7 @@ double f2(double i, double j) {
   return x;
 }
 
-// CHECK-NEXT:     inline void operator_call_pullback(double t, double k, double _d_y, double *_d_t, double *_d_k) const {
+// CHECK:     inline void operator_call_pullback(double t, double k, double _d_y, double *_d_t, double *_d_k) const {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             *_d_t += _d_y;
 // CHECK-NEXT:             *_d_k += _d_y;

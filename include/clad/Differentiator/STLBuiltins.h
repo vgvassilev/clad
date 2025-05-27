@@ -475,12 +475,11 @@ void at_pullback(::std::vector<T>* vec,
 }
 
 template <typename T, typename U>
-void constructor_pullback(typename ::std::vector<T>::size_type count, U val,
-                          typename ::std::vector<T>::allocator_type alloc,
-                          ::std::vector<T>* d_this,
-                          typename ::std::vector<T>::size_type* d_count,
-                          U* d_val,
-                          typename ::std::vector<T>::allocator_type* d_alloc) {
+void constructor_pullback(
+    typename ::std::vector<T>::size_type count, const U& val,
+    const typename ::std::vector<T>::allocator_type& alloc,
+    ::std::vector<T>* d_this, typename ::std::vector<T>::size_type* d_count,
+    U* d_val, typename ::std::vector<T>::allocator_type* d_alloc) {
   for (unsigned i = 0; i < count; ++i)
     *d_val += (*d_this)[i];
   d_this->clear();
@@ -492,7 +491,7 @@ template <typename T>
 void constructor_pullback(
     clad::array<T> init, const typename ::std::vector<T>::allocator_type& alloc,
     ::std::vector<T>* d_this, clad::array<T>* d_init,
-    const typename ::std::vector<T>::allocator_type* d_alloc) {
+    typename ::std::vector<T>::allocator_type* d_alloc) {
   for (unsigned i = 0; i < init.size(); ++i) {
     (*d_init)[i] += (*d_this)[i];
     (*d_this)[i] = 0;
