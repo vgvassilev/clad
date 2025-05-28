@@ -17,6 +17,7 @@
 #include "FunctionTraits.h"
 #include "Matrix.h"
 #include "NumericalDiff.h"
+#include "SparsityPattern.h"
 #include "Tape.h"
 
 #include <array>
@@ -163,6 +164,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   constexpr CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
+    // assert(0 && "default_args");
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
       constexpr size_t totalArgs = sizeof...(args) + sizeof...(Rest);
@@ -251,6 +253,8 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
                                   bool CUDAkernel = false)
       requires(!ImmediateMode)
         : m_Function(f), m_Functor(functor), m_CUDAkernel(CUDAkernel) {
+
+      // assert(0 && "_constructor");
 #ifndef __CLAD__
       static_assert(false, "clad doesn't appear to be loaded; make sure that "
                            "you pass clad.so to clang.");
@@ -316,6 +320,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
     typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
                             return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
     execute(Args&&... args) const {
+      // assert(0);
       if (!m_Function)
         return static_cast<return_type_t<F>>(return_type_t<F>());
       if (m_CUDAkernel) {
@@ -395,7 +400,8 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
       template <class Fn, class... Args>
       constexpr CUDA_HOST_DEVICE return_type_t<CladFunctionType>
       execute_helper(Fn f, CUDA_ARGS Args&&... args) const {
-        // `static_cast` is required here for perfect forwarding.
+        // assert(0);
+        //  `static_cast` is required here for perfect forwarding.
 #if defined(__CUDACC__)
         if constexpr (sizeof...(Args) >= 2) {
           auto secondArg =
@@ -674,6 +680,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   jacobian(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
+    // assert(0 && "jjac");
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
                         /*EnablePadding=*/true>(
         derivedFn /* will be replaced by Jacobian*/, code);

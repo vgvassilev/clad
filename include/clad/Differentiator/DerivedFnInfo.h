@@ -19,6 +19,7 @@ struct DerivedFnInfo {
   std::vector<size_t> m_CUDAGlobalArgsIndexes;
   bool m_UsesEnzyme = false;
   bool m_DeclarationOnly = false;
+  bool m_EnableSparsity = false;
 
   DerivedFnInfo() = default;
   DerivedFnInfo(const DiffRequest& request, clang::FunctionDecl* derivedFn,
