@@ -735,6 +735,27 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct B {
+  float m = 0;
+  void scale(const float* in, float* out) const {
+    out[0] = in[0] * m;
+  }
+};
+
+float fn12(const B b, const float* in) {
+  float res = 0;
+  b.scale(in, &res);
+  return res + 3;
+}
+
+// CHECK:  void fn12_grad_0(const B b, const float *in, B *_d_b) {
+// CHECK-NEXT:      float _d_res = 0.F;
+// CHECK-NEXT:      float res = 0;
+// CHECK-NEXT:      b.scale(in, &res);
+// CHECK-NEXT:      _d_res += 1;
+// CHECK-NEXT:      b.scale_pullback(in, &res, &(*_d_b), &_d_res);
+// CHECK-NEXT:  }
+
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
   auto d_const_mem_fn = clad::gradient(&SimpleFunctions::const_mem_fn);
@@ -821,6 +842,12 @@ int main() {
   printf("%.2f", dx); //CHECK-EXEC: 5.00
   printf("%.2f", dy); //CHECK-EXEC: 3.00
   
+  B b{3}, d_b{0};
+  float in = 2.0f;
+  auto d_fn12 = clad::gradient(fn12, "0");
+  d_fn12.execute(b, &in, &d_b);
+  printf("%.2f", d_b.m); //CHECK-EXEC: 2.00
+  
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 
   // CHECK:   void const_volatile_lval_ref_mem_fn_grad_0(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i) const volatile & {
@@ -905,3 +932,14 @@ int main() {
 // CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }
 }
+
+// CHECK:  void scale_pullback(const float *in, float *out, B *_d_this, float *_d_out) const {
+// CHECK-NEXT:      float _t0 = out[0];
+// CHECK-NEXT:      out[0] = in[0] * this->m;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          out[0] = _t0;
+// CHECK-NEXT:          float _r_d0 = _d_out[0];
+// CHECK-NEXT:          _d_out[0] = 0.F;
+// CHECK-NEXT:          _d_this->m += in[0] * _r_d0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
