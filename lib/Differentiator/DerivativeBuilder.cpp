@@ -101,8 +101,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
     if (R.Function->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate) {
       FunctionTemplateDecl* NewFTD = nullptr;
-      auto Results = S.getASTContext().getTranslationUnitDecl()->lookup(
-          dFD->getNameInfo().getName());
+      auto Results = DC->lookup(dFD->getNameInfo().getName());
 
       for (NamedDecl* ND : Results) {
         // Direct match
@@ -138,8 +137,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         R.Function->getTemplateSpecializationKind() ==
             TSK_ExplicitSpecialization) {
       FunctionTemplateDecl* SpecFTD = nullptr;
-      auto Results = S.getASTContext().getTranslationUnitDecl()->lookup(
-          dFD->getNameInfo().getName());
+      auto Results = DC->lookup(dFD->getNameInfo().getName());
 
       for (NamedDecl* ND : Results) {
         if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
@@ -152,47 +150,59 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
             SpecFTD = FTD;
             break;
           }
+
+          if (auto* FTD = FD->getPrimaryTemplate()) {
+            SpecFTD = FTD;
+            break;
+          }
         }
       }
 
       // If no template found, create a dummy one
       if (SpecFTD == nullptr) {
         ASTContext& Ctx = S.getASTContext();
+        FunctionDecl* PrimaryFD =
+            R.Function->getPrimaryTemplate()->getTemplatedDecl();
 
-        // Create template parameters (adjust as needed based on your use case)
-        TemplateParameterList* TPL =
-            R.Function->getPrimaryTemplate()->getTemplateParameters();
-
-        // Create a dummy function declaration
+        // Create a more complete function declaration
         FunctionDecl* DummyFD = FunctionDecl::Create(
-            Ctx, DC, noLoc, noLoc, dFD->getNameInfo().getName(), dFD->getType(),
-            dFD->getTypeSourceInfo(),
+            Ctx, DC, PrimaryFD->getLocation(), dFD->getNameInfo(),
+            dFD->getType(), PrimaryFD->getTypeSourceInfo(),
             dFD->getCanonicalDecl()->getStorageClass()
                 CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(dFD),
             dFD->isInlineSpecified(), dFD->hasWrittenPrototype(),
             dFD->getConstexprKind(), nullptr);
 
-        DummyFD->setImplicitlyInline(R.Function->isInlined());
+        DummyFD->setImplicitlyInline(false);
+        DummyFD->setAccess(AS_public);
 
-        for (const FunctionDecl* NFD : R.Function->redecls()) {
-          for (const auto* Attr : NFD->attrs()) {
-            // We only need the keywords final and override in the tag
-            // declaration.
-            if (isa<OverrideAttr>(Attr) || isa<FinalAttr>(Attr))
-              continue;
-            if (!hasAttribute(DummyFD, Attr->getKind()))
-              DummyFD->addAttr(Attr->clone(Ctx));
+        SmallVector<ParmVarDecl*, 2> Params;
+        if (const FunctionProtoType* FPT =
+                dFD->getType()->getAs<FunctionProtoType>()) {
+          unsigned ParamIdx = 0;
+          for (QualType ParamType : FPT->getParamTypes()) {
+            Params.push_back(ParmVarDecl::Create(
+                Ctx, DummyFD, SourceLocation(), SourceLocation(), nullptr,
+                ParamType, nullptr, SC_None, nullptr));
+            ParamIdx++;
           }
+        } else {
+          // Handle non-prototype functions if needed
+          assert(false && "Expected function prototype type");
         }
+        DummyFD->setParams(Params);
+
+        // Get template parameters from the original function
+        TemplateParameterList* TPL =
+            R.Function->getPrimaryTemplate()->getTemplateParameters();
 
         // Create the function template declaration
-        SpecFTD = FunctionTemplateDecl::Create(Ctx, DC, dFD->getLocation(),
-                                               dFD->getNameInfo().getName(),
-                                               TPL, DummyFD);
+        SpecFTD = FunctionTemplateDecl::Create(
+            Ctx, DC, dFD->getLocation(), dFD->getDeclName(), TPL, DummyFD);
 
-        // Add to translation unit
-        DC->addDecl(SpecFTD);
+        // Add to the declaration context
         DummyFD->setDescribedFunctionTemplate(SpecFTD);
+        DC->addDecl(SpecFTD);
       }
 
       const TemplateArgumentList* TAL =
@@ -586,22 +596,26 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               (SpecFTD != nullptr) &&
               "Couldn't find a FunctionTemplateDecl for a templated derivative"
               "This shouldn't happen");
-          void* location = nullptr;
-          FunctionDecl* SpecFD = SpecFTD->findSpecialization(
-              SpecializationTAL->asArray(), location);
-          (void)(location);
+          if (SpecFTD) {
+            void* location = nullptr;
+            FunctionDecl* SpecFD = SpecFTD->findSpecialization(
+                SpecializationTAL->asArray(), location);
+            (void)(location);
 
-          assert((SpecFD != nullptr) &&
-                 "The given specialization couldn't be found for function "
-                 "template. This shouldn't happen");
+            assert((SpecFD != nullptr) &&
+                   "The given specialization couldn't be found for function "
+                   "template. This shouldn't happen");
 
-          DeclarationNameInfo NameInfo(SpecFD->getDeclName(), noLoc);
-          UnresolvedLookup =
-              m_Sema
-                  .BuildDeclarationNameExpr(SS, NameInfo, SpecFD, SpecFD,
-                                            &TemplateArgs,
-                                            /*ADL*/ false)
-                  .get();
+            if (SpecFD) {
+              DeclarationNameInfo NameInfo(SpecFD->getDeclName(), noLoc);
+              UnresolvedLookup =
+                  m_Sema
+                      .BuildDeclarationNameExpr(SS, NameInfo, SpecFD, SpecFD,
+                                                &TemplateArgs,
+                                                /*ADL*/ false)
+                      .get();
+            }
+          }
         }
       }
 
