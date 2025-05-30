@@ -60,6 +60,13 @@ DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
 
 DerivativeBuilder::~DerivativeBuilder() {}
 
+static bool hasAttribute(const Decl* D, attr::Kind Kind) {
+  for (const auto* Attribute : D->attrs())
+    if (Attribute->getKind() == Kind)
+      return true;
+  return false;
+}
+
 static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DeclContext* DC = D->getLexicalDeclContext();
   if (auto* dFD = dyn_cast<FunctionDecl>(D)) {
@@ -148,9 +155,45 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         }
       }
 
-      assert((SpecFTD != nullptr) &&
-             "Function specialization derived before primary temaplate. This "
-             "shouldn't happen");
+      // If no template found, create a dummy one
+      if (SpecFTD == nullptr) {
+        ASTContext& Ctx = S.getASTContext();
+
+        // Create template parameters (adjust as needed based on your use case)
+        TemplateParameterList* TPL =
+            R.Function->getPrimaryTemplate()->getTemplateParameters();
+
+        // Create a dummy function declaration
+        FunctionDecl* DummyFD = FunctionDecl::Create(
+            Ctx, DC, noLoc, noLoc, dFD->getNameInfo().getName(), dFD->getType(),
+            dFD->getTypeSourceInfo(),
+            dFD->getCanonicalDecl()->getStorageClass()
+                CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(dFD),
+            dFD->isInlineSpecified(), dFD->hasWrittenPrototype(),
+            dFD->getConstexprKind(), nullptr);
+
+        DummyFD->setImplicitlyInline(R.Function->isInlined());
+
+        for (const FunctionDecl* NFD : R.Function->redecls()) {
+          for (const auto* Attr : NFD->attrs()) {
+            // We only need the keywords final and override in the tag
+            // declaration.
+            if (isa<OverrideAttr>(Attr) || isa<FinalAttr>(Attr))
+              continue;
+            if (!hasAttribute(DummyFD, Attr->getKind()))
+              DummyFD->addAttr(Attr->clone(Ctx));
+          }
+        }
+
+        // Create the function template declaration
+        SpecFTD = FunctionTemplateDecl::Create(Ctx, DC, dFD->getLocation(),
+                                               dFD->getNameInfo().getName(),
+                                               TPL, DummyFD);
+
+        // Add to translation unit
+        DC->addDecl(SpecFTD);
+        DummyFD->setDescribedFunctionTemplate(SpecFTD);
+      }
 
       const TemplateArgumentList* TAL =
           R.Function->getTemplateSpecializationArgs();
@@ -168,13 +211,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
   DC->addDecl(D);
 }
-
-  static bool hasAttribute(const Decl *D, attr::Kind Kind) {
-    for (const auto *Attribute : D->attrs())
-      if (Attribute->getKind() == Kind)
-        return true;
-    return false;
-  }
 
   DeclWithContext DerivativeBuilder::cloneFunction(
       const clang::FunctionDecl* FD, clad::VisitorBase& VB,
@@ -525,20 +561,35 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
             }
           }
 
-          FunctionDecl* SpecFD = nullptr;
+          FunctionTemplateDecl* SpecFTD = nullptr;
           for (NamedDecl* ND : R) {
-            if (FunctionDecl* FD = dyn_cast<FunctionDecl>(ND)) {
-              if (FD->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate) {
-                FunctionTemplateDecl* FTD = FD->getDescribedFunctionTemplate();
+            if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+              SpecFTD = FTD;
+              break;
+            }
 
-                void* location = nullptr;
-                SpecFD = FTD->findSpecialization(SpecializationTAL->asArray(),
-                                                 location);
-                (void)(location);
+            if (FunctionDecl* FD = dyn_cast<FunctionDecl>(ND)) {
+              if (FunctionTemplateDecl* FTD =
+                      FD->getDescribedFunctionTemplate()) {
+                SpecFTD = FTD;
+                break;
+              }
+
+              if (FunctionTemplateDecl* FTD = FD->getPrimaryTemplate()) {
+                SpecFTD = FTD;
                 break;
               }
             }
           }
+
+          assert(
+              (SpecFTD != nullptr) &&
+              "Couldn't find a FunctionTemplateDecl for a templated derivative"
+              "This shouldn't happen");
+          void* location = nullptr;
+          FunctionDecl* SpecFD = SpecFTD->findSpecialization(
+              SpecializationTAL->asArray(), location);
+          (void)(location);
 
           assert((SpecFD != nullptr) &&
                  "The given specialization couldn't be found for function "
@@ -697,15 +748,15 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         }
       }
 
-      if (FD->getPrimaryTemplate() != nullptr) {
-        DiffRequest primaryFDRequest = request;
-        primaryFDRequest.DeclarationOnly = false;
-        primaryFDRequest.Function =
-            FD->getPrimaryTemplate()->getTemplatedDecl();
-
-        plugin::ProcessDiffRequest(m_CladPlugin, primaryFDRequest);
-        this->AddEdgeToGraph(primaryFDRequest, true);
-      }
+      // if (FD->getPrimaryTemplate() != nullptr) {
+      //   DiffRequest primaryFDRequest = request;
+      //   primaryFDRequest.DeclarationOnly = false;
+      //   primaryFDRequest.Function =
+      //       FD->getPrimaryTemplate()->getTemplatedDecl();
+      //
+      //   plugin::ProcessDiffRequest(m_CladPlugin, primaryFDRequest);
+      //   this->AddEdgeToGraph(primaryFDRequest, true);
+      // }
     } else if (const VarDecl* VD = request.Global) {
       // Warn the user about the usage of global variables.
       auto diagId = m_Sema.Diags.getCustomDiagID(
