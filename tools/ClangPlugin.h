@@ -393,7 +393,7 @@ struct DifferentiationOptions {
         return AddAfterMainAction;
       }
     };
-  } // end namespace plugin
+    } // end namespace plugin
 } // end namespace clad
 
 #endif // CLAD_CLANG_PLUGIN

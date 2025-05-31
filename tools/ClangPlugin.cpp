@@ -41,22 +41,22 @@ using namespace clang;
 namespace clad {
 void InitTimers();
 
-  namespace plugin {
-    /// Keeps track if we encountered #pragma clad on/off.
-    // FIXME: Figure out how to make it a member of CladPlugin.
-    std::vector<clang::SourceRange> CladEnabledRange;
+namespace plugin {
+/// Keeps track if we encountered #pragma clad on/off.
+// FIXME: Figure out how to make it a member of CladPlugin.
+std::vector<clang::SourceRange> CladEnabledRange;
 
-    // Define a pragma handler for #pragma clad
-    class CladPragmaHandler : public PragmaHandler {
-    public:
-      CladPragmaHandler() : PragmaHandler("clad") {}
-      void HandlePragma(Preprocessor& PP, PragmaIntroducer Introducer,
-                        Token& PragmaTok) override {
-        // Handle #pragma clad ON/OFF/DEFAULT
-        if (PragmaTok.isNot(tok::identifier)) {
-          PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
-          return;
-        }
+// Define a pragma handler for #pragma clad
+class CladPragmaHandler : public PragmaHandler {
+public:
+  CladPragmaHandler() : PragmaHandler("clad") {}
+  void HandlePragma(Preprocessor& PP, PragmaIntroducer Introducer,
+                    Token& PragmaTok) override {
+    // Handle #pragma clad ON/OFF/DEFAULT
+    if (PragmaTok.isNot(tok::identifier)) {
+      PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
+      return;
+    }
 #ifndef NDEBUG
         IdentifierInfo* II = PragmaTok.getIdentifierInfo();
         assert(II->isStr("clad"));
@@ -76,8 +76,8 @@ void InitTimers();
           assert(CladEnabledRange.back().getEnd().isInvalid());
           CladEnabledRange.back().setEnd(TokLoc);
         }
-      }
-    };
+  }
+};
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
@@ -579,7 +579,7 @@ void InitTimers();
       m_Multiplexer->PrintStats();
     }
 
-  } // end namespace plugin
+    } // end namespace plugin
 
   // Routine to check clang version at runtime against the clang version for
   // which clad was built.

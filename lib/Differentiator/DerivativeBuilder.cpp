@@ -7,23 +7,17 @@
 #include "clad/Differentiator/DerivativeBuilder.h"
 
 #include "JacobianModeVisitor.h"
-
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
 #include "clad/Differentiator/CladUtils.h"
-#include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
-#include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/HessianModeVisitor.h"
 #include "clad/Differentiator/PushForwardModeVisitor.h"
 #include "clad/Differentiator/ReverseModeForwPassVisitor.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/StmtClone.h"
-#include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/VectorForwardModeVisitor.h"
 #include "clad/Differentiator/VectorPushForwardModeVisitor.h"
-
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -40,11 +34,14 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
+#include <cinttypes>
+#include <clad/Differentiator/DiffMode.h>
 
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
 #include <cstddef>
+#include <exception>
 #include <memory>
 #include <string>
 #include <utility>
@@ -94,6 +91,114 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // or prototype for the currently derived function.
       dFD->setPreviousDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
     }
+
+    if (R.Function->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate) {
+      FunctionTemplateDecl* NewFTD = nullptr;
+      auto Results = DC->lookup(dFD->getNameInfo().getName());
+
+      for (NamedDecl* ND : Results) {
+        // Direct match
+        if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+          NewFTD = FTD;
+          break;
+        }
+
+        if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+          if (auto* FTD = FD->getDescribedFunctionTemplate()) {
+            NewFTD = FTD;
+            break;
+          }
+        }
+      }
+
+      if (NewFTD == nullptr) {
+        TemplateParameterList* TemplateParams =
+            R.Function->getDescribedFunctionTemplate()->getTemplateParameters();
+
+        NewFTD = FunctionTemplateDecl::Create(
+            S.getASTContext(), DC, dFD->getLocation(),
+            dFD->getNameInfo().getName(), TemplateParams, dFD);
+        NewFTD->setLexicalDeclContext(DC);
+        DC->addDecl(NewFTD);
+      }
+
+      dFD->setDescribedFunctionTemplate(NewFTD);
+    }
+
+    if (R.Function->getTemplatedKind() ==
+            FunctionDecl::TK_FunctionTemplateSpecialization &&
+        R.Function->getTemplateSpecializationKind() ==
+            TSK_ExplicitSpecialization) {
+      FunctionTemplateDecl* SpecFTD = nullptr;
+      auto Results = DC->lookup(dFD->getNameInfo().getName());
+
+      for (NamedDecl* ND : Results) {
+        if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+          SpecFTD = FTD;
+          break;
+        }
+
+        if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+          if (auto* FTD = FD->getDescribedFunctionTemplate()) {
+            SpecFTD = FTD;
+            break;
+          }
+
+          if (auto* FTD = FD->getPrimaryTemplate()) {
+            SpecFTD = FTD;
+            break;
+          }
+        }
+      }
+
+      // If no template found, create a dummy one
+      if (SpecFTD == nullptr) {
+        ASTContext& Ctx = S.getASTContext();
+        FunctionDecl* PrimaryFD =
+            R.Function->getPrimaryTemplate()->getTemplatedDecl();
+
+        // Create a more complete function declaration
+        FunctionDecl* DummyFD = FunctionDecl::Create(
+            Ctx, DC, PrimaryFD->getLocation(), dFD->getNameInfo(),
+            dFD->getType(), PrimaryFD->getTypeSourceInfo(),
+            dFD->getCanonicalDecl()->getStorageClass()
+                CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(dFD),
+            dFD->isInlineSpecified(), dFD->hasWrittenPrototype(),
+            dFD->getConstexprKind(), nullptr);
+
+        DummyFD->setImplicitlyInline(false);
+        DummyFD->setAccess(AS_public);
+
+        SmallVector<ParmVarDecl*, 2> Params;
+        if (const auto* FPT = dFD->getType()->getAs<FunctionProtoType>()) {
+          for (QualType ParamType : FPT->getParamTypes()) {
+            Params.push_back(ParmVarDecl::Create(
+                Ctx, DummyFD, SourceLocation(), SourceLocation(), nullptr,
+                ParamType, nullptr, SC_None, nullptr));
+          }
+        }
+        DummyFD->setParams(Params);
+
+        // Get template parameters from the original function
+        TemplateParameterList* TPL =
+            R.Function->getPrimaryTemplate()->getTemplateParameters();
+
+        // Create the function template declaration
+        SpecFTD = FunctionTemplateDecl::Create(
+            Ctx, DC, dFD->getLocation(), dFD->getDeclName(), TPL, DummyFD);
+
+        // Add to the declaration context
+        DummyFD->setDescribedFunctionTemplate(SpecFTD);
+        DC->addDecl(SpecFTD);
+      }
+
+      const TemplateArgumentList* TAL =
+          R.Function->getTemplateSpecializationArgs();
+      TemplateArgumentList* TALCopy =
+          TemplateArgumentList::CreateCopy(S.getASTContext(), TAL->asArray());
+      dFD->setFunctionTemplateSpecialization(SpecFTD, TALCopy, nullptr,
+                                             TSK_ExplicitSpecialization);
+    }
   } else if (auto* dVD = dyn_cast<VarDecl>(D))
     // Add the identifier to the scope and IdResolver
     S.PushOnScopeChains(dVD, S.TUScope, /*AddToContext*/ false);
@@ -104,12 +209,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DC->addDecl(D);
 }
 
-  static bool hasAttribute(const Decl *D, attr::Kind Kind) {
-    for (const auto *Attribute : D->attrs())
-      if (Attribute->getKind() == Kind)
-        return true;
-    return false;
-  }
+static bool hasAttribute(const Decl* D, attr::Kind Kind) {
+  for (const auto* Attribute : D->attrs())
+    if (Attribute->getKind() == Kind)
+      return true;
+  return false;
+}
 
   DeclWithContext DerivativeBuilder::cloneFunction(
       const clang::FunctionDecl* FD, clad::VisitorBase& VB,
@@ -298,11 +403,46 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return nullptr;
   }
 
+  TemplateArgumentLoc createTemplateArgumentLoc(const TemplateArgument& Arg,
+                                                ASTContext& Context) {
+    switch (Arg.getKind()) {
+    case TemplateArgument::Type: {
+      QualType T = Arg.getAsType();
+      TypeSourceInfo* TSI = Context.getTrivialTypeSourceInfo(T);
+      return TemplateArgumentLoc(Arg, TSI);
+    }
+
+    case TemplateArgument::Expression:
+      return TemplateArgumentLoc(Arg, Arg.getAsExpr());
+
+    case TemplateArgument::Declaration: {
+      ValueDecl* D = Arg.getAsDecl();
+      // Create a DeclRefExpr for the declaration
+      DeclRefExpr* DRE =
+          DeclRefExpr::Create(Context, NestedNameSpecifierLoc(), noLoc, D,
+                              false, noLoc, D->getType(), VK_LValue);
+      return TemplateArgumentLoc(Arg, DRE);
+    }
+
+    case TemplateArgument::Integral: {
+      QualType T = Arg.getIntegralType();
+      llvm::APSInt Value = Arg.getAsIntegral();
+      IntegerLiteral* IL = IntegerLiteral::Create(Context, Value, T, noLoc);
+      return TemplateArgumentLoc(Arg, IL);
+    }
+
+    default:
+      break;
+    }
+    llvm_unreachable("Unsupportred template argument kind!");
+  }
+
   Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, const clang::Expr* callSite,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
-      Expr* CUDAExecConfig /*=nullptr*/) {
+      Expr* CUDAExecConfig /*=nullptr*/,
+      const clang::TemplateArgumentList* SpecializationTAL /*=nullptr*/) {
     DeclContext* originalFnDC = nullptr;
 
     // FIXME: callSite must not be null but it comes when we try to build
@@ -384,8 +524,87 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           CallArgs[0] =
               m_Sema.BuildUnaryOp(S, noLoc, UO_AddrOf, CallArgs[0]).get();
       }
-      Expr* UnresolvedLookup =
-          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+
+      Expr* UnresolvedLookup = nullptr;
+
+      // Handle template specialization case
+      if (SpecializationTAL) {
+        // Prepare the lookup result for template name
+        LookupResult R(m_Sema, &m_Context.Idents.get(Name), Loc,
+                       Sema::LookupOrdinaryName);
+
+        // Perform the lookup in the appropriate context
+        if (originalFnDC)
+          m_Sema.LookupQualifiedName(R, originalFnDC);
+        else
+          m_Sema.LookupName(R, S);
+
+        if (!R.empty()) {
+          TemplateArgumentListInfo TemplateArgs;
+          TemplateArgs.setLAngleLoc(noLoc);
+          TemplateArgs.setRAngleLoc(noLoc);
+          for (unsigned i = 0; i < SpecializationTAL->size(); ++i) {
+            const TemplateArgument& Arg = SpecializationTAL->get(i);
+
+            if (Arg.getKind() == TemplateArgument::Pack) {
+              // Handle parameter packs by expanding them
+              for (const auto& PackArg : Arg.pack_elements()) {
+                TemplateArgumentLoc ArgLoc =
+                    createTemplateArgumentLoc(PackArg, m_Context);
+                TemplateArgs.addArgument(ArgLoc);
+              }
+            } else {
+              // Handle regular arguments
+              TemplateArgumentLoc ArgLoc =
+                  createTemplateArgumentLoc(Arg, m_Context);
+              TemplateArgs.addArgument(ArgLoc);
+            }
+          }
+
+          FunctionTemplateDecl* SpecFTD = nullptr;
+          for (NamedDecl* ND : R) {
+            if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+              SpecFTD = FTD;
+              break;
+            }
+
+            if (FunctionDecl* FD = dyn_cast<FunctionDecl>(ND)) {
+              if (FunctionTemplateDecl* FTD =
+                      FD->getDescribedFunctionTemplate()) {
+                SpecFTD = FTD;
+                break;
+              }
+
+              if (FunctionTemplateDecl* FTD = FD->getPrimaryTemplate()) {
+                SpecFTD = FTD;
+                break;
+              }
+            }
+          }
+
+          if (SpecFTD) {
+            void* location = nullptr;
+            FunctionDecl* SpecFD = SpecFTD->findSpecialization(
+                SpecializationTAL->asArray(), location);
+            (void)(location);
+
+            if (SpecFD) {
+              DeclarationNameInfo NameInfo(SpecFD->getDeclName(), noLoc);
+              UnresolvedLookup =
+                  m_Sema
+                      .BuildDeclarationNameExpr(SS, NameInfo, SpecFD, SpecFD,
+                                                &TemplateArgs,
+                                                /*ADL*/ false)
+                      .get();
+            }
+          }
+        }
+      }
+
+      if (UnresolvedLookup == nullptr) {
+        UnresolvedLookup =
+            m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+      }
 
       if (noOverloadExists(UnresolvedLookup, MARargs))
         return nullptr;
@@ -524,6 +743,16 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           return {};
         }
       }
+
+      // if (FD->getPrimaryTemplate() != nullptr) {
+      //   DiffRequest primaryFDRequest = request;
+      //   primaryFDRequest.DeclarationOnly = false;
+      //   primaryFDRequest.Function =
+      //       FD->getPrimaryTemplate()->getTemplatedDecl();
+      //
+      //   plugin::ProcessDiffRequest(m_CladPlugin, primaryFDRequest);
+      //   this->AddEdgeToGraph(primaryFDRequest, true);
+      // }
     } else if (const VarDecl* VD = request.Global) {
       // Warn the user about the usage of global variables.
       auto diagId = m_Sema.Diags.getCustomDiagID(
