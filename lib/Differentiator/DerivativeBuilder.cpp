@@ -582,19 +582,11 @@ static bool hasAttribute(const Decl* D, attr::Kind Kind) {
             }
           }
 
-          assert(
-              (SpecFTD != nullptr) &&
-              "Couldn't find a FunctionTemplateDecl for a templated derivative"
-              "This shouldn't happen");
           if (SpecFTD) {
             void* location = nullptr;
             FunctionDecl* SpecFD = SpecFTD->findSpecialization(
                 SpecializationTAL->asArray(), location);
             (void)(location);
-
-            assert((SpecFD != nullptr) &&
-                   "The given specialization couldn't be found for function "
-                   "template. This shouldn't happen");
 
             if (SpecFD) {
               DeclarationNameInfo NameInfo(SpecFD->getDeclName(), noLoc);
