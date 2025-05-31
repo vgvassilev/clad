@@ -60,13 +60,6 @@ DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
 
 DerivativeBuilder::~DerivativeBuilder() {}
 
-static bool hasAttribute(const Decl* D, attr::Kind Kind) {
-  for (const auto* Attribute : D->attrs())
-    if (Attribute->getKind() == Kind)
-      return true;
-  return false;
-}
-
 static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DeclContext* DC = D->getLexicalDeclContext();
   if (auto* dFD = dyn_cast<FunctionDecl>(D)) {
@@ -177,18 +170,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         DummyFD->setAccess(AS_public);
 
         SmallVector<ParmVarDecl*, 2> Params;
-        if (const FunctionProtoType* FPT =
-                dFD->getType()->getAs<FunctionProtoType>()) {
-          unsigned ParamIdx = 0;
+        if (const auto* FPT = dFD->getType()->getAs<FunctionProtoType>()) {
           for (QualType ParamType : FPT->getParamTypes()) {
             Params.push_back(ParmVarDecl::Create(
                 Ctx, DummyFD, SourceLocation(), SourceLocation(), nullptr,
                 ParamType, nullptr, SC_None, nullptr));
-            ParamIdx++;
           }
-        } else {
-          // Handle non-prototype functions if needed
-          assert(false && "Expected function prototype type");
         }
         DummyFD->setParams(Params);
 
@@ -220,6 +207,13 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return; // CheckFunctionDeclaration was unhappy about derivedFD
 
   DC->addDecl(D);
+}
+
+static bool hasAttribute(const Decl* D, attr::Kind Kind) {
+  for (const auto* Attribute : D->attrs())
+    if (Attribute->getKind() == Kind)
+      return true;
+  return false;
 }
 
   DeclWithContext DerivativeBuilder::cloneFunction(
@@ -437,12 +431,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       return TemplateArgumentLoc(Arg, IL);
     }
 
-    case TemplateArgument::Pack:
-      // Pack arguments should be handled by expanding the pack
-      llvm_unreachable("Pack arguments should be expanded separately!");
-
     default:
-      llvm_unreachable("Unsupported template argument kind!");
+      break;
     }
     llvm_unreachable("Unsupportred template argument kind!");
   }
