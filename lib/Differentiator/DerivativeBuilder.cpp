@@ -66,7 +66,16 @@ DerivativeBuilder::~DerivativeBuilder() {}
 static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DeclContext* DC = D->getLexicalDeclContext();
   if (auto* dFD = dyn_cast<FunctionDecl>(D)) {
-    if (R.Function->getTemplateSpecializationArgs() != nullptr) {
+    // Don't specialize cxx methods -
+    // private methods break clad, refer to the
+    // todo regarding proper handling of private fields below
+    bool shouldSkipSpecialization = false;
+    if (dyn_cast<CXXMethodDecl>(R.Function) != nullptr) {
+      shouldSkipSpecialization = true;
+    }
+
+    if (R.Function->getTemplateSpecializationArgs() != nullptr &&
+        !shouldSkipSpecialization) {
       FunctionTemplateDecl* SpecFTD = nullptr;
       auto Results = DC->lookup(dFD->getNameInfo().getName());
 
@@ -122,6 +131,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
         // Add to the declaration context
         DummyFD->setDescribedFunctionTemplate(SpecFTD);
+        DummyFD->setAccess(AS_public);
         DC->addDecl(SpecFTD);
       }
 
@@ -131,6 +141,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           TemplateArgumentList::CreateCopy(S.getASTContext(), TAL->asArray());
       dFD->setFunctionTemplateSpecialization(SpecFTD, TALCopy, nullptr,
                                              TSK_ExplicitSpecialization);
+      dFD->setAccess(AS_public);
     }
 
     LookupResult Previous(S, dFD->getNameInfo(), Sema::LookupOrdinaryName);
@@ -212,7 +223,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               ? VB.Clone(FD->getTrailingRequiresClause())
               : nullptr);
 
-      returnedFD->setAccess(FD->getAccess());
+      returnedFD->setAccess(AS_public);
     }
 
     returnedFD->setImplicitlyInline(FD->isInlined());
@@ -550,7 +561,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                 SpecializationTAL->asArray(), location);
             (void)(location);
 
-            if (SpecFD) {
+            if (SpecFD && !SpecFD->isInStdNamespace()) {
               DeclarationNameInfo NameInfo(SpecFD->getDeclName(), noLoc);
               UnresolvedLookup =
                   m_Sema
