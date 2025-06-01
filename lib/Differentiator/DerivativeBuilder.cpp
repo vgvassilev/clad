@@ -66,6 +66,73 @@ DerivativeBuilder::~DerivativeBuilder() {}
 static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DeclContext* DC = D->getLexicalDeclContext();
   if (auto* dFD = dyn_cast<FunctionDecl>(D)) {
+    if (R.Function->getTemplateSpecializationArgs() != nullptr) {
+      FunctionTemplateDecl* SpecFTD = nullptr;
+      auto Results = DC->lookup(dFD->getNameInfo().getName());
+
+      for (NamedDecl* ND : Results) {
+        if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+          SpecFTD = FTD;
+          break;
+        }
+
+        if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+          if (auto* FTD = FD->getDescribedFunctionTemplate()) {
+            SpecFTD = FTD;
+            break;
+          }
+
+          if (auto* FTD = FD->getPrimaryTemplate()) {
+            SpecFTD = FTD;
+            break;
+          }
+        }
+      }
+
+      // If no template found, create a dummy one
+      if (SpecFTD == nullptr) {
+        ASTContext& Ctx = S.getASTContext();
+
+        // Create a more complete function declaration
+        FunctionDecl* DummyFD = FunctionDecl::Create(
+            Ctx, DC, noLoc, dFD->getNameInfo(),
+            dFD->getType(), dFD->getTypeSourceInfo(),
+            dFD->getCanonicalDecl()->getStorageClass()
+                CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(dFD),
+            false, false,
+            dFD->getConstexprKind(), nullptr);
+
+        SmallVector<ParmVarDecl*> Params;
+        if (const auto* FPT = dFD->getType()->getAs<FunctionProtoType>()) {
+          for (QualType ParamType : FPT->getParamTypes()) {
+            Params.push_back(ParmVarDecl::Create(
+                Ctx, DummyFD, noLoc, noLoc, nullptr,
+                ParamType, nullptr, SC_None, nullptr));
+          }
+        }
+        DummyFD->setParams(Params);
+
+        // Get template parameters from the original function
+        TemplateParameterList* TPL =
+            R.Function->getPrimaryTemplate()->getTemplateParameters();
+
+        // Create the function template declaration
+        SpecFTD = FunctionTemplateDecl::Create(
+            Ctx, DC, dFD->getLocation(), dFD->getDeclName(), TPL, DummyFD);
+
+        // Add to the declaration context
+        DummyFD->setDescribedFunctionTemplate(SpecFTD);
+        DC->addDecl(SpecFTD);
+      }
+
+      const TemplateArgumentList* TAL =
+          R.Function->getTemplateSpecializationArgs();
+      TemplateArgumentList* TALCopy =
+          TemplateArgumentList::CreateCopy(S.getASTContext(), TAL->asArray());
+      dFD->setFunctionTemplateSpecialization(SpecFTD, TALCopy, nullptr,
+                                             TSK_ExplicitSpecialization);
+    }
+
     LookupResult Previous(S, dFD->getNameInfo(), Sema::LookupOrdinaryName);
     // Template instantiations of function templates should not be considered
     // redeclarations.
@@ -298,11 +365,46 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return nullptr;
   }
 
+  TemplateArgumentLoc createTemplateArgumentLoc(const TemplateArgument& Arg,
+                                                ASTContext& Context) {
+    switch (Arg.getKind()) {
+    case TemplateArgument::Type: {
+      QualType T = Arg.getAsType();
+      TypeSourceInfo* TSI = Context.getTrivialTypeSourceInfo(T);
+      return TemplateArgumentLoc(Arg, TSI);
+    }
+
+    case TemplateArgument::Expression:
+      return TemplateArgumentLoc(Arg, Arg.getAsExpr());
+
+    case TemplateArgument::Declaration: {
+      ValueDecl* D = Arg.getAsDecl();
+      // Create a DeclRefExpr for the declaration
+      DeclRefExpr* DRE =
+          DeclRefExpr::Create(Context, NestedNameSpecifierLoc(), noLoc, D,
+                              false, noLoc, D->getType(), VK_LValue);
+      return TemplateArgumentLoc(Arg, DRE);
+    }
+
+    case TemplateArgument::Integral: {
+      QualType T = Arg.getIntegralType();
+      llvm::APSInt Value = Arg.getAsIntegral();
+      IntegerLiteral* IL = IntegerLiteral::Create(Context, Value, T, noLoc);
+      return TemplateArgumentLoc(Arg, IL);
+    }
+
+    default:
+      break;
+    }
+    llvm_unreachable("Unsupportred template argument kind!");
+  }
+
   Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, const clang::Expr* callSite,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
-      Expr* CUDAExecConfig /*=nullptr*/) {
+      Expr* CUDAExecConfig /*=nullptr*/,
+      const clang::TemplateArgumentList* SpecializationTAL /*=nullptr*/) {
     DeclContext* originalFnDC = nullptr;
 
     // FIXME: callSite must not be null but it comes when we try to build
@@ -384,8 +486,87 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           CallArgs[0] =
               m_Sema.BuildUnaryOp(S, noLoc, UO_AddrOf, CallArgs[0]).get();
       }
-      Expr* UnresolvedLookup =
-          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+
+      Expr* UnresolvedLookup = nullptr;
+
+      // Handle template specialization case
+      if (SpecializationTAL) {
+        // Prepare the lookup result for template name
+        LookupResult R(m_Sema, &m_Context.Idents.get(Name), Loc,
+                       Sema::LookupOrdinaryName);
+
+        // Perform the lookup in the appropriate context
+        if (originalFnDC)
+          m_Sema.LookupQualifiedName(R, originalFnDC);
+        else
+          m_Sema.LookupName(R, S);
+
+        if (!R.empty()) {
+          TemplateArgumentListInfo TemplateArgs;
+          TemplateArgs.setLAngleLoc(noLoc);
+          TemplateArgs.setRAngleLoc(noLoc);
+          for (unsigned i = 0; i < SpecializationTAL->size(); ++i) {
+            const TemplateArgument& Arg = SpecializationTAL->get(i);
+
+            if (Arg.getKind() == TemplateArgument::Pack) {
+              // Handle parameter packs by expanding them
+              for (const auto& PackArg : Arg.pack_elements()) {
+                TemplateArgumentLoc ArgLoc =
+                    createTemplateArgumentLoc(PackArg, m_Context);
+                TemplateArgs.addArgument(ArgLoc);
+              }
+            } else {
+              // Handle regular arguments
+              TemplateArgumentLoc ArgLoc =
+                  createTemplateArgumentLoc(Arg, m_Context);
+              TemplateArgs.addArgument(ArgLoc);
+            }
+          }
+
+          FunctionTemplateDecl* SpecFTD = nullptr;
+          for (NamedDecl* ND : R) {
+            if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+              SpecFTD = FTD;
+              break;
+            }
+
+            if (FunctionDecl* FD = dyn_cast<FunctionDecl>(ND)) {
+              if (FunctionTemplateDecl* FTD =
+                      FD->getDescribedFunctionTemplate()) {
+                SpecFTD = FTD;
+                break;
+              }
+
+              if (FunctionTemplateDecl* FTD = FD->getPrimaryTemplate()) {
+                SpecFTD = FTD;
+                break;
+              }
+            }
+          }
+
+          if (SpecFTD) {
+            void* location = nullptr;
+            FunctionDecl* SpecFD = SpecFTD->findSpecialization(
+                SpecializationTAL->asArray(), location);
+            (void)(location);
+
+            if (SpecFD) {
+              DeclarationNameInfo NameInfo(SpecFD->getDeclName(), noLoc);
+              UnresolvedLookup =
+                  m_Sema
+                      .BuildDeclarationNameExpr(SS, NameInfo, SpecFD, SpecFD,
+                                                &TemplateArgs,
+                                                /*ADL*/ false)
+                      .get();
+            }
+          }
+        }
+      }
+
+      if (UnresolvedLookup == nullptr) {
+        UnresolvedLookup =
+            m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+      }
 
       if (noOverloadExists(UnresolvedLookup, MARargs))
         return nullptr;
