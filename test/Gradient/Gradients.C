@@ -5,7 +5,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
-#include <cstdio>
 
 #include "../TestUtils.h"
 

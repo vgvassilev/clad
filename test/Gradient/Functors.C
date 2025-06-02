@@ -4,7 +4,6 @@
 // RUN: ./Functors.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
-#include <cstdio>
 
 struct Experiment {
   mutable double x, y;
