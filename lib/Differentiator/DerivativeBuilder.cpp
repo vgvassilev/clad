@@ -70,9 +70,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     // private methods break clad, refer to the
     // todo regarding proper handling of private fields below
     bool shouldSkipSpecialization = R.Function->isOverloadedOperator();
-    if (dyn_cast<CXXMethodDecl>(R.Function) != nullptr) {
+    if (dyn_cast<CXXMethodDecl>(R.Function) != nullptr)
       shouldSkipSpecialization = true;
-    }
 
     if (R.Function->getTemplateSpecializationArgs() != nullptr &&
         !shouldSkipSpecialization) {
