@@ -107,13 +107,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
             R.Function->getPrimaryTemplate()->getTemplateParameters();
 
         // Create the function template declaration
-        SpecFTD = FunctionTemplateDecl::Create(
-            Ctx, DC, dFD->getLocation(), dFD->getDeclName(), TPL, dFD);
+        SpecFTD = FunctionTemplateDecl::Create(Ctx, DC, dFD->getLocation(),
+                                               dFD->getDeclName(), TPL, dFD);
 
         // Add to the declaration context
         DC->addDecl(SpecFTD);
       }
-
 
       const TemplateArgumentList* TAL =
           R.Function->getTemplateSpecializationArgs();
