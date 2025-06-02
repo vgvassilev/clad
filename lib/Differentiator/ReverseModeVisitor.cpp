@@ -1872,11 +1872,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         FD->getNameAsString() == "cudaMemcpy") {
       // Try to find it in builtin derivatives.
       std::string customPullback = pullbackRequest.ComputeDerivativeName();
+      if (MD && MD->isInstance())
+        pullbackCallArgs.insert(pullbackCallArgs.begin(), baseExpr);
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPullback, pullbackCallArgs, getCurrentScope(), CE,
               /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
               CUDAExecConfig);
+      if (MD && MD->isInstance())
+        pullbackCallArgs.erase(pullbackCallArgs.begin());
       if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))
         pullbackFD = foundCE->getDirectCallee();
 
