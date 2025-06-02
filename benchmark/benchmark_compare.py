@@ -11,21 +11,23 @@ def main():
     parser = argparse.ArgumentParser(description="Compare benchmark results between two Git revisions.")
     parser.add_argument("baseline_revision", help="The baseline Git revision")
     parser.add_argument("current_revision", help="The current Git revision to compare against the baseline")
+    parser.add_argument("build", help="The build directory")
     args = parser.parse_args()
 
     original_dir = os.getcwd()
+    build = args.build
 
     baseline_rev = subprocess.check_output(["git", "rev-parse", args.baseline_revision], text=True).strip()
     current_rev = subprocess.check_output(["git", "rev-parse", args.current_revision], text=True).strip()
 
     os.chdir("..")
     run_cmd(["git", "checkout", baseline_rev])
-    os.chdir("build")
+    os.chdir(build)
     run_cmd(["cmake", "--build", ".", "--target", "benchmark-clad", "-j4"])
     os.chdir("..")
 
     run_cmd(["git", "checkout", current_rev])
-    os.chdir("build")
+    os.chdir(build)
     run_cmd(["cmake", "--build", ".", "--target", "benchmark-clad", "-j4"])
 
     run_cmd(["pip3", "install", "-r", "./googlebenchmark-prefix/src/googlebenchmark/tools/requirements.txt"])
