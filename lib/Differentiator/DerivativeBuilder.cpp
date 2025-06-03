@@ -42,6 +42,7 @@
 #include "clang/Sema/Template.h"
 
 #include "llvm/Support/SaveAndRestore.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -518,14 +519,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               break;
             }
 
-            if (FunctionDecl* FD = dyn_cast<FunctionDecl>(ND)) {
-              if (FunctionTemplateDecl* FTD =
+            if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+              if (auto* FTD =
                       FD->getDescribedFunctionTemplate()) {
                 SpecFTD = FTD;
                 break;
               }
 
-              if (FunctionTemplateDecl* FTD = FD->getPrimaryTemplate()) {
+              if (auto* FTD = FD->getPrimaryTemplate()) {
                 SpecFTD = FTD;
                 break;
               }
