@@ -497,8 +497,90 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               m_Sema.BuildUnaryOp(S, noLoc, UO_AddrOf, CallArgs[0]).get();
       }
 
-      Expr* UnresolvedLookup =
-          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+      Expr* UnresolvedLookup = nullptr;
+
+      // Handle template specialization case
+      if (SpecializationTAL) {
+        // Prepare the lookup result for template name
+        LookupResult R(m_Sema, &m_Context.Idents.get(Name), Loc,
+                       Sema::LookupOrdinaryName);
+
+        // Perform the lookup in the appropriate context
+        if (originalFnDC)
+          m_Sema.LookupQualifiedName(R, originalFnDC);
+        else
+          m_Sema.LookupName(R, S);
+
+        if (!R.empty()) {
+          TemplateArgumentListInfo TemplateArgs;
+          TemplateArgs.setLAngleLoc(noLoc);
+          TemplateArgs.setRAngleLoc(noLoc);
+          for (unsigned i = 0; i < SpecializationTAL->size(); ++i) {
+            const TemplateArgument& Arg = SpecializationTAL->get(i);
+
+            if (Arg.getKind() == TemplateArgument::Pack) {
+              // Handle parameter packs by expanding them
+              for (const auto& PackArg : Arg.pack_elements()) {
+                TemplateArgumentLoc ArgLoc =
+                    createTemplateArgumentLoc(PackArg, m_Context);
+                TemplateArgs.addArgument(ArgLoc);
+              }
+            } else {
+              // Handle regular arguments
+              TemplateArgumentLoc ArgLoc =
+                  createTemplateArgumentLoc(Arg, m_Context);
+              TemplateArgs.addArgument(ArgLoc);
+            }
+          }
+
+          FunctionTemplateDecl* SpecFTD = nullptr;
+          for (NamedDecl* ND : R) {
+            if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+              SpecFTD = FTD;
+              break;
+            }
+
+            if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+              if (auto* FTD = FD->getDescribedFunctionTemplate()) {
+                SpecFTD = FTD;
+                break;
+              }
+
+              if (auto* FTD = FD->getPrimaryTemplate()) {
+                SpecFTD = FTD;
+                break;
+              }
+            }
+          }
+
+          if (SpecFTD) {
+            void* location = nullptr;
+            FunctionDecl* SpecFD = SpecFTD->findSpecialization(
+                SpecializationTAL->asArray(), location);
+            (void)(location);
+
+            bool shouldSkipSpecialization = SpecFD->isOverloadedOperator();
+            if (dyn_cast<CXXMethodDecl>(SpecFD) != nullptr)
+              shouldSkipSpecialization = true;
+            if (SpecFD->isInStdNamespace())
+              shouldSkipSpecialization = true;
+
+            if (SpecFD && !shouldSkipSpecialization) {
+              UnresolvedLookup =
+                  m_Sema
+                      .BuildDeclarationNameExpr(SS, SpecFD->getNameInfo(),
+                                                SpecFD, SpecFD, &TemplateArgs,
+                                                /*ADL*/ false)
+                      .get();
+            }
+          }
+        }
+      }
+
+      if (UnresolvedLookup == nullptr) {
+        UnresolvedLookup =
+            m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+      }
 
       if (noOverloadExists(UnresolvedLookup, MARargs))
         return nullptr;
