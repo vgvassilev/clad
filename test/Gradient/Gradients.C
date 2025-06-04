@@ -1230,6 +1230,8 @@ int main() {
 
   TEST(fn_increment_in_return, 3, 2); // CHECK-EXEC: Result is = {7.00, 0.00}
 
+  double dx = 0;
+
   INIT_GRADIENT(fn_div);
   dx = 0;
   TEST_GRADIENT(fn_div, /*numOfDerivativeArgs=*/1, 2, &dx); // CHECK-EXEC: 0.12

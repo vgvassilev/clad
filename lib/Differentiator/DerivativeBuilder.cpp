@@ -569,7 +569,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               UnresolvedLookup =
                   m_Sema
                       .BuildDeclarationNameExpr(SS, SpecFD->getNameInfo(),
-                                                SpecFD, nullptr, &TemplateArgs,
+                                                SpecFD, SpecFD, &TemplateArgs,
                                                 /*ADL*/ false)
                       .get();
             }
