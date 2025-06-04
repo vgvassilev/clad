@@ -1251,9 +1251,9 @@ int main() {
 
   TEST(fn_increment_in_return, 3, 2); // CHECK-EXEC: Result is = {7.00, 0.00}
 
-  auto fn_template_non_type_dx = clad::gradient(fn_template_non_type<15>);
+  clad::gradient(fn_template_non_type<15>);
   double x = 5, dx = 0;
-  fn_template_non_type_grad(x, &dx);
+  fn_template_non_type_grad<15>(x, &dx);
   printf("Result is = %.2f\n", dx); // CHECK-EXEC: Result is = 15.00
 
   INIT_GRADIENT(fn_div);
