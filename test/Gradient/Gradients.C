@@ -1209,6 +1209,7 @@ double f_reuse_global(double x, double t) {
   }
 
 int main() {
+  printf("THIS IS A TEST OPRINT STATEMENT!!!!\n");
   double result[2];
 
   TEST(f_add1, 1, 1); // CHECK-EXEC: Result is = {1.00, 1.00}
