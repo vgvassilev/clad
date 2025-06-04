@@ -398,7 +398,7 @@ namespace clad::custom_derivatives {
 You can also specify a custom gradient:
 ```cpp
 namespace clad::custom_derivatives {
-  void my_pow_grad(double x, double y, array_ref<double> _d_x, array_ref<double> _d_y) {
+  void my_pow_grad(double x, double y, double* _d_x, double* _d_y) {
      double t = my_pow(x, y - 1);
      *_d_x = y * t;
      *_d_y = x * t * std::log(x);
