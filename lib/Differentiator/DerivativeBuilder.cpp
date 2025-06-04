@@ -102,15 +102,36 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       if (SpecFTD == nullptr) {
         ASTContext& Ctx = S.getASTContext();
 
+        // Create a more complete function declaration
+        FunctionDecl* DummyFD = FunctionDecl::Create(
+            Ctx, DC, noLoc, dFD->getNameInfo(),
+            dFD->getType(), dFD->getTypeSourceInfo(),
+            dFD->getCanonicalDecl()->getStorageClass()
+                CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(dFD),
+            false, false,
+            dFD->getConstexprKind(), nullptr);
+
+        SmallVector<ParmVarDecl*> Params;
+        if (const auto* FPT = dFD->getType()->getAs<FunctionProtoType>()) {
+          for (QualType ParamType : FPT->getParamTypes()) {
+            Params.push_back(ParmVarDecl::Create(
+                Ctx, DummyFD, noLoc, noLoc, nullptr,
+                ParamType, nullptr, SC_None, nullptr));
+          }
+        }
+        DummyFD->setParams(Params);
+
         // Get template parameters from the original function
         TemplateParameterList* TPL =
             R.Function->getPrimaryTemplate()->getTemplateParameters();
 
         // Create the function template declaration
-        SpecFTD = FunctionTemplateDecl::Create(Ctx, DC, dFD->getLocation(),
-                                               dFD->getDeclName(), TPL, dFD);
+        SpecFTD = FunctionTemplateDecl::Create(
+            Ctx, DC, dFD->getLocation(), dFD->getDeclName(), TPL, DummyFD);
 
         // Add to the declaration context
+        DummyFD->setDescribedFunctionTemplate(SpecFTD);
+        DummyFD->setAccess(AS_public);
         DC->addDecl(SpecFTD);
       }
 
