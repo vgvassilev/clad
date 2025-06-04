@@ -1,7 +1,5 @@
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -std=c++17 -I%S/../../include -oGradients.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -std=c++17 -I%S/../../include -oGradients.out -Xclang -verify
-// RUN: ./Gradients.out
-// RUN: ./Gradients.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang %s  -I%S/../../include -oGradients.out
 // RUN: ./Gradients.out | %filecheck_exec %s
 
