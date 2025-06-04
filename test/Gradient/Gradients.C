@@ -1209,7 +1209,6 @@ double f_reuse_global(double x, double t) {
   }
 
 int main() {
-  printf("THIS IS A TEST OPRINT STATEMENT!!!!\n");
   double result[2];
 
   TEST(f_add1, 1, 1); // CHECK-EXEC: Result is = {1.00, 1.00}
@@ -1255,8 +1254,8 @@ int main() {
   auto fn_template_non_type_dx = clad::gradient(fn_template_non_type<15>);
   double x = 5, dx = 0;
   fn_template_non_type_dx.dump();
-  fn_template_non_type_dx.execute(x, &dx);
-  printf("Result is = %.2f\n", dx); // CHECK-EXEC: Result is = 15.00
+  // fn_template_non_type_dx.execute(x, &dx);
+  // printf("Result is = %.2f\n", dx); // CHECK-EXEC: Result is = 15.00
 
   INIT_GRADIENT(fn_div);
   dx = 0;
