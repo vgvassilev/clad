@@ -566,8 +566,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
             if (SpecFD && shouldSkipSpecialization) {
               UnresolvedLookup =
                   m_Sema
-                      .BuildDeclarationNameExpr(SS, SpecFD->getNameInfo(), SpecFD, nullptr,
-                                                &TemplateArgs,
+                      .BuildDeclarationNameExpr(SS, SpecFD->getNameInfo(),
+                                                SpecFD, nullptr, &TemplateArgs,
                                                 /*ADL*/ false)
                       .get();
             }
