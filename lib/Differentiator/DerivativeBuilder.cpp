@@ -104,19 +104,18 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
         // Create a more complete function declaration
         FunctionDecl* DummyFD = FunctionDecl::Create(
-            Ctx, DC, noLoc, dFD->getNameInfo(),
-            dFD->getType(), dFD->getTypeSourceInfo(),
+            Ctx, DC, noLoc, dFD->getNameInfo(), dFD->getType(),
+            dFD->getTypeSourceInfo(),
             dFD->getCanonicalDecl()->getStorageClass()
                 CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(dFD),
-            false, false,
-            dFD->getConstexprKind(), nullptr);
+            false, false, dFD->getConstexprKind(), nullptr);
 
-        SmallVector<ParmVarDecl*> Params;
+        SmallVector<ParmVarDecl*, 4> Params;
         if (const auto* FPT = dFD->getType()->getAs<FunctionProtoType>()) {
           for (QualType ParamType : FPT->getParamTypes()) {
-            Params.push_back(ParmVarDecl::Create(
-                Ctx, DummyFD, noLoc, noLoc, nullptr,
-                ParamType, nullptr, SC_None, nullptr));
+            Params.push_back(ParmVarDecl::Create(Ctx, DummyFD, noLoc, noLoc,
+                                                 nullptr, ParamType, nullptr,
+                                                 SC_None, nullptr));
           }
         }
         DummyFD->setParams(Params);
