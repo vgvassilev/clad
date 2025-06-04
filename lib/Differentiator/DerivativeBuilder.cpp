@@ -139,7 +139,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       TemplateArgumentList* TALCopy =
           TemplateArgumentList::CreateCopy(S.getASTContext(), TAL->asArray());
       dFD->setFunctionTemplateSpecialization(SpecFTD, TALCopy, nullptr,
-                                             TSK_ExplicitSpecialization);
+                                             R.Function->getTemplateSpecializationKind());
     }
 
     LookupResult Previous(S, dFD->getNameInfo(), Sema::LookupOrdinaryName);
