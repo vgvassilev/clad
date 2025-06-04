@@ -562,12 +562,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
             bool shouldSkipSpecialization = SpecFD->isOverloadedOperator();
             if (dyn_cast<CXXMethodDecl>(SpecFD) != nullptr)
               shouldSkipSpecialization = true;
+            if (SpecFD->isInStdNamespace())
+              shouldSkipSpecialization = true;
 
-            if (SpecFD && shouldSkipSpecialization) {
+            if (SpecFD && !shouldSkipSpecialization) {
               UnresolvedLookup =
                   m_Sema
-                      .BuildDeclarationNameExpr(SS, SpecFD->getNameInfo(),
-                                                SpecFD, nullptr, &TemplateArgs,
+                      .BuildDeclarationNameExpr(SS, SpecFD->getNameInfo(), SpecFD, nullptr,
+                                                &TemplateArgs,
                                                 /*ADL*/ false)
                       .get();
             }
