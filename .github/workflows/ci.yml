@@ -856,32 +856,10 @@ jobs:
     - name: Benchmark Clad
       if: ${{ matrix.benchmark }}
       run: |
-        cd obj
-        cmake --build . --target benchmark-clad -j4
-        cd ..
-
-        # Get the performance for previous version. If it were a PR the master
-        # or the previous hash
-        hash=$([[ -z "${{ github.event.pull_request }}" ]] && echo ${{ github.event.before }} || echo ${{ github.event.pull_request.base.sha }})
-        echo "Running git checkout '$hash'"
-        git checkout $hash
-        cd obj
-        cmake --build . --target clean -- -j4
-        cmake --build . --target benchmark-clad -j4
-
-        # Compare:
-        pip3 install -r ./googlebenchmark-prefix/src/googlebenchmark/tools/requirements.txt
-        COMPARER="$(pwd)/googlebenchmark-prefix/src/googlebenchmark/tools/compare.py"
+        baseline_hash=$([[ -z "${{ github.event.pull_request }}" ]] && echo ${{ github.event.before }} || echo ${{ github.event.pull_request.base.sha }})
+        current_hash=${{ github.sha }}
         cd benchmark
-        for baseline in *-$hash.json
-        do
-          common=${baseline%$hash.json}
-          pr_change=$(find . ! -name "*$hash.json" -name "$common*.json")
-
-          echo "Running 'python3 ${COMPARER} benchmarks '${baseline}' '${pr_change}''"
-          python3 ${COMPARER} benchmarks ${baseline} ${pr_change}
-        done
-
+        python3 benchmark_compare.py ${baseline_hash} ${current_hash} obj
         cd ..
     - name: Test build sphinx & doxygen documentation
       if: ${{ (matrix.doc_build == true) }}
