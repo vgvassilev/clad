@@ -1253,7 +1253,7 @@ int main() {
 
   auto fn_template_non_type_dx = clad::gradient(fn_template_non_type<15>);
   double x = 5, dx = 0;
-  fn_template_non_type_dx.execute(x, &dx);
+  fn_template_non_type_grad(x, &dx);
   printf("Result is = %.2f\n", dx); // CHECK-EXEC: Result is = 15.00
 
   INIT_GRADIENT(fn_div);
