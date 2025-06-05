@@ -923,8 +923,7 @@ jobs:
         cat obj/CMakeCache.txt
         cat obj/CMakeFiles/*.log
     - name: Setup tmate session
-      # if: ${{ !cancelled() && runner.debug }}
-      if: ${{ failure() }}
+      if: ${{ !cancelled() && runner.debug }}
       uses: mxschmitt/action-tmate@v3
       # When debugging increase to a suitable value!
       timeout-minutes: 30
