@@ -147,9 +147,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       bool shouldSpecialize = true;
       if (SpecFD != nullptr) {
         if (SpecFD->getTemplateSpecializationKind() ==
-                TSK_ImplicitInstantiation &&
+                TSK_ExplicitSpecialization &&
             R.Function->getTemplateSpecializationKind() ==
-                TSK_ExplicitSpecialization) {
+                TSK_ImplicitInstantiation) {
           shouldSpecialize = false;
         }
       }
@@ -160,8 +160,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         dFD->setFunctionTemplateSpecialization(
             SpecFTD, TALCopy, nullptr,
             R.Function->getTemplateSpecializationKind());
-      } else if (SpecFD != nullptr) {
-        SpecFD->dump();
       }
     }
 
