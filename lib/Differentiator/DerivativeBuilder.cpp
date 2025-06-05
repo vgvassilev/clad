@@ -136,26 +136,18 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
       const TemplateArgumentList* TAL =
           R.Function->getTemplateSpecializationArgs();
+      TemplateArgumentList* TALCopy =
+          TemplateArgumentList::CreateCopy(S.getASTContext(), TAL->asArray());
 
       void* location = nullptr;
       FunctionDecl* SpecFD =
           SpecFTD->findSpecialization(TAL->asArray(), location);
       (void)(location);
 
-      // Don't override explicit specializations with
-      // implicit instantiations for clad < 15,
-      // there's a bug related to it
-      bool shouldSpecialize = true;
-      if (SpecFD) {
-        // Don't override existing explicit specializations
-        if (SpecFD->getTemplateSpecializationKind() == TSK_ExplicitSpecialization) {
-          shouldSpecialize = false;
-        }
-      }
-
-      if (shouldSpecialize) {
-        TemplateArgumentList* TALCopy =
-            TemplateArgumentList::CreateCopy(S.getASTContext(), TAL->asArray());
+      if (SpecFD != nullptr) {
+        dFD->setFunctionTemplateSpecialization(
+            SpecFTD, TALCopy, nullptr, SpecFD->getTemplateSpecializationKind());
+      } else {
         dFD->setFunctionTemplateSpecialization(SpecFTD, TALCopy, nullptr,
                                                TSK_ExplicitSpecialization);
       }
