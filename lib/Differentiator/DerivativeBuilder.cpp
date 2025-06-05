@@ -136,11 +136,31 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
       const TemplateArgumentList* TAL =
           R.Function->getTemplateSpecializationArgs();
-      TemplateArgumentList* TALCopy =
-          TemplateArgumentList::CreateCopy(S.getASTContext(), TAL->asArray());
-      dFD->setFunctionTemplateSpecialization(
-          SpecFTD, TALCopy, nullptr,
-          R.Function->getTemplateSpecializationKind());
+
+      void* location = nullptr;
+      FunctionDecl* SpecFD = SpecFTD->findSpecialization(
+          TAL->asArray(), location);
+      (void)(location);
+
+      // Don't override explicit specializations with
+      // implicit instantiations
+      bool shouldSpecialize = true;
+      if (SpecFD != nullptr) {
+        if (SpecFD->getTemplateSpecializationKind() == TSK_ImplicitInstantiation &&
+            R.Function->getTemplateSpecializationKind() == TSK_ExplicitSpecialization) {
+          shouldSpecialize = false;
+        }
+      }
+
+      if (shouldSpecialize) {
+        TemplateArgumentList* TALCopy =
+            TemplateArgumentList::CreateCopy(S.getASTContext(), TAL->asArray());
+        dFD->setFunctionTemplateSpecialization(
+            SpecFTD, TALCopy, nullptr,
+            R.Function->getTemplateSpecializationKind());
+      } else if (SpecFD != nullptr) {
+          SpecFD->dump();
+      }
     }
 
     LookupResult Previous(S, dFD->getNameInfo(), Sema::LookupOrdinaryName);
