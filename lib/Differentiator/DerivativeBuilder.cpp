@@ -146,9 +146,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // implicit instantiations for clad < 15,
       // there's a bug related to it
       bool shouldSpecialize = true;
-      if (SpecFD != nullptr) {
-        if (R.Function->getTemplateSpecializationKind() ==
-            TSK_ExplicitSpecialization) {
+      if (SpecFD) {
+        // Don't override existing explicit specializations
+        if (SpecFD->getTemplateSpecializationKind() == TSK_ExplicitSpecialization) {
           shouldSpecialize = false;
         }
       }
