@@ -12,14 +12,14 @@
 #include <vector>
 #include <memory>
 
-double fn10(double u, double v) {
+double fn1(double u, double v) {
     std::vector<double> vec;
     vec.push_back(u);
     vec.push_back(v);
     return vec[0] + vec[1];
 }
 
-double fn11(double u, double v) {
+double fn2(double u, double v) {
     std::vector<double> vec;
     vec.push_back(u);
     vec.push_back(v);
@@ -70,7 +70,7 @@ namespace clad {
     }
 }
 
-double fn12(double u, double v) {
+double fn3(double u, double v) {
   double res = 0;
   std::vector<double> vec;
   vec.resize(3);
@@ -95,7 +95,7 @@ double fn12(double u, double v) {
   return res;
 }
 
-double fn13(double u, double v) {
+double fn4(double u, double v) {
   double res = u;
   std::vector<double>::allocator_type allocator;
   typename ::std::vector<double>::size_type count = 3;
@@ -103,7 +103,7 @@ double fn13(double u, double v) {
   return vec[0] + vec[1] + vec[2];
 }
 
-double fn14(double x, double y) {
+double fn5(double x, double y) {
   std::vector<double> a;
   a.push_back(x);
   a.push_back(x);
@@ -111,7 +111,7 @@ double fn14(double x, double y) {
   return a[1];
 }
 
-double fn15(double x, double y) {
+double fn6(double x, double y) {
   std::array<double, 3> a;
   a.fill(x);
 
@@ -123,7 +123,7 @@ double fn15(double x, double y) {
   return res;
 }
 
-double fn16(double x, double y) {
+double fn7(double x, double y) {
   std::array<double, 2> a;
   a[0] = 5;
   a[1] = y;
@@ -135,19 +135,19 @@ double fn16(double x, double y) {
   return a.back() * b.front() * b.at(2) + b[1];
 }
 
-double fn17(double x, double y) {
+double fn8(double x, double y) {
     std::array<double, 50> a;
     a.fill(y+x+x);
     return a[49]+a[3];
 }
 
-double fn18(double x, double y) {
+double fn9(double x, double y) {
     std::array<double, 2> a;
     a[1] = 2*x;
     return a[1];
 }
 
-double fn19(double x, double y) {
+double fn10(double x, double y) {
     std::vector<double> v;
     for (size_t i = 0; i < 3; ++i) {
         v.push_back(x);
@@ -163,7 +163,7 @@ double fn19(double x, double y) {
     return res + v[0] + v[1] + v[2]; // 3x+2y
 }
 
-double fn20(double x, double y) {
+double fn11(double x, double y) {
     std::vector<double> v;
     
     v.reserve(10);
@@ -177,20 +177,20 @@ double fn20(double x, double y) {
     return res; // 11x+y
 }
 
-double fn21(double x, double y) {
+double fn12(double x, double y) {
   std::vector<double> a;
   a.push_back(0);
   a[0] = x*x;
   return a[0];
 }
 
-double fn22(double u, double v) {
+double fn13(double u, double v) {
     std::vector<double>::allocator_type alloc;
     std::vector<double> ls({u, v}, alloc);
     return ls[1] - 2 * ls[0];
 }
 
-double fn23(double u, double v) {
+double fn14(double u, double v) {
     std::vector<double>::allocator_type alloc;
     for (int i = 0; i < 3; ++i) {
       std::vector<double> ls({u, v}, alloc);
@@ -200,14 +200,14 @@ double fn23(double u, double v) {
     return u;
 }
 
-double fn24(double d, double e) {
+double fn15(double d, double e) {
   double *p = new double(d);
   std::unique_ptr<double> up(p);
   *up += 5 * e;
   return *up;
 }
 
-double fn25(double u, double v) {
+double fn16(double u, double v) {
     std::vector<double>::allocator_type alloc;
     double prod = 1;
     for (int i = 3; i >= 1; --i) {
@@ -217,7 +217,7 @@ double fn25(double u, double v) {
     return prod;
 }
 
-double fn26(double u, double v) {
+double fn17(double u, double v) {
     for (int i = 0; i < 3; ++i) {
       std::vector<double> ls{u, v};
       ls[1] += ls[0];
@@ -233,7 +233,7 @@ struct Session {
    float *arr = vec.data();
 };
 
-float fn27(Session const *session, float const *tensor_x, float *tensor_theory_params) {
+float fn18(Session const *session, float const *tensor_x, float *tensor_theory_params) {
    Session const &sess = session[0];
    for (int id = 0; id < nVals; id++) {
       sess.arr[id] = tensor_x[id] * tensor_theory_params[0];
@@ -247,6 +247,15 @@ float fn27(Session const *session, float const *tensor_x, float *tensor_theory_p
 
 int main() {
     double d_i, d_j;
+    INIT_GRADIENT(fn1);
+    INIT_GRADIENT(fn2);
+    INIT_GRADIENT(fn3);
+    INIT_GRADIENT(fn4);
+    INIT_GRADIENT(fn5);
+    INIT_GRADIENT(fn6);
+    INIT_GRADIENT(fn7);
+    INIT_GRADIENT(fn8);
+    INIT_GRADIENT(fn9);
     INIT_GRADIENT(fn10);
     INIT_GRADIENT(fn11);
     INIT_GRADIENT(fn12);
@@ -255,37 +264,28 @@ int main() {
     INIT_GRADIENT(fn15);
     INIT_GRADIENT(fn16);
     INIT_GRADIENT(fn17);
-    INIT_GRADIENT(fn18);
-    INIT_GRADIENT(fn19);
-    INIT_GRADIENT(fn20);
-    INIT_GRADIENT(fn21);
-    INIT_GRADIENT(fn22);
-    INIT_GRADIENT(fn23);
-    INIT_GRADIENT(fn24);
-    INIT_GRADIENT(fn25);
-    INIT_GRADIENT(fn26);
 
-    TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
-    TEST_GRADIENT(fn11, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {2.00, 1.00}
-    TEST_GRADIENT(fn12, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {4.00, 2.00}
-    TEST_GRADIENT(fn13, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {3.00, 0.00}
-    TEST_GRADIENT(fn14, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {6.00, 0.00}
-    TEST_GRADIENT(fn15, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {3.00, 0.00}
-    TEST_GRADIENT(fn16, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {108.00, 27.00}
-    TEST_GRADIENT(fn17, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {4.00, 2.00}
-    TEST_GRADIENT(fn18, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {2.00, 0.00}
-    TEST_GRADIENT(fn19, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {3.00, 2.00}
-    TEST_GRADIENT(fn20, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {11.00, 1.00}
-    TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {6.00, 0.00}
-    TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {-2.00, 1.00}
-    TEST_GRADIENT(fn23, /*numOfDerivativeArgs=*/2, 1, 1, &d_i, &d_j);  // CHECK-EXEC: {1.00, 3.00}
-    TEST_GRADIENT(fn24, /*NumOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 5.00}
-    TEST_GRADIENT(fn25, /*NumOfDerivativeArgs=*/2, 3, 1, &d_i, &d_j);  // CHECK-EXEC: {48.00, 48.00}
-    TEST_GRADIENT(fn26, /*numOfDerivativeArgs=*/2, 1, 1, &d_i, &d_j);  // CHECK-EXEC: {1.00, 3.00}
-    auto d_fn27 = clad::gradient(fn27, "tensor_theory_params");
+    TEST_GRADIENT(fn1, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
+    TEST_GRADIENT(fn2, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {2.00, 1.00}
+    TEST_GRADIENT(fn3, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {4.00, 2.00}
+    TEST_GRADIENT(fn4, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {3.00, 0.00}
+    TEST_GRADIENT(fn5, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {6.00, 0.00}
+    TEST_GRADIENT(fn6, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {3.00, 0.00}
+    TEST_GRADIENT(fn7, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {108.00, 27.00}
+    TEST_GRADIENT(fn8, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {4.00, 2.00}
+    TEST_GRADIENT(fn9, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {2.00, 0.00}
+    TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {3.00, 2.00}
+    TEST_GRADIENT(fn11, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {11.00, 1.00}
+    TEST_GRADIENT(fn12, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {6.00, 0.00}
+    TEST_GRADIENT(fn13, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {-2.00, 1.00}
+    TEST_GRADIENT(fn14, /*numOfDerivativeArgs=*/2, 1, 1, &d_i, &d_j);  // CHECK-EXEC: {1.00, 3.00}
+    TEST_GRADIENT(fn15, /*NumOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 5.00}
+    TEST_GRADIENT(fn16, /*NumOfDerivativeArgs=*/2, 3, 1, &d_i, &d_j);  // CHECK-EXEC: {48.00, 48.00}
+    TEST_GRADIENT(fn17, /*numOfDerivativeArgs=*/2, 1, 1, &d_i, &d_j);  // CHECK-EXEC: {1.00, 3.00}
+    auto d_fn18 = clad::gradient(fn18, "tensor_theory_params");
 }
 
-// CHECK: void fn10_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     std::vector<double> vec;
 // CHECK-NEXT:     std::vector<double> _d_vec = {};
 // CHECK-NEXT:     clad::zero_init(_d_vec);
@@ -315,7 +315,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK-NEXT: void fn11_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT: void fn2_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     std::vector<double> vec;
 // CHECK-NEXT:     std::vector<double> _d_vec = {};
 // CHECK-NEXT:     clad::zero_init(_d_vec);
@@ -361,7 +361,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: void fn12_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK: void fn3_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     std::vector<double> _t1;
 // CHECK-NEXT:     double *_d_ref0 = nullptr;
 // CHECK-NEXT:     double *ref0 = {};
@@ -542,7 +542,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK-NEXT: void fn13_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT: void fn4_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = u;
 // CHECK-NEXT:     {{.*}}allocator_type allocator;
@@ -578,7 +578,7 @@ int main() {
 // CHECK-NEXT:     *_d_u += _d_res;
 // CHECK-NEXT: }
 
-// CHECK:      void fn14_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:      void fn5_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:          std::vector<double> a;
 // CHECK-NEXT:          std::vector<double> _d_a = {};
 // CHECK-NEXT:          clad::zero_init(_d_a);
@@ -617,7 +617,7 @@ int main() {
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 
-// CHECK:          void fn15_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:          void fn6_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:        size_t _d_i = {{0U|0UL}};
 // CHECK-NEXT:        size_t i = {{0U|0UL}};
 // CHECK-NEXT:        clad::tape<double> _t2 = {};
@@ -665,7 +665,7 @@ int main() {
 // CHECK-NEXT:        }
 // CHECK-NEXT: }
 
-// CHECK:     void fn16_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:     void fn7_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:         std::array<double, 2> _d_a = {{.*}};
 // CHECK-NEXT:         std::array<double, 2> a;
 // CHECK-NEXT:         std::array<double, 2> _t0 = a;
@@ -752,7 +752,7 @@ int main() {
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 
-// CHECK:     void fn17_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:     void fn8_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:         std::array<double, 50> _d_a = {{.*}};
 // CHECK-NEXT:         std::array<double, 50> a;
 // CHECK-NEXT:         std::array<double, 50> _t0 = a;
@@ -779,7 +779,7 @@ int main() {
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 
-// CHECK:     void fn18_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:     void fn9_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:         std::array<double, 2> _d_a = {{.*}};
 // CHECK-NEXT:         std::array<double, 2> a;
 // CHECK-NEXT:         std::array<double, 2> _t0 = a;
@@ -804,7 +804,7 @@ int main() {
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 
-// CHECK:      void fn19_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:      void fn10_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:          size_t _d_i = {{0U|0UL|0}};
 // CHECK-NEXT:          size_t i = {{0U|0UL|0}};
 // CHECK-NEXT:          {{.*}}tape<{{.*}}vector<double> > _t1 = {};
@@ -904,7 +904,7 @@ int main() {
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 
-// CHECK:      void fn20_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:      void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:          {{.*}}vector<double> v;
 // CHECK-NEXT:          {{.*}}vector<double> _d_v = {};
 // CHECK-NEXT:          clad::zero_init(_d_v);
@@ -949,7 +949,7 @@ int main() {
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 
-// CHECK:      void fn21_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:      void fn12_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:          std::vector<double> a;
 // CHECK-NEXT:          std::vector<double> _d_a = {};
 // CHECK-NEXT:          clad::zero_init(_d_a);
@@ -983,7 +983,7 @@ int main() {
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 
-// CHECK:      void fn22_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK:      void fn13_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      std::vector<double>::allocator_type alloc;
 // CHECK-NEXT:      std::vector<double>::allocator_type _d_alloc = {};
 // CHECK-NEXT:      clad::zero_init(_d_alloc);
@@ -1011,7 +1011,7 @@ int main() {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-// CHECK:      void fn23_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK:      void fn14_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      int _d_i = 0;
 // CHECK-NEXT:      int i = 0;
 // CHECK-NEXT:      clad::tape<std::vector<double> > _t1 = {};
@@ -1093,7 +1093,7 @@ int main() {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-// CHECK: void fn24_grad(double d, double e, double *_d_d, double *_d_e) {
+// CHECK: void fn15_grad(double d, double e, double *_d_d, double *_d_e) {
 // CHECK-NEXT:     double *_d_p = new double(*_d_d);
 // CHECK-NEXT:     double *p = new double(d);
 // CHECK-NEXT:     clad::ValueAndAdjoint< {{.*}}, {{.*}} > _t0 = {{.*}}class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<unique_ptr{{.*}}, p, _d_p);
@@ -1114,7 +1114,7 @@ int main() {
 // CHECK:     *_d_d += *_d_p;
 // CHECK-NEXT: }
 
-// CHECK-NEXT: void fn25_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT: void fn16_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<std::vector<double> > _t1 = {};
@@ -1179,7 +1179,7 @@ int main() {
 
 
 
-// CHECK: void fn26_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK: void fn17_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<std::vector<double> > _t1 = {};
@@ -1258,7 +1258,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: void fn27_grad_2(const Session *session, const float *tensor_x, float *tensor_theory_params, float *_d_tensor_theory_params) {
+// CHECK: void fn18_grad_2(const Session *session, const float *tensor_x, float *tensor_theory_params, float *_d_tensor_theory_params) {
 // CHECK-NEXT:     int _d_id = 0;
 // CHECK-NEXT:     int id = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
