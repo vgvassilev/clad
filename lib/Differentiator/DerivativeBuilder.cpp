@@ -138,16 +138,18 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           R.Function->getTemplateSpecializationArgs();
 
       void* location = nullptr;
-      FunctionDecl* SpecFD = SpecFTD->findSpecialization(
-          TAL->asArray(), location);
+      FunctionDecl* SpecFD =
+          SpecFTD->findSpecialization(TAL->asArray(), location);
       (void)(location);
 
       // Don't override explicit specializations with
       // implicit instantiations
       bool shouldSpecialize = true;
       if (SpecFD != nullptr) {
-        if (SpecFD->getTemplateSpecializationKind() == TSK_ImplicitInstantiation &&
-            R.Function->getTemplateSpecializationKind() == TSK_ExplicitSpecialization) {
+        if (SpecFD->getTemplateSpecializationKind() ==
+                TSK_ImplicitInstantiation &&
+            R.Function->getTemplateSpecializationKind() ==
+                TSK_ExplicitSpecialization) {
           shouldSpecialize = false;
         }
       }
@@ -159,7 +161,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
             SpecFTD, TALCopy, nullptr,
             R.Function->getTemplateSpecializationKind());
       } else if (SpecFD != nullptr) {
-          SpecFD->dump();
+        SpecFD->dump();
       }
     }
 
