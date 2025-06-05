@@ -227,8 +227,6 @@ jobs:
             os: ubuntu-22.04
             compiler: gcc-12
             clang-runtime: '11'
-            env:
-              RUNNER_DEBUG: true
 
           - name: ubu22-clang12-runtime11
             os: ubuntu-22.04
@@ -925,7 +923,8 @@ jobs:
         cat obj/CMakeCache.txt
         cat obj/CMakeFiles/*.log
     - name: Setup tmate session
-      if: ${{ !cancelled() && runner.debug }}
+      # if: ${{ !cancelled() && runner.debug }}
+      if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
       # When debugging increase to a suitable value!
       timeout-minutes: 30
