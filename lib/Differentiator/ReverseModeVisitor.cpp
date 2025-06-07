@@ -1540,14 +1540,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     QualType returnType = FD->getReturnType();
-    bool needsReverseForw = utils::isNonConstReferenceType(returnType) ||
-                            returnType->isPointerType();
+    // FIXME: Decide this in the diff planner
+    bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
+                         returnType->isPointerType();
 
     // FIXME: if the call is non-differentiable but needs a reverse forward
     // call, we still don't need to generate the pullback. The only challenge is
     // to refactor the code to be able to jump over the pullback part (maybe
     // move some functionality to subroutines).
-    if (nonDiff && !needsReverseForw) {
+    if (nonDiff && !needsForwPass) {
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg);
         CallArgs.push_back(ArgDiff.getExpr());
@@ -1992,7 +1993,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (Expr* customForwardPassCE =
             BuildCallToCustomForwPassFn(CE, CallArgs, CallArgDx, baseExpr)) {
       addToCurrentBlock(baseDiffPush, direction::forward);
-      if (!needsReverseForw)
+      if (!needsForwPass)
         return StmtDiff{customForwardPassCE};
       Expr* callRes = nullptr;
       if (isInsideLoop)
@@ -2006,7 +2007,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
       return StmtDiff(resValue, resAdjoint);
     }
-    if (needsReverseForw) {
+    if (needsForwPass) {
       DiffRequest calleeFnForwPassReq;
       calleeFnForwPassReq.Function = FD;
       calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
