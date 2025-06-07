@@ -1878,7 +1878,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPullback, pullbackCallArgs, getCurrentScope(), CE,
               /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
-              CUDAExecConfig);
+              CUDAExecConfig, FD->getTemplateSpecializationArgs());
       if (MD && MD->isInstance())
         pullbackCallArgs.erase(pullbackCallArgs.begin());
       if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))

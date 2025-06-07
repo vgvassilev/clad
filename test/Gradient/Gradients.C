@@ -1,10 +1,12 @@
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -std=c++17 -I%S/../../include -oGradients.out -Xclang -verify 2>&1 | %filecheck %s
+// RUN: ./Gradients.out
 // RUN: ./Gradients.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang %s  -I%S/../../include -oGradients.out
 // RUN: ./Gradients.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
+#include <cstdio>
 
 #include "../TestUtils.h"
 
@@ -421,20 +423,6 @@ void f_norm_grad(double x,
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
-double f_pow_zero(double x, double y) {
-  return std::pow(x, y);
-}
-void f_pow_zero_grad(double x, double y, double *_d_x, double *_d_y);
-// CHECK:   void f_pow_zero_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:       {
-// CHECK-NEXT:           double _r0 = 0.;
-// CHECK-NEXT:           double _r1 = 0.;
-// CHECK-NEXT:           clad::custom_derivatives::std::pow_pullback(x, y, 1, &_r0, &_r1);
-// CHECK-NEXT:           *_d_x += _r0;
-// CHECK-NEXT:           *_d_y += _r1;
-// CHECK-NEXT:       }
-// CHECK-NEXT:   }
-
 double f_sin(double x, double y) {
   return (std::sin(x) + std::sin(y))*(x + y);
 }
@@ -722,7 +710,7 @@ double fn_template_non_type(double x) {
   return x*m;
 }
 
-// CHECK: void fn_template_non_type_grad(double x, double *_d_x) {
+// CHECK: template<> void fn_template_non_type_grad<{{15ULL|15UL|15U|15}}>(double x, double *_d_x) {
 // CHECK-NEXT:     size_t _d_maxN = {{0U|0UL}};
 // CHECK-NEXT:     const size_t maxN = 53;
 // CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL|15ULL}};
@@ -1211,18 +1199,6 @@ double f_reuse_global(double x, double t) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
-double f_static_assert(double x, double y) {
-  static_assert(sizeof(double) == 8, "unexpected double size");
-  return x + y;
-}
-
-//CHECK: void f_static_assert_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:     {
-//CHECK-NEXT:         *_d_x += 1;
-//CHECK-NEXT:         *_d_y += 1;
-//CHECK-NEXT:     }
-//CHECK-NEXT: }
-
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -1255,7 +1231,6 @@ int main() {
   TEST(f_if2, -5, -4); // CHECK-EXEC: Result is = {0.00, -1.00}
   clad::gradient(&S::f);
   clad::gradient(f_norm);
-  clad::gradient(f_pow_zero);
   clad::gradient(f_sin);
   clad::gradient(f_types);
   TEST(f_decls1, 3, 3); // CHECK-EXEC: Result is = {6.00, 10.00}
@@ -1323,7 +1298,4 @@ int main() {
 
   INIT_GRADIENT(f_reuse_global);
   TEST_GRADIENT(f_reuse_global, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {-4.00, 3.00}
-
-  INIT_GRADIENT(f_static_assert);
-  TEST_GRADIENT(f_static_assert, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
 }

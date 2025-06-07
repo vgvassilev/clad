@@ -41,6 +41,7 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
@@ -146,6 +147,91 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               : nullptr);
 
       returnedFD->setAccess(FD->getAccess());
+
+      // Don't specialize cxx methods -
+      // private methods break clad, refer to the
+      // todo regarding proper handling of private fields below
+      bool shouldSkipSpecialization = FD->isOverloadedOperator();
+      if (dyn_cast<CXXMethodDecl>(FD) != nullptr)
+        shouldSkipSpecialization = true;
+
+      if (FD->getTemplateSpecializationArgs() != nullptr &&
+          !shouldSkipSpecialization) {
+        FunctionTemplateDecl* SpecFTD = nullptr;
+        auto Results = DC->lookup(returnedFD->getNameInfo().getName());
+
+        for (NamedDecl* ND : Results) {
+          if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+            SpecFTD = FTD;
+            break;
+          }
+
+          if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+            if (FunctionTemplateDecl* FTD = FD->getDescribedFunctionTemplate()) {
+              SpecFTD = FTD;
+              break;
+            }
+
+            if (FunctionTemplateDecl* FTD = FD->getPrimaryTemplate()) {
+              SpecFTD = FTD;
+              break;
+            }
+          }
+        }
+
+        // If no template found, create a dummy one
+        if (SpecFTD == nullptr) {
+          // Create a more complete function declaration
+          FunctionDecl* DummyFD = FunctionDecl::Create(
+              m_Context, DC, noLoc, returnedFD->getNameInfo(), returnedFD->getType(),
+              returnedFD->getTypeSourceInfo(),
+              returnedFD->getCanonicalDecl()->getStorageClass()
+                  CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(returnedFD),
+              false, false, returnedFD->getConstexprKind(), nullptr);
+
+          SmallVector<ParmVarDecl*, 4> Params;
+          if (const auto* FPT = returnedFD->getType()->getAs<FunctionProtoType>()) {
+            for (QualType ParamType : FPT->getParamTypes()) {
+              Params.push_back(ParmVarDecl::Create(m_Context, DummyFD, noLoc, noLoc,
+                                                   nullptr, ParamType, nullptr,
+                                                   SC_None, nullptr));
+            }
+          }
+          DummyFD->setParams(Params);
+
+          // Get template parameters from the original function
+          TemplateParameterList* TPL =
+              FD->getPrimaryTemplate()->getTemplateParameters();
+
+          // Create the function template declaration
+          SpecFTD = FunctionTemplateDecl::Create(
+              m_Context, DC, returnedFD->getLocation(), returnedFD->getDeclName(), TPL, DummyFD);
+
+          // Add to the declaration context
+          DummyFD->setDescribedFunctionTemplate(SpecFTD);
+          DummyFD->setAccess(AS_public);
+          DC->addDecl(SpecFTD);
+        }
+
+        const TemplateArgumentList* TAL =
+            FD->getTemplateSpecializationArgs();
+        TemplateArgumentList* TALCopy =
+            TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+
+        void* location = nullptr;
+        FunctionDecl* SpecFD =
+            SpecFTD->findSpecialization(TAL->asArray(), location);
+        (void)(location);
+
+        if (SpecFD != nullptr) {
+          returnedFD->setFunctionTemplateSpecialization(
+              SpecFTD, TALCopy, nullptr, SpecFD->getTemplateSpecializationKind());
+        } else {
+          returnedFD->setFunctionTemplateSpecialization(SpecFTD, TALCopy, nullptr,
+                                                 TSK_ExplicitSpecialization);
+        }
+      }
+
     }
 
     returnedFD->setImplicitlyInline(FD->isInlined());
@@ -298,11 +384,46 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return nullptr;
   }
 
+  TemplateArgumentLoc createTemplateArgumentLoc(const TemplateArgument& Arg,
+                                                ASTContext& Context) {
+    switch (Arg.getKind()) {
+    case TemplateArgument::Type: {
+      QualType T = Arg.getAsType();
+      TypeSourceInfo* TSI = Context.getTrivialTypeSourceInfo(T);
+      return TemplateArgumentLoc(Arg, TSI);
+    }
+
+    case TemplateArgument::Expression:
+      return TemplateArgumentLoc(Arg, Arg.getAsExpr());
+
+    case TemplateArgument::Declaration: {
+      ValueDecl* D = Arg.getAsDecl();
+      // Create a DeclRefExpr for the declaration
+      DeclRefExpr* DRE =
+          DeclRefExpr::Create(Context, NestedNameSpecifierLoc(), noLoc, D,
+                              false, noLoc, D->getType(), VK_LValue);
+      return TemplateArgumentLoc(Arg, DRE);
+    }
+
+    case TemplateArgument::Integral: {
+      QualType T = Arg.getIntegralType();
+      llvm::APSInt Value = Arg.getAsIntegral();
+      IntegerLiteral* IL = IntegerLiteral::Create(Context, Value, T, noLoc);
+      return TemplateArgumentLoc(Arg, IL);
+    }
+
+    default:
+      break;
+    }
+    llvm_unreachable("Unsupportred template argument kind!");
+  }
+
   Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, const clang::Expr* callSite,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
-      Expr* CUDAExecConfig /*=nullptr*/) {
+      Expr* CUDAExecConfig /*=nullptr*/,
+      const clang::TemplateArgumentList* SpecializationTAL /*=nullptr*/) {
     DeclContext* originalFnDC = nullptr;
 
     // FIXME: callSite must not be null but it comes when we try to build
@@ -384,8 +505,91 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           CallArgs[0] =
               m_Sema.BuildUnaryOp(S, noLoc, UO_AddrOf, CallArgs[0]).get();
       }
-      Expr* UnresolvedLookup =
-          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+
+      Expr* UnresolvedLookup = nullptr;
+
+      // Handle template specialization case
+      if (SpecializationTAL) {
+        // Prepare the lookup result for template name
+        LookupResult R(m_Sema, &m_Context.Idents.get(Name), Loc,
+                       Sema::LookupOrdinaryName);
+
+        // Perform the lookup in the appropriate context
+        if (originalFnDC)
+          m_Sema.LookupQualifiedName(R, originalFnDC);
+        else
+          m_Sema.LookupName(R, S);
+
+        if (!R.empty()) {
+          TemplateArgumentListInfo TemplateArgs;
+          TemplateArgs.setLAngleLoc(noLoc);
+          TemplateArgs.setRAngleLoc(noLoc);
+          for (unsigned i = 0; i < SpecializationTAL->size(); ++i) {
+            const TemplateArgument& Arg = SpecializationTAL->get(i);
+
+            if (Arg.getKind() == TemplateArgument::Pack) {
+              // Handle parameter packs by expanding them
+              for (const auto& PackArg : Arg.pack_elements()) {
+                TemplateArgumentLoc ArgLoc =
+                    createTemplateArgumentLoc(PackArg, m_Context);
+                TemplateArgs.addArgument(ArgLoc);
+              }
+            } else {
+              // Handle regular arguments
+              TemplateArgumentLoc ArgLoc =
+                  createTemplateArgumentLoc(Arg, m_Context);
+              TemplateArgs.addArgument(ArgLoc);
+            }
+          }
+
+          FunctionTemplateDecl* SpecFTD = nullptr;
+          for (NamedDecl* ND : R) {
+            if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+              SpecFTD = FTD;
+              break;
+            }
+
+            if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+              if (auto* FTD = FD->getDescribedFunctionTemplate()) {
+                SpecFTD = FTD;
+                break;
+              }
+
+              if (auto* FTD = FD->getPrimaryTemplate()) {
+                SpecFTD = FTD;
+                break;
+              }
+            }
+          }
+
+          if (SpecFTD) {
+            void* location = nullptr;
+            FunctionDecl* SpecFD = SpecFTD->findSpecialization(
+                SpecializationTAL->asArray(), location);
+            (void)(location);
+
+            bool shouldSkipSpecialization = SpecFD->isOverloadedOperator();
+            if (dyn_cast<CXXMethodDecl>(SpecFD) != nullptr)
+              shouldSkipSpecialization = true;
+            if (SpecFD->isInStdNamespace())
+              shouldSkipSpecialization = true;
+
+            if (SpecFD && !shouldSkipSpecialization) {
+              UnresolvedLookup =
+                  m_Sema
+                      .BuildDeclarationNameExpr(SS, SpecFD->getNameInfo(),
+                                                SpecFD, SpecFD, &TemplateArgs,
+                                                /*ADL*/ false)
+                      .get();
+            }
+          }
+        }
+      }
+
+      if (UnresolvedLookup == nullptr) {
+        UnresolvedLookup =
+            m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+      }
 
       if (noOverloadExists(UnresolvedLookup, MARargs))
         return nullptr;

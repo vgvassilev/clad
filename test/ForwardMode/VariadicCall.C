@@ -15,7 +15,7 @@ double fn2(double x, double y) {
     return fn1(x, y);
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> fn1_pushforward(double x, double y, double _d_x, double _d_y) {
+// CHECK: template<> clad::ValueAndPushforward<double, double> fn1_pushforward<<double>>(double x, double y, double _d_x, double _d_y) {
 // CHECK-NEXT:    return {x * y, _d_x * y + x * _d_y};
 // CHECK-NEXT:}
 
@@ -31,7 +31,7 @@ double fn3(double x, double y) {
     return fn1(x, y, y);
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> fn1_pushforward(double x, double y, double y2, double _d_x, double _d_y, double _d_y2) {
+// CHECK: template<> clad::ValueAndPushforward<double, double> fn1_pushforward<<double, double>>(double x, double y, double y2, double _d_x, double _d_y, double _d_y2) {
 // CHECK-NEXT:    double _t0 = x * y;
 // CHECK-NEXT:    return {_t0 * y2, (_d_x * y + x * _d_y) * y2 + _t0 * _d_y2};
 // CHECK-NEXT:}

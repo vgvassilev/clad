@@ -7,7 +7,7 @@
 
 namespace A {
   template <typename T> T constantFn(T i) { return 3; }
-  // CHECK: clad::ValueAndPushforward<float, float> constantFn_pushforward(float i, float _d_i) {
+  // CHECK: template<> clad::ValueAndPushforward<float, float> constantFn_pushforward<float>(float i, float _d_i) {
   // CHECK-NEXT:   return {(float)3, (float)0};
   // CHECK-NEXT: }
 } // namespace A
@@ -785,7 +785,7 @@ T templated_fn(double x) {
   return x;
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> templated_fn_pushforward(double x, double _d_x) {
+// CHECK: template<> clad::ValueAndPushforward<double, double> templated_fn_pushforward<double>(double x, double _d_x) {
 // CHECK-NEXT:     return {x, _d_x};
 // CHECK-NEXT: }
 
