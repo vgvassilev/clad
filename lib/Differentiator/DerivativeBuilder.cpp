@@ -67,92 +67,6 @@ DerivativeBuilder::~DerivativeBuilder() {}
 static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DeclContext* DC = D->getLexicalDeclContext();
   if (auto* dFD = dyn_cast<FunctionDecl>(D)) {
-    // Don't specialize cxx methods -
-    // private methods break clad, refer to the
-    // todo regarding proper handling of private fields below
-    bool shouldSkipSpecialization = R.Function->isOverloadedOperator();
-    if (dyn_cast<CXXMethodDecl>(R.Function) != nullptr)
-      shouldSkipSpecialization = true;
-
-    if (R.Function->getTemplateSpecializationArgs() != nullptr &&
-        !shouldSkipSpecialization) {
-      FunctionTemplateDecl* SpecFTD = nullptr;
-      auto Results = DC->lookup(dFD->getNameInfo().getName());
-
-      for (NamedDecl* ND : Results) {
-        if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
-          SpecFTD = FTD;
-          break;
-        }
-
-        if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
-          if (auto* FTD = FD->getDescribedFunctionTemplate()) {
-            SpecFTD = FTD;
-            break;
-          }
-
-          if (auto* FTD = FD->getPrimaryTemplate()) {
-            SpecFTD = FTD;
-            break;
-          }
-        }
-      }
-
-      // If no template found, create a dummy one
-      if (SpecFTD == nullptr) {
-        ASTContext& Ctx = S.getASTContext();
-
-        // Create a more complete function declaration
-        FunctionDecl* DummyFD = FunctionDecl::Create(
-            Ctx, DC, noLoc, dFD->getNameInfo(), dFD->getType(),
-            dFD->getTypeSourceInfo(),
-            dFD->getCanonicalDecl()->getStorageClass()
-                CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(dFD),
-            false, false, dFD->getConstexprKind(), nullptr);
-
-        SmallVector<ParmVarDecl*, 4> Params;
-        if (const auto* FPT = dFD->getType()->getAs<FunctionProtoType>()) {
-          for (QualType ParamType : FPT->getParamTypes()) {
-            Params.push_back(ParmVarDecl::Create(Ctx, DummyFD, noLoc, noLoc,
-                                                 nullptr, ParamType, nullptr,
-                                                 SC_None, nullptr));
-          }
-        }
-        DummyFD->setParams(Params);
-
-        // Get template parameters from the original function
-        TemplateParameterList* TPL =
-            R.Function->getPrimaryTemplate()->getTemplateParameters();
-
-        // Create the function template declaration
-        SpecFTD = FunctionTemplateDecl::Create(
-            Ctx, DC, dFD->getLocation(), dFD->getDeclName(), TPL, DummyFD);
-
-        // Add to the declaration context
-        DummyFD->setDescribedFunctionTemplate(SpecFTD);
-        DummyFD->setAccess(AS_public);
-        DC->addDecl(SpecFTD);
-      }
-
-      const TemplateArgumentList* TAL =
-          R.Function->getTemplateSpecializationArgs();
-      TemplateArgumentList* TALCopy =
-          TemplateArgumentList::CreateCopy(S.getASTContext(), TAL->asArray());
-
-      void* location = nullptr;
-      FunctionDecl* SpecFD =
-          SpecFTD->findSpecialization(TAL->asArray(), location);
-      (void)(location);
-
-      if (SpecFD != nullptr) {
-        dFD->setFunctionTemplateSpecialization(
-            SpecFTD, TALCopy, nullptr, SpecFD->getTemplateSpecializationKind());
-      } else {
-        dFD->setFunctionTemplateSpecialization(SpecFTD, TALCopy, nullptr,
-                                               TSK_ExplicitSpecialization);
-      }
-    }
-
     LookupResult Previous(S, dFD->getNameInfo(), Sema::LookupOrdinaryName);
     // Template instantiations of function templates should not be considered
     // redeclarations.
@@ -232,7 +146,92 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               ? VB.Clone(FD->getTrailingRequiresClause())
               : nullptr);
 
-      returnedFD->setAccess(AS_public);
+      returnedFD->setAccess(FD->getAccess());
+
+      // Don't specialize cxx methods -
+      // private methods break clad, refer to the
+      // todo regarding proper handling of private fields below
+      bool shouldSkipSpecialization = FD->isOverloadedOperator();
+      if (dyn_cast<CXXMethodDecl>(FD) != nullptr)
+        shouldSkipSpecialization = true;
+
+      if (FD->getTemplateSpecializationArgs() != nullptr &&
+          !shouldSkipSpecialization) {
+        FunctionTemplateDecl* SpecFTD = nullptr;
+        auto Results = DC->lookup(returnedFD->getNameInfo().getName());
+
+        for (NamedDecl* ND : Results) {
+          if (auto* FTD = dyn_cast<FunctionTemplateDecl>(ND)) {
+            SpecFTD = FTD;
+            break;
+          }
+
+          if (auto* FD = dyn_cast<FunctionDecl>(ND)) {
+            if (FunctionTemplateDecl* FTD = FD->getDescribedFunctionTemplate()) {
+              SpecFTD = FTD;
+              break;
+            }
+
+            if (FunctionTemplateDecl* FTD = FD->getPrimaryTemplate()) {
+              SpecFTD = FTD;
+              break;
+            }
+          }
+        }
+
+        // If no template found, create a dummy one
+        if (SpecFTD == nullptr) {
+          // Create a more complete function declaration
+          FunctionDecl* DummyFD = FunctionDecl::Create(
+              m_Context, DC, noLoc, returnedFD->getNameInfo(), returnedFD->getType(),
+              returnedFD->getTypeSourceInfo(),
+              returnedFD->getCanonicalDecl()->getStorageClass()
+                  CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(returnedFD),
+              false, false, returnedFD->getConstexprKind(), nullptr);
+
+          SmallVector<ParmVarDecl*, 4> Params;
+          if (const auto* FPT = returnedFD->getType()->getAs<FunctionProtoType>()) {
+            for (QualType ParamType : FPT->getParamTypes()) {
+              Params.push_back(ParmVarDecl::Create(m_Context, DummyFD, noLoc, noLoc,
+                                                   nullptr, ParamType, nullptr,
+                                                   SC_None, nullptr));
+            }
+          }
+          DummyFD->setParams(Params);
+
+          // Get template parameters from the original function
+          TemplateParameterList* TPL =
+              FD->getPrimaryTemplate()->getTemplateParameters();
+
+          // Create the function template declaration
+          SpecFTD = FunctionTemplateDecl::Create(
+              m_Context, DC, returnedFD->getLocation(), returnedFD->getDeclName(), TPL, DummyFD);
+
+          // Add to the declaration context
+          DummyFD->setDescribedFunctionTemplate(SpecFTD);
+          DummyFD->setAccess(AS_public);
+          DC->addDecl(SpecFTD);
+        }
+
+        const TemplateArgumentList* TAL =
+            FD->getTemplateSpecializationArgs();
+        TemplateArgumentList* TALCopy =
+            TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+
+        void* location = nullptr;
+        FunctionDecl* SpecFD =
+            SpecFTD->findSpecialization(TAL->asArray(), location);
+        (void)(location);
+
+        if (SpecFD != nullptr) {
+          returnedFD->setFunctionTemplateSpecialization(
+              SpecFTD, TALCopy, nullptr, SpecFD->getTemplateSpecializationKind());
+        } else {
+          returnedFD->setFunctionTemplateSpecialization(SpecFTD, TALCopy, nullptr,
+                                                 TSK_ExplicitSpecialization);
+        }
+      }
+
     }
 
     returnedFD->setImplicitlyInline(FD->isInlined());
