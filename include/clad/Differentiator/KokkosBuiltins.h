@@ -470,12 +470,12 @@ void resize_pushforward(
   ::Kokkos::resize(v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
-template <class I, class dI, class View>
+template <class I, class View>
 void resize_pushforward(
     const I& arg, View& v, const ::std::size_t n0, const ::std::size_t n1,
     const ::std::size_t n2, const ::std::size_t n3, const ::std::size_t n4,
     const ::std::size_t n5, const ::std::size_t n6, const ::std::size_t n7,
-    const dI& /*d_arg*/, View& d_v, const ::std::size_t /*d_n*/,
+    const I& /*d_arg*/, View& d_v, const ::std::size_t /*d_n*/,
     const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
     const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
     const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,

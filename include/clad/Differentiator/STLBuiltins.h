@@ -57,8 +57,8 @@ void resize_pushforward(::std::vector<T>* v,
 template <typename T>
 ValueAndPushforward<typename ::std::initializer_list<T>::iterator,
                     typename ::std::initializer_list<T>::iterator>
-begin_pushforward(::std::initializer_list<T>* il,
-                  ::std::initializer_list<T>* d_il) {
+begin_pushforward(const ::std::initializer_list<T>* il,
+                  const ::std::initializer_list<T>* d_il) {
   return {il->begin(), d_il->begin()};
 }
 

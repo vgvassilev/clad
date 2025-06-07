@@ -1022,7 +1022,13 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
                                  diffParams, /*moveBaseToParams=*/true);
 
-    if (Expr* overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType)) {
+    Expr* overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType);
+    if (!overload && request.Mode == DiffMode::vector_pushforward) {
+      Name = request.BaseFunctionName + "_pushforward";
+      overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType);
+    }
+
+    if (overload) {
       // Overload found. Mark the request as custom derivative and save
       // the set of overloads to process later.
       request.CustomDerivative = overload;
@@ -1113,17 +1119,14 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
           return true;
       }
 
+      QualType returnType = FD->getReturnType();
+      bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
+                           returnType->isPointerType();
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
       if (!isa<CXXMemberCallExpr>(E) && !isa<CXXOperatorCallExpr>(E) &&
+          !needsForwPass &&
           allArgumentsAreLiterals(E->arguments(), m_ParentReq))
-        return true;
-
-      // FIXME: Generalize this to other functions that we don't need
-      // pullbacks of.
-      std::string FDName = FD->getNameAsString();
-      if (FDName == "cudaMemcpy" || utils::IsMemoryFunction(FD) ||
-          FDName == "begin" || FDName == "end")
         return true;
 
       request.Function = FD;
@@ -1150,6 +1153,15 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         assert(0 && "unexpected mode.");
         return true;
       }
+
+      // FIXME: Generalize this to other functions that we don't need
+      // pullbacks of.
+      std::string FDName = FD->getNameAsString();
+      if (request.Mode == DiffMode::pullback &&
+          (FDName == "cudaMemcpy" || utils::IsMemoryFunction(FD) ||
+           FDName == "begin" || FDName == "end"))
+        return true;
+
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
