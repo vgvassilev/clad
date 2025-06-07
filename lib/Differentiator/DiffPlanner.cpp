@@ -272,10 +272,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
-                               clang::Sema& S, RequestOptions& opts,
-                               DerivedFnCollector& DFC)
+                               clang::Sema& S, RequestOptions& opts)
       : m_Interval(Interval), m_DiffRequestGraph(requestGraph), m_Sema(S),
-        m_Options(opts), m_DFC(DFC) {
+        m_Options(opts) {
 
     if (Interval.empty())
       return;
@@ -928,23 +927,55 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     });
   }
 
-  static FunctionDecl* matchTemplate(clang::Sema& S,
-                                     clang::FunctionTemplateDecl* Template,
-                                     QualType DerivativeType) {
-    clang::FunctionDecl* Specialization = nullptr;
-    clang::sema::TemplateDeductionInfo Info(noLoc);
-    clang::TemplateArgumentListInfo ExplicitTemplateArgs;
-    auto R = S.DeduceTemplateArguments(Template, &ExplicitTemplateArgs,
-                                       DerivativeType, Specialization, Info);
-    if (R == clad_compat::CLAD_COMPAT_TemplateSuccess)
-      return Specialization;
+  static Expr* getOverloadExpr(clang::Sema& S, const std::string& Name,
+                               DeclContext* DC, QualType DerivativeType) {
+    IdentifierInfo* II = &S.getASTContext().Idents.get(Name);
+    DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(S));
+    LookupResult Found(S, DNInfo, Sema::LookupOrdinaryName);
+    S.LookupQualifiedName(Found, DC);
+    bool overloadFound = false;
+    // Check if any of the custom derivative signature satisfy the requirements.
+    for (NamedDecl* candidate : Found) {
+      // Shadow decls don't provide enough information, go to the actual decl.
+      if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
+        candidate = usingShadow->getTargetDecl();
+      // Overload is just a FunctionDecl, check if the signature matches.
+      if (auto* FD = dyn_cast<FunctionDecl>(candidate)) {
+        if (utils::isSameCanonicalType(FD->getType(), DerivativeType)) {
+          overloadFound = true;
+          break;
+        }
+      } // Overload is a template, try to match the signature.
+      else if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate)) {
+        clang::FunctionDecl* Specialization = nullptr;
+        clang::sema::TemplateDeductionInfo Info(noLoc);
+        clang::TemplateArgumentListInfo ExplicitTemplateArgs;
+        auto R = S.DeduceTemplateArguments(
+            FTD, &ExplicitTemplateArgs, DerivativeType, Specialization, Info);
+        // Instantiation with the required signature succeeded.
+        if (R == clad_compat::CLAD_COMPAT_TemplateSuccess) {
+          overloadFound = true;
+          break;
+        }
+        // Instantiation of parameters suceeded but clang doesn't consider
+        // deduction successful because of the auto return type.
+        if (Specialization && !Specialization->isTemplated() &&
+            Specialization->getReturnType()->isUndeducedAutoType()) {
+          overloadFound = true;
+          break;
+        }
+      }
+    }
+    // If a suitable overload is found, build DeclarationNameExpr to
+    // store overload candidates to resolve in DerivativeBuilder::Derive.
+    if (overloadFound) {
+      CXXScopeSpec SS;
+      return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
+    }
     return nullptr;
   }
 
-  bool DiffCollector::LookupCustomDerivativeDecl(const DiffRequest& request) {
-    auto DFI = m_DFC.Find(request);
-    if (DFI.IsValid())
-      return true;
+  bool DiffCollector::LookupCustomDerivativeDecl(DiffRequest& request) {
     NamespaceDecl* cladNS =
         utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
     NamespaceDecl* customDerNS = utils::LookupNSD(
@@ -991,30 +1022,10 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
                                  diffParams, /*moveBaseToParams=*/true);
 
-    IdentifierInfo* II = &m_Sema.getASTContext().Idents.get(Name);
-    DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(m_Sema));
-    LookupResult Found(m_Sema, DNInfo, Sema::LookupOrdinaryName);
-    m_Sema.LookupQualifiedName(Found, DC);
-
-    FunctionDecl* result = nullptr;
-    for (NamedDecl* candidate : Found) {
-      if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
-        candidate = usingShadow->getTargetDecl();
-      if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate)) {
-        if (FunctionDecl* spec = matchTemplate(m_Sema, FTD, DerivativeType)) {
-          result = spec;
-          break;
-        }
-      } else if (auto* FD = dyn_cast<FunctionDecl>(candidate)) {
-        if (utils::isSameCanonicalType(FD->getType(), DerivativeType)) {
-          result = FD;
-          break;
-        }
-      }
-    }
-    if (result) {
-      // Overload found. Add the derivative in derivative function collector.
-      m_DFC.Add(DerivedFnInfo(request, result, /*overload=*/nullptr));
+    if (Expr* overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType)) {
+      // Overload found. Mark the request as custom derivative and save
+      // the set of overloads to process later.
+      request.CustomDerivative = overload;
       return true;
     }
 
@@ -1213,8 +1224,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
-      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
     }
+    m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     if (m_IsTraversingTopLevelDecl) {
       m_TopMostReq = nullptr;
@@ -1291,17 +1302,18 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.Function = request.Function->getDefinition();
 
     QualType recordTy = CD->getThisType()->getPointeeType();
-    bool isSTDInitList =
-        m_Sema.isStdInitializerList(recordTy, /*elemType=*/nullptr);
+    if (m_Sema.isStdInitializerList(recordTy, /*elemType=*/nullptr))
+      return true;
 
-    // FIXME: For now, only linear constructors are supported.
-    if (!LookupCustomDerivativeDecl(request) &&
-        utils::isLinearConstructor(CD, m_Sema.getASTContext()) &&
-        !isSTDInitList) {
+    if (!LookupCustomDerivativeDecl(request)) {
+      // FIXME: For now, only linear constructors are supported.
+      if (!utils::isLinearConstructor(CD, m_Sema.getASTContext()))
+        return true;
+
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
-      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
     }
+    m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     return true;
   }

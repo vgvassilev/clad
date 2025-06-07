@@ -108,6 +108,10 @@ public:
   // A flag to enable the use of enzyme for backend instead of clad
   bool use_enzyme = false;
 
+  /// UnresolvedLookupExpr or DeclRefExpr representing the custom derivative
+  /// overload
+  clang::Expr* CustomDerivative = nullptr;
+
   /// A pointer to keep track of the prototype of the derived functions.
   /// For higher order derivatives, we store the entire sequence of
   /// prototypes declared for all orders of derivatives.
@@ -140,6 +144,8 @@ public:
   /// Allow comparing DiffRequests.
   bool operator==(const DiffRequest& other) const {
     // Note that CallContext is always different and we should ignore it.
+    // CustomDerivative is an Expr* and is not always equal even if
+    // the set of overloads is the same.
     return Function == other.Function &&
            BaseFunctionName == other.BaseFunctionName &&
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
@@ -219,12 +225,10 @@ public:
 
     bool m_IsTraversingTopLevelDecl = true;
 
-    DerivedFnCollector& m_DFC;
-
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
-                  RequestOptions& opts, DerivedFnCollector& DFC);
+                  RequestOptions& opts);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
@@ -241,7 +245,7 @@ public:
     /// request in derived function collector.
     /// \param[in] request The request for the derivative to lookup.
     /// \returns true if a custom derivative was found, false otherwise
-    bool LookupCustomDerivativeDecl(const DiffRequest& request);
+    bool LookupCustomDerivativeDecl(DiffRequest& request);
 
   private:
     bool isInInterval(clang::SourceLocation Loc) const;
