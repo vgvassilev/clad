@@ -16,6 +16,7 @@
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/HessianModeVisitor.h"
+#include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/PushForwardModeVisitor.h"
 #include "clad/Differentiator/ReverseModeForwPassVisitor.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
@@ -478,6 +479,48 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DerivativeBuilder::Derive(const DiffRequest& request) {
     TimedGenerationRegion G([&request]() { return (std::string)request; });
     if (const FunctionDecl* FD = request.Function) {
+      // Process the custom derivative
+      if (request.CustomDerivative) {
+        // We already now that there exists at least one custom derivative
+        // that satisfies the given diff request. Now, we perform the
+        // overload resolution using Sema::ActOnCallExpr to make sure we
+        // follow the c++ standard.
+        llvm::SmallVector<const ValueDecl*, 4> diffParams{};
+        for (const DiffInputVarInfo& VarInfo : request.DVI)
+          diffParams.push_back(VarInfo.param);
+        QualType DerivativeType =
+            utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
+                                     diffParams, /*moveBaseToParams=*/true);
+        // Generate dummy inits
+        llvm::SmallVector<Expr*, 4> Inits;
+        for (QualType parTy :
+             cast<FunctionProtoType>(DerivativeType)->getParamTypes()) {
+          // Build dummy exprs of form ``static_cast<DesiredType>(*nullptr)``
+          // to trick clang into thinking we use lvalues.
+          QualType ptrType = m_Sema.getASTContext().getPointerType(
+              parTy.getNonReferenceType());
+          // Build ``nullptr``
+          Expr* dummy = utils::getZeroInit(ptrType, m_Sema);
+          // Build ``*nullptr``
+          dummy = m_Sema.BuildUnaryOp(nullptr, {}, UO_Deref, dummy).get();
+          SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
+          // Build ``static_cast<parTy>(*nullptr)``
+          dummy =
+              m_Sema
+                  .BuildCStyleCastExpr(
+                      fakeLoc,
+                      m_Sema.getASTContext().getTrivialTypeSourceInfo(parTy),
+                      fakeLoc, dummy)
+                  .get();
+          Inits.push_back(dummy);
+        }
+        Expr* CE = m_Sema
+                       .ActOnCallExpr(m_Sema.TUScope, request.CustomDerivative,
+                                      {}, Inits, {})
+                       .get();
+        return cast<CallExpr>(CE->IgnoreImplicit())->getDirectCallee();
+      }
+
       // Perform diagnostics for functions
       // If FD is only a declaration, try to find its definition.
       if (!FD->getDefinition()) {

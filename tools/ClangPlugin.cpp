@@ -154,7 +154,7 @@ void InitTimers();
           auto* FD = cast<FunctionDecl>(D);
           if (FD->isConstexpr() || !m_Multiplexer) {
             DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph,
-                                    S, opts, m_DFC);
+                                    S, opts);
             break;
           }
         }
@@ -282,14 +282,14 @@ void InitTimers();
           auto deriveResult = m_DerivativeBuilder->Derive(request);
           DerivativeDecl = cast_or_null<FunctionDecl>(deriveResult.derivative);
           OverloadedDerivativeDecl = deriveResult.overload;
+          if (DerivativeDecl)
+            m_DFC.Add(DerivedFnInfo(request, DerivativeDecl,
+                                    OverloadedDerivativeDecl));
         }
       }
 
       if (DerivativeDecl) {
-        if (!alreadyDerived) {
-          m_DFC.Add(
-              DerivedFnInfo(request, DerivativeDecl, OverloadedDerivativeDecl));
-
+        if (!(alreadyDerived || request.CustomDerivative)) {
           printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
@@ -507,7 +507,7 @@ void InitTimers();
             if (FD->isConstexpr())
               continue;
           DiffCollector collector(DCI.m_DGR, CladEnabledRange,
-                                  m_DiffRequestGraph, S, opts, m_DFC);
+                                  m_DiffRequestGraph, S, opts);
           break;
         }
 
