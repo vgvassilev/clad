@@ -1006,7 +1006,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
           break;
         }
       } else if (auto* FD = dyn_cast<FunctionDecl>(candidate)) {
-        if (utils::SameCanonicalType(FD->getType(), DerivativeType)) {
+        if (utils::isSameCanonicalType(FD->getType(), DerivativeType)) {
           result = FD;
           break;
         }
