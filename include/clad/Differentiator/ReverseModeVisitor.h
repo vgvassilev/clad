@@ -108,6 +108,13 @@ namespace clad {
       return m_Stack.top();
     }
     StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* dfdS = nullptr) {
+      m_CurVisitedStmt = stmt;
+#ifndef NDEBUG
+      // Enable testing of the pretty printing of the state when clad crashes.
+      if (const char* Env = std::getenv("CLAD_FORCE_CRASH"))
+        std::terminate();
+#endif // NDEBUG
+
       // No need to push the same expr multiple times.
       bool push = !(!m_Stack.empty() && (dfdS == dfdx()));
       if (push)

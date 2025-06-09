@@ -15,6 +15,7 @@
 #include "clad/Differentiator/ExternalRMVSource.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
 #include "clad/Differentiator/StmtClone.h"
+#include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
@@ -235,6 +236,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   DerivativeAndOverload ReverseModeVisitor::Derive() {
     assert(m_DiffReq.Function && "Must not be null.");
+
+    PrettyStackTraceDerivative CrashInfo(m_DiffReq, m_Blocks, m_Sema,
+                                         &m_CurVisitedStmt);
+
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
     if (m_DiffReq.Mode == DiffMode::error_estimation)

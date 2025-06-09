@@ -39,6 +39,16 @@ public:
   ///
   DerivativeAndOverload Derive() override;
 
+  StmtDiff Visit(const clang::Stmt* S) {
+    m_CurVisitedStmt = S;
+#ifndef NDEBUG
+    // Enable testing of the pretty printing of the state when clad crashes.
+    if (const char* Env = std::getenv("CLAD_FORCE_CRASH"))
+      std::terminate();
+#endif // NDEBUG
+    return clang::ConstStmtVisitor<BaseForwardModeVisitor, StmtDiff>::Visit(S);
+  }
+
   virtual void ExecuteInsidePushforwardFunctionBlock() {}
 
   virtual StmtDiff
