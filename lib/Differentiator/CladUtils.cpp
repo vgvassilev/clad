@@ -358,7 +358,7 @@ namespace clad {
       return isRefType || isArrayOrPointerType(arg->getType());
     }
 
-    bool SameCanonicalType(clang::QualType T1, clang::QualType T2) {
+    bool isSameCanonicalType(clang::QualType T1, clang::QualType T2) {
       return T1.getCanonicalType() == T2.getCanonicalType();
     }
 

@@ -183,7 +183,7 @@ namespace clad {
 
     /// Returns true if `T1` and `T2` have same cononical type; otherwise
     /// returns false.
-    bool SameCanonicalType(clang::QualType T1, clang::QualType T2);
+    bool isSameCanonicalType(clang::QualType T1, clang::QualType T2);
 
     /// Builds `base->member` expression or `base.member` expression depending
     /// on if the `base` is of pointer type or not.
