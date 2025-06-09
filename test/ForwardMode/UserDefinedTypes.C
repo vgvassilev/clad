@@ -464,7 +464,7 @@ double fn6(TensorD5 t, double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(Tensor<double, 5U> &t, Tensor<double, 5U> &_d_t) {
+// CHECK: template<> clad::ValueAndPushforward<double, double> sum_pushforward<double, {{5ULL|5UL|5L|5U|5}}>(Tensor<double, 5U> &t, Tensor<double, 5U> &_d_t) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
