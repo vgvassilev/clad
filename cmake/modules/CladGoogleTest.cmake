@@ -15,7 +15,8 @@ if(MSVC)
     -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO:PATH=${_gtest_byproduct_binary_dir}/lib/
     -Dgtest_force_shared_crt=ON)
 elseif(APPLE)
-  set(EXTRA_GTEST_OPTS -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT})
+  set(EXTRA_GTEST_OPTS -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}
+                       -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES})
 endif()
 
 # Remove the coverage flags when compiling external libraries.
