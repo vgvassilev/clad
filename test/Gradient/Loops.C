@@ -2086,7 +2086,7 @@ double fn26(double i, double j) {
 // CHECK-NEXT:             if (!_t0)
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
-// CHECK-NEXT:         {
+// CHECK-NEXT:         if (_t0 != _numRevIterations0 || (clad::back(_t3) != 1)) {
 // CHECK-NEXT:             res = clad::pop(_t2);
 // CHECK-NEXT:             double _r_d1 = _d_res;
 // CHECK-NEXT:             _d_res = 0.;

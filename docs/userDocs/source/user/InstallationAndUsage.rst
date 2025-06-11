@@ -66,13 +66,13 @@ How to use Clad
 With Jupyter Notebooks
 ------------------------
 
-xeus-cling <https://github.com/jupyter-xeus/xeus-cling> provides a Jupyter kernel for C++ with the help of the C++ interpreter Cling and the native implementation of the Jupyter protocol xeus. Within the xeus-cling framework, Clad can enable automatic differentiation (AD) such that users can automatically generate C++ code for their computation of derivatives of their functions.
+xeus-cpp <https://github.com/compiler-research/xeus-cpp> provides a Jupyter kernel for C++ with the help of the C++ interpreter clang-repl and the native implementation of the Jupyter protocol xeus. Within the xeus-cpp framework, Clad can enable automatic differentiation (AD) such that users can automatically generate C++ code for their computation of derivatives of their functions.
 
 To set up your environment, use:
 
 .. code-block:: bash
 
-   mamba create -n xeus-clad -c conda-forge clad xeus-cling jupyterlab
+   mamba create -n xeus-clad -c conda-forge clad xeus-cpp clangdev=20 jupyterlab
    conda activate xeus-clad
    jupyter notebook
 

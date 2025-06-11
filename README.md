@@ -238,12 +238,12 @@ More detail on the APIs can be found under clad's [user documentation](https://c
 
 #### Using Jupyter Notebooks
 
-[xeus-cling](https://github.com/jupyter-xeus/xeus-cling) provides a Jupyter kernel for C++ with the help of the C++ interpreter Cling and the native implementation of the Jupyter protocol xeus. Within the xeus-cling framework, Clad can enable automatic differentiation (AD) such that users can automatically generate C++ code for their computation of derivatives of their functions.
+[xeus-cpp](https://github.com/compiler-research/xeus-cpp) provides a Jupyter kernel for C++ with the help of the C++ interpreter clang-repl and the native implementation of the Jupyter protocol xeus. Within the xeus-cpp framework, Clad can enable automatic differentiation (AD) such that users can automatically generate C++ code for their computation of derivatives of their functions.
 
 To set up your environment, use:
 
 ```
-mamba create -n xeus-clad -c conda-forge clad xeus-cling jupyterlab
+mamba create -n xeus-clad -c conda-forge clad xeus-cpp clangdev=20 jupyterlab
 
 conda activate xeus-clad
 ```
@@ -398,7 +398,7 @@ namespace clad::custom_derivatives {
 You can also specify a custom gradient:
 ```cpp
 namespace clad::custom_derivatives {
-  void my_pow_grad(double x, double y, array_ref<double> _d_x, array_ref<double> _d_y) {
+  void my_pow_grad(double x, double y, double* _d_x, double* _d_y) {
      double t = my_pow(x, y - 1);
      *_d_x = y * t;
      *_d_y = x * t * std::log(x);
