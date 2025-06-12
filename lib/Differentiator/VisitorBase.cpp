@@ -22,6 +22,7 @@
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -1072,4 +1073,32 @@ namespace clad {
     }
     return nullptr;
   }
+
+  void PrettyStackTraceDerivative::print(llvm::raw_ostream& OS) const {
+    OS << "Building code for '" << (std::string)m_DiffReq << "'\n";
+    clang::PrintingPolicy P(m_Sema.getASTContext().getLangOpts());
+    if (m_Stmt) {
+      const Stmt* S = *m_Stmt;
+      clang::SourceLocation B = S->getBeginLoc();
+      clang::SourceLocation E = S->getEndLoc();
+      clang::SourceManager& SM = m_Sema.getSourceManager();
+
+      OS << "While visiting <" << S->getStmtClassName() << ">"
+         << " [ '";
+      B.print(OS, SM);
+      OS << "', '";
+      E.print(OS, SM);
+      OS << "']\n";
+
+      OS << "\n--- Begin Stmt Dump ---\n";
+      (*m_Stmt)->printPretty(OS, /*Helper=*/nullptr, P);
+      OS << "\n--- End Stmt Dump ---\n";
+    }
+
+    if (!m_Blocks.empty() && !m_Blocks.back().empty()) {
+      OS << "Last forward statement ";
+      m_Blocks.back().back()->printPretty(OS, /*Helper=*/nullptr, P);
+    }
+  }
+
 } // end namespace clad
