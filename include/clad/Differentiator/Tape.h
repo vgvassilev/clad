@@ -55,7 +55,7 @@ namespace clad {
       size_t i = _size / slab_size;
       while (i--) slab = slab->next;
 
-      ::new (slab->elements() + (_size % slab_size)) T(std::forward<ArgsT>(args)...);
+      ::new (const_cast<void*>(static_cast<const volatile void*>(slab->elements() + (_size % slab_size)))) T(std::forward<ArgsT>(args)...);
       _size++;
     }
 
