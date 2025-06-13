@@ -92,11 +92,6 @@ public:
     return 0;
   }
 
-  // TODO: Remove when forward for virtual diff methods is not need
-  virtual double distance_func_darg0(double x, double y, double z) const;
-  virtual double distance_func_darg1(double x, double y, double z) const;
-  virtual double distance_func_darg2(double x, double y, double z) const;
-
   // implicit surface intersection
   // returns distance, 0 if nohit
   double intersect(const Ray &r) const override {
@@ -112,25 +107,9 @@ public:
     return 0;
   }
 
-  // returns normal vector to surface in point pt
-  // by clad
-  Vec normal(const Vec &pt) const override {
-    // FIXME: Replace the calls to `clad::differentiate` when we fix
-    // CladFunction::execute being able to pass the derived class (without
-    // it being sliced.
-    auto distance_func_dx = clad::differentiate(&ImplicitSolid::distance_func, 0);
-    auto distance_func_dy = clad::differentiate(&ImplicitSolid::distance_func, 1);
-    auto distance_func_dz = clad::differentiate(&ImplicitSolid::distance_func, 2);
-    // FIXME: Uncomment, see above.
-    //double Nx = distance_func_dx.execute(*this, pt.x, pt.y, pt.z);
-    //double Ny = distance_func_dy.execute(*this, pt.x, pt.y, pt.z);
-    //double Nz = distance_func_dz.execute(*this, pt.x, pt.y, pt.z);
-    double Nx = distance_func_darg0(pt.x, pt.y, pt.z);
-    double Ny = distance_func_darg1(pt.x, pt.y, pt.z);
-    double Nz = distance_func_darg2(pt.x, pt.y, pt.z);
-
-    return Vec(Nx, Ny, Nz).norm();
-  }
+  // FIXME: Once Clad fully supports virtual methods,
+  // we should write the general virtual normal function here.
+  // Vec normal(const Vec &pt) const override;
 };
 
 
@@ -167,14 +146,8 @@ public:
   Vec p; // position
 
   Sphere() : r(), p() {}
-  Sphere(double r_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
-    r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {
-    // Move to Normal when execute can call polymorphic diffs
-    auto sphere_func_dx = clad::differentiate(&Sphere::distance_func, 0);
-    auto sphere_func_dy = clad::differentiate(&Sphere::distance_func, 1);
-    auto sphere_func_dz = clad::differentiate(&Sphere::distance_func, 2);
-  }
-
+  Sphere(double r_, Vec p_, Vec e_, Vec c_, Refl_t refl_)
+      : r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {}
 
 #ifdef TEST_TYPE_BY_HAND
   // by hand
@@ -190,20 +163,14 @@ public:
 #ifdef TEST_TYPE_BY_CLAD
   // by clad
   Vec normal(const Vec &pt) const override {
-    //auto sphere_func_dx = clad::differentiate(&Sphere::distance_func, 0);
-    //auto sphere_func_dy = clad::differentiate(&Sphere::distance_func, 1);
-    //auto sphere_func_dz = clad::differentiate(&Sphere::distance_func, 2);
-
-    //double Nx = sphere_func_dx.execute(*this, pt.x, pt.y, pt.z, p, r);
-    //double Ny = sphere_func_dy.execute(*this, pt.x, pt.y, pt.z, p, r);
-    //double Nz = sphere_func_dz.execute(*this, pt.x, pt.y, pt.z, p, r);
-
-    double Nx = distance_func_darg0(pt.x, pt.y, pt.z);
-    double Ny = distance_func_darg0(pt.x, pt.y, pt.z);
-    double Nz = distance_func_darg0(pt.x, pt.y, pt.z);
-
-    return Vec(Nx, Ny, Nz).norm();
-    //return Vec(Nx, Ny, Nz); // nabla f of signed distance functions is always unit vector
+    Vec result{};
+    Vec dummy{};
+    // FIXME: We should differentiate distance_func directly once clad
+    // provides functionality to call CladFunction of member functions.
+    auto dist_grad = clad::gradient(sphere_distance_func, "x, y, z, p");
+    dist_grad.execute(pt.x, pt.y, pt.z, p, r, &result.x, &result.y, &result.z,
+                      &dummy);
+    return result; // nabla f of signed distance functions is always unit vector
   }
 #endif
 
@@ -257,12 +224,7 @@ public:
   Vec p; // position
   HyperbolicSolid() : r(), p() {}
   HyperbolicSolid(double r_, Vec p_, Vec e_, Vec c_, Refl_t refl_)
-      : r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {
-    // FIXME: Move to Normal when execute can call polymorphic diffs.
-    auto hyperbolic_func_dx = clad::differentiate(&HyperbolicSolid::distance_func, 0);
-    auto hyperbolic_func_dy = clad::differentiate(&HyperbolicSolid::distance_func, 1);
-    auto hyperbolic_func_dz = clad::differentiate(&HyperbolicSolid::distance_func, 2);
-  }
+      : r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {}
 
 #ifdef TEST_TYPE_BY_HAND
   // by hand
@@ -278,22 +240,14 @@ public:
 #ifdef TEST_TYPE_BY_CLAD
   // by clad
   Vec normal(const Vec &pt) const override {
-    //auto hyperbolic_func_dx = clad::differentiate(&HyperbolicSolid::distance_func, 0);
-    //auto hyperbolic_func_dy = clad::differentiate(&HyperbolicSolid::distance_func, 1);
-    //auto hyperbolic_func_dz = clad::differentiate(&HyperbolicSolid::distance_func, 2);
-
-    //double Nx = hyperbolic_func_dx.execute(*this, pt.x, pt.y, pt.z, p, r);
-    //double Ny = hyperbolic_func_dy.execute(*this, pt.x, pt.y, pt.z, p, r);
-    //double Nz = hyperbolic_func_dz.execute(*this, pt.x, pt.y, pt.z, p, r);
-
-    double Nx = distance_func_darg0(pt.x, pt.y, pt.z);
-    double Ny = distance_func_darg1(pt.x, pt.y, pt.z);
-    double Nz = distance_func_darg2(pt.x, pt.y, pt.z);
-
-    // nabla f of signed distance functions is always unit vector, we might
-    // need to add support for nabla in clad.
-    // If functions are normalized we can skip calling `.norm()`.
-    return Vec(Nx, Ny, Nz).norm();
+    // FIXME: We should differentiate distance_func directly once clad
+    // provides functionality to call CladFunction of member functions.
+    Vec result{};
+    Vec dummy{};
+    auto dist_grad = clad::gradient(hyperbolic_func, "x, y, z, p");
+    dist_grad.execute(pt.x, pt.y, pt.z, p, r, &result.x, &result.y, &result.z,
+                      &dummy);
+    return result; // nabla f of signed distance functions is always unit vector
   }
 #endif
 
