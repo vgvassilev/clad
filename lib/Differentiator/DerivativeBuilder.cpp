@@ -424,10 +424,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         llvm::SaveAndRestore<unsigned> origFnOrder(
             request.CurrentDerivativeOrder);
 
+        request.UpdateDiffParamsInfo(m_Sema);
         // Derive declaration of the the forward mode derivative.
         request.DeclarationOnly = true;
         derivative = plugin::ProcessDiffRequest(m_CladPlugin, request);
       }
+      request.UpdateDiffParamsInfo(m_Sema);
 
       // It is possible that user has provided a custom derivative for the
       // derivative function. In that case, we should not derive the definition
