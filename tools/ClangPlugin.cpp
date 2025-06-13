@@ -226,7 +226,11 @@ void InitTimers();
       S.PerformPendingInstantiations();
       if (request.Function->getDefinition())
         request.Function = request.Function->getDefinition();
-      request.UpdateDiffParamsInfo(m_CI.getSema());
+      // FIXME: These requests are not fully generated in the diffplanner and we
+      // have to update diff params on this stage.
+      if (request.CurrentDerivativeOrder > 1 ||
+          m_DFC.IsCladDerivative(request.Function))
+        request.UpdateDiffParamsInfo(m_CI.getSema());
       const FunctionDecl* FD = request.Function;
       ASTContext& C = S.getASTContext();
       clang::PrintingPolicy Policy = C.getPrintingPolicy();

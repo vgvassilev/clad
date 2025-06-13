@@ -322,6 +322,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     auto& C = semaRef.getASTContext();
     const Expr* diffArgs = Args;
     const FunctionDecl* FD = Function;
+    // On this stage, templated functions are not yet fully instantiated.
+    // Uninstantiated functions lack much information like we need: they don't
+    // have bodies and information about defition. Therefore, we have to force
+    // the instantiation.
+    semaRef.PerformPendingInstantiations();
     if (!DeclarationOnly)
       FD = FD->getDefinition();
     if (!diffArgs || !FD) {
@@ -1078,6 +1083,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
         return true;
 
+      if (isCallOperator(m_Sema.getASTContext(), request.Function))
+        request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
+
       request.VerboseDiags = true;
       // The root of the differentiation request graph should update the
       // CladFunction object with the generated call.
@@ -1085,27 +1093,17 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.CallContext = E;
 
       request.Args = E->getArg(1);
-      // FIXME: We should call UpdateDiffParamsInfo unconditionally, however,
-      // in the DiffRequest we have the move away from pointer comparisons of
-      // the ParmVarDecls (of the DVI).
-
-      // As above, we should call UpdateDiffParamsInfo no matter what.
+      request.UpdateDiffParamsInfo(m_Sema);
       if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis) {
-        request.UpdateDiffParamsInfo(m_Sema);
         if (request.Args)
           for (const auto& dParam : request.DVI)
             request.addVariedDecl(cast<VarDecl>(dParam.param));
       }
 
-      if (request.Function->hasAttr<CUDAGlobalAttr>()) {
-        request.UpdateDiffParamsInfo(m_Sema);
+      if (request.Function->hasAttr<CUDAGlobalAttr>())
         for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i)
           request.CUDAGlobalArgsIndexes.push_back(i);
-      }
       m_TopMostReq = &request;
-
-      if (isCallOperator(m_Sema.getASTContext(), request.Function))
-        request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
     } else {
       // If the function contains annotation of non_differentiable, then Clad
       // should not produce any derivative expression for that function call,
@@ -1168,7 +1166,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
       request.CallContext = E;
 
-      if (request.Mode != DiffMode::pushforward) {
+      if (request.Mode != DiffMode::pushforward &&
+          request.Mode != DiffMode::vector_pushforward) {
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
           // if (MD && isLambdaCallOperator(MD)) {
           const auto* paramDecl = FD->getParamDecl(i);
