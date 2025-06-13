@@ -1168,36 +1168,29 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
       if (request.Mode != DiffMode::pushforward &&
           request.Mode != DiffMode::vector_pushforward) {
+        // CUDA device function call in global kernel gradient
+        bool useCUDA = !m_TopMostReq->CUDAGlobalArgsIndexes.empty();
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
-          // if (MD && isLambdaCallOperator(MD)) {
           const auto* paramDecl = FD->getParamDecl(i);
           if (clad::utils::hasNonDifferentiableAttribute(paramDecl))
             continue;
 
-          request.DVI.push_back(paramDecl);
+          // FIXME: Attach Activity Analysis here.
+          // If a parameter is non-differentiable, don't include
+          // it in the DVI to avoid dynamic partial derivatives.
+          const ParmVarDecl* PVD = nullptr;
+          Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
+          if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE))
+            PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
+          bool IsDifferentiableArg =
+              !PVD || m_ParentReq->HasIndependentParameter(PVD);
 
-          //}
-          // FIXME: The following code is also part of the decision making in
-          // case the pullbacks are built on demand. We need to check if it is
-          // still needed.
-          // else if (DerivedCallOutputArgs[i + (bool)MD]) {
-          //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
-          //}
-        }
-        // CUDA device function call in global kernel gradient
-        if (!m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
-          for (size_t i = 0, e = E->getNumArgs(); i < e; i++) {
-            // Try to match it against the global arguments
-            Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
-            if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
-              // check if it's a kernel param
-              const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
-              if (PVD && m_ParentReq->HasIndependentParameter(PVD)) {
-                // we know we should use atomic ops here
-                request.CUDAGlobalArgsIndexes.push_back(i);
-              }
-            }
-          }
+          if (!utils::isArrayOrPointerType(paramDecl->getType()) ||
+              IsDifferentiableArg)
+            request.DVI.push_back(paramDecl);
+          // We know we should use atomic ops here
+          if (useCUDA && IsDifferentiableArg)
+            request.CUDAGlobalArgsIndexes.push_back(i);
         }
       }
     }
