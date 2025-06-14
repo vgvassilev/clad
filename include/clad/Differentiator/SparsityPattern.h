@@ -6,15 +6,16 @@
 #include <cstddef>
 #include <initializer_list>
 #include <type_traits>
+#include <vector>
 
 namespace clad {
 template <typename T> class sparsity_pattern {
   int* m_col = nullptr;
   int* m_row = nullptr;
-  T* m_vals = nullptr;
+  std::vector<T> m_vals;
 
-  std::size_t m_col_size;
-  std::size_t m_row_size;
+  std::size_t m_col_size = 0;
+  std::size_t m_row_size = 0;
 
 public:
   sparsity_pattern() = default;
@@ -23,8 +24,7 @@ public:
     m_col_size = col.size();
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     m_col = new int[m_col_size];
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    m_vals = new T[m_col_size];
+    m_vals.resize(m_col_size);
 
     std::size_t i = 0;
     for (const auto& e : col)
