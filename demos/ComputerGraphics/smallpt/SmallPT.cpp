@@ -88,9 +88,7 @@ public:
   ImplicitSolid(Vec e_, Vec c_, Refl_t refl_): Solid(e_, c_, refl_) {}
 
   // Return signed distance to nearest point on solid surface
-  virtual double distance_func(const Vec& p) const {
-    return 0;
-  }
+  virtual double distance_func(const Vec& p) const { return 0; }
 
   // implicit surface intersection
   // returns distance, 0 if nohit
@@ -99,7 +97,7 @@ public:
     Vec pt;
     do {
       pt=r.o+r.d*t;
-      f=fabs(distance_func(pt));
+      f = fabs(distance_func(pt));
       t1=t;
       t+=f;
       if (f<eps || t==t1) return t;
@@ -118,24 +116,27 @@ public:
 #ifdef TEST_TYPE_BY_HAND
 // by hand
 double sphere_func_dx(const Vec& p, const Vec& p0, double r) {
-  return 2*(p.x-p0.x);
+  return 2 * (p.x - p0.x);
 }
 
 double sphere_func_dy(const Vec& p, const Vec& p0, double r) {
-  return 2*(p.y-p0.y);
+  return 2 * (p.y - p0.y);
 }
 
 double sphere_func_dz(const Vec& p, const Vec& p0, double r) {
-  return 2*(p.z-p0.z);
+  return 2 * (p.z - p0.z);
 }
 #endif
 
-double sphere_distance_func(const Vec &p, const Vec &p0, double r) {
-  return sqrt((p.x-p0.x)*(p.x-p0.x) + (p.y-p0.y)*(p.y-p0.y) + (p.z-p0.z)*(p.z-p0.z)) - r;
+double sphere_distance_func(const Vec& p, const Vec& p0, double r) {
+  return sqrt((p.x - p0.x) * (p.x - p0.x) + (p.y - p0.y) * (p.y - p0.y) +
+              (p.z - p0.z) * (p.z - p0.z)) -
+         r;
 }
 
-double sphere_implicit_func(const Vec &p, const Vec &p0, double r) {
-  return (p.x-p0.x)*(p.x-p0.x) + (p.y-p0.y)*(p.y-p0.y) + (p.z-p0.z)*(p.z-p0.z) - r*r;
+double sphere_implicit_func(const Vec& p, const Vec& p0, double r) {
+  return (p.x - p0.x) * (p.x - p0.x) + (p.y - p0.y) * (p.y - p0.y) +
+         (p.z - p0.z) * (p.z - p0.z) - r * r;
 }
 
 //
@@ -178,10 +179,10 @@ public:
 #ifdef TEST_TYPE_BY_NUM
   // by numeric approximation
   Vec normal(const Vec &pt) const override {
-    double f =  sphere_implicit_func(pt, p, r);
-    double fx = sphere_implicit_func({pt.x+eps, pt.y, pt.z}, p, r);
-    double fy = sphere_implicit_func({pt.x, pt.y+eps, pt.z}, p, r);
-    double fz = sphere_implicit_func({pt.x, pt.y, pt.z+eps}, p, r);
+    double f = sphere_implicit_func(pt, p, r);
+    double fx = sphere_implicit_func({pt.x + eps, pt.y, pt.z}, p, r);
+    double fy = sphere_implicit_func({pt.x, pt.y + eps, pt.z}, p, r);
+    double fz = sphere_implicit_func({pt.x, pt.y, pt.z + eps}, p, r);
 
     return Vec((fx-f)/eps, (fy-f)/eps, (fz-f)/eps).norm();
   }
@@ -189,7 +190,9 @@ public:
 
   //TODO: Override distance func method when parent method is virtual
   double distance_func(const Vec& v) const override {
-    return sqrt((v.x-p.x)*(v.x-p.x) + (v.y-p.y)*(v.y-p.y) + (v.z-p.z)*(v.z-p.z)) - r;
+    return sqrt((v.x - p.x) * (v.x - p.x) + (v.y - p.y) * (v.y - p.y) +
+                (v.z - p.z) * (v.z - p.z)) -
+           r;
   }
 };
 
@@ -201,22 +204,31 @@ public:
 
 #ifdef TEST_TYPE_BY_HAND
 // by hand
-double h_func_dx(const Vec &p, const Vec &p0, double r) {
-  return (2./3.*cos_a)/pow(((p.x-p0.x)*cos_a+(p.z-p0.z)*sin_a),1./3.) - (2./3.*sin_a)/pow(((p.z-p0.z)*cos_a-(p.x-p0.x)*sin_a),1./3.);
+double h_func_dx(const Vec& p, const Vec& p0, double r) {
+  return (2. / 3. * cos_a) /
+             pow(((p.x - p0.x) * cos_a + (p.z - p0.z) * sin_a), 1. / 3.) -
+         (2. / 3. * sin_a) /
+             pow(((p.z - p0.z) * cos_a - (p.x - p0.x) * sin_a), 1. / 3.);
 }
 
-double h_func_dy(const Vec &p, const Vec &p0, double r) {
-  return (2./3.)/pow(p.y-p0.y, 1./3.);
+double h_func_dy(const Vec& p, const Vec& p0, double r) {
+  return (2. / 3.) / pow(p.y - p0.y, 1. / 3.);
 }
 
-double h_func_dz(const Vec &p, const Vec &p0, double r) {
-  return (2./3.*sin_a)/pow((p.x-p0.x)*cos_a+(p.z-p0.z)*sin_a,1./3.) + (2./3.*cos_a)/pow((p.z-p0.z)*cos_a-(p.x-p0.x)*sin_a,1./3.);
+double h_func_dz(const Vec& p, const Vec& p0, double r) {
+  return (2. / 3. * sin_a) /
+             pow((p.x - p0.x) * cos_a + (p.z - p0.z) * sin_a, 1. / 3.) +
+         (2. / 3. * cos_a) /
+             pow((p.z - p0.z) * cos_a - (p.x - p0.x) * sin_a, 1. / 3.);
 }
 #endif
 
 //TODO: Check this distance func. Visualized "octahedron" do not like as octahedron.
-double hyperbolic_func(const Vec &p, const Vec &p0, double r) {
-  return pow((p.x-p0.x)*cos_a+(p.z-p0.z)*sin_a, 2./3.) + pow(p.y-p0.y, 2./3.) + pow((p.x-p0.x)*-sin_a+(p.z-p0.z)*cos_a, 2./3.) - pow(r, 2./3.);
+double hyperbolic_func(const Vec& p, const Vec& p0, double r) {
+  return pow((p.x - p0.x) * cos_a + (p.z - p0.z) * sin_a, 2. / 3.) +
+         pow(p.y - p0.y, 2. / 3.) +
+         pow((p.x - p0.x) * -sin_a + (p.z - p0.z) * cos_a, 2. / 3.) -
+         pow(r, 2. / 3.);
 }
 
 class HyperbolicSolid : public ImplicitSolid {
@@ -256,17 +268,20 @@ public:
 #ifdef TEST_TYPE_BY_NUM
   // by numeric approximation
   Vec normal(const Vec &pt) const override {
-    double f  = hyperbolic_func(pt, p, r);
-    double fx = hyperbolic_func({pt.x+eps, pt.y, pt.z}, p, r);
-    double fy = hyperbolic_func({pt.x, pt.y+eps, pt.z}, p, r);
-    double fz = hyperbolic_func({pt.x, pt.y, pt.z+eps}, p, r);
+    double f = hyperbolic_func(pt, p, r);
+    double fx = hyperbolic_func({pt.x + eps, pt.y, pt.z}, p, r);
+    double fy = hyperbolic_func({pt.x, pt.y + eps, pt.z}, p, r);
+    double fz = hyperbolic_func({pt.x, pt.y, pt.z + eps}, p, r);
 
     return Vec((fx-f)/eps, (fy-f)/eps, (fz-f)/eps).norm();
   }
 #endif
 
   double distance_func(const Vec& v) const override {
-    return pow((v.x-p.x)*cos_a+(v.z-p.z)*sin_a, 2./3.) + pow(v.y-p.y, 2./3.) + pow((v.x-p.x)*-sin_a+(v.z-p.z)*cos_a, 2./3.) - pow(r, 2./3.);
+    return pow((v.x - p.x) * cos_a + (v.z - p.z) * sin_a, 2. / 3.) +
+           pow(v.y - p.y, 2. / 3.) +
+           pow((v.x - p.x) * -sin_a + (v.z - p.z) * cos_a, 2. / 3.) -
+           pow(r, 2. / 3.);
   }
 };
 
