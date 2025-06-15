@@ -718,14 +718,16 @@ double add(double a, const double* b) {
 }
 
 
+//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a) {
+//CHECK-NEXT:     *_d_a += _d_y;
+//CHECK-NEXT: }
+
 //CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a, double *_d_b) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_a += _d_y;
 //CHECK-NEXT:         _d_b[0] += _d_y;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
-
-//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a);
 
 double fn17 (double x, const double* y) {
     x = add(x, y);
@@ -926,6 +928,24 @@ double fn25(double x) {
 // CHECK-NEXT:    }
 // CHECK-NEXT: }
 
+double inner_func(double *params, double const *constants) {
+   return params[0] * constants[0];
+}
+
+// CHECK-NOT: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params, double *_d_constants) {
+
+// CHECK: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params) {
+// CHECK-NEXT:     _d_params[0] += _d_y * constants[0];
+// CHECK-NEXT: }
+
+double fn26(double *params, double const *constants) {
+   return inner_func(params, constants);
+}
+
+// CHECK: void fn26_grad_0(double *params, const double *constants, double *_d_params) {
+// CHECK-NEXT:     inner_func_pullback(params, constants, 1, _d_params);
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -1046,6 +1066,11 @@ int main() {
 
   INIT(fn25_defined_later);
   TEST1(fn25_defined_later, 3); // CHECK-EXEC: {1.00}
+
+  dx1[0] = 0;
+  auto fn26_grad_0 = clad::gradient(fn26, "params");
+  fn26_grad_0.execute(x1, w1, dx1);
+  printf("{%.2f}\n", dx1[0]);   // CHECK-EXEC: {-1.00}
 }
 
 double sq_defined_later(double x) {
@@ -1062,10 +1087,6 @@ double fn25_defined_later(double x) {
 // CHECK-NEXT:     _d_i0 += 1;
 // CHECK-NEXT:     return {i, _d_i};
 // CHECK-NEXT: }
-
-//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a) {
-//CHECK-NEXT:     *_d_a += _d_y;
-//CHECK-NEXT: }
 
 // CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x) {
 // CHECK-NEXT:     {
