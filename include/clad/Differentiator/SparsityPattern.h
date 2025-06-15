@@ -18,7 +18,11 @@ template <typename T> class sparsity_pattern {
 
 public:
   sparsity_pattern() = default;
-
+  ~sparsity_pattern() {
+      delete[] m_col;
+      delete[] m_row;  
+      delete[] m_vals;
+  }
   void set_col_idx(std::initializer_list<int> col) {
     m_col_size = col.size();
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
