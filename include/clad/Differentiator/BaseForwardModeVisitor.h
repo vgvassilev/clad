@@ -39,6 +39,11 @@ public:
   ///
   DerivativeAndOverload Derive() override;
 
+  virtual StmtDiff Visit(const clang::Stmt* S) {
+    m_CurVisitedStmt = S;
+    return clang::ConstStmtVisitor<BaseForwardModeVisitor, StmtDiff>::Visit(S);
+  }
+
   virtual void ExecuteInsidePushforwardFunctionBlock() {}
 
   virtual StmtDiff

@@ -20,6 +20,7 @@
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/PrettyStackTrace.h"
 
 #include <array>
 #include <stack>
@@ -28,6 +29,10 @@
 namespace clang {
 class NestedNameSpecifier;
 } // namespace clang
+
+namespace llvm {
+class raw_ostream;
+} // namespace llvm
 
 namespace clad {
   class MultiplexExternalRMVSource;
@@ -135,6 +140,9 @@ namespace clad {
     // FIXME: Fix this inconsistency, by making `this` pointer derivative
     // expression to be of object type in the reverse mode as well.
     clang::Expr* m_ThisExprDerivative = nullptr;
+
+    /// The currently visited statement. Useful for crash pretty-printing.
+    const clang::Stmt* m_CurVisitedStmt = nullptr;
 
     /// A function used to wrap result of visiting E in a lambda. Returns a call
     /// to the built lambda. Func is a functor that will be invoked inside
@@ -671,6 +679,23 @@ namespace clad {
     clang::TemplateDecl* m_CladConstructorPushforwardTag = nullptr;
     clang::TemplateDecl* m_CladConstructorReverseForwTag = nullptr;
   };
+
+  /// A class that generates prettier stack traces when we crash on generating
+  /// a derivative.
+  class PrettyStackTraceDerivative : public llvm::PrettyStackTraceEntry {
+    const DiffRequest& m_DiffReq;
+    using Blocks = std::vector<llvm::SmallVector<clang::Stmt*, 16>>;
+    const Blocks& m_Blocks;
+    const clang::Sema& m_Sema;
+    const clang::Stmt** m_Stmt = nullptr;
+
+  public:
+    PrettyStackTraceDerivative(const DiffRequest& DiffReq, const Blocks& B,
+                               const clang::Sema& Sema, const clang::Stmt** S)
+        : m_DiffReq(DiffReq), m_Blocks(B), m_Sema(Sema), m_Stmt(S) {}
+    void print(llvm::raw_ostream& OS) const override;
+  };
+
 } // end namespace clad
 
 #endif // CLAD_VISITOR_BASE_H
