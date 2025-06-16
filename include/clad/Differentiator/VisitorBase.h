@@ -136,11 +136,6 @@ namespace clad {
     // expression to be of object type in the reverse mode as well.
     clang::Expr* m_ThisExprDerivative = nullptr;
 
-    // FIXME: Should we make this an object instead of a pointer?
-    // Downside of making it an object: We will need to include
-    // 'MultiplexExternalRMVSource.h' file
-    MultiplexExternalRMVSource* m_ExternalSource = nullptr;
-
     /// A function used to wrap result of visiting E in a lambda. Returns a call
     /// to the built lambda. Func is a functor that will be invoked inside
     /// lambda scope and block. Statements inside lambda are expected to be
@@ -444,24 +439,6 @@ namespace clad {
       llvm::SmallVector<clang::Expr*, 1> IS = {Idx};
       return BuildArraySubscript(Base, IS);
     }
-    /// Find namespace clad declaration.
-    clang::NamespaceDecl* GetCladNamespace();
-    /// Find declaration of clad::class templated type
-    ///
-    /// \param[in] className name of the class to be found
-    /// \returns The declaration of the class with the name ClassName
-    clang::TemplateDecl*
-    LookupTemplateDeclInCladNamespace(llvm::StringRef ClassName);
-    /// Instantiate clad::class<TemplateArgs> type
-    ///
-    /// \param[in] CladClassDecl the decl of the class that is going to be used
-    /// in the creation of the type \param[in] TemplateArgs an array of template
-    /// arguments \returns The created type clad::class<TemplateArgs>
-    clang::QualType
-    InstantiateTemplate(clang::TemplateDecl* CladClassDecl,
-                        llvm::ArrayRef<clang::QualType> TemplateArgs);
-    clang::QualType InstantiateTemplate(clang::TemplateDecl* CladClassDecl,
-                                        clang::TemplateArgumentListInfo& TLI);
     /// Find declaration of clad::tape templated type.
     clang::TemplateDecl* GetCladTapeDecl();
     /// Perform a lookup into clad namespace for an entity with given name.
@@ -562,20 +539,8 @@ namespace clad {
         llvm::ArrayRef<clang::TemplateArgument> templateArgs,
         clang::SourceLocation loc);
 
-    /// Find declaration of clad::array_ref templated type.
-    clang::TemplateDecl* GetCladArrayRefDecl();
-    /// Create clad::array_ref<T> type.
-    clang::QualType GetCladArrayRefOfType(clang::QualType T);
     /// Checks if the type is of clad::array<T> or clad::array_ref<T> type
     bool isCladArrayType(clang::QualType QT);
-    /// Find declaration of clad::array templated type.
-    clang::TemplateDecl* GetCladArrayDecl();
-    /// Create clad::array<T> type.
-    clang::QualType GetCladArrayOfType(clang::QualType T);
-    /// Find declaration of clad::matrix templated type.
-    clang::TemplateDecl* GetCladMatrixDecl();
-    /// Create clad::matrix<T> type.
-    clang::QualType GetCladMatrixOfType(clang::QualType T);
     /// Creates the expression clad::matrix<T>::identity(Args) for the given
     /// type and args.
     clang::Expr*
@@ -620,8 +585,6 @@ namespace clad {
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
 
-    clang::QualType GetDerivativeType();
-
     /// Returns clad::Identify template declaration.
     clang::TemplateDecl* GetCladConstructorPushforwardTag();
 
@@ -639,11 +602,12 @@ namespace clad {
     /// original derivative function internally. Used in gradient and jacobian
     /// modes.
     clang::FunctionDecl* CreateDerivativeOverload();
-
-    virtual clang::QualType
-    GetParameterDerivativeType(clang::QualType ParamType) {
-      return ParamType;
-    }
+    /// Find the derived function if present in the DerivedFnCollector.
+    ///
+    /// \param[in] request The request to find the derived function.
+    ///
+    /// \returns The derived function if found, nullptr otherwise.
+    clang::FunctionDecl* FindDerivedFunction(DiffRequest& request);
 
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.
@@ -659,6 +623,13 @@ namespace clad {
     /// Initiates the differentiation process.
     /// Returns the derivative and its overload, if any.
     virtual DerivativeAndOverload Derive() = 0;
+
+    /// Builds the QualType of the derivative to be generated.
+    ///
+    /// \param[in] moveBaseToParams If true, turns member functions into regular
+    /// functions by moving the base to the parameters.
+    clang::QualType
+    GetDerivativeType(llvm::ArrayRef<clang::QualType> customParams = {});
 
     /// Computes effective derivative operands. It should be used when operands
     /// might be of pointer types.

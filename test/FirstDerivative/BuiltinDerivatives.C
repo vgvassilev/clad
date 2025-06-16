@@ -57,7 +57,7 @@ float f2(float x) {
 
 // CHECK: float f2_darg0(float x) {
 // CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::cos_pushforward(x, _d_x);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = clad::custom_derivatives::std::cos_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -68,16 +68,16 @@ float f3(float x, float y) {
 // CHECK: float f3_darg0(float x, float y) {
 // CHECK-NEXT:     float _d_x = 1;
 // CHECK-NEXT:     float _d_y = 0;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::sin_pushforward(x, _d_x);
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t1 = clad::custom_derivatives::sin_pushforward(y, _d_y);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = clad::custom_derivatives::std::sin_pushforward(x, _d_x);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t1 = clad::custom_derivatives::std::sin_pushforward(y, _d_y);
 // CHECK-NEXT:     return _t0.pushforward + _t1.pushforward;
 // CHECK-NEXT: }
 
 // CHECK: float f3_darg1(float x, float y) {
 // CHECK-NEXT:     float _d_x = 0;
 // CHECK-NEXT:     float _d_y = 1;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::sin_pushforward(x, _d_x);
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t1 = clad::custom_derivatives::sin_pushforward(y, _d_y);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = clad::custom_derivatives::std::sin_pushforward(x, _d_x);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t1 = clad::custom_derivatives::std::sin_pushforward(y, _d_y);
 // CHECK-NEXT:     return _t0.pushforward + _t1.pushforward;
 // CHECK-NEXT: }
 
@@ -88,16 +88,16 @@ float f4(float x, float y) {
 // CHECK: float f4_darg0(float x, float y) {
 // CHECK-NEXT:     float _d_x = 1;
 // CHECK-NEXT:     float _d_y = 0;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::sin_pushforward(x * x, _d_x * x + x * _d_x);
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t1 = clad::custom_derivatives::sin_pushforward(y * y, _d_y * y + y * _d_y);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = clad::custom_derivatives::std::sin_pushforward(x * x, _d_x * x + x * _d_x);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t1 = clad::custom_derivatives::std::sin_pushforward(y * y, _d_y * y + y * _d_y);
 // CHECK-NEXT:     return _t0.pushforward + _t1.pushforward;
 // CHECK-NEXT: }
 
 // CHECK: float f4_darg1(float x, float y) {
 // CHECK-NEXT:     float _d_x = 0;
 // CHECK-NEXT:     float _d_y = 1;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::sin_pushforward(x * x, _d_x * x + x * _d_x);
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t1 = clad::custom_derivatives::sin_pushforward(y * y, _d_y * y + y * _d_y);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = clad::custom_derivatives::std::sin_pushforward(x * x, _d_x * x + x * _d_x);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t1 = clad::custom_derivatives::std::sin_pushforward(y * y, _d_y * y + y * _d_y);
 // CHECK-NEXT:     return _t0.pushforward + _t1.pushforward;
 // CHECK-NEXT: }
 
@@ -107,7 +107,7 @@ float f5(float x) {
 
 // CHECK: float f5_darg0(float x) {
 // CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::exp_pushforward(x, _d_x);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = clad::custom_derivatives::std::exp_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -117,7 +117,7 @@ float f6(float x) {
 
 // CHECK: float f6_darg0(float x) {
 // CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::exp_pushforward(x * x, _d_x * x + x * _d_x);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = clad::custom_derivatives::std::exp_pushforward(x * x, _d_x * x + x * _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -391,7 +391,7 @@ double f_fmodf(double x, double y) { return ::fmodf(x, y); }
 // CHECK: double f_fmodf_darg0(double x, double y) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     double _d_y = 0;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}fmodf_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<float, float> _t0 = {{.*}}fmodf_pushforward(x, y, _d_x, _d_y);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -407,7 +407,7 @@ double f_fmaxf(double x, double y) { return std::fmaxf(x, y); }
 // CHECK: double f_fmaxf_darg0(double x, double y) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     double _d_y = 0;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}fmaxf_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<float, float> _t0 = {{.*}}fmaxf_pushforward(x, y, _d_x, _d_y);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -430,56 +430,56 @@ double f_fdim(double x, double y) { return std::fdim(x, y); }
 double f_exp2f(double x) { return std::exp2f(x); }
 // CHECK: double f_exp2f_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}exp2f_pushforward(x, _d_x);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<float, float> _t0 = {{.*}}exp2f_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
 double f_expm1l(double x) { return std::expm1l(x); }
 // CHECK: double f_expm1l_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}expm1l_pushforward(x, _d_x);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<long double, long double> _t0 = {{.*}}expm1l_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
 double f_log1pl(double x) { return std::log1pl(x); }
 // CHECK: double f_log1pl_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}log1pl_pushforward(x, _d_x);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<long double, long double> _t0 = {{.*}}log1pl_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
 double f_tanhl(double x) { return tanhl(x); }
 // CHECK: double f_tanhl_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}tanhl_pushforward(x, _d_x);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<long double, long double> _t0 = {{.*}}tanhl_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
 double f_asinhf(double x) { return std::asinhf(x); }
 // CHECK: double f_asinhf_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}asinhf_pushforward(x, _d_x);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<float, float> _t0 = {{.*}}asinhf_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
 double f_acoshl(double x) { return std::acoshl(x); }
 // CHECK: double f_acoshl_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}acoshl_pushforward(x, _d_x);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<long double, long double> _t0 = {{.*}}acoshl_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
 double f_atanhl(double x) { return std::atanhl(x); }
 // CHECK: double f_atanhl_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}atanhl_pushforward(x, _d_x);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<long double, long double> _t0 = {{.*}}atanhl_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
 double f_erff(double x) { return std::erff(x); }
 // CHECK: double f_erff_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}erff_pushforward(x, _d_x);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<float, float> _t0 = {{.*}}erff_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -487,6 +487,14 @@ double f_erfc(double x) { return std::erfc(x); }
 // CHECK: double f_erfc_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}erfc_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_pow_zero(double x, double y) { return std::pow(x, y); }
+// CHECK: double f_pow_zero_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}pow_pushforward(x, y, _d_x, _d_y);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -660,6 +668,9 @@ int main () { //expected-no-diagnostics
 
   auto d_erfc = clad::differentiate(f_erfc, 0);
   printf("Result is = %.6f\n", d_erfc.execute(0.5)); // CHECK-EXEC: Result is = -0.878783
-  
+
+  auto d_pow_zero =  clad::differentiate(f_pow_zero, 0);
+  printf("Result is = %.6f\n", d_pow_zero.execute(0, 0)); // CHECK-EXEC: Result is = 0.000000
+
   return 0;
 }

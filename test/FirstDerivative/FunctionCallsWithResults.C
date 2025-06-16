@@ -81,8 +81,7 @@ float test_4(float x) {
 
 // CHECK: float test_4_darg0(float x) {
 // CHECK-NEXT: float _d_x = 1;
-// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::overloaded_pushforward();
-// CHECK-NEXT: return _t0.pushforward;
+// CHECK-NEXT: return 0.F;
 // CHECK-NEXT: }
 
 double sum_of_squares(double u, double v) {
@@ -320,10 +319,9 @@ double fn8(double i, double j) {
 // CHECK-NEXT:     modifyArr_pushforward(arr, 5, i * j, _d_arr, 0, _d_i * j + i * _d_j);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sum_pushforward(arr, 5, _d_arr, 0);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = check_and_return_pushforward(_t0.value, 'a', _t0.pushforward, 0);
-// CHECK-NEXT:     ValueAndPushforward<double, double> _t2 = clad::custom_derivatives::std::tanh_pushforward(1., 0.);
-// CHECK-NEXT:     double &_t3 = _t1.value;
-// CHECK-NEXT:     double &_t4 = _t2.value;
-// CHECK-NEXT:     return _t1.pushforward * _t4 + _t3 * _t2.pushforward;
+// CHECK-NEXT:     double &_t2 = _t1.value;
+// CHECK-NEXT:     double _t3 = std::tanh(1.);
+// CHECK-NEXT:     return _t1.pushforward * _t3 + _t2 * 0.;
 // CHECK-NEXT: }
 
 double g (double x) { return x; }
@@ -386,7 +384,7 @@ int main () {
   printf("Result is = %f\n", test_2_darg0(1.0)); // CHECK-EXEC: Result is = 2
 
   clad::differentiate(test_4, 0);
-  printf("Result is = %f\n", test_4_darg0(1.0)); // CHECK-EXEC: Result is = 4
+  printf("Result is = %f\n", test_4_darg0(1.0)); // CHECK-EXEC: Result is = 0
 
   INIT(fn1, "i");
   INIT(fn2, "i");

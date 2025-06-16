@@ -1,11 +1,14 @@
 #ifndef CLAD_DIFF_PLANNER_H
 #define CLAD_DIFF_PLANNER_H
 
+#include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/Timers.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
 #include "llvm/ADT/DenseSet.h"
@@ -45,6 +48,11 @@ private:
     bool HasAnalysisRun = false;
   } m_ActivityRunInfo;
 
+  mutable struct UsefulRunInfo {
+    std::set<const clang::VarDecl*> UsefulDecls;
+    bool HasAnalysisRun = false;
+  } m_UsefulRunInfo;
+
 public:
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
@@ -57,7 +65,7 @@ public:
   unsigned RequestedDerivativeOrder = 1;
   /// Context in which the function is being called, or a call to
   /// clad::gradient/differentiate, where function is the first arg.
-  clang::CallExpr* CallContext = nullptr;
+  clang::Expr* CallContext = nullptr;
   /// Args provided to the call to clad::gradient/differentiate.
   const clang::Expr* Args = nullptr;
   /// Indexes of global GPU args of function as a subset of Args.
@@ -72,6 +80,7 @@ public:
   /// A flag to enable TBR analysis during reverse-mode differentiation.
   bool EnableTBRAnalysis = false;
   bool EnableVariedAnalysis = false;
+  bool EnableUsefulAnalysis = false;
   /// A flag specifying whether this differentiation is to be used
   /// in immediate contexts.
   bool ImmediateMode = false;
@@ -98,6 +107,10 @@ public:
 
   // A flag to enable the use of enzyme for backend instead of clad
   bool use_enzyme = false;
+
+  /// UnresolvedLookupExpr or DeclRefExpr representing the custom derivative
+  /// overload
+  clang::Expr* CustomDerivative = nullptr;
 
   /// A pointer to keep track of the prototype of the derived functions.
   /// For higher order derivatives, we store the entire sequence of
@@ -131,6 +144,8 @@ public:
   /// Allow comparing DiffRequests.
   bool operator==(const DiffRequest& other) const {
     // Note that CallContext is always different and we should ignore it.
+    // CustomDerivative is an Expr* and is not always equal even if
+    // the set of overloads is the same.
     return Function == other.Function &&
            BaseFunctionName == other.BaseFunctionName &&
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
@@ -138,8 +153,10 @@ public:
            Args == other.Args && Mode == other.Mode &&
            EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
+           EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
-           DeclarationOnly == other.DeclarationOnly && Global == other.Global;
+           DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
+           CUDAGlobalArgsIndexes == other.CUDAGlobalArgsIndexes;
   }
 
   const clang::FunctionDecl* operator->() const { return Function; }
@@ -156,6 +173,7 @@ public:
 
   bool shouldBeRecorded(clang::Expr* E) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
+  bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
   bool isVaried(const clang::Expr* E) const;
   std::string ComputeDerivativeName() const;
   bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
@@ -166,6 +184,12 @@ public:
   std::set<const clang::VarDecl*>& getVariedDecls() const {
     return m_ActivityRunInfo.VariedDecls;
   }
+  void addUsefulDecl(const clang::VarDecl* init) {
+    m_UsefulRunInfo.UsefulDecls.insert(init);
+  }
+  std::set<const clang::VarDecl*>& getUsefulDecls() const {
+    return m_UsefulRunInfo.UsefulDecls;
+  }
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;
@@ -175,6 +199,7 @@ public:
     /// TBR analysis during reverse-mode differentiation.
     bool EnableTBRAnalysis = false;
     bool EnableVariedAnalysis = false;
+    bool EnableUsefulAnalysis = false;
   };
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
@@ -206,13 +231,21 @@ public:
                   RequestOptions& opts);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+    bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
       llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
       if (m_Traversed.count(FD))
         return true;
       m_Traversed.insert(FD);
+      TimedAnalysisRegion R(FD->getNameAsString());
       return TraverseDecl(const_cast<clang::FunctionDecl*>(FD));
     }
+    /// Looks up if the user has defined a custom derivative for the given
+    /// derivative function. If found, it is automatically attached to the
+    /// request in derived function collector.
+    /// \param[in] request The request for the derivative to lookup.
+    /// \returns true if a custom derivative was found, false otherwise
+    bool LookupCustomDerivativeDecl(DiffRequest& request);
 
   private:
     bool isInInterval(clang::SourceLocation Loc) const;

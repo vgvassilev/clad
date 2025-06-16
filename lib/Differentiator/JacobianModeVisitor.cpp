@@ -67,7 +67,11 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
   llvm::SmallVector<ParmVarDecl*, 16> params;
   llvm::SmallVector<ParmVarDecl*, 16> derivedParams;
   llvm::SmallVector<DeclStmt*, 8> adjointDecls;
-  for (const auto* PVD : FD->parameters()) {
+
+  auto origParams = FD->parameters();
+  for (size_t i = 0, e = origParams.size(); i < e; ++i) {
+    const ParmVarDecl* PVD = origParams[i];
+
     IdentifierInfo* PVDII = PVD->getIdentifier();
     auto* newPVD = CloneParmVarDecl(PVD, PVDII,
                                     /*pushOnScopeChains=*/true,
@@ -80,32 +84,41 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
     IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
     Expr* derivedExpr = nullptr;
     if (utils::isArrayOrPointerType(PVD->getType())) {
-      ParmVarDecl* derivedPVD = utils::BuildParmVarDecl(
-          m_Sema, m_Derivative, derivedPVDII,
-          GetParameterDerivativeType(PVD->getType()), PVD->getStorageClass());
+      ParmVarDecl* derivedPVD =
+          utils::BuildParmVarDecl(m_Sema, m_Derivative, derivedPVDII,
+                                  utils::GetParameterDerivativeType(
+                                      m_Sema, m_DiffReq.Mode, PVD->getType()),
+                                  PVD->getStorageClass());
       derivedParams.push_back(derivedPVD);
       derivedExpr =
           BuildOp(UO_Deref, BuildDeclRef(derivedPVD), PVD->getBeginLoc());
       derivedExpr = utils::BuildParenExpr(m_Sema, derivedExpr);
       Expr* getSize = BuildCallExprToMemFn(BuildDeclRef(derivedPVD),
                                            /*MemberFunctionName=*/"rows", {});
-      if (!m_IndVarCountExpr)
-        m_IndVarCountExpr = getSize;
-      else
-        m_IndVarCountExpr =
-            BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr, getSize);
+      llvm::StringRef PVDName = PVD->getName();
+      if (!PVDName.contains("_clad_out_")) {
+        if (!m_IndVarCountExpr)
+          m_IndVarCountExpr = getSize;
+        else
+          m_IndVarCountExpr =
+              BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr, getSize);
+      }
     } else if (PVD->getType()->isReferenceType()) {
-      ParmVarDecl* derivedPVD = utils::BuildParmVarDecl(
-          m_Sema, m_Derivative, derivedPVDII,
-          GetParameterDerivativeType(PVD->getType()), PVD->getStorageClass());
+      ParmVarDecl* derivedPVD =
+          utils::BuildParmVarDecl(m_Sema, m_Derivative, derivedPVDII,
+                                  utils::GetParameterDerivativeType(
+                                      m_Sema, m_DiffReq.Mode, PVD->getType()),
+                                  PVD->getStorageClass());
       derivedParams.push_back(derivedPVD);
       derivedExpr =
           BuildOp(UO_Deref, BuildDeclRef(derivedPVD), PVD->getBeginLoc());
       nonArrayIndVarCount += 1;
     } else {
-      VarDecl* derivedPVD = BuildVarDecl(
-          GetParameterDerivativeType(PVD->getType())->getPointeeType(),
-          derivedPVDII);
+      VarDecl* derivedPVD =
+          BuildVarDecl(utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
+                                                         PVD->getType())
+                           ->getPointeeType(),
+                       derivedPVDII);
       adjointDecls.push_back(BuildDeclStmt(derivedPVD));
       derivedExpr = BuildDeclRef(derivedPVD);
       nonArrayIndVarCount += 1;
@@ -245,13 +258,6 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
   // Create the overload declaration for the derivative.
   FunctionDecl* overloadFD = CreateDerivativeOverload();
   return DerivativeAndOverload{vectorDiffFD, overloadFD};
-}
-
-QualType JacobianModeVisitor::GetParameterDerivativeType(QualType T) {
-  QualType derivedTy =
-      this->VectorPushForwardModeVisitor::GetParameterDerivativeType(T);
-  derivedTy = m_Context.getPointerType(derivedTy.getNonReferenceType());
-  return derivedTy;
 }
 
 StmtDiff JacobianModeVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {

@@ -3,15 +3,17 @@
 #ifndef CLAD_UTILS_CLADUTILS_H
 #define CLAD_UTILS_CLADUTILS_H
 
+#include "DiffMode.h"
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclarationName.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Sema.h"
-#include "clang/AST/Type.h"
 #include "llvm/ADT/StringRef.h"
 
-#include <clang/AST/DeclCXX.h>
 #include <string>
 
 namespace clang {
@@ -181,7 +183,7 @@ namespace clad {
 
     /// Returns true if `T1` and `T2` have same cononical type; otherwise
     /// returns false.
-    bool SameCanonicalType(clang::QualType T1, clang::QualType T2);
+    bool isSameCanonicalType(clang::QualType T1, clang::QualType T2);
 
     /// Builds `base->member` expression or `base.member` expression depending
     /// on if the `base` is of pointer type or not.
@@ -318,6 +320,35 @@ namespace clad {
     ComputeMemExprPathType(clang::Sema& semaRef, clang::RecordDecl* RD,
                            llvm::ArrayRef<llvm::StringRef> fields);
 
+    /// Instantiate clad::class<TemplateArgs> type
+    ///
+    /// \param[in] CladClassDecl the decl of the class that is going to be used
+    /// in the creation of the type \param[in] TemplateArgs an array of template
+    /// arguments \returns The created type clad::class<TemplateArgs>
+    clang::QualType
+    InstantiateTemplate(clang::Sema& S, clang::TemplateDecl* CladClassDecl,
+                        llvm::ArrayRef<clang::QualType> TemplateArgs);
+    clang::QualType InstantiateTemplate(clang::Sema& S,
+                                        clang::TemplateDecl* CladClassDecl,
+                                        clang::TemplateArgumentListInfo& TLI);
+    /// Builds the QualType of the derivative to be generated.
+    ///
+    /// \param[in] moveBaseToParams If true, turns member functions into regular
+    /// functions by moving the base to the parameters.
+    clang::QualType
+    GetDerivativeType(clang::Sema& S, const clang::FunctionDecl* FD,
+                      DiffMode mode,
+                      llvm::ArrayRef<const clang::ValueDecl*> diffParams,
+                      bool moveBaseToParams = false,
+                      llvm::ArrayRef<clang::QualType> customParams = {});
+    /// Find declaration of clad::class templated type
+    ///
+    /// \param[in] className name of the class to be found
+    /// \returns The declaration of the class with the name ClassName
+    clang::TemplateDecl*
+    LookupTemplateDeclInCladNamespace(clang::Sema& S,
+                                      llvm::StringRef ClassName);
+
     bool hasNonDifferentiableAttribute(const clang::Decl* D);
 
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
@@ -331,6 +362,18 @@ namespace clad {
     clang::Expr* getZeroInit(clang::QualType T, clang::Sema& S);
 
     bool ContainsFunctionCalls(const clang::Stmt* E);
+
+    /// Find namespace clad declaration.
+    clang::NamespaceDecl* GetCladNamespace(clang::Sema& S);
+    /// Create clad::array<T> type.
+    clang::QualType GetCladArrayOfType(clang::Sema& S, clang::QualType T);
+    /// Create clad::matrix<T> type.
+    clang::QualType GetCladMatrixOfType(clang::Sema& S, clang::QualType T);
+    /// Create clad::array_ref<T> type.
+    clang::QualType GetCladArrayRefOfType(clang::Sema& S, clang::QualType T);
+
+    clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
+                                               clang::QualType Type);
 
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
@@ -350,6 +393,15 @@ namespace clad {
 
     bool IsDifferentiableType(clang::QualType T);
 
+    /// Returns true if FD can be differentiated as a pushforward
+    /// And be used in the reverse mode.
+    bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD);
+
+    /// We need to replace std::initializer_list with clad::array in the reverse
+    /// mode because the former is temporary by design and it's not possible to
+    /// create modifiable adjoints.
+    clang::QualType replaceStdInitListWithCladArray(clang::Sema& S,
+                                                    clang::QualType origTy);
     } // namespace utils
     } // namespace clad
 

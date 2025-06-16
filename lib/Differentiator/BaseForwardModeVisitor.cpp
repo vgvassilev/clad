@@ -22,6 +22,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -58,8 +59,8 @@ bool IsRealNonReferenceType(QualType T) {
 DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == DiffMode::forward ||
-         m_DiffReq.Mode == DiffMode::experimental_pushforward ||
-         m_DiffReq.Mode == DiffMode::experimental_vector_pushforward);
+         m_DiffReq.Mode == DiffMode::pushforward ||
+         m_DiffReq.Mode == DiffMode::vector_pushforward);
   assert(!m_DerivativeInFlight &&
          "Doesn't support recursive diff. Use DiffPlan.");
 
@@ -173,7 +174,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
     beginBlock();
 
     // FIXME: Remove the override in VectorPushForwardModeVisitor.
-    if (m_DiffReq.Mode == DiffMode::experimental_vector_pushforward)
+    if (m_DiffReq.Mode == DiffMode::vector_pushforward)
       ExecuteInsidePushforwardFunctionBlock();
 
     if (m_DiffReq.Mode == DiffMode::forward)
@@ -287,9 +288,10 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
       continue;
 
     IdentifierInfo* II = &m_Context.Idents.get("_d_" + PVD->getNameAsString());
-    auto* dPVD = utils::BuildParmVarDecl(
-        m_Sema, m_Derivative, II, GetParameterDerivativeType(PVD->getType()),
-        PVD->getStorageClass());
+    QualType diffTy = utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
+                                                        PVD->getType());
+    auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, diffTy,
+                                         PVD->getStorageClass());
     params.push_back(dPVD);
     m_Variables[PVD] = BuildDeclRef(dPVD);
   }
@@ -786,8 +788,7 @@ StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
       return {clonedME, zero};
     auto baseDiff = Visit(ME->getBase());
     // No derivative found for base. Therefore, derivative is 0.
-    if (isa<IntegerLiteral>(baseDiff.getExpr_dx()) ||
-        isa<FloatingLiteral>(baseDiff.getExpr_dx()))
+    if (baseDiff.getExpr_dx()->getType()->isVoidType())
       return {clonedME, zero};
 
     auto field = ME->getMemberDecl();
@@ -947,9 +948,12 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   // If DRE is of type pointer, then the derivative is a null pointer.
   if (clonedDRE->getType()->isPointerType())
     return StmtDiff(clonedDRE, nullptr);
-  QualType literalTy = utils::GetValueType(clonedDRE->getType());
-  return StmtDiff(clonedDRE, ConstantFolder::synthesizeLiteral(
-                                 literalTy, m_Context, /*val=*/0));
+
+  if (const auto* decl = dyn_cast<VarDecl>(DRE->getDecl()))
+    if (!m_DiffReq.shouldHaveAdjointForw(decl))
+      return StmtDiff(clonedDRE, nullptr);
+
+  return StmtDiff(clonedDRE, getZeroInit(clonedDRE->getType()));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
@@ -972,7 +976,7 @@ std::string BaseForwardModeVisitor::GetPushForwardFunctionSuffix() {
 }
 
 DiffMode BaseForwardModeVisitor::GetPushForwardMode() {
-  return DiffMode::experimental_pushforward;
+  return DiffMode::pushforward;
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
@@ -1096,52 +1100,19 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
                            diffArgs.end());
 
-  auto customDerivativeArgs = pushforwardFnArgs;
-
-  if (Expr* baseE = baseDiff.getExpr())
-    customDerivativeArgs.insert(customDerivativeArgs.begin(), baseE);
-
-  // Try to find a user-defined overloaded derivative.
   Expr* callDiff = nullptr;
-  std::string customPushforward =
-      clad::utils::ComputeEffectiveFnName(FD) + GetPushForwardFunctionSuffix();
-  callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-      customPushforward, customDerivativeArgs, getCurrentScope(), CE,
-      /*forCustomDerv=*/true, /*namespaceShouldExist=*/true, CUDAExecConfig);
-  // Custom derivative templates can be written in a
-  // general way that works for both vectorized and non-vectorized
-  // modes. We have to also look for the pushforward with the regular name.
-  if (!callDiff && m_DiffReq.Mode != DiffMode::forward) {
-    customPushforward =
-        clad::utils::ComputeEffectiveFnName(FD) + "_pushforward";
-    callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        customPushforward, customDerivativeArgs, getCurrentScope(), CE,
-        /*forCustomDerv=*/true, /*namespaceShouldExist=*/true, CUDAExecConfig);
-  }
-  if (!isLambda) {
-    // Check if it is a recursive call.
-    if (!callDiff && (FD == m_DiffReq.Function) &&
-        m_DiffReq.Mode == GetPushForwardMode()) {
-      // The differentiated function is called recursively.
-      Expr* derivativeRef =
-          m_Sema
-              .BuildDeclarationNameExpr(
-                  CXXScopeSpec(), m_Derivative->getNameInfo(), m_Derivative)
-              .get();
-      callDiff =
-          m_Sema
-              .ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
-                             derivativeRef, validLoc, pushforwardFnArgs,
-                             validLoc, CUDAExecConfig)
-              .get();
-    }
-  }
-
+  // FIXME: Move non-differentiable function handling to the DiffPlanner.
   // If all arguments are constant literals, then this does not contribute to
   // the gradient.
   // FIXME: revert this when this is integrated in the activity analysis pass.
+
+  QualType returnType = FD->getReturnType();
+  // FIXME: Decide this in the diff planner
+  bool needsForwPass =
+      utils::isNonConstReferenceType(returnType) || returnType->isPointerType();
   if (!callDiff) {
-    if (!isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE)) {
+    if (!isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE) &&
+        !needsForwPass) {
       bool allArgsHaveZeroDerivatives = true;
       for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
         Expr* dArg = diffArgs[i];
@@ -1174,17 +1145,34 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     pushforwardFnRequest.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
     // Silence diag outputs in nested derivation process.
     pushforwardFnRequest.VerboseDiags = false;
+    pushforwardFnRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
+    pushforwardFnRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
 
-    // Check if request already derived in DerivedFunctions.
-    FunctionDecl* pushforwardFD =
-        m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
-
+    FunctionDecl* pushforwardFD = nullptr;
+    if (m_DiffReq.CurrentDerivativeOrder != 1 || !m_DiffReq.CallContext) {
+      callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+          pushforwardFnRequest.ComputeDerivativeName(), pushforwardFnArgs,
+          getCurrentScope(), CE,
+          /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
+          CUDAExecConfig);
+      if (auto* foundCE = cast_or_null<CallExpr>(callDiff))
+        pushforwardFD = foundCE->getDirectCallee();
+      else
+        pushforwardFD = m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
+    } else
+      // Request the derivative
+      pushforwardFD = FindDerivedFunction(pushforwardFnRequest);
     if (pushforwardFD) {
-      if (baseDiff.getExpr()) {
+      auto* pushforwardMD = dyn_cast<CXXMethodDecl>(pushforwardFD);
+      if (pushforwardMD && pushforwardMD->isInstance()) {
         callDiff =
             BuildCallExprToMemFn(baseDiff.getExpr(), pushforwardFD->getName(),
                                  pushforwardFnArgs, CE->getBeginLoc());
       } else {
+        if (Expr* baseE = baseDiff.getExpr()) {
+          baseE = BuildOp(UO_AddrOf, baseE);
+          pushforwardFnArgs.insert(pushforwardFnArgs.begin(), baseE);
+        }
         callDiff =
             m_Sema
                 .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pushforwardFD),
@@ -1247,13 +1235,16 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
   else if (opKind == UO_PostInc || opKind == UO_PostDec ||
            opKind == UO_PreInc || opKind == UO_PreDec) {
     Expr* derivedOp = diff.getExpr_dx();
-    if (diff.getExpr_dx()->getType()->isPointerType())
+    if (derivedOp && diff.getExpr_dx()->getType()->isPointerType())
       derivedOp = BuildOp(opKind, diff.getExpr_dx());
     return StmtDiff(op, derivedOp);
   } /* For supporting complex types */
   else if (opKind == UnaryOperatorKind::UO_Real ||
            opKind == UnaryOperatorKind::UO_Imag) {
-    return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    Expr* derivedOp = diff.getExpr_dx();
+    if (derivedOp)
+      derivedOp = BuildOp(opKind, diff.getExpr_dx());
+    return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_Deref) {
     if (Expr* dx = diff.getExpr_dx())
       return StmtDiff(op, BuildOp(opKind, dx));
@@ -1262,7 +1253,10 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     return StmtDiff(
         op, ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0));
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
-    return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    Expr* derivedOp = diff.getExpr_dx();
+    if (derivedOp)
+      derivedOp = BuildOp(opKind, diff.getExpr_dx());
+    return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_LNot) {
     Expr* zero = getZeroInit(UnOp->getType());
     if (diff.getExpr_dx() && !isUnusedResult(diff.getExpr_dx()))
@@ -1335,7 +1329,8 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       derivedR = BuildParens(derivedR);
     opDiff = BuildOp(opCode, derivedL, derivedR);
   } else if (BinOp->isAssignmentOp()) {
-    if ((Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
+    if (Ldiff.getExpr_dx() &&
+        (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
          Expr::MLV_Valid) &&
         !isCladArrayType(Ldiff.getExpr_dx()->getType())) {
       diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
@@ -1462,9 +1457,13 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
         new (m_Context) CXXNullPtrLiteralExpr(VD->getType(), VD->getBeginLoc());
     // NOLINTEND(cppcoreguidelines-owned-memory)
   }
-  VarDecl* VDDerived = BuildVarDecl(
-      VD->getType(), "_d_" + VD->getNameAsString(), initDx, VD->isDirectInit());
-  m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+  VarDecl* VDDerived = nullptr;
+  if (m_DiffReq.shouldHaveAdjointForw(VD))
+    VDDerived = BuildVarDecl(VD->getType(), "_d_" + VD->getNameAsString(),
+                             initDx, VD->isDirectInit());
+
+  if (VDDerived)
+    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
 
@@ -1531,7 +1530,8 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
         m_DeclReplacements[VD] = VDDiff.getDecl();
       decls.push_back(VDDiff.getDecl());
-      declsDiff.push_back(VDDiff.getDecl_dx());
+      if (VDDiff.getDecl_dx())
+        declsDiff.push_back(VDDiff.getDecl_dx());
     } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
       DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
       if (SADDiff.getDecl())

@@ -88,14 +88,7 @@ public:
   ImplicitSolid(Vec e_, Vec c_, Refl_t refl_): Solid(e_, c_, refl_) {}
 
   // Return signed distance to nearest point on solid surface
-  virtual double distance_func(double x, double y, double z) const {
-    return 0;
-  }
-
-  // TODO: Remove when forward for virtual diff methods is not need
-  virtual double distance_func_darg0(double x, double y, double z) const;
-  virtual double distance_func_darg1(double x, double y, double z) const;
-  virtual double distance_func_darg2(double x, double y, double z) const;
+  virtual double distance_func(const Vec& p) const { return 0; }
 
   // implicit surface intersection
   // returns distance, 0 if nohit
@@ -104,7 +97,7 @@ public:
     Vec pt;
     do {
       pt=r.o+r.d*t;
-      f=fabs(distance_func(pt.x, pt.y, pt.z));
+      f = fabs(distance_func(pt));
       t1=t;
       t+=f;
       if (f<eps || t==t1) return t;
@@ -112,25 +105,9 @@ public:
     return 0;
   }
 
-  // returns normal vector to surface in point pt
-  // by clad
-  Vec normal(const Vec &pt) const override {
-    // FIXME: Replace the calls to `clad::differentiate` when we fix
-    // CladFunction::execute being able to pass the derived class (without
-    // it being sliced.
-    auto distance_func_dx = clad::differentiate(&ImplicitSolid::distance_func, 0);
-    auto distance_func_dy = clad::differentiate(&ImplicitSolid::distance_func, 1);
-    auto distance_func_dz = clad::differentiate(&ImplicitSolid::distance_func, 2);
-    // FIXME: Uncomment, see above.
-    //double Nx = distance_func_dx.execute(*this, pt.x, pt.y, pt.z);
-    //double Ny = distance_func_dy.execute(*this, pt.x, pt.y, pt.z);
-    //double Nz = distance_func_dz.execute(*this, pt.x, pt.y, pt.z);
-    double Nx = distance_func_darg0(pt.x, pt.y, pt.z);
-    double Ny = distance_func_darg1(pt.x, pt.y, pt.z);
-    double Nz = distance_func_darg2(pt.x, pt.y, pt.z);
-
-    return Vec(Nx, Ny, Nz).norm();
-  }
+  // FIXME: Once Clad fully supports virtual methods,
+  // we should write the general virtual normal function here.
+  // Vec normal(const Vec &pt) const override;
 };
 
 
@@ -138,25 +115,28 @@ public:
 
 #ifdef TEST_TYPE_BY_HAND
 // by hand
-double sphere_func_dx(double x, double y, double z, const Vec &p, double r) {
-  return 2*(x-p.x);
+double sphere_func_dx(const Vec& p, const Vec& p0, double r) {
+  return 2 * (p.x - p0.x);
 }
 
-double sphere_func_dy(double x, double y, double z, const Vec &p, double r) {
-  return 2*(y-p.y);
+double sphere_func_dy(const Vec& p, const Vec& p0, double r) {
+  return 2 * (p.y - p0.y);
 }
 
-double sphere_func_dz(double x, double y, double z, const Vec &p, double r) {
-  return 2*(z-p.z);
+double sphere_func_dz(const Vec& p, const Vec& p0, double r) {
+  return 2 * (p.z - p0.z);
 }
 #endif
 
-double sphere_distance_func(double x, double y, double z, const Vec &p, double r) {
-  return sqrt((x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z)) - r;
+double sphere_distance_func(const Vec& p, const Vec& p0, double r) {
+  return sqrt((p.x - p0.x) * (p.x - p0.x) + (p.y - p0.y) * (p.y - p0.y) +
+              (p.z - p0.z) * (p.z - p0.z)) -
+         r;
 }
 
-double sphere_implicit_func(double x, double y, double z, const Vec &p, double r) {
-  return (x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z) - r*r;
+double sphere_implicit_func(const Vec& p, const Vec& p0, double r) {
+  return (p.x - p0.x) * (p.x - p0.x) + (p.y - p0.y) * (p.y - p0.y) +
+         (p.z - p0.z) * (p.z - p0.z) - r * r;
 }
 
 //
@@ -167,21 +147,15 @@ public:
   Vec p; // position
 
   Sphere() : r(), p() {}
-  Sphere(double r_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
-    r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {
-    // Move to Normal when execute can call polymorphic diffs
-    auto sphere_func_dx = clad::differentiate(&Sphere::distance_func, 0);
-    auto sphere_func_dy = clad::differentiate(&Sphere::distance_func, 1);
-    auto sphere_func_dz = clad::differentiate(&Sphere::distance_func, 2);
-  }
-
+  Sphere(double r_, Vec p_, Vec e_, Vec c_, Refl_t refl_)
+      : r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {}
 
 #ifdef TEST_TYPE_BY_HAND
   // by hand
   Vec normal(const Vec &pt) const override {
-    double Nx = sphere_func_dx(pt.x, pt.y, pt.z, p, r);
-    double Ny = sphere_func_dy(pt.x, pt.y, pt.z, p, r);
-    double Nz = sphere_func_dz(pt.x, pt.y, pt.z, p, r);
+    double Nx = sphere_func_dx(pt, p, r);
+    double Ny = sphere_func_dy(pt, p, r);
+    double Nz = sphere_func_dz(pt, p, r);
 
     return Vec(Nx, Ny, Nz).norm();
   }
@@ -190,38 +164,35 @@ public:
 #ifdef TEST_TYPE_BY_CLAD
   // by clad
   Vec normal(const Vec &pt) const override {
-    //auto sphere_func_dx = clad::differentiate(&Sphere::distance_func, 0);
-    //auto sphere_func_dy = clad::differentiate(&Sphere::distance_func, 1);
-    //auto sphere_func_dz = clad::differentiate(&Sphere::distance_func, 2);
-
-    //double Nx = sphere_func_dx.execute(*this, pt.x, pt.y, pt.z, p, r);
-    //double Ny = sphere_func_dy.execute(*this, pt.x, pt.y, pt.z, p, r);
-    //double Nz = sphere_func_dz.execute(*this, pt.x, pt.y, pt.z, p, r);
-
-    double Nx = distance_func_darg0(pt.x, pt.y, pt.z);
-    double Ny = distance_func_darg0(pt.x, pt.y, pt.z);
-    double Nz = distance_func_darg0(pt.x, pt.y, pt.z);
-
-    return Vec(Nx, Ny, Nz).norm();
-    //return Vec(Nx, Ny, Nz); // nabla f of signed distance functions is always unit vector
+    // FIXME: We should differentiate distance_func directly once clad
+    // provides functionality to call CladFunction of member functions.
+    // FIXME: Right now, not differentiating w.r.t. p0 produces an error
+    // as described in #1411.
+    Vec result{};
+    Vec dummy{};
+    auto dist_grad = clad::gradient(sphere_distance_func, "p, p0");
+    dist_grad.execute(pt, p, r, &result, &dummy);
+    return result; // nabla f of signed distance functions is always unit vector
   }
 #endif
 
 #ifdef TEST_TYPE_BY_NUM
   // by numeric approximation
   Vec normal(const Vec &pt) const override {
-    double f =  sphere_implicit_func(pt.x, pt.y, pt.z, p, r);
-    double fx = sphere_implicit_func(pt.x+eps, pt.y, pt.z, p, r);
-    double fy = sphere_implicit_func(pt.x, pt.y+eps, pt.z, p, r);
-    double fz = sphere_implicit_func(pt.x, pt.y, pt.z+eps, p, r);
+    double f = sphere_implicit_func(pt, p, r);
+    double fx = sphere_implicit_func({pt.x + eps, pt.y, pt.z}, p, r);
+    double fy = sphere_implicit_func({pt.x, pt.y + eps, pt.z}, p, r);
+    double fz = sphere_implicit_func({pt.x, pt.y, pt.z + eps}, p, r);
 
     return Vec((fx-f)/eps, (fy-f)/eps, (fz-f)/eps).norm();
   }
 #endif
 
   //TODO: Override distance func method when parent method is virtual
-  double distance_func(double x, double y, double z) const override {
-    return sqrt((x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z)) - r;
+  double distance_func(const Vec& v) const override {
+    return sqrt((v.x - p.x) * (v.x - p.x) + (v.y - p.y) * (v.y - p.y) +
+                (v.z - p.z) * (v.z - p.z)) -
+           r;
   }
 };
 
@@ -233,22 +204,31 @@ public:
 
 #ifdef TEST_TYPE_BY_HAND
 // by hand
-double h_func_dx(double x, double y, double z, const Vec &p, double r) {
-  return (2./3.*cos_a)/pow(((x-p.x)*cos_a+(z-p.z)*sin_a),1./3.) - (2./3.*sin_a)/pow(((z-p.z)*cos_a-(x-p.x)*sin_a),1./3.);
+double h_func_dx(const Vec& p, const Vec& p0, double r) {
+  return (2. / 3. * cos_a) /
+             pow(((p.x - p0.x) * cos_a + (p.z - p0.z) * sin_a), 1. / 3.) -
+         (2. / 3. * sin_a) /
+             pow(((p.z - p0.z) * cos_a - (p.x - p0.x) * sin_a), 1. / 3.);
 }
 
-double h_func_dy(double x, double y, double z, const Vec &p, double r) {
-  return (2./3.)/pow(y-p.y,1./3.);
+double h_func_dy(const Vec& p, const Vec& p0, double r) {
+  return (2. / 3.) / pow(p.y - p0.y, 1. / 3.);
 }
 
-double h_func_dz(double x, double y, double z, const Vec &p, double r) {
-  return (2./3.*sin_a)/pow((x-p.x)*cos_a+(z-p.z)*sin_a,1./3.) + (2./3.*cos_a)/pow((z-p.z)*cos_a-(x-p.x)*sin_a,1./3.);
+double h_func_dz(const Vec& p, const Vec& p0, double r) {
+  return (2. / 3. * sin_a) /
+             pow((p.x - p0.x) * cos_a + (p.z - p0.z) * sin_a, 1. / 3.) +
+         (2. / 3. * cos_a) /
+             pow((p.z - p0.z) * cos_a - (p.x - p0.x) * sin_a, 1. / 3.);
 }
 #endif
 
 //TODO: Check this distance func. Visualized "octahedron" do not like as octahedron.
-double hyperbolic_func(double x, double y, double z, const Vec &p, double r) {
-  return pow((x-p.x)*cos_a+(z-p.z)*sin_a, 2./3.) + pow(y-p.y, 2./3.) + pow((x-p.x)*-sin_a+(z-p.z)*cos_a, 2./3.) - pow(r, 2./3.);
+double hyperbolic_func(const Vec& p, const Vec& p0, double r) {
+  return pow((p.x - p0.x) * cos_a + (p.z - p0.z) * sin_a, 2. / 3.) +
+         pow(p.y - p0.y, 2. / 3.) +
+         pow((p.x - p0.x) * -sin_a + (p.z - p0.z) * cos_a, 2. / 3.) -
+         pow(r, 2. / 3.);
 }
 
 class HyperbolicSolid : public ImplicitSolid {
@@ -257,19 +237,14 @@ public:
   Vec p; // position
   HyperbolicSolid() : r(), p() {}
   HyperbolicSolid(double r_, Vec p_, Vec e_, Vec c_, Refl_t refl_)
-      : r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {
-    // FIXME: Move to Normal when execute can call polymorphic diffs.
-    auto hyperbolic_func_dx = clad::differentiate(&HyperbolicSolid::distance_func, 0);
-    auto hyperbolic_func_dy = clad::differentiate(&HyperbolicSolid::distance_func, 1);
-    auto hyperbolic_func_dz = clad::differentiate(&HyperbolicSolid::distance_func, 2);
-  }
+      : r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {}
 
 #ifdef TEST_TYPE_BY_HAND
   // by hand
   Vec normal(const Vec &pt) const override {
-    double Nx = h_func_dx(pt.x, pt.y, pt.z, p, r);
-    double Ny = h_func_dy(pt.x, pt.y, pt.z, p, r);
-    double Nz = h_func_dz(pt.x, pt.y, pt.z, p, r);
+    double Nx = h_func_dx(pt, p, r);
+    double Ny = h_func_dy(pt, p, r);
+    double Nz = h_func_dz(pt, p, r);
 
     return Vec(Nx, Ny, Nz).norm();
   }
@@ -278,39 +253,35 @@ public:
 #ifdef TEST_TYPE_BY_CLAD
   // by clad
   Vec normal(const Vec &pt) const override {
-    //auto hyperbolic_func_dx = clad::differentiate(&HyperbolicSolid::distance_func, 0);
-    //auto hyperbolic_func_dy = clad::differentiate(&HyperbolicSolid::distance_func, 1);
-    //auto hyperbolic_func_dz = clad::differentiate(&HyperbolicSolid::distance_func, 2);
-
-    //double Nx = hyperbolic_func_dx.execute(*this, pt.x, pt.y, pt.z, p, r);
-    //double Ny = hyperbolic_func_dy.execute(*this, pt.x, pt.y, pt.z, p, r);
-    //double Nz = hyperbolic_func_dz.execute(*this, pt.x, pt.y, pt.z, p, r);
-
-    double Nx = distance_func_darg0(pt.x, pt.y, pt.z);
-    double Ny = distance_func_darg1(pt.x, pt.y, pt.z);
-    double Nz = distance_func_darg2(pt.x, pt.y, pt.z);
-
-    // nabla f of signed distance functions is always unit vector, we might
-    // need to add support for nabla in clad.
-    // If functions are normalized we can skip calling `.norm()`.
-    return Vec(Nx, Ny, Nz).norm();
+    // FIXME: We should differentiate distance_func directly once clad
+    // provides functionality to call CladFunction of member functions.
+    // FIXME: Right now, not differentiating w.r.t. p0 produces an error
+    // as described in #1411.
+    Vec result{};
+    Vec dummy{};
+    auto dist_grad = clad::gradient(hyperbolic_func, "p, p0");
+    dist_grad.execute(pt, p, r, &result, &dummy);
+    return result; // nabla f of signed distance functions is always unit vector
   }
 #endif
 
 #ifdef TEST_TYPE_BY_NUM
   // by numeric approximation
   Vec normal(const Vec &pt) const override {
-    double f  = hyperbolic_func(pt.x, pt.y, pt.z, p, r);
-    double fx = hyperbolic_func(pt.x+eps, pt.y, pt.z, p, r);
-    double fy = hyperbolic_func(pt.x, pt.y+eps, pt.z, p, r);
-    double fz = hyperbolic_func(pt.x, pt.y, pt.z+eps, p, r);
+    double f = hyperbolic_func(pt, p, r);
+    double fx = hyperbolic_func({pt.x + eps, pt.y, pt.z}, p, r);
+    double fy = hyperbolic_func({pt.x, pt.y + eps, pt.z}, p, r);
+    double fz = hyperbolic_func({pt.x, pt.y, pt.z + eps}, p, r);
 
     return Vec((fx-f)/eps, (fy-f)/eps, (fz-f)/eps).norm();
   }
 #endif
 
-  double distance_func(double x, double y, double z) const override {
-    return pow((x-p.x)*cos_a+(z-p.z)*sin_a, 2./3.) + pow(y-p.y, 2./3.) + pow((x-p.x)*-sin_a+(z-p.z)*cos_a, 2./3.) - pow(r, 2./3.);
+  double distance_func(const Vec& v) const override {
+    return pow((v.x - p.x) * cos_a + (v.z - p.z) * sin_a, 2. / 3.) +
+           pow(v.y - p.y, 2. / 3.) +
+           pow((v.x - p.x) * -sin_a + (v.z - p.z) * cos_a, 2. / 3.) -
+           pow(r, 2. / 3.);
   }
 };
 

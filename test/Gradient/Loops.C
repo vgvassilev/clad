@@ -321,11 +321,8 @@ double f_sum(double *p, int n) {
 // CHECK-NEXT: }
 
 double sq(double x) { return x * x; }
-//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
-//CHECK-NEXT:       {
-//CHECK-NEXT:           *_d_x += _d_y * x;
-//CHECK-NEXT:           *_d_x += x * _d_y;
-//CHECK-NEXT:       }
+//CHECK:   clad::ValueAndPushforward<double, double> sq_pushforward(double x, double _d_x) {
+//CHECK-NEXT:       return {x * x, _d_x * x + x * _d_x};
 //CHECK-NEXT:   }
 
 double f_sum_squares(double *p, int n) {
@@ -362,7 +359,7 @@ double f_sum_squares(double *p, int n) {
 // CHECK-NEXT:         s = clad::pop(_t1);
 // CHECK-NEXT:         double _r_d0 = _d_s;
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         sq_pullback(p[i], _r_d0, &_r0);
+// CHECK-NEXT:         _r0 += _r_d0 * sq_pushforward(p[i], 1.).pushforward;
 // CHECK-NEXT:         _d_p[i] += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -428,7 +425,7 @@ double f_log_gaus(const double* x, double* p /*means*/, double n, double sigma) 
 // CHECK-NEXT:         _d_power += -_r_d1 / _t3;
 // CHECK-NEXT:         double _r1 = _r_d1 * -(-power / (_t3 * _t3));
 // CHECK-NEXT:         double _r2 = 0.;
-// CHECK-NEXT:         sq_pullback(sigma, 2 * _r1, &_r2);
+// CHECK-NEXT:         _r2 += 2 * _r1 * sq_pushforward(sigma, 1.).pushforward;
 // CHECK-NEXT:         _d_sigma += _r2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (;; _t0--) {
@@ -440,7 +437,7 @@ double f_log_gaus(const double* x, double* p /*means*/, double n, double sigma) 
 // CHECK-NEXT:         power = clad::pop(_t1);
 // CHECK-NEXT:         double _r_d0 = _d_power;
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         sq_pullback(x[i] - p[i], _r_d0, &_r0);
+// CHECK-NEXT:         _r0 += _r_d0 * sq_pushforward(x[i] - p[i], 1.).pushforward;
 // CHECK-NEXT:         _d_p[i] += -_r0;
 // CHECK-NEXT:     }
 
@@ -2089,7 +2086,7 @@ double fn26(double i, double j) {
 // CHECK-NEXT:             if (!_t0)
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
-// CHECK-NEXT:         {
+// CHECK-NEXT:         if (_t0 != _numRevIterations0 || (clad::back(_t3) != 1)) {
 // CHECK-NEXT:             res = clad::pop(_t2);
 // CHECK-NEXT:             double _r_d1 = _d_res;
 // CHECK-NEXT:             _d_res = 0.;
@@ -2963,7 +2960,7 @@ double fn36(double x, double y){
 //CHECK-NEXT:                             sum = clad::pop(_t2);
 //CHECK-NEXT:                             double _r_d0 = _d_sum;
 //CHECK-NEXT:                             double _r0 = 0.;
-//CHECK-NEXT:                             _r0 += _r_d0 * x * clad::custom_derivatives::sin_pushforward(i, 1.).pushforward;
+//CHECK-NEXT:                             _r0 += _r_d0 * x * clad::custom_derivatives::std::sin_pushforward(i, 1.).pushforward;
 //CHECK-NEXT:                             _d_i += _r0;
 //CHECK-NEXT:                             *_d_x += clad::back(_t3) * _r_d0;
 //CHECK-NEXT:                             clad::pop(_t3);

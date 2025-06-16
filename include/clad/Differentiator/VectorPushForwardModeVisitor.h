@@ -19,8 +19,6 @@ public:
 
   DerivativeAndOverload Derive() override;
 
-  clang::QualType
-  GetParameterDerivativeType(clang::QualType ParamType) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
 };
 } // end namespace clad

@@ -24,7 +24,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/Timer.h"
+
+#include <string>
 
 namespace clang {
   class ASTContext;
@@ -39,40 +40,33 @@ namespace clang {
 namespace clad {
 
 bool checkClangVersion();
-class CladTimerGroup {
-  llvm::TimerGroup m_Tg;
-  std::vector<std::unique_ptr<llvm::Timer>> m_Timers;
+namespace plugin {
+struct DifferentiationOptions {
+  DifferentiationOptions()
+      : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
+        DumpDerivedAST(false), GenerateSourceFile(false),
+        ValidateClangVersion(true), EnableTBRAnalysis(false),
+        DisableTBRAnalysis(false), EnableVariedAnalysis(false),
+        DisableVariedAnalysis(false), EnableUsefulAnalysis(false),
+        DisableUsefulAnalysis(false), CustomEstimationModel(false),
+        PrintNumDiffErrorInfo(false) {}
 
-public:
-  CladTimerGroup();
-  void StartNewTimer(llvm::StringRef TimerName, llvm::StringRef TimerDesc);
-  void StopTimer();
+  bool DumpSourceFn : 1;
+  bool DumpSourceFnAST : 1;
+  bool DumpDerivedFn : 1;
+  bool DumpDerivedAST : 1;
+  bool GenerateSourceFile : 1;
+  bool ValidateClangVersion : 1;
+  bool EnableTBRAnalysis : 1;
+  bool DisableTBRAnalysis : 1;
+  bool EnableVariedAnalysis : 1;
+  bool DisableVariedAnalysis : 1;
+  bool EnableUsefulAnalysis : 1;
+  bool DisableUsefulAnalysis : 1;
+  bool CustomEstimationModel : 1;
+  bool PrintNumDiffErrorInfo : 1;
+  std::string CustomModelName;
 };
-
-  namespace plugin {
-    struct DifferentiationOptions {
-      DifferentiationOptions()
-          : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
-            DumpDerivedAST(false), GenerateSourceFile(false),
-            ValidateClangVersion(true), EnableTBRAnalysis(false),
-            DisableTBRAnalysis(false), EnableVariedAnalysis(false),
-            DisableActivityAnalysis(false), CustomEstimationModel(false),
-            PrintNumDiffErrorInfo(false) {}
-
-      bool DumpSourceFn : 1;
-      bool DumpSourceFnAST : 1;
-      bool DumpDerivedFn : 1;
-      bool DumpDerivedAST : 1;
-      bool GenerateSourceFile : 1;
-      bool ValidateClangVersion : 1;
-      bool EnableTBRAnalysis : 1;
-      bool DisableTBRAnalysis : 1;
-      bool EnableVariedAnalysis : 1;
-      bool DisableActivityAnalysis : 1;
-      bool CustomEstimationModel : 1;
-      bool PrintNumDiffErrorInfo : 1;
-      std::string CustomModelName;
-    };
 
     class CladExternalSource : public clang::ExternalSemaSource {
     // ExternalSemaSource
@@ -104,7 +98,6 @@ public:
     DifferentiationOptions m_DO;
     std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
     bool m_HasRuntime = false;
-    CladTimerGroup m_CTG;
     DerivedFnCollector m_DFC;
     DynamicGraph<DiffRequest> m_DiffRequestGraph;
     enum class CallKind {
@@ -322,7 +315,11 @@ public:
           } else if (args[i] == "-enable-va") {
             m_DO.EnableVariedAnalysis = true;
           } else if (args[i] == "-disable-va") {
-            m_DO.DisableActivityAnalysis = true;
+            m_DO.DisableVariedAnalysis = true;
+          } else if (args[i] == "-enable-ua") {
+            m_DO.EnableUsefulAnalysis = true;
+          } else if (args[i] == "-disable-ua") {
+            m_DO.DisableUsefulAnalysis = true;
           } else if (args[i] == "-fcustom-estimation-model") {
             m_DO.CustomEstimationModel = true;
             if (++i == e) {
@@ -334,9 +331,9 @@ public:
             m_DO.PrintNumDiffErrorInfo = true;
           } else if (args[i] == "-help") {
             // Print some help info.
+            // CI.getFrontendOpts().ShowHelp does not give us control.
             llvm::errs()
-                << "Option set for the clang-based automatic differentiator - "
-                   "clad:\n\n"
+                << "Options specific to Clad (preceded by -plugin-arg-clad):"
                 << "-fdump-source-fn - Prints out the source code of the "
                    "function.\n"
                 << "-fdump-source-fn-ast - Prints out the AST of the "
@@ -362,6 +359,9 @@ public:
                    "by -DCLAD_NO_NUM_DIFF.\n";
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
+          } else if (args[i] == "-version" || args[i] == "-v") {
+            // CI.getFrontendOpts().ShowHelp does not give us control.
+            llvm::errs() << getCladFullVersion() << "\n";
           } else {
             llvm::errs() << "clad: Error: invalid option " << args[i] << "\n";
             return false; // Tells clang not to create the plugin.
@@ -376,8 +376,13 @@ public:
                           "be used together.\n";
           return false;
         }
-        if (m_DO.EnableVariedAnalysis && m_DO.DisableActivityAnalysis) {
+        if (m_DO.EnableVariedAnalysis && m_DO.DisableVariedAnalysis) {
           llvm::errs() << "clad: Error: -enable-va and -disable-va cannot "
+                          "be used together.\n";
+          return false;
+        }
+        if (m_DO.EnableUsefulAnalysis && m_DO.DisableUsefulAnalysis) {
+          llvm::errs() << "clad: Error: -enable-ua and -disable-ua cannot "
                           "be used together.\n";
           return false;
         }

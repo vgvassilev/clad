@@ -68,15 +68,14 @@ cudaMalloc_pushforward(T** devPtr, size_t sz, T** d_devPtr, size_t d_sz)
 }
 
 ValueAndPushforward<cudaError_t, cudaError_t>
-cudaMemcpy_pushforward(void* destPtr, void* srcPtr, size_t count,
-                       cudaMemcpyKind kind, void* d_destPtr, void* d_srcPtr,
-                       size_t d_count) __attribute__((host)) {
+cudaMemcpy_pushforward(void* destPtr, const void* srcPtr, size_t count,
+                       cudaMemcpyKind kind, void* d_destPtr,
+                       const void* d_srcPtr, size_t d_count) {
   return {cudaMemcpy(destPtr, srcPtr, count, kind),
           cudaMemcpy(d_destPtr, d_srcPtr, count, kind)};
 }
 
-ValueAndPushforward<int, int> cudaDeviceSynchronize_pushforward()
-    __attribute__((host)) {
+ValueAndPushforward<int, int> cudaDeviceSynchronize_pushforward() {
   return {cudaDeviceSynchronize(), 0};
 }
 
@@ -144,6 +143,8 @@ CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
 __builtin_pow_pushforward(double x, double exponent, double d_x,
                           double d_exponent) {
   auto val = __builtin_pow(x, exponent);
+  if (exponent == 0 && d_exponent == 0)
+    return {val, 0};
   double derivative = (exponent * __builtin_pow(x, exponent - 1)) * d_x;
   // Only add directional derivative of base^exp w.r.t exp if the directional
   // seed d_exponent is non-zero. This is required because if base is less than
@@ -160,6 +161,8 @@ CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
 __builtin_powf_pushforward(float x, float exponent, float d_x,
                            float d_exponent) {
   auto val = __builtin_powf(x, exponent);
+  if (exponent == 0 && d_exponent == 0)
+    return {val, 0};
   float derivative = (exponent * __builtin_powf(x, exponent - 1)) * d_x;
   // Only add directional derivative of base^exp w.r.t exp if the directional
   // seed d_exponent is non-zero. This is required because if base is less than
@@ -556,7 +559,8 @@ CUDA_HOST_DEVICE void expl_pullback(T x, U d_y, T* d_x) {
 // 2.2 exp2, exp2f, exp2l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp2_pushforward(T x, dT d_x) {
-  return {::std::exp2(x), ::std::exp2(x) * ::std::log(2) * d_x};
+  return {::std::exp2(x),
+          static_cast<dT>(::std::exp2(x) * ::std::log(2) * d_x)};
 }
 
 template <typename T, typename U>
@@ -1197,7 +1201,8 @@ CUDA_HOST_DEVICE void atanhl_pullback(T x, U d_z, T* d_x) {
 // 6.1 erf, erff, erfl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erf_pushforward(T x, dT d_x) {
-  return {::std::erf(x), (2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x) * d_x};
+  return {::std::erf(x),
+          static_cast<dT>(2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x) * d_x};
 }
 
 template <typename T, typename U>
@@ -1296,6 +1301,8 @@ template <typename T1, typename T2, typename dT1, typename dT2,
 CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
 pow_pushforward(T1 x, T2 exponent, dT1 d_x, dT2 d_exponent) {
   T_out val = ::std::pow(x, exponent);
+  if (exponent == static_cast<T2>(0) && d_exponent == static_cast<dT2>(0))
+    return {val, static_cast<dT_out>(0)};
   dT_out derivative = (exponent * ::std::pow(x, exponent - 1)) * d_x;
   // Only add directional derivative of base^exp w.r.t exp if the directional
   // seed d_exponent is non-zero. This is required because if base is less than
@@ -1357,7 +1364,7 @@ clamp_pushforward(const T& v, const T& lo, const T& hi, const T& d_v,
 
 template <typename T, typename U>
 CUDA_HOST_DEVICE void clamp_pullback(const T& v, const T& lo, const T& hi,
-                                     const U& d_y, T* d_v, T* d_lo, T* d_hi) {
+                                     U d_y, T* d_v, T* d_lo, T* d_hi) {
   if (v < lo)
     *d_lo += d_y;
   else if (hi < v)

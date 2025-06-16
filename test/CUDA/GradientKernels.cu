@@ -298,6 +298,13 @@ __global__ void kernel_with_device_call(double *out, const double *in, double va
   out[index] = device_fn(in[index], val);
 }
 
+// CHECK: __attribute__((device)) void device_fn_pullback_1(const double in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    {
+//CHECK-NEXT:                *_d_in += _d_y;
+//CHECK-NEXT:                *_d_val += _d_y;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 // CHECK: void kernel_with_device_call_grad_0_2(double *out, const double *in, double val, double *_d_out, double *_d_val) {
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x;
@@ -329,6 +336,14 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
   out[index] = device_fn_2(in, val);
 } 
 
+// CHECK: __attribute__((device)) void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    *_d_val += _d_y;
+//CHECK-NEXT:}
+
 // CHECK: void kernel_with_device_call_2_grad_0_2(double *out, const double *in, double val, double *_d_out, double *_d_val) {
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x;
@@ -341,6 +356,17 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
 //CHECK-NEXT:        double _r0 = 0.;
 //CHECK-NEXT:        device_fn_2_pullback_1(in, val, _r_d0, &_r0);
 //CHECK-NEXT:        atomicAdd(_d_val, _r0);
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: __attribute__((device)) void device_fn_2_pullback_0(const double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        *_d_val += _d_y;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
@@ -370,6 +396,17 @@ __global__ void kernel_with_device_call_3(double *out, double *in, double *val) 
   out[index] = device_fn_3(in, val);
 } 
 
+// CHECK: __attribute__((device)) void device_fn_3_pullback_0_1(double *in, double *val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        atomicAdd(_d_val, _d_y);
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 // CHECK: void kernel_with_device_call_3_grad(double *out, double *in, double *val, double *_d_out, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x;
@@ -396,6 +433,25 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
   int index = threadIdx.x;
   out[index] = device_with_device_call(in, val);
 }
+
+// CHECK: __attribute__((device)) void device_fn_4_pullback_0_1(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        *_d_val += _d_y;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: __attribute__((device)) void device_with_device_call_pullback_0(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    {
+//CHECK-NEXT:        double _r0 = 0.;
+//CHECK-NEXT:        device_fn_4_pullback_0_1(in, val, _d_y, _d_in, &_r0);
+//CHECK-NEXT:        *_d_val += _r0;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
 
 // CHECK: void kernel_with_nested_device_call_grad_0_1(double *out, double *in, double val, double *_d_out, double *_d_in) {
 //CHECK-NEXT:    double _d_val = 0.;
@@ -656,62 +712,6 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    cudaFree(_d_in_dev);
 //CHECK-NEXT:    cudaFree(out_dev);
 //CHECK-NEXT:    cudaFree(_d_out_dev);
-//CHECK-NEXT:}
-
-// CHECK: __attribute__((device)) void device_fn_pullback_1(const double in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    {
-//CHECK-NEXT:                *_d_in += _d_y;
-//CHECK-NEXT:                *_d_val += _d_y;
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
-
-// CHECK: __attribute__((device)) void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    *_d_val += _d_y;
-//CHECK-NEXT:}
-
-// CHECK: __attribute__((device)) void device_fn_2_pullback_0(const double *in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
-//CHECK-NEXT:        *_d_val += _d_y;
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
-
-// CHECK: __attribute__((device)) void device_fn_3_pullback_0_1(double *in, double *val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
-//CHECK-NEXT:        atomicAdd(_d_val, _d_y);
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
-
-// CHECK: __attribute__((device)) void device_with_device_call_pullback_0(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    {
-//CHECK-NEXT:        double _r0 = 0.;
-//CHECK-NEXT:        device_fn_4_pullback_0_1(in, val, _d_y, _d_in, &_r0);
-//CHECK-NEXT:        *_d_val += _r0;
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
-
-// CHECK: __attribute__((device)) void device_fn_4_pullback_0_1(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
-//CHECK-NEXT:        *_d_val += _d_y;
-//CHECK-NEXT:    }
 //CHECK-NEXT:}
 
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \

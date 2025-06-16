@@ -14,7 +14,7 @@
 
 Clad is a source-transformation [automatic differentiation (AD)](https://en.wikipedia.org/wiki/Automatic_differentiation) library for C++,<br/>implemented as a plugin for the [Clang compiler](http://clang.llvm.org/). 
 
-#### [Try Online](https://mybinder.org/v2/gh/vgvassilev/clad/master?labpath=%2Fdemos%2FJupyter%2FIntro.ipynb) | [Usage](#how-to-use-clad) | [Installation](#how-to-install) | [Further Reading](#further-reading) | [Documentation](https://clad.readthedocs.io/en/latest/index.html) | [Contributing](#how-to-contribute)
+#### [Try Online](https://godbolt.org/z/3KWhY4j8M) | [Binder](https://mybinder.org/v2/gh/vgvassilev/clad/master?labpath=%2Fdemos%2FJupyter%2FIntro.ipynb) | [Usage](#how-to-use-clad) | [Installation](#how-to-install) | [Further Reading](#further-reading) | [Documentation](https://clad.readthedocs.io/en/latest/index.html) | [Contributing](#how-to-contribute)
 </div>
 
 ## About Clad
@@ -134,7 +134,7 @@ int main() {
 
 ### Jacobian mode - `clad::jacobian`
 
-Clad can produce the jacobian of a function using its reverse mode. It returns the jacobian matrix as a `clad::matrix` for every pointer/array parameter.
+Clad can produce the jacobian of a function using its *vectorized forward mode*. It returns the jacobian matrix as a `clad::matrix` for every pointer/array parameter.
 
 `clad::jacobian(f, /*optional*/ ARGS)` takes 1 or 2 arguments:
 1. `f` is a pointer to a function or a method to be differentiated
@@ -143,14 +143,14 @@ Clad can produce the jacobian of a function using its reverse mode. It returns t
     * a string literal with comma-separated names of independent variables (e.g. `"x"` or `"y"` or `"x, y"` or `"y, x"`)
 
 The generated function has `void` return type and same input arguments. For every pointer/array parameter `arr`, the function has an additional argument `_d_vector_arr`. Its
-type is `clad::matrix<T>`, where `T` is the pointee type of `arr`. These variables store their derivatives w.r.t. all inputs.
+type is `clad::matrix<T>`, where `T` is the pointee type of `arr`. These variables store their derivatives w.r.t. all inputs. Output parameters are supposed to have `_clad_out_` prefix.
 *The caller is responsible for allocating the matrices*. Example:
 
 ```cpp
 #include "clad/Differentiator/Differentiator.h"
 #include <iostream>
 
-void h(double a, double b, double output[]) {
+void h(double a, double b, double _clad_out_output[]) {
     output[0] = a * a * a;
     output[1] = a * a * a + b * b * b;
     output[2] = 2 * (a + b);
@@ -180,7 +180,7 @@ Or in the case of multiple array parameters:
 #include "clad/Differentiator/Differentiator.h"
 #include <iostream>
 
-void h(double a, double b, double arr[], double* ptr) {
+void h(double a, double b, double _clad_out_arr[], double* _clad_out_ptr) {
     arr[0] = a * a * a;
     ptr[0] = arr[0] + b * b * b;
     arr[1] = 2 * (a + b);
@@ -238,12 +238,12 @@ More detail on the APIs can be found under clad's [user documentation](https://c
 
 #### Using Jupyter Notebooks
 
-[xeus-cling](https://github.com/jupyter-xeus/xeus-cling) provides a Jupyter kernel for C++ with the help of the C++ interpreter Cling and the native implementation of the Jupyter protocol xeus. Within the xeus-cling framework, Clad can enable automatic differentiation (AD) such that users can automatically generate C++ code for their computation of derivatives of their functions.
+[xeus-cpp](https://github.com/compiler-research/xeus-cpp) provides a Jupyter kernel for C++ with the help of the C++ interpreter clang-repl and the native implementation of the Jupyter protocol xeus. Within the xeus-cpp framework, Clad can enable automatic differentiation (AD) such that users can automatically generate C++ code for their computation of derivatives of their functions.
 
 To set up your environment, use:
 
 ```
-mamba create -n xeus-clad -c conda-forge clad xeus-cling jupyterlab
+mamba create -n xeus-clad -c conda-forge clad xeus-cpp clangdev=20 jupyterlab
 
 conda activate xeus-clad
 ```
@@ -398,7 +398,7 @@ namespace clad::custom_derivatives {
 You can also specify a custom gradient:
 ```cpp
 namespace clad::custom_derivatives {
-  void my_pow_grad(double x, double y, array_ref<double> _d_x, array_ref<double> _d_y) {
+  void my_pow_grad(double x, double y, double* _d_x, double* _d_y) {
      double t = my_pow(x, y - 1);
      *_d_x = y * t;
      *_d_y = x * t * std::log(x);

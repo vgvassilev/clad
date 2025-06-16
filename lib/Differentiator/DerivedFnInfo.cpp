@@ -9,13 +9,16 @@ DerivedFnInfo::DerivedFnInfo(const DiffRequest& request,
                              FunctionDecl* overloadedDerivedFn)
     : m_OriginalFn(request.Function), m_DerivedFn(derivedFn),
       m_OverloadedDerivedFn(overloadedDerivedFn), m_Mode(request.Mode),
-      m_DiffVarsInfo(request.DVI), m_UsesEnzyme(request.use_enzyme),
+      m_DiffVarsInfo(request.DVI),
+      m_CUDAGlobalArgsIndexes(request.CUDAGlobalArgsIndexes),
+      m_UsesEnzyme(request.use_enzyme),
       m_DeclarationOnly(request.DeclarationOnly) {}
 
 bool DerivedFnInfo::SatisfiesRequest(const DiffRequest& request) const {
   return (request.Function == m_OriginalFn && request.Mode == m_Mode &&
           request.DVI == m_DiffVarsInfo && request.use_enzyme == m_UsesEnzyme &&
-          request.DeclarationOnly == m_DeclarationOnly);
+          request.DeclarationOnly == m_DeclarationOnly &&
+          request.CUDAGlobalArgsIndexes == m_CUDAGlobalArgsIndexes);
 }
 
 bool DerivedFnInfo::IsValid() const { return m_OriginalFn && m_DerivedFn; }
@@ -25,6 +28,7 @@ bool DerivedFnInfo::RepresentsSameDerivative(const DerivedFnInfo& lhs,
   return lhs.m_OriginalFn == rhs.m_OriginalFn && lhs.m_Mode == rhs.m_Mode &&
          lhs.m_DiffVarsInfo == rhs.m_DiffVarsInfo &&
          lhs.m_UsesEnzyme == rhs.m_UsesEnzyme &&
-         lhs.m_DeclarationOnly == rhs.m_DeclarationOnly;
+         lhs.m_DeclarationOnly == rhs.m_DeclarationOnly &&
+         lhs.m_CUDAGlobalArgsIndexes == rhs.m_CUDAGlobalArgsIndexes;
 }
 } // namespace clad

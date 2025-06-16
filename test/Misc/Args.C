@@ -16,6 +16,10 @@
 // RUN: -Xclang -invalid %s 2>&1 | FileCheck --check-prefix=CHECK_INVALID %s
 // CHECK_INVALID: -invalid
 
+// RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad\
+// RUN: -Xclang -version %s 2>&1 | FileCheck --check-prefix=CHECK_VERSION %s
+// CHECK_VERSION: clad version {{[0-9]+\.[0-9]+\.[0-9]+}}
+
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
 // RUN:  -Xclang -fcustom-estimation-model %s 2>&1 | FileCheck --check-prefix=CHECK_EST_INVALID %s
 // CHECK_EST_INVALID: No shared object was specified
@@ -34,3 +38,7 @@
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad -Xclang -enable-va \
 // RUN:  -Xclang -plugin-arg-clad -Xclang -disable-va %s 2>&1 | FileCheck --check-prefix=CHECK_VA %s
 // CHECK_VA: -enable-va and -disable-va cannot be used together
+
+// RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad -Xclang -enable-ua \
+// RUN:  -Xclang -plugin-arg-clad -Xclang -disable-ua %s 2>&1 | FileCheck --check-prefix=CHECK_UA %s
+// CHECK_UA: -enable-ua and -disable-ua cannot be used together

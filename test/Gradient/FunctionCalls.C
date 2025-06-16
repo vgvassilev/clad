@@ -7,7 +7,8 @@
 
 namespace A {
   template <typename T> T constantFn(T i) { return 3; }
-  // CHECK: void constantFn_pullback(float i, float _d_y, float *_d_i) {
+  // CHECK: clad::ValueAndPushforward<float, float> constantFn_pushforward(float i, float _d_i) {
+  // CHECK-NEXT:   return {(float)3, (float)0};
   // CHECK-NEXT: }
 } // namespace A
 
@@ -33,7 +34,7 @@ double fn1(float i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0.F;
-// CHECK-NEXT:         constantFn_pullback(i, _d_res, &_r0);
+// CHECK-NEXT:         _r0 += _d_res * A::constantFn_pushforward(i, 1.F).pushforward;
 // CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -676,7 +677,6 @@ double recFun (double x, double y) {
     return x * y;
 }
 
-//CHECK: void recFun_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y);
 //CHECK: void recFun_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     {
@@ -718,14 +718,16 @@ double add(double a, const double* b) {
 }
 
 
+//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a) {
+//CHECK-NEXT:     *_d_a += _d_y;
+//CHECK-NEXT: }
+
 //CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a, double *_d_b) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_a += _d_y;
 //CHECK-NEXT:         _d_b[0] += _d_y;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
-
-//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a);
 
 double fn17 (double x, const double* y) {
     x = add(x, y);
@@ -759,11 +761,8 @@ double fn17 (double x, const double* y) {
 
 double sq_defined_later(double x);
 
-// CHECK: void sq_defined_later_pullback(double x, double _d_y, double *_d_x) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:       *_d_x += _d_y * x;
-// CHECK-NEXT:       *_d_x += x * _d_y;
-// CHECK-NEXT:     }
+// CHECK: clad::ValueAndPushforward<double, double> sq_defined_later_pushforward(double x, double _d_x) {
+// CHECK-NEXT:     return {x * x, _d_x * x + x * _d_x};
 // CHECK-NEXT: }
 
 double fn18(double x, double y) {
@@ -773,10 +772,10 @@ double fn18(double x, double y) {
 // CHECK: void fn18_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         sq_defined_later_pullback(x, 1, &_r0);
+// CHECK-NEXT:         _r0 += 1 * sq_defined_later_pushforward(x, 1.).pushforward;
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:         double _r1 = 0.;
-// CHECK-NEXT:         sq_defined_later_pullback(y, 1, &_r1);
+// CHECK-NEXT:         _r1 += 1 * sq_defined_later_pushforward(y, 1.).pushforward;
 // CHECK-NEXT:         *_d_y += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -788,8 +787,8 @@ T templated_fn(double x) {
   return x;
 }
 
-// CHECK: void templated_fn_pullback(double x, double _d_y, double *_d_x) {
-// CHECK-NEXT:     *_d_x += _d_y;
+// CHECK: clad::ValueAndPushforward<double, double> templated_fn_pushforward(double x, double _d_x) {
+// CHECK-NEXT:     return {x, _d_x};
 // CHECK-NEXT: }
 
 double fn19(double x) {
@@ -799,7 +798,7 @@ double fn19(double x) {
 // CHECK: void fn19_grad(double x, double *_d_x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         templated_fn_pullback(x, 1, &_r0);
+// CHECK-NEXT:         _r0 += 1 * templated_fn_pushforward(x, 1.).pushforward;
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -917,16 +916,34 @@ double fn25(double x) {
   return x;
 }
 
-// CHECK: void fn25_pullback(double x, double _d_y, double *_d_x) {
-// CHECK-NEXT:    *_d_x += _d_y;
+// CHECK: clad::ValueAndPushforward<double, double> fn25_pushforward(double x, double _d_x) {
+// CHECK-NEXT:    return {x, _d_x};
 // CHECK-NEXT:}
 
 // CHECK:void fn25_defined_later_grad(double x, double *_d_x) {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r0 = 0.;
-// CHECK-NEXT:        fn25_pullback(x, 1, &_r0);
+// CHECK-NEXT:        _r0 += 1 * fn25_pushforward(x, 1.).pushforward;
 // CHECK-NEXT:        *_d_x += _r0;
 // CHECK-NEXT:    }
+// CHECK-NEXT: }
+
+double inner_func(double *params, double const *constants) {
+   return params[0] * constants[0];
+}
+
+// CHECK-NOT: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params, double *_d_constants) {
+
+// CHECK: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params) {
+// CHECK-NEXT:     _d_params[0] += _d_y * constants[0];
+// CHECK-NEXT: }
+
+double fn26(double *params, double const *constants) {
+   return inner_func(params, constants);
+}
+
+// CHECK: void fn26_grad_0(double *params, const double *constants, double *_d_params) {
+// CHECK-NEXT:     inner_func_pullback(params, constants, 1, _d_params);
 // CHECK-NEXT: }
 
 template<typename T>
@@ -1049,6 +1066,11 @@ int main() {
 
   INIT(fn25_defined_later);
   TEST1(fn25_defined_later, 3); // CHECK-EXEC: {1.00}
+
+  dx1[0] = 0;
+  auto fn26_grad_0 = clad::gradient(fn26, "params");
+  fn26_grad_0.execute(x1, w1, dx1);
+  printf("{%.2f}\n", dx1[0]);   // CHECK-EXEC: {-1.00}
 }
 
 double sq_defined_later(double x) {
@@ -1062,14 +1084,9 @@ double fn25_defined_later(double x) {
 // CHECK-NEXT:     MyStruct::myFunction();
 // CHECK-NEXT:     double _d__d_i = 0.;
 // CHECK-NEXT:     double _d_i0 = i;
-// CHECK-NEXT:     double _t0 = _d_i0;
 // CHECK-NEXT:     _d_i0 += 1;
 // CHECK-NEXT:     return {i, _d_i};
 // CHECK-NEXT: }
-
-//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a) {
-//CHECK-NEXT:     *_d_a += _d_y;
-//CHECK-NEXT: }
 
 // CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x) {
 // CHECK-NEXT:     {

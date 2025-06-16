@@ -31,6 +31,8 @@ enum opts : unsigned {
   disable_tbr = 1 << (ORDER_BITS + 3),
   enable_va = 1 << (ORDER_BITS + 5),
   disable_va = 1 << (ORDER_BITS + 6),
+  enable_ua = 1 << (ORDER_BITS + 9),
+  disable_ua = 1 << (ORDER_BITS + 10),
 
   // Specifying whether we only want the diagonal of the hessian.
   diagonal_only = 1 << (ORDER_BITS + 4),
@@ -67,20 +69,26 @@ constexpr unsigned GetBitmaskedOpts(const unsigned first, Opts... opts) {
 // Define trap function that is a CUDA compatible replacement for
 // exit(int code) function
 #ifdef __CUDACC__
-inline __device__ void trap(int code) { asm("trap;"); }
-inline __host__ void trap(int code) { exit(code); }
+inline __host__ __device__ void trap(int code) {
+#ifdef __CUDA_ARCH__
+  // Device code path
+  asm("trap;");
+#else
+  // Host code path
+  exit(code);
+#endif
+}
 #else
 inline void trap(int code) { exit(code); }
 #endif
 
 #ifdef  __CUDACC__
-template<typename T>
-__device__ T* clad_addressof(T& r) {
+template <typename T> __host__ __device__ T* clad_addressof(T& r) {
+#ifdef __CUDA_ARCH__
   return __builtin_addressof(r);
-}
-template<typename T>
-__host__ T* clad_addressof(T& r) {
+#else
   return std::addressof(r);
+#endif
 }
 #else
 template<typename T>
