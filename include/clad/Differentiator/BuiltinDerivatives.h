@@ -70,10 +70,13 @@ cudaMalloc_pushforward(T** devPtr, size_t sz, T** d_devPtr, size_t d_sz)
 ValueAndPushforward<cudaError_t, cudaError_t>
 cudaMemcpy_pushforward(void* destPtr, const void* srcPtr, size_t count,
                        cudaMemcpyKind kind, void* d_destPtr,
-                       const void* d_srcPtr, size_t d_count)
-    __attribute__((host)) {
+                       const void* d_srcPtr, size_t d_count) {
   return {cudaMemcpy(destPtr, srcPtr, count, kind),
           cudaMemcpy(d_destPtr, d_srcPtr, count, kind)};
+}
+
+ValueAndPushforward<int, int> cudaDeviceSynchronize_pushforward() {
+  return {cudaDeviceSynchronize(), 0};
 }
 
 template <typename T>
