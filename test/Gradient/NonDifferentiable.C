@@ -230,7 +230,7 @@ int main() {
     // CHECK-NEXT:         {
     // CHECK-NEXT:             double _r0 = 0.;
     // CHECK-NEXT:             obj1 = _t0;
-    // CHECK-NEXT:             fn_non_diff_param_pullback(i, _t0, 1, &_r0);
+    // CHECK-NEXT:             fn_non_diff_param_pullback(i, obj1, 1, &_r0);
     // CHECK-NEXT:             *_d_i += _r0;
     // CHECK-NEXT:         }
     // CHECK-NEXT:     }

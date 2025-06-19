@@ -1776,7 +1776,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         PreCallStmts.push_back(op);
       }
       CallArgs.push_back(argDiff.getExpr());
-      DerivedCallArgs.push_back(argDiffStore);
+      DerivedCallArgs.push_back(argDiff.getExpr());
     }
     // Store all the derived call output args (if any)
     llvm::SmallVector<Expr*, 16> DerivedCallOutputArgs{};

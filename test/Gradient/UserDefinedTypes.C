@@ -141,7 +141,7 @@ double fn2(Tangent t, double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t0;
-// CHECK-NEXT:         sum_pullback(_t0, _d_res, &(*_d_t));
+// CHECK-NEXT:         sum_pullback(t, _d_res, &(*_d_t));
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -163,7 +163,7 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     Tangent _t2 = t;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t2;
-// CHECK-NEXT:         sum_pullback(_t2, 1, &_d_t);
+// CHECK-NEXT:         sum_pullback(t, 1, &_d_t);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t.data[1] = _t1;
@@ -357,7 +357,7 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT:     Tangent _t1 = t;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t1;
-// CHECK-NEXT:         sum_pullback(_t1, 1, &(*_d_t));
+// CHECK-NEXT:         sum_pullback(t, 1, &(*_d_t));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
@@ -401,7 +401,7 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         res = _t3;
 // CHECK-NEXT:         double _r_d1 = _d_res;
 // CHECK-NEXT:         t = _t4;
-// CHECK-NEXT:         sum_pullback(_t4, _r_d1, &(*_d_t));
+// CHECK-NEXT:         sum_pullback(t, _r_d1, &(*_d_t));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (;; _t0--) {
 // CHECK-NEXT:         {

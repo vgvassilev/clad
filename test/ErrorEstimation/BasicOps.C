@@ -267,9 +267,9 @@ float func8(float x, float y) {
 //CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:         x = _t1;
 //CHECK-NEXT:         double _t2 = 0.;
-//CHECK-NEXT:         helper2_pullback(_t1, _r_d0, &*_d_x, _t2);
+//CHECK-NEXT:         helper2_pullback(x, _r_d0, &*_d_x, _t2);
 //CHECK-NEXT:         _final_error += _t2;
-//CHECK-NEXT:         _final_error += std::abs(*_d_x * _t1 * {{.+}});
+//CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     _final_error += std::abs(*_d_y * y * {{.+}});
@@ -297,13 +297,13 @@ float func9(float x, float y) {
 //CHECK-NEXT:         float _r_d0 = _d_z;
 //CHECK-NEXT:         x = _t5;
 //CHECK-NEXT:         double _t6 = 0.;
-//CHECK-NEXT:         helper2_pullback(_t5, _r_d0 * _t4, &*_d_x, _t6);
+//CHECK-NEXT:         helper2_pullback(x, _r_d0 * _t4, &*_d_x, _t6);
 //CHECK-NEXT:         y = _t8;
 //CHECK-NEXT:         double _t9 = 0.;
-//CHECK-NEXT:         helper2_pullback(_t8, _t7 * _r_d0, &*_d_y, _t9);
+//CHECK-NEXT:         helper2_pullback(y, _t7 * _r_d0, &*_d_y, _t9);
 //CHECK-NEXT:         _final_error += _t6 + _t9;
-//CHECK-NEXT:         _final_error += std::abs(*_d_y * _t8 * {{.+}});
-//CHECK-NEXT:         _final_error += std::abs(*_d_x * _t5 * {{.+}});
+//CHECK-NEXT:         _final_error += std::abs(*_d_y * y * {{.+}});
+//CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = 0.;
@@ -314,9 +314,9 @@ float func9(float x, float y) {
 //CHECK-NEXT:         *_d_y += _r1;
 //CHECK-NEXT:         x = _t1;
 //CHECK-NEXT:         double _t2 = 0.;
-//CHECK-NEXT:         helper2_pullback(_t1, _d_z, &*_d_x, _t2);
+//CHECK-NEXT:         helper2_pullback(x, _d_z, &*_d_x, _t2);
 //CHECK-NEXT:         _final_error += _t0 + _t2;
-//CHECK-NEXT:         _final_error += std::abs(*_d_x * _t1 * {{.+}});
+//CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     _final_error += std::abs(*_d_y * y * {{.+}});
