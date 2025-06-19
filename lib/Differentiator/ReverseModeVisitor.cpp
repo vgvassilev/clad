@@ -1771,13 +1771,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // arrays are not stored.
       if (passByRef) {
         // Restore args
-        Stmts& block = getCurrentBlock(direction::reverse);
         Expr* op = BuildOp(BinaryOperatorKind::BO_Assign, argDiff.getExpr(),
                            argDiffStore);
-        block.insert(block.begin() + insertionPoint, op);
-        // We added restoration of the original arg. Thus we need to
-        // correspondingly adjust the insertion point.
-        insertionPoint += 1;
+        PreCallStmts.push_back(op);
       }
       CallArgs.push_back(argDiff.getExpr());
       DerivedCallArgs.push_back(argDiffStore);
