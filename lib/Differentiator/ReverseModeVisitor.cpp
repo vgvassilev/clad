@@ -1730,50 +1730,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       // Save cloned arg in a "global" variable, so that it is accessible from
       // the reverse pass.
-      // FIXME: At this point, we assume all the variables passed by reference
-      // may be changed since we have no way to determine otherwise.
-      // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
-      // arrays are not stored.
+      // For example:
+      // ```
+      // // forward pass
+      // _t0 = a;
+      // modify(a); // a is modified so we store it
+      //
+      // // reverse pass
+      // a = _t0;
+      // modify_pullback(a, ...); // the pullback should always keep `a` intact
+      // ```
+      // FIXME: Handle storing data passed through pointers and structures.
+      // FIXME: Improve TBR to handle these stores.
       QualType paramTy = PVD->getType();
       bool passByRef = paramTy->isLValueReferenceType() &&
                        !paramTy.getNonReferenceType().isConstQualified();
-      Expr* argDiffStore;
-      if (passByRef && !argDiff.getExpr()->isEvaluatable(m_Context))
-        argDiffStore =
-            GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/true);
-      else
-        argDiffStore = argDiff.getExpr();
-
-      // We need to pass the actual argument in the cloned call expression,
-      // instead of a temporary, for arguments passed by reference. This is
-      // because, callee function may modify the argument passed as reference
-      // and if we use a temporary variable then the effect of the modification
-      // will be lost.
-      // For example:
-      // ```
-      // // original statements
-      // modify(a); // a is passed by reference
-      // modify(a); // a is passed by reference
-      //
-      // // forward pass
-      // _t0 = a;
-      // modify(_t0); // _t0 is modified instead of a
-      // _t1 = a; // stale value of a is being used here
-      // modify(_t1);
-      //
-      // // correct forward pass
-      // _t0 = a;
-      // modify(a);
-      // _t1 = a;
-      // modify(a);
-      // ```
-      // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
-      // arrays are not stored.
       if (passByRef) {
-        // Restore args
-        Expr* op = BuildOp(BinaryOperatorKind::BO_Assign, argDiff.getExpr(),
-                           argDiffStore);
-        PreCallStmts.push_back(op);
+        StmtDiff pushPop = StoreAndRestore(argDiff.getExpr());
+        addToCurrentBlock(pushPop.getStmt());
+        PreCallStmts.push_back(pushPop.getStmt_dx());
       }
       CallArgs.push_back(argDiff.getExpr());
       DerivedCallArgs.push_back(argDiff.getExpr());
