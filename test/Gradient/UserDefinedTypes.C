@@ -1029,13 +1029,13 @@ struct MyStructWrapper {
 
 // CHECK:  inline constexpr clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> operator_equal_reverse_forw(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper &&_d_arg) noexcept {
 // CHECK-NEXT:      MyStruct _t0 = this->val;
-// CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, {0., 0.});
+// CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, std::move(_d_arg.val));
 // CHECK-NEXT:      return {*this, *_d_this};
 // CHECK-NEXT:  }
 
 // CHECK:  inline constexpr void operator_equal_pullback(MyStructWrapper &&arg, MyStructWrapper _d_y, MyStructWrapper *_d_this, MyStructWrapper *_d_arg) noexcept {
 // CHECK-NEXT:      MyStruct _t0 = this->val;
-// CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, {0., 0.});
+// CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, std::move((*_d_arg).val));
 // CHECK-NEXT:      {
 // CHECK-NEXT:          this->val = _t0;
 // CHECK-NEXT:          this->val.operator_equal_pullback(static_cast<MyStructWrapper &&>(arg).val, {0., 0.}, &_d_this->val, &(*_d_arg).val);

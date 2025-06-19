@@ -324,7 +324,7 @@ double f10(double x){
 // CHECK-NEXT:     double _d_t[3] = {0};
 // CHECK-NEXT:     double t[3];
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:     f10_1_reverse_forw(x, t, 0., _d_t, _tracker0);
+// CHECK-NEXT:     f10_1_reverse_forw(x, t, *_d_x, _d_t, _tracker0);
 // CHECK-NEXT:     _d_t[0] += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
