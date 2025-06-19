@@ -64,6 +64,7 @@ namespace clad {
 
     void updateStmt(clang::Stmt* S) { data[1] = S; }
     void updateStmtDx(clang::Stmt* S) { data[0] = S; }
+    void updateRevSweep(clang::Stmt* S) { m_ValueForRevSweep = S; }
     // Stmt_dx goes first!
     std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
 

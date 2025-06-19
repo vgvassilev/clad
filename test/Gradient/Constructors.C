@@ -418,6 +418,8 @@ double fn8(double u, double v) {
 // CHECK-NEXT:  }
 
 // CHECK:  void fn8_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:      double _t0 = u;
+// CHECK-NEXT:      double _t1 = v;
 // CHECK-NEXT:      std::pair<double, double> p(u, v);
 // CHECK-NEXT:      std::pair<double, double> _d_p(p);
 // CHECK-NEXT:      clad::zero_init(_d_p);
@@ -425,7 +427,11 @@ double fn8(double u, double v) {
 // CHECK-NEXT:          _d_p.first += 1;
 // CHECK-NEXT:          _d_p.second += 1;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      pair::constructor_pullback(u, v, &_d_p, &*_d_u, &*_d_v);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          u = _t0;
+// CHECK-NEXT:          v = _t1;
+// CHECK-NEXT:          pair::constructor_pullback(u, v, &_d_p, &*_d_u, &*_d_v);
+// CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
 int main() {

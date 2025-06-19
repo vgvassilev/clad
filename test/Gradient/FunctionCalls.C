@@ -213,7 +213,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:     res += sum_reverse_forw(arr, n, _d_arr, 0, _tracker0);
+// CHECK-NEXT:     res += sum_reverse_forw(arr, n, _d_arr, *_d_n, _tracker0);
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -937,7 +937,7 @@ double fn27(double u, double v) {
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum0 = arr[0] * arr[1] * arr[2];
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:     mult_reverse_forw(arr, u, _d_arr, 0., _tracker0);
+// CHECK-NEXT:     mult_reverse_forw(arr, u, _d_arr, *_d_u, _tracker0);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_sum += 1;
 // CHECK-NEXT:         _d_arr[2] += 1;
@@ -966,16 +966,16 @@ double& nested(double* x, double y) {
 }
 
 // CHECK-NEXT: clad::ValueAndAdjoint<double &, double &> nested_reverse_forw(double *x, double y, double *_d_x, double _d_y, clad::restore_tracker &_tracker0) {
-// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, 0., _tracker0);
-// CHECK-NEXT:     mult_reverse_forw(x, 3, _d_x, 0., _tracker0);
+// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, _d_y, _tracker0);
+// CHECK-NEXT:     mult_reverse_forw(x, 3, _d_x, 0, _tracker0);
 // CHECK-NEXT:     return {x[1], _d_x[1]};
 // CHECK-NEXT: }
 
 // CHECK-NEXT: void nested_pullback(double *x, double y, double _d_y0, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, 0., _tracker0);
+// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, *_d_y, _tracker0);
 // CHECK-NEXT:     clad::restore_tracker _tracker1 = {};
-// CHECK-NEXT:     mult_reverse_forw(x, 3, _d_x, 0., _tracker1);
+// CHECK-NEXT:     mult_reverse_forw(x, 3, _d_x, 0, _tracker1);
 // CHECK-NEXT:     _d_x[1] += _d_y0;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker1.restore();
@@ -1001,7 +1001,7 @@ double fn28(double u, double v) {
 // CHECK-NEXT:     double _d_arr[3] = {0};
 // CHECK-NEXT:     double arr[3] = {u, v, 1};
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = nested_reverse_forw(arr, u, _d_arr, 0., _tracker0);
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = nested_reverse_forw(arr, u, _d_arr, *_d_u, _tracker0);
 // CHECK-NEXT:     double &_d_ref = _t0.adjoint;
 // CHECK-NEXT:     double &ref = _t0.value;
 // CHECK-NEXT:     ref += 2;

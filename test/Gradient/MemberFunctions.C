@@ -502,7 +502,7 @@ double fn5(SimpleFunctions& v, double value) {
 
 // CHECK: void fn5_grad(SimpleFunctions &v, double value, SimpleFunctions *_d_v, double *_d_value) {
 // CHECK-NEXT:     SimpleFunctions _t0 = v;
-// CHECK-NEXT:     v.operator_plus_equal_reverse_forw(value, &(*_d_v), 0.);
+// CHECK-NEXT:     v.operator_plus_equal_reverse_forw(value, &(*_d_v), *_d_value);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
@@ -599,11 +599,15 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t1 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>(), u, &v, *_d_u, &*_d_v);
 // CHECK-NEXT:      SafeTestClass s2(_t1.value);
 // CHECK-NEXT:      SafeTestClass _d_s2 = _t1.adjoint;
-// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t2 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>(), w, _d_w);
-// CHECK-NEXT:      SafeTestClass s3(_t2.value);
-// CHECK-NEXT:      SafeTestClass _d_s3 = _t2.adjoint;
+// CHECK-NEXT:      double _t2 = w;
+// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t3 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>(), w, _d_w);
+// CHECK-NEXT:      SafeTestClass s3(_t3.value);
+// CHECK-NEXT:      SafeTestClass _d_s3 = _t3.adjoint;
 // CHECK-NEXT:      *_d_v += 1;
-// CHECK-NEXT:      SafeTestClass::constructor_pullback(w, &_d_s3, &_d_w);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          w = _t2;
+// CHECK-NEXT:          SafeTestClass::constructor_pullback(w, &_d_s3, &_d_w);
+// CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;  
 // CHECK-NEXT:          SafeTestClass::constructor_pullback(u, &v, &_d_s2, &_r0, &*_d_v);
