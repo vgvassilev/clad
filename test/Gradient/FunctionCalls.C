@@ -258,9 +258,8 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:             _d_arr[i] += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             arr[i] = clad::back(_t2);
+// CHECK-NEXT:             arr[i] = clad::pop(_t2);
 // CHECK-NEXT:             twice_pullback(arr[i], &_d_arr[i]);
-// CHECK-NEXT:             clad::pop(_t2);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
