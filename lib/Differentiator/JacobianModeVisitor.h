@@ -16,6 +16,16 @@ public:
 
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
 };
+
+// not really a visitor
+class SparseJacobianModeVisitor : public VisitorBase {
+
+public:
+  SparseJacobianModeVisitor(DerivativeBuilder& builder,
+                            const DiffRequest& request);
+
+  DerivativeAndOverload Derive() override;
+};
 } // end namespace clad
 
 #endif // CLAD_DIFFERENTIATOR_JACOBIANMODEVISITOR_H
