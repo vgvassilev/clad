@@ -170,10 +170,20 @@ TBRAnalyzer::VarData::VarData(QualType QT, const ASTContext& C,
     const auto* recordDecl = recordType->getDecl();
     auto& newArrMap = m_Val.m_ArrData;
     newArrMap = std::unique_ptr<ArrMap>(new ArrMap());
-    for (const auto* field : recordDecl->fields()) {
-      const auto varType = field->getType();
-      (*newArrMap)[getProfileID(field)] = VarData(varType, C);
-    }
+
+    // FIXME: For some reason if a variable is of kokkos-type we start creating
+    // infinite amount of VarData objects.
+    bool isInKokkosNS = false;
+    if (const auto* ns =
+            llvm::dyn_cast<clang::NamespaceDecl>(recordDecl->getDeclContext()))
+      if (ns->getName() == "Kokkos")
+        isInKokkosNS = true;
+
+    if (!isInKokkosNS)
+      for (const auto* field : recordDecl->fields()) {
+        const auto varType = field->getType();
+        (*newArrMap)[getProfileID(field)] = VarData(varType, C);
+      }
   }
 }
 const VarDecl*
@@ -241,11 +251,13 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
     varType = arrayParam->getOriginalType();
   else
     varType = VD->getType();
+
   // If varType represents auto or auto*, get the type of init.
   if (utils::IsAutoOrAutoPtrType(varType))
     varType = VD->getInit()->getType();
 
-  curBranch[VD] = VarData(varType, m_Context, forceNonRefType);
+  curBranch[VD] =
+      VarData(varType, m_AnalysisDC->getASTContext(), forceNonRefType);
 }
 
 void TBRAnalyzer::markLocation(const clang::Expr* E) {
@@ -292,15 +304,11 @@ TBRAnalyzer::getVarDataFromDecl(const clang::VarDecl* VD) {
 }
 
 void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
-  // Build the CFG (control-flow graph) of FD.
-  clang::CFG::BuildOptions Options;
-  m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), &m_Context, Options);
-
-  m_BlockData.resize(m_CFG->size());
-  m_BlockPassCounter.resize(m_CFG->size(), 0);
+  m_BlockData.resize(m_AnalysisDC->getCFG()->size());
+  m_BlockPassCounter.resize(m_AnalysisDC->getCFG()->size(), 0);
 
   // Set current block ID to the ID of entry the block.
-  auto* entry = &m_CFG->getEntry();
+  auto* entry = &m_AnalysisDC->getCFG()->getEntry();
   m_CurBlockID = entry->getBlockID();
   m_BlockData[m_CurBlockID] = std::unique_ptr<VarsData>(new VarsData());
 
@@ -310,7 +318,8 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   if (MD && !MD->isStatic()) {
     const Type* recordType = MD->getParent()->getTypeForDecl();
     VarData& thisData = getCurBlockVarsData()[nullptr];
-    thisData = VarData(QualType::getFromOpaquePtr(recordType), m_Context);
+    thisData = VarData(QualType::getFromOpaquePtr(recordType),
+                       m_AnalysisDC->getASTContext());
     // We have to set all pointer/reference parameters to tbr
     // since method pullbacks aren't supposed to change objects.
     setIsRequired(thisData);
@@ -338,7 +347,7 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
         LLVM_DEBUG(llvm::dbgs() << "successor: " << succ->getBlockID() << "\n");
   }
 
-  clang::SourceManager& SM = m_Context.getSourceManager();
+  clang::SourceManager& SM = m_AnalysisDC->getASTContext().getSourceManager();
   for (SourceLocation Loc : m_TBRLocs) {
     unsigned line = SM.getPresumedLoc(Loc).getLine();
     unsigned column = SM.getPresumedLoc(Loc).getColumn();
@@ -406,7 +415,7 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
 }
 
 CFGBlock* TBRAnalyzer::getCFGBlockByID(unsigned ID) {
-  return *(m_CFG->begin() + ID);
+  return *(m_AnalysisDC->getCFG()->begin() + ID);
 }
 
 TBRAnalyzer::VarsData*
@@ -562,9 +571,11 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
     if (auto* VD = dyn_cast<VarDecl>(D)) {
       addVar(VD);
       if (clang::Expr* init = VD->getInit()) {
+
         setMode(Mode::kMarkingMode);
         TraverseStmt(init);
         resetMode();
+
         auto& VDExpr = getCurBlockVarsData()[VD];
         // if the declared variable is ref type attach its VarData to the
         // VarData of the RHS variable.
@@ -621,9 +632,10 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     // Multiplication results in a linear expression if and only if one of the
     // factors is constant.
     Expr::EvalResult dummy;
-    bool nonLinear =
-        !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context) &&
-        !clad_compat::Expr_EvaluateAsConstantExpr(L, dummy, m_Context);
+    bool nonLinear = !clad_compat::Expr_EvaluateAsConstantExpr(
+                         R, dummy, m_AnalysisDC->getASTContext()) &&
+                     !clad_compat::Expr_EvaluateAsConstantExpr(
+                         L, dummy, m_AnalysisDC->getASTContext());
     if (nonLinear)
       startNonLinearMode();
 
@@ -636,8 +648,8 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     // Division normally only results in a linear expression when the
     // denominator is constant.
     Expr::EvalResult dummy;
-    bool nonLinear =
-        !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context);
+    bool nonLinear = !clad_compat::Expr_EvaluateAsConstantExpr(
+        R, dummy, m_AnalysisDC->getASTContext());
     if (nonLinear)
       startNonLinearMode();
 
@@ -662,8 +674,8 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
       // represents the same operation as 'x = x * y' ('x = x / y') and,
       // therefore, LHS has to be visited in kMarkingMode|kNonLinearMode.
       Expr::EvalResult dummy;
-      bool RisNotConst =
-          !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context);
+      bool RisNotConst = !clad_compat::Expr_EvaluateAsConstantExpr(
+          R, dummy, m_AnalysisDC->getASTContext());
       if (RisNotConst)
         setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
       TraverseStmt(L);

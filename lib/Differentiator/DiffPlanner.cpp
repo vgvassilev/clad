@@ -20,7 +20,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Analysis/CallGraph.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
@@ -649,12 +649,10 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
     if (!m_TbrRunInfo.HasAnalysisRun) {
       TimedAnalysisRegion R("TBR " + BaseFunctionName);
-
-      TBRAnalyzer analyzer(Function->getASTContext(),
-                           m_TbrRunInfo.ToBeRecorded);
+      TBRAnalyzer analyzer(AnalysisDC, getToBeRecorded());
       analyzer.Analyze(Function);
-      m_TbrRunInfo.HasAnalysisRun = true;
     }
+
     auto found = m_TbrRunInfo.ToBeRecorded.find(E->getBeginLoc());
     return found != m_TbrRunInfo.ToBeRecorded.end();
   }
@@ -1213,22 +1211,32 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.Function = request.Function->getDefinition();
 
     if (!LookupCustomDerivativeDecl(request)) {
-      if (m_TopMostReq->EnableVariedAnalysis &&
-          m_TopMostReq->Mode == DiffMode::reverse) {
+      // Create analysis manager once for all analyses.
+      AnalysisDeclContextManager* ADCM =
+          new AnalysisDeclContextManager(request.Function->getASTContext());
+      clang::CFG::BuildOptions Options;
+      request.AnalysisDC =
+          new AnalysisDeclContext(ADCM, request.Function, Options);
+
+      if (m_TopMostReq->EnableVariedAnalysis) {
         TimedAnalysisRegion R("VA " + request.BaseFunctionName);
-        VariedAnalyzer analyzer(request.Function->getASTContext(),
-                                request.getVariedDecls());
+        VariedAnalyzer analyzer(request.AnalysisDC, request.getVariedDecls());
         analyzer.Analyze(request.Function);
       }
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
         TimedAnalysisRegion R("UA " + request.BaseFunctionName);
-
-        UsefulAnalyzer analyzer(request.Function->getASTContext(),
-                                request.getUsefulDecls());
+        UsefulAnalyzer analyzer(request.AnalysisDC, request.getUsefulDecls());
         analyzer.Analyze(request.Function);
       }
 
+      if (request.Function->isDefined() && m_TopMostReq->EnableTBRAnalysis &&
+          (request.Mode == DiffMode::reverse ||
+           request.Mode == DiffMode::pullback)) {
+        TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
+        TBRAnalyzer analyzer(request.AnalysisDC, request.getToBeRecorded());
+        analyzer.Analyze(request.Function);
+      }
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
     }
@@ -1312,9 +1320,23 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (m_Sema.isStdInitializerList(recordTy, /*elemType=*/nullptr))
       return true;
 
-    if (!LookupCustomDerivativeDecl(request))
+    if (!LookupCustomDerivativeDecl(request)) {
+      AnalysisDeclContextManager* ADCM =
+          new AnalysisDeclContextManager(request.Function->getASTContext());
+      clang::CFG::BuildOptions Options;
+      request.AnalysisDC =
+          new AnalysisDeclContext(ADCM, request.Function, Options);
+
+      if (m_TopMostReq->EnableTBRAnalysis &&
+          (request.Mode == DiffMode::reverse ||
+           request.Mode == DiffMode::pullback)) {
+        TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
+        TBRAnalyzer analyzer(request.AnalysisDC, request.getToBeRecorded());
+        analyzer.Analyze(request.Function);
+      }
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
+    }
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     return true;

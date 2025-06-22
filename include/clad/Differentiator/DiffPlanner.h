@@ -10,6 +10,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/Compiler.h"
@@ -56,6 +57,8 @@ private:
 public:
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
+  /// Stores info relevant to the analysis(CFG, ASTContext).
+  clang::AnalysisDeclContext* AnalysisDC = nullptr;
   /// Name of the base function to be differentiated. Can be different from
   /// function->getNameAsString() when higher-order derivatives are computed.
   std::string BaseFunctionName = {};
@@ -178,6 +181,10 @@ public:
   std::string ComputeDerivativeName() const;
   bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
 
+  std::set<clang::SourceLocation>& getToBeRecorded() const {
+    m_TbrRunInfo.HasAnalysisRun = true;
+    return m_TbrRunInfo.ToBeRecorded;
+  }
   void addVariedDecl(const clang::VarDecl* init) {
     m_ActivityRunInfo.VariedDecls.insert(init);
   }
