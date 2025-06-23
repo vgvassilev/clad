@@ -107,80 +107,50 @@ void TBRAnalyzer::overlay(VarData& targetData,
     overlay((*targetData.m_Val.m_ArrData)[curID], IDSequence, i);
 }
 
-TBRAnalyzer::VarData*
-TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME) {
-  if (const auto* FD = dyn_cast<FieldDecl>(ME->getMemberDecl())) {
-    const auto* base = ME->getBase();
-    VarData* baseData = getExprVarData(base);
-
-    if (!baseData)
-      return nullptr;
-
-    return &(*baseData->m_Val.m_ArrData)[getProfileID(FD)];
-  }
-  return nullptr;
-}
-
-TBRAnalyzer::VarData*
-TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE) {
-  const auto* idxExpr = ASE->getIdx();
-  ProfileID idxID;
-  if (const auto* IL = dyn_cast<IntegerLiteral>(idxExpr))
-    idxID = getProfileID(IL);
-  else
-    // Non-const indices are represented with default FoldingSetNodeID.
-    m_NonConstIndexFound = true;
-
-  const auto* base = ASE->getBase()->IgnoreImpCasts();
-  VarData* baseData = getExprVarData(base);
-
-  if (!baseData)
-    return nullptr;
-
-  auto* baseArrMap = baseData->m_Val.m_ArrData.get();
-  auto it = baseArrMap->find(idxID);
-
-  // Add the current index if it was not added previously
-  if (it == baseArrMap->end()) {
-    auto& idxData = (*baseArrMap)[idxID];
-    // Since default ID represents non-const indices, whenever we add a new
-    // index we have to copy the VarData of default ID's element (if an element
-    // with undefined index was used this might be our current element).
-    ProfileID nonConstIdxID;
-    idxData = copy((*baseArrMap)[nonConstIdxID]);
-    return &idxData;
-  }
-
-  return &it->second;
-}
-
 TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E) {
-  // This line is necessary for pointer member expressions (in 'x->y' x would be
-  // implicitly casted with the * operator).
-  E = E->IgnoreImpCasts();
-  VarData* EData = nullptr;
-  if (isa<clang::DeclRefExpr>(E) || isa<clang::CXXThisExpr>(E)) {
-    const VarDecl* VD = nullptr;
-    // ``this`` does not have a declaration so it is represented with nullptr.
-    if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E))
-      VD = dyn_cast<clang::VarDecl>(DRE->getDecl());
-    EData = getVarDataFromDecl(VD);
+  llvm::SmallVector<ProfileID, 2> IDSequence;
+  const VarDecl* VD = getIDSequence(E, IDSequence);
+  VarData* data = getVarDataFromDecl(VD);
+  assert(data && "expression not found");
+
+  for (auto it = IDSequence.rbegin(), e = IDSequence.rend(); it != e; ++it) {
+    if (data->m_Type == VarData::OBJ_TYPE) {
+      data = &(*data->m_Val.m_ArrData)[*it];
+    } else if (data->m_Type == VarData::ARR_TYPE) {
+      // Non-const indices are represented with default FoldingSetNodeID.
+      ProfileID nonConstIdxID;
+      auto& baseArrMap = *data->m_Val.m_ArrData;
+      if (*it == nonConstIdxID) {
+        m_NonConstIndexFound = true;
+        data = &baseArrMap[*it];
+      } else {
+        auto foundElem = baseArrMap.find(*it);
+        // Add the current index if it was not added previously
+        if (foundElem == baseArrMap.end()) {
+          auto& idxData = baseArrMap[*it];
+          // Since default ID represents non-const indices, whenever we add a
+          // new index we have to copy the VarData of default ID's element (if
+          // an element with undefined index was used this might be our current
+          // element).
+          idxData = copy(baseArrMap[nonConstIdxID]);
+          data = &idxData;
+        } else
+          data = &foundElem->second;
+      }
+    } else if (data->m_Type == VarData::REF_TYPE) {
+      assert(data->m_Val.m_RefData && "undefined m_RefData");
+      data = getExprVarData(data->m_Val.m_RefData);
+    }
   }
-  if (const auto* ME = dyn_cast<clang::MemberExpr>(E))
-    EData = getMemberVarData(ME);
-  if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E))
-    EData = getArrSubVarData(ASE);
 
-  if (EData && EData->m_Type == VarData::REF_TYPE && EData->m_Val.m_RefData)
-    EData = getExprVarData(EData->m_Val.m_RefData);
-
-  return EData;
+  return data;
 }
 
 TBRAnalyzer::VarData::VarData(QualType QT, const ASTContext& C,
                               bool forceNonRefType) {
   QT = QT.getDesugaredType(C);
-  if (forceNonRefType && QT->isReferenceType())
+  if ((forceNonRefType && QT->isLValueReferenceType()) ||
+      QT->isRValueReferenceType())
     QT = QT->getPointeeType();
 
   if (QT->isReferenceType()) {
@@ -231,16 +201,27 @@ TBRAnalyzer::getIDSequence(const clang::Expr* E,
       E = ME->getBase();
     } else if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E)) {
       const auto* VD = cast<VarDecl>(DRE->getDecl());
-      if (VD->getType()->isReferenceType()) {
+      if (VD->getType()->isLValueReferenceType()) {
         VarData* refData = getVarDataFromDecl(VD);
-        E = refData->m_Val.m_RefData;
-        continue;
+        if (refData->m_Type == VarData::REF_TYPE && refData->m_Val.m_RefData) {
+          E = refData->m_Val.m_RefData;
+          continue;
+        }
       }
       innerVD = VD;
       break;
     } else if (isa<clang::CXXThisExpr>(E)) {
       innerVD = nullptr;
       break;
+    } else if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+      const auto opCode = UO->getOpcode();
+      // FIXME: Dereference corresponds to the 0's element,
+      // not an arbitrary element which is denoted be ProfileID().
+      // This is done because it's unclear how to get a 0 literal
+      // to generate the ProfileID.
+      if (opCode == UO_Deref)
+        IDSequence.push_back(ProfileID());
+      E = UO->getSubExpr();
     } else {
       assert(0 && "unexpected expression");
       break;
