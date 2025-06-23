@@ -143,13 +143,8 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
   clang::CFGBlock* getCFGBlockByID(unsigned ID);
 
-  /// Given a MemberExpr*/ArraySubscriptExpr* return a pointer to its
-  /// corresponding VarData. If the given element of an array does not have a
-  /// VarData yet it will be added automatically.
-  /// Otherwise, non-const indices will be represented as index -1.
-  VarData* getMemberVarData(const clang::MemberExpr* ME);
-  VarData* getArrSubVarData(const clang::ArraySubscriptExpr* ASE);
-  /// Given an Expr* returns its corresponding VarData.
+  /// Given an Expr* returns its corresponding VarData. If the given element of
+  /// an array does not have a VarData yet it will be added automatically.
   VarData* getExprVarData(const clang::Expr* E);
   /// Finds VD in the most recent block.
   VarData* getVarDataFromDecl(const clang::VarDecl* VD);
