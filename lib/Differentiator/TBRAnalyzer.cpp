@@ -1,7 +1,14 @@
 #include "TBRAnalyzer.h"
 
-#include "clang/AST/Expr.h"
+#include <cassert>
 
+#include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
+#include "clang/AST/OperationKinds.h"
+#include "clang/Basic/LLVM.h"
+
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #undef DEBUG_TYPE
@@ -204,14 +211,13 @@ TBRAnalyzer::VarData::VarData(QualType QT, const ASTContext& C,
     }
   }
 }
-
-void TBRAnalyzer::overlay(const clang::Expr* E) {
+const VarDecl*
+TBRAnalyzer::getIDSequence(const clang::Expr* E,
+                           llvm::SmallVectorImpl<ProfileID>& IDSequence) {
   m_NonConstIndexFound = false;
-  llvm::SmallVector<ProfileID, 2> IDSequence;
-  const clang::DeclRefExpr* innermostDRE = nullptr;
-  bool cond = true;
+  const VarDecl* innerVD = nullptr;
   // Unwrap the given expression to a vector of indices and fields.
-  while (cond) {
+  while (true) {
     E = E->IgnoreImplicit();
     if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
       if (const auto* IL = dyn_cast<clang::IntegerLiteral>(ASE->getIdx()))
@@ -230,15 +236,24 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
         E = refData->m_Val.m_RefData;
         continue;
       }
-      innermostDRE = DRE;
-      cond = false;
-    } else
-      return;
+      innerVD = VD;
+      break;
+    } else if (isa<clang::CXXThisExpr>(E)) {
+      innerVD = nullptr;
+      break;
+    } else {
+      assert(0 && "unexpected expression");
+      break;
+    }
   }
+  return innerVD;
+}
 
-  // Overlay on all the VarData's recursively.
-  VarData& data = *getExprVarData(innermostDRE);
-  overlay(data, IDSequence, IDSequence.size());
+void TBRAnalyzer::overlay(const clang::Expr* E) {
+  llvm::SmallVector<ProfileID, 2> IDSequence;
+  const VarDecl* VD = getIDSequence(E, IDSequence);
+  VarData* data = getVarDataFromDecl(VD);
+  overlay(*data, IDSequence, IDSequence.size());
 }
 // NOLINTEND(cppcoreguidelines-pro-type-union-access)
 
