@@ -260,22 +260,6 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
 }
 // NOLINTEND(cppcoreguidelines-pro-type-union-access)
 
-void TBRAnalyzer::copyVarToCurBlock(const clang::VarDecl* VD) {
-  // Visit all predecessors one by one until the variable VD is found.
-  auto& curBranch = getCurBlockVarsData();
-  auto* pred = curBranch.m_Prev;
-  while (pred) {
-    auto it = pred->find(VD);
-    if (it != pred->end()) {
-      curBranch[VD] = copy(it->second);
-      return;
-    }
-    pred = pred->m_Prev;
-  }
-  // If this variable was not found in predecessors, add it.
-  addVar(VD);
-}
-
 void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
   auto& curBranch = getCurBlockVarsData();
 
@@ -296,6 +280,34 @@ void TBRAnalyzer::markLocation(const clang::Expr* E) {
 }
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
+  // FIXME: generalize to other exprs
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+    // Since TBRAnalyzer is a RecursiveASTVisitor,
+    // it automatically visits all sub-stmts including
+    // decl refs of functions.
+    if (!isa<VarDecl>(DRE->getDecl()))
+      return;
+    const auto* VD = cast<VarDecl>(DRE->getDecl());
+    auto& curBranch = getCurBlockVarsData();
+    if (curBranch.find(VD) == curBranch.end()) {
+      // Visit all predecessors one by one until the variable VD is found.
+      auto* pred = curBranch.m_Prev;
+      bool found = false;
+      while (pred) {
+        auto it = pred->find(VD);
+        if (it != pred->end()) {
+          curBranch[VD] = copy(it->second);
+          found = true;
+          break;
+        }
+        pred = pred->m_Prev;
+      }
+      // If this variable was not found in predecessors, add it.
+      if (!found)
+        addVar(VD);
+    }
+  }
+
   if (!isReq ||
       (m_ModeStack.back() == (Mode::kMarkingMode | Mode::kNonLinearMode))) {
     VarData* data = getExprVarData(E);
@@ -571,14 +583,7 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
 }
 
 bool TBRAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
-  if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-    auto& curBranch = getCurBlockVarsData();
-    if (curBranch.find(VD) == curBranch.end())
-      copyVarToCurBlock(VD);
-  }
-
   setIsRequired(DRE);
-
   return true;
 }
 

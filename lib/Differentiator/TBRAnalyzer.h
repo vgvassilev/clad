@@ -250,10 +250,6 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   //// Setters
   /// Creates VarData for a new VarDecl*.
   void addVar(const clang::VarDecl* VD, bool forceNonRefType = false);
-  /// Makes a copy of the VarData corresponding to VD
-  /// to the current block from the lowest predecessor
-  /// where VD is present.
-  void copyVarToCurBlock(const clang::VarDecl* VD);
   /// Marks the SourceLocation of E if it is required to store.
   /// E could be DeclRefExpr*, ArraySubscriptExpr* or MemberExpr*.
   void markLocation(const clang::Expr* E);
