@@ -137,16 +137,12 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
   /// Given a MemberExpr*/ArraySubscriptExpr* return a pointer to its
   /// corresponding VarData. If the given element of an array does not have a
-  /// VarData yet it will be added automatically. If addNonConstIdx==false this
-  /// will return the last VarData before the non-constant index
-  /// (e.g. for 'x.arr[k+1].y' the return value will be the VarData of x.arr).
+  /// VarData yet it will be added automatically.
   /// Otherwise, non-const indices will be represented as index -1.
-  VarData* getMemberVarData(const clang::MemberExpr* ME,
-                            bool addNonConstIdx = false);
-  VarData* getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
-                            bool addNonConstIdx = false);
+  VarData* getMemberVarData(const clang::MemberExpr* ME);
+  VarData* getArrSubVarData(const clang::ArraySubscriptExpr* ASE);
   /// Given an Expr* returns its corresponding VarData.
-  VarData* getExprVarData(const clang::Expr* E, bool addNonConstIdx = false);
+  VarData* getExprVarData(const clang::Expr* E);
 
   /// Whenever an array element with a non-constant index is set to required
   /// this function is used to set to required all the array elements that
