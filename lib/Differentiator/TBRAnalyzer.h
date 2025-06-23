@@ -123,6 +123,12 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// current index/member.
   void overlay(VarData& targetData, llvm::SmallVector<ProfileID, 2>& IDSequence,
                size_t i);
+  /// For a compound lvalue expr, generates a sequence of ProfileID's of it's
+  /// indices/fields and returns the VarDecl of the base, e.g.
+  /// ``arr[k].y`` --> returns `arr`, IDSequence = `{k, y}`.
+  const clang::VarDecl*
+  getIDSequence(const clang::Expr* E,
+                llvm::SmallVectorImpl<ProfileID>& IDSequence);
   /// Returns true if there is at least one required to store node among
   /// child nodes.
   bool findReq(const VarData& varData);
