@@ -264,11 +264,6 @@ void TBRAnalyzer::markLocation(const clang::Expr* E) {
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   // FIXME: generalize to other exprs
   if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
-    // Since TBRAnalyzer is a RecursiveASTVisitor,
-    // it automatically visits all sub-stmts including
-    // decl refs of functions.
-    if (!isa<VarDecl>(DRE->getDecl()))
-      return;
     const auto* VD = cast<VarDecl>(DRE->getDecl());
     auto& curBranch = getCurBlockVarsData();
     if (curBranch.find(VD) == curBranch.end()) {
@@ -566,12 +561,12 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
   }
 }
 
-bool TBRAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
+bool TBRAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
   setIsRequired(DRE);
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitDeclStmt(DeclStmt* DS) {
+bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
   for (auto* D : DS->decls()) {
     if (auto* VD = dyn_cast<VarDecl>(D)) {
       addVar(VD);
@@ -590,10 +585,10 @@ bool TBRAnalyzer::VisitDeclStmt(DeclStmt* DS) {
       }
     }
   }
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitConditionalOperator(clang::ConditionalOperator* CO) {
+bool TBRAnalyzer::TraverseConditionalOperator(clang::ConditionalOperator* CO) {
   setMode(0);
   TraverseStmt(CO->getCond());
   resetMode();
@@ -609,10 +604,10 @@ bool TBRAnalyzer::VisitConditionalOperator(clang::ConditionalOperator* CO) {
   TraverseStmt(CO->getTrueExpr());
 
   merge(m_BlockData[m_CurBlockID].get(), thenBranch.get());
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
+bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
   const auto opCode = BinOp->getOpcode();
   Expr* L = BinOp->getLHS();
   Expr* R = BinOp->getRHS();
@@ -705,10 +700,16 @@ bool TBRAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
   // else {
   // FIXME: add logic/bitwise/comparison operators
   // }
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitUnaryOperator(clang::UnaryOperator* UnOp) {
+bool TBRAnalyzer::TraverseCompoundAssignOperator(
+    clang::CompoundAssignOperator* BinOp) {
+  TBRAnalyzer::TraverseBinaryOperator(BinOp);
+  return false;
+}
+
+bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
   const auto opCode = UnOp->getOpcode();
   Expr* E = UnOp->getSubExpr();
   TraverseStmt(E);
@@ -733,10 +734,10 @@ bool TBRAnalyzer::VisitUnaryOperator(clang::UnaryOperator* UnOp) {
   // expressions. However, it is not clear where the FieldDecls of real and
   // imaginary parts should be deduced from (their names might be
   // compiler-specific).  So for now we visit the whole subexpression.
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitCallExpr(clang::CallExpr* CE) {
+bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   // FIXME: Currently TBR analysis just stops here and assumes that all the
   // variables passed by value/reference are used/used and changed. Analysis
   // could proceed to the function to analyse data flow inside it.
@@ -769,10 +770,20 @@ bool TBRAnalyzer::VisitCallExpr(clang::CallExpr* CE) {
     }
   }
   resetMode();
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitCXXConstructExpr(clang::CXXConstructExpr* CE) {
+bool TBRAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
+  TBRAnalyzer::TraverseCallExpr(CE);
+  return false;
+}
+
+bool TBRAnalyzer::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE) {
+  TBRAnalyzer::TraverseCallExpr(CE);
+  return false;
+}
+
+bool TBRAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
   // FIXME: Currently TBR analysis just stops here and assumes that all the
   // variables passed by value/reference are used/used and changed. Analysis
   // could proceed to the constructor to analyse data flow inside it.
@@ -796,15 +807,15 @@ bool TBRAnalyzer::VisitCXXConstructExpr(clang::CXXConstructExpr* CE) {
     }
   }
   resetMode();
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitMemberExpr(clang::MemberExpr* ME) {
+bool TBRAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
   setIsRequired(ME);
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
+bool TBRAnalyzer::TraverseArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
   setMode(0);
   TraverseStmt(ASE->getBase());
   resetMode();
@@ -812,15 +823,15 @@ bool TBRAnalyzer::VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
   TraverseStmt(ASE->getIdx());
   resetMode();
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitInitListExpr(clang::InitListExpr* ILE) {
+bool TBRAnalyzer::TraverseInitListExpr(clang::InitListExpr* ILE) {
   setMode(Mode::kMarkingMode);
   for (auto* init : ILE->inits())
     TraverseStmt(init);
   resetMode();
-  return true;
+  return false;
 }
 
 } // end namespace clad

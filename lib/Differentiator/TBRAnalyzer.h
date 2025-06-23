@@ -1,7 +1,9 @@
 #ifndef CLAD_DIFFERENTIATOR_TBRANALYZER_H
 #define CLAD_DIFFERENTIATOR_TBRANALYZER_H
 
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Analysis/CFG.h"
 
 #include "clad/Differentiator/CladUtils.h"
@@ -299,16 +301,19 @@ public:
 
   void VisitCFGBlock(const clang::CFGBlock& block);
 
-  bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE);
-  bool VisitBinaryOperator(clang::BinaryOperator* BinOp);
-  bool VisitCallExpr(clang::CallExpr* CE);
-  bool VisitConditionalOperator(clang::ConditionalOperator* CO);
-  bool VisitCXXConstructExpr(clang::CXXConstructExpr* CE);
-  bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
-  bool VisitDeclStmt(clang::DeclStmt* DS);
-  bool VisitInitListExpr(clang::InitListExpr* ILE);
-  bool VisitMemberExpr(clang::MemberExpr* ME);
-  bool VisitUnaryOperator(clang::UnaryOperator* UnOp);
+  bool TraverseArraySubscriptExpr(clang::ArraySubscriptExpr* ASE);
+  bool TraverseBinaryOperator(clang::BinaryOperator* BinOp);
+  bool TraverseCallExpr(clang::CallExpr* CE);
+  bool TraverseConditionalOperator(clang::ConditionalOperator* CO);
+  bool TraverseCompoundAssignOperator(clang::CompoundAssignOperator* BinOp);
+  bool TraverseCXXConstructExpr(clang::CXXConstructExpr* CE);
+  bool TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE);
+  bool TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE);
+  bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE);
+  bool TraverseDeclStmt(clang::DeclStmt* DS);
+  bool TraverseInitListExpr(clang::InitListExpr* ILE);
+  bool TraverseMemberExpr(clang::MemberExpr* ME);
+  bool TraverseUnaryOperator(clang::UnaryOperator* UnOp);
 };
 
 } // end namespace clad
