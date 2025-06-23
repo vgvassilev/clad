@@ -1,5 +1,7 @@
 #include "TBRAnalyzer.h"
 
+#include "clang/AST/Expr.h"
+
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #undef DEBUG_TYPE
@@ -98,8 +100,8 @@ void TBRAnalyzer::overlay(VarData& targetData,
     overlay((*targetData.m_Val.m_ArrData)[curID], IDSequence, i);
 }
 
-TBRAnalyzer::VarData* TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME,
-                                                    bool addNonConstIdx) {
+TBRAnalyzer::VarData*
+TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME) {
   if (const auto* FD = dyn_cast<FieldDecl>(ME->getMemberDecl())) {
     const auto* base = ME->getBase();
     VarData* baseData = getExprVarData(base);
@@ -107,39 +109,25 @@ TBRAnalyzer::VarData* TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME,
     if (!baseData)
       return nullptr;
 
-    // if non-const index was found and it is not supposed to be added just
-    // return the current VarData*.
-    if (m_NonConstIndexFound && !addNonConstIdx)
-      return baseData;
-
     return &(*baseData->m_Val.m_ArrData)[getProfileID(FD)];
   }
   return nullptr;
 }
 
 TBRAnalyzer::VarData*
-TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
-                              bool addNonConstIdx) {
+TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE) {
   const auto* idxExpr = ASE->getIdx();
   ProfileID idxID;
-  bool currentIdxIsNonConst = false;
-  if (const auto* IL = dyn_cast<IntegerLiteral>(idxExpr)) {
+  if (const auto* IL = dyn_cast<IntegerLiteral>(idxExpr))
     idxID = getProfileID(IL);
-  } else {
+  else
     // Non-const indices are represented with default FoldingSetNodeID.
     m_NonConstIndexFound = true;
-    currentIdxIsNonConst = true;
-  }
 
   const auto* base = ASE->getBase()->IgnoreImpCasts();
   VarData* baseData = getExprVarData(base);
 
   if (!baseData)
-    return nullptr;
-
-  // if non-const index was found and it is not supposed to be added just
-  // return the current VarData*.
-  if (currentIdxIsNonConst && !addNonConstIdx)
     return nullptr;
 
   auto* baseArrMap = baseData->m_Val.m_ArrData.get();
@@ -159,8 +147,7 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
   return &it->second;
 }
 
-TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
-                                                  bool addNonConstIdx) {
+TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E) {
   // This line is necessary for pointer member expressions (in 'x->y' x would be
   // implicitly casted with the * operator).
   E = E->IgnoreImpCasts();
@@ -181,9 +168,9 @@ TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
     }
   }
   if (const auto* ME = dyn_cast<clang::MemberExpr>(E))
-    EData = getMemberVarData(ME, addNonConstIdx);
+    EData = getMemberVarData(ME);
   if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E))
-    EData = getArrSubVarData(ASE, addNonConstIdx);
+    EData = getArrSubVarData(ASE);
 
   if (EData && EData->m_Type == VarData::REF_TYPE && EData->m_Val.m_RefData)
     EData = getExprVarData(EData->m_Val.m_RefData);
@@ -258,7 +245,7 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
   }
 
   // Overlay on all the VarData's recursively.
-  VarData& data = *getExprVarData(innermostDRE, /*addNonConstIdx=*/true);
+  VarData& data = *getExprVarData(innermostDRE);
   overlay(data, IDSequence, IDSequence.size());
 }
 // NOLINTEND(cppcoreguidelines-pro-type-union-access)
@@ -301,7 +288,7 @@ void TBRAnalyzer::markLocation(const clang::Expr* E) {
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   if (!isReq ||
       (m_ModeStack.back() == (Mode::kMarkingMode | Mode::kNonLinearMode))) {
-    VarData* data = getExprVarData(E, /*addNonConstIdx=*/isReq);
+    VarData* data = getExprVarData(E);
     if (data && (isReq || !m_NonConstIndexFound))
       setIsRequired(*data, isReq);
     // If an array element with a non-const element is set to required all the
