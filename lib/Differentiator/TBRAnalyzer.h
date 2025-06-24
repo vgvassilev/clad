@@ -143,6 +143,8 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   VarData* getArrSubVarData(const clang::ArraySubscriptExpr* ASE);
   /// Given an Expr* returns its corresponding VarData.
   VarData* getExprVarData(const clang::Expr* E);
+  /// Finds VD in the most recent block.
+  VarData* getVarDataFromDecl(const clang::VarDecl* VD);
 
   /// Whenever an array element with a non-constant index is set to required
   /// this function is used to set to required all the array elements that

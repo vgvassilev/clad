@@ -157,15 +157,7 @@ TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E) {
     // ``this`` does not have a declaration so it is represented with nullptr.
     if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E))
       VD = dyn_cast<clang::VarDecl>(DRE->getDecl());
-    auto* branch = &getCurBlockVarsData();
-    while (branch) {
-      auto it = branch->find(VD);
-      if (it != branch->end()) {
-        EData = &it->second;
-        break;
-      }
-      branch = branch->m_Prev;
-    }
+    EData = getVarDataFromDecl(VD);
   }
   if (const auto* ME = dyn_cast<clang::MemberExpr>(E))
     EData = getMemberVarData(ME);
@@ -234,17 +226,7 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
     } else if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E)) {
       const auto* VD = cast<VarDecl>(DRE->getDecl());
       if (VD->getType()->isReferenceType()) {
-        // FIXME: Handle this in a separate functions
-        VarData* refData = nullptr;
-        auto* branch = &getCurBlockVarsData();
-        while (branch) {
-          auto it = branch->find(VD);
-          if (it != branch->end()) {
-            refData = &it->second;
-            break;
-          }
-          branch = branch->m_Prev;
-        }
+        VarData* refData = getVarDataFromDecl(VD);
         E = refData->m_Val.m_RefData;
         continue;
       }
@@ -290,20 +272,10 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
     const auto* VD = cast<VarDecl>(DRE->getDecl());
     auto& curBranch = getCurBlockVarsData();
     if (curBranch.find(VD) == curBranch.end()) {
-      // Visit all predecessors one by one until the variable VD is found.
-      auto* pred = curBranch.m_Prev;
-      bool found = false;
-      while (pred) {
-        auto it = pred->find(VD);
-        if (it != pred->end()) {
-          curBranch[VD] = copy(it->second);
-          found = true;
-          break;
-        }
-        pred = pred->m_Prev;
-      }
-      // If this variable was not found in predecessors, add it.
-      if (!found)
+      if (VarData* data = getVarDataFromDecl(VD))
+        curBranch[VD] = copy(*data);
+      else
+        // If this variable was not found in predecessors, add it.
         addVar(VD);
     }
   }
@@ -319,6 +291,18 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
       overlay(E);
     m_NonConstIndexFound = false;
   }
+}
+
+TBRAnalyzer::VarData*
+TBRAnalyzer::getVarDataFromDecl(const clang::VarDecl* VD) {
+  auto* branch = &getCurBlockVarsData();
+  while (branch) {
+    auto it = branch->find(VD);
+    if (it != branch->end())
+      return &it->second;
+    branch = branch->m_Prev;
+  }
+  return nullptr;
 }
 
 void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
