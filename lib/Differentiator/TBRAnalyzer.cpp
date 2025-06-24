@@ -234,8 +234,18 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
     } else if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E)) {
       const auto* VD = cast<VarDecl>(DRE->getDecl());
       if (VD->getType()->isReferenceType()) {
-        VarData& refData = getCurBlockVarsData()[VD];
-        E = refData.m_Val.m_RefData;
+        // FIXME: Handle this in a separate functions
+        VarData* refData = nullptr;
+        auto* branch = &getCurBlockVarsData();
+        while (branch) {
+          auto it = branch->find(VD);
+          if (it != branch->end()) {
+            refData = &it->second;
+            break;
+          }
+          branch = branch->m_Prev;
+        }
+        E = refData->m_Val.m_RefData;
         continue;
       }
       innermostDRE = DRE;

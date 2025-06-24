@@ -245,6 +245,16 @@ float fn18(Session const *session, float const *tensor_x, float *tensor_theory_p
    return out;
 }
 
+double fn19(Session const *session, float *tensor_theory_params) {
+   Session const &sess = session[0];
+   auto &arr = sess.arr;
+   float out = 0.;
+   for (int id = 0; id < nVals; id++) {
+      out += arr[id] * tensor_theory_params[0];
+   }
+   return out;
+}
+
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn1);
@@ -283,6 +293,7 @@ int main() {
     TEST_GRADIENT(fn16, /*NumOfDerivativeArgs=*/2, 3, 1, &d_i, &d_j);  // CHECK-EXEC: {48.00, 48.00}
     TEST_GRADIENT(fn17, /*numOfDerivativeArgs=*/2, 1, 1, &d_i, &d_j);  // CHECK-EXEC: {1.00, 3.00}
     auto d_fn18 = clad::gradient(fn18, "tensor_theory_params");
+    auto d_fn19 = clad::gradient(fn19, "tensor_theory_params");
 }
 
 // CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -1315,6 +1326,42 @@ int main() {
 // CHECK-NEXT:             float _r_d0 = _d_sess.arr[id];
 // CHECK-NEXT:             _d_sess.arr[id] = 0.F;
 // CHECK-NEXT:             _d_tensor_theory_params[0] += tensor_x[id] * _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void fn19_grad_1(const Session *session, float *tensor_theory_params, float *_d_tensor_theory_params) {
+// CHECK-NEXT:     int _d_id = 0;
+// CHECK-NEXT:     int id = 0;
+// CHECK-NEXT:     clad::tape<float> _t1 = {};
+// CHECK-NEXT:     Session _d_sess = {{[{][{][}]}}, nullptr};
+// CHECK-NEXT:     const Session &sess = session[0];
+// CHECK-NEXT:     float *&_d_arr = _d_sess.arr;
+// CHECK-NEXT:     float *const &arr = sess.arr;
+// CHECK-NEXT:     float _d_out = 0.F;
+// CHECK-NEXT:     float out = 0.;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (id = 0; ; id++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(id < nVals))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, out);
+// CHECK-NEXT:         out += arr[id] * tensor_theory_params[0];
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_out += 1;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         id--;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             out = clad::pop(_t1);
+// CHECK-NEXT:             float _r_d0 = _d_out;
+// CHECK-NEXT:             _d_arr[id] += _r_d0 * tensor_theory_params[0];
+// CHECK-NEXT:             _d_tensor_theory_params[0] += arr[id] * _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
