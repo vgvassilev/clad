@@ -145,7 +145,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
   /// Given an Expr* returns its corresponding VarData. If the given element of
   /// an array does not have a VarData yet it will be added automatically.
-  VarData* getExprVarData(const clang::Expr* E);
+  VarData* getVarDataFromExpr(const clang::Expr* E);
   /// Finds VD in the most recent block.
   VarData* getVarDataFromDecl(const clang::VarDecl* VD);
 
