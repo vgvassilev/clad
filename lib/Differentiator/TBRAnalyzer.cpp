@@ -27,7 +27,7 @@ void TBRAnalyzer::setIsRequired(VarData& varData, bool isReq) {
     for (auto& pair : *varData.m_Val.m_ArrData)
       setIsRequired(pair.second, isReq);
   else if (varData.m_Type == VarData::REF_TYPE && varData.m_Val.m_RefData)
-    if (auto* data = getExprVarData(varData.m_Val.m_RefData))
+    if (auto* data = getVarDataFromExpr(varData.m_Val.m_RefData))
       setIsRequired(*data, isReq);
 }
 
@@ -81,7 +81,7 @@ bool TBRAnalyzer::findReq(const VarData& varData) {
       if (findReq(pair.second))
         return true;
   } else if (varData.m_Type == VarData::REF_TYPE && varData.m_Val.m_RefData) {
-    if (auto* data = getExprVarData(varData.m_Val.m_RefData)) {
+    if (auto* data = getVarDataFromExpr(varData.m_Val.m_RefData)) {
       if (findReq(*data))
         return true;
     }
@@ -107,7 +107,7 @@ void TBRAnalyzer::overlay(VarData& targetData,
     overlay((*targetData.m_Val.m_ArrData)[curID], IDSequence, i);
 }
 
-TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E) {
+TBRAnalyzer::VarData* TBRAnalyzer::getVarDataFromExpr(const clang::Expr* E) {
   llvm::SmallVector<ProfileID, 2> IDSequence;
   const VarDecl* VD = getIDSequence(E, IDSequence);
   VarData* data = getVarDataFromDecl(VD);
@@ -139,7 +139,7 @@ TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E) {
       }
     } else if (data->m_Type == VarData::REF_TYPE) {
       assert(data->m_Val.m_RefData && "undefined m_RefData");
-      data = getExprVarData(data->m_Val.m_RefData);
+      data = getVarDataFromExpr(data->m_Val.m_RefData);
     }
   }
 
@@ -273,7 +273,7 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
 
   if (!isReq ||
       (m_ModeStack.back() == (Mode::kMarkingMode | Mode::kNonLinearMode))) {
-    VarData* data = getExprVarData(E);
+    VarData* data = getVarDataFromExpr(E);
     if (data && (isReq || !m_NonConstIndexFound))
       setIsRequired(*data, isReq);
     // If an array element with a non-const element is set to required all the
@@ -677,7 +677,7 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     for (const auto* innerExpr : ExprsToStore) {
       // If at least one of ExprsToStore has to be stored,
       // mark L as useful to store.
-      if (VarData* data = getExprVarData(innerExpr))
+      if (VarData* data = getVarDataFromExpr(innerExpr))
         hasToBeSetReq = hasToBeSetReq || findReq(*data);
       // Set them to not required to store because the values were changed.
       // (if some value was not changed, this could only happen if it was
@@ -719,7 +719,7 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
     for (const auto* innerExpr : ExprsToStore) {
       // If at least one of ExprsToStore has to be stored,
       // mark L as useful to store.
-      if (VarData* data = getExprVarData(innerExpr))
+      if (VarData* data = getVarDataFromExpr(innerExpr))
         if (findReq(*data)) {
           markLocation(E);
           break;
