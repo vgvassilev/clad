@@ -1,5 +1,6 @@
 #include "TBRAnalyzer.h"
 
+#include <algorithm>
 #include <cassert>
 
 #include "clang/AST/Decl.h"
@@ -19,17 +20,6 @@ using namespace clang;
 namespace clad {
 
 // NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
-void TBRAnalyzer::setIsRequired(VarData& varData, bool isReq) {
-  assert(varData.m_Type != VarData::REF_TYPE &&
-         "references should be removed on the getIDSequence stage");
-  if (varData.m_Type == VarData::FUND_TYPE)
-    varData.m_Val.m_FundData = isReq;
-  else if (varData.m_Type == VarData::OBJ_TYPE ||
-           varData.m_Type == VarData::ARR_TYPE)
-    for (auto& pair : *varData.m_Val.m_ArrData)
-      setIsRequired(pair.second, isReq);
-}
-
 void TBRAnalyzer::merge(VarData& targetData, VarData& mergeData) {
   if (targetData.m_Type == VarData::FUND_TYPE) {
     targetData.m_Val.m_FundData =
@@ -85,47 +75,28 @@ bool TBRAnalyzer::findReq(const VarData& varData) {
   return false;
 }
 
-void TBRAnalyzer::overlay(VarData& targetData,
-                          llvm::SmallVector<ProfileID, 2>& IDSequence,
-                          size_t i) {
-  if (i == 0) {
-    setIsRequired(targetData);
-    return;
-  }
-  --i;
-  ProfileID& curID = IDSequence[i];
-  // non-constant indices are represented with default ID.
-  ProfileID nonConstIdxID;
-  if (curID == nonConstIdxID)
-    for (auto& pair : *targetData.m_Val.m_ArrData)
-      overlay(pair.second, IDSequence, i);
-  else
-    overlay((*targetData.m_Val.m_ArrData)[curID], IDSequence, i);
-}
-
 TBRAnalyzer::VarData* TBRAnalyzer::getVarDataFromExpr(const clang::Expr* E) {
   llvm::SmallVector<ProfileID, 2> IDSequence;
   const VarDecl* VD = getIDSequence(E, IDSequence);
   VarData* data = getVarDataFromDecl(VD);
   assert(data && "expression not found");
 
-  for (auto it = IDSequence.rbegin(), e = IDSequence.rend(); it != e; ++it) {
+  for (ProfileID& id : IDSequence) {
     assert(data->m_Type != VarData::REF_TYPE &&
            "references should be removed on the getIDSequence stage");
     if (data->m_Type == VarData::OBJ_TYPE) {
-      data = &(*data->m_Val.m_ArrData)[*it];
+      data = &(*data->m_Val.m_ArrData)[id];
     } else if (data->m_Type == VarData::ARR_TYPE) {
       // Non-const indices are represented with default FoldingSetNodeID.
       ProfileID nonConstIdxID;
       auto& baseArrMap = *data->m_Val.m_ArrData;
-      if (*it == nonConstIdxID) {
-        m_NonConstIndexFound = true;
-        data = &baseArrMap[*it];
+      if (id == nonConstIdxID) {
+        data = &baseArrMap[id];
       } else {
-        auto foundElem = baseArrMap.find(*it);
+        auto foundElem = baseArrMap.find(id);
         // Add the current index if it was not added previously
         if (foundElem == baseArrMap.end()) {
-          auto& idxData = baseArrMap[*it];
+          auto& idxData = baseArrMap[id];
           // Since default ID represents non-const indices, whenever we add a
           // new index we have to copy the VarData of default ID's element (if
           // an element with undefined index was used this might be our current
@@ -179,11 +150,10 @@ TBRAnalyzer::VarData::VarData(QualType QT, const ASTContext& C,
 const VarDecl*
 TBRAnalyzer::getIDSequence(const clang::Expr* E,
                            llvm::SmallVectorImpl<ProfileID>& IDSequence) {
-  m_NonConstIndexFound = false;
   const VarDecl* innerVD = nullptr;
   // Unwrap the given expression to a vector of indices and fields.
   while (true) {
-    E = E->IgnoreImplicit();
+    E = E->IgnoreCasts();
     if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
       if (const auto* IL = dyn_cast<clang::IntegerLiteral>(ASE->getIdx()))
         IDSequence.push_back(getProfileID(IL));
@@ -222,14 +192,73 @@ TBRAnalyzer::getIDSequence(const clang::Expr* E,
       break;
     }
   }
+  // All id's were added in the reverse order, e.g. `arr[0].k` -> `k`, `0`.
+  // Reverse the sequence for easier handling.
+  std::reverse(IDSequence.begin(), IDSequence.end());
   return innerVD;
 }
 
-void TBRAnalyzer::overlay(const clang::Expr* E) {
-  llvm::SmallVector<ProfileID, 2> IDSequence;
-  const VarDecl* VD = getIDSequence(E, IDSequence);
-  VarData* data = getVarDataFromDecl(VD);
-  overlay(*data, IDSequence, IDSequence.size());
+void TBRAnalyzer::setIsRequired(VarData* data, bool isReq,
+                                llvm::MutableArrayRef<ProfileID> IDSequence) {
+  assert(data->m_Type != VarData::REF_TYPE &&
+         "references should be removed on the getIDSequence stage");
+  if (data->m_Type == VarData::UNDEFINED)
+    return;
+  if (data->m_Type == VarData::FUND_TYPE) {
+    data->m_Val.m_FundData = isReq;
+    return;
+  }
+  auto& baseArrMap = *data->m_Val.m_ArrData;
+  if (IDSequence.empty()) {
+    if (isReq)
+      for (auto& pair : baseArrMap)
+        setIsRequired(&pair.second, /*isReq=*/true, IDSequence);
+    return;
+  }
+  const ProfileID& curID = IDSequence[0];
+  if (data->m_Type == VarData::OBJ_TYPE) {
+    data = &baseArrMap[curID];
+    setIsRequired(data, isReq, IDSequence.drop_front());
+    return;
+  }
+
+  // Arr type arrays are the only option left.
+  assert(data->m_Type == VarData::ARR_TYPE);
+  // All indices unknown in compile-time (like `arr[i]`) are represented with
+  // default FoldingSetNodeID. Note: if we're unsure if an index is used, we
+  // always assume it is for safety.
+  ProfileID nonConstIdxID;
+  if (curID == nonConstIdxID) {
+    // The fact that one unknown index is set to unused
+    // doesn't mean that all unknown indices should be.
+    if (!isReq)
+      return;
+    // If we set an unknown index to true, we have to do the same to all
+    // known indices for safety.
+    for (auto& pair : baseArrMap)
+      setIsRequired(&pair.second, /*isReq=*/true, IDSequence.drop_front());
+  } else {
+    auto foundElem = baseArrMap.find(curID);
+    VarData* elemData = nullptr;
+    // Add the current index if it was not added previously
+    if (foundElem == baseArrMap.end()) {
+      elemData = &baseArrMap[curID];
+      // Since default ID represents non-const indices, whenever we add a new
+      // index we have to copy the VarData of default ID's element (if an
+      // element with undefined index was used this might be our current
+      // element).
+      *elemData = copy(baseArrMap[nonConstIdxID]);
+    } else
+      elemData = &foundElem->second;
+
+    setIsRequired(elemData, isReq, IDSequence.drop_front());
+    // If we set any index to true, we have to also do it
+    // to the default index.
+    if (isReq) {
+      VarData* defaultElemData = &baseArrMap[nonConstIdxID];
+      setIsRequired(defaultElemData, /*isReq=*/true, IDSequence.drop_front());
+    }
+  }
 }
 // NOLINTEND(cppcoreguidelines-pro-type-union-access)
 
@@ -253,29 +282,22 @@ void TBRAnalyzer::markLocation(const clang::Expr* E) {
 }
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
-  // FIXME: generalize to other exprs
-  if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
-    const auto* VD = cast<VarDecl>(DRE->getDecl());
-    auto& curBranch = getCurBlockVarsData();
-    if (curBranch.find(VD) == curBranch.end()) {
-      if (VarData* data = getVarDataFromDecl(VD))
-        curBranch[VD] = copy(*data);
-      else
-        // If this variable was not found in predecessors, add it.
-        addVar(VD);
-    }
+  llvm::SmallVector<ProfileID, 2> IDSequence;
+  const VarDecl* VD = getIDSequence(E, IDSequence);
+  // Make sure the current branch has a copy of VarDecl for VD
+  auto& curBranch = getCurBlockVarsData();
+  if (curBranch.find(VD) == curBranch.end()) {
+    if (VarData* data = getVarDataFromDecl(VD))
+      curBranch[VD] = copy(*data);
+    else
+      // If this variable was not found in predecessors, add it.
+      addVar(VD);
   }
 
   if (!isReq ||
       (m_ModeStack.back() == (Mode::kMarkingMode | Mode::kNonLinearMode))) {
-    VarData* data = getVarDataFromExpr(E);
-    if (data && (isReq || !m_NonConstIndexFound))
-      setIsRequired(*data, isReq);
-    // If an array element with a non-const element is set to required all the
-    // elements of that array should be set to required.
-    if (isReq && m_NonConstIndexFound)
-      overlay(E);
-    m_NonConstIndexFound = false;
+    VarData* data = getVarDataFromDecl(VD);
+    setIsRequired(data, isReq, IDSequence);
   }
 }
 
@@ -313,7 +335,7 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
     thisData = VarData(QualType::getFromOpaquePtr(recordType), m_Context);
     // We have to set all pointer/reference parameters to tbr
     // since method pullbacks aren't supposed to change objects.
-    setIsRequired(thisData);
+    setIsRequired(&thisData);
   }
   auto paramsRef = FD->parameters();
   for (std::size_t i = 0; i < FD->getNumParams(); ++i)

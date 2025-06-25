@@ -6,6 +6,8 @@
 #include "clang/AST/Stmt.h"
 #include "clang/Analysis/CFG.h"
 
+#include "llvm/ADT/ArrayRef.h"
+
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
@@ -113,16 +115,6 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   };
   // NOLINTEND(cppcoreguidelines-pro-type-union-access)
 
-  /// Recursively sets all the leaves' bools to isReq.
-  void setIsRequired(VarData& varData, bool isReq = true);
-  /// Whenever an array element with a non-constant index is set to required
-  /// this function is used to set to required all the array elements that
-  /// could match that element (e.g. set 'a[1].y' and 'a[6].y' to required
-  /// when 'a[k].y' is set to required). Takes unwrapped sequence of
-  /// indices/members of the expression being overlaid and the index of of the
-  /// current index/member.
-  void overlay(VarData& targetData, llvm::SmallVector<ProfileID, 2>& IDSequence,
-               size_t i);
   /// For a compound lvalue expr, generates a sequence of ProfileID's of it's
   /// indices/fields and returns the VarDecl of the base, e.g.
   /// ``arr[k].y`` --> returns `arr`, IDSequence = `{k, y}`.
@@ -148,15 +140,10 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   VarData* getVarDataFromExpr(const clang::Expr* E);
   /// Finds VD in the most recent block.
   VarData* getVarDataFromDecl(const clang::VarDecl* VD);
-
-  /// Whenever an array element with a non-constant index is set to required
-  /// this function is used to set to required all the array elements that
-  /// could match that element (e.g. set 'a[1].y' and 'a[6].y' to required when
-  /// 'a[k].y' is set to required). Unwraps the a given expression into a
-  /// sequence of indices/members of the expression being overlaid and calls
-  /// VarData::overlay() recursively.
-  void overlay(const clang::Expr* E);
-
+  // A helper function that recursively sets all nodes to the requested value of
+  // isReq.
+  void setIsRequired(VarData* targetData, bool isReq = true,
+                     llvm::MutableArrayRef<ProfileID> IDSequence = {});
   /// Used to store all the necessary information about variables at a
   /// particular moment.
   /// Note: the VarsData of one CFG block only stores information specific
@@ -247,10 +234,6 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
   /// The set of IDs of the CFG blocks that should be visited.
   std::set<unsigned> m_CFGQueue;
-
-  /// Set to true when a non-const index is found while analysing an
-  /// array subscript expression.
-  bool m_NonConstIndexFound = false;
 
   //// Setters
   /// Creates VarData for a new VarDecl*.
