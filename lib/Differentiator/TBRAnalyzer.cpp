@@ -8,6 +8,8 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/Basic/LLVM.h"
 
+#include "clad/Differentiator/Compatibility.h"
+
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
@@ -308,8 +310,8 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   m_BlockPassCounter.resize(m_AnalysisDC->getCFG()->size(), 0);
 
   // Set current block ID to the ID of entry the block.
-  auto* entry = &m_AnalysisDC->getCFG()->getEntry();
-  m_CurBlockID = entry->getBlockID();
+  CFGBlock entry = m_AnalysisDC->getCFG()->getEntry();
+  m_CurBlockID = entry.getBlockID();
   m_BlockData[m_CurBlockID] = std::unique_ptr<VarsData>(new VarsData());
 
   // If we are analysing a non-static method, add a VarData for 'this' pointer
