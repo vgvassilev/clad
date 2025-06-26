@@ -73,7 +73,7 @@ int main() { // expected-no-diagnostics
   printf("Result is = %f\n", func1_res); // CHECK-EXEC: Result is = 2.000000
 
   // Gradients, derivative wrt all args
-  clad::tape<clad::array_ref<double>> grad = {};
+  clad::old_tape<clad::array_ref<double>> grad = {};
   grad.emplace_back(dx, 3);
   grad.emplace_back(&dy);
   grad.emplace_back(&dz);
