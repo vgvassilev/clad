@@ -13,6 +13,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
@@ -63,6 +64,9 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
          m_DiffReq.Mode == DiffMode::vector_pushforward);
   assert(!m_DerivativeInFlight &&
          "Doesn't support recursive diff. Use DiffPlan.");
+
+  PrettyStackTraceDerivative CrashInfo(m_DiffReq, m_Blocks, m_Sema,
+                                       &m_CurVisitedStmt);
 
   llvm::SaveAndRestore<bool> saveInFlight(m_DerivativeInFlight,
                                           /*NewValue=*/true);
