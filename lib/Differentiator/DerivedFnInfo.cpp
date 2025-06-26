@@ -12,7 +12,8 @@ DerivedFnInfo::DerivedFnInfo(const DiffRequest& request,
       m_DiffVarsInfo(request.DVI),
       m_CUDAGlobalArgsIndexes(request.CUDAGlobalArgsIndexes),
       m_UsesEnzyme(request.use_enzyme),
-      m_DeclarationOnly(request.DeclarationOnly) {}
+      m_DeclarationOnly(request.DeclarationOnly),
+      m_EnableSparsity(request.EnableSparsity) {}
 
 bool DerivedFnInfo::SatisfiesRequest(const DiffRequest& request) const {
   return (request.Function == m_OriginalFn && request.Mode == m_Mode &&
