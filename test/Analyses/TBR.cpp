@@ -199,6 +199,39 @@ double f4(double x, double y) {
 //CHECK-NEXT:     *_d_y += _d_res;
 //CHECK-NEXT: }
 
+double f5(double x, double y) {
+  double& ref = x;
+  double z = y * ref;
+  x = z; // `x` should be stored because `ref` has been used
+  ref -= y; // `ref` should not be stored because `x` has already been stored
+  return ref; // x * y - y
+}
+
+//CHECK: void f5_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     double &_d_ref = *_d_x;
+//CHECK-NEXT:     double &ref = x;
+//CHECK-NEXT:     double _d_z = 0.;
+//CHECK-NEXT:     double z = y * ref;
+//CHECK-NEXT:     double _t0 = x;
+//CHECK-NEXT:     x = z;
+//CHECK-NEXT:     ref -= y;
+//CHECK-NEXT:     _d_ref += 1;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         double _r_d1 = _d_ref;
+//CHECK-NEXT:         *_d_y += -_r_d1;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         x = _t0;
+//CHECK-NEXT:         double _r_d0 = *_d_x;
+//CHECK-NEXT:         *_d_x = 0.;
+//CHECK-NEXT:         _d_z += _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_y += _d_z * ref;
+//CHECK-NEXT:         _d_ref += y * _d_z;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 
 #define TEST(F, x) { \
   result[0] = 0; \
@@ -220,4 +253,5 @@ int main() {
   TEST(f2, 3); // CHECK-EXEC: {7.00}
   TEST(f3, 3); // CHECK-EXEC: {2.00}
   TEST2(f4, 3, 4) // CHECK-EXEC: {4.00, 3.00}
+  TEST2(f5, 8, 3) // CHECK-EXEC: {3.00, 7.00}
 }
