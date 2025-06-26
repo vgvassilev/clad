@@ -163,6 +163,8 @@ TBRAnalyzer::getIDSequence(const clang::Expr* E,
       if (const auto* FD = dyn_cast<clang::FieldDecl>(ME->getMemberDecl()))
         IDSequence.push_back(getProfileID(FD));
       E = ME->getBase();
+      if (E->getType()->isPointerType())
+        IDSequence.push_back(ProfileID());
     } else if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E)) {
       const auto* VD = cast<VarDecl>(DRE->getDecl());
       if (VD->getType()->isLValueReferenceType()) {
@@ -329,12 +331,13 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   // (it is represented with nullptr).
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
   if (MD && !MD->isStatic()) {
-    const Type* recordType = MD->getParent()->getTypeForDecl();
     VarData& thisData = getCurBlockVarsData()[nullptr];
-    thisData = VarData(QualType::getFromOpaquePtr(recordType), m_Context);
+    thisData = VarData(MD->getThisType(), m_Context);
     // We have to set all pointer/reference parameters to tbr
     // since method pullbacks aren't supposed to change objects.
-    setIsRequired(&thisData);
+    // constructor pullbacks don't take `this` as a parameter
+    if (!isa<CXXConstructorDecl>(FD))
+      setIsRequired(&thisData);
   }
   auto paramsRef = FD->parameters();
   for (std::size_t i = 0; i < FD->getNumParams(); ++i)
