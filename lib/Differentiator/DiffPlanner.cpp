@@ -281,6 +281,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
     assert(!m_TopMostReq && "Traversal already in flight!");
 
+    m_ADCM = std::make_unique<AnalysisDeclContextManager>(S.getASTContext());
+
     for (Decl* D : DGR)
       TraverseDecl(D);
   }
@@ -646,13 +648,6 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     // to determine which pointer operations are useful to store.
     if (E->getType()->isPointerType())
       return true;
-
-    if (!m_TbrRunInfo.HasAnalysisRun) {
-      TimedAnalysisRegion R("TBR " + BaseFunctionName);
-      TBRAnalyzer analyzer(AnalysisDC, getToBeRecorded());
-      analyzer.Analyze(Function);
-    }
-
     auto found = m_TbrRunInfo.ToBeRecorded.find(E->getBeginLoc());
     return found != m_TbrRunInfo.ToBeRecorded.end();
   }
@@ -1211,22 +1206,20 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.Function = request.Function->getDefinition();
 
     if (!LookupCustomDerivativeDecl(request)) {
-      // Create analysis manager once for all analyses.
-      AnalysisDeclContextManager* ADCM =
-          new AnalysisDeclContextManager(request.Function->getASTContext());
       clang::CFG::BuildOptions Options;
-      request.AnalysisDC =
-          new AnalysisDeclContext(ADCM, request.Function, Options);
+      std::unique_ptr<AnalysisDeclContext> AnalysisDC =
+          std::make_unique<AnalysisDeclContext>(m_ADCM.get(), request.Function,
+                                                Options);
 
       if (m_TopMostReq->EnableVariedAnalysis) {
         TimedAnalysisRegion R("VA " + request.BaseFunctionName);
-        VariedAnalyzer analyzer(request.AnalysisDC, request.getVariedDecls());
+        VariedAnalyzer analyzer(AnalysisDC.get(), request.getVariedDecls());
         analyzer.Analyze(request.Function);
       }
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
         TimedAnalysisRegion R("UA " + request.BaseFunctionName);
-        UsefulAnalyzer analyzer(request.AnalysisDC, request.getUsefulDecls());
+        UsefulAnalyzer analyzer(AnalysisDC.get(), request.getUsefulDecls());
         analyzer.Analyze(request.Function);
       }
 
@@ -1234,9 +1227,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
           (request.Mode == DiffMode::reverse ||
            request.Mode == DiffMode::pullback)) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
-        TBRAnalyzer analyzer(request.AnalysisDC, request.getToBeRecorded());
+        TBRAnalyzer analyzer(AnalysisDC.get(), request.getToBeRecorded());
         analyzer.Analyze(request.Function);
       }
+
+      m_AllAnalysisDC.insert({request.Function, std::move(AnalysisDC)});
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
     }
@@ -1321,19 +1316,19 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return true;
 
     if (!LookupCustomDerivativeDecl(request)) {
-      AnalysisDeclContextManager* ADCM =
-          new AnalysisDeclContextManager(request.Function->getASTContext());
       clang::CFG::BuildOptions Options;
-      request.AnalysisDC =
-          new AnalysisDeclContext(ADCM, request.Function, Options);
+      std::unique_ptr<AnalysisDeclContext> AnalysisDC =
+          std::make_unique<AnalysisDeclContext>(m_ADCM.get(), request.Function,
+                                                Options);
 
       if (m_TopMostReq->EnableTBRAnalysis &&
           (request.Mode == DiffMode::reverse ||
            request.Mode == DiffMode::pullback)) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
-        TBRAnalyzer analyzer(request.AnalysisDC, request.getToBeRecorded());
+        TBRAnalyzer analyzer(AnalysisDC.get(), request.getToBeRecorded());
         analyzer.Analyze(request.Function);
       }
+      m_AllAnalysisDC.insert({request.Function, std::move(AnalysisDC)});
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
     }

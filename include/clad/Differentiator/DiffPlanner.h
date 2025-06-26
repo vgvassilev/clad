@@ -57,8 +57,6 @@ private:
 public:
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
-  /// Stores info relevant to the analysis(CFG, ASTContext).
-  clang::AnalysisDeclContext* AnalysisDC = nullptr;
   /// Name of the base function to be differentiated. Can be different from
   /// function->getNameAsString() when higher-order derivatives are computed.
   std::string BaseFunctionName = {};
@@ -218,6 +216,12 @@ public:
     ///
     clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
 
+    std::unique_ptr<clang::AnalysisDeclContextManager> m_ADCM;
+    using ContextMap =
+        llvm::DenseMap<const clang::Decl*,
+                       std::unique_ptr<clang::AnalysisDeclContext>>;
+
+    ContextMap m_AllAnalysisDC;
     /// If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///
