@@ -116,7 +116,10 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
     /// Used to recursively copy VarData when separating into different branches
     /// (e.g. when entering an if-else statements). Look at the Control Flow
     /// section for more information.
-    VarData copy();
+    [[nodiscard]] VarData copy() const;
+    /// Provides access to the nested VarData if the given VarData represents
+    /// an array or a structure. Generates new array elements if necessary.
+    VarData* operator[](const ProfileID& id) const;
   };
   // NOLINTEND(cppcoreguidelines-pro-type-union-access)
 

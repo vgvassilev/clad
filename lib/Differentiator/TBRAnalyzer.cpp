@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
@@ -45,7 +46,7 @@ void TBRAnalyzer::merge(VarData& targetData, VarData& mergeData) {
   // else if (this.m_Type == VarData::REF_TYPE) {}
 }
 
-TBRAnalyzer::VarData TBRAnalyzer::VarData::copy() {
+TBRAnalyzer::VarData TBRAnalyzer::VarData::copy() const {
   VarData res;
   res.m_Type = m_Type;
   if (m_Type == VarData::FUND_TYPE) {
@@ -74,40 +75,34 @@ bool TBRAnalyzer::findReq(const VarData& varData) {
   return false;
 }
 
+TBRAnalyzer::VarData*
+TBRAnalyzer::VarData::operator[](const ProfileID& id) const {
+  assert((m_Type == VarData::ARR_TYPE || m_Type == VarData::OBJ_TYPE) &&
+         "attempted to get an element of a non-obj non-arr VarData");
+  auto& baseArrMap = *m_Val.m_ArrData;
+  auto foundElem = baseArrMap.find(id);
+  if (foundElem != baseArrMap.end())
+    return &foundElem->second;
+
+  assert(m_Type != OBJ_TYPE &&
+         "all fields of obj-type VarData should be initialized");
+  // Non-const indices are represented with default FoldingSetNodeID.
+  ProfileID nonConstIdxID;
+  // Add the current index if it was not added previously
+  auto& idxData = baseArrMap[id];
+  // Since default ID represents non-const indices, whenever we add a
+  // new index we have to copy the VarData of default ID's element.
+  idxData = baseArrMap[nonConstIdxID].copy();
+  return &idxData;
+}
+
 TBRAnalyzer::VarData* TBRAnalyzer::getVarDataFromExpr(const clang::Expr* E) {
   llvm::SmallVector<ProfileID, 2> IDSequence;
   const VarDecl* VD = getIDSequence(E, IDSequence);
   VarData* data = getVarDataFromDecl(VD);
   assert(data && "expression not found");
-
-  for (ProfileID& id : IDSequence) {
-    assert(data->m_Type != VarData::REF_TYPE &&
-           "references should be removed on the getIDSequence stage");
-    if (data->m_Type == VarData::OBJ_TYPE) {
-      data = &(*data->m_Val.m_ArrData)[id];
-    } else if (data->m_Type == VarData::ARR_TYPE) {
-      // Non-const indices are represented with default FoldingSetNodeID.
-      ProfileID nonConstIdxID;
-      auto& baseArrMap = *data->m_Val.m_ArrData;
-      if (id == nonConstIdxID) {
-        data = &baseArrMap[id];
-      } else {
-        auto foundElem = baseArrMap.find(id);
-        // Add the current index if it was not added previously
-        if (foundElem == baseArrMap.end()) {
-          auto& idxData = baseArrMap[id];
-          // Since default ID represents non-const indices, whenever we add a
-          // new index we have to copy the VarData of default ID's element (if
-          // an element with undefined index was used this might be our current
-          // element).
-          idxData = baseArrMap[nonConstIdxID].copy();
-          data = &idxData;
-        } else
-          data = &foundElem->second;
-      }
-    }
-  }
-
+  for (ProfileID& id : IDSequence)
+    data = (*data)[id];
   return data;
 }
 
@@ -218,8 +213,7 @@ void TBRAnalyzer::setIsRequired(VarData* data, bool isReq,
   }
   const ProfileID& curID = IDSequence[0];
   if (data->m_Type == VarData::OBJ_TYPE) {
-    data = &baseArrMap[curID];
-    setIsRequired(data, isReq, IDSequence.drop_front());
+    setIsRequired((*data)[curID], isReq, IDSequence.drop_front());
     return;
   }
 
@@ -239,26 +233,12 @@ void TBRAnalyzer::setIsRequired(VarData* data, bool isReq,
     for (auto& pair : baseArrMap)
       setIsRequired(&pair.second, /*isReq=*/true, IDSequence.drop_front());
   } else {
-    auto foundElem = baseArrMap.find(curID);
-    VarData* elemData = nullptr;
-    // Add the current index if it was not added previously
-    if (foundElem == baseArrMap.end()) {
-      elemData = &baseArrMap[curID];
-      // Since default ID represents non-const indices, whenever we add a new
-      // index we have to copy the VarData of default ID's element (if an
-      // element with undefined index was used this might be our current
-      // element).
-      *elemData = baseArrMap[nonConstIdxID].copy();
-    } else
-      elemData = &foundElem->second;
-
-    setIsRequired(elemData, isReq, IDSequence.drop_front());
+    setIsRequired((*data)[curID], isReq, IDSequence.drop_front());
     // If we set any index to true, we have to also do it
     // to the default index.
-    if (isReq) {
-      VarData* defaultElemData = &baseArrMap[nonConstIdxID];
-      setIsRequired(defaultElemData, /*isReq=*/true, IDSequence.drop_front());
-    }
+    if (isReq)
+      setIsRequired((*data)[nonConstIdxID], /*isReq=*/true,
+                    IDSequence.drop_front());
   }
 }
 // NOLINTEND(cppcoreguidelines-pro-type-union-access)
