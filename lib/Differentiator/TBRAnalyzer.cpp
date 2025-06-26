@@ -20,15 +20,14 @@ namespace clad {
 
 // NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
 void TBRAnalyzer::setIsRequired(VarData& varData, bool isReq) {
+  assert(varData.m_Type != VarData::REF_TYPE &&
+         "references should be removed on the getIDSequence stage");
   if (varData.m_Type == VarData::FUND_TYPE)
     varData.m_Val.m_FundData = isReq;
   else if (varData.m_Type == VarData::OBJ_TYPE ||
            varData.m_Type == VarData::ARR_TYPE)
     for (auto& pair : *varData.m_Val.m_ArrData)
       setIsRequired(pair.second, isReq);
-  else if (varData.m_Type == VarData::REF_TYPE && varData.m_Val.m_RefData)
-    if (auto* data = getVarDataFromExpr(varData.m_Val.m_RefData))
-      setIsRequired(*data, isReq);
 }
 
 void TBRAnalyzer::merge(VarData& targetData, VarData& mergeData) {
@@ -66,13 +65,15 @@ TBRAnalyzer::VarData TBRAnalyzer::copy(VarData& copyData) {
     res.m_Val.m_ArrData = std::unique_ptr<ArrMap>(new ArrMap());
     for (auto& pair : *copyData.m_Val.m_ArrData)
       (*res.m_Val.m_ArrData)[pair.first] = copy(pair.second);
-  } else if (copyData.m_Type == VarData::REF_TYPE && copyData.m_Val.m_RefData) {
+  } else if (copyData.m_Type == VarData::REF_TYPE) {
     res.m_Val.m_RefData = copyData.m_Val.m_RefData;
   }
   return res;
 }
 
 bool TBRAnalyzer::findReq(const VarData& varData) {
+  assert(varData.m_Type != VarData::REF_TYPE &&
+         "references should be removed on the getIDSequence stage");
   if (varData.m_Type == VarData::FUND_TYPE)
     return varData.m_Val.m_FundData;
   if (varData.m_Type == VarData::OBJ_TYPE ||
@@ -80,11 +81,6 @@ bool TBRAnalyzer::findReq(const VarData& varData) {
     for (auto& pair : *varData.m_Val.m_ArrData)
       if (findReq(pair.second))
         return true;
-  } else if (varData.m_Type == VarData::REF_TYPE && varData.m_Val.m_RefData) {
-    if (auto* data = getVarDataFromExpr(varData.m_Val.m_RefData)) {
-      if (findReq(*data))
-        return true;
-    }
   }
   return false;
 }
@@ -114,6 +110,8 @@ TBRAnalyzer::VarData* TBRAnalyzer::getVarDataFromExpr(const clang::Expr* E) {
   assert(data && "expression not found");
 
   for (auto it = IDSequence.rbegin(), e = IDSequence.rend(); it != e; ++it) {
+    assert(data->m_Type != VarData::REF_TYPE &&
+           "references should be removed on the getIDSequence stage");
     if (data->m_Type == VarData::OBJ_TYPE) {
       data = &(*data->m_Val.m_ArrData)[*it];
     } else if (data->m_Type == VarData::ARR_TYPE) {
@@ -137,9 +135,6 @@ TBRAnalyzer::VarData* TBRAnalyzer::getVarDataFromExpr(const clang::Expr* E) {
         } else
           data = &foundElem->second;
       }
-    } else if (data->m_Type == VarData::REF_TYPE) {
-      assert(data->m_Val.m_RefData && "undefined m_RefData");
-      data = getVarDataFromExpr(data->m_Val.m_RefData);
     }
   }
 
@@ -203,7 +198,7 @@ TBRAnalyzer::getIDSequence(const clang::Expr* E,
       const auto* VD = cast<VarDecl>(DRE->getDecl());
       if (VD->getType()->isLValueReferenceType()) {
         VarData* refData = getVarDataFromDecl(VD);
-        if (refData->m_Type == VarData::REF_TYPE && refData->m_Val.m_RefData) {
+        if (refData->m_Type == VarData::REF_TYPE) {
           E = refData->m_Val.m_RefData;
           continue;
         }
@@ -575,9 +570,17 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         // VarData of the RHS variable.
         llvm::SmallVector<Expr*, 4> ExprsToStore;
         utils::GetInnermostReturnExpr(init, ExprsToStore);
-        if (VDExpr.m_Type == VarData::REF_TYPE && !ExprsToStore.empty())
-          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-          VDExpr.m_Val.m_RefData = ExprsToStore[0];
+        if (VDExpr.m_Type == VarData::REF_TYPE) {
+          // We only consider references that point to one
+          // compile-time defined object.
+          if (ExprsToStore.size() == 1)
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+            VDExpr.m_Val.m_RefData = ExprsToStore[0];
+          else
+            // If we don't know what this points to, mark undefined.
+            // FIXME: we should mark all vars on the RHS undefined too.
+            VDExpr.m_Type = VarData::UNDEFINED;
+        }
       }
     }
   }
