@@ -112,6 +112,11 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
       if (m_Type == OBJ_TYPE || m_Type == ARR_TYPE)
         m_Val.m_ArrData.reset();
     }
+
+    /// Used to recursively copy VarData when separating into different branches
+    /// (e.g. when entering an if-else statements). Look at the Control Flow
+    /// section for more information.
+    VarData copy();
   };
   // NOLINTEND(cppcoreguidelines-pro-type-union-access)
 
@@ -128,10 +133,6 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// (e.g. after an if-else statements). Look at the Control Flow section for
   /// more information.
   void merge(VarData& targetData, VarData& mergeData);
-  /// Used to recursively copy VarData when separating into different branches
-  /// (e.g. when entering an if-else statements). Look at the Control Flow
-  /// section for more information.
-  VarData copy(VarData& copyData);
 
   clang::CFGBlock* getCFGBlockByID(unsigned ID);
 

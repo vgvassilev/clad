@@ -37,7 +37,7 @@ void TBRAnalyzer::merge(VarData& targetData, VarData& mergeData) {
     for (auto& pair : *mergeData.m_Val.m_ArrData) {
       auto it = targetData.m_Val.m_ArrData->find(pair.first);
       if (it == mergeData.m_Val.m_ArrData->end())
-        (*targetData.m_Val.m_ArrData)[pair.first] = copy(pair.second);
+        (*targetData.m_Val.m_ArrData)[pair.first] = pair.second.copy();
     }
   }
   // This might be useful in future if used to analyse pointers. However, for
@@ -45,18 +45,17 @@ void TBRAnalyzer::merge(VarData& targetData, VarData& mergeData) {
   // else if (this.m_Type == VarData::REF_TYPE) {}
 }
 
-TBRAnalyzer::VarData TBRAnalyzer::copy(VarData& copyData) {
+TBRAnalyzer::VarData TBRAnalyzer::VarData::copy() {
   VarData res;
-  res.m_Type = copyData.m_Type;
-  if (copyData.m_Type == VarData::FUND_TYPE) {
-    res.m_Val.m_FundData = copyData.m_Val.m_FundData;
-  } else if (copyData.m_Type == VarData::OBJ_TYPE ||
-             copyData.m_Type == VarData::ARR_TYPE) {
+  res.m_Type = m_Type;
+  if (m_Type == VarData::FUND_TYPE) {
+    res.m_Val.m_FundData = m_Val.m_FundData;
+  } else if (m_Type == VarData::OBJ_TYPE || m_Type == VarData::ARR_TYPE) {
     res.m_Val.m_ArrData = std::unique_ptr<ArrMap>(new ArrMap());
-    for (auto& pair : *copyData.m_Val.m_ArrData)
-      (*res.m_Val.m_ArrData)[pair.first] = copy(pair.second);
-  } else if (copyData.m_Type == VarData::REF_TYPE) {
-    res.m_Val.m_RefData = copyData.m_Val.m_RefData;
+    for (auto& pair : *m_Val.m_ArrData)
+      (*res.m_Val.m_ArrData)[pair.first] = pair.second.copy();
+  } else if (m_Type == VarData::REF_TYPE) {
+    res.m_Val.m_RefData = m_Val.m_RefData;
   }
   return res;
 }
@@ -101,7 +100,7 @@ TBRAnalyzer::VarData* TBRAnalyzer::getVarDataFromExpr(const clang::Expr* E) {
           // new index we have to copy the VarData of default ID's element (if
           // an element with undefined index was used this might be our current
           // element).
-          idxData = copy(baseArrMap[nonConstIdxID]);
+          idxData = baseArrMap[nonConstIdxID].copy();
           data = &idxData;
         } else
           data = &foundElem->second;
@@ -247,7 +246,7 @@ void TBRAnalyzer::setIsRequired(VarData* data, bool isReq,
       // index we have to copy the VarData of default ID's element (if an
       // element with undefined index was used this might be our current
       // element).
-      *elemData = copy(baseArrMap[nonConstIdxID]);
+      *elemData = baseArrMap[nonConstIdxID].copy();
     } else
       elemData = &foundElem->second;
 
@@ -288,7 +287,7 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   auto& curBranch = getCurBlockVarsData();
   if (curBranch.find(VD) == curBranch.end()) {
     if (VarData* data = getVarDataFromDecl(VD))
-      curBranch[VD] = copy(*data);
+      curBranch[VD] = data->copy();
     else
       // If this variable was not found in predecessors, add it.
       addVar(VD);
@@ -512,7 +511,7 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
       while (branch) {
         auto it = branch->find(pair.first);
         if (it != branch->end()) {
-          (*targetData)[pair.first] = copy(it->second);
+          (*targetData)[pair.first] = it->second.copy();
           found = &(*targetData)[pair.first];
           break;
         }
@@ -527,7 +526,7 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
     if (found)
       merge(*found, *pair.second);
     else
-      (*targetData)[pair.first] = copy(*pair.second);
+      (*targetData)[pair.first] = pair.second->copy();
   }
 
   // For every variable in collected targetData predecessors, search it inside
@@ -545,7 +544,7 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
         while (branch) {
           auto it = branch->find(pair.first);
           if (it != branch->end()) {
-            (*targetData)[pair.first] = copy(*pair.second);
+            (*targetData)[pair.first] = pair.second->copy();
             merge((*targetData)[pair.first], it->second);
             break;
           }
