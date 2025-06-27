@@ -6,6 +6,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/Analysis/CFG.h"
 #include "clang/Basic/LLVM.h"
 
 #include "clad/Differentiator/Compatibility.h"
@@ -195,7 +196,7 @@ TBRAnalyzer::getIDSequence(const clang::Expr* E,
   const VarDecl* innerVD = nullptr;
   // Unwrap the given expression to a vector of indices and fields.
   while (true) {
-    E = E->IgnoreImplicit();
+    E = E->IgnoreCasts();
     if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
       if (const auto* IL = dyn_cast<clang::IntegerLiteral>(ASE->getIdx()))
         IDSequence.push_back(getProfileID(IL));
