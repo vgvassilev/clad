@@ -173,20 +173,10 @@ TBRAnalyzer::VarData::VarData(QualType QT, const ASTContext& C,
     const auto* recordDecl = recordType->getDecl();
     auto& newArrMap = m_Val.m_ArrData;
     newArrMap = std::unique_ptr<ArrMap>(new ArrMap());
-
-    // FIXME: For some reason if a variable is of kokkos-type we start creating
-    // infinite amount of VarData objects.
-    bool isInKokkosNS = false;
-    if (const auto* ns =
-            llvm::dyn_cast<clang::NamespaceDecl>(recordDecl->getDeclContext()))
-      if (ns->getName() == "Kokkos")
-        isInKokkosNS = true;
-
-    if (!isInKokkosNS)
-      for (const auto* field : recordDecl->fields()) {
-        const auto varType = field->getType();
-        (*newArrMap)[getProfileID(field)] = VarData(varType, C);
-      }
+    for (const auto* field : recordDecl->fields()) {
+      const auto varType = field->getType();
+      (*newArrMap)[getProfileID(field)] = VarData(varType, C);
+    }
   }
 }
 const VarDecl*

@@ -56,11 +56,13 @@ namespace clad {
 
 DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
                                      DerivedFnCollector& DFC,
-                                     clad::DynamicGraph<DiffRequest>& G)
+                                     clad::DynamicGraph<DiffRequest>& G,
+                                     ContextMap& ADC)
     : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()), m_DFC(DFC),
       m_DiffRequestGraph(G),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
-      m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
+      m_BuiltinDerivativesNSD(nullptr), m_AllAnalysisDC(ADC),
+      m_NumericalDiffNSD(nullptr) {}
 
 DerivativeBuilder::~DerivativeBuilder() {}
 
@@ -297,6 +299,40 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           }
 
     return nullptr;
+  }
+
+  bool DerivativeBuilder::shouldBeRecorded(const DiffRequest& request,
+                                           Expr* E) const {
+    if (!request.EnableTBRAnalysis)
+      return true;
+
+    if (isa<CXXConstCastExpr>(E))
+      E = cast<CXXConstCastExpr>(E)->getSubExpr();
+
+    if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
+        !isa<MemberExpr>(E) &&
+        (!isa<UnaryOperator>(E) ||
+         cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
+      return true;
+
+    // FIXME: currently, we allow all pointer operations to be stored.
+    // This is not correct, but we need to implement a more advanced analysis
+    // to determine which pointer operations are useful to store.
+    if (E->getType()->isPointerType())
+      return true;
+
+    if (!request.HasTbrAnalysisRun() && request.Function->isDefined() &&
+        request.EnableTBRAnalysis) {
+      TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
+      auto it = m_AllAnalysisDC.find(request.Function);
+      if (it != m_AllAnalysisDC.end()) {
+        auto& AnalysisDC = it->second;
+        TBRAnalyzer analyzer(AnalysisDC.get(), request.getToBeRecorded());
+        analyzer.Analyze(request.Function);
+      }
+    }
+    auto found = request.getToBeRecorded().find(E->getBeginLoc());
+    return found != request.getToBeRecorded().end();
   }
 
   Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(

@@ -33,6 +33,8 @@ class Type;
 } // namespace clang
 
 namespace clad {
+using ContextMap = llvm::DenseMap<const clang::Decl*,
+                                  std::unique_ptr<clang::AnalysisDeclContext>>;
 
 /// A struct containing information about request to differentiate a function.
 struct DiffRequest {
@@ -196,6 +198,7 @@ public:
   std::set<const clang::VarDecl*>& getUsefulDecls() const {
     return m_UsefulRunInfo.UsefulDecls;
   }
+  bool HasTbrAnalysisRun() const { return m_TbrRunInfo.HasAnalysisRun; }
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;
@@ -216,13 +219,9 @@ public:
     /// Graph to store the dependencies between different requests.
     ///
     clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
-
-    std::unique_ptr<clang::AnalysisDeclContextManager> m_ADCM;
-    using ContextMap =
-        llvm::DenseMap<const clang::Decl*,
-                       std::unique_ptr<clang::AnalysisDeclContext>>;
-
-    ContextMap m_AllAnalysisDC;
+    /// Map that contains all AnalysisDeclContext for all declrations.
+    ///
+    ContextMap& m_AllAnalysisDC;
     /// If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///
@@ -240,7 +239,7 @@ public:
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
-                  RequestOptions& opts);
+                  RequestOptions& opts, ContextMap& AllAnalysisDC);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);

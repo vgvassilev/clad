@@ -273,16 +273,15 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
-                               clang::Sema& S, RequestOptions& opts)
-      : m_Interval(Interval), m_DiffRequestGraph(requestGraph), m_Sema(S),
-        m_Options(opts) {
+                               clang::Sema& S, RequestOptions& opts,
+                               ContextMap& AllAnalysisDC)
+      : m_Interval(Interval), m_DiffRequestGraph(requestGraph),
+        m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {
 
     if (Interval.empty())
       return;
 
     assert(!m_TopMostReq && "Traversal already in flight!");
-
-    m_ADCM = std::make_unique<AnalysisDeclContextManager>(S.getASTContext());
 
     for (Decl* D : DGR)
       TraverseDecl(D);
@@ -629,28 +628,6 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       Out << ", tbr";
     Out << ']';
     Out.flush();
-  }
-
-  bool DiffRequest::shouldBeRecorded(Expr* E) const {
-    if (!EnableTBRAnalysis)
-      return true;
-
-    if (isa<CXXConstCastExpr>(E))
-      E = cast<CXXConstCastExpr>(E)->getSubExpr();
-
-    if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
-        !isa<MemberExpr>(E) &&
-        (!isa<UnaryOperator>(E) ||
-         cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
-      return true;
-
-    // FIXME: currently, we allow all pointer operations to be stored.
-    // This is not correct, but we need to implement a more advanced analysis
-    // to determine which pointer operations are useful to store.
-    if (E->getType()->isPointerType())
-      return true;
-    auto found = m_TbrRunInfo.ToBeRecorded.find(E->getBeginLoc());
-    return found != m_TbrRunInfo.ToBeRecorded.end();
   }
 
   bool DiffRequest::shouldHaveAdjointForw(const VarDecl* VD) const {
@@ -1209,7 +1186,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (!LookupCustomDerivativeDecl(request)) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
-          std::make_unique<AnalysisDeclContext>(m_ADCM.get(), request.Function,
+          std::make_unique<AnalysisDeclContext>(nullptr, request.Function,
                                                 Options);
 
       if (m_TopMostReq->EnableVariedAnalysis) {
@@ -1221,14 +1198,6 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       if (m_TopMostReq->EnableUsefulAnalysis) {
         TimedAnalysisRegion R("UA " + request.BaseFunctionName);
         UsefulAnalyzer analyzer(AnalysisDC.get(), request.getUsefulDecls());
-        analyzer.Analyze(request.Function);
-      }
-
-      if (request.Function->isDefined() && m_TopMostReq->EnableTBRAnalysis &&
-          (request.Mode == DiffMode::reverse ||
-           request.Mode == DiffMode::pullback)) {
-        TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
-        TBRAnalyzer analyzer(AnalysisDC.get(), request.getToBeRecorded());
         analyzer.Analyze(request.Function);
       }
 
@@ -1319,16 +1288,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (!LookupCustomDerivativeDecl(request)) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
-          std::make_unique<AnalysisDeclContext>(m_ADCM.get(), request.Function,
+          std::make_unique<AnalysisDeclContext>(nullptr, request.Function,
                                                 Options);
 
-      if (m_TopMostReq->EnableTBRAnalysis &&
-          (request.Mode == DiffMode::reverse ||
-           request.Mode == DiffMode::pullback)) {
-        TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
-        TBRAnalyzer analyzer(AnalysisDC.get(), request.getToBeRecorded());
-        analyzer.Analyze(request.Function);
-      }
       m_AllAnalysisDC.insert({request.Function, std::move(AnalysisDC)});
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
