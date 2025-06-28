@@ -301,7 +301,7 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   m_BlockPassCounter.resize(m_AnalysisDC->getCFG()->size(), 0);
 
   // Set current block ID to the ID of entry the block.
-  CFGBlock entry = m_AnalysisDC->getCFG()->getEntry();
+  CFGBlock& entry = m_AnalysisDC->getCFG()->getEntry();
   m_CurBlockID = entry.getBlockID();
   m_BlockData[m_CurBlockID] = std::unique_ptr<VarsData>(new VarsData());
 

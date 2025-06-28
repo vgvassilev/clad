@@ -8,7 +8,7 @@ namespace clad {
 void VariedAnalyzer::Analyze(const FunctionDecl* FD) {
   m_BlockData.resize(m_AnalysisDC->getCFG()->size());
   // Set current block ID to the ID of entry the block.
-  CFGBlock entry = m_AnalysisDC->getCFG()->getEntry();
+  CFGBlock& entry = m_AnalysisDC->getCFG()->getEntry();
   m_CurBlockID = entry.getBlockID();
   m_BlockData[m_CurBlockID] = createNewVarsData({});
   for (const VarDecl* i : m_VariedDecls)

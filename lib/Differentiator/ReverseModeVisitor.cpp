@@ -2167,7 +2167,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* diff_dx = diff.getExpr_dx();
       if (isPointerOp)
         addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
-      if (m_Builder.shouldBeRecorded(m_DiffReq, E)) {
+      if (m_DiffReq.shouldBeRecorded(E)) {
         auto op = opCode == UO_PostInc ? UO_PostDec : UO_PostInc;
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
@@ -2184,7 +2184,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* diff_dx = diff.getExpr_dx();
       if (isPointerOp)
         addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
-      if (m_Builder.shouldBeRecorded(m_DiffReq, E)) {
+      if (m_DiffReq.shouldBeRecorded(E)) {
         auto op = opCode == UO_PreInc ? UO_PreDec : UO_PreInc;
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
@@ -2408,7 +2408,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       // Store the value of the LHS of the assignment in the forward pass
       // and restore it in the reverse pass
-      if (m_Builder.shouldBeRecorded(m_DiffReq, L)) {
+      if (m_DiffReq.shouldBeRecorded(L)) {
         StmtDiff pushPop = StoreAndRestore(LCloned);
         addToCurrentBlock(pushPop.getStmt(), direction::forward);
         addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);

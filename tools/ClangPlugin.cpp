@@ -209,7 +209,7 @@ void InitTimers();
       Sema& S = m_CI.getSema();
       if (!m_DerivativeBuilder)
         m_DerivativeBuilder = std::make_unique<DerivativeBuilder>(
-            S, *this, m_DFC, m_DiffRequestGraph, m_AllAnalysisDC);
+            S, *this, m_DFC, m_DiffRequestGraph);
 
       if (request.Global) {
         auto deriveResult = m_DerivativeBuilder->Derive(request);

@@ -14,11 +14,13 @@
 #include "clang/Analysis/AnalysisDeclContext.h"
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <iterator>
+#include <memory>
 #include <set>
 
 namespace clang {
@@ -33,9 +35,8 @@ class Type;
 } // namespace clang
 
 namespace clad {
-using ContextMap = llvm::DenseMap<const clang::Decl*,
-                                  std::unique_ptr<clang::AnalysisDeclContext>>;
-
+using OwnedAnalysisContexts =
+    llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
 /// A struct containing information about request to differentiate a function.
 struct DiffRequest {
 private:
@@ -126,6 +127,8 @@ public:
   /// is required (and not the definition or body).
   /// This will be particularly useful for pushforward and pullback functions.
   bool DeclarationOnly = false;
+
+  clang::AnalysisDeclContext* m_AnalysisDC;
 
   /// Recomputes `DiffInputVarsInfo` using the current values of data members.
   ///
@@ -220,8 +223,9 @@ public:
     ///
     clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
     /// Map that contains all AnalysisDeclContext for all declrations.
-    ///
-    ContextMap& m_AllAnalysisDC;
+    /// Essentially needed for prolonging the lifetime of
+    /// unique_ptr<clang::AnalysisDeclContext>.
+    OwnedAnalysisContexts& m_AllAnalysisDC;
     /// If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///
@@ -239,7 +243,7 @@ public:
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
-                  RequestOptions& opts, ContextMap& AllAnalysisDC);
+                  RequestOptions& opts, OwnedAnalysisContexts& AllAnalysisDC);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);

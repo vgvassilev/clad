@@ -274,7 +274,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
                                clang::Sema& S, RequestOptions& opts,
-                               ContextMap& AllAnalysisDC)
+                               OwnedAnalysisContexts& AllAnalysisDC)
       : m_Interval(Interval), m_DiffRequestGraph(requestGraph),
         m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {
 
@@ -628,6 +628,35 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       Out << ", tbr";
     Out << ']';
     Out.flush();
+  }
+
+  bool DiffRequest::shouldBeRecorded(Expr* E) const {
+    if (!EnableTBRAnalysis)
+      return true;
+
+    if (isa<CXXConstCastExpr>(E))
+      E = cast<CXXConstCastExpr>(E)->getSubExpr();
+
+    if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
+        !isa<MemberExpr>(E) &&
+        (!isa<UnaryOperator>(E) ||
+         cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
+      return true;
+
+    // FIXME: currently, we allow all pointer operations to be stored.
+    // This is not correct, but we need to implement a more advanced analysis
+    // to determine which pointer operations are useful to store.
+    if (E->getType()->isPointerType())
+      return true;
+
+    if (!m_TbrRunInfo.HasAnalysisRun && Function->isDefined() &&
+        EnableTBRAnalysis) {
+      TimedAnalysisRegion R("TBR " + BaseFunctionName);
+      TBRAnalyzer analyzer(m_AnalysisDC, getToBeRecorded());
+      analyzer.Analyze(Function);
+    }
+    auto found = m_TbrRunInfo.ToBeRecorded.find(E->getBeginLoc());
+    return found != m_TbrRunInfo.ToBeRecorded.end();
   }
 
   bool DiffRequest::shouldHaveAdjointForw(const VarDecl* VD) const {
@@ -1200,8 +1229,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         UsefulAnalyzer analyzer(AnalysisDC.get(), request.getUsefulDecls());
         analyzer.Analyze(request.Function);
       }
-
-      m_AllAnalysisDC.insert({request.Function, std::move(AnalysisDC)});
+      request.m_AnalysisDC = AnalysisDC.get();
+      m_AllAnalysisDC.push_back(std::move(AnalysisDC));
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
     }
@@ -1291,7 +1320,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
           std::make_unique<AnalysisDeclContext>(nullptr, request.Function,
                                                 Options);
 
-      m_AllAnalysisDC.insert({request.Function, std::move(AnalysisDC)});
+      request.m_AnalysisDC = AnalysisDC.get();
+      m_AllAnalysisDC.push_back(std::move(AnalysisDC));
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
     }

@@ -12,8 +12,6 @@
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
-#include "../lib/Differentiator/TBRAnalyzer.h"
-
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -89,7 +87,6 @@ namespace clad {
     clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
-    ContextMap& m_AllAnalysisDC;
     /// A reference to the model to use for error estimation (if any).
     llvm::SmallVector<std::unique_ptr<FPErrorEstimationModel>, 4> m_EstModel;
     clang::NamespaceDecl* m_NumericalDiffNSD;
@@ -171,7 +168,7 @@ namespace clad {
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
                       DerivedFnCollector& DFC,
-                      clad::DynamicGraph<DiffRequest>& DRG, ContextMap& ADC);
+                      clad::DynamicGraph<DiffRequest>& DRG);
     ~DerivativeBuilder();
     /// Reset the model use for error estimation (if any).
     /// \param[in] estModel The error estimation model, can be either
@@ -220,7 +217,6 @@ namespace clad {
     /// \param[in] Request The request to be processed.
     /// \returns The derivative function if found, nullptr otherwise.
     clang::FunctionDecl* HandleNestedDiffRequest(DiffRequest& request);
-    bool shouldBeRecorded(const DiffRequest& request, clang::Expr* E) const;
   };
 
 } // end namespace clad

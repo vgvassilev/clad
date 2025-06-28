@@ -8,7 +8,7 @@ void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
   // Build the CFG (control-flow graph) of FD.
   m_BlockData.resize(m_AnalysisDC->getCFG()->size());
   // Set current block ID to the ID of entry the block.
-  CFGBlock exit = m_AnalysisDC->getCFG()->getExit();
+  CFGBlock& exit = m_AnalysisDC->getCFG()->getExit();
   m_CurBlockID = exit.getBlockID();
   m_BlockData[m_CurBlockID] = createNewVarsData({});
   // Add the entry block to the queue.
