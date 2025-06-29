@@ -4,6 +4,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -33,7 +34,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
   ProfileID getProfileID(const Expr* E) const {
     ProfileID profID;
-    E->Profile(profID, m_Context, /* Canonical */ true);
+    E->Profile(profID, m_AnalysisDC->getASTContext(), /* Canonical */ true);
     return profID;
   }
 
@@ -217,10 +218,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// a new one).
   std::vector<int> m_ModeStack;
 
-  ASTContext& m_Context;
-
-  /// clang::CFG of the function being analysed.
-  std::unique_ptr<clang::CFG> m_CFG;
+  clang::AnalysisDeclContext* m_AnalysisDC;
 
   /// Stores VarsData structures for CFG blocks (the indices in
   /// the vector correspond to CFG blocks' IDs)
@@ -266,8 +264,9 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
 public:
   /// Constructor
-  TBRAnalyzer(ASTContext& Context, std::set<clang::SourceLocation>& Locs)
-      : m_TBRLocs(Locs), m_Context(Context) {
+  TBRAnalyzer(clang::AnalysisDeclContext* AnalysisDC,
+              std::set<clang::SourceLocation>& Locs)
+      : m_TBRLocs(Locs), m_AnalysisDC(AnalysisDC) {
     m_ModeStack.push_back(0);
   }
 

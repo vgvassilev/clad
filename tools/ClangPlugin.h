@@ -100,6 +100,7 @@ struct DifferentiationOptions {
     bool m_HasRuntime = false;
     DerivedFnCollector m_DFC;
     DynamicGraph<DiffRequest> m_DiffRequestGraph;
+    OwnedAnalysisContexts m_AllAnalysisDC;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,

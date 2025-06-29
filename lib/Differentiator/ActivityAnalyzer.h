@@ -2,6 +2,7 @@
 #define CLAD_DIFFERENTIATOR_ACTIVITYANALYZER_H
 
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 
 #include "clad/Differentiator/CladUtils.h"
@@ -35,8 +36,7 @@ class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer> {
 
   clang::CFGBlock* getCFGBlockByID(unsigned ID);
 
-  clang::ASTContext& m_Context;
-  std::unique_ptr<clang::CFG> m_CFG;
+  clang::AnalysisDeclContext* m_AnalysisDC;
   std::vector<std::unique_ptr<VarsData>> m_BlockData;
   unsigned m_CurBlockID{};
   std::set<unsigned> m_CFGQueue;
@@ -55,9 +55,9 @@ class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer> {
 
 public:
   /// Constructor
-  VariedAnalyzer(clang::ASTContext& Context,
+  VariedAnalyzer(clang::AnalysisDeclContext* AnalysisDC,
                  std::set<const clang::VarDecl*>& Decls)
-      : m_VariedDecls(Decls), m_Context(Context) {}
+      : m_VariedDecls(Decls), m_AnalysisDC(AnalysisDC) {}
 
   /// Destructor
   ~VariedAnalyzer() = default;

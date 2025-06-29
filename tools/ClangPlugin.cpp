@@ -154,7 +154,7 @@ void InitTimers();
           auto* FD = cast<FunctionDecl>(D);
           if (FD->isConstexpr() || !m_Multiplexer) {
             DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph,
-                                    S, opts);
+                                    S, opts, m_AllAnalysisDC);
             break;
           }
         }
@@ -511,7 +511,7 @@ void InitTimers();
             if (FD->isConstexpr())
               continue;
           DiffCollector collector(DCI.m_DGR, CladEnabledRange,
-                                  m_DiffRequestGraph, S, opts);
+                                  m_DiffRequestGraph, S, opts, m_AllAnalysisDC);
           break;
         }
 

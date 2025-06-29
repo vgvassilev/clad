@@ -6,14 +6,10 @@ using namespace clang;
 namespace clad {
 
 void VariedAnalyzer::Analyze(const FunctionDecl* FD) {
-  // Build the CFG (control-flow graph) of FD.
-  clang::CFG::BuildOptions Options;
-  m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), &m_Context, Options);
-
-  m_BlockData.resize(m_CFG->size());
+  m_BlockData.resize(m_AnalysisDC->getCFG()->size());
   // Set current block ID to the ID of entry the block.
-  CFGBlock* entry = &m_CFG->getEntry();
-  m_CurBlockID = entry->getBlockID();
+  CFGBlock& entry = m_AnalysisDC->getCFG()->getEntry();
+  m_CurBlockID = entry.getBlockID();
   m_BlockData[m_CurBlockID] = createNewVarsData({});
   for (const VarDecl* i : m_VariedDecls)
     m_BlockData[m_CurBlockID]->insert(i);
@@ -38,7 +34,7 @@ void mergeVarsData(std::set<const clang::VarDecl*>* targetData,
 }
 
 CFGBlock* VariedAnalyzer::getCFGBlockByID(unsigned ID) {
-  return *(m_CFG->begin() + ID);
+  return *(m_AnalysisDC->getCFG()->begin() + ID);
 }
 
 void VariedAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
