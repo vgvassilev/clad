@@ -218,6 +218,10 @@ namespace clad {
     /// For an expr E, decides if we should recompute it or store it.
     /// This is the central point for checkpointing.
     bool ShouldRecompute(const clang::Expr* E);
+    /// Called in ShouldRecompute. In CUDA, to access a current thread/block id
+    /// we use functions that do not change the state of any variable, since no
+    /// point to store the value.
+    static bool isCUDABuiltInIndex(const clang::Expr* E);
 
     /// Builds a variable declaration and stores it in the function
     /// global scope.
