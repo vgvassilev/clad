@@ -47,11 +47,6 @@ jobs:
             compiler: clang
             clang-runtime: '20'
 
-          - name: osx13-x86-clang-runtime12
-            os: macos-13
-            compiler: clang
-            clang-runtime: '12'
-
           - name: osx13-x86-clang-runtime16
             os: macos-13
             compiler: clang
