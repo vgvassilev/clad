@@ -192,7 +192,6 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
 
 else()
   # Not standalone; we are building within llvm
-  set(CLAD_BUILD_WITH_LLVM ON)
   if (NOT "clang" IN_LIST LLVM_ENABLE_PROJECTS)
     message(FATAL_ERROR "Clang is not enabled; consider enabling it in LLVM_ENABLED_PROJECTS")
   endif()
