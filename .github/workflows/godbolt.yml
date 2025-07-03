@@ -1,0 +1,23 @@
+name: check-compilation-for-godblot
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker
+        uses: docker/setup-docker-action@v4
+
+      - name: Clone Builder Repo
+        run: |
+          git clone --depth=1 https://github.com/compiler-explorer/misc-builder.git misc-builder
+
+      - name: Build
+        run: |
+          cd misc-builder/
+          docker build -t builder -f Dockerfile.clad .
+          echo "./build.sh trunk /build" | docker run --rm -i -v/tmp/out:/build builder
