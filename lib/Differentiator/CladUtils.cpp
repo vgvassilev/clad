@@ -358,7 +358,7 @@ namespace clad {
       return isRefType || isArrayOrPointerType(arg->getType());
     }
 
-    bool SameCanonicalType(clang::QualType T1, clang::QualType T2) {
+    bool isSameCanonicalType(clang::QualType T1, clang::QualType T2) {
       return T1.getCanonicalType() == T2.getCanonicalType();
     }
 
@@ -493,6 +493,12 @@ namespace clad {
     /// type.
     clang::QualType getNonConstType(clang::QualType T, clang::Sema& S) {
       bool isLValueRefType = T->isLValueReferenceType();
+      if (const auto* CAT = llvm::dyn_cast<clang::ConstantArrayType>(T)) {
+        QualType elemType = GetNonConstValueType(T);
+        T = S.getASTContext().getConstantArrayType(
+            elemType, CAT->getSize(), CAT->getSizeExpr(),
+            CAT->getSizeModifier(), CAT->getIndexTypeCVRQualifiers());
+      }
       T = T.getNonReferenceType();
       clang::Qualifiers quals(T.getQualifiers());
       quals.removeConst();

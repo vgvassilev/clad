@@ -95,7 +95,7 @@ double fn2(double i, double j) {
 // CHECK-NEXT:         _d_temp = 0.;
 // CHECK-NEXT:         i = _t4;
 // CHECK-NEXT:         j = _t5;
-// CHECK-NEXT:         modify1_pullback(_t4, _t5, _r_d1, &*_d_i, &*_d_j);
+// CHECK-NEXT:         modify1_pullback(i, j, _r_d1, &*_d_i, &*_d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         temp = _t0;
@@ -103,7 +103,7 @@ double fn2(double i, double j) {
 // CHECK-NEXT:         _d_temp = 0.;
 // CHECK-NEXT:         i = _t1;
 // CHECK-NEXT:         j = _t2;
-// CHECK-NEXT:         modify1_pullback(_t1, _t2, _r_d0, &*_d_i, &*_d_j);
+// CHECK-NEXT:         modify1_pullback(i, j, _r_d0, &*_d_i, &*_d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -146,12 +146,12 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t2;
 // CHECK-NEXT:         j = _t3;
-// CHECK-NEXT:         update1_pullback(_t2, _t3, &*_d_i, &*_d_j);
+// CHECK-NEXT:         update1_pullback(i, j, &*_d_i, &*_d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t0;
 // CHECK-NEXT:         j = _t1;
-// CHECK-NEXT:         update1_pullback(_t0, _t1, &*_d_i, &*_d_j);
+// CHECK-NEXT:         update1_pullback(i, j, &*_d_i, &*_d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -258,9 +258,8 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:             _d_arr[i] += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             arr[i] = clad::back(_t2);
-// CHECK-NEXT:             twice_pullback(clad::back(_t2), &_d_arr[i]);
-// CHECK-NEXT:             clad::pop(_t2);
+// CHECK-NEXT:             arr[i] = clad::pop(_t2);
+// CHECK-NEXT:             twice_pullback(arr[i], &_d_arr[i]);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -398,15 +397,15 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t4;
-// CHECK-NEXT:         custom_identity_pullback(_t4, 0., &*_d_i);
+// CHECK-NEXT:         custom_identity_pullback(i, 0., &*_d_i);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         j = _t2;
-// CHECK-NEXT:         identity_pullback(_t2, 0., &*_d_j);
+// CHECK-NEXT:         identity_pullback(j, 0., &*_d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t0;
-// CHECK-NEXT:         identity_pullback(_t0, 0., &*_d_i);
+// CHECK-NEXT:         identity_pullback(i, 0., &*_d_i);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -650,7 +649,7 @@ double fn14(double x, double y) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         x = _t0;
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         emptyFn_pullback(_t0, y, &*_d_x, &_r0);
+// CHECK-NEXT:         emptyFn_pullback(x, y, &*_d_x, &_r0);
 // CHECK-NEXT:         *_d_y += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -718,14 +717,16 @@ double add(double a, const double* b) {
 }
 
 
+//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a) {
+//CHECK-NEXT:     *_d_a += _d_y;
+//CHECK-NEXT: }
+
 //CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a, double *_d_b) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_a += _d_y;
 //CHECK-NEXT:         _d_b[0] += _d_y;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
-
-//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a);
 
 double fn17 (double x, const double* y) {
     x = add(x, y);
@@ -836,7 +837,7 @@ double fn21(double x) {
 // CHECK-NEXT:     double *_t0 = ptr;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         ptr = _t0;
-// CHECK-NEXT:         ptrRef_pullback(_t0, 1, &_d_ptr);
+// CHECK-NEXT:         ptrRef_pullback(ptr, 1, &_d_ptr);
 // CHECK-NEXT:     }
 
 namespace clad{
@@ -903,7 +904,7 @@ double fn24(double x) {
 // CHECK-NEXT:      *_d_x += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          x = _t0;
-// CHECK-NEXT:          unused_return_pullback(_t0, 0., &*_d_x);
+// CHECK-NEXT:          unused_return_pullback(x, 0., &*_d_x);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
  
@@ -924,6 +925,24 @@ double fn25(double x) {
 // CHECK-NEXT:        _r0 += 1 * fn25_pushforward(x, 1.).pushforward;
 // CHECK-NEXT:        *_d_x += _r0;
 // CHECK-NEXT:    }
+// CHECK-NEXT: }
+
+double inner_func(double *params, double const *constants) {
+   return params[0] * constants[0];
+}
+
+// CHECK-NOT: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params, double *_d_constants) {
+
+// CHECK: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params) {
+// CHECK-NEXT:     _d_params[0] += _d_y * constants[0];
+// CHECK-NEXT: }
+
+double fn26(double *params, double const *constants) {
+   return inner_func(params, constants);
+}
+
+// CHECK: void fn26_grad_0(double *params, const double *constants, double *_d_params) {
+// CHECK-NEXT:     inner_func_pullback(params, constants, 1, _d_params);
 // CHECK-NEXT: }
 
 template<typename T>
@@ -1046,6 +1065,11 @@ int main() {
 
   INIT(fn25_defined_later);
   TEST1(fn25_defined_later, 3); // CHECK-EXEC: {1.00}
+
+  dx1[0] = 0;
+  auto fn26_grad_0 = clad::gradient(fn26, "params");
+  fn26_grad_0.execute(x1, w1, dx1);
+  printf("{%.2f}\n", dx1[0]);   // CHECK-EXEC: {-1.00}
 }
 
 double sq_defined_later(double x) {
@@ -1062,10 +1086,6 @@ double fn25_defined_later(double x) {
 // CHECK-NEXT:     _d_i0 += 1;
 // CHECK-NEXT:     return {i, _d_i};
 // CHECK-NEXT: }
-
-//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a) {
-//CHECK-NEXT:     *_d_a += _d_y;
-//CHECK-NEXT: }
 
 // CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x) {
 // CHECK-NEXT:     {

@@ -50,19 +50,15 @@ constructor_reverse_forw(
           ::Kokkos::View<DataType, ViewParams...>(
               "_diff_" + name, idx0, idx1, idx2, idx3, idx4, idx5, idx6, idx7)};
 }
-template <class DataType, class... ViewParams>
-void constructor_pullback(const ::std::string& name, const size_t& idx0,
-                          const size_t& idx1, const size_t& idx2,
-                          const size_t& idx3, const size_t& idx4,
-                          const size_t& idx5, const size_t& idx6,
-                          const size_t& idx7,
-                          ::Kokkos::View<DataType, ViewParams...>* d_this,
-                          const ::std::string* /*d_name*/,
-                          const size_t& /*d_idx0*/, const size_t* /*d_idx1*/,
-                          const size_t* /*d_idx2*/, const size_t* /*d_idx3*/,
-                          const size_t* /*d_idx4*/, const size_t* /*d_idx5*/,
-                          const size_t* /*d_idx6*/, const size_t* /*d_idx7*/) {}
-
+template <class DataType, size_t N, class... ViewParams>
+void constructor_pullback(
+    const char (&name)[N], const size_t idx0, const size_t idx1,
+    const size_t idx2, const size_t idx3, const size_t idx4, const size_t idx5,
+    const size_t idx6, const size_t idx7,
+    ::Kokkos::View<DataType, ViewParams...>* d_this, char (*)[2] /*d_name*/,
+    unsigned long* /*d_idx0*/, size_t* /*d_idx1*/, size_t* /*d_idx2*/,
+    size_t* /*d_idx3*/, size_t* /*d_idx4*/, size_t* /*d_idx5*/,
+    size_t* /*d_idx5*/, size_t* /*d_idx6*/) {}
 /// View indexing
 template <typename View, typename Idx>
 inline clad::ValueAndPushforward<typename View::reference_type,
@@ -470,12 +466,12 @@ void resize_pushforward(
   ::Kokkos::resize(v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
-template <class I, class dI, class View>
+template <class I, class View>
 void resize_pushforward(
     const I& arg, View& v, const ::std::size_t n0, const ::std::size_t n1,
     const ::std::size_t n2, const ::std::size_t n3, const ::std::size_t n4,
     const ::std::size_t n5, const ::std::size_t n6, const ::std::size_t n7,
-    const dI& /*d_arg*/, View& d_v, const ::std::size_t /*d_n*/,
+    const I& /*d_arg*/, View& d_v, const ::std::size_t /*d_n*/,
     const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
     const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
     const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,

@@ -68,15 +68,14 @@ cudaMalloc_pushforward(T** devPtr, size_t sz, T** d_devPtr, size_t d_sz)
 }
 
 ValueAndPushforward<cudaError_t, cudaError_t>
-cudaMemcpy_pushforward(void* destPtr, void* srcPtr, size_t count,
-                       cudaMemcpyKind kind, void* d_destPtr, void* d_srcPtr,
-                       size_t d_count) __attribute__((host)) {
+cudaMemcpy_pushforward(void* destPtr, const void* srcPtr, size_t count,
+                       cudaMemcpyKind kind, void* d_destPtr,
+                       const void* d_srcPtr, size_t d_count) {
   return {cudaMemcpy(destPtr, srcPtr, count, kind),
           cudaMemcpy(d_destPtr, d_srcPtr, count, kind)};
 }
 
-ValueAndPushforward<int, int> cudaDeviceSynchronize_pushforward()
-    __attribute__((host)) {
+ValueAndPushforward<int, int> cudaDeviceSynchronize_pushforward() {
   return {cudaDeviceSynchronize(), 0};
 }
 
@@ -560,7 +559,8 @@ CUDA_HOST_DEVICE void expl_pullback(T x, U d_y, T* d_x) {
 // 2.2 exp2, exp2f, exp2l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp2_pushforward(T x, dT d_x) {
-  return {::std::exp2(x), ::std::exp2(x) * ::std::log(2) * d_x};
+  return {::std::exp2(x),
+          static_cast<dT>(::std::exp2(x) * ::std::log(2) * d_x)};
 }
 
 template <typename T, typename U>
@@ -1201,7 +1201,8 @@ CUDA_HOST_DEVICE void atanhl_pullback(T x, U d_z, T* d_x) {
 // 6.1 erf, erff, erfl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erf_pushforward(T x, dT d_x) {
-  return {::std::erf(x), (2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x) * d_x};
+  return {::std::erf(x),
+          static_cast<dT>(2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x) * d_x};
 }
 
 template <typename T, typename U>

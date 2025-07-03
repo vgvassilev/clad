@@ -101,9 +101,9 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     unsigned long _t10 = sizeof(double);
 // CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t11 = clad::custom_derivatives::cudaMemcpy_pushforward(device_c, c, n * _t10, cudaMemcpyHostToDevice, _d_device_c, _d_c, _d_n * _t10 + n * sizeof(double));
 // CHECK-NEXT:     add_pushforward<<<1, 700>>>(device_a, device_b, device_c, n, _d_device_a, _d_device_b, _d_device_c, _d_n);
-// CHECK-NEXT:     ValueAndPushforward<int, int> _t12 = clad::custom_derivatives::cudaDeviceSynchronize_pushforward();
-// CHECK-NEXT:     unsigned long _t13 = sizeof(double);
-// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t14 = clad::custom_derivatives::cudaMemcpy_pushforward(c, device_c, n * _t13, cudaMemcpyDeviceToHost, _d_c, _d_device_c, _d_n * _t13 + n * sizeof(double));
+// CHECK-NEXT:     cudaDeviceSynchronize();
+// CHECK-NEXT:     unsigned long _t12 = sizeof(double);
+// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t13 = clad::custom_derivatives::cudaMemcpy_pushforward(c, device_c, n * _t12, cudaMemcpyDeviceToHost, _d_c, _d_device_c, _d_n * _t12 + n * sizeof(double));
 // CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double sum = 0;
 // CHECK-NEXT:     {
@@ -113,8 +113,8 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             sum += c[idx];
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     double _t15 = 2 * sum;
-// CHECK-NEXT:     return _d_sum * i + sum * _d_i + (0 * sum + 2 * _d_sum) * j + _t15 * _d_j;
+// CHECK-NEXT:     double _t14 = 2 * sum;
+// CHECK-NEXT:     return _d_sum * i + sum * _d_i + (0 * sum + 2 * _d_sum) * j + _t14 * _d_j;
 // CHECK-NEXT: }
 
 int main() {

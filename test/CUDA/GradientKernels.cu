@@ -336,18 +336,13 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
   out[index] = device_fn_2(in, val);
 } 
 
-//CHECK: __attribute__((device)) void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) {
 //CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
 //CHECK-NEXT:    unsigned int _t0 = blockDim.x;
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        _d_in[index0] += _d_y;
-//CHECK-NEXT:        *_d_val += _d_y;
-//CHECK-NEXT:    }
+//CHECK-NEXT:    *_d_val += _d_y;
 //CHECK-NEXT:}
-
-//CHECK: void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) __attribute__((device));
 
 // CHECK: void kernel_with_device_call_2_grad_0_2(double *out, const double *in, double val, double *_d_out, double *_d_val) {
 //CHECK-NEXT:    int _d_index = 0;
@@ -717,14 +712,6 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    cudaFree(_d_in_dev);
 //CHECK-NEXT:    cudaFree(out_dev);
 //CHECK-NEXT:    cudaFree(_d_out_dev);
-//CHECK-NEXT:}
-
-// CHECK: __attribute__((device)) void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    *_d_val += _d_y;
 //CHECK-NEXT:}
 
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \

@@ -1,5 +1,9 @@
 # The VC revision include that we want to generate.
-set(version_file ${CMAKE_SOURCE_DIR}/VERSION)
+if (LLVM_EXTERNAL_CLAD_SOURCE_DIR)
+  set(version_file ${LLVM_EXTERNAL_CLAD_SOURCE_DIR}/VERSION)
+else()
+  set(version_file ${CMAKE_SOURCE_DIR}/VERSION)
+endif(LLVM_EXTERNAL_CLAD_SOURCE_DIR)
 set(version_inc ${CMAKE_CURRENT_BINARY_DIR}/VCSVersion.inc)
 set(generate_vcs_version_script ${LLVM_CMAKE_DIR}/GenerateVersionFromVCS.cmake)
 find_first_existing_vc_file(${CMAKE_SOURCE_DIR} clad_vc)
@@ -30,9 +34,15 @@ list(GET VERSION_LIST 0 CLAD_VERSION_MAJOR)
 list(GET VERSION_LIST 1 CLAD_VERSION_MINOR)
 list(GET VERSION_LIST 2 CLAD_VERSION_PATCH)
 
-configure_file(
-  ${CMAKE_SOURCE_DIR}/include/clad/Differentiator/Version.inc.in
-  ${CMAKE_BINARY_DIR}/include/clad/Differentiator/Version.inc)
+if (LLVM_EXTERNAL_CLAD_SOURCE_DIR)
+  configure_file(
+    ${LLVM_EXTERNAL_CLAD_SOURCE_DIR}/include/clad/Differentiator/Version.inc.in
+    ${CMAKE_BINARY_DIR}/include/clad/Differentiator/Version.inc)
+else()
+  configure_file(
+    ${CMAKE_SOURCE_DIR}/include/clad/Differentiator/Version.inc.in
+    ${CMAKE_BINARY_DIR}/include/clad/Differentiator/Version.inc)
+endif(LLVM_EXTERNAL_CLAD_SOURCE_DIR)
 
 
 # (Ab)use llvm facilities for adding libraries.

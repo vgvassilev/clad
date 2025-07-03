@@ -154,7 +154,7 @@ void InitTimers();
           auto* FD = cast<FunctionDecl>(D);
           if (FD->isConstexpr() || !m_Multiplexer) {
             DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph,
-                                    S, opts, m_DFC);
+                                    S, opts);
             break;
           }
         }
@@ -226,7 +226,11 @@ void InitTimers();
       S.PerformPendingInstantiations();
       if (request.Function->getDefinition())
         request.Function = request.Function->getDefinition();
-      request.UpdateDiffParamsInfo(m_CI.getSema());
+      // FIXME: These requests are not fully generated in the diffplanner and we
+      // have to update diff params on this stage.
+      if (request.CurrentDerivativeOrder > 1 ||
+          m_DFC.IsCladDerivative(request.Function))
+        request.UpdateDiffParamsInfo(m_CI.getSema());
       const FunctionDecl* FD = request.Function;
       ASTContext& C = S.getASTContext();
       clang::PrintingPolicy Policy = C.getPrintingPolicy();
@@ -282,14 +286,14 @@ void InitTimers();
           auto deriveResult = m_DerivativeBuilder->Derive(request);
           DerivativeDecl = cast_or_null<FunctionDecl>(deriveResult.derivative);
           OverloadedDerivativeDecl = deriveResult.overload;
+          if (DerivativeDecl)
+            m_DFC.Add(DerivedFnInfo(request, DerivativeDecl,
+                                    OverloadedDerivativeDecl));
         }
       }
 
       if (DerivativeDecl) {
-        if (!alreadyDerived) {
-          m_DFC.Add(
-              DerivedFnInfo(request, DerivativeDecl, OverloadedDerivativeDecl));
-
+        if (!(alreadyDerived || request.CustomDerivative)) {
           printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
@@ -507,7 +511,7 @@ void InitTimers();
             if (FD->isConstexpr())
               continue;
           DiffCollector collector(DCI.m_DGR, CladEnabledRange,
-                                  m_DiffRequestGraph, S, opts, m_DFC);
+                                  m_DiffRequestGraph, S, opts);
           break;
         }
 

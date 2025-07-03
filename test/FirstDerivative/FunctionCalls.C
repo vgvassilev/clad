@@ -39,8 +39,7 @@ clad::ValueAndPushforward<int, int> overloaded_pushforward(int x, int d_x) {
   return {overloaded(x), x * d_x};
 }
 
-clad::ValueAndPushforward<float, float> no_body_pushforward(float x,
-                                                            float d_x) {
+clad::ValueAndPushforward<int, int> no_body_pushforward(int x, int d_x) {
   return {0, 1 * d_x};
 }
 
@@ -96,7 +95,7 @@ float test_5(int x) {
 
 // CHECK: float test_5_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::no_body_pushforward(x, _d_x);
+// CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<int, int> _t0 = clad::custom_derivatives::no_body_pushforward(x, _d_x);
 // CHECK-NEXT: return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -184,7 +183,7 @@ double test_9(double x) {
 
 // CHECK: double test_9_darg0(double x) {
 // CHECK-NEXT: double _d_x = 1;
-// CHECK-NEXT: clad::ValueAndPushforward<double, double> _t0 = static_method_pushforward(x, _d_x);
+// CHECK-NEXT: clad::ValueAndPushforward<double, double> _t0 = A::static_method_pushforward(x, _d_x);
 // CHECK-NEXT: return _t0.pushforward;
 // CHECK-NEXT: }
 

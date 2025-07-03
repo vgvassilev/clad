@@ -22,6 +22,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -787,8 +788,7 @@ StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
       return {clonedME, zero};
     auto baseDiff = Visit(ME->getBase());
     // No derivative found for base. Therefore, derivative is 0.
-    if (isa<IntegerLiteral>(baseDiff.getExpr_dx()) ||
-        isa<FloatingLiteral>(baseDiff.getExpr_dx()))
+    if (baseDiff.getExpr_dx()->getType()->isVoidType())
       return {clonedME, zero};
 
     auto field = ME->getMemberDecl();
@@ -953,9 +953,7 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     if (!m_DiffReq.shouldHaveAdjointForw(decl))
       return StmtDiff(clonedDRE, nullptr);
 
-  QualType literalTy = utils::GetValueType(clonedDRE->getType());
-  return StmtDiff(clonedDRE, ConstantFolder::synthesizeLiteral(
-                                 literalTy, m_Context, /*val=*/0));
+  return StmtDiff(clonedDRE, getZeroInit(clonedDRE->getType()));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
@@ -1102,52 +1100,19 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
                            diffArgs.end());
 
-  auto customDerivativeArgs = pushforwardFnArgs;
-
-  if (Expr* baseE = baseDiff.getExpr())
-    customDerivativeArgs.insert(customDerivativeArgs.begin(), baseE);
-
-  // Try to find a user-defined overloaded derivative.
   Expr* callDiff = nullptr;
-  std::string customPushforward =
-      clad::utils::ComputeEffectiveFnName(FD) + GetPushForwardFunctionSuffix();
-  callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-      customPushforward, customDerivativeArgs, getCurrentScope(), CE,
-      /*forCustomDerv=*/true, /*namespaceShouldExist=*/true, CUDAExecConfig);
-  // Custom derivative templates can be written in a
-  // general way that works for both vectorized and non-vectorized
-  // modes. We have to also look for the pushforward with the regular name.
-  if (!callDiff && m_DiffReq.Mode != DiffMode::forward) {
-    customPushforward =
-        clad::utils::ComputeEffectiveFnName(FD) + "_pushforward";
-    callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        customPushforward, customDerivativeArgs, getCurrentScope(), CE,
-        /*forCustomDerv=*/true, /*namespaceShouldExist=*/true, CUDAExecConfig);
-  }
-  if (!isLambda) {
-    // Check if it is a recursive call.
-    if (!callDiff && (FD == m_DiffReq.Function) &&
-        m_DiffReq.Mode == GetPushForwardMode()) {
-      // The differentiated function is called recursively.
-      Expr* derivativeRef =
-          m_Sema
-              .BuildDeclarationNameExpr(
-                  CXXScopeSpec(), m_Derivative->getNameInfo(), m_Derivative)
-              .get();
-      callDiff =
-          m_Sema
-              .ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
-                             derivativeRef, validLoc, pushforwardFnArgs,
-                             validLoc, CUDAExecConfig)
-              .get();
-    }
-  }
-
+  // FIXME: Move non-differentiable function handling to the DiffPlanner.
   // If all arguments are constant literals, then this does not contribute to
   // the gradient.
   // FIXME: revert this when this is integrated in the activity analysis pass.
+
+  QualType returnType = FD->getReturnType();
+  // FIXME: Decide this in the diff planner
+  bool needsForwPass =
+      utils::isNonConstReferenceType(returnType) || returnType->isPointerType();
   if (!callDiff) {
-    if (!isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE)) {
+    if (!isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE) &&
+        !needsForwPass) {
       bool allArgsHaveZeroDerivatives = true;
       for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
         Expr* dArg = diffArgs[i];
@@ -1180,18 +1145,34 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     pushforwardFnRequest.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
     // Silence diag outputs in nested derivation process.
     pushforwardFnRequest.VerboseDiags = false;
-    pushforwardFnRequest.EnableUsefulAnalysis = m_DiffReq.EnableUsefulAnalysis;
+    pushforwardFnRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
+    pushforwardFnRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
 
-    // Check if request already derived in DerivedFunctions.
-    FunctionDecl* pushforwardFD =
-        m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
-
+    FunctionDecl* pushforwardFD = nullptr;
+    if (m_DiffReq.CurrentDerivativeOrder != 1 || !m_DiffReq.CallContext) {
+      callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+          pushforwardFnRequest.ComputeDerivativeName(), pushforwardFnArgs,
+          getCurrentScope(), CE,
+          /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
+          CUDAExecConfig);
+      if (auto* foundCE = cast_or_null<CallExpr>(callDiff))
+        pushforwardFD = foundCE->getDirectCallee();
+      else
+        pushforwardFD = m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
+    } else
+      // Request the derivative
+      pushforwardFD = FindDerivedFunction(pushforwardFnRequest);
     if (pushforwardFD) {
-      if (baseDiff.getExpr()) {
+      auto* pushforwardMD = dyn_cast<CXXMethodDecl>(pushforwardFD);
+      if (pushforwardMD && pushforwardMD->isInstance()) {
         callDiff =
             BuildCallExprToMemFn(baseDiff.getExpr(), pushforwardFD->getName(),
                                  pushforwardFnArgs, CE->getBeginLoc());
       } else {
+        if (Expr* baseE = baseDiff.getExpr()) {
+          baseE = BuildOp(UO_AddrOf, baseE);
+          pushforwardFnArgs.insert(pushforwardFnArgs.begin(), baseE);
+        }
         callDiff =
             m_Sema
                 .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pushforwardFD),

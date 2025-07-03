@@ -14,6 +14,7 @@
 #include "clad/Differentiator/Timers.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTLambda.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
@@ -272,10 +273,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
-                               clang::Sema& S, RequestOptions& opts,
-                               DerivedFnCollector& DFC)
+                               clang::Sema& S, RequestOptions& opts)
       : m_Interval(Interval), m_DiffRequestGraph(requestGraph), m_Sema(S),
-        m_Options(opts), m_DFC(DFC) {
+        m_Options(opts) {
 
     if (Interval.empty())
       return;
@@ -323,6 +323,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     auto& C = semaRef.getASTContext();
     const Expr* diffArgs = Args;
     const FunctionDecl* FD = Function;
+    // On this stage, templated functions are not yet fully instantiated.
+    // Uninstantiated functions lack much information like we need: they don't
+    // have bodies and information about defition. Therefore, we have to force
+    // the instantiation.
+    semaRef.PerformPendingInstantiations();
     if (!DeclarationOnly)
       FD = FD->getDefinition();
     if (!diffArgs || !FD) {
@@ -643,7 +648,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (E->getType()->isPointerType())
       return true;
 
-    if (!m_TbrRunInfo.HasAnalysisRun) {
+    if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function)) {
       TimedAnalysisRegion R("TBR " + BaseFunctionName);
 
       TBRAnalyzer analyzer(Function->getASTContext(),
@@ -928,23 +933,55 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     });
   }
 
-  static FunctionDecl* matchTemplate(clang::Sema& S,
-                                     clang::FunctionTemplateDecl* Template,
-                                     QualType DerivativeType) {
-    clang::FunctionDecl* Specialization = nullptr;
-    clang::sema::TemplateDeductionInfo Info(noLoc);
-    clang::TemplateArgumentListInfo ExplicitTemplateArgs;
-    auto R = S.DeduceTemplateArguments(Template, &ExplicitTemplateArgs,
-                                       DerivativeType, Specialization, Info);
-    if (R == clad_compat::CLAD_COMPAT_TemplateSuccess)
-      return Specialization;
+  static Expr* getOverloadExpr(clang::Sema& S, const std::string& Name,
+                               DeclContext* DC, QualType DerivativeType) {
+    IdentifierInfo* II = &S.getASTContext().Idents.get(Name);
+    DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(S));
+    LookupResult Found(S, DNInfo, Sema::LookupOrdinaryName);
+    S.LookupQualifiedName(Found, DC);
+    bool overloadFound = false;
+    // Check if any of the custom derivative signature satisfy the requirements.
+    for (NamedDecl* candidate : Found) {
+      // Shadow decls don't provide enough information, go to the actual decl.
+      if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
+        candidate = usingShadow->getTargetDecl();
+      // Overload is just a FunctionDecl, check if the signature matches.
+      if (auto* FD = dyn_cast<FunctionDecl>(candidate)) {
+        if (utils::isSameCanonicalType(FD->getType(), DerivativeType)) {
+          overloadFound = true;
+          break;
+        }
+      } // Overload is a template, try to match the signature.
+      else if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate)) {
+        clang::FunctionDecl* Specialization = nullptr;
+        clang::sema::TemplateDeductionInfo Info(noLoc);
+        clang::TemplateArgumentListInfo ExplicitTemplateArgs;
+        auto R = S.DeduceTemplateArguments(
+            FTD, &ExplicitTemplateArgs, DerivativeType, Specialization, Info);
+        // Instantiation with the required signature succeeded.
+        if (R == clad_compat::CLAD_COMPAT_TemplateSuccess) {
+          overloadFound = true;
+          break;
+        }
+        // Instantiation of parameters suceeded but clang doesn't consider
+        // deduction successful because of the auto return type.
+        if (Specialization && !Specialization->isTemplated() &&
+            Specialization->getReturnType()->isUndeducedAutoType()) {
+          overloadFound = true;
+          break;
+        }
+      }
+    }
+    // If a suitable overload is found, build DeclarationNameExpr to
+    // store overload candidates to resolve in DerivativeBuilder::Derive.
+    if (overloadFound) {
+      CXXScopeSpec SS;
+      return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
+    }
     return nullptr;
   }
 
-  bool DiffCollector::LookupCustomDerivativeDecl(const DiffRequest& request) {
-    auto DFI = m_DFC.Find(request);
-    if (DFI.IsValid())
-      return true;
+  bool DiffCollector::LookupCustomDerivativeDecl(DiffRequest& request) {
     NamespaceDecl* cladNS =
         utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
     NamespaceDecl* customDerNS = utils::LookupNSD(
@@ -991,30 +1028,16 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
                                  diffParams, /*moveBaseToParams=*/true);
 
-    IdentifierInfo* II = &m_Sema.getASTContext().Idents.get(Name);
-    DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(m_Sema));
-    LookupResult Found(m_Sema, DNInfo, Sema::LookupOrdinaryName);
-    m_Sema.LookupQualifiedName(Found, DC);
-
-    FunctionDecl* result = nullptr;
-    for (NamedDecl* candidate : Found) {
-      if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
-        candidate = usingShadow->getTargetDecl();
-      if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate)) {
-        if (FunctionDecl* spec = matchTemplate(m_Sema, FTD, DerivativeType)) {
-          result = spec;
-          break;
-        }
-      } else if (auto* FD = dyn_cast<FunctionDecl>(candidate)) {
-        if (utils::SameCanonicalType(FD->getType(), DerivativeType)) {
-          result = FD;
-          break;
-        }
-      }
+    Expr* overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType);
+    if (!overload && request.Mode == DiffMode::vector_pushforward) {
+      Name = request.BaseFunctionName + "_pushforward";
+      overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType);
     }
-    if (result) {
-      // Overload found. Add the derivative in derivative function collector.
-      m_DFC.Add(DerivedFnInfo(request, result, /*overload=*/nullptr));
+
+    if (overload) {
+      // Overload found. Mark the request as custom derivative and save
+      // the set of overloads to process later.
+      request.CustomDerivative = overload;
       return true;
     }
 
@@ -1061,6 +1084,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
         return true;
 
+      if (isCallOperator(m_Sema.getASTContext(), request.Function))
+        request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
+
       request.VerboseDiags = true;
       // The root of the differentiation request graph should update the
       // CladFunction object with the generated call.
@@ -1068,27 +1094,17 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.CallContext = E;
 
       request.Args = E->getArg(1);
-      // FIXME: We should call UpdateDiffParamsInfo unconditionally, however,
-      // in the DiffRequest we have the move away from pointer comparisons of
-      // the ParmVarDecls (of the DVI).
-
-      // As above, we should call UpdateDiffParamsInfo no matter what.
+      request.UpdateDiffParamsInfo(m_Sema);
       if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis) {
-        request.UpdateDiffParamsInfo(m_Sema);
         if (request.Args)
           for (const auto& dParam : request.DVI)
             request.addVariedDecl(cast<VarDecl>(dParam.param));
       }
 
-      if (request.Function->hasAttr<CUDAGlobalAttr>()) {
-        request.UpdateDiffParamsInfo(m_Sema);
+      if (request.Function->hasAttr<CUDAGlobalAttr>())
         for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i)
           request.CUDAGlobalArgsIndexes.push_back(i);
-      }
       m_TopMostReq = &request;
-
-      if (isCallOperator(m_Sema.getASTContext(), request.Function))
-        request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
     } else {
       // If the function contains annotation of non_differentiable, then Clad
       // should not produce any derivative expression for that function call,
@@ -1102,17 +1118,14 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
           return true;
       }
 
+      QualType returnType = FD->getReturnType();
+      bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
+                           returnType->isPointerType();
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
       if (!isa<CXXMemberCallExpr>(E) && !isa<CXXOperatorCallExpr>(E) &&
+          !needsForwPass &&
           allArgumentsAreLiterals(E->arguments(), m_ParentReq))
-        return true;
-
-      // FIXME: Generalize this to other functions that we don't need
-      // pullbacks of.
-      std::string FDName = FD->getNameAsString();
-      if (FDName == "cudaMemcpy" || utils::IsMemoryFunction(FD) ||
-          FDName == "begin" || FDName == "end")
         return true;
 
       request.Function = FD;
@@ -1139,43 +1152,49 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         assert(0 && "unexpected mode.");
         return true;
       }
+
+      // FIXME: Generalize this to other functions that we don't need
+      // pullbacks of.
+      std::string FDName = FD->getNameAsString();
+      if (request.Mode == DiffMode::pullback &&
+          (FDName == "cudaMemcpy" || utils::IsMemoryFunction(FD) ||
+           FDName == "begin" || FDName == "end"))
+        return true;
+
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
       request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
       request.CallContext = E;
 
-      if (request.Mode != DiffMode::pushforward) {
+      if (request.Mode != DiffMode::pushforward &&
+          request.Mode != DiffMode::vector_pushforward) {
+        // CUDA device function call in global kernel gradient
+        bool useCUDA = !m_TopMostReq->CUDAGlobalArgsIndexes.empty();
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
-          // if (MD && isLambdaCallOperator(MD)) {
           const auto* paramDecl = FD->getParamDecl(i);
           if (clad::utils::hasNonDifferentiableAttribute(paramDecl))
             continue;
 
-          request.DVI.push_back(paramDecl);
+          // FIXME: Attach Activity Analysis here.
+          // If a parameter is non-differentiable, don't include
+          // it in the DVI to avoid dynamic partial derivatives.
+          const ParmVarDecl* PVD = nullptr;
+          Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
+          if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE))
+            PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
+          bool IsDifferentiableArg =
+              !PVD || m_ParentReq->HasIndependentParameter(PVD);
 
-          //}
-          // FIXME: The following code is also part of the decision making in
-          // case the pullbacks are built on demand. We need to check if it is
-          // still needed.
-          // else if (DerivedCallOutputArgs[i + (bool)MD]) {
-          //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
-          //}
-        }
-        // CUDA device function call in global kernel gradient
-        if (!m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
-          for (size_t i = 0, e = E->getNumArgs(); i < e; i++) {
-            // Try to match it against the global arguments
-            Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
-            if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
-              // check if it's a kernel param
-              const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
-              if (PVD && m_ParentReq->HasIndependentParameter(PVD)) {
-                // we know we should use atomic ops here
-                request.CUDAGlobalArgsIndexes.push_back(i);
-              }
-            }
-          }
+          if (!utils::isArrayOrPointerType(paramDecl->getType()) ||
+              IsDifferentiableArg)
+            request.DVI.push_back(paramDecl);
+          // FIXME: If we cannot deduce whether the argument is
+          // differentiable, we should still add it to CUDAGlobalArgsIndexes.
+          // i.e. remove `&& PVD`.
+          // We know we should use atomic ops here
+          if (useCUDA && PVD && IsDifferentiableArg)
+            request.CUDAGlobalArgsIndexes.push_back(i);
         }
       }
     }
@@ -1213,8 +1232,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
-      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
     }
+    m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     if (m_IsTraversingTopLevelDecl) {
       m_TopMostReq = nullptr;
@@ -1291,17 +1310,13 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.Function = request.Function->getDefinition();
 
     QualType recordTy = CD->getThisType()->getPointeeType();
-    bool isSTDInitList =
-        m_Sema.isStdInitializerList(recordTy, /*elemType=*/nullptr);
+    if (m_Sema.isStdInitializerList(recordTy, /*elemType=*/nullptr))
+      return true;
 
-    // FIXME: For now, only linear constructors are supported.
-    if (!LookupCustomDerivativeDecl(request) &&
-        utils::isLinearConstructor(CD, m_Sema.getASTContext()) &&
-        !isSTDInitList) {
+    if (!LookupCustomDerivativeDecl(request))
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
-      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
-    }
+    m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     return true;
   }

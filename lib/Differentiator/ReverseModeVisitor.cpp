@@ -31,6 +31,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
+#include "clang/Basic/TypeTraits.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Ownership.h"
@@ -39,12 +40,12 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/SaveAndRestore.h"
-#include <llvm/ADT/STLExtras.h>
-#include <llvm/ADT/StringRef.h>
-#include <llvm/Support/Casting.h>
-#include <llvm/Support/raw_ostream.h>
+#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -402,6 +403,28 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         addToBlock(BuildDeclStmt(VDDerived), m_Globals);
       }
     }
+
+    // If we the differentiated function is a constructor, generate `this`
+    // object and differentiate its inits.
+    Stmts initsDiff;
+    if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function)) {
+      StmtDiff thisObj;
+      // Constructors with only linear operations do not require
+      // `_this` in the reverse sweep.
+      // FIXME: remove this check when our analysis is powerful enough.
+      if (!utils::isLinearConstructor(CD, m_Context)) {
+        QualType thisTy = CD->getThisType();
+        thisObj = BuildThisExpr(thisTy);
+        initsDiff.push_back(thisObj.getStmt_dx());
+      }
+
+      for (CXXCtorInitializer* CI : CD->inits()) {
+        StmtDiff CI_diff = DifferentiateCtorInit(CI, thisObj.getExpr());
+        addToCurrentBlock(CI_diff.getStmt(), direction::forward);
+        initsDiff.push_back(CI_diff.getStmt_dx());
+      }
+    }
+
     // Start the visitation process which outputs the statements in the
     // current block.
     StmtDiff BodyDiff = Visit(m_DiffReq->getBody());
@@ -412,28 +435,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     for (Stmt* S : m_Globals)
       addToCurrentBlock(S, direction::forward);
     // Forward pass.
-    if (auto* CS = dyn_cast<CompoundStmt>(Forward))
+    if (auto* CS = dyn_cast_or_null<CompoundStmt>(Forward))
       for (Stmt* S : CS->body())
         addToCurrentBlock(S, direction::forward);
     else
       addToCurrentBlock(Forward, direction::forward);
     // Reverse pass.
-    if (auto* RCS = dyn_cast<CompoundStmt>(Reverse))
+    if (auto* RCS = dyn_cast_or_null<CompoundStmt>(Reverse))
       for (Stmt* S : RCS->body())
         addToCurrentBlock(S, direction::forward);
     else
       addToCurrentBlock(Reverse, direction::forward);
-
-    // If we the differentiated function is a constructor, differentiate its
-    // inits.
-    if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function)) {
-      for (auto CI = CD->init_rbegin(), CI_end = CD->init_rend(); CI != CI_end;
-           ++CI) {
-        Stmt* CI_diff = DifferentiateCtorInit(*CI);
-        addToCurrentBlock(CI_diff, direction::forward);
-      }
-    }
-
+    for (auto S = initsDiff.rbegin(), S_end = initsDiff.rend(); S != S_end; ++S)
+      addToCurrentBlock(*S, direction::forward);
     // Add delete statements present in m_DeallocExprs to the current block.
     for (auto* S : m_DeallocExprs)
       if (auto* CS = dyn_cast<CompoundStmt>(S))
@@ -446,7 +460,39 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       m_ExternalSource->ActOnEndOfDerivedFnBody();
   }
 
-  Stmt* ReverseModeVisitor::DifferentiateCtorInit(CXXCtorInitializer* CI) {
+  StmtDiff ReverseModeVisitor::BuildThisExpr(QualType thisTy) {
+    // Build `sizeof(T)`
+    QualType recordTy = thisTy->getPointeeType();
+    TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(recordTy, noLoc);
+    Expr* size = new (m_Context) UnaryExprOrTypeTraitExpr(
+        UETT_SizeOf, TSI, m_Context.getSizeType(), noLoc, noLoc);
+
+    // Build `malloc(sizeof(T))`
+    llvm::SmallVector<clang::Expr*, 1> param{size};
+    Expr* init = GetFunctionCall("malloc", "", param);
+
+    // Build `(T*)malloc(sizeof(T))`
+    TypeSourceInfo* ptr_TSI = m_Context.getTrivialTypeSourceInfo(thisTy, noLoc);
+    init = m_Sema.BuildCStyleCastExpr(noLoc, ptr_TSI, noLoc, init).get();
+
+    // Build T* _this = (T*)malloc(sizeof(T));
+    VarDecl* thisDecl = BuildGlobalVarDecl(thisTy, "_this", init);
+    addToCurrentBlock(BuildDeclStmt(thisDecl), direction::forward);
+
+    param[0] = BuildDeclRef(thisDecl);
+    Expr* freeCall = GetFunctionCall("free", "", param);
+    return {BuildDeclRef(thisDecl), freeCall};
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCXXTryStmt(const CXXTryStmt* TS) {
+    // FIXME: Add support for try statements.
+    diag(DiagnosticsEngine::Warning, TS->getBeginLoc(),
+         "Try statements are not supported, ignored.");
+    return StmtDiff();
+  }
+
+  StmtDiff ReverseModeVisitor::DifferentiateCtorInit(CXXCtorInitializer* CI,
+                                                     Expr* thisExpr) {
     llvm::StringRef fieldName = CI->getMember()->getName();
     Expr* memberDiff = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                               m_ThisExprDerivative, fieldName);
@@ -460,7 +506,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     StmtDiff initDiff = Visit(CI->getInit(), memberDiff);
     addToCurrentBlock(initDiff.getStmt_dx(), direction::reverse);
-    return endBlock(direction::reverse);
+    Stmt* init = nullptr;
+    if (thisExpr) {
+      Expr* member = utils::BuildMemberExpr(m_Sema, getCurrentScope(), thisExpr,
+                                            fieldName);
+      init = BuildOp(BO_Assign, member, initDiff.getExpr());
+    }
+    return {init, endBlock(direction::reverse)};
   }
 
   void ReverseModeVisitor::DifferentiateWithEnzyme() {
@@ -1131,9 +1183,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
-    return StmtDiff(Clone(SL), StringLiteral::Create(
-                                   m_Context, "", SL->getKind(), SL->isPascal(),
-                                   SL->getType(), utils::GetValidSLoc(m_Sema)));
+    return StmtDiff(
+        Clone(SL),
+        StringLiteral::Create(m_Context, "", SL->getKind(), SL->isPascal(),
+                              utils::getNonConstType(SL->getType(), m_Sema),
+                              utils::GetValidSLoc(m_Sema)));
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXNullPtrLiteralExpr(
@@ -1505,11 +1559,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Determine the base of the call if any.
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     const Expr* baseOriginalE = nullptr;
-    if (MD && MD->isInstance() && !isLambdaCallOperator(MD)) {
+    if (MD && MD->isInstance()) {
       if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
         baseOriginalE = MCE->getImplicitObjectArgument();
       else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
         baseOriginalE = OCE->getArg(0);
+    }
+
+    // FIXME: Add support for lambdas used directly, e.g.
+    // [](){return 12.;}()
+    if (MD && isLambdaCallOperator(MD) &&
+        !isa<DeclRefExpr>(baseOriginalE->IgnoreImplicit())) {
+      diag(DiagnosticsEngine::Warning, baseOriginalE->getBeginLoc(),
+           "Direct lambda calls are not supported, ignored.");
+      return getZeroInit(CE->getType());
     }
 
     // FIXME: consider moving non-diff analysis to DiffPlanner.
@@ -1540,14 +1603,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     QualType returnType = FD->getReturnType();
-    bool needsReverseForw = utils::isNonConstReferenceType(returnType) ||
-                            returnType->isPointerType();
+    // FIXME: Decide this in the diff planner
+    bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
+                         returnType->isPointerType();
 
     // FIXME: if the call is non-differentiable but needs a reverse forward
     // call, we still don't need to generate the pullback. The only challenge is
     // to refactor the code to be able to jump over the pullback part (maybe
     // move some functionality to subroutines).
-    if (nonDiff && !needsReverseForw) {
+    if (nonDiff && !needsForwPass) {
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg);
         CallArgs.push_back(ArgDiff.getExpr());
@@ -1666,57 +1730,28 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       // Save cloned arg in a "global" variable, so that it is accessible from
       // the reverse pass.
-      // FIXME: At this point, we assume all the variables passed by reference
-      // may be changed since we have no way to determine otherwise.
-      // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
-      // arrays are not stored.
+      // For example:
+      // ```
+      // // forward pass
+      // _t0 = a;
+      // modify(a); // a is modified so we store it
+      //
+      // // reverse pass
+      // a = _t0;
+      // modify_pullback(a, ...); // the pullback should always keep `a` intact
+      // ```
+      // FIXME: Handle storing data passed through pointers and structures.
+      // FIXME: Improve TBR to handle these stores.
       QualType paramTy = PVD->getType();
       bool passByRef = paramTy->isLValueReferenceType() &&
                        !paramTy.getNonReferenceType().isConstQualified();
-      Expr* argDiffStore;
-      if (passByRef && !argDiff.getExpr()->isEvaluatable(m_Context))
-        argDiffStore =
-            GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/true);
-      else
-        argDiffStore = argDiff.getExpr();
-
-      // We need to pass the actual argument in the cloned call expression,
-      // instead of a temporary, for arguments passed by reference. This is
-      // because, callee function may modify the argument passed as reference
-      // and if we use a temporary variable then the effect of the modification
-      // will be lost.
-      // For example:
-      // ```
-      // // original statements
-      // modify(a); // a is passed by reference
-      // modify(a); // a is passed by reference
-      //
-      // // forward pass
-      // _t0 = a;
-      // modify(_t0); // _t0 is modified instead of a
-      // _t1 = a; // stale value of a is being used here
-      // modify(_t1);
-      //
-      // // correct forward pass
-      // _t0 = a;
-      // modify(a);
-      // _t1 = a;
-      // modify(a);
-      // ```
-      // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
-      // arrays are not stored.
       if (passByRef) {
-        // Restore args
-        Stmts& block = getCurrentBlock(direction::reverse);
-        Expr* op = BuildOp(BinaryOperatorKind::BO_Assign, argDiff.getExpr(),
-                           argDiffStore);
-        block.insert(block.begin() + insertionPoint, op);
-        // We added restoration of the original arg. Thus we need to
-        // correspondingly adjust the insertion point.
-        insertionPoint += 1;
+        StmtDiff pushPop = StoreAndRestore(argDiff.getExpr());
+        addToCurrentBlock(pushPop.getStmt());
+        PreCallStmts.push_back(pushPop.getStmt_dx());
       }
       CallArgs.push_back(argDiff.getExpr());
-      DerivedCallArgs.push_back(argDiffStore);
+      DerivedCallArgs.push_back(argDiff.getExpr());
     }
     // Store all the derived call output args (if any)
     llvm::SmallVector<Expr*, 16> DerivedCallOutputArgs{};
@@ -1992,7 +2027,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (Expr* customForwardPassCE =
             BuildCallToCustomForwPassFn(CE, CallArgs, CallArgDx, baseExpr)) {
       addToCurrentBlock(baseDiffPush, direction::forward);
-      if (!needsReverseForw)
+      if (!needsForwPass)
         return StmtDiff{customForwardPassCE};
       Expr* callRes = nullptr;
       if (isInsideLoop)
@@ -2006,7 +2041,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
       return StmtDiff(resValue, resAdjoint);
     }
-    if (needsReverseForw) {
+    if (needsForwPass) {
       DiffRequest calleeFnForwPassReq;
       calleeFnForwPassReq.Function = FD;
       calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
@@ -3998,9 +4033,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXThisExpr(const CXXThisExpr* CTE) {
-    assert(!isa<CXXConstructorDecl>(m_DiffReq.Function) &&
-           "Constructors with body are not differentiated yet.");
-    Expr* clonedCTE = Clone(CTE);
+    Expr* clonedCTE = nullptr;
+    if (!isa<CXXConstructorDecl>(m_DiffReq.Function)) {
+      clonedCTE = Clone(CTE);
+    } else {
+      // In constructor pullbacks, `this` is not taken as a parameter
+      // and is built in the pullback body. Perform a lookup.
+      IdentifierInfo* name = &m_Context.Idents.get("_this");
+      LookupResult R(m_Sema, DeclarationName(name), noLoc,
+                     Sema::LookupOrdinaryName);
+      m_Sema.LookupName(R, getCurrentScope(), /*AllowBuiltinCreation*/ false);
+      assert(!R.empty() && "_this was not found.");
+      auto* thisDecl = cast<VarDecl>(R.getFoundDecl());
+      clonedCTE = BuildDeclRef(thisDecl);
+    }
     return {clonedCTE, m_ThisExprDerivative};
   }
 
@@ -4101,7 +4147,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     // FIXME: Restore arguments passed as non-const reference.
-    for (const auto* arg : CE->arguments()) {
+    for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
+      const Expr* arg = CE->getArg(i);
       QualType ArgTy = arg->getType();
       StmtDiff argDiff{};
       Expr* adjointArg = nullptr;
@@ -4134,7 +4181,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         argDiff = Visit(arg, BuildDeclRef(dArgDecl));
       }
 
-      if (utils::isArrayOrPointerType(ArgTy) || nonDiff) {
+      if (utils::isArrayOrPointerType(CD->getParamDecl(i)->getType()) ||
+          nonDiff) {
         reverseForwAdjointArgs.push_back(adjointArg);
         adjointArgs.push_back(adjointArg);
       } else {

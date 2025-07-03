@@ -32,7 +32,7 @@ float sqrt_func(float x, float y) {
 // CHECK: float sqrt_func_darg0(float x, float y) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT: ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::sqrt_pushforward(x * x + y * y, _d_x * x + x * _d_x + _d_y * y + y * _d_y);
+// CHECK-NEXT: ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = clad::custom_derivatives::std::sqrt_pushforward(x * x + y * y, _d_x * x + x * _d_x + _d_y * y + y * _d_y);
 // CHECK-NEXT: return _t0.pushforward - _d_y;
 // CHECK-NEXT: }
 
@@ -138,16 +138,22 @@ float f_literal_helper(float x, char ch, float* p, float* q) {
   return -x * x;
 }
 
+// CHECK: clad::ValueAndPushforward<float, float> f_literal_helper_pushforward(float x, char ch, float *p, float *q, float _d_x, char _d_ch, float *_d_p, float *_d_q) {
+// CHECK-NEXT:     if (ch == 'a')
+// CHECK-NEXT:         return {x * x, _d_x * x + x * _d_x};
+// CHECK-NEXT:     return {-x * x, -_d_x * x + -x * _d_x};
+// CHECK-NEXT: }
+
 float f_literal_args_func(float x, float y, float *z) {
   printf("hello world ");
-  return x * f_literal_helper(0.5, 'a', z, nullptr);
-}
+  return x * f_literal_helper(x, 'a', z, nullptr);
+} // x ^ 3
 
 // CHECK: float f_literal_args_func_darg0(float x, float y, float *z) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
 // CHECK-NEXT: printf("hello world ");
-// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t0 = f_literal_helper_pushforward(0.5, 'a', z, nullptr, 0., 0, nullptr, nullptr);
+// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t0 = f_literal_helper_pushforward(x, 'a', z, nullptr, _d_x, 0, nullptr, nullptr);
 // CHECK-NEXT: float &_t1 = _t0.value;
 // CHECK-NEXT: return _d_x * _t1 + x * _t0.pushforward;
 // CHECK-NEXT: }
@@ -215,7 +221,7 @@ int main () { // expected-no-diagnostics
   auto f9 = clad::differentiate(f_literal_args_func, 0);
   float z = 3.0;
   printf("f9_darg0=%.2f\n", f9.execute(1.F, 2.F, &z));
-  //CHECK-EXEC: hello world f9_darg0=0.25
+  //CHECK-EXEC: hello world f9_darg0=3
   auto f10 = clad::differentiate(f_call_inline_fxn, "params[0]");
   float params = 1.0, obs = 5.0, xlArr = 7.0;
   printf("f10_darg0_0=%.2f\n", f10.execute(&params, &obs, &xlArr));

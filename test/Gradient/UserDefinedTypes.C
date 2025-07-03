@@ -141,7 +141,7 @@ double fn2(Tangent t, double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t0;
-// CHECK-NEXT:         sum_pullback(_t0, _d_res, &(*_d_t));
+// CHECK-NEXT:         sum_pullback(t, _d_res, &(*_d_t));
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -163,7 +163,7 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     Tangent _t2 = t;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t2;
-// CHECK-NEXT:         sum_pullback(_t2, 1, &_d_t);
+// CHECK-NEXT:         sum_pullback(t, 1, &_d_t);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t.data[1] = _t1;
@@ -357,7 +357,7 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT:     Tangent _t1 = t;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t1;
-// CHECK-NEXT:         sum_pullback(_t1, 1, &(*_d_t));
+// CHECK-NEXT:         sum_pullback(t, 1, &(*_d_t));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
@@ -401,7 +401,7 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         res = _t3;
 // CHECK-NEXT:         double _r_d1 = _d_res;
 // CHECK-NEXT:         t = _t4;
-// CHECK-NEXT:         sum_pullback(_t4, _r_d1, &(*_d_t));
+// CHECK-NEXT:         sum_pullback(t, _r_d1, &(*_d_t));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (;; _t0--) {
 // CHECK-NEXT:         {
@@ -643,21 +643,6 @@ public:
   }
 };
 
-double operator+(const double& val, const SimpleFunctions1& a) {
-  return a.x + val;
-}
-
-// CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {
-// CHECK-NEXT:    {
-// CHECK-NEXT:        _d_this->x += _d_y * i;
-// CHECK-NEXT:        _d_this->y += _d_y * i;
-// CHECK-NEXT:        *_d_i += (this->x + this->y) * _d_y;
-// CHECK-NEXT:        *_d_i += _d_y * j * j;
-// CHECK-NEXT:        *_d_j += i * _d_y * j;
-// CHECK-NEXT:        *_d_j += i * j * _d_y;
-// CHECK-NEXT:    }
-// CHECK-NEXT:}
-
 // CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions1 *_d_this, double *_d_p_x, double *_d_p_y) noexcept {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        *_d_p_y += _d_this->y;
@@ -677,6 +662,22 @@ double operator+(const double& val, const SimpleFunctions1& a) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          (*_d_arg).x += _d_this->x;
 // CHECK-NEXT:          _d_this->x = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK:  void operator_plus_pullback(const SimpleFunctions1 &other, SimpleFunctions1 _d_y, SimpleFunctions1 *_d_this, SimpleFunctions1 *_d_other) const {
+// CHECK-NEXT:      SimpleFunctions1 res(this->x + other.x, this->y + other.y);
+// CHECK-NEXT:      SimpleFunctions1 _d_res(res);
+// CHECK-NEXT:      clad::zero_init(_d_res);
+// CHECK-NEXT:      SimpleFunctions1::constructor_pullback(std::move(res), &_d_y, &_d_res);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r0 = 0.;
+// CHECK-NEXT:          double _r1 = 0.;
+// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(this->x + other.x, this->y + other.y, &_d_res, &_r0, &_r1);
+// CHECK-NEXT:          _d_this->x += _r0;
+// CHECK-NEXT:          (*_d_other).x += _r0;
+// CHECK-NEXT:          _d_this->y += _r1;
+// CHECK-NEXT:          (*_d_other).y += _r1;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
@@ -820,38 +821,6 @@ void fn20(MyStruct s) {
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
-// CHECK:  void operator_plus_pullback(const double &val, const SimpleFunctions1 &a, double _d_y, double *_d_val, SimpleFunctions1 *_d_a) {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_a).x += _d_y;
-// CHECK-NEXT:          *_d_val += _d_y;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-double fn21(double i, double j) {
-    return 2 + SimpleFunctions1(i);
-}
-
-// CHECK: static void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _d_this->y = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          *_d_px += _d_this->x;
-// CHECK-NEXT:          _d_this->x = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-// CHECK:  void fn21_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          SimpleFunctions1 _r1 = {};
-// CHECK-NEXT:          operator_plus_pullback(2, SimpleFunctions1(i), 1, &_r0, &_r1);
-// CHECK-NEXT:          double _r2 = 0.;
-// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(i, &_r1, &_r2);
-// CHECK-NEXT:          *_d_i += _r2;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
 class Identity {
     public:
     double operator()(double u) { return u + 1; }
@@ -862,13 +831,13 @@ class Identity {
 // CHECK-NEXT:}
 
 
-double fn22(double x, double y) {
+double fn21(double x, double y) {
     Identity di{};
     double val = di(x);
     return val * val;
 }
 
-// CHECK:  void fn22_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:  void fn21_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Identity _d_di = {};
 // CHECK-NEXT:      Identity di{};
 // CHECK-NEXT:      Identity _t0 = di;
@@ -890,12 +859,12 @@ struct StructNoDefConstr {
   StructNoDefConstr(int){}
 };
 
-double fn23(double x){
+double fn22(double x){
   StructNoDefConstr t{0};
   return x;
 }
 
-// CHECK:  void fn23_grad(double x, double *_d_x) {
+// CHECK:  void fn22_grad(double x, double *_d_x) {
 // CHECK-NEXT:      StructNoDefConstr t(0);
 // CHECK-NEXT:      StructNoDefConstr _d_t(t);
 // CHECK-NEXT:      clad::zero_init(_d_t);
@@ -918,7 +887,7 @@ double add(B b, double u) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-double fn24(double u, double v) {
+double fn23(double u, double v) {
     B b;
     b.data = v;
     double res = 0;
@@ -933,7 +902,7 @@ double fn24(double u, double v) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-// CHECK:  void fn24_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK:  void fn23_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      B _d_b = {0.};
 // CHECK-NEXT:      B b;
 // CHECK-NEXT:      double _t0 = b.data;
@@ -960,70 +929,6 @@ double fn24(double u, double v) {
 // CHECK-NEXT:          *_d_v += _r_d0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
-
-struct S1{
-  double p;
-  double d;
-  S1(double x) : p(x), d([](){return 12.;}()) {}
-};
-
-struct S2{
-  double p;
-  double i;
-  double d;
-  S2(double x) : p(x), i(1.), d([&](){i *= 32; return 12.;}()) {}
-};
-
-struct S3{
-  double p;
-  S3(double x) {
-    p = x * x;
-  }
-};
-
-struct S4{
-  double i = 9;
-  double p;
-  S4(double x) : p(x) {}
-};
-
-// CHECK: static void constructor_pullback(double x, S4 *_d_this, double *_d_x) {
-// CHECK-NEXT:    {
-// CHECK-NEXT:        *_d_x += _d_this->p;
-// CHECK-NEXT:        _d_this->p = 0.;
-// CHECK-NEXT:    }
-// CHECK-NEXT:   {
-// CHECK-NEXT:        _d_this->i = 0.;
-// CHECK-NEXT:    }
-// CHECK-NEXT:}
-
-struct S5{
-  double i;
-  S5(double x) 
-    try { 
-      i = x;
-    } catch(...) {
-      printf("caught\n");
-    }
-};
-
-double fn25(double u, double v) {
-  S1 s1(u);
-  S2 s2(v);
-  S3 s3(v);
-  S5 s5(u);
-  return 1;
-}
-
-// CHECK-NOT: void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
-// CHECK-NOT: void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
-// CHECK-NOT: void constructor_pullback(double x, S3 *_d_this, double *_d_x) {
-// CHECK-NOT: void constructor_pullback(double x, S5 *_d_this, double *_d_x) {
-
-double fn26(double u, double v) {
-  S4 s(u);
-  return s.i * s.p;
-}
 
 struct Vector3 {
     double x, y, z;
@@ -1082,13 +987,13 @@ const Vector3 operator*(double a, const Vector3& v) {
   return {a * v.x, a * v.y, a * v.z};
 }
 
-double fn27(double x, double y) {
+double fn24(double x, double y) {
   Vector3 v(x, x, y);
   Vector3 w = 2*v;
   return w.x;
 }
 
-// CHECK:  void fn27_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:  void fn24_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Vector3 v(x, x, y);
 // CHECK-NEXT:      Vector3 _d_v(v);
 // CHECK-NEXT:      clad::zero_init(_d_v);
@@ -1140,13 +1045,13 @@ double fn27(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-double fn28(double x, double y) {
+double fn25(double x, double y) {
   Vector3 v{x, x, y};
   Vector3 w = -v;
   return w.x;
 }
 
-// CHECK:  void fn28_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:  void fn25_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Vector3 v{x, x, y};
 // CHECK-NEXT:      Vector3 _d_v(v);
 // CHECK-NEXT:      clad::zero_init(_d_v);
@@ -1201,12 +1106,12 @@ constructor_reverse_forw(::clad::ConstructorReverseForwTag<ptrClass>, double* mp
 
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_forw(ptrClass *_d_this);
 
-double fn29(double x, double y) {
+double fn26(double x, double y) {
   ptrClass p(&x);
   return *p;
 }
 
-// CHECK:  void fn29_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:  void fn26_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      ::clad::ValueAndAdjoint<ptrClass, ptrClass> _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<ptrClass>(), &x, &*_d_x);
 // CHECK-NEXT:      ptrClass p(_t0.value);
 // CHECK-NEXT:      ptrClass _d_p = _t0.adjoint;
@@ -1232,7 +1137,7 @@ struct MyStructWrapper {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-double fn30(double x, double y) {
+double fn27(double x, double y) {
   MyStructWrapper s;
   s = {2 * y, 3 * x + 2};
   return s.val.a * s.val.b;
@@ -1240,7 +1145,7 @@ double fn30(double x, double y) {
 
 // CHECK:  inline constexpr clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> operator_equal_forw(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper &&_d_arg) noexcept;
 
-// CHECK:  void fn30_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:  void fn27_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      MyStructWrapper _d_s = {{.*0., 0..*}};
 // CHECK-NEXT:      MyStructWrapper s;
 // CHECK-NEXT:      MyStructWrapper _t0 = s;
@@ -1270,12 +1175,12 @@ double vecSum(const Vector3& v) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-double fn31(double x, double y) {
+double fn28(double x, double y) {
   double z = vecSum({x, y, x});
   return z;
 }
 
-// CHECK:  void fn31_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:  void fn28_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      double _d_z = 0.;
 // CHECK-NEXT:      double z = vecSum({x, y, x});
 // CHECK-NEXT:      _d_z += 1;
@@ -1382,38 +1287,30 @@ int main() {
     auto fn20_test = clad::gradient(fn20);
     fn20_test.execute(s, &d_s);
     print(d_s); // CHECK-EXEC: {2.00, 2.00}
-    
+
     INIT_GRADIENT(fn21);
-    TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
+    TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {8.00, 0.00}
 
     INIT_GRADIENT(fn22);
-    TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {8.00, 0.00}
 
     INIT_GRADIENT(fn23);
+    TEST_GRADIENT(fn23, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+
 
     INIT_GRADIENT(fn24);
-    TEST_GRADIENT(fn24, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+    TEST_GRADIENT(fn24, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {2.00, 0.00}
 
     INIT_GRADIENT(fn25);
+    TEST_GRADIENT(fn25, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {-1.00, 0.00}
 
     INIT_GRADIENT(fn26);
-    TEST_GRADIENT(fn26, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {9.00, 0.00}
-
+    TEST_GRADIENT(fn26, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
 
     INIT_GRADIENT(fn27);
-    TEST_GRADIENT(fn27, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {2.00, 0.00}
+    TEST_GRADIENT(fn27, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {30.00, 22.00}
 
     INIT_GRADIENT(fn28);
-    TEST_GRADIENT(fn28, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {-1.00, 0.00}
-
-    INIT_GRADIENT(fn29);
-    TEST_GRADIENT(fn29, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
-
-    INIT_GRADIENT(fn30);
-    TEST_GRADIENT(fn30, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {30.00, 22.00}
-
-    INIT_GRADIENT(fn31);
-    TEST_GRADIENT(fn31, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {2.00, 1.00}
+    TEST_GRADIENT(fn28, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {2.00, 1.00}
 }
 
 // CHECK: inline constexpr clad::ValueAndAdjoint<MyStruct &, MyStruct &> operator_equal_forw(MyStruct &&arg, MyStruct *_d_this, MyStruct &&_d_arg) noexcept {

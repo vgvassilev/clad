@@ -57,8 +57,8 @@ void resize_pushforward(::std::vector<T>* v,
 template <typename T>
 ValueAndPushforward<typename ::std::initializer_list<T>::iterator,
                     typename ::std::initializer_list<T>::iterator>
-begin_pushforward(::std::initializer_list<T>* il,
-                  ::std::initializer_list<T>* d_il) {
+begin_pushforward(const ::std::initializer_list<T>* il,
+                  const ::std::initializer_list<T>* d_il) {
   return {il->begin(), d_il->begin()};
 }
 
@@ -662,6 +662,9 @@ constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::unique_ptr<T>>,
                          U* p, U* d_p) {
   return {::std::unique_ptr<T>(p), ::std::unique_ptr<T>(d_p)};
 }
+
+template <typename T>
+void constructor_pullback(T* p, ::std::unique_ptr<T>* dthis, T* dp) noexcept {};
 
 template <typename T>
 clad::ValueAndAdjoint<T&, T&>

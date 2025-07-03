@@ -46,15 +46,15 @@ void f_3(double x, double y, double z, double *_clad_out__result) {
 // CHECK-NEXT:     *_d_vector__clad_out__result = clad::identity_matrix(_d_vector__clad_out__result->rows(), indepVarCount, {{3U|3UL|3ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_constant(clad::zero_vector(indepVarCount)); 
 // CHECK-NEXT:     double constant = 42;
-// CHECK-NEXT:     {{.*}} _t0 = clad::custom_derivatives::sin_pushforward(x, _d_vector_x);
+// CHECK-NEXT:     {{.*}} _t0 = clad::custom_derivatives::std::sin_pushforward(x, _d_vector_x);
 // CHECK-NEXT:     double &_t1 = _t0.value;
 // CHECK-NEXT:     (*_d_vector__clad_out__result)[0] = _t0.pushforward * constant + _t1 * _d_vector_constant;
 // CHECK-NEXT:     _clad_out__result[0] = _t1 * constant;
-// CHECK-NEXT:     {{.*}} _t2 = clad::custom_derivatives::sin_pushforward(y, _d_vector_y);
+// CHECK-NEXT:     {{.*}} _t2 = clad::custom_derivatives::std::sin_pushforward(y, _d_vector_y);
 // CHECK-NEXT:     double &_t3 = _t2.value;
 // CHECK-NEXT:     (*_d_vector__clad_out__result)[1] = _t2.pushforward * constant + _t3 * _d_vector_constant;
 // CHECK-NEXT:     _clad_out__result[1] = _t3 * constant;
-// CHECK-NEXT:     {{.*}} _t4 = clad::custom_derivatives::sin_pushforward(z, _d_vector_z);
+// CHECK-NEXT:     {{.*}} _t4 = clad::custom_derivatives::std::sin_pushforward(z, _d_vector_z);
 // CHECK-NEXT:     double &_t5 = _t4.value;
 // CHECK-NEXT:     (*_d_vector__clad_out__result)[2] = _t4.pushforward * constant + _t5 * _d_vector_constant;
 // CHECK-NEXT:     _clad_out__result[2] = _t5 * constant;
