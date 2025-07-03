@@ -9,30 +9,32 @@
 #include "clad/Differentiator/CladConfig.h"
 
 namespace clad {
-  template <typename T>
+  /// A dynamic slab-based vector-like container with Small Buffer Optimization (SBO),
+  /// primarily used for storing values in reverse-mode AD.
+  /// Stores elements in a static buffer first, then falls back to dynamically
+  /// allocated linked slabs if capacity exceeds SBO.
+  template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
   class tape_impl {
+    /// A block of contiguous storage allocated dynamically when SBO capacity is exceeded.
     struct Slab {
-      alignas(T) char raw_data[1024 * sizeof(T)];
+      alignas(T) char raw_data[SLAB_SIZE * sizeof(T)]{};
       Slab* next;
-      Slab() : next(nullptr) {}
-      T* elements() { return reinterpret_cast<T*>(raw_data); }
+      CUDA_HOST_DEVICE Slab() : next(nullptr) {}
+      CUDA_HOST_DEVICE T* elements() { return reinterpret_cast<T*>(raw_data); }
     };
 
-    constexpr static std::size_t SBO_SIZE = 64;
-    alignas(T) char static_buffer_[SBO_SIZE * sizeof(T)];
-    bool using_sbo_ = true;
+    alignas(T) char static_buffer[SBO_SIZE * sizeof(T)];
+    bool using_sbo = true;
 
-    Slab* _head = nullptr;
+    Slab* head = nullptr;
     std::size_t _size = 0;
 
-    constexpr static std::size_t slab_size = 1024;
-
     CUDA_HOST_DEVICE T* sbo_elements() {
-      return reinterpret_cast<T*>(static_buffer_);
+      return reinterpret_cast<T*>(static_buffer);
     }
 
     CUDA_HOST_DEVICE const T* sbo_elements() const {
-      return reinterpret_cast<const T*>(static_buffer_);
+      return reinterpret_cast<const T*>(static_buffer);
     }
 
   public:
@@ -50,32 +52,39 @@ namespace clad {
       clear();
     }
 
+    /// Add new value of type T constructed from args to the end of the tape.
     template <typename... ArgsT>
     CUDA_HOST_DEVICE void emplace_back(ArgsT&&... args) {
       if (_size < SBO_SIZE) {
+        // Store in SBO buffer
         ::new (const_cast<void*>(static_cast<const volatile void*>(sbo_elements() + _size)))
             T(std::forward<ArgsT>(args)...);
       } else {
-        if (using_sbo_) {
-          using_sbo_ = false;
+        // Transition to dynamic storage if needed
+        if (using_sbo) {
+          using_sbo = false;
         }
-        if ((_size - SBO_SIZE) % slab_size == 0) {
+
+        // Allocate new slab if required
+        if ((_size - SBO_SIZE) % SLAB_SIZE == 0) {
           Slab* new_slab = new Slab();
-          if (!_head) {
-            _head = new_slab;
+          if (!head) {
+            head = new_slab;
           } else {
-            Slab* last = _head;
+            Slab* last = head;
             while (last->next) last = last->next;
             last->next = new_slab;
           }
         }
 
-        Slab* slab = _head;
-        std::size_t idx = (_size - SBO_SIZE) / slab_size;
+        // Find correct slab for element
+        Slab* slab = head;
+        std::size_t idx = (_size - SBO_SIZE) / SLAB_SIZE;
         while (idx--) slab = slab->next;
 
+        // Construct element in-place
         ::new (const_cast<void*>(static_cast<const volatile void*>(
-            slab->elements() + ((_size - SBO_SIZE) % slab_size))))
+            slab->elements() + ((_size - SBO_SIZE) % SLAB_SIZE))))
             T(std::forward<ArgsT>(args)...);
       }
       _size++;
@@ -99,6 +108,7 @@ namespace clad {
       return at(_size);
     }
 
+    /// Access last value (must not be empty).
     CUDA_HOST_DEVICE reference back() {
       assert(_size);
       return (*this)[_size - 1];
@@ -119,6 +129,7 @@ namespace clad {
       return *at(i);
     }
 
+    /// Remove the last value from the tape.
     CUDA_HOST_DEVICE void pop_back() {
       assert(_size);
       _size--;
@@ -126,14 +137,15 @@ namespace clad {
     }
 
   private:
+    // Returns pointer to element at specified index, handling SBO or slab lookup
     CUDA_HOST_DEVICE T* at(std::size_t index) {
       if (index < SBO_SIZE) {
         return sbo_elements() + index;
       } else {
-        Slab* slab = _head;
-        std::size_t idx = (index - SBO_SIZE) / slab_size;
+        Slab* slab = head;
+        std::size_t idx = (index - SBO_SIZE) / SLAB_SIZE;
         while (idx--) slab = slab->next;
-        return slab->elements() + ((index - SBO_SIZE) % slab_size);
+        return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
       }
     }
 
@@ -141,16 +153,17 @@ namespace clad {
       if (index < SBO_SIZE) {
         return sbo_elements() + index;
       } else {
-        Slab* slab = _head;
-        std::size_t idx = (index - SBO_SIZE) / slab_size;
+        Slab* slab = head;
+        std::size_t idx = (index - SBO_SIZE) / SLAB_SIZE;
         while (idx--) slab = slab->next;
-        return slab->elements() + ((index - SBO_SIZE) % slab_size);
+        return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
       }
     }
 
     template <typename It>
     using value_type_of = decltype(*std::declval<It>());
 
+    // Call destructor for every value in the given range.
     template <typename It>
     static typename std::enable_if<
         !std::is_trivially_destructible<value_type_of<It>>::value>::type
@@ -159,11 +172,13 @@ namespace clad {
         I->~value_type_of<It>();
     }
 
+    // If type is trivially destructible, its destructor is no-op, so we can avoid for loop here.
     template <typename It>
     static typename std::enable_if<
         std::is_trivially_destructible<value_type_of<It>>::value>::type
     CUDA_HOST_DEVICE destroy(It B, It E) {}
 
+    /// Destroys all elements and deallocates slabs
     void clear() {
       std::size_t count = _size;
 
@@ -171,23 +186,22 @@ namespace clad {
         sbo_elements()[i].~T();
       }
 
-      Slab* slab = _head;
+      Slab* slab = head;
       while (slab) {
         T* elems = slab->elements();
-        for (size_t i = 0; i < slab_size && count > 0; ++i, --count) {
-          elems[i].~T();
+        for (size_t i = 0; i < SLAB_SIZE && count > 0; ++i, --count) {
+          (elems + i)->~T();
         }
         Slab* tmp = slab;
         slab = slab->next;
         delete tmp;
       }
 
-      _head = nullptr;
+      head = nullptr;
       _size = 0;
-      using_sbo_ = true;
+      using_sbo = true;
     }
   };
 }
 
 #endif // CLAD_TAPE_H
-
