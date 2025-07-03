@@ -194,31 +194,4 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   Stmt* newRS = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();
   return {newRS};
 }
-
-StmtDiff
-ReverseModeForwPassVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
-  auto opCode = UnOp->getOpcode();
-  StmtDiff diff{};
-  // If it is a post-increment/decrement operator, its result is a reference
-  // and we should return it.
-  Expr* ResultRef = nullptr;
-  if (opCode == UnaryOperatorKind::UO_Deref) {
-    if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
-      if (MD->isInstance()) {
-        diff = Visit(UnOp->getSubExpr());
-        Expr* cloneE = BuildOp(UnaryOperatorKind::UO_Deref, diff.getExpr());
-        Expr* derivedE =
-            BuildOp(UnaryOperatorKind::UO_Deref, diff.getExpr_dx());
-        return {cloneE, derivedE};
-      }
-    }
-  } else if (opCode == UO_Plus)
-    diff = Visit(UnOp->getSubExpr(), dfdx());
-  else if (opCode == UO_Minus) {
-    auto d = BuildOp(UO_Minus, dfdx());
-    diff = Visit(UnOp->getSubExpr(), d);
-  }
-  Expr* op = BuildOp(opCode, diff.getExpr());
-  return StmtDiff(op, ResultRef);
-}
 } // namespace clad

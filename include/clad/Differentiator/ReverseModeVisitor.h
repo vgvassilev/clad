@@ -15,6 +15,7 @@
 #include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
@@ -383,7 +384,7 @@ namespace clad {
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
-    virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
+    StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff
     VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
     StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
