@@ -23,18 +23,18 @@ namespace clad {
       CUDA_HOST_DEVICE T* elements() { return reinterpret_cast<T*>(raw_data); }
     };
 
-    alignas(T) char static_buffer[SBO_SIZE * sizeof(T)];
-    bool using_sbo = true;
+    alignas(T) char m_static_buffer[SBO_SIZE * sizeof(T)];
+    bool m_using_sbo = true;
 
-    Slab* head = nullptr;
+    Slab* m_head = nullptr;
     std::size_t _size = 0;
 
     CUDA_HOST_DEVICE T* sbo_elements() {
-      return reinterpret_cast<T*>(static_buffer);
+      return reinterpret_cast<T*>(m_static_buffer);
     }
 
     CUDA_HOST_DEVICE const T* sbo_elements() const {
-      return reinterpret_cast<const T*>(static_buffer);
+      return reinterpret_cast<const T*>(m_static_buffer);
     }
 
   public:
@@ -61,24 +61,24 @@ namespace clad {
             T(std::forward<ArgsT>(args)...);
       } else {
         // Transition to dynamic storage if needed
-        if (using_sbo) {
-          using_sbo = false;
+        if (m_using_sbo) {
+          m_using_sbo = false;
         }
 
         // Allocate new slab if required
         if ((_size - SBO_SIZE) % SLAB_SIZE == 0) {
           Slab* new_slab = new Slab();
-          if (!head) {
-            head = new_slab;
+          if (!m_head) {
+            m_head = new_slab;
           } else {
-            Slab* last = head;
+            Slab* last = m_head;
             while (last->next) last = last->next;
             last->next = new_slab;
           }
         }
 
         // Find correct slab for element
-        Slab* slab = head;
+        Slab* slab = m_head;
         std::size_t idx = (_size - SBO_SIZE) / SLAB_SIZE;
         while (idx--) slab = slab->next;
 
@@ -141,23 +141,23 @@ namespace clad {
     CUDA_HOST_DEVICE T* at(std::size_t index) {
       if (index < SBO_SIZE) {
         return sbo_elements() + index;
-      } else {
-        Slab* slab = head;
-        std::size_t idx = (index - SBO_SIZE) / SLAB_SIZE;
-        while (idx--) slab = slab->next;
-        return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
       }
+      Slab* slab = m_head;
+      std::size_t idx = (index - SBO_SIZE) / SLAB_SIZE;
+      while (idx--) slab = slab->next;
+      return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
+      
     }
 
     CUDA_HOST_DEVICE const T* at(std::size_t index) const {
       if (index < SBO_SIZE) {
         return sbo_elements() + index;
-      } else {
-        Slab* slab = head;
-        std::size_t idx = (index - SBO_SIZE) / SLAB_SIZE;
-        while (idx--) slab = slab->next;
-        return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
       }
+      Slab* slab = m_head;
+      std::size_t idx = (index - SBO_SIZE) / SLAB_SIZE;
+      while (idx--) slab = slab->next;
+      return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
+      
     }
 
     template <typename It>
@@ -186,7 +186,7 @@ namespace clad {
         sbo_elements()[i].~T();
       }
 
-      Slab* slab = head;
+      Slab* slab = m_head;
       while (slab) {
         T* elems = slab->elements();
         for (size_t i = 0; i < SLAB_SIZE && count > 0; ++i, --count) {
@@ -197,9 +197,9 @@ namespace clad {
         delete tmp;
       }
 
-      head = nullptr;
+      m_head = nullptr;
       _size = 0;
-      using_sbo = true;
+      m_using_sbo = true;
     }
   };
 }
