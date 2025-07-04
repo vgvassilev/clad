@@ -515,6 +515,12 @@ void InitTimers();
           break;
         }
 
+      if (m_CI.getFrontendOpts().ShowStats) {
+        // Print the graph of the diff requests.
+        llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
+        m_DiffRequestGraph.dump();
+      }
+
       FinalizeTranslationUnit();
       SendToMultiplexer();
       m_Multiplexer->HandleTranslationUnit(C);
@@ -575,10 +581,6 @@ void InitTimers();
         }
         llvm::errs() << "\n";
       }
-
-      // Print the graph of the diff requests.
-      llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
-      m_DiffRequestGraph.dump();
 
       m_Multiplexer->PrintStats();
     }
