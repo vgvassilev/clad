@@ -343,6 +343,14 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// CHECK: clad::ValueAndAdjoint<double &, double &> identity_reverse_forw(double &i, double &_d_i) {
+// CHECK-NEXT:     MyStruct::myFunction();
+// CHECK-NEXT:     double _d__d_i = 0.;
+// CHECK-NEXT:     double _d_i0 = i;
+// CHECK-NEXT:     _d_i0 += 1;
+// CHECK-NEXT:     return {i, _d_i};
+// CHECK-NEXT: }
+
 // CHECK: void identity_pullback(double &i, double _d_y, double *_d_i) {
 // CHECK-NEXT:     MyStruct::myFunction();
 // CHECK-NEXT:     double _d__d_i = 0.;
@@ -360,8 +368,6 @@ double fn7(double i, double j) {
 // CHECK: void custom_identity_pullback(double &i, double _d_y, double *_d_i) {
 // CHECK-NEXT:     *_d_i += _d_y;
 // CHECK-NEXT: }
-
-// CHECK: clad::ValueAndAdjoint<double &, double &> identity_reverse_forw(double &i, double &_d_i);
 
 // CHECK: void fn7_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _t0 = i;
@@ -1079,13 +1085,6 @@ double sq_defined_later(double x) {
 double fn25_defined_later(double x) {
     return fn25(x);
 }
-// CHECK: clad::ValueAndAdjoint<double &, double &> identity_reverse_forw(double &i, double &_d_i) {
-// CHECK-NEXT:     MyStruct::myFunction();
-// CHECK-NEXT:     double _d__d_i = 0.;
-// CHECK-NEXT:     double _d_i0 = i;
-// CHECK-NEXT:     _d_i0 += 1;
-// CHECK-NEXT:     return {i, _d_i};
-// CHECK-NEXT: }
 
 // CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x) {
 // CHECK-NEXT:     {

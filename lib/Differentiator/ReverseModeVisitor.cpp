@@ -1767,7 +1767,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Stores differentiation result of implicit `this` object, if any.
     StmtDiff baseDiff;
     Expr* baseExpr = nullptr;
-    Stmt* baseDiffPush = nullptr;
     size_t idx = 0;
 
     /// Add base derivative expression in the derived call output args list if
@@ -1797,26 +1796,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (baseTy->isPointerType())
           baseTy = baseTy->getPointeeType();
         CXXRecordDecl* baseRD = baseTy->getAsCXXRecordDecl();
-        bool shouldStore = utils::isCopyable(baseRD);
-        if (shouldStore) {
-          if (!isPassedByRef || MD->isConst()) {
-            // FIXME: Custom _reverse_forw functions take the base by pointer.
-            // This means we cannot pass temporary values and because of that,
-            // we need to store. For now, only emit the store stmt if a custom
-            // reverse_forw is found.
-            beginBlock(direction::forward);
-            Expr* baseDiffStore =
-                StoreAndRef(baseDiff.getExpr(), direction::forward);
-            baseDiffPush =
-                utils::unwrapIfSingleStmt(endBlock(direction::forward));
-            baseExpr = baseDiffStore;
-          } else {
-            Expr* baseDiffStore =
-                GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
-            Expr* assign =
-                BuildOp(BO_Assign, baseDiff.getExpr(), baseDiffStore);
-            PreCallStmts.push_back(assign);
-          }
+        if (isPassedByRef && !MD->isConst() && utils::isCopyable(baseRD)) {
+          Expr* baseDiffStore =
+              GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
+          Expr* assign = BuildOp(BO_Assign, baseDiff.getExpr(), baseDiffStore);
+          PreCallStmts.push_back(assign);
         }
         Expr* baseDerivative = baseDiff.getExpr_dx();
         if (!baseDerivative->getType()->isPointerType())
@@ -2017,61 +2001,52 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return StmtDiff(Clone(CE));
 
     Expr* call = nullptr;
-    // Stores the dx of the call arguments for the function to be derived
-    for (std::size_t i = 0, e = CE->getNumArgs() - isMethodOperatorCall; i != e;
-         ++i) {
-      const Expr* arg = CE->getArg(i + isMethodOperatorCall);
-      if (!utils::IsReferenceOrPointerArg(arg) || arg->isXValue())
-        CallArgDx[i] = getZeroInit(arg->getType());
-    }
-    if (baseDiff.getExpr_dx() &&
-        !baseDiff.getExpr_dx()->getType()->isPointerType())
-      CallArgDx.insert(CallArgDx.begin(), BuildOp(UnaryOperatorKind::UO_AddrOf,
-                                                  baseDiff.getExpr_dx(), Loc));
+    // Lookup a reverse_forw function and build if necessary.
+    DiffRequest calleeFnForwPassReq;
+    calleeFnForwPassReq.Function = FD;
+    calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
+    calleeFnForwPassReq.BaseFunctionName =
+        clad::utils::ComputeEffectiveFnName(FD);
+    calleeFnForwPassReq.VerboseDiags = true;
 
-    if (Expr* customForwardPassCE =
-            BuildCallToCustomForwPassFn(CE, CallArgs, CallArgDx, baseExpr)) {
-      addToCurrentBlock(baseDiffPush, direction::forward);
-      if (!needsForwPass)
-        return StmtDiff{customForwardPassCE};
-      Expr* callRes = nullptr;
-      if (isInsideLoop)
-        callRes = GlobalStoreAndRef(customForwardPassCE, /*prefix=*/"_t",
-                                    /*force=*/true);
-      else
-        callRes = StoreAndRef(customForwardPassCE);
-      auto* resValue =
-          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
-      auto* resAdjoint =
-          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
-      return StmtDiff(resValue, resAdjoint);
-    }
-    if (needsForwPass) {
-      DiffRequest calleeFnForwPassReq;
-      calleeFnForwPassReq.Function = FD;
-      calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
-      calleeFnForwPassReq.BaseFunctionName =
-          clad::utils::ComputeEffectiveFnName(FD);
-      calleeFnForwPassReq.VerboseDiags = true;
-
-      FunctionDecl* calleeFnForwPassFD =
-          m_Builder.HandleNestedDiffRequest(calleeFnForwPassReq);
-
-      assert(calleeFnForwPassFD &&
-             "Clad failed to generate callee function forward pass function");
-
+    FunctionDecl* calleeFnForwPassFD = FindDerivedFunction(calleeFnForwPassReq);
+    if (calleeFnForwPassFD) {
+      for (std::size_t i = 0, e = CE->getNumArgs() - isMethodOperatorCall;
+           i != e; ++i) {
+        const Expr* arg = CE->getArg(i + isMethodOperatorCall);
+        if (!utils::IsReferenceOrPointerArg(arg) || arg->isXValue())
+          CallArgDx[i] = getZeroInit(arg->getType());
+      }
+      if (baseDiff.getExpr_dx() &&
+          !baseDiff.getExpr_dx()->getType()->isPointerType())
+        CallArgDx.insert(
+            CallArgDx.begin(),
+            BuildOp(UnaryOperatorKind::UO_AddrOf, baseDiff.getExpr_dx(), Loc));
       CallArgs.insert(CallArgs.end(), CallArgDx.begin(), CallArgDx.end());
-      if (Expr* baseE = baseDiff.getExpr()) {
-        call = BuildCallExprToMemFn(baseE, calleeFnForwPassFD->getName(),
-                                    CallArgs, Loc);
+      const auto* forwPassMD = dyn_cast<CXXMethodDecl>(calleeFnForwPassFD);
+      Expr* baseE = baseDiff.getExpr();
+      if (forwPassMD && forwPassMD->isInstance()) {
+        call = BuildCallExprToMemFn(
+            baseDiff.getExpr(), calleeFnForwPassFD->getName(), CallArgs, Loc);
       } else {
+        if (baseE) {
+          baseE = BuildOp(UO_AddrOf, baseE);
+          CallArgs.insert(CallArgs.begin(), baseE);
+        }
         call = m_Sema
                    .ActOnCallExpr(getCurrentScope(),
                                   BuildDeclRef(calleeFnForwPassFD), Loc,
                                   CallArgs, Loc, CUDAExecConfig)
                    .get();
       }
-      auto* callRes = StoreAndRef(call);
+      if (call->getType()->isVoidType())
+        return StmtDiff(call);
+      Expr* callRes = nullptr;
+      if (isInsideLoop)
+        callRes = GlobalStoreAndRef(call, /*prefix=*/"_t",
+                                    /*force=*/true);
+      else
+        callRes = StoreAndRef(call);
       auto* resValue =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
       auto* resAdjoint =

@@ -1002,7 +1002,8 @@ namespace clad {
                         mode == DiffMode::pullback ||
                         mode == DiffMode::error_estimation ||
                         mode == DiffMode::vector_forward_mode;
-      if (mode == DiffMode::reverse_mode_forward_pass) {
+      if (mode == DiffMode::reverse_mode_forward_pass &&
+          !oRetTy->isVoidType()) {
         TemplateDecl* valAndAdjointTempDecl =
             utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
         dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
