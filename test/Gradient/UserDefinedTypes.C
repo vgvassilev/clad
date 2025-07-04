@@ -483,6 +483,12 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
   return s;
 }
 
+// CHECK: inline constexpr clad::ValueAndAdjoint<MyStruct &, MyStruct &> operator_equal_reverse_forw(MyStruct &&arg, MyStruct *_d_this, MyStruct &&_d_arg) noexcept {
+// CHECK-NEXT:    this->a = static_cast<MyStruct &&>(arg).a;
+// CHECK-NEXT:    this->b = static_cast<MyStruct &&>(arg).b;
+// CHECK-NEXT:    return {*this, *_d_this};
+// CHECK-NEXT:}
+
 // CHECK: inline constexpr void operator_equal_pullback(MyStruct &&arg, MyStruct _d_y, MyStruct *_d_this, MyStruct *_d_arg) noexcept {
 // CHECK-NEXT:    double _t0 = this->a;
 // CHECK-NEXT:    this->a = static_cast<MyStruct &&>(arg).a;
@@ -502,8 +508,7 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
-// CHECK: inline constexpr clad::ValueAndAdjoint<MyStruct &, MyStruct &> operator_equal_reverse_forw(MyStruct &&arg, MyStruct *_d_this, MyStruct &&_d_arg) noexcept;
-// CHECK-NEXT: void fn12_grad(MyStruct s, MyStruct *_d_s) {
+// CHECK: void fn12_grad(MyStruct s, MyStruct *_d_s) {
 // CHECK-NEXT:     MyStruct _t0 = s;
 // CHECK-NEXT:     clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
 // CHECK-NEXT:    {
@@ -1100,11 +1105,13 @@ constructor_reverse_forw(::clad::ConstructorReverseForwTag<ptrClass>, double* mp
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+// CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this) {
+// CHECK-NEXT:      return {*this->ptr, *_d_this->ptr};
+// CHECK-NEXT:  }
+
 // CHECK:  void operator_star_pullback(double _d_y, ptrClass *_d_this) {
 // CHECK-NEXT:      *_d_this->ptr += _d_y;
 // CHECK-NEXT:  }
-
-// CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this);
 
 double fn26(double x, double y) {
   ptrClass p(&x);
@@ -1128,6 +1135,12 @@ struct MyStructWrapper {
   MyStruct val;
 };
 
+// CHECK:  inline constexpr clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> operator_equal_reverse_forw(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper &&_d_arg) noexcept {
+// CHECK-NEXT:      MyStruct _t0 = this->val;
+// CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, {0., 0.});
+// CHECK-NEXT:      return {*this, *_d_this};
+// CHECK-NEXT:  }
+
 // CHECK:  inline constexpr void operator_equal_pullback(MyStructWrapper &&arg, MyStructWrapper _d_y, MyStructWrapper *_d_this, MyStructWrapper *_d_arg) noexcept {
 // CHECK-NEXT:      MyStruct _t0 = this->val;
 // CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, {0., 0.});
@@ -1142,8 +1155,6 @@ double fn27(double x, double y) {
   s = {2 * y, 3 * x + 2};
   return s.val.a * s.val.b;
 }
-
-// CHECK:  inline constexpr clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> operator_equal_reverse_forw(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper &&_d_arg) noexcept;
 
 // CHECK:  void fn27_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      MyStructWrapper _d_s = {{.*0., 0..*}};
@@ -1312,19 +1323,3 @@ int main() {
     INIT_GRADIENT(fn28);
     TEST_GRADIENT(fn28, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {2.00, 1.00}
 }
-
-// CHECK: inline constexpr clad::ValueAndAdjoint<MyStruct &, MyStruct &> operator_equal_reverse_forw(MyStruct &&arg, MyStruct *_d_this, MyStruct &&_d_arg) noexcept {
-// CHECK-NEXT:    this->a = static_cast<MyStruct &&>(arg).a;
-// CHECK-NEXT:    this->b = static_cast<MyStruct &&>(arg).b;
-// CHECK-NEXT:    return {*this, *_d_this};
-// CHECK-NEXT:}
-
-// CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this) {
-// CHECK-NEXT:      return {*this->ptr, *_d_this->ptr};
-// CHECK-NEXT:  }
-
-// CHECK:  inline constexpr clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> operator_equal_reverse_forw(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper &&_d_arg) noexcept {
-// CHECK-NEXT:      MyStruct _t0 = this->val;
-// CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, {0., 0.});
-// CHECK-NEXT:      return {*this, *_d_this};
-// CHECK-NEXT:  }
