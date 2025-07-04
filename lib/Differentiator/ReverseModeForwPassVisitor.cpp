@@ -27,7 +27,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 
   auto fnName =
-      clad::utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_forw";
+      clad::utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_reverse_forw";
   auto fnDNI = utils::BuildDeclarationNameInfo(m_Sema, fnName);
 
   auto fnType = GetDerivativeType();

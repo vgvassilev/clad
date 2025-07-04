@@ -360,6 +360,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           //   Loc = m_DiffReq->getLocation();
           UnqualifiedId Member;
           Member.setIdentifier(&m_Context.Idents.get(Name), Loc);
+          if (auto* UO = dyn_cast<UnaryOperator>(Base))
+            if (UO->getOpcode() == UO_AddrOf)
+              Base = UO->getSubExpr();
           bool isArrow = Base->getType()->isPointerType();
           // FIXME: update SS here?
           auto* ME =

@@ -4271,7 +4271,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     // Create the constructor call in the forward-pass, or creates
-    // 'constructor_forw' call if possible.
+    // 'constructor_reverse_forw' call if possible.
 
     // This works as follows:
     //
@@ -4284,7 +4284,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // ```
     // // forward-pass
     // clad::ValueAndAdjoint<SomeClass, SomeClass> _t0 =
-    //   constructor_forw(clad::ConstructorReverseForwTag<SomeClass>{}, u, v,
+    //   constructor_reverse_forw(clad::ConstructorReverseForwTag<SomeClass>{},
+    //   u, v,
     //     _d_u, _d_v);
     // SomeClass _d_c = _t0.adjoint;
     // SomeClass c = _t0.value;
