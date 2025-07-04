@@ -325,22 +325,19 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       }
     }
 
+    // FIXME: Figure out how to assert here in cases where we have provided
+    // both a clad-generated derivative and a user-provided one.
+    // #ifndef NDEBUG
+    // LookupResult R1 = utils::LookupQualifiedName(Name, m_Sema,
+    // originalFnDC); assert((R1.empty() || R1.getFoundDecl() ==
+    // R.getFoundDecl()) &&
+    //        "We clad built a derivative for entity which"
+    //        "has a custom derivative!");
+    // #endif // NDEBUG
     CXXScopeSpec SS;
     LookupResult R = LookupCustomDerivativeOrNumericalDiff(
         Name, originalFnDC, SS, forCustomDerv, namespaceShouldExist);
-    bool hasUserDefinedPropagator = false;
-    if (!R.empty()) {
-      hasUserDefinedPropagator = true;
-#ifndef NDEBUG
-      // FIXME: Figure out how to assert here in cases where we have provided
-      // both a clad-generated derivative and a user-provided one.
-      // LookupResult R1 = utils::LookupQualifiedName(Name, m_Sema,
-      // originalFnDC); assert((R1.empty() || R1.getFoundDecl() ==
-      // R.getFoundDecl()) &&
-      //        "We clad built a derivative for entity which"
-      //        "has a custom derivative!");
-#endif // NDEBUG
-    } else {
+    if (R.empty()) {
       // Try to find if clad already built a derivative.
       R = utils::LookupQualifiedName(Name, m_Sema, originalFnDC);
       if (originalFnDC && !originalFnDC->isRecord())
@@ -360,9 +357,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           //   Loc = m_DiffReq->getLocation();
           UnqualifiedId Member;
           Member.setIdentifier(&m_Context.Idents.get(Name), Loc);
-          if (auto* UO = dyn_cast<UnaryOperator>(Base))
-            if (UO->getOpcode() == UO_AddrOf)
-              Base = UO->getSubExpr();
           bool isArrow = Base->getType()->isPointerType();
           // FIXME: update SS here?
           auto* ME =
@@ -381,12 +375,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                              CUDAExecConfig)
               .get();
         }
-        // If we have user-defined propagators we pass the first argument by
-        // pointer.
-        if (hasUserDefinedPropagator &&
-            !CallArgs[0]->getType()->isPointerType())
-          CallArgs[0] =
-              m_Sema.BuildUnaryOp(S, noLoc, UO_AddrOf, CallArgs[0]).get();
       }
       Expr* UnresolvedLookup =
           m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();

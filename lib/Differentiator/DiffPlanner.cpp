@@ -1213,6 +1213,21 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
 
+    QualType returnType = FD->getReturnType();
+    bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
+                         returnType->isPointerType();
+    if (request.Mode == DiffMode::pullback ||
+        request.Mode == DiffMode::reverse) {
+      DiffRequest forwPassRequest = request;
+      forwPassRequest.DVI.clear();
+      forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
+      forwPassRequest.EnableTBRAnalysis = false;
+      forwPassRequest.EnableVariedAnalysis = false;
+      forwPassRequest.EnableUsefulAnalysis = false;
+      if (LookupCustomDerivativeDecl(forwPassRequest) || needsForwPass)
+        m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+    }
+
     if (!LookupCustomDerivativeDecl(request)) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =

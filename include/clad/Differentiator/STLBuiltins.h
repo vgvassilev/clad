@@ -683,7 +683,8 @@ void constructor_pullback(T* p, ::std::unique_ptr<T>* dthis, T* dp) noexcept {};
 
 template <typename T>
 clad::ValueAndAdjoint<T&, T&>
-operator_star_reverse_forw(::std::unique_ptr<T>* u, ::std::unique_ptr<T>* d_u) {
+operator_star_reverse_forw(const ::std::unique_ptr<T>* u,
+                           const ::std::unique_ptr<T>* d_u) {
   return {**u, **d_u};
 }
 
