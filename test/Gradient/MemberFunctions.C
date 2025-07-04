@@ -459,11 +459,11 @@ double fn2(SimpleFunctions& sf, double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_forw(double i, SimpleFunctions *_d_this, double _d_i);
+// CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_reverse_forw(double i, SimpleFunctions *_d_this, double _d_i);
 
 // CHECK: void fn2_grad(SimpleFunctions &sf, double i, SimpleFunctions *_d_sf, double *_d_i) {
 // CHECK-NEXT:     SimpleFunctions _t0 = sf;
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = sf.ref_mem_fn_forw(i, &(*_d_sf), 0.);
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = sf.ref_mem_fn_reverse_forw(i, &(*_d_sf), 0.);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         sf = _t0;
@@ -492,11 +492,11 @@ double fn5(SimpleFunctions& v, double value) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_forw(double value, SimpleFunctions *_d_this, double _d_value);
+// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_reverse_forw(double value, SimpleFunctions *_d_this, double _d_value);
 
 // CHECK: void fn5_grad(SimpleFunctions &v, double value, SimpleFunctions *_d_v, double *_d_value) {
 // CHECK-NEXT:     SimpleFunctions _t0 = v;
-// CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = v.operator_plus_equal_forw(value, &(*_d_v), 0.);
+// CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = v.operator_plus_equal_reverse_forw(value, &(*_d_v), 0.);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
@@ -520,11 +520,11 @@ double fn4(SimpleFunctions& v) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_forw(SimpleFunctions *_d_this);
+// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_reverse_forw(SimpleFunctions *_d_this);
 
 // CHECK: void fn4_grad(SimpleFunctions &v, SimpleFunctions *_d_v) {
 // CHECK-NEXT:     SimpleFunctions _t0 = v;
-// CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = v.operator_plus_plus_forw(&(*_d_v));
+// CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = v.operator_plus_plus_reverse_forw(&(*_d_v));
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         v = _t0;
@@ -936,18 +936,18 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     }
 
-// CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_forw(double i, SimpleFunctions *_d_this, double _d_i) {
+// CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_reverse_forw(double i, SimpleFunctions *_d_this, double _d_i) {
 // CHECK-NEXT:     this->x = +i;
 // CHECK-NEXT:     this->x = -i;
 // CHECK-NEXT:     return {this->x, _d_this->x};
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_forw(double value, SimpleFunctions *_d_this, double _d_value) {
+// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_reverse_forw(double value, SimpleFunctions *_d_this, double _d_value) {
 // CHECK-NEXT:     this->x += value;
 // CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_forw(SimpleFunctions *_d_this) {
+// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_reverse_forw(SimpleFunctions *_d_this) {
 // CHECK-NEXT:     this->x += 1.;
 // CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }

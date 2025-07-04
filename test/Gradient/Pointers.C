@@ -483,7 +483,7 @@ double* ptrValFn (double* x, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n);
+// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_reverse_forw(double *x, int n, double *_d_x, int _d_n);
 
 double nestedPtrFn (double x, double y) {
   double arr[] = {x, y}; 
@@ -494,7 +494,7 @@ double nestedPtrFn (double x, double y) {
 // CHECK: void nestedPtrFn_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     double _d_arr[2] = {0};
 // CHECK-NEXT:     double arr[2] = {x, y};
-// CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0 = ptrValFn_forw(arr, 1, _d_arr, 0);
+// CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0 = ptrValFn_reverse_forw(arr, 1, _d_arr, 0);
 // CHECK-NEXT:     double *_d_z = _t0.adjoint;
 // CHECK-NEXT:     double *z = _t0.value;
 // CHECK-NEXT:     *_d_z += 1;
@@ -527,7 +527,7 @@ double listInitPtrFn (double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n) {
+// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_reverse_forw(double *x, int n, double *_d_x, int _d_n) {
 // CHECK-NEXT:     _d_x += n;
 // CHECK-NEXT:     x += n;
 // CHECK-NEXT:     return {x, _d_x};
