@@ -3233,7 +3233,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   bool ReverseModeVisitor::ShouldRecompute(const Expr* E) {
-    return !(utils::ContainsFunctionCalls(E) || E->HasSideEffects(m_Context));
+    return !(utils::ContainsFunctionCalls(E) || E->HasSideEffects(m_Context)) ||
+           isCUDABuiltInIndex(E);
+  }
+
+  bool ReverseModeVisitor::isCUDABuiltInIndex(const Expr* E) {
+    const clang::Expr* B = E->IgnoreImplicit();
+    if (const auto* pseudoE = llvm::dyn_cast<PseudoObjectExpr>(B)) {
+      if (const auto* opaqueE =
+              llvm::dyn_cast<OpaqueValueExpr>(pseudoE->getSemanticExpr(0))) {
+        const Expr* innerE = opaqueE->getSourceExpr()->IgnoreImplicit();
+        QualType innerT = innerE->getType();
+        if (innerT.isConstQualified())
+          return true;
+      }
+    }
+    return false;
   }
 
   bool ReverseModeVisitor::UsefulToStoreGlobal(Expr* E) {
