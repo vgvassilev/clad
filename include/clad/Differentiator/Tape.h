@@ -9,139 +9,155 @@
 #include "clad/Differentiator/CladConfig.h"
 
 namespace clad {
-  /// Dynamically-sized array (std::vector-like), primarily used for storing
-  /// values in reverse-mode AD inside loops.
-  template <typename T>
+  /// A dynamic slab-based vector-like container with Small Buffer Optimization (SBO),
+  /// primarily used for storing values in reverse-mode AD.
+  /// Stores elements in a static buffer first, then falls back to dynamically
+  /// allocated linked slabs if capacity exceeds SBO.
+  template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
   class tape_impl {
-    T* _data = nullptr;
+    /// A block of contiguous storage allocated dynamically when SBO capacity is exceeded.
+    struct Slab {
+      alignas(T) char raw_data[SLAB_SIZE * sizeof(T)]{};
+      Slab* next;
+      CUDA_HOST_DEVICE Slab() : next(nullptr) {}
+      CUDA_HOST_DEVICE T* elements() { return reinterpret_cast<T*>(raw_data); }
+    };
+
+    alignas(T) char m_static_buffer[SBO_SIZE * sizeof(T)];
+    bool m_using_sbo = true;
+
+    Slab* m_head = nullptr;
     std::size_t _size = 0;
-    std::size_t _capacity = 0;
+
+    CUDA_HOST_DEVICE T* sbo_elements() {
+      return reinterpret_cast<T*>(m_static_buffer);
+    }
+
+    CUDA_HOST_DEVICE const T* sbo_elements() const {
+      return reinterpret_cast<const T*>(m_static_buffer);
+    }
+
   public:
     using reference = T&;
     using const_reference = const T&;
     using pointer = T*;
     using const_pointer = const T*;
-
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
     using value_type = T;
     using iterator = pointer;
     using const_iterator = const_pointer;
 
-    CUDA_HOST_DEVICE ~tape_impl(){
-      destroy(begin(), end());
-      // delete the old data here to make sure we do not leak anything.
-      ::operator delete(const_cast<void*>(
-            static_cast<const volatile void*>(_data)));
-    }
-
-    /// Move values from old to new storage
-    CUDA_HOST_DEVICE T* AllocateRawStorage(std::size_t _capacity) {
-      #ifdef __CUDACC__
-        // Allocate raw storage (without calling constructors of T) of new capacity.
-        T* new_data = static_cast<T*>(::operator new(_capacity * sizeof(T)));
-      #else
-        T *new_data =
-          static_cast<T *>(::operator new(_capacity * sizeof(T), std::nothrow));
-      #endif
-      return new_data;
+    CUDA_HOST_DEVICE ~tape_impl() {
+      clear();
     }
 
     /// Add new value of type T constructed from args to the end of the tape.
     template <typename... ArgsT>
     CUDA_HOST_DEVICE void emplace_back(ArgsT&&... args) {
-      if (_size >= _capacity)
-        grow();
-      ::new (const_cast<void*>(static_cast<const volatile void*>(end())))
-          T(std::forward<ArgsT>(args)...);
-      _size += 1;
+      if (_size < SBO_SIZE) {
+        // Store in SBO buffer
+        ::new (const_cast<void*>(static_cast<const volatile void*>(sbo_elements() + _size)))
+            T(std::forward<ArgsT>(args)...);
+      } else {
+        // Transition to dynamic storage if needed
+        if (m_using_sbo) {
+          m_using_sbo = false;
+        }
+
+        // Allocate new slab if required
+        if ((_size - SBO_SIZE) % SLAB_SIZE == 0) {
+          Slab* new_slab = new Slab();
+          if (!m_head) {
+            m_head = new_slab;
+          } else {
+            Slab* last = m_head;
+            while (last->next) last = last->next;
+            last->next = new_slab;
+          }
+        }
+
+        // Find correct slab for element
+        Slab* slab = m_head;
+        std::size_t idx = (_size - SBO_SIZE) / SLAB_SIZE;
+        while (idx--) slab = slab->next;
+
+        // Construct element in-place
+        ::new (const_cast<void*>(static_cast<const volatile void*>(
+            slab->elements() + ((_size - SBO_SIZE) % SLAB_SIZE))))
+            T(std::forward<ArgsT>(args)...);
+      }
+      _size++;
     }
 
     CUDA_HOST_DEVICE std::size_t size() const { return _size; }
-    CUDA_HOST_DEVICE iterator begin() {
-      return reinterpret_cast<iterator>(_data);
+
+    CUDA_HOST_DEVICE pointer begin() {
+      return sbo_elements();
     }
-    CUDA_HOST_DEVICE const_iterator begin() const {
-      return reinterpret_cast<const_iterator>(_data);
+
+    CUDA_HOST_DEVICE const_pointer begin() const {
+      return sbo_elements();
     }
-    CUDA_HOST_DEVICE iterator end() {
-      return reinterpret_cast<iterator>(_data) + _size;
+
+    CUDA_HOST_DEVICE pointer end() {
+      return at(_size);
     }
-    CUDA_HOST_DEVICE const_iterator end() const {
-      return reinterpret_cast<const_iterator>(_data) + _size;
+
+    CUDA_HOST_DEVICE const_pointer end() const {
+      return at(_size);
     }
 
     /// Access last value (must not be empty).
     CUDA_HOST_DEVICE reference back() {
       assert(_size);
-      return begin()[_size - 1];
+      return (*this)[_size - 1];
     }
+
     CUDA_HOST_DEVICE const_reference back() const {
       assert(_size);
-      return begin()[_size - 1];
+      return (*this)[_size - 1];
     }
 
     CUDA_HOST_DEVICE reference operator[](std::size_t i) {
       assert(i < _size);
-      return begin()[i];
+      return *at(i);
     }
 
     CUDA_HOST_DEVICE const_reference operator[](std::size_t i) const {
       assert(i < _size);
-      return begin()[i];
+      return *at(i);
     }
 
     /// Remove the last value from the tape.
     CUDA_HOST_DEVICE void pop_back() {
       assert(_size);
-      _size -= 1;
-      end()->~T();
+      _size--;
+      at(_size)->~T();
     }
 
   private:
-    // Copies the data from a storage to another.
-    // Implementation taken from std::uninitialized_copy
-    template <class InputIt, class NoThrowForwardIt>
-    CUDA_HOST_DEVICE void MoveData(InputIt first, InputIt last,
-                                   NoThrowForwardIt d_first) {
-      NoThrowForwardIt current = d_first;
-      // We specifically add and remove the CV qualifications here so that
-      // cases where NoThrowForwardIt is CV qualified, we can still do the
-      // allocation properly.
-      for (; first != last; ++first, (void)++current) {
-        ::new (const_cast<void*>(
-            static_cast<const volatile void*>(clad_addressof(*current))))
-          T(std::move(*first));
+    // Returns pointer to element at specified index, handling SBO or slab lookup
+    CUDA_HOST_DEVICE T* at(std::size_t index) {
+      if (index < SBO_SIZE) {
+        return sbo_elements() + index;
       }
+      Slab* slab = m_head;
+      std::size_t idx = (index - SBO_SIZE) / SLAB_SIZE;
+      while (idx--) slab = slab->next;
+      return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
+      
     }
-    /// Initial capacity (allocated whenever a value is pushed into empty tape).
-    constexpr static std::size_t _init_capacity = 32;
-    CUDA_HOST_DEVICE void grow() {
-      // If empty, use initial capacity.
-      if (!_capacity)
-        _capacity = _init_capacity;
-      else
-        // Double the capacity on each reallocation.
-        _capacity *= 2;
-      T* new_data = AllocateRawStorage(_capacity);
 
-      if (!new_data) {
-        // clean up the memory mess just in case!
-        destroy(begin(), end());
-        printf("Allocation failure during tape resize! Aborting.\n");
-        trap(EXIT_FAILURE);
+    CUDA_HOST_DEVICE const T* at(std::size_t index) const {
+      if (index < SBO_SIZE) {
+        return sbo_elements() + index;
       }
-
-      // Move values from old storage to the new storage. Should call move
-      // constructors on non-trivial types, otherwise is expected to use
-      // memcpy/memmove.
-      MoveData(begin(), end(), new_data);
-      // Destroy all values in the old storage.
-      destroy(begin(), end());
-      // delete the old data here to make sure we do not leak anything.
-      ::operator delete(const_cast<void*>(
-            static_cast<const volatile void*>(_data)));
-      _data = new_data;
+      Slab* slab = m_head;
+      std::size_t idx = (index - SBO_SIZE) / SLAB_SIZE;
+      while (idx--) slab = slab->next;
+      return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
+      
     }
 
     template <typename It>
@@ -155,13 +171,36 @@ namespace clad {
       for (It I = E - 1; I >= B; --I)
         I->~value_type_of<It>();
     }
-    // If type is trivially destructible, its destructor is no-op, so we can avoid
-    // for loop here.
+
+    // If type is trivially destructible, its destructor is no-op, so we can avoid for loop here.
     template <typename It>
     static typename std::enable_if<
         std::is_trivially_destructible<value_type_of<It>>::value>::type
-    CUDA_HOST_DEVICE
-    destroy(It B, It E) {}
+    CUDA_HOST_DEVICE destroy(It B, It E) {}
+
+    /// Destroys all elements and deallocates slabs
+    void clear() {
+      std::size_t count = _size;
+
+      for (std::size_t i = 0; i < SBO_SIZE && count > 0; ++i, --count) {
+        sbo_elements()[i].~T();
+      }
+
+      Slab* slab = m_head;
+      while (slab) {
+        T* elems = slab->elements();
+        for (size_t i = 0; i < SLAB_SIZE && count > 0; ++i, --count) {
+          (elems + i)->~T();
+        }
+        Slab* tmp = slab;
+        slab = slab->next;
+        delete tmp;
+      }
+
+      m_head = nullptr;
+      _size = 0;
+      m_using_sbo = true;
+    }
   };
 }
 
