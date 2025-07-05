@@ -7,7 +7,7 @@
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/clad/badges/platforms.svg)](https://anaconda.org/conda-forge/clad)
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/clad/badges/downloads.svg)](https://anaconda.org/conda-forge/clad)
 
-[![Linux & Osx Status](https://github.com/vgvassilev/clad/workflows/Main/badge.svg)](https://github.com/vgvassilev/clad/actions?query=workflow%3AMain) <a href="https://scan.coverity.com/projects/vgvassilev-clad"> <img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/16418/badge.svg"/> </a>
+[![Main](https://github.com/vgvassilev/clad/actions/workflows/ci.yml/badge.svg)](https://github.com/vgvassilev/clad/actions/workflows/ci.yml)
 [![codecov]( https://codecov.io/gh/vgvassilev/clad/branch/master/graph/badge.svg)](https://codecov.io/gh/vgvassilev/clad)
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/vgvassilev/clad/master?labpath=%2Fdemos%2FJupyter%2FIntro.ipynb)
 
