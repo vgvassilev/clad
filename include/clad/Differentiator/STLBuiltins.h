@@ -6,8 +6,10 @@
 #include <clad/Differentiator/BuiltinDerivatives.h>
 #include <clad/Differentiator/FunctionTraits.h>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 namespace clad {
@@ -26,6 +28,19 @@ template <class T> void zero_init(typename std::allocator<T>&) {
 }
 
 namespace custom_derivatives {
+
+namespace helpers {
+template <class T, typename U = void> struct is_iterator : ::std::false_type {};
+
+template <class T>
+struct is_iterator<
+    T, typename ::std::enable_if<!::std::is_same<
+           typename ::std::iterator_traits<T>::value_type, void>::value>::type>
+    : ::std::true_type {
+  using type = bool;
+};
+} // namespace helpers
+
 namespace class_functions {
 
 // vector forward mode
@@ -676,6 +691,53 @@ template <typename T, typename U>
 void operator_star_pullback(const ::std::unique_ptr<T>* u, U pullback,
                             ::std::unique_ptr<T>* d_u) {
   **d_u += pullback;
+}
+
+template <typename It>
+clad::ValueAndAdjoint<typename ::std::iterator_traits<It>::reference,
+                      typename ::std::iterator_traits<It>::reference>
+operator_star_reverse_forw(It* it, It* d_it) {
+  return {**it, **d_it};
+}
+
+template <
+    typename It,
+    typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
+clad::ValueAndAdjoint<It, It>
+constructor_reverse_forw(clad::ConstructorReverseForwTag<It>, It it, It d_it) {
+  return {It{it}, It{d_it}};
+}
+
+template <
+    typename It,
+    typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
+clad::ValueAndAdjoint<It, It> operator_plus_plus_reverse_forw(It* it,
+                                                              It* d_it) {
+  return {++*it, ++*d_it};
+}
+
+template <
+    typename It,
+    typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
+void operator_plus_plus_pullback(It* it, It pullback, It* d_it) {
+  --*it;
+  --*d_it;
+}
+
+template <
+    typename It,
+    typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
+clad::ValueAndAdjoint<It, It> operator_plus_plus_reverse_forw(It* it, int,
+                                                              It* d_it, int*) {
+  return {++*it, ++*d_it};
+}
+
+template <
+    typename It,
+    typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
+void operator_plus_plus_pullback(It* it, int, It pullback, It* d_it, int*) {
+  --*it;
+  --*d_it;
 }
 
 } // namespace class_functions

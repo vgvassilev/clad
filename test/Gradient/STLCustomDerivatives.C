@@ -165,7 +165,7 @@ double fn10(double x, double y) {
 
 double fn11(double x, double y) {
     std::vector<double> v;
-    
+
     v.reserve(10);
 
     double res = x*v.capacity();
@@ -255,6 +255,16 @@ double fn19(Session const *session, float *tensor_theory_params) {
    return out;
 }
 
+double fn20(std::vector<double>::iterator start, std::vector<double>::iterator end) {
+  double sum = 0;
+  int u = 1;
+  for (auto it = start; it != end; it++) {
+    sum += u * *it;
+    u += 2;
+  }
+  return sum;
+}
+
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn1);
@@ -274,6 +284,7 @@ int main() {
     INIT_GRADIENT(fn15);
     INIT_GRADIENT(fn16);
     INIT_GRADIENT(fn17);
+    INIT_GRADIENT(fn20);
 
     TEST_GRADIENT(fn1, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
     TEST_GRADIENT(fn2, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {2.00, 1.00}
@@ -294,6 +305,20 @@ int main() {
     TEST_GRADIENT(fn17, /*numOfDerivativeArgs=*/2, 1, 1, &d_i, &d_j);  // CHECK-EXEC: {1.00, 3.00}
     auto d_fn18 = clad::gradient(fn18, "tensor_theory_params");
     auto d_fn19 = clad::gradient(fn19, "tensor_theory_params");
+
+    std::vector<double> v{1, 3, 5, 7, 9};
+    std::vector<double> dv(5, 0);
+    auto dbegin = dv.begin();
+    auto dend = dv.end();
+    fn20_grad.execute(v.begin(), v.end(), &dbegin, &dend);
+    // CHECK-EXEC: {1.00, 3.00, 5.00, 7.00, 9.00}
+    printf("{");
+    for (auto i = 0; i < dv.size(); ++i) {
+      printf("%.2f", dv[i]);
+      if (i != dv.size() - 1)
+        printf(", ");
+    }
+    printf("}\n");
 }
 
 // CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -1266,6 +1291,63 @@ int main() {
 // CHECK-NEXT:             _d_ls = clad::pop(_t1);
 // CHECK-NEXT:             ls = clad::pop(_t2);
 // CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void fn20_grad({{.*}}::iterator start, {{.*}}::iterator end, {{.*}}::iterator *_d_start, {{.*}}::iterator *_d_end) {
+// CHECK-NEXT:     {{.*}} it = {};
+// CHECK-NEXT:     {{.*}} _d_it{};
+// CHECK-NEXT:     clad::tape<{{.*}}> _t2 = {};
+// CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     clad::tape<double> _t4 = {};
+// CHECK-NEXT:     clad::tape<clad::ValueAndAdjoint<{{.*}}> _t5 = {};
+// CHECK-NEXT:     clad::tape<int> _t6 = {};
+// CHECK-NEXT:     double _d_sum = 0.;
+// CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     int _d_u = 0;
+// CHECK-NEXT:     int u = 1;
+// CHECK-NEXT:     {{.*}} _t0 = 0{{.*}};
+// CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}}> _t1 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{.*}}>(), start, (*_d_start));
+// CHECK-NEXT:     it = _t1.value;
+// CHECK-NEXT:     _d_it = _t1.adjoint;
+// CHECK-NEXT:     for (;; clad::push(_t2, it) , {{.*}}class_functions::operator_plus_plus_reverse_forw(&it, 0, &_d_it, 0)) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!operator!=(it, end))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t3, sum);
+// CHECK-NEXT:         clad::push(_t5, {{.*}}class_functions::operator_star_reverse_forw(&it, &_d_it));
+// CHECK-NEXT:         sum += u * clad::push(_t4, clad::back(_t5).value);
+// CHECK-NEXT:         clad::push(_t6, u);
+// CHECK-NEXT:         u += 2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_sum += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         for (;; _t0--) {
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 if (!_t0)
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 int _r0 = 0;
+// CHECK-NEXT:                 it = clad::back(_t2);
+// CHECK-NEXT:                 {{.*}}class_functions::operator_plus_plus_pullback(&it, 0, {}, &_d_it, &_r0);
+// CHECK-NEXT:                 clad::pop(_t2);
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 u = clad::pop(_t6);
+// CHECK-NEXT:                 int _r_d1 = _d_u;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 sum = clad::pop(_t3);
+// CHECK-NEXT:                 double _r_d0 = _d_sum;
+// CHECK-NEXT:                 _d_u += _r_d0 * clad::pop(_t4);
+// CHECK-NEXT:                 it.operator_star_pullback(u * _r_d0, &_d_it);
+// CHECK-NEXT:                 clad::pop(_t5);
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {{.*}}constructor_pullback(start, &_d_it, &(*_d_start));
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
