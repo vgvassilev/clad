@@ -729,7 +729,7 @@ template <
     typename It,
     typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
 clad::ValueAndAdjoint<It, It> operator_plus_plus_reverse_forw(It* it, int,
-                                                              It* d_it, int*) {
+                                                              It* d_it, int) {
   return {++*it, ++*d_it};
 }
 
