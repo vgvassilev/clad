@@ -2039,7 +2039,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                   CallArgs, Loc, CUDAExecConfig)
                    .get();
       }
-      if (call->getType()->isVoidType())
+      if (!needsForwPass)
         return StmtDiff(call);
       Expr* callRes = nullptr;
       if (isInsideLoop)
