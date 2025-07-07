@@ -122,7 +122,7 @@ CUDA_HOST_DEVICE T push(tape<T, SBO_SIZE, SLAB_SIZE>& to, ArgsT... val) {
     // copying the sequence of characters to the destination [27.5.1(3)].
     // (C++ has deprecated the volatile qualifiers. However, we drop them here
     // to make sure things still work with codebases which still have them)
-    std::memcpy(const_cast<T*>(&t), tmp, sizeof(T));
+    std::memcpy((void*)const_cast<T*>(&t), tmp, sizeof(T));
   }
 
   template <class T, typename std::enable_if<is_range<T>::value, int>::type = 0>

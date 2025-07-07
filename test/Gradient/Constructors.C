@@ -410,6 +410,41 @@ double fn7(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+double fn8(double u, double v) {
+  std::pair<double, double> p(u,v);
+  return p.first + p.second;
+}
+
+// CHECK: static constexpr void constructor_pullback(double &__{{u1|x}}, double &__{{u2|y}}, std::pair<double, double> *_d_this, double *_d___{{u1|x}}, double *_d___{{u2|y}}) {{.*}}{
+// CHECK-NEXT:      std::pair<double, double> *_this = (std::pair<double, double> *)malloc(sizeof(std::pair<double, double>));
+// CHECK:           double _t0 = __{{u1|x}};
+// CHECK-NEXT:      _this->first = std::forward<double &>(__{{u1|x}});
+// CHECK-NEXT:      double _t1 = __{{u2|y}};
+// CHECK-NEXT:      _this->second = std::forward<double &>(__{{u2|y}});
+// CHECK-NEXT:      {
+// CHECK-NEXT:          clad::custom_derivatives::std::forward_pullback(__{{u2|y}}, _d_this->second, &*_d___{{u2|y}});
+// CHECK-NEXT:          __{{u2|y}} = _t1;
+// CHECK-NEXT:          _d_this->second = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          clad::custom_derivatives::std::forward_pullback(__{{u1|x}}, _d_this->first, &*_d___{{u1|x}});
+// CHECK-NEXT:          __{{u1|x}} = _t0;
+// CHECK-NEXT:          _d_this->first = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      free(_this);
+// CHECK-NEXT:  }
+
+// CHECK:  void fn8_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:      std::pair<double, double> p(u, v);
+// CHECK-NEXT:      std::pair<double, double> _d_p(p);
+// CHECK-NEXT:      clad::zero_init(_d_p);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_p.first += 1;
+// CHECK-NEXT:          _d_p.second += 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      pair::constructor_pullback(u, v, &_d_p, &*_d_u, &*_d_v);
+// CHECK-NEXT:  }
+
 int main() {
     double d_i, d_j;
 
@@ -432,4 +467,7 @@ int main() {
     
     INIT_GRADIENT(fn7);
     TEST_GRADIENT(fn7, /*numOfDerivativeArgs=*/2, 2, 9, &d_i, &d_j);    // CHECK-EXEC: {12.00, 0.00}
+
+    INIT_GRADIENT(fn8);
+    TEST_GRADIENT(fn8, /*numOfDerivativeArgs=*/2, 7, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
 }
