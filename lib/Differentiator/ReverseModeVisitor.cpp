@@ -56,7 +56,10 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
-using namespace clang;
+#include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/ASTMatchers/ASTMatchers.h"
+
+using namespace clang::ast_matchers;
 
 namespace clad {
 
@@ -133,30 +136,141 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
   }
 
+  static bool isInjectiveE(const clang::Expr* E, clang::ASTContext& ctx) {
+    StatementMatcher matcher =
+        binaryOperator(
+            hasOperatorName("+"),
+            hasLHS(expr(
+                has(callExpr(hasDescendant(memberExpr(
+                    hasObjectExpression(opaqueValueExpr(hasSourceExpression(
+                        declRefExpr(to(varDecl(hasName("threadIdx"))))))))))),
+                unless(binaryOperator()))),
+            hasRHS(binaryOperator(
+                hasOperatorName("*"),
+                has(expr(
+                    has(callExpr(hasDescendant(memberExpr(hasObjectExpression(
+                        opaqueValueExpr(hasSourceExpression(declRefExpr(
+                            to(varDecl(hasName("blockIdx"))))))))))),
+                    unless(binaryOperator()))),
+                has(expr(
+                    has(callExpr(hasDescendant(memberExpr(hasObjectExpression(
+                        opaqueValueExpr(hasSourceExpression(declRefExpr(
+                            to(varDecl(hasName("blockDim"))))))))))),
+                    unless(binaryOperator()))))))
+            .bind("targetVar");
+
+    class InjectivePatternMatchCallback : public MatchFinder::MatchCallback {
+      const clang::Expr* targetExpr;
+
+    public:
+      InjectivePatternMatchCallback(const clang::Expr* E) : targetExpr(E) {}
+      bool matched = false;
+      virtual void run(const MatchFinder::MatchResult& Result) override {
+        if (const auto* expr =
+                Result.Nodes.getNodeAs<clang::BinaryOperator>("targetVar")) {
+          if (targetExpr == expr)
+            matched = true;
+        }
+      }
+      bool hasMatched() const { return matched; }
+    };
+
+    MatchFinder Finder;
+    InjectivePatternMatchCallback Callback(E);
+    Finder.addMatcher(matcher, &Callback);
+    Finder.matchAST(ctx);
+
+    return Callback.hasMatched();
+  }
+
+  static bool isInjective(const clang::Expr* E, clang::ASTContext& ctx) {
+    class InjectiveChecker
+        : public clang::RecursiveASTVisitor<InjectiveChecker> {
+      clang::ASTContext& m_Context;
+
+    public:
+      InjectiveChecker(clang::ASTContext& Context) : m_Context(Context){};
+
+      bool isInjectiveIdx(const clang::Expr* E) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        return TraverseStmt(const_cast<clang::Expr*>(E));
+      }
+
+      bool TraverseBinaryOperator(clang::BinaryOperator* BinOp) {
+        const auto opCode = BinOp->getOpcode();
+        Expr* L = BinOp->getLHS();
+        Expr* R = BinOp->getRHS();
+
+        if (opCode == BO_Add || opCode == BO_Mul) {
+          Expr::EvalResult dummy;
+
+          bool isConstL =
+              clad_compat::Expr_EvaluateAsConstantExpr(L, dummy, m_Context);
+          bool isConstR =
+              clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context);
+
+          if (isConstL && isConstR)
+            return false;
+
+          if (!isConstL && isConstR)
+            return TraverseStmt(L);
+
+          if (isConstL && !isConstR)
+            return TraverseStmt(R);
+
+          return isInjectiveE(BinOp, m_Context);
+        }
+        return false;
+      }
+
+      bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE) {
+        if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          if (auto* init = VD->getInit())
+            return isInjectiveE(init->IgnoreImpCasts(), m_Context);
+        }
+        return false;
+      }
+
+      bool TraverseIntegerLiteral(clang::IntegerLiteral* IL) { return false; }
+
+    } checker(ctx);
+
+    return checker.isInjectiveIdx(E);
+  }
+
   bool ReverseModeVisitor::shouldUseCudaAtomicOps(const Expr* E) {
     if (!m_Context.getLangOpts().CUDA)
       return false;
-
-    if (!isa<DeclRefExpr>(E))
-      return false;
-
-    const auto* DRE = cast<DeclRefExpr>(E);
-
-    if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
-      if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
-        // Check whether this param is in the global memory of the GPU
-        return m_DiffReq.HasIndependentParameter(PVD);
-      if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>()) {
-        for (auto index : m_DiffReq.CUDAGlobalArgsIndexes) {
-          const auto* PVDOrig = m_DiffReq->getParamDecl(index);
-          if ("_d_" + PVDOrig->getNameAsString() == PVD->getNameAsString() &&
-              (utils::isArrayOrPointerType(PVDOrig->getType()) ||
-               PVDOrig->getType()->isReferenceType()))
-            return true;
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+      if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
+        if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
+          // Check whether this param is in the global memory of the GPU
+          return m_DiffReq.HasIndependentParameter(PVD);
+        if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>()) {
+          for (auto index : m_DiffReq.CUDAGlobalArgsIndexes) {
+            const auto* PVDOrig = m_DiffReq->getParamDecl(index);
+            if ("_d_" + PVDOrig->getNameAsString() == PVD->getNameAsString() &&
+                (utils::isArrayOrPointerType(PVDOrig->getType()) ||
+                 PVDOrig->getType()->isReferenceType()))
+              return true;
+          }
         }
       }
+    } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+      if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
+        auto* idx = ASE->getIdx();
+        auto* base = dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImpCasts());
+        if (const auto* PVD = dyn_cast<ParmVarDecl>(base->getDecl())) {
+          if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
+            // Check whether this param is in the global memory of the GPU and
+            // if index is injective.
+            return m_DiffReq.HasIndependentParameter(PVD) &&
+                   !isInjective(idx, m_Context);
+          }
+        }
+        return true;
+      }
     }
-
     return false;
   }
 
@@ -1341,7 +1455,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Create the (target += dfdx) statement.
     if (dfdx()) {
       Expr* add_assign = nullptr;
-      if (shouldUseCudaAtomicOps(target))
+      if (shouldUseCudaAtomicOps(ASE))
         add_assign = BuildCallToCudaAtomicAdd(result, dfdx());
       else
         add_assign = BuildOp(BO_AddAssign, result, dfdx());

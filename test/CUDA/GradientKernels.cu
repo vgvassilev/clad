@@ -77,7 +77,7 @@ __global__ void add_kernel_3(int *out, int *in) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        out[index0] = _t0;
 //CHECK-NEXT:        int _r_d0 = _d_out[index0];
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _r_d0);
+//CHECK-NEXT:        _d_in[index0] += _r_d0;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
@@ -347,7 +347,7 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        _d_in[index0] += _d_y;
 //CHECK-NEXT:        *_d_val += _d_y;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -382,7 +382,7 @@ __global__ void kernel_with_device_call_3(double *out, double *in, double *val) 
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        _d_in[index0] += _d_y;
 //CHECK-NEXT:        atomicAdd(_d_val, _d_y);
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -418,7 +418,7 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        _d_in[index0] += _d_y;
 //CHECK-NEXT:        *_d_val += _d_y;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
