@@ -5,6 +5,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -12,7 +13,6 @@
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
-#include <clang/AST/DeclCXX.h>
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
@@ -323,12 +323,23 @@ namespace clad {
       for (CXXCtorInitializer* CI : CD->inits()) {
         Expr* init = CI->getInit()->IgnoreImplicit();
         Expr::EvalResult dummy;
-        if (!(isa<DeclRefExpr>(init) ||
+        if (!(isa<DeclRefExpr>(init) || isa<CXXConstructExpr>(init) ||
               clad_compat::Expr_EvaluateAsConstantExpr(init, dummy, C)))
           return false;
       }
       // The constructor is linear
       return true;
+    }
+
+    void getRecordDeclFields(
+        const clang::RecordDecl* RD,
+        llvm::SmallVectorImpl<const clang::FieldDecl*>& fields) {
+      for (const auto* field : RD->fields())
+        fields.push_back(field);
+      if (const auto* CRD = dyn_cast<CXXRecordDecl>(RD))
+        for (const CXXBaseSpecifier& base : CRD->bases())
+          if (const auto* baseRT = base.getType()->getAs<clang::RecordType>())
+            getRecordDeclFields(baseRT->getDecl(), fields);
     }
 
     clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
@@ -468,7 +479,8 @@ namespace clad {
 
     CXXNewExpr* BuildCXXNewExpr(Sema& semaRef, QualType qType,
                                 clang::Expr* arraySize, Expr* initializer,
-                                clang::TypeSourceInfo* TSI) {
+                                clang::TypeSourceInfo* TSI,
+                                clang::MultiExprArg ArgExprs) {
       auto& C = semaRef.getASTContext();
       if (!TSI)
         TSI = C.getTrivialTypeSourceInfo(qType);
@@ -481,8 +493,8 @@ namespace clad {
       auto newExpr =
           semaRef
               .BuildCXXNew(
-                  SourceRange(), false, noLoc, MultiExprArg(), noLoc,
-                  SourceRange(), qType, TSI,
+                  SourceRange(), false, noLoc, ArgExprs, noLoc, SourceRange(),
+                  qType, TSI,
                   arraySize ? arraySize : clad_compat::llvm_Optional<Expr*>(),
                   initializer ? GetValidSRange(semaRef) : SourceRange(),
                   initializer)
