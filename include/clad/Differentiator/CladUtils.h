@@ -256,7 +256,8 @@ namespace clad {
                                        clang::QualType qType,
                                        clang::Expr* arraySize,
                                        clang::Expr* initializer,
-                                       clang::TypeSourceInfo* TSI = nullptr);
+                                       clang::TypeSourceInfo* TSI = nullptr,
+                                       clang::MultiExprArg ArgExprs = {});
 
     /// Builds a static cast to RValue expression for the expression `E`.
     ///
@@ -358,6 +359,10 @@ namespace clad {
     /// need to decide what needs to be stored on tape in reverse mode.
     void GetInnermostReturnExpr(const clang::Expr* E,
                                 llvm::SmallVectorImpl<clang::Expr*>& Exprs);
+
+    void
+    getRecordDeclFields(const clang::RecordDecl* RD,
+                        llvm::SmallVectorImpl<const clang::FieldDecl*>& fields);
 
     clang::Expr* getZeroInit(clang::QualType T, clang::Sema& S);
 

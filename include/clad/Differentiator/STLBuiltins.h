@@ -809,6 +809,15 @@ template <typename... Args> auto make_tuple_pushforward(Args... args) noexcept {
                                           second_half_tuple(t));
 }
 
+template <class T> constexpr void forward_pullback(T& t, T dy, T* dt) noexcept {
+  *dt += dy;
+}
+
+template <class T>
+constexpr void forward_pullback(T&& t, T dy, T* dt) noexcept {
+  *dt += dy;
+}
+
 } // namespace std
 
 } // namespace custom_derivatives

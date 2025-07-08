@@ -139,7 +139,9 @@ TBRAnalyzer::VarData::VarData(QualType QT, const ASTContext& C,
     const auto* recordDecl = recordType->getDecl();
     auto& newArrMap = m_Val.m_ArrData;
     newArrMap = std::unique_ptr<ArrMap>(new ArrMap());
-    for (const auto* field : recordDecl->fields()) {
+    llvm::SmallVector<const FieldDecl*, 4> Fields;
+    utils::getRecordDeclFields(recordDecl, Fields);
+    for (const auto* field : Fields) {
       const auto varType = field->getType();
       (*newArrMap)[getProfileID(field)] = VarData(varType, C);
     }
