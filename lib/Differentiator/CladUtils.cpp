@@ -8,6 +8,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Builtins.h"
@@ -16,6 +17,9 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
+
+#include <memory>
+#include <vector>
 
 using namespace clang;
 namespace clad {
@@ -1143,6 +1147,196 @@ namespace clad {
       if (origTy->isLValueReferenceType())
         return S.getASTContext().getLValueReferenceType(T);
       return T;
+    }
+
+    static bool isInjectiveE(const clang::Expr* E) {
+      class InjectiveCheckerExpr
+          : public clang::RecursiveASTVisitor<InjectiveCheckerExpr> {
+        struct IdxNode {
+          struct ExprOrBinOp {
+            const clang::DeclRefExpr* m_E = nullptr;
+            clang::BinaryOperatorKind m_Opcode;
+            enum class Kind { Expr, Opcode } m_Kind;
+
+            ExprOrBinOp(const clang::DeclRefExpr* E)
+                : m_E(E), m_Kind(Kind::Expr) {}
+            ExprOrBinOp(clang::BinaryOperatorKind op)
+                : m_Opcode(op), m_Kind(Kind::Opcode) {}
+
+            [[nodiscard]] bool isExpr() const { return m_Kind == Kind::Expr; }
+            [[nodiscard]] bool isOpcode() const {
+              return m_Kind == Kind::Opcode;
+            }
+          };
+
+          ExprOrBinOp Node;
+          std::unique_ptr<IdxNode> left;
+          std::unique_ptr<IdxNode> right;
+
+          IdxNode(ExprOrBinOp N) : Node(N) {}
+        };
+        std::unique_ptr<IdxNode> m_Root;
+        IdxNode* m_ParentNode = nullptr;
+
+        enum class side { left, right } m_Side;
+
+      public:
+        InjectiveCheckerExpr() = default;
+        /// This function recursively checks whether a given pattern matches the
+        /// previously computed graph. It uses a fairly standard graph
+        /// comparison algorithm.
+        bool comparePatternToTree(const IdxNode* current,
+                                  const std::vector<std::string>& patternIdx,
+                                  size_t i = 1) {
+          // If current is not initialized and child is empty or does not exist,
+          // we have a match.
+          if (!current && (i >= patternIdx.size() || patternIdx[i].empty()))
+            return true;
+
+          if (!current || i >= patternIdx.size() || patternIdx[i].empty())
+            return false;
+
+          const std::string& expected = patternIdx[i];
+
+          if (current->Node.isOpcode()) {
+            std::string actualOp =
+                clang::BinaryOperator::getOpcodeStr(current->Node.m_Opcode)
+                    .str();
+            if (actualOp != expected)
+              return false;
+          } else if (current->Node.isExpr()) {
+            std::string actualName =
+                current->Node.m_E->getNameInfo().getAsString();
+            if (actualName != expected)
+              return false;
+          }
+
+          bool sameOrder =
+              comparePatternToTree(current->left.get(), patternIdx, 2 * i) &&
+              comparePatternToTree(current->right.get(), patternIdx, 2 * i + 1);
+
+          if (sameOrder)
+            return true;
+          // Here we account for a sub-tree rotation wrt to the current node. If
+          // there is no match at this point, we compare a pattern to a graph
+          // with the rotation.
+          return comparePatternToTree(current->left.get(), patternIdx,
+                                      2 * i + 1) &&
+                 comparePatternToTree(current->right.get(), patternIdx, 2 * i);
+        }
+
+        bool isInjectiveIdx(const clang::Expr* E) {
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          TraverseStmt(const_cast<clang::Expr*>(E));
+          std::vector<std::string> pattern = {"", "+", "threadIdx", "*",
+                                              "", "",  "blockIdx",  "blockDim"};
+          return comparePatternToTree(m_Root.get(), pattern);
+        }
+
+        bool TraverseBinaryOperator(clang::BinaryOperator* BinOp) {
+          const auto opCode = BinOp->getOpcode();
+          if (opCode == BO_Add || opCode == BO_Mul) {
+            std::unique_ptr<IdxNode> curr = std::make_unique<IdxNode>(opCode);
+            IdxNode* currPtr = nullptr;
+
+            if (!m_Root) {
+              m_Root = std::move(curr);
+              currPtr = m_Root.get();
+            } else {
+              currPtr = curr.get();
+
+              if (m_Side == side::left)
+                m_ParentNode->left = std::move(curr);
+
+              if (m_Side == side::right)
+                m_ParentNode->right = std::move(curr);
+            }
+
+            Expr* L = BinOp->getLHS();
+            Expr* R = BinOp->getRHS();
+
+            m_ParentNode = currPtr;
+            m_Side = side::left;
+            TraverseStmt(L);
+            m_ParentNode = currPtr;
+
+            m_Side = side::right;
+            TraverseStmt(R);
+          }
+          return true;
+        }
+
+        bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE) {
+          std::unique_ptr<IdxNode> curr = std::make_unique<IdxNode>(DRE);
+
+          if (m_ParentNode) {
+            if (m_Side == side::left)
+              m_ParentNode->left = std::move(curr);
+
+            if (m_Side == side::right)
+              m_ParentNode->right = std::move(curr);
+          }
+          return true;
+        }
+
+      } checker;
+      return checker.isInjectiveIdx(E);
+    }
+
+    bool isInjective(const clang::Expr* E, clang::ASTContext& ctx) {
+      class InjectiveChecker
+          : public clang::RecursiveASTVisitor<InjectiveChecker> {
+        clang::ASTContext& m_Context;
+
+      public:
+        InjectiveChecker(clang::ASTContext& Context) : m_Context(Context) {};
+
+        bool isInjectiveIdx(const clang::Expr* E) {
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          return TraverseStmt(const_cast<clang::Expr*>(E));
+        }
+
+        bool TraverseBinaryOperator(clang::BinaryOperator* BinOp) {
+          const auto opCode = BinOp->getOpcode();
+          Expr* L = BinOp->getLHS();
+          Expr* R = BinOp->getRHS();
+
+          if (opCode == BO_Add || opCode == BO_Mul) {
+            Expr::EvalResult dummy;
+
+            bool isConstL =
+                clad_compat::Expr_EvaluateAsConstantExpr(L, dummy, m_Context);
+            bool isConstR =
+                clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context);
+
+            if (isConstL && isConstR)
+              return false;
+
+            if (!isConstL && isConstR)
+              return TraverseStmt(L);
+
+            if (!isConstL && !isConstR)
+              return isInjectiveE(BinOp);
+
+            if (!isConstR)
+              return TraverseStmt(R);
+          }
+          return false;
+        }
+
+        bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE) {
+          if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            if (auto* init = VD->getInit())
+              return isInjectiveE(init->IgnoreImpCasts());
+          }
+          return false;
+        }
+
+        bool TraverseIntegerLiteral(clang::IntegerLiteral* IL) { return false; }
+
+      } checker(ctx);
+
+      return checker.isInjectiveIdx(E);
     }
   } // namespace utils
 } // namespace clad

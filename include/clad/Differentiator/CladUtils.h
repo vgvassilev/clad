@@ -408,6 +408,10 @@ namespace clad {
     /// create modifiable adjoints.
     clang::QualType replaceStdInitListWithCladArray(clang::Sema& S,
                                                     clang::QualType origTy);
+    /// Currently is only used for CUDA in the reverse mode. Determines whether
+    /// an expression, most likely an index, is injective, meaning no two
+    /// threads have the same value.
+    bool isInjective(const clang::Expr* E, clang::ASTContext& ctx);
     } // namespace utils
     } // namespace clad
 

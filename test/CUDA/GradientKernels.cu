@@ -77,7 +77,7 @@ __global__ void add_kernel_3(int *out, int *in) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        out[index0] = _t0;
 //CHECK-NEXT:        int _r_d0 = _d_out[index0];
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _r_d0);
+//CHECK-NEXT:        _d_in[index0] += _r_d0;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
@@ -347,7 +347,7 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        _d_in[index0] += _d_y;
 //CHECK-NEXT:        *_d_val += _d_y;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -382,7 +382,7 @@ __global__ void kernel_with_device_call_3(double *out, double *in, double *val) 
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        _d_in[index0] += _d_y;
 //CHECK-NEXT:        atomicAdd(_d_val, _d_y);
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -418,7 +418,7 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        _d_in[index0] += _d_y;
 //CHECK-NEXT:        *_d_val += _d_y;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -688,6 +688,154 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    cudaFree(out_dev);
 //CHECK-NEXT:    cudaFree(_d_out_dev);
 //CHECK-NEXT:}
+
+__global__ void indices_perm(int *out, int *in) {
+  int index1 = threadIdx.x + blockIdx.x * blockDim.x;
+  int index2 = threadIdx.x + blockDim.x * blockIdx.x;
+  int index3 = blockIdx.x * blockDim.x + threadIdx.x;
+  int index4 = blockDim.x * blockIdx.x +  threadIdx.x;
+  out[index1] += in[index1];
+  out[index2] += in[index2];
+  out[index3] += in[index3];
+  out[index4] += in[index4];
+}
+
+// CHECK: void indices_perm_grad(int *out, int *in, int *_d_out, int *_d_in) {
+// CHECK-NEXT:     int _d_index1 = 0;
+// CHECK-NEXT:     int index1 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     int _d_index2 = 0;
+// CHECK-NEXT:     int index2 = threadIdx.x + blockDim.x * blockIdx.x;
+// CHECK-NEXT:     int _d_index3 = 0;
+// CHECK-NEXT:     int index3 = blockIdx.x * blockDim.x + threadIdx.x;
+// CHECK-NEXT:     int _d_index4 = 0;
+// CHECK-NEXT:     int index4 = blockDim.x * blockIdx.x + threadIdx.x;
+// CHECK-NEXT:     int _t0 = out[index1];
+// CHECK-NEXT:     out[index1] += in[index1];
+// CHECK-NEXT:     int _t1 = out[index2];
+// CHECK-NEXT:     out[index2] += in[index2];
+// CHECK-NEXT:     int _t2 = out[index3];
+// CHECK-NEXT:     out[index3] += in[index3];
+// CHECK-NEXT:     int _t3 = out[index4];
+// CHECK-NEXT:     out[index4] += in[index4];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index4] = _t3;
+// CHECK-NEXT:         int _r_d3 = _d_out[index4];
+// CHECK-NEXT:         _d_in[index4] += _r_d3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index3] = _t2;
+// CHECK-NEXT:         int _r_d2 = _d_out[index3];
+// CHECK-NEXT:         _d_in[index3] += _r_d2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index2] = _t1;
+// CHECK-NEXT:         int _r_d1 = _d_out[index2];
+// CHECK-NEXT:         _d_in[index2] += _r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index1] = _t0;
+// CHECK-NEXT:         int _r_d0 = _d_out[index1];
+// CHECK-NEXT:         _d_in[index1] += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+__global__ void indices_lin_comb(int *out, int *in) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+
+  out[index] += in[2*index];
+  out[index] += in[1+index];
+  out[index] += in[threadIdx.x + blockIdx.x * blockDim.x];
+  out[index] += in[2*(threadIdx.x + blockIdx.x * blockDim.x) + 1];
+  out[index] += in[1+1];
+  out[index] += in[index/2];
+
+}
+
+// CHECK: void indices_lin_comb_grad(int *out, int *in, int *_d_out, int *_d_in) {
+// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     int _t0 = out[index0];
+// CHECK-NEXT:     out[index0] += in[2 * index0];
+// CHECK-NEXT:     int _t1 = out[index0];
+// CHECK-NEXT:     out[index0] += in[1 + index0];
+// CHECK-NEXT:     int _t2 = out[index0];
+// CHECK-NEXT:     out[index0] += in[threadIdx.x + blockIdx.x * blockDim.x];
+// CHECK-NEXT:     int _t3 = out[index0];
+// CHECK-NEXT:     unsigned int _t4 = (threadIdx.x + blockIdx.x * blockDim.x);
+// CHECK-NEXT:     out[index0] += in[2 * _t4 + 1];
+// CHECK-NEXT:     int _t5 = out[index0];
+// CHECK-NEXT:     out[index0] += in[1 + 1];
+// CHECK-NEXT:     int _t6 = out[index0];
+// CHECK-NEXT:     out[index0] += in[index0 / 2];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index0] = _t6;
+// CHECK-NEXT:         int _r_d5 = _d_out[index0];
+// CHECK-NEXT:         atomicAdd(&_d_in[index0 / 2], _r_d5);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index0] = _t5;
+// CHECK-NEXT:         int _r_d4 = _d_out[index0];
+// CHECK-NEXT:         atomicAdd(&_d_in[1 + 1], _r_d4);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index0] = _t3;
+// CHECK-NEXT:         int _r_d3 = _d_out[index0];
+// CHECK-NEXT:         _d_in[2 * _t4 + 1] += _r_d3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index0] = _t2;
+// CHECK-NEXT:         int _r_d2 = _d_out[index0];
+// CHECK-NEXT:         _d_in[threadIdx.x + blockIdx.x * blockDim.x] += _r_d2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index0] = _t1;
+// CHECK-NEXT:         int _r_d1 = _d_out[index0];
+// CHECK-NEXT:         _d_in[1 + index0] += _r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index0] = _t0;
+// CHECK-NEXT:         int _r_d0 = _d_out[index0];
+// CHECK-NEXT:         _d_in[2 * index0] += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+__device__ void device_injective_index(int *a) {
+  int index1 = threadIdx.x + blockIdx.x * blockDim.x;
+  int index2 = threadIdx.x;
+  a[index1] += a[index1]; 
+  a[index2] += a[index2]; 
+}
+
+__global__ void kernel_device_injective(int *a) {
+  device_injective_index(a);
+}
+
+// CHECK: __attribute__((device)) void device_injective_index_pullback_0(int *a, int *_d_a) {
+// CHECK-NEXT:     int _d_index1 = 0;
+// CHECK-NEXT:     int index1 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     int _d_index2 = 0;
+// CHECK-NEXT:     int index2 = threadIdx.x;
+// CHECK-NEXT:     int _t0 = a[index1];
+// CHECK-NEXT:     a[index1] += a[index1];
+// CHECK-NEXT:     int _t1 = a[index2];
+// CHECK-NEXT:     a[index2] += a[index2];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a[index2] = _t1;
+// CHECK-NEXT:         int _r_d1 = _d_a[index2];
+// CHECK-NEXT:         atomicAdd(&_d_a[index2], _r_d1);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a[index1] = _t0;
+// CHECK-NEXT:         int _r_d0 = _d_a[index1];
+// CHECK-NEXT:         _d_a[index1] += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void kernel_device_injective_grad(int *a, int *_d_a) {
+// CHECK-NEXT:     device_injective_index(a);
+// CHECK-NEXT:     device_injective_index_pullback_0(a, _d_a);
+// CHECK-NEXT: }
+
 
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \
   {                                                                         \
@@ -963,6 +1111,17 @@ int main(void) {
   launch_kernel_4_test.execute(zeros_int, fives_int, 10, out_res, in_res);
   printf("%d, %d, %d\n", in_res[0], in_res[1], in_res[2]); // CHECK-EXEC: 5, 5, 5
 
+  TEST_2(indices_perm, dim3(1), dim3(5, 1, 1), 0, false, "out, in", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 20, 20, 20, 20, 20
+  TEST_2(indices_lin_comb, dim3(1), dim3(5, 1, 1), 0, false, "out, in", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 20, 25, 45, 15, 15
+
+  int *n, *d_n;
+  cudaMalloc(&n, sizeof(int));
+  cudaMalloc(&d_n, sizeof(int));
+
+  TEST(kernel_device_injective, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 4
+
+  cudaFree(n);
+  cudaFree(d_n);
   free(res);
   free(fives);
   free(zeros);

@@ -52,12 +52,14 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <memory>
 #include <numeric>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
-
-using namespace clang;
 
 namespace clad {
 
@@ -126,27 +128,42 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   bool ReverseModeVisitor::shouldUseCudaAtomicOps(const Expr* E) {
     if (!m_Context.getLangOpts().CUDA)
       return false;
-
-    if (!isa<DeclRefExpr>(E))
-      return false;
-
-    const auto* DRE = cast<DeclRefExpr>(E);
-
-    if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
-      if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
-        // Check whether this param is in the global memory of the GPU
-        return m_DiffReq.HasIndependentParameter(PVD);
-      if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>()) {
-        for (auto index : m_DiffReq.CUDAGlobalArgsIndexes) {
-          const auto* PVDOrig = m_DiffReq->getParamDecl(index);
-          if ("_d_" + PVDOrig->getNameAsString() == PVD->getNameAsString() &&
-              (utils::isArrayOrPointerType(PVDOrig->getType()) ||
-               PVDOrig->getType()->isReferenceType()))
-            return true;
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+      if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
+        if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
+          // Check whether this param is in the global memory of the GPU
+          return m_DiffReq.HasIndependentParameter(PVD);
+        if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>()) {
+          for (auto index : m_DiffReq.CUDAGlobalArgsIndexes) {
+            const auto* PVDOrig = m_DiffReq->getParamDecl(index);
+            if ("_d_" + PVDOrig->getNameAsString() == PVD->getNameAsString() &&
+                (utils::isArrayOrPointerType(PVDOrig->getType()) ||
+                 PVDOrig->getType()->isReferenceType()))
+              return true;
+          }
+        }
+      }
+    } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+      const auto* base =
+          dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImpCasts());
+      if (const auto* PVD = dyn_cast<ParmVarDecl>(base->getDecl())) {
+        const auto* idx = ASE->getIdx();
+        if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
+          // Check whether this param is in the global memory of the GPU and
+          // if index is injective.
+          return m_DiffReq.HasIndependentParameter(PVD) &&
+                 !clad::utils::isInjective(idx, m_Context);
+        if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>()) {
+          for (auto index : m_DiffReq.CUDAGlobalArgsIndexes) {
+            const auto* PVDOrig = m_DiffReq->getParamDecl(index);
+            if (PVDOrig->getNameAsString() == PVD->getNameAsString() &&
+                (utils::isArrayOrPointerType(PVDOrig->getType()) ||
+                 PVDOrig->getType()->isReferenceType()))
+              return !clad::utils::isInjective(idx, m_Context);
+          }
         }
       }
     }
-
     return false;
   }
 
@@ -1376,7 +1393,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Create the (target += dfdx) statement.
     if (dfdx()) {
       Expr* add_assign = nullptr;
-      if (shouldUseCudaAtomicOps(target))
+      if (shouldUseCudaAtomicOps(ASE))
         add_assign = BuildCallToCudaAtomicAdd(result, dfdx());
       else
         add_assign = BuildOp(BO_AddAssign, result, dfdx());
