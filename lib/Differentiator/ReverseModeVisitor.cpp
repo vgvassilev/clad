@@ -51,15 +51,14 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <memory>
 #include <numeric>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
-
-#include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/ASTMatchers/ASTMatchers.h"
-
-using namespace clang::ast_matchers;
 
 namespace clad {
 
@@ -136,51 +135,130 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
   }
 
-  static bool isInjectiveE(const clang::Expr* E, clang::ASTContext& ctx) {
-    StatementMatcher matcher =
-        binaryOperator(
-            hasOperatorName("+"),
-            hasLHS(expr(
-                has(callExpr(hasDescendant(memberExpr(
-                    hasObjectExpression(opaqueValueExpr(hasSourceExpression(
-                        declRefExpr(to(varDecl(hasName("threadIdx"))))))))))),
-                unless(binaryOperator()))),
-            hasRHS(binaryOperator(
-                hasOperatorName("*"),
-                has(expr(
-                    has(callExpr(hasDescendant(memberExpr(hasObjectExpression(
-                        opaqueValueExpr(hasSourceExpression(declRefExpr(
-                            to(varDecl(hasName("blockIdx"))))))))))),
-                    unless(binaryOperator()))),
-                has(expr(
-                    has(callExpr(hasDescendant(memberExpr(hasObjectExpression(
-                        opaqueValueExpr(hasSourceExpression(declRefExpr(
-                            to(varDecl(hasName("blockDim"))))))))))),
-                    unless(binaryOperator()))))))
-            .bind("targetVar");
+  static bool isInjectiveE(const clang::Expr* E) {
+    class InjectiveCheckerExpr
+        : public clang::RecursiveASTVisitor<InjectiveCheckerExpr> {
+      struct IdxNode {
+        struct ExprOrBinOp {
+          const clang::DeclRefExpr* m_E = nullptr;
+          clang::BinaryOperatorKind m_Opcode;
+          enum class Kind { Expr, Opcode } m_Kind;
 
-    class InjectivePatternMatchCallback : public MatchFinder::MatchCallback {
-      const clang::Expr* targetExpr;
+          ExprOrBinOp(const clang::DeclRefExpr* E)
+              : m_E(E), m_Kind(Kind::Expr) {}
+          ExprOrBinOp(clang::BinaryOperatorKind op)
+              : m_Opcode(op), m_Kind(Kind::Opcode) {}
+
+          [[nodiscard]] bool isExpr() const { return m_Kind == Kind::Expr; }
+          [[nodiscard]] bool isOpcode() const { return m_Kind == Kind::Opcode; }
+        };
+
+        ExprOrBinOp Node;
+        std::unique_ptr<IdxNode> left;
+        std::unique_ptr<IdxNode> right;
+
+        IdxNode(ExprOrBinOp N) : Node(N) {}
+      };
+      std::unique_ptr<IdxNode> m_Root;
+      IdxNode* m_ParentNode = nullptr;
+
+      enum class side { left, right } m_Side;
 
     public:
-      InjectivePatternMatchCallback(const clang::Expr* E) : targetExpr(E) {}
-      bool matched = false;
-      virtual void run(const MatchFinder::MatchResult& Result) override {
-        if (const auto* expr =
-                Result.Nodes.getNodeAs<clang::BinaryOperator>("targetVar")) {
-          if (targetExpr == expr)
-            matched = true;
+      InjectiveCheckerExpr() = default;
+
+      bool comparePatternToTree(const IdxNode* current,
+                                const std::vector<std::string>& patternIdx,
+                                size_t i = 1) {
+
+        if (!current && (i >= patternIdx.size() || patternIdx[i].empty()))
+          return true;
+
+        if (!current || i >= patternIdx.size() || patternIdx[i].empty())
+          return false;
+
+        const std::string& expected = patternIdx[i];
+
+        if (current->Node.isOpcode()) {
+          std::string actualOp =
+              clang::BinaryOperator::getOpcodeStr(current->Node.m_Opcode).str();
+          if (actualOp != expected)
+            return false;
+        } else if (current->Node.isExpr()) {
+          std::string actualName =
+              current->Node.m_E->getNameInfo().getAsString();
+          if (actualName != expected)
+            return false;
         }
+
+        bool sameOrder =
+            comparePatternToTree(current->left.get(), patternIdx, 2 * i) &&
+            comparePatternToTree(current->right.get(), patternIdx, 2 * i + 1);
+
+        if (sameOrder)
+          return true;
+
+        return comparePatternToTree(current->left.get(), patternIdx,
+                                    2 * i + 1) &&
+               comparePatternToTree(current->right.get(), patternIdx, 2 * i);
       }
-      bool hasMatched() const { return matched; }
-    };
 
-    MatchFinder Finder;
-    InjectivePatternMatchCallback Callback(E);
-    Finder.addMatcher(matcher, &Callback);
-    Finder.matchAST(ctx);
+      bool isInjectiveIdx(const clang::Expr* E) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        TraverseStmt(const_cast<clang::Expr*>(E));
+        std::vector<std::string> pattern = {"", "+", "threadIdx", "*",
+                                            "", "",  "blockIdx",  "blockDim"};
+        return comparePatternToTree(m_Root.get(), pattern);
+      }
 
-    return Callback.hasMatched();
+      bool TraverseBinaryOperator(clang::BinaryOperator* BinOp) {
+        const auto opCode = BinOp->getOpcode();
+        if (opCode == BO_Add || opCode == BO_Mul) {
+          std::unique_ptr<IdxNode> curr = std::make_unique<IdxNode>(opCode);
+          IdxNode* currPtr = nullptr;
+
+          if (!m_Root) {
+            m_Root = std::move(curr);
+            currPtr = m_Root.get();
+          } else {
+            currPtr = curr.get();
+
+            if (m_Side == side::left)
+              m_ParentNode->left = std::move(curr);
+
+            if (m_Side == side::right)
+              m_ParentNode->right = std::move(curr);
+          }
+
+          Expr* L = BinOp->getLHS();
+          Expr* R = BinOp->getRHS();
+
+          m_ParentNode = currPtr;
+          m_Side = side::left;
+          TraverseStmt(L);
+          m_ParentNode = currPtr;
+
+          m_Side = side::right;
+          TraverseStmt(R);
+        }
+        return true;
+      }
+
+      bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE) {
+        std::unique_ptr<IdxNode> curr = std::make_unique<IdxNode>(DRE);
+
+        if (m_ParentNode) {
+          if (m_Side == side::left)
+            m_ParentNode->left = std::move(curr);
+
+          if (m_Side == side::right)
+            m_ParentNode->right = std::move(curr);
+        }
+        return true;
+      }
+
+    } checker;
+    return checker.isInjectiveIdx(E);
   }
 
   static bool isInjective(const clang::Expr* E, clang::ASTContext& ctx) {
@@ -189,7 +267,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       clang::ASTContext& m_Context;
 
     public:
-      InjectiveChecker(clang::ASTContext& Context) : m_Context(Context){};
+      InjectiveChecker(clang::ASTContext& Context) : m_Context(Context) {};
 
       bool isInjectiveIdx(const clang::Expr* E) {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
@@ -218,7 +296,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           if (isConstL && !isConstR)
             return TraverseStmt(R);
 
-          return isInjectiveE(BinOp, m_Context);
+          return isInjectiveE(BinOp);
         }
         return false;
       }
@@ -226,7 +304,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE) {
         if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
           if (auto* init = VD->getInit())
-            return isInjectiveE(init->IgnoreImpCasts(), m_Context);
+            return isInjectiveE(init->IgnoreImpCasts());
         }
         return false;
       }
@@ -258,8 +336,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
       if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
-        auto* idx = ASE->getIdx();
-        auto* base = dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImpCasts());
+        const auto* idx = ASE->getIdx();
+        const auto* base =
+            dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImpCasts());
         if (const auto* PVD = dyn_cast<ParmVarDecl>(base->getDecl())) {
           if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
             // Check whether this param is in the global memory of the GPU and
@@ -268,7 +347,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                    !isInjective(idx, m_Context);
           }
         }
-        return true;
       }
     }
     return false;
