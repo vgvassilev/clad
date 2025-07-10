@@ -163,6 +163,24 @@ float sum(double* arr, int n) {
   return res;
 }
 
+// CHECK: float sum_reverse_forw(double *arr, int n, double *_d_arr, int _d_n, clad::smart_tape &tape) {
+// CHECK-NEXT:     float _d_res = 0.F;
+// CHECK-NEXT:     float res = 0;
+// CHECK-NEXT:     unsigned long _t0 = 0UL;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     for (int i = 0; ; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < n))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         res += arr[i];
+// CHECK-NEXT:     }
+// CHECK-NEXT:     tape.store(arr[0]);
+// CHECK-NEXT:     arr[0] += 10 * arr[0];
+// CHECK-NEXT:     return res;
+// CHECK-NEXT: }
+
 // CHECK: void sum_pullback(double *arr, int n, float _d_y, double *_d_arr, int *_d_n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -224,7 +242,8 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     double _t0 = res;
-// CHECK-NEXT:     res += sum(arr, n);
+// CHECK-NEXT:     clad::smart_tape _tape0 = {};
+// CHECK-NEXT:     res += sum_reverse_forw(arr, n, _d_arr, 0, _tape0);
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t1 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t1++;
@@ -249,6 +268,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         res = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_res;
+// CHECK-NEXT:         _tape0.restore();
 // CHECK-NEXT:         int _r0 = 0;
 // CHECK-NEXT:         sum_pullback(arr, n, _r_d0, _d_arr, &_r0);
 // CHECK-NEXT:         *_d_n += _r0;
@@ -259,6 +279,12 @@ double modify2(double* arr) {
     arr[0] = 5*arr[0] + arr[1];
     return 1;
 }
+
+// CHECK: double modify2_reverse_forw(double *arr, double *_d_arr, clad::smart_tape &tape) {
+// CHECK-NEXT:     tape.store(arr[0]);
+// CHECK-NEXT:     arr[0] = 5 * arr[0] + arr[1];
+// CHECK-NEXT:     return 1;
+// CHECK-NEXT: }
 
 // CHECK: void modify2_pullback(double *arr, double _d_y, double *_d_arr) {
 // CHECK-NEXT:     double _t0 = arr[0];
@@ -278,10 +304,14 @@ double fn5(double* arr, int n) {
 }
 
 // CHECK: void fn5_grad(double *arr, int n, double *_d_arr, int *_d_n) {
+// CHECK-NEXT:     clad::smart_tape _tape0 = {};
 // CHECK-NEXT:     double _d_temp = 0.;
-// CHECK-NEXT:     double temp = modify2(arr);
+// CHECK-NEXT:     double temp = modify2_reverse_forw(arr, _d_arr, _tape0);
 // CHECK-NEXT:     _d_arr[0] += 1;
-// CHECK-NEXT:     modify2_pullback(arr, _d_temp, _d_arr);
+// CHECK-NEXT:     {
+// CHECK-NEXT:       _tape0.restore();
+// CHECK-NEXT:       modify2_pullback(arr, _d_temp, _d_arr);
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 double fn6(double i=0, double j=0) {

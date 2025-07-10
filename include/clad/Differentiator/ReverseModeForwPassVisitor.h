@@ -16,6 +16,9 @@ namespace clad {
 class ReverseModeForwPassVisitor : public ReverseModeVisitor {
 private:
   Stmts m_Globals;
+  // FIXME: This is used to get rid of useless reverse_forw functions.
+  // Ideally, we shouldn't schedule them by using TBR analysis.
+  bool m_IsRequired = false;
 
   llvm::SmallVector<clang::ParmVarDecl*, 8> BuildParams(DiffParams& diffParams);
 
@@ -29,9 +32,7 @@ public:
   // which are not used in reverse_forw functions
   clang::Expr* dfdx() override { return nullptr; }
   StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",
-                           bool moveToTape = false) override {
-    return {};
-  }
+                           bool moveToTape = false) override;
 
   StmtDiff ProcessSingleStmt(const clang::Stmt* S);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS) override;
