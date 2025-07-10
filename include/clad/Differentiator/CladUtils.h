@@ -375,6 +375,8 @@ namespace clad {
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);
 
+    clang::QualType GetSmartTapeType(clang::Sema& S);
+
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
     bool IsLiteral(const clang::Expr* E);
@@ -390,6 +392,10 @@ namespace clad {
 
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
+
+    bool isMemoryType(clang::QualType T);
+
+    bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
     bool IsDifferentiableType(clang::QualType T);
 
