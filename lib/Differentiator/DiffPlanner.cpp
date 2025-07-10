@@ -1214,8 +1214,10 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       request.Function = request.Function->getDefinition();
 
     QualType returnType = request->getReturnType();
+    DiffRequest forwPassRequest;
+    bool scheduleForwPass = false;
     if (request.Mode == DiffMode::pullback) {
-      DiffRequest forwPassRequest = request;
+      forwPassRequest = request;
       forwPassRequest.DVI.clear();
       forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
       forwPassRequest.EnableTBRAnalysis = false;
@@ -1226,7 +1228,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       bool hasMemoryTypeParams = utils::hasMemoryTypeParams(request.Function);
       if (LookupCustomDerivativeDecl(forwPassRequest) || isMemoryTypeReturn ||
           hasMemoryTypeParams)
-        m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+        scheduleForwPass = true;
     }
 
     if (!LookupCustomDerivativeDecl(request)) {
@@ -1254,6 +1256,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
     }
+    if (scheduleForwPass)
+      m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     if (m_IsTraversingTopLevelDecl) {
