@@ -1213,18 +1213,19 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
 
-    QualType returnType = FD->getReturnType();
-    bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
-                         returnType->isPointerType();
-    if (request.Mode == DiffMode::pullback ||
-        request.Mode == DiffMode::reverse) {
+    QualType returnType = request->getReturnType();
+    if (request.Mode == DiffMode::pullback) {
       DiffRequest forwPassRequest = request;
       forwPassRequest.DVI.clear();
       forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
       forwPassRequest.EnableTBRAnalysis = false;
       forwPassRequest.EnableVariedAnalysis = false;
       forwPassRequest.EnableUsefulAnalysis = false;
-      if (LookupCustomDerivativeDecl(forwPassRequest) || needsForwPass)
+      bool isMemoryTypeReturn = utils::isNonConstReferenceType(returnType) ||
+                                returnType->isPointerType();
+      bool hasMemoryTypeParams = utils::hasMemoryTypeParams(request.Function);
+      if (LookupCustomDerivativeDecl(forwPassRequest) || isMemoryTypeReturn ||
+          hasMemoryTypeParams)
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
     }
 
