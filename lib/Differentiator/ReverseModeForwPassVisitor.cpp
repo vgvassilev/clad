@@ -6,6 +6,9 @@
 
 #include "llvm/Support/SaveAndRestore.h"
 
+#include "clang/AST/Expr.h"
+#include "clang/Basic/LLVM.h"
+
 #include <algorithm>
 
 using namespace clang;
