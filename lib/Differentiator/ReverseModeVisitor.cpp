@@ -2114,7 +2114,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             BuildDeclRef(tapeDecl), /*MemberFunctionName=*/"restore",
             /*ArgExprs=*/{}, Loc);
         it = std::begin(block) + insertionPoint;
-        it = block.insert(it, restoreCall);
+        block.insert(it, restoreCall);
       }
       if (tapeExpr)
         CallArgs.push_back(tapeExpr);

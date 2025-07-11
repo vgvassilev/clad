@@ -1,15 +1,17 @@
-#ifndef CLAD_SMART_TAPE_H
-#define CLAD_SMART_TAPE_H
+#ifndef CLAD_DIFFERENTIATOR_SMARTTAPE_H
+#define CLAD_DIFFERENTIATOR_SMARTTAPE_H
 
-#include "clad/Differentiator/CladConfig.h"
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <map>
-#include <set>
-#include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace clad {
+
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 class smart_tape {
   struct interval {
     char *min = nullptr, *max = nullptr;
@@ -19,7 +21,7 @@ class smart_tape {
       assert((!max || min <= max) && "negative length interval");
     }
 
-    inline char compr_impl(const interval& other) const {
+    [[nodiscard]] char compr_impl(const interval& other) const {
       if (this->is_single_element()) {
         if (this->min < other.min)
           return -1;
@@ -49,48 +51,50 @@ class smart_tape {
     }
 
     bool operator==(const interval& other) const {
-      return this->compr_impl(other) == 0;
+      return this->compr_impl(other) == (char)0;
     }
 
     bool operator>(const interval& other) const {
-      return this->compr_impl(other) == 1;
+      return this->compr_impl(other) == (char)1;
     }
 
     bool operator<(const interval& other) const {
-      return this->compr_impl(other) == -1;
+      return this->compr_impl(other) == (char)(-1);
     }
 
-    inline bool is_single_element() const { return max == nullptr; }
+    [[nodiscard]] bool is_single_element() const { return max == nullptr; }
   };
-  std::map<const interval, std::vector<uint8_t>> _data;
+  std::map<const interval, std::vector<uint8_t>> m_data;
 
 public:
   template <typename T> void store(const T& val) {
     // Don't overwrite
-    if (_data.find({(char*)&val}) != _data.end())
+    if (m_data.find({(char*)&val}) != m_data.end())
       return;
     std::vector<uint8_t> buffer(sizeof(T) + 1);
     buffer[0] = 1;
     std::memcpy(buffer.data() + 1, &val, sizeof(T));
-    _data.emplace(interval{(char*)&val}, std::move(buffer));
+    m_data.emplace(interval{(char*)&val}, std::move(buffer));
   }
   void restore() {
-    for (auto& pair : _data) {
+    for (auto& pair : m_data) {
       std::vector<uint8_t>& buffer = pair.second;
       if (buffer[0])
         std::memcpy(pair.first.min, buffer.data() + 1, buffer.size() - 1);
     }
-    _data.clear();
+    m_data.clear();
   }
   void ignore(void* loc, size_t size) {
-    _data.emplace(interval{(char*)loc, (char*)loc + size},
-                  std::vector<uint8_t>{0});
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
+    m_data.emplace(interval{(char*)loc, (char*)loc + size},
+                   std::vector<uint8_t>{0});
   }
   template <typename T> void ignore(const T& val) {
-    _data.emplace(interval{(char*)&val, (char*)&val + sizeof(T)},
-                  std::vector<uint8_t>{0});
+    m_data.emplace(interval{(char*)&val, (char*)&val + sizeof(T)},
+                   std::vector<uint8_t>{0});
   }
 };
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 } // namespace clad
 
-#endif // CLAD_SMART_TAPE_H
+#endif // CLAD_DIFFERENTIATOR_SMARTTAPE_H

@@ -953,12 +953,12 @@ namespace clad {
 
     bool hasMemoryTypeParams(const FunctionDecl* FD) {
       // FIXME: enable for methods
-      if (isa<CXXMethodDecl>(FD) && isa<CXXMethodDecl>(FD))
+      if (isa<CXXMethodDecl>(FD))
         return false;
       // if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
       //   if (MD->isInstance() && !MD->isConst())
       //     return true;
-      for (auto PVD : FD->parameters()) {
+      for (const ParmVarDecl* PVD : FD->parameters()) {
         QualType paramTy = PVD->getType();
         if (paramTy->isReferenceType() &&
             paramTy.getNonReferenceType()->isRealType())

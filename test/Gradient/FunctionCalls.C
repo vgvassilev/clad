@@ -168,11 +168,7 @@ float sum(double* arr, int n) {
 // CHECK-NEXT:     float res = 0;
 // CHECK-NEXT:     unsigned long _t0 = 0UL;
 // CHECK-NEXT:     int _d_i = 0;
-// CHECK-NEXT:     for (int i = 0; ; ++i) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < n))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (int i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         res += arr[i];
 // CHECK-NEXT:     }
@@ -957,6 +953,145 @@ double fn26(double *params, double const *constants) {
 // CHECK-NEXT:     inner_func_pullback(params, constants, 1, _d_params);
 // CHECK-NEXT: }
 
+void mult(double* x, double y) {
+  for (int i = 0; i < 3; ++i) {
+    x[i] *= y;
+  }
+}
+
+// CHECK: void mult_reverse_forw(double *x, double y, double *_d_x, double _d_y, clad::smart_tape &tape) {
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     for (int i = 0; i < 3; ++i) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         tape.store(x[i]);
+// CHECK-NEXT:         x[i] *= y;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void mult_pullback(double *x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (i = 0; i < 3; ++i) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, x[i]);
+// CHECK-NEXT:         x[i] *= y;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             x[i] = clad::pop(_t1);
+// CHECK-NEXT:             double _r_d0 = _d_x[i];
+// CHECK-NEXT:             _d_x[i] = 0.;
+// CHECK-NEXT:             _d_x[i] += _r_d0 * y;
+// CHECK-NEXT:             *_d_y += x[i] * _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double fn27(double u, double v) {
+  double arr[] = {u, v, 1};
+  double sum = arr[0] * arr[1] * arr[2];
+  mult(arr, u);
+  return sum + arr[2];
+} // u * v + u
+
+// CHECK-NEXT: void fn27_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:     double _d_arr[3] = {0};
+// CHECK-NEXT:     double arr[3] = {u, v, 1};
+// CHECK-NEXT:     double _d_sum = 0.;
+// CHECK-NEXT:     double sum0 = arr[0] * arr[1] * arr[2];
+// CHECK-NEXT:     clad::smart_tape _tape0 = {};
+// CHECK-NEXT:     mult_reverse_forw(arr, u, _d_arr, 0., _tape0);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_sum += 1;
+// CHECK-NEXT:         _d_arr[2] += 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _tape0.restore();
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         mult_pullback(arr, u, _d_arr, &_r0);
+// CHECK-NEXT:         *_d_u += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_arr[0] += _d_sum * arr[2] * arr[1];
+// CHECK-NEXT:         _d_arr[1] += arr[0] * _d_sum * arr[2];
+// CHECK-NEXT:         _d_arr[2] += arr[0] * arr[1] * _d_sum;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_u += _d_arr[0];
+// CHECK-NEXT:         *_d_v += _d_arr[1];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double& nested(double* x, double y) {
+  mult(x, y);
+  mult(x, 3);
+  return x[1];
+}
+
+// CHECK-NEXT: clad::ValueAndAdjoint<double &, double &> nested_reverse_forw(double *x, double y, double *_d_x, double _d_y, clad::smart_tape &tape) {
+// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, 0., tape);
+// CHECK-NEXT:     mult_reverse_forw(x, 3, _d_x, 0., tape);
+// CHECK-NEXT:     return {x[1], _d_x[1]};
+// CHECK-NEXT: }
+
+// CHECK-NEXT: void nested_pullback(double *x, double y, double _d_y0, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     clad::smart_tape _tape0 = {};
+// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, 0., _tape0);
+// CHECK-NEXT:     clad::smart_tape _tape1 = {};
+// CHECK-NEXT:     mult_reverse_forw(x, 3, _d_x, 0., _tape1);
+// CHECK-NEXT:     _d_x[1] += _d_y0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _tape1.restore();
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         mult_pullback(x, 3, _d_x, &_r1);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _tape0.restore();
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         mult_pullback(x, y, _d_x, &_r0);
+// CHECK-NEXT:         *_d_y += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double fn28(double u, double v) {
+  double arr[] = {u, v, 1};
+  double& ref = nested(arr, u);
+  ref *= 2;
+  return ref;
+} // 6 * u * v
+
+// CHECK-NEXT: void fn28_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:     double _d_arr[3] = {0};
+// CHECK-NEXT:     double arr[3] = {u, v, 1};
+// CHECK-NEXT:     clad::smart_tape _tape0 = {};
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = nested_reverse_forw(arr, u, _d_arr, 0., _tape0);
+// CHECK-NEXT:     double &_d_ref = _t0.adjoint;
+// CHECK-NEXT:     double &ref = _t0.value;
+// CHECK-NEXT:     double _t1 = ref;
+// CHECK-NEXT:     ref *= 2;
+// CHECK-NEXT:     _d_ref += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         ref = _t1;
+// CHECK-NEXT:         double _r_d0 = _d_ref;
+// CHECK-NEXT:         _d_ref = 0.;
+// CHECK-NEXT:         _d_ref += _r_d0 * 2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _tape0.restore();
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         nested_pullback(arr, u, 0., _d_arr, &_r0);
+// CHECK-NEXT:         *_d_u += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_u += _d_arr[0];
+// CHECK-NEXT:         *_d_v += _d_arr[1];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -1082,6 +1217,12 @@ int main() {
   auto fn26_grad_0 = clad::gradient(fn26, "params");
   fn26_grad_0.execute(x1, w1, dx1);
   printf("{%.2f}\n", dx1[0]);   // CHECK-EXEC: {-1.00}
+
+  INIT(fn27);
+  TEST2(fn27, 2, 1);  // CHECK-EXEC: {2.00, 2.00}
+
+  INIT(fn28);
+  TEST2(fn28, 3, 5);  // CHECK-EXEC: {30.00, 18.00}
 }
 
 double sq_defined_later(double x) {
