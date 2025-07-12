@@ -1660,7 +1660,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // same as the call expression as it is the type used to declare the
         // _gradX array
         QualType dArgTy = utils::getNonConstType(arg->getType(), m_Sema);
-        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
+        bool shouldCopyInitialize = false;
+        if (const CXXRecordDecl* CRD = dArgTy->getAsCXXRecordDecl())
+          shouldCopyInitialize = utils::isCopyable(CRD);
+        Expr* rInit = getZeroInit(dArgTy);
+        // Temporarily initialize the object with `*nullptr` to avoid
+        // a potential error because of non-existing default constructor.
+        if (shouldCopyInitialize) {
+          QualType ptrType =
+              m_Context.getPointerType(dArgTy.getUnqualifiedType());
+          Expr* dummy = getZeroInit(ptrType);
+          rInit = BuildOp(UO_Deref, dummy);
+        }
+        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", rInit);
         PreCallStmts.push_back(BuildDeclStmt(dArgDecl));
         DeclRefExpr* dArgRef = BuildDeclRef(dArgDecl);
         if (isa<CUDAKernelCallExpr>(CE)) {
@@ -1731,6 +1743,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         CallArgDx.push_back(dArgRef);
         // Visit using uninitialized reference.
         argDiff = Visit(arg, BuildDeclRef(dArgDecl));
+        if (shouldCopyInitialize) {
+          if (Expr* dInit = argDiff.getExpr_dx())
+            SetDeclInit(dArgDecl, dInit);
+          else
+            SetDeclInit(dArgDecl, getZeroInit(dArgTy));
+        }
       }
 
       // Save cloned arg in a "global" variable, so that it is accessible from
@@ -2039,7 +2057,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                   CallArgs, Loc, CUDAExecConfig)
                    .get();
       }
-      if (!needsForwPass)
+      if (!needsForwPass && !m_TrackVarDeclConstructor)
         return StmtDiff(call);
       Expr* callRes = nullptr;
       if (isInsideLoop)
@@ -4144,6 +4162,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
+    // FIXME: This logic is the same as in VisitCallExpr.
+    // We should probably move this to a file static
     // FIXME: Restore arguments passed as non-const reference.
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       const Expr* arg = CE->getArg(i);
@@ -4171,12 +4191,31 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // _d_u += _r0;
         QualType dArgTy = utils::getNonConstType(CloneType(ArgTy), m_Sema);
         Expr* init = getStdInitListSizeExpr(arg);
+        bool shouldCopyInitialize = false;
+        if (!init) {
+          if (const CXXRecordDecl* CRD = dArgTy->getAsCXXRecordDecl())
+            shouldCopyInitialize = utils::isCopyable(CRD);
+          // Temporarily initialize the object with `*nullptr` to avoid
+          // a potential error because of non-existing default constructor.
+          if (shouldCopyInitialize) {
+            QualType ptrType =
+                m_Context.getPointerType(dArgTy.getUnqualifiedType());
+            Expr* dummy = getZeroInit(ptrType);
+            init = BuildOp(UO_Deref, dummy);
+          }
+        }
         if (!init)
           init = getZeroInit(dArgTy);
         VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", init);
         prePullbackCallStmts.push_back(BuildDeclStmt(dArgDecl));
         adjointArg = BuildDeclRef(dArgDecl);
         argDiff = Visit(arg, BuildDeclRef(dArgDecl));
+        if (shouldCopyInitialize) {
+          if (Expr* dInit = argDiff.getExpr_dx())
+            SetDeclInit(dArgDecl, dInit);
+          else
+            SetDeclInit(dArgDecl, getZeroInit(dArgTy));
+        }
       }
 
       if (utils::isArrayOrPointerType(CD->getParamDecl(i)->getType()) ||
@@ -4184,8 +4223,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         reverseForwAdjointArgs.push_back(adjointArg);
         adjointArgs.push_back(adjointArg);
       } else {
-        if (utils::IsReferenceOrPointerArg(arg))
-          reverseForwAdjointArgs.push_back(adjointArg);
+        if (argDiff.getExpr_dx())
+          reverseForwAdjointArgs.push_back(argDiff.getExpr_dx());
         else
           reverseForwAdjointArgs.push_back(getZeroInit(ArgTy));
         adjointArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf, adjointArg,
