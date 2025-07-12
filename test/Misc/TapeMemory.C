@@ -13,6 +13,11 @@ template <typename T> void func(T x, int n) {
   for (int i = 0; i < n; i++) {
     clad::push<T>(t, x);
   }
+
+  for(auto p = t.begin(); p!=t.end(); ++p)
+    if (*p!=x)
+      printf("error: tape iterator is invalid\n");
+
   for (int i = 0; i < n; i++) {
     T seen = clad::pop<T>(t);
     if (seen != x)
