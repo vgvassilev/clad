@@ -741,6 +741,37 @@ void operator_plus_plus_pullback(It* it, int, It pullback, It* d_it, int*) {
   --*d_it;
 }
 
+// std::shared_ptr<T> custom derivatives...
+template <typename T>
+clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
+constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::shared_ptr<T>>,
+                         const ::std::shared_ptr<T>& p,
+                         const ::std::shared_ptr<T>& d_p) {
+  return {::std::shared_ptr<T>(p), ::std::shared_ptr<T>(d_p)};
+}
+
+template <typename T>
+void constructor_pullback(::std::shared_ptr<T>&& p, ::std::shared_ptr<T>* dthis,
+                          ::std::shared_ptr<T>* dp) noexcept {}
+
+template <typename T>
+void constructor_pullback(const ::std::shared_ptr<T>& p,
+                          ::std::shared_ptr<T>* dthis,
+                          ::std::shared_ptr<T>* dp) noexcept {}
+
+template <typename T>
+clad::ValueAndAdjoint<T&, T&>
+operator_star_reverse_forw(const ::std::shared_ptr<T>* u,
+                           const ::std::shared_ptr<T>* d_u) {
+  return {**u, **d_u};
+}
+
+template <typename T, typename U>
+void operator_star_pullback(const ::std::shared_ptr<T>* u, U pullback,
+                            ::std::shared_ptr<T>* d_u) {
+  **d_u += pullback;
+}
+
 } // namespace class_functions
 
 namespace std {
@@ -807,6 +838,17 @@ template <typename... Args> auto make_tuple_pushforward(Args... args) noexcept {
   ::std::tuple<Args...> t = ::std::make_tuple(args...);
   return clad::make_value_and_pushforward(first_half_tuple(t),
                                           second_half_tuple(t));
+}
+
+// std::make_shared<T> custom derivatives...
+clad::ValueAndAdjoint<::std::shared_ptr<double>, ::std::shared_ptr<double>>
+make_shared_reverse_forw(double& x, double& dx) {
+  return {::std::make_shared<double>(x), ::std::make_shared<double>(dx)};
+}
+
+void make_shared_pullback(double& x, ::std::shared_ptr<double> dthis,
+                          double* dx) {
+  *dx += *dthis;
 }
 
 } // namespace std
