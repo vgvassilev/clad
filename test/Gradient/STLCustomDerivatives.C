@@ -265,6 +265,18 @@ double fn20(std::vector<double>::iterator start, std::vector<double>::iterator e
   return sum;
 }
 
+/// This is the function we want to differentiate.
+/// It uses a shared_ptr to demonstrate safe ownership in a differentiable context.
+double simple_func(std::shared_ptr<double> x_ptr) {
+    double x = *x_ptr;
+    return x * x + 2.0 * x;
+}
+
+double fn21(double x) {
+    std::shared_ptr<double> x_ptr = std::make_shared<double>(x);
+    return simple_func(x_ptr);
+}
+
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn1);
@@ -319,6 +331,9 @@ int main() {
         printf(", ");
     }
     printf("}\n");
+
+    INIT_GRADIENT(fn21);
+    TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/1, 3, &d_i);  // CHECK-EXEC: {8.00}
 }
 
 // CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -1343,7 +1358,7 @@ int main() {
 // CHECK-NEXT:                 sum = clad::pop(_t3);
 // CHECK-NEXT:                 double _r_d0 = _d_sum;
 // CHECK-NEXT:                 _d_u += _r_d0 * clad::pop(_t4);
-// CHECK-NEXT:                 it.operator_star_pullback(u * _r_d0, &_d_it);
+// CHECK-NEXT:                 {{.*}}::class_functions::operator_star_pullback(&it, u * _r_d0, &_d_it);
 // CHECK-NEXT:                 clad::pop(_t5);
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
@@ -1445,6 +1460,38 @@ int main() {
 // CHECK-NEXT:             _d_arr[id] += _r_d0 * tensor_theory_params[0];
 // CHECK-NEXT:             _d_tensor_theory_params[0] += arr[id] * _r_d0;
 // CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK-NEXT: void simple_func_pullback(std::shared_ptr<double> x_ptr, double _d_y, std::shared_ptr<double> *_d_x_ptr) {
+// CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}} &, {{.*}} &> _t0 = clad::custom_derivatives::class_functions::operator_star_reverse_forw(&x_ptr, &(*_d_x_ptr));
+// CHECK-NEXT:     double _d_x = 0.;
+// CHECK-NEXT:     double x = _t0.value;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_x += _d_y * x;
+// CHECK-NEXT:         _d_x += x * _d_y;
+// CHECK-NEXT:         _d_x += 2. * _d_y;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     clad::custom_derivatives::class_functions::operator_star_pullback(&x_ptr, _d_x, &(*_d_x_ptr));
+// CHECK-NEXT: }
+
+// CHECK: void fn21_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _t0 = x;
+// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t1 = clad::custom_derivatives::std::make_shared_reverse_forw(x, *_d_x);
+// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t2 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<shared_ptr<double> >(), std::move(_t1.value), _t1.adjoint);
+// CHECK-NEXT:     std::shared_ptr<double> x_ptr = _t2.value;
+// CHECK-NEXT:     std::shared_ptr<double> _d_x_ptr = _t2.adjoint;
+// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t3 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<shared_ptr<double> >(), x_ptr, _d_x_ptr);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         std::shared_ptr<double> _r1 = _t3.adjoint;
+// CHECK-NEXT:         simple_func_pullback(_t3.value, 1, &_r1);
+// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(x_ptr, &_r1, &_d_x_ptr);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         shared_ptr<{{.*}}double{{.*}}> _r0 = _t1.adjoint;
+// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(std::move(_t1.value), &_d_x_ptr, &_r0);
+// CHECK-NEXT:         x = _t0;
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _r0, &*_d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
