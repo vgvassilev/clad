@@ -4124,6 +4124,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {nullptr, nullptr};
   }
 
+  static bool isNAT(QualType T) {
+    T = utils::GetValueType(T);
+    if (const auto* RT = T->getAs<RecordType>()) {
+      const RecordDecl* RD = RT->getDecl();
+      if (RD->getNameAsString() == "__nat")
+        return true;
+    }
+    return false;
+  }
+
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     CXXConstructorDecl* CD = CE->getConstructor();
@@ -4168,6 +4178,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       const Expr* arg = CE->getArg(i);
       QualType ArgTy = arg->getType();
+      // FIXME: We handle parameters with default values by setting them
+      // explicitly. However, some of them have private types and cannot be set.
+      // For this reason, we ignore std::__nat. We need to come up with a
+      // general solution.
+      if (isNAT(ArgTy))
+        break;
       StmtDiff argDiff{};
       Expr* adjointArg = nullptr;
       if (utils::IsReferenceOrPointerArg(arg) || nonDiff) {
