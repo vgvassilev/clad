@@ -790,6 +790,35 @@ void constructor_pullback(const ::std::shared_ptr<T>& p,
                           ::std::shared_ptr<T>* dthis,
                           ::std::shared_ptr<T>* dp) noexcept {}
 
+template <typename T, typename U>
+void constructor_pullback(const ::std::shared_ptr<T>& p, U*,
+                          ::std::weak_ptr<T>* dthis, ::std::shared_ptr<T>* dp,
+                          U*) noexcept {}
+
+// std::weak_ptr<T> custom derivatives...
+template <typename T, typename U>
+clad::ValueAndAdjoint<::std::weak_ptr<T>, ::std::weak_ptr<T>>
+constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::weak_ptr<T>>,
+                         U p, U d_p) {
+  return {::std::weak_ptr<T>(p), ::std::weak_ptr<T>(d_p)};
+}
+template <typename T, typename U>
+void constructor_pullback(U&& p, ::std::weak_ptr<T>* dthis, U* dp) noexcept {}
+
+template <typename T, typename U>
+void constructor_pullback(const U& p, ::std::weak_ptr<T>* dthis,
+                          U* dp) noexcept {}
+
+template <typename T>
+clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
+lock_reverse_forw(const ::std::weak_ptr<T>* p,
+                  const ::std::weak_ptr<T>* dp) noexcept {
+  return {p->lock(), dp->lock()};
+}
+
+template <typename T>
+void lock_pullback(const ::std::weak_ptr<T>* p, ::std::shared_ptr<T> dthis,
+                   ::std::weak_ptr<T>* dp) noexcept {}
 } // namespace class_functions
 
 namespace std {
