@@ -641,6 +641,11 @@ namespace clad {
               return true;
           }
         }
+      } else if (const clang::CXXConstructExpr* CXXCE =
+                     clang::dyn_cast<clang::CXXConstructExpr>(E)) {
+        if (auto typeDecl = CXXCE->getType()->getAsCXXRecordDecl())
+          if (hasNonDifferentiableAttribute(typeDecl))
+            return true;
       }
       // If E is not a MemberExpr or CallExpr or doesn't have a
       // non-differentiable attribute
