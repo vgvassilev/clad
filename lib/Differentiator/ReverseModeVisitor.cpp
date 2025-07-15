@@ -1661,7 +1661,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (utils::IsReferenceOrPointerArg(arg)) {
         argDiff = Visit(arg);
         CallArgDx.push_back(argDiff.getExpr_dx());
-      } else {
+      } else if (!clad::utils::hasNonDifferentiableAttribute(arg)) {
         // Create temporary variables corresponding to derivative of each
         // argument, so that they can be referred to when arguments is visited.
         // Variables will be initialized later after arguments is visited. This
@@ -1758,6 +1758,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           else
             SetDeclInit(dArgDecl, getZeroInit(dArgTy));
         }
+      } else {
+        CallArgDx.push_back(nullptr);
+        argDiff = Visit(arg);
       }
 
       // Save cloned arg in a "global" variable, so that it is accessible from
@@ -4559,6 +4562,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
          ++i) {
       const ParmVarDecl* oPVD = FD->getParamDecl(i);
 
+      if (clad::utils::hasNonDifferentiableAttribute(oPVD))
+        continue;
       // FIXME: We can't use std::find(DVI.begin(), DVI.end()) because the
       // operator== considers params and intervals as different entities and
       // breaks the hessian tests. We should implement more robust checks in

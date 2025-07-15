@@ -5,6 +5,14 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+typedef struct {
+    int i;
+} non_differentiable Input;
+
+void result(int *out, Input in) { *out = in.i; }
+
+void fn(int *out, Input in) { result(out, in); }
+
 class SimpleFunctions1 {
 public:
   SimpleFunctions1() noexcept : x(0), y(0), x_pointer(&x), y_pointer(&y) {}
@@ -234,4 +242,20 @@ int main() {
     // CHECK-NEXT:             *_d_i += _r0;
     // CHECK-NEXT:         }
     // CHECK-NEXT:     }
+
+  auto grad = clad::gradient(fn, "out");
+  // CHECK: void result_pullback(int *out, Input in, int *_d_out) {
+  // CHECK-NEXT: int _t0 = *out;
+  // CHECK-NEXT: *out = in.i;
+  // CHECK-NEXT: {
+  // CHECK-NEXT:    *out = _t0;
+  // CHECK-NEXT:    int _r_d0 = *_d_out;
+  // CHECK-NEXT:    *_d_out = 0;
+  // CHECK-NEXT: }
+  // CHECK-NEXT:}
+
+  // CHECK: void fn_grad_0(int *out, Input in, int *_d_out) {
+  // CHECK-NEXT:    result(out, in);
+  // CHECK-NEXT:    result_pullback(out, in, _d_out);
+  // CHECK-NEXT:}
 }
