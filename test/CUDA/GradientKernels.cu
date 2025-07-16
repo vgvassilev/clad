@@ -799,6 +799,44 @@ __global__ void indices_lin_comb(int *out, int *in) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+__device__ void device_injective_index(int *a) {
+  int index1 = threadIdx.x + blockIdx.x * blockDim.x;
+  int index2 = threadIdx.x;
+  a[index1] += a[index1]; 
+  a[index2] += a[index2]; 
+}
+
+__global__ void kernel_device_injective(int *a) {
+  device_injective_index(a);
+}
+
+// CHECK: __attribute__((device)) void device_injective_index_pullback_0(int *a, int *_d_a) {
+// CHECK-NEXT:     int _d_index1 = 0;
+// CHECK-NEXT:     int index1 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     int _d_index2 = 0;
+// CHECK-NEXT:     int index2 = threadIdx.x;
+// CHECK-NEXT:     int _t0 = a[index1];
+// CHECK-NEXT:     a[index1] += a[index1];
+// CHECK-NEXT:     int _t1 = a[index2];
+// CHECK-NEXT:     a[index2] += a[index2];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a[index2] = _t1;
+// CHECK-NEXT:         int _r_d1 = _d_a[index2];
+// CHECK-NEXT:         atomicAdd(&_d_a[index2], _r_d1);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a[index1] = _t0;
+// CHECK-NEXT:         int _r_d0 = _d_a[index1];
+// CHECK-NEXT:         _d_a[index1] += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void kernel_device_injective_grad(int *a, int *_d_a) {
+// CHECK-NEXT:     device_injective_index(a);
+// CHECK-NEXT:     device_injective_index_pullback_0(a, _d_a);
+// CHECK-NEXT: }
+
+
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \
   {                                                                         \
     int *fives = (int*)malloc(N * sizeof(int));                             \
@@ -1076,6 +1114,14 @@ int main(void) {
   TEST_2(indices_perm, dim3(1), dim3(5, 1, 1), 0, false, "out, in", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 20, 20, 20, 20, 20
   TEST_2(indices_lin_comb, dim3(1), dim3(5, 1, 1), 0, false, "out, in", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 20, 25, 45, 15, 15
 
+  int *n, *d_n;
+  cudaMalloc(&n, sizeof(int));
+  cudaMalloc(&d_n, sizeof(int));
+
+  TEST(kernel_device_injective, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 4
+
+  cudaFree(n);
+  cudaFree(d_n);
   free(res);
   free(fives);
   free(zeros);
