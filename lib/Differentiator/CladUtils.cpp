@@ -1108,7 +1108,8 @@ namespace clad {
 
     bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
       if (FD->getNumParams() != 1 ||
-          utils::HasAnyReferenceOrPointerArgument(FD) || isa<CXXMethodDecl>(FD))
+          utils::HasAnyReferenceOrPointerArgument(FD) ||
+          isa<CXXMethodDecl>(FD) || !FD->getReturnType()->isRealType())
         return false;
       QualType paramTy = FD->getParamDecl(0)->getType();
       paramTy = paramTy.getNonReferenceType();

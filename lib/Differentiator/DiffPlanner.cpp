@@ -934,7 +934,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
   }
 
   static Expr* getOverloadExpr(clang::Sema& S, const std::string& Name,
-                               DeclContext* DC, QualType DerivativeType) {
+                               DeclContext* DC, QualType DerivativeType,
+                               const Expr* callSite, bool enableDiagnostics) {
     IdentifierInfo* II = &S.getASTContext().Idents.get(Name);
     DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(S));
     LookupResult Found(S, DNInfo, Sema::LookupOrdinaryName);
@@ -977,6 +978,32 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (overloadFound) {
       CXXScopeSpec SS;
       return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
+    }
+    // If custom derivatives were found but the type didn't match,
+    // perform diagnostics.
+    if (!Found.empty() && enableDiagnostics) {
+      auto warnId = S.Diags.getCustomDiagID(
+          DiagnosticsEngine::Warning,
+          "A custom derivative for '%0' was found but not used "
+          "because its signature does not match the expected signature '%1'");
+      S.Diag(callSite->getBeginLoc(), warnId)
+          << Name << DerivativeType.getAsString();
+
+      for (NamedDecl* candidate : Found) {
+        if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
+          candidate = usingShadow->getTargetDecl();
+        QualType fnType;
+        if (auto* FD = dyn_cast<FunctionDecl>(candidate))
+          fnType = FD->getType();
+        else if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate))
+          fnType = FTD->getTemplatedDecl()->getType();
+        if (!fnType.isNull()) {
+          auto noteId = S.Diags.getCustomDiagID(
+              DiagnosticsEngine::Note, "Candidate not viable: cannot match the "
+                                       "requested signature with '%0'");
+          S.Diag(candidate->getLocation(), noteId) << fnType.getAsString();
+        }
+      }
     }
     return nullptr;
   }
@@ -1027,11 +1054,18 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     QualType DerivativeType =
         utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
                                  diffParams, /*moveBaseToParams=*/true);
-
-    Expr* overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType);
+    // We disable diagnostics for methods and operators because they often have
+    // ideantical names: `constructor_pullback`, `operator_star_pushforward`,
+    // etc. If we turn it on, every such operator will trigger diagnostics
+    // because of our STL and Kokkos custom derivatives.
+    bool enableDiagnostics = !isa<CXXMethodDecl>(request.Function) &&
+                             !request->isOverloadedOperator();
+    Expr* overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType, callSite,
+                                     enableDiagnostics);
     if (!overload && request.Mode == DiffMode::vector_pushforward) {
       Name = request.BaseFunctionName + "_pushforward";
-      overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType);
+      overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType, callSite,
+                                 enableDiagnostics);
     }
 
     if (overload) {
