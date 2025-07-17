@@ -641,9 +641,9 @@ namespace clad {
               return true;
           }
         }
-      } else if (const clang::CXXConstructExpr* CXXCE =
+      } else if (const auto* CXXCE =
                      clang::dyn_cast<clang::CXXConstructExpr>(E)) {
-        if (auto typeDecl = CXXCE->getType()->getAsCXXRecordDecl())
+        if (auto* typeDecl = CXXCE->getType()->getAsCXXRecordDecl())
           if (hasNonDifferentiableAttribute(typeDecl))
             return true;
       }
