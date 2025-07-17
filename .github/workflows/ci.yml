@@ -97,11 +97,6 @@ jobs:
             compiler: msvc
             clang-runtime: '20'
 
-          - name: win11-arm-msvc-runtime20
-            os: windows-11-arm
-            compiler: msvc
-            clang-runtime: '20'
-
           - name: ubu22-clang15-runtime18-debug
             os: ubuntu-22.04
             compiler: clang-15
