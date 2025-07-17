@@ -997,7 +997,12 @@ namespace clad {
       if (mode == DiffMode::forward)
         return FD->getType();
 
-      const auto* FnProtoTy = llvm::cast<FunctionProtoType>(FD->getType());
+      QualType FnTy = FD->getType();
+
+      if (const auto* AnnotatedFnTy = dyn_cast<AttributedType>(FnTy))
+        FnTy = AnnotatedFnTy->getEquivalentType();
+
+      const auto* FnProtoTy = llvm::cast<FunctionProtoType>(FnTy);
       FunctionProtoType::ExtProtoInfo EPI = FnProtoTy->getExtProtoInfo();
       llvm::SmallVector<QualType, 16> FnTypes;
       FnTypes.reserve(2 * FnProtoTy->getNumParams() + 1);
