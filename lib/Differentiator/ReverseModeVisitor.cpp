@@ -62,6 +62,8 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
+using namespace clang;
+
 namespace clad {
 
 Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
