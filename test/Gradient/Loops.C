@@ -3291,7 +3291,7 @@ float fn42(const layer &l, float x) {
 //CHECK-NEXT:    clad::tape<float> _t1 = {};
 //CHECK-NEXT:    float _d_x = 0.F;
 //CHECK-NEXT:    float x = inp;
-//CHECK-NEXT:    unsigned long _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:    unsigned {{int|long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:    for (i = 0; ; i++) {
 //CHECK-NEXT:        {
 //CHECK-NEXT:            if (!(i < this->w.size()))
