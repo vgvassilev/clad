@@ -29,6 +29,7 @@
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h" // for clang::isa
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
@@ -1591,8 +1592,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // derived function. In the case of member functions, `implicit`
     // this object is always passed by reference.
     if (!nonDiff && !dfdx() && !utils::HasAnyReferenceOrPointerArgument(FD) &&
-        (!baseOriginalE || MD->isConst()))
-      nonDiff = true;
+        (!baseOriginalE || MD->isConst())) {
+      // The result of the subscript operator may affect the derivative, such as
+      // in a case like `list[i].modify(x)`. This makes clad handle those
+      // normally.
+      if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+        if (OCE->getOperator() != clang::OverloadedOperatorKind::OO_Subscript)
+          nonDiff = true;
+      } else
+        nonDiff = true;
+    }
 
     // If all arguments are constant literals, then this does not contribute to
     // the gradient.
@@ -2073,6 +2082,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     } // Recreate the original call expression.
 
     if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+      if (OCE->getOperator() == clang::OverloadedOperatorKind::OO_Subscript) {
+        // If the operator is subscript, we should return the adjoint expression
+        auto AdjointCallArgs = CallArgs;
+        CallArgs.insert(CallArgs.begin(), baseDiff.getExpr());
+        AdjointCallArgs.insert(AdjointCallArgs.begin(), baseDiff.getExpr_dx());
+        call = BuildOperatorCall(OCE->getOperator(), CallArgs);
+        Expr* call_dx = BuildOperatorCall(OCE->getOperator(), AdjointCallArgs);
+        return StmtDiff(call, call_dx);
+      }
       if (isMethodOperatorCall)
         CallArgs.insert(CallArgs.begin(), baseDiff.getExpr());
       call = BuildOperatorCall(OCE->getOperator(), CallArgs);
