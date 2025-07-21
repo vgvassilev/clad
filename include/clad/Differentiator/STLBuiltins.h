@@ -887,6 +887,17 @@ template <typename... Args> auto make_tuple_pushforward(Args... args) noexcept {
                                           second_half_tuple(t));
 }
 
+// std::forward custom derivatives
+template <class T>
+clad::ValueAndAdjoint<T&&, T&&> forward_reverse_forw(T&& t, T&& dt) {
+  return {::std::forward<T>(t), ::std::forward<T>(dt)};
+}
+
+template <class T>
+clad::ValueAndAdjoint<T&, T&> forward_reverse_forw(T& t, T& dt) {
+  return {t, dt};
+}
+
 template <class T> constexpr void forward_pullback(T& t, T dy, T* dt) noexcept {
   *dt += dy;
 }
