@@ -418,12 +418,14 @@ double fn8(double u, double v) {
 // CHECK: static constexpr void constructor_pullback(double &__{{u1|x}}, double &__{{u2|y}}, std::pair<double, double> *_d_this, double *_d___{{u1|x}}, double *_d___{{u2|y}}) {{.*}}{
 // CHECK-NEXT:      std::pair<double, double> *_this = (std::pair<double, double> *)malloc(sizeof(std::pair<double, double>));
 // CHECK:           double _t0 = __{{u1|x}};
-// CHECK-NEXT:      _this->first = std::forward<double &>(__{{u1|x}});
-// CHECK-NEXT:      double _t1 = __{{u2|y}};
-// CHECK-NEXT:      _this->second = std::forward<double &>(__{{u2|y}});
-// CHECK-NEXT:      {
+// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t1 = clad::custom_derivatives::std::forward_reverse_forw(__{{u1|x}}, *_d___{{u1|x}}); 
+// CHECK-NEXT:      _this->first = _t1.value;
+// CHECK-NEXT:      double _t2 = __{{u2|y}};
+// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t3 = clad::custom_derivatives::std::forward_reverse_forw(__{{u2|y}}, *_d___{{u2|y}});
+// CHECK-NEXT:      _this->second = _t3.value;
+// CHECK:           {
 // CHECK-NEXT:          clad::custom_derivatives::std::forward_pullback(__{{u2|y}}, _d_this->second, &*_d___{{u2|y}});
-// CHECK-NEXT:          __{{u2|y}} = _t1;
+// CHECK-NEXT:          __{{u2|y}} = _t2;
 // CHECK-NEXT:          _d_this->second = 0.;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
