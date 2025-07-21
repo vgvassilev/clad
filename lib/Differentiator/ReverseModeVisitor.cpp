@@ -499,6 +499,51 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::DifferentiateCtorInit(CXXCtorInitializer* CI,
                                                      Expr* thisExpr) {
+    // If we're dealing with a delegating constructor or a
+    // base initializer, we need to differentiate it as
+    // ```
+    // new (_this) ClassTy(args...);
+    // ...
+    // ClassTy::constructor_pullback(args..., _d_this, _d_args...);
+    // ```
+    if (!CI->isMemberInitializer()) {
+      beginBlock(direction::reverse);
+      Expr* dthisObj = BuildOp(UO_Deref, m_ThisExprDerivative);
+      StmtDiff initDiff = Visit(CI->getInit(), dthisObj);
+      // Build the placement new.
+      Expr* initCall = nullptr;
+      if (thisExpr) {
+        TypeSourceInfo* baseTSI = CI->getTypeSourceInfo();
+        QualType baseTy = baseTSI->getType();
+        if (CI->isBaseInitializer()) {
+          Expr* placementArg = thisExpr;
+          // If a base initializer is used, we need to explicitly cast the
+          // pointer to the base type. new (static_cast<BaseTy*>(derived_ptr))
+          // BaseTy(args...); Note: `derived_ptr` might not be the same memory
+          // address as after the cast, e.g. when having multiple inheritances.
+          QualType ptrBaseTy = m_Context.getPointerType(baseTy);
+          TypeSourceInfo* ptrTSI =
+              m_Context.getTrivialTypeSourceInfo(ptrBaseTy);
+          placementArg =
+              m_Sema
+                  .BuildCXXNamedCast(noLoc, tok::TokenKind::kw_static_cast,
+                                     ptrTSI, thisExpr, noLoc, noLoc)
+                  .get();
+          initCall = utils::BuildCXXNewExpr(m_Sema, baseTy, nullptr,
+                                            initDiff.getExpr(), baseTSI,
+                                            {placementArg});
+        } else if (CI->isDelegatingInitializer()) {
+          auto* thisDRE = cast<DeclRefExpr>(thisExpr);
+          auto* thisVD = cast<VarDecl>(thisDRE->getDecl());
+          Expr* newInit = utils::BuildCXXNewExpr(m_Sema, baseTy, nullptr,
+                                                 initDiff.getExpr(), baseTSI);
+          SetDeclInit(thisVD, newInit);
+        }
+      }
+      CompoundStmt* block = endBlock(direction::reverse);
+      std::reverse(block->body_begin(), block->body_end());
+      return {initCall, utils::unwrapIfSingleStmt(block)};
+    }
     llvm::StringRef fieldName = CI->getMember()->getName();
     Expr* memberDiff = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                               m_ThisExprDerivative, fieldName);
