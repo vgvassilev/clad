@@ -58,12 +58,13 @@ void operator delete(void* p) noexcept {
   free(p);
 }
 
-template <typename T> void func(clad::tape<T>& t, T x, int n) {
+template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
+void func(clad::tape<T, SBO_SIZE, SLAB_SIZE>& t, T x, int n) {
   for (int i = 0; i < n; i++)
-    clad::push<T>(t, x);
+    clad::push<T, SBO_SIZE, SLAB_SIZE>(t, x);
 
   for (int i = 0; i < n; i++)
-    clad::pop<T>(t);
+    clad::pop<T, SBO_SIZE, SLAB_SIZE>(t);
 }
 
 static void BM_TapeMemory(benchmark::State& state) {
@@ -75,6 +76,25 @@ static void BM_TapeMemory(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_TapeMemory)->RangeMultiplier(2)->Range(0, 4096)->Iterations(1);
+
+template <std::size_t SBO_SIZE, std::size_t SLAB_SIZE>
+static void BM_TapeMemory_Templated(benchmark::State& state) {
+  int block = state.range(0);
+  AddBMCounterRAII MemCounters(*mm.get(), state);
+  clad::tape<double, SBO_SIZE, SLAB_SIZE> t;
+  for (auto _ : state)
+    func<double, SBO_SIZE, SLAB_SIZE>(t, 1, block * 2 + 1);
+}
+
+#define REGISTER_TAPE_BENCHMARK(sbo, slab)                                     \
+  BENCHMARK_TEMPLATE(BM_TapeMemory_Templated, sbo, slab)                       \
+      ->RangeMultiplier(2)                                                     \
+      ->Range(0, 4096)                                                         \
+      ->Iterations(1)                                                          \
+      ->Name("BM_TapeMemory/SBO_" #sbo "_SLAB_" #slab)
+
+REGISTER_TAPE_BENCHMARK(64, 1024);
+REGISTER_TAPE_BENCHMARK(32, 512);
 
 #include "BenchmarkedFunctions.h"
 

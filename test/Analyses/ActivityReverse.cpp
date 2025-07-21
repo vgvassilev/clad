@@ -376,9 +376,9 @@ double f11(double x){
 // CHECK-NEXT:     double c = f11_1(x, y);
 // CHECK-NEXT:     _d_y += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         y = _t0;
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         f11_1_pullback(x, _t0, _d_c, &_r0, &_d_y);
+// CHECK-NEXT:         y = _t0;
+// CHECK-NEXT:         f11_1_pullback(x, y, _d_c, &_r0, &_d_y);
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

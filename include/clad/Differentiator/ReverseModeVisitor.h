@@ -15,6 +15,7 @@
 #include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
@@ -107,6 +108,13 @@ namespace clad {
       return m_Stack.top();
     }
     StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* dfdS = nullptr) {
+      m_CurVisitedStmt = stmt;
+#ifndef NDEBUG
+      // Enable testing of the pretty printing of the state when clad crashes.
+      if (const char* Env = std::getenv("CLAD_FORCE_CRASH"))
+        std::terminate();
+#endif // NDEBUG
+
       // No need to push the same expr multiple times.
       bool push = !(!m_Stack.empty() && (dfdS == dfdx()));
       if (push)
@@ -383,7 +391,7 @@ namespace clad {
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
-    virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
+    StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff
     VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
     StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
@@ -403,6 +411,7 @@ namespace clad {
     StmtDiff
     VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
     StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* SCE);
+    StmtDiff VisitCXXTryStmt(const clang::CXXTryStmt* TS);
     StmtDiff VisitCXXConstCastExpr(const clang::CXXConstCastExpr* CCE);
     StmtDiff VisitCXXDefaultInitExpr(const clang::CXXDefaultInitExpr* DIE);
     StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
@@ -410,7 +419,8 @@ namespace clad {
     StmtDiff VisitDefaultStmt(const clang::DefaultStmt* DS);
     DeclDiff<clang::VarDecl> DifferentiateVarDecl(const clang::VarDecl* VD,
                                                   bool keepLocal = false);
-    clang::Stmt* DifferentiateCtorInit(clang::CXXCtorInitializer* CI);
+    StmtDiff DifferentiateCtorInit(clang::CXXCtorInitializer* CI,
+                                   clang::Expr* thisExpr);
     StmtDiff VisitSubstNonTypeTemplateParmExpr(
         const clang::SubstNonTypeTemplateParmExpr* NTTP);
     StmtDiff
@@ -418,6 +428,14 @@ namespace clad {
     StmtDiff VisitNullStmt(const clang::NullStmt* NS) {
       return StmtDiff{Clone(NS), Clone(NS)};
     }
+
+    /// Helper function that builds `T* _this = malloc(sifeof(T));`
+    /// and `free(_this)`.
+    ///
+    /// \param[in] thisTy `this` type.
+    ///
+    /// \returns {_this, free(_this)}
+    StmtDiff BuildThisExpr(clang::QualType thisTy);
 
     /// Helper function that checks whether the function to be derived
     /// is meant to be executed only by the GPU

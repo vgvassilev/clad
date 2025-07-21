@@ -1,5 +1,20 @@
 #include "TBRAnalyzer.h"
 
+#include <algorithm>
+#include <cassert>
+
+#include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
+#include "clang/AST/OperationKinds.h"
+#include "clang/Analysis/CFG.h"
+#include "clang/Basic/LLVM.h"
+
+#include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DiffPlanner.h"
+
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #undef DEBUG_TYPE
@@ -10,18 +25,6 @@ using namespace clang;
 namespace clad {
 
 // NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
-void TBRAnalyzer::setIsRequired(VarData& varData, bool isReq) {
-  if (varData.m_Type == VarData::FUND_TYPE)
-    varData.m_Val.m_FundData = isReq;
-  else if (varData.m_Type == VarData::OBJ_TYPE ||
-           varData.m_Type == VarData::ARR_TYPE)
-    for (auto& pair : *varData.m_Val.m_ArrData)
-      setIsRequired(pair.second, isReq);
-  else if (varData.m_Type == VarData::REF_TYPE && varData.m_Val.m_RefData)
-    if (auto* data = getExprVarData(varData.m_Val.m_RefData))
-      setIsRequired(*data, isReq);
-}
-
 void TBRAnalyzer::merge(VarData& targetData, VarData& mergeData) {
   if (targetData.m_Type == VarData::FUND_TYPE) {
     targetData.m_Val.m_FundData =
@@ -39,7 +42,7 @@ void TBRAnalyzer::merge(VarData& targetData, VarData& mergeData) {
     for (auto& pair : *mergeData.m_Val.m_ArrData) {
       auto it = targetData.m_Val.m_ArrData->find(pair.first);
       if (it == mergeData.m_Val.m_ArrData->end())
-        (*targetData.m_Val.m_ArrData)[pair.first] = copy(pair.second);
+        (*targetData.m_Val.m_ArrData)[pair.first] = pair.second.copy();
     }
   }
   // This might be useful in future if used to analyse pointers. However, for
@@ -47,23 +50,24 @@ void TBRAnalyzer::merge(VarData& targetData, VarData& mergeData) {
   // else if (this.m_Type == VarData::REF_TYPE) {}
 }
 
-TBRAnalyzer::VarData TBRAnalyzer::copy(VarData& copyData) {
+TBRAnalyzer::VarData TBRAnalyzer::VarData::copy() const {
   VarData res;
-  res.m_Type = copyData.m_Type;
-  if (copyData.m_Type == VarData::FUND_TYPE) {
-    res.m_Val.m_FundData = copyData.m_Val.m_FundData;
-  } else if (copyData.m_Type == VarData::OBJ_TYPE ||
-             copyData.m_Type == VarData::ARR_TYPE) {
+  res.m_Type = m_Type;
+  if (m_Type == VarData::FUND_TYPE) {
+    res.m_Val.m_FundData = m_Val.m_FundData;
+  } else if (m_Type == VarData::OBJ_TYPE || m_Type == VarData::ARR_TYPE) {
     res.m_Val.m_ArrData = std::unique_ptr<ArrMap>(new ArrMap());
-    for (auto& pair : *copyData.m_Val.m_ArrData)
-      (*res.m_Val.m_ArrData)[pair.first] = copy(pair.second);
-  } else if (copyData.m_Type == VarData::REF_TYPE && copyData.m_Val.m_RefData) {
-    res.m_Val.m_RefData = copyData.m_Val.m_RefData;
+    for (auto& pair : *m_Val.m_ArrData)
+      (*res.m_Val.m_ArrData)[pair.first] = pair.second.copy();
+  } else if (m_Type == VarData::REF_TYPE) {
+    res.m_Val.m_RefData = m_Val.m_RefData;
   }
   return res;
 }
 
 bool TBRAnalyzer::findReq(const VarData& varData) {
+  assert(varData.m_Type != VarData::REF_TYPE &&
+         "references should be removed on the getIDSequence stage");
   if (varData.m_Type == VarData::FUND_TYPE)
     return varData.m_Val.m_FundData;
   if (varData.m_Type == VarData::OBJ_TYPE ||
@@ -71,130 +75,46 @@ bool TBRAnalyzer::findReq(const VarData& varData) {
     for (auto& pair : *varData.m_Val.m_ArrData)
       if (findReq(pair.second))
         return true;
-  } else if (varData.m_Type == VarData::REF_TYPE && varData.m_Val.m_RefData) {
-    if (auto* data = getExprVarData(varData.m_Val.m_RefData)) {
-      if (findReq(*data))
-        return true;
-    }
   }
   return false;
 }
 
-void TBRAnalyzer::overlay(VarData& targetData,
-                          llvm::SmallVector<ProfileID, 2>& IDSequence,
-                          size_t i) {
-  if (i == 0) {
-    setIsRequired(targetData);
-    return;
-  }
-  --i;
-  ProfileID& curID = IDSequence[i];
-  // non-constant indices are represented with default ID.
-  ProfileID nonConstIdxID;
-  if (curID == nonConstIdxID)
-    for (auto& pair : *targetData.m_Val.m_ArrData)
-      overlay(pair.second, IDSequence, i);
-  else
-    overlay((*targetData.m_Val.m_ArrData)[curID], IDSequence, i);
-}
-
-TBRAnalyzer::VarData* TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME,
-                                                    bool addNonConstIdx) {
-  if (const auto* FD = dyn_cast<FieldDecl>(ME->getMemberDecl())) {
-    const auto* base = ME->getBase();
-    VarData* baseData = getExprVarData(base);
-
-    if (!baseData)
-      return nullptr;
-
-    // if non-const index was found and it is not supposed to be added just
-    // return the current VarData*.
-    if (m_NonConstIndexFound && !addNonConstIdx)
-      return baseData;
-
-    return &(*baseData->m_Val.m_ArrData)[getProfileID(FD)];
-  }
-  return nullptr;
-}
-
 TBRAnalyzer::VarData*
-TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
-                              bool addNonConstIdx) {
-  const auto* idxExpr = ASE->getIdx();
-  ProfileID idxID;
-  bool currentIdxIsNonConst = false;
-  if (const auto* IL = dyn_cast<IntegerLiteral>(idxExpr)) {
-    idxID = getProfileID(IL);
-  } else {
-    // Non-const indices are represented with default FoldingSetNodeID.
-    m_NonConstIndexFound = true;
-    currentIdxIsNonConst = true;
-  }
+TBRAnalyzer::VarData::operator[](const ProfileID& id) const {
+  assert((m_Type == VarData::ARR_TYPE || m_Type == VarData::OBJ_TYPE) &&
+         "attempted to get an element of a non-obj non-arr VarData");
+  auto& baseArrMap = *m_Val.m_ArrData;
+  auto foundElem = baseArrMap.find(id);
+  if (foundElem != baseArrMap.end())
+    return &foundElem->second;
 
-  const auto* base = ASE->getBase()->IgnoreImpCasts();
-  VarData* baseData = getExprVarData(base);
-
-  if (!baseData)
-    return nullptr;
-
-  // if non-const index was found and it is not supposed to be added just
-  // return the current VarData*.
-  if (currentIdxIsNonConst && !addNonConstIdx)
-    return nullptr;
-
-  auto* baseArrMap = baseData->m_Val.m_ArrData.get();
-  auto it = baseArrMap->find(idxID);
-
+  assert(m_Type != OBJ_TYPE &&
+         "all fields of obj-type VarData should be initialized");
+  // Non-const indices are represented with default FoldingSetNodeID.
+  ProfileID nonConstIdxID;
   // Add the current index if it was not added previously
-  if (it == baseArrMap->end()) {
-    auto& idxData = (*baseArrMap)[idxID];
-    // Since default ID represents non-const indices, whenever we add a new
-    // index we have to copy the VarData of default ID's element (if an element
-    // with undefined index was used this might be our current element).
-    ProfileID nonConstIdxID;
-    idxData = copy((*baseArrMap)[nonConstIdxID]);
-    return &idxData;
-  }
-
-  return &it->second;
+  auto& idxData = baseArrMap[id];
+  // Since default ID represents non-const indices, whenever we add a
+  // new index we have to copy the VarData of default ID's element.
+  idxData = baseArrMap[nonConstIdxID].copy();
+  return &idxData;
 }
 
-TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
-                                                  bool addNonConstIdx) {
-  // This line is necessary for pointer member expressions (in 'x->y' x would be
-  // implicitly casted with the * operator).
-  E = E->IgnoreImpCasts();
-  VarData* EData = nullptr;
-  if (isa<clang::DeclRefExpr>(E) || isa<clang::CXXThisExpr>(E)) {
-    const VarDecl* VD = nullptr;
-    // ``this`` does not have a declaration so it is represented with nullptr.
-    if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E))
-      VD = dyn_cast<clang::VarDecl>(DRE->getDecl());
-    auto* branch = &getCurBlockVarsData();
-    while (branch) {
-      auto it = branch->find(VD);
-      if (it != branch->end()) {
-        EData = &it->second;
-        break;
-      }
-      branch = branch->m_Prev;
-    }
-  }
-  if (const auto* ME = dyn_cast<clang::MemberExpr>(E))
-    EData = getMemberVarData(ME, addNonConstIdx);
-  if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E))
-    EData = getArrSubVarData(ASE, addNonConstIdx);
-
-  if (EData && EData->m_Type == VarData::REF_TYPE && EData->m_Val.m_RefData)
-    EData = getExprVarData(EData->m_Val.m_RefData);
-
-  return EData;
+TBRAnalyzer::VarData* TBRAnalyzer::getVarDataFromExpr(const clang::Expr* E) {
+  llvm::SmallVector<ProfileID, 2> IDSequence;
+  const VarDecl* VD = getIDSequence(E, IDSequence);
+  VarData* data = getVarDataFromDecl(VD);
+  assert(data && "expression not found");
+  for (ProfileID& id : IDSequence)
+    data = (*data)[id];
+  return data;
 }
 
 TBRAnalyzer::VarData::VarData(QualType QT, const ASTContext& C,
                               bool forceNonRefType) {
   QT = QT.getDesugaredType(C);
-  if (forceNonRefType && QT->isReferenceType())
+  if ((forceNonRefType && QT->isLValueReferenceType()) ||
+      QT->isRValueReferenceType())
     QT = QT->getPointeeType();
 
   if (QT->isReferenceType()) {
@@ -225,15 +145,13 @@ TBRAnalyzer::VarData::VarData(QualType QT, const ASTContext& C,
     }
   }
 }
-
-void TBRAnalyzer::overlay(const clang::Expr* E) {
-  m_NonConstIndexFound = false;
-  llvm::SmallVector<ProfileID, 2> IDSequence;
-  const clang::DeclRefExpr* innermostDRE = nullptr;
-  bool cond = true;
+const VarDecl*
+TBRAnalyzer::getIDSequence(const clang::Expr* E,
+                           llvm::SmallVectorImpl<ProfileID>& IDSequence) {
+  const VarDecl* innerVD = nullptr;
   // Unwrap the given expression to a vector of indices and fields.
-  while (cond) {
-    E = E->IgnoreImplicit();
+  while (true) {
+    E = E->IgnoreCasts();
     if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
       if (const auto* IL = dyn_cast<clang::IntegerLiteral>(ASE->getIdx()))
         IDSequence.push_back(getProfileID(IL));
@@ -244,40 +162,90 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
       if (const auto* FD = dyn_cast<clang::FieldDecl>(ME->getMemberDecl()))
         IDSequence.push_back(getProfileID(FD));
       E = ME->getBase();
+      if (E->getType()->isPointerType())
+        IDSequence.push_back(ProfileID());
     } else if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E)) {
       const auto* VD = cast<VarDecl>(DRE->getDecl());
-      if (VD->getType()->isReferenceType()) {
-        VarData& refData = getCurBlockVarsData()[VD];
-        E = refData.m_Val.m_RefData;
-        continue;
+      if (VD->getType()->isLValueReferenceType()) {
+        VarData* refData = getVarDataFromDecl(VD);
+        if (refData->m_Type == VarData::REF_TYPE) {
+          E = refData->m_Val.m_RefData;
+          continue;
+        }
       }
-      innermostDRE = DRE;
-      cond = false;
-    } else
-      return;
+      innerVD = VD;
+      break;
+    } else if (isa<clang::CXXThisExpr>(E)) {
+      innerVD = nullptr;
+      break;
+    } else if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+      const auto opCode = UO->getOpcode();
+      // FIXME: Dereference corresponds to the 0's element,
+      // not an arbitrary element which is denoted be ProfileID().
+      // This is done because it's unclear how to get a 0 literal
+      // to generate the ProfileID.
+      if (opCode == UO_Deref)
+        IDSequence.push_back(ProfileID());
+      E = UO->getSubExpr();
+    } else {
+      assert(0 && "unexpected expression");
+      break;
+    }
+  }
+  // All id's were added in the reverse order, e.g. `arr[0].k` -> `k`, `0`.
+  // Reverse the sequence for easier handling.
+  std::reverse(IDSequence.begin(), IDSequence.end());
+  return innerVD;
+}
+
+void TBRAnalyzer::setIsRequired(VarData* data, bool isReq,
+                                llvm::MutableArrayRef<ProfileID> IDSequence) {
+  assert(data->m_Type != VarData::REF_TYPE &&
+         "references should be removed on the getIDSequence stage");
+  if (data->m_Type == VarData::UNDEFINED)
+    return;
+  if (data->m_Type == VarData::FUND_TYPE) {
+    data->m_Val.m_FundData = isReq;
+    return;
+  }
+  auto& baseArrMap = *data->m_Val.m_ArrData;
+  if (IDSequence.empty()) {
+    if (isReq)
+      for (auto& pair : baseArrMap)
+        setIsRequired(&pair.second, /*isReq=*/true, IDSequence);
+    return;
+  }
+  const ProfileID& curID = IDSequence[0];
+  if (data->m_Type == VarData::OBJ_TYPE) {
+    setIsRequired((*data)[curID], isReq, IDSequence.drop_front());
+    return;
   }
 
-  // Overlay on all the VarData's recursively.
-  VarData& data = *getExprVarData(innermostDRE, /*addNonConstIdx=*/true);
-  overlay(data, IDSequence, IDSequence.size());
+  // Arr type arrays are the only option left.
+  assert(data->m_Type == VarData::ARR_TYPE);
+  // All indices unknown in compile-time (like `arr[i]`) are represented with
+  // default FoldingSetNodeID. Note: if we're unsure if an index is used, we
+  // always assume it is for safety.
+  ProfileID nonConstIdxID;
+  if (curID == nonConstIdxID) {
+    // The fact that one unknown index is set to unused
+    // doesn't mean that all unknown indices should be.
+    if (!isReq)
+      return;
+    // If we set an unknown index to true, we have to do the same to all
+    // known indices for safety.
+    for (auto& pair : baseArrMap)
+      setIsRequired(&pair.second, /*isReq=*/true, IDSequence.drop_front());
+  } else {
+    setIsRequired((*data)[curID], isReq, IDSequence.drop_front());
+    // If we set any index to true, we have to also do it
+    // to the default index.
+    if (isReq)
+      setIsRequired((*data)[nonConstIdxID], /*isReq=*/true,
+                    IDSequence.drop_front());
+  }
 }
 // NOLINTEND(cppcoreguidelines-pro-type-union-access)
-
-void TBRAnalyzer::copyVarToCurBlock(const clang::VarDecl* VD) {
-  // Visit all predecessors one by one until the variable VD is found.
-  auto& curBranch = getCurBlockVarsData();
-  auto* pred = curBranch.m_Prev;
-  while (pred) {
-    auto it = pred->find(VD);
-    if (it != pred->end()) {
-      curBranch[VD] = copy(it->second);
-      return;
-    }
-    pred = pred->m_Prev;
-  }
-  // If this variable was not found in predecessors, add it.
-  addVar(VD);
-}
 
 void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
   auto& curBranch = getCurBlockVarsData();
@@ -287,6 +255,7 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
     varType = arrayParam->getOriginalType();
   else
     varType = VD->getType();
+
   // If varType represents auto or auto*, get the type of init.
   if (utils::IsAutoOrAutoPtrType(varType))
     varType = VD->getInit()->getType();
@@ -299,42 +268,58 @@ void TBRAnalyzer::markLocation(const clang::Expr* E) {
 }
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
+  llvm::SmallVector<ProfileID, 2> IDSequence;
+  const VarDecl* VD = getIDSequence(E, IDSequence);
+  // Make sure the current branch has a copy of VarDecl for VD
+  auto& curBranch = getCurBlockVarsData();
+  if (curBranch.find(VD) == curBranch.end()) {
+    if (VarData* data = getVarDataFromDecl(VD))
+      curBranch[VD] = data->copy();
+    else
+      // If this variable was not found in predecessors, add it.
+      addVar(VD);
+  }
+
   if (!isReq ||
       (m_ModeStack.back() == (Mode::kMarkingMode | Mode::kNonLinearMode))) {
-    VarData* data = getExprVarData(E, /*addNonConstIdx=*/isReq);
-    if (data && (isReq || !m_NonConstIndexFound))
-      setIsRequired(*data, isReq);
-    // If an array element with a non-const element is set to required all the
-    // elements of that array should be set to required.
-    if (isReq && m_NonConstIndexFound)
-      overlay(E);
-    m_NonConstIndexFound = false;
+    VarData* data = getVarDataFromDecl(VD);
+    setIsRequired(data, isReq, IDSequence);
   }
 }
 
-void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
-  // Build the CFG (control-flow graph) of FD.
-  clang::CFG::BuildOptions Options;
-  m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), &m_Context, Options);
+TBRAnalyzer::VarData*
+TBRAnalyzer::getVarDataFromDecl(const clang::VarDecl* VD) {
+  auto* branch = &getCurBlockVarsData();
+  while (branch) {
+    auto it = branch->find(VD);
+    if (it != branch->end())
+      return &it->second;
+    branch = branch->m_Prev;
+  }
+  return nullptr;
+}
 
-  m_BlockData.resize(m_CFG->size());
-  m_BlockPassCounter.resize(m_CFG->size(), 0);
+void TBRAnalyzer::Analyze(const DiffRequest& request) {
+  m_BlockData.resize(request.m_AnalysisDC->getCFG()->size());
+  m_BlockPassCounter.resize(request.m_AnalysisDC->getCFG()->size(), 0);
 
   // Set current block ID to the ID of entry the block.
-  auto* entry = &m_CFG->getEntry();
-  m_CurBlockID = entry->getBlockID();
+  CFGBlock& entry = request.m_AnalysisDC->getCFG()->getEntry();
+  m_CurBlockID = entry.getBlockID();
   m_BlockData[m_CurBlockID] = std::unique_ptr<VarsData>(new VarsData());
 
+  const FunctionDecl* FD = request.Function;
   // If we are analysing a non-static method, add a VarData for 'this' pointer
   // (it is represented with nullptr).
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
   if (MD && !MD->isStatic()) {
-    const Type* recordType = MD->getParent()->getTypeForDecl();
     VarData& thisData = getCurBlockVarsData()[nullptr];
-    thisData = VarData(QualType::getFromOpaquePtr(recordType), m_Context);
+    thisData = VarData(MD->getThisType(), m_Context);
     // We have to set all pointer/reference parameters to tbr
     // since method pullbacks aren't supposed to change objects.
-    setIsRequired(thisData);
+    // constructor pullbacks don't take `this` as a parameter
+    if (!isa<CXXConstructorDecl>(FD))
+      setIsRequired(&thisData);
   }
   auto paramsRef = FD->parameters();
   for (std::size_t i = 0; i < FD->getNumParams(); ++i)
@@ -348,13 +333,13 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
     m_CurBlockID = *IDIter;
     m_CFGQueue.erase(IDIter);
 
-    CFGBlock& nextBlock = *getCFGBlockByID(m_CurBlockID);
+    CFGBlock& nextBlock = *getCFGBlockByID(request.m_AnalysisDC, m_CurBlockID);
     VisitCFGBlock(nextBlock);
   }
 #ifndef NDEBUG
   for (int id = m_CurBlockID; id >= 0; --id) {
     LLVM_DEBUG(llvm::dbgs() << "\n-----BLOCK" << id << "-----\n\n");
-    for (auto succ : getCFGBlockByID(id)->succs())
+    for (auto succ : getCFGBlockByID(request.m_AnalysisDC, id)->succs())
       if (succ)
         LLVM_DEBUG(llvm::dbgs() << "successor: " << succ->getBlockID() << "\n");
   }
@@ -426,8 +411,8 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
   LLVM_DEBUG(llvm::dbgs() << "Leaving block " << block.getBlockID() << "\n");
 }
 
-CFGBlock* TBRAnalyzer::getCFGBlockByID(unsigned ID) {
-  return *(m_CFG->begin() + ID);
+CFGBlock* TBRAnalyzer::getCFGBlockByID(AnalysisDeclContext* ADC, unsigned ID) {
+  return *(ADC->getCFG()->begin() + ID);
 }
 
 TBRAnalyzer::VarsData*
@@ -511,7 +496,7 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
       while (branch) {
         auto it = branch->find(pair.first);
         if (it != branch->end()) {
-          (*targetData)[pair.first] = copy(it->second);
+          (*targetData)[pair.first] = it->second.copy();
           found = &(*targetData)[pair.first];
           break;
         }
@@ -526,7 +511,7 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
     if (found)
       merge(*found, *pair.second);
     else
-      (*targetData)[pair.first] = copy(*pair.second);
+      (*targetData)[pair.first] = pair.second->copy();
   }
 
   // For every variable in collected targetData predecessors, search it inside
@@ -544,7 +529,7 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
         while (branch) {
           auto it = branch->find(pair.first);
           if (it != branch->end()) {
-            (*targetData)[pair.first] = copy(*pair.second);
+            (*targetData)[pair.first] = pair.second->copy();
             merge((*targetData)[pair.first], it->second);
             break;
           }
@@ -573,41 +558,44 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
   }
 }
 
-bool TBRAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
-  if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-    auto& curBranch = getCurBlockVarsData();
-    if (curBranch.find(VD) == curBranch.end())
-      copyVarToCurBlock(VD);
-  }
-
+bool TBRAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
   setIsRequired(DRE);
-
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitDeclStmt(DeclStmt* DS) {
+bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
   for (auto* D : DS->decls()) {
     if (auto* VD = dyn_cast<VarDecl>(D)) {
       addVar(VD);
       if (clang::Expr* init = VD->getInit()) {
+
         setMode(Mode::kMarkingMode);
         TraverseStmt(init);
         resetMode();
+
         auto& VDExpr = getCurBlockVarsData()[VD];
         // if the declared variable is ref type attach its VarData to the
         // VarData of the RHS variable.
         llvm::SmallVector<Expr*, 4> ExprsToStore;
         utils::GetInnermostReturnExpr(init, ExprsToStore);
-        if (VDExpr.m_Type == VarData::REF_TYPE && !ExprsToStore.empty())
-          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-          VDExpr.m_Val.m_RefData = ExprsToStore[0];
+        if (VDExpr.m_Type == VarData::REF_TYPE) {
+          // We only consider references that point to one
+          // compile-time defined object.
+          if (ExprsToStore.size() == 1)
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+            VDExpr.m_Val.m_RefData = ExprsToStore[0];
+          else
+            // If we don't know what this points to, mark undefined.
+            // FIXME: we should mark all vars on the RHS undefined too.
+            VDExpr.m_Type = VarData::UNDEFINED;
+        }
       }
     }
   }
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitConditionalOperator(clang::ConditionalOperator* CO) {
+bool TBRAnalyzer::TraverseConditionalOperator(clang::ConditionalOperator* CO) {
   setMode(0);
   TraverseStmt(CO->getCond());
   resetMode();
@@ -623,10 +611,10 @@ bool TBRAnalyzer::VisitConditionalOperator(clang::ConditionalOperator* CO) {
   TraverseStmt(CO->getTrueExpr());
 
   merge(m_BlockData[m_CurBlockID].get(), thenBranch.get());
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
+bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
   const auto opCode = BinOp->getOpcode();
   Expr* L = BinOp->getLHS();
   Expr* R = BinOp->getRHS();
@@ -700,7 +688,7 @@ bool TBRAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
     for (const auto* innerExpr : ExprsToStore) {
       // If at least one of ExprsToStore has to be stored,
       // mark L as useful to store.
-      if (VarData* data = getExprVarData(innerExpr))
+      if (VarData* data = getVarDataFromExpr(innerExpr))
         hasToBeSetReq = hasToBeSetReq || findReq(*data);
       // Set them to not required to store because the values were changed.
       // (if some value was not changed, this could only happen if it was
@@ -719,10 +707,16 @@ bool TBRAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
   // else {
   // FIXME: add logic/bitwise/comparison operators
   // }
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitUnaryOperator(clang::UnaryOperator* UnOp) {
+bool TBRAnalyzer::TraverseCompoundAssignOperator(
+    clang::CompoundAssignOperator* BinOp) {
+  TBRAnalyzer::TraverseBinaryOperator(BinOp);
+  return false;
+}
+
+bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
   const auto opCode = UnOp->getOpcode();
   Expr* E = UnOp->getSubExpr();
   TraverseStmt(E);
@@ -736,7 +730,7 @@ bool TBRAnalyzer::VisitUnaryOperator(clang::UnaryOperator* UnOp) {
     for (const auto* innerExpr : ExprsToStore) {
       // If at least one of ExprsToStore has to be stored,
       // mark L as useful to store.
-      if (VarData* data = getExprVarData(innerExpr))
+      if (VarData* data = getVarDataFromExpr(innerExpr))
         if (findReq(*data)) {
           markLocation(E);
           break;
@@ -747,10 +741,10 @@ bool TBRAnalyzer::VisitUnaryOperator(clang::UnaryOperator* UnOp) {
   // expressions. However, it is not clear where the FieldDecls of real and
   // imaginary parts should be deduced from (their names might be
   // compiler-specific).  So for now we visit the whole subexpression.
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitCallExpr(clang::CallExpr* CE) {
+bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   // FIXME: Currently TBR analysis just stops here and assumes that all the
   // variables passed by value/reference are used/used and changed. Analysis
   // could proceed to the function to analyse data flow inside it.
@@ -783,10 +777,20 @@ bool TBRAnalyzer::VisitCallExpr(clang::CallExpr* CE) {
     }
   }
   resetMode();
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitCXXConstructExpr(clang::CXXConstructExpr* CE) {
+bool TBRAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
+  TBRAnalyzer::TraverseCallExpr(CE);
+  return false;
+}
+
+bool TBRAnalyzer::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE) {
+  TBRAnalyzer::TraverseCallExpr(CE);
+  return false;
+}
+
+bool TBRAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
   // FIXME: Currently TBR analysis just stops here and assumes that all the
   // variables passed by value/reference are used/used and changed. Analysis
   // could proceed to the constructor to analyse data flow inside it.
@@ -810,15 +814,15 @@ bool TBRAnalyzer::VisitCXXConstructExpr(clang::CXXConstructExpr* CE) {
     }
   }
   resetMode();
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitMemberExpr(clang::MemberExpr* ME) {
+bool TBRAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
   setIsRequired(ME);
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
+bool TBRAnalyzer::TraverseArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
   setMode(0);
   TraverseStmt(ASE->getBase());
   resetMode();
@@ -826,15 +830,15 @@ bool TBRAnalyzer::VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
   TraverseStmt(ASE->getIdx());
   resetMode();
-  return true;
+  return false;
 }
 
-bool TBRAnalyzer::VisitInitListExpr(clang::InitListExpr* ILE) {
+bool TBRAnalyzer::TraverseInitListExpr(clang::InitListExpr* ILE) {
   setMode(Mode::kMarkingMode);
   for (auto* init : ILE->inits())
     TraverseStmt(init);
   resetMode();
-  return true;
+  return false;
 }
 
 } // end namespace clad

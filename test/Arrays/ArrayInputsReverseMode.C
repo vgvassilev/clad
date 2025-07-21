@@ -546,10 +546,9 @@ double func9(double i, double j) {
 // CHECK-NEXT:         }
 //CHECK-NEXT:         --idx;
 //CHECK-NEXT:         {
-//CHECK-NEXT:             arr[idx] = clad::back(_t1);
+//CHECK-NEXT:             arr[idx] = clad::pop(_t1);
 //CHECK-NEXT:             double _r0 = 0.;
-//CHECK-NEXT:             modify_pullback(clad::back(_t1), i, &_d_arr[idx], &_r0);
-//CHECK-NEXT:             clad::pop(_t1);
+//CHECK-NEXT:             modify_pullback(arr[idx], i, &_d_arr[idx], &_r0);
 //CHECK-NEXT:             *_d_i += _r0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
@@ -610,9 +609,8 @@ double func10(double *arr, int n) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             res = clad::pop(_t1);
 //CHECK-NEXT:             double _r_d0 = _d_res;
-//CHECK-NEXT:             arr[i] = clad::back(_t2);
-//CHECK-NEXT:             sq_pullback(clad::back(_t2), _r_d0, &_d_arr[i]);
-//CHECK-NEXT:             clad::pop(_t2);
+//CHECK-NEXT:             arr[i] = clad::pop(_t2);
+//CHECK-NEXT:             sq_pullback(arr[i], _r_d0, &_d_arr[i]);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT: }

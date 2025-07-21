@@ -5,6 +5,7 @@
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
+#include <vector>
 
 #include "../TestUtils.h"
 
@@ -3260,6 +3261,67 @@ double fn41(double u, double v) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+struct tmp {
+  float z = 0;
+  tmp(float val) : z(val) {}
+  tmp() = default;
+  void operator+=(const tmp &other) {
+    z += other.z;
+  }
+  float forward(const float &x) const {
+    return x + z;
+  }
+};
+struct layer {
+  std::vector<tmp> w;
+  float forward(const float &inp) const {
+    float x = inp;
+    for (int i=0;i<w.size();i++) {
+      x = w[i].forward(x);
+    }
+    return x;
+  }
+};
+float fn42(const layer &l, float x) {
+  return l.forward(x);
+}
+//CHECK: void forward_pullback(const float &inp, float _d_y, layer *_d_this, float *_d_inp) const {
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    int i = 0;
+//CHECK-NEXT:    clad::tape<float> _t1 = {};
+//CHECK-NEXT:    float _d_x = 0.F;
+//CHECK-NEXT:    float x = inp;
+//CHECK-NEXT:    unsigned {{int|long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:    for (i = 0; ; i++) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            if (!(i < this->w.size()))
+//CHECK-NEXT:                break;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        _t0++;
+//CHECK-NEXT:        clad::push(_t1, x);
+//CHECK-NEXT:        x = this->w[i].forward(x);
+//CHECK-NEXT:    }
+//CHECK-NEXT:    _d_x += _d_y;
+//CHECK-NEXT:    for (;; _t0--) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            if (!_t0)
+//CHECK-NEXT:                break;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        i--;
+//CHECK-NEXT:        {
+//CHECK-NEXT:            x = clad::pop(_t1);
+//CHECK-NEXT:            float _r_d0 = _d_x;
+//CHECK-NEXT:            _d_x = 0.F;
+//CHECK-NEXT:            this->w[i].forward_pullback(x, _r_d0, &_d_this->w[i], &_d_x);
+//CHECK-NEXT:            size_type _r0 = {{0U|0UL}};
+//CHECK-NEXT:            this->w.operator_subscript_pullback(i, {}, &_d_this->w, &_r0);
+//CHECK-NEXT:            _d_i += _r0;
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:    *_d_inp += _d_x;
+//CHECK-NEXT:}
+
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient(F);\
@@ -3352,4 +3414,11 @@ int main() {
   TEST(fn39, 9); // CHECK-EXEC: {6.00}
   TEST_2(fn40, 2, 3); // CHECK-EXEC: {14.00, 0.00}
   TEST_2(fn41, 2, 3); // CHECK-EXEC: {1.00, 0.00}
+  
+  auto d_fn42 = clad::gradient(fn42, "0");
+  float x_ = 2.0f;
+  layer l{ .w = {{3}, {4}, {5}, {6}}};
+  layer d_l{ .w = {{0}, {0}, {0}, {0}}};
+  d_fn42.execute(l, x_, &d_l);
+  printf("{%.2f, %.2f, %.2f, %.2f}", d_l.w[0].z, d_l.w[1].z, d_l.w[2].z, d_l.w[3].z); // CHECK-EXEC: {1.00, 1.00, 1.00, 1.00}
 }

@@ -6,8 +6,10 @@
 #include <clad/Differentiator/BuiltinDerivatives.h>
 #include <clad/Differentiator/FunctionTraits.h>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 namespace clad {
@@ -26,6 +28,49 @@ template <class T> void zero_init(typename std::allocator<T>&) {
 }
 
 namespace custom_derivatives {
+
+namespace helpers {
+template <typename From, typename To> class is_implicitly_convertible {
+private:
+  static void test(To);
+
+  template <typename F, typename = decltype(test(::std::declval<F>()))>
+  static ::std::true_type try_convert(int);
+
+  template <typename> static ::std::false_type try_convert(...);
+
+public:
+  static constexpr bool value = decltype(try_convert<From>(0))::value;
+};
+template <class T, typename U = void> struct is_iterator : ::std::false_type {};
+
+template <class T>
+struct is_iterator<
+    T, typename ::std::enable_if<!::std::is_same<
+           typename ::std::iterator_traits<T>::value_type, void>::value>::type>
+    : ::std::true_type {
+  using type = bool;
+};
+
+template <typename T, typename = void>
+struct is_std_smart_ptr : ::std::false_type {};
+
+template <typename T>
+struct is_std_smart_ptr<::std::unique_ptr<T>> : ::std::true_type {};
+
+template <typename T>
+struct is_std_smart_ptr<::std::weak_ptr<T>> : ::std::true_type {};
+
+// Some systems have a common base class for std::weak_ptr and std::shared_ptr,
+// so we also accept types, to which std::shared_ptr can be converted
+// implicitly.
+template <typename U>
+struct is_std_smart_ptr<
+    U, ::std::enable_if_t<is_implicitly_convertible<
+           ::std::shared_ptr<typename U::element_type>, U>::value>>
+    : ::std::true_type {};
+} // namespace helpers
+
 namespace class_functions {
 
 // vector forward mode
@@ -664,17 +709,116 @@ constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::unique_ptr<T>>,
 }
 
 template <typename T>
-clad::ValueAndAdjoint<T&, T&>
-operator_star_reverse_forw(::std::unique_ptr<T>* u, ::std::unique_ptr<T>* d_u) {
+void constructor_pullback(T* p, ::std::unique_ptr<T>* dthis, T* dp) noexcept {};
+
+// operator* custom derivatives
+template <typename T>
+clad::ValueAndAdjoint<decltype(*(T{}))&, decltype(*(T{}))&>
+operator_star_reverse_forw(
+    const ::std::enable_if_t<helpers::is_std_smart_ptr<T>::value ||
+                                 helpers::is_iterator<T>::value,
+                             T>* u,
+    const T* d_u) {
   return {**u, **d_u};
 }
 
 template <typename T, typename U>
-void operator_star_pullback(const ::std::unique_ptr<T>* u, U pullback,
-                            ::std::unique_ptr<T>* d_u) {
+::std::enable_if_t<(helpers::is_std_smart_ptr<T>::value ||
+                    helpers::is_iterator<T>::value) &&
+                       ::std::is_arithmetic<U>::value,
+                   void>
+operator_star_pullback(const T* u, U pullback, T* d_u) {
   **d_u += pullback;
 }
 
+// iterator custom derivatives
+template <
+    typename It,
+    typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
+clad::ValueAndAdjoint<It, It>
+constructor_reverse_forw(clad::ConstructorReverseForwTag<It>, It it, It d_it) {
+  return {It{it}, It{d_it}};
+}
+
+template <
+    typename It,
+    typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
+clad::ValueAndAdjoint<It, It> operator_plus_plus_reverse_forw(It* it,
+                                                              It* d_it) {
+  return {++*it, ++*d_it};
+}
+
+template <
+    typename It,
+    typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
+void operator_plus_plus_pullback(It* it, It pullback, It* d_it) {
+  --*it;
+  --*d_it;
+}
+
+template <
+    typename It,
+    typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
+clad::ValueAndAdjoint<It, It> operator_plus_plus_reverse_forw(It* it, int,
+                                                              It* d_it, int) {
+  return {++*it, ++*d_it};
+}
+
+template <
+    typename It,
+    typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
+void operator_plus_plus_pullback(It* it, int, It pullback, It* d_it, int*) {
+  --*it;
+  --*d_it;
+}
+
+// std::shared_ptr<T> custom derivatives...
+template <typename T>
+clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
+constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::shared_ptr<T>>,
+                         const ::std::shared_ptr<T>& p,
+                         const ::std::shared_ptr<T>& d_p) {
+  return {::std::shared_ptr<T>(p), ::std::shared_ptr<T>(d_p)};
+}
+
+template <typename T>
+void constructor_pullback(::std::shared_ptr<T>&& p, ::std::shared_ptr<T>* dthis,
+                          ::std::shared_ptr<T>* dp) noexcept {}
+
+template <typename T>
+void constructor_pullback(const ::std::shared_ptr<T>& p,
+                          ::std::shared_ptr<T>* dthis,
+                          ::std::shared_ptr<T>* dp) noexcept {}
+
+template <typename T, typename U>
+void constructor_pullback(const ::std::shared_ptr<T>& p, U*,
+                          ::std::weak_ptr<T>* dthis, ::std::shared_ptr<T>* dp,
+                          U*) noexcept {}
+
+// std::weak_ptr<T> custom derivatives...
+template <typename T, typename U>
+clad::ValueAndAdjoint<::std::weak_ptr<T>, ::std::weak_ptr<T>>
+constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::weak_ptr<T>>,
+                         U p, U d_p) {
+  return {::std::weak_ptr<T>(p), ::std::weak_ptr<T>(d_p)};
+}
+template <typename T, typename U>
+void constructor_pullback(U&& p, ::std::weak_ptr<T>* dthis, U* dp) noexcept {}
+
+template <typename T, typename U>
+void constructor_pullback(const U& p, ::std::weak_ptr<T>* dthis,
+                          U* dp) noexcept {}
+
+template <typename T>
+clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
+lock_reverse_forw(const ::std::weak_ptr<T>* p,
+                  const ::std::weak_ptr<T>* dp) noexcept {
+  return {p->lock(), dp->lock()};
+}
+
+template <typename T>
+void lock_pullback(const ::std::weak_ptr<T>* p, ::std::shared_ptr<T> dthis,
+                   ::std::weak_ptr<T>* dp) noexcept {}
 } // namespace class_functions
 
 namespace std {
@@ -741,6 +885,18 @@ template <typename... Args> auto make_tuple_pushforward(Args... args) noexcept {
   ::std::tuple<Args...> t = ::std::make_tuple(args...);
   return clad::make_value_and_pushforward(first_half_tuple(t),
                                           second_half_tuple(t));
+}
+
+// std::make_shared<T> custom derivatives...
+template <typename T>
+clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
+make_shared_reverse_forw(T& x, T& dx) {
+  return {::std::make_shared<T>(x), ::std::make_shared<T>(dx)};
+}
+
+template <typename T>
+void make_shared_pullback(T& x, ::std::shared_ptr<T> dthis, T* dx) {
+  *dx += *dthis;
 }
 
 } // namespace std

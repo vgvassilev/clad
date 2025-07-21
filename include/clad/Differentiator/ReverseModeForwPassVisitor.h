@@ -37,7 +37,6 @@ public:
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS) override;
   StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
-  StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp) override;
 };
 } // namespace clad
 

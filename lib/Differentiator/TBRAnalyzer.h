@@ -1,11 +1,17 @@
 #ifndef CLAD_DIFFERENTIATOR_TBRANALYZER_H
 #define CLAD_DIFFERENTIATOR_TBRANALYZER_H
 
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
+
+#include "llvm/ADT/ArrayRef.h"
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DiffPlanner.h"
 
 #include <map>
 #include <unordered_map>
@@ -29,7 +35,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
   ProfileID getProfileID(const Expr* E) const {
     ProfileID profID;
-    E->Profile(profID, m_Context, /* Canonical */ true);
+    E->Profile(profID, m_Context, /*Canonical=*/true);
     return profID;
   }
 
@@ -108,19 +114,23 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
       if (m_Type == OBJ_TYPE || m_Type == ARR_TYPE)
         m_Val.m_ArrData.reset();
     }
+
+    /// Used to recursively copy VarData when separating into different branches
+    /// (e.g. when entering an if-else statements). Look at the Control Flow
+    /// section for more information.
+    [[nodiscard]] VarData copy() const;
+    /// Provides access to the nested VarData if the given VarData represents
+    /// an array or a structure. Generates new array elements if necessary.
+    VarData* operator[](const ProfileID& id) const;
   };
   // NOLINTEND(cppcoreguidelines-pro-type-union-access)
 
-  /// Recursively sets all the leaves' bools to isReq.
-  void setIsRequired(VarData& varData, bool isReq = true);
-  /// Whenever an array element with a non-constant index is set to required
-  /// this function is used to set to required all the array elements that
-  /// could match that element (e.g. set 'a[1].y' and 'a[6].y' to required
-  /// when 'a[k].y' is set to required). Takes unwrapped sequence of
-  /// indices/members of the expression being overlaid and the index of of the
-  /// current index/member.
-  void overlay(VarData& targetData, llvm::SmallVector<ProfileID, 2>& IDSequence,
-               size_t i);
+  /// For a compound lvalue expr, generates a sequence of ProfileID's of it's
+  /// indices/fields and returns the VarDecl of the base, e.g.
+  /// ``arr[k].y`` --> returns `arr`, IDSequence = `{k, y}`.
+  const clang::VarDecl*
+  getIDSequence(const clang::Expr* E,
+                llvm::SmallVectorImpl<ProfileID>& IDSequence);
   /// Returns true if there is at least one required to store node among
   /// child nodes.
   bool findReq(const VarData& varData);
@@ -128,34 +138,19 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// (e.g. after an if-else statements). Look at the Control Flow section for
   /// more information.
   void merge(VarData& targetData, VarData& mergeData);
-  /// Used to recursively copy VarData when separating into different branches
-  /// (e.g. when entering an if-else statements). Look at the Control Flow
-  /// section for more information.
-  VarData copy(VarData& copyData);
 
-  clang::CFGBlock* getCFGBlockByID(unsigned ID);
+  static clang::CFGBlock* getCFGBlockByID(clang::AnalysisDeclContext* ADC,
+                                          unsigned ID);
 
-  /// Given a MemberExpr*/ArraySubscriptExpr* return a pointer to its
-  /// corresponding VarData. If the given element of an array does not have a
-  /// VarData yet it will be added automatically. If addNonConstIdx==false this
-  /// will return the last VarData before the non-constant index
-  /// (e.g. for 'x.arr[k+1].y' the return value will be the VarData of x.arr).
-  /// Otherwise, non-const indices will be represented as index -1.
-  VarData* getMemberVarData(const clang::MemberExpr* ME,
-                            bool addNonConstIdx = false);
-  VarData* getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
-                            bool addNonConstIdx = false);
-  /// Given an Expr* returns its corresponding VarData.
-  VarData* getExprVarData(const clang::Expr* E, bool addNonConstIdx = false);
-
-  /// Whenever an array element with a non-constant index is set to required
-  /// this function is used to set to required all the array elements that
-  /// could match that element (e.g. set 'a[1].y' and 'a[6].y' to required when
-  /// 'a[k].y' is set to required). Unwraps the a given expression into a
-  /// sequence of indices/members of the expression being overlaid and calls
-  /// VarData::overlay() recursively.
-  void overlay(const clang::Expr* E);
-
+  /// Given an Expr* returns its corresponding VarData. If the given element of
+  /// an array does not have a VarData yet it will be added automatically.
+  VarData* getVarDataFromExpr(const clang::Expr* E);
+  /// Finds VD in the most recent block.
+  VarData* getVarDataFromDecl(const clang::VarDecl* VD);
+  // A helper function that recursively sets all nodes to the requested value of
+  // isReq.
+  void setIsRequired(VarData* targetData, bool isReq = true,
+                     llvm::MutableArrayRef<ProfileID> IDSequence = {});
   /// Used to store all the necessary information about variables at a
   /// particular moment.
   /// Note: the VarsData of one CFG block only stores information specific
@@ -229,11 +224,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// a new one).
   std::vector<int> m_ModeStack;
 
-  ASTContext& m_Context;
-
-  /// clang::CFG of the function being analysed.
-  std::unique_ptr<clang::CFG> m_CFG;
-
+  clang::ASTContext& m_Context;
   /// Stores VarsData structures for CFG blocks (the indices in
   /// the vector correspond to CFG blocks' IDs)
   std::vector<std::unique_ptr<VarsData>> m_BlockData;
@@ -247,17 +238,9 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// The set of IDs of the CFG blocks that should be visited.
   std::set<unsigned> m_CFGQueue;
 
-  /// Set to true when a non-const index is found while analysing an
-  /// array subscript expression.
-  bool m_NonConstIndexFound = false;
-
   //// Setters
   /// Creates VarData for a new VarDecl*.
   void addVar(const clang::VarDecl* VD, bool forceNonRefType = false);
-  /// Makes a copy of the VarData corresponding to VD
-  /// to the current block from the lowest predecessor
-  /// where VD is present.
-  void copyVarToCurBlock(const clang::VarDecl* VD);
   /// Marks the SourceLocation of E if it is required to store.
   /// E could be DeclRefExpr*, ArraySubscriptExpr* or MemberExpr*.
   void markLocation(const clang::Expr* E);
@@ -286,8 +269,9 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
 public:
   /// Constructor
-  TBRAnalyzer(ASTContext& Context, std::set<clang::SourceLocation>& Locs)
-      : m_TBRLocs(Locs), m_Context(Context) {
+  TBRAnalyzer(clang::AnalysisDeclContext* AnalysisDC,
+              std::set<clang::SourceLocation>& Locs)
+      : m_TBRLocs(Locs), m_Context(AnalysisDC->getASTContext()) {
     m_ModeStack.push_back(0);
   }
 
@@ -301,20 +285,23 @@ public:
   TBRAnalyzer& operator=(const TBRAnalyzer&&) = delete;
 
   /// Visitors
-  void Analyze(const clang::FunctionDecl* FD);
+  void Analyze(const DiffRequest& request);
 
   void VisitCFGBlock(const clang::CFGBlock& block);
 
-  bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE);
-  bool VisitBinaryOperator(clang::BinaryOperator* BinOp);
-  bool VisitCallExpr(clang::CallExpr* CE);
-  bool VisitConditionalOperator(clang::ConditionalOperator* CO);
-  bool VisitCXXConstructExpr(clang::CXXConstructExpr* CE);
-  bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
-  bool VisitDeclStmt(clang::DeclStmt* DS);
-  bool VisitInitListExpr(clang::InitListExpr* ILE);
-  bool VisitMemberExpr(clang::MemberExpr* ME);
-  bool VisitUnaryOperator(clang::UnaryOperator* UnOp);
+  bool TraverseArraySubscriptExpr(clang::ArraySubscriptExpr* ASE);
+  bool TraverseBinaryOperator(clang::BinaryOperator* BinOp);
+  bool TraverseCallExpr(clang::CallExpr* CE);
+  bool TraverseConditionalOperator(clang::ConditionalOperator* CO);
+  bool TraverseCompoundAssignOperator(clang::CompoundAssignOperator* BinOp);
+  bool TraverseCXXConstructExpr(clang::CXXConstructExpr* CE);
+  bool TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE);
+  bool TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE);
+  bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE);
+  bool TraverseDeclStmt(clang::DeclStmt* DS);
+  bool TraverseInitListExpr(clang::InitListExpr* ILE);
+  bool TraverseMemberExpr(clang::MemberExpr* ME);
+  bool TraverseUnaryOperator(clang::UnaryOperator* UnOp);
 };
 
 } // end namespace clad

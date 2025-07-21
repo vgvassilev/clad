@@ -11,18 +11,18 @@
 // CHECK_TIMING_ENV: Clad AST Generation Timing Report
 // CHECK_TIMING_ENV: TBR func
 // CHECK_STATS: *** INFORMATION ABOUT THE DIFF REQUESTS
-// CHECK_STATS-NEXT: <double nested1(double c)>[name=nested1, order=1, mode=pushforward, args='']: #0 (source), (done)
-// CHECK_STATS-NEXT: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"']: #1 (source), (done)
-// CHECK_STATS-NEXT: <double nested2(double z, double j)>[name=nested2, order=1, mode=pullback, args='z,j']: #2 (source), (done)
-// CHECK_STATS-NEXT: <double test2(double a, double b)>[name=test2, order=1, mode=reverse, args='']: #3 (source), (done)
-// CHECK_STATS-NEXT: <double addArrImpl(double *arr)>[name=addArrImpl, order=1, mode=pullback, args='arr']: #4 (source), (done)
-// CHECK_STATS-NEXT: <double addArr(double *arr)>[name=addArr, order=1, mode=reverse, args='"arr[0:1]"']: #5 (source), (done)
-// CHECK_STATS-NEXT: <float func(float *a)>[name=func, order=1, mode=reverse, args='']: #6 (source), (done)
-// CHECK_STATS-NEXT: <double g = 3.1400000000000001>[name=, order=1, mode=unknown, args='']: #7 (source), (done)
-// CHECK_STATS-NEXT: <double global_fn(double x)>[name=global_fn, order=1, mode=reverse, args='']: #8 (source), (done)
-// CHECK_STATS-NEXT: <constexpr double constexpr_fn(double x, double y)>[name=constexpr_fn, order=1, mode=reverse, args='']: #9 (source), (done)
+// CHECK_STATS-NEXT: <double nested1(double c)>[name=nested1, order=1, mode=pushforward, args='']: #0 (source), (unprocessed)
+// CHECK_STATS-NEXT: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"']: #1 (source), (unprocessed)
+// CHECK_STATS-NEXT: <double nested2(double z, double j)>[name=nested2, order=1, mode=pullback, args='z,j']: #2 (source), (unprocessed)
+// CHECK_STATS-NEXT: <double test2(double a, double b)>[name=test2, order=1, mode=reverse, args='']: #3 (source), (unprocessed)
+// CHECK_STATS-NEXT: <double addArrImpl(double *arr)>[name=addArrImpl, order=1, mode=pullback, args='arr']: #4 (source), (unprocessed)
+// CHECK_STATS-NEXT: <double addArr(double *arr)>[name=addArr, order=1, mode=reverse, args='"arr[0:1]"']: #5 (source), (unprocessed)
+// CHECK_STATS-NEXT: <float func(float *a)>[name=func, order=1, mode=reverse, args='']: #6 (source), (unprocessed)
+// CHECK_STATS-NEXT: <double g = 3.1400000000000001>[name=, order=1, mode=unknown, args='']: #7 (source), (unprocessed)
+// CHECK_STATS-NEXT: <double global_fn(double x)>[name=global_fn, order=1, mode=reverse, args='']: #8 (source), (unprocessed)
+// CHECK_STATS-NEXT: <constexpr double constexpr_fn(double x, double y)>[name=constexpr_fn, order=1, mode=reverse, args='']: #9 (source), (unprocessed)
 
-// CHECK_STATS_TBR: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"', tbr]: #1 (source), (done)
+// CHECK_STATS_TBR: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"', tbr]: #1 (source), (unprocessed)
 
 #ifdef GLOBAL
 double g = 3.14; // expected-warning {{The gradient utilizes a global variable 'g'}}

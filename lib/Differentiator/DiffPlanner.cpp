@@ -14,13 +14,14 @@
 #include "clad/Differentiator/Timers.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTLambda.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Analysis/CallGraph.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
@@ -31,6 +32,7 @@
 #include "clang/Sema/TemplateDeduction.h"
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -272,9 +274,10 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
-                               clang::Sema& S, RequestOptions& opts)
-      : m_Interval(Interval), m_DiffRequestGraph(requestGraph), m_Sema(S),
-        m_Options(opts) {
+                               clang::Sema& S, RequestOptions& opts,
+                               OwnedAnalysisContexts& AllAnalysisDC)
+      : m_Interval(Interval), m_DiffRequestGraph(requestGraph),
+        m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {
 
     if (Interval.empty())
       return;
@@ -647,13 +650,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (E->getType()->isPointerType())
       return true;
 
-    if (!m_TbrRunInfo.HasAnalysisRun) {
+    if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function) &&
+        Function->isDefined()) {
       TimedAnalysisRegion R("TBR " + BaseFunctionName);
-
-      TBRAnalyzer analyzer(Function->getASTContext(),
-                           m_TbrRunInfo.ToBeRecorded);
-      analyzer.Analyze(Function);
-      m_TbrRunInfo.HasAnalysisRun = true;
+      TBRAnalyzer analyzer(m_AnalysisDC, getToBeRecorded());
+      analyzer.Analyze(*this);
     }
     auto found = m_TbrRunInfo.ToBeRecorded.find(E->getBeginLoc());
     return found != m_TbrRunInfo.ToBeRecorded.end();
@@ -933,7 +934,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
   }
 
   static Expr* getOverloadExpr(clang::Sema& S, const std::string& Name,
-                               DeclContext* DC, QualType DerivativeType) {
+                               DeclContext* DC, QualType DerivativeType,
+                               const Expr* callSite, bool enableDiagnostics) {
     IdentifierInfo* II = &S.getASTContext().Idents.get(Name);
     DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(S));
     LookupResult Found(S, DNInfo, Sema::LookupOrdinaryName);
@@ -976,6 +978,32 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (overloadFound) {
       CXXScopeSpec SS;
       return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
+    }
+    // If custom derivatives were found but the type didn't match,
+    // perform diagnostics.
+    if (!Found.empty() && enableDiagnostics) {
+      auto warnId = S.Diags.getCustomDiagID(
+          DiagnosticsEngine::Warning,
+          "A custom derivative for '%0' was found but not used "
+          "because its signature does not match the expected signature '%1'");
+      S.Diag(callSite->getBeginLoc(), warnId)
+          << Name << DerivativeType.getAsString();
+
+      for (NamedDecl* candidate : Found) {
+        if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
+          candidate = usingShadow->getTargetDecl();
+        QualType fnType;
+        if (auto* FD = dyn_cast<FunctionDecl>(candidate))
+          fnType = FD->getType();
+        else if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate))
+          fnType = FTD->getTemplatedDecl()->getType();
+        if (!fnType.isNull()) {
+          auto noteId = S.Diags.getCustomDiagID(
+              DiagnosticsEngine::Note, "Candidate not viable: cannot match the "
+                                       "requested signature with '%0'");
+          S.Diag(candidate->getLocation(), noteId) << fnType.getAsString();
+        }
+      }
     }
     return nullptr;
   }
@@ -1026,11 +1054,18 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     QualType DerivativeType =
         utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
                                  diffParams, /*moveBaseToParams=*/true);
-
-    Expr* overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType);
+    // We disable diagnostics for methods and operators because they often have
+    // ideantical names: `constructor_pullback`, `operator_star_pushforward`,
+    // etc. If we turn it on, every such operator will trigger diagnostics
+    // because of our STL and Kokkos custom derivatives.
+    bool enableDiagnostics = !isa<CXXMethodDecl>(request.Function) &&
+                             !request->isOverloadedOperator();
+    Expr* overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType, callSite,
+                                     enableDiagnostics);
     if (!overload && request.Mode == DiffMode::vector_pushforward) {
       Name = request.BaseFunctionName + "_pushforward";
-      overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType);
+      overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType, callSite,
+                                 enableDiagnostics);
     }
 
     if (overload) {
@@ -1212,22 +1247,42 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
 
+    QualType returnType = FD->getReturnType();
+    bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
+                         returnType->isPointerType();
+    if (request.Mode == DiffMode::pullback ||
+        request.Mode == DiffMode::reverse) {
+      DiffRequest forwPassRequest = request;
+      forwPassRequest.DVI.clear();
+      forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
+      forwPassRequest.EnableTBRAnalysis = false;
+      forwPassRequest.EnableVariedAnalysis = false;
+      forwPassRequest.EnableUsefulAnalysis = false;
+      if (LookupCustomDerivativeDecl(forwPassRequest) || needsForwPass)
+        m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+    }
+
     if (!LookupCustomDerivativeDecl(request)) {
-      if (m_TopMostReq->EnableVariedAnalysis &&
-          m_TopMostReq->Mode == DiffMode::reverse) {
+      clang::CFG::BuildOptions Options;
+      std::unique_ptr<AnalysisDeclContext> AnalysisDC =
+          std::make_unique<AnalysisDeclContext>(
+              /*AnalysisDeclContextManager=*/nullptr, request.Function,
+              Options);
+
+      if (m_TopMostReq->EnableVariedAnalysis) {
         TimedAnalysisRegion R("VA " + request.BaseFunctionName);
-        VariedAnalyzer analyzer(request.Function->getASTContext(),
-                                request.getVariedDecls());
+        VariedAnalyzer analyzer(AnalysisDC.get(), request.getVariedDecls());
         analyzer.Analyze(request.Function);
       }
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
         TimedAnalysisRegion R("UA " + request.BaseFunctionName);
-
-        UsefulAnalyzer analyzer(request.Function->getASTContext(),
-                                request.getUsefulDecls());
+        UsefulAnalyzer analyzer(AnalysisDC.get(), request.getUsefulDecls());
         analyzer.Analyze(request.Function);
       }
+
+      m_AllAnalysisDC.push_back(std::move(AnalysisDC));
+      request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
@@ -1313,9 +1368,14 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return true;
 
     if (!LookupCustomDerivativeDecl(request)) {
-      // FIXME: For now, only linear constructors are supported.
-      if (!utils::isLinearConstructor(CD, m_Sema.getASTContext()))
-        return true;
+      clang::CFG::BuildOptions Options;
+      std::unique_ptr<AnalysisDeclContext> AnalysisDC =
+          std::make_unique<AnalysisDeclContext>(
+              /*AnalysisDeclContextManager=*/nullptr, request.Function,
+              Options);
+      // FIXME: Add proper support for objects in VA and UA.
+      m_AllAnalysisDC.push_back(std::move(AnalysisDC));
+      request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);

@@ -27,7 +27,8 @@ int main() {
   df.dump();
 
   // Calculate the error
-  float dx, dy; 
-  double error;
+  float dx = 0, dy = 0;
+  double error = 0;
   df.execute(2, 3, &dx, &dy, error);
+  printf("Total error=%f\n", error);
 }

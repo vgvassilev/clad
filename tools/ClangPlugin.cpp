@@ -154,7 +154,7 @@ void InitTimers();
           auto* FD = cast<FunctionDecl>(D);
           if (FD->isConstexpr() || !m_Multiplexer) {
             DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph,
-                                    S, opts);
+                                    S, opts, m_AllAnalysisDC);
             break;
           }
         }
@@ -511,9 +511,15 @@ void InitTimers();
             if (FD->isConstexpr())
               continue;
           DiffCollector collector(DCI.m_DGR, CladEnabledRange,
-                                  m_DiffRequestGraph, S, opts);
+                                  m_DiffRequestGraph, S, opts, m_AllAnalysisDC);
           break;
         }
+
+      if (m_CI.getFrontendOpts().ShowStats) {
+        // Print the graph of the diff requests.
+        llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
+        m_DiffRequestGraph.dump();
+      }
 
       FinalizeTranslationUnit();
       SendToMultiplexer();
@@ -575,10 +581,6 @@ void InitTimers();
         }
         llvm::errs() << "\n";
       }
-
-      // Print the graph of the diff requests.
-      llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
-      m_DiffRequestGraph.dump();
 
       m_Multiplexer->PrintStats();
     }

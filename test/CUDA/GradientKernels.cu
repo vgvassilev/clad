@@ -70,14 +70,12 @@ __global__ void add_kernel_3(int *out, int *in) {
 }
 
 // CHECK:    void add_kernel_3_grad(int *out, int *in, int *_d_out, int *_d_in) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
 //CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    int _t2 = out[index0];
+//CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
+//CHECK-NEXT:    int _t0 = out[index0];
 //CHECK-NEXT:    out[index0] += in[index0];
 //CHECK-NEXT:    {
-//CHECK-NEXT:        out[index0] = _t2;
+//CHECK-NEXT:        out[index0] = _t0;
 //CHECK-NEXT:        int _r_d0 = _d_out[index0];
 //CHECK-NEXT:        atomicAdd(&_d_in[index0], _r_d0);
 //CHECK-NEXT:    }
@@ -97,65 +95,63 @@ __global__ void add_kernel_4(int *out, int *in, int N) {
 }
 
 // CHECK: void add_kernel_4_grad_0_1(int *out, int *in, int N, int *_d_out, int *_d_in) {
-//CHECK-NEXT:    int _d_N = 0;
-//CHECK-NEXT:    bool _cond0;
-//CHECK-NEXT:    int _d_sum = 0;
-//CHECK-NEXT:    int sum = 0;
-//CHECK-NEXT:    unsigned long _t2;
-//CHECK-NEXT:    int _d_i = 0;
-//CHECK-NEXT:    int i = 0;
-//CHECK-NEXT:    clad::tape<int> _t3 = {};
-//CHECK-NEXT:    clad::tape<int> _t4 = {};
-//CHECK-NEXT:    int _t5;
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        _cond0 = index0 < N;
-//CHECK-NEXT:        if (_cond0) {
-//CHECK-NEXT:            sum = 0;
-//CHECK-NEXT:            _t2 = 0UL;
-//CHECK-NEXT:            for (i = index0; ; clad::push(_t3, i) , (i += warpSize)) {
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    if (!(i < N))
-//CHECK-NEXT:                        break;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                _t2++;
-//CHECK-NEXT:                clad::push(_t4, sum);
-//CHECK-NEXT:                sum += in[i];
-//CHECK-NEXT:            }
-//CHECK-NEXT:            _t5 = out[index0];
-//CHECK-NEXT:            out[index0] = sum;
-//CHECK-NEXT:        }
-//CHECK-NEXT:    }
-//CHECK-NEXT:    if (_cond0) {
-//CHECK-NEXT:        {
-//CHECK-NEXT:            out[index0] = _t5;
-//CHECK-NEXT:            int _r_d2 = _d_out[index0];
-//CHECK-NEXT:            _d_out[index0] = 0;
-//CHECK-NEXT:            _d_sum += _r_d2;
-//CHECK-NEXT:        }
-//CHECK-NEXT:        {
-//CHECK-NEXT:            for (;; _t2--) {
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    if (!_t2)
-//CHECK-NEXT:                        break;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    i = clad::pop(_t3);
-//CHECK-NEXT:                    int _r_d0 = _d_i;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    sum = clad::pop(_t4);
-//CHECK-NEXT:                    int _r_d1 = _d_sum;
-//CHECK-NEXT:                    atomicAdd(&_d_in[i], _r_d1);
-//CHECK-NEXT:                }
-//CHECK-NEXT:            }
-//CHECK-NEXT:            _d_index += _d_i;
-//CHECK-NEXT:        }
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
+// CHECK-NEXT:     int _d_N = 0;
+// CHECK-NEXT:     bool _cond0;
+// CHECK-NEXT:     int _d_sum = 0;
+// CHECK-NEXT:     int sum = 0;
+// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<int> _t1 = {};
+// CHECK-NEXT:     clad::tape<int> _t2 = {};
+// CHECK-NEXT:     int _t3;
+// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _cond0 = index0 < N;
+// CHECK-NEXT:         if (_cond0) {
+// CHECK-NEXT:             sum = 0;
+// CHECK-NEXT:             _t0 = 0UL;
+// CHECK-NEXT:             for (i = index0; ; clad::push(_t1, i) , (i += warpSize)) {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     if (!(i < N))
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 _t0++;
+// CHECK-NEXT:                 clad::push(_t2, sum);
+// CHECK-NEXT:                 sum += in[i];
+// CHECK-NEXT:             }
+// CHECK-NEXT:             _t3 = out[index0];
+// CHECK-NEXT:             out[index0] = sum;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     if (_cond0) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             out[index0] = _t3;
+// CHECK-NEXT:             int _r_d2 = _d_out[index0];
+// CHECK-NEXT:             _d_out[index0] = 0;
+// CHECK-NEXT:             _d_sum += _r_d2;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             for (;; _t0--) {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     if (!_t0)
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     i = clad::pop(_t1);
+// CHECK-NEXT:                     int _r_d0 = _d_i;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     sum = clad::pop(_t2);
+// CHECK-NEXT:                     int _r_d1 = _d_sum;
+// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d1);
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             }
+// CHECK-NEXT:             _d_index += _d_i;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 __global__ void add_kernel_5(int *out, int *in, int N) {
     int index = threadIdx.x + blockIdx.x * blockDim.x;
@@ -172,93 +168,85 @@ __global__ void add_kernel_5(int *out, int *in, int N) {
 }
 
 // CHECK: void add_kernel_5_grad_0_1(int *out, int *in, int N, int *_d_out, int *_d_in) {
-//CHECK-NEXT:    int _d_N = 0;
-//CHECK-NEXT:    bool _cond0;
-//CHECK-NEXT:    int _d_sum = 0;
-//CHECK-NEXT:    int sum = 0;
-//CHECK-NEXT:    unsigned int _t2;
-//CHECK-NEXT:    unsigned int _t3;
-//CHECK-NEXT:    int _d_totalThreads = 0;
-//CHECK-NEXT:    int totalThreads = 0;
-//CHECK-NEXT:    unsigned long _t4;
-//CHECK-NEXT:    int _d_i = 0;
-//CHECK-NEXT:    int i = 0;
-//CHECK-NEXT:    clad::tape<int> _t5 = {};
-//CHECK-NEXT:    clad::tape<int> _t6 = {};
-//CHECK-NEXT:    int _t7;
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        _cond0 = index0 < N;
-//CHECK-NEXT:        if (_cond0) {
-//CHECK-NEXT:            sum = 0;
-//CHECK-NEXT:            _t3 = blockDim.x;
-//CHECK-NEXT:            _t2 = gridDim.x;
-//CHECK-NEXT:            totalThreads = _t3 * _t2;
-//CHECK-NEXT:            _t4 = 0UL;
-//CHECK-NEXT:            for (i = index0; ; clad::push(_t5, i) , (i += totalThreads)) {
-//CHECK-NEXT:                {
-//CHECK-NEXT:                   if (!(i < N))
-//CHECK-NEXT:                       break;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                _t4++;
-//CHECK-NEXT:                clad::push(_t6, sum);
-//CHECK-NEXT:                sum += in[i];
-//CHECK-NEXT:            }
-//CHECK-NEXT:            _t7 = out[index0];
-//CHECK-NEXT:            out[index0] = sum;
-//CHECK-NEXT:        }
-//CHECK-NEXT:    }
-//CHECK-NEXT:    if (_cond0) {
-//CHECK-NEXT:        {
-//CHECK-NEXT:            out[index0] = _t7;
-//CHECK-NEXT:            int _r_d2 = _d_out[index0];
-//CHECK-NEXT:            _d_out[index0] = 0;
-//CHECK-NEXT:            _d_sum += _r_d2;
-//CHECK-NEXT:        }
-//CHECK-NEXT:        {
-//CHECK-NEXT:            for (;; _t4--) {
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    if (!_t4)
-//CHECK-NEXT:                        break;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    i = clad::pop(_t5);
-//CHECK-NEXT:                    int _r_d0 = _d_i;
-//CHECK-NEXT:                    _d_totalThreads += _r_d0;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    sum = clad::pop(_t6);
-//CHECK-NEXT:                    int _r_d1 = _d_sum;
-//CHECK-NEXT:                    atomicAdd(&_d_in[i], _r_d1);
-//CHECK-NEXT:                }
-//CHECK-NEXT:            }
-//CHECK-NEXT:            _d_index += _d_i;
-//CHECK-NEXT:        }
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
+// CHECK-NEXT:     int _d_N = 0;
+// CHECK-NEXT:     bool _cond0;
+// CHECK-NEXT:     int _d_sum = 0;
+// CHECK-NEXT:     int sum = 0;
+// CHECK-NEXT:     int _d_totalThreads = 0;
+// CHECK-NEXT:     int totalThreads = 0;
+// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<int> _t1 = {};
+// CHECK-NEXT:     clad::tape<int> _t2 = {};
+// CHECK-NEXT:     int _t3;
+// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _cond0 = index0 < N;
+// CHECK-NEXT:         if (_cond0) {
+// CHECK-NEXT:             sum = 0;
+// CHECK-NEXT:             totalThreads = blockDim.x * gridDim.x;
+// CHECK-NEXT:             _t0 = 0UL;
+// CHECK-NEXT:             for (i = index0; ; clad::push(_t1, i) , (i += totalThreads)) {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     if (!(i < N))
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 _t0++;
+// CHECK-NEXT:                 clad::push(_t2, sum);
+// CHECK-NEXT:                 sum += in[i];
+// CHECK-NEXT:             }
+// CHECK-NEXT:             _t3 = out[index0];
+// CHECK-NEXT:             out[index0] = sum;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     if (_cond0) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             out[index0] = _t3;
+// CHECK-NEXT:             int _r_d2 = _d_out[index0];
+// CHECK-NEXT:             _d_out[index0] = 0;
+// CHECK-NEXT:             _d_sum += _r_d2;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             for (;; _t0--) {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     if (!_t0)
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     i = clad::pop(_t1);
+// CHECK-NEXT:                     int _r_d0 = _d_i;
+// CHECK-NEXT:                     _d_totalThreads += _r_d0;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     sum = clad::pop(_t2);
+// CHECK-NEXT:                     int _r_d1 = _d_sum;
+// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d1);
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             }
+// CHECK-NEXT:             _d_index += _d_i;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 __global__ void add_kernel_6(int *a, int *b) {
   int index = threadIdx.x + blockIdx.x * blockDim.x;
   a[index] = *b;
 }
 
-// CHECK: void add_kernel_6_grad(int *a, int *b, int *_d_a, int *_d_b) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    int _t2 = a[index0];
-//CHECK-NEXT:    a[index0] = *b;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        a[index0] = _t2;
-//CHECK-NEXT:        int _r_d0 = _d_a[index0];
-//CHECK-NEXT:        _d_a[index0] = 0;
-//CHECK-NEXT:        atomicAdd(_d_b, _r_d0);
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
+//CHECK: void add_kernel_6_grad(int *a, int *b, int *_d_a, int *_d_b) {
+//CHECK-NEXT:     int _d_index = 0;
+//CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
+//CHECK-NEXT:     int _t0 = a[index0];
+//CHECK-NEXT:     a[index0] = *b;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         a[index0] = _t0;
+//CHECK-NEXT:         int _r_d0 = _d_a[index0];
+//CHECK-NEXT:         _d_a[index0] = 0;
+//CHECK-NEXT:         atomicAdd(_d_b, _r_d0);
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
 
 __global__ void add_kernel_7(double *a, double *b) {
   int index = threadIdx.x + blockIdx.x * blockDim.x;
@@ -267,27 +255,25 @@ __global__ void add_kernel_7(double *a, double *b) {
 }
 
 // CHECK: void add_kernel_7_grad(double *a, double *b, double *_d_a, double *_d_b) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    double _t2 = a[2 * index0];
-//CHECK-NEXT:    a[2 * index0] = b[0];
-//CHECK-NEXT:    double _t3 = a[2 * index0 + 1];
-//CHECK-NEXT:    a[2 * index0 + 1] = b[0];
-//CHECK-NEXT:    {
-//CHECK-NEXT:        a[2 * index0 + 1] = _t3;
-//CHECK-NEXT:        double _r_d1 = _d_a[2 * index0 + 1];
-//CHECK-NEXT:        _d_a[2 * index0 + 1] = 0.;
-//CHECK-NEXT:        atomicAdd(&_d_b[0], _r_d1);
-//CHECK-NEXT:    }
-//CHECK-NEXT:    {
-//CHECK-NEXT:        a[2 * index0] = _t2;
-//CHECK-NEXT:        double _r_d0 = _d_a[2 * index0];
-//CHECK-NEXT:        _d_a[2 * index0] = 0.;
-//CHECK-NEXT:        atomicAdd(&_d_b[0], _r_d0);
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
+// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     double _t0 = a[2 * index0];
+// CHECK-NEXT:     a[2 * index0] = b[0];
+// CHECK-NEXT:     double _t1 = a[2 * index0 + 1];
+// CHECK-NEXT:     a[2 * index0 + 1] = b[0];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a[2 * index0 + 1] = _t1;
+// CHECK-NEXT:         double _r_d1 = _d_a[2 * index0 + 1];
+// CHECK-NEXT:         _d_a[2 * index0 + 1] = 0.;
+// CHECK-NEXT:         atomicAdd(&_d_b[0], _r_d1);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a[2 * index0] = _t0;
+// CHECK-NEXT:         double _r_d0 = _d_a[2 * index0];
+// CHECK-NEXT:         _d_a[2 * index0] = 0.;
+// CHECK-NEXT:         atomicAdd(&_d_b[0], _r_d0);
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 __device__ double device_fn(const double in, double val) {
   return in + val;
@@ -336,11 +322,9 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
   out[index] = device_fn_2(in, val);
 } 
 
-// CHECK: __attribute__((device)) void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK: __attribute__((device)) void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) {
 //CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    *_d_val += _d_y;
 //CHECK-NEXT:}
 
@@ -360,10 +344,8 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
 //CHECK-NEXT:}
 
 // CHECK: __attribute__((device)) void device_fn_2_pullback_0(const double *in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
 //CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
 //CHECK-NEXT:        *_d_val += _d_y;
@@ -397,10 +379,8 @@ __global__ void kernel_with_device_call_3(double *out, double *in, double *val) 
 } 
 
 // CHECK: __attribute__((device)) void device_fn_3_pullback_0_1(double *in, double *val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
 //CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
 //CHECK-NEXT:        atomicAdd(_d_val, _d_y);
@@ -435,10 +415,8 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
 }
 
 // CHECK: __attribute__((device)) void device_fn_4_pullback_0_1(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
 //CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
 //CHECK-NEXT:        *_d_val += _d_y;
@@ -476,24 +454,22 @@ __global__ void fn1(double *out, const double *in, double val) {
 }
 
 // CHECK: void fn1_grad_0_2(double *out, const double *in, double val, double *_d_out, double *_d_val) {
-// CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-// CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-// CHECK-NEXT:    int _d_index = 0;
-// CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-// CHECK-NEXT:    double _d_temp = 0.;
-// CHECK-NEXT:    double temp = val;
-// CHECK-NEXT:    double _t2 = out[index0];
-// CHECK-NEXT:    out[index0] = device_fn(in[index0], temp);
-// CHECK-NEXT:    {
-// CHECK-NEXT:        out[index0] = _t2;
-// CHECK-NEXT:        double _r_d0 = _d_out[index0];
-// CHECK-NEXT:        _d_out[index0] = 0.;
-// CHECK-NEXT:        double _r0 = 0.;
-// CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        device_fn_pullback_1(in[index0], temp, _r_d0, &_r0, &_r1);
-// CHECK-NEXT:        _d_temp += _r1;
-// CHECK-NEXT:    }
-// CHECK-NEXT:    atomicAdd(_d_val, _d_temp);
+// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     double _d_temp = 0.;
+// CHECK-NEXT:     double temp = val;
+// CHECK-NEXT:     double _t0 = out[index0];
+// CHECK-NEXT:     out[index0] = device_fn(in[index0], temp);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         out[index0] = _t0;
+// CHECK-NEXT:         double _r_d0 = _d_out[index0];
+// CHECK-NEXT:         _d_out[index0] = 0.;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         device_fn_pullback_1(in[index0], temp, _r_d0, &_r0, &_r1);
+// CHECK-NEXT:         _d_temp += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     atomicAdd(_d_val, _d_temp);
 // CHECK-NEXT: }
 
 __global__ void kernel_call(double *a, double *b) {
@@ -605,64 +581,63 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 }
 
 // CHECK: __attribute__((global)) void add_kernel_4_pullback(int *out, int *in, int N, int *_d_out, int *_d_in, int *_d_N) {
-//CHECK-NEXT:    bool _cond0;
-//CHECK-NEXT:    int _d_sum = 0;
-//CHECK-NEXT:    int sum = 0;
-//CHECK-NEXT:    unsigned long _t2;
-//CHECK-NEXT:    int _d_i = 0;
-//CHECK-NEXT:    int i = 0;
-//CHECK-NEXT:    clad::tape<int> _t3 = {};
-//CHECK-NEXT:    clad::tape<int> _t4 = {};
-//CHECK-NEXT:    int _t5;
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        _cond0 = index0 < N;
-//CHECK-NEXT:        if (_cond0) {
-//CHECK-NEXT:            sum = 0;
-//CHECK-NEXT:            _t2 = 0UL;
-//CHECK-NEXT:            for (i = index0; ; clad::push(_t3, i) , (i += warpSize)) {
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    if (!(i < N))
-//CHECK-NEXT:                        break;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                _t2++;
-//CHECK-NEXT:                clad::push(_t4, sum);
-//CHECK-NEXT:                sum += in[i];
-//CHECK-NEXT:            }
-//CHECK-NEXT:            _t5 = out[index0];
-//CHECK-NEXT:            out[index0] = sum;
-//CHECK-NEXT:        }
-//CHECK-NEXT:    }
-//CHECK-NEXT:    if (_cond0) {
-//CHECK-NEXT:        {
-//CHECK-NEXT:            out[index0] = _t5;
-//CHECK-NEXT:            int _r_d2 = _d_out[index0];
-//CHECK-NEXT:            _d_out[index0] = 0;
-//CHECK-NEXT:            _d_sum += _r_d2;
-//CHECK-NEXT:        }
-//CHECK-NEXT:        {
-//CHECK-NEXT:            for (;; _t2--) {
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    if (!_t2)
-//CHECK-NEXT:                        break;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    i = clad::pop(_t3);
-//CHECK-NEXT:                    int _r_d0 = _d_i;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    sum = clad::pop(_t4);
-//CHECK-NEXT:                    int _r_d1 = _d_sum;
-//CHECK-NEXT:                    atomicAdd(&_d_in[i], _r_d1);
-//CHECK-NEXT:                }
-//CHECK-NEXT:            }
-//CHECK-NEXT:            _d_index += _d_i;
-//CHECK-NEXT:        }
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
+// CHECK-NEXT:     bool _cond0;
+// CHECK-NEXT:     int _d_sum = 0;
+// CHECK-NEXT:     int sum = 0;
+// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<int> _t1 = {};
+// CHECK-NEXT:     clad::tape<int> _t2 = {};
+// CHECK-NEXT:     int _t3;
+// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _cond0 = index0 < N;
+// CHECK-NEXT:         if (_cond0) {
+// CHECK-NEXT:             sum = 0;
+// CHECK-NEXT:             _t0 = 0UL;
+// CHECK-NEXT:             for (i = index0; ; clad::push(_t1, i) , (i += warpSize)) {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     if (!(i < N))
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 _t0++;
+// CHECK-NEXT:                 clad::push(_t2, sum);
+// CHECK-NEXT:                 sum += in[i];
+// CHECK-NEXT:             }
+// CHECK-NEXT:             _t3 = out[index0];
+// CHECK-NEXT:             out[index0] = sum;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     if (_cond0) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             out[index0] = _t3;
+// CHECK-NEXT:             int _r_d2 = _d_out[index0];
+// CHECK-NEXT:             _d_out[index0] = 0;
+// CHECK-NEXT:             _d_sum += _r_d2;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             for (;; _t0--) {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     if (!_t0)
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     i = clad::pop(_t1);
+// CHECK-NEXT:                     int _r_d0 = _d_i;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     sum = clad::pop(_t2);
+// CHECK-NEXT:                     int _r_d1 = _d_sum;
+// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d1);
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             }
+// CHECK-NEXT:             _d_index += _d_i;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 
 // CHECK: void launch_add_kernel_4_grad_0_1(int *out, int *in, const int N, int *_d_out, int *_d_in) {
 //CHECK-NEXT:    int _d_N = 0;

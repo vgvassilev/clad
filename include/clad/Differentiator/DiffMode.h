@@ -39,7 +39,7 @@ inline const char* DiffModeToString(DiffMode mode) {
   case DiffMode::jacobian:
     return "jacobian";
   case DiffMode::reverse_mode_forward_pass:
-    return "reverse_mode_forward_pass";
+    return "reverse_forw";
   case DiffMode::error_estimation:
     return "error_estimation";
   default:

@@ -95,7 +95,7 @@ double fn2(double i, double j) {
 // CHECK-NEXT:         _d_temp = 0.;
 // CHECK-NEXT:         i = _t4;
 // CHECK-NEXT:         j = _t5;
-// CHECK-NEXT:         modify1_pullback(_t4, _t5, _r_d1, &*_d_i, &*_d_j);
+// CHECK-NEXT:         modify1_pullback(i, j, _r_d1, &*_d_i, &*_d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         temp = _t0;
@@ -103,7 +103,7 @@ double fn2(double i, double j) {
 // CHECK-NEXT:         _d_temp = 0.;
 // CHECK-NEXT:         i = _t1;
 // CHECK-NEXT:         j = _t2;
-// CHECK-NEXT:         modify1_pullback(_t1, _t2, _r_d0, &*_d_i, &*_d_j);
+// CHECK-NEXT:         modify1_pullback(i, j, _r_d0, &*_d_i, &*_d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -146,12 +146,12 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t2;
 // CHECK-NEXT:         j = _t3;
-// CHECK-NEXT:         update1_pullback(_t2, _t3, &*_d_i, &*_d_j);
+// CHECK-NEXT:         update1_pullback(i, j, &*_d_i, &*_d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t0;
 // CHECK-NEXT:         j = _t1;
-// CHECK-NEXT:         update1_pullback(_t0, _t1, &*_d_i, &*_d_j);
+// CHECK-NEXT:         update1_pullback(i, j, &*_d_i, &*_d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -258,9 +258,8 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:             _d_arr[i] += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             arr[i] = clad::back(_t2);
-// CHECK-NEXT:             twice_pullback(clad::back(_t2), &_d_arr[i]);
-// CHECK-NEXT:             clad::pop(_t2);
+// CHECK-NEXT:             arr[i] = clad::pop(_t2);
+// CHECK-NEXT:             twice_pullback(arr[i], &_d_arr[i]);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -344,6 +343,14 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// CHECK: clad::ValueAndAdjoint<double &, double &> identity_reverse_forw(double &i, double &_d_i) {
+// CHECK-NEXT:     MyStruct::myFunction();
+// CHECK-NEXT:     double _d__d_i = 0.;
+// CHECK-NEXT:     double _d_i0 = i;
+// CHECK-NEXT:     _d_i0 += 1;
+// CHECK-NEXT:     return {i, _d_i};
+// CHECK-NEXT: }
+
 // CHECK: void identity_pullback(double &i, double _d_y, double *_d_i) {
 // CHECK-NEXT:     MyStruct::myFunction();
 // CHECK-NEXT:     double _d__d_i = 0.;
@@ -362,15 +369,13 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     *_d_i += _d_y;
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndAdjoint<double &, double &> identity_forw(double &i, double &_d_i);
-
 // CHECK: void fn7_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _t0 = i;
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = identity_forw(i, *_d_i);
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = identity_reverse_forw(i, *_d_i);
 // CHECK-NEXT:     double &_d_k = _t1.adjoint;
 // CHECK-NEXT:     double &k = _t1.value;
 // CHECK-NEXT:     double _t2 = j;
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t3 = identity_forw(j, *_d_j);
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t3 = identity_reverse_forw(j, *_d_j);
 // CHECK-NEXT:     double &_d_l = _t3.adjoint;
 // CHECK-NEXT:     double &l = _t3.value;
 // CHECK-NEXT:     double _t4 = i;
@@ -398,15 +403,15 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t4;
-// CHECK-NEXT:         custom_identity_pullback(_t4, 0., &*_d_i);
+// CHECK-NEXT:         custom_identity_pullback(i, 0., &*_d_i);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         j = _t2;
-// CHECK-NEXT:         identity_pullback(_t2, 0., &*_d_j);
+// CHECK-NEXT:         identity_pullback(j, 0., &*_d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t0;
-// CHECK-NEXT:         identity_pullback(_t0, 0., &*_d_i);
+// CHECK-NEXT:         identity_pullback(i, 0., &*_d_i);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -650,7 +655,7 @@ double fn14(double x, double y) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         x = _t0;
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         emptyFn_pullback(_t0, y, &*_d_x, &_r0);
+// CHECK-NEXT:         emptyFn_pullback(x, y, &*_d_x, &_r0);
 // CHECK-NEXT:         *_d_y += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -838,7 +843,7 @@ double fn21(double x) {
 // CHECK-NEXT:     double *_t0 = ptr;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         ptr = _t0;
-// CHECK-NEXT:         ptrRef_pullback(_t0, 1, &_d_ptr);
+// CHECK-NEXT:         ptrRef_pullback(ptr, 1, &_d_ptr);
 // CHECK-NEXT:     }
 
 namespace clad{
@@ -905,7 +910,7 @@ double fn24(double x) {
 // CHECK-NEXT:      *_d_x += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          x = _t0;
-// CHECK-NEXT:          unused_return_pullback(_t0, 0., &*_d_x);
+// CHECK-NEXT:          unused_return_pullback(x, 0., &*_d_x);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
  
@@ -1080,13 +1085,6 @@ double sq_defined_later(double x) {
 double fn25_defined_later(double x) {
     return fn25(x);
 }
-// CHECK: clad::ValueAndAdjoint<double &, double &> identity_forw(double &i, double &_d_i) {
-// CHECK-NEXT:     MyStruct::myFunction();
-// CHECK-NEXT:     double _d__d_i = 0.;
-// CHECK-NEXT:     double _d_i0 = i;
-// CHECK-NEXT:     _d_i0 += 1;
-// CHECK-NEXT:     return {i, _d_i};
-// CHECK-NEXT: }
 
 // CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x) {
 // CHECK-NEXT:     {
