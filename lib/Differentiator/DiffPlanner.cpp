@@ -21,7 +21,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Analysis/AnalysisDeclContext.h"
+#include "clang/Analysis/CallGraph.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
@@ -32,7 +32,6 @@
 #include "clang/Sema/TemplateDeduction.h"
 
 #include <algorithm>
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -274,10 +273,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
-                               clang::Sema& S, RequestOptions& opts,
-                               OwnedAnalysisContexts& AllAnalysisDC)
-      : m_Interval(Interval), m_DiffRequestGraph(requestGraph),
-        m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {
+                               clang::Sema& S, RequestOptions& opts)
+      : m_Interval(Interval), m_DiffRequestGraph(requestGraph), m_Sema(S),
+        m_Options(opts) {
 
     if (Interval.empty())
       return;
@@ -650,11 +648,13 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (E->getType()->isPointerType())
       return true;
 
-    if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function) &&
-        Function->isDefined()) {
+    if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function)) {
       TimedAnalysisRegion R("TBR " + BaseFunctionName);
-      TBRAnalyzer analyzer(m_AnalysisDC, getToBeRecorded());
-      analyzer.Analyze(*this);
+
+      TBRAnalyzer analyzer(Function->getASTContext(),
+                           m_TbrRunInfo.ToBeRecorded);
+      analyzer.Analyze(Function);
+      m_TbrRunInfo.HasAnalysisRun = true;
     }
     auto found = m_TbrRunInfo.ToBeRecorded.find(E->getBeginLoc());
     return found != m_TbrRunInfo.ToBeRecorded.end();
@@ -1263,26 +1263,21 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     }
 
     if (!LookupCustomDerivativeDecl(request)) {
-      clang::CFG::BuildOptions Options;
-      std::unique_ptr<AnalysisDeclContext> AnalysisDC =
-          std::make_unique<AnalysisDeclContext>(
-              /*AnalysisDeclContextManager=*/nullptr, request.Function,
-              Options);
-
-      if (m_TopMostReq->EnableVariedAnalysis) {
+      if (m_TopMostReq->EnableVariedAnalysis &&
+          m_TopMostReq->Mode == DiffMode::reverse) {
         TimedAnalysisRegion R("VA " + request.BaseFunctionName);
-        VariedAnalyzer analyzer(AnalysisDC.get(), request.getVariedDecls());
+        VariedAnalyzer analyzer(request.Function->getASTContext(),
+                                request.getVariedDecls());
         analyzer.Analyze(request.Function);
       }
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
         TimedAnalysisRegion R("UA " + request.BaseFunctionName);
-        UsefulAnalyzer analyzer(AnalysisDC.get(), request.getUsefulDecls());
+
+        UsefulAnalyzer analyzer(request.Function->getASTContext(),
+                                request.getUsefulDecls());
         analyzer.Analyze(request.Function);
       }
-
-      m_AllAnalysisDC.push_back(std::move(AnalysisDC));
-      request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
@@ -1367,19 +1362,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (m_Sema.isStdInitializerList(recordTy, /*elemType=*/nullptr))
       return true;
 
-    if (!LookupCustomDerivativeDecl(request)) {
-      clang::CFG::BuildOptions Options;
-      std::unique_ptr<AnalysisDeclContext> AnalysisDC =
-          std::make_unique<AnalysisDeclContext>(
-              /*AnalysisDeclContextManager=*/nullptr, request.Function,
-              Options);
-      // FIXME: Add proper support for objects in VA and UA.
-      m_AllAnalysisDC.push_back(std::move(AnalysisDC));
-      request.m_AnalysisDC = m_AllAnalysisDC.back().get();
-
+    if (!LookupCustomDerivativeDecl(request))
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
-    }
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     return true;
