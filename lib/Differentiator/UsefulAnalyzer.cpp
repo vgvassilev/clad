@@ -6,10 +6,13 @@ namespace clad {
 
 void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
   // Build the CFG (control-flow graph) of FD.
-  m_BlockData.resize(m_AnalysisDC->getCFG()->size());
+  clang::CFG::BuildOptions Options;
+  m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), &m_Context, Options);
+
+  m_BlockData.resize(m_CFG->size());
   // Set current block ID to the ID of entry the block.
-  CFGBlock& exit = m_AnalysisDC->getCFG()->getExit();
-  m_CurBlockID = exit.getBlockID();
+  CFGBlock* exit = &m_CFG->getExit();
+  m_CurBlockID = exit->getBlockID();
   m_BlockData[m_CurBlockID] = createNewVarsData({});
   // Add the entry block to the queue.
   m_CFGQueue.insert(m_CurBlockID);
@@ -25,7 +28,7 @@ void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
 }
 
 CFGBlock* UsefulAnalyzer::getCFGBlockByID(unsigned ID) {
-  return *(m_AnalysisDC->getCFG()->begin() + ID);
+  return *(m_CFG->begin() + ID);
 }
 
 bool UsefulAnalyzer::isUseful(const VarDecl* VD) const {

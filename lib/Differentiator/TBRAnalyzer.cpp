@@ -8,11 +8,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
-#include "clang/Analysis/CFG.h"
 #include "clang/Basic/LLVM.h"
-
-#include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/DiffPlanner.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
@@ -255,7 +251,6 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
     varType = arrayParam->getOriginalType();
   else
     varType = VD->getType();
-
   // If varType represents auto or auto*, get the type of init.
   if (utils::IsAutoOrAutoPtrType(varType))
     varType = VD->getInit()->getType();
@@ -299,16 +294,19 @@ TBRAnalyzer::getVarDataFromDecl(const clang::VarDecl* VD) {
   return nullptr;
 }
 
-void TBRAnalyzer::Analyze(const DiffRequest& request) {
-  m_BlockData.resize(request.m_AnalysisDC->getCFG()->size());
-  m_BlockPassCounter.resize(request.m_AnalysisDC->getCFG()->size(), 0);
+void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
+  // Build the CFG (control-flow graph) of FD.
+  clang::CFG::BuildOptions Options;
+  m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), &m_Context, Options);
+
+  m_BlockData.resize(m_CFG->size());
+  m_BlockPassCounter.resize(m_CFG->size(), 0);
 
   // Set current block ID to the ID of entry the block.
-  CFGBlock& entry = request.m_AnalysisDC->getCFG()->getEntry();
-  m_CurBlockID = entry.getBlockID();
+  auto* entry = &m_CFG->getEntry();
+  m_CurBlockID = entry->getBlockID();
   m_BlockData[m_CurBlockID] = std::unique_ptr<VarsData>(new VarsData());
 
-  const FunctionDecl* FD = request.Function;
   // If we are analysing a non-static method, add a VarData for 'this' pointer
   // (it is represented with nullptr).
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
@@ -333,13 +331,13 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
     m_CurBlockID = *IDIter;
     m_CFGQueue.erase(IDIter);
 
-    CFGBlock& nextBlock = *getCFGBlockByID(request.m_AnalysisDC, m_CurBlockID);
+    CFGBlock& nextBlock = *getCFGBlockByID(m_CurBlockID);
     VisitCFGBlock(nextBlock);
   }
 #ifndef NDEBUG
   for (int id = m_CurBlockID; id >= 0; --id) {
     LLVM_DEBUG(llvm::dbgs() << "\n-----BLOCK" << id << "-----\n\n");
-    for (auto succ : getCFGBlockByID(request.m_AnalysisDC, id)->succs())
+    for (auto succ : getCFGBlockByID(id)->succs())
       if (succ)
         LLVM_DEBUG(llvm::dbgs() << "successor: " << succ->getBlockID() << "\n");
   }
@@ -411,8 +409,8 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
   LLVM_DEBUG(llvm::dbgs() << "Leaving block " << block.getBlockID() << "\n");
 }
 
-CFGBlock* TBRAnalyzer::getCFGBlockByID(AnalysisDeclContext* ADC, unsigned ID) {
-  return *(ADC->getCFG()->begin() + ID);
+CFGBlock* TBRAnalyzer::getCFGBlockByID(unsigned ID) {
+  return *(m_CFG->begin() + ID);
 }
 
 TBRAnalyzer::VarsData*
@@ -568,11 +566,9 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
     if (auto* VD = dyn_cast<VarDecl>(D)) {
       addVar(VD);
       if (clang::Expr* init = VD->getInit()) {
-
         setMode(Mode::kMarkingMode);
         TraverseStmt(init);
         resetMode();
-
         auto& VDExpr = getCurBlockVarsData()[VD];
         // if the declared variable is ref type attach its VarData to the
         // VarData of the RHS variable.
