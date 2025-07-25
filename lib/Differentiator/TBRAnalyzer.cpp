@@ -10,6 +10,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/OperatorKinds.h"
 
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffPlanner.h"
@@ -191,6 +192,15 @@ TBRAnalyzer::getIDSequence(const clang::Expr* E,
       if (opCode == UO_Deref)
         IDSequence.push_back(ProfileID());
       E = UO->getSubExpr();
+    } else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(E)) {
+      if (OCE->getOperator() == OO_Subscript)
+        if (const auto* IL = dyn_cast<clang::IntegerLiteral>(OCE->getArg(1)))
+          IDSequence.push_back(getProfileID(IL));
+        else
+          IDSequence.push_back(ProfileID());
+      else
+        assert(0 && "unexpected operator");
+      E = OCE->getArg(0);
     } else {
       assert(0 && "unexpected expression");
       break;

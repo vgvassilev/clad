@@ -288,6 +288,19 @@ double fn22(double x) {
     std::weak_ptr<double> w_ptr = s_ptr;
     return weak_fn(w_ptr);
 }
+struct D {
+  double z;
+  void operator+=(const D& other) { z += other.z; }
+};
+double fn23(const std::vector<D>& b) {
+  double x = 0.0;
+  for (size_t i = 0; i < b.size(); ++i) {
+    for (size_t j = i + 1; j < b.size(); ++j) {
+      x += b[i].z - b[j].z;
+    }
+  }
+  return x;
+}
 
 int main() {
     double d_i, d_j;
@@ -348,6 +361,19 @@ int main() {
     TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/1, 3, &d_i);  // CHECK-EXEC: {8.00}
     INIT_GRADIENT(fn22);
     TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/1, 3, &d_i);  // CHECK-EXEC: {8.00}
+    
+    std::vector<D> arr(3, D{5.f});
+    std::vector<D> d_arr(3, D{0});
+    auto grad = clad::gradient(fn23);
+    grad.execute(arr, &d_arr);
+    // CHECK-EXEC: {2.00, 0.00, -2.00}
+    printf("{");
+    for (auto i = 0; i < d_arr.size(); ++i) {
+      printf("%.2f", d_arr[i].z);
+      if (i != d_arr.size() - 1)
+        printf(", ");
+    }
+    printf("}\n");
 }
 
 // CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -1479,3 +1505,67 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// CHECK: void fn23_grad(const std::vector<D> &b, std::vector<D> *_d_b) {
+// CHECK-NEXT:     size_t _d_i = 0UL;
+// CHECK-NEXT:     size_t i = 0UL;
+// CHECK-NEXT:     clad::tape<unsigned long> _t1 = {};
+// CHECK-NEXT:     clad::tape<size_t> _t2 = {};
+// CHECK-NEXT:     size_t _d_j = 0UL;
+// CHECK-NEXT:     size_t j = 0UL;
+// CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     double _d_x = 0.;
+// CHECK-NEXT:     double x = 0.;
+// CHECK-NEXT:     unsigned long _t0 = 0UL;
+// CHECK-NEXT:     for (i = 0; ; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < b.size()))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, 0UL);
+// CHECK-NEXT:         for (clad::push(_t2, j) , j = i + 1; ; ++j) {
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 if (!(j < b.size()))
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             clad::back(_t1)++;
+// CHECK-NEXT:             clad::push(_t3, x);
+// CHECK-NEXT:             x += b[i].z - b[j].z;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_x += 1;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             for (;; clad::back(_t1)--) {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     if (!clad::back(_t1))
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 --j;
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     x = clad::pop(_t3);
+// CHECK-NEXT:                     double _r_d0 = _d_x;
+// CHECK-NEXT:                     size_t _r0 = 0UL;
+// CHECK-NEXT:                     clad::custom_derivatives::class_functions::operator_subscript_pullback(&b, i, {0.}, &(*_d_b), &_r0);
+// CHECK-NEXT:                     _d_i += _r0;
+// CHECK-NEXT:                     (*_d_b)[i].z += _r_d0;
+// CHECK-NEXT:                     size_t _r1 = 0UL;
+// CHECK-NEXT:                     clad::custom_derivatives::class_functions::operator_subscript_pullback(&b, j, {0.}, &(*_d_b), &_r1);
+// CHECK-NEXT:                     _d_j += _r1;
+// CHECK-NEXT:                     (*_d_b)[j].z += -_r_d0;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 _d_i += _d_j;
+// CHECK-NEXT:                 _d_j = 0UL;
+// CHECK-NEXT:                 j = clad::pop(_t2);
+// CHECK-NEXT:             }
+// CHECK-NEXT:             clad::pop(_t1);
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
