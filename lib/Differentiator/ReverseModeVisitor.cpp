@@ -401,10 +401,27 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           }
           continue;
         }
-        auto VDDerivedType = utils::getNonConstType(paramTy, m_Sema);
+        auto VDDerivedType = utils::GetNonConstValueType(paramTy); //Type(paramTy, m_Sema);
+        Expr* initExpr = nullptr;
+        bool isDirectInit = false;
+        if (clad::utils::isCladTorchTensor(VDDerivedType)) {
+          ParmVarDecl* newFuncParam = nullptr;
+          for (auto* p : m_Derivative->parameters()) {
+              if (p->getName() == param->getName()) {
+                  newFuncParam = p;
+                  break;
+              }
+          }
+          assert(newFuncParam && "Could not find corresponding parameter in derivative function");
+          initExpr = BuildDeclRef(newFuncParam->getDefinition());
+          isDirectInit = true;
+        } else {
+          // If the type is not a tensor, we can use zero initialization.
+          initExpr = getZeroInit(VDDerivedType);
+        }
         auto* VDDerived =
             BuildGlobalVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
-                               getZeroInit(VDDerivedType));
+                               initExpr, isDirectInit);
         m_Variables[param] = BuildDeclRef(VDDerived);
         addToBlock(BuildDeclStmt(VDDerived), m_Globals);
       }
@@ -2673,6 +2690,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         isConstructInit && isNonAggrClass &&
         cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs() &&
         utils::isCopyable(VDType->getAsCXXRecordDecl());
+    
+    if (clad::utils::isCladTorchTensor(VD->getType())) {
+      isConstructInit = true;
+      shouldCopyInitialize = true;
+    }
 
     // Temporarily initialize the object with `*nullptr` to avoid
     // a potential error because of non-existing default constructor.
