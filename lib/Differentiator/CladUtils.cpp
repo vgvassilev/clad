@@ -1466,5 +1466,17 @@ namespace clad {
       } while (E->IgnoreImplicit() != E);
       return false;
     }
+    
+    bool isCladTorchTensor(const clang::QualType T) {
+      if (T.getAsString() == "std::vector<Tensor<float> >") return true;
+      if (const auto* CXXRD = T->getAsCXXRecordDecl()) {
+        if (CXXRD->getNameAsString() == "Tensor") {
+          if (const auto* NS = clang::dyn_cast<clang::NamespaceDecl>(CXXRD->getDeclContext())) {
+            auto ns_name = NS->getNameAsString();
+            return ns_name == "cladtorch" || ns_name == "torch" || ns_name == "at";
+          }
+        }
+      }
+    }
   } // namespace utils
 } // namespace clad
