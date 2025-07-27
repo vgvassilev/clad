@@ -23,9 +23,12 @@ double fn_with_normal_increment(double u, double v) {
   return sum;
 }
 
-// Test that these compile without segfault - the main achievement of this fix
-auto grad1 = clad::gradient(fn_with_empty_increment);
-auto grad2 = clad::gradient(fn_with_normal_increment);
+int main() {
+    // Test that these compile without segfault - the main achievement of this fix
+    auto grad1 = clad::gradient(fn_with_empty_increment);
+    auto grad2 = clad::gradient(fn_with_normal_increment);
+    return 0;
+}
 
 // CHECK: void fn_with_empty_increment_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK: void fn_with_normal_increment_grad(double u, double v, double *_d_u, double *_d_v) {
