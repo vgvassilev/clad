@@ -14,7 +14,11 @@ void testFunction(bool c) {
     calcViscFluxSide(5, c); 
 }
 
-// Test that this compiles without segfault - the main achievement of this fix
-auto grad = clad::gradient(testFunction);
+int main() {
+    // Test that this compiles without segfault - the main achievement of this fix
+    auto grad = clad::gradient(testFunction);
+    return 0;
+}
 
 // CHECK: void testFunction_grad(bool c, bool *_d_c) {
+// CHECK-NEXT: }
