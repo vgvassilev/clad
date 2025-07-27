@@ -1026,7 +1026,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (FS->getCond())
       std::tie(condDiff, condExprDiff) = DifferentiateSingleExpr(FS->getCond());
 
-    const auto* IDRE = dyn_cast<DeclRefExpr>(FS->getInc());
+    const auto* IDRE = FS->getInc() ? dyn_cast<DeclRefExpr>(FS->getInc()) : nullptr;
     const Expr* inc = IDRE ? Visit(FS->getInc()).getExpr() : FS->getInc();
 
     // Differentiate the increment expression of the for loop
@@ -1039,10 +1039,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       std::tie(incDiff, incExprDiff) = DifferentiateSingleExpr(inc);
     Expr* incResult = nullptr;
     // If any additional statements were created, enclose them into lambda.
-    auto* Additional = cast<CompoundStmt>(incDiff.getStmt());
-    bool anyNonExpr = std::any_of(Additional->body_begin(),
-                                  Additional->body_end(),
-                                  [](Stmt* S) { return !isa<Expr>(S); });
+    // Only process increment statements if the increment expression exists.
+    bool anyNonExpr = false;
+    if (inc && incDiff.getStmt()) {
+      auto* Additional = cast<CompoundStmt>(incDiff.getStmt());
+      anyNonExpr = std::any_of(Additional->body_begin(),
+                               Additional->body_end(),
+                               [](Stmt* S) { return !isa<Expr>(S); });
+    }
     if (anyNonExpr) {
       incResult = wrapInLambda(*this, m_Sema, inc, [&] {
         std::tie(incDiff, incExprDiff) = DifferentiateSingleExpr(inc);
@@ -1052,7 +1056,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       });
     }
     // Otherwise, join all exprs by comma operator.
-    else if (incExprDiff.getExpr()) {
+    else if (inc && incDiff.getStmt() && incExprDiff.getExpr()) {
+      auto* Additional = cast<CompoundStmt>(incDiff.getStmt());
       auto CommaJoin = [this](Expr* Acc, Stmt* S) {
         Expr* E = cast<Expr>(S);
         return BuildOp(BO_Comma, E, BuildParens(Acc));
