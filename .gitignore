@@ -2,3 +2,6 @@
 /.vscode
 /inst
 .cache/
+
+# Development activity log (personal tracking)
+activity.md
