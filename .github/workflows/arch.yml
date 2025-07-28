@@ -21,7 +21,7 @@ jobs:
         uses: jirutka/setup-alpine@v1
         with:
           arch:  ${{ matrix.target }}
-          branch: edge
+          branch: v3.15
           packages: >
             llvm17-dev
             clang17-dev
