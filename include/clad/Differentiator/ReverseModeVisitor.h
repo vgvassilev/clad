@@ -30,6 +30,10 @@
 #include <stack>
 #include <unordered_map>
 
+#ifndef NDEBUG
+#include <exception> // for std::terminate
+#endif
+
 namespace llvm {
 template <typename T> class SmallVectorImpl;
 }
