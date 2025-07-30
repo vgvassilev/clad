@@ -128,7 +128,7 @@ public:
   /// This will be particularly useful for pushforward and pullback functions.
   bool DeclarationOnly = false;
 
-  clang::AnalysisDeclContext* m_AnalysisDC;
+  clang::AnalysisDeclContext* m_AnalysisDC = nullptr;
 
   /// Recomputes `DiffInputVarsInfo` using the current values of data members.
   ///

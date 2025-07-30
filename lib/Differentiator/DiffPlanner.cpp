@@ -650,7 +650,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (E->getType()->isPointerType())
       return true;
 
-    if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function)) {
+    if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function) &&
+        Function->isDefined() && m_AnalysisDC) {
       TimedAnalysisRegion R("TBR " + BaseFunctionName);
       TBRAnalyzer analyzer(m_AnalysisDC, getToBeRecorded());
       analyzer.Analyze(*this);
