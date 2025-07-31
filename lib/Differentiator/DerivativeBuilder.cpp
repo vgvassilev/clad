@@ -602,6 +602,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                request.Mode == DiffMode::hessian_diagonal) {
       HessianModeVisitor H(*this, request);
       result = H.Derive();
+    } else if (request.Mode == DiffMode::jacobian && request.EnableSparsity) {
+      SparseJacobianModeVisitor SJ(*this, request);
+      result = SJ.Derive();
     } else if (request.Mode == DiffMode::jacobian) {
       JacobianModeVisitor J(*this, request);
       result = J.Derive();

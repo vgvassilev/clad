@@ -48,8 +48,8 @@ struct DifferentiationOptions {
         ValidateClangVersion(true), EnableTBRAnalysis(false),
         DisableTBRAnalysis(false), EnableVariedAnalysis(false),
         DisableVariedAnalysis(false), EnableUsefulAnalysis(false),
-        DisableUsefulAnalysis(false), CustomEstimationModel(false),
-        PrintNumDiffErrorInfo(false) {}
+        DisableUsefulAnalysis(false), EnableSparsity(false),
+        CustomEstimationModel(false), PrintNumDiffErrorInfo(false) {}
 
   bool DumpSourceFn : 1;
   bool DumpSourceFnAST : 1;
@@ -63,6 +63,8 @@ struct DifferentiationOptions {
   bool DisableVariedAnalysis : 1;
   bool EnableUsefulAnalysis : 1;
   bool DisableUsefulAnalysis : 1;
+  bool EnableSparsity : 1;
+
   bool CustomEstimationModel : 1;
   bool PrintNumDiffErrorInfo : 1;
   std::string CustomModelName;
@@ -320,6 +322,8 @@ struct DifferentiationOptions {
             m_DO.EnableUsefulAnalysis = true;
           } else if (args[i] == "-disable-ua") {
             m_DO.DisableUsefulAnalysis = true;
+          } else if (args[i] == "-enable-sp") {
+            m_DO.EnableSparsity = true;
           } else if (args[i] == "-fcustom-estimation-model") {
             m_DO.CustomEstimationModel = true;
             if (++i == e) {

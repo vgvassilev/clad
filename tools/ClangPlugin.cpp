@@ -461,10 +461,17 @@ void InitTimers();
       else
         opts.EnableUsefulAnalysis = false; // Default mode.
     }
+
+    static void SetSparsityOptions(const DifferentiationOptions& DO,
+                                   RequestOptions& opts) {
+      opts.EnableSparsity = DO.EnableSparsity;
+    }
+
     void CladPlugin::SetRequestOptions(RequestOptions& opts) const {
       SetTBRAnalysisOptions(m_DO, opts);
       SetActivityAnalysisOptions(m_DO, opts);
       SetUsefulAnalysisOptions(m_DO, opts);
+      SetSparsityOptions(m_DO, opts);
     }
 
     void CladPlugin::FinalizeTranslationUnit() {

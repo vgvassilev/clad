@@ -17,6 +17,7 @@
 #include "FunctionTraits.h"
 #include "Matrix.h"
 #include "NumericalDiff.h"
+#include "SparsityPattern.h"
 #include "Tape.h"
 
 #include <array>
@@ -397,7 +398,7 @@ CUDA_HOST_DEVICE T push(tape<T, SBO_SIZE, SLAB_SIZE>& to, ArgsT... val) {
       template <class Fn, class... Args>
       constexpr CUDA_HOST_DEVICE return_type_t<CladFunctionType>
       execute_helper(Fn f, CUDA_ARGS Args&&... args) const {
-        // `static_cast` is required here for perfect forwarding.
+        //  `static_cast` is required here for perfect forwarding.
 #if defined(__CUDACC__)
         if constexpr (sizeof...(Args) >= 2) {
           auto secondArg =

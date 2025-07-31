@@ -3,10 +3,13 @@
 
 namespace clad {
 void DerivedFnCollector::Add(const DerivedFnInfo& DFI) {
-  assert(!AlreadyExists(DFI) &&
-         "We are generating same derivative more than once, or calling "
-         "`DerivedFnCollector::Add` more than once for the same derivative "
-         ". Ideally, we shouldn't do either.");
+  // FIXME: DerivedFnInfo doesn't account for passed options, remove when it is
+  // reworked.
+  assert(DFI.m_EnableSparsity ||
+         (!AlreadyExists(DFI) &&
+          "We are generating same derivative more than once, or calling "
+          "`DerivedFnCollector::Add` more than once for the same derivative "
+          ". Ideally, we shouldn't do either."));
   m_DerivedFnInfoCollection[DFI.OriginalFn()].push_back(DFI);
   AddToDerivativeSet(DFI.DerivedFn());
 }
@@ -34,6 +37,8 @@ bool DerivedFnCollector::AlreadyExists(const DerivedFnInfo& DFI) const {
 }
 
 DerivedFnInfo DerivedFnCollector::Find(const DiffRequest& request) const {
+  if (request.EnableSparsity)
+    return DerivedFnInfo();
   auto subCollectionIt = m_DerivedFnInfoCollection.find(request.Function);
   if (subCollectionIt == m_DerivedFnInfoCollection.end())
     return DerivedFnInfo();
