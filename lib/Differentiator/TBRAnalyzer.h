@@ -4,14 +4,12 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
-#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 
 #include "llvm/ADT/ArrayRef.h"
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/DiffPlanner.h"
 
 #include <map>
 #include <unordered_map>
@@ -35,7 +33,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
   ProfileID getProfileID(const Expr* E) const {
     ProfileID profID;
-    E->Profile(profID, m_Context, /*Canonical=*/true);
+    E->Profile(profID, m_Context, /* Canonical */ true);
     return profID;
   }
 
@@ -139,8 +137,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// more information.
   void merge(VarData& targetData, VarData& mergeData);
 
-  static clang::CFGBlock* getCFGBlockByID(clang::AnalysisDeclContext* ADC,
-                                          unsigned ID);
+  clang::CFGBlock* getCFGBlockByID(unsigned ID);
 
   /// Given an Expr* returns its corresponding VarData. If the given element of
   /// an array does not have a VarData yet it will be added automatically.
@@ -224,7 +221,11 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// a new one).
   std::vector<int> m_ModeStack;
 
-  clang::ASTContext& m_Context;
+  ASTContext& m_Context;
+
+  /// clang::CFG of the function being analysed.
+  std::unique_ptr<clang::CFG> m_CFG;
+
   /// Stores VarsData structures for CFG blocks (the indices in
   /// the vector correspond to CFG blocks' IDs)
   std::vector<std::unique_ptr<VarsData>> m_BlockData;
@@ -269,9 +270,8 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
 public:
   /// Constructor
-  TBRAnalyzer(clang::AnalysisDeclContext* AnalysisDC,
-              std::set<clang::SourceLocation>& Locs)
-      : m_TBRLocs(Locs), m_Context(AnalysisDC->getASTContext()) {
+  TBRAnalyzer(ASTContext& Context, std::set<clang::SourceLocation>& Locs)
+      : m_TBRLocs(Locs), m_Context(Context) {
     m_ModeStack.push_back(0);
   }
 
@@ -285,7 +285,7 @@ public:
   TBRAnalyzer& operator=(const TBRAnalyzer&&) = delete;
 
   /// Visitors
-  void Analyze(const DiffRequest& request);
+  void Analyze(const clang::FunctionDecl* FD);
 
   void VisitCFGBlock(const clang::CFGBlock& block);
 

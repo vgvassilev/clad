@@ -6,6 +6,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Builtins.h"
@@ -641,6 +642,11 @@ namespace clad {
               return true;
           }
         }
+      } else if (const auto* CXXCE =
+                     clang::dyn_cast<clang::CXXConstructExpr>(E)) {
+        if (auto* typeDecl = CXXCE->getType()->getAsCXXRecordDecl())
+          if (hasNonDifferentiableAttribute(typeDecl))
+            return true;
       }
       // If E is not a MemberExpr or CallExpr or doesn't have a
       // non-differentiable attribute
