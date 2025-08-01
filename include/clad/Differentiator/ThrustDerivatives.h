@@ -4,18 +4,14 @@
 #include <cstddef>
 #include <iterator>
 #include <thrust/count.h>
-#include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
+#include <thrust/device_ptr.h>
 #include <thrust/for_each.h>
 #include <thrust/functional.h>
-#include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/transform.h>
 #include <thrust/tuple.h>
 #include <type_traits>
-
-#include "clad/Differentiator/Differentiator.h"
 
 namespace clad::custom_derivatives::thrust {
 
@@ -36,7 +32,7 @@ void reduce_pullback(Iterator first, Iterator last, T init, BinaryOp op,
     struct add_d_output {
       T d_output;
       add_d_output(T d) : d_output(d) {}
-      __host__ __device__ void operator()(T& x) const { x += d_output; }
+      CUDA_HOST_DEVICE void operator()(T& x) const { x += d_output; }
     };
 
     if (n > 0) {
@@ -55,9 +51,10 @@ void reduce_pullback(Iterator first, Iterator last, T init, BinaryOp op,
         *d_init += gradient;
 
       struct max_grad_functor {
-        T max_val, gradient;
+        T max_val;
+        T gradient;
         max_grad_functor(T mv, T g) : max_val(mv), gradient(g) {}
-        __host__ __device__ void
+        CUDA_HOST_DEVICE void
         operator()(::thrust::tuple<T&, const T&> t) const {
           if (::thrust::get<1>(t) == max_val)
             ::thrust::get<0>(t) += gradient;
@@ -83,9 +80,10 @@ void reduce_pullback(Iterator first, Iterator last, T init, BinaryOp op,
         *d_init += gradient;
 
       struct min_grad_functor {
-        T min_val, gradient;
+        T min_val;
+        T gradient;
         min_grad_functor(T mv, T g) : min_val(mv), gradient(g) {}
-        __host__ __device__ void
+        CUDA_HOST_DEVICE void
         operator()(::thrust::tuple<T&, const T&> t) const {
           if (::thrust::get<1>(t) == min_val)
             ::thrust::get<0>(t) += gradient;
@@ -106,8 +104,9 @@ void reduce_pullback(Iterator first, Iterator last, T init, BinaryOp op,
 
     if (zero_count > 1 || (zero_count == 1 && init_is_zero)) {
     } else if (zero_count == 1 && !init_is_zero) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
       struct replace_zero_with_one {
-        __host__ __device__ T operator()(const T& x) const {
+        CUDA_HOST_DEVICE T operator()(const T& x) const {
           return (x == 0) ? 1 : x;
         }
       };
@@ -119,7 +118,7 @@ void reduce_pullback(Iterator first, Iterator last, T init, BinaryOp op,
       struct single_zero_grad_functor {
         T gradient;
         single_zero_grad_functor(T g) : gradient(g) {}
-        __host__ __device__ void
+        CUDA_HOST_DEVICE void
         operator()(::thrust::tuple<T&, const T&> t) const {
           if (::thrust::get<1>(t) == 0)
             ::thrust::get<0>(t) += gradient;
@@ -145,9 +144,11 @@ void reduce_pullback(Iterator first, Iterator last, T init, BinaryOp op,
         *d_init += d_output * product / init;
 
       struct multiplies_grad_functor {
-        T d_output, product;
+        T d_output;
+        T product;
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
         multiplies_grad_functor(T d, T p) : d_output(d), product(p) {}
-        __host__ __device__ T operator()(const T& d_x, const T& x) const {
+        CUDA_HOST_DEVICE T operator()(const T& d_x, const T& x) const {
           return d_x + d_output * product / x;
         }
       };
