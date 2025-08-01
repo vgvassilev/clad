@@ -252,6 +252,11 @@ namespace clad {
                                      llvm::StringRef prefix = "_t",
                                      bool moveToTape = false);
 
+    /// Build element-wise move between 2 arrays, e.g.
+    /// `std::move(std::begin(from), std::end(from), std::begin(to));`
+    clang::Expr* BuildArrayAssignment(clang::Expr* output, clang::Expr* input,
+                                      direction d);
+
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global
     /// variable. When the expression is finally visited and rebuilt, .Finalize

@@ -59,19 +59,18 @@ using tape = tape_impl<T>;
 /// Add value to the end of the tape, return the same value.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
           typename... ArgsT>
-CUDA_HOST_DEVICE T push(tape<T, SBO_SIZE, SLAB_SIZE>& to, ArgsT... val) {
+CUDA_HOST_DEVICE T& push(tape<T, SBO_SIZE, SLAB_SIZE>& to, ArgsT... val) {
   to.emplace_back(std::forward<ArgsT>(val)...);
   return to.back();
 }
 
-  /// Add value to the end of the tape, return the same value.
-  /// A specialization for clad::array_ref types to use in reverse mode.
-  template <typename T, typename U>
-  CUDA_HOST_DEVICE clad::array_ref<T> push(tape<clad::array_ref<T>>& to,
-                                           U val) {
-    to.emplace_back(val);
-    return val;
-  }
+/// A specialization for C arrays
+template <typename T, typename U, size_t N, std::size_t SBO_SIZE = 64,
+          std::size_t SLAB_SIZE = 1024>
+CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
+  to.emplace_back();
+  std::move(std::begin(val), std::end(val), std::begin(to.back()));
+}
 
   /// Remove the last value from the tape, return it.
   template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
@@ -79,6 +78,13 @@ CUDA_HOST_DEVICE T push(tape<T, SBO_SIZE, SLAB_SIZE>& to, ArgsT... val) {
     T val = std::move(to.back());
     to.pop_back();
     return val;
+  }
+
+  /// A specialization for C arrays
+  template <typename T, std::size_t N, std::size_t SBO_SIZE = 64,
+            std::size_t SLAB_SIZE = 1024>
+  CUDA_HOST_DEVICE void pop(tape<T[N], SBO_SIZE, SLAB_SIZE>& to) {
+    to.pop_back();
   }
 
   /// Access return the last value in the tape.

@@ -61,17 +61,6 @@ using namespace clang;
 
 namespace clad {
 
-Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
-                       ReverseModeVisitor& rvm) {
-  if (const auto* const CAT = dyn_cast<ConstantArrayType>(AT))
-    return ConstantFolder::synthesizeLiteral(context.getSizeType(), context,
-                                             CAT->getSize().getZExtValue());
-  if (const auto* VSAT = dyn_cast<VariableArrayType>(AT))
-    return rvm.Clone(VSAT->getSizeExpr());
-
-  return nullptr;
-}
-
 Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   if (E)
     if (const auto* CXXILE =
@@ -2680,9 +2669,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (promoteToFnScope) {
       VDDerivedType = ComputeAdjointType(CloneType(VDType));
       VDCloneType = VDDerivedType;
-      if (isa<ArrayType>(VDCloneType) && !isa<IncompleteArrayType>(VDCloneType))
-        VDCloneType = utils::GetCladArrayOfType(
-            m_Sema, m_Context.getBaseElementType(VDCloneType));
     } else {
       VDCloneType = CloneType(VDType);
       VDDerivedType = utils::getNonConstType(VDCloneType, m_Sema);
@@ -2732,16 +2718,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     bool isDirectInit = VD->isDirectInit();
-    // VDDerivedInit now serves two purposes -- as the initial derivative value
-    // or the size of the derivative array -- depending on the primal type.
-    if (promoteToFnScope)
-      if (const auto* AT = dyn_cast<ArrayType>(VDType)) {
-        // If an array-type declaration is promoted to function global,
-        // its type is changed for clad::array. In that case we should
-        // initialize it with its size.
-        initDiff = getArraySizeExpr(AT, m_Context, *this);
-        isDirectInit = true;
-      }
     // If VD is a reference to a local variable, then the initial value is set
     // to the derived variable of the corresponding local variable.
     // If VD is a reference to a non-local variable (global variable, struct
@@ -3073,7 +3049,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           auto* decl = VDDiff.getDecl();
           if (VD->getInit()) {
             auto* declRef = BuildDeclRef(decl);
-            auto* assignment = BuildOp(BO_Assign, declRef, decl->getInit());
+            Expr* assignment = nullptr;
+            if (isa<ArrayType>(VD->getType()))
+              assignment = BuildArrayAssignment(declRef, decl->getInit(),
+                                                direction::forward);
+            else
+              assignment = BuildOp(BO_Assign, declRef, decl->getInit());
             if (isInsideLoop) {
               auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
                                              /*moveToTape=*/true);
@@ -3082,11 +3063,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
             }
             inits.push_back(assignment);
-            if (const auto* AT = dyn_cast<ArrayType>(VD->getType()))
-              SetDeclInit(decl, Clone(getArraySizeExpr(AT, m_Context, *this)),
-                          /*DirectInit=*/true);
-            else
-              SetDeclInit(decl, getZeroInit(VD->getType()));
+            SetDeclInit(decl, getZeroInit(VD->getType()));
           }
         }
 
@@ -3353,11 +3330,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     assert(m_DerivativeFnScope && "must be set");
     setCurrentScope(m_DerivativeFnScope);
 
-    VarDecl* Var = nullptr;
-    if (isa<ArrayType>(Type))
-      Type =
-          utils::GetCladArrayOfType(m_Sema, m_Context.getBaseElementType(Type));
-    Var = BuildVarDecl(Type, identifier, init);
+    VarDecl* Var = BuildVarDecl(Type, identifier, init);
 
     // Add the declaration to the body of the gradient function.
     addToBlock(BuildDeclStmt(Var), m_Globals);
@@ -3397,6 +3370,29 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return Ref;
   }
 
+  Expr* ReverseModeVisitor::BuildArrayAssignment(Expr* output, Expr* input,
+                                                 direction d) {
+    // Build `type (&&_t0)[N] = input;`
+    QualType storeTy = input->getType();
+    if (input->isLValue())
+      storeTy = m_Context.getLValueReferenceType(storeTy);
+    else
+      storeTy = m_Context.getRValueReferenceType(storeTy);
+    input = StoreAndRef(input, storeTy, d);
+    llvm::SmallVector<Expr*, 1> argIn = {input};
+    // Build `std::begin(_t0)` and `std::end(_t0)`
+    Expr* beginIn = GetFunctionCall("begin", "std", argIn);
+    Expr* endIn = GetFunctionCall("end", "std", argIn);
+
+    // Build `std::begin(_output)`
+    llvm::SmallVector<Expr*, 1> argOut = {output};
+    Expr* beginOut = GetFunctionCall("begin", "std", argOut);
+
+    // Build `std::move(std::begin(_t0), std::end(_t0), std::begin(_output));`
+    llvm::SmallVector<Expr*, 1> moveArgs = {beginIn, endIn, beginOut};
+    return GetFunctionCall("move", "std", moveArgs);
+  }
+
   Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
                                               bool force) {
     assert(E && "cannot infer type");
@@ -3410,6 +3406,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     assert(E && "must be provided");
     auto Type = utils::getNonConstType(E->getType(), m_Sema);
 
+    Stmt* Store = nullptr;
+    Stmt* Restore = nullptr;
+    Expr* Pop = nullptr;
+    Expr* Ref = nullptr;
     if (isInsideLoop) {
       Expr* clone = Clone(E);
       if (moveToTape && E->getType()->isRecordType()) {
@@ -3417,33 +3417,31 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         clone = GetFunctionCall("move", "std", args);
       }
       auto CladTape = MakeCladTapeFor(clone, prefix, Type);
-      Expr* Push = CladTape.Push;
-      Expr* Pop = CladTape.Pop;
-      auto* popAssign = BuildOp(BinaryOperatorKind::BO_Assign, Clone(E), Pop);
-      return {Push, popAssign};
-    }
-
-    Expr* init = nullptr;
-    if (const auto* AT = dyn_cast<ArrayType>(Type))
-      init = getArraySizeExpr(AT, m_Context, *this);
-
-    VarDecl* VD = BuildGlobalVarDecl(Type, prefix, init);
-    DeclStmt* decl = BuildDeclStmt(VD);
-    Expr* Ref = BuildDeclRef(VD);
-    Stmt* Store = nullptr;
-    bool isFnScope = getCurrentScope()->isFunctionScope() ||
-                     m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
-    if (isFnScope) {
-      Store = decl;
-      SetDeclInit(VD, E);
+      Store = CladTape.Push;
+      Pop = CladTape.Pop;
+      Ref = CladTape.Last();
     } else {
-      addToBlock(decl, m_Globals);
-      Store = BuildOp(BO_Assign, Ref, Clone(E));
+      VarDecl* VD = BuildGlobalVarDecl(Type, prefix);
+      DeclStmt* decl = BuildDeclStmt(VD);
+      Ref = BuildDeclRef(VD);
+      Pop = Clone(Ref);
+      bool isFnScope = getCurrentScope()->isFunctionScope() ||
+                       m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
+      if (isFnScope) {
+        Store = decl;
+        SetDeclInit(VD, E);
+      } else {
+        addToBlock(decl, m_Globals);
+        Store = BuildOp(BO_Assign, Ref, Clone(E));
+      }
     }
 
-    Stmt* Restore = nullptr;
-    if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid)
-      Restore = BuildOp(BO_Assign, Clone(E), Ref);
+    if (isa<ArrayType>(Type)) {
+      Expr* moveCall = BuildArrayAssignment(Clone(E), Ref, direction::reverse);
+      addToCurrentBlock(moveCall, direction::reverse);
+      Restore = Pop;
+    } else if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid)
+      Restore = BuildOp(BO_Assign, Clone(E), Pop);
 
     return {Store, Restore};
   }

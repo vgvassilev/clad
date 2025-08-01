@@ -335,10 +335,10 @@ double func6(double seed) {
 //CHECK: void func6_grad(double seed, double *_d_seed) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     clad::tape<clad::array<double> > _t1 = {};
+//CHECK-NEXT:     clad::tape<double{{ ?}}[3]> _t2 = {};
 //CHECK-NEXT:     double _d_arr[3] = {0};
-//CHECK-NEXT:     clad::array<double> arr({{3U|3UL|3ULL}});
-//CHECK-NEXT:     clad::tape<double> _t2 = {};
+//CHECK-NEXT:     double arr[3] = {0};
+//CHECK-NEXT:     clad::tape<double> _t3 = {};
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
@@ -348,8 +348,9 @@ double func6(double seed) {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         clad::push(_t1, std::move(arr)) , arr = {seed, seed * i, seed + i};
-//CHECK-NEXT:         clad::push(_t2, sum);
+//CHECK-NEXT:         double (&&_t1)[3] = {seed, seed * i, seed + i};
+//CHECK-NEXT:         clad::push(_t2, arr) , std::move(std::begin(_t1), std::end(_t1), std::begin(arr));
+//CHECK-NEXT:         clad::push(_t3, sum);
 //CHECK-NEXT:         sum += addArr(arr, 3);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
@@ -360,10 +361,10 @@ double func6(double seed) {
 // CHECK-NEXT:         }
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
-//CHECK-NEXT:             sum = clad::pop(_t2);
+//CHECK-NEXT:             sum = clad::pop(_t3);
 //CHECK-NEXT:             double _r_d0 = _d_sum;
-//CHECK-NEXT:             int _r0 = 0;
-//CHECK-NEXT:             addArr_pullback(arr, 3, _r_d0, _d_arr, &_r0);
+//CHECK-NEXT:             int _r1 = 0;
+//CHECK-NEXT:             addArr_pullback(arr, 3, _r_d0, _d_arr, &_r1);
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
 //CHECK-NEXT:             *_d_seed += _d_arr[0];
@@ -372,7 +373,9 @@ double func6(double seed) {
 //CHECK-NEXT:             *_d_seed += _d_arr[2];
 //CHECK-NEXT:             _d_i += _d_arr[2];
 //CHECK-NEXT:             clad::zero_init(_d_arr);
-//CHECK-NEXT:             arr = clad::pop(_t1);
+//CHECK-NEXT:             double &_r0[3] = clad::back(_t2);
+//CHECK-NEXT:             std::move(std::begin(_r0), std::end(_r0), std::begin(arr));
+//CHECK-NEXT:             clad::pop(_t2);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
@@ -402,10 +405,10 @@ double func7(double *params) {
 //CHECK: void func7_grad(double *params, double *_d_params) {
 //CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
 //CHECK-NEXT:     std::size_t i = {{0U|0UL}};
-//CHECK-NEXT:     clad::tape<clad::array<double> > _t1 = {};
+//CHECK-NEXT:     clad::tape<double{{ ?}}[1]> _t2 = {};
 //CHECK-NEXT:     double _d_paramsPrime[1] = {0};
-//CHECK-NEXT:     clad::array<double> paramsPrime({{1U|1UL|1ULL}});
-//CHECK-NEXT:     clad::tape<double> _t2 = {};
+//CHECK-NEXT:     double paramsPrime[1] = {0};
+//CHECK-NEXT:     clad::tape<double> _t3 = {};
 //CHECK-NEXT:     double _d_out = 0.;
 //CHECK-NEXT:     double out = 0.;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
@@ -415,8 +418,9 @@ double func7(double *params) {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, std::move(paramsPrime)) , paramsPrime = {params[0]};
-// CHECK-NEXT:         clad::push(_t2, out);
+// CHECK-NEXT:         double (&&_t1)[1] = {params[0]};
+// CHECK-NEXT:         clad::push(_t2, paramsPrime) , std::move(std::begin(_t1), std::end(_t1), std::begin(paramsPrime));
+// CHECK-NEXT:         clad::push(_t3, out);
 // CHECK-NEXT:         out = out + inv_square(paramsPrime);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_out += 1;
@@ -427,7 +431,7 @@ double func7(double *params) {
 // CHECK-NEXT:         }
 //CHECK-NEXT:         --i;
 //CHECK-NEXT:         {
-//CHECK-NEXT:             out = clad::pop(_t2);
+//CHECK-NEXT:             out = clad::pop(_t3);
 //CHECK-NEXT:             double _r_d0 = _d_out;
 //CHECK-NEXT:             _d_out = 0.;
 //CHECK-NEXT:             _d_out += _r_d0;
@@ -436,7 +440,9 @@ double func7(double *params) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _d_params[0] += _d_paramsPrime[0];
 //CHECK-NEXT:             clad::zero_init(_d_paramsPrime);
-//CHECK-NEXT:             paramsPrime = clad::pop(_t1);
+//CHECK-NEXT:             double &_r0[1] = clad::back(_t2);
+//CHECK-NEXT:             std::move(std::begin(_r0), std::end(_r0), std::begin(paramsPrime));
+//CHECK-NEXT:             clad::pop(_t2);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
@@ -631,7 +637,7 @@ double func11(double seed) {
 // CHECK-NEXT:    int _d_i = 0;
 // CHECK-NEXT:    int i = 0;
 // CHECK-NEXT:    double _d_arr[3] = {0};
-// CHECK-NEXT:    clad::array<double> arr({{3U|3UL|3ULL}});
+// CHECK-NEXT:    double arr[3];
 // CHECK-NEXT:    clad::tape<double> _t1 = {};
 // CHECK-NEXT:    clad::tape<double> _t2 = {};
 // CHECK-NEXT:    clad::tape<double> _t3 = {};

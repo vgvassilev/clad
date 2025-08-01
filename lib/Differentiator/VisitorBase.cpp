@@ -476,18 +476,10 @@ namespace clad {
       Expr* Base, const llvm::SmallVectorImpl<clang::Expr*>& Indices) {
     Expr* result = Base;
     SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-    if (utils::isArrayOrPointerType(Base->getType())) {
-      for (Expr* I : Indices)
-        result =
-            m_Sema.CreateBuiltinArraySubscriptExpr(result, fakeLoc, I, fakeLoc)
-                .get();
-    } else {
-      Expr* idx = Indices.back();
-      result = m_Sema
-                   .ActOnArraySubscriptExpr(getCurrentScope(), Base, fakeLoc,
-                                            idx, fakeLoc)
-                   .get();
-    }
+    for (Expr* I : Indices)
+      result =
+          m_Sema.CreateBuiltinArraySubscriptExpr(result, fakeLoc, I, fakeLoc)
+              .get();
     return result;
   }
 

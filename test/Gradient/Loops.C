@@ -1763,10 +1763,10 @@ double fn21(double x) {
 // CHECK: void fn21_grad(double x, double *_d_x) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<clad::array<double> > _t1 = {};
+// CHECK-NEXT:     clad::tape<double{{ ?}}[3]> _t2 = {};
 // CHECK-NEXT:     double _d_arr[3] = {0};
-// CHECK-NEXT:     clad::array<double> arr({{3U|3UL|3ULL}});
-// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double arr[3] = {0};
+// CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
@@ -1776,8 +1776,9 @@ double fn21(double x) {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, std::move(arr)) , arr = {1, x, 2};
-// CHECK-NEXT:         clad::push(_t2, res);
+// CHECK-NEXT:         double (&&_t1)[3] = {1, x, 2};
+// CHECK-NEXT:         clad::push(_t2, arr) , std::move(std::begin(_t1), std::end(_t1), std::begin(arr)); 
+// CHECK-NEXT:         clad::push(_t3, res);
 // CHECK-NEXT:         res += arr[0] + arr[1];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
@@ -1788,7 +1789,7 @@ double fn21(double x) {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             res = clad::pop(_t2);
+// CHECK-NEXT:             res = clad::pop(_t3);
 // CHECK-NEXT:             double _r_d0 = _d_res;
 // CHECK-NEXT:             _d_arr[0] += _r_d0;
 // CHECK-NEXT:             _d_arr[1] += _r_d0;
@@ -1796,7 +1797,9 @@ double fn21(double x) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             *_d_x += _d_arr[1];
 // CHECK-NEXT:             clad::zero_init(_d_arr);
-// CHECK-NEXT:             arr = clad::pop(_t1);
+// CHECK-NEXT:             double &_r0[3] = clad::back(_t2);
+// CHECK-NEXT:             std::move(std::begin(_r0), std::end(_r0), std::begin(arr));
+// CHECK-NEXT:             clad::pop(_t2); 
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -1814,10 +1817,9 @@ double fn22(double param) {
 // CHECK: void fn22_grad(double param, double *_d_param) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<clad::array<double> > _t1 = {};
+// CHECK-NEXT:     clad::tape<double{{ ?}}[1]> _t2 = {};
 // CHECK-NEXT:     double _d_arr[1] = {0};
-// CHECK-NEXT:     clad::array<double> arr({{1U|1UL|1ULL}});
-// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double arr[1] = {0};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     double _d_out = 0.;
 // CHECK-NEXT:     double out = 0.;
@@ -1828,10 +1830,10 @@ double fn22(double param) {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, std::move(arr)) , arr = {1.};
-// CHECK-NEXT:         clad::push(_t2, out);
-// CHECK-NEXT:         clad::push(_t3, arr[0]);
-// CHECK-NEXT:         out += clad::back(_t3) * param;
+// CHECK-NEXT:         double (&&_t1)[1] = {1.};
+// CHECK-NEXT:         clad::push(_t2, arr) , std::move(std::begin(_t1), std::end(_t1), std::begin(arr));
+// CHECK-NEXT:         clad::push(_t3, out);
+// CHECK-NEXT:         out += arr[0] * param;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_out += 1;
 // CHECK-NEXT:     for (;; _t0--) {
@@ -1841,15 +1843,16 @@ double fn22(double param) {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         i--;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             out = clad::pop(_t2);
+// CHECK-NEXT:             out = clad::pop(_t3);
 // CHECK-NEXT:             double _r_d0 = _d_out;
 // CHECK-NEXT:             _d_arr[0] += _r_d0 * param;
-// CHECK-NEXT:             *_d_param += clad::back(_t3) * _r_d0;
-// CHECK-NEXT:             clad::pop(_t3);
+// CHECK-NEXT:             *_d_param += arr[0] * _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             clad::zero_init(_d_arr);
-// CHECK-NEXT:             arr = clad::pop(_t1);
+// CHECK-NEXT:             double &_r0[1] = clad::back(_t2);
+// CHECK-NEXT:             std::move(std::begin(_r0), std::end(_r0), std::begin(arr));
+// CHECK-NEXT:             clad::pop(_t2);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
