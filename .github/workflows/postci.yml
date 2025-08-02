@@ -8,8 +8,6 @@ jobs:
   knowall:
     runs-on: ubuntu-latest
     if: ${{ false }} # Disable temporary the workflow.
-    if: >
-      ${{ github.event.workflow_run.event == 'pull_request'}}
     steps:
     - name: 'Download artifact'
       uses: actions/github-script@v7.0.1
