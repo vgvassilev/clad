@@ -585,6 +585,8 @@ void ReferencesUpdater::updateType(QualType QT) {
 }
 
 QualType StmtClone::CloneType(const clang::QualType T) {
+  if (T.isNull())
+    return T;
   if (const auto* varArrType =
           dyn_cast<clang::VariableArrayType>(T.getTypePtr())) {
     auto elemType = varArrType->getElementType();
