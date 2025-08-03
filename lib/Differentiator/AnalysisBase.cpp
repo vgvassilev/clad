@@ -1,5 +1,13 @@
 #include "AnalysisBase.h"
 
+#include "clad/Differentiator/CladUtils.h"
+
+#include "clang/AST/Decl.h"
+#include "clang/AST/Type.h"
+
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
+
 using namespace clang;
 
 namespace clad {
@@ -31,7 +39,7 @@ VarData::VarData(QualType QT, const ASTContext& C, bool forceNonRefType) {
     m_Type = VarData::OBJ_TYPE;
     const auto* recordDecl = recordType->getDecl();
     auto& newArrMap = m_Val.m_ArrData;
-    newArrMap = std::unique_ptr<ArrMap>(new ArrMap());
+    newArrMap = std::make_unique<ArrMap>();
     llvm::SmallVector<const FieldDecl*, 4> Fields;
     utils::getRecordDeclFields(recordDecl, Fields);
     for (const auto* field : Fields) {

@@ -17,8 +17,6 @@
 #include <map>
 #include <unordered_map>
 
-using namespace clang;
-
 namespace clad {
 
 /// Gradient computation requres reversal of the control flow of the original
