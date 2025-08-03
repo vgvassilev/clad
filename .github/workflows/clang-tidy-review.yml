@@ -35,7 +35,7 @@ jobs:
         with:
           build_dir: build
           apt_packages: cmake,libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev
-          exclude: "test/*,unittests/*,benchmark/*,demos/*"
+          exclude: "test/*,unittests/*"
           split_workflow: true
           config_file: .clang-tidy
           cmake_command: >
