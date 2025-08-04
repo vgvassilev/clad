@@ -953,7 +953,7 @@ namespace clad {
 
     bool hasMemoryTypeParams(const FunctionDecl* FD) {
       // FIXME: enable for methods
-      if (isa<CXXMethodDecl>(FD))
+      if (isa<CXXMethodDecl>(FD) || FD->isOverloadedOperator())
         return false;
       // if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
       //   if (MD->isInstance() && !MD->isConst())

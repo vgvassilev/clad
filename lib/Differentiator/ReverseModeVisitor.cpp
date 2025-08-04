@@ -2102,19 +2102,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       const auto* forwPassMD = dyn_cast<CXXMethodDecl>(calleeFnForwPassFD);
       Expr* baseE = baseDiff.getExpr();
       Expr* tapeExpr = nullptr;
-      if (m_SmartTape) {
-        tapeExpr = m_SmartTape;
-      } else if (utils::hasMemoryTypeParams(FD)) {
-        QualType tapeType = utils::GetSmartTapeType(m_Sema);
-        VarDecl* tapeDecl =
-            BuildVarDecl(tapeType, "_tape", getZeroInit(tapeType));
-        addToCurrentBlock(BuildDeclStmt(tapeDecl));
-        tapeExpr = BuildDeclRef(tapeDecl);
-        Expr* restoreCall = BuildCallExprToMemFn(
-            BuildDeclRef(tapeDecl), /*MemberFunctionName=*/"restore",
-            /*ArgExprs=*/{}, Loc);
-        it = std::begin(block) + insertionPoint;
-        block.insert(it, restoreCall);
+      if (utils::hasMemoryTypeParams(FD)) {
+        if (m_SmartTape) {
+          tapeExpr = m_SmartTape;
+        } else {
+          QualType tapeType = utils::GetSmartTapeType(m_Sema);
+          VarDecl* tapeDecl =
+              BuildVarDecl(tapeType, "_tape", getZeroInit(tapeType));
+          addToCurrentBlock(BuildDeclStmt(tapeDecl));
+          tapeExpr = BuildDeclRef(tapeDecl);
+          Expr* restoreCall = BuildCallExprToMemFn(
+              BuildDeclRef(tapeDecl), /*MemberFunctionName=*/"restore",
+              /*ArgExprs=*/{}, Loc);
+          it = std::begin(block) + insertionPoint;
+          block.insert(it, restoreCall);
+        }
       }
       if (tapeExpr)
         CallArgs.push_back(tapeExpr);

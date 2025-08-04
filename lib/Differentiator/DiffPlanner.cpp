@@ -1257,8 +1257,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       forwPassRequest.EnableTBRAnalysis = false;
       forwPassRequest.EnableVariedAnalysis = false;
       forwPassRequest.EnableUsefulAnalysis = false;
-      bool isMemoryTypeReturn = utils::isNonConstReferenceType(returnType) ||
-                                returnType->isPointerType();
+      bool isMemoryTypeReturn = utils::isMemoryType(returnType);
       bool hasMemoryTypeParams = utils::hasMemoryTypeParams(request.Function);
       if (LookupCustomDerivativeDecl(forwPassRequest) || isMemoryTypeReturn ||
           hasMemoryTypeParams)
