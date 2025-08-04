@@ -1669,8 +1669,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     QualType returnType = FD->getReturnType();
     // FIXME: Decide this in the diff planner
-    bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
-                         returnType->isPointerType();
+    bool needsForwPass = utils::isMemoryType(returnType);
 
     // FIXME: if the call is non-differentiable but needs a reverse forward
     // call, we still don't need to generate the pullback. The only challenge is
@@ -2120,7 +2119,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                   CallArgs, Loc, CUDAExecConfig)
                    .get();
       }
-      if (!needsForwPass && !m_TrackVarDeclConstructor)
+      if (!needsForwPass || utils::hasUnusedReturnValue(m_Context, CE))
         return StmtDiff(call);
       Expr* callRes = nullptr;
       if (isInsideLoop)
