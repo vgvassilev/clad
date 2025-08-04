@@ -9,6 +9,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclarationName.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Ownership.h"
@@ -397,6 +398,9 @@ namespace clad {
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
 
+    /// Returns true if T allows to edit any memory.
+    bool isMemoryType(clang::QualType T);
+
     bool IsDifferentiableType(clang::QualType T);
 
     /// Returns true if FD can be differentiated as a pushforward
@@ -412,6 +416,8 @@ namespace clad {
     /// an expression, most likely an index, is injective, meaning no two
     /// threads have the same value.
     bool isInjective(const clang::Expr* E, clang::ASTContext& ctx);
+    /// Checks if the return value of the given CallExpr is unused.
+    bool hasUnusedReturnValue(clang::ASTContext& C, const clang::CallExpr* CE);
     } // namespace utils
     } // namespace clad
 

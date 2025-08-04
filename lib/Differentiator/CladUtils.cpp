@@ -9,6 +9,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Builtins.h"
@@ -901,6 +902,29 @@ namespace clad {
       return cast<TemplateDecl>(TapeR.getFoundDecl());
     }
 
+    bool isMemoryType(QualType T) {
+      T = T.getCanonicalType();
+      if (T->isReferenceType())
+        return !T.getNonReferenceType().isConstQualified();
+      if (T->isPointerType())
+        return !T->getPointeeType().isConstQualified();
+      if (const auto* RT = T->getAs<RecordType>()) {
+        const RecordDecl* RD = RT->getDecl();
+        if (const auto* CRD = dyn_cast<CXXRecordDecl>(RD))
+          if (!isCopyable(CRD))
+            return true;
+        if (const auto* CRD = dyn_cast<CXXRecordDecl>(RD))
+          for (const CXXBaseSpecifier& base : CRD->bases())
+            if (isMemoryType(base.getType()))
+              return true;
+        for (const auto* field : RD->fields())
+          if (isMemoryType(field->getType()))
+            return true;
+        return false;
+      }
+      return false;
+    }
+
     QualType InstantiateTemplate(Sema& S, TemplateDecl* CladClassDecl,
                                  ArrayRef<QualType> TemplateArgs) {
       // Create a list of template arguments.
@@ -1337,6 +1361,18 @@ namespace clad {
       } checker(ctx);
 
       return checker.isInjectiveIdx(E);
+    }
+
+    bool hasUnusedReturnValue(ASTContext& C, const clang::CallExpr* CE) {
+      for (const auto& parent : C.getParents(*CE)) {
+        const Stmt* S = parent.get<Stmt>();
+        if (!S)
+          return false;
+        if (isa<Expr>(S))
+          return false;
+        // If the parent is a Stmt but not an Expr, then the result is not used.
+      }
+      return true;
     }
   } // namespace utils
 } // namespace clad
