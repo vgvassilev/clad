@@ -112,11 +112,7 @@ __global__ void add_kernel_4(int *out, int *in, int N) {
 // CHECK-NEXT:         if (_cond0) {
 // CHECK-NEXT:             sum = 0;
 // CHECK-NEXT:             _t0 = 0UL;
-// CHECK-NEXT:             for (i = index0; ; clad::push(_t1, i) , (i += warpSize)) {
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     if (!(i < N))
-// CHECK-NEXT:                         break;
-// CHECK-NEXT:                 }
+// CHECK-NEXT:             for (i = index0; i < N; clad::push(_t1, i) , (i += warpSize)) {
 // CHECK-NEXT:                 _t0++;
 // CHECK-NEXT:                 clad::push(_t2, sum);
 // CHECK-NEXT:                 sum += in[i];
@@ -133,11 +129,7 @@ __global__ void add_kernel_4(int *out, int *in, int N) {
 // CHECK-NEXT:             _d_sum += _r_d2;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             for (;; _t0--) {
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     if (!_t0)
-// CHECK-NEXT:                         break;
-// CHECK-NEXT:                 }
+// CHECK-NEXT:             for (; _t0; _t0--) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     i = clad::pop(_t1);
 // CHECK-NEXT:                     int _r_d0 = _d_i;
@@ -188,11 +180,7 @@ __global__ void add_kernel_5(int *out, int *in, int N) {
 // CHECK-NEXT:             sum = 0;
 // CHECK-NEXT:             totalThreads = blockDim.x * gridDim.x;
 // CHECK-NEXT:             _t0 = 0UL;
-// CHECK-NEXT:             for (i = index0; ; clad::push(_t1, i) , (i += totalThreads)) {
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     if (!(i < N))
-// CHECK-NEXT:                         break;
-// CHECK-NEXT:                 }
+// CHECK-NEXT:             for (i = index0; i < N; clad::push(_t1, i) , (i += totalThreads)) {
 // CHECK-NEXT:                 _t0++;
 // CHECK-NEXT:                 clad::push(_t2, sum);
 // CHECK-NEXT:                 sum += in[i];
@@ -209,11 +197,7 @@ __global__ void add_kernel_5(int *out, int *in, int N) {
 // CHECK-NEXT:             _d_sum += _r_d2;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             for (;; _t0--) {
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     if (!_t0)
-// CHECK-NEXT:                         break;
-// CHECK-NEXT:                 }
+// CHECK-NEXT:             for (; _t0; _t0--) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     i = clad::pop(_t1);
 // CHECK-NEXT:                     int _r_d0 = _d_i;
@@ -524,22 +508,14 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    double _d_res = 0.;
 //CHECK-NEXT:    double res = 0;
 //CHECK-NEXT:    unsigned long _t0 = 0UL;
-//CHECK-NEXT:    for (i = 0; ; ++i) {
-//CHECK-NEXT:        {
-//CHECK-NEXT:            if (!(i < 10))
-//CHECK-NEXT:                break;
-//CHECK-NEXT:        }
+//CHECK-NEXT:    for (i = 0; i < 10; ++i) {
 //CHECK-NEXT:        _t0++;
 //CHECK-NEXT:        printf("Writing result of out[%d]\n", i);
 //CHECK-NEXT:        clad::push(_t1, res);
 //CHECK-NEXT:        res += out_host[i];
 //CHECK-NEXT:    }
 //CHECK-NEXT:    _d_res += 1;
-//CHECK-NEXT:    for (;; _t0--) {
-//CHECK-NEXT:        {
-//CHECK-NEXT:            if (!_t0)
-//CHECK-NEXT:                break;
-//CHECK-NEXT:        }
+//CHECK-NEXT:    for (; _t0; _t0--) {
 //CHECK-NEXT:        --i;
 //CHECK-NEXT:        {
 //CHECK-NEXT:            res = clad::pop(_t1);
@@ -597,11 +573,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 // CHECK-NEXT:         if (_cond0) {
 // CHECK-NEXT:             sum = 0;
 // CHECK-NEXT:             _t0 = 0UL;
-// CHECK-NEXT:             for (i = index0; ; clad::push(_t1, i) , (i += warpSize)) {
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     if (!(i < N))
-// CHECK-NEXT:                         break;
-// CHECK-NEXT:                 }
+// CHECK-NEXT:             for (i = index0; i < N; clad::push(_t1, i) , (i += warpSize)) {
 // CHECK-NEXT:                 _t0++;
 // CHECK-NEXT:                 clad::push(_t2, sum);
 // CHECK-NEXT:                 sum += in[i];
@@ -618,11 +590,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 // CHECK-NEXT:             _d_sum += _r_d2;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             for (;; _t0--) {
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     if (!_t0)
-// CHECK-NEXT:                         break;
-// CHECK-NEXT:                 }
+// CHECK-NEXT:             for (; _t0; _t0--) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     i = clad::pop(_t1);
 // CHECK-NEXT:                     int _r_d0 = _d_i;

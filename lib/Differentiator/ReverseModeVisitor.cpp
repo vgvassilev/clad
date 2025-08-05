@@ -1136,34 +1136,32 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     Stmt* breakStmt = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
 
-    /// This part adds the forward pass of loop condition stmt in the body
-    /// In this first loop condition diff stmts execute then loop condition
-    /// is checked if and loop is terminated.
-    beginBlock();
-    if (utils::unwrapIfSingleStmt(condDiff.getStmt()))
-      addToCurrentBlock(condDiff.getStmt());
+    if (Stmt* condDiffUnwrap = utils::unwrapIfSingleStmt(condDiff.getStmt())) {
+      /// This part adds the forward pass of loop condition stmt in the body
+      /// In this first loop condition diff stmts execute then loop condition
+      /// is checked if and loop is terminated.
+      beginBlock();
+      addToCurrentBlock(condDiffUnwrap);
 
-    Stmt* IfStmt = clad_compat::IfStmt_Create(
-        /*Ctx=*/m_Context, /*IL=*/noLoc, /*IsConstexpr=*/false,
-        /*Init=*/nullptr, /*Var=*/nullptr,
-        /*Cond=*/
-        BuildOp(clang::UnaryOperatorKind::UO_LNot, BuildParens(forwardCond)),
-        /*LPL=*/noLoc, /*RPL=*/noLoc,
-        /*Then=*/breakStmt,
-        /*EL=*/noLoc,
-        /*Else=*/nullptr);
-    addToCurrentBlock(IfStmt);
+      Stmt* IfStmt = clad_compat::IfStmt_Create(
+          /*Ctx=*/m_Context, /*IL=*/noLoc, /*IsConstexpr=*/false,
+          /*Init=*/nullptr, /*Var=*/nullptr,
+          /*Cond=*/
+          BuildOp(clang::UnaryOperatorKind::UO_LNot, BuildParens(forwardCond)),
+          /*LPL=*/noLoc, /*RPL=*/noLoc,
+          /*Then=*/breakStmt,
+          /*EL=*/noLoc,
+          /*Else=*/nullptr);
+      forwardCond = nullptr;
+      addToCurrentBlock(IfStmt);
 
-    Stmt* forwardCondStmts = endBlock();
-    if (BodyDiff.getStmt()) {
+      Stmt* forwardCondStmts = endBlock();
       BodyDiff.updateStmt(utils::PrependAndCreateCompoundStmt(
           m_Context, BodyDiff.getStmt(), forwardCondStmts));
-    } else {
-      BodyDiff.updateStmt(utils::unwrapIfSingleStmt(forwardCondStmts));
     }
 
     Stmt* Forward = new (m_Context)
-        ForStmt(m_Context, initResult.getStmt(), nullptr, condVarClone,
+        ForStmt(m_Context, initResult.getStmt(), forwardCond, condVarClone,
                 incResult, BodyDiff.getStmt(), noLoc, noLoc, noLoc);
 
     // Create a condition testing counter for being zero, and its decrement.
@@ -1173,19 +1171,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         CounterCondition = loopCounter.getCounterConditionResult().get().second;
     Expr* CounterDecrement = loopCounter.getCounterDecrement();
 
-    /// This part adds the reverse pass of loop condition stmt in the body
-    beginBlock(direction::reverse);
-    Stmt* RevIfStmt = clad_compat::IfStmt_Create(
-        /*Ctx=*/m_Context, /*IL=*/noLoc, /*IsConstexpr=*/false,
-        /*Init=*/nullptr, /*Var=*/nullptr,
-        /*Cond=*/BuildOp(clang::UnaryOperatorKind::UO_LNot, CounterCondition),
-        /*LPL=*/noLoc, /*RPL=*/noLoc,
-        /*Then=*/Clone(breakStmt),
-        /*EL=*/noLoc,
-        /*Else=*/nullptr);
-    addToCurrentBlock(RevIfStmt, direction::reverse);
-
     if (condDiff.getStmt_dx()) {
+      /// This part adds the reverse pass of loop condition stmt in the body
+      beginBlock(direction::reverse);
+      Stmt* RevIfStmt = clad_compat::IfStmt_Create(
+          /*Ctx=*/m_Context, /*IL=*/noLoc, /*IsConstexpr=*/false,
+          /*Init=*/nullptr, /*Var=*/nullptr,
+          /*Cond=*/BuildOp(clang::UnaryOperatorKind::UO_LNot, CounterCondition),
+          /*LPL=*/noLoc, /*RPL=*/noLoc,
+          /*Then=*/Clone(breakStmt),
+          /*EL=*/noLoc,
+          /*Else=*/nullptr);
+      addToCurrentBlock(RevIfStmt, direction::reverse);
+
       if (m_CurrentBreakFlagExpr) {
         Expr* loopBreakFlagCond =
             BuildOp(BinaryOperatorKind::BO_LOr,
@@ -1198,22 +1196,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       } else {
         addToCurrentBlock(condDiff.getStmt_dx(), direction::reverse);
       }
-    }
-
-    Stmt* revPassCondStmts = endBlock(direction::reverse);
-    if (BodyDiff.getStmt_dx()) {
+      CounterCondition = nullptr;
+      Stmt* revPassCondStmts = endBlock(direction::reverse);
       BodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
           m_Context, BodyDiff.getStmt_dx(), revPassCondStmts));
-    } else {
-      BodyDiff.updateStmtDx(utils::unwrapIfSingleStmt(revPassCondStmts));
     }
 
     Stmt* revInit = loopCounter.getNumRevIterations()
                         ? BuildDeclStmt(loopCounter.getNumRevIterations())
                         : nullptr;
-    Stmt* Reverse = new (m_Context)
-        ForStmt(m_Context, revInit, nullptr, nullptr, CounterDecrement,
-                BodyDiff.getStmt_dx(), noLoc, noLoc, noLoc);
+    Stmt* Reverse = nullptr;
+    if (BodyDiff.getStmt_dx())
+      Reverse = new (m_Context)
+          ForStmt(m_Context, revInit, CounterCondition, nullptr,
+                  CounterDecrement, BodyDiff.getStmt_dx(), noLoc, noLoc, noLoc);
 
     addToCurrentBlock(initResult.getStmt_dx(), direction::reverse);
     addToCurrentBlock(Reverse, direction::reverse);

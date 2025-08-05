@@ -21,21 +21,13 @@ float func(float* p, int n) {
 //CHECK-NEXT:     float _d_sum = 0.F;
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-//CHECK-NEXT:     for (i = 0; ; i++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < n))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += p[i];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});
@@ -71,22 +63,14 @@ float func2(float x) {
 //CHECK-NEXT:     float _d_z = 0.F;
 //CHECK-NEXT:     float z;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-//CHECK-NEXT:     for (i = 0; ; i++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < 9))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (i = 0; i < 9; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, m) , m = x * x;
 //CHECK-NEXT:         clad::push(_t2, z);
 //CHECK-NEXT:         z = m + m;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_z += 1;
-//CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_z * z * {{.+}});
@@ -172,11 +156,7 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     float _d_sum = 0.F;
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-//CHECK-NEXT:     for (i = 0; ; i++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < 10))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (i = 0; i < 10; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, x[i]);
 //CHECK-NEXT:         x[i] += y[i];
@@ -184,11 +164,7 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:         sum += x[i];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});

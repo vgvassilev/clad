@@ -591,11 +591,7 @@ double fn7(double u, double v) {
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (i = 0; ; ++i) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:          if (!(i < 5))
-// CHECK-NEXT:          break;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             clad::push(_cond0, i)
@@ -632,11 +628,7 @@ double fn7(double u, double v) {
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             switch (clad::pop(_t2)) {
