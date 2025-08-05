@@ -691,15 +691,6 @@ jobs:
         choco upgrade cmake
         $env:PATH="C:\Program Files (x86)\GnuWin32\bin;$env:PATH"
         $env:PATH="C:\Program Files (x86)\Ninja\bin;$env:PATH"
-
-    - name: Restore Cache LLVM/Clang runtime build directory (debug_build==true)
-      if: ${{ (matrix.debug_build == true) }}
-      uses: actions/cache/restore@v4
-      id: cache
-      with:
-        path: |
-          llvm-project
-        key: ${{ env.LLVM_HASH }}-${{ matrix.os }}-${{ matrix.compiler }}-clang-${{ matrix.clang-runtime }}.x
         
     - name: Build LLVM/Cling on Unix if the cache is invalid (debug_build==true)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
@@ -752,15 +743,7 @@ jobs:
         rm -r -force $(find.exe . -maxdepth 1 ! -name "include" ! -name "lib" ! -name "cmake" ! -name ".")
         cd ..\clang\
         rm -r -force $(find.exe . -maxdepth 1 ! -name "include" ! -name "lib" ! -name "cmake"  ! -name ".")
-        cd ..\..     
-
-    - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
-      uses: actions/cache/save@v4
-      if: ${{ (matrix.debug_build == true) && (steps.cache.outputs.cache-hit != 'true') }}
-      with:
-        path: |
-          llvm-project
-        key: ${{ steps.cache.outputs.cache-primary-key }}
+        cd ..\..
         
     - name: Set LLVM/Cling build path on Unix (debug_build==true)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
