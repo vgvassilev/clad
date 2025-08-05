@@ -695,11 +695,7 @@ int main() {
 // CHECK-NEXT:        double _d_res = 0.;
 // CHECK-NEXT:        double res = 0;
 // CHECK-NEXT:        unsigned {{long|int}} _t1 = {{0U|0UL}};
-// CHECK-NEXT:        for (i = 0; ; ++i) {
-// CHECK-NEXT:            {
-// CHECK-NEXT:                if (!(i < a.size()))
-// CHECK-NEXT:                    break;
-// CHECK-NEXT:            }
+// CHECK-NEXT:        for (i = 0; i < a.size(); ++i) {
 // CHECK-NEXT:            _t1++;
 // CHECK-NEXT:            clad::push(_t2, res);
 // CHECK-NEXT:            clad::push(_t3, a);
@@ -707,11 +703,7 @@ int main() {
 // CHECK-NEXT:            res += clad::back(_t4).value;
 // CHECK-NEXT:        }
 // CHECK-NEXT:        _d_res += 1;
-// CHECK-NEXT:        for (;; _t1--) {
-// CHECK-NEXT:            {
-// CHECK-NEXT:                if (!_t1)
-// CHECK-NEXT:                    break;
-// CHECK-NEXT:            }
+// CHECK-NEXT:        for (; _t1; _t1--) {
 // CHECK-NEXT:            --i;
 // CHECK-NEXT:            {
 // CHECK-NEXT:                res = clad::pop(_t2);
@@ -882,11 +874,7 @@ int main() {
 // CHECK-NEXT:          {{.*}}vector<double> _d_v = {};
 // CHECK-NEXT:          clad::zero_init(_d_v);
 // CHECK-NEXT:          {{.*}} _t0 = {{0U|0UL|0}};
-// CHECK-NEXT:          for (i = 0; ; ++i) {
-// CHECK-NEXT:              {
-// CHECK-NEXT:                  if (!(i < 3))
-// CHECK-NEXT:                      break;
-// CHECK-NEXT:              }
+// CHECK-NEXT:          for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:              _t0++;
 // CHECK-NEXT:              {{.*}}push(_t1, v);
 // CHECK-NEXT:              {{.*}}push_back_reverse_forw(&v, x, &_d_v, *_d_x);
@@ -894,11 +882,7 @@ int main() {
 // CHECK-NEXT:          double _d_res = 0.;
 // CHECK-NEXT:          double res = 0;
 // CHECK-NEXT:          {{.*}} _t2 = {{0U|0UL|0}};
-// CHECK-NEXT:          for (i0 = 0; ; ++i0) {
-// CHECK-NEXT:              {
-// CHECK-NEXT:                  if (!(i0 < v.size()))
-// CHECK-NEXT:                      break;
-// CHECK-NEXT:              }
+// CHECK-NEXT:          for (i0 = 0; i0 < v.size(); ++i0) {
 // CHECK-NEXT:              _t2++;
 // CHECK-NEXT:              {{.*}}push(_t3, res);
 // CHECK-NEXT:              {{.*}}push(_t4, v);
@@ -938,11 +922,7 @@ int main() {
 // CHECK-NEXT:              v = _t6;
 // CHECK-NEXT:              {{.*}}assign_pullback(&v, 3, 0, &_d_v, &_r1, &_r2);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          for (;; _t2--) {
-// CHECK-NEXT:              {
-// CHECK-NEXT:                  if (!_t2)
-// CHECK-NEXT:                      break;
-// CHECK-NEXT:              }
+// CHECK-NEXT:          for (; _t2; _t2--) {
 // CHECK-NEXT:              --i0;
 // CHECK-NEXT:              {
 // CHECK-NEXT:                  res = {{.*}}pop(_t3);
@@ -955,11 +935,7 @@ int main() {
 // CHECK-NEXT:                  {{.*}}pop(_t5);
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
-// CHECK-NEXT:          for (;; _t0--) {
-// CHECK-NEXT:              {
-// CHECK-NEXT:                  if (!_t0)
-// CHECK-NEXT:                      break;
-// CHECK-NEXT:              }
+// CHECK-NEXT:          for (; _t0; _t0--) {
 // CHECK-NEXT:              --i;
 // CHECK-NEXT:              {
 // CHECK-NEXT:                  v = {{.*}}back(_t1);
@@ -1095,11 +1071,7 @@ int main() {
 // CHECK-NEXT:      {{.*}}allocator_type _d_alloc = {};
 // CHECK-NEXT:      clad::zero_init(_d_alloc);
 // CHECK-NEXT:      unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:      for (i = 0; ; ++i) {
-// CHECK-NEXT:          {
-// CHECK-NEXT:              if (!(i < 3))
-// CHECK-NEXT:                  break;
-// CHECK-NEXT:          }
+// CHECK-NEXT:      for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:          _t0++;
 // CHECK-NEXT:          clad::push(_t1, std::move(_d_ls));
 // CHECK-NEXT:          clad::push(_t2, std::move(ls)) , ls = {u, v}, alloc;
@@ -1117,11 +1089,7 @@ int main() {
 // CHECK-NEXT:          u = clad::back(_t10).value;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      *_d_u += 1;
-// CHECK-NEXT:      for (;; _t0--) {
-// CHECK-NEXT:          {
-// CHECK-NEXT:              if (!_t0)
-// CHECK-NEXT:                  break;
-// CHECK-NEXT:          }
+// CHECK-NEXT:      for (; _t0; _t0--) {
 // CHECK-NEXT:          --i;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              u = clad::pop(_t8);
@@ -1195,11 +1163,7 @@ int main() {
 // CHECK-NEXT:     double _d_prod = 0.;
 // CHECK-NEXT:     double prod = 1;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (i = 3; ; --i) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i >= 1))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (i = 3; i >= 1; --i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, std::move(_d_vec));
 // CHECK-NEXT:         clad::push(_t2, std::move(vec)) , vec = i, v + u, alloc;
@@ -1211,11 +1175,7 @@ int main() {
 // CHECK-NEXT:         prod *= clad::back(_t5).value;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_prod += 1;
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         ++i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             prod = clad::pop(_t3);
@@ -1260,11 +1220,7 @@ int main() {
 // CHECK-NEXT:     clad::tape<std::vector<double> > _t9 = {};
 // CHECK-NEXT:     clad::tape<clad::ValueAndAdjoint<double &, double &> > _t10 = {};
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (i = 0; ; ++i) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < 3))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, std::move(_d_ls));
 // CHECK-NEXT:         clad::push(_t2, std::move(ls)) , ls = {{.*{u, v}.*}};
@@ -1282,11 +1238,7 @@ int main() {
 // CHECK-NEXT:         u = clad::back(_t10).value;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_u += 1;
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             u = clad::pop(_t8);
@@ -1339,11 +1291,7 @@ int main() {
 // CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}}> _t1 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{.*}}>(), start, (*_d_start));
 // CHECK-NEXT:     it = _t1.value;
 // CHECK-NEXT:     _d_it = _t1.adjoint;
-// CHECK-NEXT:     for (;; clad::push(_t2, it) , {{.*}}class_functions::operator_plus_plus_reverse_forw(&it, 0, &_d_it, 0)) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!operator!=(it, end))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; operator!=(it, end); clad::push(_t2, it) , {{.*}}class_functions::operator_plus_plus_reverse_forw(&it, 0, &_d_it, 0)) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t3, sum);
 // CHECK-NEXT:         clad::push(_t5, {{.*}}class_functions::operator_star_reverse_forw(&it, &_d_it));
@@ -1353,11 +1301,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         for (;; _t0--) {
-// CHECK-NEXT:             {
-// CHECK-NEXT:                 if (!_t0)
-// CHECK-NEXT:                     break;
-// CHECK-NEXT:             }
+// CHECK-NEXT:         for (; _t0; _t0--) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 int _r0 = 0;
 // CHECK-NEXT:                 it = clad::back(_t2);
@@ -1390,11 +1334,7 @@ int main() {
 // CHECK-NEXT:     Session _d_sess = {{.*}}, nullptr};
 // CHECK-NEXT:     const Session &sess = session[0];
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (id = 0; ; id++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(id < nVals))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (id = 0; id < nVals; id++) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, sess.arr[id]);
 // CHECK-NEXT:         sess.arr[id] = tensor_x[id] * tensor_theory_params[0];
@@ -1402,21 +1342,13 @@ int main() {
 // CHECK-NEXT:     float _d_out = 0.F;
 // CHECK-NEXT:     float out = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t2 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (id0 = 0; ; id0++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(id0 < nVals))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (id0 = 0; id0 < nVals; id0++) {
 // CHECK-NEXT:         _t2++;
 // CHECK-NEXT:         clad::push(_t3, out);
 // CHECK-NEXT:         out += std::exp(-sess.arr[id0]);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_out += 1;
-// CHECK-NEXT:     for (;; _t2--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t2)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t2; _t2--) {
 // CHECK-NEXT:         id0--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             out = clad::pop(_t3);
@@ -1426,11 +1358,7 @@ int main() {
 // CHECK-NEXT:             _d_sess.arr[id0] += -_r0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         id--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             sess.arr[id] = clad::pop(_t1);
@@ -1452,21 +1380,13 @@ int main() {
 // CHECK-NEXT:     float _d_out = 0.F;
 // CHECK-NEXT:     float out = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (id = 0; ; id++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(id < nVals))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (id = 0; id < nVals; id++) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, out);
 // CHECK-NEXT:         out += arr[id] * tensor_theory_params[0];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_out += 1;
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         id--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             out = clad::pop(_t1);

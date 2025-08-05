@@ -170,11 +170,7 @@ float sum(double* arr, int n) {
 // CHECK-NEXT:     float _d_res = 0.F;
 // CHECK-NEXT:     float res = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (i = 0; ; ++i) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < n))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         res += arr[i];
@@ -187,11 +183,7 @@ float sum(double* arr, int n) {
 // CHECK-NEXT:         double _r_d1 = _d_arr[0];
 // CHECK-NEXT:         _d_arr[0] += 10 * _r_d1;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         res = clad::pop(_t1);
 // CHECK-NEXT:         float _r_d0 = _d_res;
@@ -234,11 +226,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     double _t0 = res;
 // CHECK-NEXT:     res += sum(arr, n);
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t1 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (i = 0; ; ++i) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:          if (!(i < n))
-// CHECK-NEXT:          break;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t1++;
 // CHECK-NEXT:         clad::push(_t2, arr[i]);
 // CHECK-NEXT:         twice(arr[i]);
@@ -246,11 +234,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:         res += arr[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
-// CHECK-NEXT:     for (;; _t1--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t1)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t1; _t1--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             res = clad::pop(_t3);
@@ -611,21 +595,13 @@ double fn13(double* x, const double* w) {
 // CHECK-NEXT:     double _d_wCopy[2] = {0};
 // CHECK-NEXT:     double wCopy[2];
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (i = 0; ; ++i) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < 2))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (i = 0; i < 2; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, wCopy[i]);
 // CHECK-NEXT:         wCopy[i] = w[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     multiply_pullback(x, wCopy + 1, 1, _d_x, _d_wCopy + 1);
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             wCopy[i] = clad::pop(_t1);
