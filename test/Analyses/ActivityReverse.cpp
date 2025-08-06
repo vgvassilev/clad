@@ -314,8 +314,8 @@ double f10(double x){
     return t[0];
 }
 
-// CHECK: void f10_1_reverse_forw(double x, double *t, double _d_x, double *_d_t, clad::smart_tape &tape) {
-// CHECK-NEXT:     tape.store(t[0]);
+// CHECK: void f10_1_reverse_forw(double x, double *t, double _d_x, double *_d_t, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     _tracker0.store(t[0]);
 // CHECK-NEXT:     t[0] = x;
 // CHECK-NEXT: }
 
@@ -333,11 +333,11 @@ double f10(double x){
 // CHECK-NEXT: void f10_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _d_t[3] = {0};
 // CHECK-NEXT:     double t[3];
-// CHECK-NEXT:     clad::smart_tape _tape0 = {};
-// CHECK-NEXT:     f10_1_reverse_forw(x, t, 0., _d_t, _tape0);
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     f10_1_reverse_forw(x, t, 0., _d_t, _tracker0);
 // CHECK-NEXT:     _d_t[0] += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _tape0.restore();
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         f10_1_pullback(x, t, &_r0, _d_t);
 // CHECK-NEXT:         *_d_x += _r0;

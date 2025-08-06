@@ -382,7 +382,7 @@ namespace clad {
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);
 
-    clang::QualType GetSmartTapeType(clang::Sema& S);
+    clang::QualType GetRestoreTrackerType(clang::Sema& S);
 
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 

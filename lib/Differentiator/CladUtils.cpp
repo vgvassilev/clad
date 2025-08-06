@@ -888,17 +888,18 @@ namespace clad {
           clad_compat::ElaboratedTypeKeyword_None, NS, TT);
     }
 
-    clang::QualType GetSmartTapeType(clang::Sema& S) {
+    clang::QualType GetRestoreTrackerType(clang::Sema& S) {
       static QualType T;
       if (T.isNull()) {
         NamespaceDecl* CladNS = GetCladNamespace(S);
         CXXScopeSpec CSS;
         CSS.Extend(S.getASTContext(), CladNS, noLoc, noLoc);
-        DeclarationName TapeName = &S.getASTContext().Idents.get("smart_tape");
+        DeclarationName TapeName =
+            &S.getASTContext().Idents.get("restore_tracker");
         LookupResult TapeR(S, TapeName, noLoc, Sema::LookupUsingDeclName,
                            CLAD_COMPAT_Sema_ForVisibleRedeclaration);
         S.LookupQualifiedName(TapeR, CladNS, CSS);
-        assert(!TapeR.empty() && "cannot find clad::smart_tape");
+        assert(!TapeR.empty() && "cannot find clad::restore_tracker");
 
         // This will instantiate tape<T> type and return it.
         auto* RD = cast<RecordDecl>(TapeR.getFoundDecl());
@@ -1196,7 +1197,7 @@ namespace clad {
 
       if (mode == DiffMode::reverse_mode_forward_pass &&
           hasMemoryTypeParams(FD)) {
-        QualType tapeTy = GetSmartTapeType(S);
+        QualType tapeTy = GetRestoreTrackerType(S);
         tapeTy = S.getASTContext().getLValueReferenceType(tapeTy);
         FnTypes.push_back(tapeTy);
       }

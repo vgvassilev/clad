@@ -2103,12 +2103,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* baseE = baseDiff.getExpr();
       Expr* tapeExpr = nullptr;
       if (utils::hasMemoryTypeParams(FD)) {
-        if (m_SmartTape) {
-          tapeExpr = m_SmartTape;
+        if (m_RestoreTracker) {
+          tapeExpr = m_RestoreTracker;
         } else {
-          QualType tapeType = utils::GetSmartTapeType(m_Sema);
+          QualType tapeType = utils::GetRestoreTrackerType(m_Sema);
           VarDecl* tapeDecl =
-              BuildVarDecl(tapeType, "_tape", getZeroInit(tapeType));
+              BuildVarDecl(tapeType, "_tracker", getZeroInit(tapeType));
           addToCurrentBlock(BuildDeclStmt(tapeDecl));
           tapeExpr = BuildDeclRef(tapeDecl);
           Expr* restoreCall = BuildCallExprToMemFn(

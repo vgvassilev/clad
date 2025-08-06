@@ -244,8 +244,8 @@ int main() {
     // CHECK-NEXT:     }
 
   auto grad = clad::gradient(fn, "out");
-  // CHECK: void result_reverse_forw(int *out, Input in, int *_d_out, Input _d_in, clad::smart_tape &tape) {
-  // CHECK-NEXT:     tape.store(*out);
+  // CHECK: void result_reverse_forw(int *out, Input in, int *_d_out, Input _d_in, clad::restore_tracker &_tracker0) {
+  // CHECK-NEXT:     _tracker0.store(*out);
   // CHECK-NEXT:     *out = in.i;
   // CHECK-NEXT: }
 
@@ -260,10 +260,10 @@ int main() {
   // CHECK-NEXT:}
 
   // CHECK: void fn_grad_0(int *out, Input in, int *_d_out) {
-  // CHECK-NEXT:    clad::smart_tape _tape0 = {};
-  // CHECK-NEXT:    result_reverse_forw(out, in, _d_out, {0}, _tape0);
+  // CHECK-NEXT:    clad::restore_tracker _tracker0 = {};
+  // CHECK-NEXT:    result_reverse_forw(out, in, _d_out, {0}, _tracker0);
   // CHECK-NEXT:    {
-  // CHECK-NEXT:        _tape0.restore();
+  // CHECK-NEXT:        _tracker0.restore();
   // CHECK-NEXT:        result_pullback(out, in, _d_out);
   // CHECK-NEXT:    }
   // CHECK-NEXT:}

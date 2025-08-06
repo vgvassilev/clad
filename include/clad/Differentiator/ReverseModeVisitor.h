@@ -78,7 +78,7 @@ namespace clad {
     /// differentiation. One additional time.
     clang::Expr* m_CurrentBreakFlagExpr;
 
-    clang::Expr* m_SmartTape = nullptr;
+    clang::Expr* m_RestoreTracker = nullptr;
 
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;

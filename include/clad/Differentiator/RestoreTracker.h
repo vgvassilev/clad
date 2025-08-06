@@ -1,5 +1,5 @@
-#ifndef CLAD_DIFFERENTIATOR_SMARTTAPE_H
-#define CLAD_DIFFERENTIATOR_SMARTTAPE_H
+#ifndef CLAD_DIFFERENTIATOR_RESTORETRACKER_H
+#define CLAD_DIFFERENTIATOR_RESTORETRACKER_H
 
 #include <cassert>
 #include <cstddef>
@@ -12,7 +12,7 @@
 namespace clad {
 
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-class smart_tape {
+class restore_tracker {
   struct interval {
     char *min = nullptr, *max = nullptr;
 
@@ -97,4 +97,4 @@ public:
 // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 } // namespace clad
 
-#endif // CLAD_DIFFERENTIATOR_SMARTTAPE_H
+#endif // CLAD_DIFFERENTIATOR_RESTORETRACKER_H
