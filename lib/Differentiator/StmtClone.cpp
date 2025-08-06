@@ -564,13 +564,18 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
     VD->setReferenced();
     VD->setIsUsed();
   }
-  updateType(DRE->getType());
+  QualType QT = DRE->getType();
+  if (!QT.isNull())
+    updateType(QT);
   return true;
 }
 
 bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
-  if (auto* E = dyn_cast<Expr>(S))
-    updateType(E->getType());
+  if (auto* E = dyn_cast<Expr>(S)) {
+    QualType QT = E->getType();
+    if (!QT.isNull())
+      updateType(QT);
+  }
   return true;
 }
 
