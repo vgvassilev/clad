@@ -22,6 +22,7 @@
 #include <thrust/functional.h>
 #include <thrust/memory.h>
 #include <thrust/reduce.h>
+#include <thrust/inner_product.h>
 
 
 double sum_array(const thrust::device_vector<double>& vec) {
@@ -86,6 +87,64 @@ double product_array_init_zero(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     double _r2 = 0.;
 // CHECK-NEXT:     thrust::multiplies<double> _r3 = {};
 // CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback(std::begin(vec), std::end(vec), 0., thrust::multiplies<double>(), 1, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+double inner_product_array(const thrust::device_vector<double>& vec1, const thrust::device_vector<double>& vec2) {
+    return thrust::inner_product(vec1.begin(), vec1.end(), vec2.begin(), 0.0);
+}
+// CHECK: void inner_product_array_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2) {
+// CHECK-NEXT: {
+// CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
+// CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
+// CHECK-NEXT:     const_iterator _r2 = std::begin((*_d_vec2));
+// CHECK-NEXT:     double _r3 = 0.;
+// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., 1, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+double inner_product_array_6args(const thrust::device_vector<double>& vec1, const thrust::device_vector<double>& vec2) {
+    return thrust::inner_product(vec1.begin(), vec1.end(), vec2.begin(), 0.0, thrust::plus<double>(), thrust::multiplies<double>());
+}
+// CHECK: void inner_product_array_6args_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2) {
+// CHECK-NEXT: {
+// CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
+// CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
+// CHECK-NEXT:     const_iterator _r2 = std::begin((*_d_vec2));
+// CHECK-NEXT:     double _r3 = 0.;
+// CHECK-NEXT:     thrust::plus<double> _r4 = {};
+// CHECK-NEXT:     thrust::multiplies<double> _r5 = {};
+// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., thrust::plus<double>(), thrust::multiplies<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+double inner_product_plus_plus(const thrust::device_vector<double>& vec1, const thrust::device_vector<double>& vec2) {
+    return thrust::inner_product(vec1.begin(), vec1.end(), vec2.begin(), 0.0, thrust::plus<double>(), thrust::plus<double>());
+}
+// CHECK: void inner_product_plus_plus_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2) {
+// CHECK-NEXT: {
+// CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
+// CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
+// CHECK-NEXT:     const_iterator _r2 = std::begin((*_d_vec2));
+// CHECK-NEXT:     double _r3 = 0.;
+// CHECK-NEXT:     thrust::plus<double> _r4 = {};
+// CHECK-NEXT:     thrust::plus<double> _r5 = {};
+// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., thrust::plus<double>(), thrust::plus<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+double inner_product_plus_minus(const thrust::device_vector<double>& vec1, const thrust::device_vector<double>& vec2) {
+    return thrust::inner_product(vec1.begin(), vec1.end(), vec2.begin(), 0.0, thrust::plus<double>(), thrust::minus<double>());
+}
+// CHECK: void inner_product_plus_minus_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2) {
+// CHECK-NEXT: {
+// CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
+// CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
+// CHECK-NEXT:     const_iterator _r2 = std::begin((*_d_vec2));
+// CHECK-NEXT:     double _r3 = 0.;
+// CHECK-NEXT:     thrust::plus<double> _r4 = {};
+// CHECK-NEXT:     thrust::minus<double> _r5 = {};
+// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., thrust::plus<double>(), thrust::minus<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -156,6 +215,56 @@ int main() {
     thrust::host_vector<double> h_p_grads_init_zero = p_grads_init_zero;
     printf("Product Gradients (Init is Zero): %.3f %.3f %.3f %.3f\n", h_p_grads_init_zero[0], h_p_grads_init_zero[1], h_p_grads_init_zero[2], h_p_grads_init_zero[3]);
     // CHECK-EXEC: Product Gradients (Init is Zero): 0.000 0.000 0.000 0.000
+
+    // Test Inner Product
+    INIT_GRADIENT(inner_product_array);
+    std::vector<double> host_input2 = {1.0, 2.0, 3.0, 4.0};
+    thrust::device_vector<double> device_input2 = host_input2;
+    thrust::device_vector<double> inner_product_gradients1(host_input.size());
+    thrust::device_vector<double> inner_product_gradients2(host_input2.size());
+    inner_product_array_grad.execute(device_input, device_input2, &inner_product_gradients1, &inner_product_gradients2);
+    thrust::host_vector<double> host_inner_product_gradients1 = inner_product_gradients1;
+    thrust::host_vector<double> host_inner_product_gradients2 = inner_product_gradients2;
+    printf("Inner Product Gradients 1: %.3f %.3f %.3f %.3f\n", host_inner_product_gradients1[0], host_inner_product_gradients1[1], host_inner_product_gradients1[2], host_inner_product_gradients1[3]);
+    // CHECK-EXEC: Inner Product Gradients 1: 1.000 2.000 3.000 4.000
+    printf("Inner Product Gradients 2: %.3f %.3f %.3f %.3f\n", host_inner_product_gradients2[0], host_inner_product_gradients2[1], host_inner_product_gradients2[2], host_inner_product_gradients2[3]);
+    // CHECK-EXEC: Inner Product Gradients 2: 10.000 5.000 2.000 20.000
+
+    // Test Inner Product (6-argument version)
+    INIT_GRADIENT(inner_product_array_6args);
+    thrust::device_vector<double> inner_product_gradients1_6args(host_input.size());
+    thrust::device_vector<double> inner_product_gradients2_6args(host_input2.size());
+    inner_product_array_6args_grad.execute(device_input, device_input2, &inner_product_gradients1_6args, &inner_product_gradients2_6args);
+    thrust::host_vector<double> host_inner_product_gradients1_6args = inner_product_gradients1_6args;
+    thrust::host_vector<double> host_inner_product_gradients2_6args = inner_product_gradients2_6args;
+    printf("Inner Product Gradients 1 (6-args): %.3f %.3f %.3f %.3f\n", host_inner_product_gradients1_6args[0], host_inner_product_gradients1_6args[1], host_inner_product_gradients1_6args[2], host_inner_product_gradients1_6args[3]);
+    // CHECK-EXEC: Inner Product Gradients 1 (6-args): 1.000 2.000 3.000 4.000
+    printf("Inner Product Gradients 2 (6-args): %.3f %.3f %.3f %.3f\n", host_inner_product_gradients2_6args[0], host_inner_product_gradients2_6args[1], host_inner_product_gradients2_6args[2], host_inner_product_gradients2_6args[3]);
+    // CHECK-EXEC: Inner Product Gradients 2 (6-args): 10.000 5.000 2.000 20.000
+
+    // Test Inner Product (plus<double>, plus<double>)
+    INIT_GRADIENT(inner_product_plus_plus);
+    thrust::device_vector<double> pp_grads1(host_input.size());
+    thrust::device_vector<double> pp_grads2(host_input2.size());
+    inner_product_plus_plus_grad.execute(device_input, device_input2, &pp_grads1, &pp_grads2);
+    thrust::host_vector<double> h_pp_grads1 = pp_grads1;
+    thrust::host_vector<double> h_pp_grads2 = pp_grads2;
+    printf("Inner Product Gradients 1 (plus, plus): %.3f %.3f %.3f %.3f\n", h_pp_grads1[0], h_pp_grads1[1], h_pp_grads1[2], h_pp_grads1[3]);
+    // CHECK-EXEC: Inner Product Gradients 1 (plus, plus): 1.000 1.000 1.000 1.000
+    printf("Inner Product Gradients 2 (plus, plus): %.3f %.3f %.3f %.3f\n", h_pp_grads2[0], h_pp_grads2[1], h_pp_grads2[2], h_pp_grads2[3]);
+    // CHECK-EXEC: Inner Product Gradients 2 (plus, plus): 1.000 1.000 1.000 1.000
+
+    // Test Inner Product (plus<double>, minus<double>)
+    INIT_GRADIENT(inner_product_plus_minus);
+    thrust::device_vector<double> pm_grads1(host_input.size());
+    thrust::device_vector<double> pm_grads2(host_input2.size());
+    inner_product_plus_minus_grad.execute(device_input, device_input2, &pm_grads1, &pm_grads2);
+    thrust::host_vector<double> h_pm_grads1 = pm_grads1;
+    thrust::host_vector<double> h_pm_grads2 = pm_grads2;
+    printf("Inner Product Gradients 1 (plus, minus): %.3f %.3f %.3f %.3f\n", h_pm_grads1[0], h_pm_grads1[1], h_pm_grads1[2], h_pm_grads1[3]);
+    // CHECK-EXEC: Inner Product Gradients 1 (plus, minus): 1.000 1.000 1.000 1.000
+    printf("Inner Product Gradients 2 (plus, minus): %.3f %.3f %.3f %.3f\n", h_pm_grads2[0], h_pm_grads2[1], h_pm_grads2[2], h_pm_grads2[3]);
+    // CHECK-EXEC: Inner Product Gradients 2 (plus, minus): -1.000 -1.000 -1.000 -1.000
 
     return 0;
 } 
