@@ -1364,15 +1364,21 @@ namespace clad {
     }
 
     bool hasUnusedReturnValue(ASTContext& C, const clang::CallExpr* CE) {
-      for (const auto& parent : C.getParents(*CE)) {
-        const Stmt* S = parent.get<Stmt>();
+      const Expr* E = CE;
+      do {
+        const auto& parents = C.getParents(*E);
+        assert(parents.size() == 1 && "One parent stmt is expected.");
+        const Stmt* S = parents[0].get<Stmt>();
+        // If the parent is a Stmt but not an Expr, then the result is not used.
         if (!S)
           return false;
-        if (isa<Expr>(S))
-          return false;
-        // If the parent is a Stmt but not an Expr, then the result is not used.
-      }
-      return true;
+        E = dyn_cast<Expr>(S);
+        if (!E)
+          return true;
+        // If we're dealing with an implicit expr (e.g. ExprWithCleanups),
+        // go up to get more information.
+      } while (E->IgnoreImplicit() != E);
+      return false;
     }
   } // namespace utils
 } // namespace clad

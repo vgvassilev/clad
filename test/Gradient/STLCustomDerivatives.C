@@ -656,7 +656,6 @@ int main() {
 // CHECK-NEXT:          double _t4 = _t3.value;
 // CHECK-NEXT:          _t3.value = x * x;
 // CHECK-NEXT:          std::vector<double> _t5 = a;
-// CHECK-NEXT:          clad::ValueAndAdjoint<double &, double &> _t6 = {{.*}}operator_subscript_reverse_forw(&a, 1, &_d_a, {{0U|0UL|0}});
 // CHECK-NEXT:          {
 // CHECK-NEXT:              {{.*}} _r1 = {{0U|0UL}};
 // CHECK-NEXT:              a = _t5;
@@ -844,7 +843,6 @@ int main() {
 // CHECK-NEXT:         {{.*}} _t2 = _t1.value;
 // CHECK-NEXT:         _t1.value = 2 * x;
 // CHECK-NEXT:         std::array<double, 2> _t3 = a;
-// CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t4 = {{.*}}operator_subscript_reverse_forw(&a, 1, &_d_a, {{0U|0UL|0}});
 // CHECK-NEXT:         {
 // CHECK-NEXT:             {{.*}}size_type _r1 = {{0U|0UL}};
 // CHECK-NEXT:             a = _t3;
@@ -1001,7 +999,6 @@ int main() {
 // CHECK-NEXT:          double _t3 = _t2.value;
 // CHECK-NEXT:          _t2.value = x * x;
 // CHECK-NEXT:          std::vector<double> _t4 = a;
-// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t5 = {{.*}}operator_subscript_reverse_forw(&a, 0, &_d_a, {{0U|0UL|0}});
 // CHECK-NEXT:          {
 // CHECK-NEXT:              {{.*}}size_type _r2 = 0{{.*}};
 // CHECK-NEXT:              a = _t4;
@@ -1135,7 +1132,6 @@ int main() {
 // CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t1 = {{.*}}class_functions::operator_star_reverse_forw(&up, &_d_up);
 // CHECK-NEXT:     double _t2 = _t1.value;
 // CHECK-NEXT:     _t1.value += 5 * e;
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t3 = {{.*}}class_functions::operator_star_reverse_forw(&up, &_d_up);
 // CHECK-NEXT:     {{.*}}class_functions::operator_star_pullback(&up, 1, &_d_up);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _t1.value = _t2;
