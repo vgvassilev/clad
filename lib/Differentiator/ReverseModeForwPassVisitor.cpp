@@ -6,6 +6,9 @@
 
 #include "llvm/Support/SaveAndRestore.h"
 
+#include "clang/AST/Expr.h"
+#include "clang/Basic/LLVM.h"
+
 #include <algorithm>
 
 using namespace clang;
@@ -82,6 +85,8 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   m_Sema.PopFunctionScopeInfo();
   m_Sema.PopDeclContext();
   endScope();
+  if (!m_IsRequired)
+    return {};
   return DerivativeAndOverload{m_Derivative, nullptr};
 }
 
@@ -145,8 +150,34 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       m_Variables[*it] = BuildDeclRef(dPVD), m_DiffReq->getLocation();
     }
   }
+  if (utils::hasMemoryTypeParams(m_DiffReq.Function)) {
+    QualType tapeTy = utils::GetRestoreTrackerType(m_Sema);
+    tapeTy = m_Sema.getASTContext().getLValueReferenceType(tapeTy);
+    auto* tapeDerivativePVD = utils::BuildParmVarDecl(
+        m_Sema, m_Derivative, CreateUniqueIdentifier("_tracker"), tapeTy);
+    paramDerivatives.push_back(tapeDerivativePVD);
+    m_Sema.PushOnScopeChains(tapeDerivativePVD, getCurrentScope(),
+                             /*AddToContext=*/false);
+    m_RestoreTracker = BuildDeclRef(tapeDerivativePVD);
+  }
   params.insert(params.end(), paramDerivatives.begin(), paramDerivatives.end());
   return params;
+}
+
+StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(clang::Expr* E,
+                                                     llvm::StringRef prefix,
+                                                     bool moveToTape) {
+  if (!m_RestoreTracker)
+    return {};
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreCasts())) {
+    const auto* VD = cast<VarDecl>(DRE->getDecl());
+    if (!VD->getType()->isReferenceType())
+      return {};
+  }
+  m_IsRequired = true;
+  Expr* storeCall = BuildCallExprToMemFn(m_RestoreTracker,
+                                         /*MemberFunctionName=*/"store", {E});
+  return {storeCall};
 }
 
 StmtDiff ReverseModeForwPassVisitor::ProcessSingleStmt(const clang::Stmt* S) {
@@ -186,9 +217,12 @@ StmtDiff
 ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   const Expr* value = RS->getRetValue();
   auto returnDiff = Visit(value);
+  SourceLocation validLoc{RS->getBeginLoc()};
+  if (!utils::isMemoryType(m_DiffReq->getReturnType()))
+    return m_Sema.BuildReturnStmt(validLoc, returnDiff.getExpr()).get();
+  m_IsRequired = true;
   llvm::SmallVector<Expr*, 2> returnArgs = {returnDiff.getExpr(),
                                             returnDiff.getExpr_dx()};
-  SourceLocation validLoc{RS->getBeginLoc()};
   Expr* returnInitList =
       m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
   Stmt* newRS = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();

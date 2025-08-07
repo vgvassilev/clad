@@ -888,6 +888,33 @@ namespace clad {
           clad_compat::ElaboratedTypeKeyword_None, NS, TT);
     }
 
+    clang::QualType GetRestoreTrackerType(clang::Sema& S) {
+      static QualType T;
+      if (T.isNull()) {
+        NamespaceDecl* CladNS = GetCladNamespace(S);
+        CXXScopeSpec CSS;
+        CSS.Extend(S.getASTContext(), CladNS, noLoc, noLoc);
+        DeclarationName TapeName =
+            &S.getASTContext().Idents.get("restore_tracker");
+        LookupResult TapeR(S, TapeName, noLoc, Sema::LookupUsingDeclName,
+                           CLAD_COMPAT_Sema_ForVisibleRedeclaration);
+        S.LookupQualifiedName(TapeR, CladNS, CSS);
+        assert(!TapeR.empty() && "cannot find clad::restore_tracker");
+
+        // This will instantiate tape<T> type and return it.
+        auto* RD = cast<RecordDecl>(TapeR.getFoundDecl());
+        T = S.getASTContext().getRecordType(RD);
+        // Get clad namespace and its identifier clad::.
+        NestedNameSpecifier* NS = CSS.getScopeRep();
+
+        // Create elaborated type with namespace specifier,
+        // i.e. class<T> -> clad::class<T>
+        T = S.getASTContext().getElaboratedType(
+            clad_compat::ElaboratedTypeKeyword_None, NS, T);
+      }
+      return T;
+    }
+
     TemplateDecl* LookupTemplateDeclInCladNamespace(Sema& S,
                                                     llvm::StringRef ClassName) {
       NamespaceDecl* CladNS = GetCladNamespace(S);
@@ -925,6 +952,24 @@ namespace clad {
       return false;
     }
 
+    bool hasMemoryTypeParams(const FunctionDecl* FD) {
+      // FIXME: enable for methods
+      if (isa<CXXMethodDecl>(FD) || FD->isOverloadedOperator())
+        return false;
+      // if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
+      //   if (MD->isInstance() && !MD->isConst())
+      //     return true;
+      for (const ParmVarDecl* PVD : FD->parameters()) {
+        QualType paramTy = PVD->getType();
+        if (paramTy->isReferenceType() &&
+            paramTy.getNonReferenceType()->isRealType())
+          continue;
+        if (isMemoryType(paramTy))
+          return true;
+      }
+      return false;
+    }
+
     QualType InstantiateTemplate(Sema& S, TemplateDecl* CladClassDecl,
                                  ArrayRef<QualType> TemplateArgs) {
       // Create a list of template arguments.
@@ -957,7 +1002,7 @@ namespace clad {
     bool IsDifferentiableType(QualType T) {
       QualType origType = T;
       // FIXME: arbitrary dimension array type as well.
-      while (utils::isArrayOrPointerType(T))
+      while (utils::isArrayOrPointerType(T) || T->isReferenceType())
         T = utils::GetValueType(T);
       T = T.getNonReferenceType();
       if (T->isEnumeralType())
@@ -1073,10 +1118,14 @@ namespace clad {
                         mode == DiffMode::vector_forward_mode;
       if (mode == DiffMode::reverse_mode_forward_pass &&
           !oRetTy->isVoidType()) {
-        TemplateDecl* valAndAdjointTempDecl =
-            utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
-        dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
-                                            {oRetTy, oRetTy});
+        if (isMemoryType(oRetTy)) {
+          TemplateDecl* valAndAdjointTempDecl =
+              utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
+          dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
+                                              {oRetTy, oRetTy});
+        } else {
+          dRetTy = oRetTy;
+        }
       } else if (mode == DiffMode::hessian ||
                  mode == DiffMode::hessian_diagonal) {
         QualType argTy = C.getPointerType(oRetTy);
@@ -1144,6 +1193,13 @@ namespace clad {
           !isa<CXXConstructorDecl>(FD)) {
         FnTypes.insert(FnTypes.begin(), thisTy);
         EPI.TypeQuals.removeConst();
+      }
+
+      if (mode == DiffMode::reverse_mode_forward_pass &&
+          hasMemoryTypeParams(FD)) {
+        QualType tapeTy = GetRestoreTrackerType(S);
+        tapeTy = S.getASTContext().getLValueReferenceType(tapeTy);
+        FnTypes.push_back(tapeTy);
       }
 
       for (QualType customTy : customParams)

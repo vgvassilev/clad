@@ -382,6 +382,8 @@ namespace clad {
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);
 
+    clang::QualType GetRestoreTrackerType(clang::Sema& S);
+
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
     bool IsLiteral(const clang::Expr* E);
@@ -400,6 +402,8 @@ namespace clad {
 
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
+
+    bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
     bool IsDifferentiableType(clang::QualType T);
 

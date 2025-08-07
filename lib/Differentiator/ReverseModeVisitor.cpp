@@ -2101,6 +2101,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       CallArgs.insert(CallArgs.end(), CallArgDx.begin(), CallArgDx.end());
       const auto* forwPassMD = dyn_cast<CXXMethodDecl>(calleeFnForwPassFD);
       Expr* baseE = baseDiff.getExpr();
+      Expr* tapeExpr = nullptr;
+      if (utils::hasMemoryTypeParams(FD)) {
+        if (m_RestoreTracker) {
+          tapeExpr = m_RestoreTracker;
+        } else {
+          QualType tapeType = utils::GetRestoreTrackerType(m_Sema);
+          VarDecl* tapeDecl =
+              BuildVarDecl(tapeType, "_tracker", getZeroInit(tapeType));
+          addToCurrentBlock(BuildDeclStmt(tapeDecl));
+          tapeExpr = BuildDeclRef(tapeDecl);
+          Expr* restoreCall = BuildCallExprToMemFn(
+              BuildDeclRef(tapeDecl), /*MemberFunctionName=*/"restore",
+              /*ArgExprs=*/{}, Loc);
+          it = std::begin(block) + insertionPoint;
+          block.insert(it, restoreCall);
+        }
+      }
+      if (tapeExpr)
+        CallArgs.push_back(tapeExpr);
       if (forwPassMD && forwPassMD->isInstance()) {
         call = BuildCallExprToMemFn(
             baseDiff.getExpr(), calleeFnForwPassFD->getName(), CallArgs, Loc);
