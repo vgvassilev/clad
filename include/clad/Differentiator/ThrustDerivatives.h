@@ -179,6 +179,122 @@ void reduce_pullback(Iterator first, Iterator last, T init, BinaryOp op,
   }
 }
 
+template <typename Iterator1, typename Iterator2, typename T>
+void inner_product_pullback(Iterator1 first1, Iterator1 last1, Iterator2 first2,
+                            T init, T d_output, Iterator1* d_first1,
+                            Iterator1* d_last1, Iterator2* d_first2,
+                            T* d_init) {
+  if (d_init)
+    *d_init += d_output;
+
+  size_t n = ::thrust::distance(first1, last1);
+
+  if (n == 0)
+    return;
+
+  auto d_first1_const_ptr = ::thrust::raw_pointer_cast((*d_first1).base());
+  auto d_first1_ptr = const_cast<T*>(d_first1_const_ptr);
+  ::thrust::device_ptr<T> d_first1_dev_ptr(d_first1_ptr);
+
+  auto d_first2_const_ptr = ::thrust::raw_pointer_cast((*d_first2).base());
+  auto d_first2_ptr = const_cast<T*>(d_first2_const_ptr);
+  ::thrust::device_ptr<T> d_first2_dev_ptr(d_first2_ptr);
+
+  struct grad_functor {
+    T d_output;
+    grad_functor(T d) : d_output(d) {}
+    CUDA_HOST_DEVICE void
+    operator()(::thrust::tuple<T&, T&, const T&, const T&> t) const {
+      // d_x1 += d_y * x2
+      ::thrust::get<0>(t) += d_output * ::thrust::get<3>(t);
+      // d_x2 += d_y * x1
+      ::thrust::get<1>(t) += d_output * ::thrust::get<2>(t);
+    }
+  };
+
+  auto iter = ::thrust::make_zip_iterator(
+      ::thrust::make_tuple(d_first1_dev_ptr, d_first2_dev_ptr, first1, first2));
+  ::thrust::for_each(iter, iter + n, grad_functor(d_output));
+}
+
+template <typename Iterator1, typename Iterator2, typename T,
+          typename BinaryOperation1, typename BinaryOperation2>
+void inner_product_pullback(Iterator1 first1, Iterator1 last1, Iterator2 first2,
+                            T init, BinaryOperation1 op1, BinaryOperation2 op2,
+                            T d_output, Iterator1* d_first1, Iterator1* d_last1,
+                            Iterator2* d_first2, T* d_init,
+                            BinaryOperation1* d_op1, BinaryOperation2* d_op2) {
+  if (d_init)
+    *d_init += d_output;
+
+  size_t n = ::thrust::distance(first1, last1);
+
+  if (n == 0)
+    return;
+
+  auto d_first1_const_ptr = ::thrust::raw_pointer_cast((*d_first1).base());
+  auto d_first1_ptr = const_cast<T*>(d_first1_const_ptr);
+  ::thrust::device_ptr<T> d_first1_dev_ptr(d_first1_ptr);
+
+  auto d_first2_const_ptr = ::thrust::raw_pointer_cast((*d_first2).base());
+  auto d_first2_ptr = const_cast<T*>(d_first2_const_ptr);
+  ::thrust::device_ptr<T> d_first2_dev_ptr(d_first2_ptr);
+
+  if constexpr (::std::is_same_v<BinaryOperation1, ::thrust::plus<T>> &&
+                ::std::is_same_v<BinaryOperation2, ::thrust::multiplies<T>>) {
+    struct grad_functor {
+      T d_output;
+      grad_functor(T d) : d_output(d) {}
+      CUDA_HOST_DEVICE void
+      operator()(::thrust::tuple<T&, T&, const T&, const T&> t) const {
+        // d_x1 += d_y * x2
+        ::thrust::get<0>(t) += d_output * ::thrust::get<3>(t);
+        // d_x2 += d_y * x1
+        ::thrust::get<1>(t) += d_output * ::thrust::get<2>(t);
+      }
+    };
+
+    auto iter = ::thrust::make_zip_iterator(::thrust::make_tuple(
+        d_first1_dev_ptr, d_first2_dev_ptr, first1, first2));
+    ::thrust::for_each(iter, iter + n, grad_functor(d_output));
+  } else if constexpr (::std::is_same_v<BinaryOperation1, ::thrust::plus<T>>) {
+    if constexpr (::std::is_same_v<BinaryOperation2, ::thrust::plus<T>>) {
+      struct grad_functor {
+        T d_output;
+        grad_functor(T d) : d_output(d) {}
+        CUDA_HOST_DEVICE void operator()(::thrust::tuple<T&, T&> t) const {
+          ::thrust::get<0>(t) += d_output;
+          ::thrust::get<1>(t) += d_output;
+        }
+      };
+      auto iter = ::thrust::make_zip_iterator(
+          ::thrust::make_tuple(d_first1_dev_ptr, d_first2_dev_ptr));
+      ::thrust::for_each(iter, iter + n, grad_functor(d_output));
+    } else if constexpr (::std::is_same_v<BinaryOperation2,
+                                          ::thrust::minus<T>>) {
+      struct grad_functor {
+        T d_output;
+        grad_functor(T d) : d_output(d) {}
+        CUDA_HOST_DEVICE void operator()(::thrust::tuple<T&, T&> t) const {
+          ::thrust::get<0>(t) += d_output;
+          ::thrust::get<1>(t) -= d_output;
+        }
+      };
+      auto iter = ::thrust::make_zip_iterator(
+          ::thrust::make_tuple(d_first1_dev_ptr, d_first2_dev_ptr));
+      ::thrust::for_each(iter, iter + n, grad_functor(d_output));
+    } else {
+      static_assert(::std::is_same_v<T, void>,
+                    "This binary operation is not supported by the custom "
+                    "inner_product_pullback.");
+    }
+  } else {
+    static_assert(::std::is_same_v<T, void>,
+                  "This binary operation is not supported by the custom "
+                  "inner_product_pullback.");
+  }
+}
+
 } // namespace clad::custom_derivatives::thrust
 
 #endif // CLAD_DIFFERENTIATOR_THRUSTDERIVATIVES_H
