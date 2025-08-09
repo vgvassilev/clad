@@ -49,6 +49,14 @@ void copy_pullback(Iterator first, Iterator last, OutputIterator result,
   ::thrust::for_each(iter, iter + n, copy_grad_functor());
 }
 
+template <typename Iterator, typename OutputIterator>
+clad::ValueAndAdjoint<OutputIterator, OutputIterator>
+copy_reverse_forw(Iterator first, Iterator last, OutputIterator result,
+                  Iterator /*dfirst*/, Iterator /*dlast*/,
+                  OutputIterator /*dresult*/) {
+  return {::thrust::copy(first, last, result), {}};
+}
+
 template <typename Iterator, typename T, typename BinaryOp>
 void reduce_pullback(Iterator first, Iterator last, T init, BinaryOp op,
                      T d_output, Iterator* d_first, Iterator* d_last, T* d_init,
@@ -285,6 +293,13 @@ void transform_pullback(InputIt first, InputIt last, OutputIt result,
   }
 }
 
+template <typename InputIt, typename OutputIt, typename UnaryOp>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+transform_reverse_forw(InputIt first, InputIt last, OutputIt result, UnaryOp op,
+                       InputIt /*dfirst*/, InputIt /*dlast*/,
+                       OutputIt /*dresult*/, UnaryOp /*dop*/) {
+  return {::thrust::transform(first, last, result, op), {}};
+}
 template <typename InputIt1, typename InputIt2, typename OutputIt,
           typename BinaryOp>
 void transform_pullback(InputIt1 first1, InputIt1 last1, InputIt2 first2,
@@ -376,6 +391,16 @@ void transform_pullback(InputIt1 first1, InputIt1 last1, InputIt2 first2,
                   "This binary operation is not supported by the custom "
                   "transform_pullback.");
   }
+}
+
+template <typename InputIt1, typename InputIt2, typename OutputIt,
+          typename BinaryOp>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+transform_reverse_forw(InputIt1 first1, InputIt1 last1, InputIt2 first2,
+                       OutputIt result, BinaryOp op, InputIt1 d_first1,
+                       InputIt1 /*d_last1*/, InputIt2 /*d_first2*/,
+                       OutputIt /*d_result*/, BinaryOp /*d_op*/) {
+  return {::thrust::transform(first1, last1, first2, result, op), {}};
 }
 
 template <typename Iterator1, typename Iterator2, typename T>
