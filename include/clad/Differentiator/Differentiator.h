@@ -26,6 +26,9 @@
 #include <iterator>
 #include <type_traits>
 #include <utility>
+#ifndef __CUDACC__
+#include <mutex>
+#endif
 
 namespace clad {
 
@@ -53,8 +56,9 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 #endif
 
 /// Tape type used for storing values in reverse-mode AD inside loops.
-template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
-using tape = tape_impl<T>;
+template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
+          bool using_multithread = false>
+using tape = tape_impl<T, SBO_SIZE, SLAB_SIZE, using_multithread>;
 
 /// Add value to the end of the tape, return the same value.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
@@ -91,6 +95,46 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   template <typename T> CUDA_HOST_DEVICE T& back(tape<T>& of) {
     return of.back();
   }
+
+  /// Thread safe tape access functions with mutex locking mechanism
+#ifndef __CUDACC__
+  /// Add value to the end of the tape, return the same value.
+  template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
+            typename... ArgsT>
+  CUDA_HOST_DEVICE T push(tape<T, SBO_SIZE, SLAB_SIZE, true>& to,
+                          ArgsT... val) {
+    std::lock_guard<std::mutex> lock(to.tape_mutex);
+    to.emplace_back(std::forward<ArgsT>(val)...);
+    return to.back();
+  }
+
+  /// Add value to the end of the tape, return the same value.
+  /// A specialization for clad::array_ref types to use in reverse mode.
+  template <typename T, typename U, std::size_t SBO_SIZE = 64,
+            std::size_t SLAB_SIZE = 1024>
+  CUDA_HOST_DEVICE clad::array_ref<T>
+  push(tape<clad::array_ref<T>, SBO_SIZE, SLAB_SIZE, true>& to, U val) {
+    std::lock_guard<std::mutex> lock(to.tape_mutex);
+    to.emplace_back(val);
+    return val;
+  }
+
+  /// Remove the last value from the tape, return it.
+  template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
+  CUDA_HOST_DEVICE T pop(tape<T, SBO_SIZE, SLAB_SIZE, true>& to) {
+    std::lock_guard<std::mutex> lock(to.tape_mutex);
+    T val = std::move(to.back());
+    to.pop_back();
+    return val;
+  }
+
+  /// Access return the last value in the tape.
+  template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
+  CUDA_HOST_DEVICE T& back(tape<T, SBO_SIZE, SLAB_SIZE, true>& of) {
+    std::lock_guard<std::mutex> lock(of.tape_mutex);
+    return of.back();
+  }
+#endif
 
   /// The purpose of this function is to initialize adjoints
   /// (or all of its iteratable elements) with 0.
