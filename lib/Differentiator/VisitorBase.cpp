@@ -8,13 +8,14 @@
 
 #include "ConstantFolder.h"
 
-#include "llvm/Support/Casting.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
+#include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
+#include "llvm/Support/Casting.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attrs.inc"
@@ -1016,7 +1017,7 @@ namespace clad {
     for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
       diffParams.push_back(VarInfo.param);
     return utils::GetDerivativeType(m_Sema, m_DiffReq.Function, m_DiffReq.Mode,
-                                    diffParams, /*moveBaseToParams=*/false,
+                                    diffParams, /*forCustomDerv=*/false,
                                     customParams);
   }
 

@@ -337,13 +337,13 @@ namespace clad {
                                         clang::TemplateArgumentListInfo& TLI);
     /// Builds the QualType of the derivative to be generated.
     ///
-    /// \param[in] moveBaseToParams If true, turns member functions into regular
+    /// \param[in] forCustomDerv If true, turns member functions into regular
     /// functions by moving the base to the parameters.
     clang::QualType
     GetDerivativeType(clang::Sema& S, const clang::FunctionDecl* FD,
                       DiffMode mode,
                       llvm::ArrayRef<const clang::ValueDecl*> diffParams,
-                      bool moveBaseToParams = false,
+                      bool forCustomDerv = false,
                       llvm::ArrayRef<clang::QualType> customParams = {});
     /// Find declaration of clad::class templated type
     ///
@@ -383,6 +383,8 @@ namespace clad {
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);
 
+    clang::QualType GetRestoreTrackerType(clang::Sema& S);
+
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
     bool IsLiteral(const clang::Expr* E);
@@ -403,6 +405,8 @@ namespace clad {
 
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
+
+    bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
     bool IsDifferentiableType(clang::QualType T);
 
