@@ -31,13 +31,13 @@ template <typename T> void func(T x, int n) {
 template <typename T>
 void concurrent_push_test(T x, int n_threads, int pushes_per_thread) {
   // Use thread_local clad::tape<T> t = {}; and clad::push<T>(t, x); for local thread storage
-  clad::tape<T> t = {};
+  clad::tape<T, 64, 1024, true> t = {};
   std::vector<std::thread> threads;
 
   for (int i = 0; i < n_threads; ++i) {
     threads.emplace_back([&]() {
       for (int j = 0; j < pushes_per_thread; ++j) {
-        clad::pushThreadSafe<T>(t, x);
+        clad::push<T>(t, x);
       }
     });
   }
