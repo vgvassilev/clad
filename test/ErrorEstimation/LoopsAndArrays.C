@@ -1,4 +1,4 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include -oLoopsAndArrays.out %s 2>&1 | %filecheck %s
+// RUN: %cladclang -I%S/../../include -oLoopsAndArrays.out %s 2>&1 | %filecheck %s
 
 #include "clad/Differentiator/Differentiator.h"
 
