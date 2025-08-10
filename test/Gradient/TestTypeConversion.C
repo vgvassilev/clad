@@ -1,6 +1,6 @@
-// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s  -I%S/../../include -oTestTypeConversion.out 2>&1 | %filecheck %s
+// RUN: %cladnumdiffclang %s  -I%S/../../include -oTestTypeConversion.out 2>&1 | %filecheck %s
 // RUN: ./TestTypeConversion.out | %filecheck_exec %s
-// RUN: %cladnumdiffclang %s  -I%S/../../include -oTestTypeConversion.out
+// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s  -I%S/../../include -oTestTypeConversion.out
 // RUN: ./TestTypeConversion.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
@@ -28,7 +28,6 @@ void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_z += 1;
 // CHECK-NEXT:     for (; _t0; _t0--) {
-// CHECK-NEXT:         i--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             z = clad::pop(_t1);
 // CHECK-NEXT:             float _r_d0 = *_d_z;

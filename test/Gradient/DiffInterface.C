@@ -1,6 +1,6 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oGradientDiffInterface.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oGradientDiffInterface.out 2>&1 | %filecheck %s
 // RUN: ./GradientDiffInterface.out | %filecheck_exec %s
-// RUN: %cladclang %s -I%S/../../include -oGradientDiffInterface.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oGradientDiffInterface.out
 // RUN: ./GradientDiffInterface.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

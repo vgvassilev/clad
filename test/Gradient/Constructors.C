@@ -1,6 +1,6 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oConstructors.out -Xclang -verify 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oConstructors.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: ./Constructors.out | %filecheck_exec %s
-// RUN: %cladclang %s -I%S/../../include -oConstructors.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oConstructors.out
 // RUN: ./Constructors.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
@@ -30,27 +30,23 @@ double fn1(double x, double y) {
 
 // CHECK:  static void constructor_pullback(double val, argByVal *_d_this, double *_d_val) {
 // CHECK-NEXT:      argByVal *_this = (argByVal *)malloc(sizeof(argByVal));
-// CHECK-NEXT:      double _t0 = _this->x;
 // CHECK-NEXT:      _this->x = val;
-// CHECK-NEXT:      double _t1 = val;
+// CHECK-NEXT:      double _t0 = val;
 // CHECK-NEXT:      val *= val;
-// CHECK-NEXT:      double _t2 = _this->y;
 // CHECK-NEXT:      _this->y = val;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          _this->y = _t2;
 // CHECK-NEXT:          double _r_d2 = _d_this->y;
 // CHECK-NEXT:          _d_this->y = 0.;
 // CHECK-NEXT:          *_d_val += _r_d2;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
-// CHECK-NEXT:          val = _t1;
+// CHECK-NEXT:          val = _t0;
 // CHECK-NEXT:          double _r_d1 = *_d_val;
 // CHECK-NEXT:          *_d_val = 0.;
 // CHECK-NEXT:          *_d_val += _r_d1 * val;
 // CHECK-NEXT:          *_d_val += val * _r_d1;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
-// CHECK-NEXT:          _this->x = _t0;
 // CHECK-NEXT:          double _r_d0 = _d_this->x;
 // CHECK-NEXT:          _d_this->x = 0.;
 // CHECK-NEXT:          *_d_val += _r_d0;
@@ -62,14 +58,12 @@ double fn1(double x, double y) {
 // CHECK-NEXT:      argByVal g(x);
 // CHECK-NEXT:      argByVal _d_g(g);
 // CHECK-NEXT:      clad::zero_init(_d_g);
-// CHECK-NEXT:      double _t0 = y; 
 // CHECK-NEXT:      y = x;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_y += 1;
 // CHECK-NEXT:          _d_g.y += 1;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
-// CHECK-NEXT:          y = _t0;
 // CHECK-NEXT:          double _r_d0 = *_d_y;
 // CHECK-NEXT:          *_d_y = 0.;
 // CHECK-NEXT:          *_d_x += _r_d0;
@@ -159,10 +153,8 @@ double fn2(double u, double v) {
 
 // CHECK:  static void constructor_pullback(double x, S3 *_d_this, double *_d_x) {
 // CHECK-NEXT:      S3 *_this = (S3 *)malloc(sizeof(S3));
-// CHECK-NEXT:      double _t0 = _this->p;
 // CHECK-NEXT:      _this->p = x * x;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          _this->p = _t0;
 // CHECK-NEXT:          double _r_d0 = _d_this->p;
 // CHECK-NEXT:          _d_this->p = 0.;
 // CHECK-NEXT:          *_d_x += _r_d0 * x;
@@ -314,14 +306,12 @@ double fn5(double x, double y) {
 // CHECK-NEXT:      argByValWrapper g(x);
 // CHECK-NEXT:      argByValWrapper _d_g(g);
 // CHECK-NEXT:      clad::zero_init(_d_g);
-// CHECK-NEXT:      double _t0 = y;
 // CHECK-NEXT:      y = x;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_y += 1;
 // CHECK-NEXT:          _d_g.y += 1;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
-// CHECK-NEXT:          y = _t0;
 // CHECK-NEXT:          double _r_d0 = *_d_y;
 // CHECK-NEXT:          *_d_y = 0.;
 // CHECK-NEXT:          *_d_x += _r_d0;
@@ -340,10 +330,8 @@ double fn6(double x, double y) {
 
 // CHECK:  static void constructor_pullback(double v, double u, argByValWrapper *_d_this, double *_d_v, double *_d_u) {
 // CHECK-NEXT:      argByValWrapper *_this = new argByValWrapper(v);
-// CHECK-NEXT:      double _t0 = _this->z;
 // CHECK-NEXT:      _this->z = _this->y * u;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          _this->z = _t0;
 // CHECK-NEXT:          double _r_d0 = _d_this->z;
 // CHECK-NEXT:          _d_this->z = 0.;
 // CHECK-NEXT:          _d_this->y += _r_d0 * u;
@@ -379,10 +367,8 @@ double fn7(double x, double y) {
 // CHECK:  static void constructor_pullback(double v, bool arg, argByValWrapper *_d_this, double *_d_v, bool *_d_arg) {
 // CHECK-NEXT:      argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:      new (static_cast<argByVal *>(_this)) argByVal(v);
-// CHECK-NEXT:      double _t0 = _this->z;
 // CHECK-NEXT:      _this->z = _this->x * _this->y;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          _this->z = _t0;
 // CHECK-NEXT:          double _r_d0 = _d_this->z;
 // CHECK-NEXT:          _d_this->z = 0.;
 // CHECK-NEXT:          _d_this->x += _r_d0 * _this->y;
