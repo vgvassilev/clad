@@ -11,6 +11,7 @@
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
@@ -415,7 +416,7 @@ namespace clad {
     /// Currently is only used for CUDA in the reverse mode. Determines whether
     /// an expression, most likely an index, is injective, meaning no two
     /// threads have the same value.
-    bool isInjective(const clang::Expr* E, clang::ASTContext& ctx);
+    bool isInjective(const clang::Expr* E, clang::AnalysisDeclContext* ADC);
     /// Checks if the return value of the given CallExpr is unused.
     bool hasUnusedReturnValue(clang::ASTContext& C, const clang::CallExpr* CE);
     } // namespace utils

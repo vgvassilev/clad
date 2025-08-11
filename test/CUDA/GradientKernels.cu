@@ -804,6 +804,83 @@ __global__ void kernel_device_injective(int *a) {
 // CHECK-NEXT:     device_injective_index_pullback_0(a, _d_a);
 // CHECK-NEXT: }
 
+__global__ void injective_reassignment(int *a) {
+  int index1 = threadIdx.x + blockIdx.x * blockDim.x;
+  int index2 = threadIdx.x + blockIdx.x * blockDim.x;
+
+  index1 = 1;
+
+  a[1] += a[index1]; 
+
+  if(index2) index2 = 1;
+
+  a[1] += a[index1];
+}
+
+// CHECK: void injective_reassignment_grad(int *a, int *_d_a) {
+// CHECK-NEXT:     bool _cond0;
+// CHECK-NEXT:     int _t2;
+// CHECK-NEXT:     int _d_index1 = 0;
+// CHECK-NEXT:     int index1 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     int _d_index2 = 0;
+// CHECK-NEXT:     int index2 = threadIdx.x + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     int _t0 = index1;
+// CHECK-NEXT:     index1 = 1;
+// CHECK-NEXT:     int _t1 = a[1];
+// CHECK-NEXT:     a[1] += a[index1];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _cond0 = index2;
+// CHECK-NEXT:         if (_cond0) {
+// CHECK-NEXT:             _t2 = index2;
+// CHECK-NEXT:             index2 = 1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     int _t3 = a[1];
+// CHECK-NEXT:     a[1] += a[index1];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a[1] = _t3;
+// CHECK-NEXT:         int _r_d3 = _d_a[1];
+// CHECK-NEXT:         atomicAdd(&_d_a[index1], _r_d3);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     if (_cond0) {
+// CHECK-NEXT:         index2 = _t2;
+// CHECK-NEXT:         int _r_d2 = _d_index2;
+// CHECK-NEXT:         _d_index2 = 0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a[1] = _t1;
+// CHECK-NEXT:         int _r_d1 = _d_a[1];
+// CHECK-NEXT:         atomicAdd(&_d_a[index1], _r_d1);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         index1 = _t0;
+// CHECK-NEXT:         int _r_d0 = _d_index1;
+// CHECK-NEXT:         _d_index1 = 0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+__global__ void injective_reassignment_loop(int *a) {
+  for(int i = threadIdx.x + blockIdx.x * blockDim.x; i > 0; i--)
+    a[i] += a[i];
+}
+
+//CHECK: void injective_reassignment_loop_grad(int *a, int *_d_a) {
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
+//CHECK-NEXT:     clad::tape<int> _t1 = {};
+//CHECK-NEXT:     unsigned long _t0 = 0UL;
+//CHECK-NEXT:     for (i = threadIdx.x + blockIdx.x * blockDim.x; i > 0; i--) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         clad::push(_t1, a[i]);
+//CHECK-NEXT:         a[i] += a[i];
+//CHECK-NEXT:     }
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         i++;
+//CHECK-NEXT:         a[i] = clad::pop(_t1);
+//CHECK-NEXT:         int _r_d0 = _d_a[i];
+//CHECK-NEXT:         atomicAdd(&_d_a[i], _r_d0);
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
 
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \
   {                                                                         \
@@ -1087,6 +1164,8 @@ int main(void) {
   cudaMalloc(&d_n, sizeof(int));
 
   TEST(kernel_device_injective, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 4
+  TEST(injective_reassignment, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 1
+  TEST(injective_reassignment_loop, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 1
 
   cudaFree(n);
   cudaFree(d_n);

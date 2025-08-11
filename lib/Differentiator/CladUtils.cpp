@@ -12,6 +12,8 @@
 #include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
+#include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
@@ -1306,14 +1308,98 @@ namespace clad {
       } checker;
       return checker.isInjectiveIdx(E);
     }
-
-    bool isInjective(const clang::Expr* E, clang::ASTContext& ctx) {
-      class InjectiveChecker
-          : public clang::RecursiveASTVisitor<InjectiveChecker> {
-        clang::ASTContext& m_Context;
+    /// Checks if a variable is changed before a certain usage.
+    ///
+    /// \param[in] ADC
+    /// \param[in] idxVD VarDecl of a variable we check for the liveness.
+    /// \param[in] stopE endpoint of the traversal(usage of a variable), we are
+    /// only interested in what is before this Expr. \returns whether a given
+    /// variable is modified after initialization before certain use.
+    static bool isLiveIdx(clang::AnalysisDeclContext* ADC,
+                          clang::VarDecl* idxVD, const clang::Expr* stopE) {
+      class LiveIdxChecker : public RecursiveASTVisitor<LiveIdxChecker> {
+        clang::AnalysisDeclContext* m_ADC;
+        clang::VarDecl* m_idxVD;
+        const clang::Expr* m_stopE;
+        bool m_isLive = true;
+        bool m_Modifying = false;
 
       public:
-        InjectiveChecker(clang::ASTContext& Context) : m_Context(Context) {};
+        LiveIdxChecker(clang::AnalysisDeclContext* ADC, clang::VarDecl* idxVD,
+                       const clang::Expr* stopE)
+            : m_ADC(ADC), m_idxVD(idxVD), m_stopE(stopE) {}
+
+        bool isLiveE() {
+          for (auto* block : *m_ADC->getCFG()) {
+            for (const clang::CFGElement& Element : *block) {
+              if (Element.getKind() == clang::CFGElement::Statement) {
+                const clang::Stmt* S =
+                    Element.castAs<clang::CFGStmt>().getStmt();
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+                if (!TraverseStmt(const_cast<clang::Stmt*>(S)))
+                  return m_isLive;
+              }
+            }
+          }
+          return m_isLive;
+        }
+
+        bool TraverseBinaryOperator(clang::BinaryOperator* BinOp) {
+          Expr* L = BinOp->getLHS();
+          Expr* R = BinOp->getRHS();
+
+          if (BinOp->isAssignmentOp()) {
+            m_Modifying = true;
+            TraverseStmt(L);
+            m_Modifying = false;
+            TraverseStmt(R);
+          }
+          return true;
+        }
+
+        bool TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
+          const auto opCode = UnOp->getOpcode();
+          Expr* E = UnOp->getSubExpr();
+          if (opCode == UO_PostInc || opCode == UO_PostDec ||
+              opCode == UO_PreInc || opCode == UO_PreDec) {
+            m_Modifying = true;
+            TraverseStmt(E);
+            m_Modifying = false;
+          }
+          return true;
+        }
+
+        bool TraverseArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
+          m_Modifying = false;
+          TraverseStmt(ASE->getIdx());
+          return true;
+        }
+
+        bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE) {
+          if (DRE == m_stopE)
+            return false;
+          if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            if (m_Modifying && VD == m_idxVD) {
+              m_isLive = false;
+              return false;
+            }
+          }
+          return true;
+        }
+      } checker(ADC, idxVD, stopE->IgnoreImplicit());
+
+      return checker.isLiveE();
+    }
+
+    bool isInjective(const clang::Expr* E, clang::AnalysisDeclContext* ADC) {
+      class InjectiveChecker
+          : public clang::RecursiveASTVisitor<InjectiveChecker> {
+        clang::AnalysisDeclContext* m_ADC;
+        const clang::Expr* m_E;
+
+      public:
+        InjectiveChecker(clang::AnalysisDeclContext* ADC, const clang::Expr* E)
+            : m_ADC(ADC), m_E(E) {}
 
         bool isInjectiveIdx(const clang::Expr* E) {
           // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
@@ -1328,10 +1414,10 @@ namespace clad {
           if (opCode == BO_Add || opCode == BO_Mul) {
             Expr::EvalResult dummy;
 
-            bool isConstL =
-                clad_compat::Expr_EvaluateAsConstantExpr(L, dummy, m_Context);
-            bool isConstR =
-                clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context);
+            bool isConstL = clad_compat::Expr_EvaluateAsConstantExpr(
+                L, dummy, m_ADC->getASTContext());
+            bool isConstR = clad_compat::Expr_EvaluateAsConstantExpr(
+                R, dummy, m_ADC->getASTContext());
 
             if (isConstL && isConstR)
               return false;
@@ -1349,16 +1435,16 @@ namespace clad {
         }
 
         bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE) {
-          if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
             if (auto* init = VD->getInit())
-              return isInjectiveE(init->IgnoreImpCasts());
-          }
+              return isInjectiveE(init->IgnoreImpCasts()) &&
+                     isLiveIdx(m_ADC, VD, m_E);
           return false;
         }
 
         bool TraverseIntegerLiteral(clang::IntegerLiteral* IL) { return false; }
 
-      } checker(ctx);
+      } checker(ADC, E);
 
       return checker.isInjectiveIdx(E);
     }
