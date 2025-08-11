@@ -24,6 +24,7 @@
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Lookup.h"
@@ -631,32 +632,35 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     Out.flush();
   }
 
-  bool DiffRequest::shouldBeRecorded(Expr* E) const {
+  bool DiffRequest::shouldBeRecorded(const Stmt* S) const {
     if (!EnableTBRAnalysis)
       return true;
 
-    if (isa<CXXConstCastExpr>(E))
-      E = cast<CXXConstCastExpr>(E)->getSubExpr();
+    if (const auto* E = dyn_cast<Expr>(S)) {
+      if (isa<CXXConstCastExpr>(E)) {
+        E = cast<CXXConstCastExpr>(E)->getSubExpr();
+        S = E;
+      }
 
-    if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
-        !isa<MemberExpr>(E) &&
-        (!isa<UnaryOperator>(E) ||
-         cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
-      return true;
+      if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
+          !isa<MemberExpr>(E) &&
+          (!isa<UnaryOperator>(E) ||
+           cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
+        return true;
 
-    // FIXME: currently, we allow all pointer operations to be stored.
-    // This is not correct, but we need to implement a more advanced analysis
-    // to determine which pointer operations are useful to store.
-    if (E->getType()->isPointerType())
-      return true;
-
+      // FIXME: currently, we allow all pointer operations to be stored.
+      // This is not correct, but we need to implement a more advanced analysis
+      // to determine which pointer operations are useful to store.
+      if (E->getType()->isPointerType())
+        return true;
+    }
     if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function) &&
         Function->isDefined() && m_AnalysisDC) {
       TimedAnalysisRegion R("TBR " + BaseFunctionName);
       TBRAnalyzer analyzer(m_AnalysisDC, getToBeRecorded());
       analyzer.Analyze(*this);
     }
-    auto found = m_TbrRunInfo.ToBeRecorded.find(E->getBeginLoc());
+    auto found = m_TbrRunInfo.ToBeRecorded.find(S->getBeginLoc());
     return found != m_TbrRunInfo.ToBeRecorded.end();
   }
 

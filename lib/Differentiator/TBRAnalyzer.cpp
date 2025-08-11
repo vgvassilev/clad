@@ -68,8 +68,6 @@ TBRAnalyzer::VarData TBRAnalyzer::VarData::copy() const {
 }
 
 bool TBRAnalyzer::findReq(const VarData& varData) {
-  assert(varData.m_Type != VarData::REF_TYPE &&
-         "references should be removed on the getIDSequence stage");
   if (varData.m_Type == VarData::FUND_TYPE)
     return varData.m_Val.m_FundData;
   if (varData.m_Type == VarData::OBJ_TYPE ||
@@ -78,6 +76,8 @@ bool TBRAnalyzer::findReq(const VarData& varData) {
       if (findReq(pair.second))
         return true;
   }
+  if (varData.m_Type == VarData::REF_TYPE)
+    return findReq(*getVarDataFromExpr(varData.m_Val.m_RefData));
   return false;
 }
 
@@ -267,8 +267,8 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
   curBranch[VD] = VarData(varType, m_Context, forceNonRefType);
 }
 
-void TBRAnalyzer::markLocation(const clang::Expr* E) {
-  m_TBRLocs.insert(E->getBeginLoc());
+void TBRAnalyzer::markLocation(const clang::Stmt* S) {
+  m_TBRLocs.insert(S->getBeginLoc());
 }
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
@@ -570,6 +570,10 @@ bool TBRAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
 bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
   for (auto* D : DS->decls()) {
     if (auto* VD = dyn_cast<VarDecl>(D)) {
+      if (VarData* data = getVarDataFromDecl(VD)) {
+        if (findReq(*data))
+          markLocation(DS);
+      }
       addVar(VD);
       if (clang::Expr* init = VD->getInit()) {
 

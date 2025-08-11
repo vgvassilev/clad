@@ -180,7 +180,7 @@ public:
   void print(llvm::raw_ostream& Out) const;
   LLVM_DUMP_METHOD void dump() const { print(llvm::errs()); }
 
-  bool shouldBeRecorded(clang::Expr* E) const;
+  bool shouldBeRecorded(const clang::Stmt* S) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
   bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
   bool isVaried(const clang::Expr* E) const;
