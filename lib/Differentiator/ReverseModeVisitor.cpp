@@ -28,6 +28,7 @@
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/LLVM.h" // for clang::isa
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
@@ -152,14 +153,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // Check whether this param is in the global memory of the GPU and
           // if index is injective.
           return m_DiffReq.HasIndependentParameter(PVD) &&
-                 !clad::utils::isInjective(idx, m_Context);
+                 !clad::utils::isInjective(idx, m_DiffReq.m_AnalysisDC);
         if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>()) {
           for (auto index : m_DiffReq.CUDAGlobalArgsIndexes) {
             const auto* PVDOrig = m_DiffReq->getParamDecl(index);
             if (PVDOrig->getNameAsString() == PVD->getNameAsString() &&
                 (utils::isArrayOrPointerType(PVDOrig->getType()) ||
                  PVDOrig->getType()->isReferenceType()))
-              return !clad::utils::isInjective(idx, m_Context);
+              return !clad::utils::isInjective(idx, m_DiffReq.m_AnalysisDC);
           }
         }
       }
