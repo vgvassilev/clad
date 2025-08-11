@@ -241,13 +241,13 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   //// Setters
   /// Creates VarData for a new VarDecl*.
   void addVar(const clang::VarDecl* VD, bool forceNonRefType = false);
-  /// Marks the SourceLocation of E if it is required to store.
-  /// E could be DeclRefExpr*, ArraySubscriptExpr* or MemberExpr*.
-  void markLocation(const clang::Expr* E);
+  /// Marks the SourceLocation of S if it is required to store.
+  /// E could be DeclRefExpr, ArraySubscriptExpr, MemberExpr, or DeclStmt.
+  void markLocation(const clang::Stmt* S);
   /// Sets E's corresponding VarData (or all its child nodes) to
   /// required/not required. For isReq==true, checks if the current mode is
-  /// markingMode and nonLinearMode. E could be DeclRefExpr*,
-  /// ArraySubscriptExpr* or MemberExpr*.
+  /// markingMode and nonLinearMode. E could be DeclRefExpr,
+  /// ArraySubscriptExpr or MemberExpr.
   void setIsRequired(const clang::Expr* E, bool isReq = true);
 
   /// Returns the VarsData of the CFG block being visited.

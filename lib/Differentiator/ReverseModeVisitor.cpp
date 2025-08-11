@@ -3068,11 +3068,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             else
               assignment = BuildOp(BO_Assign, declRef, decl->getInit());
             if (isInsideLoop) {
-              auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
-                                             /*moveToTape=*/true);
-              if (pushPop.getExpr() != declRef)
-                addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
-              assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
+              if (m_DiffReq.shouldBeRecorded(DS)) {
+                auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
+                                               /*moveToTape=*/true);
+                if (pushPop.getExpr() != declRef)
+                  addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
+                assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
+              }
             }
             inits.push_back(assignment);
             SetDeclInit(decl, getZeroInit(VD->getType()));
@@ -3620,6 +3622,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           condResult = m_Sema.ActOnConditionVariable(
               condVarClone, noLoc, Sema::ConditionKind::Boolean);
         } else {
+          condVarRes.updateStmt(BuildParens(condVarRes.getExpr()));
           condResult = m_Sema.ActOnCondition(getCurrentScope(), noLoc,
                                              cast<Expr>(condVarRes.getStmt()),
                                              Sema::ConditionKind::Boolean);
