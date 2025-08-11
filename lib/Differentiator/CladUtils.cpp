@@ -1391,6 +1391,7 @@ namespace clad {
           }
         }
       }
+      return false;
     }
   } // namespace utils
 } // namespace clad
