@@ -410,18 +410,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           }
           continue;
         }
-        auto VDDerivedType = utils::GetNonConstValueType(paramTy); //Type(paramTy, m_Sema);
+        auto VDDerivedType =
+            utils::GetNonConstValueType(paramTy); // Type(paramTy, m_Sema);
         Expr* initExpr = nullptr;
         bool isDirectInit = false;
         if (clad::utils::isCladTorchTensor(VDDerivedType)) {
           ParmVarDecl* newFuncParam = nullptr;
           for (auto* p : m_Derivative->parameters()) {
-              if (p->getName() == param->getName()) {
-                  newFuncParam = p;
-                  break;
-              }
+            if (p->getName() == param->getName()) {
+              newFuncParam = p;
+              break;
+            }
           }
-          assert(newFuncParam && "Could not find corresponding parameter in derivative function");
+          assert(
+              newFuncParam &&
+              "Could not find corresponding parameter in derivative function");
           initExpr = BuildDeclRef(newFuncParam->getDefinition());
           isDirectInit = true;
         } else {
@@ -2739,7 +2742,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         isConstructInit && isNonAggrClass &&
         cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs() &&
         utils::isCopyable(VDType->getAsCXXRecordDecl());
-    
+
     if (clad::utils::isCladTorchTensor(VD->getType())) {
       isConstructInit = true;
       shouldCopyInitialize = true;
