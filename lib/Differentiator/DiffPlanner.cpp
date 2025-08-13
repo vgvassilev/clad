@@ -216,9 +216,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return;
 
     // Index of "CUDAkernel" parameter:
-    int numArgs = static_cast<int>(call->getNumArgs());
-    if (numArgs > 4) {
-      auto kernelArgIdx = numArgs - 1;
+    if (call->getNumArgs() > 4) {
+      auto kernelArgIdx = call->getNumArgs() - 1;
       auto* cudaKernelFlag =
           SemaRef
               .ActOnCXXBoolLiteral(noLoc,
@@ -245,10 +244,15 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         DRE->setValueKind(CLAD_COMPAT_ExprValueKind_R_or_PR_Value);
 
     // Add the "&" operator
-    auto* newUnOp =
+    Expr* newArg =
         SemaRef.BuildUnaryOp(nullptr, noLoc, UnaryOperatorKind::UO_AddrOf, DRE)
             .get();
-    call->setArg(*derivedFnArgIdx, newUnOp);
+    // Take into account if the user selected an overload by a cast expr.
+    if (const auto* CastE = dyn_cast<ExplicitCastExpr>(call->getArg(0))) {
+      TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(CastE->getType(), noLoc);
+      newArg = SemaRef.BuildCStyleCastExpr(noLoc, TSI, noLoc, newArg).get();
+    }
+    call->setArg(*derivedFnArgIdx, newArg);
 
     if (ImmediateMode) {
       assert(!codeArgIdx && "We found the index of the code argument!");
@@ -267,10 +271,10 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     Out.flush();
 
     StringLiteral* SL = utils::CreateStringLiteral(C, Out.str());
-    Expr* newArg =
+    Expr* newCodeArg =
         SemaRef.ImpCastExprToType(SL, Arg->getType(), CK_ArrayToPointerDecay)
             .get();
-    call->setArg(*codeArgIdx, newArg);
+    call->setArg(*codeArgIdx, newCodeArg);
   }
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
