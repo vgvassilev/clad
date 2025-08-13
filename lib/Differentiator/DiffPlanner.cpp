@@ -20,6 +20,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -32,8 +33,11 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include <llvm/Support/raw_ostream.h>
+
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -106,7 +110,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
                                           cast<FunctionDecl>(candidateFn));
         }
         return false;
-      } else if (R.isSingleResult() == 1 &&
+      } else if (R.isSingleResult() &&
                  cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() !=
                      AccessSpecifier::AS_public) {
         const char diagFmt[] =
@@ -186,7 +190,6 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
            "Trying to update an unsupported expression");
     auto* call = cast<CallExpr>(this->CallContext);
 
-    assert(call && "Must be set");
     assert(FD && "Trying to update with null FunctionDecl");
 
     DeclRefExpr* oldDRE = getArgFunction(call, SemaRef);
@@ -197,19 +200,20 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
     FunctionDecl* replacementFD = OverloadedFD ? OverloadedFD : FD;
 
-    auto codeArgIdx = -1;
-    auto derivedFnArgIdx = -1;
-    auto idx = 0;
-    for (auto* arg : call->arguments()) {
-      if (auto* default_arg_expr = dyn_cast<CXXDefaultArgExpr>(arg)) {
-        std::string argName = default_arg_expr->getParam()->getNameAsString();
+    clad_compat::llvm_Optional<unsigned> codeArgIdx;
+    clad_compat::llvm_Optional<unsigned> derivedFnArgIdx;
+    for (unsigned i = 0, e = call->getNumArgs(); i < e; ++i) {
+      if (const auto* ArgExpr = dyn_cast<CXXDefaultArgExpr>(call->getArg(i))) {
+        std::string argName = ArgExpr->getParam()->getNameAsString();
         if (argName == "derivedFn")
-          derivedFnArgIdx = idx;
+          derivedFnArgIdx = i;
         else if (argName == "code")
-          codeArgIdx = idx;
+          codeArgIdx = i;
       }
-      ++idx;
     }
+
+    if (!derivedFnArgIdx)
+      return;
 
     // Index of "CUDAkernel" parameter:
     int numArgs = static_cast<int>(call->getNumArgs());
@@ -223,7 +227,6 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
                                        : tok::kw_false)
               .get();
       call->setArg(kernelArgIdx, cudaKernelFlag);
-      numArgs--;
     }
 
     // Create ref to generated FD.
@@ -241,36 +244,33 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       if (MD->isInstance())
         DRE->setValueKind(CLAD_COMPAT_ExprValueKind_R_or_PR_Value);
 
-    if (derivedFnArgIdx != -1) {
-      // Add the "&" operator
-      auto* newUnOp =
-          SemaRef
-              .BuildUnaryOp(nullptr, noLoc, UnaryOperatorKind::UO_AddrOf, DRE)
-              .get();
-      call->setArg(derivedFnArgIdx, newUnOp);
-    }
+    // Add the "&" operator
+    auto* newUnOp =
+        SemaRef.BuildUnaryOp(nullptr, noLoc, UnaryOperatorKind::UO_AddrOf, DRE)
+            .get();
+    call->setArg(*derivedFnArgIdx, newUnOp);
 
+    if (ImmediateMode) {
+      assert(!codeArgIdx && "We found the index of the code argument!");
+      return;
+    }
     // Update the code parameter if it was found.
-    if (codeArgIdx != -1) {
-      if (auto* Arg = dyn_cast<CXXDefaultArgExpr>(call->getArg(codeArgIdx))) {
-        clang::LangOptions LangOpts;
-        LangOpts.CPlusPlus = true;
-        clang::PrintingPolicy Policy(LangOpts);
-        Policy.Bool = true;
+    const auto* Arg = cast<CXXDefaultArgExpr>(call->getArg(*codeArgIdx));
+    clang::LangOptions LangOpts;
+    LangOpts.CPlusPlus = true;
+    clang::PrintingPolicy Policy(LangOpts);
+    Policy.Bool = true;
 
-        std::string s;
-        llvm::raw_string_ostream Out(s);
-        FD->print(Out, Policy);
-        Out.flush();
+    std::string s;
+    llvm::raw_string_ostream Out(s);
+    FD->print(Out, Policy);
+    Out.flush();
 
-        StringLiteral* SL = utils::CreateStringLiteral(C, Out.str());
-        Expr* newArg =
-            SemaRef
-                .ImpCastExprToType(SL, Arg->getType(), CK_ArrayToPointerDecay)
-                .get();
-        call->setArg(codeArgIdx, newArg);
-      }
-    }
+    StringLiteral* SL = utils::CreateStringLiteral(C, Out.str());
+    Expr* newArg =
+        SemaRef.ImpCastExprToType(SL, Arg->getType(), CK_ArrayToPointerDecay)
+            .get();
+    call->setArg(*codeArgIdx, newArg);
   }
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
