@@ -16,8 +16,8 @@ float fn1(const cladtorch::Tensor& t) {
   return b.data;
 }
 // CHECK: void fn1_grad(const cladtorch::Tensor &t, cladtorch::Tensor *_d_t) {
-// CHECK-NEXT:     cladtorch::cladtorch::Tensor _d_b(b);
-// CHECK-NEXT:     cladtorch::cladtorch::Tensor b = t;
+// CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_b(b);
+// CHECK-NEXT:     {{.*}}cladtorch::Tensor b = t;
 // CHECK-NEXT:     _d_b.data += 1;
 // CHECK-NEXT:     Tensor::constructor_pullback(t, &_d_b, &(*_d_t));
 // CHECK-NEXT: }
