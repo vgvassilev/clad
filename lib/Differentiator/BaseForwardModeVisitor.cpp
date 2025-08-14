@@ -32,6 +32,7 @@
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaOpenMP.h"
 #include "clang/Sema/Template.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -932,7 +933,7 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     // with Sema::BuildDeclRefExpr. This is required in some cases, e.g.
     // Sema::BuildDeclRefExpr is responsible for adding captured fields
     // to the underlying struct of a lambda.
-    if (clonedDRE->getDecl()->getDeclContext() != m_Sema.CurContext) {
+    if ((clonedDRE->getDecl()->getDeclContext() != m_Sema.CurContext)) {
       NestedNameSpecifier* NNS = DRE->getQualifier();
       auto* referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
       clonedDRE = BuildDeclRef(referencedDecl, NNS);
@@ -2196,5 +2197,111 @@ clang::Expr* BaseForwardModeVisitor::BuildCustomDerivativeConstructorPFCall(
   Expr* pushforwardCall = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
       customPushforwardName, customPushforwardArgs, getCurrentScope(), CE);
   return pushforwardCall;
+}
+
+StmtDiff BaseForwardModeVisitor::VisitCapturedStmt(const CapturedStmt* S) {
+  SourceLocation Loc = S->getBeginLoc();
+  const CapturedDecl* CD = S->getCapturedDecl();
+  unsigned NumParams = CD->getNumParams();
+  unsigned ContextParamPos = CD->getContextParamPosition();
+  SmallVector<Sema::CapturedParamNameType, 4> Params;
+  for (unsigned I = 0; I < NumParams; ++I) {
+    if (I != ContextParamPos) {
+      Params.push_back(std::make_pair(CD->getParam(I)->getName(),
+                                      CD->getParam(I)->getType()));
+    } else {
+      Params.push_back(std::make_pair(StringRef(), QualType()));
+    }
+  }
+  m_Sema.ActOnCapturedRegionStart(Loc, getCurrentScope(),
+                                  S->getCapturedRegionKind(), Params);
+  StmtDiff Body;
+  {
+    Sema::CompoundScopeRAII CompoundScope(m_Sema);
+    Body = Visit(S->getCapturedStmt());
+  }
+
+  if (!Body.getStmt()) {
+    m_Sema.ActOnCapturedRegionError();
+    return StmtDiff{};
+  }
+
+  return m_Sema.ActOnCapturedRegionEnd(Body.getStmt()).get();
+}
+
+clang::OMPReductionClause*
+BaseForwardModeVisitor::VisitOMPReductionClause(const clang::OMPClause* C) {
+  const auto* RC = dyn_cast<OMPReductionClause>(C);
+  llvm::SmallVector<Expr*, 8> Vars;
+  CXXScopeSpec ReductionIdScopeSpec;
+  ReductionIdScopeSpec.Adopt(RC->getQualifierLoc());
+  for (const auto* Var : RC->varlist()) {
+    Vars.push_back(Clone(Var));
+    Vars.push_back(Visit(Var).getExpr_dx());
+  }
+  // WARN: 19 < Clang < 21
+  auto* newClause = m_Sema.OpenMP().ActOnOpenMPReductionClause(
+      Vars, RC->getModifier(), noLoc, noLoc, noLoc, noLoc, noLoc,
+      ReductionIdScopeSpec, RC->getNameInfo());
+  return dyn_cast<OMPReductionClause>(newClause);
+}
+
+StmtDiff BaseForwardModeVisitor::VisitOMPParallelForDirective(
+    const clang::OMPParallelForDirective* PFD) {
+  // TODO: Use a general function to do all
+  beginScope(Scope::FnScope | Scope::DeclScope | Scope::CompoundStmtScope |
+             Scope::OpenMPDirectiveScope | Scope::OpenMPLoopDirectiveScope);
+  DeclarationNameInfo DirName;
+  m_Sema.OpenMP().StartOpenMPDSABlock(PFD->getDirectiveKind(), DirName,
+                                      getCurrentScope(), PFD->getBeginLoc());
+  auto Clauses = PFD->clauses();
+  llvm::SmallVector<OMPClause*, 4> DiffClauses;
+  for (auto* C : Clauses) {
+    if (C) {
+      switch (C->getClauseKind()) {
+      case llvm::omp::OMPC_reduction: {
+        DiffClauses.push_back(VisitOMPReductionClause(C));
+        break;
+      }
+      default:
+        // Other clauses are not handled.
+        break;
+      }
+    }
+  }
+  StmtDiff AssociatedStmt;
+  if (PFD->hasAssociatedStmt() && PFD->getAssociatedStmt()) {
+    m_Sema.OpenMP().ActOnOpenMPRegionStart(PFD->getDirectiveKind(),
+                                           getCurrentScope());
+    StmtDiff Body;
+    {
+      Sema::CompoundScopeRAII CompoundScope(m_Sema);
+      const Stmt* CS = nullptr;
+      CS = PFD->getRawStmt(); // or CS = PFD->getAssociatedStmt()
+      Body = Visit(CS).getStmt();
+      // FIXME: Avoid dirty hack
+      for (auto* SubStmt : Body.getStmt()->children()) {
+        if (isa<ForStmt>(SubStmt)) {
+          Body = SubStmt;
+          break;
+        }
+      }
+      // Should we use this?
+      // Body = m_Sema.OpenMP().ActOnOpenMPLoopnest(Body.getStmt()).get();
+    }
+    AssociatedStmt =
+        m_Sema.OpenMP().ActOnOpenMPRegionEnd(Body.getStmt(), DiffClauses).get();
+    if (!AssociatedStmt.getStmt())
+      return StmtDiff{};
+  }
+  auto* Result =
+      m_Sema.OpenMP()
+          .ActOnOpenMPExecutableDirective(
+              PFD->getDirectiveKind(), DirName, llvm::omp::OMPD_unknown,
+              DiffClauses, AssociatedStmt.getStmt(), noLoc, noLoc)
+          .get();
+  m_Sema.OpenMP().EndOpenMPDSABlock(Result);
+  endScope();
+  return Result;
 }
 } // end namespace clad
