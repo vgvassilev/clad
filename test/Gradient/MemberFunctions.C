@@ -1,16 +1,16 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -fno-exceptions -I%S/../../include -oMemberFunctions.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -fno-exceptions -I%S/../../include -oMemberFunctions.out 2>&1 | %filecheck %s
 // RUN: ./MemberFunctions.out | %filecheck_exec %s
-// RUN: %cladclang %s -fno-exceptions -I%S/../../include -oMemberFunctions.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -fno-exceptions -I%S/../../include -oMemberFunctions.out
 // RUN: ./MemberFunctions.out | %filecheck_exec %s
 
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -std=c++14 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp14.out 2>&1 | %filecheck %s
+// RUN: %cladclang -std=c++14 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp14.out 2>&1 | %filecheck %s
 // RUN: ./MemberFunctions-cpp14.out | %filecheck_exec %s
-// RUN: %cladclang -std=c++14 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp14.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -std=c++14 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp14.out
 // RUN: ./MemberFunctions-cpp14.out | %filecheck_exec %s
 
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out 2>&1 | %filecheck %s
+// RUN: %cladclang -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out 2>&1 | %filecheck %s
 // RUN: ./MemberFunctions-cpp17.out | %filecheck_exec %s
-// RUN: %cladclang -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out
 // RUN: ./MemberFunctions-cpp17.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
@@ -467,7 +467,6 @@ double fn2(SimpleFunctions& sf, double i) {
 
 // CHECK: void fn2_grad(SimpleFunctions &sf, double i, SimpleFunctions *_d_sf, double *_d_i) {
 // CHECK-NEXT:     SimpleFunctions _t0 = sf;
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = sf.ref_mem_fn_reverse_forw(i, &(*_d_sf), 0.);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         sf = _t0;
@@ -503,7 +502,7 @@ double fn5(SimpleFunctions& v, double value) {
 
 // CHECK: void fn5_grad(SimpleFunctions &v, double value, SimpleFunctions *_d_v, double *_d_value) {
 // CHECK-NEXT:     SimpleFunctions _t0 = v;
-// CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = v.operator_plus_equal_reverse_forw(value, &(*_d_v), 0.);
+// CHECK-NEXT:     v.operator_plus_equal_reverse_forw(value, &(*_d_v), 0.);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
@@ -534,7 +533,7 @@ double fn4(SimpleFunctions& v) {
 
 // CHECK: void fn4_grad(SimpleFunctions &v, SimpleFunctions *_d_v) {
 // CHECK-NEXT:     SimpleFunctions _t0 = v;
-// CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = v.operator_plus_plus_reverse_forw(&(*_d_v));
+// CHECK-NEXT:     v.operator_plus_plus_reverse_forw(&(*_d_v));
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         v = _t0;
@@ -579,10 +578,8 @@ double fn6(double u, double v) {
 
 // CHECK: static void constructor_pullback(double x, double *y, SafeTestClass *_d_this, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     SafeTestClass *_this = (SafeTestClass *)malloc(sizeof(SafeTestClass));
-// CHECK-NEXT:     double _t0 = *y;
 // CHECK-NEXT:     *y = x;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         *y = _t0;
 // CHECK-NEXT:         double _r_d0 = *_d_y;
 // CHECK-NEXT:         *_d_y = 0.;
 // CHECK-NEXT:         *_d_x += _r_d0;
@@ -731,17 +728,15 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      A a;
 // CHECK-NEXT:      A _t0 = a;
 // CHECK-NEXT:      a.setData(u);
-// CHECK-NEXT:      double _t1 = res;
 // CHECK-NEXT:      res += a.data * v;
-// CHECK-NEXT:      A _t2 = a;
+// CHECK-NEXT:      A _t1 = a;
 // CHECK-NEXT:      a.increment();
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          a = _t2;
+// CHECK-NEXT:          a = _t1;
 // CHECK-NEXT:          a.increment_pullback(&_d_a);
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
-// CHECK-NEXT:          res = _t1;
 // CHECK-NEXT:          double _r_d0 = _d_res;
 // CHECK-NEXT:          _d_a.data += _r_d0 * v;
 // CHECK-NEXT:          *_d_v += a.data * _r_d0;
@@ -762,10 +757,8 @@ struct B {
 };
 
 // CHECK:  void scale_pullback(const float *in, float *out, B *_d_this, float *_d_out) const {
-// CHECK-NEXT:      float _t0 = out[0];
 // CHECK-NEXT:      out[0] = in[0] * this->m;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          out[0] = _t0;
 // CHECK-NEXT:          float _r_d0 = _d_out[0];
 // CHECK-NEXT:          _d_out[0] = 0.F;
 // CHECK-NEXT:          _d_this->m += in[0] * _r_d0;

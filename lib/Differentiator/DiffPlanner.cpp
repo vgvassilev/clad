@@ -20,10 +20,12 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Analysis/CallGraph.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Lookup.h"
@@ -31,7 +33,11 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include <llvm/Support/raw_ostream.h>
+
 #include <algorithm>
+#include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -104,7 +110,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
                                           cast<FunctionDecl>(candidateFn));
         }
         return false;
-      } else if (R.isSingleResult() == 1 &&
+      } else if (R.isSingleResult() &&
                  cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() !=
                      AccessSpecifier::AS_public) {
         const char diagFmt[] =
@@ -184,7 +190,6 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
            "Trying to update an unsupported expression");
     auto* call = cast<CallExpr>(this->CallContext);
 
-    assert(call && "Must be set");
     assert(FD && "Trying to update with null FunctionDecl");
 
     DeclRefExpr* oldDRE = getArgFunction(call, SemaRef);
@@ -195,19 +200,20 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
     FunctionDecl* replacementFD = OverloadedFD ? OverloadedFD : FD;
 
-    auto codeArgIdx = -1;
-    auto derivedFnArgIdx = -1;
-    auto idx = 0;
-    for (auto* arg : call->arguments()) {
-      if (auto* default_arg_expr = dyn_cast<CXXDefaultArgExpr>(arg)) {
-        std::string argName = default_arg_expr->getParam()->getNameAsString();
+    clad_compat::llvm_Optional<unsigned> codeArgIdx;
+    clad_compat::llvm_Optional<unsigned> derivedFnArgIdx;
+    for (unsigned i = 0, e = call->getNumArgs(); i < e; ++i) {
+      if (const auto* ArgExpr = dyn_cast<CXXDefaultArgExpr>(call->getArg(i))) {
+        std::string argName = ArgExpr->getParam()->getNameAsString();
         if (argName == "derivedFn")
-          derivedFnArgIdx = idx;
+          derivedFnArgIdx = i;
         else if (argName == "code")
-          codeArgIdx = idx;
+          codeArgIdx = i;
       }
-      ++idx;
     }
+
+    if (!derivedFnArgIdx)
+      return;
 
     // Index of "CUDAkernel" parameter:
     int numArgs = static_cast<int>(call->getNumArgs());
@@ -221,7 +227,6 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
                                        : tok::kw_false)
               .get();
       call->setArg(kernelArgIdx, cudaKernelFlag);
-      numArgs--;
     }
 
     // Create ref to generated FD.
@@ -239,43 +244,41 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       if (MD->isInstance())
         DRE->setValueKind(CLAD_COMPAT_ExprValueKind_R_or_PR_Value);
 
-    if (derivedFnArgIdx != -1) {
-      // Add the "&" operator
-      auto* newUnOp =
-          SemaRef
-              .BuildUnaryOp(nullptr, noLoc, UnaryOperatorKind::UO_AddrOf, DRE)
-              .get();
-      call->setArg(derivedFnArgIdx, newUnOp);
-    }
+    // Add the "&" operator
+    auto* newUnOp =
+        SemaRef.BuildUnaryOp(nullptr, noLoc, UnaryOperatorKind::UO_AddrOf, DRE)
+            .get();
+    call->setArg(*derivedFnArgIdx, newUnOp);
 
+    if (ImmediateMode) {
+      assert(!codeArgIdx && "We found the index of the code argument!");
+      return;
+    }
     // Update the code parameter if it was found.
-    if (codeArgIdx != -1) {
-      if (auto* Arg = dyn_cast<CXXDefaultArgExpr>(call->getArg(codeArgIdx))) {
-        clang::LangOptions LangOpts;
-        LangOpts.CPlusPlus = true;
-        clang::PrintingPolicy Policy(LangOpts);
-        Policy.Bool = true;
+    const auto* Arg = cast<CXXDefaultArgExpr>(call->getArg(*codeArgIdx));
+    clang::LangOptions LangOpts;
+    LangOpts.CPlusPlus = true;
+    clang::PrintingPolicy Policy(LangOpts);
+    Policy.Bool = true;
 
-        std::string s;
-        llvm::raw_string_ostream Out(s);
-        FD->print(Out, Policy);
-        Out.flush();
+    std::string s;
+    llvm::raw_string_ostream Out(s);
+    FD->print(Out, Policy);
+    Out.flush();
 
-        StringLiteral* SL = utils::CreateStringLiteral(C, Out.str());
-        Expr* newArg =
-            SemaRef
-                .ImpCastExprToType(SL, Arg->getType(), CK_ArrayToPointerDecay)
-                .get();
-        call->setArg(codeArgIdx, newArg);
-      }
-    }
+    StringLiteral* SL = utils::CreateStringLiteral(C, Out.str());
+    Expr* newArg =
+        SemaRef.ImpCastExprToType(SL, Arg->getType(), CK_ArrayToPointerDecay)
+            .get();
+    call->setArg(*codeArgIdx, newArg);
   }
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
-                               clang::Sema& S, RequestOptions& opts)
-      : m_Interval(Interval), m_DiffRequestGraph(requestGraph), m_Sema(S),
-        m_Options(opts) {
+                               clang::Sema& S, RequestOptions& opts,
+                               OwnedAnalysisContexts& AllAnalysisDC)
+      : m_Interval(Interval), m_DiffRequestGraph(requestGraph),
+        m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {
 
     if (Interval.empty())
       return;
@@ -629,34 +632,35 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     Out.flush();
   }
 
-  bool DiffRequest::shouldBeRecorded(Expr* E) const {
+  bool DiffRequest::shouldBeRecorded(const Stmt* S) const {
     if (!EnableTBRAnalysis)
       return true;
 
-    if (isa<CXXConstCastExpr>(E))
-      E = cast<CXXConstCastExpr>(E)->getSubExpr();
+    if (const auto* E = dyn_cast<Expr>(S)) {
+      if (isa<CXXConstCastExpr>(E)) {
+        E = cast<CXXConstCastExpr>(E)->getSubExpr();
+        S = E;
+      }
 
-    if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
-        !isa<MemberExpr>(E) &&
-        (!isa<UnaryOperator>(E) ||
-         cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
-      return true;
+      if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
+          !isa<MemberExpr>(E) &&
+          (!isa<UnaryOperator>(E) ||
+           cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
+        return true;
 
-    // FIXME: currently, we allow all pointer operations to be stored.
-    // This is not correct, but we need to implement a more advanced analysis
-    // to determine which pointer operations are useful to store.
-    if (E->getType()->isPointerType())
-      return true;
-
-    if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function)) {
-      TimedAnalysisRegion R("TBR " + BaseFunctionName);
-
-      TBRAnalyzer analyzer(Function->getASTContext(),
-                           m_TbrRunInfo.ToBeRecorded);
-      analyzer.Analyze(Function);
-      m_TbrRunInfo.HasAnalysisRun = true;
+      // FIXME: currently, we allow all pointer operations to be stored.
+      // This is not correct, but we need to implement a more advanced analysis
+      // to determine which pointer operations are useful to store.
+      if (E->getType()->isPointerType())
+        return true;
     }
-    auto found = m_TbrRunInfo.ToBeRecorded.find(E->getBeginLoc());
+    if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function) &&
+        Function->isDefined() && m_AnalysisDC) {
+      TimedAnalysisRegion R("TBR " + BaseFunctionName);
+      TBRAnalyzer analyzer(m_AnalysisDC, getToBeRecorded());
+      analyzer.Analyze(*this);
+    }
+    auto found = m_TbrRunInfo.ToBeRecorded.find(S->getBeginLoc());
     return found != m_TbrRunInfo.ToBeRecorded.end();
   }
 
@@ -1263,21 +1267,26 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     }
 
     if (!LookupCustomDerivativeDecl(request)) {
-      if (m_TopMostReq->EnableVariedAnalysis &&
-          m_TopMostReq->Mode == DiffMode::reverse) {
+      clang::CFG::BuildOptions Options;
+      std::unique_ptr<AnalysisDeclContext> AnalysisDC =
+          std::make_unique<AnalysisDeclContext>(
+              /*AnalysisDeclContextManager=*/nullptr, request.Function,
+              Options);
+
+      if (m_TopMostReq->EnableVariedAnalysis) {
         TimedAnalysisRegion R("VA " + request.BaseFunctionName);
-        VariedAnalyzer analyzer(request.Function->getASTContext(),
-                                request.getVariedDecls());
+        VariedAnalyzer analyzer(AnalysisDC.get(), request.getVariedDecls());
         analyzer.Analyze(request.Function);
       }
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
         TimedAnalysisRegion R("UA " + request.BaseFunctionName);
-
-        UsefulAnalyzer analyzer(request.Function->getASTContext(),
-                                request.getUsefulDecls());
+        UsefulAnalyzer analyzer(AnalysisDC.get(), request.getUsefulDecls());
         analyzer.Analyze(request.Function);
       }
+
+      m_AllAnalysisDC.push_back(std::move(AnalysisDC));
+      request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
@@ -1362,9 +1371,19 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (m_Sema.isStdInitializerList(recordTy, /*elemType=*/nullptr))
       return true;
 
-    if (!LookupCustomDerivativeDecl(request))
+    if (!LookupCustomDerivativeDecl(request)) {
+      clang::CFG::BuildOptions Options;
+      std::unique_ptr<AnalysisDeclContext> AnalysisDC =
+          std::make_unique<AnalysisDeclContext>(
+              /*AnalysisDeclContextManager=*/nullptr, request.Function,
+              Options);
+      // FIXME: Add proper support for objects in VA and UA.
+      m_AllAnalysisDC.push_back(std::move(AnalysisDC));
+      request.m_AnalysisDC = m_AllAnalysisDC.back().get();
+
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
+    }
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     return true;

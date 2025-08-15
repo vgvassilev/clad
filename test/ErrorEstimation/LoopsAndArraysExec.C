@@ -1,4 +1,4 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oLoopsAndArraysExec.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oLoopsAndArraysExec.out 2>&1 | %filecheck %s
 // RUN: ./LoopsAndArraysExec.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
@@ -21,21 +21,13 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-//CHECK-NEXT:     for (i = 1; ; i++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < n))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (i = 1; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += f[i] + f[i - 1];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});
@@ -75,36 +67,20 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-//CHECK-NEXT:     for (i = 0; ; i++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < n))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, {{0U|0UL|0ULL}});
-//CHECK-NEXT:         for (clad::push(_t2, j) , j = 0; ; j++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(j < n))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:         for (clad::push(_t2, j) , j = 0; j < n; j++) {
 //CHECK-NEXT:             clad::back(_t1)++;
 //CHECK-NEXT:             clad::push(_t3, sum);
 //CHECK-NEXT:             sum += a[i] * b[j];
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
-//CHECK-NEXT:             for (;; clad::back(_t1)--) {
-// CHECK-NEXT:              {
-// CHECK-NEXT:                 if (!clad::back(_t1))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:              }
+//CHECK-NEXT:             for (; clad::back(_t1); clad::back(_t1)--) {
 //CHECK-NEXT:                 j--;
 //CHECK-NEXT:                 _final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:                 sum = clad::pop(_t3);
@@ -148,21 +124,13 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-//CHECK-NEXT:     for (i = 0; ; i++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < n))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += a[i] / b[i];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});

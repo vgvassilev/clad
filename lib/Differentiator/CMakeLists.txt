@@ -49,6 +49,7 @@ endif(LLVM_EXTERNAL_CLAD_SOURCE_DIR)
 llvm_add_library(cladDifferentiator
   STATIC
   ActivityAnalyzer.cpp
+  AnalysisBase.cpp
   BaseForwardModeVisitor.cpp
   CladUtils.cpp
   ConstantFolder.cpp

@@ -204,7 +204,7 @@ public:
   CUDA_HOST_DEVICE void pop_back() {
     assert(m_size);
     m_size--;
-    at(m_size)->~T();
+    destroy_element(at(m_size));
   }
 
 private:
@@ -253,13 +253,13 @@ private:
     std::size_t count = m_size;
 
     for (std::size_t i = 0; i < SBO_SIZE && count > 0; ++i, --count)
-      sbo_elements()[i].~T();
+      destroy_element(&sbo_elements()[i]);
 
     Slab* slab = m_head;
     while (slab) {
       T* elems = slab->elements();
       for (size_t i = 0; i < SLAB_SIZE && count > 0; ++i, --count)
-        (elems + i)->~T();
+        destroy_element(elems + i);
       Slab* tmp = slab;
       slab = slab->next;
       delete tmp;
@@ -268,6 +268,13 @@ private:
     m_head = nullptr;
     m_size = 0;
     m_using_sbo = true;
+  }
+
+  template <typename ElTy> void destroy_element(ElTy* elem) { elem->~ElTy(); }
+
+  template <typename ElTy, size_t N> void destroy_element(ElTy (*arr)[N]) {
+    for (size_t i = 0; i < N; ++i)
+      (*arr)[i].~ElTy();
   }
 };
 } // namespace clad

@@ -1,6 +1,4 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oTemplateFunctors.out 2>&1 | %filecheck %s
-// RUN: ./TemplateFunctors.out | %filecheck_exec %s
-// RUN: %cladclang %s -I%S/../../include -oTemplateFunctors.out
+// RUN: %cladclang %s -I%S/../../include -oTemplateFunctors.out 2>&1 | %filecheck %s
 // RUN: ./TemplateFunctors.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

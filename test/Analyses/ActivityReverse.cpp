@@ -287,21 +287,13 @@ double f9(double x, double const *obs)
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (loopIdx0 = 0; ; loopIdx0++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(loopIdx0 < 2))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (loopIdx0 = 0; loopIdx0 < 2; loopIdx0++) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         res += std::lgamma(obs[2 + loopIdx0] + 1) + x;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         loopIdx0--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             res = clad::pop(_t1);

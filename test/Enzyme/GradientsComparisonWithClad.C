@@ -1,4 +1,4 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s  -I%S/../../include -oEnzymeGradients.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s  -I%S/../../include -oEnzymeGradients.out 2>&1 | %filecheck %s
 // RUN: ./EnzymeGradients.out | %filecheck_exec %s
 // REQUIRES: Enzyme
 

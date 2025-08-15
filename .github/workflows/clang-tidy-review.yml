@@ -18,9 +18,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v2.0.3
+        uses: KyleMayes/install-llvm-action@v2
         with:
-          version: "17.0.6"
+          version: "20"
 
       - name: install lit
         run: pip install lit
@@ -34,8 +34,8 @@ jobs:
         id: review
         with:
           build_dir: build
-          apt_packages: cmake,libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev
-          exclude: "test/*,unittests/*,benchmark/*,demos/*"
+          apt_packages: cmake,libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev
+          exclude: "test/*,unittests/*"
           split_workflow: true
           config_file: .clang-tidy
           cmake_command: >

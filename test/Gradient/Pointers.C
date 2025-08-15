@@ -159,11 +159,7 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (i = 0; ; ++i) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < n))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         _d_j = &_d_i;
 // CHECK-NEXT:         clad::push(_t1, _d_j);
@@ -176,11 +172,7 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:         arr = arr + 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_sum += 1;
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         size_t *_t2 = clad::pop(_t1);
 // CHECK-NEXT:         {

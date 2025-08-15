@@ -9,8 +9,11 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclarationName.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -256,7 +259,8 @@ namespace clad {
                                        clang::QualType qType,
                                        clang::Expr* arraySize,
                                        clang::Expr* initializer,
-                                       clang::TypeSourceInfo* TSI = nullptr);
+                                       clang::TypeSourceInfo* TSI = nullptr,
+                                       clang::MultiExprArg ArgExprs = {});
 
     /// Builds a static cast to RValue expression for the expression `E`.
     ///
@@ -359,6 +363,10 @@ namespace clad {
     void GetInnermostReturnExpr(const clang::Expr* E,
                                 llvm::SmallVectorImpl<clang::Expr*>& Exprs);
 
+    void
+    getRecordDeclFields(const clang::RecordDecl* RD,
+                        llvm::SmallVectorImpl<const clang::FieldDecl*>& fields);
+
     clang::Expr* getZeroInit(clang::QualType T, clang::Sema& S);
 
     bool ContainsFunctionCalls(const clang::Stmt* E);
@@ -391,6 +399,9 @@ namespace clad {
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
 
+    /// Returns true if T allows to edit any memory.
+    bool isMemoryType(clang::QualType T);
+
     bool IsDifferentiableType(clang::QualType T);
 
     /// Returns true if FD can be differentiated as a pushforward
@@ -402,6 +413,12 @@ namespace clad {
     /// create modifiable adjoints.
     clang::QualType replaceStdInitListWithCladArray(clang::Sema& S,
                                                     clang::QualType origTy);
+    /// Currently is only used for CUDA in the reverse mode. Determines whether
+    /// an expression, most likely an index, is injective, meaning no two
+    /// threads have the same value.
+    bool isInjective(const clang::Expr* E, clang::AnalysisDeclContext* ADC);
+    /// Checks if the return value of the given CallExpr is unused.
+    bool hasUnusedReturnValue(clang::ASTContext& C, const clang::CallExpr* CE);
     } // namespace utils
     } // namespace clad
 

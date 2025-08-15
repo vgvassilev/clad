@@ -1,6 +1,7 @@
 #ifndef CLAD_DIFFERENTIATOR_USEFULANALYZER_H
 #define CLAD_DIFFERENTIATOR_USEFULANALYZER_H
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 
 #include "clad/Differentiator/CladUtils.h"
@@ -30,7 +31,7 @@ class UsefulAnalyzer : public clang::RecursiveASTVisitor<UsefulAnalyzer> {
 
   clang::CFGBlock* getCFGBlockByID(unsigned ID);
 
-  clang::ASTContext& m_Context;
+  clang::AnalysisDeclContext* m_AnalysisDC;
   std::unique_ptr<clang::CFG> m_CFG;
   std::vector<std::unique_ptr<VarsData>> m_BlockData;
   unsigned m_CurBlockID{};
@@ -45,9 +46,9 @@ class UsefulAnalyzer : public clang::RecursiveASTVisitor<UsefulAnalyzer> {
 
 public:
   /// Constructor
-  UsefulAnalyzer(clang::ASTContext& Context,
+  UsefulAnalyzer(clang::AnalysisDeclContext* AnalysisDC,
                  std::set<const clang::VarDecl*>& Decls)
-      : m_UsefulDecls(Decls), m_Context(Context) {}
+      : m_UsefulDecls(Decls), m_AnalysisDC(AnalysisDC) {}
 
   /// Destructor
   ~UsefulAnalyzer() = default;

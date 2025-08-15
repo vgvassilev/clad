@@ -1,6 +1,6 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oHessian.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oHessian.out 2>&1 | %filecheck %s
 // RUN: ./Hessian.out | %filecheck_exec %s
-// RUN: %cladclang %s -I%S/../../include -oHessian.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oHessian.out
 // RUN: ./Hessian.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

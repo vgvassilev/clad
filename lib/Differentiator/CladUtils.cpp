@@ -5,17 +5,24 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/OperationKinds.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
+#include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
-#include <clang/AST/DeclCXX.h>
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
+
+#include <memory>
+#include <vector>
 
 using namespace clang;
 namespace clad {
@@ -323,12 +330,23 @@ namespace clad {
       for (CXXCtorInitializer* CI : CD->inits()) {
         Expr* init = CI->getInit()->IgnoreImplicit();
         Expr::EvalResult dummy;
-        if (!(isa<DeclRefExpr>(init) ||
+        if (!(isa<DeclRefExpr>(init) || isa<CXXConstructExpr>(init) ||
               clad_compat::Expr_EvaluateAsConstantExpr(init, dummy, C)))
           return false;
       }
       // The constructor is linear
       return true;
+    }
+
+    void getRecordDeclFields(
+        const clang::RecordDecl* RD,
+        llvm::SmallVectorImpl<const clang::FieldDecl*>& fields) {
+      for (const auto* field : RD->fields())
+        fields.push_back(field);
+      if (const auto* CRD = dyn_cast<CXXRecordDecl>(RD))
+        for (const CXXBaseSpecifier& base : CRD->bases())
+          if (const auto* baseRT = base.getType()->getAs<clang::RecordType>())
+            getRecordDeclFields(baseRT->getDecl(), fields);
     }
 
     clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
@@ -468,7 +486,8 @@ namespace clad {
 
     CXXNewExpr* BuildCXXNewExpr(Sema& semaRef, QualType qType,
                                 clang::Expr* arraySize, Expr* initializer,
-                                clang::TypeSourceInfo* TSI) {
+                                clang::TypeSourceInfo* TSI,
+                                clang::MultiExprArg ArgExprs) {
       auto& C = semaRef.getASTContext();
       if (!TSI)
         TSI = C.getTrivialTypeSourceInfo(qType);
@@ -481,8 +500,8 @@ namespace clad {
       auto newExpr =
           semaRef
               .BuildCXXNew(
-                  SourceRange(), false, noLoc, MultiExprArg(), noLoc,
-                  SourceRange(), qType, TSI,
+                  SourceRange(), false, noLoc, ArgExprs, noLoc, SourceRange(),
+                  qType, TSI,
                   arraySize ? arraySize : clad_compat::llvm_Optional<Expr*>(),
                   initializer ? GetValidSRange(semaRef) : SourceRange(),
                   initializer)
@@ -885,6 +904,29 @@ namespace clad {
       return cast<TemplateDecl>(TapeR.getFoundDecl());
     }
 
+    bool isMemoryType(QualType T) {
+      T = T.getCanonicalType();
+      if (T->isReferenceType())
+        return !T.getNonReferenceType().isConstQualified();
+      if (T->isPointerType())
+        return !T->getPointeeType().isConstQualified();
+      if (const auto* RT = T->getAs<RecordType>()) {
+        const RecordDecl* RD = RT->getDecl();
+        if (const auto* CRD = dyn_cast<CXXRecordDecl>(RD))
+          if (!isCopyable(CRD))
+            return true;
+        if (const auto* CRD = dyn_cast<CXXRecordDecl>(RD))
+          for (const CXXBaseSpecifier& base : CRD->bases())
+            if (isMemoryType(base.getType()))
+              return true;
+        for (const auto* field : RD->fields())
+          if (isMemoryType(field->getType()))
+            return true;
+        return false;
+      }
+      return false;
+    }
+
     QualType InstantiateTemplate(Sema& S, TemplateDecl* CladClassDecl,
                                  ArrayRef<QualType> TemplateArgs) {
       // Create a list of template arguments.
@@ -1131,6 +1173,298 @@ namespace clad {
       if (origTy->isLValueReferenceType())
         return S.getASTContext().getLValueReferenceType(T);
       return T;
+    }
+
+    static bool isInjectiveE(const clang::Expr* E) {
+      class InjectiveCheckerExpr
+          : public clang::RecursiveASTVisitor<InjectiveCheckerExpr> {
+        struct IdxNode {
+          struct ExprOrBinOp {
+            const clang::DeclRefExpr* m_E = nullptr;
+            clang::BinaryOperatorKind m_Opcode;
+            enum class Kind { Expr, Opcode } m_Kind;
+
+            ExprOrBinOp(const clang::DeclRefExpr* E)
+                : m_E(E), m_Kind(Kind::Expr) {}
+            ExprOrBinOp(clang::BinaryOperatorKind op)
+                : m_Opcode(op), m_Kind(Kind::Opcode) {}
+
+            [[nodiscard]] bool isExpr() const { return m_Kind == Kind::Expr; }
+            [[nodiscard]] bool isOpcode() const {
+              return m_Kind == Kind::Opcode;
+            }
+          };
+
+          ExprOrBinOp Node;
+          std::unique_ptr<IdxNode> left;
+          std::unique_ptr<IdxNode> right;
+
+          IdxNode(ExprOrBinOp N) : Node(N) {}
+        };
+        std::unique_ptr<IdxNode> m_Root;
+        IdxNode* m_ParentNode = nullptr;
+
+        enum class side { left, right } m_Side;
+
+      public:
+        InjectiveCheckerExpr() = default;
+        /// This function recursively checks whether a given pattern matches the
+        /// previously computed graph. It uses a fairly standard graph
+        /// comparison algorithm.
+        bool comparePatternToTree(const IdxNode* current,
+                                  const std::vector<std::string>& patternIdx,
+                                  size_t i = 1) {
+          // If current is not initialized and child is empty or does not exist,
+          // we have a match.
+          if (!current && (i >= patternIdx.size() || patternIdx[i].empty()))
+            return true;
+
+          if (!current || i >= patternIdx.size() || patternIdx[i].empty())
+            return false;
+
+          const std::string& expected = patternIdx[i];
+
+          if (current->Node.isOpcode()) {
+            std::string actualOp =
+                clang::BinaryOperator::getOpcodeStr(current->Node.m_Opcode)
+                    .str();
+            if (actualOp != expected)
+              return false;
+          } else if (current->Node.isExpr()) {
+            std::string actualName =
+                current->Node.m_E->getNameInfo().getAsString();
+            if (actualName != expected)
+              return false;
+          }
+
+          bool sameOrder =
+              comparePatternToTree(current->left.get(), patternIdx, 2 * i) &&
+              comparePatternToTree(current->right.get(), patternIdx, 2 * i + 1);
+
+          if (sameOrder)
+            return true;
+          // Here we account for a sub-tree rotation wrt to the current node. If
+          // there is no match at this point, we compare a pattern to a graph
+          // with the rotation.
+          return comparePatternToTree(current->left.get(), patternIdx,
+                                      2 * i + 1) &&
+                 comparePatternToTree(current->right.get(), patternIdx, 2 * i);
+        }
+
+        bool isInjectiveIdx(const clang::Expr* E) {
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          TraverseStmt(const_cast<clang::Expr*>(E));
+          std::vector<std::string> pattern = {"", "+", "threadIdx", "*",
+                                              "", "",  "blockIdx",  "blockDim"};
+          return comparePatternToTree(m_Root.get(), pattern);
+        }
+
+        bool TraverseBinaryOperator(clang::BinaryOperator* BinOp) {
+          const auto opCode = BinOp->getOpcode();
+          if (opCode == BO_Add || opCode == BO_Mul) {
+            std::unique_ptr<IdxNode> curr = std::make_unique<IdxNode>(opCode);
+            IdxNode* currPtr = nullptr;
+
+            if (!m_Root) {
+              m_Root = std::move(curr);
+              currPtr = m_Root.get();
+            } else {
+              currPtr = curr.get();
+
+              if (m_Side == side::left)
+                m_ParentNode->left = std::move(curr);
+
+              if (m_Side == side::right)
+                m_ParentNode->right = std::move(curr);
+            }
+
+            Expr* L = BinOp->getLHS();
+            Expr* R = BinOp->getRHS();
+
+            m_ParentNode = currPtr;
+            m_Side = side::left;
+            TraverseStmt(L);
+            m_ParentNode = currPtr;
+
+            m_Side = side::right;
+            TraverseStmt(R);
+          }
+          return true;
+        }
+
+        bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE) {
+          std::unique_ptr<IdxNode> curr = std::make_unique<IdxNode>(DRE);
+
+          if (m_ParentNode) {
+            if (m_Side == side::left)
+              m_ParentNode->left = std::move(curr);
+
+            if (m_Side == side::right)
+              m_ParentNode->right = std::move(curr);
+          }
+          return true;
+        }
+
+      } checker;
+      return checker.isInjectiveIdx(E);
+    }
+    /// Checks if a variable is changed before a certain usage.
+    ///
+    /// \param[in] ADC
+    /// \param[in] idxVD VarDecl of a variable we check for the liveness.
+    /// \param[in] stopE endpoint of the traversal(usage of a variable), we are
+    /// only interested in what is before this Expr. \returns whether a given
+    /// variable is modified after initialization before certain use.
+    static bool isLiveIdx(clang::AnalysisDeclContext* ADC,
+                          clang::VarDecl* idxVD, const clang::Expr* stopE) {
+      class LiveIdxChecker : public RecursiveASTVisitor<LiveIdxChecker> {
+        clang::AnalysisDeclContext* m_ADC;
+        clang::VarDecl* m_idxVD;
+        const clang::Expr* m_stopE;
+        bool m_isLive = true;
+        bool m_Modifying = false;
+
+      public:
+        LiveIdxChecker(clang::AnalysisDeclContext* ADC, clang::VarDecl* idxVD,
+                       const clang::Expr* stopE)
+            : m_ADC(ADC), m_idxVD(idxVD), m_stopE(stopE) {}
+
+        bool isLiveE() {
+          for (auto* block : *m_ADC->getCFG()) {
+            for (const clang::CFGElement& Element : *block) {
+              if (Element.getKind() == clang::CFGElement::Statement) {
+                const clang::Stmt* S =
+                    Element.castAs<clang::CFGStmt>().getStmt();
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+                if (!TraverseStmt(const_cast<clang::Stmt*>(S)))
+                  return m_isLive;
+              }
+            }
+          }
+          return m_isLive;
+        }
+
+        bool TraverseBinaryOperator(clang::BinaryOperator* BinOp) {
+          Expr* L = BinOp->getLHS();
+          Expr* R = BinOp->getRHS();
+
+          if (BinOp->isAssignmentOp()) {
+            m_Modifying = true;
+            TraverseStmt(L);
+            m_Modifying = false;
+            TraverseStmt(R);
+          }
+          return true;
+        }
+
+        bool TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
+          const auto opCode = UnOp->getOpcode();
+          Expr* E = UnOp->getSubExpr();
+          if (opCode == UO_PostInc || opCode == UO_PostDec ||
+              opCode == UO_PreInc || opCode == UO_PreDec) {
+            m_Modifying = true;
+            TraverseStmt(E);
+            m_Modifying = false;
+          }
+          return true;
+        }
+
+        bool TraverseArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
+          m_Modifying = false;
+          TraverseStmt(ASE->getIdx());
+          return true;
+        }
+
+        bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE) {
+          if (DRE == m_stopE)
+            return false;
+          if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            if (m_Modifying && VD == m_idxVD) {
+              m_isLive = false;
+              return false;
+            }
+          }
+          return true;
+        }
+      } checker(ADC, idxVD, stopE->IgnoreImplicit());
+
+      return checker.isLiveE();
+    }
+
+    bool isInjective(const clang::Expr* E, clang::AnalysisDeclContext* ADC) {
+      class InjectiveChecker
+          : public clang::RecursiveASTVisitor<InjectiveChecker> {
+        clang::AnalysisDeclContext* m_ADC;
+        const clang::Expr* m_E;
+
+      public:
+        InjectiveChecker(clang::AnalysisDeclContext* ADC, const clang::Expr* E)
+            : m_ADC(ADC), m_E(E) {}
+
+        bool isInjectiveIdx(const clang::Expr* E) {
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          return TraverseStmt(const_cast<clang::Expr*>(E));
+        }
+
+        bool TraverseBinaryOperator(clang::BinaryOperator* BinOp) {
+          const auto opCode = BinOp->getOpcode();
+          Expr* L = BinOp->getLHS();
+          Expr* R = BinOp->getRHS();
+
+          if (opCode == BO_Add || opCode == BO_Mul) {
+            Expr::EvalResult dummy;
+
+            bool isConstL = clad_compat::Expr_EvaluateAsConstantExpr(
+                L, dummy, m_ADC->getASTContext());
+            bool isConstR = clad_compat::Expr_EvaluateAsConstantExpr(
+                R, dummy, m_ADC->getASTContext());
+
+            if (isConstL && isConstR)
+              return false;
+
+            if (!isConstL && isConstR)
+              return TraverseStmt(L);
+
+            if (!isConstL && !isConstR)
+              return isInjectiveE(BinOp);
+
+            if (!isConstR)
+              return TraverseStmt(R);
+          }
+          return false;
+        }
+
+        bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE) {
+          if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+            if (auto* init = VD->getInit())
+              return isInjectiveE(init->IgnoreImpCasts()) &&
+                     isLiveIdx(m_ADC, VD, m_E);
+          return false;
+        }
+
+        bool TraverseIntegerLiteral(clang::IntegerLiteral* IL) { return false; }
+
+      } checker(ADC, E);
+
+      return checker.isInjectiveIdx(E);
+    }
+
+    bool hasUnusedReturnValue(ASTContext& C, const clang::CallExpr* CE) {
+      const Expr* E = CE;
+      do {
+        const auto& parents = C.getParents(*E);
+        assert(parents.size() == 1 && "One parent stmt is expected.");
+        const Stmt* S = parents[0].get<Stmt>();
+        // If the parent is a Stmt but not an Expr, then the result is not used.
+        if (!S)
+          return false;
+        E = dyn_cast<Expr>(S);
+        if (!E)
+          return true;
+        // If we're dealing with an implicit expr (e.g. ExprWithCleanups),
+        // go up to get more information.
+      } while (E->IgnoreImplicit() != E);
+      return false;
     }
   } // namespace utils
 } // namespace clad
