@@ -107,11 +107,7 @@ int main() {
         gen_tokens.at(0, t) = next_token; // Use the first batch for generation
         delete[] probs;
 
-        if (tokenizer.is_initialized()) {
-          tokenizer.safe_print(next_token);
-        } else {
-          std::cout << next_token << " ";
-        }
+        tokenizer.safe_print(next_token);
         std::cout << std::flush;
       }
       std::cout << "\n---\n";
