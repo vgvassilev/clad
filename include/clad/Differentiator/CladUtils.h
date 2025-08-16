@@ -403,6 +403,12 @@ namespace clad {
     bool isMemoryType(clang::QualType T);
 
     bool IsDifferentiableType(clang::QualType T);
+    
+    bool isCladTorchTensor(const clang::QualType T);
+
+    /// Returns true if T is a Tensor-like type. We may want to
+    /// convert this into an attribute rather than just checking the type name.
+    bool isCladTorchTensor(clang::QualType T);
 
     /// Returns true if FD can be differentiated as a pushforward
     /// And be used in the reverse mode.
