@@ -73,6 +73,8 @@ public:
   clang::Expr* CallContext = nullptr;
   /// Args provided to the call to clad::gradient/differentiate.
   const clang::Expr* Args = nullptr;
+
+  bool RequestTBR = false;
   /// Indexes of global GPU args of function as a subset of Args.
   std::vector<size_t> CUDAGlobalArgsIndexes;
   /// Requested differentiation mode, forward or reverse.
@@ -233,12 +235,14 @@ public:
     ///
     const DiffRequest* m_TopMostReq = nullptr;
 
-    const DiffRequest* m_ParentReq = nullptr;
+    DiffRequest* m_ParentReq = nullptr;
     clang::Sema& m_Sema;
 
     const RequestOptions& m_Options;
 
     llvm::DenseSet<const clang::FunctionDecl*> m_Traversed;
+
+    bool m_TBROnly = false;
 
     bool m_IsTraversingTopLevelDecl = true;
 
@@ -249,6 +253,7 @@ public:
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
+    bool shouldVisitImplicitCode() const { return true; }
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
       llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
       if (m_Traversed.count(FD))

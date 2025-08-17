@@ -657,11 +657,9 @@ double fn17(double i, double j) {
 // CHECK-NEXT:    SimpleFunctions1 sf(3, 5);
 // CHECK-NEXT:    SimpleFunctions1 _d_sf(sf);
 // CHECK-NEXT:    clad::zero_init(_d_sf);
-// CHECK-NEXT:    SimpleFunctions1 _t0 = sf;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r0 = 0.;
 // CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        sf = _t0;
 // CHECK-NEXT:        sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r0, &_r1);
 // CHECK-NEXT:        *_d_i += _r0;
 // CHECK-NEXT:        *_d_j += _r1;
@@ -677,11 +675,9 @@ double fn18(double i, double j) {
 // CHECK-NEXT:      SimpleFunctions1 sf(3 * i, 5 * j);
 // CHECK-NEXT:      SimpleFunctions1 _d_sf(sf);
 // CHECK-NEXT:      clad::zero_init(_d_sf);
-// CHECK-NEXT:      SimpleFunctions1 _t0 = sf;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r2 = 0.;
 // CHECK-NEXT:          double _r3 = 0.;
-// CHECK-NEXT:          sf = _t0;
 // CHECK-NEXT:          sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r2, &_r3);
 // CHECK-NEXT:          *_d_i += _r2;
 // CHECK-NEXT:          *_d_j += _r3;
@@ -773,7 +769,6 @@ double fn21(double x, double y) {
 // CHECK:  void fn21_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Identity _d_di = {};
 // CHECK-NEXT:      Identity di{};
-// CHECK-NEXT:      Identity _t0 = di;
 // CHECK-NEXT:      double _d_val = 0.;
 // CHECK-NEXT:      double val = di(x);
 // CHECK-NEXT:      {
@@ -782,7 +777,6 @@ double fn21(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          di = _t0;
 // CHECK-NEXT:          di.operator_call_pullback(x, _d_val, &_d_di, &_r0);
 // CHECK-NEXT:          *_d_x += _r0;
 // CHECK-NEXT:      }
@@ -984,7 +978,6 @@ double fn25(double x, double y) {
 // CHECK-NEXT:      Vector3 v{x, x, y};
 // CHECK-NEXT:      Vector3 _d_v(v);
 // CHECK-NEXT:      clad::zero_init(_d_v);
-// CHECK-NEXT:      Vector3 _t0 = v;
 // CHECK-NEXT:      Vector3 w = - v;
 // CHECK-NEXT:      Vector3 _d_w(w);
 // CHECK-NEXT:      clad::zero_init(_d_w);
@@ -992,7 +985,6 @@ double fn25(double x, double y) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          Vector3 _r3 = {};
 // CHECK-NEXT:          Vector3::constructor_pullback(- v, &_d_w, &_r3);
-// CHECK-NEXT:          v = _t0;
 // CHECK-NEXT:          v.operator_minus_pullback(_r3, &_d_v);
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
@@ -1046,11 +1038,7 @@ double fn26(double x, double y) {
 // CHECK-NEXT:      ::clad::ValueAndAdjoint<ptrClass, ptrClass> _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<ptrClass>(), &x, &*_d_x);
 // CHECK-NEXT:      ptrClass p(_t0.value);
 // CHECK-NEXT:      ptrClass _d_p = _t0.adjoint;
-// CHECK-NEXT:      ptrClass _t1 = p;
-// CHECK-NEXT:      {
-// CHECK-NEXT:          p = _t1;
-// CHECK-NEXT:          p.operator_star_pullback(1, &_d_p);
-// CHECK-NEXT:      }
+// CHECK-NEXT:      p.operator_star_pullback(1, &_d_p);
 // CHECK-NEXT:      ptrClass::constructor_pullback(&x, &_d_p, &*_d_x);
 // CHECK-NEXT:  }
 

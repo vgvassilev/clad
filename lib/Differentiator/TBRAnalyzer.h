@@ -15,6 +15,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include <map>
+#include <set>
 #include <unordered_map>
 
 namespace clad {
@@ -38,6 +39,8 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   /// Tells if the variable at a given location is required to store. Basically,
   /// is the result of analysis.
   std::set<clang::SourceLocation>& m_TBRLocs;
+  std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>*
+      m_ModifiedParams;
 
   /// Stores modes in a stack (used to retrieve the old mode after entering
   /// a new one).
@@ -75,8 +78,11 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
 public:
   /// Constructor
   TBRAnalyzer(clang::AnalysisDeclContext* AnalysisDC,
-              std::set<clang::SourceLocation>& Locs)
-      : AnalysisBase(AnalysisDC), m_TBRLocs(Locs) {
+              std::set<clang::SourceLocation>& Locs,
+              std::map<const clang::FunctionDecl*,
+                       std::set<const clang::Decl*>>* ModifiedParams = nullptr)
+      : AnalysisBase(AnalysisDC), m_TBRLocs(Locs),
+        m_ModifiedParams(ModifiedParams) {
     m_ModeStack.push_back(0);
   }
 

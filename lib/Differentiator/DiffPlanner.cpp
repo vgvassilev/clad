@@ -813,8 +813,10 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
                       A->getAnnotation());
       return true;
     }
-
-    request.EnableTBRAnalysis = ReqOpts.EnableTBRAnalysis;
+    if (request.Mode == DiffMode::reverse ||
+        request.Mode == DiffMode::hessian ||
+        request.Mode == DiffMode::error_estimation)
+      request.EnableTBRAnalysis = ReqOpts.EnableTBRAnalysis;
     request.EnableVariedAnalysis = ReqOpts.EnableVariedAnalysis;
     request.EnableUsefulAnalysis = ReqOpts.EnableUsefulAnalysis;
 
@@ -1246,7 +1248,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       for (auto decl : m_ParentReq->getVariedDecls())
         request.addVariedDecl(decl);
 
-    llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
+    llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
     m_Sema.PerformPendingInstantiations();
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
@@ -1254,8 +1256,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     QualType returnType = FD->getReturnType();
     bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
                          returnType->isPointerType();
-    if (request.Mode == DiffMode::pullback ||
-        request.Mode == DiffMode::reverse) {
+    if (!m_TBROnly && (request.Mode == DiffMode::pullback ||
+                       request.Mode == DiffMode::reverse)) {
       DiffRequest forwPassRequest = request;
       forwPassRequest.DVI.clear();
       forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
@@ -1265,8 +1267,26 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       if (LookupCustomDerivativeDecl(forwPassRequest) || needsForwPass)
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
     }
-
-    if (!LookupCustomDerivativeDecl(request)) {
+    // FIXME: We have to schedule reverse_forw for the same set of functions as
+    // the ones that require TBR passes. Merge this logic with needsForwPass
+    // later.
+    bool isNonConstMethod = false;
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
+      isNonConstMethod = MD && MD->isInstance() && !MD->isConst();
+    else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(E))
+      isNonConstMethod =
+          utils::isNonConstReferenceType(OCE->getArg(0)->getType());
+    // Functions with side-effects require TBR.
+    if (request.EnableTBRAnalysis && (needsForwPass || isNonConstMethod) &&
+        request->isDefined() && E->getDirectCallee()) {
+      request.RequestTBR = true;
+      Saved.get()->RequestTBR = true;
+    }
+    if ((!m_TBROnly && !LookupCustomDerivativeDecl(request)) ||
+        request.RequestTBR) {
+      llvm::SaveAndRestore<bool> Saved(m_TBROnly);
+      if (request.CustomDerivative)
+        m_TBROnly = true;
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
           std::make_unique<AnalysisDeclContext>(
@@ -1291,6 +1311,10 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
     }
+
+    if (m_TBROnly)
+      request.Mode = DiffMode::unknown;
+
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     if (m_IsTraversingTopLevelDecl) {
@@ -1349,6 +1373,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (clad::utils::hasNonDifferentiableAttribute(CD->getParent()))
       return true;
 
+    if (m_TBROnly)
+      return true;
+
     DiffRequest request;
     request.Function = CD;
     request.Mode = DiffMode::pullback;
@@ -1362,7 +1389,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     request.BaseFunctionName = "constructor";
     request.CallContext = E;
 
-    llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
+    llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
     m_Sema.PerformPendingInstantiations();
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();

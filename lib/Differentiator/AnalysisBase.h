@@ -172,6 +172,7 @@ protected:
   std::set<unsigned> m_CFGQueue;
   /// ID of the CFG block being visited.
   unsigned m_CurBlockID{};
+  const clang::FunctionDecl* m_Function = nullptr;
 
   static clang::CFGBlock* getCFGBlockByID(clang::AnalysisDeclContext* ADC,
                                           unsigned ID);
@@ -231,7 +232,7 @@ protected:
   /// Returns the VarsData of the CFG block being visited.
 
   VarsData& getCurBlockVarsData() { return *m_BlockData[m_CurBlockID]; }
-
+  /// Determines the set of all variables that the expression E depends on.
   static void getDependencySet(const clang::Expr* E,
                                std::set<const clang::VarDecl*>& vars);
 };

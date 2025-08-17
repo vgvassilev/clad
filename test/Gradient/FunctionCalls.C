@@ -324,18 +324,15 @@ double fn7(double i, double j) {
 // CHECK-NEXT: }
 
 // CHECK: void fn7_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _t0 = i;
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = identity_reverse_forw(i, *_d_i);
-// CHECK-NEXT:     double &_d_k = _t1.adjoint;
-// CHECK-NEXT:     double &k = _t1.value;
-// CHECK-NEXT:     double _t2 = j;
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t3 = identity_reverse_forw(j, *_d_j);
-// CHECK-NEXT:     double &_d_l = _t3.adjoint;
-// CHECK-NEXT:     double &l = _t3.value;
-// CHECK-NEXT:     double _t4 = i;
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t5 = {{.*}}custom_derivatives::custom_identity_reverse_forw(i, *_d_i);
-// CHECK-NEXT:     double &_d_temp = _t5.adjoint;
-// CHECK-NEXT:     double &temp = _t5.value;
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = identity_reverse_forw(i, *_d_i);
+// CHECK-NEXT:     double &_d_k = _t0.adjoint;
+// CHECK-NEXT:     double &k = _t0.value;
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = identity_reverse_forw(j, *_d_j);
+// CHECK-NEXT:     double &_d_l = _t1.adjoint;
+// CHECK-NEXT:     double &l = _t1.value;
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t2 = {{.*}}custom_derivatives::custom_identity_reverse_forw(i, *_d_i);
+// CHECK-NEXT:     double &_d_temp = _t2.adjoint;
+// CHECK-NEXT:     double &temp = _t2.value;
 // CHECK-NEXT:     k += 7 * j;
 // CHECK-NEXT:     l += 9 * i;
 // CHECK-NEXT:     {
@@ -351,18 +348,9 @@ double fn7(double i, double j) {
 // CHECK-NEXT:         double _r_d0 = _d_k;
 // CHECK-NEXT:         *_d_j += 7 * _r_d0;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         i = _t4;
-// CHECK-NEXT:         custom_identity_pullback(i, 0., &*_d_i);
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         j = _t2;
-// CHECK-NEXT:         identity_pullback(j, 0., &*_d_j);
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         i = _t0;
-// CHECK-NEXT:         identity_pullback(i, 0., &*_d_i);
-// CHECK-NEXT:     }
+// CHECK-NEXT:     custom_identity_pullback(i, 0., &*_d_i);
+// CHECK-NEXT:     identity_pullback(j, 0., &*_d_j);
+// CHECK-NEXT:     identity_pullback(i, 0., &*_d_i);
 // CHECK-NEXT: }
 
 double check_and_return(double x, char c, const char* s) {

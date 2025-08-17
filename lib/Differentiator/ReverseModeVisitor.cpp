@@ -1829,7 +1829,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       QualType paramTy = PVD->getType();
       bool passByRef = paramTy->isLValueReferenceType() &&
                        !paramTy.getNonReferenceType().isConstQualified();
-      if (passByRef) {
+      if (passByRef && m_DiffReq.shouldBeRecorded(arg)) {
         StmtDiff pushPop = StoreAndRestore(argDiff.getExpr());
         addToCurrentBlock(pushPop.getStmt());
         PreCallStmts.push_back(pushPop.getStmt_dx());
@@ -1875,7 +1875,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (baseTy->isPointerType())
           baseTy = baseTy->getPointeeType();
         CXXRecordDecl* baseRD = baseTy->getAsCXXRecordDecl();
-        if (isPassedByRef && !MD->isConst() && utils::isCopyable(baseRD)) {
+        if (isPassedByRef && !MD->isConst() && utils::isCopyable(baseRD) &&
+            m_DiffReq.shouldBeRecorded(baseOriginalE)) {
           Expr* baseDiffStore =
               GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
           Expr* assign = BuildOp(BO_Assign, baseDiff.getExpr(), baseDiffStore);

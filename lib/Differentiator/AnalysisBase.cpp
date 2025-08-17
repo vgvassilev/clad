@@ -116,6 +116,10 @@ void AnalysisBase::getDependencySet(const clang::Expr* E,
       TraverseStmt(ASE->getBase());
       return false;
     }
+    bool TraverseCXXThisExpr(CXXThisExpr* TE) {
+      vars.insert(nullptr);
+      return false;
+    }
   };
   DeclFinder finder(vars);
   finder.TraverseStmt(const_cast<Expr*>(E));
@@ -143,16 +147,21 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
       if (E->getType()->isPointerType())
         IDSequence.push_back(ProfileID());
     } else if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E)) {
-      VD = cast<VarDecl>(DRE->getDecl());
+      VD = dyn_cast<VarDecl>(DRE->getDecl());
+      if (!VD)
+        return false;
       QualType VDType = VD->getType();
       if (VDType->isLValueReferenceType() || VDType->isPointerType()) {
         VarData* refData = getVarDataFromDecl(VD);
         if (refData->m_Type == VarData::REF_TYPE) {
           std::set<const VarDecl*>& vars = *refData->m_Val.m_RefData;
-          VD = *vars.begin();
-          if (vars.size() == 1 &&
-              utils::isSameCanonicalType(VD->getType(), E->getType())) {
-            break;
+          if (vars.size() == 1) {
+            VD = *vars.begin();
+            QualType VDType =
+                VD ? VD->getType()
+                   : cast<CXXMethodDecl>(m_Function)->getThisType();
+            if (utils::isSameCanonicalType(VDType, E->getType()))
+              break;
           }
           IDSequence.clear();
           VD = nullptr;
