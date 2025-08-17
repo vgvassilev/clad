@@ -50,21 +50,31 @@ void TBRAnalyzer::markLocation(const clang::Stmt* S) {
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   llvm::SmallVector<ProfileID, 2> IDSequence;
-  const VarDecl* VD = getIDSequence(E, IDSequence);
+  const VarDecl* VD = nullptr;
+  bool sequenceFound = getIDSequence(E, VD, IDSequence);
+  std::set<const clang::VarDecl*> vars;
+  if (sequenceFound)
+    vars.insert(VD);
+  else if (isReq)
+    getDependencySet(E, vars);
   // Make sure the current branch has a copy of VarDecl for VD
   auto& curBranch = getCurBlockVarsData();
-  if (curBranch.find(VD) == curBranch.end()) {
-    if (VarData* data = getVarDataFromDecl(VD))
-      curBranch[VD] = data->copy();
-    else
-      // If this variable was not found in predecessors, add it.
-      addVar(VD);
-  }
+  for (const VarDecl* iterVD : vars) {
+    if (isReq || sequenceFound) {
+      if (curBranch.find(iterVD) == curBranch.end()) {
+        if (VarData* data = getVarDataFromDecl(iterVD))
+          curBranch[iterVD] = data->copy();
+        else
+          // If this variable was not found in predecessors, add it.
+          addVar(iterVD);
+      }
 
-  if (!isReq ||
-      (m_ModeStack.back() == (Mode::kMarkingMode | Mode::kNonLinearMode))) {
-    VarData* data = getVarDataFromDecl(VD);
-    AnalysisBase::setIsRequired(data, isReq, IDSequence);
+      if (!isReq ||
+          (m_ModeStack.back() == (Mode::kMarkingMode | Mode::kNonLinearMode))) {
+        VarData* data = getVarDataFromDecl(iterVD);
+        AnalysisBase::setIsRequired(data, isReq, IDSequence);
+      }
+    }
   }
 }
 
@@ -390,17 +400,11 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
     if (!paramTy.isNull())
       passByRef = paramTy->isLValueReferenceType() &&
                   !paramTy.getNonReferenceType().isConstQualified();
-    setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
     TraverseStmt(arg);
-    resetMode();
-    const auto* B = arg->IgnoreParenImpCasts();
-    // FIXME: this supports only DeclRefExpr
     if (passByRef) {
       // Mark SourceLocation as required to store for ref-type arguments.
-      if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B)) {
-        m_TBRLocs.insert(arg->getBeginLoc());
-        setIsRequired(arg, /*isReq=*/false);
-      }
+      m_TBRLocs.insert(arg->getBeginLoc());
+      setIsRequired(arg, /*isReq=*/false);
     }
   }
   resetMode();

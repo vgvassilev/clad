@@ -179,9 +179,8 @@ protected:
   /// For a compound lvalue expr, generates a sequence of ProfileID's of it's
   /// indices/fields and returns the VarDecl of the base, e.g.
   /// ``arr[k].y`` --> returns `arr`, IDSequence = `{k, y}`.
-  const clang::VarDecl*
-  getIDSequence(const clang::Expr* E,
-                llvm::SmallVectorImpl<ProfileID>& IDSequence);
+  bool getIDSequence(const clang::Expr* E, const clang::VarDecl*& VD,
+                     llvm::SmallVectorImpl<ProfileID>& IDSequence);
 
   /// Returns true if there is at least one required to store node among
   /// child nodes.
@@ -231,6 +230,9 @@ protected:
   /// Returns the VarsData of the CFG block being visited.
 
   VarsData& getCurBlockVarsData() { return *m_BlockData[m_CurBlockID]; }
+
+  static void getDependencySet(const clang::Expr* E,
+                               std::set<const clang::VarDecl*>& vars);
 };
 
 } // namespace clad
