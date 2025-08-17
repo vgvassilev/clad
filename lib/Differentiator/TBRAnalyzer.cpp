@@ -56,11 +56,15 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   std::set<const clang::VarDecl*> vars;
   if (sequenceFound)
     vars.insert(VD);
-  else if (isReq)
+  // If it wasn't possible to determine the exact VarData, we have to set all
+  // dependencies to tbr.
+  else if (isReq || m_ModifiedParams)
     getDependencySet(E, vars);
   // Make sure the current branch has a copy of VarDecl for VD
   auto& curBranch = getCurBlockVarsData();
   for (const VarDecl* iterVD : vars) {
+    if (m_ModifiedParams && !isReq && (!iterVD || isa<ParmVarDecl>(iterVD)))
+      (*m_ModifiedParams)[m_Function].insert(iterVD);
     if (isReq || sequenceFound) {
       if (curBranch.find(iterVD) == curBranch.end()) {
         if (VarData* data = getVarDataFromDecl(iterVD))
@@ -89,6 +93,9 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
   m_BlockData[m_CurBlockID] = std::unique_ptr<VarsData>(new VarsData());
 
   const FunctionDecl* FD = request.Function;
+  m_Function = FD;
+  if (m_ModifiedParams)
+    (*m_ModifiedParams)[FD];
   // If we are analysing a non-static method, add a VarData for 'this' pointer
   // (it is represented with nullptr).
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
@@ -357,6 +364,13 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
     // If E should be recorded, mark its location.
     if (findReq(E))
       markLocation(E);
+    if (m_ModifiedParams) {
+      std::set<const clang::VarDecl*> vars;
+      getDependencySet(E, vars);
+      for (const VarDecl* VD : vars)
+        if (!VD || isa<ParmVarDecl>(VD))
+          (*m_ModifiedParams)[m_Function].insert(VD);
+    }
   }
   // FIXME: Ideally, `__real` and `__imag` operators should be treated as member
   // expressions. However, it is not clear where the FieldDecls of real and
@@ -370,27 +384,63 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   // variables passed by value/reference are used/used and changed. Analysis
   // could proceed to the function to analyse data flow inside it.
   FunctionDecl* FD = CE->getDirectCallee();
-  bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
+  // Use information about parameters assuming the analysis was performed.
+  // FIXME: The analysis doesn't work with implicit functions because they don't
+  // have source locations, which TBR relies on. We need to move away from using
+  // them.
+  bool shouldAnalyzeParams =
+      m_ModifiedParams && !m_Function->isImplicit() &&
+      (m_ModifiedParams->find(FD) != m_ModifiedParams->end());
+  bool hasHiddenParam = (CE->getNumArgs() != FD->getNumParams());
+  std::size_t maxParamIdx = FD->getNumParams() - 1;
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
-  for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
+  for (std::size_t i = hasHiddenParam, e = CE->getNumArgs(); i != e; ++i) {
     clang::Expr* arg = CE->getArg(i);
-    QualType paramTy;
-    if (noHiddenParam)
-      paramTy = FD->getParamDecl(i)->getType();
-    else if (i != 0)
-      paramTy = FD->getParamDecl(i - 1)->getType();
-
+    const ParmVarDecl* par = nullptr;
+    std::size_t paramIdx = std::min(i - hasHiddenParam, maxParamIdx);
+    par = FD->getParamDecl(paramIdx);
     bool passByRef = false;
-    if (!paramTy.isNull())
-      passByRef = paramTy->isLValueReferenceType() &&
-                  !paramTy.getNonReferenceType().isConstQualified();
+    if (par)
+      passByRef = utils::isMemoryType(par->getType());
     TraverseStmt(arg);
     if (passByRef) {
-      // Mark SourceLocation as required to store for ref-type arguments.
-      m_TBRLocs.insert(arg->getBeginLoc());
-      setIsRequired(arg, /*isReq=*/false);
+      bool paramModified = true;
+      if (shouldAnalyzeParams) {
+        auto& modifiedParams = (*m_ModifiedParams)[FD];
+        if (modifiedParams.find(par) == modifiedParams.end())
+          paramModified = false;
+      }
+      if (paramModified) {
+        setIsRequired(arg, /*isReq=*/false);
+        markLocation(arg);
+      }
     }
   }
+
+  auto* MD = dyn_cast<CXXMethodDecl>(FD);
+  Expr* base = nullptr;
+  if (MD && MD->isInstance() && !MD->isConst()) {
+    if (auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
+      base = MCE->getImplicitObjectArgument();
+    else if (auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
+      base = OCE->getArg(0);
+    base = base->IgnoreParenCasts();
+  }
+
+  if (base) {
+    TraverseStmt(base);
+    bool paramModified = true;
+    if (shouldAnalyzeParams) {
+      auto& modifiedParams = (*m_ModifiedParams)[FD];
+      if (modifiedParams.find(nullptr) == modifiedParams.end())
+        paramModified = false;
+    }
+    if (paramModified) {
+      markLocation(base);
+      setIsRequired(base, /*isReq=*/false);
+    }
+  }
+
   resetMode();
   return false;
 }

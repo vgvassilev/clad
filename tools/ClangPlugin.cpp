@@ -12,6 +12,7 @@
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
+#include "../lib/Differentiator/TBRAnalyzer.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -30,6 +31,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "clad/Differentiator/Compatibility.h"
+#include <clad/Differentiator/DiffMode.h>
 
 #include <algorithm>
 #include <cstdlib>  // for getenv
@@ -271,6 +273,14 @@ void InitTimers();
       // If enabled, set the proper fields in derivative builder.
       if (m_DO.PrintNumDiffErrorInfo) {
         m_DerivativeBuilder->setNumDiffErrDiag(true);
+      }
+      if (request.RequestTBR && request->isDefined() && request.m_AnalysisDC) {
+        TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
+        TBRAnalyzer analyzer(request.m_AnalysisDC, request.getToBeRecorded(),
+                             &m_ModifiedParams);
+        analyzer.Analyze(request);
+        if (request.Mode == DiffMode::unknown)
+          return nullptr;
       }
 
       FunctionDecl* DerivativeDecl = nullptr;
