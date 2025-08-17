@@ -6,6 +6,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
@@ -96,17 +97,31 @@ VarData* VarData::operator[](const ProfileID& id) const {
   return &idxData;
 }
 
+void AnalysisBase::getDependencySet(const clang::Expr* E,
+                                    std::set<const clang::VarDecl*>& vars) {
+  class DeclFinder : public RecursiveASTVisitor<DeclFinder> {
+  public:
+    std::set<const clang::VarDecl*>& vars;
+    DeclFinder(std::set<const clang::VarDecl*>& pvars) : vars(pvars) {}
+    bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+      if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+        vars.insert(VD);
+      return true;
+    }
+  };
+  DeclFinder finder(vars);
+  finder.TraverseStmt(const_cast<Expr*>(E));
+}
+
 CFGBlock* AnalysisBase::getCFGBlockByID(AnalysisDeclContext* ADC, unsigned ID) {
   return *(ADC->getCFG()->begin() + ID);
 }
 
-const VarDecl*
-AnalysisBase::getIDSequence(const clang::Expr* E,
-                            llvm::SmallVectorImpl<ProfileID>& IDSequence) {
-  const VarDecl* innerVD = nullptr;
+bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
+                                 llvm::SmallVectorImpl<ProfileID>& IDSequence) {
   // Unwrap the given expression to a vector of indices and fields.
   while (true) {
-    E = E->IgnoreCasts();
+    E = E->IgnoreParenCasts();
     if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
       if (const auto* IL = dyn_cast<clang::IntegerLiteral>(ASE->getIdx()))
         IDSequence.push_back(getProfileID(IL, m_AnalysisDC->getASTContext()));
@@ -120,7 +135,7 @@ AnalysisBase::getIDSequence(const clang::Expr* E,
       if (E->getType()->isPointerType())
         IDSequence.push_back(ProfileID());
     } else if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E)) {
-      const auto* VD = cast<VarDecl>(DRE->getDecl());
+      VD = cast<VarDecl>(DRE->getDecl());
       if (VD->getType()->isLValueReferenceType()) {
         VarData* refData = getVarDataFromDecl(VD);
         if (refData->m_Type == VarData::REF_TYPE) {
@@ -128,10 +143,9 @@ AnalysisBase::getIDSequence(const clang::Expr* E,
           continue;
         }
       }
-      innerVD = VD;
       break;
     } else if (isa<clang::CXXThisExpr>(E)) {
-      innerVD = nullptr;
+      VD = nullptr;
       break;
     } else if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
       const auto opCode = UO->getOpcode();
@@ -143,14 +157,15 @@ AnalysisBase::getIDSequence(const clang::Expr* E,
         IDSequence.push_back(ProfileID());
       E = UO->getSubExpr();
     } else {
-      assert(0 && "unexpected expression");
-      break;
+      IDSequence.clear();
+      VD = nullptr;
+      return false;
     }
   }
   // All id's were added in the reverse order, e.g. `arr[0].k` -> `k`, `0`.
   // Reverse the sequence for easier handling.
   std::reverse(IDSequence.begin(), IDSequence.end());
-  return innerVD;
+  return true;
 }
 
 bool AnalysisBase::findReq(const VarData& varData) {
@@ -194,7 +209,9 @@ void AnalysisBase::merge(VarData& targetData, VarData& mergeData) {
 
 VarData* AnalysisBase::getVarDataFromExpr(const clang::Expr* E) {
   llvm::SmallVector<ProfileID, 2> IDSequence;
-  const VarDecl* VD = getIDSequence(E, IDSequence);
+  const VarDecl* VD = nullptr;
+  bool sequenceFound = getIDSequence(E, VD, IDSequence);
+  assert(sequenceFound && "Unexpected expressions not supported");
   VarData* data = getVarDataFromDecl(VD);
   assert(data && "expression not found");
   for (ProfileID& id : IDSequence)
