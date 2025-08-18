@@ -7,6 +7,7 @@
 
 namespace cladtorch {
 struct Tensor {
+  Tensor(): data(0) {};
   float data;
 };
 }
@@ -16,8 +17,9 @@ float fn1(const cladtorch::Tensor& t) {
   return b.data;
 }
 // CHECK: void fn1_grad(const cladtorch::Tensor &t, cladtorch::Tensor *_d_t) {
-// CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_b(b);
 // CHECK-NEXT:     {{.*}}cladtorch::Tensor b = t;
+// CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_b(t);
+// CHECK-NEXT:     clad::zero_init(_d_b);
 // CHECK-NEXT:     _d_b.data += 1;
 // CHECK-NEXT:     Tensor::constructor_pullback(t, &_d_b, &(*_d_t));
 // CHECK-NEXT: }

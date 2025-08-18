@@ -2896,7 +2896,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (initDiff.getStmt_dx()) {
         SetDeclInit(VDDerived, initDiff.getExpr_dx());
       } else if (shouldCopyInitialize) {
-        Expr* copyExpr = BuildDeclRef(VDClone);
+        Expr* copyExpr = nullptr;
+        if (utils::isCladTorchTensor(VD->getType())) {
+          copyExpr = initDiff.getExpr();
+        } else
+          copyExpr = BuildDeclRef(VDClone);
         QualType origTy = VDClone->getType();
         if (isInsideLoop) {
           StmtDiff pushPop = StoreAndRestore(
@@ -3223,6 +3227,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         bool copyInit =
             CE && (CE->getNumArgs() == 0 ||
                    isa<DeclRefExpr>(CE->getArg(0)->IgnoreImplicit()));
+        if (utils::isCladTorchTensor(CE->getType()))
+          copyInit = true;
         if (copyInit) {
           std::array<Expr*, 1> arg{BuildDeclRef(vDecl)};
           Stmt* initCall = GetCladZeroInit(arg);
