@@ -2897,9 +2897,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         SetDeclInit(VDDerived, initDiff.getExpr_dx());
       } else if (shouldCopyInitialize) {
         Expr* copyExpr = nullptr;
-        if (utils::isCladTorchTensor(VD->getType())) {
+        if (utils::isCladTorchTensor(VD->getType()))
           copyExpr = initDiff.getExpr();
-        } else
+        else
           copyExpr = BuildDeclRef(VDClone);
         QualType origTy = VDClone->getType();
         if (isInsideLoop) {

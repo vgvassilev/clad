@@ -12,11 +12,12 @@ struct Tensor {
 };
 }
 
-float fn1(const cladtorch::Tensor& t) {
+float fn1(const cladtorch::Tensor& t, const cladtorch::Tensor& u) {
   auto b = t;
   return b.data;
 }
-// CHECK: void fn1_grad(const cladtorch::Tensor &t, cladtorch::Tensor *_d_t) {
+// CHECK: void fn1_grad_0(const cladtorch::Tensor &t, const cladtorch::Tensor &u, cladtorch::Tensor *_d_t) {
+// CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_u(u);
 // CHECK-NEXT:     {{.*}}cladtorch::Tensor b = t;
 // CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_b(t);
 // CHECK-NEXT:     clad::zero_init(_d_b);
@@ -25,9 +26,9 @@ float fn1(const cladtorch::Tensor& t) {
 // CHECK-NEXT: }
 
 int main() {
-  cladtorch::Tensor t, d_t;
-  t.data = 5; d_t.data = 0;
-  auto dfn1 = clad::gradient(fn1);
-  dfn1.execute(t, &d_t);
+  cladtorch::Tensor t, u, d_t;
+  t.data = 5; u.data = 3; d_t.data = 0;
+  auto dfn1 = clad::gradient(fn1, "t");
+  dfn1.execute(t, u, &d_t);
   printf("%.2f\n", d_t.data); // CHECK-EXEC: 1.00
 }
