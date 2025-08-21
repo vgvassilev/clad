@@ -179,6 +179,29 @@ void reduce_pullback(Iterator first, Iterator last, T init, BinaryOp op,
   }
 }
 
+template <typename Iterator, typename T>
+void reduce_pullback(Iterator first, Iterator last, T init, T d_output,
+                     Iterator* d_first, Iterator* d_last, T* d_init) {
+  ::thrust::plus<T> op;
+  ::thrust::plus<T>* d_op = nullptr;
+  reduce_pullback(first, last, init, op, d_output, d_first, d_last, d_init,
+                  d_op);
+}
+
+template <typename Iterator>
+void reduce_pullback(
+    Iterator first, Iterator last,
+    typename ::std::iterator_traits<Iterator>::value_type d_output,
+    Iterator* d_first, Iterator* d_last) {
+  using T = typename ::std::iterator_traits<Iterator>::value_type;
+  T init = T(0);
+  T* d_init = nullptr;
+  ::thrust::plus<T> op;
+  ::thrust::plus<T>* d_op = nullptr;
+  reduce_pullback(first, last, init, op, d_output, d_first, d_last, d_init,
+                  d_op);
+}
+
 template <typename Iterator1, typename Iterator2, typename T>
 void inner_product_pullback(Iterator1 first1, Iterator1 last1, Iterator2 first2,
                             T init, T d_output, Iterator1* d_first1,
