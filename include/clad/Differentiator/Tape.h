@@ -17,7 +17,7 @@
 namespace clad {
 
 template <typename T, std::size_t SBO_SIZE, std::size_t SLAB_SIZE,
-          bool using_multithread>
+          bool is_multithread>
 class tape_impl;
 
 /// A forward iterator for traversing elements in `clad::tape_impl`.
@@ -26,9 +26,9 @@ class tape_impl;
 /// - Increment (`++`)
 /// - Equality and inequality comparisons
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          bool using_multithread = false>
+          bool is_multithread = false>
 class tape_iterator {
-  using tape_t = clad::tape_impl<T, SBO_SIZE, SLAB_SIZE, using_multithread>;
+  using tape_t = clad::tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread>;
   tape_t* m_tape;
   std::size_t m_index;
 
@@ -72,7 +72,7 @@ public:
 /// in a static buffer first, then falls back to dynamically allocated linked
 /// slabs if capacity exceeds SBO.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          bool using_multithread = false>
+          bool is_multithread = false>
 class tape_impl {
   /// A block of contiguous storage allocated dynamically when SBO capacity is
   /// exceeded.
@@ -125,9 +125,9 @@ public:
   using size_type = std::size_t;
   using difference_type = std::ptrdiff_t;
   using value_type = T;
-  using iterator = tape_iterator<T, SBO_SIZE, SLAB_SIZE, using_multithread>;
+  using iterator = tape_iterator<T, SBO_SIZE, SLAB_SIZE, is_multithread>;
   using const_iterator =
-      tape_iterator<const T, SBO_SIZE, SLAB_SIZE, using_multithread>;
+      tape_iterator<const T, SBO_SIZE, SLAB_SIZE, is_multithread>;
 
 #ifndef __CUDACC__
   mutable std::mutex tape_mutex;

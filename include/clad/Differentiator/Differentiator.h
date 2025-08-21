@@ -57,8 +57,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 
 /// Tape type used for storing values in reverse-mode AD inside loops.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          bool using_multithread = false>
-using tape = tape_impl<T, SBO_SIZE, SLAB_SIZE, using_multithread>;
+          bool is_multithread = false>
+using tape = tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread>;
 
 /// Add value to the end of the tape, return the same value.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
