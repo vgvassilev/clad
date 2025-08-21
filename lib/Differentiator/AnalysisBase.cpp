@@ -25,8 +25,8 @@ using namespace clang;
 
 namespace clad {
 
-VarData::VarData(QualType QT, const ASTContext& C, bool forceNonRefType) {
-  QT = QT.getDesugaredType(C);
+VarData::VarData(QualType QT, bool forceNonRefType) {
+  QT = QT.getCanonicalType();
   if ((forceNonRefType && QT->isLValueReferenceType()) ||
       QT->isRValueReferenceType())
     QT = QT->getPointeeType();
@@ -44,7 +44,7 @@ VarData::VarData(QualType QT, const ASTContext& C, bool forceNonRefType) {
       elemType = QT->getArrayElementTypeNoTypeQual();
     ProfileID nonConstIdxID;
     auto& idxData = (*m_Val.m_ArrData)[nonConstIdxID];
-    idxData = VarData(QualType::getFromOpaquePtr(elemType), C);
+    idxData = VarData(QualType::getFromOpaquePtr(elemType));
   } else if (QT->isBuiltinType()) {
     m_Type = VarData::FUND_TYPE;
     m_Val.m_FundData = false;
@@ -57,7 +57,7 @@ VarData::VarData(QualType QT, const ASTContext& C, bool forceNonRefType) {
     utils::getRecordDeclFields(recordDecl, Fields);
     for (const auto* field : Fields) {
       const auto varType = field->getType();
-      (*newArrMap)[getProfileID(field)] = VarData(varType, C);
+      (*newArrMap)[getProfileID(field)] = VarData(varType);
     }
   }
 }
