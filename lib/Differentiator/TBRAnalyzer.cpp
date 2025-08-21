@@ -40,8 +40,7 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
   if (utils::IsAutoOrAutoPtrType(varType))
     varType = VD->getInit()->getType();
 
-  curBranch[VD] =
-      VarData(varType, m_AnalysisDC->getASTContext(), forceNonRefType);
+  curBranch[VD] = VarData(varType, forceNonRefType);
 }
 
 void TBRAnalyzer::markLocation(const clang::Stmt* S) {
@@ -93,7 +92,7 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
   if (MD && !MD->isStatic()) {
     VarData& thisData = getCurBlockVarsData()[nullptr];
-    thisData = VarData(MD->getThisType(), m_AnalysisDC->getASTContext());
+    thisData = VarData(MD->getThisType());
     // We have to set all pointer/reference parameters to tbr
     // since method pullbacks aren't supposed to change objects.
     // constructor pullbacks don't take `this` as a parameter

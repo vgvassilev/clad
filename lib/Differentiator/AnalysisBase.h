@@ -109,8 +109,7 @@ struct VarData {
   /// reference type (it will store TBR information itself without referring
   /// to other VarData's). This is necessary for reference-type parameters,
   /// when the referenced expressions are out of the function's scope.
-  VarData(clang::QualType QT, const clang::ASTContext& C,
-          bool forceNonRefType = false);
+  VarData(clang::QualType QT, bool forceNonRefType = false);
 
   /// Erases all children VarData's of this VarData.
   ~VarData() {
