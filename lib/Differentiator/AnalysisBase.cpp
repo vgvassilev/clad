@@ -19,32 +19,24 @@
 #include <algorithm>
 #include <cassert>
 #include <memory>
+#include <set>
 #include <unordered_map>
 
 using namespace clang;
 
 namespace clad {
-
-VarData::VarData(QualType QT, bool forceNonRefType) {
+// NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
+VarData::VarData(QualType QT, bool forceInit) {
   QT = QT.getCanonicalType();
-  if ((forceNonRefType && QT->isLValueReferenceType()) ||
-      QT->isRValueReferenceType())
+  if ((forceInit && QT->isLValueReferenceType()) || QT->isRValueReferenceType())
     QT = QT->getPointeeType();
-
+  m_Type = VarData::FUND_TYPE;
+  m_Val.m_FundData = false;
   if (QT->isReferenceType()) {
     m_Type = VarData::REF_TYPE;
-    m_Val.m_RefData = nullptr;
-  } else if (utils::isArrayOrPointerType(QT)) {
-    m_Type = VarData::ARR_TYPE;
-    m_Val.m_ArrData = std::make_unique<ArrMap>();
-    const Type* elemType = nullptr;
-    if (const auto* const pointerType = llvm::dyn_cast<clang::PointerType>(QT))
-      elemType = pointerType->getPointeeType().getTypePtrOrNull();
-    else
-      elemType = QT->getArrayElementTypeNoTypeQual();
-    ProfileID nonConstIdxID;
-    auto& idxData = (*m_Val.m_ArrData)[nonConstIdxID];
-    idxData = VarData(QualType::getFromOpaquePtr(elemType));
+    m_Val.m_RefData = std::make_unique<std::set<const clang::VarDecl*>>();
+  } else if (QT->isArrayType() || (forceInit && QT->isPointerType())) {
+    initializeAsArray(QT);
   } else if (QT->isBuiltinType()) {
     m_Type = VarData::FUND_TYPE;
     m_Val.m_FundData = false;
@@ -62,6 +54,16 @@ VarData::VarData(QualType QT, bool forceNonRefType) {
   }
 }
 
+void VarData::initializeAsArray(QualType QT) {
+  assert(utils::isArrayOrPointerType(QT) &&
+         "QT must represent an array or a pointer");
+  m_Type = VarData::ARR_TYPE;
+  new (&m_Val.m_RefData) std::unique_ptr<ArrMap>(std::make_unique<ArrMap>());
+  QualType elemType = utils::GetValueType(QT);
+  // Default ProfileID corresponds to non-const indices
+  m_Val.m_ArrData->emplace(ProfileID{}, VarData(elemType));
+}
+
 VarData VarData::copy() const {
   VarData res;
   res.m_Type = m_Type;
@@ -72,7 +74,9 @@ VarData VarData::copy() const {
     for (auto& pair : *m_Val.m_ArrData)
       (*res.m_Val.m_ArrData)[pair.first] = pair.second.copy();
   } else if (m_Type == VarData::REF_TYPE) {
-    res.m_Val.m_RefData = m_Val.m_RefData;
+    new (&res.m_Val.m_RefData) std::unique_ptr<std::set<const VarDecl*>>(
+        std::make_unique<std::set<const VarDecl*>>());
+    *res.m_Val.m_RefData = *m_Val.m_RefData;
   }
   return res;
 }
@@ -103,10 +107,14 @@ void AnalysisBase::getDependencySet(const clang::Expr* E,
   public:
     std::set<const clang::VarDecl*>& vars;
     DeclFinder(std::set<const clang::VarDecl*>& pvars) : vars(pvars) {}
-    bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+    bool TraverseDeclRefExpr(DeclRefExpr* DRE) {
       if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
         vars.insert(VD);
-      return true;
+      return false;
+    }
+    bool TraverseArraySubscriptExpr(ArraySubscriptExpr* ASE) {
+      TraverseStmt(ASE->getBase());
+      return false;
     }
   };
   DeclFinder finder(vars);
@@ -136,11 +144,19 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
         IDSequence.push_back(ProfileID());
     } else if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E)) {
       VD = cast<VarDecl>(DRE->getDecl());
-      if (VD->getType()->isLValueReferenceType()) {
+      QualType VDType = VD->getType();
+      if (VDType->isLValueReferenceType() || VDType->isPointerType()) {
         VarData* refData = getVarDataFromDecl(VD);
         if (refData->m_Type == VarData::REF_TYPE) {
-          E = refData->m_Val.m_RefData;
-          continue;
+          std::set<const VarDecl*>& vars = *refData->m_Val.m_RefData;
+          VD = *vars.begin();
+          if (vars.size() == 1 &&
+              utils::isSameCanonicalType(VD->getType(), E->getType())) {
+            break;
+          }
+          IDSequence.clear();
+          VD = nullptr;
+          return false;
         }
       }
       break;
@@ -178,7 +194,27 @@ bool AnalysisBase::findReq(const VarData& varData) {
         return true;
   }
   if (varData.m_Type == VarData::REF_TYPE)
-    return findReq(*getVarDataFromExpr(varData.m_Val.m_RefData));
+    for (const VarDecl* VD : *varData.m_Val.m_RefData)
+      if (findReq(*getVarDataFromDecl(VD)))
+        return true;
+  return false;
+}
+
+bool AnalysisBase::findReq(const Expr* E) {
+  llvm::SmallVector<ProfileID, 2> IDSequence;
+  const VarDecl* VD = nullptr;
+  if (getIDSequence(E, VD, IDSequence)) {
+    VarData* data = getVarDataFromDecl(VD);
+    for (ProfileID& id : IDSequence)
+      data = (*data)[id];
+    return findReq(*data);
+  }
+
+  std::set<const clang::VarDecl*> vars;
+  getDependencySet(E, vars);
+  for (const VarDecl* VD : vars)
+    if (findReq(*getVarDataFromDecl(VD)))
+      return true;
   return false;
 }
 
@@ -207,18 +243,6 @@ void AnalysisBase::merge(VarData& targetData, VarData& mergeData) {
   // else if (this.m_Type == VarData::REF_TYPE) {}
 }
 
-VarData* AnalysisBase::getVarDataFromExpr(const clang::Expr* E) {
-  llvm::SmallVector<ProfileID, 2> IDSequence;
-  const VarDecl* VD = nullptr;
-  bool sequenceFound = getIDSequence(E, VD, IDSequence);
-  assert(sequenceFound && "Unexpected expressions not supported");
-  VarData* data = getVarDataFromDecl(VD);
-  assert(data && "expression not found");
-  for (ProfileID& id : IDSequence)
-    data = (*data)[id];
-  return data;
-}
-
 VarData* AnalysisBase::getVarDataFromDecl(const clang::VarDecl* VD) {
   auto* branch = &getCurBlockVarsData();
   while (branch) {
@@ -232,12 +256,17 @@ VarData* AnalysisBase::getVarDataFromDecl(const clang::VarDecl* VD) {
 
 void AnalysisBase::setIsRequired(VarData* data, bool isReq,
                                  llvm::MutableArrayRef<ProfileID> IDSequence) {
-  assert(data->m_Type != VarData::REF_TYPE &&
-         "references should be removed on the getIDSequence stage");
   if (data->m_Type == VarData::UNDEFINED)
     return;
   if (data->m_Type == VarData::FUND_TYPE) {
     data->m_Val.m_FundData = isReq;
+    return;
+  }
+  if (data->m_Type == VarData::REF_TYPE) {
+    std::set<const VarDecl*>& vars = *data->m_Val.m_RefData;
+    if (isReq || vars.size() == 1)
+      for (const VarDecl* VD : vars)
+        setIsRequired(getVarDataFromDecl(VD), isReq, IDSequence);
     return;
   }
   auto& baseArrMap = *data->m_Val.m_ArrData;
@@ -417,4 +446,5 @@ void AnalysisBase::merge(VarsData* targetData, VarsData* mergeData) {
     }
   }
 }
+// NOLINTEND(cppcoreguidelines-pro-type-union-access)
 } // namespace clad

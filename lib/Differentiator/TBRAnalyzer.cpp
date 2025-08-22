@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cassert>
+#include <memory>
+#include <set>
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -26,8 +28,8 @@
 using namespace clang;
 
 namespace clad {
-
-void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
+// NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
+void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceInit) {
   auto& curBranch = getCurBlockVarsData();
 
   QualType varType;
@@ -40,7 +42,7 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
   if (utils::IsAutoOrAutoPtrType(varType))
     varType = VD->getInit()->getType();
 
-  curBranch[VD] = VarData(varType, forceNonRefType);
+  curBranch[VD] = VarData(varType, forceInit);
 }
 
 void TBRAnalyzer::markLocation(const clang::Stmt* S) {
@@ -92,7 +94,7 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
   if (MD && !MD->isStatic()) {
     VarData& thisData = getCurBlockVarsData()[nullptr];
-    thisData = VarData(MD->getThisType());
+    thisData = VarData(MD->getThisType(), /*forceInit=*/true);
     // We have to set all pointer/reference parameters to tbr
     // since method pullbacks aren't supposed to change objects.
     // constructor pullbacks don't take `this` as a parameter
@@ -101,7 +103,7 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
   }
   auto paramsRef = FD->parameters();
   for (std::size_t i = 0; i < FD->getNumParams(); ++i)
-    addVar(paramsRef[i], /*forceNonRefType=*/true);
+    addVar(paramsRef[i], /*forceInit=*/true);
   // Add the entry block to the queue.
   m_CFGQueue.insert(m_CurBlockID);
 
@@ -208,21 +210,23 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         TraverseStmt(init);
         resetMode();
 
-        auto& VDExpr = getCurBlockVarsData()[VD];
+        auto* VDExpr = &getCurBlockVarsData()[VD];
+        QualType VDType = VD->getType();
         // if the declared variable is ref type attach its VarData to the
         // VarData of the RHS variable.
-        llvm::SmallVector<Expr*, 4> ExprsToStore;
-        utils::GetInnermostReturnExpr(init, ExprsToStore);
-        if (VDExpr.m_Type == VarData::REF_TYPE) {
-          // We only consider references that point to one
-          // compile-time defined object.
-          if (ExprsToStore.size() == 1)
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-            VDExpr.m_Val.m_RefData = ExprsToStore[0];
-          else
-            // If we don't know what this points to, mark undefined.
-            // FIXME: we should mark all vars on the RHS undefined too.
-            VDExpr.m_Type = VarData::UNDEFINED;
+        if (VDExpr->m_Type == VarData::REF_TYPE || VDType->isPointerType()) {
+          init = init->IgnoreParenCasts();
+          if (VDType->isPointerType()) {
+            if (isa<CXXNewExpr>(init)) {
+              VDExpr->initializeAsArray(VDType);
+              return false;
+            }
+            VDExpr->m_Type = VarData::REF_TYPE;
+          }
+          new (&VDExpr->m_Val.m_RefData)
+              std::unique_ptr<std::set<const VarDecl*>>(
+                  std::make_unique<std::set<const VarDecl*>>());
+          getDependencySet(init, *VDExpr->m_Val.m_RefData);
         }
       }
     }
@@ -318,21 +322,13 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
       TraverseStmt(R);
       resetMode();
     }
-    llvm::SmallVector<Expr*, 4> ExprsToStore;
-    utils::GetInnermostReturnExpr(L, ExprsToStore);
-    bool hasToBeSetReq = false;
-    for (const auto* innerExpr : ExprsToStore) {
-      // If at least one of ExprsToStore has to be stored,
-      // mark L as useful to store.
-      if (VarData* data = getVarDataFromExpr(innerExpr))
-        hasToBeSetReq = hasToBeSetReq || findReq(*data);
-      // Set them to not required to store because the values were changed.
-      // (if some value was not changed, this could only happen if it was
-      // already not required to store).
-      setIsRequired(innerExpr, /*isReq=*/false);
-    }
-    if (hasToBeSetReq)
+    // If L should be recorded, mark its location.
+    if (findReq(L))
       markLocation(L);
+    // Set them to not required to store because the values were changed.
+    // (if some value was not changed, this could only happen if it was
+    // already not required to store).
+    setIsRequired(L, /*isReq=*/false);
   } else if (opCode == BO_Comma) {
     setMode(0);
     TraverseStmt(L);
@@ -358,20 +354,9 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
   TraverseStmt(E);
   if (opCode == UO_PostInc || opCode == UO_PostDec || opCode == UO_PreInc ||
       opCode == UO_PreDec) {
-    // FIXME: this doesn't support all the possible references
-    // Mark corresponding SourceLocation as required/not required to be
-    // stored for all expressions that could be used in this operation.
-    llvm::SmallVector<Expr*, 4> ExprsToStore;
-    utils::GetInnermostReturnExpr(E, ExprsToStore);
-    for (const auto* innerExpr : ExprsToStore) {
-      // If at least one of ExprsToStore has to be stored,
-      // mark L as useful to store.
-      if (VarData* data = getVarDataFromExpr(innerExpr))
-        if (findReq(*data)) {
-          markLocation(E);
-          break;
-        }
-    }
+    // If E should be recorded, mark its location.
+    if (findReq(E))
+      markLocation(E);
   }
   // FIXME: Ideally, `__real` and `__imag` operators should be treated as member
   // expressions. However, it is not clear where the FieldDecls of real and
@@ -470,5 +455,5 @@ bool TBRAnalyzer::TraverseInitListExpr(clang::InitListExpr* ILE) {
   resetMode();
   return false;
 }
-
+// NOLINTEND(cppcoreguidelines-pro-type-union-access)
 } // end namespace clad
