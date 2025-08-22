@@ -71,7 +71,7 @@ struct VarData {
     /// less space.
     /// Both arrays and and objects are modelled using m_ArrData;
     std::unique_ptr<ArrMap> m_ArrData;
-    clang::Expr* m_RefData;
+    std::unique_ptr<std::set<const clang::VarDecl*>> m_RefData;
     VarDataValue() : m_ArrData(nullptr) {}
     /// `= default` cannot be used here since
     /// default destructor is implicitly deleted.
@@ -99,28 +99,31 @@ struct VarData {
     else if (m_Type == OBJ_TYPE || m_Type == ARR_TYPE)
       m_Val.m_ArrData = std::move(other.m_Val.m_ArrData);
     else if (m_Type == REF_TYPE)
-      m_Val.m_RefData = other.m_Val.m_RefData;
+      m_Val.m_RefData = std::move(other.m_Val.m_RefData);
     other.m_Type = UNDEFINED;
     return *this;
   }
 
   /// Builds a VarData object (and its children) based on the provided type.
-  /// If `forceNonRefType` is true, the constructed VarData will not be of
+  /// If `forceInit` is true, the constructed VarData will never be of
   /// reference type (it will store TBR information itself without referring
   /// to other VarData's). This is necessary for reference-type parameters,
   /// when the referenced expressions are out of the function's scope.
-  VarData(clang::QualType QT, bool forceNonRefType = false);
+  VarData(clang::QualType QT, bool forceInit = false);
 
   /// Erases all children VarData's of this VarData.
   ~VarData() {
     if (m_Type == OBJ_TYPE || m_Type == ARR_TYPE)
       m_Val.m_ArrData.reset();
+    else if (m_Type == REF_TYPE)
+      m_Val.m_RefData.reset();
   }
 
   /// Used to recursively copy VarData when separating into different branches
   /// (e.g. when entering an if-else statements). Look at the Control Flow
   /// section for more information.
   [[nodiscard]] VarData copy() const;
+  void initializeAsArray(clang::QualType QT);
   /// Provides access to the nested VarData if the given VarData represents
   /// an array or a structure. Generates new array elements if necessary.
   VarData* operator[](const ProfileID& id) const;
@@ -184,15 +187,14 @@ protected:
   /// Returns true if there is at least one required to store node among
   /// child nodes.
   bool findReq(const VarData& varData);
+  /// Returns true if there is at least one required to store sub-expr.
+  bool findReq(const clang::Expr* E);
   /// Used to merge together VarData for one variable from two branches
   /// (e.g. after an if-else statements). Look at the Control Flow section for
   /// more information.
   void merge(VarData& targetData, VarData& mergeData);
   /// Creates VarData for a new VarDecl*.
-  void addVar(const clang::VarDecl* VD, bool forceNonRefType = false);
-  /// Given an Expr* returns its corresponding VarData. If the given element of
-  /// an array does not have a VarData yet it will be added automatically.
-  VarData* getVarDataFromExpr(const clang::Expr* E);
+  void addVar(const clang::VarDecl* VD, bool forceInit = false);
   /// Finds VD in the most recent block.
   VarData* getVarDataFromDecl(const clang::VarDecl* VD);
   // A helper function that recursively sets all nodes to the requested value of
