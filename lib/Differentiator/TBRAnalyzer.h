@@ -50,8 +50,6 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   std::vector<short> m_BlockPassCounter;
 
   //// Setters
-  /// Creates VarData for a new VarDecl*.
-  void addVar(const clang::VarDecl* VD, bool forceInit = false);
   /// Marks the SourceLocation of S if it is required to store.
   /// E could be DeclRefExpr, ArraySubscriptExpr, MemberExpr, or DeclStmt.
   void markLocation(const clang::Stmt* S);

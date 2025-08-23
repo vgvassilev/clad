@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iterator>
 #include <memory>
 #include <set>
 
@@ -29,22 +30,6 @@
 using namespace clang;
 
 namespace clad {
-// NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
-void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceInit) {
-  auto& curBranch = getCurBlockVarsData();
-
-  QualType varType;
-  if (const auto* arrayParam = dyn_cast<ParmVarDecl>(VD))
-    varType = arrayParam->getOriginalType();
-  else
-    varType = VD->getType();
-
-  // If varType represents auto or auto*, get the type of init.
-  if (utils::IsAutoOrAutoPtrType(varType))
-    varType = VD->getInit()->getType();
-
-  curBranch[VD] = VarData(varType, forceInit);
-}
 
 void TBRAnalyzer::markLocation(const clang::Stmt* S) {
   m_TBRLocs.insert(S->getBeginLoc());
