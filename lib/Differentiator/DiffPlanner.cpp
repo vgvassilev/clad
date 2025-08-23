@@ -657,11 +657,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     return found != m_UsefulRunInfo.UsefulDecls.end();
   }
 
-  bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
+  bool DiffRequest::shouldHaveAdjoint(const Stmt* S) const {
     if (!EnableVariedAnalysis)
       return true;
-    auto found = m_ActivityRunInfo.VariedDecls.find(VD);
-    return found != m_ActivityRunInfo.VariedDecls.end();
+    auto found = m_ActivityRunInfo.VariedS.find(S);
+    return found != m_ActivityRunInfo.VariedS.end();
   }
 
   bool DiffRequest::isVaried(const Expr* E) const {
@@ -679,7 +679,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       bool VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
         if (!isa<VarDecl>(DRE->getDecl()))
           return true;
-        if (m_Request.shouldHaveAdjoint(cast<VarDecl>(DRE->getDecl())))
+        if (m_Request.shouldHaveAdjoint(DRE))
           return false;
         return true;
       }
@@ -1233,6 +1233,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
     request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
 
+    llvm::SmallVector<ParmVarDecl*, 4> variedParmVarDecl;
+
     // FIXME: Here we copy all varied declarations down to the pullback, has to
     // be removed once AA and TBR are completely reworked, with better
     // branch-merging.
@@ -1282,8 +1284,13 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
       if (m_TopMostReq->EnableVariedAnalysis) {
         TimedAnalysisRegion R("VA " + request.BaseFunctionName);
-        VariedAnalyzer analyzer(AnalysisDC.get(), request.getVariedDecls());
-        analyzer.Analyze(request.Function);
+        VariedAnalyzer analyzer(AnalysisDC.get(), request,
+                                request.getVariedStmt());
+        analyzer.Analyze();
+        // llvm::errs() << "\n=======\n";
+        // for(auto i: request.getVariedStmt())
+        //   i->dump();
+        //         llvm::errs() << "\n=======\n";
       }
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
@@ -1295,7 +1302,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       m_AllAnalysisDC.push_back(std::move(AnalysisDC));
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
-      // Recurse into call graph.
+      // llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
+      //  Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
 
       if (requestTBR) {

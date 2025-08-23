@@ -28,22 +28,6 @@
 using namespace clang;
 
 namespace clad {
-// NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
-void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceInit) {
-  auto& curBranch = getCurBlockVarsData();
-
-  QualType varType;
-  if (const auto* arrayParam = dyn_cast<ParmVarDecl>(VD))
-    varType = arrayParam->getOriginalType();
-  else
-    varType = VD->getType();
-
-  // If varType represents auto or auto*, get the type of init.
-  if (utils::IsAutoOrAutoPtrType(varType))
-    varType = VD->getInit()->getType();
-
-  curBranch[VD] = VarData(varType, forceInit);
-}
 
 void TBRAnalyzer::markLocation(const clang::Stmt* S) {
   m_TBRLocs.insert(S->getBeginLoc());
@@ -122,6 +106,13 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
 
     CFGBlock& nextBlock = *getCFGBlockByID(request.m_AnalysisDC, m_CurBlockID);
     VisitCFGBlock(nextBlock);
+    // llvm::errs() << "\nstart " << m_CurBlockID << "\n";
+
+    // for (auto& i: m_BlockData[m_CurBlockID]->m_Data){
+    //   i.first->dump();
+    //   //llvm::errs() << "\nfd: " << i.second.m_Val.m_FundData << "\n";
+    //   //llvm::errs() << "addr " << *i.second << "\n";
+    // }
   }
 #ifndef NDEBUG
   for (int id = m_CurBlockID; id >= 0; --id) {

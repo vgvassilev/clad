@@ -103,6 +103,12 @@ struct VarData {
     other.m_Type = UNDEFINED;
     return *this;
   }
+  /// This is important to extend.
+  bool operator==(VarData& other) noexcept {
+    if (m_Type == FUND_TYPE)
+      return m_Val.m_FundData == other.m_Val.m_FundData;
+    return true;
+  }
 
   /// Builds a VarData object (and its children) based on the provided type.
   /// If `forceInit` is true, the constructed VarData will never be of
@@ -147,11 +153,25 @@ struct VarsData {
       : m_Data(std::move(other.m_Data)), m_Prev(other.m_Prev) {}
   VarsData& operator=(const VarsData& other) = delete;
   VarsData& operator=(VarsData&& other) noexcept {
-    if (&m_Data == &other.m_Data) {
+    if (&m_Data != &other.m_Data) {
       m_Data = std::move(other.m_Data);
       m_Prev = other.m_Prev;
     }
     return *this;
+  }
+
+  bool operator==(VarsData& other) noexcept {
+    for (auto& i : m_Data) {
+      auto it = other.m_Data.find(i.first);
+      if (!(it != other.m_Data.end() && i.second == it->second))
+        return false;
+    }
+    for (auto& i : other.m_Data) {
+      auto it = m_Data.find(i.first);
+      if (!(it != m_Data.end() && i.second == it->second))
+        return false;
+    }
+    return true;
   }
 
   using iterator = std::unordered_map<const clang::VarDecl*, VarData>::iterator;
