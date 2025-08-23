@@ -147,7 +147,7 @@ struct VarsData {
       : m_Data(std::move(other.m_Data)), m_Prev(other.m_Prev) {}
   VarsData& operator=(const VarsData& other) = delete;
   VarsData& operator=(VarsData&& other) noexcept {
-    if (&m_Data == &other.m_Data) {
+    if (&m_Data != &other.m_Data) {
       m_Data = std::move(other.m_Data);
       m_Prev = other.m_Prev;
     }
@@ -193,7 +193,7 @@ protected:
   /// Used to merge together VarData for one variable from two branches
   /// (e.g. after an if-else statements). Look at the Control Flow section for
   /// more information.
-  void merge(VarData& targetData, VarData& mergeData);
+  bool merge(VarData& targetData, VarData& mergeData);
   /// Creates VarData for a new VarDecl*.
   void addVar(const clang::VarDecl* VD, bool forceInit = false);
   /// Finds VD in the most recent block.
@@ -228,7 +228,7 @@ protected:
   /// (e.g. instance when merging if- and else- blocks).
   /// Note: The first predecessor (targetData->m_Prev) does NOT have
   /// to be merged to targetData.
-  void merge(VarsData* targetData, VarsData* mergeData);
+  bool merge(VarsData* targetData, VarsData* mergeData);
   /// Returns the VarsData of the CFG block being visited.
 
   VarsData& getCurBlockVarsData() { return *m_BlockData[m_CurBlockID]; }
