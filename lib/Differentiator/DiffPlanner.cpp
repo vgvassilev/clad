@@ -686,13 +686,17 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return found != m_UsefulRunInfo.UsefulDecls.end();
   }
 
+  bool DiffRequest::shouldHaveAdjoint(const Stmt* S) const {
+    if (!EnableVariedAnalysis)
+      return true;
+    auto found = m_ActivityRunInfo.VariedS.find(S);
+    return found != m_ActivityRunInfo.VariedS.end();
+  }
   bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
     if (!EnableVariedAnalysis)
       return true;
-    auto found = m_ActivityRunInfo.VariedDecls.find(VD);
-    return found != m_ActivityRunInfo.VariedDecls.end();
+    return getVariedDecls().find(VD) != getVariedDecls().end();
   }
-
   bool DiffRequest::isVaried(const Expr* E) const {
     // FIXME: We should consider removing pullback requests from the
     // diff graph.
@@ -702,13 +706,16 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     public:
       VariedChecker(const DiffRequest& DR) : m_Request(DR) {}
       bool isVariedE(const clang::Expr* E) {
+        auto j = m_Request.getVariedStmt().find(E);
+        if (j != m_Request.getVariedStmt().end())
+          return true;
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
         return !TraverseStmt(const_cast<clang::Expr*>(E));
       }
       bool VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
         if (!isa<VarDecl>(DRE->getDecl()))
           return true;
-        if (m_Request.shouldHaveAdjoint(cast<VarDecl>(DRE->getDecl())))
+        if (m_Request.shouldHaveAdjoint(DRE))
           return false;
         return true;
       }
@@ -1264,7 +1271,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // be removed once AA and TBR are completely reworked, with better
     // branch-merging.
     if (m_ParentReq)
-      for (auto decl : m_ParentReq->getVariedDecls())
+      for (const auto& decl : m_ParentReq->getVariedDecls())
         request.addVariedDecl(decl);
 
     llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
@@ -1308,8 +1315,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       if (m_TopMostReq->EnableVariedAnalysis) {
         TimedAnalysisRegion R("VA " + request.BaseFunctionName);
-        VariedAnalyzer analyzer(AnalysisDC.get(), request.getVariedDecls());
-        analyzer.Analyze(request.Function);
+        VariedAnalyzer analyzer(AnalysisDC.get(), request,
+                                request.getVariedStmt());
+        analyzer.Analyze();
       }
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
@@ -1321,7 +1329,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       m_AllAnalysisDC.push_back(std::move(AnalysisDC));
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
-      // Recurse into call graph.
+      //  Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
 
       if (requestTBR) {

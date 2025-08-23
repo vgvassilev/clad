@@ -1,18 +1,47 @@
 #include "ActivityAnalyzer.h"
+#include "AnalysisBase.h"
+
+#include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
+
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
+
+#include <memory>
+#include <set>
 
 using namespace clang;
 
 namespace clad {
 
-void VariedAnalyzer::Analyze(const FunctionDecl* FD) {
+void VariedAnalyzer::Analyze() {
   m_BlockData.resize(m_AnalysisDC->getCFG()->size());
   // Set current block ID to the ID of entry the block.
+
   CFGBlock& entry = m_AnalysisDC->getCFG()->getEntry();
   m_CurBlockID = entry.getBlockID();
-  m_BlockData[m_CurBlockID] = createNewVarsData({});
-  for (const VarDecl* i : m_VariedDecls)
-    m_BlockData[m_CurBlockID]->insert(i);
+
+  m_BlockData[m_CurBlockID] = std::make_unique<VarsData>();
+
+  for (const auto* i : m_DiffReq.getVariedDecls()) {
+    addVar(i, /*forceInit=*/true);
+    setIsRequired(getVarDataFromDecl(i));
+  }
+
+  auto paramsRef = m_DiffReq.Function->parameters();
+  // If parameter was not marked as varied, add it's VarData and mark
+  // non-varied.
+  for (const auto& par : paramsRef) {
+    if (m_DiffReq.getVariedDecls().find(par) ==
+        m_DiffReq.getVariedDecls().end()) {
+      addVar(par, /*forceInit=*/true);
+      setIsRequired(getVarDataFromDecl(par), /*isReq=*/false);
+    }
+  }
+
   // Add the entry block to the queue.
   m_CFGQueue.insert(m_CurBlockID);
 
@@ -21,20 +50,9 @@ void VariedAnalyzer::Analyze(const FunctionDecl* FD) {
     auto IDIter = std::prev(m_CFGQueue.end());
     m_CurBlockID = *IDIter;
     m_CFGQueue.erase(IDIter);
-    CFGBlock& nextBlock = *getCFGBlockByID(m_CurBlockID);
+    CFGBlock& nextBlock = *getCFGBlockByID(m_AnalysisDC, m_CurBlockID);
     AnalyzeCFGBlock(nextBlock);
   }
-}
-
-void mergeVarsData(std::set<const clang::VarDecl*>* targetData,
-                   std::set<const clang::VarDecl*>* mergeData) {
-  for (const clang::VarDecl* i : *mergeData)
-    targetData->insert(i);
-  *mergeData = *targetData;
-}
-
-CFGBlock* VariedAnalyzer::getCFGBlockByID(unsigned ID) {
-  return *(m_AnalysisDC->getCFG()->begin() + ID);
 }
 
 void VariedAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
@@ -54,67 +72,85 @@ void VariedAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
       continue;
     auto& succData = m_BlockData[succ->getBlockID()];
 
-    if (!succData)
-      succData = createNewVarsData(*m_BlockData[block.getBlockID()]);
-
-    bool shouldPushSucc = true;
-    if (succ->getBlockID() > block.getBlockID()) {
-      if (m_LoopMem == *m_BlockData[block.getBlockID()])
-        shouldPushSucc = false;
-
-      for (const VarDecl* i : *m_BlockData[block.getBlockID()])
-        m_LoopMem.insert(i);
+    // Create VarsData for the succ branch if it hasn't been done previously.
+    // If the successor doesn't have a VarsData, assign it and attach the
+    // current block as previous.
+    if (!succData) {
+      succData = std::make_unique<VarsData>();
+      succData->m_Prev = m_BlockData[block.getBlockID()].get();
     }
 
-    if (shouldPushSucc)
+    if (succ->getBlockID() > block.getBlockID()) {
+      if (merge(succData.get(), m_BlockData[block.getBlockID()].get()))
+        m_CFGQueue.insert(succ->getBlockID());
+    } else {
       m_CFGQueue.insert(succ->getBlockID());
-
-    mergeVarsData(succData.get(), m_BlockData[block.getBlockID()].get());
+      if (succData->m_Prev != m_BlockData[block.getBlockID()].get())
+        merge(succData.get(), m_BlockData[block.getBlockID()].get());
+    }
   }
-  // FIXME: Information about the varied variables is stored in the last block,
-  // so we should be able to get it form there
-  for (const VarDecl* i : *m_BlockData[block.getBlockID()])
-    m_VariedDecls.insert(i);
 }
 
-bool VariedAnalyzer::isVaried(const VarDecl* VD) const {
-  const VarsData& curBranch = getCurBlockVarsData();
-  return curBranch.find(VD) != curBranch.end();
+void VariedAnalyzer::setVaried(const clang::Expr* E, bool isVaried) {
+  llvm::SmallVector<ProfileID, 2> IDSequence;
+  const VarDecl* VD = nullptr;
+  bool sequenceFound = getIDSequence(E, VD, IDSequence);
+  std::set<const clang::VarDecl*> vars;
+  if (sequenceFound)
+    vars.insert(VD);
+  else if (isVaried)
+    getDependencySet(E, vars);
+  // Make sure the current branch has a copy of VarDecl for VD
+  auto& curBranch = getCurBlockVarsData();
+  for (const VarDecl* iterVD : vars) {
+    if (isVaried || sequenceFound) {
+      if (curBranch.find(iterVD) == curBranch.end()) {
+        if (VarData* data = getVarDataFromDecl(iterVD))
+          curBranch[iterVD] = data->copy();
+        // else
+        //   // If this variable was not found in predecessors, add it.
+        //   addVar(iterVD);
+      }
+
+      VarData* data = getVarDataFromDecl(iterVD);
+      setIsRequired(data, isVaried, IDSequence);
+    }
+  }
 }
 
-void VariedAnalyzer::copyVarToCurBlock(const clang::VarDecl* VD) {
-  VarsData& curBranch = getCurBlockVarsData();
-  curBranch.insert(VD);
-}
-
-bool VariedAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
+bool VariedAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
   Expr* L = BinOp->getLHS();
   Expr* R = BinOp->getRHS();
   const auto opCode = BinOp->getOpcode();
   if (BinOp->isAssignmentOp()) {
     m_Varied = false;
     TraverseStmt(R);
-    m_Marking = m_Varied;
+    m_Marking = true;
     TraverseStmt(L);
     m_Marking = false;
   } else if (opCode == BO_Add || opCode == BO_Sub || opCode == BO_Mul ||
              opCode == BO_Div) {
-    for (auto* subexpr : BinOp->children())
-      if (!isa<BinaryOperator>(subexpr))
-        TraverseStmt(subexpr);
+    TraverseStmt(L);
+    TraverseStmt(R);
   }
-  return true;
+  return false;
 }
 
-// add branching merging
-bool VariedAnalyzer::VisitConditionalOperator(ConditionalOperator* CO) {
+bool VariedAnalyzer::TraverseCompoundAssignOperator(
+    clang::CompoundAssignOperator* CAO) {
+  VariedAnalyzer::TraverseBinaryOperator(CAO);
+  return false;
+}
+
+bool VariedAnalyzer::TraverseConditionalOperator(ConditionalOperator* CO) {
   TraverseStmt(CO->getCond());
   TraverseStmt(CO->getTrueExpr());
   TraverseStmt(CO->getFalseExpr());
-  return true;
+  return false;
 }
 
-bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
+bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
+  bool hasVariedArg = false;
   FunctionDecl* FD = CE->getDirectCallee();
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
   if (noHiddenParam) {
@@ -124,8 +160,10 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
 
       QualType parType = FDparam[i]->getType();
       QualType innerMostType = parType;
+
       while (innerMostType->isPointerType())
         innerMostType = innerMostType->getPointeeType();
+      m_Varied = false;
       if ((utils::isArrayOrPointerType(parType) &&
            !innerMostType.isConstQualified()) ||
           (parType->isReferenceType() &&
@@ -136,57 +174,85 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
 
       TraverseStmt(arg);
 
-      if (m_Varied)
-        m_VariedDecls.insert(FDparam[i]);
+      if (m_Varied) {
+        markExpr(arg);
+        hasVariedArg = true;
+        m_DiffReq.addVariedDecl(FDparam[i]);
+      }
 
       m_Marking = false;
       m_Varied = false;
     }
   }
-  return true;
+
+  m_Varied = hasVariedArg;
+  return false;
 }
 
-bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
+bool VariedAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
   for (Decl* D : DS->decls()) {
-    QualType VDTy = cast<VarDecl>(D)->getType();
-    if (utils::isArrayOrPointerType(VDTy)) {
-      copyVarToCurBlock(cast<VarDecl>(D));
-      continue;
-    }
-    if (Expr* init = cast<VarDecl>(D)->getInit()) {
-      m_Varied = false;
-      TraverseStmt(init);
-      m_Marking = true;
-      if (m_Varied)
-        copyVarToCurBlock(cast<VarDecl>(D));
-      m_Marking = false;
+    if (auto* VD = dyn_cast<VarDecl>(D)) {
+      addVar(VD);
+      if (Expr* init = cast<VarDecl>(D)->getInit()) {
+        m_Varied = false;
+        m_Marking = false;
+        TraverseStmt(init);
+
+        auto* VDExpr = &getCurBlockVarsData()[VD];
+        QualType VDType = VD->getType();
+        // if the declared variable is ref type attach its VarData to the
+        // VarData of the RHS variable.
+        if (VDExpr->m_Type == VarData::REF_TYPE || VDType->isPointerType()) {
+          init = init->IgnoreParenCasts();
+          if (VDType->isPointerType()) {
+            // if (isa<CXXNewExpr>(init)) {
+            //   VDExpr->initializeAsArray(VDType);
+            //   return false;
+            // }
+            VDExpr->m_Type = VarData::REF_TYPE;
+          }
+          new (&VDExpr->m_Val.m_RefData)
+              std::unique_ptr<std::set<const VarDecl*>>(
+                  std::make_unique<std::set<const VarDecl*>>());
+          getDependencySet(init, *VDExpr->m_Val.m_RefData);
+        }
+        if (m_Varied) {
+          m_DiffReq.addVariedDecl(VD);
+          setIsRequired(getVarDataFromDecl(VD));
+        } else {
+          setIsRequired(getVarDataFromDecl(VD), /*isReq=*/false);
+        }
+      }
     }
   }
-  return true;
+  return false;
 }
 
-bool VariedAnalyzer::VisitUnaryOperator(UnaryOperator* UnOp) {
-  const auto opCode = UnOp->getOpcode();
+bool VariedAnalyzer::TraverseInitListExpr(clang::InitListExpr* ILE) {
+  for (auto* init : ILE->inits())
+    TraverseStmt(init);
+  return false;
+}
+
+bool VariedAnalyzer::TraverseUnaryOperator(UnaryOperator* UnOp) {
   Expr* E = UnOp->getSubExpr();
-  if (opCode == UO_AddrOf || opCode == UO_Deref) {
-    m_Varied = true;
-    m_Marking = true;
-  }
   TraverseStmt(E);
-  m_Marking = false;
-  return true;
+  return false;
 }
 
-bool VariedAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
-  auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
-  if (!VD)
-    return true;
+bool VariedAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
+  auto* VD = cast<VarDecl>(DRE->getDecl());
 
-  if (isVaried(VD))
-    m_Varied = true;
+  if (m_Varied && m_Marking) {
+    setVaried(DRE);
+    m_DiffReq.addVariedDecl(VD);
+    markExpr(DRE);
+  } else if (m_Marking)
+    setVaried(DRE, false);
 
-  if (m_Varied && m_Marking)
-    copyVarToCurBlock(VD);
-  return true;
+  if (VarData* data = getVarDataFromDecl(VD))
+    if (findReq(*data))
+      m_Varied = true;
+  return false;
 }
 } // namespace clad

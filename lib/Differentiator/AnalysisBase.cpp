@@ -25,6 +25,22 @@
 using namespace clang;
 
 namespace clad {
+
+void AnalysisBase::addVar(const clang::VarDecl* VD, bool forceInit) {
+  auto& curBranch = getCurBlockVarsData();
+  QualType varType;
+  if (const auto* arrayParam = dyn_cast<ParmVarDecl>(VD))
+    varType = arrayParam->getOriginalType();
+  else
+    varType = VD->getType();
+
+  // If varType represents auto or auto*, get the type of init.
+  if (utils::IsAutoOrAutoPtrType(varType))
+    varType = VD->getInit()->getType();
+
+  curBranch[VD] = VarData(varType, forceInit);
+}
+
 // NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
 VarData::VarData(QualType QT, bool forceInit) {
   QT = QT.getCanonicalType();
@@ -227,26 +243,34 @@ bool AnalysisBase::findReq(const Expr* E) {
   return false;
 }
 
-void AnalysisBase::merge(VarData& targetData, VarData& mergeData) {
+bool AnalysisBase::merge(VarData& targetData, VarData& mergeData) {
   if (targetData.m_Type == VarData::FUND_TYPE) {
+    bool oldTargetVal = targetData.m_Val.m_FundData;
     targetData.m_Val.m_FundData =
         targetData.m_Val.m_FundData || mergeData.m_Val.m_FundData;
+    return oldTargetVal != targetData.m_Val.m_FundData;
   } else if (targetData.m_Type == VarData::OBJ_TYPE) {
+    bool isMod = false;
     for (auto& pair : *targetData.m_Val.m_ArrData)
-      merge(pair.second, (*mergeData.m_Val.m_ArrData)[pair.first]);
+      isMod =
+          merge(pair.second, (*mergeData.m_Val.m_ArrData)[pair.first]) || isMod;
+    return isMod;
   } else if (targetData.m_Type == VarData::ARR_TYPE) {
+    bool isMod = false;
     // FIXME: Currently non-constant indices are not supported in merging.
     for (auto& pair : *targetData.m_Val.m_ArrData) {
       auto it = mergeData.m_Val.m_ArrData->find(pair.first);
       if (it != mergeData.m_Val.m_ArrData->end())
-        merge(pair.second, it->second);
+        isMod = merge(pair.second, it->second) || isMod;
     }
     for (auto& pair : *mergeData.m_Val.m_ArrData) {
       auto it = targetData.m_Val.m_ArrData->find(pair.first);
       if (it == mergeData.m_Val.m_ArrData->end())
         (*targetData.m_Val.m_ArrData)[pair.first] = pair.second.copy();
     }
+    return isMod;
   }
+  return false;
   // This might be useful in future if used to analyse pointers. However, for
   // now it's only used for references for which merging doesn't make sense.
   // else if (this.m_Type == VarData::REF_TYPE) {}
@@ -380,7 +404,8 @@ VarsData* AnalysisBase::findLowestCommonAncestor(VarsData* varsData1,
   }
 }
 
-void AnalysisBase::merge(VarsData* targetData, VarsData* mergeData) {
+bool AnalysisBase::merge(VarsData* targetData, VarsData* mergeData) {
+  bool isModified = false;
   auto* LCA = findLowestCommonAncestor(targetData, mergeData);
   auto collectedMergeData =
       collectDataFromPredecessors(mergeData, /*limit=*/LCA);
@@ -406,9 +431,10 @@ void AnalysisBase::merge(VarsData* targetData, VarsData* mergeData) {
 
     // If the variable was found, perform a merge.  Else, just copy it from
     // collectedMergeData.
-    if (found)
-      merge(*found, *pair.second);
-    else
+    if (found) {
+      if (merge(*found, *pair.second))
+        isModified = true;
+    } else
       (*targetData)[pair.first] = pair.second->copy();
   }
 
@@ -454,6 +480,7 @@ void AnalysisBase::merge(VarsData* targetData, VarsData* mergeData) {
       }
     }
   }
+  return isModified;
 }
 // NOLINTEND(cppcoreguidelines-pro-type-union-access)
 } // namespace clad
