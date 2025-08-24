@@ -33,3 +33,6 @@ comment:
 ignore:
   - test/*
   - test/**/*
+
+github_checks:
+  annotations: true # Deprecated but very useful
