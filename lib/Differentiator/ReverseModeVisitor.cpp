@@ -316,17 +316,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                                      DC, loc, DNI, dFnType);
     m_Derivative = result.first;
 
-    if (m_ExternalSource)
-      m_ExternalSource->ActBeforeCreatingDerivedFnScope();
-
     // Function declaration scope
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterCreatingDerivedFnScope();
 
     llvm::SmallVector<ParmVarDecl*, 8> params;
     BuildParams(params);
