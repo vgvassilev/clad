@@ -37,11 +37,6 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
 
-  // Check if the function is already declared as a custom derivative.
-  if (FunctionDecl* customDerivative =
-          m_Builder.LookupCustomDerivativeDecl(fnName, DC, fnType))
-    return DerivativeAndOverload{customDerivative, nullptr};
-
   m_Sema.CurContext = DC;
   SourceLocation validLoc{m_DiffReq->getLocation()};
   DeclWithContext fnBuildRes = m_Builder.cloneFunction(
