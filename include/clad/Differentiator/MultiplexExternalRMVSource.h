@@ -32,8 +32,6 @@ public:
       llvm::SmallVectorImpl<clang::QualType>& paramTypes) override;
   void ActAfterCreatingDerivedFnParams(
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) override;
-  void ActBeforeCreatingDerivedFnScope() override;
-  void ActAfterCreatingDerivedFnScope() override;
   void ActBeforeCreatingDerivedFnBodyScope() override;
   void ActOnStartOfDerivedFnBody(const DiffRequest& request) override;
   void ActOnEndOfDerivedFnBody() override;

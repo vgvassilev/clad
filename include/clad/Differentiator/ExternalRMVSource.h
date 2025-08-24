@@ -69,14 +69,6 @@ public:
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) {}
 
   /// This is called just before the scope is created for the derived
-  /// function.
-  virtual void ActBeforeCreatingDerivedFnScope() {}
-
-  /// This is called just after the scope for the derived function is
-  /// created.
-  virtual void ActAfterCreatingDerivedFnScope() {}
-
-  /// This is called just before the scope is created for the derived
   /// function body.
   virtual void ActBeforeCreatingDerivedFnBodyScope() {}
 
