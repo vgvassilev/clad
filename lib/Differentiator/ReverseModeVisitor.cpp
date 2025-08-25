@@ -332,9 +332,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     m_Derivative->setBody(nullptr);
 
     if (!m_DiffReq.DeclarationOnly) {
-      if (m_ExternalSource)
-        m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
-
       // Function body scope.
       beginScope(Scope::FnScope | Scope::DeclScope);
       m_DerivativeFnScope = getCurrentScope();

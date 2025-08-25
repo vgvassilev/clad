@@ -5,6 +5,12 @@
 
 #include "llvm/ADT/SmallVector.h"
 
+namespace clang {
+class CallExpr;
+class DeclRefExpr;
+class Expr;
+} // namespace clang
+
 namespace clad {
 struct DiffRequest;
 
@@ -32,7 +38,6 @@ public:
       llvm::SmallVectorImpl<clang::QualType>& paramTypes) override;
   void ActAfterCreatingDerivedFnParams(
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) override;
-  void ActBeforeCreatingDerivedFnBodyScope() override;
   void ActOnStartOfDerivedFnBody(const DiffRequest& request) override;
   void ActOnEndOfDerivedFnBody() override;
   void ActBeforeDifferentiatingStmtInVisitCompoundStmt() override;

@@ -68,10 +68,6 @@ public:
   virtual void ActAfterCreatingDerivedFnParams(
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) {}
 
-  /// This is called just before the scope is created for the derived
-  /// function body.
-  virtual void ActBeforeCreatingDerivedFnBodyScope() {}
-
   /// This is called at the beginning of the derived function body.
   /// \param request differentiation request
   virtual void ActOnStartOfDerivedFnBody(const DiffRequest& request) {}
