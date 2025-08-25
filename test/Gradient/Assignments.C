@@ -465,7 +465,6 @@ double f13(double x, double y) {
 }
 
 //CHECK:   void f13_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       double _t1 = y;
 //CHECK-NEXT:       double _t0 = (y = x);
 //CHECK-NEXT:       double _d_t = 0.;
 //CHECK-NEXT:       double t = x * _t0;
@@ -476,7 +475,6 @@ double f13(double x, double y) {
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_d_x += _d_t * _t0;
 //CHECK-NEXT:           *_d_y += x * _d_t;
-//CHECK-NEXT:           y = _t1;
 //CHECK-NEXT:           double _r_d0 = *_d_y;
 //CHECK-NEXT:           *_d_y = 0.;
 //CHECK-NEXT:           *_d_x += _r_d0;

@@ -134,16 +134,14 @@ double f_div3(double x, double y) {
 }
 
 //CHECK: void f_div3_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:     double _t1 = x;
-//CHECK-NEXT:     double _t2 = (x = y);
+//CHECK-NEXT:     double _t1 = (x = y);
 //CHECK-NEXT:     double _t0 = (y * y);
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_x += 1 / _t0;
-//CHECK-NEXT:         x = _t1;
 //CHECK-NEXT:         double _r_d0 = *_d_x;
 //CHECK-NEXT:         *_d_x = 0.;
 //CHECK-NEXT:         *_d_y += _r_d0;
-//CHECK-NEXT:         double _r0 = 1 * -(_t2 / (_t0 * _t0));
+//CHECK-NEXT:         double _r0 = 1 * -(_t1 / (_t0 * _t0));
 //CHECK-NEXT:         *_d_y += _r0 * y;
 //CHECK-NEXT:         *_d_y += y * _r0;
 //CHECK-NEXT:     }
@@ -695,7 +693,6 @@ void fn_increment_in_return_grad(double i, double j, double *_d_i, double *_d_j)
 // CHECK-NEXT:     double _t0 = ++i;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1 * temp;
-// CHECK-NEXT:         --i;
 // CHECK-NEXT:         _d_temp += _t0 * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_i += _d_temp;
