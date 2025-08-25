@@ -354,42 +354,32 @@ int main() {
 // CHECK-NEXT:     std::vector<double> vec;
 // CHECK-NEXT:     std::vector<double> _d_vec = {};
 // CHECK-NEXT:     clad::zero_init(_d_vec);
-// CHECK-NEXT:     std::vector<double> _t0 = vec;
 // CHECK-NEXT:     {{.*}}class_functions::push_back_reverse_forw(&vec, u, &_d_vec, *_d_u);
-// CHECK-NEXT:     std::vector<double> _t1 = vec;
 // CHECK-NEXT:     {{.*}}class_functions::push_back_reverse_forw(&vec, v, &_d_vec, *_d_v);
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t2 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 0, &_d_vec, {{0U|0UL|0}});
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t3 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 1, &_d_vec, {{0U|0UL|0}});
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t0 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 0, &_d_vec, {{0U|0UL|0}});
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t1 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 1, &_d_vec, {{0U|0UL|0}});
 // CHECK-NEXT:     {
 // CHECK-NEXT:         size_type _r0 = {{0U|0UL}};
 // CHECK-NEXT:         {{.*}}class_functions::operator_subscript_pullback(&vec, 0, 1, &_d_vec, &_r0);
 // CHECK-NEXT:         size_type _r1 = {{0U|0UL}};
 // CHECK-NEXT:         {{.*}}class_functions::operator_subscript_pullback(&vec, 1, 1, &_d_vec, &_r1);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         vec = _t1;
-// CHECK-NEXT:         {{.*}}class_functions::push_back_pullback(&vec, v, &_d_vec, &*_d_v);
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         vec = _t0;
-// CHECK-NEXT:         {{.*}}class_functions::push_back_pullback(&vec, u, &_d_vec, &*_d_u);
-// CHECK-NEXT:     }
+// CHECK-NEXT:     {{.*}}class_functions::push_back_pullback(&vec, v, &_d_vec, &*_d_v);
+// CHECK-NEXT:     {{.*}}class_functions::push_back_pullback(&vec, u, &_d_vec, &*_d_u);
 // CHECK-NEXT: }
 
 // CHECK-NEXT: void fn2_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     std::vector<double> vec;
 // CHECK-NEXT:     std::vector<double> _d_vec = {};
 // CHECK-NEXT:     clad::zero_init(_d_vec);
-// CHECK-NEXT:     std::vector<double> _t0 = vec;
 // CHECK-NEXT:     {{.*}}class_functions::push_back_reverse_forw(&vec, u, &_d_vec, *_d_u);
-// CHECK-NEXT:     std::vector<double> _t1 = vec;
 // CHECK-NEXT:     {{.*}}class_functions::push_back_reverse_forw(&vec, v, &_d_vec, *_d_v);
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t2 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 0, &_d_vec, {{0U|0UL|0}});
-// CHECK-NEXT:     double &_d_ref = _t2.adjoint;
-// CHECK-NEXT:     double &ref = _t2.value;
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t0 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 0, &_d_vec, {{0U|0UL|0}});
+// CHECK-NEXT:     double &_d_ref = _t0.adjoint;
+// CHECK-NEXT:     double &ref = _t0.value;
 // CHECK-NEXT:     ref += u;
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t3 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 0, &_d_vec, {{0U|0UL|0}});
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t4 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 1, &_d_vec, {{0U|0UL|0}});
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t1 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 0, &_d_vec, {{0U|0UL|0}});
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t2 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 1, &_d_vec, {{0U|0UL|0}});
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}} _r1 = {{0U|0UL}};
 // CHECK-NEXT:         {{.*}}class_functions::operator_subscript_pullback(&vec, 0, 1, &_d_vec, &_r1);
@@ -404,14 +394,8 @@ int main() {
 // CHECK-NEXT:         {{.*}} _r0 = {{0U|0UL}};
 // CHECK-NEXT:         {{.*}}class_functions::operator_subscript_pullback(&vec, 0, 0., &_d_vec, &_r0);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         vec = _t1;
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::push_back_pullback(&vec, v, &_d_vec, &*_d_v);
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         vec = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::push_back_pullback(&vec, u, &_d_vec, &*_d_u);
-// CHECK-NEXT:     }
+// CHECK-NEXT:     clad::custom_derivatives::class_functions::push_back_pullback(&vec, v, &_d_vec, &*_d_v);
+// CHECK-NEXT:     clad::custom_derivatives::class_functions::push_back_pullback(&vec, u, &_d_vec, &*_d_u);
 // CHECK-NEXT: }
 
 // CHECK: void fn3_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -585,67 +569,55 @@ int main() {
 // CHECK-NEXT:          std::vector<double> a;
 // CHECK-NEXT:          std::vector<double> _d_a = {};
 // CHECK-NEXT:          clad::zero_init(_d_a);
-// CHECK-NEXT:          std::vector<double> _t0 = a;
 // CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, x, &_d_a, *_d_x);
-// CHECK-NEXT:          std::vector<double> _t1 = a;
 // CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, x, &_d_a, *_d_x);
-// CHECK-NEXT:          clad::ValueAndAdjoint<double &, double &> _t2 = {{.*}}operator_subscript_reverse_forw(&a, 1, &_d_a, {{0U|0UL|0}});
-// CHECK-NEXT:          double _t3 = _t2.value;
-// CHECK-NEXT:          _t2.value = x * x;
+// CHECK-NEXT:          clad::ValueAndAdjoint<double &, double &> _t0 = {{.*}}operator_subscript_reverse_forw(&a, 1, &_d_a, {{0U|0UL|0}});
+// CHECK-NEXT:          double _t1 = _t0.value;
+// CHECK-NEXT:          _t0.value = x * x;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              {{.*}} _r1 = {{0U|0UL}};
 // CHECK-NEXT:              {{.*}}operator_subscript_pullback(&a, 1, 1, &_d_a, &_r1);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:              _t2.value = _t3;
-// CHECK-NEXT:              double _r_d0 = _t2.adjoint;
-// CHECK-NEXT:              _t2.adjoint = 0.;
+// CHECK-NEXT:              _t0.value = _t1;
+// CHECK-NEXT:              double _r_d0 = _t0.adjoint;
+// CHECK-NEXT:              _t0.adjoint = 0.;
 // CHECK-NEXT:              *_d_x += _r_d0 * x;
 // CHECK-NEXT:              *_d_x += x * _r_d0;
 // CHECK-NEXT:              {{.*}} _r0 = {{0U|0UL}};
 // CHECK-NEXT:              {{.*}}operator_subscript_pullback(&a, 1, 0., &_d_a, &_r0);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          {
-// CHECK-NEXT:              a = _t1;
-// CHECK-NEXT:              {{.*}}push_back_pullback(&a, x, &_d_a, &*_d_x);
-// CHECK-NEXT:          }
-// CHECK-NEXT:          {
-// CHECK-NEXT:              a = _t0;
-// CHECK-NEXT:              {{.*}}push_back_pullback(&a, x, &_d_a, &*_d_x);
-// CHECK-NEXT:          }
+// CHECK-NEXT:          {{.*}}push_back_pullback(&a, x, &_d_a, &*_d_x);
+// CHECK-NEXT:          {{.*}}push_back_pullback(&a, x, &_d_a, &*_d_x);
 // CHECK-NEXT:      }
 
 // CHECK:          void fn6_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:        size_t _d_i = {{0U|0UL}};
 // CHECK-NEXT:        size_t i = {{0U|0UL}};
-// CHECK-NEXT:        clad::tape<clad::ValueAndAdjoint<double &, double &> > _t2 = {};
+// CHECK-NEXT:        clad::tape<clad::ValueAndAdjoint<double &, double &> > _t1 = {};
 // CHECK-NEXT:        std::array<double, 3> _d_a = {{.*}};
 // CHECK-NEXT:        std::array<double, 3> a;
-// CHECK-NEXT:        std::array<double, 3> _t0 = a;
 // CHECK-NEXT:        {{.*}}fill_reverse_forw(&a, x, &_d_a, *_d_x);
 // CHECK-NEXT:        double _d_res = 0.;
 // CHECK-NEXT:        double res = 0;
-// CHECK-NEXT:        unsigned {{long|int}} _t1 = {{0U|0UL}};
+// CHECK-NEXT:        unsigned {{long|int}} _t0 = {{0U|0UL}};
 // CHECK-NEXT:        for (i = 0; i < a.size(); ++i) {
-// CHECK-NEXT:            _t1++;
-// CHECK-NEXT:            clad::push(_t2, {{.*}}at_reverse_forw(&a, i, &_d_a, {{0U|0UL|0}}));
-// CHECK-NEXT:            res += clad::back(_t2).value;
+// CHECK-NEXT:            _t0++;
+// CHECK-NEXT:            clad::push(_t1, {{.*}}at_reverse_forw(&a, i, &_d_a, {{0U|0UL|0}}));
+// CHECK-NEXT:            res += clad::back(_t1).value;
 // CHECK-NEXT:        }
 // CHECK-NEXT:        _d_res += 1;
-// CHECK-NEXT:        for (; _t1; _t1--) {
+// CHECK-NEXT:        for (; _t0; _t0--) {
 // CHECK-NEXT:            --i;
 // CHECK-NEXT:            {
 // CHECK-NEXT:                double _r_d0 = _d_res;
 // CHECK-NEXT:                size_t _r0 = {{0U|0UL}};
 // CHECK-NEXT:                {{.*}}at_pullback(&a, i, _r_d0, &_d_a, &_r0);
 // CHECK-NEXT:                _d_i += _r0;
-// CHECK-NEXT:                clad::pop(_t2);
+// CHECK-NEXT:                clad::pop(_t1);
 // CHECK-NEXT:            }
 // CHECK-NEXT:        }
-// CHECK-NEXT:        {
-// CHECK-NEXT:            a = _t0;
-// CHECK-NEXT:            {{.*}}fill_pullback(&a, x, &_d_a, &*_d_x);
-// CHECK-NEXT:        }
+// CHECK-NEXT:        {{.*}}fill_pullback(&a, x, &_d_a, &*_d_x);
 // CHECK-NEXT: }
 
 // CHECK:     void fn7_grad(double x, double y, double *_d_x, double *_d_y) {
@@ -726,10 +698,9 @@ int main() {
 // CHECK:     void fn8_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:         std::array<double, 50> _d_a = {{.*}};
 // CHECK-NEXT:         std::array<double, 50> a;
-// CHECK-NEXT:         std::array<double, 50> _t0 = a;
 // CHECK-NEXT:         {{.*}}fill_reverse_forw(&a, y + x + x, &_d_a, 0.);
-// CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t1 = {{.*}}operator_subscript_reverse_forw(&a, 49, &_d_a, {{0U|0UL|0}});
-// CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t2 = {{.*}}operator_subscript_reverse_forw(&a, 3, &_d_a, {{0U|0UL|0}});
+// CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t0 = {{.*}}operator_subscript_reverse_forw(&a, 49, &_d_a, {{0U|0UL|0}});
+// CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t1 = {{.*}}operator_subscript_reverse_forw(&a, 3, &_d_a, {{0U|0UL|0}});
 // CHECK-NEXT:         {
 // CHECK-NEXT:             {{.*}}size_type _r1 = {{0U|0UL}};
 // CHECK-NEXT:             {{.*}}operator_subscript_pullback(&a, 49, 1, &_d_a, &_r1);
@@ -738,7 +709,6 @@ int main() {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             {{.*}} _r0 = 0.;
-// CHECK-NEXT:             a = _t0;
 // CHECK-NEXT:             {{.*}}fill_pullback(&a, y + x + x, &_d_a, &_r0);
 // CHECK-NEXT:             *_d_y += _r0;
 // CHECK-NEXT:             *_d_x += _r0;
@@ -769,34 +739,32 @@ int main() {
 // CHECK:      void fn10_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:          size_t _d_i = {{0U|0UL|0}};
 // CHECK-NEXT:          size_t i = {{0U|0UL|0}};
-// CHECK-NEXT:          {{.*}}tape<{{.*}}vector<double> > _t1 = {};
 // CHECK-NEXT:          size_t _d_i0 = {{0U|0UL|0}};
 // CHECK-NEXT:          size_t i0 = {{0U|0UL|0}};
-// CHECK-NEXT:          clad::tape<clad::ValueAndAdjoint<double &, double &> > _t3 = {};
+// CHECK-NEXT:          clad::tape<clad::ValueAndAdjoint<double &, double &> > _t2 = {};
 // CHECK-NEXT:          {{.*}}vector<double> v;
 // CHECK-NEXT:          {{.*}}vector<double> _d_v = {};
 // CHECK-NEXT:          clad::zero_init(_d_v);
 // CHECK-NEXT:          {{.*}} _t0 = {{0U|0UL|0}};
 // CHECK-NEXT:          for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:              _t0++;
-// CHECK-NEXT:              {{.*}}push(_t1, v);
 // CHECK-NEXT:              {{.*}}push_back_reverse_forw(&v, x, &_d_v, *_d_x);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          double _d_res = 0.;
 // CHECK-NEXT:          double res = 0;
-// CHECK-NEXT:          {{.*}} _t2 = {{0U|0UL|0}};
+// CHECK-NEXT:          {{.*}} _t1 = {{0U|0UL|0}};
 // CHECK-NEXT:          for (i0 = 0; i0 < v.size(); ++i0) {
-// CHECK-NEXT:              _t2++;
-// CHECK-NEXT:              clad::push(_t3, {{.*}}at_reverse_forw(&v, i0, &_d_v, {{0U|0UL|0}}));
-// CHECK-NEXT:              res += clad::back(_t3).value;
+// CHECK-NEXT:              _t1++;
+// CHECK-NEXT:              clad::push(_t2, {{.*}}at_reverse_forw(&v, i0, &_d_v, {{0U|0UL|0}}));
+// CHECK-NEXT:              res += clad::back(_t2).value;
 // CHECK-NEXT:          }
-// CHECK-NEXT:          {{.*}}vector<double> _t4 = v;
+// CHECK-NEXT:          {{.*}}vector<double> _t3 = v;
 // CHECK-NEXT:          v.assign(3, 0);
-// CHECK-NEXT:          {{.*}}vector<double> _t5 = v;
+// CHECK-NEXT:          {{.*}}vector<double> _t4 = v;
 // CHECK-NEXT:          v.assign(2, y);
-// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t6 = {{.*}}operator_subscript_reverse_forw(&v, 0, &_d_v, {{0U|0UL|0}});
-// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t7 = {{.*}}operator_subscript_reverse_forw(&v, 1, &_d_v, {{0U|0UL|0}});
-// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t8 = {{.*}}operator_subscript_reverse_forw(&v, 2, &_d_v, {{0U|0UL|0}});
+// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t5 = {{.*}}operator_subscript_reverse_forw(&v, 0, &_d_v, {{0U|0UL|0}});
+// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t6 = {{.*}}operator_subscript_reverse_forw(&v, 1, &_d_v, {{0U|0UL|0}});
+// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t7 = {{.*}}operator_subscript_reverse_forw(&v, 2, &_d_v, {{0U|0UL|0}});
 // CHECK-NEXT:          {
 // CHECK-NEXT:              _d_res += 1;
 // CHECK-NEXT:              {{.*}}size_type _r4 = {{0U|0UL|0}};
@@ -808,31 +776,27 @@ int main() {
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
 // CHECK-NEXT:              {{.*}}size_type _r3 = {{0U|0UL|0}};
-// CHECK-NEXT:              v = _t5;
+// CHECK-NEXT:              v = _t4;
 // CHECK-NEXT:              {{.*}}assign_pullback(&v, 2, y, &_d_v, &_r3, &*_d_y);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
 // CHECK-NEXT:              {{.*}}size_type _r1 = {{0U|0UL|0}};
 // CHECK-NEXT:              {{.*}}value_type _r2 = 0.;
-// CHECK-NEXT:              v = _t4;
+// CHECK-NEXT:              v = _t3;
 // CHECK-NEXT:              {{.*}}assign_pullback(&v, 3, 0, &_d_v, &_r1, &_r2);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          for (; _t2; _t2--) {
+// CHECK-NEXT:          for (; _t1; _t1--) {
 // CHECK-NEXT:              --i0;
 // CHECK-NEXT:              {
 // CHECK-NEXT:                  double _r_d0 = _d_res;
 // CHECK-NEXT:                  size_t _r0 = {{0U|0UL|0}};
 // CHECK-NEXT:                  {{.*}}at_pullback(&v, i0, _r_d0, &_d_v, &_r0);
 // CHECK-NEXT:                  _d_i0 += _r0;
-// CHECK-NEXT:                  {{.*}}pop(_t3);
+// CHECK-NEXT:                  {{.*}}pop(_t2);
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
 // CHECK-NEXT:          for (; _t0; _t0--) {
-// CHECK-NEXT:              {
-// CHECK-NEXT:                  v = {{.*}}back(_t1);
-// CHECK-NEXT:                  {{.*}}push_back_pullback(&v, x, &_d_v, &*_d_x);
-// CHECK-NEXT:                  {{.*}}pop(_t1);
-// CHECK-NEXT:              }
+// CHECK-NEXT:              {{.*}}push_back_pullback(&v, x, &_d_v, &*_d_x);
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 
@@ -883,19 +847,18 @@ int main() {
 // CHECK-NEXT:          std::vector<double> a;
 // CHECK-NEXT:          std::vector<double> _d_a = {};
 // CHECK-NEXT:          clad::zero_init(_d_a);
-// CHECK-NEXT:          std::vector<double> _t0 = a;
 // CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, 0{{.*}}, &_d_a, 0.);
-// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t1 = {{.*}}operator_subscript_reverse_forw(&a, 0, &_d_a, {{0U|0UL|0}});
-// CHECK-NEXT:          double _t2 = _t1.value;
-// CHECK-NEXT:          _t1.value = x * x;
+// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t0 = {{.*}}operator_subscript_reverse_forw(&a, 0, &_d_a, {{0U|0UL|0}});
+// CHECK-NEXT:          double _t1 = _t0.value;
+// CHECK-NEXT:          _t0.value = x * x;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              {{.*}}size_type _r2 = 0{{.*}};
 // CHECK-NEXT:              {{.*}}operator_subscript_pullback(&a, 0, 1, &_d_a, &_r2);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:              _t1.value = _t2;
-// CHECK-NEXT:              double _r_d0 = _t1.adjoint;
-// CHECK-NEXT:              _t1.adjoint = 0{{.*}};
+// CHECK-NEXT:              _t0.value = _t1;
+// CHECK-NEXT:              double _r_d0 = _t0.adjoint;
+// CHECK-NEXT:              _t0.adjoint = 0{{.*}};
 // CHECK-NEXT:              *_d_x += _r_d0 * x;
 // CHECK-NEXT:              *_d_x += x * _r_d0;
 // CHECK-NEXT:              {{.*}}size_type _r1 = 0{{.*}};
@@ -903,7 +866,6 @@ int main() {
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
 // CHECK-NEXT:              {{.*}}value_type _r0 = 0.;
-// CHECK-NEXT:              a = _t0;
 // CHECK-NEXT:              {{.*}}push_back_pullback(&a, 0{{.*}}, &_d_a, &_r0);
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }

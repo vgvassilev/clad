@@ -104,8 +104,13 @@ struct DifferentiationOptions {
     DerivedFnCollector m_DFC;
     DynamicGraph<DiffRequest> m_DiffRequestGraph;
     OwnedAnalysisContexts m_AllAnalysisDC;
-    std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>
-        m_ModifiedParams;
+    struct TBRAnalysisInfo {
+      std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>
+          m_ModifiedParams;
+      std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>
+          m_LinearFunctions;
+    } m_TBRAnalysisInfo;
+
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,

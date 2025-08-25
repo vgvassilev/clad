@@ -63,8 +63,12 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   // Make sure the current branch has a copy of VarDecl for VD
   auto& curBranch = getCurBlockVarsData();
   for (const VarDecl* iterVD : vars) {
-    if (m_ModifiedParams && !isReq && (!iterVD || isa<ParmVarDecl>(iterVD)))
-      (*m_ModifiedParams)[m_Function].insert(iterVD);
+    if (m_ModifiedParams && (!iterVD || isa<ParmVarDecl>(iterVD))) {
+      if (!isReq)
+        (*m_ModifiedParams)[m_Function].insert(iterVD);
+      else if (m_ModeStack.back() & Mode::kMarkingMode)
+        (*m_UsedParams)[m_Function].insert(iterVD);
+    }
     if (isReq || sequenceFound) {
       if (curBranch.find(iterVD) == curBranch.end()) {
         if (VarData* data = getVarDataFromDecl(iterVD))
@@ -94,8 +98,11 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
 
   const FunctionDecl* FD = request.Function;
   m_Function = FD;
+  // FIXME: Perform TBR consistently and always pass this info.
   if (m_ModifiedParams)
     (*m_ModifiedParams)[FD];
+  if (m_UsedParams)
+    (*m_UsedParams)[FD];
   // If we are analysing a non-static method, add a VarData for 'this' pointer
   // (it is represented with nullptr).
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
@@ -402,7 +409,17 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
     bool passByRef = false;
     if (par)
       passByRef = utils::isMemoryType(par->getType());
+    bool paramUnused = false;
+    if (shouldAnalyzeParams) {
+      auto& usedParams = (*m_UsedParams)[FD];
+      if (usedParams.find(par) == usedParams.end())
+        paramUnused = true;
+    }
+    if (paramUnused)
+      setMode(0);
     TraverseStmt(arg);
+    if (paramUnused)
+      resetMode();
     if (passByRef) {
       bool paramModified = true;
       if (shouldAnalyzeParams) {
@@ -410,7 +427,7 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
         if (modifiedParams.find(par) == modifiedParams.end())
           paramModified = false;
       }
-      if (paramModified) {
+      if (paramModified && findReq(arg)) {
         setIsRequired(arg, /*isReq=*/false);
         markLocation(arg);
       }
@@ -428,14 +445,24 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   }
 
   if (base) {
+    bool paramUnused = false;
+    if (shouldAnalyzeParams) {
+      auto& usedParams = (*m_UsedParams)[FD];
+      if (usedParams.find(nullptr) == usedParams.end())
+        paramUnused = true;
+    }
+    if (paramUnused)
+      setMode(0);
     TraverseStmt(base);
+    if (paramUnused)
+      resetMode();
     bool paramModified = true;
     if (shouldAnalyzeParams) {
       auto& modifiedParams = (*m_ModifiedParams)[FD];
       if (modifiedParams.find(nullptr) == modifiedParams.end())
         paramModified = false;
     }
-    if (paramModified) {
+    if (paramModified && findReq(base)) {
       markLocation(base);
       setIsRequired(base, /*isReq=*/false);
     }
@@ -452,6 +479,13 @@ bool TBRAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
 
 bool TBRAnalyzer::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE) {
   TBRAnalyzer::TraverseCallExpr(CE);
+  return false;
+}
+
+bool TBRAnalyzer::TraverseReturnStmt(clang::ReturnStmt* RS) {
+  setMode(Mode::kMarkingMode);
+  TraverseStmt(RS->getRetValue());
+  resetMode();
   return false;
 }
 
