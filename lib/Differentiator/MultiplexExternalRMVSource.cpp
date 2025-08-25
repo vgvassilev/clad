@@ -61,12 +61,6 @@ void MultiplexExternalRMVSource::ActAfterCreatingDerivedFnParams(
   }
 }
 
-void MultiplexExternalRMVSource::ActBeforeCreatingDerivedFnBodyScope() {
-  for (auto source : m_Sources) {
-    source->ActBeforeCreatingDerivedFnBodyScope();
-  }
-}
-
 void MultiplexExternalRMVSource::ActOnStartOfDerivedFnBody(
     const DiffRequest& request) {
   for (auto source : m_Sources) {
