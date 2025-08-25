@@ -310,7 +310,7 @@ double func6(double x) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned long _t0 = 0UL;
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 1; i < 10; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
