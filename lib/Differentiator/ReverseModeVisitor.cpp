@@ -1985,6 +1985,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Derivative was not found, request differentiation
       if (!pullbackFD) {
         if (m_ExternalSource) {
+          if (!asGrad) {
+            asGrad = true;
+            pullbackRequest.Mode = DiffMode::pullback;
+            pullbackCallArgs = DerivedCallArgs;
+            pullbackCallArgs.insert(pullbackCallArgs.begin() + CE->getNumArgs(),
+                                    pullback);
+            for (const ParmVarDecl* PVD : FD->parameters())
+              pullbackRequest.DVI.push_back(PVD);
+          }
           m_ExternalSource->ActBeforeDifferentiatingCallExpr(
               pullbackCallArgs, PreCallStmts, dfdx());
           pullbackFD =
