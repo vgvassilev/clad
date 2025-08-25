@@ -414,7 +414,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             utils::GetNonConstValueType(paramTy); // Type(paramTy, m_Sema);
         Expr* initExpr = nullptr;
         bool isDirectInit = false;
-        if (clad::utils::isCladTorchTensor(VDDerivedType)) {
+        if (clad::utils::isTensorLike(m_Sema, VDDerivedType)) {
           ParmVarDecl* newFuncParam = nullptr;
           for (auto* p : m_Derivative->parameters()) {
             if (p->getName() == param->getName()) {
@@ -2743,7 +2743,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs() &&
         utils::isCopyable(VDType->getAsCXXRecordDecl());
 
-    if (clad::utils::isCladTorchTensor(VD->getType())) {
+    if (clad::utils::isTensorLike(m_Sema, VD->getType())) {
       isConstructInit = true;
       shouldCopyInitialize = true;
     }
@@ -2896,11 +2896,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (initDiff.getStmt_dx()) {
         SetDeclInit(VDDerived, initDiff.getExpr_dx());
       } else if (shouldCopyInitialize) {
-        Expr* copyExpr = nullptr;
-        if (utils::isCladTorchTensor(VD->getType()))
-          copyExpr = initDiff.getExpr();
-        else
-          copyExpr = BuildDeclRef(VDClone);
+        Expr* copyExpr = BuildDeclRef(VDClone);
         QualType origTy = VDClone->getType();
         if (isInsideLoop) {
           StmtDiff pushPop = StoreAndRestore(
@@ -3227,7 +3223,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         bool copyInit =
             CE && (CE->getNumArgs() == 0 ||
                    isa<DeclRefExpr>(CE->getArg(0)->IgnoreImplicit()));
-        if (utils::isCladTorchTensor(CE->getType()))
+        if (CE && utils::isTensorLike(m_Sema, CE->getType()))
           copyInit = true;
         if (copyInit) {
           std::array<Expr*, 1> arg{BuildDeclRef(vDecl)};

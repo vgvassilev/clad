@@ -1467,20 +1467,69 @@ namespace clad {
       return false;
     }
 
-    bool isCladTorchTensor(const clang::QualType T) {
-      if (T.getAsString() == "std::vector<Tensor<float> >")
-        return true;
-      if (const auto* CXXRD = T->getAsCXXRecordDecl()) {
-        if (CXXRD->getNameAsString() == "Tensor") {
-          if (const auto* NS = clang::dyn_cast<clang::NamespaceDecl>(
-                  CXXRD->getDeclContext())) {
-            auto ns_name = NS->getNameAsString();
-            return ns_name == "cladtorch" || ns_name == "torch" ||
-                   ns_name == "at";
+    bool isTensorLike(clang::Sema& SemaRef, clang::QualType T) {
+      // Handle std::vector as a special case:
+      // We check if the type is a vector, and if so, recursively check its
+      // template argument.
+      if (const auto* TST = T->getAs<clang::TemplateSpecializationType>()) {
+        if (TST->getTemplateName()
+                .getAsTemplateDecl()
+                ->getQualifiedNameAsString() == "std::vector") {
+          auto args = TST->template_arguments();
+          if (args.size() > 0) {
+            // Recursively check the first template argument.
+            const clang::TemplateArgument& Arg = args[0];
+            if (Arg.getKind() == clang::TemplateArgument::Type)
+              return isTensorLike(SemaRef, Arg.getAsType());
           }
         }
       }
-      return false;
+
+      const auto* CXXRD = T->getAsCXXRecordDecl();
+      // Not a class, struct, or union, so it can't be a tensor.
+      if (!CXXRD)
+        return false;
+
+      // Find our special `tensor_like` namespace.
+      // This looks for `clad::tensor_like`.
+      clang::NamespaceDecl* CladNS =
+          utils::LookupNSD(SemaRef, "clad", /*shouldExist*/ true);
+      if (!CladNS)
+        return false;
+      clang::NamespaceDecl* TensorLikeNS = utils::LookupNSD(
+          SemaRef, "tensor_like", /*shouldExist*/ false, CladNS);
+      if (!TensorLikeNS)
+        return false;
+
+      // Get the original type's name and its enclosing namespace.
+      clang::IdentifierInfo* TypeName = CXXRD->getIdentifier();
+      if (!TypeName)
+        return false;
+
+      auto* OriginalDC = CXXRD->getDeclContext();
+      if (!clang::isa<clang::NamespaceDecl>(OriginalDC)) {
+        // The type is not in a namespace (e.g., it's a nested class or in
+        // global scope). You could extend this logic if needed, but for now,
+        // we'll assume tensor types are in a namespace like `at` or
+        // `cladtorch`.
+        return false;
+      }
+      auto* OriginalNS = clang::cast<clang::NamespaceDecl>(OriginalDC);
+      clang::IdentifierInfo* OriginalNSName = OriginalNS->getIdentifier();
+      if (!OriginalNSName)
+        return false;
+
+      clang::NamespaceDecl* FoundMirroredNS =
+          utils::LookupNSD(SemaRef, OriginalNSName->getName(),
+                           /*shouldExist=*/false, TensorLikeNS);
+      if (!FoundMirroredNS)
+        return false;
+
+      clang::LookupResult R(SemaRef, clang::DeclarationName(TypeName),
+                            clang::SourceLocation(),
+                            clang::Sema::LookupOrdinaryName);
+
+      return SemaRef.LookupQualifiedName(R, FoundMirroredNS) && !R.empty();
     }
   } // namespace utils
 } // namespace clad
