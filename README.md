@@ -257,15 +257,19 @@ Try out a Clad [tutorial](https://compiler-research.org/tutorials/clad_jupyter/)
 #### Using as a plugin for Clang
 Since Clad is a Clang plugin, it must be properly attached when Clang compiler is invoked. First, the plugin must be built to get `libclad.so` (or `.dylib`).
 
-To compile `SourceFile.cpp` with Clad enabled, use the following commands:
+To compile `SourceFile.cpp` with Clad enabled, use the following commands (note that Clad requires C++14 features):
 
-- Clang++: `clang++ -std=c++11 -I /full/path/to/include/ -fplugin=/full/path/to/lib/clad.so Sourcefile.cpp`
-- Clang: `clang -x c++ -std=c++11 -I /full/path/to/include/ -fplugin=/full/path/to/lib/clad.so SourceFile.cpp -lstdc++ -lm`
+- Clang++: `clang++ -std=c++14 -I /full/path/to/include/ -fplugin=/full/path/to/lib/clad.so Sourcefile.cpp`
+- Clang: `clang -x c++ -std=c++14 -I /full/path/to/include/ -fplugin=/full/path/to/lib/clad.so SourceFile.cpp -lstdc++ -lm`
 
 Clad also provides certain flags to save and print the generated derivative code:
 
-- To save the Clad generated derivative code to `Derivatives.cpp`: `-Xclang -plugin-arg-clad -Xclang -fgenerate-source-file`
-- To print the Clad generated derivative: `-Xclang -plugin-arg-clad -Xclang -fdump-derived-fn`
+- To save the Clad generated derivative code to `Derivatives.cpp`:
+  - `-fplugin-arg-clad--fgenerate-source-file` (Clang >=14)
+  - `-Xclang -plugin-arg-clad -Xclang -fgenerate-source-file` (Clang <14)
+- To print the Clad generated derivative:
+  - `-fplugin-arg-clad--fdump-derived-fn` (Clang >=14)
+  - `-Xclang -plugin-arg-clad -Xclang -fdump-derived-fn` (Clang <14)
 
 ## How to install
 At the moment, LLVM/Clang 8.0.x - 18.1.x are supported.

@@ -316,17 +316,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                                      DC, loc, DNI, dFnType);
     m_Derivative = result.first;
 
-    if (m_ExternalSource)
-      m_ExternalSource->ActBeforeCreatingDerivedFnScope();
-
     // Function declaration scope
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterCreatingDerivedFnScope();
 
     llvm::SmallVector<ParmVarDecl*, 8> params;
     BuildParams(params);
@@ -338,9 +332,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     m_Derivative->setBody(nullptr);
 
     if (!m_DiffReq.DeclarationOnly) {
-      if (m_ExternalSource)
-        m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
-
       // Function body scope.
       beginScope(Scope::FnScope | Scope::DeclScope);
       m_DerivativeFnScope = getCurrentScope();
@@ -1849,7 +1840,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       QualType paramTy = PVD->getType();
       bool passByRef = paramTy->isLValueReferenceType() &&
                        !paramTy.getNonReferenceType().isConstQualified();
-      if (passByRef) {
+      if (passByRef && m_DiffReq.shouldBeRecorded(arg)) {
         StmtDiff pushPop = StoreAndRestore(argDiff.getExpr());
         addToCurrentBlock(pushPop.getStmt());
         PreCallStmts.push_back(pushPop.getStmt_dx());
@@ -1895,7 +1886,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (baseTy->isPointerType())
           baseTy = baseTy->getPointeeType();
         CXXRecordDecl* baseRD = baseTy->getAsCXXRecordDecl();
-        if (isPassedByRef && !MD->isConst() && utils::isCopyable(baseRD)) {
+        if (isPassedByRef && !MD->isConst() && utils::isCopyable(baseRD) &&
+            m_DiffReq.shouldBeRecorded(baseOriginalE)) {
           Expr* baseDiffStore =
               GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
           Expr* assign = BuildOp(BO_Assign, baseDiff.getExpr(), baseDiffStore);
@@ -2010,6 +2002,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Derivative was not found, request differentiation
       if (!pullbackFD) {
         if (m_ExternalSource) {
+          if (!asGrad) {
+            asGrad = true;
+            pullbackRequest.Mode = DiffMode::pullback;
+            pullbackCallArgs = DerivedCallArgs;
+            pullbackCallArgs.insert(pullbackCallArgs.begin() + CE->getNumArgs(),
+                                    pullback);
+            for (const ParmVarDecl* PVD : FD->parameters())
+              pullbackRequest.DVI.push_back(PVD);
+          }
           m_ExternalSource->ActBeforeDifferentiatingCallExpr(
               pullbackCallArgs, PreCallStmts, dfdx());
           pullbackFD =

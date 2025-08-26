@@ -964,7 +964,7 @@ namespace clad {
       T = T.getNonReferenceType();
       if (T->isEnumeralType())
         return false;
-      if (T->isRealType() || T->isStructureOrClassType())
+      if (T->isRealType() || T->isStructureOrClassType() || T->isUnionType())
         return true;
       if (origType->isPointerType() && T->isVoidType())
         return true;

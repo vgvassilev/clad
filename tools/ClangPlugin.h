@@ -20,11 +20,14 @@
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Sema/SemaConsumer.h"
+#include <clang/AST/DeclBase.h>
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
+#include <map>
+#include <set>
 #include <string>
 
 namespace clang {
@@ -101,6 +104,8 @@ struct DifferentiationOptions {
     DerivedFnCollector m_DFC;
     DynamicGraph<DiffRequest> m_DiffRequestGraph;
     OwnedAnalysisContexts m_AllAnalysisDC;
+    std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>
+        m_ModifiedParams;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,

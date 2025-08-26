@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cassert>
+#include <memory>
+#include <set>
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -26,8 +28,8 @@
 using namespace clang;
 
 namespace clad {
-
-void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
+// NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
+void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceInit) {
   auto& curBranch = getCurBlockVarsData();
 
   QualType varType;
@@ -40,8 +42,7 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
   if (utils::IsAutoOrAutoPtrType(varType))
     varType = VD->getInit()->getType();
 
-  curBranch[VD] =
-      VarData(varType, m_AnalysisDC->getASTContext(), forceNonRefType);
+  curBranch[VD] = VarData(varType, forceInit);
 }
 
 void TBRAnalyzer::markLocation(const clang::Stmt* S) {
@@ -50,21 +51,35 @@ void TBRAnalyzer::markLocation(const clang::Stmt* S) {
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   llvm::SmallVector<ProfileID, 2> IDSequence;
-  const VarDecl* VD = getIDSequence(E, IDSequence);
+  const VarDecl* VD = nullptr;
+  bool sequenceFound = getIDSequence(E, VD, IDSequence);
+  std::set<const clang::VarDecl*> vars;
+  if (sequenceFound)
+    vars.insert(VD);
+  // If it wasn't possible to determine the exact VarData, we have to set all
+  // dependencies to tbr.
+  else if (isReq || m_ModifiedParams)
+    getDependencySet(E, vars);
   // Make sure the current branch has a copy of VarDecl for VD
   auto& curBranch = getCurBlockVarsData();
-  if (curBranch.find(VD) == curBranch.end()) {
-    if (VarData* data = getVarDataFromDecl(VD))
-      curBranch[VD] = data->copy();
-    else
-      // If this variable was not found in predecessors, add it.
-      addVar(VD);
-  }
+  for (const VarDecl* iterVD : vars) {
+    if (m_ModifiedParams && !isReq && (!iterVD || isa<ParmVarDecl>(iterVD)))
+      (*m_ModifiedParams)[m_Function].insert(iterVD);
+    if (isReq || sequenceFound) {
+      if (curBranch.find(iterVD) == curBranch.end()) {
+        if (VarData* data = getVarDataFromDecl(iterVD))
+          curBranch[iterVD] = data->copy();
+        else
+          // If this variable was not found in predecessors, add it.
+          addVar(iterVD);
+      }
 
-  if (!isReq ||
-      (m_ModeStack.back() == (Mode::kMarkingMode | Mode::kNonLinearMode))) {
-    VarData* data = getVarDataFromDecl(VD);
-    AnalysisBase::setIsRequired(data, isReq, IDSequence);
+      if (!isReq ||
+          (m_ModeStack.back() == (Mode::kMarkingMode | Mode::kNonLinearMode))) {
+        VarData* data = getVarDataFromDecl(iterVD);
+        AnalysisBase::setIsRequired(data, isReq, IDSequence);
+      }
+    }
   }
 }
 
@@ -78,12 +93,15 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
   m_BlockData[m_CurBlockID] = std::unique_ptr<VarsData>(new VarsData());
 
   const FunctionDecl* FD = request.Function;
+  m_Function = FD;
+  if (m_ModifiedParams)
+    (*m_ModifiedParams)[FD];
   // If we are analysing a non-static method, add a VarData for 'this' pointer
   // (it is represented with nullptr).
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
   if (MD && !MD->isStatic()) {
     VarData& thisData = getCurBlockVarsData()[nullptr];
-    thisData = VarData(MD->getThisType(), m_AnalysisDC->getASTContext());
+    thisData = VarData(MD->getThisType(), /*forceInit=*/true);
     // We have to set all pointer/reference parameters to tbr
     // since method pullbacks aren't supposed to change objects.
     // constructor pullbacks don't take `this` as a parameter
@@ -92,7 +110,7 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
   }
   auto paramsRef = FD->parameters();
   for (std::size_t i = 0; i < FD->getNumParams(); ++i)
-    addVar(paramsRef[i], /*forceNonRefType=*/true);
+    addVar(paramsRef[i], /*forceInit=*/true);
   // Add the entry block to the queue.
   m_CFGQueue.insert(m_CurBlockID);
 
@@ -199,21 +217,23 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         TraverseStmt(init);
         resetMode();
 
-        auto& VDExpr = getCurBlockVarsData()[VD];
+        auto* VDExpr = &getCurBlockVarsData()[VD];
+        QualType VDType = VD->getType();
         // if the declared variable is ref type attach its VarData to the
         // VarData of the RHS variable.
-        llvm::SmallVector<Expr*, 4> ExprsToStore;
-        utils::GetInnermostReturnExpr(init, ExprsToStore);
-        if (VDExpr.m_Type == VarData::REF_TYPE) {
-          // We only consider references that point to one
-          // compile-time defined object.
-          if (ExprsToStore.size() == 1)
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-            VDExpr.m_Val.m_RefData = ExprsToStore[0];
-          else
-            // If we don't know what this points to, mark undefined.
-            // FIXME: we should mark all vars on the RHS undefined too.
-            VDExpr.m_Type = VarData::UNDEFINED;
+        if (VDExpr->m_Type == VarData::REF_TYPE || VDType->isPointerType()) {
+          init = init->IgnoreParenCasts();
+          if (VDType->isPointerType()) {
+            if (isa<CXXNewExpr>(init)) {
+              VDExpr->initializeAsArray(VDType);
+              return false;
+            }
+            VDExpr->m_Type = VarData::REF_TYPE;
+          }
+          new (&VDExpr->m_Val.m_RefData)
+              std::unique_ptr<std::set<const VarDecl*>>(
+                  std::make_unique<std::set<const VarDecl*>>());
+          getDependencySet(init, *VDExpr->m_Val.m_RefData);
         }
       }
     }
@@ -309,21 +329,13 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
       TraverseStmt(R);
       resetMode();
     }
-    llvm::SmallVector<Expr*, 4> ExprsToStore;
-    utils::GetInnermostReturnExpr(L, ExprsToStore);
-    bool hasToBeSetReq = false;
-    for (const auto* innerExpr : ExprsToStore) {
-      // If at least one of ExprsToStore has to be stored,
-      // mark L as useful to store.
-      if (VarData* data = getVarDataFromExpr(innerExpr))
-        hasToBeSetReq = hasToBeSetReq || findReq(*data);
-      // Set them to not required to store because the values were changed.
-      // (if some value was not changed, this could only happen if it was
-      // already not required to store).
-      setIsRequired(innerExpr, /*isReq=*/false);
-    }
-    if (hasToBeSetReq)
+    // If L should be recorded, mark its location.
+    if (findReq(L))
       markLocation(L);
+    // Set them to not required to store because the values were changed.
+    // (if some value was not changed, this could only happen if it was
+    // already not required to store).
+    setIsRequired(L, /*isReq=*/false);
   } else if (opCode == BO_Comma) {
     setMode(0);
     TraverseStmt(L);
@@ -349,19 +361,15 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
   TraverseStmt(E);
   if (opCode == UO_PostInc || opCode == UO_PostDec || opCode == UO_PreInc ||
       opCode == UO_PreDec) {
-    // FIXME: this doesn't support all the possible references
-    // Mark corresponding SourceLocation as required/not required to be
-    // stored for all expressions that could be used in this operation.
-    llvm::SmallVector<Expr*, 4> ExprsToStore;
-    utils::GetInnermostReturnExpr(E, ExprsToStore);
-    for (const auto* innerExpr : ExprsToStore) {
-      // If at least one of ExprsToStore has to be stored,
-      // mark L as useful to store.
-      if (VarData* data = getVarDataFromExpr(innerExpr))
-        if (findReq(*data)) {
-          markLocation(E);
-          break;
-        }
+    // If E should be recorded, mark its location.
+    if (findReq(E))
+      markLocation(E);
+    if (m_ModifiedParams) {
+      std::set<const clang::VarDecl*> vars;
+      getDependencySet(E, vars);
+      for (const VarDecl* VD : vars)
+        if (!VD || isa<ParmVarDecl>(VD))
+          (*m_ModifiedParams)[m_Function].insert(VD);
     }
   }
   // FIXME: Ideally, `__real` and `__imag` operators should be treated as member
@@ -376,33 +384,63 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   // variables passed by value/reference are used/used and changed. Analysis
   // could proceed to the function to analyse data flow inside it.
   FunctionDecl* FD = CE->getDirectCallee();
-  bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
+  // Use information about parameters assuming the analysis was performed.
+  // FIXME: The analysis doesn't work with implicit functions because they don't
+  // have source locations, which TBR relies on. We need to move away from using
+  // them.
+  bool shouldAnalyzeParams =
+      m_ModifiedParams && !m_Function->isImplicit() &&
+      (m_ModifiedParams->find(FD) != m_ModifiedParams->end());
+  bool hasHiddenParam = (CE->getNumArgs() != FD->getNumParams());
+  std::size_t maxParamIdx = FD->getNumParams() - 1;
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
-  for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
+  for (std::size_t i = hasHiddenParam, e = CE->getNumArgs(); i != e; ++i) {
     clang::Expr* arg = CE->getArg(i);
-    QualType paramTy;
-    if (noHiddenParam)
-      paramTy = FD->getParamDecl(i)->getType();
-    else if (i != 0)
-      paramTy = FD->getParamDecl(i - 1)->getType();
-
+    const ParmVarDecl* par = nullptr;
+    std::size_t paramIdx = std::min(i - hasHiddenParam, maxParamIdx);
+    par = FD->getParamDecl(paramIdx);
     bool passByRef = false;
-    if (!paramTy.isNull())
-      passByRef = paramTy->isLValueReferenceType() &&
-                  !paramTy.getNonReferenceType().isConstQualified();
-    setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
+    if (par)
+      passByRef = utils::isMemoryType(par->getType());
     TraverseStmt(arg);
-    resetMode();
-    const auto* B = arg->IgnoreParenImpCasts();
-    // FIXME: this supports only DeclRefExpr
     if (passByRef) {
-      // Mark SourceLocation as required to store for ref-type arguments.
-      if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B)) {
-        m_TBRLocs.insert(arg->getBeginLoc());
+      bool paramModified = true;
+      if (shouldAnalyzeParams) {
+        auto& modifiedParams = (*m_ModifiedParams)[FD];
+        if (modifiedParams.find(par) == modifiedParams.end())
+          paramModified = false;
+      }
+      if (paramModified) {
         setIsRequired(arg, /*isReq=*/false);
+        markLocation(arg);
       }
     }
   }
+
+  auto* MD = dyn_cast<CXXMethodDecl>(FD);
+  Expr* base = nullptr;
+  if (MD && MD->isInstance() && !MD->isConst()) {
+    if (auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
+      base = MCE->getImplicitObjectArgument();
+    else if (auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
+      base = OCE->getArg(0);
+    base = base->IgnoreParenCasts();
+  }
+
+  if (base) {
+    TraverseStmt(base);
+    bool paramModified = true;
+    if (shouldAnalyzeParams) {
+      auto& modifiedParams = (*m_ModifiedParams)[FD];
+      if (modifiedParams.find(nullptr) == modifiedParams.end())
+        paramModified = false;
+    }
+    if (paramModified) {
+      markLocation(base);
+      setIsRequired(base, /*isReq=*/false);
+    }
+  }
+
   resetMode();
   return false;
 }
@@ -467,5 +505,5 @@ bool TBRAnalyzer::TraverseInitListExpr(clang::InitListExpr* ILE) {
   resetMode();
   return false;
 }
-
+// NOLINTEND(cppcoreguidelines-pro-type-union-access)
 } // end namespace clad
