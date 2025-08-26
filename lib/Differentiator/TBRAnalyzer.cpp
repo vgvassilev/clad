@@ -10,6 +10,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/LLVM.h"
 
@@ -279,11 +280,24 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
                          R, dummy, m_AnalysisDC->getASTContext()) &&
                      !clad_compat::Expr_EvaluateAsConstantExpr(
                          L, dummy, m_AnalysisDC->getASTContext());
+    bool LHSIsStored =
+        !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
+    bool RHSIsStored =
+        !utils::ShouldRecompute(R, m_AnalysisDC->getASTContext());
     if (nonLinear)
       startNonLinearMode();
 
+    if (LHSIsStored)
+      setMode(0);
     TraverseStmt(L);
+    if (LHSIsStored)
+      resetMode();
+
+    if (RHSIsStored)
+      setMode(0);
     TraverseStmt(R);
+    if (RHSIsStored)
+      resetMode();
 
     if (nonLinear)
       resetMode();
@@ -293,14 +307,19 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     Expr::EvalResult dummy;
     bool nonLinear = !clad_compat::Expr_EvaluateAsConstantExpr(
         R, dummy, m_AnalysisDC->getASTContext());
-    if (nonLinear)
+    bool LHSIsStored =
+        !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
+    if (LHSIsStored)
+      setMode(0);
+    else if (nonLinear)
       startNonLinearMode();
-
     TraverseStmt(L);
-    TraverseStmt(R);
-
-    if (nonLinear)
+    if (nonLinear || LHSIsStored)
       resetMode();
+
+    setMode(0);
+    TraverseStmt(R);
+    resetMode();
   } else if (BinOp->isAssignmentOp()) {
     if (opCode == BO_Assign || opCode == BO_AddAssign ||
         opCode == BO_SubAssign) {
@@ -457,6 +476,13 @@ bool TBRAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
 
 bool TBRAnalyzer::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE) {
   TBRAnalyzer::TraverseCallExpr(CE);
+  return false;
+}
+
+bool TBRAnalyzer::TraverseReturnStmt(clang::ReturnStmt* RS) {
+  setMode(Mode::kMarkingMode);
+  TraverseStmt(RS->getRetValue());
+  resetMode();
   return false;
 }
 

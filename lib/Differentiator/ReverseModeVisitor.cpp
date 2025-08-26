@@ -2387,7 +2387,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // in the reverse sweep and in RMV::VisitBinaryOperator
       // the order is not reversed.
       beginBlock(direction::reverse);
-      if (!ShouldRecompute(LStored.getExpr()))
+      if (!utils::ShouldRecompute(LStored.getExpr(), m_Context))
         LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
                                     /*force=*/true);
       Stmt* LPop = endBlock(direction::reverse);
@@ -2418,7 +2418,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // in the reverse sweep and in RMV::VisitBinaryOperator
       // the order is not reversed.
       beginBlock(direction::reverse);
-      if (!ShouldRecompute(LStored.getExpr()))
+      if (!utils::ShouldRecompute(LStored.getExpr(), m_Context))
         LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
                                     /*force=*/true);
       Stmt* LPop = endBlock(direction::reverse);
@@ -3312,28 +3312,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return Visit(EWC->getSubExpr(), dfdx());
   }
 
-  /// Called in ShouldRecompute. In CUDA, to access a current thread/block id
-  /// we use functions that do not change the state of any variable, since no
-  /// point to store the value.
-  static bool isCUDABuiltInIndex(const Expr* E) {
-    const clang::Expr* B = E->IgnoreImplicit();
-    if (const auto* pseudoE = llvm::dyn_cast<PseudoObjectExpr>(B)) {
-      if (const auto* opaqueE =
-              llvm::dyn_cast<OpaqueValueExpr>(pseudoE->getSemanticExpr(0))) {
-        const Expr* innerE = opaqueE->getSourceExpr()->IgnoreImplicit();
-        QualType innerT = innerE->getType();
-        if (innerT.isConstQualified())
-          return true;
-      }
-    }
-    return false;
-  }
-
-  bool ReverseModeVisitor::ShouldRecompute(const Expr* E) {
-    return !(utils::ContainsFunctionCalls(E) || E->HasSideEffects(m_Context)) ||
-           isCUDABuiltInIndex(E);
-  }
-
   bool ReverseModeVisitor::UsefulToStoreGlobal(Expr* E) {
     if (!E)
       return false;
@@ -3571,7 +3549,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                 /*isInsideLoop=*/false,
                                 /*isFnScope=*/false};
     }
-    if (!forceStore && ShouldRecompute(E)) {
+    if (!forceStore && utils::ShouldRecompute(E, m_Context)) {
       // The value of the literal has no. It's given a very particular value for
       // easier debugging.
       Expr* PH = ConstantFolder::synthesizeLiteral(E->getType(), m_Context,
