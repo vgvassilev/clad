@@ -726,14 +726,13 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      double res = 0;
 // CHECK-NEXT:      A _d_a = {0.};
 // CHECK-NEXT:      A a;
-// CHECK-NEXT:      A _t0 = a;
 // CHECK-NEXT:      a.setData(u);
 // CHECK-NEXT:      res += a.data * v;
-// CHECK-NEXT:      A _t1 = a;
+// CHECK-NEXT:      A _t0 = a;
 // CHECK-NEXT:      a.increment();
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          a = _t1;
+// CHECK-NEXT:          a = _t0;
 // CHECK-NEXT:          a.increment_pullback(&_d_a);
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
@@ -743,7 +742,6 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          a = _t0;
 // CHECK-NEXT:          a.setData_pullback(u, &_d_a, &_r0);
 // CHECK-NEXT:          *_d_u += _r0;
 // CHECK-NEXT:      }

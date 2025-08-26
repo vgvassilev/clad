@@ -241,13 +241,12 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT: }
 
 // CHECK: void fn6_grad(dcomplex c, double i, dcomplex *_d_c, double *_d_i) {
-// CHECK-NEXT:     dcomplex _t0 = c;
 // CHECK-NEXT:     c.real(5 * i);
-// CHECK-NEXT:     double _t1 = c.imag();
+// CHECK-NEXT:     double _t0 = c.imag();
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = c.real() + 3 * _t1 + 6 * i;
-// CHECK-NEXT:     double _t2 = c.real();
-// CHECK-NEXT:     res += 4 * _t2;
+// CHECK-NEXT:     double res = c.real() + 3 * _t0 + 6 * i;
+// CHECK-NEXT:     double _t1 = c.real();
+// CHECK-NEXT:     res += 4 * _t1;
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_res;
@@ -260,7 +259,6 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         c = _t0;
 // CHECK-NEXT:         c.real_pullback(5 * i, &(*_d_c), &_r0);
 // CHECK-NEXT:         *_d_i += 5 * _r0;
 // CHECK-NEXT:     }
@@ -273,16 +271,14 @@ double fn7(dcomplex c1, dcomplex c2) {
 
 // CHECK: void fn7_grad(dcomplex c1, dcomplex c2, dcomplex *_d_c1, dcomplex *_d_c2) {
 // CHECK-NEXT:     double _t0 = c2.real();
-// CHECK-NEXT:     dcomplex _t1 = c1;
 // CHECK-NEXT:     c1.real(c2.imag() + 5 * _t0);
-// CHECK-NEXT:     double _t2 = c1.imag();
+// CHECK-NEXT:     double _t1 = c1.imag();
 // CHECK-NEXT:     {
 // CHECK-NEXT:         c1.real_pullback(1, &(*_d_c1));
 // CHECK-NEXT:         c1.imag_pullback(3 * 1, &(*_d_c1));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         c1 = _t1;
 // CHECK-NEXT:         c1.real_pullback(c2.imag() + 5 * _t0, &(*_d_c1), &_r0);
 // CHECK-NEXT:         c2.imag_pullback(_r0, &(*_d_c2));
 // CHECK-NEXT:         c2.real_pullback(5 * _r0, &(*_d_c2));
@@ -314,16 +310,14 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT: }
 
 // CHECK: void fn8_grad(Tangent t, dcomplex c, Tangent *_d_t, dcomplex *_d_c) {
-// CHECK-NEXT:     Tangent _t0 = t;
 // CHECK-NEXT:     t.updateTo(c.real());
-// CHECK-NEXT:     Tangent _t1 = t;
+// CHECK-NEXT:     Tangent _t0 = t;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         t = _t1;
+// CHECK-NEXT:         t = _t0;
 // CHECK-NEXT:         sum_pullback(t, 1, &(*_d_t));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         t = _t0;
 // CHECK-NEXT:         t.updateTo_pullback(c.real(), &(*_d_t), &_r0);
 // CHECK-NEXT:         c.real_pullback(_r0, &(*_d_c));
 // CHECK-NEXT:     }
