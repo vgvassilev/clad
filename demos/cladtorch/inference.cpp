@@ -64,10 +64,7 @@ int main() {
                         (end.tv_nsec - start.tv_nsec) / 1e6;
     std::cerr << "[step " << t << ", " << time_taken << "ms] ";
 
-    if (tokenizer.is_initialized())
-      tokenizer.safe_print(next_token);
-    else
-      std::cout << next_token << " ";
+    tokenizer.safe_print(next_token);
     std::cout << std::flush;
   }
   // clock_gettime(CLOCK_MONOTONIC, &end);
