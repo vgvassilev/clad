@@ -110,6 +110,7 @@ public:
   bool TraverseDeclStmt(clang::DeclStmt* DS);
   bool TraverseInitListExpr(clang::InitListExpr* ILE);
   bool TraverseMemberExpr(clang::MemberExpr* ME);
+  bool TraverseReturnStmt(clang::ReturnStmt* RS);
   bool TraverseUnaryOperator(clang::UnaryOperator* UnOp);
 };
 
