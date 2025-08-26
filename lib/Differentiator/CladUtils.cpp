@@ -1476,7 +1476,7 @@ namespace clad {
                 .getAsTemplateDecl()
                 ->getQualifiedNameAsString() == "std::vector") {
           auto args = TST->template_arguments();
-          if (args.size() > 0) {
+          if (!args.empty()) {
             // Recursively check the first template argument.
             const clang::TemplateArgument& Arg = args[0];
             if (Arg.getKind() == clang::TemplateArgument::Type)
@@ -1490,12 +1490,10 @@ namespace clad {
       if (!CXXRD)
         return false;
 
-      // Find our special `tensor_like` namespace.
+      // Find the special `tensor_like` namespace.
       // This looks for `clad::tensor_like`.
       clang::NamespaceDecl* CladNS =
           utils::LookupNSD(SemaRef, "clad", /*shouldExist*/ true);
-      if (!CladNS)
-        return false;
       clang::NamespaceDecl* TensorLikeNS = utils::LookupNSD(
           SemaRef, "tensor_like", /*shouldExist*/ false, CladNS);
       if (!TensorLikeNS)
@@ -1506,7 +1504,7 @@ namespace clad {
       if (!TypeName)
         return false;
 
-      auto* OriginalDC = CXXRD->getDeclContext();
+      const auto* OriginalDC = CXXRD->getDeclContext();
       if (!clang::isa<clang::NamespaceDecl>(OriginalDC)) {
         // The type is not in a namespace (e.g., it's a nested class or in
         // global scope). You could extend this logic if needed, but for now,
@@ -1514,7 +1512,7 @@ namespace clad {
         // `cladtorch`.
         return false;
       }
-      auto* OriginalNS = clang::cast<clang::NamespaceDecl>(OriginalDC);
+      const auto* OriginalNS = clang::cast<clang::NamespaceDecl>(OriginalDC);
       clang::IdentifierInfo* OriginalNSName = OriginalNS->getIdentifier();
       if (!OriginalNSName)
         return false;
