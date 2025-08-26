@@ -167,11 +167,16 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
 
   llvm::SmallVector<ParmVarDecl*, 16> params;
   SetupDerivativeParameters(params);
-  derivedFD->setParams(params);
 
-  derivedFD->setBody(nullptr);
+  m_Derivative->setParams(params);
+  m_Derivative->setBody(nullptr);
+
+  m_Sema.PopFunctionScopeInfo();
+  m_Sema.PopDeclContext();
 
   if (!m_DiffReq.DeclarationOnly) {
+    m_Sema.ActOnStartOfFunctionDef(getCurrentScope(), m_Derivative);
+
     // Function body scope
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
@@ -190,8 +195,14 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
         addToCurrentBlock(S);
     else
       addToCurrentBlock(BodyDiff);
-    Stmt* derivativeBody = endBlock();
-    derivedFD->setBody(derivativeBody);
+    Stmt* fnBody = endBlock();
+    // FIXME: Enable this when we vgvassilev/clad#367 (removing goto stmts).
+    // // If ActOnFinishFunctionBody should pop the current DeclContext.
+    // bool IsInstantiation = false;
+    // m_Sema.ActOnFinishFunctionBody(m_Derivative, fnBody, IsInstantiation);
+    m_Derivative->setBody(fnBody);
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
     endScope(); // Function body scope
   }
 
@@ -216,8 +227,6 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
     }
   }
 
-  m_Sema.PopFunctionScopeInfo();
-  m_Sema.PopDeclContext();
   endScope(); // Function decl scope
 
   return DerivativeAndOverload{result.first,
