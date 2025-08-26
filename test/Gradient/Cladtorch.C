@@ -45,13 +45,11 @@ float fn1(const cladtorch::Tensor& t, const cladtorch::Tensor& u, other_struct o
 // CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> v{u, b};
 // CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> _d_v(v);
 // CHECK-NEXT:     clad::zero_init(_d_v);
-// CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> _t0 = v;
-// CHECK-NEXT:     clad::ValueAndAdjoint<Tensor &, Tensor &> _t1 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&v, 1, &_d_v, 0UL);
+// CHECK-NEXT:     clad::ValueAndAdjoint<Tensor &, Tensor &> _t0 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&v, 1, &_d_v, 0UL);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         size_type _r1 = 0UL;
-// CHECK-NEXT:         v = _t0;
 // CHECK-NEXT:         clad::custom_derivatives::class_functions::operator_subscript_pullback(&v, 1, {}, &_d_v, &_r1);
-// CHECK-NEXT:         _t1.adjoint.data += 1;
+// CHECK-NEXT:         _t0.adjoint.data += 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         clad::array<Tensor> _r0 = 2UL;
