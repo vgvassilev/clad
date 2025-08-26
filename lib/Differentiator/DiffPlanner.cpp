@@ -236,14 +236,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     CXXScopeSpec CSS;
     utils::BuildNNS(SemaRef, replacementFD->getDeclContext(), CSS,
                     /*addGlobalNS=*/true);
-    // Expr* Arg = SemaRef.BuildDeclRefExpr(replacementFD,
-    // replacementFD->getType(),
-    //                                             VK, noLoc, &CSS);
-    Expr* Arg = DeclRefExpr::Create(
-        C, CSS.getWithLocInContext(C), noLoc, replacementFD,
-        /*RefersToEnclosingVariableOrCapture=*/false,
-        replacementFD->getNameInfo(), replacementFD->getType(), VK);
-
+    Expr* Arg = SemaRef.BuildDeclRefExpr(
+        replacementFD, replacementFD->getType(), VK, noLoc, &CSS);
     // Add the "&" operator
     Arg = SemaRef
               .BuildUnaryOp(/*Scope=*/nullptr, noLoc,

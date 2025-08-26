@@ -319,6 +319,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Function declaration scope
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
+
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
 
@@ -331,7 +332,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     m_Derivative->setParams(params);
     m_Derivative->setBody(nullptr);
 
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+
     if (!m_DiffReq.DeclarationOnly) {
+      m_Sema.ActOnStartOfFunctionDef(getCurrentScope(), m_Derivative);
+
       // Function body scope.
       beginScope(Scope::FnScope | Scope::DeclScope);
       m_DerivativeFnScope = getCurrentScope();
@@ -348,12 +354,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       Stmt* fnBody = endBlock();
       m_Derivative->setBody(fnBody);
+      // FIXME: Enable this when we vgvassilev/clad#367 (removing goto stmts).
+      // // If ActOnFinishFunctionBody should pop the current DeclContext.
+      // bool IsInstantiation = false;
+      // m_Sema.ActOnFinishFunctionBody(m_Derivative, fnBody, IsInstantiation);
 
+      m_Sema.PopFunctionScopeInfo();
+      m_Sema.PopDeclContext();
       endScope(); // Function body scope
     }
 
-    m_Sema.PopFunctionScopeInfo();
-    m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
     if (auto* RD = dyn_cast<RecordDecl>(m_Derivative->getDeclContext())) {
