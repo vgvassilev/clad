@@ -637,7 +637,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         Function->isDefined() && m_AnalysisDC) {
       TimedAnalysisRegion R("TBR " + BaseFunctionName);
       TBRAnalyzer analyzer(m_AnalysisDC, getToBeRecorded(),
-                           &getModifiedParams());
+                           &getModifiedParams(), &getUsedParams());
       analyzer.Analyze(*this);
     }
     auto found = m_TbrRunInfo.ToBeRecorded.find(S->getBeginLoc());
@@ -1295,10 +1295,12 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       if (requestTBR) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
         ParamInfo& modifiedParams = request.getModifiedParams();
+        ParamInfo& usedParams = request.getUsedParams();
         TBRAnalyzer analyzer(request.m_AnalysisDC, request.getToBeRecorded(),
-                             &modifiedParams);
+                             &modifiedParams, &usedParams);
         analyzer.Analyze(request);
         Saved.get()->addFunctionModifiedParams(FD, modifiedParams[FD]);
+        Saved.get()->addFunctionUsedParams(FD, usedParams[FD]);
       }
     }
 

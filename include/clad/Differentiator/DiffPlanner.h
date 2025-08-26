@@ -49,6 +49,7 @@ private:
   mutable struct TbrRunInfo {
     std::set<clang::SourceLocation> ToBeRecorded;
     ParamInfo m_ModifiedParams;
+    ParamInfo m_UsedParams;
     bool HasAnalysisRun = false;
   } m_TbrRunInfo;
 
@@ -199,6 +200,11 @@ public:
   void addFunctionModifiedParams(const clang::FunctionDecl* FD,
                                  const ParamSet& params) {
     m_TbrRunInfo.m_ModifiedParams[FD] = params;
+  }
+  ParamInfo& getUsedParams() const { return m_TbrRunInfo.m_UsedParams; }
+  void addFunctionUsedParams(const clang::FunctionDecl* FD,
+                             const ParamSet& params) {
+    m_TbrRunInfo.m_UsedParams[FD] = params;
   }
   void addVariedDecl(const clang::VarDecl* init) {
     m_ActivityRunInfo.VariedDecls.insert(init);

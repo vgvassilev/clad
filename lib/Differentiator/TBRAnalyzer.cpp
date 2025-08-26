@@ -64,8 +64,13 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   // Make sure the current branch has a copy of VarDecl for VD
   auto& curBranch = getCurBlockVarsData();
   for (const VarDecl* iterVD : vars) {
-    if (m_ModifiedParams && !isReq && (!iterVD || isa<ParmVarDecl>(iterVD)))
-      (*m_ModifiedParams)[m_Function].insert(cast_or_null<ParmVarDecl>(iterVD));
+    const auto* PVD = dyn_cast_or_null<ParmVarDecl>(iterVD);
+    if (m_ModifiedParams && (!iterVD || PVD)) {
+      if (!isReq)
+        (*m_ModifiedParams)[m_Function].insert(PVD);
+      else if (m_ModeStack.back() & Mode::kMarkingMode)
+        (*m_UsedParams)[m_Function].insert(PVD);
+    }
     if (isReq || sequenceFound) {
       if (curBranch.find(iterVD) == curBranch.end()) {
         if (VarData* data = getVarDataFromDecl(iterVD))
@@ -95,8 +100,11 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
 
   const FunctionDecl* FD = request.Function;
   m_Function = FD;
+  // FIXME: Perform TBR consistently and always pass this info.
   if (m_ModifiedParams)
     (*m_ModifiedParams)[FD];
+  if (m_UsedParams)
+    (*m_UsedParams)[FD];
   // If we are analysing a non-static method, add a VarData for 'this' pointer
   // (it is represented with nullptr).
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
@@ -243,7 +251,7 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
 }
 
 bool TBRAnalyzer::TraverseConditionalOperator(clang::ConditionalOperator* CO) {
-  setMode(0);
+  setMode(/*mode=*/0);
   TraverseStmt(CO->getCond());
   resetMode();
 
@@ -288,13 +296,13 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
       startNonLinearMode();
 
     if (LHSIsStored)
-      setMode(0);
+      setMode(/*mode=*/0);
     TraverseStmt(L);
     if (LHSIsStored)
       resetMode();
 
     if (RHSIsStored)
-      setMode(0);
+      setMode(/*mode=*/0);
     TraverseStmt(R);
     if (RHSIsStored)
       resetMode();
@@ -310,14 +318,14 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     bool LHSIsStored =
         !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
     if (LHSIsStored)
-      setMode(0);
+      setMode(/*mode=*/0);
     else if (nonLinear)
       startNonLinearMode();
     TraverseStmt(L);
     if (nonLinear || LHSIsStored)
       resetMode();
 
-    setMode(0);
+    setMode(/*mode=*/0);
     TraverseStmt(R);
     resetMode();
   } else if (BinOp->isAssignmentOp()) {
@@ -359,7 +367,7 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     // already not required to store).
     setIsRequired(L, /*isReq=*/false);
   } else if (opCode == BO_Comma) {
-    setMode(0);
+    setMode(/*mode=*/0);
     TraverseStmt(L);
     resetMode();
 
@@ -426,7 +434,17 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
     bool passByRef = false;
     if (par)
       passByRef = utils::isMemoryType(par->getType());
+    bool paramUnused = false;
+    if (shouldAnalyzeParams) {
+      auto& usedParams = (*m_UsedParams)[FD];
+      if (usedParams.find(par) == usedParams.end())
+        paramUnused = true;
+    }
+    if (paramUnused)
+      setMode(/*mode=*/0);
     TraverseStmt(arg);
+    if (paramUnused)
+      resetMode();
     if (passByRef) {
       bool paramModified = true;
       if (shouldAnalyzeParams) {
@@ -434,7 +452,7 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
         if (modifiedParams.find(par) == modifiedParams.end())
           paramModified = false;
       }
-      if (paramModified) {
+      if (paramModified && findReq(arg)) {
         setIsRequired(arg, /*isReq=*/false);
         markLocation(arg);
       }
@@ -452,14 +470,24 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   }
 
   if (base) {
+    bool paramUnused = false;
+    if (shouldAnalyzeParams) {
+      auto& usedParams = (*m_UsedParams)[FD];
+      if (usedParams.find(nullptr) == usedParams.end())
+        paramUnused = true;
+    }
+    if (paramUnused)
+      setMode(/*mode=*/0);
     TraverseStmt(base);
+    if (paramUnused)
+      resetMode();
     bool paramModified = true;
     if (shouldAnalyzeParams) {
       auto& modifiedParams = (*m_ModifiedParams)[FD];
       if (modifiedParams.find(nullptr) == modifiedParams.end())
         paramModified = false;
     }
-    if (paramModified) {
+    if (paramModified && findReq(base)) {
       markLocation(base);
       setIsRequired(base, /*isReq=*/false);
     }
@@ -518,8 +546,13 @@ bool TBRAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
   return false;
 }
 
+bool TBRAnalyzer::TraverseCXXThisExpr(clang::CXXThisExpr* TE) {
+  setIsRequired(TE);
+  return false;
+}
+
 bool TBRAnalyzer::TraverseArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
-  setMode(0);
+  setMode(/*mode=*/0);
   TraverseStmt(ASE->getBase());
   resetMode();
   setIsRequired(ASE);
