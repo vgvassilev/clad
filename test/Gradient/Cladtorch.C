@@ -27,18 +27,31 @@ struct Tensor {
 };
 }
 
-struct other_struct {
+struct no_namespace {
   float x;
 };
 
-float fn1(const cladtorch::Tensor& t, const cladtorch::Tensor& u, other_struct o) {
+const static struct {
+  float z = 2.F;
+} anon;
+
+namespace {
+struct anon_namespace {
+  float x;
+};
+}
+
+
+float fn1(const cladtorch::Tensor& t, const cladtorch::Tensor& u, no_namespace o, decltype(anon) a, anon_namespace z) {
   auto b = t;
   std::vector<cladtorch::Tensor> v{{u, b}};
   return v[1].data;
 }
-// CHECK: void fn1_grad_0(const cladtorch::Tensor &t, const cladtorch::Tensor &u, other_struct o, cladtorch::Tensor *_d_t) {
+// CHECK: void fn1_grad_0(const cladtorch::Tensor &t, const cladtorch::Tensor &u, no_namespace o, decltype(anon) a, {{.*}}anon_namespace z, cladtorch::Tensor *_d_t) {
 // CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_u(u);
-// CHECK-NEXT:     other_struct _d_o = {0.F};
+// CHECK-NEXT:     no_namespace _d_o = {0.F};
+// CHECK-NEXT:     {{.*}} _d_a = {0.F};
+// CHECK-NEXT:     anon_namespace _d_z = {0.F};
 // CHECK-NEXT:     {{.*}}cladtorch::Tensor b = t;
 // CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_b(b);
 // CHECK-NEXT:     clad::zero_init(_d_b);
@@ -64,7 +77,8 @@ int main() {
   cladtorch::Tensor t, u, d_t;
   t.data = 5; u.data = 3; d_t.data = 0;
   auto dfn1 = clad::gradient(fn1, "t");
-  other_struct o{9.0};
-  dfn1.execute(t, u, o, &d_t);
+  no_namespace o{9.0}; auto a = anon;
+  anon_namespace z;
+  dfn1.execute(t, u, o, a, z, &d_t);
   printf("%.2f\n", d_t.data); // CHECK-EXEC: 1.00
 }

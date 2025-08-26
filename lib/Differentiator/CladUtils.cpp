@@ -1468,13 +1468,31 @@ namespace clad {
     }
 
     bool isTensorLike(clang::Sema& SemaRef, clang::QualType T) {
+      if (!isa<TemplateSpecializationType>(T) && !T->isRecordType())
+        return false;
       // Handle std::vector as a special case:
       // We check if the type is a vector, and if so, recursively check its
-      // template argument.
-      if (const auto* TST = T->getAs<clang::TemplateSpecializationType>()) {
-        if (TST->getTemplateName()
-                .getAsTemplateDecl()
-                ->getQualifiedNameAsString() == "std::vector") {
+      // template argument. These functions are taken from
+      // https://github.com/llvm/llvm-project/blob/aadc708e78568f1ec5713dd4ba768e77044b651d/clang/lib/StaticAnalyzer/Checkers/LLVMConventionsChecker.cpp#L78
+      auto inNamespace = [](const Decl* D, StringRef NS) {
+        const auto* ND = dyn_cast<NamespaceDecl>(D->getDeclContext());
+        if (!ND)
+          return false;
+        const IdentifierInfo* II = ND->getIdentifier();
+        if (!II || II->getName() != NS)
+          return false;
+        return isa<TranslationUnitDecl>(ND->getDeclContext());
+      };
+      auto isStdVector = [&inNamespace](const TemplateSpecializationType* TST) {
+        TemplateName TM = TST->getTemplateName();
+        TemplateDecl* TD = TM.getAsTemplateDecl();
+        if (!TD || !inNamespace(TD, "std"))
+          return false;
+        return TD->getName() == "vector";
+      };
+
+      if (const auto* TST = T->getAs<TemplateSpecializationType>()) {
+        if (isStdVector(TST)) {
           auto args = TST->template_arguments();
           if (!args.empty()) {
             // Recursively check the first template argument.
@@ -1486,16 +1504,16 @@ namespace clad {
       }
 
       const auto* CXXRD = T->getAsCXXRecordDecl();
-      // Not a class, struct, or union, so it can't be a tensor.
+      // Not a class or struct, so it can't be a tensor.
       if (!CXXRD)
         return false;
 
       // Find the special `tensor_like` namespace.
       // This looks for `clad::tensor_like`.
       clang::NamespaceDecl* CladNS =
-          utils::LookupNSD(SemaRef, "clad", /*shouldExist*/ true);
+          utils::LookupNSD(SemaRef, "clad", /*shouldExist=*/true);
       clang::NamespaceDecl* TensorLikeNS = utils::LookupNSD(
-          SemaRef, "tensor_like", /*shouldExist*/ false, CladNS);
+          SemaRef, "tensor_like", /*shouldExist=*/false, CladNS);
       if (!TensorLikeNS)
         return false;
 
@@ -1505,13 +1523,11 @@ namespace clad {
         return false;
 
       const auto* OriginalDC = CXXRD->getDeclContext();
-      if (!clang::isa<clang::NamespaceDecl>(OriginalDC)) {
-        // The type is not in a namespace (e.g., it's a nested class or in
-        // global scope). You could extend this logic if needed, but for now,
-        // we'll assume tensor types are in a namespace like `at` or
-        // `cladtorch`.
+      // The type is not in a namespace (e.g., it's a nested class or in
+      // global scope). You could extend this logic if needed, but for now,
+      // we'll assume tensor types are in a namespace like `at` or `cladtorch`.
+      if (!OriginalDC->isNamespace())
         return false;
-      }
       const auto* OriginalNS = clang::cast<clang::NamespaceDecl>(OriginalDC);
       clang::IdentifierInfo* OriginalNSName = OriginalNS->getIdentifier();
       if (!OriginalNSName)

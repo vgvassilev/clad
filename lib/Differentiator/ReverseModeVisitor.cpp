@@ -411,8 +411,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           }
           continue;
         }
-        auto VDDerivedType =
-            utils::GetNonConstValueType(paramTy); // Type(paramTy, m_Sema);
+        auto VDDerivedType = utils::GetNonConstValueType(paramTy);
         Expr* initExpr = nullptr;
         bool isDirectInit = false;
         if (clad::utils::isTensorLike(m_Sema, VDDerivedType)) {
