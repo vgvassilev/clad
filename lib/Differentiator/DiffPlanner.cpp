@@ -23,6 +23,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
+#include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/OperatorKinds.h"
@@ -95,7 +96,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
             DiagnosticsEngine::Level::Error, diagFmt);
         m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
         return false;
-      } else if (!R.isSingleResult()) {
+      }
+
+      if (!R.isSingleResult()) {
         const char diagFmt[] =
             "'%0' has multiple definitions of operator(). "
             "Multiple definitions of call operators are not supported.";
@@ -111,9 +114,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
                                           cast<FunctionDecl>(candidateFn));
         }
         return false;
-      } else if (R.isSingleResult() &&
-                 cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() !=
-                     AccessSpecifier::AS_public) {
+      }
+
+      NamedDecl* FoundDecl = R.getFoundDecl();
+      AccessSpecifier FoundDeclAccess = FoundDecl->getAccess();
+      if (FoundDeclAccess != AccessSpecifier::AS_public) {
         const char diagFmt[] =
             "'%0' contains %1 call operator. Differentiation of "
             "private/protected call operator is not supported.";
@@ -123,43 +128,29 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         // Compute access specifier name so that it can be used in
         // diagnostic message.
         const char* callOperatorAS =
-            (cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() ==
-                     AccessSpecifier::AS_private
-                 ? "private"
-                 : "protected");
+            (FoundDeclAccess == AccessSpecifier::AS_private ? "private"
+                                                            : "protected");
         m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName() << callOperatorAS;
-        auto callOperator = cast<CXXMethodDecl>(R.getFoundDecl());
 
+        // Compute if the access specifier of the found operator is implicit.
         bool isImplicit = true;
-
-        // compute if the corresponding access specifier of the found
-        // call operator is implicit or explicit.
         for (auto decl : RD->decls()) {
-          if (decl == callOperator)
+          if (decl == FoundDecl)
             break;
           if (isa<AccessSpecDecl>(decl)) {
             isImplicit = false;
             break;
           }
         }
-
         // Emit diagnostics for the found call operator
-        m_SemaRef.Diag(callOperator->getBeginLoc(), diag::note_access_natural)
-            << (unsigned)(callOperator->getAccess() ==
-                          AccessSpecifier::AS_protected)
+        m_SemaRef.Diag(FoundDecl->getBeginLoc(), diag::note_access_natural)
+            << (unsigned)(FoundDeclAccess == AccessSpecifier::AS_protected)
             << isImplicit;
 
         return false;
       }
 
-      assert(R.isSingleResult() &&
-             "Multiple definitions of call operators are not supported");
-      assert(R.isSingleResult() == 1 &&
-             cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() ==
-                 AccessSpecifier::AS_public &&
-             "Differentiation of private/protected call operators are "
-             "not supported");
-      auto callOperator = cast<CXXMethodDecl>(R.getFoundDecl());
+      auto* callOperator = cast<CXXMethodDecl>(FoundDecl);
       // Creating `DeclRefExpr` of the found overloaded call operator
       // method, to maintain consistency with member function
       // differentiation.
