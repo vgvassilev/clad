@@ -1470,10 +1470,8 @@ namespace clad {
     bool isTensorLike(clang::Sema& SemaRef, clang::QualType T) {
       if (!isa<TemplateSpecializationType>(T) && !T->isRecordType())
         return false;
-      // Handle std::vector as a special case:
-      // We check if the type is a vector, and if so, recursively check its
-      // template argument. These functions are taken from
-      // https://github.com/llvm/llvm-project/blob/aadc708e78568f1ec5713dd4ba768e77044b651d/clang/lib/StaticAnalyzer/Checkers/LLVMConventionsChecker.cpp#L78
+      // We check if the type is a std::vector, and if so, recursively check its
+      // template argument.
       auto inNamespace = [](const Decl* D, StringRef NS) {
         const auto* ND = dyn_cast<NamespaceDecl>(D->getDeclContext());
         if (!ND)
@@ -1504,10 +1502,6 @@ namespace clad {
       }
 
       const auto* CXXRD = T->getAsCXXRecordDecl();
-      // Not a class or struct, so it can't be a tensor.
-      if (!CXXRD)
-        return false;
-
       // Find the special `tensor_like` namespace.
       // This looks for `clad::tensor_like`.
       clang::NamespaceDecl* CladNS =
