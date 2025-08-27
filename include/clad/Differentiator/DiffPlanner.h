@@ -20,6 +20,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <iterator>
+#include <map>
 #include <memory>
 #include <set>
 
@@ -45,6 +46,8 @@ private:
   /// be stored before being changed or not.
   mutable struct TbrRunInfo {
     std::set<clang::SourceLocation> ToBeRecorded;
+    std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>
+        m_ModifiedParams;
     bool HasAnalysisRun = false;
   } m_TbrRunInfo;
 
@@ -73,8 +76,6 @@ public:
   clang::Expr* CallContext = nullptr;
   /// Args provided to the call to clad::gradient/differentiate.
   const clang::Expr* Args = nullptr;
-
-  bool RequestTBR = false;
   /// Indexes of global GPU args of function as a subset of Args.
   std::vector<size_t> CUDAGlobalArgsIndexes;
   /// Requested differentiation mode, forward or reverse.
@@ -193,6 +194,14 @@ public:
     m_TbrRunInfo.HasAnalysisRun = true;
     return m_TbrRunInfo.ToBeRecorded;
   }
+  std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>&
+  getModifiedParams() const {
+    return m_TbrRunInfo.m_ModifiedParams;
+  }
+  void addFunctionModifiedParams(const clang::FunctionDecl* FD,
+                                 const std::set<const clang::Decl*>& params) {
+    m_TbrRunInfo.m_ModifiedParams[FD] = params;
+  }
   void addVariedDecl(const clang::VarDecl* init) {
     m_ActivityRunInfo.VariedDecls.insert(init);
   }
@@ -241,8 +250,6 @@ public:
     const RequestOptions& m_Options;
 
     llvm::DenseSet<const clang::FunctionDecl*> m_Traversed;
-
-    bool m_TBROnly = false;
 
     bool m_IsTraversingTopLevelDecl = true;
 
