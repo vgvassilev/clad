@@ -642,7 +642,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function) &&
         Function->isDefined() && m_AnalysisDC) {
       TimedAnalysisRegion R("TBR " + BaseFunctionName);
-      TBRAnalyzer analyzer(m_AnalysisDC, getToBeRecorded());
+      TBRAnalyzer analyzer(m_AnalysisDC, getToBeRecorded(),
+                           &getModifiedParams());
       analyzer.Analyze(*this);
     }
     auto found = m_TbrRunInfo.ToBeRecorded.find(S->getBeginLoc());
@@ -1006,6 +1007,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         m_Sema, "custom_derivatives", /*shouldExist=*/false, cladNS);
     if (!customDerNS)
       return false;
+    if (request.Mode == DiffMode::unknown)
+      return true;
 
     const Expr* callSite = request.CallContext;
     assert(callSite && "Called lookup without CallContext");
@@ -1161,8 +1164,12 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       // FIXME: hessians require second derivatives,
       // i.e. apart from the pushforward, we also need
       // to schedule pushforward_pullback.
-      if (m_TopMostReq->Mode == DiffMode::forward ||
-          m_TopMostReq->Mode == DiffMode::hessian || canUsePushforwardInRevMode)
+      if (m_ParentReq->CustomDerivative ||
+          m_ParentReq->Mode == DiffMode::unknown)
+        request.Mode = DiffMode::unknown;
+      else if (m_TopMostReq->Mode == DiffMode::forward ||
+               m_TopMostReq->Mode == DiffMode::hessian ||
+               canUsePushforwardInRevMode)
         request.Mode = DiffMode::pushforward;
       else if (m_TopMostReq->Mode == DiffMode::reverse)
         request.Mode = DiffMode::pullback;
@@ -1241,8 +1248,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     QualType returnType = FD->getReturnType();
     bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
                          returnType->isPointerType();
-    if (!m_TBROnly && (request.Mode == DiffMode::pullback ||
-                       request.Mode == DiffMode::reverse)) {
+    if (request.Mode == DiffMode::pullback ||
+        request.Mode == DiffMode::reverse) {
       DiffRequest forwPassRequest = request;
       forwPassRequest.DVI.clear();
       forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
@@ -1262,16 +1269,11 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       isNonConstMethod =
           utils::isNonConstReferenceType(OCE->getArg(0)->getType());
     // Functions with side-effects require TBR.
-    if (request.EnableTBRAnalysis && (needsForwPass || isNonConstMethod) &&
-        request->isDefined() && E->getDirectCallee()) {
-      request.RequestTBR = true;
-      Saved.get()->RequestTBR = true;
-    }
-    if ((!m_TBROnly && !LookupCustomDerivativeDecl(request)) ||
-        request.RequestTBR) {
-      llvm::SaveAndRestore<bool> Saved(m_TBROnly);
-      if (request.CustomDerivative)
-        m_TBROnly = true;
+    bool requestTBR = request.EnableTBRAnalysis &&
+                      (needsForwPass || isNonConstMethod) &&
+                      request->isDefined() && E->getDirectCallee();
+
+    if (!LookupCustomDerivativeDecl(request) || requestTBR) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
           std::make_unique<AnalysisDeclContext>(
@@ -1295,10 +1297,16 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
-    }
 
-    if (m_TBROnly)
-      request.Mode = DiffMode::unknown;
+      if (requestTBR) {
+        TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
+        auto& modifiedParams = request.getModifiedParams();
+        TBRAnalyzer analyzer(request.m_AnalysisDC, request.getToBeRecorded(),
+                             &modifiedParams);
+        analyzer.Analyze(request);
+        Saved.get()->addFunctionModifiedParams(FD, modifiedParams[FD]);
+      }
+    }
 
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
@@ -1346,7 +1354,8 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return true;
 
     // FIXME: add support for the forward mode
-    if (m_TopMostReq->Mode != DiffMode::reverse)
+    if ((m_ParentReq->Mode != DiffMode::reverse) &&
+        (m_ParentReq->Mode != DiffMode::pullback))
       return true;
 
     // Don't build propagators for calls that do not contribute in
@@ -1358,7 +1367,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (clad::utils::hasNonDifferentiableAttribute(CD->getParent()))
       return true;
 
-    if (m_TBROnly)
+    // FIXME: This only happens to perform nested TBR.
+    // Constructors are not yet suported
+    if (m_ParentReq->CustomDerivative)
       return true;
 
     DiffRequest request;

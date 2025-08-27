@@ -274,14 +274,6 @@ void InitTimers();
       if (m_DO.PrintNumDiffErrorInfo) {
         m_DerivativeBuilder->setNumDiffErrDiag(true);
       }
-      if (request.RequestTBR && request->isDefined() && request.m_AnalysisDC) {
-        TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
-        TBRAnalyzer analyzer(request.m_AnalysisDC, request.getToBeRecorded(),
-                             &m_ModifiedParams);
-        analyzer.Analyze(request);
-        if (request.Mode == DiffMode::unknown)
-          return nullptr;
-      }
 
       FunctionDecl* DerivativeDecl = nullptr;
       bool alreadyDerived = false;
