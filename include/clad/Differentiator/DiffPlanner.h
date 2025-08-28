@@ -38,6 +38,8 @@ class Type;
 namespace clad {
 using OwnedAnalysisContexts =
     llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
+using ParamSet = std::set<const clang::ParmVarDecl*>;
+using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
 /// A struct containing information about request to differentiate a function.
 struct DiffRequest {
 private:
@@ -46,8 +48,7 @@ private:
   /// be stored before being changed or not.
   mutable struct TbrRunInfo {
     std::set<clang::SourceLocation> ToBeRecorded;
-    std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>
-        m_ModifiedParams;
+    ParamInfo m_ModifiedParams;
     bool HasAnalysisRun = false;
   } m_TbrRunInfo;
 
@@ -194,12 +195,9 @@ public:
     m_TbrRunInfo.HasAnalysisRun = true;
     return m_TbrRunInfo.ToBeRecorded;
   }
-  std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>&
-  getModifiedParams() const {
-    return m_TbrRunInfo.m_ModifiedParams;
-  }
+  ParamInfo& getModifiedParams() const { return m_TbrRunInfo.m_ModifiedParams; }
   void addFunctionModifiedParams(const clang::FunctionDecl* FD,
-                                 const std::set<const clang::Decl*>& params) {
+                                 const ParamSet& params) {
     m_TbrRunInfo.m_ModifiedParams[FD] = params;
   }
   void addVariedDecl(const clang::VarDecl* init) {
