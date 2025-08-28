@@ -19,9 +19,8 @@ float func(float x, float y) {
 //CHECK-NEXT:     *_d_y += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         y = _t1;
-//CHECK-NEXT:         float _r_d1 = *_d_y;
+//CHECK-NEXT:         *_d_x += *_d_y;
 //CHECK-NEXT:         *_d_y = 0.F;
-//CHECK-NEXT:         *_d_x += _r_d1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
@@ -68,9 +67,8 @@ float func3(int x, int y) {
 //CHECK-NEXT:     *_d_y += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t0;
-//CHECK-NEXT:         int _r_d0 = *_d_x;
+//CHECK-NEXT:         *_d_y += *_d_x;
 //CHECK-NEXT:         *_d_x = 0;
-//CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
@@ -89,10 +87,9 @@ float func4(float x, float y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:         x = _t0;
-//CHECK-NEXT:         float _r_d0 = *_d_x;
+//CHECK-NEXT:         _d_z += *_d_x;
+//CHECK-NEXT:         *_d_y += *_d_x;
 //CHECK-NEXT:         *_d_x = 0.F;
-//CHECK-NEXT:         _d_z += _r_d0;
-//CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     *_d_y += _d_z;
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
@@ -114,10 +111,9 @@ float func5(float x, float y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:         x = _t0;
-//CHECK-NEXT:         float _r_d0 = *_d_x;
+//CHECK-NEXT:         _d_z += *_d_x;
+//CHECK-NEXT:         *_d_y += *_d_x;
 //CHECK-NEXT:         *_d_x = 0.F;
-//CHECK-NEXT:         _d_z += _r_d0;
-//CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     _final_error += std::abs(*_d_y * y * {{.+}});
@@ -155,10 +151,9 @@ float func8(int x, int y) {
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t0;
-//CHECK-NEXT:         int _r_d0 = *_d_x;
+//CHECK-NEXT:         *_d_y += *_d_x * y;
+//CHECK-NEXT:         *_d_y += y * *_d_x;
 //CHECK-NEXT:         *_d_x = 0;
-//CHECK-NEXT:         *_d_y += _r_d0 * y;
-//CHECK-NEXT:         *_d_y += y * _r_d0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 

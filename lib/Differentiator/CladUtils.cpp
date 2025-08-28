@@ -971,6 +971,28 @@ namespace clad {
       return false;
     }
 
+    bool exprDependsOnVarDecl(const clang::Expr* E, const VarDecl* VD) {
+      class DREFinder : public RecursiveASTVisitor<DREFinder> {
+      public:
+        DREFinder(const VarDecl* VD) : declToFind(VD) {}
+        const VarDecl* declToFind;
+        bool dependsOnDecl = false;
+
+        bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+          if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            if (!VD->getType()->isBuiltinType() || VD == declToFind) {
+              dependsOnDecl = true;
+              return false;
+            }
+          }
+          return true;
+        }
+      };
+      DREFinder finder(VD);
+      finder.TraverseStmt(const_cast<Expr*>(E));
+      return finder.dependsOnDecl;
+    }
+
     QualType GetCladArrayRefOfType(Sema& S, QualType T) {
       static TemplateDecl* arrayRefDecl = nullptr;
       if (!arrayRefDecl)

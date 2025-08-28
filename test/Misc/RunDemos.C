@@ -154,10 +154,9 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        _final_error += _d_z * z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        z = _t0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_x += _d_z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_y += _d_z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        _d_z = 0.F;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_x += _r_d0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_y += _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    }
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += *_d_x * x;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += *_d_y * y;
@@ -185,10 +184,9 @@
 // CHECK_PRINT_MODEL_EXEC-NEXT:    {
 // CHECK_PRINT_MODEL_EXEC-NEXT:        _final_error += clad::getErrorVal(_d_z, z, "z");
 // CHECK_PRINT_MODEL_EXEC-NEXT:        z = _t0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
+// CHECK_PRINT_MODEL_EXEC-NEXT:        *_d_x += _d_z;
+// CHECK_PRINT_MODEL_EXEC-NEXT:        *_d_y += _d_z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        _d_z = 0.F;
-// CHECK_PRINT_MODEL_EXEC-NEXT:        *_d_x += _r_d0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:        *_d_y += _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    }
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _final_error += clad::getErrorVal(*_d_x, x, "x");
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _final_error += clad::getErrorVal(*_d_y, y, "y");

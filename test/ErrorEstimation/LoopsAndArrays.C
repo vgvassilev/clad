@@ -75,10 +75,9 @@ float func2(float x) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_z * z * {{.+}});
 //CHECK-NEXT:             z = clad::pop(_t2);
-//CHECK-NEXT:             float _r_d0 = _d_z;
+//CHECK-NEXT:             _d_m += _d_z;
+//CHECK-NEXT:             _d_m += _d_z;
 //CHECK-NEXT:             _d_z = 0.F;
-//CHECK-NEXT:             _d_m += _r_d0;
-//CHECK-NEXT:             _d_m += _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_m * m * {{.+}});
@@ -320,10 +319,9 @@ double func6(double x) {
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         sum = clad::pop(_t1);
-//CHECK-NEXT:         double _r_d0 = _d_sum;
 //CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         double _t2 = 0.;
-//CHECK-NEXT:         fun_pullback(x, _r_d0, &_r0, _t2);
+//CHECK-NEXT:         fun_pullback(x, _d_sum, &_r0, _t2);
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:         _final_error += _t2;
 //CHECK-NEXT:     }
