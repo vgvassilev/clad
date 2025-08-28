@@ -1149,10 +1149,7 @@ int main() {
 // CHECK-NEXT:                 {{.*}}class_functions::operator_plus_plus_pullback(&it, 0, {}, &_d_it, &_r0);
 // CHECK-NEXT:                 clad::pop(_t2);
 // CHECK-NEXT:             }
-// CHECK-NEXT:             {
-// CHECK-NEXT:                 u = clad::pop(_t5);
-// CHECK-NEXT:                 int _r_d1 = _d_u;
-// CHECK-NEXT:             }
+// CHECK-NEXT:             u = clad::pop(_t5);
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 double _r_d0 = _d_sum;
 // CHECK-NEXT:                 _d_u += _r_d0 * clad::pop(_t3);

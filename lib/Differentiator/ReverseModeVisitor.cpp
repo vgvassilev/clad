@@ -2473,6 +2473,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
       }
 
+      bool indepSides = false;
+      if (opCode == BO_Assign || opCode == BO_AddAssign ||
+          opCode == BO_SubAssign) {
+        llvm::SmallVector<Expr*, 4> LHSExprs;
+        utils::GetInnermostReturnExpr(L, LHSExprs);
+        if (LHSExprs.size() == 1) {
+          if (const auto* DRE = dyn_cast<DeclRefExpr>(LHSExprs[0])) {
+            const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+            if (VD->getType()->isRealType() &&
+                !utils::exprDependsOnVarDecl(R, VD))
+              indepSides = true;
+          }
+        }
+      }
+
       Stmts Lblock = EndBlockWithoutCreatingCS(direction::reverse);
 
       Expr* LCloned = Ldiff.getExpr();
@@ -2511,17 +2526,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       clang::Expr* oldValue = nullptr;
 
       // For pointer types, no need to store old derivatives.
-      if (!isPointerOp)
+      if (indepSides)
+        oldValue = ResultRef;
+      else if (!isPointerOp)
         oldValue = StoreAndRef(ResultRef, direction::reverse, "_r_d",
                                /*forceDeclCreation=*/true);
       if (opCode == BO_Assign) {
-        if (!isPointerOp) {
-          // Add the statement `dl = 0;`
-          Expr* zero = getZeroInit(ResultRef->getType());
-          addToCurrentBlock(BuildOp(BO_Assign, ResultRef, zero),
-                            direction::reverse);
-        }
+        // Add the statement `dl = 0;`
+        Expr* zero = getZeroInit(ResultRef->getType());
+        Expr* assign_zero = BuildOp(BO_Assign, ResultRef, zero);
+        if (!isPointerOp && !indepSides)
+          addToCurrentBlock(assign_zero, direction::reverse);
         Rdiff = Visit(R, oldValue);
+        if (indepSides)
+          addToCurrentBlock(assign_zero, direction::reverse);
         valueForRevPass = Rdiff.getRevSweepAsExpr();
       } else if (opCode == BO_AddAssign) {
         Rdiff = Visit(R, oldValue);

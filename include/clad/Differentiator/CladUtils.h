@@ -396,6 +396,8 @@ namespace clad {
 
     bool isCopyable(const clang::CXXRecordDecl* RD);
 
+    bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
+
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
 

@@ -124,20 +124,17 @@ __global__ void add_kernel_4(int *out, int *in, int N) {
 // CHECK-NEXT:     if (_cond0) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             out[index0] = _t3;
-// CHECK-NEXT:             int _r_d2 = _d_out[index0];
+// CHECK-NEXT:             int _r_d1 = _d_out[index0];
 // CHECK-NEXT:             _d_out[index0] = 0;
-// CHECK-NEXT:             _d_sum += _r_d2;
+// CHECK-NEXT:             _d_sum += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             for (; _t0; _t0--) {
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     i = clad::pop(_t1);
-// CHECK-NEXT:                     int _r_d0 = _d_i;
-// CHECK-NEXT:                 }
+// CHECK-NEXT:                 i = clad::pop(_t1);
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     sum = clad::pop(_t2);
-// CHECK-NEXT:                     int _r_d1 = _d_sum;
-// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d1);
+// CHECK-NEXT:                     int _r_d0 = _d_sum;
+// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d0);
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             _d_index += _d_i;
@@ -192,21 +189,20 @@ __global__ void add_kernel_5(int *out, int *in, int N) {
 // CHECK-NEXT:     if (_cond0) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             out[index0] = _t3;
-// CHECK-NEXT:             int _r_d2 = _d_out[index0];
+// CHECK-NEXT:             int _r_d1 = _d_out[index0];
 // CHECK-NEXT:             _d_out[index0] = 0;
-// CHECK-NEXT:             _d_sum += _r_d2;
+// CHECK-NEXT:             _d_sum += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             for (; _t0; _t0--) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     i = clad::pop(_t1);
-// CHECK-NEXT:                     int _r_d0 = _d_i;
-// CHECK-NEXT:                     _d_totalThreads += _r_d0;
+// CHECK-NEXT:                     _d_totalThreads += _d_i;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     sum = clad::pop(_t2);
-// CHECK-NEXT:                     int _r_d1 = _d_sum;
-// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d1);
+// CHECK-NEXT:                     int _r_d0 = _d_sum;
+// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d0);
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             _d_index += _d_i;
@@ -585,20 +581,17 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 // CHECK-NEXT:     if (_cond0) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             out[index0] = _t3;
-// CHECK-NEXT:             int _r_d2 = _d_out[index0];
+// CHECK-NEXT:             int _r_d1 = _d_out[index0];
 // CHECK-NEXT:             _d_out[index0] = 0;
-// CHECK-NEXT:             _d_sum += _r_d2;
+// CHECK-NEXT:             _d_sum += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             for (; _t0; _t0--) {
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     i = clad::pop(_t1);
-// CHECK-NEXT:                     int _r_d0 = _d_i;
-// CHECK-NEXT:                 }
+// CHECK-NEXT:                 i = clad::pop(_t1);
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     sum = clad::pop(_t2);
-// CHECK-NEXT:                     int _r_d1 = _d_sum;
-// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d1);
+// CHECK-NEXT:                     int _r_d0 = _d_sum;
+// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d0);
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             _d_index += _d_i;
@@ -839,22 +832,20 @@ __global__ void injective_reassignment(int *a) {
 // CHECK-NEXT:     a[1] += a[index1];
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a[1] = _t3;
-// CHECK-NEXT:         int _r_d3 = _d_a[1];
-// CHECK-NEXT:         atomicAdd(&_d_a[index1], _r_d3);
+// CHECK-NEXT:         int _r_d1 = _d_a[1];
+// CHECK-NEXT:         atomicAdd(&_d_a[index1], _r_d1);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     if (_cond0) {
 // CHECK-NEXT:         index2 = _t2;
-// CHECK-NEXT:         int _r_d2 = _d_index2;
 // CHECK-NEXT:         _d_index2 = 0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a[1] = _t1;
-// CHECK-NEXT:         int _r_d1 = _d_a[1];
-// CHECK-NEXT:         atomicAdd(&_d_a[index1], _r_d1);
+// CHECK-NEXT:         int _r_d0 = _d_a[1];
+// CHECK-NEXT:         atomicAdd(&_d_a[index1], _r_d0);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         index1 = _t0;
-// CHECK-NEXT:         int _r_d0 = _d_index1;
 // CHECK-NEXT:         _d_index1 = 0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

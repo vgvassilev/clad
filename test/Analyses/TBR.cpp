@@ -71,9 +71,8 @@ double f2(double val) {
 //CHECK-NEXT:           case {{2U|2UL}}:
 //CHECK-NEXT:             ;
 //CHECK-NEXT:             {
-//CHECK-NEXT:                 double _r_d0 = _d_res;
-//CHECK-NEXT:                 _d_i += _r_d0 * val;
-//CHECK-NEXT:                 *_d_val += i * _r_d0;
+//CHECK-NEXT:                 _d_i += _d_res * val;
+//CHECK-NEXT:                 *_d_val += i * _d_res;
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 if (clad::back(_cond0))
@@ -128,15 +127,13 @@ double f3(double x){
 //CHECK-NEXT:     _d_res += 1;
 //CHECK-NEXT:     if (!_cond0)
 //CHECK-NEXT:         if (_cond1) {
-//CHECK-NEXT:             double _r_d1 = _d_res;
-//CHECK-NEXT:             _d_i += _r_d1 * x;
-//CHECK-NEXT:             *_d_x += i * _r_d1;
+//CHECK-NEXT:             _d_i += _d_res * x;
+//CHECK-NEXT:             *_d_x += i * _d_res;
 //CHECK-NEXT:         } else if (_cond2)
 //CHECK-NEXT:             i--;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r_d0 = _d_res;
-//CHECK-NEXT:         _d_i += _r_d0 * x;
-//CHECK-NEXT:         *_d_x += i * _r_d0;
+//CHECK-NEXT:         _d_i += _d_res * x;
+//CHECK-NEXT:         *_d_x += i * _d_res;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
@@ -201,14 +198,13 @@ double f5(double x, double y) {
 //CHECK-NEXT:     ref -= y;
 //CHECK-NEXT:     _d_ref += 1;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r_d1 = _d_ref;
-//CHECK-NEXT:         *_d_y += -_r_d1;
+//CHECK-NEXT:         double _r_d0 = _d_ref;
+//CHECK-NEXT:         *_d_y += -_r_d0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t0;
-//CHECK-NEXT:         double _r_d0 = *_d_x;
+//CHECK-NEXT:         _d_z += *_d_x;
 //CHECK-NEXT:         *_d_x = 0.;
-//CHECK-NEXT:         _d_z += _r_d0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_y += _d_z * ref;
