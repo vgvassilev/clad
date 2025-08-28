@@ -277,7 +277,8 @@ void InitTimers();
       if (request.RequestTBR && request->isDefined() && request.m_AnalysisDC) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
         TBRAnalyzer analyzer(request.m_AnalysisDC, request.getToBeRecorded(),
-                             &m_ModifiedParams);
+                             &m_TBRAnalysisInfo.m_ModifiedParams,
+                             &m_TBRAnalysisInfo.m_LinearFunctions);
         analyzer.Analyze(request);
         if (request.Mode == DiffMode::unknown)
           return nullptr;

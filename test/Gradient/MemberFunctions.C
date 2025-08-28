@@ -501,12 +501,10 @@ double fn5(SimpleFunctions& v, double value) {
 // CHECK-NEXT: }
 
 // CHECK: void fn5_grad(SimpleFunctions &v, double value, SimpleFunctions *_d_v, double *_d_value) {
-// CHECK-NEXT:     SimpleFunctions _t0 = v;
 // CHECK-NEXT:     v.operator_plus_equal_reverse_forw(value, &(*_d_v), 0.);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         v = _t0;
 // CHECK-NEXT:         v.operator_plus_equal_pullback(value, {}, &(*_d_v), &_r0);
 // CHECK-NEXT:         *_d_value += _r0;
 // CHECK-NEXT:     }
@@ -532,13 +530,9 @@ double fn4(SimpleFunctions& v) {
 // CHECK-NEXT: }
 
 // CHECK: void fn4_grad(SimpleFunctions &v, SimpleFunctions *_d_v) {
-// CHECK-NEXT:     SimpleFunctions _t0 = v;
 // CHECK-NEXT:     v.operator_plus_plus_reverse_forw(&(*_d_v));
 // CHECK-NEXT:     (*_d_v).x += 1;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         v = _t0;
-// CHECK-NEXT:         v.operator_plus_plus_pullback({}, &(*_d_v));
-// CHECK-NEXT:     }
+// CHECK-NEXT:     v.operator_plus_plus_pullback({}, &(*_d_v));
 // CHECK-NEXT: }
 
 class SafeTestClass {
@@ -726,14 +720,13 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      double res = 0;
 // CHECK-NEXT:      A _d_a = {0.};
 // CHECK-NEXT:      A a;
-// CHECK-NEXT:      A _t0 = a;
 // CHECK-NEXT:      a.setData(u);
 // CHECK-NEXT:      res += a.data * v;
-// CHECK-NEXT:      A _t1 = a;
+// CHECK-NEXT:      A _t0 = a;
 // CHECK-NEXT:      a.increment();
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          a = _t1;
+// CHECK-NEXT:          a = _t0;
 // CHECK-NEXT:          a.increment_pullback(&_d_a);
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
@@ -743,7 +736,6 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          a = _t0;
 // CHECK-NEXT:          a.setData_pullback(u, &_d_a, &_r0);
 // CHECK-NEXT:          *_d_u += _r0;
 // CHECK-NEXT:      }

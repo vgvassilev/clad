@@ -41,6 +41,8 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   std::set<clang::SourceLocation>& m_TBRLocs;
   std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>*
       m_ModifiedParams;
+  std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>*
+      m_UsedParams;
 
   /// Stores modes in a stack (used to retrieve the old mode after entering
   /// a new one).
@@ -80,9 +82,11 @@ public:
   TBRAnalyzer(clang::AnalysisDeclContext* AnalysisDC,
               std::set<clang::SourceLocation>& Locs,
               std::map<const clang::FunctionDecl*,
-                       std::set<const clang::Decl*>>* ModifiedParams = nullptr)
+                       std::set<const clang::Decl*>>* ModifiedParams = nullptr,
+              std::map<const clang::FunctionDecl*,
+                       std::set<const clang::Decl*>>* UsedParams = nullptr)
       : AnalysisBase(AnalysisDC), m_TBRLocs(Locs),
-        m_ModifiedParams(ModifiedParams) {
+        m_ModifiedParams(ModifiedParams), m_UsedParams(UsedParams) {
     m_ModeStack.push_back(0);
   }
 
@@ -112,6 +116,7 @@ public:
   bool TraverseDeclStmt(clang::DeclStmt* DS);
   bool TraverseInitListExpr(clang::InitListExpr* ILE);
   bool TraverseMemberExpr(clang::MemberExpr* ME);
+  bool TraverseReturnStmt(clang::ReturnStmt* RS);
   bool TraverseUnaryOperator(clang::UnaryOperator* UnOp);
 };
 
