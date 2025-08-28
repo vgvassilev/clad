@@ -15,6 +15,38 @@
 
 namespace clad::custom_derivatives::thrust {
 
+template <typename Iterator, typename OutputIterator>
+void copy_pullback(Iterator first, Iterator last, OutputIterator result,
+                   OutputIterator d_return, Iterator* d_first, Iterator* d_last,
+                   OutputIterator* d_result) {
+  size_t n = ::thrust::distance(first, last);
+
+  if (n == 0)
+    return;
+
+  using ValueConst = typename ::std::iterator_traits<Iterator>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+
+  auto d_src_const_ptr = ::thrust::raw_pointer_cast((*d_first).base());
+  auto d_src_ptr = const_cast<Value*>(d_src_const_ptr);
+  ::thrust::device_ptr<Value> d_src_dev_ptr(d_src_ptr);
+
+  auto d_dst_const_ptr = ::thrust::raw_pointer_cast((*d_result).base());
+  auto d_dst_ptr = const_cast<Value*>(d_dst_const_ptr);
+  ::thrust::device_ptr<Value> d_dst_dev_ptr(d_dst_ptr);
+
+  struct copy_grad_functor {
+    CUDA_HOST_DEVICE void operator()(::thrust::tuple<Value&, Value&> t) const {
+      ::thrust::get<0>(t) += ::thrust::get<1>(t);
+      ::thrust::get<1>(t) = 0;
+    }
+  };
+
+  auto iter = ::thrust::make_zip_iterator(
+      ::thrust::make_tuple(d_src_dev_ptr, d_dst_dev_ptr));
+  ::thrust::for_each(iter, iter + n, copy_grad_functor());
+}
+
 template <typename Iterator, typename T, typename BinaryOp>
 void reduce_pullback(Iterator first, Iterator last, T init, BinaryOp op,
                      T d_output, Iterator* d_first, Iterator* d_last, T* d_init,
