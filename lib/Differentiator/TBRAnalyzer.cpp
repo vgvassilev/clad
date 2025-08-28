@@ -64,7 +64,7 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   auto& curBranch = getCurBlockVarsData();
   for (const VarDecl* iterVD : vars) {
     if (m_ModifiedParams && !isReq && (!iterVD || isa<ParmVarDecl>(iterVD)))
-      (*m_ModifiedParams)[m_Function].insert(iterVD);
+      (*m_ModifiedParams)[m_Function].insert(cast_or_null<ParmVarDecl>(iterVD));
     if (isReq || sequenceFound) {
       if (curBranch.find(iterVD) == curBranch.end()) {
         if (VarData* data = getVarDataFromDecl(iterVD))
@@ -367,9 +367,11 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
     if (m_ModifiedParams) {
       std::set<const clang::VarDecl*> vars;
       getDependencySet(E, vars);
-      for (const VarDecl* VD : vars)
-        if (!VD || isa<ParmVarDecl>(VD))
-          (*m_ModifiedParams)[m_Function].insert(VD);
+      for (const VarDecl* VD : vars) {
+        const auto* PVD = dyn_cast_or_null<ParmVarDecl>(VD);
+        if (!VD || PVD)
+          (*m_ModifiedParams)[m_Function].insert(PVD);
+      }
     }
   }
   // FIXME: Ideally, `__real` and `__imag` operators should be treated as member

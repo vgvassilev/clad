@@ -1300,7 +1300,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
       if (requestTBR) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
-        auto& modifiedParams = request.getModifiedParams();
+        ParamInfo& modifiedParams = request.getModifiedParams();
         TBRAnalyzer analyzer(request.m_AnalysisDC, request.getToBeRecorded(),
                              &modifiedParams);
         analyzer.Analyze(request);
