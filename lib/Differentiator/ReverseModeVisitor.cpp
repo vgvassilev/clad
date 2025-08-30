@@ -62,6 +62,7 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
+#include "clang/AST/ParentMapContext.h"
 using namespace clang;
 
 namespace clad {
@@ -2717,13 +2718,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDCloneType = CloneType(VDType);
       VDDerivedType = utils::getNonConstType(VDCloneType, m_Sema);
     }
+    bool shouldHaveAdj = true;
 
+    if (m_DiffReq.EnableVariedAnalysis) {
+      auto i = m_DiffReq.getVariedDecls().find(VD);
+      shouldHaveAdj = i != m_DiffReq.getVariedDecls().end();
+    }
     bool isRefType = VDType->isLValueReferenceType();
     VarDecl* VDDerived = nullptr;
     bool isPointerType = VDType->isPointerType();
     bool isInitializedByNewExpr = false;
-    bool initializeDerivedVar = m_DiffReq.shouldHaveAdjoint(VD) &&
-                                !clad::utils::hasNonDifferentiableAttribute(VD);
+    bool initializeDerivedVar =
+        shouldHaveAdj && !clad::utils::hasNonDifferentiableAttribute(VD);
 
     if (Expr* size = getStdInitListSizeExpr(VD->getInit()))
       VDDerivedInit = size;

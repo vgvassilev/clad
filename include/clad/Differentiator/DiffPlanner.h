@@ -54,6 +54,7 @@ private:
 
   mutable struct ActivityRunInfo {
     std::set<const clang::VarDecl*> VariedDecls;
+    std::set<const clang::Stmt*> VariedS;
     bool HasAnalysisRun = false;
   } m_ActivityRunInfo;
 
@@ -185,7 +186,7 @@ public:
   LLVM_DUMP_METHOD void dump() const { print(llvm::errs()); }
 
   bool shouldBeRecorded(const clang::Stmt* S) const;
-  bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
+  bool shouldHaveAdjoint(const clang::Stmt* S) const;
   bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
   bool isVaried(const clang::Expr* E) const;
   std::string ComputeDerivativeName() const;
@@ -206,6 +207,11 @@ public:
   std::set<const clang::VarDecl*>& getVariedDecls() const {
     return m_ActivityRunInfo.VariedDecls;
   }
+
+  std::set<const clang::Stmt*>& getVariedStmt() const {
+    return m_ActivityRunInfo.VariedS;
+  }
+
   void addUsefulDecl(const clang::VarDecl* init) {
     m_UsefulRunInfo.UsefulDecls.insert(init);
   }
