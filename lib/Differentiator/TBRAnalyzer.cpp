@@ -304,13 +304,16 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
   } else if (BinOp->isAssignmentOp()) {
     if (opCode == BO_Assign || opCode == BO_AddAssign ||
         opCode == BO_SubAssign) {
+      bool isPointerOp = BinOp->getType()->isPointerType();
       // Since we only care about non-linear usages of variables, there is
       // no difference between operators =, -=, += in terms of TBR analysis.
       TraverseStmt(L);
 
-      startMarkingMode();
+      if (!isPointerOp)
+        startMarkingMode();
       TraverseStmt(R);
-      resetMode();
+      if (!isPointerOp)
+        resetMode();
     } else if (opCode == BO_MulAssign || opCode == BO_DivAssign) {
       // *= (/=) normally only performs a linear operation if and only if
       // the RHS is constant. If RHS is not constant, 'x *= y' ('x /= y')

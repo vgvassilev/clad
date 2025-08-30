@@ -2246,13 +2246,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* diff_dx = diff.getExpr_dx();
       if (isPointerOp)
         addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
-      if (m_DiffReq.shouldBeRecorded(E)) {
-        auto op = opCode == UO_PostInc ? UO_PostDec : UO_PostInc;
+      auto op = opCode == UO_PostInc ? UO_PostDec : UO_PostInc;
+      if (m_DiffReq.shouldBeRecorded(E))
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
-        if (isPointerOp)
-          addToCurrentBlock(BuildOp(op, diff_dx), direction::reverse);
-      }
+      if (isPointerOp)
+        addToCurrentBlock(BuildOp(op, diff_dx), direction::reverse);
 
       ResultRef = diff_dx;
       valueForRevPass = diff.getRevSweepAsExpr();
@@ -2263,17 +2262,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* diff_dx = diff.getExpr_dx();
       if (isPointerOp)
         addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
-      if (m_DiffReq.shouldBeRecorded(E)) {
-        auto op = opCode == UO_PreInc ? UO_PreDec : UO_PreInc;
+      auto op = opCode == UO_PreInc ? UO_PreDec : UO_PreInc;
+      if (m_DiffReq.shouldBeRecorded(E))
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
-        if (isPointerOp)
-          addToCurrentBlock(BuildOp(op, diff_dx), direction::reverse);
-      }
-      auto op = opCode == UO_PreInc ? BinaryOperatorKind::BO_Add
-                                    : BinaryOperatorKind::BO_Sub;
+      if (isPointerOp)
+        addToCurrentBlock(BuildOp(op, diff_dx), direction::reverse);
+      auto binOp = opCode == UO_PreInc ? BinaryOperatorKind::BO_Add
+                                       : BinaryOperatorKind::BO_Sub;
       auto* sum = BuildOp(
-          op, diff.getRevSweepAsExpr(),
+          binOp, diff.getRevSweepAsExpr(),
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1));
       valueForRevPass = utils::BuildParenExpr(m_Sema, sum);
     } else if (opCode == UnaryOperatorKind::UO_Real ||
