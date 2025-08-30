@@ -57,8 +57,7 @@ double arrayPointer(const double* arr) {
 // CHECK: void arrayPointer_grad(const double *arr, double *_d_arr) {
 // CHECK-NEXT:     double *_d_p = _d_arr;
 // CHECK-NEXT:     const double *p = arr;
-// CHECK-NEXT:     const double *_t0 = p;
-// CHECK-NEXT:     double *_t1 = _d_p;
+// CHECK-NEXT:     double *_t0 = _d_p;
 // CHECK-NEXT:     _d_p = _d_p + 1;
 // CHECK-NEXT:     p = p + 1;
 // CHECK-NEXT:     double _d_sum = 0.;
@@ -66,20 +65,17 @@ double arrayPointer(const double* arr) {
 // CHECK-NEXT:     _d_p++;
 // CHECK-NEXT:     p++;
 // CHECK-NEXT:     sum += *p * 2;
-// CHECK-NEXT:     const double *_t2 = p;
-// CHECK-NEXT:     double *_t3 = _d_p;
+// CHECK-NEXT:     double *_t1 = _d_p;
 // CHECK-NEXT:     _d_p += 1;
 // CHECK-NEXT:     p += 1;
 // CHECK-NEXT:     sum += *p * 4;
 // CHECK-NEXT:     ++_d_p;
 // CHECK-NEXT:     ++p;
 // CHECK-NEXT:     sum += *p * 3;
-// CHECK-NEXT:     const double *_t4 = p;
-// CHECK-NEXT:     double *_t5 = _d_p;
+// CHECK-NEXT:     double *_t2 = _d_p;
 // CHECK-NEXT:     _d_p -= 2;
 // CHECK-NEXT:     p -= 2;
-// CHECK-NEXT:     const double *_t6 = p;
-// CHECK-NEXT:     double *_t7 = _d_p;
+// CHECK-NEXT:     double *_t3 = _d_p;
 // CHECK-NEXT:     _d_p = _d_p - 2;
 // CHECK-NEXT:     p = p - 2;
 // CHECK-NEXT:     sum += 5 * *p;
@@ -88,43 +84,25 @@ double arrayPointer(const double* arr) {
 // CHECK-NEXT:         double _r_d3 = _d_sum;
 // CHECK-NEXT:         *_d_p += 5 * _r_d3;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         p = _t6;
-// CHECK-NEXT:         _d_p = _t7;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         p = _t4;
-// CHECK-NEXT:         _d_p = _t5;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p = _t3;
+// CHECK-NEXT:     _d_p = _t2;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d2 = _d_sum;
 // CHECK-NEXT:         *_d_p += _r_d2 * 3;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         --p;
-// CHECK-NEXT:         --_d_p;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     --_d_p;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d1 = _d_sum;
 // CHECK-NEXT:         *_d_p += _r_d1 * 4;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         p = _t2;
-// CHECK-NEXT:         _d_p = _t3;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p = _t1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_sum;
 // CHECK-NEXT:         *_d_p += _r_d0 * 2;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         p--;
-// CHECK-NEXT:         _d_p--;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p--;
 // CHECK-NEXT:     *_d_p += _d_sum;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         p = _t0;
-// CHECK-NEXT:         _d_p = _t1;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p = _t0;
 // CHECK-NEXT: }
 
 double pointerParam(const double* arr, size_t n) {
@@ -196,12 +174,10 @@ double pointerMultipleParams(const double* a, const double* b) {
 // CHECK: void pointerMultipleParams_grad(const double *a, const double *b, double *_d_a, double *_d_b) {
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = b[2];
-// CHECK-NEXT:     const double *_t0 = b;
-// CHECK-NEXT:     double *_t1 = _d_b;
+// CHECK-NEXT:     double *_t0 = _d_b;
 // CHECK-NEXT:     _d_b = _d_a;
 // CHECK-NEXT:     b = a;
-// CHECK-NEXT:     const double *_t2 = a;
-// CHECK-NEXT:     double *_t3 = _d_a;
+// CHECK-NEXT:     double *_t1 = _d_a;
 // CHECK-NEXT:     _d_a = 1 + _d_a;
 // CHECK-NEXT:     a = 1 + a;
 // CHECK-NEXT:     ++_d_b;
@@ -228,57 +204,30 @@ double pointerMultipleParams(const double* a, const double* b) {
 // CHECK-NEXT:         _d_a[0] += _r_d3;
 // CHECK-NEXT:         _d_b[0] += _r_d3;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         ++a;
-// CHECK-NEXT:         ++_d_a;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         ++b;
-// CHECK-NEXT:         ++_d_b;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     ++_d_a;
+// CHECK-NEXT:     ++_d_b;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d2 = _d_sum;
 // CHECK-NEXT:         _d_a[0] += _r_d2;
 // CHECK-NEXT:         _d_b[0] += _r_d2;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         a++;
-// CHECK-NEXT:         _d_a++;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         b++;
-// CHECK-NEXT:         _d_b++;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_a++;
+// CHECK-NEXT:     _d_b++;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d1 = _d_sum;
 // CHECK-NEXT:         _d_a[0] += _r_d1;
 // CHECK-NEXT:         _d_b[0] += _r_d1;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         a--;
-// CHECK-NEXT:         _d_a--;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         b--;
-// CHECK-NEXT:         _d_b--;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_a--;
+// CHECK-NEXT:     _d_b--;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_sum;
 // CHECK-NEXT:         _d_a[0] += _r_d0;
 // CHECK-NEXT:         _d_b[0] += _r_d0;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         --b;
-// CHECK-NEXT:         --_d_b;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         a = _t2;
-// CHECK-NEXT:         _d_a = _t3;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         b = _t0;
-// CHECK-NEXT:         _d_b = _t1;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     --_d_b;
+// CHECK-NEXT:     _d_a = _t1;
+// CHECK-NEXT:     _d_b = _t0;
 // CHECK-NEXT:     _d_b[2] += _d_sum;
 // CHECK-NEXT: }
 
@@ -448,14 +397,10 @@ double* ptrValFn (double* x, int n) {
 // CHECK-NEXT: }
 
 // CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n) {
-// CHECK-NEXT:     double *_t0 = x;
-// CHECK-NEXT:     double *_t1 = _d_x;
+// CHECK-NEXT:     double *_t0 = _d_x;
 // CHECK-NEXT:     _d_x += n;
 // CHECK-NEXT:     x += n;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         _d_x = _t1;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_x = _t0;
 // CHECK-NEXT: }
 
 double nestedPtrFn (double x, double y) {
@@ -517,15 +462,11 @@ double nestedStruct(double x) {
 // CHECK-NEXT:      node.value = x;
 // CHECK-NEXT:      Node _d_new_node = {nullptr, 0.};
 // CHECK-NEXT:      Node new_node;
-// CHECK-NEXT:      Node *_t0 = new_node.prev;
-// CHECK-NEXT:      Node *_t1 = _d_new_node.prev;
+// CHECK-NEXT:      Node *_t0 = _d_new_node.prev;
 // CHECK-NEXT:      _d_new_node.prev = &_d_node;
 // CHECK-NEXT:      new_node.prev = &node;
 // CHECK-NEXT:      _d_new_node.prev->value += 1;
-// CHECK-NEXT:      {
-// CHECK-NEXT:          new_node.prev = _t0;
-// CHECK-NEXT:          _d_new_node.prev = _t1;
-// CHECK-NEXT:      }
+// CHECK-NEXT:      _d_new_node.prev = _t0;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r_d0 = _d_node.value;
 // CHECK-NEXT:          _d_node.value = 0.;

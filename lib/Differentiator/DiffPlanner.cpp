@@ -632,12 +632,6 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
           (!isa<UnaryOperator>(E) ||
            cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
         return true;
-
-      // FIXME: currently, we allow all pointer operations to be stored.
-      // This is not correct, but we need to implement a more advanced analysis
-      // to determine which pointer operations are useful to store.
-      if (E->getType()->isPointerType())
-        return true;
     }
     if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function) &&
         Function->isDefined() && m_AnalysisDC) {
