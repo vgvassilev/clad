@@ -73,6 +73,18 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
+double f_2 (const double& x, const double& y) {
+   return x + y;
+}
+
+//CHECK:   void f_2_grad_0(const double &x, const double &y, double *_d_x) {
+//CHECK-NEXT:       double _d_y = 0.;
+//CHECK-NEXT:       {
+//CHECK-NEXT:           *_d_x += 1;
+//CHECK-NEXT:           _d_y += 1;
+//CHECK-NEXT:       }
+//CHECK-NEXT:   }
+
 #define TEST(F, ...)                                                           \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -129,6 +141,11 @@ int main () {
        &result[0],
        &result[1],
        &result[2]); // CHECK-EXEC: {0.00, 1.00, 2.00}
+
+  auto f2_dX = clad::gradient(f_2, "0");
+  result[0] = 0;
+  f2_dX.execute(2, 3, &result[0]);
+  printf("{%.2f}\n", result[0]); // CHECK-EXEC: {1.00}
 
   return 0;
 }

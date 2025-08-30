@@ -412,6 +412,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           continue;
         }
         auto VDDerivedType = utils::getNonConstType(paramTy, m_Sema);
+        VDDerivedType = VDDerivedType.getNonReferenceType();
         auto* VDDerived =
             BuildGlobalVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
                                getZeroInit(VDDerivedType));
