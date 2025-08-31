@@ -1,8 +1,8 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
+// RUN: ./Pointers.out | %filecheck_exec %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oPointers.out
 // RUN: ./Pointers.out | %filecheck_exec %s
 
-// FIXME: This test does not work with enable-tbr flag, because the
-// current implementation of TBR analysis doesn't support pointers.
 // XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -57,82 +57,52 @@ double arrayPointer(const double* arr) {
 // CHECK: void arrayPointer_grad(const double *arr, double *_d_arr) {
 // CHECK-NEXT:     double *_d_p = _d_arr;
 // CHECK-NEXT:     const double *p = arr;
-// CHECK-NEXT:     const double *_t0 = p;
-// CHECK-NEXT:     double *_t1 = _d_p;
+// CHECK-NEXT:     double *_t0 = _d_p;
 // CHECK-NEXT:     _d_p = _d_p + 1;
 // CHECK-NEXT:     p = p + 1;
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = *p;
 // CHECK-NEXT:     _d_p++;
 // CHECK-NEXT:     p++;
-// CHECK-NEXT:     double _t2 = sum;
 // CHECK-NEXT:     sum += *p * 2;
-// CHECK-NEXT:     const double *_t3 = p;
-// CHECK-NEXT:     double *_t4 = _d_p;
+// CHECK-NEXT:     double *_t1 = _d_p;
 // CHECK-NEXT:     _d_p += 1;
 // CHECK-NEXT:     p += 1;
-// CHECK-NEXT:     double _t5 = sum;
 // CHECK-NEXT:     sum += *p * 4;
 // CHECK-NEXT:     ++_d_p;
 // CHECK-NEXT:     ++p;
-// CHECK-NEXT:     double _t6 = sum;
 // CHECK-NEXT:     sum += *p * 3;
-// CHECK-NEXT:     const double *_t7 = p;
-// CHECK-NEXT:     double *_t8 = _d_p;
+// CHECK-NEXT:     double *_t2 = _d_p;
 // CHECK-NEXT:     _d_p -= 2;
 // CHECK-NEXT:     p -= 2;
-// CHECK-NEXT:     const double *_t9 = p;
-// CHECK-NEXT:     double *_t10 = _d_p;
+// CHECK-NEXT:     double *_t3 = _d_p;
 // CHECK-NEXT:     _d_p = _d_p - 2;
 // CHECK-NEXT:     p = p - 2;
-// CHECK-NEXT:     double _t11 = sum;
 // CHECK-NEXT:     sum += 5 * *p;
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         sum = _t11;
 // CHECK-NEXT:         double _r_d3 = _d_sum;
 // CHECK-NEXT:         *_d_p += 5 * _r_d3;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p = _t3;
+// CHECK-NEXT:     _d_p = _t2;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         p = _t9;
-// CHECK-NEXT:         _d_p = _t10;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         p = _t7;
-// CHECK-NEXT:         _d_p = _t8;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         sum = _t6;
 // CHECK-NEXT:         double _r_d2 = _d_sum;
 // CHECK-NEXT:         *_d_p += _r_d2 * 3;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     --_d_p;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         --p;
-// CHECK-NEXT:         --_d_p;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         sum = _t5;
 // CHECK-NEXT:         double _r_d1 = _d_sum;
 // CHECK-NEXT:         *_d_p += _r_d1 * 4;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p = _t1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         p = _t3;
-// CHECK-NEXT:         _d_p = _t4;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         sum = _t2;
 // CHECK-NEXT:         double _r_d0 = _d_sum;
 // CHECK-NEXT:         *_d_p += _r_d0 * 2;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         p--;
-// CHECK-NEXT:         _d_p--;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p--;
 // CHECK-NEXT:     *_d_p += _d_sum;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         p = _t0;
-// CHECK-NEXT:         _d_p = _t1;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p = _t0;
 // CHECK-NEXT: }
 
 double pointerParam(const double* arr, size_t n) {
@@ -153,9 +123,8 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:     clad::tape<size_t *> _t3 = {};
 // CHECK-NEXT:     size_t *_d_j = nullptr;
 // CHECK-NEXT:     size_t *j = nullptr;
-// CHECK-NEXT:     clad::tape<double> _t4 = {};
-// CHECK-NEXT:     clad::tape<const double *> _t5 = {};
-// CHECK-NEXT:     clad::tape<double *> _t6 = {};
+// CHECK-NEXT:     clad::tape<const double *> _t4 = {};
+// CHECK-NEXT:     clad::tape<double *> _t5 = {};
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
@@ -164,10 +133,9 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:         _d_j = &_d_i;
 // CHECK-NEXT:         clad::push(_t1, _d_j);
 // CHECK-NEXT:         clad::push(_t3, j) , j = &i;
-// CHECK-NEXT:         clad::push(_t4, sum);
 // CHECK-NEXT:         sum += arr[0] * *j;
-// CHECK-NEXT:         clad::push(_t5, arr);
-// CHECK-NEXT:         clad::push(_t6, _d_arr);
+// CHECK-NEXT:         clad::push(_t4, arr);
+// CHECK-NEXT:         clad::push(_t5, _d_arr);
 // CHECK-NEXT:         _d_arr = _d_arr + 1;
 // CHECK-NEXT:         arr = arr + 1;
 // CHECK-NEXT:     }
@@ -176,11 +144,10 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         size_t *_t2 = clad::pop(_t1);
 // CHECK-NEXT:         {
-// CHECK-NEXT:             arr = clad::pop(_t5);
-// CHECK-NEXT:             _d_arr = clad::pop(_t6);
+// CHECK-NEXT:             arr = clad::pop(_t4);
+// CHECK-NEXT:             _d_arr = clad::pop(_t5);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             sum = clad::pop(_t4);
 // CHECK-NEXT:             double _r_d0 = _d_sum;
 // CHECK-NEXT:             _d_arr[0] += _r_d0 * *j;
 // CHECK-NEXT:             *_t2 += arr[0] * _r_d0;
@@ -207,97 +174,60 @@ double pointerMultipleParams(const double* a, const double* b) {
 // CHECK: void pointerMultipleParams_grad(const double *a, const double *b, double *_d_a, double *_d_b) {
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = b[2];
-// CHECK-NEXT:     const double *_t0 = b;
-// CHECK-NEXT:     double *_t1 = _d_b;
+// CHECK-NEXT:     double *_t0 = _d_b;
 // CHECK-NEXT:     _d_b = _d_a;
 // CHECK-NEXT:     b = a;
-// CHECK-NEXT:     const double *_t2 = a;
-// CHECK-NEXT:     double *_t3 = _d_a;
+// CHECK-NEXT:     double *_t1 = _d_a;
 // CHECK-NEXT:     _d_a = 1 + _d_a;
 // CHECK-NEXT:     a = 1 + a;
 // CHECK-NEXT:     ++_d_b;
 // CHECK-NEXT:     ++b;
-// CHECK-NEXT:     double _t4 = sum;
 // CHECK-NEXT:     sum += a[0] + b[0];
 // CHECK-NEXT:     _d_b++;
 // CHECK-NEXT:     b++;
 // CHECK-NEXT:     _d_a++;
 // CHECK-NEXT:     a++;
-// CHECK-NEXT:     double _t5 = sum;
 // CHECK-NEXT:     sum += a[0] + b[0];
 // CHECK-NEXT:     _d_b--;
 // CHECK-NEXT:     b--;
 // CHECK-NEXT:     _d_a--;
 // CHECK-NEXT:     a--;
-// CHECK-NEXT:     double _t6 = sum;
 // CHECK-NEXT:     sum += a[0] + b[0];
 // CHECK-NEXT:     --_d_b;
 // CHECK-NEXT:     --b;
 // CHECK-NEXT:     --_d_a;
 // CHECK-NEXT:     --a;
-// CHECK-NEXT:     double _t7 = sum;
 // CHECK-NEXT:     sum += a[0] + b[0];
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         sum = _t7;
 // CHECK-NEXT:         double _r_d3 = _d_sum;
 // CHECK-NEXT:         _d_a[0] += _r_d3;
 // CHECK-NEXT:         _d_b[0] += _r_d3;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     ++_d_a;
+// CHECK-NEXT:     ++_d_b;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         ++a;
-// CHECK-NEXT:         ++_d_a;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         ++b;
-// CHECK-NEXT:         ++_d_b;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         sum = _t6;
 // CHECK-NEXT:         double _r_d2 = _d_sum;
 // CHECK-NEXT:         _d_a[0] += _r_d2;
 // CHECK-NEXT:         _d_b[0] += _r_d2;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     _d_a++;
+// CHECK-NEXT:     _d_b++;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         a++;
-// CHECK-NEXT:         _d_a++;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         b++;
-// CHECK-NEXT:         _d_b++;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         sum = _t5;
 // CHECK-NEXT:         double _r_d1 = _d_sum;
 // CHECK-NEXT:         _d_a[0] += _r_d1;
 // CHECK-NEXT:         _d_b[0] += _r_d1;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     _d_a--;
+// CHECK-NEXT:     _d_b--;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         a--;
-// CHECK-NEXT:         _d_a--;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         b--;
-// CHECK-NEXT:         _d_b--;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         sum = _t4;
 // CHECK-NEXT:         double _r_d0 = _d_sum;
 // CHECK-NEXT:         _d_a[0] += _r_d0;
 // CHECK-NEXT:         _d_b[0] += _r_d0;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         --b;
-// CHECK-NEXT:         --_d_b;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         a = _t2;
-// CHECK-NEXT:         _d_a = _t3;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         b = _t0;
-// CHECK-NEXT:         _d_b = _t1;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     --_d_b;
+// CHECK-NEXT:     _d_a = _t1;
+// CHECK-NEXT:     _d_b = _t0;
 // CHECK-NEXT:     _d_b[2] += _d_sum;
 // CHECK-NEXT: }
 
@@ -321,9 +251,7 @@ double newAndDeletePointer(double i, double j) {
 // CHECK-NEXT:     double *q = new double(j);
 // CHECK-NEXT:     double *_d_r = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
 // CHECK-NEXT:     double *r = new double [2];
-// CHECK-NEXT:     double _t0 = r[0];
 // CHECK-NEXT:     r[0] = i + j;
-// CHECK-NEXT:     double _t1 = r[1];
 // CHECK-NEXT:     r[1] = i * j;
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = *p + *q + r[0] + r[1];
@@ -335,14 +263,12 @@ double newAndDeletePointer(double i, double j) {
 // CHECK-NEXT:         _d_r[1] += _d_sum;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         r[1] = _t1;
 // CHECK-NEXT:         double _r_d1 = _d_r[1];
 // CHECK-NEXT:         _d_r[1] = 0.;
 // CHECK-NEXT:         *_d_i += _r_d1 * j;
 // CHECK-NEXT:         *_d_j += i * _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         r[0] = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_r[0];
 // CHECK-NEXT:         _d_r[0] = 0.;
 // CHECK-NEXT:         *_d_i += _r_d0;
@@ -471,14 +397,10 @@ double* ptrValFn (double* x, int n) {
 // CHECK-NEXT: }
 
 // CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n) {
-// CHECK-NEXT:     double *_t0 = x;
-// CHECK-NEXT:     double *_t1 = _d_x;
+// CHECK-NEXT:     double *_t0 = _d_x;
 // CHECK-NEXT:     _d_x += n;
 // CHECK-NEXT:     x += n;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         _d_x = _t1;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_x = _t0;
 // CHECK-NEXT: }
 
 double nestedPtrFn (double x, double y) {
@@ -513,13 +435,42 @@ double listInitPtrFn (double x, double y) {
 // CHECK:  void listInitPtrFn_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      double *_d_ptr = &*_d_x;
 // CHECK-NEXT:      double *ptr{&x};
-// CHECK-NEXT:      double _t0 = *ptr;
 // CHECK-NEXT:      *ptr += y;
 // CHECK-NEXT:      *_d_ptr += 1;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          *ptr = _t0;
 // CHECK-NEXT:          double _r_d0 = *_d_ptr;
 // CHECK-NEXT:          *_d_y += _r_d0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+struct Node {
+  Node* prev = nullptr;
+  double value = 1;
+};
+
+double nestedStruct(double x) {
+  Node node;
+  node.value = x;
+  Node new_node;
+  new_node.prev = &node;
+  return new_node.prev->value;
+}
+
+// CHECK:  void nestedStruct_grad(double x, double *_d_x) {
+// CHECK-NEXT:      Node _d_node = {nullptr, 0.};
+// CHECK-NEXT:      Node node;
+// CHECK-NEXT:      node.value = x;
+// CHECK-NEXT:      Node _d_new_node = {nullptr, 0.};
+// CHECK-NEXT:      Node new_node;
+// CHECK-NEXT:      Node *_t0 = _d_new_node.prev;
+// CHECK-NEXT:      _d_new_node.prev = &_d_node;
+// CHECK-NEXT:      new_node.prev = &node;
+// CHECK-NEXT:      _d_new_node.prev->value += 1;
+// CHECK-NEXT:      _d_new_node.prev = _t0;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r_d0 = _d_node.value;
+// CHECK-NEXT:          _d_node.value = 0.;
+// CHECK-NEXT:          *_d_x += _r_d0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
@@ -640,4 +591,7 @@ int main() {
   d_i = 0; d_j = 0;
   d_listInitPtrFn.execute(5, 7, &d_i, &d_j);
   printf("%.2f %.2f\n", d_i, d_j); // CHECK-EXEC: 1.00 1.00
+
+  auto d_nestedStruct = clad::gradient(nestedStruct);
+  NON_MEM_FN_TEST(d_nestedStruct); // CHECK-EXEC: 1.00
 }

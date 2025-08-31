@@ -20,6 +20,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <iterator>
+#include <map>
 #include <memory>
 #include <set>
 
@@ -37,6 +38,8 @@ class Type;
 namespace clad {
 using OwnedAnalysisContexts =
     llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
+using ParamSet = std::set<const clang::ParmVarDecl*>;
+using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
 /// A struct containing information about request to differentiate a function.
 struct DiffRequest {
 private:
@@ -45,6 +48,8 @@ private:
   /// be stored before being changed or not.
   mutable struct TbrRunInfo {
     std::set<clang::SourceLocation> ToBeRecorded;
+    ParamInfo m_ModifiedParams;
+    ParamInfo m_UsedParams;
     bool HasAnalysisRun = false;
   } m_TbrRunInfo;
 
@@ -191,6 +196,16 @@ public:
     m_TbrRunInfo.HasAnalysisRun = true;
     return m_TbrRunInfo.ToBeRecorded;
   }
+  ParamInfo& getModifiedParams() const { return m_TbrRunInfo.m_ModifiedParams; }
+  void addFunctionModifiedParams(const clang::FunctionDecl* FD,
+                                 const ParamSet& params) {
+    m_TbrRunInfo.m_ModifiedParams[FD] = params;
+  }
+  ParamInfo& getUsedParams() const { return m_TbrRunInfo.m_UsedParams; }
+  void addFunctionUsedParams(const clang::FunctionDecl* FD,
+                             const ParamSet& params) {
+    m_TbrRunInfo.m_UsedParams[FD] = params;
+  }
   void addVariedDecl(const clang::VarDecl* init) {
     m_ActivityRunInfo.VariedDecls.insert(init);
   }
@@ -233,7 +248,7 @@ public:
     ///
     const DiffRequest* m_TopMostReq = nullptr;
 
-    const DiffRequest* m_ParentReq = nullptr;
+    DiffRequest* m_ParentReq = nullptr;
     clang::Sema& m_Sema;
 
     const RequestOptions& m_Options;
@@ -249,6 +264,7 @@ public:
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
+    bool shouldVisitImplicitCode() const { return true; }
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
       llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
       if (m_Traversed.count(FD))

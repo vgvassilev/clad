@@ -241,13 +241,12 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT: }
 
 // CHECK: void fn6_grad(dcomplex c, double i, dcomplex *_d_c, double *_d_i) {
-// CHECK-NEXT:     dcomplex _t0 = c;
 // CHECK-NEXT:     c.real(5 * i);
-// CHECK-NEXT:     double _t1 = c.imag();
+// CHECK-NEXT:     double _t0 = c.imag();
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = c.real() + 3 * _t1 + 6 * i;
-// CHECK-NEXT:     double _t2 = c.real();
-// CHECK-NEXT:     res += 4 * _t2;
+// CHECK-NEXT:     double res = c.real() + 3 * _t0 + 6 * i;
+// CHECK-NEXT:     double _t1 = c.real();
+// CHECK-NEXT:     res += 4 * _t1;
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_res;
@@ -260,7 +259,6 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         c = _t0;
 // CHECK-NEXT:         c.real_pullback(5 * i, &(*_d_c), &_r0);
 // CHECK-NEXT:         *_d_i += 5 * _r0;
 // CHECK-NEXT:     }
@@ -273,16 +271,14 @@ double fn7(dcomplex c1, dcomplex c2) {
 
 // CHECK: void fn7_grad(dcomplex c1, dcomplex c2, dcomplex *_d_c1, dcomplex *_d_c2) {
 // CHECK-NEXT:     double _t0 = c2.real();
-// CHECK-NEXT:     dcomplex _t1 = c1;
 // CHECK-NEXT:     c1.real(c2.imag() + 5 * _t0);
-// CHECK-NEXT:     double _t2 = c1.imag();
+// CHECK-NEXT:     double _t1 = c1.imag();
 // CHECK-NEXT:     {
 // CHECK-NEXT:         c1.real_pullback(1, &(*_d_c1));
 // CHECK-NEXT:         c1.imag_pullback(3 * 1, &(*_d_c1));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         c1 = _t1;
 // CHECK-NEXT:         c1.real_pullback(c2.imag() + 5 * _t0, &(*_d_c1), &_r0);
 // CHECK-NEXT:         c2.imag_pullback(_r0, &(*_d_c2));
 // CHECK-NEXT:         c2.real_pullback(5 * _r0, &(*_d_c2));
@@ -314,16 +310,14 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT: }
 
 // CHECK: void fn8_grad(Tangent t, dcomplex c, Tangent *_d_t, dcomplex *_d_c) {
-// CHECK-NEXT:     Tangent _t0 = t;
 // CHECK-NEXT:     t.updateTo(c.real());
-// CHECK-NEXT:     Tangent _t1 = t;
+// CHECK-NEXT:     Tangent _t0 = t;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         t = _t1;
+// CHECK-NEXT:         t = _t0;
 // CHECK-NEXT:         sum_pullback(t, 1, &(*_d_t));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         t = _t0;
 // CHECK-NEXT:         t.updateTo_pullback(c.real(), &(*_d_t), &_r0);
 // CHECK-NEXT:         c.real_pullback(_r0, &(*_d_c));
 // CHECK-NEXT:     }
@@ -657,11 +651,9 @@ double fn17(double i, double j) {
 // CHECK-NEXT:    SimpleFunctions1 sf(3, 5);
 // CHECK-NEXT:    SimpleFunctions1 _d_sf(sf);
 // CHECK-NEXT:    clad::zero_init(_d_sf);
-// CHECK-NEXT:    SimpleFunctions1 _t0 = sf;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r0 = 0.;
 // CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        sf = _t0;
 // CHECK-NEXT:        sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r0, &_r1);
 // CHECK-NEXT:        *_d_i += _r0;
 // CHECK-NEXT:        *_d_j += _r1;
@@ -677,11 +669,9 @@ double fn18(double i, double j) {
 // CHECK-NEXT:      SimpleFunctions1 sf(3 * i, 5 * j);
 // CHECK-NEXT:      SimpleFunctions1 _d_sf(sf);
 // CHECK-NEXT:      clad::zero_init(_d_sf);
-// CHECK-NEXT:      SimpleFunctions1 _t0 = sf;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r2 = 0.;
 // CHECK-NEXT:          double _r3 = 0.;
-// CHECK-NEXT:          sf = _t0;
 // CHECK-NEXT:          sf.mem_fn_pullback(i, j, 1, &_d_sf, &_r2, &_r3);
 // CHECK-NEXT:          *_d_i += _r2;
 // CHECK-NEXT:          *_d_j += _r3;
@@ -773,7 +763,6 @@ double fn21(double x, double y) {
 // CHECK:  void fn21_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Identity _d_di = {};
 // CHECK-NEXT:      Identity di{};
-// CHECK-NEXT:      Identity _t0 = di;
 // CHECK-NEXT:      double _d_val = 0.;
 // CHECK-NEXT:      double val = di(x);
 // CHECK-NEXT:      {
@@ -782,7 +771,6 @@ double fn21(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          di = _t0;
 // CHECK-NEXT:          di.operator_call_pullback(x, _d_val, &_d_di, &_r0);
 // CHECK-NEXT:          *_d_x += _r0;
 // CHECK-NEXT:      }
@@ -984,7 +972,6 @@ double fn25(double x, double y) {
 // CHECK-NEXT:      Vector3 v{x, x, y};
 // CHECK-NEXT:      Vector3 _d_v(v);
 // CHECK-NEXT:      clad::zero_init(_d_v);
-// CHECK-NEXT:      Vector3 _t0 = v;
 // CHECK-NEXT:      Vector3 w = - v;
 // CHECK-NEXT:      Vector3 _d_w(w);
 // CHECK-NEXT:      clad::zero_init(_d_w);
@@ -992,7 +979,6 @@ double fn25(double x, double y) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          Vector3 _r3 = {};
 // CHECK-NEXT:          Vector3::constructor_pullback(- v, &_d_w, &_r3);
-// CHECK-NEXT:          v = _t0;
 // CHECK-NEXT:          v.operator_minus_pullback(_r3, &_d_v);
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
@@ -1046,11 +1032,7 @@ double fn26(double x, double y) {
 // CHECK-NEXT:      ::clad::ValueAndAdjoint<ptrClass, ptrClass> _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<ptrClass>(), &x, &*_d_x);
 // CHECK-NEXT:      ptrClass p(_t0.value);
 // CHECK-NEXT:      ptrClass _d_p = _t0.adjoint;
-// CHECK-NEXT:      ptrClass _t1 = p;
-// CHECK-NEXT:      {
-// CHECK-NEXT:          p = _t1;
-// CHECK-NEXT:          p.operator_star_pullback(1, &_d_p);
-// CHECK-NEXT:      }
+// CHECK-NEXT:      p.operator_star_pullback(1, &_d_p);
 // CHECK-NEXT:      ptrClass::constructor_pullback(&x, &_d_p, &*_d_x);
 // CHECK-NEXT:  }
 

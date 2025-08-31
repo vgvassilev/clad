@@ -75,10 +75,9 @@ float func2(float x) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_z * z * {{.+}});
 //CHECK-NEXT:             z = clad::pop(_t2);
-//CHECK-NEXT:             float _r_d0 = _d_z;
+//CHECK-NEXT:             _d_m += _d_z;
+//CHECK-NEXT:             _d_m += _d_z;
 //CHECK-NEXT:             _d_z = 0.F;
-//CHECK-NEXT:             _d_m += _r_d0;
-//CHECK-NEXT:             _d_m += _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_m * m * {{.+}});
@@ -282,10 +281,59 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:     _final_error += std::abs(1. * _ret_value0 * {{.+}});
 //CHECK-NEXT: }
 
+double fun(double x) {
+    return x*x;
+}
+
+//CHECK: void fun_pullback(double x, double _d_y, double *_d_x, double &_final_error) {
+//CHECK-NEXT:     double _ret_value0 = 0.;
+//CHECK-NEXT:     _ret_value0 = x * x;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += _d_y * x;
+//CHECK-NEXT:         *_d_x += x * _d_y;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
+//CHECK-NEXT:     _final_error += std::abs(1. * _ret_value0 * {{.+}});
+//CHECK-NEXT: }
+
+double func6(double x) {
+  double sum = 0;
+  for (int i = 1; i < 10; i++)
+    sum += fun(x);
+  return sum;
+}
+
+//CHECK: void func6_grad(double x, double *_d_x, double &_final_error) {
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
+//CHECK-NEXT:     clad::tape<double> _t1 = {};
+//CHECK-NEXT:     double _d_sum = 0.;
+//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     for (i = 1; i < 10; i++) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         clad::push(_t1, sum);
+//CHECK-NEXT:         sum += fun(x);
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_sum += 1;
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         i--;
+//CHECK-NEXT:         sum = clad::pop(_t1);
+//CHECK-NEXT:         double _r0 = 0.;
+//CHECK-NEXT:         double _t2 = 0.;
+//CHECK-NEXT:         fun_pullback(x, _d_sum, &_r0, _t2);
+//CHECK-NEXT:         *_d_x += _r0;
+//CHECK-NEXT:         _final_error += _t2;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _final_error += std::abs(_d_sum * sum * {{.+}});
+//CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
+//CHECK-NEXT: }
+
 int main() {
   clad::estimate_error(func);
   clad::estimate_error(func2);
   clad::estimate_error(func3);
   clad::estimate_error(func4);
   clad::estimate_error(func5);
+  clad::estimate_error(func6);
 }

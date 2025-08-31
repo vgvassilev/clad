@@ -41,6 +41,10 @@ void ErrorEstimationHandler::SetErrorEstimationModel(
   m_EstModel = estModel;
 }
 
+DeclRefExpr* ErrorEstimationHandler::BuildFinalErrorExpr() {
+  return m_RMV->BuildDeclRef(m_Params->back());
+}
+
 void ErrorEstimationHandler::BuildReturnErrorStmt() {
   // If we encountered any arithmetic expression in the return statement,
   // we must add its error to the final estimate.
@@ -51,14 +55,15 @@ void ErrorEstimationHandler::BuildReturnErrorStmt() {
     Expr* finExpr =
         m_EstModel->AssignError(StmtDiff(m_RetErrorExpr, flitr), "return_expr");
     m_RMV->addToCurrentBlock(
-        m_RMV->BuildOp(BO_AddAssign, m_FinalError, finExpr),
+        m_RMV->BuildOp(BO_AddAssign, BuildFinalErrorExpr(), finExpr),
         direction::forward);
   }
 }
 
 void ErrorEstimationHandler::AddErrorStmtToBlock(Expr* errorExpr,
                                                  bool addToTheFront) {
-  Stmt* errorStmt = m_RMV->BuildOp(BO_AddAssign, m_FinalError, errorExpr);
+  Expr* FinalError = BuildFinalErrorExpr();
+  Stmt* errorStmt = m_RMV->BuildOp(BO_AddAssign, FinalError, errorExpr);
   if (addToTheFront) {
     auto& block = m_RMV->getCurrentBlock(direction::reverse);
     block.insert(block.begin(), errorStmt);
@@ -114,7 +119,8 @@ void ErrorEstimationHandler::EmitNestedFunctionParamError(
     Expr* errorExpr = m_EstModel->AssignError(
         {derivedCallArgs[i], m_RMV->Clone(ArgResult[i])},
         fnDecl->getNameInfo().getAsString() + "_param_" + std::to_string(i));
-    Expr* errorStmt = m_RMV->BuildOp(BO_AddAssign, m_FinalError, errorExpr);
+    Expr* FinalError = BuildFinalErrorExpr();
+    Expr* errorStmt = m_RMV->BuildOp(BO_AddAssign, FinalError, errorExpr);
     m_ReverseErrorStmts.push_back(errorStmt);
   }
 }
@@ -181,7 +187,7 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
         auto* errorExpr = GetError(paramClone, m_RMV->m_Variables[decl],
                                    params[i]->getNameAsString());
         m_RMV->addToCurrentBlock(
-            m_RMV->BuildOp(BO_AddAssign, m_FinalError, errorExpr));
+            m_RMV->BuildOp(BO_AddAssign, BuildFinalErrorExpr(), errorExpr));
       } else {
         auto LdiffExpr = m_RMV->m_Variables[decl];
         Expr* size = getSizeExpr(decl);
@@ -200,7 +206,7 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
         // Build the loop to put in reverse mode.
         Expr* errorExpr = GetError(LRepl, Ldiff, params[i]->getNameAsString());
         Expr* finalAssignExpr =
-            m_RMV->BuildOp(BO_AddAssign, m_FinalError, errorExpr);
+            m_RMV->BuildOp(BO_AddAssign, BuildFinalErrorExpr(), errorExpr);
         Expr* conditionExpr = m_RMV->BuildOp(BO_LE, m_IdxExpr, size);
         Expr* incExpr = m_RMV->BuildOp(UO_PostInc, m_IdxExpr);
         Stmt* ArrayParamLoop = new (m_RMV->m_Context)
@@ -304,11 +310,6 @@ void ErrorEstimationHandler::ActAfterCreatingDerivedFnParams(
   params.push_back(errorVarDecl);
   m_RMV->m_Sema.PushOnScopeChains(params.back(), m_RMV->getCurrentScope(),
                                   /*AddToContext=*/false);
-}
-
-void ErrorEstimationHandler::ActBeforeCreatingDerivedFnBodyScope() {
-  // Reference to the final error statement
-  SetFinalErrorExpr(m_RMV->BuildDeclRef(m_Params->back()));
 }
 
 void ErrorEstimationHandler::ActOnEndOfDerivedFnBody() {

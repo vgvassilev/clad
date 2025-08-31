@@ -16,7 +16,7 @@ int main() {
 #endif
 }
 
-// CHECK: Building code for '<double fn1(double x)>[name=fn1, order=1, mode={{.*}}, args='', tbr]'
+// CHECK: Building code for '<double fn1(double x)>[name=fn1, order=1, mode={{.*}}, args=''
 // CHECK-NEXT: While visiting <CompoundStmt> [ '
 // CHECK: --- Begin Stmt Dump ---
 // CHECK return x * x + 3 * x + 5;

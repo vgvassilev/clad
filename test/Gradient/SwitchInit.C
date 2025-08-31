@@ -67,11 +67,10 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     res = _t4;
-// CHECK-NEXT:                     double _r_d3 = _d_res;
-// CHECK-NEXT:                     *_d_i += _r_d3 * j * j * i;
-// CHECK-NEXT:                     *_d_i += i * _r_d3 * j * j;
-// CHECK-NEXT:                     *_d_j += i * i * _r_d3 * j;
-// CHECK-NEXT:                     *_d_j += i * i * j * _r_d3;
+// CHECK-NEXT:                     *_d_i += _d_res * j * j * i;
+// CHECK-NEXT:                     *_d_i += i * _d_res * j * j;
+// CHECK-NEXT:                     *_d_j += i * i * _d_res * j;
+// CHECK-NEXT:                     *_d_j += i * i * j * _d_res;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 if (_cond0 != 0 && _cond0 != 1 && _cond0 != 2)
 // CHECK-NEXT:                     break;
@@ -80,9 +79,8 @@ double fn1(double i, double j) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                         res = _t3;
-// CHECK-NEXT:                         double _r_d2 = _d_res;
-// CHECK-NEXT:                         *_d_j += _r_d2 * j;
-// CHECK-NEXT:                         *_d_j += j * _r_d2;
+// CHECK-NEXT:                         *_d_j += _d_res * j;
+// CHECK-NEXT:                         *_d_j += j * _d_res;
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                     if (2 == _cond0)
 // CHECK-NEXT:                         break;
@@ -91,9 +89,8 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     res = _t2;
-// CHECK-NEXT:                     double _r_d1 = _d_res;
-// CHECK-NEXT:                     *_d_i += _r_d1 * i;
-// CHECK-NEXT:                     *_d_i += i * _r_d1;
+// CHECK-NEXT:                     *_d_i += _d_res * i;
+// CHECK-NEXT:                     *_d_i += i * _d_res;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 if (1 == _cond0)
 // CHECK-NEXT:                     break;
@@ -103,9 +100,8 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     res = _t0;
-// CHECK-NEXT:                     double _r_d0 = _d_res;
-// CHECK-NEXT:                     *_d_i += _r_d0 * j;
-// CHECK-NEXT:                     *_d_j += i * _r_d0;
+// CHECK-NEXT:                     *_d_i += _d_res * j;
+// CHECK-NEXT:                     *_d_j += i * _d_res;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 if (0 == _cond0)
 // CHECK-NEXT:                     break;

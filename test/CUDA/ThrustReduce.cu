@@ -90,6 +90,29 @@ double product_array_init_zero(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
+double sum_array_init(const thrust::device_vector<double>& vec) {
+    return thrust::reduce(vec.begin(), vec.end(), 10.0);
+}
+// CHECK: void sum_array_init_grad(const thrust::device_vector<double> &vec, thrust::device_vector<double> *_d_vec) {
+// CHECK-NEXT: {
+// CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec));
+// CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
+// CHECK-NEXT:     double _r2 = 0.;
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback(std::begin(vec), std::end(vec), 10., 1, &_r0, &_r1, &_r2);
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+double sum_array_no_init(const thrust::device_vector<double>& vec) {
+    return thrust::reduce(vec.begin(), vec.end());
+}
+// CHECK: void sum_array_no_init_grad(const thrust::device_vector<double> &vec, thrust::device_vector<double> *_d_vec) {
+// CHECK-NEXT: {
+// CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec));
+// CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback(std::begin(vec), std::end(vec), 1, &_r0, &_r1);
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
 double inner_product_array(const thrust::device_vector<double>& vec1, const thrust::device_vector<double>& vec2) {
     return thrust::inner_product(vec1.begin(), vec1.end(), vec2.begin(), 0.0);
 }
@@ -161,6 +184,22 @@ int main() {
     thrust::host_vector<double> host_sum_gradients = sum_gradients;
     printf("Sum Gradients: %.3f %.3f %.3f %.3f\n", host_sum_gradients[0], host_sum_gradients[1], host_sum_gradients[2], host_sum_gradients[3]);
     // CHECK-EXEC: Sum Gradients: 1.000 1.000 1.000 1.000
+
+    // Test Summation with init
+    INIT_GRADIENT(sum_array_init);
+    thrust::device_vector<double> sum_init_gradients(host_input.size());
+    sum_array_init_grad.execute(device_input, &sum_init_gradients);
+    thrust::host_vector<double> host_sum_init_gradients = sum_init_gradients;
+    printf("Sum Gradients with init: %.3f %.3f %.3f %.3f\n", host_sum_init_gradients[0], host_sum_init_gradients[1], host_sum_init_gradients[2], host_sum_init_gradients[3]);
+    // CHECK-EXEC: Sum Gradients with init: 1.000 1.000 1.000 1.000
+
+    // Test Summation without init
+    INIT_GRADIENT(sum_array_no_init);
+    thrust::device_vector<double> sum_no_init_gradients(host_input.size());
+    sum_array_no_init_grad.execute(device_input, &sum_no_init_gradients);
+    thrust::host_vector<double> host_sum_no_init_gradients = sum_no_init_gradients;
+    printf("Sum Gradients without init: %.3f %.3f %.3f %.3f\n", host_sum_no_init_gradients[0], host_sum_no_init_gradients[1], host_sum_no_init_gradients[2], host_sum_no_init_gradients[3]);
+    // CHECK-EXEC: Sum Gradients without init: 1.000 1.000 1.000 1.000
 
     // Test Maximum
     INIT_GRADIENT(max_array);

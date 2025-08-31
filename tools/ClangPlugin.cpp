@@ -12,6 +12,7 @@
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
+#include "../lib/Differentiator/TBRAnalyzer.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -30,6 +31,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "clad/Differentiator/Compatibility.h"
+#include <clad/Differentiator/DiffMode.h>
 
 #include <algorithm>
 #include <cstdlib>  // for getenv

@@ -16,9 +16,8 @@ double f1(double x, double y) {
 //CHECK-NEXT:       x = y;
 //CHECK-NEXT:       *_d_y += 1;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r_d0 = *_d_x;
+//CHECK-NEXT:           *_d_y += *_d_x;
 //CHECK-NEXT:           *_d_x = 0.;
-//CHECK-NEXT:           *_d_y += _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -38,9 +37,8 @@ double f2(double x, double y) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:       *_d_x += 1;
 //CHECK-NEXT:       if (_cond0) {
-//CHECK-NEXT:           double _r_d0 = *_d_x;
+//CHECK-NEXT:           *_d_y += *_d_x;
 //CHECK-NEXT:           *_d_x = 0.;
-//CHECK-NEXT:           *_d_y += _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -63,15 +61,13 @@ double f3(double x, double y) {
 //CHECK-NEXT:       *_d_y += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t1;
-//CHECK-NEXT:           double _r_d3 = *_d_x;
+//CHECK-NEXT:           *_d_y += *_d_x;
 //CHECK-NEXT:           *_d_x = 0.;
-//CHECK-NEXT:           *_d_y += _r_d3;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r_d2 = *_d_y;
+//CHECK-NEXT:           *_d_x += *_d_y * x;
+//CHECK-NEXT:           *_d_x += x * *_d_y;
 //CHECK-NEXT:           *_d_y = 0.;
-//CHECK-NEXT:           *_d_x += _r_d2 * x;
-//CHECK-NEXT:           *_d_x += x * _r_d2;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t0;
@@ -98,14 +94,10 @@ double f4(double x, double y) {
 //CHECK-NEXT:       y = x;
 //CHECK-NEXT:       x = 0;
 //CHECK-NEXT:       *_d_y += 1;
+//CHECK-NEXT:       *_d_x = 0.;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r_d1 = *_d_x;
-//CHECK-NEXT:           *_d_x = 0.;
-//CHECK-NEXT:       }
-//CHECK-NEXT:       {
-//CHECK-NEXT:           double _r_d0 = *_d_y;
+//CHECK-NEXT:           *_d_x += *_d_y;
 //CHECK-NEXT:           *_d_y = 0.;
-//CHECK-NEXT:           *_d_x += _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -262,38 +254,37 @@ double f7(double x, double y) {
 //CHECK-NEXT:       x = ++t[0];
 //CHECK-NEXT:       _d_t[0] += 1;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r_d6 = *_d_x;
+//CHECK-NEXT:           double _r_d5 = *_d_x;
 //CHECK-NEXT:           *_d_x = 0.;
-//CHECK-NEXT:           _d_t[0] += _r_d6;
+//CHECK-NEXT:           _d_t[0] += _r_d5;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r_d5 = _d_t[0];
-//CHECK-NEXT:           _d_t[1] += -_r_d5;
+//CHECK-NEXT:           double _r_d4 = _d_t[0];
+//CHECK-NEXT:           _d_t[1] += -_r_d4;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t[0] = _t2;
-//CHECK-NEXT:           double _r_d4 = _d_t[0];
+//CHECK-NEXT:           double _r_d3 = _d_t[0];
 //CHECK-NEXT:           _d_t[0] = 0.;
-//CHECK-NEXT:           _d_t[0] += _r_d4 / t[1];
-//CHECK-NEXT:           double _r0 = _r_d4 * -t[0] / (t[1] * t[1]);
+//CHECK-NEXT:           _d_t[0] += _r_d3 / t[1];
+//CHECK-NEXT:           double _r0 = _r_d3 * -t[0] / (t[1] * t[1]);
 //CHECK-NEXT:           _d_t[1] += _r0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t[0] = _t1;
-//CHECK-NEXT:           double _r_d3 = _d_t[0];
+//CHECK-NEXT:           double _r_d2 = _d_t[0];
 //CHECK-NEXT:           _d_t[0] = 0.;
-//CHECK-NEXT:           _d_t[0] += _r_d3 * t[1];
-//CHECK-NEXT:           _d_t[1] += t[0] * _r_d3;
+//CHECK-NEXT:           _d_t[0] += _r_d2 * t[1];
+//CHECK-NEXT:           _d_t[1] += t[0] * _r_d2;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r_d2 = _d_t[0];
-//CHECK-NEXT:           _d_t[1] += _r_d2;
+//CHECK-NEXT:           double _r_d1 = _d_t[0];
+//CHECK-NEXT:           _d_t[1] += _r_d1;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t0;
-//CHECK-NEXT:           double _r_d1 = *_d_x;
+//CHECK-NEXT:           *_d_y += *_d_x;
 //CHECK-NEXT:           *_d_x = 0.;
-//CHECK-NEXT:           *_d_y += _r_d1;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r_d0 = _d_t[0];
@@ -388,12 +379,10 @@ double f10(double x, double y) {
 //CHECK-NEXT:       t = x = y;
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r_d0 = _d_t;
-//CHECK-NEXT:           _d_t = 0.;
-//CHECK-NEXT:           *_d_x += _r_d0;
-//CHECK-NEXT:           double _r_d1 = *_d_x;
+//CHECK-NEXT:           *_d_x += _d_t;
+//CHECK-NEXT:           *_d_y += *_d_x;
 //CHECK-NEXT:           *_d_x = 0.;
-//CHECK-NEXT:           *_d_y += _r_d1;
+//CHECK-NEXT:           _d_t = 0.;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       *_d_x += _d_t;
 //CHECK-NEXT:   }
@@ -408,17 +397,13 @@ double f11(double x, double y) {
 //CHECK-NEXT:       double _d_t = 0.;
 //CHECK-NEXT:       double t = x;
 //CHECK-NEXT:       (t = x);
-//CHECK-NEXT:       double _t0 = t;
 //CHECK-NEXT:       t = y;
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           t = _t0;
-//CHECK-NEXT:           double _r_d1 = _d_t;
+//CHECK-NEXT:           *_d_y += _d_t;
 //CHECK-NEXT:           _d_t = 0.;
-//CHECK-NEXT:           *_d_y += _r_d1;
-//CHECK-NEXT:           double _r_d0 = _d_t;
+//CHECK-NEXT:           *_d_x += _d_t;
 //CHECK-NEXT:           _d_t = 0.;
-//CHECK-NEXT:           *_d_x += _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       *_d_x += _d_t;
 //CHECK-NEXT:   }
@@ -442,19 +427,17 @@ double f12(double x, double y) {
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_t1 = _t2;
-//CHECK-NEXT:           double _r_d2 = (_cond0 ? _d_t : _d_t);
+//CHECK-NEXT:           double _r_d0 = (_cond0 ? _d_t : _d_t);
 //CHECK-NEXT:           (_cond0 ? _d_t : _d_t) = 0.;
-//CHECK-NEXT:           (_cond0 ? _d_t : _d_t) += _r_d2 * y;
-//CHECK-NEXT:           *_d_y += *_t1 * _r_d2;
+//CHECK-NEXT:           (_cond0 ? _d_t : _d_t) += _r_d0 * y;
+//CHECK-NEXT:           *_d_y += *_t1 * _r_d0;
 //CHECK-NEXT:           if (_cond0) {
 //CHECK-NEXT:               t = _t0;
-//CHECK-NEXT:               double _r_d0 = _d_t;
+//CHECK-NEXT:               *_d_x += _d_t;
 //CHECK-NEXT:               _d_t = 0.;
-//CHECK-NEXT:               *_d_x += _r_d0;
 //CHECK-NEXT:           } else {
-//CHECK-NEXT:               double _r_d1 = _d_t;
+//CHECK-NEXT:               *_d_y += _d_t;
 //CHECK-NEXT:               _d_t = 0.;
-//CHECK-NEXT:               *_d_y += _r_d1;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -465,7 +448,6 @@ double f13(double x, double y) {
 }
 
 //CHECK:   void f13_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       double _t1 = y;
 //CHECK-NEXT:       double _t0 = (y = x);
 //CHECK-NEXT:       double _d_t = 0.;
 //CHECK-NEXT:       double t = x * _t0;
@@ -476,10 +458,8 @@ double f13(double x, double y) {
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_d_x += _d_t * _t0;
 //CHECK-NEXT:           *_d_y += x * _d_t;
-//CHECK-NEXT:           y = _t1;
-//CHECK-NEXT:           double _r_d0 = *_d_y;
+//CHECK-NEXT:           *_d_x += *_d_y;
 //CHECK-NEXT:           *_d_y = 0.;
-//CHECK-NEXT:           *_d_x += _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -552,20 +532,17 @@ double f15(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         d = _t2;
-// CHECK-NEXT:         double _r_d3 = _d_d;
+// CHECK-NEXT:         double _r_d2 = _d_d;
 // CHECK-NEXT:         _d_d = 0.;
-// CHECK-NEXT:         _d_d += _r_d3 * 3 * j;
-// CHECK-NEXT:         *_d_j += 3 * d * _r_d3;
+// CHECK-NEXT:         _d_d += _r_d2 * 3 * j;
+// CHECK-NEXT:         *_d_j += 3 * d * _r_d2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         c = _t1;
-// CHECK-NEXT:         double _r_d2 = _d_c;
-// CHECK-NEXT:         *_d_i += 3 * _r_d2;
+// CHECK-NEXT:         double _r_d1 = _d_c;
+// CHECK-NEXT:         *_d_i += 3 * _r_d1;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         double _r_d1 = _d_b;
-// CHECK-NEXT:         *_d_i += 2 * _r_d1;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_i += 2 * _d_b;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_a;
@@ -617,9 +594,8 @@ double f17(double i, double j, double k) {
 // CHECK-NEXT:     j = 2 * i;
 // CHECK-NEXT:     _d_j += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r_d0 = _d_j;
+// CHECK-NEXT:         *_d_i += 2 * _d_j;
 // CHECK-NEXT:         _d_j = 0.;
-// CHECK-NEXT:         *_d_i += 2 * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -634,15 +610,11 @@ double f18(double i, double j, double k) {
 // CHECK-NEXT:     k = 2 * i + 2 * j;
 // CHECK-NEXT:     k += i;
 // CHECK-NEXT:     _d_k += 1;
+// CHECK-NEXT:     *_d_i += _d_k;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r_d1 = _d_k;
-// CHECK-NEXT:         *_d_i += _r_d1;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         double _r_d0 = _d_k;
+// CHECK-NEXT:         *_d_i += 2 * _d_k;
+// CHECK-NEXT:         *_d_j += 2 * _d_k;
 // CHECK-NEXT:         _d_k = 0.;
-// CHECK-NEXT:         *_d_i += 2 * _r_d0;
-// CHECK-NEXT:         *_d_j += 2 * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
