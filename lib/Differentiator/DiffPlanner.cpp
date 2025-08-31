@@ -621,18 +621,6 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (!EnableTBRAnalysis)
       return true;
 
-    if (const auto* E = dyn_cast<Expr>(S)) {
-      if (isa<CXXConstCastExpr>(E)) {
-        E = cast<CXXConstCastExpr>(E)->getSubExpr();
-        S = E;
-      }
-
-      if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
-          !isa<MemberExpr>(E) &&
-          (!isa<UnaryOperator>(E) ||
-           cast<UnaryOperator>(E)->getOpcode() != UO_Deref))
-        return true;
-    }
     if (!m_TbrRunInfo.HasAnalysisRun && !isLambdaCallOperator(Function) &&
         Function->isDefined() && m_AnalysisDC) {
       TimedAnalysisRegion R("TBR " + BaseFunctionName);
