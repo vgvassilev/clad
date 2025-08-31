@@ -16,6 +16,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
@@ -175,6 +176,13 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
          "Should be called for clad:: special functions!");
   return finder.m_FnDRE;
 }
+static QualType GetDerivedFunctionType(const CallExpr* CE) {
+  const auto* CXXRD = CE->getType()->getAsCXXRecordDecl();
+  const auto* Spec = cast<ClassTemplateSpecializationDecl>(CXXRD);
+  assert(Spec && "Called with the wrong expression!");
+  const TemplateArgument& TemplArg = Spec->getTemplateArgs().get(/*Idx=*/0);
+  return TemplArg.getAsType();
+}
 
   void DiffRequest::updateCall(FunctionDecl* FD, FunctionDecl* OverloadedFD,
                                Sema& SemaRef) {
@@ -234,6 +242,12 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
               .BuildUnaryOp(/*Scope=*/nullptr, noLoc,
                             UnaryOperatorKind::UO_AddrOf, Arg)
               .get();
+    // Take into account if the user selected an overload by a cast expr.
+    if (isa<ExplicitCastExpr>(call->getArg(0))) {
+      QualType Ty = GetDerivedFunctionType(call);
+      TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(Ty, noLoc);
+      Arg = SemaRef.BuildCStyleCastExpr(noLoc, TSI, noLoc, Arg).get();
+    }
     call->setArg(*derivedFnArgIdx, Arg);
 
     if (ImmediateMode) {
