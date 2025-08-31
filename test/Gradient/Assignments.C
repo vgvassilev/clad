@@ -397,11 +397,9 @@ double f11(double x, double y) {
 //CHECK-NEXT:       double _d_t = 0.;
 //CHECK-NEXT:       double t = x;
 //CHECK-NEXT:       (t = x);
-//CHECK-NEXT:       double _t0 = t;
 //CHECK-NEXT:       t = y;
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           t = _t0;
 //CHECK-NEXT:           *_d_y += _d_t;
 //CHECK-NEXT:           _d_t = 0.;
 //CHECK-NEXT:           *_d_x += _d_t;

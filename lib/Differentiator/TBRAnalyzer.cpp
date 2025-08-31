@@ -366,6 +366,9 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     // (if some value was not changed, this could only happen if it was
     // already not required to store).
     setIsRequired(L, /*isReq=*/false);
+    // If we're in the non-linear marking mode, mark the LHS
+    // (assignments act as references to the LHS).
+    setIsRequired(L);
   } else if (opCode == BO_Comma) {
     setMode(/*mode=*/0);
     TraverseStmt(L);
