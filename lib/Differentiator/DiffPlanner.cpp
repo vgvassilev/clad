@@ -15,6 +15,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
+#include "clang/AST/CXXInheritance.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
@@ -23,6 +24,7 @@
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -39,6 +41,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
+#include <cassert>
 #include <memory>
 #include <optional>
 #include <string>
@@ -47,36 +50,84 @@
 using namespace clang;
 
 namespace clad {
-/// Returns `DeclRefExpr` node corresponding to the function, method or
-/// functor argument which is to be differentiated.
+/// Updates \c DR with the target function to differentiate.
 ///
+/// \param[in,out] DR - The DiffRequest being updated.
 /// \param[in] call A clad differentiation function call expression
-/// \param SemaRef Reference to Sema
-DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
+/// \param[in] SemaRef Reference to Sema
+static bool findTargetFunction(DiffRequest& DR, CallExpr* call, Sema& SemaRef) {
   struct Finder : RecursiveASTVisitor<Finder> {
     Sema& m_SemaRef;
+    DiffRequest& m_DR;
     SourceLocation m_BeginLoc;
-    DeclRefExpr* m_FnDRE = nullptr;
-    Finder(Sema& SemaRef, SourceLocation beginLoc)
-        : m_SemaRef(SemaRef), m_BeginLoc(beginLoc) {}
+    Finder(Sema& SemaRef, DiffRequest& DR, SourceLocation beginLoc)
+        : m_SemaRef(SemaRef), m_DR(DR), m_BeginLoc(beginLoc) {}
 
     // Required for visiting lambda declarations.
     bool shouldVisitImplicitCode() const { return true; }
+    bool VisitExplicitCastExpr(ExplicitCastExpr* CastE) {
+      if (CastE->getCastKind() != CK_ReinterpretMemberPointer)
+        return true;
+
+      // Handle the cases where the user has forced overload resolution via an
+      // explicit cast: clad::differentiate(static_cast<...>(f))
+      assert(!m_DR.Function && "Function already set!");
+      TraverseStmt(CastE->getSubExpr());
+
+      // We will need to update the selected function.
+      if (const auto* MPTy = CastE->getType()->getAs<MemberPointerType>()) {
+        CXXRecordDecl* SelectedCXXRD = MPTy->getMostRecentCXXRecordDecl();
+        ASTContext& C = m_SemaRef.getASTContext();
+        QualType MPPointeeTy = MPTy->getPointeeType();
+        const FunctionDecl* FD = m_DR.Function;
+
+        if (C.hasSameType(FD->getType(), MPPointeeTy))
+          return false; // Type match we are done.
+
+        // We need to find the right function that we should differentiate.
+        auto BestMatch = [&C, &FD, &MPPointeeTy](const CXXRecordDecl* RD) {
+          for (NamedDecl* ND : RD->lookup(FD->getDeclName())) {
+            if (FD == ND)
+              continue;
+            auto* NewFD = cast<FunctionDecl>(ND);
+            // FIXME: Call Sema::IsOverload to ensure both decls are compatible.
+            if (C.hasSameType(NewFD->getType(), MPPointeeTy)) {
+              FD = NewFD;
+              return false; // exit
+            }
+          }
+          return true;
+        };
+
+        if (BestMatch(SelectedCXXRD)) {
+          CXXBasePaths Paths(/*FindAmbiguities=*/false, /*RecordPaths=*/false,
+                             /* DetectVirtual=*/false);
+          auto BestMatchInBase = [&BestMatch](const CXXBaseSpecifier* Specifier,
+                                              CXXBasePath& Path) {
+            const auto* Base = Specifier->getType()->getAsCXXRecordDecl();
+            return !BestMatch(Base);
+          };
+          SelectedCXXRD->lookupInBases(BestMatchInBase, Paths);
+        }
+
+        assert(m_DR.Function != FD && "Could not find the overload");
+        m_DR.Function = FD;
+      }
+
+      return false; // we traversed the subexpression already, stop.
+    }
 
     bool VisitDeclRefExpr(DeclRefExpr* DRE) {
       if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-        auto varType = VD->getType().getTypePtr();
-        // If variable is of class type, set `m_FnDRE` to
-        // `DeclRefExpr` of overloaded call operator method of
-        // the class type.
-        if (varType->isStructureOrClassType()) {
-          auto RD = varType->getAsCXXRecordDecl();
-          TraverseDecl(RD);
-        } else {
+        QualType VarTy = VD->getType();
+        // If variable is of class type, set the result to the overloaded call
+        // operator method of the class type.
+        if (auto* CXXRD = VarTy->getAsCXXRecordDecl())
+          TraverseDecl(CXXRD);
+        else
           TraverseStmt(VD->getInit());
-        }
-      } else if (isa<FunctionDecl>(DRE->getDecl()))
-        m_FnDRE = DRE;
+      } else if (auto* FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+        m_DR.Function = FD;
       return false;
     }
 
@@ -151,30 +202,23 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         return false;
       }
 
-      auto* callOperator = cast<CXXMethodDecl>(FoundDecl);
-      // Creating `DeclRefExpr` of the found overloaded call operator
-      // method, to maintain consistency with member function
-      // differentiation.
-      CXXScopeSpec CSS;
-      utils::BuildNNS(m_SemaRef, callOperator->getDeclContext(), CSS,
-                      /*addGlobalNS=*/true);
-
-      // `ExprValueKind::VK_RValue` is used because functions are
-      // decomposed to function pointers and thus a temporary is
-      // created for the function pointer.
-      auto newFnDRE = clad_compat::GetResult<Expr*>(m_SemaRef.BuildDeclRefExpr(
-          callOperator, callOperator->getType(),
-          CLAD_COMPAT_ExprValueKind_R_or_PR_Value, noLoc, &CSS));
-      m_FnDRE = cast<DeclRefExpr>(newFnDRE);
+      auto* CallOperator = cast<CXXMethodDecl>(FoundDecl);
+      m_DR.Function = CallOperator;
+      m_DR.Functor = CallOperator->getParent();
+      // Mark the declaration as used to instantiate templates, etc.
+      bool OdrUse = !CallOperator->isVirtual() ||
+                    CallOperator->getDevirtualizedMethod(
+                        /*Base=*/nullptr, m_SemaRef.getLangOpts().AppleKext);
+      m_SemaRef.MarkAnyDeclReferenced(m_BeginLoc, CallOperator, OdrUse);
       return false;
     }
-  } finder(SemaRef, call->getArg(0)->getBeginLoc());
+  } finder(SemaRef, DR, call->getArg(0)->getBeginLoc());
   finder.TraverseStmt(call->getArg(0));
 
   assert(cast<NamespaceDecl>(call->getDirectCallee()->getDeclContext())
                  ->getName() == "clad" &&
          "Should be called for clad:: special functions!");
-  return finder.m_FnDRE;
+  return finder.m_DR.Function;
 }
 static QualType GetDerivedFunctionType(const CallExpr* CE) {
   const auto* CXXRD = CE->getType()->getAsCXXRecordDecl();
@@ -286,17 +330,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     for (Decl* D : DGR)
       TraverseDecl(D);
-  }
-
-  /// Returns true if `FD` is a call operator; otherwise returns false.
-  static bool isCallOperator(ASTContext& Context, const FunctionDecl* FD) {
-    if (auto method = dyn_cast<CXXMethodDecl>(FD)) {
-      DeclarationName
-          callOperatorDeclName = Context.DeclarationNames.getCXXOperatorName(
-              OverloadedOperatorKind::OO_Call);
-      return method->getNameInfo().getName() == callOperatorDeclName;
-    }
-    return false;
   }
 
   bool DiffCollector::isInInterval(SourceLocation Loc) const {
@@ -1099,23 +1132,18 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           Annotation != "J" && Annotation != "E")
         return true;
 
-      // A call to clad::differentiate or clad::gradient was found.
-      if (DeclRefExpr* DRE = getArgFunction(E, m_Sema))
-        request.Function = cast<FunctionDecl>(DRE->getDecl());
-      else
+      // A call to clad::differentiate or clad::gradient was not found.
+      if (!findTargetFunction(request, E, m_Sema))
         return true;
-
-      if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
-        return true;
-
-      if (isCallOperator(m_Sema.getASTContext(), request.Function))
-        request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
 
       request.VerboseDiags = true;
       // The root of the differentiation request graph should update the
       // CladFunction object with the generated call.
       request.CallUpdateRequired = true;
       request.CallContext = E;
+
+      if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
+        return true;
 
       request.Args = E->getArg(1);
       request.UpdateDiffParamsInfo(m_Sema);
