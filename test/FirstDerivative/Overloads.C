@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oOverloads.out 2>&1 | %filecheck %s
 // RUN: ./Overloads.out | %filecheck_exec %s
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -46,6 +45,17 @@ public:
     return x+x+x+x+x+x;
   }
 };
+
+class C {
+public:
+  virtual double g1(double x) { return x; }
+};
+
+class C1 : public C {
+public:
+  double g1(double x) override { return x + x; }
+};
+
 int main () {
   A a;
   B b;
@@ -115,8 +125,19 @@ int main () {
   printf("Result is = %f\n", f1_darg0_float_B.execute(b, 2.0)); // CHECK-EXEC: Result is = 5.0000
   printf("Result is = %i\n", f1_darg0_int_B.execute(b, 2)); // CHECK-EXEC: Result is = 1
   //printf("Result is %s\n", f1_darg0_double_B.execute(b, 2.0)<1 ? "float" : "other"); // -CHECK-EXEC: Result is float
-  printf("Result is %s\n", f1_darg0_float_B1.execute(b1, 2.0f)<1 ? "double" : "other"); // CHECK-EXEC: Result is double
+  printf("Result is = %f\n", f1_darg0_float_B1.execute(b1, 2.0f)); // CHECK-EXEC: Result is = 3.0000
   printf("Result is = %f\n", f1_darg0_double_B1.execute(b1, 2.0)); // CHECK-EXEC: Result is = 6.0000
+
+  C1 c1;
+  auto g1_darg0_c1 = clad::differentiate(&C1::g1, 0);
+  //CHECK: double g1_darg0(double x) {
+  //CHECK-NEXT:  double _d_x = 1;
+  //CHECK-NEXT:  C1 _d_this_obj;
+  //CHECK-NEXT:  C1 *_d_this = &_d_this_obj;
+  //CHECK-NEXT:  return _d_x + _d_x;
+  //CHECK-NEXT: }
+
+  printf("Result is = %f\n", g1_darg0_c1.execute(c1, 1.)); //CHECK-EXEC: Result is = 2.0000
 
   return 0;
 }
