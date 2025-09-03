@@ -234,6 +234,148 @@ void reduce_pullback(
                   d_op);
 }
 
+template <typename InputIt, typename OutputIt, typename UnaryOp>
+void transform_pullback(InputIt first, InputIt last, OutputIt result,
+                        UnaryOp op, OutputIt d_return, InputIt* d_first,
+                        InputIt* d_last, OutputIt* d_result, UnaryOp* d_op) {
+  size_t n = ::thrust::distance(first, last);
+
+  if (n == 0)
+    return;
+
+  using ValueConst = typename ::std::iterator_traits<InputIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+
+  auto d_src_const_ptr = ::thrust::raw_pointer_cast((*d_first).base());
+  auto d_src_ptr = const_cast<Value*>(d_src_const_ptr);
+  ::thrust::device_ptr<Value> d_src_dev_ptr(d_src_ptr);
+
+  auto d_dst_const_ptr = ::thrust::raw_pointer_cast((*d_result).base());
+  auto d_dst_ptr = const_cast<Value*>(d_dst_const_ptr);
+  ::thrust::device_ptr<Value> d_dst_dev_ptr(d_dst_ptr);
+
+  if constexpr (::std::is_same_v<UnaryOp, ::thrust::negate<Value>>) {
+    struct grad_functor {
+      CUDA_HOST_DEVICE void
+      operator()(::thrust::tuple<Value&, Value&> t) const {
+        ::thrust::get<0>(t) -= ::thrust::get<1>(t);
+        ::thrust::get<1>(t) = 0;
+      }
+    };
+    auto iter = ::thrust::make_zip_iterator(
+        ::thrust::make_tuple(d_src_dev_ptr, d_dst_dev_ptr));
+    ::thrust::for_each(iter, iter + n, grad_functor());
+  } else if constexpr (::std::is_same_v<UnaryOp, ::thrust::identity<Value>>) {
+    struct grad_functor {
+      CUDA_HOST_DEVICE void
+      operator()(::thrust::tuple<Value&, Value&> t) const {
+        ::thrust::get<0>(t) += ::thrust::get<1>(t);
+        ::thrust::get<1>(t) = 0;
+      }
+    };
+    auto iter = ::thrust::make_zip_iterator(
+        ::thrust::make_tuple(d_src_dev_ptr, d_dst_dev_ptr));
+    ::thrust::for_each(iter, iter + n, grad_functor());
+  } else {
+    static_assert(::std::is_same_v<Value, void>,
+                  "This unary operation is not supported by the custom "
+                  "transform_pullback.");
+  }
+}
+
+template <typename InputIt1, typename InputIt2, typename OutputIt,
+          typename BinaryOp>
+void transform_pullback(InputIt1 first1, InputIt1 last1, InputIt2 first2,
+                        OutputIt result, BinaryOp op, OutputIt d_return,
+                        InputIt1* d_first1, InputIt1* d_last1,
+                        InputIt2* d_first2, OutputIt* d_result,
+                        BinaryOp* d_op) {
+  size_t n = ::thrust::distance(first1, last1);
+
+  if (n == 0)
+    return;
+
+  using ValueConst = typename ::std::iterator_traits<InputIt1>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+
+  auto d_first1_const_ptr = ::thrust::raw_pointer_cast((*d_first1).base());
+  auto d_first1_ptr = const_cast<Value*>(d_first1_const_ptr);
+  ::thrust::device_ptr<Value> d_first1_dev_ptr(d_first1_ptr);
+
+  auto d_first2_const_ptr = ::thrust::raw_pointer_cast((*d_first2).base());
+  auto d_first2_ptr = const_cast<Value*>(d_first2_const_ptr);
+  ::thrust::device_ptr<Value> d_first2_dev_ptr(d_first2_ptr);
+
+  auto d_result_const_ptr = ::thrust::raw_pointer_cast((*d_result).base());
+  auto d_result_ptr = const_cast<Value*>(d_result_const_ptr);
+  ::thrust::device_ptr<Value> d_result_dev_ptr(d_result_ptr);
+
+  if constexpr (::std::is_same_v<BinaryOp, ::thrust::plus<Value>>) {
+    struct grad_functor {
+      CUDA_HOST_DEVICE void
+      operator()(::thrust::tuple<Value&, Value&, Value&> t) const {
+        ::thrust::get<0>(t) += ::thrust::get<2>(t);
+        ::thrust::get<1>(t) += ::thrust::get<2>(t);
+        ::thrust::get<2>(t) = 0;
+      }
+    };
+    auto iter = ::thrust::make_zip_iterator(::thrust::make_tuple(
+        d_first1_dev_ptr, d_first2_dev_ptr, d_result_dev_ptr));
+    ::thrust::for_each(iter, iter + n, grad_functor());
+  } else if constexpr (::std::is_same_v<BinaryOp, ::thrust::minus<Value>>) {
+    struct grad_functor {
+      CUDA_HOST_DEVICE void
+      operator()(::thrust::tuple<Value&, Value&, Value&> t) const {
+        ::thrust::get<0>(t) += ::thrust::get<2>(t);
+        ::thrust::get<1>(t) -= ::thrust::get<2>(t);
+        ::thrust::get<2>(t) = 0;
+      }
+    };
+    auto iter = ::thrust::make_zip_iterator(::thrust::make_tuple(
+        d_first1_dev_ptr, d_first2_dev_ptr, d_result_dev_ptr));
+    ::thrust::for_each(iter, iter + n, grad_functor());
+  } else if constexpr (::std::is_same_v<BinaryOp,
+                                        ::thrust::multiplies<Value>>) {
+    struct grad_functor {
+      CUDA_HOST_DEVICE void operator()(
+          ::thrust::tuple<Value&, Value&, Value&, const Value&, const Value&> t)
+          const {
+        // d_x1 += d_y * x2
+        ::thrust::get<0>(t) += ::thrust::get<2>(t) * ::thrust::get<4>(t);
+        // d_x2 += d_y * x1
+        ::thrust::get<1>(t) += ::thrust::get<2>(t) * ::thrust::get<3>(t);
+        ::thrust::get<2>(t) = 0;
+      }
+    };
+    auto iter = ::thrust::make_zip_iterator(::thrust::make_tuple(
+        d_first1_dev_ptr, d_first2_dev_ptr, d_result_dev_ptr, first1, first2));
+    ::thrust::for_each(iter, iter + n, grad_functor());
+  } else if constexpr (::std::is_same_v<BinaryOp, ::thrust::divides<Value>>) {
+    struct grad_functor {
+      CUDA_HOST_DEVICE void operator()(
+          ::thrust::tuple<Value&, Value&, Value&, const Value&, const Value&> t)
+          const {
+        // z = x / y
+        const Value& x = ::thrust::get<3>(t);
+        const Value& y = ::thrust::get<4>(t);
+
+        // d_x += d_z * (1/y)
+        ::thrust::get<0>(t) += ::thrust::get<2>(t) / y;
+        // d_y += d_z * (-x / (y*y))
+        ::thrust::get<1>(t) -= ::thrust::get<2>(t) * x / (y * y);
+        ::thrust::get<2>(t) = 0;
+      }
+    };
+    auto iter = ::thrust::make_zip_iterator(::thrust::make_tuple(
+        d_first1_dev_ptr, d_first2_dev_ptr, d_result_dev_ptr, first1, first2));
+    ::thrust::for_each(iter, iter + n, grad_functor());
+  } else {
+    static_assert(::std::is_same_v<Value, void>,
+                  "This binary operation is not supported by the custom "
+                  "transform_pullback.");
+  }
+}
+
 template <typename Iterator1, typename Iterator2, typename T>
 void inner_product_pullback(Iterator1 first1, Iterator1 last1, Iterator2 first2,
                             T init, T d_output, Iterator1* d_first1,
