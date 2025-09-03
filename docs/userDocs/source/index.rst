@@ -11,26 +11,27 @@ Release v\ |version|.
 Overview
 ------------
 
-Clad enables 
+Clad enables
 `automatic differentiation (AD) <https://en.wikipedia.org/wiki/Automatic_differentiation>`_
-for C++. It is based on LLVM compiler infrastructure and is a plugin for 
-`Clang compiler <http://clang.llvm.org/>`_. Clad is based on source code 
+for C++. It is based on LLVM compiler infrastructure and is a plugin for
+`Clang compiler <http://clang.llvm.org/>`_. Clad is based on source code
 transformation. Given C++ source code of a mathematical function, it can
 automatically generate C++ code for computing derivatives of the function.
 
 .. todo::
-   
+
    Add section that describes complete set of supported language features.
 
-Clad supports a large set of C++ features including control flow statements and 
-function calls. Please visit (add hyperlink here) to know more about the 
-support of language features. It supports reverse-mode AD (a.k.a backpropagation) 
-as well as forward-mode AD. It also facilitates computation of hessian matrix and 
+Clad supports a large set of C++ features including control flow statements and
+function calls. Please visit (add hyperlink here) to know more about the
+support of language features. It supports reverse-mode AD (a.k.a backpropagation)
+as well as forward-mode AD. It also facilitates computation of hessian matrix and
 jacobian matrix of any arbitrary function.
 
-Automatic differentiation solves all the usual problems of numerical 
-differentiation (precision loss) and symbolic differentiation 
-(inefficient code produced). If you are just getting started with clad, then please 
+Automatic differentiation solves all the usual problems of numerical
+differentiation such as precision loss and symbolic differentiation such as
+limitations to closed form expressions and expression swell.
+If you are just getting started with clad, then please
 checkout :doc:`Using Clad <user/UsingClad>` and
 :doc:`Tutorials <user/tutorials>`.
 
@@ -61,12 +62,12 @@ Features
 - Features both reverse mode AD (backpropagation) and forward mode AD.
 - Computes derivatives of functions, member functions, functors and lambda expressions.
 - Supports large subset of C++ including if statements, for, while loops and so
-  much more; it is actively being developed with the goal of supporting all of 
+  much more; it is actively being developed with the goal of supporting all of
   C++ syntax.
 - Provides direct functions for computation of Hessian matrix and Jacobian matrix.
-- Supports array differentiation, that is, it can differentiate either with 
+- Supports array differentiation, that is, it can differentiate either with
   respect to whole arrays or particular indices of the array.
-- Features numerical differentiation support, to be used as a fallback where 
+- Features numerical differentiation support, to be used as a fallback where
   automatic differentiation is not feasible.
 
 
@@ -87,6 +88,7 @@ The User Guide
    user/UsingClad
    user/CoreConcepts
    user/reference
+   user/CustomDerivatives.rst
    user/tutorials
    user/UsingEnzymeWithinClad
    user/UsingVectorMode.rst
@@ -96,7 +98,7 @@ The User Guide
    user/DevelopersDocumentation
    user/IntroductionToClangForCladContributors
    user/FloatingPointErrorEstimation
-   
+
 Citing Clad
 -------------
 
