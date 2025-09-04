@@ -5,13 +5,20 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
-#include <initializer_list> // For at()
 #include <iostream>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #define ND __attribute__((annotate("non_differentiable")))
+
+namespace clad {
+namespace tensor_like {
+namespace cladtorch {
+struct Tensor;
+}
+}
+}
 
 namespace cladtorch {
 // -------------------- Dynamic-Shape Tensor Class --------------------
