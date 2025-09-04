@@ -1489,7 +1489,6 @@ namespace clad {
       return false;
     }
 
-
     bool isTensorLike(clang::Sema& SemaRef, clang::QualType T) {
       if (!isa<TemplateSpecializationType>(T) && !T->isRecordType())
         return false;
@@ -1562,7 +1561,7 @@ namespace clad {
 
       return SemaRef.LookupQualifiedName(R, FoundMirroredNS) && !R.empty();
     }
-    
+
     /// Called in ShouldRecompute. In CUDA, to access a current thread/block id
     /// we use functions that do not change the state of any variable, since no
     /// point to store the value.
