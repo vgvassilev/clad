@@ -1,9 +1,9 @@
-#include "../demos/cladtorch/llm_opt.hpp"
 #include "benchmark/benchmark.h"
 
 #include <clad/Differentiator/CladtorchBuiltins.h>
 #include <clad/Differentiator/Differentiator.h>
 #include <clad/Differentiator/STLBuiltins.h>
+#include "../demos/cladtorch/llm_opt.hpp"
 #include "../demos/cladtorch/llm.hpp"
 
 class GPT2Optimized : public benchmark::Fixture {
@@ -14,12 +14,17 @@ public:
     int* targets;
 
     void SetUp(const ::benchmark::State& state) override {
-        // Use a dummy checkpoint file.
-        const char* checkpoint_path = "/Users/rohan/Developer/projects/gsoc25/workspace/clad/demos/cladtorch/gpt2_124M.bin";
+        GPT2Config config;
+        config.max_seq_len = 1024,
+        config.vocab_size = 50257,
+        config.padded_vocab_size = 50304,
+        config.num_layers = 12,
+        config.num_heads = 12,
+        config.channels = 768,
         
         // Initialize models
-        model = new GPT2(checkpoint_path);
-        d_model = new GPT2(checkpoint_path);
+        model = new GPT2(config);
+        d_model = new GPT2(config);
 
         // Get batch size (B) and sequence length (T) from the benchmark state
         int B = state.range(0);
@@ -89,11 +94,17 @@ public:
     int* targets;
 
     void SetUp(const ::benchmark::State& state) override {
-        const char* checkpoint_path = "/Users/rohan/Developer/projects/gsoc25/workspace/clad/demos/cladtorch/gpt2_124M.bin";
-        
+        const gpt2::Config config = {
+          .max_seq_len = 1024,
+          .vocab_size = 50257,
+          .padded_vocab_size = 50304,
+          .num_layers = 12,
+          .num_heads = 12,
+          .channels = 768,
+        };
         // Initialize models
-        model = new gpt2::GPT2(checkpoint_path);
-        d_model = new gpt2::GPT2(model->config);
+        model = new gpt2::GPT2(config);
+        d_model = new gpt2::GPT2(config);
 
         // Get batch size (B) and sequence length (T) from the benchmark state
         int B = state.range(0);

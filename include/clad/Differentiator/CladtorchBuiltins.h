@@ -3,10 +3,6 @@
 #include <clad/Differentiator/FunctionTraits.h>
 #include <cladtorch/cladtorch.hpp>
 
-#ifdef __APPLE__
-#include <Accelerate/Accelerate.h>
-#endif
-
 namespace clad {
 // specialize the zero_init function for Tensor
 template <typename T> void zero_init(::cladtorch::Tensor<T>& tensor) {

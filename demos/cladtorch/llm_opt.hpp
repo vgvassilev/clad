@@ -10,8 +10,11 @@
 #include <omp.h>
 #endif
 
-// [TODO]: Import BLAS headers for any platform
+#ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
+#else
+#include <cblas.h>
+#endif
 
 #include <clad/Differentiator/Differentiator.h>
 
@@ -614,7 +617,7 @@ struct GPT2Config {
   int num_layers;        // number of layers, e.g. 12
   int num_heads;         // number of heads in attention, e.g. 12
   int channels;          // number of channels, e.g. 768
-  
+  GPT2Config() = default;
   GPT2Config(const char* checkpoint_path) {
     // read in model from a checkpoint file
     // gpt2::utils::fread_check(void *ptr, size_t size, size_t nmemb, FILE *stream)
@@ -806,6 +809,17 @@ struct GPT2 {
     // read in all the parameters from file
     gpt2::utils::fread_check(this->params.memory, sizeof(float), num_parameters, model_file);
     fclose(model_file);
+  
+    // other inits
+    this->batch_size = 0;
+    this->seq_len = 0;
+    this->mean_loss = -1.0f; // -1.0f will designate no loss
+  }
+  
+  GPT2(GPT2Config config) : config(config), params(config), num_parameters(0) {
+    // count the number of parameters
+    for (size_t size : this->params.sizes)
+      num_parameters += size;
   
     // other inits
     this->batch_size = 0;

@@ -8,8 +8,10 @@
 #endif
 
 #ifdef __APPLE__
-#include <Accelerate/Accelerate.h> // Imports BLAS symbols on Apple platforms
-#endif // TODO: import BLAS/LAPACK on non-Apple platforms
+#include <Accelerate/Accelerate.h>
+#else
+#include <cblas.h>
+#endif
 
 #define CLAD_ASSERT(condition, message) assert((condition) && message)
 
