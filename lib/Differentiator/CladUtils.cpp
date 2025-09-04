@@ -1492,27 +1492,18 @@ namespace clad {
     bool isTensorLike(clang::Sema& SemaRef, clang::QualType T) {
       if (!isa<TemplateSpecializationType>(T) && !T->isRecordType())
         return false;
-      // We check if the type is a std::vector, and if so, recursively check its
+      // We check if the type is a vector, and if so, recursively check its
       // template argument.
-      auto inNamespace = [](const Decl* D, StringRef NS) {
-        const auto* ND = dyn_cast<NamespaceDecl>(D->getDeclContext());
-        if (!ND)
-          return false;
-        const IdentifierInfo* II = ND->getIdentifier();
-        if (!II || II->getName() != NS)
-          return false;
-        return isa<TranslationUnitDecl>(ND->getDeclContext());
-      };
-      auto isStdVector = [&inNamespace](const TemplateSpecializationType* TST) {
+      auto isVector = [](const TemplateSpecializationType* TST) {
         TemplateName TM = TST->getTemplateName();
         TemplateDecl* TD = TM.getAsTemplateDecl();
-        if (!TD || !inNamespace(TD, "std"))
+        if (!TD)
           return false;
         return TD->getName() == "vector";
       };
 
       if (const auto* TST = T->getAs<TemplateSpecializationType>()) {
-        if (isStdVector(TST)) {
+        if (isVector(TST)) {
           auto args = TST->template_arguments();
           if (!args.empty()) {
             // Recursively check the first template argument.
