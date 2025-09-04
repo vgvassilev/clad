@@ -10,6 +10,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/LLVM.h"
 
@@ -63,8 +64,13 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   // Make sure the current branch has a copy of VarDecl for VD
   auto& curBranch = getCurBlockVarsData();
   for (const VarDecl* iterVD : vars) {
-    if (m_ModifiedParams && !isReq && (!iterVD || isa<ParmVarDecl>(iterVD)))
-      (*m_ModifiedParams)[m_Function].insert(iterVD);
+    const auto* PVD = dyn_cast_or_null<ParmVarDecl>(iterVD);
+    if (m_ModifiedParams && (!iterVD || PVD)) {
+      if (!isReq)
+        (*m_ModifiedParams)[m_Function].insert(PVD);
+      else if (m_ModeStack.back() & Mode::kMarkingMode)
+        (*m_UsedParams)[m_Function].insert(PVD);
+    }
     if (isReq || sequenceFound) {
       if (curBranch.find(iterVD) == curBranch.end()) {
         if (VarData* data = getVarDataFromDecl(iterVD))
@@ -94,8 +100,11 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
 
   const FunctionDecl* FD = request.Function;
   m_Function = FD;
+  // FIXME: Perform TBR consistently and always pass this info.
   if (m_ModifiedParams)
     (*m_ModifiedParams)[FD];
+  if (m_UsedParams)
+    (*m_UsedParams)[FD];
   // If we are analysing a non-static method, add a VarData for 'this' pointer
   // (it is represented with nullptr).
   const auto* MD = dyn_cast<CXXMethodDecl>(FD);
@@ -242,7 +251,7 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
 }
 
 bool TBRAnalyzer::TraverseConditionalOperator(clang::ConditionalOperator* CO) {
-  setMode(0);
+  setMode(/*mode=*/0);
   TraverseStmt(CO->getCond());
   resetMode();
 
@@ -279,11 +288,24 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
                          R, dummy, m_AnalysisDC->getASTContext()) &&
                      !clad_compat::Expr_EvaluateAsConstantExpr(
                          L, dummy, m_AnalysisDC->getASTContext());
+    bool LHSIsStored =
+        !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
+    bool RHSIsStored =
+        !utils::ShouldRecompute(R, m_AnalysisDC->getASTContext());
     if (nonLinear)
       startNonLinearMode();
 
+    if (LHSIsStored)
+      setMode(/*mode=*/0);
     TraverseStmt(L);
+    if (LHSIsStored)
+      resetMode();
+
+    if (RHSIsStored)
+      setMode(/*mode=*/0);
     TraverseStmt(R);
+    if (RHSIsStored)
+      resetMode();
 
     if (nonLinear)
       resetMode();
@@ -293,24 +315,32 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     Expr::EvalResult dummy;
     bool nonLinear = !clad_compat::Expr_EvaluateAsConstantExpr(
         R, dummy, m_AnalysisDC->getASTContext());
-    if (nonLinear)
+    bool LHSIsStored =
+        !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
+    if (LHSIsStored)
+      setMode(/*mode=*/0);
+    else if (nonLinear)
       startNonLinearMode();
-
     TraverseStmt(L);
-    TraverseStmt(R);
-
-    if (nonLinear)
+    if (nonLinear || LHSIsStored)
       resetMode();
+
+    setMode(/*mode=*/0);
+    TraverseStmt(R);
+    resetMode();
   } else if (BinOp->isAssignmentOp()) {
     if (opCode == BO_Assign || opCode == BO_AddAssign ||
         opCode == BO_SubAssign) {
+      bool isPointerOp = BinOp->getType()->isPointerType();
       // Since we only care about non-linear usages of variables, there is
       // no difference between operators =, -=, += in terms of TBR analysis.
       TraverseStmt(L);
 
-      startMarkingMode();
+      if (!isPointerOp)
+        startMarkingMode();
       TraverseStmt(R);
-      resetMode();
+      if (!isPointerOp)
+        resetMode();
     } else if (opCode == BO_MulAssign || opCode == BO_DivAssign) {
       // *= (/=) normally only performs a linear operation if and only if
       // the RHS is constant. If RHS is not constant, 'x *= y' ('x /= y')
@@ -336,8 +366,11 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     // (if some value was not changed, this could only happen if it was
     // already not required to store).
     setIsRequired(L, /*isReq=*/false);
+    // If we're in the non-linear marking mode, mark the LHS
+    // (assignments act as references to the LHS).
+    setIsRequired(L);
   } else if (opCode == BO_Comma) {
-    setMode(0);
+    setMode(/*mode=*/0);
     TraverseStmt(L);
     resetMode();
 
@@ -367,9 +400,11 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
     if (m_ModifiedParams) {
       std::set<const clang::VarDecl*> vars;
       getDependencySet(E, vars);
-      for (const VarDecl* VD : vars)
-        if (!VD || isa<ParmVarDecl>(VD))
-          (*m_ModifiedParams)[m_Function].insert(VD);
+      for (const VarDecl* VD : vars) {
+        const auto* PVD = dyn_cast_or_null<ParmVarDecl>(VD);
+        if (!VD || PVD)
+          (*m_ModifiedParams)[m_Function].insert(PVD);
+      }
     }
   }
   // FIXME: Ideally, `__real` and `__imag` operators should be treated as member
@@ -402,7 +437,17 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
     bool passByRef = false;
     if (par)
       passByRef = utils::isMemoryType(par->getType());
+    bool paramUnused = false;
+    if (shouldAnalyzeParams) {
+      auto& usedParams = (*m_UsedParams)[FD];
+      if (usedParams.find(par) == usedParams.end())
+        paramUnused = true;
+    }
+    if (paramUnused)
+      setMode(/*mode=*/0);
     TraverseStmt(arg);
+    if (paramUnused)
+      resetMode();
     if (passByRef) {
       bool paramModified = true;
       if (shouldAnalyzeParams) {
@@ -410,7 +455,7 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
         if (modifiedParams.find(par) == modifiedParams.end())
           paramModified = false;
       }
-      if (paramModified) {
+      if (paramModified && findReq(arg)) {
         setIsRequired(arg, /*isReq=*/false);
         markLocation(arg);
       }
@@ -428,14 +473,24 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   }
 
   if (base) {
+    bool paramUnused = false;
+    if (shouldAnalyzeParams) {
+      auto& usedParams = (*m_UsedParams)[FD];
+      if (usedParams.find(nullptr) == usedParams.end())
+        paramUnused = true;
+    }
+    if (paramUnused)
+      setMode(/*mode=*/0);
     TraverseStmt(base);
+    if (paramUnused)
+      resetMode();
     bool paramModified = true;
     if (shouldAnalyzeParams) {
       auto& modifiedParams = (*m_ModifiedParams)[FD];
       if (modifiedParams.find(nullptr) == modifiedParams.end())
         paramModified = false;
     }
-    if (paramModified) {
+    if (paramModified && findReq(base)) {
       markLocation(base);
       setIsRequired(base, /*isReq=*/false);
     }
@@ -452,6 +507,13 @@ bool TBRAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
 
 bool TBRAnalyzer::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE) {
   TBRAnalyzer::TraverseCallExpr(CE);
+  return false;
+}
+
+bool TBRAnalyzer::TraverseReturnStmt(clang::ReturnStmt* RS) {
+  setMode(Mode::kMarkingMode);
+  TraverseStmt(RS->getRetValue());
+  resetMode();
   return false;
 }
 
@@ -487,8 +549,13 @@ bool TBRAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
   return false;
 }
 
+bool TBRAnalyzer::TraverseCXXThisExpr(clang::CXXThisExpr* TE) {
+  setIsRequired(TE);
+  return false;
+}
+
 bool TBRAnalyzer::TraverseArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
-  setMode(0);
+  setMode(/*mode=*/0);
   TraverseStmt(ASE->getBase());
   resetMode();
   setIsRequired(ASE);

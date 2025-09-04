@@ -396,6 +396,8 @@ namespace clad {
 
     bool isCopyable(const clang::CXXRecordDecl* RD);
 
+    bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
+
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
 
@@ -423,6 +425,9 @@ namespace clad {
     bool isInjective(const clang::Expr* E, clang::AnalysisDeclContext* ADC);
     /// Checks if the return value of the given CallExpr is unused.
     bool hasUnusedReturnValue(clang::ASTContext& C, const clang::CallExpr* CE);
+    /// For an expr E, decides if we should recompute it or store it.
+    /// This is the central point for checkpointing.
+    bool ShouldRecompute(const clang::Expr* E, const clang::ASTContext& C);
     } // namespace utils
     } // namespace clad
 

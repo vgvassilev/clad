@@ -971,6 +971,28 @@ namespace clad {
       return false;
     }
 
+    bool exprDependsOnVarDecl(const clang::Expr* E, const VarDecl* VD) {
+      class DREFinder : public RecursiveASTVisitor<DREFinder> {
+      public:
+        DREFinder(const VarDecl* VD) : declToFind(VD) {}
+        const VarDecl* declToFind;
+        bool dependsOnDecl = false;
+
+        bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+          if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            if (!VD->getType()->isBuiltinType() || VD == declToFind) {
+              dependsOnDecl = true;
+              return false;
+            }
+          }
+          return true;
+        }
+      };
+      DREFinder finder(VD);
+      finder.TraverseStmt(const_cast<Expr*>(E));
+      return finder.dependsOnDecl;
+    }
+
     QualType GetCladArrayRefOfType(Sema& S, QualType T) {
       static TemplateDecl* arrayRefDecl = nullptr;
       if (!arrayRefDecl)
@@ -1467,6 +1489,7 @@ namespace clad {
       return false;
     }
 
+
     bool isTensorLike(clang::Sema& SemaRef, clang::QualType T) {
       if (!isa<TemplateSpecializationType>(T) && !T->isRecordType())
         return false;
@@ -1538,6 +1561,28 @@ namespace clad {
                             clang::Sema::LookupOrdinaryName);
 
       return SemaRef.LookupQualifiedName(R, FoundMirroredNS) && !R.empty();
+    }
+    
+    /// Called in ShouldRecompute. In CUDA, to access a current thread/block id
+    /// we use functions that do not change the state of any variable, since no
+    /// point to store the value.
+    static bool isCUDABuiltInIndex(const Expr* E) {
+      const clang::Expr* B = E->IgnoreImplicit();
+      if (const auto* pseudoE = llvm::dyn_cast<PseudoObjectExpr>(B)) {
+        if (const auto* opaqueE =
+                llvm::dyn_cast<OpaqueValueExpr>(pseudoE->getSemanticExpr(0))) {
+          const Expr* innerE = opaqueE->getSourceExpr()->IgnoreImplicit();
+          QualType innerT = innerE->getType();
+          if (innerT.isConstQualified())
+            return true;
+        }
+      }
+      return false;
+    }
+
+    bool ShouldRecompute(const Expr* E, const ASTContext& C) {
+      return !(utils::ContainsFunctionCalls(E) || E->HasSideEffects(C)) ||
+             isCUDABuiltInIndex(E);
     }
   } // namespace utils
 } // namespace clad

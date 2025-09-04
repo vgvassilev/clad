@@ -20,6 +20,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <iterator>
+#include <map>
 #include <memory>
 #include <set>
 
@@ -37,6 +38,8 @@ class Type;
 namespace clad {
 using OwnedAnalysisContexts =
     llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
+using ParamSet = std::set<const clang::ParmVarDecl*>;
+using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
 /// A struct containing information about request to differentiate a function.
 struct DiffRequest {
 private:
@@ -45,6 +48,8 @@ private:
   /// be stored before being changed or not.
   mutable struct TbrRunInfo {
     std::set<clang::SourceLocation> ToBeRecorded;
+    ParamInfo m_ModifiedParams;
+    ParamInfo m_UsedParams;
     bool HasAnalysisRun = false;
   } m_TbrRunInfo;
 
@@ -73,8 +78,6 @@ public:
   clang::Expr* CallContext = nullptr;
   /// Args provided to the call to clad::gradient/differentiate.
   const clang::Expr* Args = nullptr;
-
-  bool RequestTBR = false;
   /// Indexes of global GPU args of function as a subset of Args.
   std::vector<size_t> CUDAGlobalArgsIndexes;
   /// Requested differentiation mode, forward or reverse.
@@ -193,6 +196,16 @@ public:
     m_TbrRunInfo.HasAnalysisRun = true;
     return m_TbrRunInfo.ToBeRecorded;
   }
+  ParamInfo& getModifiedParams() const { return m_TbrRunInfo.m_ModifiedParams; }
+  void addFunctionModifiedParams(const clang::FunctionDecl* FD,
+                                 const ParamSet& params) {
+    m_TbrRunInfo.m_ModifiedParams[FD] = params;
+  }
+  ParamInfo& getUsedParams() const { return m_TbrRunInfo.m_UsedParams; }
+  void addFunctionUsedParams(const clang::FunctionDecl* FD,
+                             const ParamSet& params) {
+    m_TbrRunInfo.m_UsedParams[FD] = params;
+  }
   void addVariedDecl(const clang::VarDecl* init) {
     m_ActivityRunInfo.VariedDecls.insert(init);
   }
@@ -241,8 +254,6 @@ public:
     const RequestOptions& m_Options;
 
     llvm::DenseSet<const clang::FunctionDecl*> m_Traversed;
-
-    bool m_TBROnly = false;
 
     bool m_IsTraversingTopLevelDecl = true;
 

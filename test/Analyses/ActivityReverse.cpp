@@ -70,14 +70,12 @@ double f2(double x){
 //CHECK-NEXT:     _d_a += 1;
 //CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:         b = _t0;
-//CHECK-NEXT:         double _r_d0 = _d_b;
+//CHECK-NEXT:         *_d_x += _d_b;
 //CHECK-NEXT:         _d_b = 0.;
-//CHECK-NEXT:         *_d_x += _r_d0;
 //CHECK-NEXT:     } else if (!_cond1) {
 //CHECK-NEXT:         g = _t1;
-//CHECK-NEXT:         double _r_d1 = _d_g;
+//CHECK-NEXT:         _d_a += _d_g;
 //CHECK-NEXT:         _d_g = 0.;
-//CHECK-NEXT:         _d_a += _r_d1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_x += _d_a * x;
@@ -126,33 +124,28 @@ double f3(double x){
 //CHECK-NEXT:         {
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 x1 = clad::pop(_t5);
-//CHECK-NEXT:                 double _r_d4 = _d_x1;
+//CHECK-NEXT:                 *_d_x += _d_x1;
 //CHECK-NEXT:                 _d_x1 = 0.;
-//CHECK-NEXT:                 *_d_x += _r_d4;
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 x2 = clad::pop(_t4);
-//CHECK-NEXT:                 double _r_d3 = _d_x2;
+//CHECK-NEXT:                 _d_x1 += _d_x2;
 //CHECK-NEXT:                 _d_x2 = 0.;
-//CHECK-NEXT:                 _d_x1 += _r_d3;
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 x3 = clad::pop(_t3);
-//CHECK-NEXT:                 double _r_d2 = _d_x3;
+//CHECK-NEXT:                 _d_x2 += _d_x3;
 //CHECK-NEXT:                 _d_x3 = 0.;
-//CHECK-NEXT:                 _d_x2 += _r_d2;
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 x4 = clad::pop(_t2);
-//CHECK-NEXT:                 double _r_d1 = _d_x4;
+//CHECK-NEXT:                 _d_x3 += _d_x4;
 //CHECK-NEXT:                 _d_x4 = 0.;
-//CHECK-NEXT:                 _d_x3 += _r_d1;
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 x5 = clad::pop(_t1);
-//CHECK-NEXT:                 double _r_d0 = _d_x5;
+//CHECK-NEXT:                 _d_x4 += _d_x5;
 //CHECK-NEXT:                 _d_x5 = 0.;
-//CHECK-NEXT:                 _d_x4 += _r_d0;
 //CHECK-NEXT:             }
 //CHECK-NEXT:         }
 //CHECK-NEXT:         _t0--;

@@ -39,8 +39,8 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   /// Tells if the variable at a given location is required to store. Basically,
   /// is the result of analysis.
   std::set<clang::SourceLocation>& m_TBRLocs;
-  std::map<const clang::FunctionDecl*, std::set<const clang::Decl*>>*
-      m_ModifiedParams;
+  ParamInfo* m_ModifiedParams;
+  ParamInfo* m_UsedParams;
 
   /// Stores modes in a stack (used to retrieve the old mode after entering
   /// a new one).
@@ -79,10 +79,10 @@ public:
   /// Constructor
   TBRAnalyzer(clang::AnalysisDeclContext* AnalysisDC,
               std::set<clang::SourceLocation>& Locs,
-              std::map<const clang::FunctionDecl*,
-                       std::set<const clang::Decl*>>* ModifiedParams = nullptr)
+              ParamInfo* ModifiedParams = nullptr,
+              ParamInfo* UsedParams = nullptr)
       : AnalysisBase(AnalysisDC), m_TBRLocs(Locs),
-        m_ModifiedParams(ModifiedParams) {
+        m_ModifiedParams(ModifiedParams), m_UsedParams(UsedParams) {
     m_ModeStack.push_back(0);
   }
 
@@ -106,12 +106,14 @@ public:
   bool TraverseConditionalOperator(clang::ConditionalOperator* CO);
   bool TraverseCompoundAssignOperator(clang::CompoundAssignOperator* BinOp);
   bool TraverseCXXConstructExpr(clang::CXXConstructExpr* CE);
+  bool TraverseCXXThisExpr(clang::CXXThisExpr* TE);
   bool TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE);
   bool TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE);
   bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE);
   bool TraverseDeclStmt(clang::DeclStmt* DS);
   bool TraverseInitListExpr(clang::InitListExpr* ILE);
   bool TraverseMemberExpr(clang::MemberExpr* ME);
+  bool TraverseReturnStmt(clang::ReturnStmt* RS);
   bool TraverseUnaryOperator(clang::UnaryOperator* UnOp);
 };
 
