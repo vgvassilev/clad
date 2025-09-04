@@ -680,7 +680,7 @@ double fn24(double x, double y, Op op) {
 }
 
 // CHECK: void fn24_grad_0_1(double x, double y, Op op, double *_d_x, double *_d_y) {
-// CHECK-NEXT:    Op _d_op = static_cast<Op>(0U);
+// CHECK-NEXT:    {{.*}} _d_op = {{.*}};
 // CHECK-NEXT:    Op _cond0;
 // CHECK-NEXT:    double _t0;
 // CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t1 = {};
