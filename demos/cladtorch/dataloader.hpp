@@ -181,7 +181,7 @@ public:
         m_local_batch_offset_bytes(m_ProcessRank * m_B * m_T *
                                    sizeof(uint16_t)),
         m_header_bytes(HEADER_SIZE * sizeof(int)) {
-    std::memset(&m_GlobResult, 0, sizeof(m_GlobResult));
+    std::memset(&m_glob_result, 0, sizeof(m_glob_result));
 
     // Glob to get list of files
     int glob_status = glob(filename_pattern.c_str(), 0, nullptr, &m_GlobResult);
