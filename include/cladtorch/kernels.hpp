@@ -16,16 +16,19 @@
 
 #define CLAD_ASSERT(condition, message) assert((condition) && message)
 
-// -------------------- Kernel Functions (Operating on raw pointers) --------------------
-// These functions are low-level, high-performance routines that operate on raw C-style
-// arrays. Their performance and interface are independent of how the Tensor class manages its data.
+// === Kernel Functions (Operating on raw pointers) ===
+// These functions are low-level, high-performance routines
+// that operate on raw C-style arrays. Their performance and interface are
+// independent of how the Tensor class manages its data.
 namespace cladtorch::kernels {
 inline float gelu_kernel(float x) {
   constexpr float sqrt_2_over_pi = 0.7978845608028654f; // sqrt(2 / pi)
-  return 0.5f * x * (1.0f + std::tanh(sqrt_2_over_pi * (x + 0.044715f * x * x * x)));
+  return 0.5f * x *
+         (1.0f + std::tanh(sqrt_2_over_pi * (x + 0.044715f * x * x * x)));
 }
 
-inline void softmax_kernel(const float* logits, float* probs, int size, int end, int vocab_size) {
+inline void softmax_kernel(const float* logits, float* probs, int size, int end,
+                           int vocab_size) {
   CLAD_ASSERT(size > 0, "Softmax kernel requires size > 0");
   CLAD_ASSERT(end > 0, "Softmax kernel requires end > 0");
   CLAD_ASSERT(end <= size, "End index cannot exceed size");
@@ -62,14 +65,16 @@ inline void softmax_kernel(const float* logits, float* probs, int size, int end,
     probs[j] = 0.0f;
 }
 
-inline float cross_entropy_loss_kernel(const float* probs, int target_class, int size) {
+inline float cross_entropy_loss_kernel(const float* probs, int target_class,
+                                       int size) {
   if (target_class < 0 || target_class >= size)
     return -std::log(1e-9f);
   float prob_at_target = probs[target_class];
   return -std::log(std::max(prob_at_target, 1e-9f));
 }
 
-inline void mat_vec_mul_kernel(const float* mat, const float* vec, float* result, int rows, int cols) {
+inline void mat_vec_mul_kernel(const float* mat, const float* vec,
+                               float* result, int rows, int cols) {
   for (int i = 0; i < rows; ++i) {
     result[i] = 0.0f;
     for (int j = 0; j < cols; ++j)
@@ -77,8 +82,9 @@ inline void mat_vec_mul_kernel(const float* mat, const float* vec, float* result
   }
 }
 
-inline void
-mat_mul_kernel_naive(const float* a_data, const float* b_data, float* result_data, size_t R, size_t C1, size_t C2) {
+inline void mat_mul_kernel_naive(const float* a_data, const float* b_data,
+                                 float* result_data, size_t R, size_t C1,
+                                 size_t C2) {
 #pragma omp parallel for
   for (size_t i = 0; i < R; ++i) {
     for (size_t j = 0; j < C2; ++j) {
@@ -91,7 +97,8 @@ mat_mul_kernel_naive(const float* a_data, const float* b_data, float* result_dat
 }
 
 static constexpr int UNROLL = 8;
-inline void mat_mul_kernel_unrolled(const float* a, const float* b, float* out, size_t R, size_t C1, size_t C2) {
+inline void mat_mul_kernel_unrolled(const float* a, const float* b, float* out,
+                                    size_t R, size_t C1, size_t C2) {
   // we assume R % UNROLL == 0 (fall back otherwise)
   size_t RT = R; // R = B*T for us
 #pragma omp parallel for
@@ -118,11 +125,13 @@ inline void mat_mul_kernel_unrolled(const float* a, const float* b, float* out, 
   }
 }
 
-inline void mat_mul_kernel(const float* a, const float* b, float* out, size_t R, size_t C1, size_t C2) {
+inline void mat_mul_kernel(const float* a, const float* b, float* out, size_t R,
+                           size_t C1, size_t C2) {
 // Dispatch to unrolled or regular kernel based on R
 #ifdef __APPLE__
   // Use Accelerate framework for unrolled matrix multiplication
-  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, R, C2, C1, 1.0f, a, C1, b, C2, 0.0f, out, C2);
+  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, R, C2, C1, 1.0f, a, C1,
+              b, C2, 0.0f, out, C2);
   return;
 #endif
   if (R % UNROLL == 0)
@@ -131,9 +140,9 @@ inline void mat_mul_kernel(const float* a, const float* b, float* out, size_t R,
     mat_mul_kernel_naive(a, b, out, R, C1, C2);
 }
 
-inline void batched_mat_mul_kernel(
-  const float* a_data, const float* b_data, float* result_data, size_t batch_size, size_t R, size_t C1, size_t C2
-) {
+inline void batched_mat_mul_kernel(const float* a_data, const float* b_data,
+                                   float* result_data, size_t batch_size,
+                                   size_t R, size_t C1, size_t C2) {
   size_t a_batch_stride = R * C1;
   size_t b_batch_stride = C1 * C2;
   size_t result_batch_stride = R * C2;
@@ -146,12 +155,12 @@ inline void batched_mat_mul_kernel(
   }
 }
 
-// -------------------- Linear Layer Kernels (Fused Matrix Multiplication + Bias) --------------------
+// === Linear Layer Kernels (Fused Matrix Multiplication + Bias) ===
 
-inline void linear_kernel_naive(
-  const float* input, const float* weight, const float* bias, float* output, size_t batch_seq, size_t in_features,
-  size_t out_features
-) {
+inline void linear_kernel_naive(const float* input, const float* weight,
+                                const float* bias, float* output,
+                                size_t batch_seq, size_t in_features,
+                                size_t out_features) {
   // input: [batch_seq, in_features]
   // weight: [out_features, in_features]
   // bias: [out_features]
@@ -169,9 +178,9 @@ inline void linear_kernel_naive(
   }
 }
 template <typename T>
-inline void linear_kernel_unrolled(
-  const T* input, const T* weight, const T* bias, T* output, size_t batch_seq, size_t in_features, size_t out_features
-) {
+inline void linear_kernel_unrolled(const T* input, const T* weight,
+                                   const T* bias, T* output, size_t batch_seq,
+                                   size_t in_features, size_t out_features) {
 // Unrolled version for better performance when batch_seq % UNROLL == 0
 #pragma omp parallel for
   for (size_t i0 = 0; i0 < batch_seq; i0 += UNROLL) {
@@ -195,10 +204,9 @@ inline void linear_kernel_unrolled(
   }
 }
 
-inline void linear_kernel(
-  const float* input, const float* weight, const float* bias, float* output, size_t batch_seq, size_t in_features,
-  size_t out_features
-) {
+inline void linear_kernel(const float* input, const float* weight,
+                          const float* bias, float* output, size_t batch_seq,
+                          size_t in_features, size_t out_features) {
 #ifdef __APPLE__
 // 1) Broadcast the bias into each row of `output`
 //    output[i, j] = bias[j]
@@ -220,60 +228,69 @@ inline void linear_kernel(
   //
   // We want α=1.0, β=1.0 (so that C starts at bias and adds the matmul).
   cblas_sgemm(
-    /* order     */ CblasRowMajor,
-    /* transA    */ CblasNoTrans,
-    /* transB    */ CblasTrans,
-    /* M,N,K     */ (int)batch_seq, (int)out_features, (int)in_features,
-    /* α         */ 1.0f,
-    /* A, lda    */ input, (int)in_features,
-    /* B, ldb    */ weight, (int)in_features,
-    /* β, C, ldc */ 1.0f, output, (int)out_features
-  );
+      /* order     */ CblasRowMajor,
+      /* transA    */ CblasNoTrans,
+      /* transB    */ CblasTrans,
+      /* M,N,K     */ (int)batch_seq, (int)out_features, (int)in_features,
+      /* α         */ 1.0f,
+      /* A, lda    */ input, (int)in_features,
+      /* B, ldb    */ weight, (int)in_features,
+      /* β, C, ldc */ 1.0f, output, (int)out_features);
   return;
 #endif
   // Dispatch to unrolled or regular kernel based on batch_seq
   if (batch_seq % UNROLL == 0 && batch_seq >= UNROLL)
-    linear_kernel_unrolled(input, weight, bias, output, batch_seq, in_features, out_features);
+    linear_kernel_unrolled(input, weight, bias, output, batch_seq, in_features,
+                           out_features);
   else
-    linear_kernel_naive(input, weight, bias, output, batch_seq, in_features, out_features);
+    linear_kernel_naive(input, weight, bias, output, batch_seq, in_features,
+                        out_features);
 }
-template <typename T> inline void element_wise_add_kernel(const T* a, const T* b, T* r, size_t n) {
+template <typename T>
+inline void element_wise_add_kernel(const T* a, const T* b, T* r, size_t n) {
   for (size_t i = 0; i < n; ++i)
     r[i] = a[i] + b[i];
 }
-template <typename T> inline void element_wise_sub_kernel(const T* a, const T* b, T* r, size_t n) {
+template <typename T>
+inline void element_wise_sub_kernel(const T* a, const T* b, T* r, size_t n) {
   for (size_t i = 0; i < n; ++i)
     r[i] = a[i] - b[i];
 }
-template <typename T> inline void element_wise_mul_kernel(const T* a, const T* b, T* r, size_t n) {
+template <typename T>
+inline void element_wise_mul_kernel(const T* a, const T* b, T* r, size_t n) {
   for (size_t i = 0; i < n; ++i)
     r[i] = a[i] * b[i];
 }
-template <typename T> inline void element_wise_div_kernel(const T* a, const T* b, T* r, size_t n) {
+template <typename T>
+inline void element_wise_div_kernel(const T* a, const T* b, T* r, size_t n) {
   for (size_t i = 0; i < n; ++i)
     r[i] = a[i] / b[i];
 }
-template <typename T> inline void scalar_add_kernel(const T* in, T s, T* r, size_t n) {
+template <typename T>
+inline void scalar_add_kernel(const T* in, T s, T* r, size_t n) {
   for (size_t i = 0; i < n; ++i)
     r[i] = in[i] + s;
 }
-template <typename T> inline void scalar_mul_kernel(const T* in, T s, T* r, size_t n) {
+template <typename T>
+inline void scalar_mul_kernel(const T* in, T s, T* r, size_t n) {
   for (size_t i = 0; i < n; ++i)
     r[i] = in[i] * s;
 }
-template <typename T> inline void scalar_div_kernel(const T* in, T s, T* r, size_t n) {
+template <typename T>
+inline void scalar_div_kernel(const T* in, T s, T* r, size_t n) {
   CLAD_ASSERT(s != 0.0f, "Division by zero.");
   for (size_t i = 0; i < n; ++i)
     r[i] = in[i] / s;
 }
 
 template <typename T>
-inline void lookup_kernel(
-  const T* src_data, const int* indices, T* dst_data, size_t num_indices, size_t src_first_dim, size_t slice_size
-) {
+inline void lookup_kernel(const T* src_data, const int* indices, T* dst_data,
+                          size_t num_indices, size_t src_first_dim,
+                          size_t slice_size) {
   for (size_t i = 0; i < num_indices; ++i) {
     int idx = indices[i];
-    CLAD_ASSERT(idx >= 0 && idx < (int)src_first_dim, "Index out of bounds in lookup.");
+    CLAD_ASSERT(idx >= 0 && idx < (int)src_first_dim,
+                "Index out of bounds in lookup.");
 
     const T* src_slice = src_data + idx * slice_size;
     T* dst_slice = dst_data + i * slice_size;
@@ -284,24 +301,28 @@ inline void lookup_kernel(
 }
 
 template <typename T>
-inline void view_kernel(
-  const T* src_data, T* dst_data, const std::vector<int>& src_shape, const std::vector<int>& src_strides,
-  const std::vector<int>& dst_shape, const std::vector<int>& dst_strides, size_t split_axis, size_t offset
-) {
+inline void view_kernel(const T* src_data, T* dst_data,
+                        const std::vector<int>& src_shape,
+                        const std::vector<int>& src_strides,
+                        const std::vector<int>& dst_shape,
+                        const std::vector<int>& dst_strides, size_t split_axis,
+                        size_t offset) {
   size_t dst_elements = 1;
   for (size_t dim : dst_shape)
     dst_elements *= dim;
 
   // Fast path: contiguous memory copy when possible
-  if (dst_strides.size() > 0 && dst_strides.back() == 1 && src_strides.back() == 1 &&
-      split_axis == dst_shape.size() - 1 && split_axis < src_strides.size() && 
+  if (dst_strides.size() > 0 && dst_strides.back() == 1 &&
+      src_strides.back() == 1 && split_axis == dst_shape.size() - 1 &&
+      split_axis < src_strides.size() &&
       offset < static_cast<size_t>(src_shape[split_axis])) {
     size_t copy_size = dst_shape[split_axis];
     size_t outer_elements = dst_elements / copy_size;
     size_t src_stride = src_strides[split_axis];
-    
+
     for (size_t i = 0; i < outer_elements; ++i) {
-      const T* src_ptr = src_data + offset * src_stride + i * src_stride * src_shape[split_axis];
+      const T* src_ptr = src_data + offset * src_stride +
+                         i * src_stride * src_shape[split_axis];
       T* dst_ptr = dst_data + i * copy_size;
       std::memcpy(dst_ptr, src_ptr, copy_size * sizeof(T));
     }
@@ -309,39 +330,38 @@ inline void view_kernel(
   }
 
   // Optimized path: direct stride calculation with bounds checking
-  if (split_axis >= src_strides.size()) return;
-  
+  if (split_axis >= src_strides.size())
+    return;
+
   size_t split_stride = src_strides[split_axis];
   size_t base_offset = offset * split_stride;
-  
+
   // Calculate strides for coordinate-free indexing
   std::vector<size_t> coord_multipliers(dst_shape.size());
   if (dst_shape.size() > 0) {
     coord_multipliers.back() = 1;
-    for (long i = static_cast<long>(dst_shape.size()) - 2; i >= 0; --i) {
+    for (long i = static_cast<long>(dst_shape.size()) - 2; i >= 0; --i)
       coord_multipliers[i] = coord_multipliers[i + 1] * dst_shape[i + 1];
-    }
   }
 
 #ifdef OMP
-  #pragma omp parallel for if(dst_elements > 10000)
+#pragma omp parallel for if (dst_elements > 10000)
 #endif
   for (size_t dst_idx = 0; dst_idx < dst_elements; ++dst_idx) {
     size_t src_idx = base_offset;
     size_t temp_idx = dst_idx;
-    
+
     // Direct calculation without coordinate arrays
     for (size_t i = 0; i < dst_shape.size() && i < src_strides.size(); ++i) {
       if (coord_multipliers[i] > 0) {
         size_t coord = temp_idx / coord_multipliers[i];
         temp_idx %= coord_multipliers[i];
-        if (i == split_axis) {
+        if (i == split_axis)
           coord += offset;
-        }
         src_idx += coord * src_strides[i];
       }
     }
-    
+
     dst_data[dst_idx] = src_data[src_idx];
   }
 }
@@ -351,7 +371,9 @@ inline void view_kernel(
 #endif
 
 // Optimized 2D matrix transpose for common case
-template <typename T> inline void transpose_2d_kernel(const T* src_data, T* dst_data, size_t rows, size_t cols) {
+template <typename T>
+inline void transpose_2d_kernel(const T* src_data, T* dst_data, size_t rows,
+                                size_t cols) {
   constexpr size_t BLOCK_SIZE = 64; // Cache-friendly block size
 
   for (size_t i = 0; i < rows; i += BLOCK_SIZE) {
@@ -367,7 +389,9 @@ template <typename T> inline void transpose_2d_kernel(const T* src_data, T* dst_
 }
 
 // SIMD-optimized transpose for float/double types
-template <> inline void transpose_2d_kernel<float>(const float* src_data, float* dst_data, size_t rows, size_t cols) {
+template <>
+inline void transpose_2d_kernel<float>(const float* src_data, float* dst_data,
+                                       size_t rows, size_t cols) {
   constexpr size_t BLOCK_SIZE = 64;
 
 #ifdef OMP
@@ -385,24 +409,20 @@ template <> inline void transpose_2d_kernel<float>(const float* src_data, float*
           for (size_t jj = j; jj < max_j && jj + 7 < cols; jj += 8) {
             // Load 8x8 block and transpose using AVX with bounds checking
             __m256 row[8];
-            for (int k = 0; k < 8; ++k) {
-              if (ii + k < rows && jj + 7 < cols) {
+            for (int k = 0; k < 8; ++k)
+              if (ii + k < rows && jj + 7 < cols)
                 row[k] = _mm256_loadu_ps(&src_data[(ii + k) * cols + jj]);
-              }
-            }
-            
+
             // Transpose 8x8 block
             __m256 tmp[8];
             for (int k = 0; k < 4; ++k) {
-              tmp[k] = _mm256_unpacklo_ps(row[2*k], row[2*k+1]);
-              tmp[4+k] = _mm256_unpackhi_ps(row[2*k], row[2*k+1]);
+              tmp[k] = _mm256_unpacklo_ps(row[2 * k], row[2 * k + 1]);
+              tmp[4 + k] = _mm256_unpackhi_ps(row[2 * k], row[2 * k + 1]);
             }
-            
-            for (int k = 0; k < 8; ++k) {
-              if (jj + k < cols && ii + 7 < rows) {
+
+            for (int k = 0; k < 8; ++k)
+              if (jj + k < cols && ii + 7 < rows)
                 _mm256_storeu_ps(&dst_data[(jj + k) * rows + ii], tmp[k]);
-              }
-            }
           }
         }
       } else
@@ -418,25 +438,27 @@ template <> inline void transpose_2d_kernel<float>(const float* src_data, float*
 }
 // Cache-efficient transpose with prefetching
 template <typename T>
-inline void transpose_cache_optimized(
-  const T* src_data, T* dst_data, size_t rows, size_t cols,
-  size_t src_row_stride, size_t dst_row_stride
-) {
+inline void transpose_cache_optimized(const T* src_data, T* dst_data,
+                                      size_t rows, size_t cols,
+                                      size_t src_row_stride,
+                                      size_t dst_row_stride) {
   constexpr size_t CACHE_LINE = 64 / sizeof(T);
   constexpr size_t BLOCK_SIZE = std::max(size_t(32), CACHE_LINE * 4);
-  
+
 #ifdef OMP
-  #pragma omp parallel for collapse(2) if(rows * cols > 50000)
+#pragma omp parallel for collapse(2) if (rows * cols > 50000)
 #endif
   for (size_t i = 0; i < rows; i += BLOCK_SIZE) {
     for (size_t j = 0; j < cols; j += BLOCK_SIZE) {
       size_t max_i = std::min(i + BLOCK_SIZE, rows);
       size_t max_j = std::min(j + BLOCK_SIZE, cols);
-      
+
       for (size_t ii = i; ii < max_i; ++ii) {
         for (size_t jj = j; jj < max_j; ++jj) {
-          if (ii < rows && jj < cols && jj < src_row_stride && ii < dst_row_stride) {
-            dst_data[jj * dst_row_stride + ii] = src_data[ii * src_row_stride + jj];
+          if (ii < rows && jj < cols && jj < src_row_stride &&
+              ii < dst_row_stride) {
+            dst_data[jj * dst_row_stride + ii] =
+                src_data[ii * src_row_stride + jj];
           }
         }
       }
@@ -446,10 +468,11 @@ inline void transpose_cache_optimized(
 
 // Direct stride calculation for general transpose
 template <typename T>
-inline void transpose_direct_kernel(
-  const T* src_data, T* dst_data, const std::vector<int>& src_shape, const std::vector<int>& src_strides,
-  const std::vector<int>& dst_strides, size_t dim0, size_t dim1
-) {
+inline void transpose_direct_kernel(const T* src_data, T* dst_data,
+                                    const std::vector<int>& src_shape,
+                                    const std::vector<int>& src_strides,
+                                    const std::vector<int>& dst_strides,
+                                    size_t dim0, size_t dim1) {
   // Calculate stride differences for the transposed dimensions
   int src_stride0 = src_strides[dim0];
   int src_stride1 = src_strides[dim1];
@@ -467,12 +490,13 @@ inline void transpose_direct_kernel(
   size_t outer_elements = total_elements / inner_elements;
 
   // Check if we can use cache-optimized version for contiguous 2D slices
-  bool is_contiguous_2d =
-    (src_stride1 == 1 && dst_stride0 == 1 && src_stride0 == static_cast<int>(dim1_size) &&
-     dst_stride1 == static_cast<int>(dim0_size));
+  bool is_contiguous_2d = (src_stride1 == 1 && dst_stride0 == 1 &&
+                           src_stride0 == static_cast<int>(dim1_size) &&
+                           dst_stride1 == static_cast<int>(dim0_size));
 
   if (is_contiguous_2d && outer_elements == 1) {
-    transpose_cache_optimized(src_data, dst_data, dim0_size, dim1_size, src_stride0, dst_stride1);
+    transpose_cache_optimized(src_data, dst_data, dim0_size, dim1_size,
+                              src_stride0, dst_stride1);
     return;
   }
 
@@ -484,14 +508,17 @@ inline void transpose_direct_kernel(
     size_t outer_src_base = 0;
     size_t outer_dst_base = 0;
     size_t temp_outer = outer;
-    
-    for (size_t d = 0; d < src_shape.size() && d < src_strides.size() && d < dst_strides.size(); ++d) {
-      if (d == dim0 || d == dim1) continue;
-      
+
+    for (size_t d = 0; d < src_shape.size() && d < src_strides.size() &&
+                       d < dst_strides.size();
+         ++d) {
+      if (d == dim0 || d == dim1)
+        continue;
+
       if (src_shape[d] > 0) {
         size_t coord = temp_outer % src_shape[d];
         temp_outer /= src_shape[d];
-        
+
         outer_src_base += coord * src_strides[d];
         outer_dst_base += coord * dst_strides[d];
       }
@@ -506,8 +533,10 @@ inline void transpose_direct_kernel(
 
         for (size_t ii = i; ii < max_i; ++ii) {
           for (size_t jj = j; jj < max_j; ++jj) {
-            size_t src_idx = outer_src_base + ii * src_stride0 + jj * src_stride1;
-            size_t dst_idx = outer_dst_base + jj * dst_stride0 + ii * dst_stride1;
+            size_t src_idx =
+                outer_src_base + ii * src_stride0 + jj * src_stride1;
+            size_t dst_idx =
+                outer_dst_base + jj * dst_stride0 + ii * dst_stride1;
             dst_data[dst_idx] = src_data[src_idx];
           }
         }
@@ -532,34 +561,40 @@ inline bool is_cache_friendly_size(size_t dim0, size_t dim1) {
 } // namespace transpose_perf
 
 template <typename T>
-inline void transpose_kernel(
-  const T* src_data, T* dst_data, const std::vector<int>& src_shape, const std::vector<int>& src_strides,
-  const std::vector<int>& dst_strides, size_t dim0, size_t dim1
-) {
+inline void transpose_kernel(const T* src_data, T* dst_data,
+                             const std::vector<int>& src_shape,
+                             const std::vector<int>& src_strides,
+                             const std::vector<int>& dst_strides, size_t dim0,
+                             size_t dim1) {
   size_t total_elements = 1;
   for (size_t dim : src_shape)
     total_elements *= dim;
 
   // Strategy 1: Optimized 2D transpose for contiguous matrices
-  if (src_shape.size() == 2 && dim0 == 0 && dim1 == 1 && src_strides[1] == 1 && src_strides[0] == src_shape[1] &&
-      dst_strides[0] == 1 && dst_strides[1] == src_shape[0]) {
+  if (src_shape.size() == 2 && dim0 == 0 && dim1 == 1 && src_strides[1] == 1 &&
+      src_strides[0] == src_shape[1] && dst_strides[0] == 1 &&
+      dst_strides[1] == src_shape[0]) {
 
     // Choose between SIMD and cache-optimized versions
     if (transpose_perf::is_cache_friendly_size(src_shape[0], src_shape[1]))
       transpose_2d_kernel(src_data, dst_data, src_shape[0], src_shape[1]);
     else
-      transpose_cache_optimized(src_data, dst_data, src_shape[0], src_shape[1], src_strides[0], dst_strides[1]);
+      transpose_cache_optimized(src_data, dst_data, src_shape[0], src_shape[1],
+                                src_strides[0], dst_strides[1]);
     return;
   }
 
   // Strategy 2: Handle large tensors with minimal dimension count
-  if (src_shape.size() <= 4 && transpose_perf::should_use_parallel(total_elements)) {
-    transpose_direct_kernel(src_data, dst_data, src_shape, src_strides, dst_strides, dim0, dim1);
+  if (src_shape.size() <= 4 &&
+      transpose_perf::should_use_parallel(total_elements)) {
+    transpose_direct_kernel(src_data, dst_data, src_shape, src_strides,
+                            dst_strides, dim0, dim1);
     return;
   }
 
   // Strategy 3: Fallback to direct method for complex cases
-  transpose_direct_kernel(src_data, dst_data, src_shape, src_strides, dst_strides, dim0, dim1);
+  transpose_direct_kernel(src_data, dst_data, src_shape, src_strides,
+                          dst_strides, dim0, dim1);
 }
 
 inline float vec_mean_kernel(size_t vec_size, const float* src) {
@@ -580,7 +615,8 @@ inline float vec_rstd_kernel(size_t vec_size, const float* src, float mean) {
   return 1.0f / std::sqrt(var + eps);
 }
 
-inline void norm_kernel(const float* src_data, float* dst_data, size_t num_vectors, size_t vec_size) {
+inline void norm_kernel(const float* src_data, float* dst_data,
+                        size_t num_vectors, size_t vec_size) {
   for (size_t idx = 0; idx < num_vectors; ++idx) {
     const float* vec = src_data + idx * vec_size;
     float* out = dst_data + idx * vec_size;
@@ -595,10 +631,11 @@ inline void norm_kernel(const float* src_data, float* dst_data, size_t num_vecto
 }
 
 template <typename T>
-inline void broadcast_kernel(
-  const T* src_data, T* dst_data, const std::vector<int>& src_shape, const std::vector<int>& src_strides,
-  const std::vector<int>& dst_shape, const std::vector<int>& dst_strides
-) {
+inline void broadcast_kernel(const T* src_data, T* dst_data,
+                             const std::vector<int>& src_shape,
+                             const std::vector<int>& src_strides,
+                             const std::vector<int>& dst_shape,
+                             const std::vector<int>& dst_strides) {
   size_t total_elements = 1;
   for (int dim : dst_shape)
     total_elements *= dim;
@@ -607,58 +644,62 @@ inline void broadcast_kernel(
   if (src_shape.size() == 1 && src_shape[0] == 1) {
     T scalar_value = src_data[0];
 #ifdef OMP
-    #pragma omp parallel for if(total_elements > 10000)
+#pragma omp parallel for if (total_elements > 10000)
 #endif
-    for (size_t i = 0; i < total_elements; ++i) {
+    for (size_t i = 0; i < total_elements; ++i)
       dst_data[i] = scalar_value;
-    }
     return;
   }
 
   // Pre-compute effective strides for broadcasting with bounds checking
   std::vector<size_t> effective_strides(dst_shape.size(), 0);
   std::vector<size_t> coord_multipliers(dst_shape.size());
-  
+
   if (dst_shape.size() > 0) {
     coord_multipliers.back() = 1;
-    for (long i = static_cast<long>(dst_shape.size()) - 2; i >= 0; --i) {
+    for (long i = static_cast<long>(dst_shape.size()) - 2; i >= 0; --i)
       coord_multipliers[i] = coord_multipliers[i + 1] * dst_shape[i + 1];
-    }
   }
-  
+
   long src_dim = static_cast<long>(src_shape.size()) - 1;
-  for (long dst_dim = static_cast<long>(dst_shape.size()) - 1; dst_dim >= 0 && src_dim >= 0; --dst_dim, --src_dim) {
-    if (src_dim < static_cast<long>(src_shape.size()) && src_dim < static_cast<long>(src_strides.size()) &&
-        dst_dim < static_cast<long>(dst_shape.size()) && src_shape[src_dim] > 1) {
+  for (long dst_dim = static_cast<long>(dst_shape.size()) - 1;
+       dst_dim >= 0 && src_dim >= 0; --dst_dim, --src_dim) {
+    if (src_dim < static_cast<long>(src_shape.size()) &&
+        src_dim < static_cast<long>(src_strides.size()) &&
+        dst_dim < static_cast<long>(dst_shape.size()) &&
+        src_shape[src_dim] > 1) {
       effective_strides[dst_dim] = src_strides[src_dim];
     }
     // else: remains 0 for broadcast dimensions
   }
 
 #ifdef OMP
-  #pragma omp parallel for if(total_elements > 10000)
+#pragma omp parallel for if (total_elements > 10000)
 #endif
   for (size_t dst_idx = 0; dst_idx < total_elements; ++dst_idx) {
     size_t src_idx = 0;
     size_t temp_idx = dst_idx;
-    
+
     // Direct calculation using pre-computed strides
     for (size_t i = 0; i < dst_shape.size(); ++i) {
       size_t coord = temp_idx / coord_multipliers[i];
       temp_idx %= coord_multipliers[i];
       src_idx += coord * effective_strides[i];
     }
-    
+
     dst_data[dst_idx] = src_data[src_idx];
   }
 }
 
 template <typename T>
-inline void broadcast_add_kernel(
-  const T* a_data, const T* b_data, T* result_data, const std::vector<int>& a_shape, const std::vector<int>& a_strides,
-  const std::vector<int>& b_shape, const std::vector<int>& b_strides, const std::vector<int>& result_shape,
-  const std::vector<int>& result_strides
-) {
+inline void broadcast_add_kernel(const T* a_data, const T* b_data,
+                                 T* result_data,
+                                 const std::vector<int>& a_shape,
+                                 const std::vector<int>& a_strides,
+                                 const std::vector<int>& b_shape,
+                                 const std::vector<int>& b_strides,
+                                 const std::vector<int>& result_shape,
+                                 const std::vector<int>& result_strides) {
   size_t total_elements = 1;
   for (int dim : result_shape)
     total_elements *= dim;
@@ -677,14 +718,16 @@ inline void broadcast_add_kernel(
 
     // Map to a coordinates
     int a_dim = a_shape.size() - 1;
-    for (int coord_dim = coords.size() - 1; coord_dim >= 0 && a_dim >= 0; --coord_dim, --a_dim) {
+    for (int coord_dim = coords.size() - 1; coord_dim >= 0 && a_dim >= 0;
+         --coord_dim, --a_dim) {
       int a_coord = (a_shape[a_dim] == 1) ? 0 : coords[coord_dim];
       a_idx += a_coord * a_strides[a_dim];
     }
 
     // Map to b coordinates
     int b_dim = b_shape.size() - 1;
-    for (int coord_dim = coords.size() - 1; coord_dim >= 0 && b_dim >= 0; --coord_dim, --b_dim) {
+    for (int coord_dim = coords.size() - 1; coord_dim >= 0 && b_dim >= 0;
+         --coord_dim, --b_dim) {
       int b_coord = (b_shape[b_dim] == 1) ? 0 : coords[coord_dim];
       b_idx += b_coord * b_strides[b_dim];
     }

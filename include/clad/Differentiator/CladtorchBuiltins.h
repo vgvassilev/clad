@@ -15,29 +15,42 @@ template <class T> void zero_init(::std::vector<::cladtorch::Tensor<T>>& p) {
 
 namespace custom_derivatives {
 namespace cladtorch {
-inline ::clad::ValueAndPushforward<float, float> gelu_kernel_pushforward(float x, float _d_x) {
-    const float _d_sqrt_2_over_pi = 0.F;
-    const float sqrt_2_over_pi = 0.797884583F;
-    float _t0 = 0.0447149985F * x;
-    float _t1 = _t0 * x;
-    float _t2 = (x + _t1 * x);
-    ValueAndPushforward<float, float> _t3 = ::clad::custom_derivatives::std::tanh_pushforward(sqrt_2_over_pi * _t2, _d_sqrt_2_over_pi * _t2 + sqrt_2_over_pi * (_d_x + ((0.F * x + 0.0447149985F * _d_x) * x + _t0 * _d_x) * x + _t1 * _d_x));
-    float _t4 = 0.5F * x;
-    float _t5 = (1.F + _t3.value);
-    return {_t4 * _t5, (0.F * x + 0.5F * _d_x) * _t5 + _t4 * (0.F + _t3.pushforward)};
+inline ::clad::ValueAndPushforward<float, float>
+gelu_kernel_pushforward(float x, float _d_x) {
+  const float _d_sqrt_2_over_pi = 0.F;
+  const float sqrt_2_over_pi = 0.797884583F;
+  float _t0 = 0.0447149985F * x;
+  float _t1 = _t0 * x;
+  float _t2 = (x + _t1 * x);
+  ValueAndPushforward<float, float> _t3 =
+      ::clad::custom_derivatives::std::tanh_pushforward(
+          sqrt_2_over_pi * _t2,
+          _d_sqrt_2_over_pi * _t2 +
+              sqrt_2_over_pi *
+                  (_d_x +
+                   ((0.F * x + 0.0447149985F * _d_x) * x + _t0 * _d_x) * x +
+                   _t1 * _d_x));
+  float _t4 = 0.5F * x;
+  float _t5 = (1.F + _t3.value);
+  return {_t4 * _t5,
+          (0.F * x + 0.5F * _d_x) * _t5 + _t4 * (0.F + _t3.pushforward)};
 }
-void gelu_pullback(const ::cladtorch::Tensor<float> &in, ::cladtorch::Tensor<float> _d_y, ::cladtorch::Tensor<float> *_d_in) {
-    for (int i=0;i<_d_y.num_elements();i++) {
-        float _d_r_d0 = _d_y.data()[i];
-        float _r0 = 0.F;
-        _r0 += _d_r_d0 * gelu_kernel_pushforward(in.data()[i], 1.F).pushforward;
-        (*_d_in).data()[i] += _r0;
-    }
+void gelu_pullback(const ::cladtorch::Tensor<float>& in,
+                   ::cladtorch::Tensor<float> _d_y,
+                   ::cladtorch::Tensor<float>* _d_in) {
+  for (int i = 0; i < _d_y.num_elements(); i++) {
+    float _d_r_d0 = _d_y.data()[i];
+    float _r0 = 0.F;
+    _r0 += _d_r_d0 * gelu_kernel_pushforward(in.data()[i], 1.F).pushforward;
+    (*_d_in).data()[i] += _r0;
+  }
 }
 // Matrix multiplication pullback
 template <typename T>
-void matmul_pullback(const ::cladtorch::Tensor<T>& a, const ::cladtorch::Tensor<T>& b, ::cladtorch::Tensor<T> _d_y,
-                     ::cladtorch::Tensor<T>* _d_a, ::cladtorch::Tensor<T>* _d_b) {
+void matmul_pullback(const ::cladtorch::Tensor<T>& a,
+                     const ::cladtorch::Tensor<T>& b,
+                     ::cladtorch::Tensor<T> _d_y, ::cladtorch::Tensor<T>* _d_a,
+                     ::cladtorch::Tensor<T>* _d_b) {
   // For C = matmul(A, B), the gradients are:
   // dA = matmul(dC, B^T)
   // dB = matmul(A^T, dC)
@@ -59,8 +72,9 @@ void matmul_pullback(const ::cladtorch::Tensor<T>& a, const ::cladtorch::Tensor<
   } else if (a.ndim() == 3 && b.ndim() == 2) {
     // Case: 3D x 2D batched matrix multiplication
     // A: (B, T, C), B: (C, out_features), C: (B, T, out_features)
-    // dA = matmul(dC, B^T) -> (B, T, out_features) x (out_features, C) = (B, T, C)
-    // dB = matmul(A^T, dC) -> sum over batch of (C, T) x (T, out_features) = (C, out_features)
+    // dA = matmul(dC, B^T) -> (B, T, out_features) x (out_features, C) = (B, T,
+    // C) dB = matmul(A^T, dC) -> sum over batch of (C, T) x (T, out_features) =
+    // (C, out_features)
 
     auto b_transposed = b.transpose(0, 1);
     auto grad_a = ::cladtorch::matmul(_d_y, b_transposed);
@@ -84,11 +98,12 @@ void matmul_pullback(const ::cladtorch::Tensor<T>& a, const ::cladtorch::Tensor<
     int B = a.size(0);
     for (int batch = 0; batch < B; ++batch) {
       // Extract batch slices - this is a simplified approach
-      // In practice, you might want to implement batch-aware transpose and matmul
-      // For now, we'll handle this case similarly to 2D but for each batch
+      // In practice, you might want to implement batch-aware transpose and
+      // matmul For now, we'll handle this case similarly to 2D but for each
+      // batch
 
-      // This is a placeholder - a full implementation would need proper batch slicing
-      // For now, we'll use the same logic as 2D case
+      // This is a placeholder - a full implementation would need proper batch
+      // slicing For now, we'll use the same logic as 2D case
       auto b_transposed = b.transpose(1, 2);
       auto a_transposed = a.transpose(1, 2);
 
@@ -105,7 +120,8 @@ void matmul_pullback(const ::cladtorch::Tensor<T>& a, const ::cladtorch::Tensor<
     // For 4D case, handle batch and head dimensions
 
     // For each batch and head, compute gradients
-    // This is a simplified approach - a full implementation would be more efficient
+    // This is a simplified approach - a full implementation would be more
+    // efficient
     auto b_transposed = b.transpose(2, 3); // Transpose last two dimensions
     auto a_transposed = a.transpose(2, 3); // Transpose last two dimensions
 
@@ -139,8 +155,10 @@ void matmul_pullback(const ::cladtorch::Tensor<T>& a, const ::cladtorch::Tensor<
 
 // Softmax pullback
 template <typename T>
-void softmax_pullback(const ::cladtorch::Tensor<T>& input, bool is_casual, int vocab_size, ::cladtorch::Tensor<T> _d_y,
-                      ::cladtorch::Tensor<T>* _d_input, bool* _d_is_casual, int* _d_vocab_size) {
+void softmax_pullback(const ::cladtorch::Tensor<T>& input, bool is_casual,
+                      int vocab_size, ::cladtorch::Tensor<T> _d_y,
+                      ::cladtorch::Tensor<T>* _d_input, bool* _d_is_casual,
+                      int* _d_vocab_size) {
   // For softmax, if y = softmax(x), then:
   // dy/dx_i = y_i * (delta_ij - y_j) where delta_ij is Kronecker delta
   // This can be written as: dy/dx = y * (grad_y - sum(grad_y * y))
@@ -163,7 +181,8 @@ void softmax_pullback(const ::cladtorch::Tensor<T>& input, bool is_casual, int v
     // Compute gradient for each element in this vector
     for (int i = 0; i < last_dim; ++i) {
       int idx = vec * last_dim + i;
-      T grad = softmax_output.data()[idx] * (_d_y.data()[idx] - sum_grad_y_times_y);
+      T grad =
+          softmax_output.data()[idx] * (_d_y.data()[idx] - sum_grad_y_times_y);
       _d_input->data()[idx] += grad;
     }
   }
@@ -174,14 +193,16 @@ void softmax_pullback(const ::cladtorch::Tensor<T>& input, bool is_casual, int v
 }
 
 template <typename T, typename U>
-void cross_entropy_loss_pullback(const ::cladtorch::Tensor<T>& probs, const ::cladtorch::Tensor<U>& targets,
-                                 ::cladtorch::Tensor<T> _d_y, ::cladtorch::Tensor<T>* _d_probs,
+void cross_entropy_loss_pullback(const ::cladtorch::Tensor<T>& probs,
+                                 const ::cladtorch::Tensor<U>& targets,
+                                 ::cladtorch::Tensor<T> _d_y,
+                                 ::cladtorch::Tensor<T>* _d_probs,
                                  ::cladtorch::Tensor<U>* _d_targets) {
   // For cross entropy loss L = -log(p_target), the gradient is:
   // dL/dp_i = -1/p_target if i == target, 0 otherwise
-  // But since we typically use softmax + cross entropy, the combined gradient is:
-  // dL/dx_i = p_i - 1 if i == target, p_i otherwise
-  // However, here we only have probs, so: dL/dp_i = -1/p_target if i == target
+  // But since we typically use softmax + cross entropy, the combined gradient
+  // is: dL/dx_i = p_i - 1 if i == target, p_i otherwise However, here we only
+  // have probs, so: dL/dp_i = -1/p_target if i == target
 
   int num_classes = probs.size(probs.ndim() - 1);
   int batch_size = probs.num_elements() / num_classes;
@@ -208,10 +229,13 @@ void cross_entropy_loss_pullback(const ::cladtorch::Tensor<T>& probs, const ::cl
 
 // Cross entropy loss pullback for single instance version
 template <typename T>
-void cross_entropy_loss_pullback(const ::cladtorch::Tensor<T>& probs, int target_class, ::cladtorch::Tensor<T> _d_y,
-                                 ::cladtorch::Tensor<T>* _d_probs, int* _d_target_class) {
+void cross_entropy_loss_pullback(const ::cladtorch::Tensor<T>& probs,
+                                 int target_class, ::cladtorch::Tensor<T> _d_y,
+                                 ::cladtorch::Tensor<T>* _d_probs,
+                                 int* _d_target_class) {
   // For single instance cross entropy loss
-  CLAD_ASSERT(probs.ndim() == 1, "Probs tensor must be 1D for single cross entropy loss.");
+  CLAD_ASSERT(probs.ndim() == 1,
+              "Probs tensor must be 1D for single cross entropy loss.");
   int num_classes = probs.num_elements();
 
   T loss_grad = _d_y.scalar(); // Extract scalar value
@@ -232,9 +256,12 @@ void cross_entropy_loss_pullback(const ::cladtorch::Tensor<T>& probs, int target
 namespace kernels {
 
 // Linear kernel naive pullback
-void linear_kernel_naive_pullback(const float* input, const float* weight, const float* bias, float* output,
-                                  size_t batch_seq, size_t in_features, size_t out_features, const float* d_output,
-                                  float* d_input, float* d_weight, float* d_bias) {
+void linear_kernel_naive_pullback(const float* input, const float* weight,
+                                  const float* bias, float* output,
+                                  size_t batch_seq, size_t in_features,
+                                  size_t out_features, const float* d_output,
+                                  float* d_input, float* d_weight,
+                                  float* d_bias) {
   // For linear: output = input @ weight.T + bias
   // Gradients are:
   // d_input[i, k] = sum_j(d_output[i, j] * weight[j, k])
@@ -246,7 +273,8 @@ void linear_kernel_naive_pullback(const float* input, const float* weight, const
     for (size_t k = 0; k < in_features; ++k) {
       float grad_input = 0.0f;
       for (size_t j = 0; j < out_features; ++j)
-        grad_input += d_output[i * out_features + j] * weight[j * in_features + k];
+        grad_input +=
+            d_output[i * out_features + j] * weight[j * in_features + k];
       d_input[i * in_features + k] += grad_input;
     }
   }
@@ -261,7 +289,8 @@ void linear_kernel_naive_pullback(const float* input, const float* weight, const
     for (size_t k = 0; k < in_features; ++k) {
       float grad_weight = 0.0f;
       for (size_t i = 0; i < batch_seq; ++i)
-        grad_weight += d_output[i * out_features + j] * input[i * in_features + k];
+        grad_weight +=
+            d_output[i * out_features + j] * input[i * in_features + k];
       d_weight[j * in_features + k] += grad_weight;
     }
   }
@@ -277,10 +306,11 @@ constexpr int UNROLL = 8;
  *  All gradient buffers are assumed to be zero-initialised by the caller.
  *  Thread-safe: every parallel section writes to a disjoint slice.
  */
-inline void linear_kernel_unrolled_pullback(const float* input, const float* weight,
-                                            const float* /*bias*/, float* /*output*/, // not needed here
-                                            size_t batch_seq, size_t in_features, size_t out_features,
-                                            const float* d_output, float* d_input, float* d_weight, float* d_bias) {
+inline void linear_kernel_unrolled_pullback(
+    const float* input, const float* weight, const float* /*bias*/,
+    float* /*output*/, // not needed here
+    size_t batch_seq, size_t in_features, size_t out_features,
+    const float* d_output, float* d_input, float* d_weight, float* d_bias) {
 // ---------- 1. d_input = d_output · W  -----------------------------------
 #pragma omp parallel for schedule(static)
   for (size_t i0 = 0; i0 < batch_seq; i0 += UNROLL) {
@@ -332,15 +362,17 @@ inline void linear_kernel_unrolled_pullback(const float* input, const float* wei
 }
 
 // Apple Accelerate optimized linear kernel pullback
-inline void linear_kernel_accelerate_pullback(const float* input, const float* weight, const float* bias, float* output,
-                                             size_t batch_seq, size_t in_features, size_t out_features,
-                                             const float* d_output, float* d_input, float* d_weight, float* d_bias) {
+inline void linear_kernel_accelerate_pullback(
+    const float* input, const float* weight, const float* bias, float* output,
+    size_t batch_seq, size_t in_features, size_t out_features,
+    const float* d_output, float* d_input, float* d_weight, float* d_bias) {
 #ifdef __APPLE__
   // For linear: output = input @ weight.T + bias
   // Gradients are:
-  // d_input[i, k] = sum_j(d_output[i, j] * weight[j, k])  ->  d_input = d_output @ weight
-  // d_weight[j, k] = sum_i(d_output[i, j] * input[i, k])  ->  d_weight = d_output.T @ input
-  // d_bias[j] = sum_i(d_output[i, j])                     ->  sum over batch dimension
+  // d_input[i, k] = sum_j(d_output[i, j] * weight[j, k])  ->  d_input =
+  // d_output @ weight d_weight[j, k] = sum_i(d_output[i, j] * input[i, k])  ->
+  // d_weight = d_output.T @ input d_bias[j] = sum_i(d_output[i, j]) ->  sum
+  // over batch dimension
 
   // 1. Compute d_input = d_output @ weight
   // d_output: [batch_seq, out_features] (row major)
@@ -350,38 +382,36 @@ inline void linear_kernel_accelerate_pullback(const float* input, const float* w
   // BLAS: C := α·A·B + β·C
   // A = d_output, B = weight, C = d_input
   cblas_sgemm(
-    /* order     */ CblasRowMajor,
-    /* transA    */ CblasNoTrans,
-    /* transB    */ CblasNoTrans,
-    /* M,N,K     */ (int)batch_seq, (int)in_features, (int)out_features,
-    /* α         */ 1.0f,
-    /* A, lda    */ d_output, (int)out_features,
-    /* B, ldb    */ weight, (int)in_features,
-    /* β, C, ldc */ 1.0f, d_input, (int)in_features
-  );
+      /* order     */ CblasRowMajor,
+      /* transA    */ CblasNoTrans,
+      /* transB    */ CblasNoTrans,
+      /* M,N,K     */ (int)batch_seq, (int)in_features, (int)out_features,
+      /* α         */ 1.0f,
+      /* A, lda    */ d_output, (int)out_features,
+      /* B, ldb    */ weight, (int)in_features,
+      /* β, C, ldc */ 1.0f, d_input, (int)in_features);
 
   // 2. Compute d_weight = d_output.T @ input
-  // d_output: [batch_seq, out_features] -> transpose to [out_features, batch_seq]
-  // input:    [batch_seq, in_features]
-  // d_weight: [out_features, in_features] (row major)
+  // d_output: [batch_seq, out_features] -> transpose to [out_features,
+  // batch_seq] input:    [batch_seq, in_features] d_weight: [out_features,
+  // in_features] (row major)
   //
   // BLAS: C := α·A^T·B + β·C
   // A = d_output (transposed), B = input, C = d_weight
   cblas_sgemm(
-    /* order     */ CblasRowMajor,
-    /* transA    */ CblasTrans,
-    /* transB    */ CblasNoTrans,
-    /* M,N,K     */ (int)out_features, (int)in_features, (int)batch_seq,
-    /* α         */ 1.0f,
-    /* A, lda    */ d_output, (int)out_features,
-    /* B, ldb    */ input, (int)in_features,
-    /* β, C, ldc */ 1.0f, d_weight, (int)in_features
-  );
+      /* order     */ CblasRowMajor,
+      /* transA    */ CblasTrans,
+      /* transB    */ CblasNoTrans,
+      /* M,N,K     */ (int)out_features, (int)in_features, (int)batch_seq,
+      /* α         */ 1.0f,
+      /* A, lda    */ d_output, (int)out_features,
+      /* B, ldb    */ input, (int)in_features,
+      /* β, C, ldc */ 1.0f, d_weight, (int)in_features);
 
   // // Use cblas_sgemv to compute bias gradient efficiently
   // // d_bias = ones^T @ d_output where ones is a vector of 1s
   // // This computes the column-wise sum of d_output
-  
+
   // // Create a temporary vector of ones for the matrix-vector multiplication
   // float* ones = (float*)malloc(batch_seq * sizeof(float));
   // for (size_t i = 0; i < batch_seq; ++i) {
@@ -408,37 +438,43 @@ inline void linear_kernel_accelerate_pullback(const float* input, const float* w
   // Simple loop is efficient for bias computation and avoids memory allocation
   for (size_t j = 0; j < out_features; ++j) {
     float grad_bias = 0.0f;
-    for (size_t i = 0; i < batch_seq; ++i) {
+    for (size_t i = 0; i < batch_seq; ++i)
       grad_bias += d_output[i * out_features + j];
-    }
     d_bias[j] += grad_bias;
   }
 #else
   // Fallback to unrolled implementation on non-Apple platforms
   if (batch_seq % 8 == 0 && batch_seq >= 8)
-    linear_kernel_unrolled_pullback(input, weight, bias, output, batch_seq, in_features, out_features, d_output,
+    linear_kernel_unrolled_pullback(input, weight, bias, output, batch_seq,
+                                    in_features, out_features, d_output,
                                     d_input, d_weight, d_bias);
   else
-    linear_kernel_naive_pullback(input, weight, bias, output, batch_seq, in_features, out_features, d_output, d_input,
+    linear_kernel_naive_pullback(input, weight, bias, output, batch_seq,
+                                 in_features, out_features, d_output, d_input,
                                  d_weight, d_bias);
 #endif
 }
 
 // Linear kernel pullback dispatcher
-void linear_kernel_pullback(const float* input, const float* weight, const float* bias, float* output, size_t batch_seq,
-                            size_t in_features, size_t out_features, const float* d_output, float* d_input,
+void linear_kernel_pullback(const float* input, const float* weight,
+                            const float* bias, float* output, size_t batch_seq,
+                            size_t in_features, size_t out_features,
+                            const float* d_output, float* d_input,
                             float* d_weight, float* d_bias) {
 #ifdef __APPLE__
   // Use Apple Accelerate optimized version on macOS
-  linear_kernel_accelerate_pullback(input, weight, bias, output, batch_seq, in_features, out_features, d_output,
-                                   d_input, d_weight, d_bias);
+  linear_kernel_accelerate_pullback(input, weight, bias, output, batch_seq,
+                                    in_features, out_features, d_output,
+                                    d_input, d_weight, d_bias);
 #else
   // Dispatch to unrolled or regular kernel based on batch_seq
   if (batch_seq % 8 == 0 && batch_seq >= 8)
-    linear_kernel_unrolled_pullback(input, weight, bias, output, batch_seq, in_features, out_features, d_output,
+    linear_kernel_unrolled_pullback(input, weight, bias, output, batch_seq,
+                                    in_features, out_features, d_output,
                                     d_input, d_weight, d_bias);
   else
-    linear_kernel_naive_pullback(input, weight, bias, output, batch_seq, in_features, out_features, d_output, d_input,
+    linear_kernel_naive_pullback(input, weight, bias, output, batch_seq,
+                                 in_features, out_features, d_output, d_input,
                                  d_weight, d_bias);
 #endif
 }
@@ -447,10 +483,15 @@ void linear_kernel_pullback(const float* input, const float* weight, const float
 
 // Linear function pullback
 template <typename T>
-void linear_pullback(const ::cladtorch::Tensor<T>& input, const ::cladtorch::Tensor<T>& weight,
-                     const ::cladtorch::Tensor<T>& bias, ::cladtorch::Tensor<T> _d_y, ::cladtorch::Tensor<T>* _d_input,
-                     ::cladtorch::Tensor<T>* _d_weight, ::cladtorch::Tensor<T>* _d_bias) {
-  static_assert(::std::is_same<T, float>::value, "Linear pullback currently only supports float tensors");
+void linear_pullback(const ::cladtorch::Tensor<T>& input,
+                     const ::cladtorch::Tensor<T>& weight,
+                     const ::cladtorch::Tensor<T>& bias,
+                     ::cladtorch::Tensor<T> _d_y,
+                     ::cladtorch::Tensor<T>* _d_input,
+                     ::cladtorch::Tensor<T>* _d_weight,
+                     ::cladtorch::Tensor<T>* _d_bias) {
+  static_assert(::std::is_same<T, float>::value,
+                "Linear pullback currently only supports float tensors");
 
   // Extract dimensions (same as forward pass)
   const auto& input_shape = input.shape();
@@ -462,39 +503,48 @@ void linear_pullback(const ::cladtorch::Tensor<T>& input, const ::cladtorch::Ten
   const int batch_seq = input.num_elements() / in_features;
 
   // Call the kernel pullback
-  kernels::linear_kernel_pullback(input.data(), weight.data(), bias.data(), nullptr, // output not needed for pullback
-                                  static_cast<size_t>(batch_seq), static_cast<size_t>(in_features),
-                                  static_cast<size_t>(out_features), _d_y.data(), _d_input->data(), _d_weight->data(),
-                                  _d_bias->data());
+  kernels::linear_kernel_pullback(
+      input.data(), weight.data(), bias.data(),
+      nullptr, // output not needed for pullback
+      static_cast<size_t>(batch_seq), static_cast<size_t>(in_features),
+      static_cast<size_t>(out_features), _d_y.data(), _d_input->data(),
+      _d_weight->data(), _d_bias->data());
 }
 
 } // namespace cladtorch
 namespace class_functions {
 
-template<typename T>
-void scalar_pullback(const ::cladtorch::Tensor<T> *_this, T _d_y, ::cladtorch::Tensor<T> *_d_this) {
-    _d_this->data()[0] += _d_y;
+template <typename T>
+void scalar_pullback(const ::cladtorch::Tensor<T>* _this, T _d_y,
+                     ::cladtorch::Tensor<T>* _d_this) {
+  _d_this->data()[0] += _d_y;
 }
 
-template<typename T>
-clad::ValueAndAdjoint<T*, T*> data_reverse_forw(::cladtorch::Tensor<T> *_this, ::cladtorch::Tensor<T> *_d_this) {
-    return {_this->data(), _d_this->data()};
+template <typename T>
+clad::ValueAndAdjoint<T*, T*>
+data_reverse_forw(::cladtorch::Tensor<T>* _this,
+                  ::cladtorch::Tensor<T>* _d_this) {
+  return {_this->data(), _d_this->data()};
 }
 
-template<typename T>
-void data_pullback(::cladtorch::Tensor<T> *_this, ::cladtorch::Tensor<T> *_d_this) {
-}
+template <typename T>
+void data_pullback(::cladtorch::Tensor<T>* _this,
+                   ::cladtorch::Tensor<T>* _d_this) {}
 
-void operator_plus_equal_pullback(::cladtorch::Tensor<float>* _this, const ::cladtorch::Tensor<float>& other,
-                                  ::cladtorch::Tensor<float> _d_y, ::cladtorch::Tensor<float>* _d_this,
+void operator_plus_equal_pullback(::cladtorch::Tensor<float>* _this,
+                                  const ::cladtorch::Tensor<float>& other,
+                                  ::cladtorch::Tensor<float> _d_y,
+                                  ::cladtorch::Tensor<float>* _d_this,
                                   ::cladtorch::Tensor<float>* _d_other) {
   // For +=, _d_y flows to _d_this
   *_d_this += _d_y;
   *_d_other += _d_y;
 }
 
-void operator_plus_pullback(const ::cladtorch::Tensor<float>* _this, const ::cladtorch::Tensor<float>& other,
-                            ::cladtorch::Tensor<float> _d_y, ::cladtorch::Tensor<float>* _d_this,
+void operator_plus_pullback(const ::cladtorch::Tensor<float>* _this,
+                            const ::cladtorch::Tensor<float>& other,
+                            ::cladtorch::Tensor<float> _d_y,
+                            ::cladtorch::Tensor<float>* _d_this,
                             ::cladtorch::Tensor<float>* _d_other) {
   // For +, gradient flows to both operands
   *_d_this += _d_y;
@@ -504,7 +554,8 @@ void operator_plus_pullback(const ::cladtorch::Tensor<float>* _this, const ::cla
     // If shapes don't match, we assume _d_y is batched, and _d_other is not
     CLAD_ASSERT(_d_other->ndim() == 1, "_d_other needs to be 1D");
     CLAD_ASSERT(_d_y.size(_d_y.ndim() - 1) == _d_other->num_elements(),
-                "Shape mismatch in operator+ pullback: _d_y and _d_other must have compatible shapes.");
+                "Shape mismatch in operator+ pullback: _d_y and _d_other must "
+                "have compatible shapes.");
     int batch_size = _d_y.num_elements() / _d_other->num_elements();
     int len = _d_other->num_elements();
     for (int i = 0; i < batch_size; i++)
@@ -515,16 +566,20 @@ void operator_plus_pullback(const ::cladtorch::Tensor<float>* _this, const ::cla
 }
 
 // Subtraction operators
-void operator_minus_equal_pullback(::cladtorch::Tensor<float>* _this, const ::cladtorch::Tensor<float>& other,
-                                   ::cladtorch::Tensor<float> _d_y, ::cladtorch::Tensor<float>* _d_this,
+void operator_minus_equal_pullback(::cladtorch::Tensor<float>* _this,
+                                   const ::cladtorch::Tensor<float>& other,
+                                   ::cladtorch::Tensor<float> _d_y,
+                                   ::cladtorch::Tensor<float>* _d_this,
                                    ::cladtorch::Tensor<float>* _d_other) {
   // For -=, _d_y flows to _d_this
   *_d_this += _d_y;
   *_d_other -= _d_y; // Negate gradient for _d_other
 }
 
-void operator_minus_pullback(const ::cladtorch::Tensor<float>* _this, const ::cladtorch::Tensor<float>& other,
-                             ::cladtorch::Tensor<float> _d_y, ::cladtorch::Tensor<float>* _d_this,
+void operator_minus_pullback(const ::cladtorch::Tensor<float>* _this,
+                             const ::cladtorch::Tensor<float>& other,
+                             ::cladtorch::Tensor<float> _d_y,
+                             ::cladtorch::Tensor<float>* _d_this,
                              ::cladtorch::Tensor<float>* _d_other) {
   // For -, gradient flows to first operand as-is
   *_d_this += _d_y;
@@ -532,8 +587,10 @@ void operator_minus_pullback(const ::cladtorch::Tensor<float>* _this, const ::cl
 }
 
 // Multiplication operators
-void operator_star_equal_pullback(::cladtorch::Tensor<float>* _this, const ::cladtorch::Tensor<float>& other,
-                                  ::cladtorch::Tensor<float> _d_y, ::cladtorch::Tensor<float>* _d_this,
+void operator_star_equal_pullback(::cladtorch::Tensor<float>* _this,
+                                  const ::cladtorch::Tensor<float>& other,
+                                  ::cladtorch::Tensor<float> _d_y,
+                                  ::cladtorch::Tensor<float>* _d_this,
                                   ::cladtorch::Tensor<float>* _d_other) {
   // For *=, d_this += d_y * other
   auto grad_this = _d_y * other;
@@ -549,8 +606,10 @@ void operator_star_equal_pullback(::cladtorch::Tensor<float>* _this, const ::cla
   // *_d_other += grad_other;
 }
 
-void operator_star_pullback(const ::cladtorch::Tensor<float>* _this, const ::cladtorch::Tensor<float>& other,
-                            ::cladtorch::Tensor<float> _d_y, ::cladtorch::Tensor<float>* _d_this,
+void operator_star_pullback(const ::cladtorch::Tensor<float>* _this,
+                            const ::cladtorch::Tensor<float>& other,
+                            ::cladtorch::Tensor<float> _d_y,
+                            ::cladtorch::Tensor<float>* _d_this,
                             ::cladtorch::Tensor<float>* _d_other) {
   // For *, d_this += d_y * other
   auto grad_this = _d_y * other;
@@ -564,7 +623,8 @@ void operator_star_pullback(const ::cladtorch::Tensor<float>* _this, const ::cla
     // If shapes don't match, we assume _d_y is batched, and _d_other is not
     CLAD_ASSERT(_d_other->ndim() == 1, "_d_other needs to be 1D");
     CLAD_ASSERT(_d_y.size(_d_y.ndim() - 1) == _d_other->num_elements(),
-                "Shape mismatch in operator* pullback: _d_y and _d_other must have compatible shapes.");
+                "Shape mismatch in operator* pullback: _d_y and _d_other must "
+                "have compatible shapes.");
     int batch_size = _d_y.num_elements() / _d_other->num_elements();
     int len = _d_other->num_elements();
     for (int i = 0; i < batch_size; i++)
@@ -574,8 +634,10 @@ void operator_star_pullback(const ::cladtorch::Tensor<float>* _this, const ::cla
 }
 
 // Scalar multiplication operators
-void operator_star_equal_pullback(::cladtorch::Tensor<float>* _this, float scalar, ::cladtorch::Tensor<float> _d_y,
-                                  ::cladtorch::Tensor<float>* _d_this, float* _d_scalar) {
+void operator_star_equal_pullback(::cladtorch::Tensor<float>* _this,
+                                  float scalar, ::cladtorch::Tensor<float> _d_y,
+                                  ::cladtorch::Tensor<float>* _d_this,
+                                  float* _d_scalar) {
   // For tensor *= scalar
   auto grad_this = _d_y * scalar;
   *_d_this += grad_this;
@@ -591,8 +653,10 @@ void operator_star_equal_pullback(::cladtorch::Tensor<float>* _this, float scala
   *_d_scalar += grad_scalar_sum;
 }
 
-void operator_star_pullback(const ::cladtorch::Tensor<float>* _this, float scalar, ::cladtorch::Tensor<float> _d_y,
-                            ::cladtorch::Tensor<float>* _d_this, float* _d_scalar) {
+void operator_star_pullback(const ::cladtorch::Tensor<float>* _this,
+                            float scalar, ::cladtorch::Tensor<float> _d_y,
+                            ::cladtorch::Tensor<float>* _d_this,
+                            float* _d_scalar) {
   // For tensor * scalar
   auto grad_this = _d_y * scalar;
   *_d_this += grad_this;
@@ -607,8 +671,11 @@ void operator_star_pullback(const ::cladtorch::Tensor<float>* _this, float scala
 }
 
 // Division operators
-void operator_divide_equal_pullback(::cladtorch::Tensor<float>* _this, float scalar, ::cladtorch::Tensor<float> _d_y,
-                                    ::cladtorch::Tensor<float>* _d_this, float* _d_scalar) {
+void operator_divide_equal_pullback(::cladtorch::Tensor<float>* _this,
+                                    float scalar,
+                                    ::cladtorch::Tensor<float> _d_y,
+                                    ::cladtorch::Tensor<float>* _d_this,
+                                    float* _d_scalar) {
   // For tensor /= scalar
   auto grad_this = _d_y / scalar;
   *_d_this += grad_this;
@@ -624,8 +691,10 @@ void operator_divide_equal_pullback(::cladtorch::Tensor<float>* _this, float sca
   *_d_scalar += -grad_scalar_sum / (scalar * scalar);
 }
 
-void operator_divide_pullback(const ::cladtorch::Tensor<float>* _this, float scalar, ::cladtorch::Tensor<float> _d_y,
-                              ::cladtorch::Tensor<float>* _d_this, float* _d_scalar) {
+void operator_divide_pullback(const ::cladtorch::Tensor<float>* _this,
+                              float scalar, ::cladtorch::Tensor<float> _d_y,
+                              ::cladtorch::Tensor<float>* _d_this,
+                              float* _d_scalar) {
   // For tensor / scalar
   auto grad_this = _d_y / scalar;
   *_d_this += grad_this;
@@ -641,7 +710,9 @@ void operator_divide_pullback(const ::cladtorch::Tensor<float>* _this, float sca
 
 template <typename T>
 ::clad::ValueAndPushforward<::cladtorch::Tensor<T>&, ::cladtorch::Tensor<T>&>
-operator_equal_pushforward(::cladtorch::Tensor<T>* _this, const ::cladtorch::Tensor<T>& other, ::cladtorch::Tensor<T>* _d_this,
+operator_equal_pushforward(::cladtorch::Tensor<T>* _this,
+                           const ::cladtorch::Tensor<T>& other,
+                           ::cladtorch::Tensor<T>* _d_this,
                            const ::cladtorch::Tensor<T>& _d_other) {
   *_this = other;
   *_d_this = _d_other;
@@ -650,8 +721,10 @@ operator_equal_pushforward(::cladtorch::Tensor<T>* _this, const ::cladtorch::Ten
 
 template <typename T>
 ::clad::ValueAndPushforward<::cladtorch::Tensor<T>&, ::cladtorch::Tensor<T>&>
-operator_equal_reverse_forw(::cladtorch::Tensor<T>* _this, const ::cladtorch::Tensor<T>& other, ::cladtorch::Tensor<T>* _d_this,
-                           const ::cladtorch::Tensor<T>& _d_other) {
+operator_equal_reverse_forw(::cladtorch::Tensor<T>* _this,
+                            const ::cladtorch::Tensor<T>& other,
+                            ::cladtorch::Tensor<T>* _d_this,
+                            const ::cladtorch::Tensor<T>& _d_other) {
   *_this = other;
   *_d_this = _d_other;
   return {*_this, *_d_this};
@@ -659,7 +732,8 @@ operator_equal_reverse_forw(::cladtorch::Tensor<T>* _this, const ::cladtorch::Te
 
 // template <typename T>
 // ::clad::ValueAndPushforward<::cladtorch::Tensor<T>&, ::cladtorch::Tensor<T>&>
-// operator_equal_reverse_forw(::cladtorch::Tensor<T>* _this, ::cladtorch::Tensor<T>&& other, ::cladtorch::Tensor<T>* _d_this,
+// operator_equal_reverse_forw(::cladtorch::Tensor<T>* _this,
+// ::cladtorch::Tensor<T>&& other, ::cladtorch::Tensor<T>* _d_this,
 //                            ::cladtorch::Tensor<T>&& _d_other) {
 //   *_this = other;
 //   *_d_this = _d_other;
@@ -668,7 +742,8 @@ operator_equal_reverse_forw(::cladtorch::Tensor<T>* _this, const ::cladtorch::Te
 
 // template <typename T>
 // ::clad::ValueAndPushforward<::cladtorch::Tensor<T>&, ::cladtorch::Tensor<T>&>
-// operator_equal_pushforward(::cladtorch::Tensor<T>* _this, ::cladtorch::Tensor<T>&& other, ::cladtorch::Tensor<T>* _d_this,
+// operator_equal_pushforward(::cladtorch::Tensor<T>* _this,
+// ::cladtorch::Tensor<T>&& other, ::cladtorch::Tensor<T>* _d_this,
 //                            ::cladtorch::Tensor<T>&& _d_other) {
 //   *_this = other;
 //   *_d_this = _d_other;
@@ -677,24 +752,31 @@ operator_equal_reverse_forw(::cladtorch::Tensor<T>* _this, const ::cladtorch::Te
 
 // template <typename T>
 // ::clad::ValueAndAdjoint<::cladtorch::Tensor<T>&, ::cladtorch::Tensor<T>&>
-// operator_equal_reverse_forw(::cladtorch::Tensor<T>* _this, const ::cladtorch::Tensor<T>& other,
-//                             ::cladtorch::Tensor<T>* _d_this, const ::cladtorch::Tensor<T>& _d_other) {
+// operator_equal_reverse_forw(::cladtorch::Tensor<T>* _this, const
+// ::cladtorch::Tensor<T>& other,
+//                             ::cladtorch::Tensor<T>* _d_this, const
+//                             ::cladtorch::Tensor<T>& _d_other) {
 //   *_this = other;
 //   *_d_this = _d_other;
 //   return {*_this, *_d_this};
 // }
 
 template <typename T>
-void operator_equal_pullback(::cladtorch::Tensor<T>* _this, const ::cladtorch::Tensor<T>& other,
-                             ::cladtorch::Tensor<T> _d_y, ::cladtorch::Tensor<T>* _d_this,
+void operator_equal_pullback(::cladtorch::Tensor<T>* _this,
+                             const ::cladtorch::Tensor<T>& other,
+                             ::cladtorch::Tensor<T> _d_y,
+                             ::cladtorch::Tensor<T>* _d_this,
                              ::cladtorch::Tensor<T>* _d_other) {
   // For assignment, the gradient flows to both tensors
   *_d_other += *_d_this;
 }
 
 template <typename T>
-void operator_equal_pullback(::cladtorch::Tensor<T>* _this, ::cladtorch::Tensor<T>&& other, ::cladtorch::Tensor<T> _d_y,
-                             ::cladtorch::Tensor<T>* _d_this, ::cladtorch::Tensor<T>* _d_other) {
+void operator_equal_pullback(::cladtorch::Tensor<T>* _this,
+                             ::cladtorch::Tensor<T>&& other,
+                             ::cladtorch::Tensor<T> _d_y,
+                             ::cladtorch::Tensor<T>* _d_this,
+                             ::cladtorch::Tensor<T>* _d_other) {
   // For assignment, the gradient flows to both tensors
   // *_d_this += _d_y;
   *_d_other += *_d_this;
@@ -702,7 +784,8 @@ void operator_equal_pullback(::cladtorch::Tensor<T>* _this, ::cladtorch::Tensor<
 
 template <typename T>
 ::clad::ValueAndPushforward<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
-constructor_pushforward(ConstructorPushforwardTag<::cladtorch::Tensor<T>>, const ::cladtorch::Tensor<T>& p,
+constructor_pushforward(ConstructorPushforwardTag<::cladtorch::Tensor<T>>,
+                        const ::cladtorch::Tensor<T>& p,
                         const ::cladtorch::Tensor<T>& d_p) {
   ::cladtorch::Tensor<T> v(p);
   ::cladtorch::Tensor<T> d_v(d_p);
@@ -710,7 +793,8 @@ constructor_pushforward(ConstructorPushforwardTag<::cladtorch::Tensor<T>>, const
 }
 
 template <typename T>
-void constructor_pullback(const ::cladtorch::Tensor<T>& other, ::cladtorch::Tensor<T>* _d_this,
+void constructor_pullback(const ::cladtorch::Tensor<T>& other,
+                          ::cladtorch::Tensor<T>* _d_this,
                           ::cladtorch::Tensor<T>* _d_other) {
   *_d_other += *_d_this;
   _d_this->fill(0);
@@ -718,7 +802,8 @@ void constructor_pullback(const ::cladtorch::Tensor<T>& other, ::cladtorch::Tens
 
 template <typename T>
 ::clad::ValueAndPushforward<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
-constructor_pushforward(ConstructorPushforwardTag<::cladtorch::Tensor<T>>, ::cladtorch::Tensor<T>&& p,
+constructor_pushforward(ConstructorPushforwardTag<::cladtorch::Tensor<T>>,
+                        ::cladtorch::Tensor<T>&& p,
                         ::cladtorch::Tensor<T>&& d_p) {
   ::cladtorch::Tensor<T> v(::std::move(p));
   ::cladtorch::Tensor<T> d_v(::std::move(d_p));
@@ -726,7 +811,8 @@ constructor_pushforward(ConstructorPushforwardTag<::cladtorch::Tensor<T>>, ::cla
 }
 
 template <typename T>
-void constructor_pullback(::cladtorch::Tensor<T>&& other, ::cladtorch::Tensor<T>* _d_this,
+void constructor_pullback(::cladtorch::Tensor<T>&& other,
+                          ::cladtorch::Tensor<T>* _d_this,
                           ::cladtorch::Tensor<T>* _d_other) {
   *_d_other += *_d_this;
   _d_this->fill(0);
@@ -734,7 +820,8 @@ void constructor_pullback(::cladtorch::Tensor<T>&& other, ::cladtorch::Tensor<T>
 
 template <typename T>
 ::clad::ValueAndPushforward<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
-constructor_pushforward(ConstructorPushforwardTag<::cladtorch::Tensor<T>>, const ::std::vector<int>& shape,
+constructor_pushforward(ConstructorPushforwardTag<::cladtorch::Tensor<T>>,
+                        const ::std::vector<int>& shape,
                         const ::std::vector<int>& d_shape) {
   ::cladtorch::Tensor<T> v(shape);
   ::cladtorch::Tensor<T> d_v(d_shape);
@@ -742,25 +829,30 @@ constructor_pushforward(ConstructorPushforwardTag<::cladtorch::Tensor<T>>, const
 }
 
 template <typename T>
-void constructor_pullback(const ::std::vector<int>& shape, ::cladtorch::Tensor<T>* _d_this,
+void constructor_pullback(const ::std::vector<int>& shape,
+                          ::cladtorch::Tensor<T>* _d_this,
                           ::std::vector<int>* d_shape) {
   // *_d_other += *_d_this;
   // _d_this->fill(0);
 }
 
 template <typename T>
-void transpose_pullback(const ::cladtorch::Tensor<T>* _this, int dim0, int dim1, ::cladtorch::Tensor<float> _d_y,
-                        ::cladtorch::Tensor<T>* _d_this, int* _d_dim0, int* _d_dim1) {
-  // The pullback of transpose is the transpose of the gradient with swapped dimensions
-  // _d_this->print();
-  // _d_y.print();
+void transpose_pullback(const ::cladtorch::Tensor<T>* _this, int dim0, int dim1,
+                        ::cladtorch::Tensor<float> _d_y,
+                        ::cladtorch::Tensor<T>* _d_this, int* _d_dim0,
+                        int* _d_dim1) {
+  // The pullback of transpose is the transpose of the gradient with swapped
+  // dimensions _d_this->print(); _d_y.print();
   *_d_this += _d_y.transpose(dim0, dim1);
   // _d_result->fill(0);
 }
 
 template <typename T, typename U>
-void lookup_pullback(const ::cladtorch::Tensor<T>* _this, const ::cladtorch::Tensor<U>& indices,
-                     ::cladtorch::Tensor<T> _d_y, ::cladtorch::Tensor<T>* _d_this, ::cladtorch::Tensor<U>* _d_indices) {
+void lookup_pullback(const ::cladtorch::Tensor<T>* _this,
+                     const ::cladtorch::Tensor<U>& indices,
+                     ::cladtorch::Tensor<T> _d_y,
+                     ::cladtorch::Tensor<T>* _d_this,
+                     ::cladtorch::Tensor<U>* _d_indices) {
   // Indices don't have gradients since they are integers
   (void)_d_indices;
 
@@ -784,8 +876,11 @@ void lookup_pullback(const ::cladtorch::Tensor<T>* _this, const ::cladtorch::Ten
 }
 
 template <typename T, typename U>
-void reshape_pullback(const ::cladtorch::Tensor<T>* _this, const ::std::vector<U>& new_shape,
-                      ::cladtorch::Tensor<T> _d_y, ::cladtorch::Tensor<T>* _d_this, ::std::vector<U>* _d_new_shape) {
+void reshape_pullback(const ::cladtorch::Tensor<T>* _this,
+                      const ::std::vector<U>& new_shape,
+                      ::cladtorch::Tensor<T> _d_y,
+                      ::cladtorch::Tensor<T>* _d_this,
+                      ::std::vector<U>* _d_new_shape) {
   // new_shape doesn't have gradients since it's a shape specification
   (void)_d_new_shape;
 
@@ -796,8 +891,11 @@ void reshape_pullback(const ::cladtorch::Tensor<T>* _this, const ::std::vector<U
 }
 
 template <typename T>
-void norm_pullback(const ::cladtorch::Tensor<T>* _this, ::cladtorch::Tensor<T> _d_y, ::cladtorch::Tensor<T>* _d_this) {
-  static_assert(::std::is_same<T, float>::value, "norm_pullback() is only supported for float tensors.");
+void norm_pullback(const ::cladtorch::Tensor<T>* _this,
+                   ::cladtorch::Tensor<T> _d_y,
+                   ::cladtorch::Tensor<T>* _d_this) {
+  static_assert(::std::is_same<T, float>::value,
+                "norm_pullback() is only supported for float tensors.");
 
   if (_this->num_elements() == 0)
     return;
@@ -840,14 +938,17 @@ void norm_pullback(const ::cladtorch::Tensor<T>* _this, ::cladtorch::Tensor<T> _
     // Apply layer norm gradient formula
     for (int i = 0; i < vec_size; i++) {
       float normalized = (x_vec[i] - mean) * rstd;
-      grad_in[i] += rstd * (grad_out[i] - grad_mean - normalized * grad_norm_mean * rstd);
+      grad_in[i] +=
+          rstd * (grad_out[i] - grad_mean - normalized * grad_norm_mean * rstd);
     }
   }
 }
 
 template <typename T>
-void split_pullback(const ::cladtorch::Tensor<T>* _this, int size, int axis, ::std::vector<::cladtorch::Tensor<T>> _d_y,
-                    ::cladtorch::Tensor<T>* _d_this, int* _d_size, int* _d_axis) {
+void split_pullback(const ::cladtorch::Tensor<T>* _this, int size, int axis,
+                    ::std::vector<::cladtorch::Tensor<T>> _d_y,
+                    ::cladtorch::Tensor<T>* _d_this, int* _d_size,
+                    int* _d_axis) {
   // size and axis don't have gradients since they are parameters
   (void)_d_size;
   (void)_d_axis;

@@ -29,16 +29,20 @@ private:
       throw std::runtime_error("Invalid magic number in tokenizer file");
     int version = header[1];
     vocab_size_ = header[2];
-    
+
     if (version == 1) {
       // Version 1 didn't include the EOT token id
       // so we assume it is 50256, the EOT in GPT-2
       if (vocab_size_ != 50257) {
-        throw std::runtime_error("Expected vocab_size 50257 for tokenizer version 1");
+        throw std::runtime_error(
+            "Expected vocab_size 50257 for tokenizer version 1");
       }
       eot_token_ = 50256;
-    } else if (version == 2) eot_token_ = header[3];
-    else throw std::runtime_error("Unsupported tokenizer version: " + std::to_string(version));
+    } else if (version == 2)
+      eot_token_ = header[3];
+    else
+      throw std::runtime_error("Unsupported tokenizer version: " +
+                               std::to_string(version));
 
     // Read all tokens
     token_table_.reserve(vocab_size_);
@@ -46,8 +50,9 @@ private:
       unsigned char length;
       if (fread(&length, sizeof(unsigned char), 1, file) != 1)
         throw std::runtime_error("Failed to read token length");
-      if (length == 0) throw std::runtime_error("Invalid token length: 0");
-      
+      if (length == 0)
+        throw std::runtime_error("Invalid token length: 0");
+
       std::string token(length, '\0');
       if (fread(token.data(), sizeof(char), length, file) != length)
         throw std::runtime_error("Failed to read token data");
@@ -56,7 +61,8 @@ private:
   }
 
 public:
-  explicit Tokenizer(const std::string& filename) : vocab_size_(0), eot_token_(0) {
+  explicit Tokenizer(const std::string& filename)
+      : vocab_size_(0), eot_token_(0) {
     load(filename);
   }
   // Disable copy operations for simplicity
@@ -68,10 +74,12 @@ public:
   Tokenizer& operator=(Tokenizer&&) = default;
 
   void load(const std::string& filename) {
-    auto file = std::unique_ptr<FILE, decltype(&fclose)>(fopen(filename.c_str(), "rb"), fclose);
+    auto file = std::unique_ptr<FILE, decltype(&fclose)>(
+        fopen(filename.c_str(), "rb"), fclose);
     if (!file) {
       std::cerr << "---\n";
-      std::cerr << "WARNING: Failed to open the tokenizer file " << filename << '\n';
+      std::cerr << "WARNING: Failed to open the tokenizer file " << filename
+                << '\n';
       std::cerr << "The Tokenizer is a new feature added April 14 2024.\n";
       std::cerr << "Re-run `python train_gpt2.py` to write it\n";
       std::cerr << "---\n";
@@ -79,7 +87,8 @@ public:
     }
     try {
       read_tokenizer_file(file.get());
-      std::cerr << "Tokenizer loaded: " << vocab_size_ << " tokens from " << filename << '\n';
+      std::cerr << "Tokenizer loaded: " << vocab_size_ << " tokens from "
+                << filename << '\n';
     } catch (const std::exception& e) {
       std::cerr << "Error loading tokenizer: " << e.what() << '\n';
       throw;
@@ -87,7 +96,7 @@ public:
   }
 
   std::string decode(uint32_t token_id) const {
-    if (token_id >= vocab_size_) 
+    if (token_id >= vocab_size_)
       throw std::runtime_error("Invalid token id: " + std::to_string(token_id));
     return token_table_[token_id];
   }
@@ -98,7 +107,8 @@ public:
       return;
     }
     const std::string& token = token_table_[token_id];
-    if (token.empty()) return;
+    if (token.empty())
+      return;
     // Handle individual byte tokens
     if (token.length() == 1) {
       unsigned char byte_val = static_cast<unsigned char>(token[0]);

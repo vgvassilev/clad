@@ -17,11 +17,11 @@ namespace tensor_like {
 namespace cladtorch {
 struct Tensor;
 }
-}
-}
+} // namespace tensor_like
+} // namespace clad
 
 namespace cladtorch {
-// -------------------- Dynamic-Shape Tensor Class --------------------
+// === Dynamic-Shape Tensor Class ===
 template <typename T> class Tensor {
 public:
   std::vector<int> _shape;
@@ -104,7 +104,8 @@ public:
 
   // Copy constructor
   Tensor(const Tensor& other)
-      : _shape(other._shape), _strides(other._strides), _num_elements(other._num_elements), _data(nullptr) {
+      : _shape(other._shape), _strides(other._strides),
+        _num_elements(other._num_elements), _data(nullptr) {
     if (_num_elements > 0) {
       _data = new T[_num_elements];
       std::copy(other._data, other._data + _num_elements, _data);
@@ -142,8 +143,8 @@ public:
 
   // Move constructor
   Tensor(Tensor&& other) noexcept
-      : _shape(std::move(other._shape)), _strides(std::move(other._strides)), _num_elements(other._num_elements),
-        _data(other._data) {
+      : _shape(std::move(other._shape)), _strides(std::move(other._strides)),
+        _num_elements(other._num_elements), _data(other._data) {
     other._num_elements = 0;
     other._data = nullptr;
   }
@@ -192,7 +193,8 @@ public:
   }
 
   // Compute the broadcast shape of two tensors
-  static std::vector<int> broadcast_shape(const Tensor<T>& a, const Tensor<T>& b) {
+  static std::vector<int> broadcast_shape(const Tensor<T>& a,
+                                          const Tensor<T>& b) {
     const auto& shape_a = a.shape();
     const auto& shape_b = b.shape();
 
@@ -217,9 +219,11 @@ public:
   }
 
   template <typename... IdxTypes> T& at(IdxTypes... idx_values) {
-    CLAD_ASSERT(sizeof...(idx_values) == ndim(), "Number of indices must match tensor dimensions.");
+    CLAD_ASSERT(sizeof...(idx_values) == ndim(),
+                "Number of indices must match tensor dimensions.");
     if (ndim() == 0) {
-      CLAD_ASSERT(sizeof...(idx_values) == 0, "Do not provide indices for a scalar tensor.");
+      CLAD_ASSERT(sizeof...(idx_values) == 0,
+                  "Do not provide indices for a scalar tensor.");
       return _data[0];
     }
 
@@ -301,7 +305,8 @@ public:
     for (int i = 1; i < ndim(); ++i)
       slice_size *= _shape[i];
 
-    // Create result shape: preserve indices shape and append remaining dimensions
+    // Create result shape: preserve indices shape and append remaining
+    // dimensions
     std::vector<int> result_shape = indices.shape();
     for (int i = 1; i < ndim(); ++i)
       result_shape.push_back(_shape[i]);
@@ -309,14 +314,16 @@ public:
     Tensor<T> result(result_shape);
 
     if (indices.num_elements() > 0)
-      kernels::lookup_kernel(_data, indices.data(), result.data(), indices.num_elements(), _shape[0], slice_size);
+      kernels::lookup_kernel(_data, indices.data(), result.data(),
+                             indices.num_elements(), _shape[0], slice_size);
 
     return result;
   }
 
   // Layer normalization: normalizes along the last dimension
   Tensor<T> norm() const {
-    static_assert(std::is_same<T, float>::value, "norm() is only supported for float tensors.");
+    static_assert(std::is_same<T, float>::value,
+                  "norm() is only supported for float tensors.");
     CLAD_ASSERT(ndim() > 0, "Cannot normalize a scalar tensor.");
     CLAD_ASSERT(_data != nullptr, "Cannot normalize null data tensor.");
 
@@ -335,22 +342,26 @@ public:
   }
 
   // Create a view (slice) of the tensor along specified axis at given offset
-  Tensor<T> view(const std::vector<int>& new_shape, int split_axis = 0, int split_no = 0) const {
+  Tensor<T> view(const std::vector<int>& new_shape, int split_axis = 0,
+                 int split_no = 0) const {
     CLAD_ASSERT(split_axis < ndim(), "Split axis out of bounds.");
-    CLAD_ASSERT(new_shape.size() == ndim(), "View shape must have same number of dimensions.");
+    CLAD_ASSERT(new_shape.size() == ndim(),
+                "View shape must have same number of dimensions.");
     CLAD_ASSERT(_data != nullptr, "Cannot create view of null data tensor.");
 
     // Calculate offset for this split
     int split_size = new_shape[split_axis];
     int offset = split_no * split_size;
-    CLAD_ASSERT(offset + split_size <= _shape[split_axis], "View extends beyond tensor bounds.");
+    CLAD_ASSERT(offset + split_size <= _shape[split_axis],
+                "View extends beyond tensor bounds.");
 
     Tensor<T> result(new_shape);
 
     if (result._num_elements == 0)
       return result;
 
-    kernels::view_kernel(_data, result.data(), _shape, _strides, new_shape, result._strides, split_axis, offset);
+    kernels::view_kernel(_data, result.data(), _shape, _strides, new_shape,
+                         result._strides, split_axis, offset);
 
     return result;
   }
@@ -364,7 +375,8 @@ public:
     for (int dim : new_shape)
       new_elements *= dim;
 
-    CLAD_ASSERT(new_elements == _num_elements, "New shape must have same total number of elements.");
+    CLAD_ASSERT(new_elements == _num_elements,
+                "New shape must have same total number of elements.");
 
     Tensor<T> result(new_shape);
 
@@ -378,7 +390,8 @@ public:
   // Split tensor along specified axis into chunks of given size
   std::vector<Tensor<T>> split(int size, int axis) const {
     CLAD_ASSERT(axis < ndim(), "Split axis out of bounds.");
-    CLAD_ASSERT(_shape[axis] % size == 0, "Dimension size must be divisible by split size.");
+    CLAD_ASSERT(_shape[axis] % size == 0,
+                "Dimension size must be divisible by split size.");
     CLAD_ASSERT(_data != nullptr, "Cannot split null data tensor.");
 
     std::vector<Tensor<T>> tensors;
@@ -402,7 +415,8 @@ public:
 
   // Transpose two dimensions of the tensor
   Tensor<T> transpose(int dim0, int dim1) const {
-    CLAD_ASSERT(dim0 < ndim() && dim1 < ndim(), "Transpose dimensions out of bounds.");
+    CLAD_ASSERT(dim0 < ndim() && dim1 < ndim(),
+                "Transpose dimensions out of bounds.");
     CLAD_ASSERT(_data != nullptr, "Cannot transpose null data tensor.");
 
     if (dim0 == dim1) {
@@ -419,14 +433,16 @@ public:
     if (_num_elements == 0)
       return result;
 
-    kernels::transpose_kernel(_data, result.data(), _shape, _strides, result._strides, dim0, dim1);
+    kernels::transpose_kernel(_data, result.data(), _shape, _strides,
+                              result._strides, dim0, dim1);
 
     return result;
   }
 
   // Broadcast this tensor to the given shape
   Tensor<T> broadcast_to(const std::vector<int>& target_shape) const {
-    CLAD_ASSERT(_data != nullptr || _num_elements == 0, "Cannot broadcast null data tensor.");
+    CLAD_ASSERT(_data != nullptr || _num_elements == 0,
+                "Cannot broadcast null data tensor.");
 
     // Check if broadcasting is possible
     if (_shape.size() > target_shape.size())
@@ -449,7 +465,8 @@ public:
     if (result._num_elements == 0 || _num_elements == 0)
       return result;
 
-    kernels::broadcast_kernel(_data, result.data(), _shape, _strides, target_shape, result._strides);
+    kernels::broadcast_kernel(_data, result.data(), _shape, _strides,
+                              target_shape, result._strides);
 
     return result;
   }
@@ -458,14 +475,18 @@ public:
   Tensor& operator+=(const Tensor& other) {
     if (_shape == other._shape) {
       // Same shape, use optimized kernel
-      kernels::element_wise_add_kernel(_data, other._data, _data, _num_elements);
+      kernels::element_wise_add_kernel(_data, other._data, _data,
+                                       _num_elements);
     } else {
       // Different shapes, need broadcasting
       std::vector<int> result_shape = broadcast_shape(*this, other);
-      CLAD_ASSERT(result_shape == _shape, "In-place addition requires this tensor to have the broadcast result shape.");
+      CLAD_ASSERT(result_shape == _shape,
+                  "In-place addition requires this tensor to have the "
+                  "broadcast result shape.");
 
       Tensor<T> other_broadcast = other.broadcast_to(_shape);
-      kernels::element_wise_add_kernel(_data, other_broadcast._data, _data, _num_elements);
+      kernels::element_wise_add_kernel(_data, other_broadcast._data, _data,
+                                       _num_elements);
     }
     return *this;
   }
@@ -474,7 +495,8 @@ public:
     if (_shape == other._shape) {
       // Same shape, use optimized path
       Tensor<T> result(*this);
-      kernels::element_wise_add_kernel(_data, other._data, result._data, _num_elements);
+      kernels::element_wise_add_kernel(_data, other._data, result._data,
+                                       _num_elements);
       return result;
     } else {
       // Different shapes, need broadcasting
@@ -484,7 +506,8 @@ public:
       Tensor<T> a_broadcast = this->broadcast_to(result_shape);
       Tensor<T> b_broadcast = other.broadcast_to(result_shape);
 
-      kernels::element_wise_add_kernel(a_broadcast._data, b_broadcast._data, result._data, result._num_elements);
+      kernels::element_wise_add_kernel(a_broadcast._data, b_broadcast._data,
+                                       result._data, result._num_elements);
       return result;
     }
   }
@@ -492,16 +515,18 @@ public:
   Tensor& operator-=(const Tensor& other) {
     if (_shape == other._shape) {
       // Same shape, use optimized kernel
-      kernels::element_wise_sub_kernel(_data, other._data, _data, _num_elements);
+      kernels::element_wise_sub_kernel(_data, other._data, _data,
+                                       _num_elements);
     } else {
       // Different shapes, need broadcasting
       std::vector<int> result_shape = broadcast_shape(*this, other);
-      CLAD_ASSERT(
-        result_shape == _shape, "In-place subtraction requires this tensor to have the broadcast result shape."
-      );
+      CLAD_ASSERT(result_shape == _shape,
+                  "In-place subtraction requires this tensor to have the "
+                  "broadcast result shape.");
 
       Tensor<T> other_broadcast = other.broadcast_to(_shape);
-      kernels::element_wise_sub_kernel(_data, other_broadcast._data, _data, _num_elements);
+      kernels::element_wise_sub_kernel(_data, other_broadcast._data, _data,
+                                       _num_elements);
     }
     return *this;
   }
@@ -518,7 +543,8 @@ public:
       Tensor<T> a_broadcast = this->broadcast_to(result_shape);
       Tensor<T> b_broadcast = other.broadcast_to(result_shape);
 
-      kernels::element_wise_sub_kernel(a_broadcast._data, b_broadcast._data, result._data, result._num_elements);
+      kernels::element_wise_sub_kernel(a_broadcast._data, b_broadcast._data,
+                                       result._data, result._num_elements);
       return result;
     }
   }
@@ -526,16 +552,18 @@ public:
   Tensor& operator*=(const Tensor& other) {
     if (_shape == other._shape) {
       // Same shape, use optimized kernel
-      kernels::element_wise_mul_kernel(_data, other._data, _data, _num_elements);
+      kernels::element_wise_mul_kernel(_data, other._data, _data,
+                                       _num_elements);
     } else {
       // Different shapes, need broadcasting
       std::vector<int> result_shape = broadcast_shape(*this, other);
-      CLAD_ASSERT(
-        result_shape == _shape, "In-place multiplication requires this tensor to have the broadcast result shape."
-      );
+      CLAD_ASSERT(result_shape == _shape,
+                  "In-place multiplication requires this tensor to have the "
+                  "broadcast result shape.");
 
       Tensor<T> other_broadcast = other.broadcast_to(_shape);
-      kernels::element_wise_mul_kernel(_data, other_broadcast._data, _data, _num_elements);
+      kernels::element_wise_mul_kernel(_data, other_broadcast._data, _data,
+                                       _num_elements);
     }
     return *this;
   }
@@ -552,7 +580,8 @@ public:
       Tensor<T> a_broadcast = this->broadcast_to(result_shape);
       Tensor<T> b_broadcast = other.broadcast_to(result_shape);
 
-      kernels::element_wise_mul_kernel(a_broadcast._data, b_broadcast._data, result._data, result._num_elements);
+      kernels::element_wise_mul_kernel(a_broadcast._data, b_broadcast._data,
+                                       result._data, result._num_elements);
       return result;
     }
   }
@@ -560,7 +589,8 @@ public:
     if (_shape == other._shape) {
       // Same shape, use optimized path
       Tensor<T> result(*this);
-      kernels::element_wise_div_kernel(_data, other._data, result._data, result._num_elements);
+      kernels::element_wise_div_kernel(_data, other._data, result._data,
+                                       result._num_elements);
       return result;
       // return Tensor(*this) /= other;
     } else {
@@ -571,7 +601,8 @@ public:
       Tensor<T> a_broadcast = this->broadcast_to(result_shape);
       Tensor<T> b_broadcast = other.broadcast_to(result_shape);
 
-      kernels::element_wise_div_kernel(a_broadcast._data, b_broadcast._data, result._data, result._num_elements);
+      kernels::element_wise_div_kernel(a_broadcast._data, b_broadcast._data,
+                                       result._data, result._num_elements);
       return result;
     }
   }
@@ -594,7 +625,7 @@ public:
   Tensor operator/(T scalar) const { return Tensor(*this) /= scalar; }
 };
 
-// -------------------- Tensor Operations (Wrappers around Kernels) --------------------
+// === Tensor Operations (Wrappers around Kernels) ===
 
 template <typename T> Tensor<T> matmul(const Tensor<T>& a, const Tensor<T>& b) {
   const Tensor<T>* a_ptr = &a;
@@ -622,18 +653,22 @@ template <typename T> Tensor<T> matmul(const Tensor<T>& a, const Tensor<T>& b) {
       }
     }
 
-    CLAD_ASSERT(
-      a_ptr->size(2) == b_ptr->size(1), "Inner dimensions must match for batched matmul (a.shape[2] == b.shape[1])."
-    );
-    int B = a_ptr->size(0), R = a_ptr->size(1), C1 = a_ptr->size(2), C2 = b_ptr->size(2);
+    CLAD_ASSERT(a_ptr->size(2) == b_ptr->size(1),
+                "Inner dimensions must match for batched matmul (a.shape[2] == "
+                "b.shape[1]).");
+    int B = a_ptr->size(0), R = a_ptr->size(1), C1 = a_ptr->size(2),
+        C2 = b_ptr->size(2);
     Tensor<T> result({B, R, C2});
-    kernels::batched_mat_mul_kernel(a_ptr->data(), b_ptr->data(), result.data(), B, R, C1, C2);
+    kernels::batched_mat_mul_kernel(a_ptr->data(), b_ptr->data(), result.data(),
+                                    B, R, C1, C2);
     return result;
   }
 
   // Case 2: Matrix-Matrix Multiplication (2D x 2D)
   if (a.ndim() == 2 && b.ndim() == 2) {
-    CLAD_ASSERT(a.size(1) == b.size(0), "Inner dimensions must match for matmul (a.shape[1] == b.shape[0]).");
+    CLAD_ASSERT(
+        a.size(1) == b.size(0),
+        "Inner dimensions must match for matmul (a.shape[1] == b.shape[0]).");
     int R = a.size(0), C1 = a.size(1), C2 = b.size(1);
     Tensor<T> result({R, C2});
     kernels::mat_mul_kernel(a.data(), b.data(), result.data(), R, C1, C2);
@@ -641,17 +676,23 @@ template <typename T> Tensor<T> matmul(const Tensor<T>& a, const Tensor<T>& b) {
   }
 
   // Case 3: Batched Matrix-Matrix Multiplication (3D x 2D)
-  // Input: (B, T, C) x Weight: (C, out_features) -> Output: (B, T, out_features)
+  // Input: (B, T, C) x Weight: (C, out_features) -> Output: (B, T,
+  // out_features)
   if (a.ndim() == 3 && b.ndim() == 2) {
-    CLAD_ASSERT(a.size(2) == b.size(0), "Inner dimensions must match for batched matmul (a.shape[2] == b.shape[0]).");
-    int B = a.size(0), seq_len = a.size(1), C = a.size(2), out_features = b.size(1);
+    CLAD_ASSERT(a.size(2) == b.size(0),
+                "Inner dimensions must match for batched matmul (a.shape[2] == "
+                "b.shape[0]).");
+    int B = a.size(0), seq_len = a.size(1), C = a.size(2),
+        out_features = b.size(1);
     Tensor<T> result({B, seq_len, out_features});
 
     // Reshape the 3D input to 2D: (B*seq_len, C)
     Tensor<T> a_reshaped = a.reshape({B * seq_len, C});
 
-    // Perform 2D matrix multiplication: (B*seq_len, C) x (C, out_features) -> (B*seq_len, out_features)
-    kernels::mat_mul_kernel(a_reshaped.data(), b.data(), result.data(), B * seq_len, C, out_features);
+    // Perform 2D matrix multiplication: (B*seq_len, C) x (C, out_features) ->
+    // (B*seq_len, out_features)
+    kernels::mat_mul_kernel(a_reshaped.data(), b.data(), result.data(),
+                            B * seq_len, C, out_features);
 
     return result;
   }
@@ -659,14 +700,19 @@ template <typename T> Tensor<T> matmul(const Tensor<T>& a, const Tensor<T>& b) {
   // Case 4: 4D x 4D batched multi-head attention matmul
   // Input: (B, H, T, d) x (B, H, d, T) -> Output: (B, H, T, T)
   if (a.ndim() == 4 && b.ndim() == 4) {
-    CLAD_ASSERT(a.size(0) == b.size(0), "Batch dimensions must match for 4D matmul (a.shape[0] == b.shape[0]).");
-    CLAD_ASSERT(a.size(1) == b.size(1), "Head dimensions must match for 4D matmul (a.shape[1] == b.shape[1]).");
-    CLAD_ASSERT(a.size(3) == b.size(2), "Inner dimensions must match for 4D matmul (a.shape[3] == b.shape[2]).");
+    CLAD_ASSERT(a.size(0) == b.size(0), "Batch dimensions must match for 4D "
+                                        "matmul (a.shape[0] == b.shape[0]).");
+    CLAD_ASSERT(
+        a.size(1) == b.size(1),
+        "Head dimensions must match for 4D matmul (a.shape[1] == b.shape[1]).");
+    CLAD_ASSERT(a.size(3) == b.size(2), "Inner dimensions must match for 4D "
+                                        "matmul (a.shape[3] == b.shape[2]).");
 
-    int B = a.size(0), H = a.size(1), T1 = a.size(2), d = a.size(3), T2 = b.size(3);
+    int B = a.size(0), H = a.size(1), T1 = a.size(2), d = a.size(3),
+        T2 = b.size(3);
     Tensor<T> result({B, H, T1, T2});
 
-    // Treat as batched 2D matrix multiplication: (B*H) batches of (T1, d) x (d, T2)
+    // Treat as batched 2D matrix mult: (B*H) batches of (T1, d) x (d, T2)
     int batch_size = B * H;
     int a_matrix_size = T1 * d;
     int b_matrix_size = d * T2;
@@ -685,7 +731,9 @@ template <typename T> Tensor<T> matmul(const Tensor<T>& a, const Tensor<T>& b) {
 
   // Case 5: Matrix-Vector Multiplication (2D x 1D)
   if (a.ndim() == 2 && b.ndim() == 1) {
-    CLAD_ASSERT(a.size(1) == b.size(0), "Inner dimensions must match for mat-vec mul (a.shape[1] == b.shape[0]).");
+    CLAD_ASSERT(a.size(1) == b.size(0),
+                "Inner dimensions must match for mat-vec mul (a.shape[1] == "
+                "b.shape[0]).");
     int R = a.size(0), C = a.size(1);
     Tensor<T> result({R});
     kernels::mat_vec_mul_kernel(a.data(), b.data(), result.data(), R, C);
@@ -697,7 +745,8 @@ template <typename T> Tensor<T> matmul(const Tensor<T>& a, const Tensor<T>& b) {
 }
 
 template <typename T>
-Tensor<T> softmax(const Tensor<T>& input, bool is_casual /* = false */, int vocab_size /* = 0 */) {
+Tensor<T> softmax(const Tensor<T>& input, bool is_casual /* = false */,
+                  int vocab_size /* = 0 */) {
   CLAD_ASSERT(input.ndim() > 0, "Softmax requires at least one dimension.");
   Tensor<T> result(input.shape());
 
@@ -707,7 +756,8 @@ Tensor<T> softmax(const Tensor<T>& input, bool is_casual /* = false */, int voca
   // For causal masking, we need to handle 2D+ tensors properly
   if (input.ndim() >= 2 && is_casual) {
     auto shape = input.shape();
-    int n = shape[shape.size() - 2]; // Second to last dimension (sequence length)
+    int n =
+        shape[shape.size() - 2]; // Second to last dimension (sequence length)
     int m = shape[shape.size() - 1]; // Last dimension (vocab/feature size)
 
     // Calculate batch size (all dimensions except last two)
@@ -720,7 +770,7 @@ Tensor<T> softmax(const Tensor<T>& input, bool is_casual /* = false */, int voca
         const T* logits_slice = input.data() + batch * n * m + i * m;
         T* probs_slice = result.data() + batch * n * m + i * m;
         int V = vocab_size > 0 ? vocab_size : m;
-        size_t end = i + 1;             // Causal: can only attend to positions 0..i
+        size_t end = i + 1; // Causal: can only attend to positions 0..i
         end = std::min(end, (size_t)V); // Don't exceed vocab size
         kernels::softmax_kernel(logits_slice, probs_slice, m, end, vocab_size);
       }
@@ -732,7 +782,8 @@ Tensor<T> softmax(const Tensor<T>& input, bool is_casual /* = false */, int voca
       T* probs_slice = result.data() + i * last_dim;
       int V = vocab_size > 0 ? vocab_size : last_dim;
       size_t end = V;
-      kernels::softmax_kernel(logits_slice, probs_slice, last_dim, end, vocab_size);
+      kernels::softmax_kernel(logits_slice, probs_slice, last_dim, end,
+                              vocab_size);
     }
   }
   return result;
@@ -743,40 +794,48 @@ Tensor<T> softmax(const Tensor<T>& input, bool is_casual /* = false */, int voca
 //   return softmax(input, false, 0);
 // }
 
-template <typename T> Tensor<T> causal_softmax(const Tensor<T>& input, int vocab_size = 0) {
+template <typename T>
+Tensor<T> causal_softmax(const Tensor<T>& input, int vocab_size = 0) {
   return softmax(input, true, vocab_size);
 }
 
 // Batched cross-entropy loss
-// template <typename T> Tensor<T> cross_entropy_loss(const Tensor<T>& probs, const std::vector<int>& targets) {
-template <typename T, typename U> Tensor<T> cross_entropy_loss(const Tensor<T>& probs, const Tensor<U>& targets) {
-  static_assert(std::is_integral<U>::value, "Targets tensor must contain integral class indices.");
+// template <typename T> Tensor<T> cross_entropy_loss(const Tensor<T>& probs,
+// const std::vector<int>& targets) {
+template <typename T, typename U>
+Tensor<T> cross_entropy_loss(const Tensor<T>& probs, const Tensor<U>& targets) {
+  static_assert(std::is_integral<U>::value,
+                "Targets tensor must contain integral class indices.");
   // CLAD_ASSERT(targets.ndim() == 1, "Targets tensor must be a 1D array");
-  // CLAD_ASSERT(probs.ndim() == 2, "Probs tensor must be 2D for batched cross entropy loss.");
-  // int batch_size = probs.size(0);
+  // CLAD_ASSERT(probs.ndim() == 2, "Probs tensor must be 2D for batched cross
+  // entropy loss."); int batch_size = probs.size(0);
   for (int i = 0; i < targets.ndim(); ++i) {
-    CLAD_ASSERT(
-      targets.size(i) == probs.size(i),
-      "Targets tensor must be a (batched) array of class indices, with same previous dimensions as probs."
-    );
+    CLAD_ASSERT(targets.size(i) == probs.size(i),
+                "Targets tensor must be a (batched) array of class indices, "
+                "with same previous dimensions as probs.");
   }
   int num_classes = probs.size(probs.ndim() - 1);
   int batch_size = probs.num_elements() / num_classes;
-  CLAD_ASSERT(batch_size == targets.num_elements(), "Batch size of probs and targets must match.");
+  CLAD_ASSERT(batch_size == targets.num_elements(),
+              "Batch size of probs and targets must match.");
 
   T total_loss = 0;
   for (int i = 0; i < batch_size; ++i) {
     const T* prob_slice = probs._data + i * num_classes;
-    total_loss += kernels::cross_entropy_loss_kernel(prob_slice, targets._data[i], num_classes);
+    total_loss += kernels::cross_entropy_loss_kernel(
+        prob_slice, targets._data[i], num_classes);
   }
   auto ret = Tensor<T>::new_scalar(total_loss / batch_size);
   return ret; // Return mean loss as a scalar tensor
 }
 
 // Single-instance cross-entropy loss
-template <typename T> Tensor<T> cross_entropy_loss(const Tensor<T>& probs, int target_class) {
-  CLAD_ASSERT(probs.ndim() == 1, "Probs tensor must be 1D for single cross entropy loss.");
-  T loss_val = kernels::cross_entropy_loss_kernel(probs.data(), target_class, probs.num_elements());
+template <typename T>
+Tensor<T> cross_entropy_loss(const Tensor<T>& probs, int target_class) {
+  CLAD_ASSERT(probs.ndim() == 1,
+              "Probs tensor must be 1D for single cross entropy loss.");
+  T loss_val = kernels::cross_entropy_loss_kernel(probs.data(), target_class,
+                                                  probs.num_elements());
   return Tensor<T>::new_scalar(loss_val); // Return loss as a scalar tensor
 }
 
@@ -788,8 +847,11 @@ template <typename T> Tensor<T> gelu(const Tensor<T>& in) {
 }
 
 // Optimized linear layer function: input @ weight.T + bias
-template <typename T> Tensor<T> linear(const Tensor<T>& input, const Tensor<T>& weight, const Tensor<T>& bias) {
-  static_assert(std::is_same<T, float>::value, "Linear operation currently only supports float tensors");
+template <typename T>
+Tensor<T> linear(const Tensor<T>& input, const Tensor<T>& weight,
+                 const Tensor<T>& bias) {
+  static_assert(std::is_same<T, float>::value,
+                "Linear operation currently only supports float tensors");
 
   // Validate input shapes
   CLAD_ASSERT(input.ndim() >= 1, "Input must have at least 2 dimensions");
@@ -803,8 +865,10 @@ template <typename T> Tensor<T> linear(const Tensor<T>& input, const Tensor<T>& 
   const int in_features = input_shape[input.ndim() - 1];
   const int out_features = weight_shape[0];
 
-  CLAD_ASSERT(weight_shape[1] == in_features, "Weight input dimension must match input features");
-  CLAD_ASSERT(bias_shape[0] == out_features, "Bias dimension must match weight output dimension");
+  CLAD_ASSERT(weight_shape[1] == in_features,
+              "Weight input dimension must match input features");
+  CLAD_ASSERT(bias_shape[0] == out_features,
+              "Bias dimension must match weight output dimension");
 
   // Calculate output shape and batch_seq size
   std::vector<int> output_shape = input_shape;
@@ -816,10 +880,10 @@ template <typename T> Tensor<T> linear(const Tensor<T>& input, const Tensor<T>& 
   Tensor<T> output(output_shape);
 
   // Call optimized kernel
-  kernels::linear_kernel(
-    input.data(), weight.data(), bias.data(), output.data(), static_cast<size_t>(batch_seq),
-    static_cast<size_t>(in_features), static_cast<size_t>(out_features)
-  );
+  kernels::linear_kernel(input.data(), weight.data(), bias.data(),
+                         output.data(), static_cast<size_t>(batch_seq),
+                         static_cast<size_t>(in_features),
+                         static_cast<size_t>(out_features));
 
   return output;
 }

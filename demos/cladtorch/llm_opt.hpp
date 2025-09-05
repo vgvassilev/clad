@@ -24,11 +24,13 @@
 // all the individual layers' forward and backward passes
 // B = batch_size, T = sequence_length, C = channels, V = vocab_size
 
-void encoder_forward(float* out, const int* inp, float* wte, float* wpe, int B, int T, int C) {
-  // out is (B,T,C). At each position (b,t), a C-dimensional vector summarizing token & position
-  // inp is (B,T) of integers, holding the token ids at each (b,t) position
-  // wte is (V,C) of token embeddings, short for "weight token embeddings"
-  // wpe is (maxT,C) of position embeddings, short for "weight positional embedding"
+void encoder_forward(float* out, const int* inp, float* wte, float* wpe, int B,
+                     int T, int C) {
+  // out is (B,T,C). At each position (b,t), a C-dimensional vector summarizing
+  // token & position inp is (B,T) of integers, holding the token ids at each
+  // (b,t) position wte is (V,C) of token embeddings, short for "weight token
+  // embeddings" wpe is (maxT,C) of position embeddings, short for "weight
+  // positional embedding"
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
       // seek to the output position in out[b,t,:]
@@ -46,7 +48,8 @@ void encoder_forward(float* out, const int* inp, float* wte, float* wpe, int B, 
   }
 }
 
-void encoder_backward(float* dwte, float* dwpe, float* dout, const int* inp, int B, int T, int C) {
+void encoder_backward(float* dwte, float* dwpe, float* dout, const int* inp,
+                      int B, int T, int C) {
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
       float* dout_bt = dout + b * T * C + t * C;
@@ -62,14 +65,14 @@ void encoder_backward(float* dwte, float* dwpe, float* dout, const int* inp, int
   }
 }
 
-void layernorm_forward(
-  float* out, float* mean, float* rstd, float* inp, float* weight, float* bias, int B, int T, int C
-) {
-  // reference: https://pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html
-  // both inp and out are (B,T,C) of the activations
-  // mean and rstd are (B,T) buffers, to be used later in backward pass
-  // at each position (b,t) of the input, the C-dimensional vector
-  // of activations gets normalized, then scaled and shifted
+void layernorm_forward(float* out, float* mean, float* rstd, float* inp,
+                       float* weight, float* bias, int B, int T, int C) {
+  // reference:
+  // https://pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html both inp
+  // and out are (B,T,C) of the activations mean and rstd are (B,T) buffers, to
+  // be used later in backward pass at each position (b,t) of the input, the
+  // C-dimensional vector of activations gets normalized, then scaled and
+  // shifted
   float eps = 1e-5f;
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
@@ -103,10 +106,9 @@ void layernorm_forward(
   }
 }
 
-void layernorm_backward(
-  float* dinp, float* dweight, float* dbias, float* dout, float* inp, float* weight, float* mean, float* rstd, int B,
-  int T, int C
-) {
+void layernorm_backward(float* dinp, float* dweight, float* dbias, float* dout,
+                        float* inp, float* weight, float* mean, float* rstd,
+                        int B, int T, int C) {
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
       float* dout_bt = dout + b * T * C + t * C;
@@ -147,107 +149,93 @@ void layernorm_backward(
   }
 }
 
-void matmul_forward(
-    float* out, const float* inp, const float* weight, const float* bias, int B, int T, int C, int OC
-) {
-    // BLAS implementation of matrix multiplication: out = inp @ weight^T + bias
-    // inp is (B*T, C), weight is (OC, C), out is (B*T, OC)
+void matmul_forward(float* out, const float* inp, const float* weight,
+                    const float* bias, int B, int T, int C, int OC) {
+  // BLAS implementation of matrix multiplication: out = inp @ weight^T + bias
+  // inp is (B*T, C), weight is (OC, C), out is (B*T, OC)
 
-    // First, perform the matrix multiplication: C = A * B^T
-    // A = inp, B = weight, C = out
-    // The BLAS sgemm function computes: C = alpha * op(A) * op(B) + beta * C
-    // Here:
-    // op(A) = inp (no transpose), op(B) = weight^T (transpose)
-    // M = rows of op(A) = B * T
-    // N = columns of op(B) = OC
-    // K = columns of op(A) = C
-    // alpha = 1.0, beta = 0.0 (to overwrite 'out' with the result)
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans,
-                B * T, OC, C,
-                1.0f, inp, C,
-                weight, C, 0.0f,
-                out, OC);
+  // First, perform the matrix multiplication: C = A * B^T
+  // A = inp, B = weight, C = out
+  // The BLAS sgemm function computes: C = alpha * op(A) * op(B) + beta * C
+  // Here:
+  // op(A) = inp (no transpose), op(B) = weight^T (transpose)
+  // M = rows of op(A) = B * T
+  // N = columns of op(B) = OC
+  // K = columns of op(A) = C
+  // alpha = 1.0, beta = 0.0 (to overwrite 'out' with the result)
+  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, B * T, OC, C, 1.0f, inp,
+              C, weight, C, 0.0f, out, OC);
 
-    // If bias is provided, add it to the output
-    if (bias != nullptr) {
-        #pragma omp parallel for
-        for (int bt = 0; bt < B * T; bt++) {
-            for (int o = 0; o < OC; o++) {
-                out[bt * OC + o] += bias[o];
-            }
-        }
-    }
+  // If bias is provided, add it to the output
+  if (bias != nullptr) {
+#pragma omp parallel for
+    for (int bt = 0; bt < B * T; bt++)
+      for (int o = 0; o < OC; o++)
+        out[bt * OC + o] += bias[o];
+  }
 }
 
 /* Same layout as forward:
  *
  *   inp : (B*T, C)  row-major   called A in BLAS comments
  *   weight : (OC, C) row-major   called B
- *   out  : (B*T, OC)             called C   (here we only have its grad --- dout)
+ *   out  : (B*T, OC)             called C   (here we only have its grad ---
+ * dout)
  *
  * Backward requirements:
  *
  *   dinp     = dout * weight      (1)   (B*T,OC) · (OC,C) → (B*T,C)
- *   dweight  = Σ_{b,t} dout[b,t,o] * inp[b,t]ᵀ   (2)   (OC,B*T) · (B*T,C) → (OC,C)
- *   dbias[o] = Σ_{b,t} dout[b,t,o]               (3)
+ *   dweight  = Σ_{b,t} dout[b,t,o] * inp[b,t]ᵀ   (2)   (OC,B*T) · (B*T,C) →
+ * (OC,C) dbias[o] = Σ_{b,t} dout[b,t,o]               (3)
  *
  */
 
-void matmul_backward(
-    float* dinp, float* dweight, float* dbias, const float* dout,
-    const float* inp, const float* weight, int B, int T, int C, int OC
-) {
-    // In the forward pass, out = inp @ weight^T + bias
-    // The gradients are calculated as follows:
-    // 1. dinp    (dL/dinp)   = dout @ weight
-    // 2. dweight (dL/dweight) = dout^T @ inp
-    // 3. dbias   (dL/dbias)  = sum(dout, axis=0)
-    // The original code accumulates gradients (+=), so we use beta=1.0f in BLAS calls.
+void matmul_backward(float* dinp, float* dweight, float* dbias,
+                     const float* dout, const float* inp, const float* weight,
+                     int B, int T, int C, int OC) {
+  // In the forward pass, out = inp @ weight^T + bias
+  // The gradients are calculated as follows:
+  // 1. dinp    (dL/dinp)   = dout @ weight
+  // 2. dweight (dL/dweight) = dout^T @ inp
+  // 3. dbias   (dL/dbias)  = sum(dout, axis=0)
+  // The original code accumulates gradients (+=), so we use beta=1.0f in BLAS
+  // calls.
 
-    // 1. Calculate gradient for input: dinp += dout @ weight
-    //    - dout:   (B*T, OC) -> A
-    //    - weight: (OC, C)   -> B
-    //    - dinp:   (B*T, C)   -> C
-    //    - op(A) is NoTrans, op(B) is NoTrans
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-                B * T, C, OC,
-                1.0f, dout, OC,
-                weight, C, 1.0f,
-                dinp, C);
+  // 1. Calculate gradient for input: dinp += dout @ weight
+  //    - dout:   (B*T, OC) -> A
+  //    - weight: (OC, C)   -> B
+  //    - dinp:   (B*T, C)   -> C
+  //    - op(A) is NoTrans, op(B) is NoTrans
+  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, B * T, C, OC, 1.0f,
+              dout, OC, weight, C, 1.0f, dinp, C);
 
-    // 2. Calculate gradient for weights: dweight += dout^T @ inp
-    //    - dout^T: (OC, B*T) -> op(A)
-    //    - inp:    (B*T, C)  -> B
-    //    - dweight: (OC, C)   -> C
-    //    - op(A) is Trans, op(B) is NoTrans
-    cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans,
-                OC, C, B * T,
-                1.0f, dout, OC,
-                inp, C, 1.0f,
-                dweight, C);
+  // 2. Calculate gradient for weights: dweight += dout^T @ inp
+  //    - dout^T: (OC, B*T) -> op(A)
+  //    - inp:    (B*T, C)  -> B
+  //    - dweight: (OC, C)   -> C
+  //    - op(A) is Trans, op(B) is NoTrans
+  cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, OC, C, B * T, 1.0f, dout,
+              OC, inp, C, 1.0f, dweight, C);
 
-    // 3. Calculate gradient for bias: dbias += sum of dout rows
-    if (dbias != nullptr) {
-        // This is a reduction of dout over the batch dimension (B*T).
-        // It can be expressed as a matrix-vector product: dbias += dout^T @ ones_vector.
-        // We use the BLAS sgemv routine: y = alpha*A*x + beta*y
-        // Here, y=dbias, A=dout^T, x=ones_vector.
+  // 3. Calculate gradient for bias: dbias += sum of dout rows
+  if (dbias != nullptr) {
+    // This is a reduction of dout over the batch dimension (B*T).
+    // It can be expressed as a matrix-vector product: dbias += dout^T @
+    // ones_vector. We use the BLAS sgemv routine: y = alpha*A*x + beta*y Here,
+    // y=dbias, A=dout^T, x=ones_vector.
 
-        // Create a temporary vector of ones for the reduction.
-        std::vector<float> ones(B * T, 1.0f);
+    // Create a temporary vector of ones for the reduction.
+    std::vector<float> ones(B * T, 1.0f);
 
-        // A = dout (B*T, OC)
-        // We use dout^T, so trans = CblasTrans
-        cblas_sgemv(CblasRowMajor, CblasTrans,
-                    B * T, OC,
-                    1.0f, dout, OC,
-                    ones.data(), 1, 1.0f,
-                    dbias, 1);
-    }
+    // A = dout (B*T, OC)
+    // We use dout^T, so trans = CblasTrans
+    cblas_sgemv(CblasRowMajor, CblasTrans, B * T, OC, 1.0f, dout, OC,
+                ones.data(), 1, 1.0f, dbias, 1);
+  }
 }
 
-
-void attention_forward(float* out, float* preatt, float* att, float* inp, int B, int T, int C, int NH) {
+void attention_forward(float* out, float* preatt, float* att, float* inp, int B,
+                       int T, int C, int NH) {
   // input is (B, T, 3C) holding the query, key, value (Q, K, V) vectors
   // preatt, att are (B, NH, T, T). NH = number of heads, T = sequence length
   // that holds the pre-attention and post-attention scores (used in backward)
@@ -271,7 +259,8 @@ void attention_forward(float* out, float* preatt, float* att, float* inp, int B,
         // pass 1: calculate query dot key and maxval
         float maxval = -10000.0f; // TODO something better
         for (int t2 = 0; t2 <= t; t2++) {
-          float* key_t2 = inp + b * T * C3 + t2 * C3 + h * hs + C; // +C because it's key
+          float* key_t2 =
+              inp + b * T * C3 + t2 * C3 + h * hs + C; // +C because it's key
 
           // (query_t) dot (key_t2)
           float val = 0.0f;
@@ -285,7 +274,8 @@ void attention_forward(float* out, float* preatt, float* att, float* inp, int B,
         }
 
         // pass 2: calculate the exp and keep track of sum
-        // maxval is being calculated and subtracted only for numerical stability
+        // maxval is being calculated and subtracted only for numerical
+        // stability
         float expsum = 0.0f;
         for (int t2 = 0; t2 <= t; t2++) {
           float expv = expf(preatt_bth[t2] - maxval);
@@ -310,7 +300,8 @@ void attention_forward(float* out, float* preatt, float* att, float* inp, int B,
         for (int i = 0; i < hs; i++)
           out_bth[i] = 0.0f;
         for (int t2 = 0; t2 <= t; t2++) {
-          float* value_t2 = inp + b * T * C3 + t2 * C3 + h * hs + C * 2; // +C*2 because it's value
+          float* value_t2 = inp + b * T * C3 + t2 * C3 + h * hs +
+                            C * 2; // +C*2 because it's value
           float att_btht2 = att_bth[t2];
           for (int i = 0; i < hs; i++)
             out_bth[i] += att_btht2 * value_t2[i];
@@ -320,15 +311,10 @@ void attention_forward(float* out, float* preatt, float* att, float* inp, int B,
   }
 }
 
-void attention_backward(
-  float* __restrict dinp,
-  float* __restrict dpreatt,
-  float* __restrict datt,
-  float* __restrict dout,
-  float* __restrict inp,
-  float* __restrict att,
-  int B, int T, int C, int NH
-) {
+void attention_backward(float* __restrict dinp, float* __restrict dpreatt,
+                        float* __restrict datt, float* __restrict dout,
+                        float* __restrict inp, float* __restrict att, int B,
+                        int T, int C, int NH) {
   const int C3 = 3 * C;
   const int hs = C / NH;
   const float scale = 1.0f / std::sqrt((float)hs);
@@ -337,25 +323,27 @@ void attention_backward(
     for (int t = 0; t < T; ++t) {
       for (int h = 0; h < NH; ++h) {
         // Pointers for this (b,t,h)
-        float* att_bth    = att    + ((size_t)b*NH*T + h*T + t) * T;        // length T, but only 0..t used
-        float* datt_bth   = datt   + ((size_t)b*NH*T + h*T + t) * T;
-        float* dpreatt_bt = dpreatt+ ((size_t)b*NH*T + h*T + t) * T;
+        float* att_bth = att + ((size_t)b * NH * T + h * T + t) *
+                                   T; // length T, but only 0..t used
+        float* datt_bth = datt + ((size_t)b * NH * T + h * T + t) * T;
+        float* dpreatt_bt = dpreatt + ((size_t)b * NH * T + h * T + t) * T;
 
-        float* q  =  inp  + ((size_t)b*T + t) * C3 + h*hs;          // query_t
-        float* dq =  dinp + ((size_t)b*T + t) * C3 + h*hs;          // dquery_t
-        float* dout_h = dout + ((size_t)b*T + t) * C        + h*hs; // dout head slice
+        float* q = inp + ((size_t)b * T + t) * C3 + h * hs;   // query_t
+        float* dq = dinp + ((size_t)b * T + t) * C3 + h * hs; // dquery_t
+        float* dout_h =
+            dout + ((size_t)b * T + t) * C + h * hs; // dout head slice
 
         // Build views K_{<=t}, V_{<=t}, dK_{<=t}, dV_{<=t}
         // Each row corresponds to timestep t2 in 0..t
         auto row_ptr = [&](float* base, int t2, int offset) -> float* {
-            return base + ((size_t)b*T + t2) * C3 + h*hs + offset;
+          return base + ((size_t)b * T + t2) * C3 + h * hs + offset;
         };
-        float* K0 = inp;   // +C offset for keys
-        float* V0 = inp;   // +2C offset for values
+        float* K0 = inp; // +C offset for keys
+        float* V0 = inp; // +2C offset for values
         float* dK0 = dinp;
         float* dV0 = dinp;
 
-        const int M = t + 1;  // number of rows (timesteps included)
+        const int M = t + 1; // number of rows (timesteps included)
         // Row-major: matrices are M x hs with leading dimension hs.
 
         // A) Through value accumulation: y = A V
@@ -364,36 +352,33 @@ void attention_backward(
         // 1) da_val = V_{<=t} * dout_h   (M×hs)·(hs) -> (M)
         //    GEMV row-major: m=M, n=hs
         {
-          cblas_sgemv(CblasRowMajor, CblasNoTrans,
-                      M, hs,
-                      1.0f,
-                      row_ptr(V0, 0, 2*C), hs,   // matrix V_{<=t}
-                      dout_h, 1,
-                      1.0f,
-                      datt_bth, 1);              // accumulate into datt_bth[0..t]
+          cblas_sgemv(CblasRowMajor, CblasNoTrans, M, hs, 1.0f,
+                      row_ptr(V0, 0, 2 * C), hs, // matrix V_{<=t}
+                      dout_h, 1, 1.0f, datt_bth,
+                      1); // accumulate into datt_bth[0..t]
         }
 
         // 2) dV += outer(a, dout_h)  (rank-1 updates for rows 0..t)
         //    Use BLAS GER: A := alpha * x * y^T + A
         //    For each row i: dV[i,:] += a[i] * dout_h
-        //    That’s exactly sger with x=a (length M), y=dout_h (length hs), A=dV (M x hs)
+        //    That’s exactly sger with x=a (length M), y=dout_h (length hs),
+        //    A=dV (M x hs)
         {
-          cblas_sger(CblasRowMajor,
-                      M, hs,
-                      1.0f,
-                      att_bth, 1,             // x = a (length M)
-                      dout_h, 1,              // y = dout_h (length hs)
-                      row_ptr(dV0, 0, 2*C), hs); // A = dV matrix
+          cblas_sger(CblasRowMajor, M, hs, 1.0f, att_bth, 1, // x = a (length M)
+                     dout_h, 1,                   // y = dout_h (length hs)
+                     row_ptr(dV0, 0, 2 * C), hs); // A = dV matrix
         }
 
         // B) Softmax backward: ds = (da - dot(a,da)) ⊙ a
-        // We already have da = datt_bth (accumulated above and potentially from previous passes).
-        // Compute dot = <a, da>, then ds in-place into dpreatt_bt[0..t].
+        // We already have da = datt_bth (accumulated above and potentially from
+        // previous passes). Compute dot = <a, da>, then ds in-place into
+        // dpreatt_bt[0..t].
         float dot = 0.0f;
-        for (int i = 0; i < M; ++i) dot += att_bth[i] * datt_bth[i];
+        for (int i = 0; i < M; ++i)
+          dot += att_bth[i] * datt_bth[i];
         for (int i = 0; i < M; ++i) {
           float ds = (datt_bth[i] - dot) * att_bth[i];
-          dpreatt_bt[i] += ds;  // accumulate
+          dpreatt_bt[i] += ds; // accumulate
         }
 
         // C) s = (K q) * scale
@@ -405,35 +390,30 @@ void attention_backward(
           // Row-major GEMV with transposed matrix:
           //   y = alpha * A^T * x + beta*y
           // A is M x hs (rows=t2, cols=i)
-          cblas_sgemv(CblasRowMajor, CblasTrans,
-                      M, hs,
-                      scale,
-                      row_ptr(K0, 0, C), hs,     // K_{<=t}
-                      dpreatt_bt, 1,            // x = ds
-                      1.0f,
-                      dq, 1);                   // y = dq
+          cblas_sgemv(CblasRowMajor, CblasTrans, M, hs, scale,
+                      row_ptr(K0, 0, C), hs, // K_{<=t}
+                      dpreatt_bt, 1,         // x = ds
+                      1.0f, dq, 1);          // y = dq
         }
 
         // 2) dK += scale * ds q^T     (GER rank-1 update onto dK matrix M×hs)
         {
-          cblas_sger(CblasRowMajor,
-                      M, hs,
-                      scale,
-                      dpreatt_bt, 1,            // x = ds (length M)
-                      q, 1,                      // y = q  (length hs)
-                      row_ptr(dK0, 0, C), hs);   // A = dK matrix
+          cblas_sger(CblasRowMajor, M, hs, scale, dpreatt_bt,
+                     1,                       // x = ds (length M)
+                     q, 1,                    // y = q  (length hs)
+                     row_ptr(dK0, 0, C), hs); // A = dK matrix
         }
       }
     }
   }
 }
 
-inline float fast_tanhf(float x) { return 2.f/(1.f+exp(-2.f*x))-1.f; }
+inline float fast_tanhf(float x) { return 2.f / (1.f + exp(-2.f * x)) - 1.f; }
 
 void gelu_forward(float* out, const float* inp, int N) {
   const float scale = 0.7978845608028654f; // sqrt(2/pi)
   const float beta = 0.044715f;
-  #pragma omp simd
+#pragma omp simd
   for (int i = 0; i < N; i++) {
     float x = inp[i];
     float cube = beta * x * x * x;
@@ -443,29 +423,29 @@ void gelu_forward(float* out, const float* inp, int N) {
 }
 
 void gelu_backward(float* dinp, const float* inp, const float* dout, int N) {
-  const float s = 0.7978845608028654f;  // sqrt(2/pi)
+  const float s = 0.7978845608028654f; // sqrt(2/pi)
   const float b = 0.044715f;
-  #pragma omp simd
+#pragma omp simd
   for (int i = 0; i < N; ++i) {
     float x = inp[i];
     float x2 = x * x;
-    float u  = s * (x + b * x2 * x);
-    float t  = fast_tanhf(u);                 // tanh(u)
-    float dt = 1.0f - t * t;                  // sech^2(u) but via tanh
-    float du = s * (1.0f + 3.0f * b * x2);    // du/dx
+    float u = s * (x + b * x2 * x);
+    float t = fast_tanhf(u);               // tanh(u)
+    float dt = 1.0f - t * t;               // sech^2(u) but via tanh
+    float du = s * (1.0f + 3.0f * b * x2); // du/dx
     float local_grad = 0.5f * (1.0f + t) + 0.5f * x * dt * du;
     dinp[i] += local_grad * dout[i];
   }
 }
 
 void residual_forward(float* out, float* inp1, float* inp2, int N) {
-  #pragma omp simd
+#pragma omp simd
   for (int i = 0; i < N; i++)
     out[i] = inp1[i] + inp2[i];
 }
 
 void residual_backward(float* dinp1, float* dinp2, float* dout, int N) {
-  #pragma omp simd
+#pragma omp simd
   for (int i = 0; i < N; i++) {
     dinp1[i] += dout[i];
     dinp2[i] += dout[i];
@@ -473,9 +453,9 @@ void residual_backward(float* dinp1, float* dinp2, float* dout, int N) {
 }
 
 void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
-// output: probs are (B,T,Vp) of the probabilities (sums to 1.0 in each b,t position)
-// input: logits is (B,T,Vp) of the unnormalized log probabilities
-// Vp is the padded vocab size (for efficiency), V is the "real" vocab size
+// output: probs are (B,T,Vp) of the probabilities (sums to 1.0 in each b,t
+// position) input: logits is (B,T,Vp) of the unnormalized log probabilities Vp
+// is the padded vocab size (for efficiency), V is the "real" vocab size
 // example: Vp is 50304 and V is 50257
 #pragma omp parallel for collapse(2)
   for (int b = 0; b < B; b++) {
@@ -504,7 +484,8 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
     }
   }
 }
-void softmax_backward(float* dlogits, float* dprobs, float* probs, int B, int T, int V, int Vp) {
+void softmax_backward(float* dlogits, float* dprobs, float* probs, int B, int T,
+                      int V, int Vp) {
   // backwards through softmax
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
@@ -514,19 +495,18 @@ void softmax_backward(float* dlogits, float* dprobs, float* probs, int B, int T,
 
       // sum over all outputs. s = sum(dprobs[i] * probs[i])
       float sum = 0.0f;
-      for (int i = 0; i < V; i++) {
+      for (int i = 0; i < V; i++)
         sum += dprobs_bt[i] * probs_bt[i];
-      }
 
       // dlogits[i] = probs[i] * (dprobs[i] - sum)
-      for (int i = 0; i < V; i++) {
+      for (int i = 0; i < V; i++)
         dlogits_bt[i] += probs_bt[i] * (dprobs_bt[i] - sum);
-      }
     }
   }
 }
 
-void crossentropy_forward(float* losses, float* probs, const int* targets, int B, int T, int Vp) {
+void crossentropy_forward(float* losses, float* probs, const int* targets,
+                          int B, int T, int Vp) {
   // output: losses is (B,T) of the individual losses at each position
   // input: probs are (B,T,Vp) of the probabilities
   // input: targets is (B,T) of integers giving the correct index in logits
@@ -539,7 +519,9 @@ void crossentropy_forward(float* losses, float* probs, const int* targets, int B
     }
   }
 }
-void crossentropy_backward(float* dprobs, const float* dlosses, const float* probs, const int* targets, int B, int T, int Vp) {
+void crossentropy_backward(float* dprobs, const float* dlosses,
+                           const float* probs, const int* targets, int B, int T,
+                           int Vp) {
   // backwards through crossentropy
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
@@ -557,51 +539,52 @@ void crossentropy_backward(float* dprobs, const float* dlosses, const float* pro
 
 namespace clad {
 namespace custom_derivatives {
-void matmul_forward_pullback(
-  float* out, const float* inp, const float* weight, const float* bias, int B, int T, int C, int OC, float* dout,
-  float* dinp, float* dweight, float* dbias, int* dB, int* dT, int* dC, int* dOC
-) {
+void matmul_forward_pullback(float* out, const float* inp, const float* weight,
+                             const float* bias, int B, int T, int C, int OC,
+                             float* dout, float* dinp, float* dweight,
+                             float* dbias, int* dB, int* dT, int* dC,
+                             int* dOC) {
   matmul_backward(dinp, dweight, dbias, dout, inp, weight, B, T, C, OC);
 }
-void encoder_forward_pullback(
-  float* out, const int* inp, float* wte, float* wpe, int B, int T, int C,
-  float* dout, float* dwte, float* dwpe, int* dB, int* dT, int* dC
-) {
+void encoder_forward_pullback(float* out, const int* inp, float* wte,
+                              float* wpe, int B, int T, int C, float* dout,
+                              float* dwte, float* dwpe, int* dB, int* dT,
+                              int* dC) {
   encoder_backward(dwte, dwpe, dout, inp, B, T, C);
 }
-void layernorm_forward_pullback(
-  float* out, float* mean, float* rstd, float* inp, float* weight, float* bias, int B, int T, int C,
-  float* dout, float* dmean, float* drstd, float* dinp, float* dweight, float* dbias, int* dB, int* dT, int* dC
-) {
-  layernorm_backward(dinp, dweight, dbias, dout, inp, weight, mean, rstd, B, T, C);
+void layernorm_forward_pullback(float* out, float* mean, float* rstd,
+                                float* inp, float* weight, float* bias, int B,
+                                int T, int C, float* dout, float* dmean,
+                                float* drstd, float* dinp, float* dweight,
+                                float* dbias, int* dB, int* dT, int* dC) {
+  layernorm_backward(dinp, dweight, dbias, dout, inp, weight, mean, rstd, B, T,
+                     C);
 }
-void attention_forward_pullback(
-  float* out, float* preatt, float* att, float* inp, int B, int T, int C, int NH,
-  float* dout, float* dpreatt, float* datt, float* dinp, int* dB, int* dT, int* dC, int* dNH
-) {
+void attention_forward_pullback(float* out, float* preatt, float* att,
+                                float* inp, int B, int T, int C, int NH,
+                                float* dout, float* dpreatt, float* datt,
+                                float* dinp, int* dB, int* dT, int* dC,
+                                int* dNH) {
   attention_backward(dinp, dpreatt, datt, dout, inp, att, B, T, C, NH);
 }
-void residual_forward_pullback(
-  float* out, float* inp1, float* inp2, int N,
-  float* dout, float* dinp1, float* dinp2, int* dN
-) {
+void residual_forward_pullback(float* out, float* inp1, float* inp2, int N,
+                               float* dout, float* dinp1, float* dinp2,
+                               int* dN) {
   residual_backward(dinp1, dinp2, dout, N);
 }
-void softmax_forward_pullback(
-  float* probs, float* logits, int B, int T, int V, int Vp,
-  float* dprobs, float* dlogits, int* dB, int* dT, int* dV, int* dVp
-) {
+void softmax_forward_pullback(float* probs, float* logits, int B, int T, int V,
+                              int Vp, float* dprobs, float* dlogits, int* dB,
+                              int* dT, int* dV, int* dVp) {
   softmax_backward(dlogits, dprobs, probs, B, T, V, Vp);
 }
-void crossentropy_forward_pullback(
-  float* losses, float* probs, const int* targets, int B, int T, int Vp,
-  float* dlosses, float* dprobs, int* dB, int* dT, int* dVp
-) {
+void crossentropy_forward_pullback(float* losses, float* probs,
+                                   const int* targets, int B, int T, int Vp,
+                                   float* dlosses, float* dprobs, int* dB,
+                                   int* dT, int* dVp) {
   crossentropy_backward(dprobs, dlosses, probs, targets, B, T, Vp);
 }
-void gelu_forward_pullback(
-  float* out, const float* inp, int N, float* dout, float* dinp, int* dN
-) {
+void gelu_forward_pullback(float* out, const float* inp, int N, float* dout,
+                           float* dinp, int* dN) {
   gelu_backward(dinp, inp, dout, N);
 }
 } // namespace custom_derivatives
@@ -620,7 +603,8 @@ struct GPT2Config {
   GPT2Config() = default;
   GPT2Config(const char* checkpoint_path) {
     // read in model from a checkpoint file
-    // gpt2::utils::fread_check(void *ptr, size_t size, size_t nmemb, FILE *stream)
+    // gpt2::utils::fread_check(void *ptr, size_t size, size_t nmemb, FILE
+    // *stream)
     FILE* model_file = gpt2::utils::fopen_check(checkpoint_path, "rb");
     int model_header[256];
     gpt2::utils::fread_check(model_header, sizeof(int), 256, model_file);
@@ -663,11 +647,12 @@ struct ParameterTensors {
   float* fcprojb;  // (L, C)
   float* lnfw;     // (C)
   float* lnfb;     // (C)
-  
+
   float* memory;
   size_t sizes[NUM_PARAMETER_TENSORS];
-  
-  // allocate memory for the parameters and point the individual tensors to the right places
+
+  // allocate memory for the parameters and point the individual tensors to the
+  // right places
   ParameterTensors(GPT2Config config) {
     size_t Vp = config.padded_vocab_size;
     size_t C = config.channels;
@@ -732,7 +717,7 @@ struct ActivationTensors {
   float* logits;    // (B, T, V)
   float* probs;     // (B, T, V)
   float* losses;    // (B, T)
-  
+
   float* memory;
   size_t sizes[NUM_ACTIVATION_TENSORS];
   ActivationTensors() : memory(nullptr) {}
@@ -779,7 +764,7 @@ struct ActivationTensors {
       acts_memory_iterator += sizes[i];
     }
   }
-  
+
   ~ActivationTensors() { delete[] memory; }
 };
 
@@ -797,9 +782,11 @@ struct GPT2 {
   // other run state configuration
   int batch_size;  // the batch size (B) of current forward pass
   int seq_len;     // the sequence length (T) of current forward pass
-  float mean_loss; // after a forward pass with targets, will be populated with the mean loss
-  
-  GPT2(const char* checkpoint_path) : config(checkpoint_path), params(config), num_parameters(0) {
+  float mean_loss; // after a forward pass with targets, will be populated with
+                   // the mean loss
+
+  GPT2(const char* checkpoint_path)
+      : config(checkpoint_path), params(config), num_parameters(0) {
     FILE* model_file = gpt2::utils::fopen_check(checkpoint_path, "rb");
     int model_header[256];
     gpt2::utils::fread_check(model_header, sizeof(int), 256, model_file);
@@ -807,28 +794,30 @@ struct GPT2 {
     for (size_t size : this->params.sizes)
       num_parameters += size;
     // read in all the parameters from file
-    gpt2::utils::fread_check(this->params.memory, sizeof(float), num_parameters, model_file);
+    gpt2::utils::fread_check(this->params.memory, sizeof(float), num_parameters,
+                             model_file);
     fclose(model_file);
-  
+
     // other inits
     this->batch_size = 0;
     this->seq_len = 0;
     this->mean_loss = -1.0f; // -1.0f will designate no loss
   }
-  
+
   GPT2(GPT2Config config) : config(config), params(config), num_parameters(0) {
     // count the number of parameters
     for (size_t size : this->params.sizes)
       num_parameters += size;
-  
+
     // other inits
     this->batch_size = 0;
     this->seq_len = 0;
     this->mean_loss = -1.0f; // -1.0f will designate no loss
   }
-  
+
   void allocate(size_t B, size_t T) {
-    if (acts.memory) return;
+    if (acts.memory)
+      return;
     // record the current B,T as well
     batch_size = B;
     seq_len = T;
@@ -845,13 +834,13 @@ struct GPT2 {
     if (acts.memory)
       std::fill_n(acts.memory, num_activations, 0.0f);
   }
-  
+
   void update(const GPT2* d_model, const float lr) {
-    #pragma omp simd
-    for (int i=0;i<num_parameters;i++)
+#pragma omp simd
+    for (int i = 0; i < num_parameters; i++)
       params.memory[i] -= lr * d_model->params.memory[i];
   }
-  
+
   void forward(const int* inputs, const int* targets) {
     size_t V = config.vocab_size;
     size_t Vp = config.padded_vocab_size;
@@ -860,21 +849,22 @@ struct GPT2 {
     size_t C = config.channels;
     size_t B = batch_size;
     size_t T = seq_len;
-  
+
     // validate inputs, all indices must be in the range [0, V)
     // for (int i = 0; i < B * T; i++) {
     //   assert(0 <= inputs[i] && inputs[i] < V);
     //   if (targets != nullptr)
     //     assert(0 <= targets[i] && targets[i] < V);
     // }
-  
+
     // forward pass
     float* residual = acts.encoded;
-    encoder_forward(acts.encoded, inputs, params.wte, params.wpe, B, T, C); // encoding goes into residual[0]
+    encoder_forward(acts.encoded, inputs, params.wte, params.wpe, B, T,
+                    C); // encoding goes into residual[0]
     for (int l = 0; l < L; l++) {
       if (l > 0)
         residual = acts.residual3 + (l - 1) * B * T * C;
-  
+
       // get the pointers of the weights for this layer
       float* l_ln1w = params.ln1w + l * C;
       float* l_ln1b = params.ln1b + l * C;
@@ -888,7 +878,7 @@ struct GPT2 {
       float* l_fcb = params.fcb + l * 4 * C;
       float* l_fcprojw = params.fcprojw + l * C * 4 * C;
       float* l_fcprojb = params.fcprojb + l * C;
-  
+
       // get the pointers of the activations for this layer
       float* l_ln1 = acts.ln1 + l * B * T * C;
       float* l_ln1_mean = acts.ln1_mean + l * B * T;
@@ -906,24 +896,29 @@ struct GPT2 {
       float* l_fch_gelu = acts.fch_gelu + l * B * T * 4 * C;
       float* l_fcproj = acts.fcproj + l * B * T * C;
       float* l_residual3 = acts.residual3 + l * B * T * C;
-  
+
       // now do the forward pass
-      layernorm_forward(l_ln1, l_ln1_mean, l_ln1_rstd, residual, l_ln1w, l_ln1b, B, T, C);
+      layernorm_forward(l_ln1, l_ln1_mean, l_ln1_rstd, residual, l_ln1w, l_ln1b,
+                        B, T, C);
       matmul_forward(l_qkv, l_ln1, l_qkvw, l_qkvb, B, T, C, 3 * C);
       attention_forward(l_atty, l_preatt, l_att, l_qkv, B, T, C, NH);
       matmul_forward(l_attproj, l_atty, l_attprojw, l_attprojb, B, T, C, C);
       residual_forward(l_residual2, residual, l_attproj, B * T * C);
-      layernorm_forward(l_ln2, l_ln2_mean, l_ln2_rstd, l_residual2, l_ln2w, l_ln2b, B, T, C);
+      layernorm_forward(l_ln2, l_ln2_mean, l_ln2_rstd, l_residual2, l_ln2w,
+                        l_ln2b, B, T, C);
       matmul_forward(l_fch, l_ln2, l_fcw, l_fcb, B, T, C, 4 * C);
       gelu_forward(l_fch_gelu, l_fch, B * T * 4 * C);
-      matmul_forward(l_fcproj, l_fch_gelu, l_fcprojw, l_fcprojb, B, T, 4 * C, C);
+      matmul_forward(l_fcproj, l_fch_gelu, l_fcprojw, l_fcprojb, B, T, 4 * C,
+                     C);
       residual_forward(l_residual3, l_residual2, l_fcproj, B * T * C);
     }
-    residual = acts.residual3 + (L - 1) * B * T * C; // last residual is in residual3
-    layernorm_forward(acts.lnf, acts.lnf_mean, acts.lnf_rstd, residual, params.lnfw, params.lnfb, B, T, C);
+    residual =
+        acts.residual3 + (L - 1) * B * T * C; // last residual is in residual3
+    layernorm_forward(acts.lnf, acts.lnf_mean, acts.lnf_rstd, residual,
+                      params.lnfw, params.lnfb, B, T, C);
     matmul_forward(acts.logits, acts.lnf, params.wte, nullptr, B, T, C, Vp);
     softmax_forward(acts.probs, acts.logits, B, T, V, Vp);
-  
+
     // also forward the cross-entropy loss function if we have the targets
     if (targets != nullptr) {
       crossentropy_forward(acts.losses, acts.probs, targets, B, T, Vp);
@@ -939,8 +934,10 @@ struct GPT2 {
   }
 };
 
-// void gpt2_update(GPT2* model, float learning_rate, float beta1, float beta2, float eps, float weight_decay, int t) {
-//   // reference: https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html
+// void gpt2_update(GPT2* model, float learning_rate, float beta1, float beta2,
+// float eps, float weight_decay, int t) {
+//   // reference:
+//   https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html
 
 //   // lazily allocate the memory for m_memory and v_memory
 //   if (model->m_memory == nullptr) {
@@ -963,7 +960,7 @@ struct GPT2 {
 //     // update
 //     model->m_memory[i] = m;
 //     model->v_memory[i] = v;
-//     model->params.memory[i] -= learning_rate * (m_hat / (std::sqrt(v_hat) + eps) + weight_decay * param);
+//     model->params.memory[i] -= learning_rate * (m_hat / (std::sqrt(v_hat) +
+//     eps) + weight_decay * param);
 //   }
 // }
-

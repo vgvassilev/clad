@@ -40,7 +40,7 @@ int main() {
   // build the GPT-2 model from a checkpoint
   GPT2 model("gpt2_124M.bin");
   GPT2 d_model("gpt2_124M.bin");
-  
+
   printf("[GPT-2]\n");
   printf("max_seq_len: %d\n", model.config.max_seq_len);
   printf("vocab_size: %d\n", model.config.vocab_size);
@@ -50,22 +50,34 @@ int main() {
   printf("channels: %d\n", model.config.channels);
   printf("num_parameters: %zu\n", model.num_parameters);
 
-  // build the DataLoaders from tokens files. for now use tiny_shakespeare if available, else tiny_stories
+  // build the DataLoaders from tokens files. for now use tiny_shakespeare if
+  // available, else tiny_stories
   std::string tiny_stories_train =
-    "/Users/rohan/Developer/projects/gsoc25/workspace/ml/llm.c/dev/data/tinystories/TinyStories_train.bin";
+      "/Users/rohan/Developer/projects/gsoc25/workspace/ml/llm.c/dev/data/"
+      "tinystories/TinyStories_train.bin";
   std::string tiny_stories_val =
-    "/Users/rohan/Developer/projects/gsoc25/workspace/ml/llm.c/dev/data/tinystories/TinyStories_val.bin";
+      "/Users/rohan/Developer/projects/gsoc25/workspace/ml/llm.c/dev/data/"
+      "tinystories/TinyStories_val.bin";
   std::string tiny_shakespeare_train =
-    "/Users/rohan/Developer/projects/gsoc25/workspace/ml/llm.c/dev/data/tinyshakespeare/tiny_shakespeare_train.bin";
+      "/Users/rohan/Developer/projects/gsoc25/workspace/ml/llm.c/dev/data/"
+      "tinyshakespeare/tiny_shakespeare_train.bin";
   std::string tiny_shakespeare_val =
-    "/Users/rohan/Developer/projects/gsoc25/workspace/ml/llm.c/dev/data/tinyshakespeare/tiny_shakespeare_val.bin";
-  std::string train_tokens = access(tiny_shakespeare_train.c_str(), F_OK) != -1 ? tiny_shakespeare_train : tiny_stories_train;
-  std::string val_tokens = access(tiny_shakespeare_val.c_str(), F_OK) != -1 ? tiny_shakespeare_val : tiny_stories_val;
-  int B = 4;  // batch size 4 (i.e. 4 independent token sequences will be trained on)
-  int T = 64; // sequence length 64 (i.e. each sequence is 64 tokens long). must be <= maxT, which is 1024 for GPT-2
+      "/Users/rohan/Developer/projects/gsoc25/workspace/ml/llm.c/dev/data/"
+      "tinyshakespeare/tiny_shakespeare_val.bin";
+  std::string train_tokens = access(tiny_shakespeare_train.c_str(), F_OK) != -1
+                                 ? tiny_shakespeare_train
+                                 : tiny_stories_train;
+  std::string val_tokens = access(tiny_shakespeare_val.c_str(), F_OK) != -1
+                               ? tiny_shakespeare_val
+                               : tiny_stories_val;
+  int B =
+      4; // batch size 4 (i.e. 4 independent token sequences will be trained on)
+  int T = 64; // sequence length 64 (i.e. each sequence is 64 tokens long). must
+              // be <= maxT, which is 1024 for GPT-2
   gpt2::DataLoader train_loader(train_tokens, B, T, 0, 1, true);
   gpt2::DataLoader val_loader(val_tokens, B, T, 0, 1, false);
-  printf("train dataset num_batches: %zu\n", train_loader.num_tokens() / (B * T));
+  printf("train dataset num_batches: %zu\n",
+         train_loader.num_tokens() / (B * T));
   printf("val dataset num_batches: %zu\n", val_loader.num_tokens() / (B * T));
   int val_num_batches = 5;
 
@@ -82,7 +94,7 @@ int main() {
 
   // some memory for generating samples from the model
   uint64_t rng_state = 1337;
-  std::vector<int> gen_tokens(B*T);
+  std::vector<int> gen_tokens(B * T);
   const int genT = 64; // number of steps of inference we will do
 
   // train
@@ -104,20 +116,21 @@ int main() {
     // once in a while do model inference to print generated text
     if (step > 0 && step % 20 == 0) {
       // fill up gen_tokens with the GPT2_EOT, which kicks off the generation
-      gen_tokens.assign(B*T, tokenizer.eot_token());
+      gen_tokens.assign(B * T, tokenizer.eot_token());
       // now sample from the model autoregressively
       printf("generating:\n---\n");
       for (int t = 1; t < genT; t++) {
         // note that inference is very wasteful here because for each token
-        // we re-calculate the forward pass for all of (B,T) positions from scratch
-        // but the inference here is just for sanity checking anyway
-        // and we can maybe optimize a bit more later, with careful tests
+        // we re-calculate the forward pass for all of (B,T) positions from
+        // scratch but the inference here is just for sanity checking anyway and
+        // we can maybe optimize a bit more later, with careful tests
         model.forward(gen_tokens.data(), nullptr);
-        // furthermore, below we're only using b=0 (i.e. the first row) of all B rows
-        // we're in principle running B "inference streams" in parallel here
-        // but only using position 0
-        // get the Vp-dimensional vector probs[0, t-1, :]
-        float* probs = model.acts.probs + (t - 1) * model.config.padded_vocab_size;
+        // furthermore, below we're only using b=0 (i.e. the first row) of all B
+        // rows we're in principle running B "inference streams" in parallel
+        // here but only using position 0 get the Vp-dimensional vector probs[0,
+        // t-1, :]
+        float* probs =
+            model.acts.probs + (t - 1) * model.config.padded_vocab_size;
         float coin = random_f32(&rng_state);
         // note we're only sampling from the first V elements, ignoring padding
         // (the probabilities in the padded region should be zero anyway)
@@ -134,11 +147,14 @@ int main() {
     clock_gettime(CLOCK_MONOTONIC, &start);
     train_loader.next_batch();
     d_model.zero_all();
-    grad.execute(&model, train_loader.inputs(), train_loader.targets(), &d_model);
+    grad.execute(&model, train_loader.inputs(), train_loader.targets(),
+                 &d_model);
     model.update(&d_model, 1e-3f);
     // gpt2_update(&model, 1e-4f, 0.9f, 0.999f, 1e-8f, 0.0f, step+1);
     clock_gettime(CLOCK_MONOTONIC, &end);
-    double time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-    printf("step %d: train loss %f (took %f ms)\n", step, model.mean_loss, time_elapsed_s * 1000);
+    double time_elapsed_s =
+        (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+    printf("step %d: train loss %f (took %f ms)\n", step, model.mean_loss,
+           time_elapsed_s * 1000);
   }
 }

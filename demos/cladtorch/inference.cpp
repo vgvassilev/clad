@@ -12,7 +12,9 @@ uint32_t random_u32(uint64_t* state) {
 }
 
 // random float32 in [0, 1)
-float random_f32(uint64_t* state) { return (random_u32(state) >> 8) / 16777216.0f; }
+float random_f32(uint64_t* state) {
+  return (random_u32(state) >> 8) / 16777216.0f;
+}
 
 int sample_mult(float* probs, int n, float coin) {
   // sample index from probs (they must sum to 1!)
@@ -48,24 +50,28 @@ int main() {
     clock_gettime(CLOCK_MONOTONIC, &start);
     auto probs_t = model.forward(gen_tokens);
     clock_gettime(CLOCK_MONOTONIC, &end);
-    
+
     float* probs = new float[config.padded_vocab_size];
     for (int v = 0; v < config.padded_vocab_size; v++)
-      probs[v] = probs_t.at(0, t - 1, v); // Get probabilities for the first batch
+      probs[v] =
+          probs_t.at(0, t - 1, v); // Get probabilities for the first batch
 
     float coin = random_f32(&rng_state);
     int next_token = sample_mult(probs, model.config.vocab_size, coin);
     gen_tokens.at(0, t) = next_token; // Use the first batch for generation
     delete[] probs;
-    double time_taken = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1e6;
+    double time_taken = (end.tv_sec - start.tv_sec) * 1000.0 +
+                        (end.tv_nsec - start.tv_nsec) / 1e6;
     std::cerr << "[step " << t << ", " << time_taken << "ms] ";
 
     tokenizer.safe_print(next_token);
     std::cout << std::flush;
   }
   // clock_gettime(CLOCK_MONOTONIC, &end);
-  // double time_taken = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1e6;
-  // std::cerr << "\nTime taken: " << time_taken << " ms for " << gen_max_length - 1
-  //           << " tokens, " << (gen_max_length - 1) / (time_taken / 1000.0) << " tokens/sec\n";
+  // double time_taken = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec -
+  // start.tv_nsec) / 1e6; std::cerr << "\nTime taken: " << time_taken << " ms
+  // for " << gen_max_length - 1
+  //           << " tokens, " << (gen_max_length - 1) / (time_taken / 1000.0) <<
+  //           " tokens/sec\n";
   std::cout << "\n---\n";
 }
