@@ -184,7 +184,7 @@ public:
                                  sizeof(uint16_t)),
         m_local_batch_offset_bytes(m_process_rank * m_B * m_T *
                                    sizeof(uint16_t)),
-        m_header_bytes(HEADER_SIZE * sizeof(int)), , {
+        m_header_bytes(HEADER_SIZE * sizeof(int)) {
     std::memset(&m_glob_result, 0, sizeof(m_glob_result));
 
     // Glob to get list of files
