@@ -292,7 +292,7 @@ public:
 
   // Lookup operation: select slices from this tensor using indices
   template <typename U> Tensor<T> lookup(const Tensor<U>& indices) const {
-    static_assert(std::is_integral_v<U>, "Indices must be integral type.");
+    static_assert(std::is_integral<U>::value, "Indices must be integral type.");
     CLAD_ASSERT(ndim() > 0, "Cannot lookup from a scalar tensor.");
     CLAD_ASSERT(_data != nullptr, "Cannot lookup from null data tensor.");
 
@@ -316,7 +316,7 @@ public:
 
   // Layer normalization: normalizes along the last dimension
   Tensor<T> norm() const {
-    static_assert(std::is_same_v<T, float>, "norm() is only supported for float tensors.");
+    static_assert(std::is_same<T, float>::value, "norm() is only supported for float tensors.");
     CLAD_ASSERT(ndim() > 0, "Cannot normalize a scalar tensor.");
     CLAD_ASSERT(_data != nullptr, "Cannot normalize null data tensor.");
 
@@ -750,7 +750,7 @@ template <typename T> Tensor<T> causal_softmax(const Tensor<T>& input, int vocab
 // Batched cross-entropy loss
 // template <typename T> Tensor<T> cross_entropy_loss(const Tensor<T>& probs, const std::vector<int>& targets) {
 template <typename T, typename U> Tensor<T> cross_entropy_loss(const Tensor<T>& probs, const Tensor<U>& targets) {
-  static_assert(std::is_integral_v<U>, "Targets tensor must contain integral class indices.");
+  static_assert(std::is_integral<U>::value, "Targets tensor must contain integral class indices.");
   // CLAD_ASSERT(targets.ndim() == 1, "Targets tensor must be a 1D array");
   // CLAD_ASSERT(probs.ndim() == 2, "Probs tensor must be 2D for batched cross entropy loss.");
   // int batch_size = probs.size(0);
@@ -789,7 +789,7 @@ template <typename T> Tensor<T> gelu(const Tensor<T>& in) {
 
 // Optimized linear layer function: input @ weight.T + bias
 template <typename T> Tensor<T> linear(const Tensor<T>& input, const Tensor<T>& weight, const Tensor<T>& bias) {
-  static_assert(std::is_same_v<T, float>, "Linear operation currently only supports float tensors");
+  static_assert(std::is_same<T, float>::value, "Linear operation currently only supports float tensors");
 
   // Validate input shapes
   CLAD_ASSERT(input.ndim() >= 1, "Input must have at least 2 dimensions");

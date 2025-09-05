@@ -450,7 +450,7 @@ template <typename T>
 void linear_pullback(const ::cladtorch::Tensor<T>& input, const ::cladtorch::Tensor<T>& weight,
                      const ::cladtorch::Tensor<T>& bias, ::cladtorch::Tensor<T> _d_y, ::cladtorch::Tensor<T>* _d_input,
                      ::cladtorch::Tensor<T>* _d_weight, ::cladtorch::Tensor<T>* _d_bias) {
-  static_assert(::std::is_same_v<T, float>, "Linear pullback currently only supports float tensors");
+  static_assert(::std::is_same<T, float>::value, "Linear pullback currently only supports float tensors");
 
   // Extract dimensions (same as forward pass)
   const auto& input_shape = input.shape();
@@ -797,7 +797,7 @@ void reshape_pullback(const ::cladtorch::Tensor<T>* _this, const ::std::vector<U
 
 template <typename T>
 void norm_pullback(const ::cladtorch::Tensor<T>* _this, ::cladtorch::Tensor<T> _d_y, ::cladtorch::Tensor<T>* _d_this) {
-  static_assert(::std::is_same_v<T, float>, "norm_pullback() is only supported for float tensors.");
+  static_assert(::std::is_same<T, float>::value, "norm_pullback() is only supported for float tensors.");
 
   if (_this->num_elements() == 0)
     return;
