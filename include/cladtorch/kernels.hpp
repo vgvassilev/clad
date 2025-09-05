@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstring>
 #include <vector>
 // #define OMP _OPENMP
 #ifdef OMP
