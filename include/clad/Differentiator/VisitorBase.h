@@ -604,12 +604,6 @@ namespace clad {
 
     /// Returns type clad::ConstructorReverseForwTag<T>
     clang::QualType GetCladConstructorReverseForwTagOfType(clang::QualType T);
-
-    /// Builds an overload for the derivative function that has derived params
-    /// for all the arguments of the requested function and it calls the
-    /// original derivative function internally. Used in gradient and jacobian
-    /// modes.
-    clang::FunctionDecl* CreateDerivativeOverload();
     /// Find the derived function if present in the DerivedFnCollector.
     ///
     /// \param[in] request The request to find the derived function.
@@ -638,6 +632,13 @@ namespace clad {
     /// functions by moving the base to the parameters.
     clang::QualType
     GetDerivativeType(llvm::ArrayRef<clang::QualType> customParams = {});
+
+    /// Builds an overload for the derivative function that has derived params
+    /// for all the arguments of the requested function and it calls the
+    /// original derivative function internally. Used in gradient and jacobian
+    /// modes.
+    clang::FunctionDecl*
+    CreateDerivativeOverload(clang::FunctionDecl* derivative = nullptr);
 
     /// Computes effective derivative operands. It should be used when operands
     /// might be of pointer types.
