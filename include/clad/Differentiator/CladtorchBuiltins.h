@@ -1,7 +1,11 @@
+#ifndef CLAD_TENSOR_BUILTINS_H
+#define CLAD_TENSOR_BUILTINS_H
+
 #include <clad/Differentiator/Array.h>
 #include <clad/Differentiator/BuiltinDerivatives.h>
 #include <clad/Differentiator/FunctionTraits.h>
 #include <cladtorch/cladtorch.hpp>
+#include <vector>
 
 namespace clad {
 // specialize the zero_init function for Tensor
@@ -16,33 +20,33 @@ template <class T> void zero_init(::std::vector<::cladtorch::Tensor<T>>& p) {
 namespace custom_derivatives {
 namespace cladtorch {
 inline ::clad::ValueAndPushforward<float, float>
-gelu_kernel_pushforward(float x, float _d_x) {
-  const float _d_sqrt_2_over_pi = 0.F;
+gelu_kernel_pushforward(float x, float d_x) {
+  const float d_sqrt_2_over_pi = 0.F;
   const float sqrt_2_over_pi = 0.797884583F;
-  float _t0 = 0.0447149985F * x;
-  float _t1 = _t0 * x;
-  float _t2 = (x + _t1 * x);
-  ValueAndPushforward<float, float> _t3 =
+  float t0 = 0.0447149985F * x;
+  float t1 = t0 * x;
+  float t2 = (x + t1 * x);
+  ValueAndPushforward<float, float> t3 =
       ::clad::custom_derivatives::std::tanh_pushforward(
-          sqrt_2_over_pi * _t2,
-          _d_sqrt_2_over_pi * _t2 +
-              sqrt_2_over_pi *
-                  (_d_x +
-                   ((0.F * x + 0.0447149985F * _d_x) * x + _t0 * _d_x) * x +
-                   _t1 * _d_x));
-  float _t4 = 0.5F * x;
-  float _t5 = (1.F + _t3.value);
-  return {_t4 * _t5,
-          (0.F * x + 0.5F * _d_x) * _t5 + _t4 * (0.F + _t3.pushforward)};
+          sqrt_2_over_pi * t2,
+          (d_sqrt_2_over_pi * t2) +
+              (sqrt_2_over_pi *
+               (d_x + ((0.F * x + 0.0447149985F * d_x) * x + t0 * d_x) * x +
+                t1 * d_x)));
+  float t4 = 0.5F * x;
+  float t5 = (1.F + t3.value);
+  return {t4 * t5,
+          ((0.F * x + 0.5F * d_x) * t5) + (t4 * (0.F + t3.pushforward))};
 }
 void gelu_pullback(const ::cladtorch::Tensor<float>& in,
-                   ::cladtorch::Tensor<float> _d_y,
-                   ::cladtorch::Tensor<float>* _d_in) {
-  for (int i = 0; i < _d_y.num_elements(); i++) {
-    float _d_r_d0 = _d_y.data()[i];
-    float _r0 = 0.F;
-    _r0 += _d_r_d0 * gelu_kernel_pushforward(in.data()[i], 1.F).pushforward;
-    (*_d_in).data()[i] += _r0;
+                   ::cladtorch::Tensor<float> d_y,
+                   ::cladtorch::Tensor<float>* d_in) {
+  for (int i = 0; i < d_y.num_elements(); i++) {
+    float d_r_d0 = d_y.data()[i];
+    float r0 = 0.F;
+    r0 +=
+        d_r_d0 * gelu_kernel_pushforward(in.data()[i], /*d_x=*/1.F).pushforward;
+    (*d_in).data()[i] += r0;
   }
 }
 // Matrix multiplication pullback
@@ -82,7 +86,9 @@ void matmul_pullback(const ::cladtorch::Tensor<T>& a,
 
     // For dB, we need to sum contributions from all batch elements
     // Reshape A from (B, T, C) to (B*T, C), then transpose to (C, B*T)
-    int batch_size = a.size(0), seq_len = a.size(1), channels = a.size(2);
+    const int batch_size = a.size(0);
+    const int seq_len = a.size(1);
+    const int channels = a.size(2);
     auto a_reshaped = a.reshape({batch_size * seq_len, channels});
     auto a_reshaped_transposed = a_reshaped.transpose(0, 1);
 
@@ -1005,3 +1011,5 @@ void split_pullback(const ::cladtorch::Tensor<T>* _this, int size, int axis,
 } // namespace class_functions
 } // namespace custom_derivatives
 } // namespace clad
+
+#endif // CLAD_TENSOR_BUILTINS_H
