@@ -1,4 +1,5 @@
-#pragma once
+#ifndef DATALOADER_HPP
+#define DATALOADER_HPP
 
 #include <algorithm>
 #include <cassert>
@@ -55,44 +56,44 @@ private:
   static constexpr int DATA_VERSION = 1;
 
   // Distributed training variables
-  int process_rank_;
-  int num_processes_;
+  int m_process_rank;
+  int m_num_processes;
 
   // Batch and token information
-  size_t B_;
-  size_t T_;
-  size_t num_tokens_;
-  size_t shard_num_samples_;
+  size_t m_B;
+  size_t m_T;
+  size_t m_num_tokens;
+  size_t m_shard_num_samples;
 
   // Shards and current position
-  glob_t glob_result_;
-  size_t current_shard_idx_;
-  size_t current_sample_idx_;
+  glob_t m_glob_result;
+  size_t m_current_shard_idx{};
+  size_t m_current_sample_idx{};
 
   // File handle
-  std::unique_ptr<FILE, decltype(&fclose)> tokens_file_;
+  std::unique_ptr<FILE, decltype(&fclose)> m_tokens_file;
 
   // Data buffers
-  std::vector<uint16_t> buffer_;
-  std::vector<int> inputs_;
-  std::vector<int> targets_;
+  std::vector<uint16_t> m_buffer;
+  std::vector<int> m_inputs;
+  std::vector<int> m_targets;
 
   // Random shuffle related variables
-  std::mt19937 rng_;
+  std::mt19937 m_rng;
   // mt19937_state shuffle_rng_;
-  bool should_shuffle_;
-  std::vector<int> shard_indices_;
-  std::vector<int> intra_shard_indices_;
+  bool m_should_shuffle;
+  std::vector<int> m_shard_indices;
+  std::vector<int> m_intra_shard_indices;
 
   // Sizes in bytes
-  size_t total_batch_size_bytes_;
-  size_t local_batch_offset_bytes_;
-  size_t header_bytes_;
-  int64_t file_size_bytes_;
+  size_t m_total_batch_size_bytes;
+  size_t m_local_batch_offset_bytes;
+  size_t m_header_bytes;
+  int64_t m_file_size_bytes{};
 
-  bool init_ok_;
+  bool m_init_ok{};
 
-  void validate_file_header(FILE* file) {
+  static void validate_file_header(FILE* file) {
     int header[HEADER_SIZE];
     utils::fread_check(header, sizeof(int), HEADER_SIZE, file);
     if (header[0] != MAGIC_NUMBER) {
@@ -106,18 +107,18 @@ private:
   }
 
   int64_t load_shard(int shard_index) {
-    if (should_shuffle_)
-      shard_index = shard_indices_[shard_index];
+    if (m_should_shuffle)
+      shard_index = m_shard_indices[shard_index];
 
-    const char* filename = glob_result_.gl_pathv[shard_index];
+    const char* filename = m_glob_result.gl_pathv[shard_index];
 
     // Close previous file if open
-    if (tokens_file_)
-      tokens_file_.reset();
+    if (m_tokens_file)
+      m_tokens_file.reset();
 
     // Open new file
     FILE* file = utils::fopen_check(filename, "rb");
-    tokens_file_.reset(file);
+    m_tokens_file.reset(file);
 
     // Validate header
     validate_file_header(file);
@@ -133,42 +134,42 @@ private:
 
     // Determine file size and validate consistency
     utils::fseek_check(file, 0, SEEK_END);
-    file_size_bytes_ = ftell(file);
+    m_file_size_bytes = ftell(file);
     utils::fseek_check(file, 0, SEEK_SET);
 
     int64_t expected_file_size =
         HEADER_SIZE * sizeof(int) + ntok * sizeof(uint16_t);
-    if (file_size_bytes_ != expected_file_size)
+    if (m_file_size_bytes != expected_file_size)
       throw std::runtime_error("File size is not as expected");
 
     // Calculate shard samples
-    shard_num_samples_ =
-        (ntok * sizeof(uint16_t) - sizeof(uint16_t)) / total_batch_size_bytes_;
+    m_shard_num_samples =
+        (ntok * sizeof(uint16_t) - sizeof(uint16_t)) / m_total_batch_size_bytes;
 
     return ntok;
   }
 
   void prepare_intra_shard_indices() {
-    if (should_shuffle_) {
-      intra_shard_indices_.resize(shard_num_samples_);
-      for (size_t i = 0; i < shard_num_samples_; ++i)
-        intra_shard_indices_[i] = static_cast<int>(i);
-      std::shuffle(intra_shard_indices_.begin(), intra_shard_indices_.end(),
-                   rng_);
+    if (m_should_shuffle) {
+      m_intra_shard_indices.resize(m_shard_num_samples);
+      for (size_t i = 0; i < m_shard_num_samples; ++i)
+        m_intra_shard_indices[i] = static_cast<int>(i);
+      std::shuffle(m_intra_shard_indices.begin(), m_intra_shard_indices.end(),
+                   m_rng);
     }
   }
 
   void advance() {
-    if (current_shard_idx_ == glob_result_.gl_pathc - 1) {
+    if (m_current_shard_idx == m_glob_result.gl_pathc - 1) {
       reset();
       return;
     }
 
-    current_shard_idx_ = (current_shard_idx_ + 1) % glob_result_.gl_pathc;
-    current_sample_idx_ = 0;
-    load_shard(static_cast<int>(current_shard_idx_));
+    m_current_shard_idx = (m_current_shard_idx + 1) % m_glob_result.gl_pathc;
+    m_current_sample_idx = 0;
+    load_shard(static_cast<int>(m_current_shard_idx));
 
-    if (should_shuffle_)
+    if (m_should_shuffle)
       prepare_intra_shard_indices();
   }
 
@@ -176,56 +177,57 @@ public:
   DataLoader(const std::string& filename_pattern, size_t B, size_t T,
              int process_rank = 0, int num_processes = 1,
              bool should_shuffle = false)
-      : process_rank_(process_rank), num_processes_(num_processes), B_(B),
-        T_(T), shard_num_samples_(0), current_shard_idx_(0),
-        current_sample_idx_(0), tokens_file_(nullptr, fclose),
-        rng_(37 + process_rank_), should_shuffle_(should_shuffle),
-        total_batch_size_bytes_(num_processes_ * B_ * T_ * sizeof(uint16_t)),
-        local_batch_offset_bytes_(process_rank_ * B_ * T_ * sizeof(uint16_t)),
-        header_bytes_(HEADER_SIZE * sizeof(int)), file_size_bytes_(0),
-        init_ok_(false) {
-    std::memset(&glob_result_, 0, sizeof(glob_result_));
+      : m_process_rank(process_rank), m_num_processes(num_processes), m_B(B),
+        m_T(T), m_tokens_file(nullptr, fclose), m_rng(37 + m_process_rank),
+        m_should_shuffle(should_shuffle),
+        m_total_batch_size_bytes(m_num_processes * m_B * m_T *
+                                 sizeof(uint16_t)),
+        m_local_batch_offset_bytes(m_process_rank * m_B * m_T *
+                                   sizeof(uint16_t)),
+        m_header_bytes(HEADER_SIZE * sizeof(int)), , {
+    std::memset(&m_glob_result, 0, sizeof(m_glob_result));
 
     // Glob to get list of files
-    int glob_status = glob(filename_pattern.c_str(), 0, nullptr, &glob_result_);
+    int glob_status =
+        glob(filename_pattern.c_str(), 0, nullptr, &m_glob_result);
     if (glob_status != 0)
       throw std::runtime_error("Failed to glob pattern: " + filename_pattern);
 
-    if (glob_result_.gl_pathc == 0)
+    if (m_glob_result.gl_pathc == 0)
       throw std::runtime_error("No files found matching pattern: " +
                                filename_pattern);
 
     // Initialize shuffle state if needed
-    if (should_shuffle_) {
+    if (m_should_shuffle) {
       // rng_.seed(42 + process_rank_);
-      shard_indices_.resize(glob_result_.gl_pathc);
-      for (size_t i = 0; i < glob_result_.gl_pathc; ++i)
-        shard_indices_[i] = static_cast<int>(i);
+      m_shard_indices.resize(m_glob_result.gl_pathc);
+      for (size_t i = 0; i < m_glob_result.gl_pathc; ++i)
+        m_shard_indices[i] = static_cast<int>(i);
     }
 
     // Validate all shards
     int64_t ntok_total = 0;
-    for (size_t shard_index = 0; shard_index < glob_result_.gl_pathc;
+    for (size_t shard_index = 0; shard_index < m_glob_result.gl_pathc;
          ++shard_index) {
       int64_t shard_ntok = load_shard(static_cast<int>(shard_index));
-      if (shard_ntok < static_cast<int64_t>(num_processes_ * B_ * T_ + 1))
+      if (shard_ntok < static_cast<int64_t>(m_num_processes * m_B * m_T + 1))
         throw std::runtime_error("Shard has insufficient tokens");
       ntok_total += shard_ntok;
     }
 
     // Allocate buffers
-    buffer_.resize(B_ * T_ + 1);
-    inputs_.resize(B_ * T_);
-    targets_.resize(B_ * T_);
-    num_tokens_ = ntok_total;
+    m_buffer.resize(m_B * m_T + 1);
+    m_inputs.resize(m_B * m_T);
+    m_targets.resize(m_B * m_T);
+    m_num_tokens = ntok_total;
 
-    init_ok_ = true;
+    m_init_ok = true;
     reset();
   }
 
   ~DataLoader() {
-    if (init_ok_)
-      globfree(&glob_result_);
+    if (m_init_ok)
+      globfree(&m_glob_result);
   }
 
   // Disable copy operations
@@ -237,74 +239,74 @@ public:
   DataLoader& operator=(DataLoader&& other) noexcept = default;
 
   void reset() {
-    if (!init_ok_)
+    if (!m_init_ok)
       throw std::runtime_error("DataLoader not initialized");
 
-    current_shard_idx_ = 0;
-    current_sample_idx_ = 0;
+    m_current_shard_idx = 0;
+    m_current_sample_idx = 0;
 
-    if (should_shuffle_)
-      std::shuffle(shard_indices_.begin(), shard_indices_.end(), rng_);
-    load_shard(static_cast<int>(current_shard_idx_));
-    if (should_shuffle_)
+    if (m_should_shuffle)
+      std::shuffle(m_shard_indices.begin(), m_shard_indices.end(), m_rng);
+    load_shard(static_cast<int>(m_current_shard_idx));
+    if (m_should_shuffle)
       prepare_intra_shard_indices();
   }
 
   void load_batch() {
-    if (!init_ok_)
+    if (!m_init_ok)
       throw std::runtime_error("DataLoader not initialized");
 
-    if (current_sample_idx_ >= shard_num_samples_)
+    if (m_current_sample_idx >= m_shard_num_samples)
       throw std::runtime_error("Current sample index out of bounds");
 
     size_t idx =
-        should_shuffle_
-            ? static_cast<size_t>(intra_shard_indices_[current_sample_idx_])
-            : current_sample_idx_;
+        m_should_shuffle
+            ? static_cast<size_t>(m_intra_shard_indices[m_current_sample_idx])
+            : m_current_sample_idx;
 
-    size_t global_batch_offset_bytes = idx * total_batch_size_bytes_;
+    size_t global_batch_offset_bytes = idx * m_total_batch_size_bytes;
     int64_t current_offset =
-        header_bytes_ + global_batch_offset_bytes + local_batch_offset_bytes_;
+        m_header_bytes + global_batch_offset_bytes + m_local_batch_offset_bytes;
 
     // Read B*T+1 tokens from file
-    utils::fseek_check(tokens_file_.get(), static_cast<long>(current_offset),
+    utils::fseek_check(m_tokens_file.get(), static_cast<long>(current_offset),
                        SEEK_SET);
-    utils::fread_check(buffer_.data(), sizeof(uint16_t), B_ * T_ + 1,
-                       tokens_file_.get());
+    utils::fread_check(m_buffer.data(), sizeof(uint16_t), m_B * m_T + 1,
+                       m_tokens_file.get());
 
     // Decode buffer into inputs and targets
-    for (size_t i = 0; i < B_ * T_; ++i) {
-      inputs_[i] = static_cast<int>(buffer_[i]);
-      targets_[i] = static_cast<int>(buffer_[i + 1]);
+    for (size_t i = 0; i < m_B * m_T; ++i) {
+      m_inputs[i] = static_cast<int>(m_buffer[i]);
+      m_targets[i] = static_cast<int>(m_buffer[i + 1]);
     }
   }
 
   void next_batch() {
-    if (current_sample_idx_ >= shard_num_samples_)
+    if (m_current_sample_idx >= m_shard_num_samples)
       advance();
     load_batch();
-    current_sample_idx_ += 1;
+    m_current_sample_idx += 1;
   }
 
   void resume(size_t current_shard_idx, size_t current_sample_idx) {
-    if (!init_ok_)
+    if (!m_init_ok)
       throw std::runtime_error("DataLoader not initialized");
 
-    current_shard_idx_ = current_shard_idx;
-    current_sample_idx_ = current_sample_idx;
-    load_shard(static_cast<int>(current_shard_idx_));
+    m_current_shard_idx = current_shard_idx;
+    m_current_sample_idx = current_sample_idx;
+    load_shard(static_cast<int>(m_current_shard_idx));
   }
 
   // Getters
-  size_t batch_size() const { return B_; }
-  size_t sequence_length() const { return T_; }
-  size_t num_tokens() const { return num_tokens_; }
-  size_t current_shard_idx() const { return current_shard_idx_; }
-  size_t current_sample_idx() const { return current_sample_idx_; }
-  bool is_initialized() const { return init_ok_; }
+  size_t batch_size() const { return m_B; }
+  size_t sequence_length() const { return m_T; }
+  size_t num_tokens() const { return m_num_tokens; }
+  size_t current_shard_idx() const { return m_current_shard_idx; }
+  size_t current_sample_idx() const { return m_current_sample_idx; }
+  bool is_initialized() const { return m_init_ok; }
 
-  const int* inputs() const { return inputs_.data(); }
-  const int* targets() const { return targets_.data(); }
+  const int* inputs() const { return m_inputs.data(); }
+  const int* targets() const { return m_targets.data(); }
 };
 
 class EvalLoader {
@@ -612,3 +614,5 @@ public:
 };
 
 } // namespace gpt2
+
+#endif // DATALOADER_HPP

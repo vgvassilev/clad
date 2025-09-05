@@ -1,5 +1,5 @@
-#ifndef CLAD_TENSOR_HPP_DYNAMIC
-#define CLAD_TENSOR_HPP_DYNAMIC
+#ifndef CLAD_TENSOR_HPP
+#define CLAD_TENSOR_HPP
 
 #include "kernels.hpp" // Include kernel functions for operations
 #include <algorithm>
@@ -890,4 +890,4 @@ Tensor<T> linear(const Tensor<T>& input, const Tensor<T>& weight,
 
 } // namespace cladtorch
 
-#endif // CLAD_TENSOR_HPP_DYNAMIC
+#endif // CLAD_TENSOR_HPP

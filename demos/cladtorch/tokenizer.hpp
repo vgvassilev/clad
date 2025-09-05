@@ -1,4 +1,5 @@
-#pragma once
+#ifndef TOKENIZER_HPP
+#define TOKENIZER_HPP
 
 #include <cassert>
 #include <cstdint>
@@ -124,3 +125,5 @@ public:
 };
 
 } // namespace gpt2
+
+#endif // TOKENIZER_HPP
