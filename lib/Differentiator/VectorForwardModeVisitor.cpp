@@ -203,9 +203,12 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   return DerivativeAndOverload{vectorDiffFD, overloadFD};
 }
 
-clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
-  auto vectorModeParams = m_Derivative->parameters();
-  auto vectorModeNameInfo = m_Derivative->getNameInfo();
+clang::FunctionDecl*
+VectorForwardModeVisitor::CreateVectorModeOverload(FunctionDecl* derivative) {
+  if (!derivative)
+    derivative = m_Derivative;
+  auto vectorModeParams = derivative->parameters();
+  auto vectorModeNameInfo = derivative->getNameInfo();
 
   // Calculate the total number of parameters that would be required for
   // automatic differentiation in the derived function if all args are
@@ -328,7 +331,7 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
     addToCurrentBlock(BuildDeclStmt(vectorModeVD));
   }
 
-  Expr* callExpr = BuildCallExprToFunction(m_Derivative, callArgs,
+  Expr* callExpr = BuildCallExprToFunction(derivative, callArgs,
                                            /*UseRefQualifiedThisObj=*/true);
   addToCurrentBlock(callExpr);
   Stmt* vectorModeOverloadBody = endBlock();
