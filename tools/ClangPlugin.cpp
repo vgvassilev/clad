@@ -27,6 +27,7 @@
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -292,15 +293,19 @@ void InitTimers();
         }
       }
 
+      if (OverloadedDerivativeDecl) {
+        S.MarkFunctionReferenced(SourceLocation(), OverloadedDerivativeDecl);
+        DelayedCallInfo DCI{CallKind::HandleTopLevelDecl,
+                            OverloadedDerivativeDecl};
+        if (!llvm::is_contained(m_DelayedCalls, DCI))
+          ProcessTopLevelDecl(OverloadedDerivativeDecl);
+      }
       if (DerivativeDecl) {
-        if (!(alreadyDerived || request.CustomDerivative)) {
+        if (!alreadyDerived &&
+            (!request.CustomDerivative || request.CallUpdateRequired)) {
           printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
-          if (OverloadedDerivativeDecl)
-            S.MarkFunctionReferenced(SourceLocation(),
-                                     OverloadedDerivativeDecl);
-
           // We ideally should not call `HandleTopLevelDecl` for declarations
           // inside a namespace. After parsing a namespace that is defined
           // directly in translation unit context , clang calls
@@ -316,13 +321,11 @@ void InitTimers();
           // FIXME: We could get rid of this by prepending the produced
           // derivatives in CladPlugin::HandleTranslationUnitDecl
           DeclContext* derivativeDC = DerivativeDecl->getLexicalDeclContext();
+          DelayedCallInfo DCI{CallKind::HandleTopLevelDecl, DerivativeDecl};
           bool isTUorND =
               derivativeDC->isTranslationUnit() || derivativeDC->isNamespace();
-          if (isTUorND) {
+          if (isTUorND && !llvm::is_contained(m_DelayedCalls, DCI))
             ProcessTopLevelDecl(DerivativeDecl);
-            if (OverloadedDerivativeDecl)
-              ProcessTopLevelDecl(OverloadedDerivativeDecl);
-          }
         }
         bool lastDerivativeOrder = (request.CurrentDerivativeOrder ==
                                     request.RequestedDerivativeOrder);

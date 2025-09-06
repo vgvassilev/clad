@@ -142,9 +142,6 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-  if (FunctionDecl* customDerivative =
-          m_Builder.LookupCustomDerivativeDecl(gradientName, DC, FD->getType()))
-    return DerivativeAndOverload{customDerivative, nullptr};
 
   IdentifierInfo* II = &m_Context.Idents.get(gradientName);
   SourceLocation validLoc{m_DiffReq->getLocation()};

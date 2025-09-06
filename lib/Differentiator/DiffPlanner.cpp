@@ -1042,35 +1042,38 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     const Expr* callSite = request.CallContext;
     assert(callSite && "Called lookup without CallContext");
 
-    const DeclContext* originalFnDC = nullptr;
+    const Decl* fnDecl = nullptr;
     // Check if the callSite is not associated with a shadow declaration.
-    if (const auto* ME = dyn_cast<CXXMemberCallExpr>(callSite)) {
-      originalFnDC = ME->getMethodDecl()->getParent();
-    } else if (const auto* CE = dyn_cast<CallExpr>(callSite)) {
-      const Expr* Callee = CE->getCallee()->IgnoreParenCasts();
-      if (const auto* DRE = dyn_cast<DeclRefExpr>(Callee))
-        originalFnDC = DRE->getFoundDecl()->getDeclContext();
-      else if (const auto* MemberE = dyn_cast<MemberExpr>(Callee))
-        originalFnDC = MemberE->getFoundDecl().getDecl()->getDeclContext();
-    } else if (const auto* CtorExpr = dyn_cast<CXXConstructExpr>(callSite)) {
-      originalFnDC = CtorExpr->getConstructor()->getDeclContext();
-    }
-
+    if (request.Mode == DiffMode::pushforward ||
+        request.Mode == DiffMode::pullback ||
+        request.Mode == DiffMode::vector_pushforward) {
+      if (const auto* ME = dyn_cast<CXXMemberCallExpr>(callSite)) {
+        fnDecl = ME->getMethodDecl();
+      } else if (const auto* CE = dyn_cast<CallExpr>(callSite)) {
+        const Expr* Callee = CE->getCallee()->IgnoreParenCasts();
+        if (const auto* DRE = dyn_cast<DeclRefExpr>(Callee))
+          fnDecl = DRE->getFoundDecl();
+        else if (const auto* MemberE = dyn_cast<MemberExpr>(Callee))
+          fnDecl = MemberE->getFoundDecl().getDecl();
+      } else if (const auto* CtorExpr = dyn_cast<CXXConstructExpr>(callSite)) {
+        fnDecl = CtorExpr->getConstructor();
+      }
+    } else
+      fnDecl = request.Function;
     DeclContext* DC = customDerNS;
 
-    if (isa<RecordDecl>(originalFnDC))
+    if (isa<CXXMethodDecl>(fnDecl))
       DC = utils::LookupNSD(m_Sema, "class_functions", /*shouldExist=*/false,
                             DC);
     else
-      DC = utils::FindDeclContext(m_Sema, DC, originalFnDC);
+      DC = utils::FindDeclContext(m_Sema, DC, fnDecl->getDeclContext());
 
     if (!DC)
       return false;
 
     assert(request.Mode != DiffMode::unknown &&
            "Called lookup without specified DiffMode");
-    std::string Name =
-        request.BaseFunctionName + "_" + DiffModeToString(request.Mode);
+    std::string Name = request.ComputeDerivativeName();
     llvm::SmallVector<const ValueDecl*, 4> diffParams{};
     for (const DiffInputVarInfo& VarInfo : request.DVI)
       diffParams.push_back(VarInfo.param);
@@ -1350,12 +1353,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               forwRequest.Args = utils::CreateStringLiteral(
                   m_Sema.getASTContext(), independentArgString);
               forwRequest.UpdateDiffParamsInfo(m_Sema);
+              LookupCustomDerivativeDecl(forwRequest);
               m_DiffRequestGraph.addNode(forwRequest, /*isSource=*/true);
             }
           } else {
             forwRequest.Args = utils::CreateStringLiteral(
                 m_Sema.getASTContext(), PVD->getNameAsString());
             forwRequest.UpdateDiffParamsInfo(m_Sema);
+            LookupCustomDerivativeDecl(forwRequest);
             m_DiffRequestGraph.addNode(forwRequest, /*isSource=*/true);
           }
         }
