@@ -296,14 +296,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // FIXME: We should not use const_cast to get the decl context here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-    if (FunctionDecl* customDerivative =
-            m_Builder.LookupCustomDerivativeDecl(name, DC, dFnType)) {
-      // Set m_Derivative for creating the overload.
-      m_Derivative = customDerivative;
-      if (shouldCreateOverload)
-        return DerivativeAndOverload{m_Derivative, CreateDerivativeOverload()};
-      return DerivativeAndOverload{m_Derivative, /*overload=*/nullptr};
-    }
 
     // Create the gradient function declaration.
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);

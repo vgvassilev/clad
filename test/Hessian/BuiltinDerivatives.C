@@ -146,23 +146,11 @@ float f7(float x, float y) {
   return sin(x) + exp(y);
 }
 
-// CHECK: float f7_darg0(float x, float y) {
-// CHECK-NEXT:     return cos(x);
-// CHECK-NEXT: }
-
-// CHECK: float f7_darg1(float x, float y) {
-// CHECK-NEXT:     return exp(y);
-// CHECK-NEXT: }
-
 // CHECK: void f7_darg0_grad(float x, float y, float *_d_x, float *_d_y);
 
-// CHECK: void f7_darg1_grad(float x, float y, float *d_x, float *d_y) {
-// CHECK-NEXT:     *d_y += exp(y);
-// CHECK-NEXT: }
-
 // CHECK: void f7_hessian(float x, float y, float *hessianMatrix) {
-// CHECK-NEXT:     f7_darg0_grad(x, y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
-// CHECK-NEXT:     f7_darg1_grad(x, y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+// CHECK-NEXT:     clad::custom_derivatives::f7_darg0_grad(x, y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     clad::custom_derivatives::f7_darg1_grad(x, y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
 // CHECK-NEXT: }
 
 float f8(float x, float y) {
