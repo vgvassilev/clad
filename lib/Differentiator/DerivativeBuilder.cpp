@@ -405,6 +405,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DerivativeBuilder::HandleNestedDiffRequest(DiffRequest& request) {
     // FIXME: Find a way to do this without accessing plugin namespace functions
     bool alreadyDerived = true;
+    request.UpdateDiffParamsInfo(m_Sema);
     FunctionDecl* derivative = this->FindDerivedFunction(request);
     if (!derivative) {
       alreadyDerived = false;
@@ -414,8 +415,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         llvm::SaveAndRestore<const FunctionDecl*> origFn(request.Function);
         llvm::SaveAndRestore<unsigned> origFnOrder(
             request.CurrentDerivativeOrder);
-
-        request.UpdateDiffParamsInfo(m_Sema);
         // Derive declaration of the the forward mode derivative.
         request.DeclarationOnly = true;
         derivative = plugin::ProcessDiffRequest(m_CladPlugin, request);

@@ -1332,6 +1332,31 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         Saved.get()->addFunctionModifiedParams(FD, modifiedParams[FD]);
         Saved.get()->addFunctionUsedParams(FD, usedParams[FD]);
       }
+
+      if (request.Mode == DiffMode::hessian) {
+        DiffRequest forwRequest = request;
+        forwRequest.Mode = DiffMode::forward;
+        forwRequest.CallUpdateRequired = false;
+        for (const auto& dParam : request.DVI) {
+          const auto* PVD = cast<ParmVarDecl>(dParam.param);
+          auto indexInterval = dParam.paramIndexInterval;
+          if (utils::isArrayOrPointerType(PVD->getType())) {
+            for (auto i = indexInterval.Start; i < indexInterval.Finish; ++i) {
+              auto independentArgString =
+                  PVD->getNameAsString() + "[" + std::to_string(i) + "]";
+              forwRequest.Args = utils::CreateStringLiteral(
+                  m_Sema.getASTContext(), independentArgString);
+              forwRequest.UpdateDiffParamsInfo(m_Sema);
+              m_DiffRequestGraph.addNode(forwRequest, /*isSource=*/true);
+            }
+          } else {
+            forwRequest.Args = utils::CreateStringLiteral(
+                m_Sema.getASTContext(), PVD->getNameAsString());
+            forwRequest.UpdateDiffParamsInfo(m_Sema);
+            m_DiffRequestGraph.addNode(forwRequest, /*isSource=*/true);
+          }
+        }
+      }
     }
 
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);

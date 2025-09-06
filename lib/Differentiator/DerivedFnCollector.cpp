@@ -1,6 +1,10 @@
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "clang/AST/Decl.h"
+
+#include "llvm/Support/Casting.h"
+
 namespace clad {
 void DerivedFnCollector::Add(const DerivedFnInfo& DFI) {
   assert(!AlreadyExists(DFI) &&

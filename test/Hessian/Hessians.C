@@ -8,7 +8,13 @@
 __attribute__((always_inline)) double f_cubed_add1(double a, double b) {
   return a * a * a + b * b * b;
 }
-//CHECK:{{[__attribute__((always_inline)) ]*}}double f_cubed_add1_darg0(double a, double b){{[ __attribute__((always_inline))]*}};
+//CHECK:{{[__attribute__((always_inline)) ]*}}double f_cubed_add1_darg0(double a, double b){{[ __attribute__((always_inline))]*}} {
+//CHECK-NEXT:    double _d_a = 1;
+//CHECK-NEXT:    double _d_b = 0;
+//CHECK-NEXT:    double _t0 = a * a;
+//CHECK-NEXT:    double _t1 = b * b;
+//CHECK-NEXT:    return (_d_a * a + a * _d_a) * a + _t0 * _d_a + (_d_b * b + b * _d_b) * b + _t1 * _d_b;
+//CHECK-NEXT:}
 
 void f_cubed_add1_darg0_grad(double a, double b, double *_d_a, double *_d_b);
 //CHECK:{{[__attribute__((always_inline)) ]*}}void f_cubed_add1_darg0_grad(double a, double b, double *_d_a, double *_d_b){{[ __attribute__((always_inline))]*}};
@@ -203,14 +209,6 @@ int main() {
   TEST3(&Widget::memFn_1, W, 7, 9); // CHECK-EXEC: Result is = {0.00, 15.00, 15.00, 0.00}
   TEST3(&Widget::memFn_2, W, 7, 9); // CHECK-EXEC: Result is = {5400.00, 4200.00, 4200.00, 0.00}
   TEST2(fn_def_arg, 3, 5);  // CHECK-EXEC: Result is = {0.00, 2.00, 2.00, 0.00}
-
-//CHECK:{{[__attribute__((always_inline)) ]*}}double f_cubed_add1_darg0(double a, double b){{[ __attribute__((always_inline))]*}} {
-//CHECK-NEXT:    double _d_a = 1;
-//CHECK-NEXT:    double _d_b = 0;
-//CHECK-NEXT:    double _t0 = a * a;
-//CHECK-NEXT:    double _t1 = b * b;
-//CHECK-NEXT:    return (_d_a * a + a * _d_a) * a + _t0 * _d_a + (_d_b * b + b * _d_b) * b + _t1 * _d_b;
-//CHECK-NEXT:}
 
 //CHECK:{{[__attribute__((always_inline)) ]*}}void f_cubed_add1_darg0_grad(double a, double b, double *_d_a, double *_d_b){{[ __attribute__((always_inline))]*}} {
 //CHECK-NEXT:    double _d__d_a = 0.;
