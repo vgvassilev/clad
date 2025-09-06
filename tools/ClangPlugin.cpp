@@ -279,6 +279,8 @@ void InitTimers();
       bool alreadyDerived = false;
       FunctionDecl* OverloadedDerivativeDecl = nullptr;
       {
+        llvm::SaveAndRestore<unsigned> Saved(request.RequestedDerivativeOrder,
+                                             1);
         auto DFI = m_DFC.Find(request);
         if (DFI.IsValid()) {
           DerivativeDecl = DFI.DerivedFn();

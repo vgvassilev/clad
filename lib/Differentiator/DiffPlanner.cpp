@@ -1333,14 +1333,18 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         Saved.get()->addFunctionUsedParams(FD, usedParams[FD]);
       }
 
-      if (request.Mode == DiffMode::hessian) {
+      if (request.Mode == DiffMode::hessian ||
+          request.Mode == DiffMode::hessian_diagonal) {
         DiffRequest forwRequest = request;
         forwRequest.Mode = DiffMode::forward;
         forwRequest.CallUpdateRequired = false;
+        if (request.Mode == DiffMode::hessian_diagonal)
+          forwRequest.RequestedDerivativeOrder = 2;
         for (const auto& dParam : request.DVI) {
           const auto* PVD = cast<ParmVarDecl>(dParam.param);
           auto indexInterval = dParam.paramIndexInterval;
           if (utils::isArrayOrPointerType(PVD->getType())) {
+            // FIXME: We shouldn't synthesize Args strings.
             for (auto i = indexInterval.Start; i < indexInterval.Finish; ++i) {
               auto independentArgString =
                   PVD->getNameAsString() + "[" + std::to_string(i) + "]";

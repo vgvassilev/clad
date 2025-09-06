@@ -73,8 +73,9 @@ static FunctionDecl* DeriveUsingForwardModeTwice(
   IndependentArgRequest.Mode = DiffMode::forward;
   IndependentArgRequest.CallUpdateRequired = false;
   // Derive the function twice in forward mode.
+  IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
   FunctionDecl* secondDerivative =
-      Builder.HandleNestedDiffRequest(IndependentArgRequest);
+      Builder.FindDerivedFunction(IndependentArgRequest);
   return secondDerivative;
 }
 
