@@ -675,7 +675,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                            &getModifiedParams(), &getUsedParams());
       analyzer.Analyze(*this);
     }
-    auto found = m_TbrRunInfo.ToBeRecorded.find(S->getBeginLoc());
+    auto found = m_TbrRunInfo.ToBeRecorded.find(S);
     return found != m_TbrRunInfo.ToBeRecorded.end();
   }
 
