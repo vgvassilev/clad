@@ -1265,7 +1265,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         request.addVariedDecl(decl);
 
     llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
-    m_Sema.PerformPendingInstantiations();
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
 
@@ -1441,7 +1440,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     request.CallContext = E;
 
     llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
-    m_Sema.PerformPendingInstantiations();
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
 

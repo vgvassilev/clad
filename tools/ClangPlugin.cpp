@@ -222,10 +222,6 @@ void InitTimers();
         return nullptr;
       }
 
-      // Required due to custom derivatives function templates that might be
-      // used in the function that we need to derive.
-      // FIXME: Remove the call to PerformPendingInstantiations().
-      S.PerformPendingInstantiations();
       if (request.Function->getDefinition())
         request.Function = request.Function->getDefinition();
       // FIXME: These requests are not fully generated in the diffplanner and we
