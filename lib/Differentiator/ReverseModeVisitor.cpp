@@ -296,14 +296,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // FIXME: We should not use const_cast to get the decl context here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-    if (FunctionDecl* customDerivative =
-            m_Builder.LookupCustomDerivativeDecl(name, DC, dFnType)) {
-      // Set m_Derivative for creating the overload.
-      m_Derivative = customDerivative;
-      if (shouldCreateOverload)
-        return DerivativeAndOverload{m_Derivative, CreateDerivativeOverload()};
-      return DerivativeAndOverload{m_Derivative, /*overload=*/nullptr};
-    }
 
     // Create the gradient function declaration.
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
@@ -413,9 +405,28 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
         auto VDDerivedType = utils::getNonConstType(paramTy, m_Sema);
         VDDerivedType = VDDerivedType.getNonReferenceType();
+        Expr* initExpr = nullptr;
+        bool isDirectInit = false;
+        if (clad::utils::isTensorLike(m_Sema, VDDerivedType)) {
+          ParmVarDecl* newFuncParam = nullptr;
+          for (auto* p : m_Derivative->parameters()) {
+            if (p->getName() == param->getName()) {
+              newFuncParam = p;
+              break;
+            }
+          }
+          assert(
+              newFuncParam &&
+              "Could not find corresponding parameter in derivative function");
+          initExpr = BuildDeclRef(newFuncParam->getDefinition());
+          isDirectInit = true;
+        } else {
+          // If the type is not a tensor, we can use zero initialization.
+          initExpr = getZeroInit(VDDerivedType);
+        }
         auto* VDDerived =
             BuildGlobalVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
-                               getZeroInit(VDDerivedType));
+                               initExpr, isDirectInit);
         m_Variables[param] = BuildDeclRef(VDDerived);
         addToBlock(BuildDeclStmt(VDDerived), m_Globals);
       }
@@ -2751,6 +2762,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs() &&
         utils::isCopyable(VDType->getAsCXXRecordDecl());
 
+    if (clad::utils::isTensorLike(m_Sema, VD->getType())) {
+      isConstructInit = true;
+      shouldCopyInitialize = true;
+    }
+
     // Temporarily initialize the object with `*nullptr` to avoid
     // a potential error because of non-existing default constructor.
     if (!VDDerivedInit && shouldCopyInitialize) {
@@ -3226,6 +3242,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         bool copyInit =
             CE && (CE->getNumArgs() == 0 ||
                    isa<DeclRefExpr>(CE->getArg(0)->IgnoreImplicit()));
+        if (CE && utils::isTensorLike(m_Sema, CE->getType()))
+          copyInit = true;
         if (copyInit) {
           std::array<Expr*, 1> arg{BuildDeclRef(vDecl)};
           Stmt* initCall = GetCladZeroInit(arg);

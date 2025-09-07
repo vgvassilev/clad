@@ -49,14 +49,6 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-  if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
-          derivedFnName, DC, vectorDiffFunctionType)) {
-    // Set m_Derivative for creating the overload.
-    m_Derivative = customDerivative;
-    FunctionDecl* gradientOverloadFD = CreateVectorModeOverload();
-    return DerivativeAndOverload{customDerivative, gradientOverloadFD};
-  }
-
   m_Sema.CurContext = DC;
   DeclWithContext result = m_Builder.cloneFunction(
       m_DiffReq.Function, *this, DC, loc, name, vectorDiffFunctionType);
@@ -203,9 +195,12 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   return DerivativeAndOverload{vectorDiffFD, overloadFD};
 }
 
-clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
-  auto vectorModeParams = m_Derivative->parameters();
-  auto vectorModeNameInfo = m_Derivative->getNameInfo();
+clang::FunctionDecl*
+VectorForwardModeVisitor::CreateVectorModeOverload(FunctionDecl* derivative) {
+  if (!derivative)
+    derivative = m_Derivative;
+  auto vectorModeParams = derivative->parameters();
+  auto vectorModeNameInfo = derivative->getNameInfo();
 
   // Calculate the total number of parameters that would be required for
   // automatic differentiation in the derived function if all args are
@@ -328,7 +323,7 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
     addToCurrentBlock(BuildDeclStmt(vectorModeVD));
   }
 
-  Expr* callExpr = BuildCallExprToFunction(m_Derivative, callArgs,
+  Expr* callExpr = BuildCallExprToFunction(derivative, callArgs,
                                            /*UseRefQualifiedThisObj=*/true);
   addToCurrentBlock(callExpr);
   Stmt* vectorModeOverloadBody = endBlock();

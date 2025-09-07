@@ -17,6 +17,7 @@
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attrs.inc"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
@@ -856,9 +857,12 @@ namespace clad {
                                       GetCladConstructorReverseForwTag(), {T});
   }
 
-  FunctionDecl* VisitorBase::CreateDerivativeOverload() {
-    auto diffParams = m_Derivative->parameters();
-    auto diffNameInfo = m_Derivative->getNameInfo();
+  FunctionDecl*
+  VisitorBase::CreateDerivativeOverload(FunctionDecl* derivative) {
+    if (!derivative)
+      derivative = m_Derivative;
+    auto diffParams = derivative->parameters();
+    auto diffNameInfo = derivative->getNameInfo();
     // Calculate the total number of parameters that would be required for
     // automatic differentiation in the derived function if all args are
     // requested.
@@ -981,12 +985,12 @@ namespace clad {
     // If the function is a global kernel, we need to transform it
     // into a device function when calling it inside the overload function
     // which is the final global kernel returned.
-    if (m_Derivative->hasAttr<clang::CUDAGlobalAttr>()) {
-      m_Derivative->dropAttr<clang::CUDAGlobalAttr>();
-      m_Derivative->addAttr(clang::CUDADeviceAttr::CreateImplicit(m_Context));
+    if (derivative->hasAttr<clang::CUDAGlobalAttr>()) {
+      derivative->dropAttr<clang::CUDAGlobalAttr>();
+      derivative->addAttr(clang::CUDADeviceAttr::CreateImplicit(m_Context));
     }
 
-    Expr* callExpr = BuildCallExprToFunction(m_Derivative, callArgs,
+    Expr* callExpr = BuildCallExprToFunction(derivative, callArgs,
                                              /*useRefQualifiedThisObj=*/true);
     addToCurrentBlock(callExpr);
     Stmt* diffOverloadBody = endBlock();

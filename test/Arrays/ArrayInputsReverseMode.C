@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -Wno-unused-value -oArrayInputsReverseMode.out 2>&1 | %filecheck %s
 // RUN: ./ArrayInputsReverseMode.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -Wno-unused-value -oArrayInputsReverseMode.out
+// RUN: %cladclang %s -I%S/../../include -Wno-unused-value -oArrayInputsReverseMode.out
 // RUN: ./ArrayInputsReverseMode.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

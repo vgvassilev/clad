@@ -27,6 +27,7 @@
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -222,10 +223,6 @@ void InitTimers();
         return nullptr;
       }
 
-      // Required due to custom derivatives function templates that might be
-      // used in the function that we need to derive.
-      // FIXME: Remove the call to PerformPendingInstantiations().
-      S.PerformPendingInstantiations();
       if (request.Function->getDefinition())
         request.Function = request.Function->getDefinition();
       // FIXME: These requests are not fully generated in the diffplanner and we
@@ -279,6 +276,8 @@ void InitTimers();
       bool alreadyDerived = false;
       FunctionDecl* OverloadedDerivativeDecl = nullptr;
       {
+        llvm::SaveAndRestore<unsigned> Saved(request.RequestedDerivativeOrder,
+                                             1);
         auto DFI = m_DFC.Find(request);
         if (DFI.IsValid()) {
           DerivativeDecl = DFI.DerivedFn();
@@ -294,15 +293,19 @@ void InitTimers();
         }
       }
 
+      if (OverloadedDerivativeDecl) {
+        S.MarkFunctionReferenced(SourceLocation(), OverloadedDerivativeDecl);
+        DelayedCallInfo DCI{CallKind::HandleTopLevelDecl,
+                            OverloadedDerivativeDecl};
+        if (!llvm::is_contained(m_DelayedCalls, DCI))
+          ProcessTopLevelDecl(OverloadedDerivativeDecl);
+      }
       if (DerivativeDecl) {
-        if (!(alreadyDerived || request.CustomDerivative)) {
+        if (!alreadyDerived &&
+            (!request.CustomDerivative || request.CallUpdateRequired)) {
           printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
-          if (OverloadedDerivativeDecl)
-            S.MarkFunctionReferenced(SourceLocation(),
-                                     OverloadedDerivativeDecl);
-
           // We ideally should not call `HandleTopLevelDecl` for declarations
           // inside a namespace. After parsing a namespace that is defined
           // directly in translation unit context , clang calls
@@ -318,13 +321,11 @@ void InitTimers();
           // FIXME: We could get rid of this by prepending the produced
           // derivatives in CladPlugin::HandleTranslationUnitDecl
           DeclContext* derivativeDC = DerivativeDecl->getLexicalDeclContext();
+          DelayedCallInfo DCI{CallKind::HandleTopLevelDecl, DerivativeDecl};
           bool isTUorND =
               derivativeDC->isTranslationUnit() || derivativeDC->isNamespace();
-          if (isTUorND) {
+          if (isTUorND && !llvm::is_contained(m_DelayedCalls, DCI))
             ProcessTopLevelDecl(DerivativeDecl);
-            if (OverloadedDerivativeDecl)
-              ProcessTopLevelDecl(OverloadedDerivativeDecl);
-          }
         }
         bool lastDerivativeOrder = (request.CurrentDerivativeOrder ==
                                     request.RequestedDerivativeOrder);

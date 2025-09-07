@@ -116,9 +116,9 @@ double pointerParam(const double* arr, size_t n) {
 }
 
 // CHECK: void pointerParam_grad_0(const double *arr, size_t n, double *_d_arr) {
-// CHECK-NEXT:     size_t _d_n = 0UL;
-// CHECK-NEXT:     size_t _d_i = 0UL;
-// CHECK-NEXT:     size_t i = 0UL;
+// CHECK-NEXT:     size_t _d_n = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     size_t _d_i = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     size_t i = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     clad::tape<size_t *> _t1 = {};
 // CHECK-NEXT:     clad::tape<size_t *> _t3 = {};
 // CHECK-NEXT:     size_t *_d_j = nullptr;
@@ -324,7 +324,7 @@ double cStyleMemoryAlloc(double x, size_t n) {
 }
 
 // CHECK: void cStyleMemoryAlloc_grad_0(double x, size_t n, double *_d_x) {
-// CHECK-NEXT:     size_t _d_n = 0UL;
+// CHECK-NEXT:     size_t _d_n = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     T *_d_t = (T *)malloc(sizeof(T) * n);
 // CHECK-NEXT:     memset(_d_t, 0, sizeof(T) * n);
 // CHECK-NEXT:     T *t = (T *)malloc(sizeof(T) * n);
