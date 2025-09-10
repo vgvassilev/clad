@@ -310,9 +310,12 @@ namespace clad {
     // For intermediate variables, use numbered names (_t0), for everything
     // else first try a name without number (e.g. first try to use _d_x and
     // use _d_x0 only if _d_x is taken).
-    bool countedName = nameBase.starts_with("_") &&
-                       !nameBase.starts_with("_d_") &&
-                       !nameBase.starts_with("_delta_") && nameBase != "_this";
+    bool isRangedVar = !nameBase.starts_with("__range") &&
+                       !nameBase.starts_with("__end") &&
+                       !nameBase.starts_with("__begin");
+    bool countedName =
+        nameBase.starts_with("_") && !nameBase.starts_with("_d_") &&
+        !nameBase.starts_with("_delta_") && isRangedVar && nameBase != "_this";
     std::size_t idx = 0;
     std::size_t& id = countedName ? m_idCtr[nameBase.str()] : idx;
     std::string idStr = countedName ? std::to_string(id) : "";
