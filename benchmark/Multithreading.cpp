@@ -2,6 +2,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#include <cstddef>
+#include <cstdio>
 #include <thread>
 #include <vector>
 
@@ -9,9 +11,9 @@
 template <bool ThreadSafe>
 static void BM_TapeLockOverhead(benchmark::State& state) {
   int block = state.range(0);
-  clad::tape<double, 64, 1024, ThreadSafe> t;
 
   for (auto _ : state) {
+    clad::tape<double, 64, 1024, ThreadSafe> t;
     for (int i = 0; i < block; i++)
       clad::push(t, 1.0);
     for (int i = 0; i < block; i++)
@@ -32,7 +34,7 @@ BENCHMARK_TEMPLATE(BM_TapeLockOverhead, true)
     ->Name("BM_TapeLockOverhead_Lock");
 
 template <typename T>
-void concurrent_push(T x, int n_threads, int pushes_per_thread) {
+void concurrent_push(T x, size_t n_threads, size_t pushes_per_thread) {
   clad::tape<T, 64, 1024, true> t = {};
   std::vector<std::thread> threads;
 
@@ -58,7 +60,8 @@ static void BM_TapeThreadSafety(benchmark::State& state) {
   size_t n_threads = state.range(0);
   size_t pushes_per_thread = state.range(1);
   for (auto _ : state)
-    concurrent_push<double>(1.0, n_threads, pushes_per_thread);
+    concurrent_push<double>(/*x=*/1.0, /*n_threads=*/n_threads,
+                            /*pushes_per_thread=*/pushes_per_thread);
 }
 
 BENCHMARK(BM_TapeThreadSafety)

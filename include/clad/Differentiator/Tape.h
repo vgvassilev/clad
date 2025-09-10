@@ -100,6 +100,7 @@ class tape_impl {
 
   Slab* m_head = nullptr;
   std::size_t m_size = 0;
+  std::size_t m_capacity = SBO_SIZE;
 
   CUDA_HOST_DEVICE T* sbo_elements() {
 #if __cplusplus >= 201703L
@@ -150,7 +151,7 @@ public:
         m_using_sbo = false;
 
       // Allocate new slab if required
-      if ((m_size - SBO_SIZE) % SLAB_SIZE == 0) {
+      if (m_size == m_capacity) {
         Slab* new_slab = new Slab();
         if (!m_head) {
           m_head = new_slab;
@@ -160,6 +161,7 @@ public:
             last = last->next;
           last->next = new_slab;
         }
+        m_capacity += SLAB_SIZE;
       }
 
       // Find correct slab for element
@@ -278,6 +280,7 @@ private:
 
     m_head = nullptr;
     m_size = 0;
+    m_capacity = SBO_SIZE;
     m_using_sbo = true;
   }
 };
