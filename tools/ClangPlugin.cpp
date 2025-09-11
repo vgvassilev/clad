@@ -476,8 +476,11 @@ void InitTimers();
       if (!m_CI.getPreprocessor().isIncrementalProcessingEnabled())
         S.TUScope = m_StoredTUScope;
       constexpr bool Enabled = true;
-      Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, Enabled);
-      Sema::LocalEagerInstantiationScope LocalInstantiations(S);
+      constexpr bool AtEndOfTU = true;
+      Sema::GlobalEagerInstantiationScope GlobalInstantiations(
+          S, Enabled CLAD_COMPAT_CLANG21_AtEndOfTUParam(AtEndOfTU));
+      Sema::LocalEagerInstantiationScope LocalInstantiations(
+          S CLAD_COMPAT_CLANG21_AtEndOfTUParam(AtEndOfTU));
 
       if (!m_DiffRequestGraph.isProcessingNode()) {
         // This check is to avoid recursive processing of the graph, as

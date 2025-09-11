@@ -21,6 +21,25 @@ namespace clad_compat {
 using namespace clang;
 using namespace llvm;
 
+// clang-21
+#if CLANG_VERSION_MAJOR > 20
+#define CLAD_COMPAT_CLANG21_AtEndOfTUParam(V) , V
+#define CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(V)
+#define CLAD_COMPAT_CLANG21_StringLiteralParams(V) V
+#define CLAD_COMPAT_CLANG21_StringLiteralParamsRange
+#define CLAD_COMPAT_CLANG21_getTrailingRequiresClause(V) V.ConstraintExpr
+#define CLAD_COMPAT_CLANG21_UpdateTrailingRequiresClause(Trailing, V)          \
+  Trailing.ConstraintExpr = V
+#else
+#define CLAD_COMPAT_CLANG21_AtEndOfTUParam(V)
+#define CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(V) V,
+#define CLAD_COMPAT_CLANG21_StringLiteralParams(V) &V[0], V.size()
+#define CLAD_COMPAT_CLANG21_StringLiteralParamsRange , SourceRange()
+#define CLAD_COMPAT_CLANG21_getTrailingRequiresClause(V) V
+#define CLAD_COMPAT_CLANG21_UpdateTrailingRequiresClause(Trailing, V)          \
+  Trailing = V
+#endif
+
 // clang-20 clang::Sema::AA_Casting became scoped
 #if CLANG_VERSION_MAJOR < 20
 #define CLAD_COMPAT_CLANG20_SemaAACasting clang::Sema::AA_Casting

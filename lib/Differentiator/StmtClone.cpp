@@ -243,12 +243,19 @@ DEFINE_CLONE_EXPR(
      Node->getParameter(),
      CLAD_COMPAT_SubstNonTypeTemplateParmExpr_isReferenceParameter_ExtraParam(
          Node) Node->getReplacement()))
-#else
+#elif CLANG_VERSION_MAJOR < 21
 DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
                   (CloneType(Node->getType()), Node->getValueKind(),
                    Node->getBeginLoc(), Node->getReplacement(),
                    Node->getAssociatedDecl(), Node->getIndex(),
                    Node->getPackIndex(), Node->isReferenceParameter()))
+#else
+DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
+                  (CloneType(Node->getType()), Node->getValueKind(),
+                   Node->getBeginLoc(), Node->getReplacement(),
+                   Node->getAssociatedDecl(), Node->getIndex(),
+                   Node->getPackIndex(), Node->isReferenceParameter(),
+                   Node->getFinal()))
 #endif
 DEFINE_CREATE_EXPR(PseudoObjectExpr, (Ctx, Node->getSyntacticForm(), llvm::SmallVector<Expr*, 4>(Node->semantics_begin(), Node->semantics_end()), Node->getResultExprIndex()))
 // NOLINTEND(modernize-use-auto)
@@ -258,9 +265,10 @@ DEFINE_CREATE_EXPR(PseudoObjectExpr, (Ctx, Node->getSyntacticForm(), llvm::Small
 Stmt* StmtClone::VisitStringLiteral(StringLiteral* Node) {
   llvm::SmallVector<SourceLocation, 4> concatLocations(Node->tokloc_begin(),
                                                        Node->tokloc_end());
-  return StringLiteral::Create(Ctx, Node->getString(), Node->getKind(),
-                               Node->isPascal(), CloneType(Node->getType()),
-                               &concatLocations[0], concatLocations.size());
+  return StringLiteral::Create(
+      Ctx, Node->getString(), Node->getKind(), Node->isPascal(),
+      CloneType(Node->getType()),
+      CLAD_COMPAT_CLANG21_StringLiteralParams(concatLocations));
 }
 
 Stmt* StmtClone::VisitFloatingLiteral(FloatingLiteral* Node) {
@@ -583,10 +591,11 @@ QualType StmtClone::CloneType(const clang::QualType T) {
   if (const auto* varArrType =
           dyn_cast<clang::VariableArrayType>(T.getTypePtr())) {
     auto elemType = varArrType->getElementType();
-    return Ctx.getVariableArrayType(elemType, Clone(varArrType->getSizeExpr()),
-                                    varArrType->getSizeModifier(),
-                                    T.getQualifiers().getAsOpaqueValue(),
-                                    SourceRange());
+    return Ctx.getVariableArrayType(
+        elemType, Clone(varArrType->getSizeExpr()),
+        varArrType->getSizeModifier(),
+        T.getQualifiers().getAsOpaqueValue()
+            CLAD_COMPAT_CLANG21_StringLiteralParamsRange);
   }
 
   return clang::QualType(T.getTypePtr(), T.getQualifiers().getAsOpaqueValue());
