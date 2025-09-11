@@ -31,8 +31,14 @@ function(add_clad_unittest test_dirname)
     list(APPEND gtest_libs gmock gmock_main)
   endif()
 
-  target_link_libraries(${test_dirname} PUBLIC ${gtest_libs})
+  if (APPLE AND LLVM_LIBRARY_DIR)
+    # Homebrew deploys libc++ along with the llvm package. We must point to it
+    # otherwise clang will use the header files of the package and link to
+    # system libc++. See llvm/llvm-project#155531 and Homebrew/homebrew-core#235411
+    target_link_directories(${test_dirname} PUBLIC ${LLVM_LIBRARY_DIR}/c++)
+  endif()
 
+  target_link_libraries(${test_dirname} PUBLIC ${gtest_libs})
 endfunction()
 
 add_subdirectory(Basic)

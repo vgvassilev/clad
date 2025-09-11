@@ -183,7 +183,8 @@ namespace clad {
         auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
         auto RDTypeSourceInfo = C.getTrivialTypeSourceInfo(RDQType);
         CSS.Extend(C,
-                   /*TemplateKWLoc=*/noLoc, RDTypeSourceInfo->getTypeLoc(),
+                   CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(noLoc)
+                       RDTypeSourceInfo->getTypeLoc(),
                    /*ColonColonLoc=*/noLoc);
       } else if (addGlobalNS && isa<TranslationUnitDecl>(DC)) {
         CSS.MakeGlobal(C, /*ColonColonLoc=*/noLoc);

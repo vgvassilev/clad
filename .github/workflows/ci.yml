@@ -47,6 +47,11 @@ jobs:
             compiler: clang
             clang-runtime: '20'
 
+          - name: osx14-arm-clang-runtime21
+            os: macos-14
+            compiler: clang
+            clang-runtime: '21'
+
           - name: osx13-x86-clang-runtime16
             os: macos-13
             compiler: clang
@@ -72,6 +77,11 @@ jobs:
             compiler: clang
             clang-runtime: '20'
 
+          - name: osx13-x86-clang-runtime21
+            os: macos-13
+            compiler: clang
+            clang-runtime: '21'
+
           - name: win2022-msvc-runtime14
             os: windows-2022
             compiler: msvc
@@ -96,6 +106,11 @@ jobs:
             os: windows-2022
             compiler: msvc
             clang-runtime: '20'
+
+          - name: win2022-msvc-runtime21
+            os: windows-2022
+            compiler: msvc
+            clang-runtime: '21'
 
           - name: ubu22-clang15-runtime18-debug
             os: ubuntu-22.04
@@ -428,6 +443,11 @@ jobs:
             extra_packages: 'valgrind'
             extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
             clang-runtime: '20'
+
+          - name: ubu24-clang20-runtime21
+            os: ubuntu-24.04
+            compiler: clang-20
+            clang-runtime: '21'
 
           - name: ubu24-arm-clang16-runtime17
             os: ubuntu-24.04-arm
