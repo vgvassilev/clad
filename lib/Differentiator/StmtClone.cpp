@@ -4,15 +4,16 @@
 //------------------------------------------------------------------------------
 //
 // File originates from the Scout project (http://scout.zih.tu-dresden.de/)
+
 #include "clad/Differentiator/StmtClone.h"
+#include "clad/Differentiator/Compatibility.h"
 
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Sema/Lookup.h"
 
 #include "llvm/ADT/SmallVector.h"
-
-#include "clad/Differentiator/Compatibility.h"
 
 using namespace clang;
 
@@ -54,26 +55,19 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
     return result;                                                             \
   }
 
-#define DEFINE_CLONE_EXPR_CO11(CLASS, CTORARGS)         \
-Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
-{                                                       \
-  CLASS* result = CLAD_COMPAT_CREATE11(CLASS, CTORARGS);\
-  clad_compat::ExprSetDeps(result, Node);               \
-  return result;                                        \
-}
-// NOLINTBEGIN(modernize-use-auto)
-DEFINE_CLONE_EXPR_CO11(
+DEFINE_CREATE_EXPR(
     BinaryOperator,
-    (CLAD_COMPAT_CLANG11_Ctx_ExtraParams Clone(Node->getLHS()),
-     Clone(Node->getRHS()), Node->getOpcode(), CloneType(Node->getType()),
-     Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc(),
-     Node->getFPFeatures(CLAD_COMPAT_CLANG11_LangOptions_EtraParams)))
-DEFINE_CLONE_EXPR_CO11(
-    UnaryOperator,
-    (CLAD_COMPAT_CLANG11_Ctx_ExtraParams Clone(Node->getSubExpr()),
-     Node->getOpcode(), CloneType(Node->getType()), Node->getValueKind(),
-     Node->getObjectKind(), Node->getOperatorLoc(),
-     Node->canOverflow() CLAD_COMPAT_CLANG11_UnaryOperator_ExtraParams))
+    (Ctx, Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(),
+     CloneType(Node->getType()), Node->getValueKind(), Node->getObjectKind(),
+     Node->getOperatorLoc(),
+     Node->getFPFeatures(CLAD_COMPAT_CLANG16_LangOptions_ExtraParams)))
+DEFINE_CREATE_EXPR(UnaryOperator,
+                   (Ctx, Clone(Node->getSubExpr()), Node->getOpcode(),
+                    CloneType(Node->getType()), Node->getValueKind(),
+                    Node->getObjectKind(), Node->getOperatorLoc(),
+                    Node->canOverflow(), Node->getFPOptionsOverride()))
+
+// NOLINTBEGIN(modernize-use-auto)
 Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
   TemplateArgumentListInfo TAListInfo;
   Node->copyTemplateArgumentsInto(TAListInfo);
@@ -176,9 +170,9 @@ DEFINE_CREATE_EXPR(CXXFunctionalCastExpr,
 DEFINE_CREATE_EXPR(ExprWithCleanups, (Ctx, Node->getSubExpr(),
                                       Node->cleanupsHaveSideEffects(), {}))
 
-DEFINE_CREATE_EXPR(ConstantExpr,
-                   (Ctx, Clone(Node->getSubExpr())
-                             CLAD_COMPAT_ConstantExpr_Create_ExtraParams))
+DEFINE_CREATE_EXPR(ConstantExpr, (Ctx, Clone(Node->getSubExpr()),
+                                  Node->getResultStorageKind(),
+                                  Node->isImmediateInvocation()))
 
 DEFINE_CLONE_EXPR_CO(
     CXXTemporaryObjectExpr,
@@ -193,15 +187,14 @@ DEFINE_CLONE_EXPR(MaterializeTemporaryExpr,
                   (CloneType(Node->getType()),
                    Node->getSubExpr() ? Clone(Node->getSubExpr()) : nullptr,
                    Node->isBoundToLvalueReference()))
-DEFINE_CLONE_EXPR_CO11(
+DEFINE_CLONE_EXPR_CO(
     CompoundAssignOperator,
-    (CLAD_COMPAT_CLANG11_Ctx_ExtraParams Clone(Node->getLHS()),
-     Clone(Node->getRHS()), Node->getOpcode(), CloneType(Node->getType()),
-     Node->getValueKind(), Node->getObjectKind(),
-     CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Removed Node
-         ->getOperatorLoc(),
-     Node->getFPFeatures(CLAD_COMPAT_CLANG11_LangOptions_EtraParams)
-         CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Moved))
+    (Ctx, Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(),
+     CloneType(Node->getType()), Node->getValueKind(), Node->getObjectKind(),
+     Node->getOperatorLoc(),
+     Node->getFPFeatures(CLAD_COMPAT_CLANG16_LangOptions_ExtraParams),
+     Node->getComputationLHSType(), Node->getComputationResultType()))
+
 DEFINE_CLONE_EXPR(ConditionalOperator,
                   (Clone(Node->getCond()), Node->getQuestionLoc(),
                    Clone(Node->getLHS()), Node->getColonLoc(),
@@ -212,13 +205,11 @@ DEFINE_CLONE_EXPR(AddrLabelExpr, (Node->getAmpAmpLoc(), Node->getLabelLoc(),
 DEFINE_CLONE_EXPR(StmtExpr, (Clone(Node->getSubStmt()),
                              CloneType(Node->getType()), Node->getLParenLoc(),
                              Node->getRParenLoc(), Node->getTemplateDepth()))
-DEFINE_CLONE_EXPR(ChooseExpr,
-                  (Node->getBuiltinLoc(), Clone(Node->getCond()),
-                   Clone(Node->getLHS()), Clone(Node->getRHS()),
-                   CloneType(Node->getType()), Node->getValueKind(),
-                   Node->getObjectKind(), Node->getRParenLoc(),
-                   Node->isConditionTrue()
-                       CLAD_COMPAT_CLANG11_ChooseExpr_EtraParams_Removed))
+DEFINE_CLONE_EXPR(ChooseExpr, (Node->getBuiltinLoc(), Clone(Node->getCond()),
+                               Clone(Node->getLHS()), Clone(Node->getRHS()),
+                               CloneType(Node->getType()), Node->getValueKind(),
+                               Node->getObjectKind(), Node->getRParenLoc(),
+                               Node->isConditionTrue()))
 DEFINE_CLONE_EXPR(GNUNullExpr,
                   (CloneType(Node->getType()), Node->getTokenLocation()))
 DEFINE_CLONE_EXPR(VAArgExpr,
@@ -243,12 +234,19 @@ DEFINE_CLONE_EXPR(
      Node->getParameter(),
      CLAD_COMPAT_SubstNonTypeTemplateParmExpr_isReferenceParameter_ExtraParam(
          Node) Node->getReplacement()))
-#else
+#elif CLANG_VERSION_MAJOR < 21
 DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
                   (CloneType(Node->getType()), Node->getValueKind(),
                    Node->getBeginLoc(), Node->getReplacement(),
                    Node->getAssociatedDecl(), Node->getIndex(),
                    Node->getPackIndex(), Node->isReferenceParameter()))
+#else
+DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
+                  (CloneType(Node->getType()), Node->getValueKind(),
+                   Node->getBeginLoc(), Node->getReplacement(),
+                   Node->getAssociatedDecl(), Node->getIndex(),
+                   Node->getPackIndex(), Node->isReferenceParameter(),
+                   Node->getFinal()))
 #endif
 DEFINE_CREATE_EXPR(PseudoObjectExpr, (Ctx, Node->getSyntacticForm(), llvm::SmallVector<Expr*, 4>(Node->semantics_begin(), Node->semantics_end()), Node->getResultExprIndex()))
 // NOLINTEND(modernize-use-auto)
@@ -258,9 +256,10 @@ DEFINE_CREATE_EXPR(PseudoObjectExpr, (Ctx, Node->getSyntacticForm(), llvm::Small
 Stmt* StmtClone::VisitStringLiteral(StringLiteral* Node) {
   llvm::SmallVector<SourceLocation, 4> concatLocations(Node->tokloc_begin(),
                                                        Node->tokloc_end());
-  return StringLiteral::Create(Ctx, Node->getString(), Node->getKind(),
-                               Node->isPascal(), CloneType(Node->getType()),
-                               &concatLocations[0], concatLocations.size());
+  return StringLiteral::Create(
+      Ctx, Node->getString(), Node->getKind(), Node->isPascal(),
+      CloneType(Node->getType()),
+      CLAD_COMPAT_CLANG21_StringLiteralParams(concatLocations));
 }
 
 Stmt* StmtClone::VisitFloatingLiteral(FloatingLiteral* Node) {
@@ -367,8 +366,7 @@ Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
   CXXOperatorCallExpr* result = CXXOperatorCallExpr::Create(
       Ctx, Node->getOperator(), Clone(Node->getCallee()), clonedArgs,
       CloneType(Node->getType()), Node->getValueKind(), Node->getRParenLoc(),
-      Node->getFPFeatures()
-          CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse);
+      Node->getFPFeatures(), UsesADL);
 
   // Copy Value and Type dependent
   clad_compat::ExprSetDeps(result, Node);
@@ -427,7 +425,11 @@ DEFINE_CLONE_STMT_CO(ReturnStmt,
                      (Ctx, Node->getReturnLoc(), Clone(Node->getRetValue()), 0))
 DEFINE_CLONE_STMT(DefaultStmt, (Node->getDefaultLoc(), Node->getColonLoc(), Clone(Node->getSubStmt())))
 DEFINE_CLONE_STMT(GotoStmt, (Node->getLabel(), Node->getGotoLoc(), Node->getLabelLoc()))
-DEFINE_CLONE_STMT_CO(WhileStmt, (Ctx, CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getBody()), Node->getWhileLoc() CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams))
+DEFINE_CLONE_STMT_CO(WhileStmt,
+                     (Ctx, CloneDeclOrNull(Node->getConditionVariable()),
+                      Clone(Node->getCond()), Clone(Node->getBody()),
+                      Node->getWhileLoc(), Node->getLParenLoc(),
+                      Node->getRParenLoc()))
 DEFINE_CLONE_STMT(DoStmt, (Clone(Node->getBody()), Clone(Node->getCond()), Node->getDoLoc(), Node->getWhileLoc(), Node->getRParenLoc()))
 DEFINE_CLONE_STMT_CO(IfStmt, (Ctx, Node->getIfLoc(),CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node), Node->getInit(), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()) /*EPs*/CLAD_COMPAT_CLANG12_LR_ExtraParams(Node), Clone(Node->getThen()), Node->getElseLoc(), Clone(Node->getElse())))
 DEFINE_CLONE_STMT(LabelStmt, (Node->getIdentLoc(), Node->getDecl(), Clone(Node->getSubStmt())))
@@ -583,10 +585,11 @@ QualType StmtClone::CloneType(const clang::QualType T) {
   if (const auto* varArrType =
           dyn_cast<clang::VariableArrayType>(T.getTypePtr())) {
     auto elemType = varArrType->getElementType();
-    return Ctx.getVariableArrayType(elemType, Clone(varArrType->getSizeExpr()),
-                                    varArrType->getSizeModifier(),
-                                    T.getQualifiers().getAsOpaqueValue(),
-                                    SourceRange());
+    return Ctx.getVariableArrayType(
+        elemType, Clone(varArrType->getSizeExpr()),
+        varArrType->getSizeModifier(),
+        T.getQualifiers().getAsOpaqueValue()
+            CLAD_COMPAT_CLANG21_StringLiteralParamsRange);
   }
 
   return clang::QualType(T.getTypePtr(), T.getQualifiers().getAsOpaqueValue());

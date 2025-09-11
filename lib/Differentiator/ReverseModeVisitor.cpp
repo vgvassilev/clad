@@ -3726,16 +3726,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff bodyDiff = DifferentiateLoopBody(body, loopCounter,
                                               condVarRes.getStmt_dx());
     // Create forward-pass `while` loop.
-    Stmt* forwardWS = clad_compat::Sema_ActOnWhileStmt(m_Sema, condResult,
-                                                       bodyDiff.getStmt())
-                          .get();
+    Stmt* forwardWS =
+        m_Sema
+            .ActOnWhileStmt(/*WhileLoc=*/noLoc, /*LParenLoc=*/noLoc, condResult,
+                            /*RParenLoc=*/noLoc, bodyDiff.getStmt())
+            .get();
 
     // Create reverse-pass `while` loop.
     Sema::ConditionResult CounterCondition = loopCounter
                                                  .getCounterConditionResult();
-    Stmt* reverseWS = clad_compat::Sema_ActOnWhileStmt(m_Sema, CounterCondition,
-                                                       bodyDiff.getStmt_dx())
-                          .get();
+    Stmt* reverseWS =
+        m_Sema
+            .ActOnWhileStmt(/*WhileLoc=*/noLoc, /*LParenLoc=*/noLoc,
+                            CounterCondition,
+                            /*RParenLoc=*/noLoc, bodyDiff.getStmt_dx())
+            .get();
     // for while statement
     endScope();
     addToCurrentBlock(reverseWS, direction::reverse);

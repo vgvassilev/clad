@@ -21,6 +21,31 @@ namespace clad_compat {
 using namespace clang;
 using namespace llvm;
 
+// clang-21
+#if CLANG_VERSION_MAJOR < 21
+#define CLAD_COMPAT_CLANG21_AtEndOfTUParam
+#define CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(V) (V),
+#define CLAD_COMPAT_CLANG21_StringLiteralParams(V) &(V)[0], (V).size()
+#define CLAD_COMPAT_CLANG21_StringLiteralParamsRange , SourceRange()
+#define CLAD_COMPAT_CLANG21_getTrailingRequiresClause(FD)                      \
+  const_cast<FunctionDecl*>(FD)->getTrailingRequiresClause()
+#define CLAD_COMPAT_CLANG21_getTrailingRequiresExpr(FD)                        \
+  (FD)->getTrailingRequiresClause()
+#define CLAD_COMPAT_CLANG21_UpdateTrailingRequiresClause(Trailing, V)          \
+  (Trailing) = (V)
+#else
+#define CLAD_COMPAT_CLANG21_AtEndOfTUParam , /*AtEndOfTU=*/true
+#define CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(V)
+#define CLAD_COMPAT_CLANG21_StringLiteralParams(V) (V)
+#define CLAD_COMPAT_CLANG21_StringLiteralParamsRange
+#define CLAD_COMPAT_CLANG21_getTrailingRequiresClause(FD)                      \
+  (FD)->getTrailingRequiresClause()
+#define CLAD_COMPAT_CLANG21_getTrailingRequiresExpr(FD)                        \
+  (FD)->getTrailingRequiresClause().ConstraintExpr
+#define CLAD_COMPAT_CLANG21_UpdateTrailingRequiresClause(Trailing, V)          \
+  (Trailing).ConstraintExpr = (V)
+#endif
+
 // clang-20 clang::Sema::AA_Casting became scoped
 #if CLANG_VERSION_MAJOR < 20
 #define CLAD_COMPAT_CLANG20_SemaAACasting clang::Sema::AA_Casting
@@ -240,55 +265,12 @@ CUDAKernelCallExpr_Create(const ASTContext& Ctx, Expr* Fn, CallExpr* Config,
    #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams ,Node->getFPFeatures(),Node->getNumArgs(),Node->getADLCallKind()
 #endif
 
-// Clang 11 add one param to CXXOperatorCallExpr_Create, ADLCallKind, and many other constructor and Create changes
-
-#if CLANG_VERSION_MAJOR < 11
-
 static inline void ExprSetDeps(Expr* result, Expr* Node) {
-   result->setValueDependent(Node->isValueDependent());
-   result->setTypeDependent(Node->isTypeDependent());
-}
-
-   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParams /**/
-   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsPar /**/
-   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse /**/
-   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsOverride FPOptions
-   #define CLAD_COMPAT_CLANG11_LangOptions_EtraParams /**/
-   #define CLAD_COMPAT_CLANG11_Ctx_ExtraParams /**/
-   #define CLAD_COMPAT_CREATE11(CLASS, CTORARGS) (new (Ctx) CLASS CTORARGS)
-   #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Removed Node->getComputationLHSType(),Node->getComputationResultType(),
-   #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Moved /**/
-   #define CLAD_COMPAT_CLANG11_ChooseExpr_EtraParams_Removed ,Node->isTypeDependent(),Node->isValueDependent()
-   #define CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams /**/
-
-#elif CLANG_VERSION_MAJOR >= 11
-
-struct ExprDependenceAccessor : public Expr {
-   void setDependence(ExprDependence Deps) {
-      Expr::setDependence(Deps);
-   }
-};
-
-static inline void ExprSetDeps(Expr* result, Expr* Node) {
+  struct ExprDependenceAccessor : public Expr {
+    void setDependence(ExprDependence Deps) { Expr::setDependence(Deps); }
+  };
    ((ExprDependenceAccessor*)result)->setDependence(Node->getDependence());
 }
-
-   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParams ,Node->getADLCallKind()
-   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsPar ,clang::CallExpr::ADLCallKind UsesADL
-   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse ,UsesADL
-   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsOverride FPOptionsOverride
-   #if CLANG_VERSION_MAJOR >= 16
-      #define CLAD_COMPAT_CLANG11_LangOptions_EtraParams /**/
-   #else
-      #define CLAD_COMPAT_CLANG11_LangOptions_EtraParams Ctx.getLangOpts()
-   #endif
-   #define CLAD_COMPAT_CLANG11_Ctx_ExtraParams Ctx,
-   #define CLAD_COMPAT_CREATE11(CLASS, CTORARGS) (CLASS::Create CTORARGS)
-   #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Removed /**/
-   #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Moved ,Node->getComputationLHSType(),Node->getComputationResultType()
-   #define CLAD_COMPAT_CLANG11_ChooseExpr_EtraParams_Removed /**/
-   #define CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams ,Node->getLParenLoc(),Node->getRParenLoc()
-#endif
 
 // Compatibility helper function for creation CXXMemberCallExpr.
 // Clang 12 and above use two extra param.
@@ -330,7 +312,6 @@ static inline T GetResult(ActionResult<T> Res)
    return Res.get();
 }
 
-// Clang 10 change add new param in getConstantArrayType.
 // clang 18 clang::ArrayType::ArraySizeModifier became clang::ArraySizeModifier
 #if CLANG_VERSION_MAJOR < 18
 static inline QualType
@@ -349,14 +330,6 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
   return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM,
                                   IndexTypeQuals);
 }
-#endif
-
-// Clang 11 add one extra param in UnaryOperator constructor.
-
-#if CLANG_VERSION_MAJOR < 11
-   #define CLAD_COMPAT_CLANG11_UnaryOperator_ExtraParams /**/
-#elif CLANG_VERSION_MAJOR >= 11
-   #define CLAD_COMPAT_CLANG11_UnaryOperator_ExtraParams ,Node->getFPOptionsOverride()
 #endif
 
 // Clang 12 rename DeclaratorContext::LambdaExprContext to DeclaratorContext::LambdaExpr.
@@ -400,18 +373,6 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
    #define CLAD_COMPAT_CLANG12_LR_ExtraParams(Node) ,Node->getLParenLoc(),Node->getRParenLoc()
 #endif
 
-/// clang >= 11 added more source locations parameters in `Sema::ActOnWhileStmt`
-static inline StmtResult
-Sema_ActOnWhileStmt(Sema& SemaRef, Sema::ConditionResult cond, Stmt* body) {
-  SourceLocation noLoc;
-#if CLANG_VERSION_MAJOR < 11
-  return SemaRef.ActOnWhileStmt(/*WhileLoc=*/noLoc, cond, body);
-#elif CLANG_VERSION_MAJOR >= 11
-  return SemaRef.ActOnWhileStmt(/*WhileLoc=*/noLoc, /*LParenLoc=*/noLoc, cond,
-                                /*RParenLoc=*/noLoc, body);
-#endif
-}
-
 /// Clang >= 12 has more source locations parameters in `Sema::ActOnStartOfSwitchStmt`
 static inline StmtResult
 Sema_ActOnStartOfSwitchStmt(Sema& SemaRef, Stmt* initStmt,
@@ -426,16 +387,6 @@ Sema_ActOnStartOfSwitchStmt(Sema& SemaRef, Stmt* initStmt,
   return SemaRef.ActOnStartOfSwitchStmt(/*SwitchLoc=*/noLoc, initStmt, Cond);
 #endif
 }
-
-/// Clang 11 added an extra parameter for immediate invocation in
-/// ConstantExpr::Create
-#if CLANG_VERSION_MAJOR < 11
-#define CLAD_COMPAT_ConstantExpr_Create_ExtraParams\
-  , Node->getResultStorageKind()
-#else
-#define CLAD_COMPAT_ConstantExpr_Create_ExtraParams\
-  , Node->getResultStorageKind(), Node->isImmediateInvocation()
-#endif
 
 #if CLANG_VERSION_MAJOR < 13
 #define CLAD_COMPAT_ExprValueKind_R_or_PR_Value ExprValueKind::VK_RValue
@@ -560,6 +511,12 @@ static inline const Expr*
 ArraySize_GetValue(const std::optional<const Expr*>& opt) {
    return opt.value();
 }
+#endif
+
+#if CLANG_VERSION_MAJOR < 16
+#define CLAD_COMPAT_CLANG16_LangOptions_ExtraParams Ctx.getLangOpts()
+#else
+#define CLAD_COMPAT_CLANG16_LangOptions_ExtraParams /**/
 #endif
 
 #if CLANG_VERSION_MAJOR < 13
