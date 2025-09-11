@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oReverseLoops.out 2>&1 | %filecheck %s
 // RUN: ./ReverseLoops.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oReverseLoops.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oReverseLoops.out
 // RUN: ./ReverseLoops.out | %filecheck_exec %s
 // XFAIL: valgrind
 
@@ -2752,7 +2752,7 @@ int main() {
   TEST_2(fn40, 2, 3); // CHECK-EXEC: {14.00, 0.00}
   TEST_2(fn41, 2, 3); // CHECK-EXEC: {1.00, 0.00}
   
-  auto d_fn42 = clad::gradient(fn42, "0");
+  auto d_fn42 = clad::gradient<clad::opts::disable_va>(fn42, "0");
   float x_ = 2.0f;
   layer l{ .w = {{3}, {4}, {5}, {6}}};
   layer d_l{ .w = {{0}, {0}, {0}, {0}}};

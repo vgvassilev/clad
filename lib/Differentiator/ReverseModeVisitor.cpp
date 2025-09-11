@@ -968,9 +968,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     DeclRefExpr* beginDeclRef = BuildDeclRef(VisitBegin.getDecl());
     Expr* d_beginDeclRef = m_Variables[beginDeclRef->getDecl()];
     addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl()));
-    addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl_dx()));
+    if (VisitRange.getDecl_dx())
+      addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl_dx()));
     addToCurrentBlock(BuildDeclStmt(VisitBegin.getDecl()));
-    addToCurrentBlock(BuildDeclStmt(VisitBegin.getDecl_dx()));
+    if (VisitBegin.getDecl_dx())
+      addToCurrentBlock(BuildDeclStmt(VisitBegin.getDecl_dx()));
 
     const auto* EndDecl = cast<VarDecl>(FRS->getEndStmt()->getSingleDecl());
     QualType endType = CloneType(EndDecl->getType());
@@ -1003,19 +1005,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     PopBreakContStmtHandler();
 
     StmtDiff storeLoop = StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl()));
-    StmtDiff storeAdjLoop =
-        StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl_dx()));
-    addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl_dx()));
 
+    StmtDiff storeAdjLoop;
+    if (LoopVDDiff.getDecl_dx())
+      storeAdjLoop = StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl_dx()));
+    if (LoopVDDiff.getDecl_dx())
+      addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl_dx()));
     Expr* loopInit = LoopVDDiff.getDecl()->getInit();
     SetDeclInit(LoopVDDiff.getDecl(),
                 getZeroInit(LoopVDDiff.getDecl()->getType()));
-    addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl()));
+    if (LoopVDDiff.getDecl())
+      addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl()));
     Expr* assignLoop =
         BuildOp(BO_Assign, BuildDeclRef(LoopVDDiff.getDecl()), loopInit);
 
-    if (!LoopVD->getType()->isReferenceType()) {
-      Expr* d_LoopVD = BuildDeclRef(LoopVDDiff.getDecl_dx());
+    Expr* d_LoopVD = nullptr;
+    if (!LoopVD->getType()->isReferenceType() && LoopVDDiff.getDecl_dx()) {
+      d_LoopVD = BuildDeclRef(LoopVDDiff.getDecl_dx());
       adjLoopVDAddAssign =
           BuildOp(BO_Assign, d_LoopVD, BuildOp(UO_Deref, d_beginDeclRef));
     }
@@ -1037,7 +1043,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     CompoundStmt* bodyReverse = utils::PrependAndCreateCompoundStmt(
         m_Sema.getASTContext(), bodyDiff.getStmt_dx(), LoopVDReverseDiff);
 
-    Expr* inc = BuildOp(BO_Comma, incBegin, d_incBegin);
+    Expr* inc = incBegin;
+    if (d_incBegin)
+      inc = BuildOp(BO_Comma, incBegin, d_incBegin);
     Stmt* Forward = new (m_Context) ForStmt(
         m_Context, /*Init=*/nullptr, forwardCond, /*CondVar=*/nullptr, inc,
         bodyForward, FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
@@ -1471,6 +1479,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // Is not an independent variable, ignored.
           return StmtDiff(clonedDRE);
       }
+
+      if (!it->second)
+        return StmtDiff(clonedDRE);
       // Create the (_d_param[idx] += dfdx) statement.
       QualType diffTy = it->second->getType();
       diffTy = diffTy.getNonReferenceType();
@@ -1720,9 +1731,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (const auto* CXXCE = dyn_cast<CXXConstructExpr>(arg))
         arg = CXXCE->getArg(0);
       StmtDiff argDiff = Visit(arg);
+
       llvm::SmallVector<Expr*, 1> params{argDiff.getExpr()};
-      llvm::SmallVector<Expr*, 1> paramsDiff{argDiff.getExpr_dx()};
       Expr* call = GetFunctionCall(FDName, "std", params);
+
+      if (!argDiff.getExpr_dx())
+        return StmtDiff(call);
+
+      llvm::SmallVector<Expr*, 1> paramsDiff{argDiff.getExpr_dx()};
       Expr* callDiff = GetFunctionCall(FDName, "std", paramsDiff);
       return {call, callDiff};
     }
