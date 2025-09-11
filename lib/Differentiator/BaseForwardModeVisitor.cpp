@@ -1714,7 +1714,10 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
   }
 
   Stmt* WSDiff =
-      clad_compat::Sema_ActOnWhileStmt(m_Sema, condRes, bodyResult).get();
+      m_Sema
+          .ActOnWhileStmt(/*WhileLoc=*/noLoc, /*LParenLoc=*/noLoc, condRes,
+                          /*RParenLoc=*/noLoc, bodyResult)
+          .get();
   // end scope for while loop
   endScope();
   return StmtDiff(WSDiff);
