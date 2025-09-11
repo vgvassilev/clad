@@ -5,6 +5,8 @@
 #include <iterator>
 #include <thrust/count.h>
 #include <thrust/device_ptr.h>
+// NOLINTNEXTLINE(misc-include-cleaner)
+#include <thrust/device_vector.h>
 #include <thrust/for_each.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
@@ -490,6 +492,49 @@ void inner_product_pullback(Iterator1 first1, Iterator1 last1, Iterator2 first2,
                   "This binary operation is not supported by the custom "
                   "inner_product_pullback.");
   }
+}
+
+template <typename InputIterator, typename UnaryFunction, typename OutputType,
+          typename BinaryFunction>
+void transform_reduce_pullback(InputIterator first, InputIterator last,
+                               UnaryFunction unary_op, OutputType init,
+                               BinaryFunction binary_op, OutputType d_output,
+                               InputIterator* d_first, InputIterator* d_last,
+                               UnaryFunction* d_unary_op, OutputType* d_init,
+                               BinaryFunction* d_binary_op) {
+  size_t n = ::thrust::distance(first, last);
+
+  if (n == 0) {
+    if (d_init)
+      *d_init += d_output;
+    return;
+  }
+
+  using InputType = typename ::std::iterator_traits<InputIterator>::value_type;
+  using TransformedType = ::std::decay_t<
+      typename ::std::invoke_result<UnaryFunction, InputType>::type>;
+
+  // 1. Perform the forward transform to get intermediate values.
+  ::thrust::device_vector<TransformedType> transformed_values(n);
+  ::thrust::transform(first, last, transformed_values.begin(), unary_op);
+
+  // 2. Compute gradients for the intermediate transformed values by calling
+  // reduce_pullback.
+  ::thrust::device_vector<TransformedType> d_transformed_values(n);
+  auto d_transformed_begin = d_transformed_values.begin();
+  auto d_transformed_end_dummy = d_transformed_values.end();
+
+  reduce_pullback(transformed_values.begin(), transformed_values.end(), init,
+                  binary_op, d_output, &d_transformed_begin,
+                  &d_transformed_end_dummy, d_init, d_binary_op);
+
+  // 3. Propagate gradients from the transformed values back to the original
+  // input.
+  ::thrust::device_vector<TransformedType> d_result_dummy(n);
+  auto d_transformed_values_it = d_transformed_values.begin();
+  transform_pullback(first, last, transformed_values.begin(), unary_op,
+                     d_result_dummy.begin(), // d_return dummy
+                     d_first, d_last, &d_transformed_values_it, d_unary_op);
 }
 
 } // namespace clad::custom_derivatives::thrust
