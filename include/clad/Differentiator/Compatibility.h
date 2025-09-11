@@ -24,20 +24,26 @@ using namespace llvm;
 // clang-21
 #if CLANG_VERSION_MAJOR < 21
 #define CLAD_COMPAT_CLANG21_AtEndOfTUParam
-#define CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(V) V,
-#define CLAD_COMPAT_CLANG21_StringLiteralParams(V) &V[0], V.size()
+#define CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(V) (V),
+#define CLAD_COMPAT_CLANG21_StringLiteralParams(V) &(V)[0], (V).size()
 #define CLAD_COMPAT_CLANG21_StringLiteralParamsRange , SourceRange()
-#define CLAD_COMPAT_CLANG21_getTrailingRequiresClause(V) V
+#define CLAD_COMPAT_CLANG21_getTrailingRequiresClause(FD)                      \
+  const_cast<FunctionDecl*>(FD)->getTrailingRequiresClause()
+#define CLAD_COMPAT_CLANG21_getTrailingRequiresExpr(FD)                        \
+  (FD)->getTrailingRequiresClause()
 #define CLAD_COMPAT_CLANG21_UpdateTrailingRequiresClause(Trailing, V)          \
-  Trailing = V
+  (Trailing) = (V)
 #else
 #define CLAD_COMPAT_CLANG21_AtEndOfTUParam , /*AtEndOfTU=*/true
 #define CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(V)
-#define CLAD_COMPAT_CLANG21_StringLiteralParams(V) V
+#define CLAD_COMPAT_CLANG21_StringLiteralParams(V) (V)
 #define CLAD_COMPAT_CLANG21_StringLiteralParamsRange
-#define CLAD_COMPAT_CLANG21_getTrailingRequiresClause(V) V.ConstraintExpr
+#define CLAD_COMPAT_CLANG21_getTrailingRequiresClause(FD)                      \
+  (FD)->getTrailingRequiresClause()
+#define CLAD_COMPAT_CLANG21_getTrailingRequiresExpr(FD)                        \
+  (FD)->getTrailingRequiresClause().ConstraintExpr
 #define CLAD_COMPAT_CLANG21_UpdateTrailingRequiresClause(Trailing, V)          \
-  Trailing.ConstraintExpr = V
+  (Trailing).ConstraintExpr = (V)
 #endif
 
 // clang-20 clang::Sema::AA_Casting became scoped
