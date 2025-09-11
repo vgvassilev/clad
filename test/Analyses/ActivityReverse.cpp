@@ -70,14 +70,12 @@ double f2(double x){
 //CHECK-NEXT:     _d_a += 1;
 //CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:         b = _t0;
-//CHECK-NEXT:         double _r_d0 = _d_b;
+//CHECK-NEXT:         *_d_x += _d_b;
 //CHECK-NEXT:         _d_b = 0.;
-//CHECK-NEXT:         *_d_x += _r_d0;
 //CHECK-NEXT:     } else if (!_cond1) {
 //CHECK-NEXT:         g = _t1;
-//CHECK-NEXT:         double _r_d1 = _d_g;
+//CHECK-NEXT:         _d_a += _d_g;
 //CHECK-NEXT:         _d_g = 0.;
-//CHECK-NEXT:         _d_a += _r_d1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_x += _d_a * x;
@@ -126,33 +124,28 @@ double f3(double x){
 //CHECK-NEXT:         {
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 x1 = clad::pop(_t5);
-//CHECK-NEXT:                 double _r_d4 = _d_x1;
+//CHECK-NEXT:                 *_d_x += _d_x1;
 //CHECK-NEXT:                 _d_x1 = 0.;
-//CHECK-NEXT:                 *_d_x += _r_d4;
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 x2 = clad::pop(_t4);
-//CHECK-NEXT:                 double _r_d3 = _d_x2;
+//CHECK-NEXT:                 _d_x1 += _d_x2;
 //CHECK-NEXT:                 _d_x2 = 0.;
-//CHECK-NEXT:                 _d_x1 += _r_d3;
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 x3 = clad::pop(_t3);
-//CHECK-NEXT:                 double _r_d2 = _d_x3;
+//CHECK-NEXT:                 _d_x2 += _d_x3;
 //CHECK-NEXT:                 _d_x3 = 0.;
-//CHECK-NEXT:                 _d_x2 += _r_d2;
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 x4 = clad::pop(_t2);
-//CHECK-NEXT:                 double _r_d1 = _d_x4;
+//CHECK-NEXT:                 _d_x3 += _d_x4;
 //CHECK-NEXT:                 _d_x4 = 0.;
-//CHECK-NEXT:                 _d_x3 += _r_d1;
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 x5 = clad::pop(_t1);
-//CHECK-NEXT:                 double _r_d0 = _d_x5;
+//CHECK-NEXT:                 _d_x4 += _d_x5;
 //CHECK-NEXT:                 _d_x5 = 0.;
-//CHECK-NEXT:                 _d_x4 += _r_d0;
 //CHECK-NEXT:             }
 //CHECK-NEXT:         }
 //CHECK-NEXT:         _t0--;
@@ -232,17 +225,13 @@ double f7(double x){
 // CHECK-NEXT:     double &a = x;
 // CHECK-NEXT:     double *_d_b = &_d_a;
 // CHECK-NEXT:     double *b = &a;
-// CHECK-NEXT:     double _d_arr[3] = {0};
 // CHECK-NEXT:     double arr[3] = {1, 2, 3};
 // CHECK-NEXT:     double _d_c = 0.;
 // CHECK-NEXT:     double c = arr[0] * *b + arr[1] * a + arr[2] * x;
 // CHECK-NEXT:     _d_a += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d_arr[0] += _d_c * *b;
 // CHECK-NEXT:         *_d_b += arr[0] * _d_c;
-// CHECK-NEXT:         _d_arr[1] += _d_c * a;
 // CHECK-NEXT:         _d_a += arr[1] * _d_c;
-// CHECK-NEXT:         _d_arr[2] += _d_c * x;
 // CHECK-NEXT:         *_d_x += arr[2] * _d_c;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -287,21 +276,13 @@ double f9(double x, double const *obs)
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (loopIdx0 = 0; ; loopIdx0++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(loopIdx0 < 2))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (loopIdx0 = 0; loopIdx0 < 2; loopIdx0++) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         res += std::lgamma(obs[2 + loopIdx0] + 1) + x;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         loopIdx0--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             res = clad::pop(_t1);
@@ -473,6 +454,107 @@ double f13(double x, const double* obs){
 // CHECK-NEXT:    double g = f13_1(1, obs);
 // CHECK-NEXT:}
 
+double f14(double x){
+  double a, b;
+  double x1 = 0, x2 = 0, x3 = 0, x4 = 0;
+  int i = 10;
+  while(i){
+  a = b;
+  b = x2;
+    while(i>5){
+      x4 = 1;
+      x3 = a;
+      x2 = x1;
+      x1 = x;
+      i--;
+    }
+    i--;
+  }
+  return x1;
+}
+
+// CHECK-NEXT: void f14_grad(double x, double *_d_x) {
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t3 = {};
+// CHECK-NEXT:     clad::tape<double> _t4 = {};
+// CHECK-NEXT:     clad::tape<double> _t5 = {};
+// CHECK-NEXT:     clad::tape<double> _t6 = {};
+// CHECK-NEXT:     clad::tape<double> _t7 = {};
+// CHECK-NEXT:     double _d_a = 0., _d_b = 0.;
+// CHECK-NEXT:     double a, b;
+// CHECK-NEXT:     double _d_x1 = 0., _d_x2 = 0., _d_x3 = 0.;
+// CHECK-NEXT:     double x1 = 0, x2 = 0, x3 = 0, x4 = 0;
+// CHECK-NEXT:     int i = 10;
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+// CHECK-NEXT:     while (i)
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _t0++;
+// CHECK-NEXT:             clad::push(_t1, a);
+// CHECK-NEXT:             a = b;
+// CHECK-NEXT:             clad::push(_t2, b);
+// CHECK-NEXT:             b = x2;
+// CHECK-NEXT:             clad::push(_t3, {{0U|0UL}});
+// CHECK-NEXT:             while (i > 5)
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     clad::back(_t3)++;
+// CHECK-NEXT:                     clad::push(_t4, x4);
+// CHECK-NEXT:                     x4 = 1;
+// CHECK-NEXT:                     clad::push(_t5, x3);
+// CHECK-NEXT:                     x3 = a;
+// CHECK-NEXT:                     clad::push(_t6, x2);
+// CHECK-NEXT:                     x2 = x1;
+// CHECK-NEXT:                     clad::push(_t7, x1);
+// CHECK-NEXT:                     x1 = x;
+// CHECK-NEXT:                     i--;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             i--;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     _d_x1 += 1;
+// CHECK-NEXT:     while (_t0)
+// CHECK-NEXT:         {
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 i++;
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     while (clad::back(_t3))
+// CHECK-NEXT:                         {
+// CHECK-NEXT:                             {
+// CHECK-NEXT:                                 i++;
+// CHECK-NEXT:                                 {
+// CHECK-NEXT:                                     x1 = clad::pop(_t7);
+// CHECK-NEXT:                                     *_d_x += _d_x1;
+// CHECK-NEXT:                                     _d_x1 = 0.;
+// CHECK-NEXT:                                 }
+// CHECK-NEXT:                                 {
+// CHECK-NEXT:                                     x2 = clad::pop(_t6);
+// CHECK-NEXT:                                     _d_x1 += _d_x2;
+// CHECK-NEXT:                                     _d_x2 = 0.;
+// CHECK-NEXT:                                 }
+// CHECK-NEXT:                                 {
+// CHECK-NEXT:                                     x3 = clad::pop(_t5);
+// CHECK-NEXT:                                     _d_a += _d_x3;
+// CHECK-NEXT:                                     _d_x3 = 0.;
+// CHECK-NEXT:                                 }
+// CHECK-NEXT:                                 x4 = clad::pop(_t4);
+// CHECK-NEXT:                             }
+// CHECK-NEXT:                             clad::back(_t3)--;
+// CHECK-NEXT:                         }
+// CHECK-NEXT:                     clad::pop(_t3);
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     b = clad::pop(_t2);
+// CHECK-NEXT:                     _d_x2 += _d_b;
+// CHECK-NEXT:                     _d_b = 0.;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     a = clad::pop(_t1);
+// CHECK-NEXT:                     _d_b += _d_a;
+// CHECK-NEXT:                     _d_a = 0.;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             }
+// CHECK-NEXT:             _t0--;
+// CHECK-NEXT:         }
+// CHECK-NEXT: }
 
 #define TEST1(F, x) { \
   result[0] = 0; \
@@ -502,6 +584,7 @@ int main(){
     TEST1(f6, 3);// CHECK-EXEC: {0.00}
     TEST1(f7, 3);// CHECK-EXEC: {1.00}
     TEST1(f8, 3);// CHECK-EXEC: {1.00}
+                 
     auto grad9 = clad::gradient<clad::opts::enable_va>(f9, "x");
     grad9.execute(3, arr, &dx, darr);
     printf("{%.2f}\n", dx);// CHECK-EXEC: {2.00}
@@ -512,4 +595,5 @@ int main(){
     auto grad13 = clad::gradient<clad::opts::enable_va>(f13, "x");
     grad13.execute(3, arr, &dx, darr);
     printf("{%.2f}\n", dx); // CHECK-EXEC: {0.00}
+    TEST1(f14, 3);// CHECK-EXEC: {1.00}
 }

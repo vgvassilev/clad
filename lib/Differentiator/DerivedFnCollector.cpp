@@ -1,6 +1,10 @@
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "clang/AST/Decl.h"
+
+#include "llvm/Support/Casting.h"
+
 namespace clad {
 void DerivedFnCollector::Add(const DerivedFnInfo& DFI) {
   assert(!AlreadyExists(DFI) &&
@@ -44,6 +48,20 @@ DerivedFnInfo DerivedFnCollector::Find(const DiffRequest& request) const {
                                 });
   if (it == subCollection.end())
     return DerivedFnInfo();
+  if (request.RequestedDerivativeOrder > 1) {
+    // Lookup the next order derivative.
+    DiffRequest highOrderRequest = request;
+    highOrderRequest.Function = it->DerivedFn();
+    --highOrderRequest.RequestedDerivativeOrder;
+    assert(request.DVI.size() == 1 &&
+           "Only differentiation w.r.t. one parameter is supported in high "
+           "order derivatives");
+    const clang::ValueDecl*& decl = highOrderRequest.DVI[0].param;
+    unsigned idx =
+        llvm::cast<clang::ParmVarDecl>(decl)->getFunctionScopeIndex();
+    decl = highOrderRequest.Function->getParamDecl(idx);
+    return Find(highOrderRequest);
+  }
   return *it;
 }
 

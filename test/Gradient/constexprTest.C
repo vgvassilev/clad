@@ -1,6 +1,6 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oconstexprTest.out | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oconstexprTest.out | %filecheck %s
 // RUN: ./constexprTest.out | %filecheck_exec %s
-// RUN: %cladclang %s -I%S/../../include -oconstexprTest.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oconstexprTest.out
 // RUN: ./constexprTest.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

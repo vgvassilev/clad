@@ -6,6 +6,8 @@
 
 #include "clad/Differentiator/HessianModeVisitor.h"
 
+#include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
@@ -24,29 +26,12 @@
 
 #include <algorithm>
 
-#include "clad/Differentiator/Compatibility.h"
-
 using namespace clang;
 
 namespace clad {
 HessianModeVisitor::HessianModeVisitor(DerivativeBuilder& builder,
                                        const DiffRequest& request)
     : VisitorBase(builder, request) {}
-
-/// Converts the string str into a StringLiteral
-static const StringLiteral* CreateStringLiteral(ASTContext& C,
-                                                const std::string& str) {
-  QualType CharTyConst = C.CharTy.withConst();
-  QualType StrTy = clad_compat::getConstantArrayType(
-      C, CharTyConst, llvm::APInt(/*numBits=*/32, str.size() + 1),
-      /*SizeExpr=*/nullptr,
-      /*ASM=*/clad_compat::ArraySizeModifier_Normal,
-      /*IndexTypeQuals*/ 0);
-  const StringLiteral* SL = StringLiteral::Create(
-      C, str, /*Kind=*/clad_compat::StringLiteralKind_Ordinary,
-      /*Pascal=*/false, StrTy, noLoc);
-  return SL;
-}
 
   /// Derives the function w.r.t both forward and reverse mode and returns the
   /// FunctionDecl obtained from reverse mode differentiation
@@ -60,8 +45,9 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   IndependentArgRequest.Mode = DiffMode::forward;
   IndependentArgRequest.CallUpdateRequired = false;
   // FIXME: Find a way to do this without accessing plugin namespace functions
+  IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
   FunctionDecl* firstDerivative =
-      Builder.HandleNestedDiffRequest(IndependentArgRequest);
+      Builder.FindDerivedFunction(IndependentArgRequest);
 
   // Further derives function w.r.t to ReverseModeArgs
   DiffRequest ReverseModeRequest{};
@@ -87,8 +73,9 @@ static FunctionDecl* DeriveUsingForwardModeTwice(
   IndependentArgRequest.Mode = DiffMode::forward;
   IndependentArgRequest.CallUpdateRequired = false;
   // Derive the function twice in forward mode.
+  IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
   FunctionDecl* secondDerivative =
-      Builder.HandleNestedDiffRequest(IndependentArgRequest);
+      Builder.FindDerivedFunction(IndependentArgRequest);
   return secondDerivative;
 }
 
@@ -130,9 +117,6 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-  if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
-          hessianFuncName, DC, hessianFunctionType))
-    return DerivativeAndOverload{customDerivative, nullptr};
 
   // Ascertains the independent arguments and differentiates the function
   // in forward and reverse mode by calling ProcessDiffRequest twice each
@@ -190,7 +174,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
           auto independentArgString =
               PVD->getNameAsString() + "[" + std::to_string(i) + "]";
           auto ForwardModeIASL =
-              CreateStringLiteral(m_Context, independentArgString);
+              utils::CreateStringLiteral(m_Context, independentArgString);
           FunctionDecl* DFD = nullptr;
           if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
             DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,
@@ -208,7 +192,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
         // Derive the function w.r.t. to the current arg in forward mode and
         // then in reverse mode w.r.t to all requested args
         auto ForwardModeIASL =
-            CreateStringLiteral(m_Context, PVD->getNameAsString());
+            utils::CreateStringLiteral(m_Context, PVD->getNameAsString());
         FunctionDecl* DFD = nullptr;
         if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
           DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,

@@ -111,21 +111,13 @@
 //CHECK_FLOAT_SUM:    float _d_sum = 0.F;
 //CHECK_FLOAT_SUM:    float sum = 0.;
 //CHECK_FLOAT_SUM:    unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-//CHECK_FLOAT_SUM:    for (i = 0; ; i++) {
-//CHECK_FLOAT_SUM:        {
-//CHECK_FLOAT_SUM:            if (!(i < n))
-//CHECK_FLOAT_SUM:                break;
-//CHECK_FLOAT_SUM:        }
+//CHECK_FLOAT_SUM:    for (i = 0; i < n; i++) {
 //CHECK_FLOAT_SUM:        _t0++;
 //CHECK_FLOAT_SUM:        clad::push(_t1, sum);
 //CHECK_FLOAT_SUM:        sum = sum + x;
 //CHECK_FLOAT_SUM:    }
 //CHECK_FLOAT_SUM:    _d_sum += 1;
-//CHECK_FLOAT_SUM:    for (;; _t0--) {
-//CHECK_FLOAT_SUM:        {
-//CHECK_FLOAT_SUM:            if (!_t0)
-//CHECK_FLOAT_SUM:                break;
-//CHECK_FLOAT_SUM:        }
+//CHECK_FLOAT_SUM:    for (; _t0; _t0--) {
 //CHECK_FLOAT_SUM:        i--;
 //CHECK_FLOAT_SUM:        {
 //CHECK_FLOAT_SUM:            _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
@@ -162,10 +154,9 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        _final_error += _d_z * z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        z = _t0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_x += _d_z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_y += _d_z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        _d_z = 0.F;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_x += _r_d0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_y += _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    }
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += *_d_x * x;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += *_d_y * y;
@@ -193,10 +184,9 @@
 // CHECK_PRINT_MODEL_EXEC-NEXT:    {
 // CHECK_PRINT_MODEL_EXEC-NEXT:        _final_error += clad::getErrorVal(_d_z, z, "z");
 // CHECK_PRINT_MODEL_EXEC-NEXT:        z = _t0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
+// CHECK_PRINT_MODEL_EXEC-NEXT:        *_d_x += _d_z;
+// CHECK_PRINT_MODEL_EXEC-NEXT:        *_d_y += _d_z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        _d_z = 0.F;
-// CHECK_PRINT_MODEL_EXEC-NEXT:        *_d_x += _r_d0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:        *_d_y += _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    }
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _final_error += clad::getErrorVal(*_d_x, x, "x");
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _final_error += clad::getErrorVal(*_d_y, y, "y");

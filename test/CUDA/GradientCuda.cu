@@ -1,11 +1,11 @@
 // The Test checks whether a clad gradient can be successfully be generated on
 // the device having all the dependencies also as device functions.
 
-// RUN: %cladclang_cuda -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include -fsyntax-only \
+// RUN: %cladclang_cuda -I%S/../../include -fsyntax-only \
 // RUN:     --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath -Xclang -verify \
 // RUN:     %s 2>&1 | %filecheck %s
 //
-// RUN: %cladclang_cuda -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include --cuda-gpu-arch=%cudaarch \
+// RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch \
 // RUN:      --cuda-path=%cudapath %cudaldflags -oGradientCuda.out %s
 //
 // RUN: ./GradientCuda.out | %filecheck_exec %s
@@ -33,54 +33,43 @@ __device__ __host__ double gauss(const double* x, double* p, double sigma, int d
 //CHECK-NEXT:     int _d_dim = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _d_t = 0.;
 //CHECK-NEXT:     double t = 0;
 //CHECK-NEXT:     unsigned long _t0 = {{0U|0UL|0ULL}};
-//CHECK-NEXT:     for (i = 0; ; i++) {
-//CHECK-NEXT:         {
-//CHECK-NEXT:             if (!(i < dim))
-//CHECK-NEXT:                 break;
-//CHECK-NEXT:         }
+//CHECK-NEXT:     for (i = 0; i < dim; i++) {
 //CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         clad::push(_t1, t);
 //CHECK-NEXT:         t += (x[i] - p[i]) * (x[i] - p[i]);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     double _t2 = t;
-//CHECK-NEXT:     double _t3 = (2 * sigma * sigma);
-//CHECK-NEXT:     t = -t / _t3;
-//CHECK-NEXT:     double _t6 = std::pow(2 * 3.1415926535897931, -dim / 2.);
-//CHECK-NEXT:     double _t5 = std::pow(sigma, -0.5);
-//CHECK-NEXT:     double _t4 = std::exp(t);
+//CHECK-NEXT:     double _t1 = t;
+//CHECK-NEXT:     double _t2 = (2 * sigma * sigma);
+//CHECK-NEXT:     t = -t / _t2;
+//CHECK-NEXT:     double _t5 = std::pow(2 * 3.1415926535897931, -dim / 2.);
+//CHECK-NEXT:     double _t4 = std::pow(sigma, -0.5);
+//CHECK-NEXT:     double _t3 = std::exp(t);
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r1 = 0.;
 //CHECK-NEXT:         double _r2 = 0.;
-//CHECK-NEXT:         clad::custom_derivatives::std::pow_pullback(2 * 3.1415926535897931, -dim / 2., 1 * _t4 * _t5, &_r1, &_r2);
+//CHECK-NEXT:         clad::custom_derivatives::std::pow_pullback(2 * 3.1415926535897931, -dim / 2., 1 * _t3 * _t4, &_r1, &_r2);
 //CHECK-NEXT:         _d_dim += -_r2 / 2.;
 //CHECK-NEXT:         double _r3 = 0.;
 //CHECK-NEXT:         double _r4 = 0.;
-//CHECK-NEXT:         clad::custom_derivatives::std::pow_pullback(sigma, -0.5, _t6 * 1 * _t4, &_r3, &_r4);
+//CHECK-NEXT:         clad::custom_derivatives::std::pow_pullback(sigma, -0.5, _t5 * 1 * _t3, &_r3, &_r4);
 //CHECK-NEXT:         _d_sigma += _r3;
 //CHECK-NEXT:         double _r5 = 0.;
-//CHECK-NEXT:         _r5 += _t6 * _t5 * 1 * clad::custom_derivatives::std::exp_pushforward(t, 1.).pushforward;
+//CHECK-NEXT:         _r5 += _t5 * _t4 * 1 * clad::custom_derivatives::std::exp_pushforward(t, 1.).pushforward;
 //CHECK-NEXT:         _d_t += _r5;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
-//CHECK-NEXT:         t = _t2;
+//CHECK-NEXT:         t = _t1;
 //CHECK-NEXT:         double _r_d1 = _d_t;
 //CHECK-NEXT:         _d_t = 0.;
-//CHECK-NEXT:         _d_t += -_r_d1 / _t3;
-//CHECK-NEXT:         double _r0 = _r_d1 * -(-t / (_t3 * _t3));
+//CHECK-NEXT:         _d_t += -_r_d1 / _t2;
+//CHECK-NEXT:         double _r0 = _r_d1 * -(-t / (_t2 * _t2));
 //CHECK-NEXT:         _d_sigma += 2 * _r0 * sigma;
 //CHECK-NEXT:         _d_sigma += 2 * sigma * _r0;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     for (;; _t0--) {
-//CHECK-NEXT:         {
-//CHECK-NEXT:             if (!_t0)
-//CHECK-NEXT:                 break;
-//CHECK-NEXT:         }
+//CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
-//CHECK-NEXT:         t = clad::pop(_t1);
 //CHECK-NEXT:         double _r_d0 = _d_t;
 //CHECK-NEXT:         _d_p[i] += -_r_d0 * (x[i] - p[i]);
 //CHECK-NEXT:         _d_p[i] += -(x[i] - p[i]) * _r_d0;

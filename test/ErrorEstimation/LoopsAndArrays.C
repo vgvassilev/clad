@@ -1,4 +1,4 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include -oLoopsAndArrays.out %s 2>&1 | %filecheck %s
+// RUN: %cladclang -I%S/../../include -oLoopsAndArrays.out %s 2>&1 | %filecheck %s
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -21,21 +21,13 @@ float func(float* p, int n) {
 //CHECK-NEXT:     float _d_sum = 0.F;
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-//CHECK-NEXT:     for (i = 0; ; i++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < n))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += p[i];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});
@@ -71,30 +63,21 @@ float func2(float x) {
 //CHECK-NEXT:     float _d_z = 0.F;
 //CHECK-NEXT:     float z;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-//CHECK-NEXT:     for (i = 0; ; i++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < 9))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (i = 0; i < 9; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, m) , m = x * x;
 //CHECK-NEXT:         clad::push(_t2, z);
 //CHECK-NEXT:         z = m + m;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_z += 1;
-//CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_z * z * {{.+}});
 //CHECK-NEXT:             z = clad::pop(_t2);
-//CHECK-NEXT:             float _r_d0 = _d_z;
+//CHECK-NEXT:             _d_m += _d_z;
+//CHECK-NEXT:             _d_m += _d_z;
 //CHECK-NEXT:             _d_z = 0.F;
-//CHECK-NEXT:             _d_m += _r_d0;
-//CHECK-NEXT:             _d_m += _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_m * m * {{.+}});
@@ -172,11 +155,7 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     float _d_sum = 0.F;
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-//CHECK-NEXT:     for (i = 0; ; i++) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < 10))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (i = 0; i < 10; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, x[i]);
 //CHECK-NEXT:         x[i] += y[i];
@@ -184,11 +163,7 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:         sum += x[i];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
+//CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});
@@ -306,10 +281,59 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:     _final_error += std::abs(1. * _ret_value0 * {{.+}});
 //CHECK-NEXT: }
 
+double fun(double x) {
+    return x*x;
+}
+
+//CHECK: void fun_pullback(double x, double _d_y, double *_d_x, double &_final_error) {
+//CHECK-NEXT:     double _ret_value0 = 0.;
+//CHECK-NEXT:     _ret_value0 = x * x;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += _d_y * x;
+//CHECK-NEXT:         *_d_x += x * _d_y;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
+//CHECK-NEXT:     _final_error += std::abs(1. * _ret_value0 * {{.+}});
+//CHECK-NEXT: }
+
+double func6(double x) {
+  double sum = 0;
+  for (int i = 1; i < 10; i++)
+    sum += fun(x);
+  return sum;
+}
+
+//CHECK: void func6_grad(double x, double *_d_x, double &_final_error) {
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
+//CHECK-NEXT:     clad::tape<double> _t1 = {};
+//CHECK-NEXT:     double _d_sum = 0.;
+//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     for (i = 1; i < 10; i++) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         clad::push(_t1, sum);
+//CHECK-NEXT:         sum += fun(x);
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_sum += 1;
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         i--;
+//CHECK-NEXT:         sum = clad::pop(_t1);
+//CHECK-NEXT:         double _r0 = 0.;
+//CHECK-NEXT:         double _t2 = 0.;
+//CHECK-NEXT:         fun_pullback(x, _d_sum, &_r0, _t2);
+//CHECK-NEXT:         *_d_x += _r0;
+//CHECK-NEXT:         _final_error += _t2;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _final_error += std::abs(_d_sum * sum * {{.+}});
+//CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
+//CHECK-NEXT: }
+
 int main() {
   clad::estimate_error(func);
   clad::estimate_error(func2);
   clad::estimate_error(func3);
   clad::estimate_error(func4);
   clad::estimate_error(func5);
+  clad::estimate_error(func6);
 }

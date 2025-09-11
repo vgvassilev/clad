@@ -215,10 +215,6 @@ namespace clad {
     /// to avoid recomputiation.
     bool UsefulToStoreGlobal(clang::Expr* E);
 
-    /// For an expr E, decides if we should recompute it or store it.
-    /// This is the central point for checkpointing.
-    bool ShouldRecompute(const clang::Expr* E);
-
     /// Builds a variable declaration and stores it in the function
     /// global scope.
     ///
@@ -251,6 +247,11 @@ namespace clad {
     virtual StmtDiff StoreAndRestore(clang::Expr* E,
                                      llvm::StringRef prefix = "_t",
                                      bool moveToTape = false);
+
+    /// Build element-wise move between 2 arrays, e.g.
+    /// `std::move(std::begin(from), std::end(from), std::begin(to));`
+    clang::Expr* BuildArrayAssignment(clang::Expr* output, clang::Expr* input,
+                                      direction d);
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global

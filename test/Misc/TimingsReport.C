@@ -22,7 +22,7 @@
 // CHECK_STATS-NEXT: <double global_fn(double x)>[name=global_fn, order=1, mode=reverse, args='']: #8 (source), (unprocessed)
 // CHECK_STATS-NEXT: <constexpr double constexpr_fn(double x, double y)>[name=constexpr_fn, order=1, mode=reverse, args='']: #9 (source), (unprocessed)
 
-// CHECK_STATS_TBR: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"', tbr]: #1 (source), (unprocessed)
+// CHECK_STATS_TBR: <double test2(double a, double b)>[name=test2, order=1, mode=reverse, args='', tbr]: #3 (source), (unprocessed)
 
 #ifdef GLOBAL
 double g = 3.14; // expected-warning {{The gradient utilizes a global variable 'g'}}

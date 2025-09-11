@@ -8,15 +8,20 @@
 #include "clad/Differentiator/Timers.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclBase.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <iterator>
+#include <map>
+#include <memory>
 #include <set>
 
 namespace clang {
@@ -31,7 +36,10 @@ class Type;
 } // namespace clang
 
 namespace clad {
-
+using OwnedAnalysisContexts =
+    llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
+using ParamSet = std::set<const clang::ParmVarDecl*>;
+using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
 /// A struct containing information about request to differentiate a function.
 struct DiffRequest {
 private:
@@ -39,12 +47,15 @@ private:
   /// UsefulToStoreGlobal whether a variable with a given SourceLocation has to
   /// be stored before being changed or not.
   mutable struct TbrRunInfo {
-    std::set<clang::SourceLocation> ToBeRecorded;
+    std::set<const clang::Stmt*> ToBeRecorded;
+    ParamInfo m_ModifiedParams;
+    ParamInfo m_UsedParams;
     bool HasAnalysisRun = false;
   } m_TbrRunInfo;
 
   mutable struct ActivityRunInfo {
     std::set<const clang::VarDecl*> VariedDecls;
+    std::set<const clang::Stmt*> VariedS;
     bool HasAnalysisRun = false;
   } m_ActivityRunInfo;
 
@@ -123,6 +134,8 @@ public:
   /// This will be particularly useful for pushforward and pullback functions.
   bool DeclarationOnly = false;
 
+  clang::AnalysisDeclContext* m_AnalysisDC = nullptr;
+
   /// Recomputes `DiffInputVarsInfo` using the current values of data members.
   ///
   /// Differentiation parameters info is computed by parsing the argument
@@ -146,6 +159,8 @@ public:
     // Note that CallContext is always different and we should ignore it.
     // CustomDerivative is an Expr* and is not always equal even if
     // the set of overloads is the same.
+    // Including AnalysisDC would complicate constructing requests to find the
+    // existing once.
     return Function == other.Function &&
            BaseFunctionName == other.BaseFunctionName &&
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
@@ -171,25 +186,46 @@ public:
   void print(llvm::raw_ostream& Out) const;
   LLVM_DUMP_METHOD void dump() const { print(llvm::errs()); }
 
-  bool shouldBeRecorded(clang::Expr* E) const;
+  bool shouldBeRecorded(const clang::Stmt* S) const;
+  bool shouldHaveAdjoint(const clang::Stmt* S) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
   bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
   bool isVaried(const clang::Expr* E) const;
   std::string ComputeDerivativeName() const;
   bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
 
+  std::set<const clang::Stmt*>& getToBeRecorded() const {
+    m_TbrRunInfo.HasAnalysisRun = true;
+    return m_TbrRunInfo.ToBeRecorded;
+  }
+  ParamInfo& getModifiedParams() const { return m_TbrRunInfo.m_ModifiedParams; }
+  void addFunctionModifiedParams(const clang::FunctionDecl* FD,
+                                 const ParamSet& params) {
+    m_TbrRunInfo.m_ModifiedParams[FD] = params;
+  }
+  ParamInfo& getUsedParams() const { return m_TbrRunInfo.m_UsedParams; }
+  void addFunctionUsedParams(const clang::FunctionDecl* FD,
+                             const ParamSet& params) {
+    m_TbrRunInfo.m_UsedParams[FD] = params;
+  }
   void addVariedDecl(const clang::VarDecl* init) {
     m_ActivityRunInfo.VariedDecls.insert(init);
   }
   std::set<const clang::VarDecl*>& getVariedDecls() const {
     return m_ActivityRunInfo.VariedDecls;
   }
+
+  std::set<const clang::Stmt*>& getVariedStmt() const {
+    return m_ActivityRunInfo.VariedS;
+  }
+
   void addUsefulDecl(const clang::VarDecl* init) {
     m_UsefulRunInfo.UsefulDecls.insert(init);
   }
   std::set<const clang::VarDecl*>& getUsefulDecls() const {
     return m_UsefulRunInfo.UsefulDecls;
   }
+  bool HasTbrAnalysisRun() const { return m_TbrRunInfo.HasAnalysisRun; }
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;
@@ -210,13 +246,16 @@ public:
     /// Graph to store the dependencies between different requests.
     ///
     clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
-
+    /// Map that contains all AnalysisDeclContext for all declrations.
+    /// Essentially needed for prolonging the lifetime of
+    /// unique_ptr<clang::AnalysisDeclContext>.
+    OwnedAnalysisContexts& m_AllAnalysisDC;
     /// If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///
     const DiffRequest* m_TopMostReq = nullptr;
 
-    const DiffRequest* m_ParentReq = nullptr;
+    DiffRequest* m_ParentReq = nullptr;
     clang::Sema& m_Sema;
 
     const RequestOptions& m_Options;
@@ -228,10 +267,11 @@ public:
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
-                  RequestOptions& opts);
+                  RequestOptions& opts, OwnedAnalysisContexts& AllAnalysisDC);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
+    bool shouldVisitImplicitCode() const { return true; }
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
       llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
       if (m_Traversed.count(FD))

@@ -4,11 +4,17 @@ codecov:
 coverage:
   precision: 2
   round: down
-  range: "70...100"
+  range: "85...100"
 
   status:
-    project: yes
-    patch: yes
+    project:
+      default:
+        target: auto # will use the coverage from the base commit
+        threshold: 2 # Allow to drop by 2%, and posting a success status.
+    patch:
+      default:
+        target: 98 # Force 98% coverage with 2% threshold.
+        threshold: 2 # Allow to drop by 2%, and posting a success status.
     changes: no
 
 parsers:
@@ -27,3 +33,6 @@ comment:
 ignore:
   - test/*
   - test/**/*
+
+github_checks:
+  annotations: true # Deprecated but very useful

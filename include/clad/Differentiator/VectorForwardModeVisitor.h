@@ -45,7 +45,8 @@ public:
   /// what parameters are requested to be differentiated w.r.t.
   /// Inside it, we will call the original vector mode function with the
   /// original parameters and the derived parameters.
-  clang::FunctionDecl* CreateVectorModeOverload();
+  clang::FunctionDecl*
+  CreateVectorModeOverload(clang::FunctionDecl* derivative = nullptr);
 
   /// Builds and returns the sequence of derived function parameters for
   //  vectorized forward mode.

@@ -13,6 +13,7 @@ namespace clang {
 class Stmt;
 class Expr;
 class Decl;
+class DeclRefExpr;
 class VarDecl;
 class ParmVarDecl;
 class FunctionDecl;
@@ -27,9 +28,6 @@ class ErrorEstimationHandler : public ExternalRMVSource {
   // multiple header files. 
   // `Stmts` is originally defined in `VisitorBase`.
   using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
-  /// Reference to the final error parameter in the augumented target
-  /// function.
-  clang::Expr* m_FinalError;
   /// Reference to the return error expression.
   clang::Expr* m_RetErrorExpr;
   /// An instance of the custom error estimation model to be used.
@@ -53,8 +51,7 @@ class ErrorEstimationHandler : public ExternalRMVSource {
 public:
   using direction = rmv::direction;
   ErrorEstimationHandler()
-      : m_FinalError(nullptr), m_RetErrorExpr(nullptr), m_EstModel(nullptr),
-        m_IdxExpr(nullptr) {}
+      : m_RetErrorExpr(nullptr), m_EstModel(nullptr), m_IdxExpr(nullptr) {}
   ~ErrorEstimationHandler() override = default;
 
   /// Function to set the error estimation model currently in use.
@@ -63,8 +60,8 @@ public:
   /// an in-built one (TaylorApprox) or one provided by the user.
   void SetErrorEstimationModel(FPErrorEstimationModel* estModel);
 
-  /// \param[in] finErrExpr The final error expression.
-  void SetFinalErrorExpr(clang::Expr* finErrExpr) { m_FinalError = finErrExpr; }
+  /// Builds a reference to the final error parameter of the function.
+  clang::DeclRefExpr* BuildFinalErrorExpr();
 
   /// Function to build the error statement corresponding
   /// to the function's return statement.
@@ -174,7 +171,6 @@ public:
       llvm::SmallVectorImpl<clang::QualType>& paramTypes) override;
   void ActAfterCreatingDerivedFnParams(
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) override;
-  void ActBeforeCreatingDerivedFnBodyScope() override;
   void ActOnEndOfDerivedFnBody() override;
   void ActBeforeDifferentiatingStmtInVisitCompoundStmt() override;
   void ActAfterProcessingStmtInVisitCompoundStmt() override;

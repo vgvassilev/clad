@@ -385,6 +385,10 @@ struct WidgetPointer {
   }
 };
 
+struct Virtual {
+  virtual double operator()(double x, double y) { return x * x + y * y; }
+};
+
 #define INIT(E, ARG)\
 auto d_##E = clad::differentiate(&E, ARG);\
 auto d_##E##Ref = clad::differentiate(E, ARG);
@@ -445,6 +449,7 @@ int main() {
   WidgetConstVolatile W_ConstVolatile(3, 5);
   WidgetArr W_Arr_3(3, 5), W_Arr_5(3, 5);
   WidgetPointer W_Pointer_3(3, 5), W_Pointer_5(3, 5);
+  Virtual V;
 
   INIT(E, "i");
   INIT(E_Again, "i");
@@ -462,8 +467,10 @@ int main() {
   INIT(lambda, "i");
   INIT(lambdaWithCapture, "i");
   INIT(lambdaNNS, "i");
+  INIT(V, "x");
 
   TEST(E);                        // CHECK-EXEC: 27.00 27.00
+  TEST(V);                        // CHECK-EXEC: 14.00 14.00
   TEST(E_Again);                  // CHECK-EXEC: 27.00 27.00
   TEST(E_Const);                  // CHECK-EXEC: 27.00 27.00
   TEST(E_Volatile);               // CHECK-EXEC: 27.00 27.00

@@ -1,6 +1,6 @@
-// RUN: %cladclang -std=c++14 -Xclang -verify -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oValidCodeGen.out 2>&1 | %filecheck %s
+// RUN: %cladclang -std=c++14 -Xclang -verify %s -I%S/../../include -oValidCodeGen.out 2>&1 | %filecheck %s
 // RUN: ./ValidCodeGen.out | %filecheck_exec %s
-// RUN: %cladclang -std=c++14 -Xclang -verify %s -I%S/../../include -oValidCodeGenWithTBR.out
+// RUN: %cladclang -std=c++14 -Xclang -verify -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oValidCodeGenWithTBR.out
 // RUN: ./ValidCodeGenWithTBR.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -68,13 +68,11 @@ int main() {
 //CHECK:     void fn2_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:         TN::Test2<double> _d_t = {};
 //CHECK-NEXT:         TN::Test2<double> t;
-//CHECK-NEXT:         TN::Test2<double> _t0 = t;
 //CHECK-NEXT:         double _d_q = 0.;
 //CHECK-NEXT:         double q = t[x];
 //CHECK-NEXT:         _d_q += 1;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             double _r0 = 0.;
-//CHECK-NEXT:             t = _t0;
 //CHECK-NEXT:             clad::custom_derivatives::class_functions::operator_subscript_pullback(&t, x, _d_q, &_d_t, &_r0);
 //CHECK-NEXT:             *_d_x += _r0;
 //CHECK-NEXT:         }

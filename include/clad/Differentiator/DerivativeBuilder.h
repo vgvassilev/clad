@@ -156,15 +156,6 @@ namespace clad {
         clang::CXXScopeSpec& SS, bool forCustomDerv = true,
         bool namespaceShouldExist = true);
 
-    /// Looks up if the user has defined a custom derivative for the given
-    /// derivative function.
-    /// \param[in] D
-    /// \returns The custom derivative function if found, nullptr otherwise.
-    clang::FunctionDecl*
-    LookupCustomDerivativeDecl(const std::string& Name,
-                               const clang::DeclContext* originalFnDC,
-                               clang::QualType functionType);
-
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
                       DerivedFnCollector& DFC,
