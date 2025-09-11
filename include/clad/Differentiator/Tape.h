@@ -143,14 +143,10 @@ public:
       // Allocate new slab if required
       if (m_size == m_capacity) {
         Slab* new_slab = new Slab();
-        if (!m_head) {
+        if (!m_head)
           m_head = new_slab;
-        } else {
-          Slab* last = m_head;
-          while (last->next)
-            last = last->next;
-          last->next = new_slab;
-        }
+        else
+          m_tail->next = new_slab;
         m_tail = new_slab;
         m_capacity += SLAB_SIZE;
       } else if ((m_size - SBO_SIZE) % SLAB_SIZE == 0) {
