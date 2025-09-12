@@ -26,6 +26,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
+#include <deque>
 #include <map>
 #include <set>
 #include <string>
@@ -147,7 +148,7 @@ struct DifferentiationOptions {
     };
     /// The calls to the main action which clad delayed and will dispatch at
     /// then end of the translation unit.
-    std::vector<DelayedCallInfo> m_DelayedCalls;
+    std::deque<DelayedCallInfo> m_DelayedCalls;
     /// The default clang consumers which are called after clad is done.
     std::unique_ptr<clang::MultiplexConsumer> m_Multiplexer;
 
