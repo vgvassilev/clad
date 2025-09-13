@@ -136,15 +136,20 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     } else {
       assert (isa<FunctionDecl>(FD) && "Unexpected!");
       enclosingNS = VB.RebuildEnclosingNamespaces(DC);
+
+      auto TrailingRequiresClause =
+          CLAD_COMPAT_CLANG21_getTrailingRequiresClause(FD);
+      if (TrailingRequiresClause)
+        CLAD_COMPAT_CLANG21_UpdateTrailingRequiresClause(
+            TrailingRequiresClause,
+            VB.Clone(CLAD_COMPAT_CLANG21_getTrailingRequiresExpr(FD)));
+
       returnedFD = FunctionDecl::Create(
           m_Context, m_Sema.CurContext, noLoc, name, functionType, TSI,
           FD->getCanonicalDecl()->getStorageClass()
               CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
           FD->isInlineSpecified(), FD->hasWrittenPrototype(),
-          FD->getConstexprKind(),
-          FD->getTrailingRequiresClause()
-              ? VB.Clone(FD->getTrailingRequiresClause())
-              : nullptr);
+          FD->getConstexprKind(), TrailingRequiresClause);
 
       returnedFD->setAccess(FD->getAccess());
     }
