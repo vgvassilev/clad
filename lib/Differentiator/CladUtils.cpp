@@ -955,15 +955,12 @@ namespace clad {
       return false;
     }
 
-    bool hasMemoryTypeParams(const FunctionDecl* FD) {
+    bool shouldUseRestoreTracker(const FunctionDecl* FD) {
       // FIXME: We return false to disable the system for methods because
       // reverse_forw will currently break some of them. We need to improve
       // reverse_forw to support this.
       if (isa<CXXMethodDecl>(FD) || FD->isOverloadedOperator())
         return false;
-      // if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
-      //   if (MD->isInstance() && !MD->isConst())
-      //     return true;
       // FIXME: clad::restore_tracker is not thread-safe.
       // We shoudn't disable reverse_forw for CUDA
       if (FD->hasAttr<clang::CUDAGlobalAttr>() ||
@@ -984,6 +981,16 @@ namespace clad {
         if (isMemoryType(paramTy))
           return true;
       }
+      return false;
+    }
+
+    bool hasMemoryTypeParams(const FunctionDecl* FD) {
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
+        if (MD->isInstance() && !MD->isConst())
+          return true;
+      for (const ParmVarDecl* PVD : FD->parameters())
+        if (isMemoryType(PVD->getType()))
+          return true;
       return false;
     }
 
@@ -1234,7 +1241,7 @@ namespace clad {
       }
 
       if (mode == DiffMode::reverse_mode_forward_pass &&
-          hasMemoryTypeParams(FD) && !forCustomDerv) {
+          shouldUseRestoreTracker(FD) && !forCustomDerv) {
         QualType trackerTy = GetRestoreTrackerType(S);
         trackerTy = C.getLValueReferenceType(trackerTy);
         FnTypes.push_back(trackerTy);

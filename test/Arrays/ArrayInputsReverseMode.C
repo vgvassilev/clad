@@ -411,13 +411,11 @@ double func9(double i, double j) {
 //CHECK: void func9_grad(double i, double j, double *_d_i, double *_d_j) {
 //CHECK-NEXT:     int _d_idx = 0;
 //CHECK-NEXT:     int idx = 0;
-//CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _d_arr[5] = {0};
 //CHECK-NEXT:     double arr[5] = {};
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (idx = 0; idx < 5; ++idx) {
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, arr[idx]);
 // CHECK-NEXT:         modify(arr[idx], i);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -430,7 +428,6 @@ double func9(double i, double j) {
 // CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         --idx;
 //CHECK-NEXT:         {
-//CHECK-NEXT:             arr[idx] = clad::pop(_t1);
 //CHECK-NEXT:             double _r0 = 0.;
 //CHECK-NEXT:             modify_pullback(arr[idx], i, &_d_arr[idx], &_r0);
 //CHECK-NEXT:             *_d_i += _r0;
