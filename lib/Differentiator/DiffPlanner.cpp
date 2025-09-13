@@ -1278,35 +1278,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
 
-    DiffRequest forwPassRequest;
-    bool scheduleForwPass = false;
-    QualType returnType = request->getReturnType();
-    bool isMemoryTypeReturn = utils::isMemoryType(returnType);
-    if (request.Mode == DiffMode::pullback) {
-      forwPassRequest = request;
-      forwPassRequest.DVI.clear();
-      forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
-      forwPassRequest.EnableTBRAnalysis = false;
-      forwPassRequest.EnableVariedAnalysis = false;
-      forwPassRequest.EnableUsefulAnalysis = false;
-      if (LookupCustomDerivativeDecl(forwPassRequest) || isMemoryTypeReturn ||
-          utils::hasMemoryTypeParams(request.Function))
-        scheduleForwPass = true;
-    }
-    // FIXME: We have to schedule reverse_forw for the same set of functions as
-    // the ones that require TBR passes. Merge this logic with needsForwPass
-    // later.
+    // Functions with side-effects require TBR.
     bool isNonConstMethod = false;
     if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
       isNonConstMethod = MD && MD->isInstance() && !MD->isConst();
     else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(E))
       isNonConstMethod =
           utils::isNonConstReferenceType(OCE->getArg(0)->getType());
-    // Functions with side-effects require TBR.
-    bool requestTBR = request.EnableTBRAnalysis &&
-                      (scheduleForwPass || isNonConstMethod) &&
-                      request->isDefined() && E->getDirectCallee();
-
+    bool requestTBR =
+        request.EnableTBRAnalysis &&
+        (request.Mode == DiffMode::pullback || isNonConstMethod) &&
+        utils::hasMemoryTypeParams(request.Function) && request->isDefined() &&
+        E->getDirectCallee();
+    bool shouldUseRestoreTracker =
+        utils::shouldUseRestoreTracker(request.Function);
     if (!LookupCustomDerivativeDecl(request) || requestTBR) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
@@ -1340,8 +1325,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         TBRAnalyzer analyzer(request.m_AnalysisDC, request.getToBeRecorded(),
                              &modifiedParams, &usedParams);
         analyzer.Analyze(request);
-        if (modifiedParams[FD].empty() && !isMemoryTypeReturn)
-          scheduleForwPass = false;
+        if (modifiedParams[FD].empty())
+          shouldUseRestoreTracker = false;
         Saved.get()->addFunctionModifiedParams(FD, modifiedParams[FD]);
         Saved.get()->addFunctionUsedParams(FD, usedParams[FD]);
       }
@@ -1378,8 +1363,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
     }
 
-    if (scheduleForwPass)
-      m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+    if (request.Mode == DiffMode::pullback) {
+      DiffRequest forwPassRequest;
+      forwPassRequest = request;
+      forwPassRequest.DVI.clear();
+      forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
+      forwPassRequest.EnableTBRAnalysis = false;
+      forwPassRequest.EnableVariedAnalysis = false;
+      forwPassRequest.EnableUsefulAnalysis = false;
+      QualType returnType = request->getReturnType();
+      if (LookupCustomDerivativeDecl(forwPassRequest) ||
+          utils::isMemoryType(returnType) || shouldUseRestoreTracker)
+        m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+    }
+
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     if (m_IsTraversingTopLevelDecl) {
