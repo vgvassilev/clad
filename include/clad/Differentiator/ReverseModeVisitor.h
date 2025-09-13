@@ -78,6 +78,8 @@ namespace clad {
     /// differentiation. One additional time.
     clang::Expr* m_CurrentBreakFlagExpr;
 
+    clang::Expr* m_RestoreTracker = nullptr;
+
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
     clang::Expr* m_Pullback = nullptr;
@@ -287,9 +289,9 @@ namespace clad {
     /// expression only later, after the expression is visited and rebuilt.
     /// This is what DelayedGlobalStoreAndRef does. E is expected to be the
     /// original (uncloned) expression.
-    DelayedStoreResult DelayedGlobalStoreAndRef(clang::Expr* E,
-                                                llvm::StringRef prefix = "_t",
-                                                bool forceStore = false);
+    virtual DelayedStoreResult
+    DelayedGlobalStoreAndRef(clang::Expr* E, llvm::StringRef prefix = "_t",
+                             bool forceStore = false);
 
     struct CladTapeResult {
       ReverseModeVisitor& V;

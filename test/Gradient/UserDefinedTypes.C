@@ -104,7 +104,6 @@ double fn2(Tangent t, double i) {
 }
 
 // CHECK: void fn2_grad(Tangent t, double i, Tangent *_d_t, double *_d_i) {
-// CHECK-NEXT:     Tangent _t0 = t;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = sum(t);
 // CHECK-NEXT:     res += sum(t.data) + i + 2 * t.data[0];
@@ -115,10 +114,7 @@ double fn2(Tangent t, double i) {
 // CHECK-NEXT:         *_d_i += _r_d0;
 // CHECK-NEXT:         (*_d_t).data[0] += 2 * _r_d0;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         t = _t0;
-// CHECK-NEXT:         sum_pullback(t, _d_res, &(*_d_t));
-// CHECK-NEXT:     }
+// CHECK-NEXT:     sum_pullback(t, _d_res, &(*_d_t));
 // CHECK-NEXT: }
 
 double fn3(double i, double j) {
@@ -134,11 +130,7 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     clad::zero_init(_d_t);
 // CHECK-NEXT:     t.data[0] = 2 * i;
 // CHECK-NEXT:     t.data[1] = 5 * i + 3 * j;
-// CHECK-NEXT:     Tangent _t0 = t;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         t = _t0;
-// CHECK-NEXT:         sum_pullback(t, 1, &_d_t);
-// CHECK-NEXT:     }
+// CHECK-NEXT:     sum_pullback(t, 1, &_d_t);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d1 = _d_t.data[1];
 // CHECK-NEXT:         _d_t.data[1] = 0.;
@@ -311,11 +303,7 @@ double fn8(Tangent t, dcomplex c) {
 
 // CHECK: void fn8_grad(Tangent t, dcomplex c, Tangent *_d_t, dcomplex *_d_c) {
 // CHECK-NEXT:     t.updateTo(c.real());
-// CHECK-NEXT:     Tangent _t0 = t;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         t = _t0;
-// CHECK-NEXT:         sum_pullback(t, 1, &(*_d_t));
-// CHECK-NEXT:     }
+// CHECK-NEXT:     sum_pullback(t, 1, &(*_d_t));
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         t.updateTo_pullback(c.real(), &(*_d_t), &_r0);
@@ -343,12 +331,10 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         res += c.real() + 2 * clad::push(_t1, c.imag());
 // CHECK-NEXT:     }
-// CHECK-NEXT:     Tangent _t2 = t;
 // CHECK-NEXT:     res += sum(t);
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d1 = _d_res;
-// CHECK-NEXT:         t = _t2;
 // CHECK-NEXT:         sum_pullback(t, _r_d1, &(*_d_t));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (; _t0; _t0--) {

@@ -459,7 +459,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           diffParams.push_back(VarInfo.param);
         QualType DerivativeType =
             utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
-                                     diffParams, /*moveBaseToParams=*/true);
+                                     diffParams, /*forCustomDerv=*/true);
         // Generate dummy inits
         llvm::SmallVector<Expr*, 4> Inits;
         for (QualType parTy :
