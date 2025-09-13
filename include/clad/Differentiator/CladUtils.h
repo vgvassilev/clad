@@ -408,6 +408,8 @@ namespace clad {
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
+    bool shouldUseRestoreTracker(const clang::FunctionDecl* FD);
+
     bool IsDifferentiableType(clang::QualType T);
 
     /// Returns true if T is a Tensor-like type. This type must be

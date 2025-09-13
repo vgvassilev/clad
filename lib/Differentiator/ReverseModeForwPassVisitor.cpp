@@ -144,7 +144,7 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       m_Variables[*it] = BuildDeclRef(dPVD), m_DiffReq->getLocation();
     }
   }
-  if (utils::hasMemoryTypeParams(m_DiffReq.Function)) {
+  if (utils::shouldUseRestoreTracker(m_DiffReq.Function)) {
     QualType trackerTy = utils::GetRestoreTrackerType(m_Sema);
     trackerTy = m_Sema.getASTContext().getLValueReferenceType(trackerTy);
     ParmVarDecl* trackerPVD = utils::BuildParmVarDecl(
