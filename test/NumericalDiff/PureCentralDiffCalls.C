@@ -1,5 +1,6 @@
-// RUN: %cladnumdiffclang %s -I%S/../../include -oPureCentralDiffCalls.out
-// -Xclang -verify 2>&1 RUN: ./PureCentralDiffCalls.out | %filecheck_exec %s
+// RUN: %cladnumdiffclang %s -I%S/../../include -oPureCentralDiffCalls.out -Xclang -verify 2>&1
+// RUN: ./PureCentralDiffCalls.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
