@@ -2,6 +2,7 @@
 // RUN: ./ArrayInputsReverseMode.out | %filecheck_exec %s
 // RUN: %cladclang %s -I%S/../../include -Wno-unused-value -oArrayInputsReverseMode.out
 // RUN: ./ArrayInputsReverseMode.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 

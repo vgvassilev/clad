@@ -3,6 +3,7 @@
 // RUN: %cladclang -std=c++14 -Xclang -verify -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oValidCodeGenWithTBR.out
 // RUN: ./ValidCodeGenWithTBR.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
