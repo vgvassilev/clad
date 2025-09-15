@@ -1173,23 +1173,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       // Request the derivative
       pushforwardFD = FindDerivedFunction(pushforwardFnRequest);
     if (pushforwardFD) {
-      auto* pushforwardMD = dyn_cast<CXXMethodDecl>(pushforwardFD);
-      if (pushforwardMD && pushforwardMD->isInstance()) {
-        callDiff =
-            BuildCallExprToMemFn(baseDiff.getExpr(), pushforwardFD->getName(),
-                                 pushforwardFnArgs, CE->getBeginLoc());
-      } else {
-        if (Expr* baseE = baseDiff.getExpr()) {
-          baseE = BuildOp(UO_AddrOf, baseE);
-          pushforwardFnArgs.insert(pushforwardFnArgs.begin(), baseE);
-        }
-        callDiff =
-            m_Sema
-                .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pushforwardFD),
-                               validLoc, pushforwardFnArgs, validLoc,
-                               CUDAExecConfig)
-                .get();
-      }
+      if (Expr* baseE = baseDiff.getExpr())
+        pushforwardFnArgs.insert(pushforwardFnArgs.begin(), baseE);
+      callDiff = BuildCallExprToFunction(pushforwardFD, pushforwardFnArgs,
+                                         CUDAExecConfig);
     }
   }
 

@@ -2060,22 +2060,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       if (pullbackFD) {
         if (!utils::hasEmptyBody(pullbackFD)) {
-          auto* pullbackMD = dyn_cast<CXXMethodDecl>(pullbackFD);
-          Expr* baseE = baseDiff.getExpr();
-          if (pullbackMD && pullbackMD->isInstance()) {
-            OverloadedDerivedFn = BuildCallExprToMemFn(
-                baseE, pullbackFD->getName(), pullbackCallArgs, Loc);
-          } else {
-            if (baseE) {
-              baseE = BuildOp(UO_AddrOf, baseE);
-              pullbackCallArgs.insert(pullbackCallArgs.begin(), baseE);
-            }
-            OverloadedDerivedFn =
-                m_Sema
-                    .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),
-                                   Loc, pullbackCallArgs, Loc, CUDAExecConfig)
-                    .get();
-          }
+          if (Expr* baseE = baseDiff.getExpr())
+            pullbackCallArgs.insert(pullbackCallArgs.begin(), baseE);
+          OverloadedDerivedFn = BuildCallExprToFunction(
+              pullbackFD, pullbackCallArgs, CUDAExecConfig);
         }
       } else if (!utils::HasAnyReferenceOrPointerArgument(FD) && !MD) {
         // FIXME: Add support for reference arguments to the numerical diff. If
@@ -2148,8 +2136,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         (hasStoredParams || needsForwPass)) {
       CallArgs.insert(CallArgs.end(), revForwAdjointArgs.begin(),
                       revForwAdjointArgs.end());
-      const auto* forwPassMD = dyn_cast<CXXMethodDecl>(calleeFnForwPassFD);
-      Expr* baseE = baseDiff.getExpr();
       // Build the restore_tracker parameter
       // ```
       // clad::restore_tracker _tracker0 = {};
@@ -2189,20 +2175,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Add the tracker as the last argument of the reverse_forw.
       if (trackerExpr)
         CallArgs.push_back(trackerExpr);
-      if (forwPassMD && forwPassMD->isInstance()) {
-        call = BuildCallExprToMemFn(
-            baseDiff.getExpr(), calleeFnForwPassFD->getName(), CallArgs, Loc);
-      } else {
-        if (baseE) {
-          baseE = BuildOp(UO_AddrOf, baseE);
-          CallArgs.insert(CallArgs.begin(), baseE);
-        }
-        call = m_Sema
-                   .ActOnCallExpr(getCurrentScope(),
-                                  BuildDeclRef(calleeFnForwPassFD), Loc,
-                                  CallArgs, Loc, CUDAExecConfig)
-                   .get();
-      }
+      if (Expr* baseE = baseDiff.getExpr())
+        CallArgs.insert(CallArgs.begin(), baseE);
+      call =
+          BuildCallExprToFunction(calleeFnForwPassFD, CallArgs, CUDAExecConfig);
       if (!needsForwPass ||
           (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE)))
         return StmtDiff(call);

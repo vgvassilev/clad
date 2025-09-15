@@ -632,12 +632,22 @@ namespace clad {
   Expr*
   VisitorBase::BuildCallExprToFunction(FunctionDecl* FD,
                                        llvm::MutableArrayRef<Expr*> argExprs,
+                                       clang::Expr* CUDAExecConfig /*=nullptr*/,
                                        bool useRefQualifiedThisObj /*=false*/) {
     Expr* call = nullptr;
-    if (auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
-      if (MD->isInstance())
+    auto* MD = dyn_cast<CXXMethodDecl>(FD);
+    if (MD && MD->isInstance()) {
+      // FIXME: We shouldn't have different overloads of BuildCallExprToMemFn.
+      if (useRefQualifiedThisObj)
         call = BuildCallExprToMemFn(MD, argExprs, useRefQualifiedThisObj);
+      else
+        call = BuildCallExprToMemFn(argExprs[0], MD->getName(),
+                                    argExprs.drop_front(), MD->getLocation());
     } else {
+      if (!argExprs.empty() &&
+          FD->getParamDecl(0)->getType()->isPointerType() &&
+          !utils::isArrayOrPointerType(argExprs[0]->getType()))
+        argExprs[0] = BuildOp(UnaryOperatorKind::UO_AddrOf, argExprs[0]);
       Expr* exprFunc = BuildDeclRef(FD);
       call = m_Sema
                  .ActOnCallExpr(
@@ -645,7 +655,7 @@ namespace clad {
                      /*Fn=*/exprFunc,
                      /*LParenLoc=*/noLoc,
                      /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(argExprs),
-                     /*RParenLoc=*/m_DiffReq->getLocation())
+                     /*RParenLoc=*/m_DiffReq->getLocation(), CUDAExecConfig)
                  .get();
     }
     return call;
@@ -675,7 +685,7 @@ namespace clad {
 #endif
     FunctionDecl* FD = m_Sema.InstantiateFunctionDeclaration(FTD, &TL, loc);
 
-    return BuildCallExprToFunction(FD, argExprs,
+    return BuildCallExprToFunction(FD, argExprs, /*CUDAExecConfig=*/nullptr,
                                    /*useRefQualifiedThisObj=*/false);
   }
 
@@ -973,6 +983,7 @@ namespace clad {
     }
 
     Expr* callExpr = BuildCallExprToFunction(derivative, callArgs,
+                                             /*CUDAExecConfig=*/nullptr,
                                              /*useRefQualifiedThisObj=*/true);
     addToCurrentBlock(callExpr);
     Stmt* diffOverloadBody = endBlock();
