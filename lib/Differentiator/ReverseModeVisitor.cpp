@@ -1899,19 +1899,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         hasStoredParams = true;
     }
 
-    // Stores differentiation result of implicit `this` object, if any.
-    StmtDiff baseDiff;
-    Expr* baseExpr = nullptr;
     /// Add base derivative expression in the derived call output args list if
     /// `CE` is a call to an instance member function.
     if (MD) {
       if (isLambdaCallOperator(MD)) {
-        QualType ptrType = m_Context.getPointerType(m_Context.getRecordType(
-            FD->getDeclContext()->getOuterLexicalRecordContext()));
-        baseDiff =
-            StmtDiff(Clone(dyn_cast<CXXOperatorCallExpr>(CE)->getArg(0)),
-                     new (m_Context) CXXNullPtrLiteralExpr(ptrType, Loc));
+        CallArgs.insert(CallArgs.begin(), Clone(baseOriginalE));
       } else if (MD->isInstance()) {
+        // The differentiation result of implicit `this` object.
+        StmtDiff baseDiff;
         bool isPassedByRef = utils::IsReferenceOrPointerArg(baseOriginalE);
         if (!isPassedByRef) {
           QualType dBaseTy =
@@ -1924,20 +1919,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           baseDiff.updateStmtDx(Clone(dBaseRef));
         } else
           baseDiff = Visit(baseOriginalE);
-        baseExpr = baseDiff.getExpr();
-        QualType baseTy = baseExpr->getType();
-        if (baseTy->isPointerType())
-          baseTy = baseTy->getPointeeType();
-        CXXRecordDecl* baseRD = baseTy->getAsCXXRecordDecl();
-        if (isPassedByRef && !MD->isConst() && utils::isCopyable(baseRD) &&
+        Expr* baseExpr = baseDiff.getExpr();
+        CallArgs.insert(CallArgs.begin(), baseExpr);
+        bool isCopiable = utils::isCopyable(MD->getParent());
+        if (isPassedByRef && !MD->isConst() && isCopiable &&
             m_DiffReq.shouldBeRecorded(baseOriginalE)) {
           hasStoredParams = true;
-          if (utils::isCopyable(baseRD)) {
+          if (isCopiable) {
             Expr* baseDiffStore =
-                GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
-            if (baseDiffStore != baseDiff.getExpr()) {
-              Expr* assign =
-                  BuildOp(BO_Assign, baseDiff.getExpr(), baseDiffStore);
+                GlobalStoreAndRef(baseExpr, "_t", /*force=*/true);
+            if (baseDiffStore != baseExpr) {
+              Expr* assign = BuildOp(BO_Assign, baseExpr, baseDiffStore);
               PreCallStmts.push_back(assign);
             }
           }
@@ -2024,15 +2016,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           hasDynamicNonDiffParams || FD->getNameAsString() == "cudaMemcpy") {
         // Try to find it in builtin derivatives.
         std::string customPullback = pullbackRequest.ComputeDerivativeName();
-        if (MD && MD->isInstance())
-          pullbackCallArgs.insert(pullbackCallArgs.begin(), baseExpr);
         OverloadedDerivedFn =
             m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
                 customPullback, pullbackCallArgs, getCurrentScope(), CE,
                 /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
                 CUDAExecConfig);
-        if (MD && MD->isInstance())
-          pullbackCallArgs.erase(pullbackCallArgs.begin());
         if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))
           pullbackFD = foundCE->getDirectCallee();
 
@@ -2059,12 +2047,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         pullbackFD = FindDerivedFunction(pullbackRequest);
 
       if (pullbackFD) {
-        if (!utils::hasEmptyBody(pullbackFD)) {
-          if (Expr* baseE = baseDiff.getExpr())
-            pullbackCallArgs.insert(pullbackCallArgs.begin(), baseE);
+        if (!utils::hasEmptyBody(pullbackFD))
           OverloadedDerivedFn = BuildCallExprToFunction(
               pullbackFD, pullbackCallArgs, CUDAExecConfig);
-        }
       } else if (!utils::HasAnyReferenceOrPointerArgument(FD) && !MD) {
         // FIXME: Add support for reference arguments to the numerical diff. If
         // it already correctly support reference arguments then confirm the
@@ -2175,8 +2160,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Add the tracker as the last argument of the reverse_forw.
       if (trackerExpr)
         CallArgs.push_back(trackerExpr);
-      if (Expr* baseE = baseDiff.getExpr())
-        CallArgs.insert(CallArgs.begin(), baseE);
       call =
           BuildCallExprToFunction(calleeFnForwPassFD, CallArgs, CUDAExecConfig);
       if (!needsForwPass ||
@@ -2205,18 +2188,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (OCE->getOperator() == clang::OverloadedOperatorKind::OO_Subscript) {
         // If the operator is subscript, we should return the adjoint expression
         auto AdjointCallArgs = CallArgs;
-        CallArgs.insert(CallArgs.begin(), baseDiff.getExpr());
-        AdjointCallArgs.insert(AdjointCallArgs.begin(), baseDiff.getExpr_dx());
+        Expr* adjointBase = CallArgDx[0];
+        if (auto* UnOp = dyn_cast<UnaryOperator>(adjointBase))
+          adjointBase = UnOp->getSubExpr();
+        AdjointCallArgs[0] = adjointBase;
         call = BuildOperatorCall(OCE->getOperator(), CallArgs);
         Expr* call_dx = BuildOperatorCall(OCE->getOperator(), AdjointCallArgs);
         return StmtDiff(call, call_dx);
       }
-      if (isMethodOperatorCall)
-        CallArgs.insert(CallArgs.begin(), baseDiff.getExpr());
       call = BuildOperatorCall(OCE->getOperator(), CallArgs);
       return StmtDiff(call);
     }
 
+    if (MD && MD->isInstance())
+      CallArgs.erase(CallArgs.begin());
     call = m_Sema
                .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
                               CallArgs, Loc, CUDAExecConfig)
