@@ -1493,7 +1493,7 @@ namespace clad {
           if (DRE == m_stopE)
             return false;
           if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-            if (m_Modifying && VD == m_idxVD) {
+            if (m_Modifying && VD->getName() == m_idxVD->getName()) {
               m_isLive = false;
               return false;
             }

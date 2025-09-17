@@ -254,6 +254,8 @@ namespace clad {
     /// `std::move(std::begin(from), std::end(from), std::begin(to));`
     clang::Expr* BuildArrayAssignment(clang::Expr* output, clang::Expr* input,
                                       direction d);
+    /// Builds derivative increments, e.g. ``E += dfdx()``;
+    clang::Expr* BuildDiffIncrement(clang::Expr* E);
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global
