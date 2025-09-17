@@ -123,9 +123,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      S1 *_this = (S1 *)malloc(sizeof(S1));
 // CHECK-NEXT:      _this->p = x;
 // CHECK-NEXT:      _this->d = 0.;
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _d_this->d = 0.;
-// CHECK-NEXT:      }
+// CHECK-NEXT:      _d_this->d = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_this->p;
 // CHECK-NEXT:          _d_this->p = 0.;
@@ -138,12 +136,8 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      _this->p = x;
 // CHECK-NEXT:      _this->i = 1.;
 // CHECK-NEXT:      _this->d = 0.;
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _d_this->d = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _d_this->i = 0.;
-// CHECK-NEXT:      }
+// CHECK-NEXT:      _d_this->d = 0.;
+// CHECK-NEXT:      _d_this->i = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_this->p;
 // CHECK-NEXT:          _d_this->p = 0.;
@@ -213,9 +207,7 @@ double fn3(double u, double v) {
 // CHECK-NEXT:        *_d_x += _d_this->p;
 // CHECK-NEXT:        _d_this->p = 0.;
 // CHECK-NEXT:    }
-// CHECK-NEXT:    {
-// CHECK-NEXT:        _d_this->i = 0.;
-// CHECK-NEXT:    }
+// CHECK-NEXT:    _d_this->i = 0.;
 // CHECK-NEXT:}
 
 // CHECK: void fn3_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -257,9 +249,7 @@ double fn4(double i, double j) {
 }
 
 // CHECK: static void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _d_this->y = 0.;
-// CHECK-NEXT:      }
+// CHECK-NEXT:      _d_this->y = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_px += _d_this->x;
 // CHECK-NEXT:          _d_this->x = 0.;
