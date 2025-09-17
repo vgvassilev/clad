@@ -587,9 +587,6 @@ double fn6(double u, double v) {
 // CHECK-NEXT:     free(_this);
 // CHECK-NEXT: }
 
-// CHECK: static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x) {
-// CHECK-NEXT: }
-
 // CHECK: void fn6_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      double &_d_w = *_d_u;
 // CHECK-NEXT:      double &w = u;
@@ -604,10 +601,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      SafeTestClass s3(_t3.value);
 // CHECK-NEXT:      SafeTestClass _d_s3 = _t3.adjoint;
 // CHECK-NEXT:      *_d_v += 1;
-// CHECK-NEXT:      {
-// CHECK-NEXT:          w = _t2;
-// CHECK-NEXT:          SafeTestClass::constructor_pullback(w, &_d_s3, &_d_w);
-// CHECK-NEXT:      }
+// CHECK-NEXT:      w = _t2;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;  
 // CHECK-NEXT:          SafeTestClass::constructor_pullback(u, &v, &_d_s2, &_r0, &*_d_v);

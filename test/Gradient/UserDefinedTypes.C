@@ -997,11 +997,6 @@ constructor_reverse_forw(::clad::ConstructorReverseForwTag<ptrClass>, double* mp
 }
 }}}
 
-// CHECK: static void constructor_pullback(double *mptr, ptrClass *_d_this, double *_d_mptr) {
-// CHECK-NEXT:      {
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this) {
 // CHECK-NEXT:      return {*this->ptr, *_d_this->ptr};
 // CHECK-NEXT:  }
@@ -1020,7 +1015,6 @@ double fn26(double x, double y) {
 // CHECK-NEXT:      ptrClass p(_t0.value);
 // CHECK-NEXT:      ptrClass _d_p = _t0.adjoint;
 // CHECK-NEXT:      p.operator_star_pullback(1, &_d_p);
-// CHECK-NEXT:      ptrClass::constructor_pullback(&x, &_d_p, &*_d_x);
 // CHECK-NEXT:  }
 
 struct MyStructWrapper {

@@ -449,7 +449,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       for (CXXCtorInitializer* CI : CD->inits()) {
         StmtDiff CI_diff = DifferentiateCtorInit(CI, thisObj.getExpr());
         addToCurrentBlock(CI_diff.getStmt(), direction::forward);
-        initsDiff.push_back(CI_diff.getStmt_dx());
+        if (Stmt* unwrappedCIDiff =
+                utils::unwrapIfSingleStmt(CI_diff.getStmt_dx()))
+          initsDiff.push_back(unwrappedCIDiff);
       }
     }
 
