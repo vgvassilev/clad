@@ -1019,6 +1019,45 @@ double fn28(double u, double v) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+void foo(double *x) {
+   x[0] = x[0] * x[0];
+}
+
+// CHECK: void foo_reverse_forw(double *x, double *_d_x, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     _tracker0.store(x[0]);
+// CHECK-NEXT:     x[0] = x[0] * x[0];
+// CHECK-NEXT: }
+
+// CHECK: void foo_pullback(double *x, double *_d_x) {
+// CHECK-NEXT:     double _t0 = x[0];
+// CHECK-NEXT:     x[0] = x[0] * x[0];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         x[0] = _t0;
+// CHECK-NEXT:         double _r_d0 = _d_x[0];
+// CHECK-NEXT:         _d_x[0] = 0.;
+// CHECK-NEXT:         _d_x[0] += _r_d0 * x[0];
+// CHECK-NEXT:         _d_x[0] += x[0] * _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double fn29(double *x) {
+   foo(x);
+   return x[0] * x[1];
+}
+
+// CHECK: void fn29_grad(double *x, double *_d_x) {
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     foo_reverse_forw(x, _d_x, _tracker0);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_x[0] += 1 * x[1];
+// CHECK-NEXT:         _d_x[1] += x[0] * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         foo_pullback(x, _d_x);
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -1150,6 +1189,12 @@ int main() {
 
   INIT(fn28);
   TEST2(fn28, 3, 5);  // CHECK-EXEC: {15.00, 9.00}
+
+  auto fn29_grad = clad::gradient(fn29);
+  double x_arr[]{3., 4.};
+  double x_output[]{0., 0.};
+  fn29_grad.execute(x_arr, x_output);
+  printf("{%.2f, %.2f}\n", x_output[0], x_output[1]);  // CHECK-EXEC: {24.00, 9.00}
 }
 
 double sq_defined_later(double x) {
