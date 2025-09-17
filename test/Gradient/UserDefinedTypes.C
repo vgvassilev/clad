@@ -1100,6 +1100,66 @@ double fn28(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct Session {
+   float factors[5]{9., 8., 7., 6., 5.};
+};
+
+float fn29(float *input, Session const *session) {
+   Session const &sess = session[0];
+   float buffer[5]{0., 0., 0., 0., 0};
+   const size_t n = 5;
+   for (size_t id = 0; id < n; id++) {
+      buffer[id] = sess.factors[id] * input[id];
+   }
+   float out = 0.0;
+   for (size_t id = 0; id < n; id++) {
+      out += input[id];
+   }
+   return out; // sum(input)
+}
+
+// CHECK:  void fn29_grad_0(float *input, const Session *session, float *_d_input) {
+// CHECK-NEXT:      size_t _d_id = {{0U|0UL|0ULL}};
+// CHECK-NEXT:      size_t id = {{0U|0UL|0ULL}};
+// CHECK-NEXT:      size_t _d_id0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:      size_t id0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:      Session _d_sess = {{.*}};
+// CHECK-NEXT:      const Session &sess = session[0];
+// CHECK-NEXT:      float _d_buffer[5] = {0};
+// CHECK-NEXT:      float buffer[5]{0., 0., 0., 0., 0};
+// CHECK-NEXT:      size_t _d_n = {{0U|0UL|0ULL}};
+// CHECK-NEXT:      const size_t n = 5;
+// CHECK-NEXT:      unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:      for (id = 0; id < n; id++) {
+// CHECK-NEXT:          _t0++;
+// CHECK-NEXT:          buffer[id] = sess.factors[id] * input[id];
+// CHECK-NEXT:      }
+// CHECK-NEXT:      float _d_out = 0.F;
+// CHECK-NEXT:      float out = 0.;
+// CHECK-NEXT:      unsigned {{int|long|long long}} _t1 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:      for (id0 = 0; id0 < n; id0++) {
+// CHECK-NEXT:          _t1++;
+// CHECK-NEXT:          out += input[id0];
+// CHECK-NEXT:      }
+// CHECK-NEXT:      _d_out += 1;
+// CHECK-NEXT:      for (; _t1; _t1--) {
+// CHECK-NEXT:          id0--;
+// CHECK-NEXT:          {
+// CHECK-NEXT:              float _r_d1 = _d_out;
+// CHECK-NEXT:              _d_input[id0] += _r_d1;
+// CHECK-NEXT:          }
+// CHECK-NEXT:      }
+// CHECK-NEXT:      for (; _t0; _t0--) {
+// CHECK-NEXT:          id--;
+// CHECK-NEXT:          {
+// CHECK-NEXT:              float _r_d0 = _d_buffer[id];
+// CHECK-NEXT:              _d_buffer[id] = 0.F;
+// CHECK-NEXT:              _d_sess.factors[id] += _r_d0 * input[id];
+// CHECK-NEXT:              _d_input[id] += sess.factors[id] * _r_d0;
+// CHECK-NEXT:          }
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1112,7 +1172,8 @@ void print(const MyStruct& s) {
   printf("{%.2f, %.2f}\n", s.a, s.b);
 }
 
-void printArray(double* arr, int size) {
+template <typename T>
+void printArray(T* arr, int size) {
   printf("{");
   for (int i = 0; i < size; ++i) {
     printf("%.2f", arr[i]);
@@ -1214,4 +1275,11 @@ int main() {
 
     INIT_GRADIENT(fn28);
     TEST_GRADIENT(fn28, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {2.00, 1.00}
+
+    auto fn29_grad = clad::gradient(fn29, "input");
+    Session session;
+    float input[]{3., 4., 1., 2., 5};
+    float dout[]{0., 0., 0., 0., 0};
+    fn29_grad.execute(input, &session, dout);
+    printArray(dout, 5);  // CHECK-EXEC: {1.00, 1.00, 1.00, 1.00, 1.00}
 }
