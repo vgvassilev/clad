@@ -130,6 +130,21 @@ namespace clad {
       return CS;
     }
 
+    bool hasEmptyBody(const clang::FunctionDecl* FD) {
+      FD = FD->getCanonicalDecl();
+      Stmt* body = FD->getBody();
+      if (const FunctionDecl* TIP = FD->getTemplateInstantiationPattern())
+        body = TIP->getBody();
+      while (auto CS = dyn_cast_or_null<CompoundStmt>(body)) {
+        if (CS->size() == 0)
+          return true;
+        if (CS->size() > 1)
+          return false;
+        body = *CS->body_begin();
+      }
+      return false;
+    }
+
     CompoundStmt* PrependAndCreateCompoundStmt(ASTContext& C, Stmt* initial,
                                                Stmt* S) {
       llvm::SmallVector<Stmt*, 16> block;

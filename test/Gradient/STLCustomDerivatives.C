@@ -843,26 +843,17 @@ int main() {
 // CHECK-NEXT:          {
 // CHECK-NEXT:              double _r_d0 = _d_res;
 // CHECK-NEXT:              *_d_y += _r_d0 * _t4;
-// CHECK-NEXT:              {{.*}}capacity_pullback(&v, y * _r_d0, &_d_v);
 // CHECK-NEXT:              *_d_x += _r_d0 * _t5;
-// CHECK-NEXT:              {{.*}}size_pullback(&v, x * _r_d0, &_d_v);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          {
-// CHECK-NEXT:              v = _t3;
-// CHECK-NEXT:              {{.*}}shrink_to_fit_pullback(&v, &_d_v);
-// CHECK-NEXT:          }
+// CHECK-NEXT:          v = _t3;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              v = _t2;
 // CHECK-NEXT:              {{.*}}push_back_pullback(&v, x, &_d_v, &*_d_x);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          {
-// CHECK-NEXT:              *_d_x += _d_res * _t1;
-// CHECK-NEXT:              {{.*}}capacity_pullback(&v, x * _d_res, &_d_v);
-// CHECK-NEXT:          }
+// CHECK-NEXT:          *_d_x += _d_res * _t1;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              {{.*}}size_type _r0 = {{0U|0UL|0}};
 // CHECK-NEXT:              v = _t0;
-// CHECK-NEXT:              {{.*}}reserve_pullback(&v, 10, &_d_v, &_r0);
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 
@@ -1251,7 +1242,6 @@ int main() {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         shared_ptr<double> _r0 = _t0.adjoint;
 // CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(std::move(_t0.value), &_d_s, &_r0);
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::lock_pullback(&x_ptr, _r0, &(*_d_x_ptr));
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
