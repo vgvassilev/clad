@@ -2075,21 +2075,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // calls.
     llvm::SmallVector<Stmt*, 16> PostCallStmts{};
     if (pullbackFD) {
-      auto* pullbackMD = dyn_cast<CXXMethodDecl>(pullbackFD);
-      Expr* baseE = baseDiff.getExpr();
-      if (pullbackMD && pullbackMD->isInstance()) {
-        OverloadedDerivedFn = BuildCallExprToMemFn(baseE, pullbackFD->getName(),
-                                                   pullbackCallArgs, Loc);
-      } else {
-        if (baseE) {
-          baseE = BuildOp(UO_AddrOf, baseE);
-          pullbackCallArgs.insert(pullbackCallArgs.begin(), baseE);
+      if (!utils::hasEmptyBody(pullbackFD)) {
+        auto* pullbackMD = dyn_cast<CXXMethodDecl>(pullbackFD);
+        Expr* baseE = baseDiff.getExpr();
+        if (pullbackMD && pullbackMD->isInstance()) {
+          OverloadedDerivedFn = BuildCallExprToMemFn(
+              baseE, pullbackFD->getName(), pullbackCallArgs, Loc);
+        } else {
+          if (baseE) {
+            baseE = BuildOp(UO_AddrOf, baseE);
+            pullbackCallArgs.insert(pullbackCallArgs.begin(), baseE);
+          }
+          OverloadedDerivedFn =
+              m_Sema
+                  .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),
+                                 Loc, pullbackCallArgs, Loc, CUDAExecConfig)
+                  .get();
         }
-        OverloadedDerivedFn =
-            m_Sema
-                .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD), Loc,
-                               pullbackCallArgs, Loc, CUDAExecConfig)
-                .get();
       }
     } else if (!utils::HasAnyReferenceOrPointerArgument(FD) && !MD) {
       // FIXME: Add support for reference arguments to the numerical diff. If
@@ -2113,12 +2115,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       CallExprDiffDiagnostics(FD, CE->getBeginLoc());
     }
 
-    if (!OverloadedDerivedFn) {
-      Stmts& block = getCurrentBlock(direction::reverse);
-      block.insert(block.begin(), PreCallStmts.begin(), PreCallStmts.end());
-      return StmtDiff(Clone(CE));
-    }
-
     // Put Result array declaration in the function body.
     // Call the gradient, passing Result as the last Arg.
     Stmts& block = getCurrentBlock(direction::reverse);
@@ -2126,17 +2122,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Insert PreCallStmts
     it = block.insert(it, PreCallStmts.begin(), PreCallStmts.end());
     it += PreCallStmts.size();
-    if (!asGrad) {
-      if (utils::IsCladValueAndPushforwardType(OverloadedDerivedFn->getType()))
-        OverloadedDerivedFn = utils::BuildMemberExpr(
-            m_Sema, getCurrentScope(), OverloadedDerivedFn, "pushforward");
+    if (OverloadedDerivedFn) {
       // If the derivative is called through _darg0 instead of _grad.
-      Expr* d = BuildOp(BO_Mul, dfdx(), OverloadedDerivedFn);
-      auto* UnOp = cast<UnaryOperator>(CallArgDx[0]);
-      Expr* addGrad = BuildOp(BO_AddAssign, Clone(UnOp->getSubExpr()), d);
-      it = block.insert(it, addGrad);
-      it++;
-    } else {
+      if (!asGrad) {
+        if (utils::IsCladValueAndPushforwardType(
+                OverloadedDerivedFn->getType()))
+          OverloadedDerivedFn = utils::BuildMemberExpr(
+              m_Sema, getCurrentScope(), OverloadedDerivedFn, "pushforward");
+        Expr* d = BuildOp(BO_Mul, dfdx(), OverloadedDerivedFn);
+        auto* UnOp = cast<UnaryOperator>(CallArgDx[0]);
+        OverloadedDerivedFn =
+            BuildOp(BO_AddAssign, Clone(UnOp->getSubExpr()), d);
+      }
       // Insert the CallExpr to the derived function
       it = block.insert(it, OverloadedDerivedFn);
       it++;
