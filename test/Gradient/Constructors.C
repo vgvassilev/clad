@@ -2,6 +2,7 @@
 // RUN: ./Constructors.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oConstructors.out
 // RUN: ./Constructors.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
@@ -122,9 +123,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      S1 *_this = (S1 *)malloc(sizeof(S1));
 // CHECK-NEXT:      _this->p = x;
 // CHECK-NEXT:      _this->d = 0.;
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _d_this->d = 0.;
-// CHECK-NEXT:      }
+// CHECK-NEXT:      _d_this->d = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_this->p;
 // CHECK-NEXT:          _d_this->p = 0.;
@@ -137,12 +136,8 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      _this->p = x;
 // CHECK-NEXT:      _this->i = 1.;
 // CHECK-NEXT:      _this->d = 0.;
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _d_this->d = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _d_this->i = 0.;
-// CHECK-NEXT:      }
+// CHECK-NEXT:      _d_this->d = 0.;
+// CHECK-NEXT:      _d_this->i = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_this->p;
 // CHECK-NEXT:          _d_this->p = 0.;
@@ -212,9 +207,7 @@ double fn3(double u, double v) {
 // CHECK-NEXT:        *_d_x += _d_this->p;
 // CHECK-NEXT:        _d_this->p = 0.;
 // CHECK-NEXT:    }
-// CHECK-NEXT:    {
-// CHECK-NEXT:        _d_this->i = 0.;
-// CHECK-NEXT:    }
+// CHECK-NEXT:    _d_this->i = 0.;
 // CHECK-NEXT:}
 
 // CHECK: void fn3_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -256,9 +249,7 @@ double fn4(double i, double j) {
 }
 
 // CHECK: static void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _d_this->y = 0.;
-// CHECK-NEXT:      }
+// CHECK-NEXT:      _d_this->y = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_px += _d_this->x;
 // CHECK-NEXT:          _d_this->x = 0.;
@@ -417,6 +408,8 @@ double fn8(double u, double v) {
 // CHECK-NEXT:  }
 
 // CHECK:  void fn8_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:      double _t0 = u;
+// CHECK-NEXT:      double _t1 = v;
 // CHECK-NEXT:      std::pair<double, double> p(u, v);
 // CHECK-NEXT:      std::pair<double, double> _d_p(p);
 // CHECK-NEXT:      clad::zero_init(_d_p);
@@ -424,7 +417,11 @@ double fn8(double u, double v) {
 // CHECK-NEXT:          _d_p.first += 1;
 // CHECK-NEXT:          _d_p.second += 1;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      pair::constructor_pullback(u, v, &_d_p, &*_d_u, &*_d_v);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          u = _t0;
+// CHECK-NEXT:          v = _t1;
+// CHECK-NEXT:          pair::constructor_pullback(u, v, &_d_p, &*_d_u, &*_d_v);
+// CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
 int main() {

@@ -6,6 +6,8 @@
 #include "clad/Differentiator/ReverseModeVisitor.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
+#include "clang/Basic/LLVM.h"
 
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallVector.h>
@@ -116,8 +118,9 @@ void ErrorEstimationHandler::EmitNestedFunctionParamError(
     // // estimation.
     // if (utils::IsReferenceOrPointerType(fnDecl->getParamDecl(i)->getType()))
     //   continue;
+    auto* UnOp = cast<UnaryOperator>(ArgResult[i]);
     Expr* errorExpr = m_EstModel->AssignError(
-        {derivedCallArgs[i], m_RMV->Clone(ArgResult[i])},
+        {derivedCallArgs[i], m_RMV->Clone(UnOp->getSubExpr())},
         fnDecl->getNameInfo().getAsString() + "_param_" + std::to_string(i));
     Expr* FinalError = BuildFinalErrorExpr();
     Expr* errorStmt = m_RMV->BuildOp(BO_AddAssign, FinalError, errorExpr);

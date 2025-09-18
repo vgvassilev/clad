@@ -602,13 +602,13 @@ double fn19_darg0(double x, double y);
 // CHECK-NEXT:     double _d_f[5] = {_d_x * x + x * _d_x, (0 * x + 2 * _d_x) * y + _t0 * _d_y, _d_y * y + y * _d_y, _d_x, _d_y};
 // CHECK-NEXT:     double f[5] = {x * x, _t0 * y, y * y, x, y};
 // CHECK-NEXT:     double (&_d___range1)[5] = _d_f;
-// CHECK-NEXT:     double (&__range10)[5] = f;
+// CHECK-NEXT:     double (&__range1)[5] = f;
 // CHECK-NEXT:     double *_d___begin1 = _d___range1;
-// CHECK-NEXT:     double *__begin10 = __range10;
-// CHECK-NEXT:     double *__end10 = __range10 + {{5|5L}};
-// CHECK-NEXT:     for (; __begin10 != __end10; ++_d___begin1 , ++__begin10) {
+// CHECK-NEXT:     double *__begin1 = __range1;
+// CHECK-NEXT:     double *__end1 = __range1 + {{5|5L}};
+// CHECK-NEXT:     for (; __begin1 != __end1; ++_d___begin1 , ++__begin1) {
 // CHECK-NEXT:         double _d_i = *_d___begin1;
-// CHECK-NEXT:         double i = *__begin10;
+// CHECK-NEXT:         double i = *__begin1;
 // CHECK-NEXT:         if (i == x)
 // CHECK-NEXT:             break;
 // CHECK-NEXT:         _d_res += _d_i;
@@ -631,13 +631,13 @@ double fn20_darg0(double x);
 // CHECK-NEXT:     int _d_a[1] = {0};
 // CHECK-NEXT:     int a[1] = {5};
 // CHECK-NEXT:     int (&_d___range1)[1] = _d_a;
-// CHECK-NEXT:     int (&__range10)[1] = a;
+// CHECK-NEXT:     int (&__range1)[1] = a;
 // CHECK-NEXT:     int *_d___begin1 = _d___range1;
-// CHECK-NEXT:     int *__begin10 = __range10;
-// CHECK-NEXT:     int *__end10 = __range10 + {{1|1L}};
-// CHECK-NEXT:     for (; __begin10 != __end10; ++_d___begin1 , ++__begin10) {
+// CHECK-NEXT:     int *__begin1 = __range1;
+// CHECK-NEXT:     int *__end1 = __range1 + {{1|1L}};
+// CHECK-NEXT:     for (; __begin1 != __end1; ++_d___begin1 , ++__begin1) {
 // CHECK-NEXT:         int _d_i = *_d___begin1;
-// CHECK-NEXT:         int i = *__begin10;
+// CHECK-NEXT:         int i = *__begin1;
 // CHECK-NEXT:         _d_x += _d_i * x + i * _d_x;
 // CHECK-NEXT:         x += i * x;
 // CHECK-NEXT:     }
@@ -664,13 +664,13 @@ double fn21_darg0(double x, double y);
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     int (&_d___range1)[3] = _d_coefficients;
-// CHECK-NEXT:     int (&__range10)[3] = coefficients;
+// CHECK-NEXT:     int (&__range1)[3] = coefficients;
 // CHECK-NEXT:     int *_d___begin1 = _d___range1;
-// CHECK-NEXT:     int *__begin10 = __range10;
-// CHECK-NEXT:     int *__end10 = __range10 + {{3|3L}};
-// CHECK-NEXT:     for (; __begin10 != __end10; ++_d___begin1 , ++__begin10) {
+// CHECK-NEXT:     int *__begin1 = __range1;
+// CHECK-NEXT:     int *__end1 = __range1 + {{3|3L}};
+// CHECK-NEXT:     for (; __begin1 != __end1; ++_d___begin1 , ++__begin1) {
 // CHECK-NEXT:         int &_d_i = *_d___begin1;
-// CHECK-NEXT:         int &i = *__begin10;
+// CHECK-NEXT:         int &i = *__begin1;
 // CHECK-NEXT:         if (i % 2 == 0)
 // CHECK-NEXT:             continue;
 // CHECK-NEXT:         double _t0 = x * y;

@@ -1,5 +1,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oNonDifferentiable.out 2>&1 | %filecheck %s
 // RUN: ./NonDifferentiable.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #define non_differentiable __attribute__((annotate("another_attribute"), annotate("non_differentiable")))
 
@@ -244,6 +245,11 @@ int main() {
     // CHECK-NEXT:     }
 
   auto grad = clad::gradient(fn, "out");
+  // CHECK: void result_reverse_forw(int *out, Input in, int *_d_out, Input _d_in, clad::restore_tracker &_tracker0) {
+  // CHECK-NEXT:     _tracker0.store(*out);
+  // CHECK-NEXT:     *out = in.i;
+  // CHECK-NEXT: }
+
   // CHECK: void result_pullback(int *out, Input in, int *_d_out) {
   // CHECK-NEXT: int _t0 = *out;
   // CHECK-NEXT: *out = in.i;

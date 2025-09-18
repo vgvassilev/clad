@@ -1,5 +1,6 @@
 // RUN: %cladclang -std=c++14 %s -I%S/../../include -oUserDefinedTypes.out | %filecheck %s
 // RUN: ./UserDefinedTypes.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"

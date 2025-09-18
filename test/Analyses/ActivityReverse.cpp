@@ -3,6 +3,7 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-va -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oActivity.out
 // RUN: ./Activity.out | %filecheck_exec %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -303,6 +304,10 @@ double f10(double x){
     return t[0];
 }
 
+// CHECK: void f10_1_reverse_forw(double x, double *t, double _d_x, double *_d_t, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     _tracker0.store(t[0]);
+// CHECK-NEXT:     t[0] = x;
+// CHECK-NEXT: }
 
 // CHECK: void f10_1_pullback(double x, double *t, double *_d_x, double *_d_t) {
 // CHECK-NEXT:     double _t0 = t[0];
@@ -318,9 +323,11 @@ double f10(double x){
 // CHECK-NEXT: void f10_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _d_t[3] = {0};
 // CHECK-NEXT:     double t[3];
-// CHECK-NEXT:     f10_1(x, t);
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     f10_1_reverse_forw(x, t, *_d_x, _d_t, _tracker0);
 // CHECK-NEXT:     _d_t[0] += 1;
 // CHECK-NEXT:     {
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         f10_1_pullback(x, t, &_r0, _d_t);
 // CHECK-NEXT:         *_d_x += _r0;

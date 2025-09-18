@@ -38,7 +38,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   enum Mode { kMarkingMode = 1, kNonLinearMode = 2 };
   /// Tells if the variable at a given location is required to store. Basically,
   /// is the result of analysis.
-  std::set<clang::SourceLocation>& m_TBRLocs;
+  std::set<const clang::Stmt*>& m_TBRLocs;
   ParamInfo* m_ModifiedParams;
   ParamInfo* m_UsedParams;
 
@@ -50,7 +50,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   std::vector<short> m_BlockPassCounter;
 
   //// Setters
-  /// Marks the SourceLocation of S if it is required to store.
+  /// Marks S if it is required to store.
   /// E could be DeclRefExpr, ArraySubscriptExpr, MemberExpr, or DeclStmt.
   void markLocation(const clang::Stmt* S);
   /// Sets E's corresponding VarData (or all its child nodes) to
@@ -76,7 +76,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
 public:
   /// Constructor
   TBRAnalyzer(clang::AnalysisDeclContext* AnalysisDC,
-              std::set<clang::SourceLocation>& Locs,
+              std::set<const clang::Stmt*>& Locs,
               ParamInfo* ModifiedParams = nullptr,
               ParamInfo* UsedParams = nullptr)
       : AnalysisBase(AnalysisDC), m_TBRLocs(Locs),

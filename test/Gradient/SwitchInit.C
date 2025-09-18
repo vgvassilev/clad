@@ -1,5 +1,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -std=c++17 -oSwitchInit.out 2>&1 | %filecheck %s
 // RUN: ./SwitchInit.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 

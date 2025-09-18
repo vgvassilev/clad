@@ -47,7 +47,7 @@ private:
   /// UsefulToStoreGlobal whether a variable with a given SourceLocation has to
   /// be stored before being changed or not.
   mutable struct TbrRunInfo {
-    std::set<clang::SourceLocation> ToBeRecorded;
+    std::set<const clang::Stmt*> ToBeRecorded;
     ParamInfo m_ModifiedParams;
     ParamInfo m_UsedParams;
     bool HasAnalysisRun = false;
@@ -194,7 +194,7 @@ public:
   std::string ComputeDerivativeName() const;
   bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
 
-  std::set<clang::SourceLocation>& getToBeRecorded() const {
+  std::set<const clang::Stmt*>& getToBeRecorded() const {
     m_TbrRunInfo.HasAnalysisRun = true;
     return m_TbrRunInfo.ToBeRecorded;
   }

@@ -31,14 +31,16 @@ namespace {
     AddBMCounterRAII(MemoryManager& mm, benchmark::State& state)
         : MemMgr(mm), State(state) {
       mm.cur_num_allocs = 0;
+      mm.cur_num_deallocs = 0;
       mm.cur_max_bytes_used = 0;
     }
     ~AddBMCounterRAII() { pop(); }
 
     void pop() {
-      State.counters["AllocN"] = MemMgr.cur_num_allocs;
-      State.counters["DellocN"] = MemMgr.cur_num_deallocs;
-      State.counters["AllocBytes"] = MemMgr.cur_max_bytes_used;
+      const unsigned long iterations = State.iterations();
+      State.counters["AllocN"] = MemMgr.cur_num_allocs / iterations;
+      State.counters["DellocN"] = MemMgr.cur_num_deallocs / iterations;
+      State.counters["AllocBytes"] = MemMgr.cur_max_bytes_used / iterations;
     }
   };
 } // namespace
@@ -70,27 +72,27 @@ void func(clad::tape<T, SBO_SIZE, SLAB_SIZE>& t, T x, int n) {
 static void BM_TapeMemory(benchmark::State& state) {
   int block = state.range(0);
   AddBMCounterRAII MemCounters(*mm.get(), state);
-  clad::tape<double> t;
   for (auto _ : state) {
+    clad::tape<double> t;
     func<double>(t, 1, block * 2 + 1);
   }
 }
-BENCHMARK(BM_TapeMemory)->RangeMultiplier(2)->Range(0, 4096)->Iterations(1);
+BENCHMARK(BM_TapeMemory)->RangeMultiplier(2)->Range(0, 4096);
 
 template <std::size_t SBO_SIZE, std::size_t SLAB_SIZE>
 static void BM_TapeMemory_Templated(benchmark::State& state) {
   int block = state.range(0);
   AddBMCounterRAII MemCounters(*mm.get(), state);
-  clad::tape<double, SBO_SIZE, SLAB_SIZE> t;
-  for (auto _ : state)
+  for (auto _ : state) {
+    clad::tape<double, SBO_SIZE, SLAB_SIZE> t;
     func<double, SBO_SIZE, SLAB_SIZE>(t, 1, block * 2 + 1);
+  }
 }
 
 #define REGISTER_TAPE_BENCHMARK(sbo, slab)                                     \
   BENCHMARK_TEMPLATE(BM_TapeMemory_Templated, sbo, slab)                       \
       ->RangeMultiplier(2)                                                     \
       ->Range(0, 4096)                                                         \
-      ->Iterations(1)                                                          \
       ->Name("BM_TapeMemory/SBO_" #sbo "_SLAB_" #slab)
 
 REGISTER_TAPE_BENCHMARK(64, 1024);
@@ -114,10 +116,7 @@ static void BM_ReverseGausMemoryP(benchmark::State& state) {
     dfdp_grad.execute(x, p, /*sigma*/ 2, dim, result);
   }
 }
-BENCHMARK(BM_ReverseGausMemoryP)
-    ->RangeMultiplier(2)
-    ->Range(0, 4096)
-    ->Iterations(1);
+BENCHMARK(BM_ReverseGausMemoryP)->RangeMultiplier(2)->Range(0, 4096);
 
 // Define our main.
 BENCHMARK_MAIN();

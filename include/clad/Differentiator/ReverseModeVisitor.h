@@ -78,6 +78,8 @@ namespace clad {
     /// differentiation. One additional time.
     clang::Expr* m_CurrentBreakFlagExpr;
 
+    clang::Expr* m_RestoreTracker = nullptr;
+
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
     clang::Expr* m_Pullback = nullptr;
@@ -287,9 +289,9 @@ namespace clad {
     /// expression only later, after the expression is visited and rebuilt.
     /// This is what DelayedGlobalStoreAndRef does. E is expected to be the
     /// original (uncloned) expression.
-    DelayedStoreResult DelayedGlobalStoreAndRef(clang::Expr* E,
-                                                llvm::StringRef prefix = "_t",
-                                                bool forceStore = false);
+    virtual DelayedStoreResult
+    DelayedGlobalStoreAndRef(clang::Expr* E, llvm::StringRef prefix = "_t",
+                             bool forceStore = false);
 
     struct CladTapeResult {
       ReverseModeVisitor& V;
@@ -480,6 +482,27 @@ namespace clad {
     /// additionally created Stmts, second is a direct result of call to Visit.
     std::pair<StmtDiff, StmtDiff>
     DifferentiateSingleExpr(const clang::Expr* E, clang::Expr* dfdE = nullptr);
+    /// A helper methods to differentiate an argument of a CallExpr or a
+    /// CXXConstructExpr.
+    ///
+    /// \param[in] arg The argument to be differentiated
+    ///
+    /// \param[in] param The corresponding parameter
+    ///
+    /// \param[in] PreCallStmts The block of stmts to be inserted right before
+    /// the pullback call
+    ///
+    /// \param[in] isNonDiff true if the corresponding call is
+    /// non-differentiable
+    ///
+    /// \returns A triplet of differentiated arguments, i.e. ``{<original arg>,
+    /// <arg for pullback>, <reverse_forw arg>}``. In practice, it will look
+    /// somewhat like ``{x, &_r0, _d_x}``.
+    StmtDiff
+    DifferentiateCallArg(const clang::Expr* arg,
+                         const clang::ParmVarDecl* param,
+                         llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
+                         bool isNonDiff, bool isCUDAKernel = false);
     /// Shorthand for warning on differentiation of unsupported operators
     void unsupportedOpWarn(clang::SourceLocation loc,
                            llvm::ArrayRef<llvm::StringRef> args = {}) {

@@ -2,6 +2,7 @@
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 // RUN: %cladclang -std=c++14 -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oSTLCustomDerivativesWithTBR.out
 // RUN: ./STLCustomDerivativesWithTBR.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
@@ -626,7 +627,7 @@ int main() {
 // CHECK-NEXT:        unsigned {{long|int}} _t1 = {{0U|0UL}};
 // CHECK-NEXT:        for (i = 0; i < a.size(); ++i) {
 // CHECK-NEXT:            _t1++;
-// CHECK-NEXT:            clad::push(_t2, {{.*}}at_reverse_forw(&a, i, &_d_a, {{0U|0UL|0}}));
+// CHECK-NEXT:            clad::push(_t2, {{.*}}at_reverse_forw(&a, i, &_d_a, _d_i));
 // CHECK-NEXT:            res += clad::back(_t2).value;
 // CHECK-NEXT:        }
 // CHECK-NEXT:        _d_res += 1;
@@ -773,7 +774,7 @@ int main() {
 // CHECK-NEXT:          {{.*}} _t2 = {{0U|0UL|0}};
 // CHECK-NEXT:          for (i0 = 0; i0 < v.size(); ++i0) {
 // CHECK-NEXT:              _t2++;
-// CHECK-NEXT:              clad::push(_t3, {{.*}}at_reverse_forw(&v, i0, &_d_v, {{0U|0UL|0}}));
+// CHECK-NEXT:              clad::push(_t3, {{.*}}at_reverse_forw(&v, i0, &_d_v, _d_i0));
 // CHECK-NEXT:              res += clad::back(_t3).value;
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {{.*}}vector<double> _t4 = v;
@@ -842,26 +843,17 @@ int main() {
 // CHECK-NEXT:          {
 // CHECK-NEXT:              double _r_d0 = _d_res;
 // CHECK-NEXT:              *_d_y += _r_d0 * _t4;
-// CHECK-NEXT:              {{.*}}capacity_pullback(&v, y * _r_d0, &_d_v);
 // CHECK-NEXT:              *_d_x += _r_d0 * _t5;
-// CHECK-NEXT:              {{.*}}size_pullback(&v, x * _r_d0, &_d_v);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          {
-// CHECK-NEXT:              v = _t3;
-// CHECK-NEXT:              {{.*}}shrink_to_fit_pullback(&v, &_d_v);
-// CHECK-NEXT:          }
+// CHECK-NEXT:          v = _t3;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              v = _t2;
 // CHECK-NEXT:              {{.*}}push_back_pullback(&v, x, &_d_v, &*_d_x);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          {
-// CHECK-NEXT:              *_d_x += _d_res * _t1;
-// CHECK-NEXT:              {{.*}}capacity_pullback(&v, x * _d_res, &_d_v);
-// CHECK-NEXT:          }
+// CHECK-NEXT:          *_d_x += _d_res * _t1;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              {{.*}}size_type _r0 = {{0U|0UL|0}};
 // CHECK-NEXT:              v = _t0;
-// CHECK-NEXT:              {{.*}}reserve_pullback(&v, 10, &_d_v, &_r0);
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 
@@ -870,7 +862,7 @@ int main() {
 // CHECK-NEXT:          std::vector<double> _d_a = {};
 // CHECK-NEXT:          clad::zero_init(_d_a);
 // CHECK-NEXT:          std::vector<double> _t0 = a;
-// CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, 0{{.*}}, &_d_a, 0.);
+// CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, 0{{.*}}, &_d_a, 0{{.*}});
 // CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t1 = {{.*}}operator_subscript_reverse_forw(&a, 0, &_d_a, {{0U|0UL|0}});
 // CHECK-NEXT:          _t1.value = x * x;
 // CHECK-NEXT:          {
@@ -985,7 +977,6 @@ int main() {
 // CHECK-NEXT:         *_d_e += 5 * _r_d0;
 // CHECK-NEXT:         {{.*}}class_functions::operator_star_pullback(&up, 0., &_d_up);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {{.*}}class_functions::constructor_pullback(p, &_d_up, _d_p);
 // CHECK-NEXT:     *_d_d += *_d_p;
 // CHECK-NEXT: }
 
@@ -1117,23 +1108,20 @@ int main() {
 // CHECK-NEXT:         u += 2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_sum += 1;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         for (; _t0; _t0--) {
-// CHECK-NEXT:             {
-// CHECK-NEXT:                 int _r0 = 0;
-// CHECK-NEXT:                 it = clad::back(_t2);
-// CHECK-NEXT:                 {{.*}}class_functions::operator_plus_plus_pullback(&it, 0, {}, &_d_it, &_r0);
-// CHECK-NEXT:                 clad::pop(_t2);
-// CHECK-NEXT:             }
-// CHECK-NEXT:             u = clad::pop(_t5);
-// CHECK-NEXT:             {
-// CHECK-NEXT:                 double _r_d0 = _d_sum;
-// CHECK-NEXT:                 _d_u += _r_d0 * clad::pop(_t3);
-// CHECK-NEXT:                 {{.*}}::class_functions::operator_star_pullback(&it, u * _r_d0, &_d_it);
-// CHECK-NEXT:                 clad::pop(_t4);
-// CHECK-NEXT:             }
+// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             int _r0 = 0;
+// CHECK-NEXT:             it = clad::back(_t2);
+// CHECK-NEXT:             {{.*}}class_functions::operator_plus_plus_pullback(&it, 0, {}, &_d_it, &_r0);
+// CHECK-NEXT:             clad::pop(_t2);
 // CHECK-NEXT:         }
-// CHECK-NEXT:         {{.*}}constructor_pullback(start, &_d_it, &(*_d_start));
+// CHECK-NEXT:         u = clad::pop(_t5);
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r_d0 = _d_sum;
+// CHECK-NEXT:             _d_u += _r_d0 * clad::pop(_t3);
+// CHECK-NEXT:             {{.*}}::class_functions::operator_star_pullback(&it, u * _r_d0, &_d_it);
+// CHECK-NEXT:             clad::pop(_t4);
+// CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1216,18 +1204,16 @@ int main() {
 // CHECK: void fn21_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _t0 = x;
 // CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t1 = clad::custom_derivatives::std::make_shared_reverse_forw(x, *_d_x);
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t2 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<shared_ptr<double> >(), std::move(_t1.value), _t1.adjoint);
+// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t2 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<shared_ptr<double> >(), std::move(_t1.value), std::move(_t1.adjoint));
 // CHECK-NEXT:     std::shared_ptr<double> x_ptr = _t2.value;
 // CHECK-NEXT:     std::shared_ptr<double> _d_x_ptr = _t2.adjoint;
 // CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t3 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<shared_ptr<double> >(), x_ptr, _d_x_ptr);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         std::shared_ptr<double> _r1 = _t3.adjoint;
 // CHECK-NEXT:         simple_func_pullback(_t3.value, 1, &_r1);
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(x_ptr, &_r1, &_d_x_ptr);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         shared_ptr<{{.*}}double{{.*}}> _r0 = _t1.adjoint;
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(std::move(_t1.value), &_d_x_ptr, &_r0);
 // CHECK-NEXT:         x = _t0;
 // CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _r0, &*_d_x);
 // CHECK-NEXT:     }
@@ -1235,7 +1221,7 @@ int main() {
 
 // CHECK: void weak_fn_pullback(std::weak_ptr<double> x_ptr, double _d_y, std::weak_ptr<double> *_d_x_ptr) {
 // CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t0 = clad::custom_derivatives::class_functions::lock_reverse_forw(&x_ptr, &(*_d_x_ptr));
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t1 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<shared_ptr<double> >(), std::move(_t0.value), _t0.adjoint);
+// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t1 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<shared_ptr<double> >(), std::move(_t0.value), std::move(_t0.adjoint));
 // CHECK-NEXT:     std::shared_ptr<double> s = _t1.value;
 // CHECK-NEXT:     std::shared_ptr<double> _d_s = _t1.adjoint;
 // CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}} &, {{.*}} &> _t2 = clad::custom_derivatives::class_functions::operator_star_reverse_forw(&s, &_d_s);
@@ -1247,37 +1233,27 @@ int main() {
 // CHECK-NEXT:         _d_x += 2. * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     clad::custom_derivatives::class_functions::operator_star_pullback(&s, _d_x, &_d_s);
-// CHECK-NEXT:     {
-// CHECK-NEXT:         shared_ptr<double> _r0 = _t0.adjoint;
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(std::move(_t0.value), &_d_s, &_r0);
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::lock_pullback(&x_ptr, _r0, &(*_d_x_ptr));
-// CHECK-NEXT:     }
+// CHECK-NEXT:     shared_ptr<double> _r0 = _t0.adjoint;
 // CHECK-NEXT: }
 
 // CHECK: void fn22_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _t0 = x;
 // CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t1 = clad::custom_derivatives::std::make_shared_reverse_forw(x, *_d_x);
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t2 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<shared_ptr<double> >(), std::move(_t1.value), _t1.adjoint);
+// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t2 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<shared_ptr<double> >(), std::move(_t1.value), std::move(_t1.adjoint));
 // CHECK-NEXT:     std::shared_ptr<double> s_ptr = _t2.value;
 // CHECK-NEXT:     std::shared_ptr<double> _d_s_ptr = _t2.adjoint;
 // CHECK-NEXT:     clad::ValueAndAdjoint< ::std::weak_ptr<double>, ::std::weak_ptr<double> > _t3 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<weak_ptr<double> >(), s_ptr, _d_s_ptr);
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::weak_ptr<double>, ::std::weak_ptr<double> > _t4 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<weak_ptr<double> >(), std::move(_t3.value), _t3.adjoint);
+// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::weak_ptr<double>, ::std::weak_ptr<double> > _t4 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<weak_ptr<double> >(), std::move(_t3.value), std::move(_t3.adjoint));
 // CHECK-NEXT:     std::weak_ptr<double> w_ptr = _t4.value;
 // CHECK-NEXT:     std::weak_ptr<double> _d_w_ptr = _t4.adjoint;
 // CHECK-NEXT:     clad::ValueAndAdjoint< ::std::weak_ptr<double>, ::std::weak_ptr<double> > _t5 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<weak_ptr<double> >(), w_ptr, _d_w_ptr);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         std::weak_ptr<double> _r2 = _t5.adjoint;
 // CHECK-NEXT:         weak_fn_pullback(_t5.value, 1, &_r2);
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(w_ptr, &_r2, &_d_w_ptr);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         std::weak_ptr<double> _r1 = _t3.adjoint;
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(std::move(_t3.value), &_d_w_ptr, &_r1);
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(s_ptr, &_r1, &_d_s_ptr);
-// CHECK-NEXT:     }
+// CHECK-NEXT:     std::weak_ptr<double> _r1 = _t3.adjoint;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         shared_ptr<{{.*}}double{{.*}}> _r0 = _t1.adjoint;
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(std::move(_t1.value), &_d_s_ptr, &_r0);
 // CHECK-NEXT:         x = _t0;
 // CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _r0, &*_d_x);
 // CHECK-NEXT:     }

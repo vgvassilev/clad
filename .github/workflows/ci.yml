@@ -423,9 +423,16 @@ jobs:
             compiler: clang-17
             clang-runtime: '19'
 
-          - name: ubu22-clang17-runtime20
+          - name: ubu22-clang18-runtime20
             os: ubuntu-22.04
             compiler: clang-18
+            clang-runtime: '20'
+
+          - name: ubu24-clang19-runtime20-vg
+            os: ubuntu-24.04
+            compiler: clang-19
+            extra_packages: 'valgrind'
+            extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
             clang-runtime: '20'
 
           - name: ubu24-arm-clang16-runtime17

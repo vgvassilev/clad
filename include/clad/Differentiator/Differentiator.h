@@ -17,6 +17,7 @@
 #include "FunctionTraits.h"
 #include "Matrix.h"
 #include "NumericalDiff.h"
+#include "RestoreTracker.h"
 #include "Tape.h"
 
 #include <array>

@@ -28,7 +28,7 @@ void transform_negate(const thrust::device_vector<double>& vec, thrust::device_v
     thrust::transform(vec.begin(), vec.end(), output.begin(), thrust::negate<double>());
 }
 // CHECK: void transform_negate_grad(const thrust::device_vector<double> &vec, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: thrust::transform(std::begin(vec), std::end(vec), std::begin(output), thrust::negate<double>());
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec), std::end(vec), std::begin(output), thrust::negate<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
@@ -42,7 +42,7 @@ void transform_identity(const thrust::device_vector<double>& vec, thrust::device
     thrust::transform(vec.begin(), vec.end(), output.begin(), thrust::identity<double>());
 }
 // CHECK: void transform_identity_grad(const thrust::device_vector<double> &vec, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: thrust::transform(std::begin(vec), std::end(vec), std::begin(output), thrust::identity<double>());
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec), std::end(vec), std::begin(output), thrust::identity<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
@@ -56,7 +56,7 @@ void transform_plus(const thrust::device_vector<double>& vec1, const thrust::dev
     thrust::transform(vec1.begin(), vec1.end(), vec2.begin(), output.begin(), thrust::plus<double>());
 }
 // CHECK: void transform_plus_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: thrust::transform(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::plus<double>());
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::plus<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
@@ -71,7 +71,7 @@ void transform_minus(const thrust::device_vector<double>& vec1, const thrust::de
     thrust::transform(vec1.begin(), vec1.end(), vec2.begin(), output.begin(), thrust::minus<double>());
 }
 // CHECK: void transform_minus_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: thrust::transform(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::minus<double>());
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::minus<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
@@ -86,7 +86,7 @@ void transform_multiplies(const thrust::device_vector<double>& vec1, const thrus
     thrust::transform(vec1.begin(), vec1.end(), vec2.begin(), output.begin(), thrust::multiplies<double>());
 }
 // CHECK: void transform_multiplies_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: thrust::transform(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::multiplies<double>());
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::multiplies<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
@@ -101,7 +101,7 @@ void transform_divides(const thrust::device_vector<double>& vec1, const thrust::
     thrust::transform(vec1.begin(), vec1.end(), vec2.begin(), output.begin(), thrust::divides<double>());
 }
 // CHECK: void transform_divides_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: thrust::transform(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::divides<double>());
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::divides<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));

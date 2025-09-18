@@ -7,6 +7,9 @@
 
 #include "llvm/Support/SaveAndRestore.h"
 
+#include "clang/AST/Expr.h"
+#include "clang/Basic/LLVM.h"
+
 #include <algorithm>
 #include <iterator>
 
@@ -141,8 +144,33 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       m_Variables[*it] = BuildDeclRef(dPVD), m_DiffReq->getLocation();
     }
   }
+  if (utils::shouldUseRestoreTracker(m_DiffReq.Function)) {
+    QualType trackerTy = utils::GetRestoreTrackerType(m_Sema);
+    trackerTy = m_Sema.getASTContext().getLValueReferenceType(trackerTy);
+    ParmVarDecl* trackerPVD = utils::BuildParmVarDecl(
+        m_Sema, m_Derivative, CreateUniqueIdentifier("_tracker"), trackerTy);
+    paramDerivatives.push_back(trackerPVD);
+    m_Sema.PushOnScopeChains(trackerPVD, getCurrentScope(),
+                             /*AddToContext=*/false);
+    m_RestoreTracker = BuildDeclRef(trackerPVD);
+  }
   params.insert(params.end(), paramDerivatives.begin(), paramDerivatives.end());
   return params;
+}
+
+StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(clang::Expr* E,
+                                                     llvm::StringRef prefix,
+                                                     bool moveToTape) {
+  if (!m_RestoreTracker)
+    return {};
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreCasts())) {
+    const auto* VD = cast<VarDecl>(DRE->getDecl());
+    if (!VD->getType()->isReferenceType())
+      return {};
+  }
+  Expr* storeCall = BuildCallExprToMemFn(m_RestoreTracker,
+                                         /*MemberFunctionName=*/"store", {E});
+  return {storeCall};
 }
 
 StmtDiff ReverseModeForwPassVisitor::ProcessSingleStmt(const clang::Stmt* S) {
@@ -163,6 +191,18 @@ ReverseModeForwPassVisitor::VisitCompoundStmt(const clang::CompoundStmt* CS) {
   return {forward};
 }
 
+ReverseModeForwPassVisitor::DelayedStoreResult
+ReverseModeForwPassVisitor::DelayedGlobalStoreAndRef(Expr* E,
+                                                     llvm::StringRef prefix,
+                                                     bool forceStore) {
+  assert(E && "must be provided");
+  StmtDiff Ediff = Visit(E);
+  return DelayedStoreResult{*this, Ediff,
+                            /*Declaration=*/nullptr,
+                            /*isInsideLoop=*/false,
+                            /*isFnScope=*/false};
+}
+
 StmtDiff ReverseModeForwPassVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   DeclRefExpr* clonedDRE = nullptr;
   // Check if referenced Decl was "replaced" with another identifier inside
@@ -175,16 +215,25 @@ StmtDiff ReverseModeForwPassVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     clonedDRE = cast<DeclRefExpr>(Clone(DRE));
 
   auto* decl = dyn_cast<VarDecl>(clonedDRE->getDecl());
-  return StmtDiff(clonedDRE, m_Variables.find(decl)->second);
+  auto foundAdjoint = m_Variables.find(decl);
+  Expr* adjoint = nullptr;
+  if (foundAdjoint != m_Variables.end())
+    adjoint = foundAdjoint->second;
+
+  return StmtDiff(clonedDRE, adjoint);
 }
 
 StmtDiff
 ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   const Expr* value = RS->getRetValue();
-  auto returnDiff = Visit(value);
+  StmtDiff returnDiff;
+  if (value)
+    returnDiff = Visit(value);
+  SourceLocation validLoc{RS->getBeginLoc()};
+  if (!utils::isMemoryType(m_DiffReq->getReturnType()))
+    return m_Sema.BuildReturnStmt(validLoc, returnDiff.getExpr()).get();
   llvm::SmallVector<Expr*, 2> returnArgs = {returnDiff.getExpr(),
                                             returnDiff.getExpr_dx()};
-  SourceLocation validLoc{RS->getBeginLoc()};
   Expr* returnInitList =
       m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
   Stmt* newRS = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();

@@ -64,6 +64,7 @@ namespace clad {
 
     void updateStmt(clang::Stmt* S) { data[1] = S; }
     void updateStmtDx(clang::Stmt* S) { data[0] = S; }
+    void updateRevSweep(clang::Stmt* S) { m_ValueForRevSweep = S; }
     // Stmt_dx goes first!
     std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
 
@@ -634,7 +635,7 @@ namespace clad {
 
     /// Builds the QualType of the derivative to be generated.
     ///
-    /// \param[in] moveBaseToParams If true, turns member functions into regular
+    /// \param[in] forCustomDerv If true, turns member functions into regular
     /// functions by moving the base to the parameters.
     clang::QualType
     GetDerivativeType(llvm::ArrayRef<clang::QualType> customParams = {});

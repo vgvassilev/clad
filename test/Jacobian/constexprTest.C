@@ -1,5 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -std=c++14 -oconstexprTest.out 2>&1 | %filecheck %s
 // RUN: ./constexprTest.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 

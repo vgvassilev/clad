@@ -2,6 +2,7 @@
 // RUN: ./Cladtorch.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oCladtorch.out
 // RUN: ./Cladtorch.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
@@ -68,7 +69,7 @@ float fn1(
 // CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> v{{.*}}{u, b}{{.*}};
 // CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> _d_v(v);
 // CHECK-NEXT:     clad::zero_init(_d_v);
-// CHECK-NEXT:     clad::ValueAndAdjoint<Tensor &, Tensor &> _t0 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&v, 1, &_d_v, {{0U|0UL}});
+// CHECK-NEXT:     clad::ValueAndAdjoint<Tensor &, Tensor &> _t0 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&v, 1, &_d_v, 0);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}}size_type {{.*}} = {{0U|0UL}};
 // CHECK-NEXT:         clad::custom_derivatives::class_functions::operator_subscript_pullback(&v, 1, {}, &_d_v, &{{.*}});

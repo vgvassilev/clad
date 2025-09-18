@@ -1,5 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oTapeMemory.out 2>&1
 // RUN: ./TapeMemory.out
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 

@@ -2,8 +2,7 @@
 // RUN: ./Pointers.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oPointers.out
 // RUN: ./Pointers.out | %filecheck_exec %s
-
-// XFAIL: target={{i586.*}}
+// XFAIL: target={{i586.*}}, valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -390,7 +389,7 @@ double* ptrValFn (double* x, int n) {
   return x;
 }
 
-// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_reverse_forw(double *x, int n, double *_d_x, int _d_n) {
+// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_reverse_forw(double *x, int n, double *_d_x, int _d_n, clad::restore_tracker &_tracker0) {
 // CHECK-NEXT:     _d_x += n;
 // CHECK-NEXT:     x += n;
 // CHECK-NEXT:     return {x, _d_x};
@@ -412,11 +411,13 @@ double nestedPtrFn (double x, double y) {
 // CHECK: void nestedPtrFn_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     double _d_arr[2] = {0};
 // CHECK-NEXT:     double arr[2] = {x, y};
-// CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0 = ptrValFn_reverse_forw(arr, 1, _d_arr, 0);
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {}; 
+// CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0 = ptrValFn_reverse_forw(arr, 1, _d_arr, 0, _tracker0);
 // CHECK-NEXT:     double *_d_z = _t0.adjoint;
 // CHECK-NEXT:     double *z = _t0.value;
 // CHECK-NEXT:     *_d_z += 1;
 // CHECK-NEXT:     {
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         int _r0 = 0;
 // CHECK-NEXT:         ptrValFn_pullback(arr, 1, _d_arr, &_r0);
 // CHECK-NEXT:     }

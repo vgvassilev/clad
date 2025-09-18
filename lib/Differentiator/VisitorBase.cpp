@@ -8,13 +8,14 @@
 
 #include "ConstantFolder.h"
 
-#include "llvm/Support/Casting.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
+#include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
+#include "llvm/Support/Casting.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attrs.inc"
@@ -310,9 +311,12 @@ namespace clad {
     // For intermediate variables, use numbered names (_t0), for everything
     // else first try a name without number (e.g. first try to use _d_x and
     // use _d_x0 only if _d_x is taken).
-    bool countedName = nameBase.starts_with("_") &&
-                       !nameBase.starts_with("_d_") &&
-                       !nameBase.starts_with("_delta_") && nameBase != "_this";
+    bool isRangedVar = !nameBase.starts_with("__range") &&
+                       !nameBase.starts_with("__end") &&
+                       !nameBase.starts_with("__begin");
+    bool countedName =
+        nameBase.starts_with("_") && !nameBase.starts_with("_d_") &&
+        !nameBase.starts_with("_delta_") && isRangedVar && nameBase != "_this";
     std::size_t idx = 0;
     std::size_t& id = countedName ? m_idCtr[nameBase.str()] : idx;
     std::string idStr = countedName ? std::to_string(id) : "";
@@ -1013,7 +1017,7 @@ namespace clad {
     for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
       diffParams.push_back(VarInfo.param);
     return utils::GetDerivativeType(m_Sema, m_DiffReq.Function, m_DiffReq.Mode,
-                                    diffParams, /*moveBaseToParams=*/false,
+                                    diffParams, /*forCustomDerv=*/false,
                                     customParams);
   }
 

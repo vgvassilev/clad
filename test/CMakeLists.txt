@@ -63,11 +63,6 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
   )
 
-option(CLAD_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
-if(CLAD_TEST_USE_VG)
-  set(CLAD_TEST_EXTRA_ARGS ${CLAD_TEST_EXTRA_ARGS} "--vg")
-endif ()
-
 list(APPEND CLAD_TEST_DEPS clad cladCustomModelPlugin cladPrintModelPlugin)
 # Try to append dependencies only if we are building in-tree.
 if(NOT CLAD_BUILT_STANDALONE)
@@ -90,16 +85,23 @@ if(NOT LLVM_MAIN_SRC_DIR)
   set(LLVM_MAIN_SRC_DIR ${LLVM_BUILD_MAIN_SRC_DIR})
 endif()
 
+option(CLAD_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
+set(CLAD_TEST_EXTRA_ARGS --verbose --show-skipped --show-unsupported)
+if(CLAD_TEST_USE_VG)
+  set(CLAD_TEST_EXTRA_ARGS ${CLAD_TEST_EXTRA_ARGS} "--vg --vg-arg=-q")
+endif ()
+
 add_lit_testsuite(check-clad "Running the Clad regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   LIT ${LIT_COMMAND}
   PARAMS ${CLAD_TEST_PARAMS}
   DEPENDS ${CLAD_TEST_DEPS}
-  ARGS ${CLAD_TEST_EXTRA_ARGS} --verbose --show-skipped --show-unsupported
+  ARGS ${CLAD_TEST_EXTRA_ARGS}
   )
 set_target_properties(check-clad PROPERTIES FOLDER "Clad tests")
 
 add_lit_testsuites(CLAD ${CMAKE_CURRENT_SOURCE_DIR}
   PARAMS ${CLAD_TEST_PARAMS}
   DEPENDS ${CLAD_TEST_DEPS}
+  ARGS ${CLAD_TEST_EXTRA_ARGS}
 )
