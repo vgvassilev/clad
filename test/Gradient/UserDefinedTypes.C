@@ -412,7 +412,7 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
 // CHECK-NEXT:    return {*this, *_d_this};
 // CHECK-NEXT:}
 
-// CHECK: inline constexpr void operator_equal_pullback(MyStruct &&arg, MyStruct _d_y, MyStruct *_d_this, MyStruct *_d_arg) noexcept {
+// CHECK: inline constexpr void operator_equal_pullback(MyStruct &&arg, MyStruct *_d_this, MyStruct *_d_arg) noexcept {
 // CHECK-NEXT:    double _t0 = this->a;
 // CHECK-NEXT:    this->a = static_cast<MyStruct &&>(arg).a;
 // CHECK-NEXT:    double _t1 = this->b;
@@ -437,7 +437,7 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
 // CHECK-NEXT:    {
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
 // CHECK-NEXT:        s = _t0;
-// CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, {0., 0.}, &(*_d_s), &_r0);
+// CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, &(*_d_s), &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
 // CHECK-NEXT:    }
@@ -725,7 +725,7 @@ void fn20(MyStruct s) {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
 // CHECK-NEXT:        s = _t0;
-// CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, {0., 0.}, &(*_d_s), &_r0);
+// CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, &(*_d_s), &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
 // CHECK-NEXT:    }
@@ -1001,8 +1001,7 @@ constructor_reverse_forw(::clad::ConstructorReverseForwTag<ptrClass>, double* mp
 // CHECK-NEXT:      return {*this->ptr, *_d_this->ptr};
 // CHECK-NEXT:  }
 
-// CHECK:  void operator_star_pullback(double _d_y, ptrClass *_d_this) {
-// CHECK-NEXT:      *_d_this->ptr += _d_y;
+// CHECK:  void operator_star_pullback(ptrClass *_d_this) {
 // CHECK-NEXT:  }
 
 double fn26(double x, double y) {
@@ -1014,7 +1013,8 @@ double fn26(double x, double y) {
 // CHECK-NEXT:      ::clad::ValueAndAdjoint<ptrClass, ptrClass> _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<ptrClass>(), &x, &*_d_x);
 // CHECK-NEXT:      ptrClass p(_t0.value);
 // CHECK-NEXT:      ptrClass _d_p = _t0.adjoint;
-// CHECK-NEXT:      p.operator_star_pullback(1, &_d_p);
+// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t1 = p.operator_star_reverse_forw(&_d_p);
+// CHECK-NEXT:      _t1.adjoint += 1;
 // CHECK-NEXT:  }
 
 struct MyStructWrapper {
@@ -1027,12 +1027,12 @@ struct MyStructWrapper {
 // CHECK-NEXT:      return {*this, *_d_this};
 // CHECK-NEXT:  }
 
-// CHECK:  inline constexpr void operator_equal_pullback(MyStructWrapper &&arg, MyStructWrapper _d_y, MyStructWrapper *_d_this, MyStructWrapper *_d_arg) noexcept {
+// CHECK:  inline constexpr void operator_equal_pullback(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper *_d_arg) noexcept {
 // CHECK-NEXT:      MyStruct _t0 = this->val;
 // CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, std::move((*_d_arg).val));
 // CHECK-NEXT:      {
 // CHECK-NEXT:          this->val = _t0;
-// CHECK-NEXT:          this->val.operator_equal_pullback(static_cast<MyStructWrapper &&>(arg).val, {0., 0.}, &_d_this->val, &(*_d_arg).val);
+// CHECK-NEXT:          this->val.operator_equal_pullback(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, &(*_d_arg).val);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
@@ -1054,7 +1054,7 @@ double fn27(double x, double y) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          MyStructWrapper _r0 = {{.*0., 0..*}};
 // CHECK-NEXT:          s = _t0;
-// CHECK-NEXT:          s.operator_equal_pullback({{.*2 \* y, 3 \* x \+ 2.*}}, {{.*0., 0..*}}, &_d_s, &_r0);
+// CHECK-NEXT:          s.operator_equal_pullback({{.*2 \* y, 3 \* x \+ 2.*}}, &_d_s, &_r0);
 // CHECK-NEXT:          *_d_y += 2 * _r0.val.a;
 // CHECK-NEXT:          *_d_x += 3 * _r0.val.b;
 // CHECK-NEXT:      }

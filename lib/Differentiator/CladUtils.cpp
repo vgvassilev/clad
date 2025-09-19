@@ -1192,7 +1192,8 @@ namespace clad {
         // Handle pullbacks
         QualType argTy = oRetTy.getNonReferenceType();
         argTy = utils::getNonConstType(argTy, S);
-        if (!argTy->isVoidType() && !argTy->isPointerType())
+        if (!argTy->isVoidType() && !argTy->isPointerType() &&
+            !utils::isNonConstReferenceType(oRetTy))
           FnTypes.push_back(argTy);
       }
 

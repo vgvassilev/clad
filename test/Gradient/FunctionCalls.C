@@ -330,17 +330,15 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     return {i, _d_i};
 // CHECK-NEXT: }
 
-// CHECK: void identity_pullback(double &i, double _d_y, double *_d_i) {
+// CHECK: void identity_pullback(double &i, double *_d_i) {
 // CHECK-NEXT:     MyStruct::myFunction();
 // CHECK-NEXT:     double _d__d_i = 0.;
 // CHECK-NEXT:     double _d_i0 = i;
 // CHECK-NEXT:     _d_i0 += 1;
-// CHECK-NEXT:     *_d_i += _d_y;
 // CHECK-NEXT:     *_d_i += _d__d_i;
 // CHECK-NEXT: }
 
-// CHECK: void custom_identity_pullback(double &i, double _d_y, double *_d_i) {
-// CHECK-NEXT:     *_d_i += _d_y;
+// CHECK: void custom_identity_pullback(double &i, double *_d_i) {
 // CHECK-NEXT: }
 
 // CHECK: void fn7_grad(double i, double j, double *_d_i, double *_d_j) {
@@ -368,9 +366,8 @@ double fn7(double i, double j) {
 // CHECK-NEXT:         double _r_d0 = _d_k;
 // CHECK-NEXT:         *_d_j += 7 * _r_d0;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     custom_identity_pullback(i, 0., &*_d_i);
-// CHECK-NEXT:     identity_pullback(j, 0., &*_d_j);
-// CHECK-NEXT:     identity_pullback(i, 0., &*_d_i);
+// CHECK-NEXT:     identity_pullback(j, &*_d_j);
+// CHECK-NEXT:     identity_pullback(i, &*_d_i);
 // CHECK-NEXT: }
 
 double check_and_return(double x, char c, const char* s) {
@@ -970,12 +967,11 @@ double& nested(double* x, double y) {
 // CHECK-NEXT:     return {x[1], _d_x[1]};
 // CHECK-NEXT: }
 
-// CHECK-NEXT: void nested_pullback(double *x, double y, double _d_y0, double *_d_x, double *_d_y) {
+// CHECK-NEXT: void nested_pullback(double *x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, *_d_y, _tracker0);
 // CHECK-NEXT:     clad::restore_tracker _tracker1 = {};
 // CHECK-NEXT:     mult_reverse_forw(x, 3, _d_x, 0, _tracker1);
-// CHECK-NEXT:     _d_x[1] += _d_y0;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker1.restore();
 // CHECK-NEXT:         double _r1 = 0.;
@@ -1009,7 +1005,7 @@ double fn28(double u, double v) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         nested_pullback(arr, u, 0., _d_arr, &_r0);
+// CHECK-NEXT:         nested_pullback(arr, u, _d_arr, &_r0);
 // CHECK-NEXT:         *_d_u += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {

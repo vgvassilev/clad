@@ -487,13 +487,11 @@ void operator_subscript_pullback(const ::std::vector<T>* vec,
   (*d_vec)[idx] += d_y;
 }
 
-template <typename T, typename P>
+template <typename T>
 void operator_subscript_pullback(::std::vector<T>* vec,
                                  typename ::std::vector<T>::size_type idx,
-                                 P d_y, ::std::vector<T>* d_vec,
-                                 typename ::std::vector<T>::size_type* d_idx) {
-  (*d_vec)[idx] += d_y;
-}
+                                 ::std::vector<T>* d_vec,
+                                 typename ::std::vector<T>::size_type* d_idx) {}
 
 template <typename T>
 clad::ValueAndAdjoint<T&, T&>
@@ -511,13 +509,11 @@ void at_pullback(const ::std::vector<T>* vec,
   (*d_vec)[idx] += d_y;
 }
 
-template <typename T, typename P>
+template <typename T>
 void at_pullback(::std::vector<T>* vec,
-                 typename ::std::vector<T>::size_type idx, P d_y,
+                 typename ::std::vector<T>::size_type idx,
                  ::std::vector<T>* d_vec,
-                 typename ::std::vector<T>::size_type* d_idx) {
-  (*d_vec)[idx] += d_y;
-}
+                 typename ::std::vector<T>::size_type* d_idx) {}
 
 template <typename T, typename U>
 void constructor_pullback(
@@ -602,12 +598,10 @@ void operator_subscript_pullback(
     typename ::std::array<T, N>::size_type* d_idx) {
   (*d_arr)[idx] += d_y;
 }
-template <typename T, ::std::size_t N, typename P>
+template <typename T, ::std::size_t N>
 void operator_subscript_pullback(
-    ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx, P d_y,
-    ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type* d_idx) {
-  (*d_arr)[idx] += d_y;
-}
+    ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
+    ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type* d_idx) {}
 template <typename T, ::std::size_t N>
 clad::ValueAndAdjoint<T&, T&> at_reverse_forw(
     ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
@@ -621,13 +615,11 @@ void at_pullback(const ::std::array<T, N>* arr,
                  typename ::std::array<T, N>::size_type* d_idx) {
   (*d_arr)[idx] += d_y;
 }
-template <typename T, ::std::size_t N, typename P>
+template <typename T, ::std::size_t N>
 void at_pullback(::std::array<T, N>* arr,
-                 typename ::std::array<T, N>::size_type idx, P d_y,
+                 typename ::std::array<T, N>::size_type idx,
                  ::std::array<T, N>* d_arr,
-                 typename ::std::array<T, N>::size_type* d_idx) {
-  (*d_arr)[idx] += d_y;
-}
+                 typename ::std::array<T, N>::size_type* d_idx) {}
 template <typename T, ::std::size_t N>
 void fill_reverse_forw(::std::array<T, N>* a,
                        const typename ::std::array<T, N>::value_type& u,
@@ -660,10 +652,7 @@ void back_pullback(const ::std::array<T, N>* arr,
 }
 template <typename T, ::std::size_t N>
 void back_pullback(::std::array<T, N>* arr,
-                   typename ::std::array<T, N>::value_type d_u,
-                   ::std::array<T, N>* d_arr) noexcept {
-  (*d_arr)[d_arr->size() - 1] += d_u;
-}
+                   ::std::array<T, N>* d_arr) noexcept {}
 template <typename T, ::std::size_t N>
 clad::ValueAndAdjoint<T&, T&>
 front_reverse_forw(::std::array<T, N>* arr,
@@ -722,14 +711,11 @@ operator_star_reverse_forw(
   return {**u, **d_u};
 }
 
-template <typename T, typename U>
+template <typename T>
 ::std::enable_if_t<(helpers::is_std_smart_ptr<T>::value ||
-                    helpers::is_iterator<T>::value) &&
-                       ::std::is_arithmetic<U>::value,
+                    helpers::is_iterator<T>::value),
                    void>
-operator_star_pullback(const T* u, U pullback, T* d_u) {
-  **d_u += pullback;
-}
+operator_star_pullback(const T* u, T* d_u) {}
 
 // iterator custom derivatives
 template <
@@ -898,9 +884,7 @@ clad::ValueAndAdjoint<T&, T&> forward_reverse_forw(T& t, T& dt) {
   return {t, dt};
 }
 
-template <class T> constexpr void forward_pullback(T& t, T dy, T* dt) noexcept {
-  *dt += dy;
-}
+template <class T> constexpr void forward_pullback(T& t, T* dt) noexcept {}
 
 template <class T>
 constexpr void forward_pullback(T&& t, T dy, T* dt) noexcept {
