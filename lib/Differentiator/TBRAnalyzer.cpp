@@ -409,6 +409,7 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   bool hasHiddenParam = (CE->getNumArgs() != FD->getNumParams());
   std::size_t maxParamIdx = FD->getNumParams() - 1;
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
+  bool nonDiff = utils::hasNonDifferentiableAttribute(CE);
   for (std::size_t i = hasHiddenParam, e = CE->getNumArgs(); i != e; ++i) {
     clang::Expr* arg = CE->getArg(i);
     const ParmVarDecl* par = nullptr;
@@ -423,6 +424,8 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
       if (usedParams.find(par) == usedParams.end())
         paramUnused = true;
     }
+    if (nonDiff)
+      paramUnused = true;
     if (paramUnused)
       setMode(/*mode=*/0);
     TraverseStmt(arg);
@@ -459,6 +462,8 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
       if (usedParams.find(nullptr) == usedParams.end())
         paramUnused = true;
     }
+    if (nonDiff)
+      paramUnused = true;
     if (paramUnused)
       setMode(/*mode=*/0);
     TraverseStmt(base);

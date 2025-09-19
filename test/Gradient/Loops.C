@@ -2650,9 +2650,6 @@ float fn42(const layer &l, float x) {
 //CHECK-NEXT:            float _r_d0 = _d_x;
 //CHECK-NEXT:            _d_x = 0.F;
 //CHECK-NEXT:            this->w[i].forward_pullback(x, _r_d0, &_d_this->w[i], &_d_x);
-//CHECK-NEXT:            size_type _r0 = {{0U|0UL}};
-//CHECK-NEXT:            this->w.operator_subscript_pullback(i, {}, &_d_this->w, &_r0);
-//CHECK-NEXT:            _d_i += _r0;
 //CHECK-NEXT:        }
 //CHECK-NEXT:    }
 //CHECK-NEXT:    *_d_inp += _d_x;
