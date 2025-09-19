@@ -235,10 +235,8 @@ int main() {
 
     // CHECK:     void fn_non_diff_param_call_grad(double i, double j, double *_d_i, double *_d_j) {
     // CHECK-NEXT:         SimpleFunctions2 obj1(j, j);
-    // CHECK-NEXT:         SimpleFunctions2 _t0 = obj1;
     // CHECK-NEXT:         {
     // CHECK-NEXT:             double _r0 = 0.;
-    // CHECK-NEXT:             obj1 = _t0;
     // CHECK-NEXT:             fn_non_diff_param_pullback(i, obj1, 1, &_r0);
     // CHECK-NEXT:             *_d_i += _r0;
     // CHECK-NEXT:         }

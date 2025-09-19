@@ -975,7 +975,6 @@ int main() {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _t1.adjoint;
 // CHECK-NEXT:         *_d_e += 5 * _r_d0;
-// CHECK-NEXT:         {{.*}}class_functions::operator_star_pullback(&up, 0., &_d_up);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_d += *_d_p;
 // CHECK-NEXT: }
@@ -1100,7 +1099,7 @@ int main() {
 // CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}}> _t1 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{.*}}>(), start, (*_d_start));
 // CHECK-NEXT:     it = _t1.value;
 // CHECK-NEXT:     _d_it = _t1.adjoint;
-// CHECK-NEXT:     for (; operator!=(it, end); clad::push(_t2, it) , {{.*}}class_functions::operator_plus_plus_reverse_forw(&it, 0, &_d_it, 0)) {
+// CHECK-NEXT:     for (; it != end; clad::push(_t2, it) , {{.*}}class_functions::operator_plus_plus_reverse_forw(&it, 0, &_d_it, 0)) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t4, {{.*}}class_functions::operator_star_reverse_forw(&it, &_d_it));
 // CHECK-NEXT:         sum += u * clad::push(_t3, clad::back(_t4).value);
