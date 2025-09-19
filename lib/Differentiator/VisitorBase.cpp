@@ -69,7 +69,7 @@ namespace clad {
     if (!S)
       return false;
     if (Expr* E = dyn_cast<Expr>(S)) {
-      if (isUnusedResult(E))
+      if (isUnusedResult(E->IgnoreCasts()))
         return false;
     }
     block.push_back(S);

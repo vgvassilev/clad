@@ -397,11 +397,11 @@ double fn8(double u, double v) {
 // CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t1 = clad::custom_derivatives::std::forward_reverse_forw(__{{u2|y}}, *_d___{{u2|y}});
 // CHECK-NEXT:      _this->second = _t1.value;
 // CHECK:           {
-// CHECK-NEXT:          clad::custom_derivatives::std::forward_pullback(__{{u2|y}}, _d_this->second, &*_d___{{u2|y}});
+// CHECK-NEXT:          _t1.adjoint += _d_this->second;
 // CHECK-NEXT:          _d_this->second = 0.;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
-// CHECK-NEXT:          clad::custom_derivatives::std::forward_pullback(__{{u1|x}}, _d_this->first, &*_d___{{u1|x}});
+// CHECK-NEXT:          _t0.adjoint += _d_this->first;
 // CHECK-NEXT:          _d_this->first = 0.;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      free(_this);

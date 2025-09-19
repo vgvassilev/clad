@@ -44,8 +44,6 @@ void copy_with_return_value_stored(const thrust::device_vector<double>& src,
 // CHECK-NEXT:     thrust::detail::normal_iterator<device_ptr<double> > it = _t0.value;
 // CHECK-NEXT:     thrust::detail::normal_iterator<device_ptr<double> > _d_it = {};
 // CHECK-NEXT:     clad::zero_init(_d_it);
-// CHECK-NEXT:     (void)it;
-// CHECK-NEXT:     (void)_d_it;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         const_iterator _r0 = std::begin((*_d_src));
 // CHECK-NEXT:         const_iterator _r1 = std::end((*_d_src));

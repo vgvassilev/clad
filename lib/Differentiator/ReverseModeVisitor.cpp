@@ -1953,12 +1953,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!nonDiff) {
       // Build the args for the pullback
       llvm::SmallVector<Expr*, 16> pullbackCallArgs = CallArgs;
-      QualType nonRefRetTy = returnType.getNonReferenceType();
-      if (!(nonRefRetTy->isPointerType() || nonRefRetTy->isVoidType())) {
+      if (!(utils::isNonConstReferenceType(returnType) ||
+            returnType->isPointerType() || returnType->isVoidType())) {
         if (Expr* pullback = dfdx())
           pullbackCallArgs.push_back(pullback);
         else
-          pullbackCallArgs.push_back(getZeroInit(nonRefRetTy));
+          pullbackCallArgs.push_back(getZeroInit(returnType));
       }
       for (Expr* arg : CallArgDx)
         if (arg)
@@ -2109,6 +2109,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     // Put Result array declaration in the function body.
     // Call the gradient, passing Result as the last Arg.
+    //
     Stmts& block = getCurrentBlock(direction::reverse);
     Stmts::iterator it = std::begin(block) + insertionPoint;
     // Insert PreCallStmts
@@ -2194,7 +2195,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                   CallArgs, Loc, CUDAExecConfig)
                    .get();
       }
-      if (!needsForwPass || utils::hasUnusedReturnValue(m_Context, CE))
+      if (!needsForwPass ||
+          (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE)))
         return StmtDiff(call);
       Expr* callRes = nullptr;
       if (isInsideLoop)
@@ -2206,6 +2208,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
       auto* resAdjoint =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
+      if (Expr* add_assign = BuildDiffIncrement(resAdjoint)) {
+        Stmts& block = getCurrentBlock(direction::reverse);
+        it = std::begin(block) + insertionPoint;
+        block.insert(it, add_assign);
+        // addToCurrentBlock(add_assign, direction::reverse);
+      }
       return StmtDiff(resValue, resAdjoint);
     } // Recreate the original call expression.
 
@@ -4562,7 +4570,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType dRetTy = FD->getReturnType().getNonReferenceType();
     dRetTy = utils::getNonConstType(dRetTy, m_Sema);
     if (m_DiffReq.Mode == DiffMode::pullback && !dRetTy->isVoidType() &&
-        !dRetTy->isPointerType()) {
+        !dRetTy->isPointerType() &&
+        !utils::isNonConstReferenceType(FD->getReturnType())) {
       auto paramNameExists = [&params](llvm::StringRef name) {
         for (ParmVarDecl* PVD : params)
           if (PVD->getName() == name)
