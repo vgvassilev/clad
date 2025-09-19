@@ -391,7 +391,7 @@ double fnTuple1(double x, double y) {
 } // = 2x + 2y
 
 //CHECK:      clad::ValueAndPushforward<{{.*}}> pack_pushforward({{.*}}) {
-//CHECK-NEXT:          clad::ValueAndPushforward<tuple<double, double, double>, tuple<double, double, double> > _t0 = clad::custom_derivatives::std::make_tuple_pushforward(x, 2 * x, 3 * x, _d_x, 0 * x + 2 * _d_x, 0 * x + 3 * _d_x);
+//CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t0 = clad::custom_derivatives::std::make_tuple_pushforward(x, 2 * x, 3 * x, _d_x, 0 * x + 2 * _d_x, 0 * x + 3 * _d_x);
 //CHECK-NEXT:          return {_t0.value, _t0.pushforward};
 //CHECK-NEXT:      }
 
@@ -400,7 +400,7 @@ double fnTuple1(double x, double y) {
 //CHECK-NEXT:          double _d_y = 0;
 //CHECK-NEXT:          double _d_u, _d_v = 0 * x + 288 * _d_x, _d_w;
 //CHECK-NEXT:          double u, v = 288 * x, w;
-//CHECK-NEXT:          clad::ValueAndPushforward<tuple<double &, double &, double &>, tuple<double &, double &, double &> > _t0 = clad::custom_derivatives::std::tie_pushforward(u, v, w, _d_u, _d_v, _d_w);
+//CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t0 = clad::custom_derivatives::std::tie_pushforward(u, v, w, _d_u, _d_v, _d_w);
 //CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t1 = pack_pushforward(x + y, _d_x + _d_y);
 //CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t2 = clad::custom_derivatives::class_functions::operator_equal_pushforward(&_t0.value, static_cast<std::tuple<double, double, double> &&>(_t1.value), &_t0.pushforward, static_cast<std::tuple<double, double, double> &&>(_t1.pushforward));
 //CHECK-NEXT:          return _d_v;

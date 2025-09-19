@@ -1571,7 +1571,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
       if (!init)
         init = getZeroInit(dArgTy);
-      VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", init);
+      QualType ReadableTy = utils::makeTypeReadable(m_Sema, dArgTy);
+      VarDecl* dArgDecl = BuildVarDecl(ReadableTy, "_r", init);
       PreCallStmts.push_back(BuildDeclStmt(dArgDecl));
       DeclRefExpr* dArgRef = BuildDeclRef(dArgDecl);
       if (isCUDAKernel) {

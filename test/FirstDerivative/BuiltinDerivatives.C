@@ -215,7 +215,7 @@ double f11(double x, double y) {
 }
 
 // CHECK: void f11_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     typename {{.*}} _t0 = std::pow(y - std::pow(x, 2), 2);
+// CHECK-NEXT:     {{.*}} _t0 = std::pow(y - std::pow(x, 2), 2);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         int _r1 = 0;

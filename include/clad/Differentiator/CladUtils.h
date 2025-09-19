@@ -420,6 +420,9 @@ namespace clad {
     /// And be used in the reverse mode.
     bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD);
 
+    ///\returns a fully qualified type that is as close as coders would write.
+    clang::QualType makeTypeReadable(clang::Sema& S, clang::QualType Ty);
+
     /// We need to replace std::initializer_list with clad::array in the reverse
     /// mode because the former is temporary by design and it's not possible to
     /// create modifiable adjoints.
