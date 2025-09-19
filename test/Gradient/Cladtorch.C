@@ -69,14 +69,14 @@ float fn1(
 // CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> v{{.*}}{u, b}{{.*}};
 // CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> _d_v(v);
 // CHECK-NEXT:     clad::zero_init(_d_v);
-// CHECK-NEXT:     clad::ValueAndAdjoint<Tensor &, Tensor &> _t0 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&v, 1, &_d_v, 0);
+// CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}}Tensor &, {{.*}}Tensor &> _t0 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&v, 1, &_d_v, 0);
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}}size_type {{.*}} = {{0U|0UL}};
+// CHECK-NEXT:         {{.*size_type|size_t}} _r{{[0|1|2]}} = {{0U|0UL}};
 // CHECK-NEXT:         clad::custom_derivatives::class_functions::operator_subscript_pullback(&v, 1, {}, &_d_v, &{{.*}});
 // CHECK-NEXT:         _t0.adjoint.data += 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         clad::array<Tensor> _r0 = {{2U|2UL}};
+// CHECK-NEXT:         clad::array<{{cladtorch::Tensor|std::vector<cladtorch::Tensor, std::allocator<cladtorch::Tensor> >::value_type}}> _r0 = {{2U|2UL}};
 // CHECK:              {{.*}}clad::custom_derivatives::class_functions::constructor_pullback({u, b}, {{.*}}&_d_v, &_r0{{.*}});
 // CHECK-NEXT:         Tensor::constructor_pullback(u, &_r0[0], &_d_u);
 // CHECK-NEXT:         Tensor::constructor_pullback(b, &_r0[1], &_d_b);

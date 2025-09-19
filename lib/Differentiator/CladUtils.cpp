@@ -11,6 +11,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/ParentMapContext.h"
+#include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -1271,6 +1272,17 @@ namespace clad {
       QualType paramTy = FD->getParamDecl(0)->getType();
       paramTy = paramTy.getNonReferenceType();
       return paramTy->isRealType();
+    }
+
+    QualType makeTypeReadable(Sema& S, QualType Ty) {
+      ASTContext& C = S.getASTContext();
+      QualType retTy =
+          TypeName::getFullyQualifiedType(Ty, C, /*WithGlobalNsPrefix=*/false);
+
+      // FIXME: Add a type visitor which can fold stl-specific idioms such as
+      // X::value_type, X::size_type.
+      // FIXME: Drop the default arguments such as std::allocator.
+      return retTy;
     }
 
     QualType replaceStdInitListWithCladArray(Sema& S, QualType origTy) {
