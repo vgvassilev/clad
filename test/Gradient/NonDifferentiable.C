@@ -1,4 +1,6 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oNonDifferentiable.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oNonDifferentiable.out 2>&1 | %filecheck %s
+// RUN: ./NonDifferentiable.out | %filecheck_exec %s
+// RUN: %cladclang %s -I%S/../../include -oNonDifferentiable.out
 // RUN: ./NonDifferentiable.out | %filecheck_exec %s
 // XFAIL: valgrind
 
@@ -175,11 +177,9 @@ int main() {
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
     // CHECK-NEXT:     SimpleFunctions1 _d_obj(obj);
     // CHECK-NEXT:     clad::zero_init(_d_obj);
-    // CHECK-NEXT:     SimpleFunctions1 _t0 = obj;
     // CHECK-NEXT:     {
     // CHECK-NEXT:         double _r0 = 0.;
     // CHECK-NEXT:         double _r1 = 0.;
-    // CHECK-NEXT:         obj = _t0;
     // CHECK-NEXT:         obj.mem_fn_1_pullback(i, j, 1, &_d_obj, &_r0, &_r1);
     // CHECK-NEXT:         *_d_i += _r0;
     // CHECK-NEXT:         *_d_j += _r1;
@@ -251,10 +251,8 @@ int main() {
   // CHECK-NEXT: }
 
   // CHECK: void result_pullback(int *out, Input in, int *_d_out) {
-  // CHECK-NEXT: int _t0 = *out;
   // CHECK-NEXT: *out = in.i;
   // CHECK-NEXT: {
-  // CHECK-NEXT:    *out = _t0;
   // CHECK-NEXT:    int _r_d0 = *_d_out;
   // CHECK-NEXT:    *_d_out = 0;
   // CHECK-NEXT: }
