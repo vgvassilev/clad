@@ -774,13 +774,6 @@ namespace clad {
         cast<DefaultStmt>(SC)->setSubStmt(subStmt);
     }
 
-    bool IsLiteral(const clang ::Expr* E) {
-      return isa<IntegerLiteral>(E) || isa<FloatingLiteral>(E) ||
-             isa<CharacterLiteral>(E) || isa<StringLiteral>(E) ||
-             isa<ObjCBoolLiteralExpr>(E) || isa<CXXBoolLiteralExpr>(E) ||
-             isa<GNUNullExpr>(E);
-    }
-
     bool IsZeroOrNullValue(const clang::Expr* E) {
       if (!E)
         return true;
