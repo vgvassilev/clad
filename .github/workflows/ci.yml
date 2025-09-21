@@ -437,12 +437,12 @@ jobs:
             compiler: clang-18
             clang-runtime: '20'
 
-          - name: ubu24-clang19-runtime20-vg
+          - name: ubu24-clang19-runtime21-vg
             os: ubuntu-24.04
             compiler: clang-19
             extra_packages: 'valgrind'
             extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
-            clang-runtime: '20'
+            clang-runtime: '21'
 
           - name: ubu24-clang20-runtime21
             os: ubuntu-24.04
