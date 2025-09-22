@@ -571,18 +571,6 @@ template <typename T>
 void shrink_to_fit_pullback(::std::vector<T>* /*v*/,
                             ::std::vector<T>* /*d_v*/) noexcept {}
 
-template <typename T>
-void capacity_pullback(const ::std::vector<T>* /*v*/,
-                       ::std::vector<T>* /*d_v*/) noexcept {}
-
-template <typename T, typename U>
-void size_pullback(const ::std::vector<T>* /*v*/, U /*d_y*/,
-                   ::std::vector<T>* /*d_v*/) noexcept {}
-
-template <typename T, typename U>
-void capacity_pullback(const ::std::vector<T>* /*v*/, U /*d_y*/,
-                       ::std::vector<T>* /*d_v*/) noexcept {}
-
 // array reverse mode
 
 template <typename T, ::std::size_t N>
@@ -665,9 +653,6 @@ void front_pullback(const ::std::array<T, N>* arr,
                     ::std::array<T, N>* d_arr) {
   (*d_arr)[0] += d_u;
 }
-template <typename T, ::std::size_t N, typename U>
-void size_pullback(const ::std::array<T, N>* /*a*/, U /*d_y*/,
-                   ::std::array<T, N>* /*d_a*/) noexcept {}
 template <typename T, ::std::size_t N>
 void constructor_pullback(const ::std::array<T, N>& arr,
                           ::std::array<T, N>* d_this,
@@ -710,12 +695,6 @@ operator_star_reverse_forw(
     const T* d_u) {
   return {**u, **d_u};
 }
-
-template <typename T>
-::std::enable_if_t<(helpers::is_std_smart_ptr<T>::value ||
-                    helpers::is_iterator<T>::value),
-                   void>
-operator_star_pullback(const T* u, T* d_u) {}
 
 // iterator custom derivatives
 template <
@@ -883,8 +862,6 @@ template <class T>
 clad::ValueAndAdjoint<T&, T&> forward_reverse_forw(T& t, T& dt) {
   return {t, dt};
 }
-
-template <class T> constexpr void forward_pullback(T& t, T* dt) noexcept {}
 
 template <class T>
 constexpr void forward_pullback(T&& t, T dy, T* dt) noexcept {
