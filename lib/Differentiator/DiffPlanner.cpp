@@ -1119,6 +1119,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (!FD)
       return true;
 
+    bool nonDiff = false;
     // FIXME: We might want to support nested calls to differentiate/gradient
     // inside differentiated functions.
     if (!m_TopMostReq) {
@@ -1172,22 +1173,28 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // should not produce any derivative expression for that function call,
       // and the function call in the primal should be used as it is.
       if (clad::utils::hasNonDifferentiableAttribute(E))
-        return true;
+        nonDiff = true;
 
       if (const CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(FD)) {
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD))
-          return true;
+          nonDiff = true;
       }
 
       QualType returnType = FD->getReturnType();
-      bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
-                           returnType->isPointerType();
+      bool hasPointerOrRefReturn = utils::isNonConstReferenceType(returnType) ||
+                                   returnType->isPointerType();
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
-      if (!isa<CXXMemberCallExpr>(E) && !isa<CXXOperatorCallExpr>(E) &&
-          !needsForwPass &&
+      if (!isa<CXXMethodDecl>(FD) && !hasPointerOrRefReturn &&
           allArgumentsAreLiterals(E->arguments(), m_ParentReq))
+        nonDiff = true;
+      // In the reverse mode, such functions don't have dfdx()
+      if (!utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
+          m_TopMostReq->Mode == DiffMode::reverse)
+        nonDiff = true;
+
+      if (nonDiff && m_TopMostReq->Mode != DiffMode::reverse)
         return true;
 
       request.Function = FD;
@@ -1292,7 +1299,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         E->getDirectCallee();
     bool shouldUseRestoreTracker =
         utils::shouldUseRestoreTracker(request.Function);
-    if (!LookupCustomDerivativeDecl(request) || requestTBR) {
+    if (!(LookupCustomDerivativeDecl(request) || nonDiff) || requestTBR) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
           std::make_unique<AnalysisDeclContext>(
@@ -1377,7 +1384,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
     }
 
-    m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+    if (!nonDiff)
+      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     if (m_IsTraversingTopLevelDecl) {
       m_TopMostReq = nullptr;
