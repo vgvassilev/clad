@@ -559,8 +559,8 @@ CUDA_HOST_DEVICE void expl_pullback(T x, U d_y, T* d_x) {
 // 2.2 exp2, exp2f, exp2l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp2_pushforward(T x, dT d_x) {
-  return {::std::exp2(x),
-          static_cast<dT>(::std::exp2(x) * ::std::log(2) * d_x)};
+  T dexp2 = ::std::exp2(x) * ::std::log(2);
+  return {::std::exp2(x), dexp2 * d_x};
 }
 
 template <typename T, typename U>
@@ -628,7 +628,8 @@ CUDA_HOST_DEVICE void expm1l_pullback(T x, U d_y, T* d_x) {
 // 3.1 log, logf, logl
 template <typename T>
 CUDA_HOST_DEVICE ValueAndPushforward<T, T> log_pushforward(T x, T d_x) {
-  return {::std::log(x), static_cast<T>((1.0 / x) * d_x)};
+  T dlog = 1.0 / x;
+  return {::std::log(x), dlog * d_x};
 }
 
 template <typename T, typename U>
@@ -661,7 +662,8 @@ CUDA_HOST_DEVICE void logl_pullback(T x, U d_y, T* d_x) {
 // 3.2 log10, log10f, log10l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10_pushforward(T x, dT d_x) {
-  return {::std::log10(x), (1.0 / (x * ::std::log(10))) * d_x};
+  T dlog10 = 1.0 / (x * ::std::log(10));
+  return {::std::log10(x), dlog10 * d_x};
 }
 
 template <typename T, typename U>
@@ -694,7 +696,8 @@ CUDA_HOST_DEVICE void log10l_pullback(T x, U d_y, T* d_x) {
 // 3.3 log2, log2f, log2l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2_pushforward(T x, dT d_x) {
-  return {::std::log2(x), (1.0 / (x * ::std::log(2))) * d_x};
+  T dlog2 = 1.0 / (x * ::std::log(2));
+  return {::std::log2(x), dlog2 * d_x};
 }
 
 template <typename T, typename U>
@@ -727,7 +730,8 @@ CUDA_HOST_DEVICE void log2l_pullback(T x, U d_y, T* d_x) {
 // 3.4 log1p, log1pf, log1pl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log1p_pushforward(T x, dT d_x) {
-  return {::std::log1p(x), (1.0 / (1 + x)) * d_x};
+  T dlog1p = 1.0 / (1 + x);
+  return {::std::log1p(x), dlog1p * d_x};
 }
 
 template <typename T, typename U>
@@ -1201,8 +1205,8 @@ CUDA_HOST_DEVICE void atanhl_pullback(T x, U d_z, T* d_x) {
 // 6.1 erf, erff, erfl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erf_pushforward(T x, dT d_x) {
-  return {::std::erf(x),
-          static_cast<dT>(2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x) * d_x};
+  T derf = (2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x);
+  return {::std::erf(x), derf * d_x};
 }
 
 template <typename T, typename U>
@@ -1279,13 +1283,6 @@ template <typename T>
 CUDA_HOST_DEVICE ValueAndPushforward<T, T> ceil_pushforward(T x, T /*d_x*/) {
   return {::std::ceil(x), (T)0};
 }
-
-#ifdef MACOS
-ValueAndPushforward<float, float> sqrtf_pushforward(float x, float d_x) {
-  return {sqrtf(x), (1.F / (2.F * sqrtf(x))) * d_x};
-}
-
-#endif
 
 template <typename T, typename dT> struct AdjOutType {
   using type = T;
@@ -1402,6 +1399,102 @@ CUDA_HOST_DEVICE void hypot_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
 
 } // namespace std
 
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+powf_pushforward(float x, float exponent, float d_x,
+                 float d_exponent) noexcept {
+  return clad::custom_derivatives::std::pow_pushforward(x, exponent, d_x,
+                                                        d_exponent);
+}
+CUDA_HOST_DEVICE inline void powf_pullback(float x, float exponent, float d_y,
+                                           float* d_x,
+                                           float* d_exponent) noexcept {
+  auto t = powf_pushforward(x, exponent, /*d_x=*/1.F, /*d_exponent*/ 0.F);
+  *d_x += t.pushforward * d_y;
+  t = powf_pushforward(x, exponent, /*d_x=*/0.F, /*d_exponent*/ 1.F);
+  *d_exponent += t.pushforward * d_y;
+}
+CUDA_HOST_DEVICE inline ValueAndPushforward<long double, long double>
+powl_pushforward(long double x, long double exponent, long double d_x,
+                 long double d_exponent) noexcept {
+  return clad::custom_derivatives::std::pow_pushforward(x, exponent, d_x,
+                                                        d_exponent);
+}
+CUDA_HOST_DEVICE inline void powl_pullback(long double x, long double exponent,
+                                           long double d_y, long double* d_x,
+                                           long double* d_exponent) noexcept {
+  auto t = powl_pushforward(x, exponent, /*d_x=*/1.L, /*d_exponent*/ 0.L);
+  *d_x += t.pushforward * d_y;
+  t = powl_pushforward(x, exponent, /*d_x=*/0.L, /*d_exponent*/ 1.L);
+  *d_exponent += t.pushforward * d_y;
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+sqrtf_pushforward(float x, float d_x) noexcept {
+  return {sqrtf(x), (1.F / (2.F * sqrtf(x))) * d_x};
+}
+
+CUDA_HOST_DEVICE inline void sqrtf_pullback(float a, float d_y,
+                                            float* d_a) noexcept {
+  *d_a += (1.F / (2.F * sqrtf(a))) * d_y;
+}
+CUDA_HOST_DEVICE inline ValueAndPushforward<long double, long double>
+sqrtl_pushforward(long double x, long double d_x) noexcept {
+  return {sqrtl(x), (1.L / (2.L * sqrtl(x))) * d_x};
+}
+
+CUDA_HOST_DEVICE inline void sqrtl_pullback(long double a, long double d_y,
+                                            long double* d_a) noexcept {
+  *d_a += (1.L / (2.L * sqrtl(a))) * d_y;
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+cbrtf_pushforward(float x, float d_x) noexcept {
+  float cbrtx = cbrtf(x);
+  return {cbrtx, d_x / (3 * cbrtx * cbrtx)};
+}
+CUDA_HOST_DEVICE inline void cbrtf_pullback(float x, float d_y,
+                                            float* d_x) noexcept {
+  float cbrtx = cbrtf(x);
+  *d_x += d_y / (3 * cbrtx * cbrtx);
+}
+CUDA_HOST_DEVICE inline ValueAndPushforward<long double, long double>
+cbrtl_pushforward(long double x, long double d_x) noexcept {
+  long double cbrtx = cbrtl(x);
+  return {cbrtx, d_x / (3 * cbrtx * cbrtx)};
+}
+CUDA_HOST_DEVICE inline void cbrtl_pullback(long double x, long double d_y,
+                                            long double* d_x) noexcept {
+  long double cbrtx = cbrtl(x);
+  *d_x += d_y / (3 * cbrtx * cbrtx);
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+hypotf_pushforward(float x, float y, float d_x, float d_y) noexcept {
+  float h = hypotf(x, y);
+  return {h, (x * d_x + y * d_y) / h};
+}
+
+CUDA_HOST_DEVICE inline void hypotf_pullback(float x, float y, float d_z,
+                                             float* d_x, float* d_y) noexcept {
+  float h = ::std::hypot(x, y);
+  *d_x += (x / h) * d_z;
+  *d_y += (y / h) * d_z;
+}
+CUDA_HOST_DEVICE inline ValueAndPushforward<long double, long double>
+hypotl_pushforward(long double x, long double y, long double d_x,
+                   long double d_y) noexcept {
+  long double h = hypotl(x, y);
+  return {h, (x * d_x + y * d_y) / h};
+}
+
+CUDA_HOST_DEVICE inline void hypotl_pullback(long double x, long double y,
+                                             long double d_z, long double* d_x,
+                                             long double* d_y) noexcept {
+  long double h = hypotl(x, y);
+  *d_x += (x / h) * d_z;
+  *d_y += (y / h) * d_z;
+}
+
 // NOLINTBEGIN(cppcoreguidelines-no-malloc)
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
 inline ValueAndPushforward<void*, void*> malloc_pushforward(size_t sz,
@@ -1425,10 +1518,6 @@ inline void free_pushforward(void* ptr, void* d_ptr) {
 }
 // NOLINTEND(cppcoreguidelines-owning-memory)
 // NOLINTEND(cppcoreguidelines-no-malloc)
-
-CUDA_HOST_DEVICE inline void sqrtf_pullback(float a, float d_y, float* d_a) {
-  *d_a += (1.F / (2.F * sqrtf(a))) * d_y;
-}
 
 // These are required because C variants of mathematical functions are
 // defined in global namespace.
