@@ -1154,6 +1154,37 @@ float fn29(float *input, Session const *session) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+MyStruct& objRef(MyStruct& s) {
+  return s;
+}
+
+// CHECK:  clad::ValueAndAdjoint<MyStruct &, MyStruct &> objRef_reverse_forw(MyStruct &s, MyStruct &_d_s, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:      return {s, _d_s};
+// CHECK-NEXT:  }
+
+// CHECK:  void objRef_pullback(MyStruct &s, MyStruct *_d_s) {
+// CHECK-NEXT:  }
+
+double fn30(double x, double y) {
+  MyStruct a{x, y};
+  return objRef(a).b;
+}
+
+// CHECK:  void fn30_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      MyStruct _d_a = {0., 0.};
+// CHECK-NEXT:      MyStruct a{x, y};
+// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t0 = objRef_reverse_forw(a, _d_a, _tracker0);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _tracker0.restore();
+// CHECK-NEXT:          _t0.adjoint.b += 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_x += _d_a.a;
+// CHECK-NEXT:          *_d_y += _d_a.b;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1276,4 +1307,7 @@ int main() {
     float dout[]{0., 0., 0., 0., 0};
     fn29_grad.execute(input, &session, dout);
     printArray(dout, 5);  // CHECK-EXEC: {1.00, 1.00, 1.00, 1.00, 1.00}
+
+    INIT_GRADIENT(fn30);
+    TEST_GRADIENT(fn30, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {0.00, 1.00}
 }
