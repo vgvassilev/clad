@@ -1091,8 +1091,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // ideantical names: `constructor_pullback`, `operator_star_pushforward`,
     // etc. If we turn it on, every such operator will trigger diagnostics
     // because of our STL and Kokkos custom derivatives.
+    // FIXME: Add a way to silence the diagnostics.
     bool enableDiagnostics = !isa<CXXMethodDecl>(request.Function) &&
-                             !request->isOverloadedOperator();
+                             !request->isOverloadedOperator() &&
+                             request.BaseFunctionName != "forward";
     Expr* overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType, callSite,
                                      enableDiagnostics);
     if (!overload && request.Mode == DiffMode::vector_pushforward) {
