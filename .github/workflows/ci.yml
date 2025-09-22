@@ -52,33 +52,33 @@ jobs:
             compiler: clang
             clang-runtime: '21'
 
-          - name: osx13-x86-clang-runtime16
-            os: macos-13
+          - name: osx15-x86-clang-runtime16
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '16'
 
-          - name: osx13-x86-clang-runtime17
-            os: macos-13
+          - name: osx15-x86-clang-runtime17
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '17'
             
-          - name: osx13-x86-clang-runtime18
-            os: macos-13
+          - name: osx15-x86-clang-runtime18
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '18'
 
-          - name: osx13-x86-clang-runtime19
-            os: macos-13
+          - name: osx15-x86-clang-runtime19
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '19'
 
-          - name: osx13-x86-clang-runtime20
-            os: macos-13
+          - name: osx15-x86-clang-runtime20
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '20'
 
-          - name: osx13-x86-clang-runtime21
-            os: macos-13
+          - name: osx15-x86-clang-runtime21
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '21'
 
