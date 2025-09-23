@@ -752,6 +752,24 @@ namespace clad {
       return false;
     }
 
+    bool UsefulToStore(const Expr* E) {
+      assert(E && "Must be non-null.");
+      E = E->IgnoreParenImpCasts();
+      // FIXME: find a more general way to determine that or add more options.
+      if (isa<DeclRefExpr>(E) || isa<FloatingLiteral>(E) ||
+          isa<IntegerLiteral>(E))
+        return false;
+      if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+        auto OpKind = UO->getOpcode();
+        if (OpKind == UO_Plus || OpKind == UO_Minus)
+          return UsefulToStore(UO->getSubExpr());
+        return false;
+      }
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+        return UsefulToStore(ASE->getBase()) || UsefulToStore(ASE->getIdx());
+      return true;
+    }
+
     bool ContainsFunctionCalls(const clang::Stmt* S) {
       class CallExprFinder : public RecursiveASTVisitor<CallExprFinder> {
       public:

@@ -406,10 +406,6 @@ namespace clad {
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type, Stmts& block,
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false);
-    /// For an expr E, decides if it is useful to store it in a temporary
-    /// variable and replace E's further usage by a reference to that variable
-    /// to avoid recomputation.
-    static bool UsefulToStore(clang::Expr* E);
     /// A flag for silencing warnings/errors output by diag function.
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
