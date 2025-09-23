@@ -438,6 +438,10 @@ namespace clad {
     /// For an expr E, decides if we should recompute it or store it.
     /// This is the central point for checkpointing.
     bool ShouldRecompute(const clang::Expr* E, const clang::ASTContext& C);
+    /// For an expr E, decides if it is useful to store it in a temporary
+    /// variable and replace E's further usage by a reference to that variable
+    /// to avoid recomputation.
+    bool UsefulToStore(const clang::Expr* E);
     } // namespace utils
     } // namespace clad
 

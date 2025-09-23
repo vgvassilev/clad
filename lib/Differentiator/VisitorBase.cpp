@@ -365,35 +365,13 @@ namespace clad {
     return StoreAndRef(E, Type, block, prefix, forceDeclCreation);
   }
 
-  bool VisitorBase::UsefulToStore(Expr* E) {
-    if (!E)
-      return false;
-    Expr* B = E->IgnoreParenImpCasts();
-    // FIXME: find a more general way to determine that or add more options.
-    if (isa<DeclRefExpr>(B) || isa<FloatingLiteral>(B) ||
-        isa<IntegerLiteral>(B))
-      return false;
-    if (isa<UnaryOperator>(B)) {
-      auto UO = cast<UnaryOperator>(B);
-      auto OpKind = UO->getOpcode();
-      if (OpKind == UO_Plus || OpKind == UO_Minus)
-        return UsefulToStore(UO->getSubExpr());
-      return false;
-    }
-    if (isa<ArraySubscriptExpr>(B)) {
-      auto ASE = cast<ArraySubscriptExpr>(B);
-      return UsefulToStore(ASE->getBase()) || UsefulToStore(ASE->getIdx());
-    }
-    return true;
-  }
-
   Expr* VisitorBase::StoreAndRef(Expr* E, QualType Type, Stmts& block,
                                  llvm::StringRef prefix,
                                  bool forceDeclCreation) {
     if (!forceDeclCreation) {
       // If Expr is simple (i.e. a reference or a literal), there is no point
       // in storing it as there is no evaluation going on.
-      if (!UsefulToStore(E))
+      if (!utils::UsefulToStore(E))
         return E;
     }
     // Create variable declaration.

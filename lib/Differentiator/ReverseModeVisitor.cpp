@@ -3616,7 +3616,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   ReverseModeVisitor::DelayedGlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
                                                bool forceStore) {
     assert(E && "must be provided");
-    if (!UsefulToStore(E)) {
+    if (!utils::UsefulToStore(E)) {
       StmtDiff Ediff = Visit(E);
       Expr::EvalResult evalRes;
       return DelayedStoreResult{*this, Ediff,
