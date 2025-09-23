@@ -299,19 +299,23 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     Expr::EvalResult dummy;
     bool nonLinear = !clad_compat::Expr_EvaluateAsConstantExpr(
         R, dummy, m_AnalysisDC->getASTContext());
+    if (nonLinear)
+      startNonLinearMode();
     bool LHSIsStored =
         !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
     if (LHSIsStored)
       setMode(/*mode=*/0);
-    else if (nonLinear)
-      startNonLinearMode();
     TraverseStmt(L);
-    if (nonLinear || LHSIsStored)
+    if (LHSIsStored)
       resetMode();
-
-    setMode(/*mode=*/0);
+    bool RHSIsStored = utils::UsefulToStore(R);
+    if (RHSIsStored)
+      setMode(/*mode=*/0);
     TraverseStmt(R);
-    resetMode();
+    if (RHSIsStored)
+      resetMode();
+    if (nonLinear)
+      resetMode();
   } else if (BinOp->isAssignmentOp()) {
     if (opCode == BO_Assign || opCode == BO_AddAssign ||
         opCode == BO_SubAssign) {
