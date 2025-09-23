@@ -244,9 +244,9 @@ double newAndDeletePointer(double i, double j) {
 }
 
 // CHECK: void newAndDeletePointer_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double *_d_p = new double(*_d_i);
+// CHECK-NEXT:     double *_d_p = new double(0.);
 // CHECK-NEXT:     double *p = new double(i);
-// CHECK-NEXT:     double *_d_q = new double(*_d_j);
+// CHECK-NEXT:     double *_d_q = new double(0.);
 // CHECK-NEXT:     double *q = new double(j);
 // CHECK-NEXT:     double *_d_r = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
 // CHECK-NEXT:     double *r = new double [2];

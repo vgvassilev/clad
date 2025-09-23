@@ -3304,7 +3304,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   ReverseModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
     // Casts should be handled automatically when the result is used by
     // Sema::ActOn.../Build...
-    return Visit(ICE->getSubExpr(), dfdx());
+    StmtDiff result = Visit(ICE->getSubExpr(), dfdx());
+    // In the forward pass, builtin-type derivatives are always zero.
+    // We can replace rvalue builtin types with zeros for simplicity,
+    // e.g., `double _d_x = 0.` looks simpler than `double _d_x = _d_y`.
+    if (ICE->getType()->isBuiltinType() &&
+        ICE->getCastKind() == CK_LValueToRValue)
+      result.updateStmtDx(getZeroInit(ICE->getType()));
+    return result;
   }
 
   StmtDiff ReverseModeVisitor::VisitImplicitValueInitExpr(
