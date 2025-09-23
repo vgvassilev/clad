@@ -2967,7 +2967,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
                                    initDiff.getExpr(), isDirectInit);
 
-    if (isConstructInit && VDDerived) {
+    // FIXME: In principle, we can handle all type adjoints here.
+    if (VDDerived && !VDDerived->getType()->isBuiltinType() &&
+        (!promoteToFnScope || isConstructInit)) {
       if (initDiff.getStmt_dx()) {
         SetDeclInit(VDDerived, initDiff.getExpr_dx());
       } else if (shouldCopyInitialize) {
@@ -3000,23 +3002,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
-    if (isPointerType && derivedVDE) {
-      if (promoteToFnScope) {
-        Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
-                                          derivedVDE, initDiff.getExpr_dx());
-        addToCurrentBlock(assignDerivativeE, direction::forward);
-        if (isInsideLoop) {
-          auto tape = MakeCladTapeFor(derivedVDE);
-          if (!keepLocal)
-            addToCurrentBlock(tape.Push);
-          auto* reverseSweepDerivativePointerE =
-              BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
-          m_LoopBlock.back().push_back(
-              BuildDeclStmt(reverseSweepDerivativePointerE));
-          derivedVDE = BuildDeclRef(reverseSweepDerivativePointerE);
-        }
-      } else {
-        SetDeclInit(VDDerived, initDiff.getExpr_dx());
+    // FIXME: Currently, we handle promoteToFnScope for objects in
+    // VisitDeclStmts. For other types, we do it in DifferentiateVarDecl. We
+    // should do it consistently at a central point.
+    if (isPointerType && derivedVDE && promoteToFnScope) {
+      Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
+                                        derivedVDE, initDiff.getExpr_dx());
+      addToCurrentBlock(assignDerivativeE, direction::forward);
+      if (isInsideLoop) {
+        auto tape = MakeCladTapeFor(derivedVDE);
+        if (!keepLocal)
+          addToCurrentBlock(tape.Push);
+        auto* reverseSweepDerivativePointerE =
+            BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
+        m_LoopBlock.back().push_back(
+            BuildDeclStmt(reverseSweepDerivativePointerE));
+        derivedVDE = BuildDeclRef(reverseSweepDerivativePointerE);
       }
     }
 
