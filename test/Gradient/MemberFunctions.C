@@ -654,7 +654,7 @@ double fn9(double x, double y) {
 }
 
 // CHECK:  void fn9_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      S *_d_s = new S();
+// CHECK-NEXT:      S *_d_s = new S({0., false});
 // CHECK-NEXT:      S *s = new S({x, false});
 // CHECK-NEXT:      s->getVal_pullback(1, _d_s);
 // CHECK-NEXT:      *_d_x += *_d_s.val;

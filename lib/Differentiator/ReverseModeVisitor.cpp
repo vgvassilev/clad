@@ -1345,6 +1345,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff ReverseModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
     QualType ILEType = ILE->getType();
     llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
+    llvm::SmallVector<Expr*, 16> exprsDiff(ILE->getNumInits());
     // Handle basic types like pointers or numericals.
     if (ILE->getNumInits() &&
         !(ILEType->isArrayType() || ILEType->isRecordType())) {
@@ -1357,6 +1358,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!dfdx())
       return StmtDiff(Clone(ILE));
     if (ILEType->isArrayType()) {
+      bool isRealConstArray = false;
+      if (const auto* arrType = dyn_cast<ConstantArrayType>(ILEType)) {
+        QualType elemTy = arrType->getElementType();
+        if (elemTy->isRealType()) {
+          isRealConstArray = true;
+          exprsDiff.clear();
+          Expr* zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                         m_Context, /*val=*/0);
+          exprsDiff.push_back(zero);
+        }
+      }
       for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
         Expr* I =
             ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
@@ -1364,12 +1376,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                .ActOnArraySubscriptExpr(getCurrentScope(),
                                                         dfdx(), noLoc, I, noLoc)
                                .get();
-        Expr* clonedEI = Visit(ILE->getInit(i), array_at_i).getExpr();
-        clonedExprs[i] = clonedEI;
+        StmtDiff elemDiff = Visit(ILE->getInit(i), array_at_i);
+        clonedExprs[i] = elemDiff.getExpr();
+        if (!isRealConstArray) {
+          if (elemDiff.getExpr_dx())
+            exprsDiff[i] = elemDiff.getExpr_dx();
+          else
+            exprsDiff[i] = getZeroInit(ILE->getInit(i)->getType());
+        }
       }
 
       Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-      return StmtDiff(clonedILE);
+      Expr* ILEDiff = m_Sema.ActOnInitList(noLoc, exprsDiff, noLoc).get();
+      return StmtDiff(clonedILE, ILEDiff);
     }
     // Check if type is a CXXRecordDecl
     if (ILEType->isRecordType()) {
@@ -1379,10 +1398,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         std::advance(field_iterator, i);
         Expr* member_acess = utils::BuildMemberExpr(
             m_Sema, getCurrentScope(), dfdx(), (*field_iterator)->getName());
-        clonedExprs[i] = Visit(ILE->getInit(i), member_acess).getExpr();
+        StmtDiff elemDiff = Visit(ILE->getInit(i), member_acess);
+        clonedExprs[i] = elemDiff.getExpr();
+        if (elemDiff.getExpr_dx())
+          exprsDiff[i] = elemDiff.getExpr_dx();
+        else
+          exprsDiff[i] = getZeroInit(elemDiff.getExpr()->getType());
       }
       Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-      return StmtDiff(clonedILE);
+      Expr* ILEDiff = m_Sema.ActOnInitList(noLoc, exprsDiff, noLoc).get();
+      return StmtDiff(clonedILE, ILEDiff);
     }
 
     Expr* clonedILE = m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
@@ -1504,7 +1529,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
-    return StmtDiff(Clone(FL));
+    return StmtDiff(Clone(FL), getZeroInit(FL->getType()));
   }
 
   static bool isNAT(QualType T) {
@@ -2406,7 +2431,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     auto* R = BinOp->getRHS();
     // If it is an assignment operator, its result is a reference to LHS and
     // we should return it.
-    Expr* ResultRef = nullptr;
+    Expr* ResultRef = getZeroInit(BinOp->getType());
 
     bool isPointerOp =
         L->getType()->isPointerType() || R->getType()->isPointerType();
@@ -2959,6 +2984,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     // FIXME: In principle, we can handle all type adjoints here.
     if (VDDerived && !VDDerived->getType()->isBuiltinType() &&
+        !isCladArrayType(VDCloneType) &&
         (!promoteToFnScope || isConstructInit)) {
       if (initDiff.getStmt_dx()) {
         SetDeclInit(VDDerived, initDiff.getExpr_dx());
