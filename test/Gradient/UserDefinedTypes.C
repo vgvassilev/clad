@@ -1185,6 +1185,45 @@ double fn30(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct PtrAndValAggr {
+   double x;
+   double* ptr;
+};
+
+double fn31(double x, double y) {
+  PtrAndValAggr s = {x, &y};
+  return s.x + *s.ptr;
+}
+
+// CHECK:  void fn31_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      PtrAndValAggr _d_s = {0., &*_d_y};
+// CHECK-NEXT:      PtrAndValAggr s = {x, &y};
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_s.x += 1;
+// CHECK-NEXT:          *_d_s.ptr += 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      *_d_x += _d_s.x;
+// CHECK-NEXT:  }
+
+double fn32(double x, double y) {
+  PtrAndValAggr s[2] = {{x, &x}, {y, &y}};
+  return s[0].x + *s[1].ptr;
+}
+
+// CHECK:  void fn32_grad(double x, double y, double *_d_x, double *_d_y) {
+//// Note: {{ is represented with {{[{][{]}} because of regex
+// CHECK-NEXT:      PtrAndValAggr _d_s[2] = {{[{][{]}}0., &*_d_x}, {0., &*_d_y{{[}][}]}};
+// CHECK-NEXT:      PtrAndValAggr s[2] = {{[{][{]}}x, &x}, {y, &y{{[}][}]}};
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_s[0].x += 1;
+// CHECK-NEXT:          *_d_s[1].ptr += 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_x += _d_s[0].x;
+// CHECK-NEXT:          *_d_y += _d_s[1].x;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1310,4 +1349,10 @@ int main() {
 
     INIT_GRADIENT(fn30);
     TEST_GRADIENT(fn30, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {0.00, 1.00}
+
+    INIT_GRADIENT(fn31);
+    TEST_GRADIENT(fn31, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+
+    INIT_GRADIENT(fn32);
+    TEST_GRADIENT(fn32, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
 }

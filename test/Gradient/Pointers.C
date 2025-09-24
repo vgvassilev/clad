@@ -296,7 +296,7 @@ double structPointer (double x) {
 }
 
 // CHECK: void structPointer_grad(double x, double *_d_x) {
-// CHECK-NEXT:     T *_d_t = new T();
+// CHECK-NEXT:     T *_d_t = new T({0., /*implicit*/(int)0});
 // CHECK-NEXT:     T *t = new T({x, /*implicit*/(int)0});
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = t->x;
