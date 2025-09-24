@@ -391,6 +391,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     FunctionDecl* derivative = this->FindDerivedFunction(request);
     if (!derivative) {
       alreadyDerived = false;
+      // FIXME: Our analyses are closely tied to the DiffPlanner. Dynamic
+      // derivatives don't have m_AnalysisDC. We should either disable
+      // dynamic scheduling or build m_AnalysisDC here.
+      request.EnableTBRAnalysis = false;
+      request.EnableVariedAnalysis = false;
+      request.EnableUsefulAnalysis = false;
 
       {
         // Store and restore the original function and its order.
