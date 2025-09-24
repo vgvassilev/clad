@@ -58,7 +58,7 @@ double sum(Tangent& t) {
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
@@ -83,7 +83,7 @@ double sum(double *data) {
 // CHECK: void sum_pullback(double *data, double _d_y, double *_d_data) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
@@ -325,7 +325,7 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
-// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
@@ -814,7 +814,7 @@ double fn23(double u, double v) {
 // CHECK-NEXT:      B _d_b = {0.};
 // CHECK-NEXT:      B b;
 // CHECK-NEXT:      b.data = v;
-// CHECK-NEXT:      double _d_res = 0.;
+// CHECK-NEXT:      double _d_res = 0;
 // CHECK-NEXT:      double res = 0;
 // CHECK-NEXT:      res = add(b, u);
 // CHECK-NEXT:      _d_res += 1;
@@ -1121,14 +1121,14 @@ float fn29(float *input, Session const *session) {
 // CHECK-NEXT:      const Session &sess = session[0];
 // CHECK-NEXT:      float _d_buffer[5] = {0};
 // CHECK-NEXT:      float buffer[5]{0., 0., 0., 0., 0};
-// CHECK-NEXT:      size_t _d_n = {{0U|0UL|0ULL}};
+// CHECK-NEXT:      size_t _d_n = 0;
 // CHECK-NEXT:      const size_t n = 5;
 // CHECK-NEXT:      unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:      for (id = 0; id < n; id++) {
 // CHECK-NEXT:          _t0++;
 // CHECK-NEXT:          buffer[id] = sess.factors[id] * input[id];
 // CHECK-NEXT:      }
-// CHECK-NEXT:      float _d_out = 0.F;
+// CHECK-NEXT:      float _d_out = 0.;
 // CHECK-NEXT:      float out = 0.;
 // CHECK-NEXT:      unsigned {{int|long|long long}} _t1 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:      for (id0 = 0; id0 < n; id0++) {

@@ -222,7 +222,7 @@ float func7(float x) {
 }
 
 //CHECK: void func7_grad(float x, float *_d_x, double &_final_error) {
-//CHECK-NEXT:     int _d_z = 0;
+//CHECK-NEXT:     int _d_z = 0.F;
 //CHECK-NEXT:     int z = x;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _d_z += 1;
@@ -280,7 +280,7 @@ float func9(float x, float y) {
 
 //CHECK: void func9_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
 //CHECK-NEXT:     float _t1 = x;
-//CHECK-NEXT:     float _d_z = 0.F;
+//CHECK-NEXT:     float _d_z = 0.;
 //CHECK-NEXT:     float z = helper(x, y) + helper2(x);
 //CHECK-NEXT:     float _t3 = z;
 //CHECK-NEXT:     float _t5 = x;

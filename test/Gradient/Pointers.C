@@ -124,7 +124,7 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:     size_t *j = nullptr;
 // CHECK-NEXT:     clad::tape<const double *> _t3 = {};
 // CHECK-NEXT:     clad::tape<double *> _t4 = {};
-// CHECK-NEXT:     double _d_sum = 0.;
+// CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double sum = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
