@@ -25,7 +25,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     double _t4;
-// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         count = 1;

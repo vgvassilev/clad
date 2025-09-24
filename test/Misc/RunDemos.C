@@ -109,7 +109,7 @@
 //CHECK_FLOAT_SUM:    unsigned int _d_i = 0U;
 //CHECK_FLOAT_SUM:    unsigned int i = 0U;
 //CHECK_FLOAT_SUM:    clad::tape<float> _t1 = {};
-//CHECK_FLOAT_SUM:    float _d_sum = 0.F;
+//CHECK_FLOAT_SUM:    float _d_sum = 0.;
 //CHECK_FLOAT_SUM:    float sum = 0.;
 //CHECK_FLOAT_SUM:    unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK_FLOAT_SUM:    for (i = 0; i < n; i++) {
