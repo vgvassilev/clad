@@ -135,8 +135,11 @@ namespace clad {
       FD = FD->getCanonicalDecl();
       if (const FunctionDecl* TIP = FD->getTemplateInstantiationPattern())
         FD = TIP;
+      // Derivatives with real locations are user-provided ones. If a
+      // user-provided derivative doesn't have a body at this point, we consider
+      // it to be empty.
       if (!FD->hasBody())
-        return false;
+        return FD->getLocation().isValid();
       return utils::unwrapIfSingleStmt(FD->getBody()) == nullptr;
     }
 
