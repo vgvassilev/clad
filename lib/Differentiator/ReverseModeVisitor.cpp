@@ -1883,27 +1883,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // The set of arguments to be used in a ``reverse_forw`` after the original
     // args.
     llvm::SmallVector<Expr*, 16> revForwAdjointArgs{};
-    for (std::size_t i = static_cast<std::size_t>(isMethodOperatorCall),
-                     e = CE->getNumArgs();
-         i != e; ++i) {
-      const Expr* arg = CE->getArg(i);
-      const auto* PVD = FD->getParamDecl(
-          i - static_cast<unsigned long>(isMethodOperatorCall));
-      StmtDiff argDiff =
-          DifferentiateCallArg(arg, PVD, PreCallStmts, /*isNonDiff=*/nonDiff,
-                               isa<CUDAKernelCallExpr>(CE));
-      CallArgs.push_back(argDiff.getExpr());
-      revForwAdjointArgs.push_back(argDiff.getRevSweepAsExpr());
-      CallArgDx.push_back(argDiff.getExpr_dx());
-      if (m_DiffReq.shouldBeRecorded(arg))
-        hasStoredParams = true;
-    }
 
     /// Add base derivative expression in the derived call output args list if
     /// `CE` is a call to an instance member function.
     if (MD) {
       if (isLambdaCallOperator(MD)) {
-        CallArgs.insert(CallArgs.begin(), Clone(baseOriginalE));
+        CallArgs.push_back(Clone(baseOriginalE));
       } else if (MD->isInstance()) {
         // The differentiation result of implicit `this` object.
         StmtDiff baseDiff;
@@ -1920,7 +1905,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         } else
           baseDiff = Visit(baseOriginalE);
         Expr* baseExpr = baseDiff.getExpr();
-        CallArgs.insert(CallArgs.begin(), baseExpr);
+        CallArgs.push_back(baseExpr);
         bool isCopiable = utils::isCopyable(MD->getParent());
         if (isPassedByRef && !MD->isConst() && isCopiable &&
             m_DiffReq.shouldBeRecorded(baseOriginalE)) {
@@ -1938,10 +1923,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           if (!baseDerivative->getType()->isPointerType())
             baseDerivative =
                 BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
-          CallArgDx.insert(CallArgDx.begin(), baseDerivative);
-          revForwAdjointArgs.insert(revForwAdjointArgs.begin(), baseDerivative);
+          CallArgDx.push_back(baseDerivative);
+          revForwAdjointArgs.push_back(baseDerivative);
         }
       }
+    }
+
+    for (std::size_t skip_this = static_cast<std::size_t>(isMethodOperatorCall),
+                     i = skip_this, e = CE->getNumArgs();
+         i != e; ++i) {
+      const Expr* arg = CE->getArg(i);
+      const auto* PVD = FD->getParamDecl(i - skip_this);
+      StmtDiff argDiff =
+          DifferentiateCallArg(arg, PVD, PreCallStmts, /*isNonDiff=*/nonDiff,
+                               isa<CUDAKernelCallExpr>(CE));
+      CallArgs.push_back(argDiff.getExpr());
+      revForwAdjointArgs.push_back(argDiff.getRevSweepAsExpr());
+      CallArgDx.push_back(argDiff.getExpr_dx());
+      if (m_DiffReq.shouldBeRecorded(arg))
+        hasStoredParams = true;
     }
 
     Expr* OverloadedDerivedFn = nullptr;
