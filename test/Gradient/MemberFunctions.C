@@ -459,8 +459,8 @@ double fn2(SimpleFunctions& sf, double i) {
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = sf.ref_mem_fn_reverse_forw(i, &(*_d_sf), 0.);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _t1.adjoint += 1;
-// CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         sf = _t0;
+// CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         sf.ref_mem_fn_pullback(i, &(*_d_sf), &_r0);
 // CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:     }
@@ -496,8 +496,8 @@ double fn5(SimpleFunctions& v, double value) {
 // CHECK-NEXT:     v.operator_plus_equal_reverse_forw(value, &(*_d_v), 0.);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         v = _t0;
+// CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         v.operator_plus_equal_pullback(value, &(*_d_v), &_r0);
 // CHECK-NEXT:         *_d_value += _r0;
 // CHECK-NEXT:     }

@@ -435,8 +435,8 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
 // CHECK-NEXT:     MyStruct _t0 = s;
 // CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
 // CHECK-NEXT:    {
-// CHECK-NEXT:        MyStruct _r0 = {0., 0.};
 // CHECK-NEXT:        s = _t0;
+// CHECK-NEXT:        MyStruct _r0 = {0., 0.};
 // CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, &(*_d_s), &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
@@ -609,13 +609,13 @@ double fn16(double i, double j) {
 // CHECK-NEXT:    SimpleFunctions1 _d_obj2(obj2);
 // CHECK-NEXT:    clad::zero_init(_d_obj2);
 // CHECK-NEXT:    {
-// CHECK-NEXT:        double _r0 = 0.;
+// CHECK-NEXT:        SimpleFunctions1 _r0 = {};
 // CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        SimpleFunctions1 _r2 = {};
-// CHECK-NEXT:        (obj1 + obj2).mem_fn_1_pullback(i, j, 1, &_r2, &_r0, &_r1);
-// CHECK-NEXT:        *_d_i += _r0;
-// CHECK-NEXT:        *_d_j += _r1;
-// CHECK-NEXT:        obj1.operator_plus_pullback(obj2, _r2, &_d_obj1, &_d_obj2);
+// CHECK-NEXT:        double _r2 = 0.;
+// CHECK-NEXT:        (obj1 + obj2).mem_fn_1_pullback(i, j, 1, &_r0, &_r1, &_r2);
+// CHECK-NEXT:        obj1.operator_plus_pullback(obj2, _r0, &_d_obj1, &_d_obj2);
+// CHECK-NEXT:        *_d_i += _r1;
+// CHECK-NEXT:        *_d_j += _r2;
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
@@ -698,13 +698,13 @@ double fn19(double i, double j) {
 // CHECK-NEXT:      SimpleFunctions1 _d_sf2(sf2);
 // CHECK-NEXT:      clad::zero_init(_d_sf2);
 // CHECK-NEXT:      {
-// CHECK-NEXT:          double _r2 = 0.;
+// CHECK-NEXT:          SimpleFunctions1 _r2 = {};
 // CHECK-NEXT:          double _r3 = 0.;
-// CHECK-NEXT:          SimpleFunctions1 _r4 = {};
-// CHECK-NEXT:          (sf1 * sf2).mem_fn_pullback(i, j, 1, &_r4, &_r2, &_r3);
-// CHECK-NEXT:          *_d_i += _r2;
-// CHECK-NEXT:          *_d_j += _r3;
-// CHECK-NEXT:          sf1.operator_star_pullback(sf2, _r4, &_d_sf1, &_d_sf2);
+// CHECK-NEXT:          double _r4 = 0.;
+// CHECK-NEXT:          (sf1 * sf2).mem_fn_pullback(i, j, 1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:          sf1.operator_star_pullback(sf2, _r2, &_d_sf1, &_d_sf2);
+// CHECK-NEXT:          *_d_i += _r3;
+// CHECK-NEXT:          *_d_j += _r4;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
@@ -723,8 +723,8 @@ void fn20(MyStruct s) {
 // CHECK-NEXT:     MyStruct _t0 = s;
 // CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
 // CHECK-NEXT:    {
-// CHECK-NEXT:        MyStruct _r0 = {0., 0.};
 // CHECK-NEXT:        s = _t0;
+// CHECK-NEXT:        MyStruct _r0 = {0., 0.};
 // CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, &(*_d_s), &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
@@ -1014,8 +1014,8 @@ double fn27(double x, double y) {
 // CHECK-NEXT:          _d_s.val.b += s.val.a * 1;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
+// CHECK-NEXT:          s = _t0;  
 // CHECK-NEXT:          MyStructWrapper _r0 = {{.*0., 0..*}};
-// CHECK-NEXT:          s = _t0;
 // CHECK-NEXT:          s.operator_equal_pullback({{.*2 \* y, 3 \* x \+ 2.*}}, &_d_s, &_r0);
 // CHECK-NEXT:          *_d_y += 2 * _r0.val.a;
 // CHECK-NEXT:          *_d_x += 3 * _r0.val.b;
