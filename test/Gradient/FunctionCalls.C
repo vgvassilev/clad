@@ -1089,6 +1089,45 @@ double fn30(double *params, const double *xlArr) {
 // CHECK-NEXT:     flexibleInterp_pullback(params, xlArr + 2, 1, _d_params);
 // CHECK-NEXT: }
 
+namespace clad {
+  namespace custom_derivatives {
+    void inner_function_pullback(double *out, bool flag, const double *C, double *_d_out, bool *, double *_d_C) {
+      if (flag)
+          _d_C[0] = _d_out[0];
+    }
+  }
+}
+
+void inner_function(double *out, bool flag, const double *C) {
+   if (flag)
+      out[0] = C[0];
+}
+// CHECK: void inner_function_reverse_forw(double *out, bool flag, const double *C, double *_d_out, bool _d_flag, const double *_d_C, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         bool _cond0 = flag;
+// CHECK-NEXT:         if (_cond0) {
+// CHECK-NEXT:             _tracker0.store(out[0]);
+// CHECK-NEXT:             out[0] = C[0];
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double fn31(double *variables) {
+   double out = 0.;
+   inner_function(&out, true, variables);
+   return out;
+}
+// CHECK: void fn31_grad(double *variables, double *_d_variables) {
+// CHECK-NEXT:     double _d_out = 0.;
+// CHECK-NEXT:     double out = 0.;
+// CHECK-NEXT:     inner_function(&out, true, variables);
+// CHECK-NEXT:     _d_out += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         bool _r0 = false;
+// CHECK-NEXT:         clad::custom_derivatives::inner_function_pullback(&out, true, variables, &_d_out, &_r0, _d_variables);
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -1231,6 +1270,11 @@ int main() {
   dx1[0] = 0; dx1[1] = 0;
   fn30_grad_0.execute(x1, w1, dx1);
   printf("{%.2f, %.2f}\n", dx1[0], dx1[1]);  // CHECK-EXEC: {1.00, 0.00}
+
+  auto fn31_grad = clad::gradient(fn31);
+  x_output[0] = 0; x_output[1] = 0;
+  fn31_grad.execute(x_arr, x_output);
+  printf("{%.2f, %.2f}\n", x_output[0], x_output[1]);  // CHECK-EXEC: {1.00, 0.00}
 }
 
 double sq_defined_later(double x) {

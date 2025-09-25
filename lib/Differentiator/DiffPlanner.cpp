@@ -1374,12 +1374,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     if (request.Mode == DiffMode::pullback) {
       DiffRequest forwPassRequest;
-      forwPassRequest = request;
-      forwPassRequest.DVI.clear();
+      forwPassRequest.Function = request.Function;
+      forwPassRequest.BaseFunctionName = request.BaseFunctionName;
       forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
-      forwPassRequest.EnableTBRAnalysis = false;
-      forwPassRequest.EnableVariedAnalysis = false;
-      forwPassRequest.EnableUsefulAnalysis = false;
+      forwPassRequest.CallContext = request.CallContext;
       QualType returnType = request->getReturnType();
       if (LookupCustomDerivativeDecl(forwPassRequest) ||
           utils::isMemoryType(returnType) || shouldUseRestoreTracker)
