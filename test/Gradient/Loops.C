@@ -2695,6 +2695,45 @@ double fn43(double* x, double y) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+double fn44(double u, double v) {
+  double sum = 0;
+  for (int i = 0; i != 1 ;) {
+    sum += u + v;
+    break;
+  }
+  return sum;
+}
+
+//CHECK: void fn44_grad(double u, double v, double *_d_u, double *_d_v) {
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    int i = 0;
+//CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t1 = {};
+//CHECK-NEXT:    double _d_sum = 0.;
+//CHECK-NEXT:    double sum = 0;
+//CHECK-NEXT:    unsigned {{int|long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:    for (i = 0; i != 1;) {
+//CHECK-NEXT:        _t0++;
+//CHECK-NEXT:        sum += u + v;
+//CHECK-NEXT:        {
+//CHECK-NEXT:            clad::push(_t1, {{1U|1UL}});
+//CHECK-NEXT:            break;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        clad::push(_t1, {{2U|2UL}});
+//CHECK-NEXT:    }
+//CHECK-NEXT:    _d_sum += 1;
+//CHECK-NEXT:    for (unsigned {{int|long}} _numRevIterations0 = _t0; _t0; _t0--)
+//CHECK-NEXT:        switch (clad::pop(_t1)) {
+//CHECK-NEXT:          case {{2U|2UL}}:
+//CHECK-NEXT:            ;
+//CHECK-NEXT:          case {{1U|1UL}}:
+//CHECK-NEXT:            ;
+//CHECK-NEXT:            {
+//CHECK-NEXT:                *_d_u += _d_sum;
+//CHECK-NEXT:                *_d_v += _d_sum;
+//CHECK-NEXT:            }
+//CHECK-NEXT:        }
+//CHECK-NEXT:}
+
 
 #define TEST(F, x) { \
   result[0] = 0; \
@@ -2801,4 +2840,6 @@ int main() {
   auto fn43_grad = clad::gradient(fn43, "x");
   fn43_grad.execute(p, 5, result);
   printf("{%.2f, %.2f, %.2f}\n", result[0], result[1], result[2]); // CHECK-EXEC: {-1.00, -0.25, -0.11}
+
+  TEST_2(fn44, 2, 3); // CHECK-EXEC: {1.00, 1.00}
 }
