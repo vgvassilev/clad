@@ -1177,7 +1177,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (clad::utils::hasNonDifferentiableAttribute(E))
         nonDiff = true;
 
-      if (const CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(FD)) {
+      const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+      if (MD) {
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD))
           nonDiff = true;
@@ -1188,7 +1189,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                                    returnType->isPointerType();
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
-      if (!isa<CXXMethodDecl>(FD) && !hasPointerOrRefReturn &&
+      if (!(MD && MD->isInstance()) && !hasPointerOrRefReturn &&
           allArgumentsAreLiterals(E->arguments(), m_ParentReq))
         nonDiff = true;
       // In the reverse mode, such functions don't have dfdx()
