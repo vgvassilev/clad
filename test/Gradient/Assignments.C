@@ -698,7 +698,7 @@ double f23(double x, double y) {
 //CHECK-NEXT:     clad::array<double> *ref = {};
 //CHECK-NEXT:     clad::array<double> _d_list = {{2U|2UL}};
 //CHECK-NEXT:     clad::array<double> list = {1., x + y};
-//CHECK-NEXT:     double _d_res = 0.;
+//CHECK-NEXT:     double _d_res = 0;
 //CHECK-NEXT:     double res = 5;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _cond0 = x > y;

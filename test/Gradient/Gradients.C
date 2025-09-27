@@ -578,7 +578,7 @@ double f_issue138(double x, double y) {
 
 void f_issue138_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK:   void f_issue138_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       double _d__t1 = 0.;
+//CHECK-NEXT:       double _d__t1 = 0;
 //CHECK-NEXT:       double _t10 = 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_d_x += 1 * x * x * x;
@@ -706,7 +706,7 @@ double fn_template_non_type(double x) {
 }
 
 // CHECK: void fn_template_non_type_grad(double x, double *_d_x) {
-// CHECK-NEXT:     size_t _d_maxN = {{0U|0UL}};
+// CHECK-NEXT:     size_t _d_maxN = 0;
 // CHECK-NEXT:     const size_t maxN = 53;
 // CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL|15ULL}};
 // CHECK-NEXT:     size_t _d_m = {{0U|0UL}};
@@ -859,7 +859,7 @@ double fn_empty_if_block(double x) {
 
 //CHECK:void fn_empty_if_block_grad(double x, double *_d_x) {
 //CHECK-NEXT:    bool _cond0;
-//CHECK-NEXT:    double _d_res = 0.;
+//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double res = 0;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _cond0 = x > 0;
@@ -882,7 +882,7 @@ double fn_empty_if_else(double x) {
 
 //CHECK: void fn_empty_if_else_grad(double x, double *_d_x) {
 //CHECK-NEXT:    bool _cond0;
-//CHECK-NEXT:    double _d_res = 0.;
+//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double res = 0;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _cond0 = (res = 0);
@@ -922,7 +922,7 @@ double fn_cond_false(double i, double j) {
 // CHECK-NEXT:    _d_cond0 = 0.;
 // CHECK-NEXT:    bool _cond1;
 // CHECK-NEXT:    bool _cond2;
-// CHECK-NEXT:    double _d_res = 0.;
+// CHECK-NEXT:    double _d_res = 0;
 // CHECK-NEXT:    double res = 0;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        {
@@ -969,7 +969,7 @@ double fn_cond_add_assign(double i, double j) {
 // CHECK-NEXT:    bool _cond2;
 // CHECK-NEXT:    bool _cond3;
 // CHECK-NEXT:    bool _cond4;
-// CHECK-NEXT:    double _d_res = 0.;
+// CHECK-NEXT:    double _d_res = 0;
 // CHECK-NEXT:    double res = 0;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        {

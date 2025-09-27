@@ -79,7 +79,7 @@ float func4(float x, float y) {
 }
 
 //CHECK: void func4_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     double _d_z = 0.;
+//CHECK-NEXT:     double _d_z = 0.F;
 //CHECK-NEXT:     double z = y;
 //CHECK-NEXT:     float _t0 = x;
 //CHECK-NEXT:     x = z + y;
