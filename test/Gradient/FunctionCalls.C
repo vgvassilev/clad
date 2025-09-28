@@ -1,6 +1,6 @@
-// RUN: %cladnumdiffclang -std=c++17 -Wno-writable-strings %s  -I%S/../../include -oFunctionCalls.out 2>&1 | %filecheck %s
+// RUN: %cladnumdiffclang -Wno-writable-strings %s  -I%S/../../include -oFunctionCalls.out 2>&1 | %filecheck %s
 // RUN: ./FunctionCalls.out | %filecheck_exec %s
-// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -std=c++17 -Wno-writable-strings %s  -I%S/../../include -oFunctionCalls.out
+// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Wno-writable-strings %s  -I%S/../../include -oFunctionCalls.out
 // RUN: ./FunctionCalls.out | %filecheck_exec %s
 // XFAIL: valgrind
 

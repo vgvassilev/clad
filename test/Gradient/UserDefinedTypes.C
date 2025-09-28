@@ -857,21 +857,6 @@ struct Vector3 {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-// CHECK: static inline constexpr void constructor_pullback(const Vector3 &arg, Vector3 *_d_this, Vector3 *_d_arg) noexcept {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).z += _d_this->z;
-// CHECK-NEXT:          _d_this->z = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).y += _d_this->y;
-// CHECK-NEXT:          _d_this->y = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).x += _d_this->x;
-// CHECK-NEXT:          _d_this->x = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
 // CHECK:  void operator_star_pullback(double a, const Vector3 &v, Vector3 _d_y, double *_d_a, Vector3 *_d_v) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
@@ -902,14 +887,11 @@ double fn24(double x, double y) {
 // CHECK-NEXT:      Vector3 _d_v(v);
 // CHECK-NEXT:      clad::zero_init(_d_v);
 // CHECK-NEXT:      Vector3 w = 2 * v;
-// CHECK-NEXT:      Vector3 _d_w(w);
-// CHECK-NEXT:      clad::zero_init(_d_w);
+// CHECK-NEXT:      Vector3 _d_w = {};
 // CHECK-NEXT:      _d_w.x += 1;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          Vector3 _r3 = {};
-// CHECK-NEXT:          Vector3::constructor_pullback(2 * v, &_d_w, &_r3);
-// CHECK-NEXT:          double _r4 = 0.;
-// CHECK-NEXT:          operator_star_pullback(2, v, _r3, &_r4, &_d_v);
+// CHECK-NEXT:          double _r3 = 0.;
+// CHECK-NEXT:          operator_star_pullback(2, v, _d_w, &_r3, &_d_v);
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
@@ -919,21 +901,6 @@ double fn24(double x, double y) {
 // CHECK-NEXT:          *_d_x += _r0;
 // CHECK-NEXT:          *_d_x += _r1;
 // CHECK-NEXT:          *_d_y += _r2;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-// CHECK: static inline constexpr void constructor_pullback(Vector3 &&arg, Vector3 *_d_this, Vector3 *_d_arg) noexcept {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).z += _d_this->z;
-// CHECK-NEXT:          _d_this->z = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).y += _d_this->y;
-// CHECK-NEXT:          _d_this->y = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_arg).x += _d_this->x;
-// CHECK-NEXT:          _d_this->x = 0.;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
@@ -960,14 +927,9 @@ double fn25(double x, double y) {
 // CHECK-NEXT:      Vector3 _d_v(v);
 // CHECK-NEXT:      clad::zero_init(_d_v);
 // CHECK-NEXT:      Vector3 w = - v;
-// CHECK-NEXT:      Vector3 _d_w(w);
-// CHECK-NEXT:      clad::zero_init(_d_w);
+// CHECK-NEXT:      Vector3 _d_w = {};
 // CHECK-NEXT:      _d_w.x += 1;
-// CHECK-NEXT:      {
-// CHECK-NEXT:          Vector3 _r3 = {};
-// CHECK-NEXT:          Vector3::constructor_pullback(- v, &_d_w, &_r3);
-// CHECK-NEXT:          v.operator_minus_pullback(_r3, &_d_v);
-// CHECK-NEXT:      }
+// CHECK-NEXT:      v.operator_minus_pullback(_d_w, &_d_v);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
 // CHECK-NEXT:          double _r1 = 0.;

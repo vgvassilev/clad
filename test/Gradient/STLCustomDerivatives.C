@@ -1,6 +1,6 @@
-// RUN: %cladclang -std=c++14 %s -I%S/../../include -oSTLCustomDerivatives.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oSTLCustomDerivatives.out 2>&1 | %filecheck %s
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
-// RUN: %cladclang -std=c++14 -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oSTLCustomDerivativesWithTBR.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oSTLCustomDerivativesWithTBR.out
 // RUN: ./STLCustomDerivativesWithTBR.out | %filecheck_exec %s
 // XFAIL: valgrind
 
@@ -996,7 +996,7 @@ int main() {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             {{.*size_type|size_t}} _r0 = 0{{.*}};
-// CHECK-NEXT:             {{.*}}value_type _r1 = 0.;
+// CHECK-NEXT:             double _r1 = 0.;
 // CHECK-NEXT:             clad::custom_derivatives::class_functions::constructor_pullback(i, v + u, alloc, &_d_vec, &_r0, &_r1, &_d_alloc);
 // CHECK-NEXT:             _d_i += _r0;
 // CHECK-NEXT:             *_d_v += _r1;
@@ -1179,58 +1179,49 @@ int main() {
 // CHECK: void fn21_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _t0 = x;
 // CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t1 = clad::custom_derivatives::std::make_shared_reverse_forw(x, *_d_x);
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t2 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}shared_ptr<double> >(), std::move(_t1.value), std::move(_t1.adjoint));
-// CHECK-NEXT:     std::shared_ptr<double> x_ptr = _t2.value;
-// CHECK-NEXT:     std::shared_ptr<double> _d_x_ptr = _t2.adjoint;
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t3 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}shared_ptr<double> >(), x_ptr, _d_x_ptr);
+// CHECK-NEXT:     std::shared_ptr<double> x_ptr = _t1.value;
+// CHECK-NEXT:     std::shared_ptr<double> _d_x_ptr = _t1.adjoint;
+// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t2 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}shared_ptr<double> >(), x_ptr, _d_x_ptr);
 // CHECK-NEXT:     {
-// CHECK-NEXT:         std::shared_ptr<double> _r1 = _t3.adjoint;
-// CHECK-NEXT:         simple_func_pullback(_t3.value, 1, &_r1);
+// CHECK-NEXT:         std::shared_ptr<double> _r0 = _t2.adjoint;
+// CHECK-NEXT:         simple_func_pullback(_t2.value, 1, &_r0);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         shared_ptr<{{.*}}double{{.*}}> _r0 = _t1.adjoint;
 // CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _r0, &*_d_x);
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_x_ptr, &*_d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 // CHECK: void weak_fn_pullback(std::weak_ptr<double> x_ptr, double _d_y, std::weak_ptr<double> *_d_x_ptr) {
 // CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t0 = clad::custom_derivatives::class_functions::lock_reverse_forw(&x_ptr, &(*_d_x_ptr));
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t1 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}shared_ptr<double> >(), std::move(_t0.value), std::move(_t0.adjoint));
-// CHECK-NEXT:     std::shared_ptr<double> s = _t1.value;
-// CHECK-NEXT:     std::shared_ptr<double> _d_s = _t1.adjoint;
-// CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}} &, {{.*}} &> _t2 = clad::custom_derivatives::class_functions::operator_star_reverse_forw(&s, &_d_s);
+// CHECK-NEXT:     std::shared_ptr<double> s = _t0.value;
+// CHECK-NEXT:     std::shared_ptr<double> _d_s = _t0.adjoint;
+// CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}} &, {{.*}} &> _t1 = clad::custom_derivatives::class_functions::operator_star_reverse_forw(&s, &_d_s);
 // CHECK-NEXT:     double _d_x = 0.;
-// CHECK-NEXT:     double x = _t2.value;
+// CHECK-NEXT:     double x = _t1.value;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_x += _d_y * x;
 // CHECK-NEXT:         _d_x += x * _d_y;
 // CHECK-NEXT:         _d_x += 2. * _d_y;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _t2.adjoint += _d_x;
-// CHECK-NEXT:     shared_ptr<double> _r0 = _t0.adjoint;
+// CHECK-NEXT:     _t1.adjoint += _d_x;
 // CHECK-NEXT: }
 
 // CHECK: void fn22_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _t0 = x;
 // CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t1 = clad::custom_derivatives::std::make_shared_reverse_forw(x, *_d_x);
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t2 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}shared_ptr<double> >(), std::move(_t1.value), std::move(_t1.adjoint));
-// CHECK-NEXT:     std::shared_ptr<double> s_ptr = _t2.value;
-// CHECK-NEXT:     std::shared_ptr<double> _d_s_ptr = _t2.adjoint;
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::weak_ptr<double>, ::std::weak_ptr<double> > _t3 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}weak_ptr<double> >(), s_ptr, _d_s_ptr);
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::weak_ptr<double>, ::std::weak_ptr<double> > _t4 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}weak_ptr<double> >(), std::move(_t3.value), std::move(_t3.adjoint));
-// CHECK-NEXT:     std::weak_ptr<double> w_ptr = _t4.value;
-// CHECK-NEXT:     std::weak_ptr<double> _d_w_ptr = _t4.adjoint;
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::weak_ptr<double>, ::std::weak_ptr<double> > _t5 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}weak_ptr<double> >(), w_ptr, _d_w_ptr);
+// CHECK-NEXT:     std::shared_ptr<double> s_ptr = _t1.value;
+// CHECK-NEXT:     std::shared_ptr<double> _d_s_ptr = _t1.adjoint;
+// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::weak_ptr<double>, ::std::weak_ptr<double> > _t2 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}weak_ptr<double> >(), s_ptr, _d_s_ptr);
+// CHECK-NEXT:     std::weak_ptr<double> w_ptr = _t2.value;
+// CHECK-NEXT:     std::weak_ptr<double> _d_w_ptr = _t2.adjoint;
+// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::weak_ptr<double>, ::std::weak_ptr<double> > _t3 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}weak_ptr<double> >(), w_ptr, _d_w_ptr);
 // CHECK-NEXT:     {
-// CHECK-NEXT:         std::weak_ptr<double> _r2 = _t5.adjoint;
-// CHECK-NEXT:         weak_fn_pullback(_t5.value, 1, &_r2);
+// CHECK-NEXT:         std::weak_ptr<double> _r0 = _t3.adjoint;
+// CHECK-NEXT:         weak_fn_pullback(_t3.value, 1, &_r0);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     std::weak_ptr<double> _r1 = _t3.adjoint;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         shared_ptr<{{.*}}double{{.*}}> _r0 = _t1.adjoint;
 // CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _r0, &*_d_x);
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_s_ptr, &*_d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
-

@@ -3,16 +3,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -fno-exceptions -I%S/../../include -oMemberFunctions.out
 // RUN: ./MemberFunctions.out | %filecheck_exec %s
 
-// RUN: %cladclang -std=c++14 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp14.out 2>&1 | %filecheck %s
-// RUN: ./MemberFunctions-cpp14.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -std=c++14 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp14.out
-// RUN: ./MemberFunctions-cpp14.out | %filecheck_exec %s
-
-// RUN: %cladclang -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out 2>&1 | %filecheck %s
-// RUN: ./MemberFunctions-cpp17.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out
-// RUN: ./MemberFunctions-cpp17.out | %filecheck_exec %s
-
 #include "clad/Differentiator/Differentiator.h"
 
 class SimpleFunctions {

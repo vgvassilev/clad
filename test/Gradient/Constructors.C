@@ -120,15 +120,11 @@ double fn2(double u, double v) {
 }
 
 // CHECK:  static void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
-// CHECK-NEXT:      S1 *_this = (S1 *)malloc(sizeof(S1));
-// CHECK-NEXT:      _this->p = x;
-// CHECK-NEXT:      _this->d = 0.;
 // CHECK-NEXT:      _d_this->d = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_this->p;
 // CHECK-NEXT:          _d_this->p = 0.;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
 // CHECK:  static void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
