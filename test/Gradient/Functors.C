@@ -156,7 +156,7 @@ int main() {
 
   auto lambda = [](double i, double j) { return i * i * j; };
 
-  // CHECK: inline void operator_call_grad(double i, double j, double *_d_i, double *_d_j) const {
+  // CHECK: inline constexpr void operator_call_grad(double i, double j, double *_d_i, double *_d_j) const {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         *_d_i += 1 * j * i;
   // CHECK-NEXT:         *_d_i += i * 1 * j;
@@ -168,7 +168,7 @@ int main() {
   
   // CHECK: double _d_x = 0.;
 
-  // CHECK: inline void operator_call_grad(double ii, double j, double *_d_ii, double *_d_j) const {
+  // CHECK: inline constexpr void operator_call_grad(double ii, double j, double *_d_ii, double *_d_j) const {
   // CHECK-NEXT:     _d_x = 0.;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         _d_x += 1 * j * ii;

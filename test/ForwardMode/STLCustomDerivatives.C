@@ -1,4 +1,4 @@
-// RUN: %cladclang -std=c++14 %s -I%S/../../include -oSTLCustomDerivatives.out | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oSTLCustomDerivatives.out | %filecheck %s
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 // XFAIL: valgrind
 

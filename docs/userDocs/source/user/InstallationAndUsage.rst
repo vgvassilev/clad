@@ -3,7 +3,7 @@ Clad Installation
 
 This page covers both installation and usage details for Clad.
 
-At the moment, LLVM/Clang 7.0.x - 17.0.x are supported.
+At the moment, LLVM/Clang 11.0.x - 21.0.x are supported.
 
 Conda Installation
 ====================
@@ -26,12 +26,12 @@ If you have already added ``conda-forge`` as a channel, the ``-c conda-forge`` i
 Building from source
 ======================
 
-Building from source (example was tested on Ubuntu 20.04 LTS)
+Building from source (example was tested on Ubuntu 24.04 LTS)
 -----------------------------------------------------------------------------------
 
 .. code-block:: bash
 
-   #sudo apt install clang-11 libclang-11-dev llvm-11-tools llvm-11-dev
+   #sudo apt install clang-21 libclang-21-dev llvm-21-tools llvm-21-dev
    sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" 
    sudo -H pip install lit
    git clone https://github.com/vgvassilev/clad.git
@@ -50,7 +50,7 @@ Building from source (example was tested on macOS Catalina 10.15.7)
    python -m pip install lit
    git clone https://github.com/vgvassilev/clad.git clad
    mkdir build; cd build
-   cmake ../clad -DLLVM_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/llvm -DClang_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/clang -DLLVM_EXTERNAL_LIT="``which lit``"
+   cmake ../clad -DLLVM_DIR=/usr/local/Cellar/llvm/* - -DLLVM_EXTERNAL_LIT="``which lit``"
    make && make install
    make check-clad
 
@@ -87,13 +87,13 @@ Since Clad is a Clang plugin, it must be properly attached when the Clang compil
 
 .. code-block:: bash
 
-   clang -cc1 -x c++ -std=c++11 -load /full/path/to/lib/clad.so -plugin clad SourceFile.cpp
+   clang -cc1 -x c++ -std=c++17 -load /full/path/to/lib/clad.so -plugin clad SourceFile.cpp
 
-To compile using Clang < 10 , for example with clang-9, use:
+To compile using Clang < 20 , for example with clang-19, use:
 
 .. code-block:: bash
 
-   clang-9 -I /full/path/to/include/  -x c++ -std=c++11 -fplugin=/full/path/to/lib/clad.so SourceFile.cpp -o sourcefile -lstdc++ -lm
+   clang-19 -I /full/path/to/include/  -x c++ -std=c++17 -fplugin=/full/path/to/lib/clad.so SourceFile.cpp -o sourcefile -lstdc++ -lm
 
 To save the Clad generated derivative code to `Derivatives.cpp` add:
 
