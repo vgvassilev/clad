@@ -147,7 +147,7 @@ float sum(double* arr, int n) {
 }
 
 // CHECK: float sum_reverse_forw(double *arr, int n, double *_d_arr, int _d_n, clad::restore_tracker &_tracker0) {
-// CHECK-NEXT:     float _d_res = 0.F;
+// CHECK-NEXT:     float _d_res = 0;
 // CHECK-NEXT:     float res = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     int _d_i = 0;
@@ -1128,6 +1128,64 @@ double fn31(double *variables) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+void fast_interp(double const *coefs, double const *sum_param, double const *diff_param, double *out) {
+  double const *sum = sum_param;
+  double const *diff = diff_param;
+  double x = coefs[0];
+
+  out[0] += x * (diff[0] + x * sum[0]);
+}
+
+// CHECK: void fast_interp_reverse_forw(const double *coefs, const double *sum_param, const double *diff_param, double *out, const double *_d_coefs, const double *_d_sum_param, const double *_d_diff_param, double *_d_out, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     const double *_d_sum = _d_sum_param;
+// CHECK-NEXT:     const double *sum0 = sum_param;
+// CHECK-NEXT:     const double *_d_diff = _d_diff_param;
+// CHECK-NEXT:     const double *diff = diff_param;
+// CHECK-NEXT:     double _d_x = 0.;
+// CHECK-NEXT:     double x = coefs[0];
+// CHECK-NEXT:     _tracker0.store(out[0]);
+// CHECK-NEXT:     out[0] += x * (diff[0] + x * sum0[0]);
+// CHECK-NEXT: }
+
+// CHECK: void fast_interp_pullback(const double *coefs, const double *sum_param, const double *diff_param, double *out, double *_d_coefs, double *_d_sum_param, double *_d_diff_param, double *_d_out) {
+// CHECK-NEXT:     double *_d_sum = _d_sum_param;
+// CHECK-NEXT:     const double *sum0 = sum_param;
+// CHECK-NEXT:     double *_d_diff = _d_diff_param;
+// CHECK-NEXT:     const double *diff = diff_param;
+// CHECK-NEXT:     double _d_x = 0.;
+// CHECK-NEXT:     double x = coefs[0];
+// CHECK-NEXT:     out[0] += x * (diff[0] + x * sum0[0]);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_out[0];
+// CHECK-NEXT:         _d_x += _r_d0 * (diff[0] + x * sum0[0]);
+// CHECK-NEXT:         _d_diff[0] += x * _r_d0;
+// CHECK-NEXT:         _d_x += x * _r_d0 * sum0[0];
+// CHECK-NEXT:         _d_sum[0] += x * x * _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_coefs[0] += _d_x;
+// CHECK-NEXT: }
+
+double fn32(double *params) {
+  double t3[] = {params[0]};
+  double t2[1]{};
+  double xlArr[] = {3., 4.};
+  fast_interp(t3, xlArr, xlArr + 1, t2);
+  return t2[0];
+} // 4 * param[0] + 3 * param[0]^2
+
+// CHECK: void fn32_grad(double *params, double *_d_params) {
+// CHECK-NEXT:     double _d_t3[1] = {0};
+// CHECK-NEXT:     double t3[1] = {params[0]};
+// CHECK-NEXT:     double _d_t2[1] = {0};
+// CHECK-NEXT:     double t2[1]{};
+// CHECK-NEXT:     double _d_xlArr[2] = {0};
+// CHECK-NEXT:     double xlArr[2] = {3., 4.};
+// CHECK-NEXT:     fast_interp(t3, xlArr, xlArr + 1, t2);
+// CHECK-NEXT:     _d_t2[0] += 1;
+// CHECK-NEXT:     fast_interp_pullback(t3, xlArr, xlArr + 1, t2, _d_t3, _d_xlArr, _d_xlArr + 1, _d_t2);
+// CHECK-NEXT:     _d_params[0] += _d_t3[0];
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -1275,6 +1333,11 @@ int main() {
   x_output[0] = 0; x_output[1] = 0;
   fn31_grad.execute(x_arr, x_output);
   printf("{%.2f, %.2f}\n", x_output[0], x_output[1]);  // CHECK-EXEC: {1.00, 0.00}
+
+  auto fn32_grad = clad::gradient(fn32);
+  x_output[0] = 0; x_output[1] = 0;
+  fn32_grad.execute(x_arr, x_output);
+  printf("{%.2f, %.2f}\n", x_output[0], x_output[1]);  // CHECK-EXEC: {22.00, 0.00}
 }
 
 double sq_defined_later(double x) {

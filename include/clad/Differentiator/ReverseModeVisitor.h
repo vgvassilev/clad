@@ -426,8 +426,8 @@ namespace clad {
     StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
     StmtDiff VisitCaseStmt(const clang::CaseStmt* CS);
     StmtDiff VisitDefaultStmt(const clang::DefaultStmt* DS);
-    DeclDiff<clang::VarDecl> DifferentiateVarDecl(const clang::VarDecl* VD,
-                                                  bool keepLocal = false);
+    virtual DeclDiff<clang::VarDecl>
+    DifferentiateVarDecl(const clang::VarDecl* VD, bool keepLocal = false);
     StmtDiff DifferentiateCtorInit(clang::CXXCtorInitializer* CI,
                                    clang::Expr* thisExpr);
     StmtDiff VisitSubstNonTypeTemplateParmExpr(

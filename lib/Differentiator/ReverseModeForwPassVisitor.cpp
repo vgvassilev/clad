@@ -1,4 +1,5 @@
 #include "clad/Differentiator/ReverseModeForwPassVisitor.h"
+#include "clad/Differentiator/VisitorBase.h"
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
@@ -7,6 +8,7 @@
 
 #include "llvm/Support/SaveAndRestore.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/Basic/LLVM.h"
 
@@ -239,4 +241,22 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   Stmt* newRS = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();
   return {newRS};
 }
+
+DeclDiff<clang::VarDecl>
+ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
+                                                 bool /*keepLocal*/) {
+  QualType DerivedType = CloneType(VD->getType());
+  StmtDiff initDiff = Visit(VD->getInit());
+  auto* VDCloned = BuildGlobalVarDecl(DerivedType, VD->getNameAsString(),
+                                      initDiff.getExpr(), VD->isDirectInit());
+  auto* VDDerived =
+      BuildGlobalVarDecl(DerivedType, "_d_" + VD->getNameAsString(),
+                         initDiff.getExpr_dx(), VD->isDirectInit());
+  m_Variables.emplace(VDCloned, BuildDeclRef(VDDerived));
+  if ((VD->getDeclName() != VDCloned->getDeclName() ||
+       DerivedType != VD->getType()))
+    m_DeclReplacements[VD] = VDCloned;
+  return {VDCloned, VDDerived};
+}
+
 } // namespace clad

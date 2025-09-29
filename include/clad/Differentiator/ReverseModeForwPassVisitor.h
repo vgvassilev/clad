@@ -33,6 +33,9 @@ public:
                                               bool forceStore = false) override;
   StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",
                            bool moveToTape = false) override;
+  DeclDiff<clang::VarDecl>
+  DifferentiateVarDecl(const clang::VarDecl* VD,
+                       bool keepLocal = false) override;
 
   StmtDiff ProcessSingleStmt(const clang::Stmt* S);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS) override;
