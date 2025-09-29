@@ -1654,6 +1654,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       result.updateRevSweep(argDiff.getExpr_dx());
     else
       result.updateRevSweep(getZeroInit(arg->getType()));
+    if (isNonDiff)
+      result.updateStmtDx(nullptr);
     QualType paramTy = param->getType();
     if (Expr* adjointArg = result.getExpr_dx())
       if (!(isNonDiff || utils::isArrayOrPointerType(paramTy) || isCUDAKernel))
@@ -4417,6 +4419,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         adjoint = utils::BuildStaticCastToRValue(m_Sema, adjoint);
       }
       return {val, adjoint};
+    }
+
+    // Aggregate constructors are always element-wise initializers.
+    // This means we can always copy/default initialize the adjoint too.
+    if (RD->isAggregate()) {
+      if (CD->isDefaultConstructor())
+        return {};
+      assert(CD->isCopyOrMoveConstructor() &&
+             "unexpected aggregate constructor.");
+      return {primalArgs[0], reverseForwAdjointArgs[0]};
     }
 
     Expr* clonedArgsE = nullptr;

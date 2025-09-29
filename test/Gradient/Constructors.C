@@ -420,6 +420,33 @@ double fn8(double u, double v) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct S {
+  double* a;
+};
+
+double func2(S s) {
+  return s.a[2];
+}
+
+// CHECK:  void func2_pullback(S s, double _d_y, S *_d_s) {
+// CHECK-NEXT:      (*_d_s).a[2] += _d_y;
+// CHECK-NEXT:  }
+
+double fn9(S& s) {
+  double r = func2(s);
+  return r;
+}
+
+// CHECK:  void fn9_grad(S &s, S *_d_s) {
+// CHECK-NEXT:      double _d_r = 0.;
+// CHECK-NEXT:      double r = func2(s);
+// CHECK-NEXT:      _d_r += 1;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          S _r0 = (*_d_s);
+// CHECK-NEXT:          func2_pullback(s, _d_r, &_r0);
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 int main() {
     double d_i, d_j;
 
@@ -445,4 +472,10 @@ int main() {
 
     INIT_GRADIENT(fn8);
     TEST_GRADIENT(fn8, /*numOfDerivativeArgs=*/2, 7, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+
+    S s{new double[3]{5, 6, 7}}, _d_s{new double[3]{0}};
+    auto dfn9 = clad::gradient(fn9);
+    dfn9.execute(s, &_d_s);
+    printf("{%.2f, %.2f, %.2f}\n", _d_s.a[0], _d_s.a[1], _d_s.a[2]);
+    // TEST_GRADIENT(fn9, /*numOfDerivativeArgs=*/1, s, &d_s);    // CHECK-EXEC: {0.00, 0.00, 1.00}
 }

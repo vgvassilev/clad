@@ -821,7 +821,7 @@ double fn23(double u, double v) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r_d1 = _d_res;
 // CHECK-NEXT:          _d_res = 0.;
-// CHECK-NEXT:          B _r0 = {0.};
+// CHECK-NEXT:          B _r0 = _d_b;
 // CHECK-NEXT:          double _r1 = 0.;
 // CHECK-NEXT:          add_pullback(b, u, _r_d1, &_r0, &_r1);
 // CHECK-NEXT:          constructor_pullback(b, &_r0, &_d_b);
