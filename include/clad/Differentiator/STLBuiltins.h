@@ -12,6 +12,8 @@
 #include <type_traits>
 #include <vector>
 
+#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
+
 namespace clad {
 
 // zero_init specializations
@@ -473,11 +475,11 @@ void push_back_pullback(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
 }
 
 template <typename T>
-clad::ValueAndAdjoint<T&, T&> operator_subscript_reverse_forw(
-    ::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
-    ::std::vector<T>* d_vec, typename ::std::vector<T>::size_type d_idx) {
-  return {(*vec)[idx], (*d_vec)[idx]};
-}
+elidable_reverse_forw clad::ValueAndAdjoint<T&, T&>
+operator_subscript_reverse_forw(::std::vector<T>* vec,
+                                typename ::std::vector<T>::size_type idx,
+                                ::std::vector<T>* d_vec,
+                                typename ::std::vector<T>::size_type d_idx);
 
 template <typename T, typename P>
 void operator_subscript_pullback(const ::std::vector<T>* vec,
