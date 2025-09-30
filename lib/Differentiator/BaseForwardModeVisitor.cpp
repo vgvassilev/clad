@@ -1173,23 +1173,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       // Request the derivative
       pushforwardFD = FindDerivedFunction(pushforwardFnRequest);
     if (pushforwardFD) {
-      auto* pushforwardMD = dyn_cast<CXXMethodDecl>(pushforwardFD);
-      if (pushforwardMD && pushforwardMD->isInstance()) {
-        callDiff =
-            BuildCallExprToMemFn(baseDiff.getExpr(), pushforwardFD->getName(),
-                                 pushforwardFnArgs, CE->getBeginLoc());
-      } else {
-        if (Expr* baseE = baseDiff.getExpr()) {
-          baseE = BuildOp(UO_AddrOf, baseE);
-          pushforwardFnArgs.insert(pushforwardFnArgs.begin(), baseE);
-        }
-        callDiff =
-            m_Sema
-                .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pushforwardFD),
-                               validLoc, pushforwardFnArgs, validLoc,
-                               CUDAExecConfig)
-                .get();
-      }
+      if (Expr* baseE = baseDiff.getExpr())
+        pushforwardFnArgs.insert(pushforwardFnArgs.begin(), baseE);
+      callDiff = BuildCallExprToFunction(pushforwardFD, pushforwardFnArgs,
+                                         CUDAExecConfig);
     }
   }
 
@@ -1714,7 +1701,10 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
   }
 
   Stmt* WSDiff =
-      clad_compat::Sema_ActOnWhileStmt(m_Sema, condRes, bodyResult).get();
+      m_Sema
+          .ActOnWhileStmt(/*WhileLoc=*/noLoc, /*LParenLoc=*/noLoc, condRes,
+                          /*RParenLoc=*/noLoc, bodyResult)
+          .get();
   // end scope for while loop
   endScope();
   return StmtDiff(WSDiff);

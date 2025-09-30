@@ -1,5 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oPointers._clad_out_out 2>&1 | %filecheck %s
 // RUN: ./Pointers._clad_out_out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 

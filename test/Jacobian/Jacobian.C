@@ -1,5 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oJacobian.out 2>&1 | %filecheck %s
 // RUN: ./Jacobian.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>

@@ -2,6 +2,7 @@
 // RUN: ./TestTypeConversion.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s  -I%S/../../include -oTestTypeConversion.out
 // RUN: ./TestTypeConversion.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>

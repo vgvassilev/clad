@@ -37,12 +37,12 @@ set(CMAKE_MODULE_PATH
   )
 
 # Define clad supported version of clang and llvm.
-set(CLANG_MIN_SUPPORTED 10.0)
-set(CLANG_MAX_SUPPORTED "20.2.x")
-set(CLANG_VERSION_UPPER_BOUND 20.2.0)
-set(LLVM_MIN_SUPPORTED 10.0)
-set(LLVM_MAX_SUPPORTED "20.2.x")
-set(LLVM_VERSION_UPPER_BOUND 20.2.0)
+set(CLANG_MIN_SUPPORTED 11.0)
+set(CLANG_MAX_SUPPORTED "21.2.x")
+set(CLANG_VERSION_UPPER_BOUND 21.2.0)
+set(LLVM_MIN_SUPPORTED 11.0)
+set(LLVM_MAX_SUPPORTED "21.2.x")
+set(LLVM_VERSION_UPPER_BOUND 21.2.0)
 
 # If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:
@@ -152,8 +152,8 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   message(STATUS "Found supported version: Clang ${LLVM_PACKAGE_VERSION}")
   message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
 
-  if (CMAKE_CXX_STANDARD LESS 14)
-    message(fatal "LLVM/Clad requires c++14 or later")
+  if (CMAKE_CXX_STANDARD LESS 17)
+    message(fatal "LLVM/Clad requires c++17 or later")
   endif()
   if (LLVM_VERSION_MAJOR GREATER_EQUAL 16)
     if (NOT CMAKE_CXX_STANDARD)
@@ -164,7 +164,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
     endif()
   else()
     if (NOT CMAKE_CXX_STANDARD)
-      set (CMAKE_CXX_STANDARD 14)
+      set (CMAKE_CXX_STANDARD 17)
     endif()
   endif()
 

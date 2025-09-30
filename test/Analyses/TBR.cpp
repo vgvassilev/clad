@@ -2,6 +2,7 @@
 // RUN: ./TBR.out | %filecheck_exec %s
 // RUN: %cladclang %s -I%S/../../include -oTBR.out
 // RUN: ./TBR.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 

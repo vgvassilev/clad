@@ -8,12 +8,7 @@
 
 // To run the demo please type:
 // path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ -std=c++11 RosenbrockFunction.cpp
-//
-// A typical invocation would be:
-// ../../../../obj/Debug+Asserts/bin/clang++  -Xclang -add-plugin -Xclang clad \
-// -Xclang -load -Xclang ../../../../obj/Debug+Asserts/lib/libclad.dylib     \
-// -I../include/ -std=c++11 RosenbrockFunction.cpp
+// path/to/libclad.so  -I../include/ -std=c++17 RosenbrockFunction.cpp
 
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"

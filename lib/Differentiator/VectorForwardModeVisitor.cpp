@@ -323,8 +323,9 @@ VectorForwardModeVisitor::CreateVectorModeOverload(FunctionDecl* derivative) {
     addToCurrentBlock(BuildDeclStmt(vectorModeVD));
   }
 
-  Expr* callExpr = BuildCallExprToFunction(derivative, callArgs,
-                                           /*UseRefQualifiedThisObj=*/true);
+  Expr* callExpr =
+      BuildCallExprToFunction(derivative, callArgs, /*CUDAExecConfig=*/nullptr,
+                              /*UseRefQualifiedThisObj=*/true);
   addToCurrentBlock(callExpr);
   Stmt* vectorModeOverloadBody = endBlock();
 

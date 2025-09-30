@@ -4,12 +4,14 @@
 #include "ConstantFolder.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/ParentMapContext.h"
+#include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -129,6 +131,18 @@ namespace clad {
       return CS;
     }
 
+    bool hasEmptyBody(const clang::FunctionDecl* FD) {
+      FD = FD->getCanonicalDecl();
+      if (const FunctionDecl* TIP = FD->getTemplateInstantiationPattern())
+        FD = TIP;
+      // Derivatives with real locations are user-provided ones. If a
+      // user-provided derivative doesn't have a body at this point, we consider
+      // it to be empty.
+      if (!FD->hasBody())
+        return FD->getLocation().isValid();
+      return utils::unwrapIfSingleStmt(FD->getBody()) == nullptr;
+    }
+
     CompoundStmt* PrependAndCreateCompoundStmt(ASTContext& C, Stmt* initial,
                                                Stmt* S) {
       llvm::SmallVector<Stmt*, 16> block;
@@ -173,7 +187,8 @@ namespace clad {
         auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
         auto RDTypeSourceInfo = C.getTrivialTypeSourceInfo(RDQType);
         CSS.Extend(C,
-                   /*TemplateKWLoc=*/noLoc, RDTypeSourceInfo->getTypeLoc(),
+                   CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(noLoc)
+                       RDTypeSourceInfo->getTypeLoc(),
                    /*ColonColonLoc=*/noLoc);
       } else if (addGlobalNS && isa<TranslationUnitDecl>(DC)) {
         CSS.MakeGlobal(C, /*ColonColonLoc=*/noLoc);
@@ -740,6 +755,24 @@ namespace clad {
       return false;
     }
 
+    bool UsefulToStore(const Expr* E) {
+      assert(E && "Must be non-null.");
+      E = E->IgnoreParenImpCasts();
+      // FIXME: find a more general way to determine that or add more options.
+      if (isa<DeclRefExpr>(E) || isa<FloatingLiteral>(E) ||
+          isa<IntegerLiteral>(E))
+        return false;
+      if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+        auto OpKind = UO->getOpcode();
+        if (OpKind == UO_Plus || OpKind == UO_Minus)
+          return UsefulToStore(UO->getSubExpr());
+        return false;
+      }
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+        return UsefulToStore(ASE->getBase()) || UsefulToStore(ASE->getIdx());
+      return true;
+    }
+
     bool ContainsFunctionCalls(const clang::Stmt* S) {
       class CallExprFinder : public RecursiveASTVisitor<CallExprFinder> {
       public:
@@ -760,13 +793,6 @@ namespace clad {
         caseStmt->setSubStmt(subStmt);
       else
         cast<DefaultStmt>(SC)->setSubStmt(subStmt);
-    }
-
-    bool IsLiteral(const clang ::Expr* E) {
-      return isa<IntegerLiteral>(E) || isa<FloatingLiteral>(E) ||
-             isa<CharacterLiteral>(E) || isa<StringLiteral>(E) ||
-             isa<ObjCBoolLiteralExpr>(E) || isa<CXXBoolLiteralExpr>(E) ||
-             isa<GNUNullExpr>(E);
     }
 
     bool IsZeroOrNullValue(const clang::Expr* E) {
@@ -890,6 +916,33 @@ namespace clad {
           clad_compat::ElaboratedTypeKeyword_None, NS, TT);
     }
 
+    clang::QualType GetRestoreTrackerType(clang::Sema& S) {
+      static QualType T;
+      if (!T.isNull())
+        return T;
+      NamespaceDecl* CladNS = GetCladNamespace(S);
+      CXXScopeSpec CSS;
+      CSS.Extend(S.getASTContext(), CladNS, noLoc, noLoc);
+      DeclarationName TrackerName =
+          &S.getASTContext().Idents.get("restore_tracker");
+      LookupResult TrackerR(S, TrackerName, noLoc, Sema::LookupUsingDeclName,
+                            CLAD_COMPAT_Sema_ForVisibleRedeclaration);
+      S.LookupQualifiedName(TrackerR, CladNS, CSS);
+      assert(!TrackerR.empty() && "cannot find clad::restore_tracker");
+
+      // This will instantiate restore_tracker<T> type and return it.
+      auto* RD = cast<RecordDecl>(TrackerR.getFoundDecl());
+      ASTContext& C = S.getASTContext();
+      T = C.getRecordType(RD);
+      // Get clad namespace and its identifier clad::.
+      NestedNameSpecifier* NS = CSS.getScopeRep();
+
+      // Create elaborated type with namespace specifier,
+      // i.e. class<T> -> clad::class<T>
+      T = C.getElaboratedType(clad_compat::ElaboratedTypeKeyword_None, NS, T);
+      return T;
+    }
+
     TemplateDecl* LookupTemplateDeclInCladNamespace(Sema& S,
                                                     llvm::StringRef ClassName) {
       NamespaceDecl* CladNS = GetCladNamespace(S);
@@ -927,6 +980,45 @@ namespace clad {
       return false;
     }
 
+    bool shouldUseRestoreTracker(const FunctionDecl* FD) {
+      // FIXME: We return false to disable the system for methods because
+      // reverse_forw will currently break some of them. We need to improve
+      // reverse_forw to support this.
+      if (isa<CXXMethodDecl>(FD) || FD->isOverloadedOperator())
+        return false;
+      // FIXME: clad::restore_tracker is not thread-safe.
+      // We shoudn't disable reverse_forw for CUDA
+      if (FD->hasAttr<clang::CUDAGlobalAttr>() ||
+          FD->hasAttr<clang::CUDADeviceAttr>() ||
+          FD->hasAttr<clang::CUDAHostAttr>())
+        return false;
+      for (const ParmVarDecl* PVD : FD->parameters()) {
+        // Some functions (like in Kokkos) have dummy parameters for
+        // metaprogramming. They don't have names and are not unused. They are
+        // not essential for the analysis but sometimes, due to pointer types
+        // like `enable_if<...>::type*`, can unnecessarily trigger reverse_forw.
+        if (PVD->getDeclName().isEmpty())
+          continue;
+        QualType paramTy = PVD->getType();
+        if (paramTy->isReferenceType() &&
+            paramTy.getNonReferenceType()->isRealType())
+          continue;
+        if (isMemoryType(paramTy))
+          return true;
+      }
+      return false;
+    }
+
+    bool hasMemoryTypeParams(const FunctionDecl* FD) {
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
+        if (MD->isInstance() && !MD->isConst())
+          return true;
+      for (const ParmVarDecl* PVD : FD->parameters())
+        if (isMemoryType(PVD->getType()))
+          return true;
+      return false;
+    }
+
     QualType InstantiateTemplate(Sema& S, TemplateDecl* CladClassDecl,
                                  ArrayRef<QualType> TemplateArgs) {
       // Create a list of template arguments.
@@ -959,7 +1051,7 @@ namespace clad {
     bool IsDifferentiableType(QualType T) {
       QualType origType = T;
       // FIXME: arbitrary dimension array type as well.
-      while (utils::isArrayOrPointerType(T))
+      while (utils::isArrayOrPointerType(T) || T->isReferenceType())
         T = utils::GetValueType(T);
       T = T.getNonReferenceType();
       if (T->isEnumeralType())
@@ -1061,7 +1153,7 @@ namespace clad {
     QualType
     GetDerivativeType(Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
                       llvm::ArrayRef<const clang::ValueDecl*> diffParams,
-                      bool moveBaseToParams,
+                      bool forCustomDerv,
                       llvm::ArrayRef<QualType> customParams) {
       ASTContext& C = S.getASTContext();
       if (mode == DiffMode::forward)
@@ -1097,10 +1189,14 @@ namespace clad {
                         mode == DiffMode::vector_forward_mode;
       if (mode == DiffMode::reverse_mode_forward_pass &&
           !oRetTy->isVoidType()) {
-        TemplateDecl* valAndAdjointTempDecl =
-            utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
-        dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
-                                            {oRetTy, oRetTy});
+        if (isMemoryType(oRetTy)) {
+          TemplateDecl* valAndAdjointTempDecl =
+              utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
+          dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
+                                              {oRetTy, oRetTy});
+        } else {
+          dRetTy = oRetTy;
+        }
       } else if (mode == DiffMode::hessian ||
                  mode == DiffMode::hessian_diagonal) {
         QualType argTy = C.getPointerType(oRetTy);
@@ -1117,7 +1213,8 @@ namespace clad {
         // Handle pullbacks
         QualType argTy = oRetTy.getNonReferenceType();
         argTy = utils::getNonConstType(argTy, S);
-        if (!argTy->isVoidType() && !argTy->isPointerType())
+        if (!argTy->isVoidType() && !argTy->isPointerType() &&
+            !utils::isNonConstReferenceType(oRetTy))
           FnTypes.push_back(argTy);
       }
 
@@ -1164,10 +1261,16 @@ namespace clad {
           FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
       }
 
-      if (moveBaseToParams && !thisTy.isNull() &&
-          !isa<CXXConstructorDecl>(FD)) {
+      if (forCustomDerv && !thisTy.isNull() && !isa<CXXConstructorDecl>(FD)) {
         FnTypes.insert(FnTypes.begin(), thisTy);
         EPI.TypeQuals.removeConst();
+      }
+
+      if (mode == DiffMode::reverse_mode_forward_pass &&
+          shouldUseRestoreTracker(FD) && !forCustomDerv) {
+        QualType trackerTy = GetRestoreTrackerType(S);
+        trackerTy = C.getLValueReferenceType(trackerTy);
+        FnTypes.push_back(trackerTy);
       }
 
       for (QualType customTy : customParams)
@@ -1184,6 +1287,17 @@ namespace clad {
       QualType paramTy = FD->getParamDecl(0)->getType();
       paramTy = paramTy.getNonReferenceType();
       return paramTy->isRealType();
+    }
+
+    QualType makeTypeReadable(Sema& S, QualType Ty) {
+      ASTContext& C = S.getASTContext();
+      QualType retTy =
+          TypeName::getFullyQualifiedType(Ty, C, /*WithGlobalNsPrefix=*/false);
+
+      // FIXME: Add a type visitor which can fold stl-specific idioms such as
+      // X::value_type, X::size_type.
+      // FIXME: Drop the default arguments such as std::allocator.
+      return retTy;
     }
 
     QualType replaceStdInitListWithCladArray(Sema& S, QualType origTy) {
@@ -1401,7 +1515,7 @@ namespace clad {
           if (DRE == m_stopE)
             return false;
           if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-            if (m_Modifying && VD == m_idxVD) {
+            if (m_Modifying && VD->getName() == m_idxVD->getName()) {
               m_isLive = false;
               return false;
             }

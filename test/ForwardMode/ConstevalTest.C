@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -std=c++23 -oConstevalTest.out | %filecheck %s
 // RUN: ./ConstevalTest.out | %filecheck_exec %s
-// UNSUPPORTED: clang-10, clang-11, clang-12, clang-13, clang-14, clang-15, clang-16
+// UNSUPPORTED: clang-11, clang-12, clang-13, clang-14, clang-15, clang-16
 
 #include "clad/Differentiator/Differentiator.h"
 

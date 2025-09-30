@@ -2,6 +2,7 @@
 // RUN: ./BuiltinDerivatives.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -Xclang -verify -oBuiltinDerivatives.out
 // RUN: ./BuiltinDerivatives.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"
@@ -214,7 +215,7 @@ double f11(double x, double y) {
 }
 
 // CHECK: void f11_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     typename {{.*}} _t0 = std::pow(y - std::pow(x, 2), 2);
+// CHECK-NEXT:     {{.*}} _t0 = std::pow(y - std::pow(x, 2), 2);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         int _r1 = 0;

@@ -9,16 +9,10 @@
 
 // To compile the demo please type:
 // path/to/clang++ -O3 -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so -I../../include/ -std=c++11 SmallPT.cpp \
+// path/to/libclad.so -I../../include/ -std=c++17 SmallPT.cpp \
 // -fopenmp=libiomp5 -o SmallPT
 //
 // To run the demo please type:
-// ./SmallPT 500 && xv image.ppm
-
-// A typical invocation would be:
-// ../../../../../obj/Debug+Asserts/bin/clang++ -O3 -Xclang -add-plugin -Xclang clad \
-// -Xclang -load -Xclang ../../../../../obj/Debug+Asserts/lib/libclad.dylib \
-// -I../../include/ -std=c++11 SmallPT.cpp -fopenmp=libiomp5 -o SmallPT
 // ./SmallPT 500 && xv image.ppm
 
 // Necessary for clad to work include

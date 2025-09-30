@@ -16,6 +16,10 @@
 #include <stack>
 #include <unordered_map>
 
+#ifndef NDEBUG
+#include <exception> // for std::terminate
+#endif
+
 namespace clad {
 /// A visitor for processing the function code in forward mode.
 /// Used to compute derivatives by clad::differentiate.

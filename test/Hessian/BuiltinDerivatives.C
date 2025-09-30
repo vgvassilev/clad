@@ -211,22 +211,18 @@ int main() {
 // CHECK-NEXT:         _d__t1.pushforward += 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}}ValueAndPushforward<float, float> _r3 = {0.F, 0.F};
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback({{.*}}cos_pushforward(x, _d_x0), &_d__t1, &_r3);
-// CHECK-NEXT:         float _r4 = 0.F;
-// CHECK-NEXT:         float _r5 = 0.F;
-// CHECK-NEXT:         cos_pushforward_pullback(x, _d_x0, _r3, &_r4, &_r5);
-// CHECK-NEXT:         *_d_x += _r4;
-// CHECK-NEXT:         _d__d_x += _r5;
+// CHECK-NEXT:         float _r2 = 0.F;
+// CHECK-NEXT:         float _r3 = 0.F;
+// CHECK-NEXT:         clad::custom_derivatives::std::cos_pushforward_pullback(x, _d_x0, _d__t1, &_r2, &_r3);
+// CHECK-NEXT:         *_d_x += _r2;
+// CHECK-NEXT:         _d__d_x += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}}ValueAndPushforward<float, float> _r0 = {0.F, 0.F};
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback({{.*}}sin_pushforward(x, _d_x0), &_d__t0, &_r0);
+// CHECK-NEXT:         float _r0 = 0.F;
 // CHECK-NEXT:         float _r1 = 0.F;
-// CHECK-NEXT:         float _r2 = 0.F;
-// CHECK-NEXT:         sin_pushforward_pullback(x, _d_x0, _r0, &_r1, &_r2);
-// CHECK-NEXT:         *_d_x += _r1;
-// CHECK-NEXT:         _d__d_x += _r2;
+// CHECK-NEXT:         clad::custom_derivatives::std::sin_pushforward_pullback(x, _d_x0, _d__t0, &_r0, &_r1);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         _d__d_x += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -239,13 +235,11 @@ int main() {
 // CHECK-NEXT:     ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::exp_pushforward(x, _d_x0);
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}}ValueAndPushforward<float, float> _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}exp_pushforward(x, _d_x0), &_d__t0, &_r0);
+// CHECK-NEXT:         float _r0 = 0.F;
 // CHECK-NEXT:         float _r1 = 0.F;
-// CHECK-NEXT:         float _r2 = 0.F;
-// CHECK-NEXT:         exp_pushforward_pullback(x, _d_x0, _r0, &_r1, &_r2);
-// CHECK-NEXT:         *_d_x += _r1;
-// CHECK-NEXT:         _d__d_x += _r2;
+// CHECK-NEXT:         clad::custom_derivatives::std::exp_pushforward_pullback(x, _d_x0, _d__t0, &_r0, &_r1);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         _d__d_x += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -258,13 +252,11 @@ int main() {
 // CHECK-NEXT:     ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::log_pushforward(x, _d_x0);
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}}ValueAndPushforward<float, float> _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}log_pushforward(x, _d_x0), &_d__t0, &_r0);
+// CHECK-NEXT:         float _r0 = 0.F;
 // CHECK-NEXT:         float _r1 = 0.F;
-// CHECK-NEXT:         float _r2 = 0.F;
-// CHECK-NEXT:         log_pushforward_pullback(x, _d_x0, _r0, &_r1, &_r2);
-// CHECK-NEXT:         *_d_x += _r1;
-// CHECK-NEXT:         _d__d_x += _r2;
+// CHECK-NEXT:         clad::custom_derivatives::std::log_pushforward_pullback(x, _d_x0, _d__t0, &_r0, &_r1);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         _d__d_x += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -277,15 +269,13 @@ int main() {
 // CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::pow_pushforward(x, 4.F, _d_x0, 0.F);
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}} _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}pow_pushforward(x, 4.F, _d_x0, 0.F), &_d__t0, &_r0);
+// CHECK-NEXT:         float _r0 = 0.F;
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         float _r3 = 0.F;
-// CHECK-NEXT:         float _r4 = 0.F;
-// CHECK-NEXT:         pow_pushforward_pullback(x, 4.F, _d_x0, 0.F, _r0, &_r1, &_r2, &_r3, &_r4);
-// CHECK-NEXT:         *_d_x += _r1;
-// CHECK-NEXT:         _d__d_x += _r3;
+// CHECK-NEXT:         clad::custom_derivatives::std::pow_pushforward_pullback(x, 4.F, _d_x0, 0.F, _d__t0, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         _d__d_x += _r2;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -296,15 +286,13 @@ int main() {
 // CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::pow_pushforward(2.F, x, 0.F, _d_x0);
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}} _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}pow_pushforward(2.F, x, 0.F, _d_x0), &_d__t0, &_r0);
+// CHECK-NEXT:         float _r0 = 0.F;
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         float _r3 = 0.F;
-// CHECK-NEXT:         float _r4 = 0.F;
-// CHECK-NEXT:         {{.*}}pow_pushforward_pullback(2.F, x, 0.F, _d_x0, _r0, &_r1, &_r2, &_r3, &_r4);
-// CHECK-NEXT:         *_d_x += _r2;
-// CHECK-NEXT:         _d__d_x += _r4;
+// CHECK-NEXT:         {{.*}}pow_pushforward_pullback(2.F, x, 0.F, _d_x0, _d__t0, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:         *_d_x += _r1;
+// CHECK-NEXT:         _d__d_x += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -317,17 +305,15 @@ int main() {
 // CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::pow_pushforward(x, y, _d_x0, _d_y0);
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}} _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}pow_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
+// CHECK-NEXT:         float _r0 = 0.F;
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         float _r3 = 0.F;
-// CHECK-NEXT:         float _r4 = 0.F;
-// CHECK-NEXT:         {{.*}}pow_pushforward_pullback(x, y, _d_x0, _d_y0, _r0, &_r1, &_r2, &_r3, &_r4);
-// CHECK-NEXT:         *_d_x += _r1;
-// CHECK-NEXT:         *_d_y += _r2;
-// CHECK-NEXT:         _d__d_x += _r3;
-// CHECK-NEXT:         _d__d_y += _r4;
+// CHECK-NEXT:         {{.*}}pow_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         *_d_y += _r1;
+// CHECK-NEXT:         _d__d_x += _r2;
+// CHECK-NEXT:         _d__d_y += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -340,17 +326,15 @@ int main() {
 // CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::pow_pushforward(x, y, _d_x0, _d_y0);
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}} _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}pow_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
+// CHECK-NEXT:         float _r0 = 0.F;
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         float _r3 = 0.F;
-// CHECK-NEXT:         float _r4 = 0.F;
-// CHECK-NEXT:         {{.*}}pow_pushforward_pullback(x, y, _d_x0, _d_y0, _r0, &_r1, &_r2, &_r3, &_r4);
-// CHECK-NEXT:         *_d_x += _r1;
-// CHECK-NEXT:         *_d_y += _r2;
-// CHECK-NEXT:         _d__d_x += _r3;
-// CHECK-NEXT:         _d__d_y += _r4;
+// CHECK-NEXT:         {{.*}}pow_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         *_d_y += _r1;
+// CHECK-NEXT:         _d__d_x += _r2;
+// CHECK-NEXT:         _d__d_y += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

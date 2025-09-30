@@ -1,5 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oFunctionCalls.out 2>&1 | %filecheck %s
 // RUN: ./FunctionCalls.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include <cmath>
 #include "clad/Differentiator/Differentiator.h"

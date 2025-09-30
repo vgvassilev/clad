@@ -5,7 +5,9 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/LLVM.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
@@ -44,7 +46,6 @@ void VariedAnalyzer::Analyze() {
 
   // Add the entry block to the queue.
   m_CFGQueue.insert(m_CurBlockID);
-
   // Visit CFG blocks in the queue until it's empty.
   while (!m_CFGQueue.empty()) {
     auto IDIter = std::prev(m_CFGQueue.end());
@@ -55,8 +56,7 @@ void VariedAnalyzer::Analyze() {
   }
 }
 
-void VariedAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
-  // Visit all the statements inside the block.
+void VariedAnalyzer::TraverseAllStmtInsideBlock(const CFGBlock& block) {
   for (const clang::CFGElement& Element : block) {
     if (Element.getKind() == clang::CFGElement::Statement) {
       const clang::Stmt* S = Element.castAs<clang::CFGStmt>().getStmt();
@@ -66,10 +66,16 @@ void VariedAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
       TraverseStmt(const_cast<clang::Stmt*>(S));
     }
   }
+}
+void VariedAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
+  // Visit all the statements inside the block.
+  TraverseAllStmtInsideBlock(block);
 
-  for (const clang::CFGBlock::AdjacentBlock succ : block.succs()) {
+  for (clang::CFGBlock::AdjacentBlock succ : block.succs()) {
     if (!succ)
       continue;
+    while (succ->empty() && succ->succ_size() == 1)
+      succ = *succ->succ_begin();
     auto& succData = m_BlockData[succ->getBlockID()];
 
     // Create VarsData for the succ branch if it hasn't been done previously.
@@ -79,14 +85,15 @@ void VariedAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
       succData = std::make_unique<VarsData>();
       succData->m_Prev = m_BlockData[block.getBlockID()].get();
     }
-
-    if (succ->getBlockID() > block.getBlockID()) {
+    if (succData->m_Prev == m_BlockData[block.getBlockID()].get()) {
+      m_CFGQueue.insert(succ->getBlockID());
+    } else {
+      if (const Stmt* TS = succ->getTerminatorStmt())
+        if (isa<CXXForRangeStmt>(TS) || isa<ForStmt>(TS) ||
+            isa<WhileStmt>(TS) || isa<DoStmt>(TS))
+          TraverseAllStmtInsideBlock(*succ);
       if (merge(succData.get(), m_BlockData[block.getBlockID()].get()))
         m_CFGQueue.insert(succ->getBlockID());
-    } else {
-      m_CFGQueue.insert(succ->getBlockID());
-      if (succData->m_Prev != m_BlockData[block.getBlockID()].get())
-        merge(succData.get(), m_BlockData[block.getBlockID()].get());
     }
   }
 }
@@ -150,6 +157,7 @@ bool VariedAnalyzer::TraverseConditionalOperator(ConditionalOperator* CO) {
 }
 
 bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
+  bool variedBefore = m_Varied;
   bool hasVariedArg = false;
   FunctionDecl* FD = CE->getDirectCallee();
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
@@ -185,7 +193,7 @@ bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
     }
   }
 
-  m_Varied = hasVariedArg;
+  m_Varied = hasVariedArg || variedBefore;
   return false;
 }
 
@@ -197,6 +205,13 @@ bool VariedAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         m_Varied = false;
         m_Marking = false;
         TraverseStmt(init);
+
+        if (m_Varied) {
+          m_DiffReq.addVariedDecl(VD);
+          setIsRequired(getVarDataFromDecl(VD));
+        } else {
+          setIsRequired(getVarDataFromDecl(VD), /*isReq=*/false);
+        }
 
         auto* VDExpr = &getCurBlockVarsData()[VD];
         QualType VDType = VD->getType();
@@ -215,12 +230,6 @@ bool VariedAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
               std::unique_ptr<std::set<const VarDecl*>>(
                   std::make_unique<std::set<const VarDecl*>>());
           getDependencySet(init, *VDExpr->m_Val.m_RefData);
-        }
-        if (m_Varied) {
-          m_DiffReq.addVariedDecl(VD);
-          setIsRequired(getVarDataFromDecl(VD));
-        } else {
-          setIsRequired(getVarDataFromDecl(VD), /*isReq=*/false);
         }
       }
     }

@@ -37,9 +37,13 @@ CheckOptions:
   - key:             readability-identifier-naming.FunctionCase
     value:           aNy_CasE
   - key:             readability-identifier-naming.MemberCase
-    value:           aNy_CasE
+    value:           CamelCase
+  - key:             readability-identifier-naming.PrivateMemberCase
+    value:           CamelCase
   - key:             readability-identifier-naming.PrivateMemberPrefix
     value:           'm_'
+  - key: readability-identifier-naming.ProtectedMemberCase
+    value:           CamelCase
   - key:             readability-identifier-naming.ProtectedMemberPrefix
     value:           'm_'
   - key:             readability-identifier-naming.PublicMemberPrefix

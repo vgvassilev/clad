@@ -248,7 +248,7 @@ mamba create -n xeus-clad -c conda-forge clad xeus-cpp clangdev=20 jupyterlab
 conda activate xeus-clad
 ```
 
-Next, running `jupyter notebook` will show 3 new kernels for `C++ 11/14/17` with Clad attached.
+Next, running `jupyter notebook` will show 3 new kernels for `C++ 17/20/23` with Clad attached.
 
 Try out a Clad [tutorial](https://compiler-research.org/tutorials/clad_jupyter/) interactively in your browser through binder: 
 
@@ -259,8 +259,8 @@ Since Clad is a Clang plugin, it must be properly attached when Clang compiler i
 
 To compile `SourceFile.cpp` with Clad enabled, use the following commands (note that Clad requires C++14 features):
 
-- Clang++: `clang++ -std=c++14 -I /full/path/to/include/ -fplugin=/full/path/to/lib/clad.so Sourcefile.cpp`
-- Clang: `clang -x c++ -std=c++14 -I /full/path/to/include/ -fplugin=/full/path/to/lib/clad.so SourceFile.cpp -lstdc++ -lm`
+- Clang++: `clang++ -std=c++17 -I /full/path/to/include/ -fplugin=/full/path/to/lib/clad.so Sourcefile.cpp`
+- Clang: `clang -x c++ -std=c++17 -I /full/path/to/include/ -fplugin=/full/path/to/lib/clad.so SourceFile.cpp -lstdc++ -lm`
 
 Clad also provides certain flags to save and print the generated derivative code:
 
@@ -272,7 +272,7 @@ Clad also provides certain flags to save and print the generated derivative code
   - `-Xclang -plugin-arg-clad -Xclang -fdump-derived-fn` (Clang <14)
 
 ## How to install
-At the moment, LLVM/Clang 8.0.x - 18.1.x are supported.
+At the moment, LLVM/Clang 11.0.x - 21.1.x are supported.
 
 ### Conda Installation
 
@@ -289,27 +289,27 @@ conda config --add channels conda-forge
 conda update --all
 ```
 
-### Building from source (example was tested on Ubuntu 20.04 LTS)
+### Building from source (example was tested on Ubuntu 24.04 LTS)
 ```
-#sudo apt install clang-11 libclang-11-dev llvm-11-tools llvm-11-dev
+#sudo apt install clang-21 libclang-21-dev llvm-21-tools llvm-21-dev
 sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 sudo -H pip install lit
 git clone https://github.com/vgvassilev/clad.git clad
 mkdir build_dir inst; cd build_dir
-cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="$(which lit)"
+cmake ../clad -DClang_DIR=/usr/lib/llvm-21 -DLLVM_DIR=/usr/lib/llvm-21 -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="$(which lit)"
 make && make install
 ```
 
 > **NOTE**: On some Linux distributions (e.g. Arch Linux), the LLVM and Clang libraries are installed at `/usr/lib/cmake/llvm` and `/usr/lib/cmake/clang`. If compilation fails with the above provided command, ensure that you are using the correct path to the libraries.
 
-###  Building from source (example was tested on macOS Big Sur 11.6)
+###  Building from source (example was tested on macOS)
 ```
-brew install llvm@12
+brew install llvm@21
 brew install python
 python -m pip install lit
 git clone https://github.com/vgvassilev/clad.git clad
 mkdir build_dir inst; cd build_dir
-cmake ../clad -DLLVM_DIR=/opt/homebrew/opt/llvm@12/lib/cmake/llvm -DClang_DIR=/opt/homebrew/opt/llvm@12/lib/cmake/clang -DCMAKE_INSTALL_PREFIX=../inst  -DLLVM_EXTERNAL_LIT="`which lit`"
+cmake ../clad -DLLVM_DIR=/opt/homebrew/opt/llvm@21/* -DCMAKE_INSTALL_PREFIX=../inst  -DLLVM_EXTERNAL_LIT="`which lit`"
 make && make install
 make check-clad
 ```

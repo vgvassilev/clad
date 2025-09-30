@@ -339,7 +339,9 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
       if (m_DiffReq.Mode == DiffMode::hessian_diagonal) {
         const size_t HessianMatrixStartIndex = i;
         // Call the derived function for second derivative.
-        Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
+        Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams,
+                                             /*CUDAExecConfig=*/nullptr,
+                                             /*UseRefQualifiedThisObj=*/true);
 
         // Create the offset argument.
         llvm::APInt offsetValue(size_type_bits, HessianMatrixStartIndex);
@@ -367,7 +369,9 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
           DeclRefToParams.push_back(SliceExpr);
           columnIndex += indArgSize;
         }
-        Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
+        Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams,
+                                             /*CUDAExecConfig=*/nullptr,
+                                             /*UseRefQualifiedThisObj=*/true);
         CompStmtSave.push_back(call);
       }
     }

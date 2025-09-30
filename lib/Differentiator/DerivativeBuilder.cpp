@@ -136,15 +136,20 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     } else {
       assert (isa<FunctionDecl>(FD) && "Unexpected!");
       enclosingNS = VB.RebuildEnclosingNamespaces(DC);
+
+      auto TrailingRequiresClause =
+          CLAD_COMPAT_CLANG21_getTrailingRequiresClause(FD);
+      if (TrailingRequiresClause)
+        CLAD_COMPAT_CLANG21_UpdateTrailingRequiresClause(
+            TrailingRequiresClause,
+            VB.Clone(CLAD_COMPAT_CLANG21_getTrailingRequiresExpr(FD)));
+
       returnedFD = FunctionDecl::Create(
           m_Context, m_Sema.CurContext, noLoc, name, functionType, TSI,
           FD->getCanonicalDecl()->getStorageClass()
               CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
           FD->isInlineSpecified(), FD->hasWrittenPrototype(),
-          FD->getConstexprKind(),
-          FD->getTrailingRequiresClause()
-              ? VB.Clone(FD->getTrailingRequiresClause())
-              : nullptr);
+          FD->getConstexprKind(), TrailingRequiresClause);
 
       returnedFD->setAccess(FD->getAccess());
     }
@@ -386,6 +391,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     FunctionDecl* derivative = this->FindDerivedFunction(request);
     if (!derivative) {
       alreadyDerived = false;
+      // FIXME: Our analyses are closely tied to the DiffPlanner. Dynamic
+      // derivatives don't have m_AnalysisDC. We should either disable
+      // dynamic scheduling or build m_AnalysisDC here.
+      request.EnableTBRAnalysis = false;
+      request.EnableVariedAnalysis = false;
+      request.EnableUsefulAnalysis = false;
 
       {
         // Store and restore the original function and its order.
@@ -459,7 +470,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           diffParams.push_back(VarInfo.param);
         QualType DerivativeType =
             utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
-                                     diffParams, /*moveBaseToParams=*/true);
+                                     diffParams, /*forCustomDerv=*/true);
         // Generate dummy inits
         llvm::SmallVector<Expr*, 4> Inits;
         for (QualType parTy :

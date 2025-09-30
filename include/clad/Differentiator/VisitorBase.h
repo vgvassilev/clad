@@ -64,6 +64,7 @@ namespace clad {
 
     void updateStmt(clang::Stmt* S) { data[1] = S; }
     void updateStmtDx(clang::Stmt* S) { data[0] = S; }
+    void updateRevSweep(clang::Stmt* S) { m_ValueForRevSweep = S; }
     // Stmt_dx goes first!
     std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
 
@@ -405,10 +406,6 @@ namespace clad {
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type, Stmts& block,
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false);
-    /// For an expr E, decides if it is useful to store it in a temporary
-    /// variable and replace E's further usage by a reference to that variable
-    /// to avoid recomputation.
-    static bool UsefulToStore(clang::Expr* E);
     /// A flag for silencing warnings/errors output by diag function.
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
@@ -533,6 +530,7 @@ namespace clad {
     clang::Expr*
     BuildCallExprToFunction(clang::FunctionDecl* FD,
                             llvm::MutableArrayRef<clang::Expr*> argExprs,
+                            clang::Expr* CUDAExecConfig = nullptr,
                             bool useRefQualifiedThisObj = false);
 
     /// Build a call to templated free function inside the clad namespace.
@@ -634,7 +632,7 @@ namespace clad {
 
     /// Builds the QualType of the derivative to be generated.
     ///
-    /// \param[in] moveBaseToParams If true, turns member functions into regular
+    /// \param[in] forCustomDerv If true, turns member functions into regular
     /// functions by moving the base to the parameters.
     clang::QualType
     GetDerivativeType(llvm::ArrayRef<clang::QualType> customParams = {});

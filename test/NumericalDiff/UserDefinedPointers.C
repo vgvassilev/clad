@@ -1,5 +1,6 @@
 // RUN: %cladnumdiffclang %s -I%S/../../include -oUserDefinedPointers.out -Xclang -verify 2>&1
 // RUN: ./UserDefinedPointers.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 

@@ -418,7 +418,7 @@ int main() {
     return i*i*j;
   };
 
-  // CHECK: inline double operator_call_darg0(double i, double j) const {
+  // CHECK: inline constexpr double operator_call_darg0(double i, double j) const {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_j = 0;
   // CHECK-NEXT:     double _t0 = i * i;
@@ -429,7 +429,7 @@ int main() {
     return x*i*jj;
   };
 
-  // CHECK: inline double operator_call_darg0(double i, double jj) const {
+  // CHECK: inline constexpr double operator_call_darg0(double i, double jj) const {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_jj = 0;
   // CHECK-NEXT:     double _t0 = x * i;
@@ -438,7 +438,7 @@ int main() {
 
   auto lambdaNNS = outer::inner::lambdaNNS;
 
-  // CHECK: inline double operator_call_darg0(double i, double j) const {
+  // CHECK: inline constexpr double operator_call_darg0(double i, double j) const {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_j = 0;
   // CHECK-NEXT:     double _t0 = i * i;

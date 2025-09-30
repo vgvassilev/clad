@@ -20,4 +20,4 @@ jobs:
         run: |
           cd misc-builder/
           docker build -t builder -f Dockerfile.clad .
-          echo "./build.sh trunk /build" | docker run --rm -i -v/tmp/out:/build builder
+          echo "./build.sh trunk-clang-21.1.0 /build" | docker run --rm -i -v/tmp/out:/build builder

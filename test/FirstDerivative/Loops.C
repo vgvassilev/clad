@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -std=c++17 -I%S/../../include -oLoops.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oLoops.out 2>&1 | %filecheck %s
 // RUN: ./Loops.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

@@ -337,13 +337,13 @@ namespace clad {
                                         clang::TemplateArgumentListInfo& TLI);
     /// Builds the QualType of the derivative to be generated.
     ///
-    /// \param[in] moveBaseToParams If true, turns member functions into regular
+    /// \param[in] forCustomDerv If true, turns member functions into regular
     /// functions by moving the base to the parameters.
     clang::QualType
     GetDerivativeType(clang::Sema& S, const clang::FunctionDecl* FD,
                       DiffMode mode,
                       llvm::ArrayRef<const clang::ValueDecl*> diffParams,
-                      bool moveBaseToParams = false,
+                      bool forCustomDerv = false,
                       llvm::ArrayRef<clang::QualType> customParams = {});
     /// Find declaration of clad::class templated type
     ///
@@ -383,9 +383,10 @@ namespace clad {
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);
 
+    clang::QualType GetRestoreTrackerType(clang::Sema& S);
+
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
-    bool IsLiteral(const clang::Expr* E);
     bool IsZeroOrNullValue(const clang::Expr* E);
 
     bool IsMemoryFunction(const clang::FunctionDecl* FD);
@@ -404,6 +405,10 @@ namespace clad {
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
 
+    bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
+
+    bool shouldUseRestoreTracker(const clang::FunctionDecl* FD);
+
     bool IsDifferentiableType(clang::QualType T);
 
     /// Returns true if T is a Tensor-like type. This type must be
@@ -413,6 +418,9 @@ namespace clad {
     /// Returns true if FD can be differentiated as a pushforward
     /// And be used in the reverse mode.
     bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD);
+
+    ///\returns a fully qualified type that is as close as coders would write.
+    clang::QualType makeTypeReadable(clang::Sema& S, clang::QualType Ty);
 
     /// We need to replace std::initializer_list with clad::array in the reverse
     /// mode because the former is temporary by design and it's not possible to
@@ -425,9 +433,15 @@ namespace clad {
     bool isInjective(const clang::Expr* E, clang::AnalysisDeclContext* ADC);
     /// Checks if the return value of the given CallExpr is unused.
     bool hasUnusedReturnValue(clang::ASTContext& C, const clang::CallExpr* CE);
+    /// Returns true if the function is empty
+    bool hasEmptyBody(const clang::FunctionDecl* FD);
     /// For an expr E, decides if we should recompute it or store it.
     /// This is the central point for checkpointing.
     bool ShouldRecompute(const clang::Expr* E, const clang::ASTContext& C);
+    /// For an expr E, decides if it is useful to store it in a temporary
+    /// variable and replace E's further usage by a reference to that variable
+    /// to avoid recomputation.
+    bool UsefulToStore(const clang::Expr* E);
     } // namespace utils
     } // namespace clad
 

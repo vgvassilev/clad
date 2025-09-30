@@ -31,8 +31,8 @@
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
-#include <clad/Differentiator/DiffMode.h>
 
 #include <algorithm>
 #include <cstdlib>  // for getenv
@@ -287,6 +287,11 @@ void InitTimers();
           auto deriveResult = m_DerivativeBuilder->Derive(request);
           DerivativeDecl = cast_or_null<FunctionDecl>(deriveResult.derivative);
           OverloadedDerivativeDecl = deriveResult.overload;
+          // FIXME: Doing this with other function types might lead to
+          // accidental numerical diff.
+          if (isa<CXXConstructorDecl>(FD) &&
+              utils::hasEmptyBody(DerivativeDecl))
+            return nullptr;
           if (DerivativeDecl)
             m_DFC.Add(DerivedFnInfo(request, DerivativeDecl,
                                     OverloadedDerivativeDecl));
@@ -476,8 +481,10 @@ void InitTimers();
       if (!m_CI.getPreprocessor().isIncrementalProcessingEnabled())
         S.TUScope = m_StoredTUScope;
       constexpr bool Enabled = true;
-      Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, Enabled);
-      Sema::LocalEagerInstantiationScope LocalInstantiations(S);
+      Sema::GlobalEagerInstantiationScope GlobalInstantiations(
+          S, Enabled CLAD_COMPAT_CLANG21_AtEndOfTUParam);
+      Sema::LocalEagerInstantiationScope LocalInstantiations(
+          S CLAD_COMPAT_CLANG21_AtEndOfTUParam);
 
       if (!m_DiffRequestGraph.isProcessingNode()) {
         // This check is to avoid recursive processing of the graph, as

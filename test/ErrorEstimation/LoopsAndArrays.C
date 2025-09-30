@@ -1,4 +1,5 @@
 // RUN: %cladclang -I%S/../../include -oLoopsAndArrays.out %s 2>&1 | %filecheck %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
