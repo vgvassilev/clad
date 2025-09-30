@@ -32,9 +32,11 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
