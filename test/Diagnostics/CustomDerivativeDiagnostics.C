@@ -56,7 +56,46 @@ double f2(double x, double y) {
   return h(x, y); // expected-error {{user-defined derivative for 'h' was provided but not used;}}
 }
 
+double sq(double x);
+
+namespace clad::custom_derivatives {
+  clad::ValueAndPushforward<double, double> sq_pushforward(double x, double d_x) {
+    return {::std::sqrt(x), 1. / (2. * ::std::sqrt(x)) * d_x};
+  }
+
+  void sq_pullback(double x, double d_x) { // expected-note {{unused}}
+    assert(false && "Must not be called!");
+  }
+  void sq_pullback(double x) { // expected-note {{unused}}
+    assert(false && "Must not be called!");
+  }
+} // end namespace clad::custom_derivatives
+
+double f3(double x) {
+  return sq(x); // expected-warning {{unused function 'sq_pullback'; 'sq' is a real-domain, single-argument function and only pushforward is required}}
+}
+
+double mypow(double x);
+double mypow(double x, double y);
+namespace clad::custom_derivatives {
+  clad::ValueAndPushforward<double, double> mypow_pushforward(double x, double d_x) {
+    return pow_pushforward(x, x, d_x, d_x);
+  }
+  clad::ValueAndPushforward<double, double> mypow_pushforward(double x, double y, double d_x, double d_y) {
+    return pow_pushforward(x, y, d_x, d_y);
+  }
+  void mypow_pullback(double x, double d_x) { // expected-note {{unused}}
+    assert(false && "Must not be called!");
+  }
+} // end namespace clad::custom_derivatives
+
+double f4(double x) {
+  return mypow(x); // expected-warning {{unused function 'mypow_pullback';}}
+}
+
 int main() {
     clad::gradient(f1);
     clad::differentiate(f2, "x");
+    clad::gradient(f3);
+    clad::gradient(f4);
 }

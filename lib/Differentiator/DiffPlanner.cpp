@@ -1215,13 +1215,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
 
       request.Function = FD;
+      request.CallContext = E;
       bool canUsePushforwardInRevMode =
           m_TopMostReq->Mode == DiffMode::reverse &&
           utils::canUsePushforwardInRevMode(FD);
 
-      // FIXME: hessians require second derivatives,
-      // i.e. apart from the pushforward, we also need
-      // to schedule pushforward_pullback.
+      // FIXME: hessians require second derivatives, i.e. apart from the
+      // pushforward, we also need to schedule pushforward_pullback.
       if (m_ParentReq->CustomDerivative ||
           m_ParentReq->Mode == DiffMode::unknown)
         request.Mode = DiffMode::unknown;
@@ -1255,7 +1255,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
       request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
-      request.CallContext = E;
 
       if (request.Mode != DiffMode::pushforward &&
           request.Mode != DiffMode::vector_pushforward) {
@@ -1287,9 +1286,43 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             request.CUDAGlobalArgsIndexes.push_back(i);
         }
       }
+
+      // Warn if we find pullbacks.
+      if (canUsePushforwardInRevMode &&
+          m_TopMostReq->Mode == DiffMode::reverse) {
+        DiffRequest R = request;
+        R.BaseFunctionName = utils::ComputeEffectiveFnName(R.Function);
+        R.Mode = DiffMode::pullback;
+        if (LookupCustomDerivativeDecl(R)) {
+          unsigned warnId = m_Sema.Diags.getCustomDiagID(
+              DiagnosticsEngine::Warning,
+              "unused function '%0_pullback'; '%0' is a real-domain, "
+              "single-argument function and only pushforward is required");
+
+          m_Sema.Diag(R.CallContext->getBeginLoc(), warnId)
+              << R.Function->getName() << R.CallContext->getSourceRange();
+          // Collect the unused decls.
+          llvm::SmallVector<const NamedDecl*, 2> UnusedDecls;
+          if (const auto* OvE = dyn_cast<OverloadExpr>(R.CustomDerivative)) {
+            UnusedDecls.append(OvE->decls_begin(), OvE->decls_end());
+          } else {
+            const auto* DRE = cast<DeclRefExpr>(R.CustomDerivative);
+            const auto* UnusedD = cast<FunctionDecl>(DRE->getDecl());
+            UnusedDecls.push_back(UnusedD);
+          }
+          unsigned noteId = m_Sema.Diags.getCustomDiagID(
+              DiagnosticsEngine::Note, "%0 is unused");
+          for (const NamedDecl* UnusedD : UnusedDecls) {
+            SourceLocation L = UnusedD->getLocation();
+            m_Sema.Diag(L, noteId) << UnusedD << L;
+          }
+        }
+      }
     }
 
-    request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
+    if (request.BaseFunctionName.empty())
+      request.BaseFunctionName =
+          utils::ComputeEffectiveFnName(request.Function);
 
     // FIXME: Here we copy all varied declarations down to the pullback, has to
     // be removed once AA and TBR are completely reworked, with better
