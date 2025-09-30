@@ -1186,6 +1186,53 @@ double fn32(double *params) {
 // CHECK-NEXT:     _d_params[0] += _d_t3[0];
 // CHECK-NEXT: }
 
+double iden_func(double x) { return x; }
+
+// CHECK: clad::ValueAndPushforward<double, double> iden_func_pushforward(double x, double _d_x) {
+// CHECK-NEXT:     return {x, _d_x};
+// CHECK-NEXT: }
+
+void inner_fn(double const *coefs, double *out) {
+  double b = iden_func(coefs[0]);
+  out[0] = b;
+}
+
+// CHECK: void inner_fn_reverse_forw(const double *coefs, double *out, const double *_d_coefs, double *_d_out, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     double _d_b = 0.;
+// CHECK-NEXT:     double b = iden_func(coefs[0]);
+// CHECK-NEXT:     _tracker0.store(out[0]);
+// CHECK-NEXT:     out[0] = b;
+// CHECK-NEXT: }
+
+// CHECK: void inner_fn_pullback(const double *coefs, double *out, double *_d_coefs, double *_d_out) {
+// CHECK-NEXT:     double _d_b = 0.;
+// CHECK-NEXT:     double b = iden_func(coefs[0]);
+// CHECK-NEXT:     out[0] = b;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_out[0];
+// CHECK-NEXT:         _d_out[0] = 0.;
+// CHECK-NEXT:         _d_b += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         _r0 += _d_b * iden_func_pushforward(coefs[0], 1.).pushforward;
+// CHECK-NEXT:         _d_coefs[0] += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double fn33(double *params) {
+  double out = 0;
+  inner_fn(params, &out);
+  return out;
+}
+// CHECK: void fn33_grad(double *params, double *_d_params) {
+// CHECK-NEXT:     double _d_out = 0.;
+// CHECK-NEXT:     double out = 0;
+// CHECK-NEXT:     inner_fn(params, &out);
+// CHECK-NEXT:     _d_out += 1;
+// CHECK-NEXT:     inner_fn_pullback(params, &out, _d_params, &_d_out);
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -1338,6 +1385,11 @@ int main() {
   x_output[0] = 0; x_output[1] = 0;
   fn32_grad.execute(x_arr, x_output);
   printf("{%.2f, %.2f}\n", x_output[0], x_output[1]);  // CHECK-EXEC: {22.00, 0.00}
+
+  auto fn33_grad = clad::gradient(fn33);
+  x_output[0] = 0; x_output[1] = 0;
+  fn33_grad.execute(x_arr, x_output);
+  printf("{%.2f, %.2f}\n", x_output[0], x_output[1]);  // CHECK-EXEC: {1.00, 0.00}
 }
 
 double sq_defined_later(double x) {

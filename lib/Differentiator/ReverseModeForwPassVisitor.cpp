@@ -246,7 +246,14 @@ DeclDiff<clang::VarDecl>
 ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
                                                  bool /*keepLocal*/) {
   QualType DerivedType = CloneType(VD->getType());
-  StmtDiff initDiff = Visit(VD->getInit());
+  StmtDiff initDiff;
+  if (const Expr* init = VD->getInit())
+    initDiff = Visit(init);
+  // Adjoints should always be initialized
+  if (!initDiff.getExpr_dx()) {
+    Expr* zero = getZeroInit(initDiff.getExpr()->getType());
+    initDiff.updateStmtDx(zero);
+  }
   auto* VDCloned = BuildGlobalVarDecl(DerivedType, VD->getNameAsString(),
                                       initDiff.getExpr(), VD->isDirectInit());
   auto* VDDerived =
