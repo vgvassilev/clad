@@ -528,7 +528,7 @@ namespace clad {
     /// perfectly forwarded while calling member functions.
     /// \returns Built call expression
     clang::Expr*
-    BuildCallExprToFunction(clang::FunctionDecl* FD,
+    BuildCallExprToFunction(const clang::FunctionDecl* FD,
                             llvm::MutableArrayRef<clang::Expr*> argExprs,
                             clang::Expr* CUDAExecConfig = nullptr,
                             bool useRefQualifiedThisObj = false);
