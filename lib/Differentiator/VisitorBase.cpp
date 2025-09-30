@@ -633,7 +633,9 @@ namespace clad {
                                        bool useRefQualifiedThisObj /*=false*/) {
     Expr* call = nullptr;
     auto* MD = dyn_cast<CXXMethodDecl>(FD);
-    if (MD && MD->isInstance()) {
+    if (FD->isOverloadedOperator()) {
+      call = BuildOperatorCall(FD->getOverloadedOperator(), argExprs);
+    } else if (MD && MD->isInstance()) {
       // FIXME: We shouldn't have different overloads of BuildCallExprToMemFn.
       if (useRefQualifiedThisObj)
         call = BuildCallExprToMemFn(MD, argExprs, useRefQualifiedThisObj);
