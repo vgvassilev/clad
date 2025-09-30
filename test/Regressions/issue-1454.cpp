@@ -5,8 +5,8 @@
 double __cdecl myfn(double x) {return 0;}
 namespace clad {
   namespace custom_derivatives {
-    void myfn_pullback(double x, double dy, double *dx) {
-      *dx += dy;
+    ValueAndPushforward<double, double> myfn_pushforward(double x, double dx) {
+      return { x, 2 * dx };
     }
   }
 }
