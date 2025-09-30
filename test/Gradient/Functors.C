@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oFunctors.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: ./Functors.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oFunctors.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oFunctors.out
 // RUN: ./Functors.out | %filecheck_exec %s
 // XFAIL: valgrind
 
