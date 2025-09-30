@@ -244,6 +244,26 @@ void reduce_pullback(
                   d_op);
 }
 
+template <typename Iterator, typename T, typename BinaryOp>
+T reduce_reverse_forw(Iterator first, Iterator last, T init, BinaryOp op,
+                      Iterator /*dfirst*/, Iterator /*dlast*/, T /*dinit*/,
+                      BinaryOp /*dop*/) {
+  return ::thrust::reduce(first, last, init, op);
+}
+
+template <typename Iterator, typename T>
+T reduce_reverse_forw(Iterator first, Iterator last, T init,
+                      Iterator /*dfirst*/, Iterator /*dlast*/, T /*dinit*/) {
+  return ::thrust::reduce(first, last, init);
+}
+
+template <typename Iterator>
+typename ::std::iterator_traits<Iterator>::value_type
+reduce_reverse_forw(Iterator first, Iterator last, Iterator /*dfirst*/,
+                    Iterator /*dlast*/) {
+  return ::thrust::reduce(first, last);
+}
+
 template <typename InputIt, typename OutputIt, typename UnaryOp>
 void transform_pullback(InputIt first, InputIt last, OutputIt result,
                         UnaryOp op, OutputIt d_return, InputIt* d_first,
