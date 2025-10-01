@@ -3312,7 +3312,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff
   ReverseModeVisitor::VisitPseudoObjectExpr(const PseudoObjectExpr* POE) {
     // Used for CUDA Builtins
-    return {Clone(POE), Clone(POE)};
+    return {Clone(POE), getZeroInit(m_Context.IntTy)};
   }
 
   StmtDiff
