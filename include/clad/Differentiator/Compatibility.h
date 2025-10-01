@@ -33,6 +33,7 @@ using namespace llvm;
   (FD)->getTrailingRequiresClause()
 #define CLAD_COMPAT_CLANG21_UpdateTrailingRequiresClause(Trailing, V)          \
   (Trailing) = (V)
+#define CLAD_COMPAT_CLANG21_TemplateKeywordParam , /*TemplateKeyword=*/false
 #else
 #define CLAD_COMPAT_CLANG21_AtEndOfTUParam , /*AtEndOfTU=*/true
 #define CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(V)
@@ -44,6 +45,7 @@ using namespace llvm;
   (FD)->getTrailingRequiresClause().ConstraintExpr
 #define CLAD_COMPAT_CLANG21_UpdateTrailingRequiresClause(Trailing, V)          \
   (Trailing).ConstraintExpr = (V)
+#define CLAD_COMPAT_CLANG21_TemplateKeywordParam
 #endif
 
 // clang-20 clang::Sema::AA_Casting became scoped
