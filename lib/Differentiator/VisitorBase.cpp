@@ -15,7 +15,6 @@
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
-#include "llvm/Support/Casting.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attrs.inc"
@@ -33,6 +32,7 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
@@ -265,18 +265,8 @@ namespace clad {
                                          ExprValueKind VK /*=VK_LValue*/) {
     CXXScopeSpec CSS;
     SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-    // FIXME: Remove once BuildDeclRef can automatically deduce class
-    // namespace specifiers.
-    auto* MD = dyn_cast<CXXMethodDecl>(D);
-    if (!NNS && MD && MD->isStatic()) {
-      const CXXRecordDecl* RD = MD->getParent();
-      IdentifierInfo* II = &m_Context.Idents.get(RD->getNameAsString());
-      NNS = NestedNameSpecifier::Create(m_Context, II);
-    }
 
-    if (NNS) {
-      CSS.MakeTrivial(m_Context, NNS, fakeLoc);
-    } else {
+    if (!NNS) {
       // If no CXXScopeSpec is provided we should try to find the common path
       // between the current scope (in which presumably we will make the call)
       // and where `D` is.
@@ -288,18 +278,25 @@ namespace clad {
         if (DeclDC->Equals(m_Sema.CurContext))
           break;
 
-        // FIXME: We should extend that for classes and class templates. See
-        // clang's getFullyQualifiedNestedNameSpecifier.
-        if (DeclDC->isNamespace() && !DeclDC->isInlineNamespace())
-          DCs.push_back(DeclDC);
-
+        DCs.push_back(DeclDC);
         DeclDC = DeclDC->getParent();
       }
 
-      for (unsigned i = DCs.size(); i > 0; --i)
-        CSS.Extend(m_Context, cast<NamespaceDecl>(DCs[i - 1]), fakeLoc,
-                   fakeLoc);
+      for (DeclContext* DC : llvm::reverse(DCs)) {
+        if (auto* ND = dyn_cast<NamespaceDecl>(DC)) {
+          if (!ND->isInline())
+            NNS = NestedNameSpecifier::Create(m_Context, NNS, ND);
+        } else if (auto* TD = dyn_cast<TagDecl>(DC)) {
+          clang::QualType T = m_Context.getTypeDeclType(TD);
+          NNS = NestedNameSpecifier::Create(
+              m_Context, NNS CLAD_COMPAT_CLANG21_TemplateKeywordParam,
+              /*Type*/ T.getTypePtr());
+        }
+        // FIXME: Add support for other DeclContext types.
+        // See clang's getFullyQualifiedNestedNameSpecifier.
+      }
     }
+    CSS.MakeTrivial(m_Context, NNS, fakeLoc);
     QualType T = D->getType();
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
