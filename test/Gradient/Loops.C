@@ -5,6 +5,7 @@
 // XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
+#include "clad/Differentiator/STLBuiltins.h"
 #include <cmath>
 #include <vector>
 

@@ -2202,17 +2202,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     } // Recreate the original call expression.
 
     if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
-      if (OCE->getOperator() == clang::OverloadedOperatorKind::OO_Subscript) {
-        // If the operator is subscript, we should return the adjoint expression
-        auto AdjointCallArgs = CallArgs;
-        Expr* adjointBase = CallArgDx[0];
-        if (auto* UnOp = dyn_cast<UnaryOperator>(adjointBase))
-          adjointBase = UnOp->getSubExpr();
-        AdjointCallArgs[0] = adjointBase;
-        call = BuildOperatorCall(OCE->getOperator(), CallArgs);
-        Expr* call_dx = BuildOperatorCall(OCE->getOperator(), AdjointCallArgs);
-        return StmtDiff(call, call_dx);
-      }
       call = BuildOperatorCall(OCE->getOperator(), CallArgs);
       return StmtDiff(call);
     }
