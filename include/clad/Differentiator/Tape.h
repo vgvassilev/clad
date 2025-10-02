@@ -104,7 +104,7 @@ class tape_impl {
   std::size_t m_capacity = SBO_SIZE;
 
 #ifndef __CUDACC__
-  mutable std::mutex tape_mutex;
+  mutable std::mutex m_TapeMutex;
 #endif
 
   CUDA_HOST_DEVICE T* sbo_elements() {
@@ -136,7 +136,7 @@ public:
       tape_iterator<const T, SBO_SIZE, SLAB_SIZE, is_multithread>;
 
 #ifndef __CUDACC__
-  std::mutex& mutex() const { return tape_mutex; }
+  std::mutex& mutex() const { return m_TapeMutex; }
 #endif
 
   CUDA_HOST_DEVICE tape_impl() = default;

@@ -38,9 +38,9 @@ void concurrent_push(T x, size_t n_threads, size_t pushes_per_thread) {
   clad::tape<T, 64, 1024, true> t = {};
   std::vector<std::thread> threads;
 
-  for (int i = 0; i < n_threads; ++i) {
+  for (size_t i = 0; i < n_threads; ++i) {
     threads.emplace_back([&]() {
-      for (int j = 0; j < pushes_per_thread; ++j)
+      for (size_t j = 0; j < pushes_per_thread; ++j)
         clad::push<T>(t, x);
     });
   }

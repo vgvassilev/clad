@@ -74,7 +74,7 @@ template <typename T, typename U, size_t N, std::size_t SBO_SIZE = 64,
           std::size_t SLAB_SIZE = 1024>
 CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   to.emplace_back();
-  std::move(std::begin(val), std::end(val), std::begin(to.back()));
+  std::copy(std::begin(val), std::end(val), std::begin(to.back()));
 }
 
   /// Remove the last value from the tape, return it.
@@ -102,7 +102,8 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   /// Add value to the end of the tape, return the same value.
   template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
             typename... ArgsT>
-  T push(tape<T, SBO_SIZE, SLAB_SIZE, true>& to, ArgsT... val) {
+  T push(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true>& to,
+         ArgsT... val) {
     std::lock_guard<std::mutex> lock(to.mutex());
     to.emplace_back(std::forward<ArgsT>(val)...);
     return to.back();
@@ -111,15 +112,16 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   /// A specialization for C arrays
   template <typename T, typename U, size_t N, std::size_t SBO_SIZE = 64,
             std::size_t SLAB_SIZE = 1024>
-  void push(tape<T[N], SBO_SIZE, SLAB_SIZE, true>& to, const U& val) {
+  void push(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true>& to,
+            const U& val) {
     std::lock_guard<std::mutex> lock(to.mutex());
     to.emplace_back();
-    std::move(std::begin(val), std::end(val), std::begin(to.back()));
+    std::copy(std::begin(val), std::end(val), std::begin(to.back()));
   }
 
   /// Remove the last value from the tape, return it.
   template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
-  T pop(tape<T, SBO_SIZE, SLAB_SIZE, true>& to) {
+  T pop(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true>& to) {
     std::lock_guard<std::mutex> lock(to.mutex());
     T val = std::move(to.back());
     to.pop_back();
@@ -129,14 +131,14 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   /// A specialization for C arrays
   template <typename T, std::size_t N, std::size_t SBO_SIZE = 64,
             std::size_t SLAB_SIZE = 1024>
-  void pop(tape<T[N], SBO_SIZE, SLAB_SIZE, true>& to) {
+  void pop(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true>& to) {
     std::lock_guard<std::mutex> lock(to.mutex());
     to.pop_back();
   }
 
   /// Access return the last value in the tape.
   template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
-  T& back(tape<T, SBO_SIZE, SLAB_SIZE, true>& of) {
+  T& back(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true>& of) {
     std::lock_guard<std::mutex> lock(of.mutex());
     return of.back();
   }
