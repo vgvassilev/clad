@@ -1943,6 +1943,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (isPassedByRef && !MD->isConst() && isCopiable &&
             m_DiffReq.shouldBeRecorded(baseOriginalE)) {
           hasStoredParams = true;
+          if (baseExpr->getType()->isPointerType())
+            baseExpr = BuildOp(UO_Deref, baseExpr);
           Expr* baseDiffStore =
               GlobalStoreAndRef(baseExpr, "_t", /*force=*/true);
           if (baseDiffStore != baseExpr) {
