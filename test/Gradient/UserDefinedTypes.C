@@ -1186,6 +1186,49 @@ double fn32(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+class PIBase {
+  double pi = 3.14;
+public:
+  double getPi() {return pi; }
+};
+struct PI : public PIBase {
+  double getFourPi() {
+    double tmp1 = static_cast<PIBase*>(this)->getPi();
+    //FIXME: double tmp2 = reinterpret_cast<PIBase*>(this)->getPi();
+    //FIXME: double tmp3 = dynamic_cast<PIBase*>(this)->getPi();
+    double tmp4 = ((PIBase*)this)->getPi();
+    return 2 * (tmp1 /*+ tmp2 + tmp3*/ + tmp4);
+  }
+};
+double fn33(double x) {
+  PI pi;
+  return x + pi.getFourPi();
+}
+
+// CHECK: void getPi_pullback(double _d_y, PIBase *_d_this) {
+// CHECK-NEXT:    _d_this->pi += _d_y;
+// CHECK-NEXT:}
+// CHECK-NEXT:void getFourPi_pullback(double _d_y, PI *_d_this) {
+// CHECK-NEXT:    double _d_tmp1 = 0.;
+// CHECK-NEXT:    double tmp1 = static_cast<PIBase *>(this)->getPi();
+// CHECK-NEXT:    double _d_tmp4 = 0.;
+// CHECK-NEXT:    double tmp4 = ((PIBase *)this)->getPi();
+// CHECK-NEXT:    {
+// CHECK-NEXT:        _d_tmp1 += 2 * _d_y;
+// CHECK-NEXT:        _d_tmp4 += 2 * _d_y;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    (PIBase *)this->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
+// CHECK-NEXT:    static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, _d_this);
+// CHECK-NEXT:}
+// CHECK-NEXT:void fn33_grad(double x, double *_d_x) {
+// CHECK-NEXT:    PI _d_pi = {};
+// CHECK-NEXT:    PI pi;
+// CHECK-NEXT:    {
+// CHECK-NEXT:        *_d_x += 1;
+// CHECK-NEXT:        pi.getFourPi_pullback(1, &_d_pi);
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1317,4 +1360,7 @@ int main() {
 
     INIT_GRADIENT(fn32);
     TEST_GRADIENT(fn32, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+
+    INIT_GRADIENT(fn33);
+    TEST_GRADIENT(fn33, /*numOfDerivativeArgs=*/1, 3, &d_i);    // CHECK-EXEC: {1.00}
 }

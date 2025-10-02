@@ -120,34 +120,55 @@ DEFINE_CLONE_EXPR(CompoundLiteralExpr,
                   (Node->getLParenLoc(), Node->getTypeSourceInfo(),
                    CloneType(Node->getType()), Node->getValueKind(),
                    Clone(Node->getInitializer()), Node->isFileScope()))
-DEFINE_CREATE_EXPR(
-    ImplicitCastExpr,
-    (Ctx, CloneType(Node->getType()), Node->getCastKind(),
-     Clone(Node->getSubExpr()), nullptr,
-     Node->getValueKind() /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node)))
-DEFINE_CREATE_EXPR(CStyleCastExpr,
-                   (Ctx, CloneType(Node->getType()), Node->getValueKind(),
-                    Node->getCastKind(), Clone(Node->getSubExpr()),
-                    nullptr /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node),
-                    Node->getTypeInfoAsWritten(), Node->getLParenLoc(),
-                    Node->getRParenLoc()))
-DEFINE_CREATE_EXPR(
-    CXXStaticCastExpr,
-    (Ctx, CloneType(Node->getType()), Node->getValueKind(), Node->getCastKind(),
-     Clone(Node->getSubExpr()), nullptr,
-     Node->getTypeInfoAsWritten() /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(
-         Node),
-     Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
-DEFINE_CREATE_EXPR(CXXDynamicCastExpr,
-                   (Ctx, CloneType(Node->getType()), Node->getValueKind(),
-                    Node->getCastKind(), Clone(Node->getSubExpr()), nullptr,
-                    Node->getTypeInfoAsWritten(), Node->getOperatorLoc(),
-                    Node->getRParenLoc(), Node->getAngleBrackets()))
-DEFINE_CREATE_EXPR(CXXReinterpretCastExpr,
-                   (Ctx, CloneType(Node->getType()), Node->getValueKind(),
-                    Node->getCastKind(), Clone(Node->getSubExpr()), nullptr,
-                    Node->getTypeInfoAsWritten(), Node->getOperatorLoc(),
-                    Node->getRParenLoc(), Node->getAngleBrackets()))
+static void getCXXCastPath(CastExpr* CE, CXXCastPath& Path) {
+  for (auto I = CE->path_begin(), E = CE->path_end(); I != E; ++I)
+    Path.push_back(*I);
+}
+Stmt* StmtClone::VisitImplicitCastExpr(ImplicitCastExpr* Node) {
+  CXXCastPath Path;
+  getCXXCastPath(Node, Path);
+  return ImplicitCastExpr::Create(
+      Ctx, CloneType(Node->getType()), Node->getCastKind(),
+      Clone(Node->getSubExpr()), &Path,
+      Node->getValueKind() /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node));
+}
+Stmt* StmtClone::VisitCStyleCastExpr(CStyleCastExpr* Node) {
+  CXXCastPath Path;
+  getCXXCastPath(Node, Path);
+  return CStyleCastExpr::Create(
+      Ctx, CloneType(Node->getType()), Node->getValueKind(),
+      Node->getCastKind(), Clone(Node->getSubExpr()),
+      &Path /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node),
+      Node->getTypeInfoAsWritten(), Node->getLParenLoc(), Node->getRParenLoc());
+}
+Stmt* StmtClone::VisitCXXStaticCastExpr(CXXStaticCastExpr* Node) {
+  CXXCastPath Path;
+  getCXXCastPath(Node, Path);
+  return CXXStaticCastExpr::Create(
+      Ctx, CloneType(Node->getType()), Node->getValueKind(),
+      Node->getCastKind(), Clone(Node->getSubExpr()), &Path,
+      Node->getTypeInfoAsWritten() /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(
+          Node),
+      Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets());
+}
+Stmt* StmtClone::VisitCXXDynamicCastExpr(CXXDynamicCastExpr* Node) {
+  CXXCastPath Path;
+  getCXXCastPath(Node, Path);
+  return CXXDynamicCastExpr::Create(
+      Ctx, CloneType(Node->getType()), Node->getValueKind(),
+      Node->getCastKind(), Clone(Node->getSubExpr()), &Path,
+      Node->getTypeInfoAsWritten(), Node->getOperatorLoc(),
+      Node->getRParenLoc(), Node->getAngleBrackets());
+}
+Stmt* StmtClone::VisitCXXReinterpretCastExpr(CXXReinterpretCastExpr* Node) {
+  CXXCastPath Path;
+  getCXXCastPath(Node, Path);
+  return CXXReinterpretCastExpr::Create(
+      Ctx, CloneType(Node->getType()), Node->getValueKind(),
+      Node->getCastKind(), Clone(Node->getSubExpr()), &Path,
+      Node->getTypeInfoAsWritten(), Node->getOperatorLoc(),
+      Node->getRParenLoc(), Node->getAngleBrackets());
+}
 DEFINE_CREATE_EXPR(CXXConstCastExpr,
                    (Ctx, CloneType(Node->getType()), Node->getValueKind(),
                     Clone(Node->getSubExpr()), Node->getTypeInfoAsWritten(),
