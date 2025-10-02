@@ -48,9 +48,9 @@ double f2(double x, double y){
 // CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1, double *_d__d_x, double *_d__d_y);
 
 // CHECK: void f2_darg0_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     double _d__d_x = 0.;
+// CHECK-NEXT:     double _d__d_x = 0;
 // CHECK-NEXT:     double _d_x0 = 1;
-// CHECK-NEXT:     double _d__d_y = 0.;
+// CHECK-NEXT:     double _d__d_y = 0;
 // CHECK-NEXT:     double _d_y0 = 0;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {0., 0.};
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);
@@ -75,9 +75,9 @@ double f2(double x, double y){
 // CHECK-NEXT: }
 
 // CHECK: void f2_darg1_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     double _d__d_x = 0.;
+// CHECK-NEXT:     double _d__d_x = 0;
 // CHECK-NEXT:     double _d_x0 = 0;
-// CHECK-NEXT:     double _d__d_y = 0.;
+// CHECK-NEXT:     double _d__d_y = 0;
 // CHECK-NEXT:     double _d_y0 = 1;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {0., 0.};
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);

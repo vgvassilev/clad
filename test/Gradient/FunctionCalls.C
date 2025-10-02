@@ -26,7 +26,7 @@ double fn1(float i) {
 // CHECK: void fn1_grad(float i, float *_d_i) {
 // CHECK-NEXT:     float _d_res = 0.F;
 // CHECK-NEXT:     float res = A::constantFn(i);
-// CHECK-NEXT:     double _d_a = 0.;
+// CHECK-NEXT:     double _d_a = 0.F;
 // CHECK-NEXT:     double a = res * i;
 // CHECK-NEXT:     _d_a += 1;
 // CHECK-NEXT:     {
@@ -75,7 +75,7 @@ double fn2(double i, double j) {
 }
 
 // CHECK: void fn2_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_temp = 0.;
+// CHECK-NEXT:     double _d_temp = 0;
 // CHECK-NEXT:     double temp = 0;
 // CHECK-NEXT:     double _t0 = i;
 // CHECK-NEXT:     double _t1 = j;
@@ -163,7 +163,7 @@ float sum(double* arr, int n) {
 // CHECK: void sum_pullback(double *arr, int n, float _d_y, double *_d_arr, int *_d_n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     float _d_res = 0.F;
+// CHECK-NEXT:     float _d_res = 0;
 // CHECK-NEXT:     float res = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
@@ -210,7 +210,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
-// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     res += sum_reverse_forw(arr, n, _d_arr, 0, _tracker0);

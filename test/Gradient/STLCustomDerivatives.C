@@ -423,7 +423,7 @@ int main() {
 // CHECK-NEXT:     double *ref00 = {};
 // CHECK-NEXT:     double *_d_ref10 = nullptr;
 // CHECK-NEXT:     double *ref10 = {};
-// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     std::vector<double> vec;
 // CHECK-NEXT:     std::vector<double> _d_vec = {};
@@ -540,7 +540,7 @@ int main() {
 // CHECK-NEXT:     {{.*}}allocator_type allocator;
 // CHECK-NEXT:     {{.*}}allocator_type _d_allocator = {};
 // CHECK-NEXT:     clad::zero_init(_d_allocator);
-// CHECK-NEXT:     {{.*}} _d_count = {{0U|0UL}};
+// CHECK-NEXT:     {{.*}} _d_count = 0;
 // CHECK-NEXT:     {{.*}} count = 3;
 // CHECK-NEXT:     std::vector<double> vec(count, u, allocator);
 // CHECK-NEXT:     std::vector<double> _d_vec(vec);
@@ -604,7 +604,7 @@ int main() {
 // CHECK-NEXT:        std::array<double, 3> a;
 // CHECK-NEXT:        std::array<double, 3> _t0 = a;
 // CHECK-NEXT:        {{.*}}fill_reverse_forw(&a, x, &_d_a, *_d_x);
-// CHECK-NEXT:        double _d_res = 0.;
+// CHECK-NEXT:        double _d_res = 0;
 // CHECK-NEXT:        double res = 0;
 // CHECK-NEXT:        unsigned {{long|int}} _t1 = {{0U|0UL}};
 // CHECK-NEXT:        for (i = 0; i < a.size(); ++i) {
@@ -746,7 +746,7 @@ int main() {
 // CHECK-NEXT:              {{.*}}push(_t1, v);
 // CHECK-NEXT:              {{.*}}push_back_reverse_forw(&v, x, &_d_v, *_d_x);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          double _d_res = 0.;
+// CHECK-NEXT:          double _d_res = 0;
 // CHECK-NEXT:          double res = 0;
 // CHECK-NEXT:          {{.*}} _t2 = {{0U|0UL|0}};
 // CHECK-NEXT:          for (i0 = 0; i0 < v.size(); ++i0) {
@@ -968,7 +968,7 @@ int main() {
 // CHECK-NEXT:     {{.*}}allocator_type alloc;
 // CHECK-NEXT:     {{.*}}allocator_type _d_alloc = {};
 // CHECK-NEXT:     clad::zero_init(_d_alloc);
-// CHECK-NEXT:     double _d_prod = 0.;
+// CHECK-NEXT:     double _d_prod = 0;
 // CHECK-NEXT:     double prod = 1;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 3; i >= 1; --i) {
@@ -1067,7 +1067,7 @@ int main() {
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     clad::tape<clad::ValueAndAdjoint<{{.*}}> _t4 = {};
 // CHECK-NEXT:     clad::tape<int> _t5 = {};
-// CHECK-NEXT:     double _d_sum = 0.;
+// CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double sum = 0;
 // CHECK-NEXT:     int _d_u = 0;
 // CHECK-NEXT:     int u = 1;
@@ -1112,7 +1112,7 @@ int main() {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         sess.arr[id] = tensor_x[id] * tensor_theory_params[0];
 // CHECK-NEXT:     }
-// CHECK-NEXT:     float _d_out = 0.F;
+// CHECK-NEXT:     float _d_out = 0.;
 // CHECK-NEXT:     float out = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t1 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (id0 = 0; id0 < nVals; id0++) {
@@ -1146,7 +1146,7 @@ int main() {
 // CHECK-NEXT:     const Session &sess = session[0];
 // CHECK-NEXT:     float *&_d_arr = _d_sess.arr;
 // CHECK-NEXT:     float *const &arr = sess.arr;
-// CHECK-NEXT:     float _d_out = 0.F;
+// CHECK-NEXT:     float _d_out = 0.;
 // CHECK-NEXT:     float out = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (id = 0; id < nVals; id++) {

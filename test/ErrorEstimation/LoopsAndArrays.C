@@ -19,7 +19,7 @@ float func(float* p, int n) {
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     unsigned {{int|long}} p_size = {{0U|0UL}};
-//CHECK-NEXT:     float _d_sum = 0.F;
+//CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
@@ -153,7 +153,7 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     unsigned {{int|long}} y_size = {{0U|0UL}};
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
-//CHECK-NEXT:     float _d_sum = 0.F;
+//CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:     for (i = 0; i < 10; i++) {
@@ -308,7 +308,7 @@ double func6(double x) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
-//CHECK-NEXT:     double _d_sum = 0.;
+//CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 1; i < 10; i++) {

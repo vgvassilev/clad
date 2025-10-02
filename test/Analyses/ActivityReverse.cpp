@@ -49,7 +49,7 @@ double f2(double x){
 //CHECK-NEXT:     double _t1;
 //CHECK-NEXT:     double _d_a = 0.;
 //CHECK-NEXT:     double a = x * x;
-//CHECK-NEXT:     double _d_b = 0.;
+//CHECK-NEXT:     double _d_b = 0;
 //CHECK-NEXT:     double b = 1;
 //CHECK-NEXT:     double _d_g = 0.;
 //CHECK-NEXT:     double g;
@@ -102,7 +102,7 @@ double f3(double x){
 //CHECK-NEXT:     clad::tape<double> _t3 = {};
 //CHECK-NEXT:     clad::tape<double> _t4 = {};
 //CHECK-NEXT:     clad::tape<double> _t5 = {};
-//CHECK-NEXT:     double _d_x1 = 0., _d_x2 = 0., _d_x3 = 0., _d_x4 = 0., _d_x5 = 0.;
+//CHECK-NEXT:     double _d_x1 = 0., _d_x2 = 0., _d_x3 = 0., _d_x4 = 0., _d_x5 = 0;
 //CHECK-NEXT:     double x1, x2, x3, x4, x5 = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 //CHECK-NEXT:     while (!x3) 
@@ -490,7 +490,7 @@ double f14(double x){
 // CHECK-NEXT:     clad::tape<double> _t7 = {};
 // CHECK-NEXT:     double _d_a = 0., _d_b = 0.;
 // CHECK-NEXT:     double a, b;
-// CHECK-NEXT:     double _d_x1 = 0., _d_x2 = 0., _d_x3 = 0.;
+// CHECK-NEXT:     double _d_x1 = 0, _d_x2 = 0, _d_x3 = 0;
 // CHECK-NEXT:     double x1 = 0, x2 = 0, x3 = 0, x4 = 0;
 // CHECK-NEXT:     int i = 10;
 // CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};

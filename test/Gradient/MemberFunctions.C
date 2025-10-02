@@ -711,7 +711,7 @@ double fn11(double u, double v) {
 }
 
 // CHECK:  void fn11_grad(double u, double v, double *_d_u, double *_d_v) {
-// CHECK-NEXT:      double _d_res = 0.;
+// CHECK-NEXT:      double _d_res = 0;
 // CHECK-NEXT:      double res = 0;
 // CHECK-NEXT:      A _d_a = {0.};
 // CHECK-NEXT:      A a;
@@ -759,7 +759,7 @@ float fn12(const B b, const float* in) {
 }
 
 // CHECK:  void fn12_grad_0(const B b, const float *in, B *_d_b) {
-// CHECK-NEXT:      float _d_res = 0.F;
+// CHECK-NEXT:      float _d_res = 0;
 // CHECK-NEXT:      float res = 0;
 // CHECK-NEXT:      b.scale(in, &res);
 // CHECK-NEXT:      _d_res += 1;

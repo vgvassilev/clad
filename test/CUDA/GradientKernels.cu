@@ -39,7 +39,7 @@ __global__ void add_kernel(int *out, int *in) {
 }
 
 // CHECK:    void add_kernel_grad(int *out, int *in, int *_d_out, int *_d_in) {
-//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:     int _d_index = 0;
 //CHECK-NEXT:     int index0 = threadIdx.x;
 //CHECK-NEXT:     int _t0 = out[index0];
 //CHECK-NEXT:     out[index0] += in[index0];
@@ -70,7 +70,7 @@ __global__ void add_kernel_3(int *out, int *in) {
 }
 
 // CHECK:    void add_kernel_3_grad(int *out, int *in, int *_d_out, int *_d_in) {
-//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int _d_index = 0U;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    int _t0 = out[index0];
 //CHECK-NEXT:    out[index0] += in[index0];
@@ -105,7 +105,7 @@ __global__ void add_kernel_4(int *out, int *in, int N) {
 // CHECK-NEXT:     clad::tape<int> _t1 = {};
 // CHECK-NEXT:     clad::tape<int> _t2 = {};
 // CHECK-NEXT:     int _t3;
-// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int _d_index = 0U;
 // CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _cond0 = index0 < N;
@@ -169,7 +169,7 @@ __global__ void add_kernel_5(int *out, int *in, int N) {
 // CHECK-NEXT:     clad::tape<int> _t1 = {};
 // CHECK-NEXT:     clad::tape<int> _t2 = {};
 // CHECK-NEXT:     int _t3;
-// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int _d_index = 0U;
 // CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _cond0 = index0 < N;
@@ -216,7 +216,7 @@ __global__ void add_kernel_6(int *a, int *b) {
 }
 
 //CHECK: void add_kernel_6_grad(int *a, int *b, int *_d_a, int *_d_b) {
-//CHECK-NEXT:     int _d_index = 0;
+//CHECK-NEXT:     int _d_index = 0U;
 //CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:     int _t0 = a[index0];
 //CHECK-NEXT:     a[index0] = *b;
@@ -235,7 +235,7 @@ __global__ void add_kernel_7(double *a, double *b) {
 }
 
 // CHECK: void add_kernel_7_grad(double *a, double *b, double *_d_a, double *_d_b) {
-// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int _d_index = 0U;
 // CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 // CHECK-NEXT:     double _t0 = a[2 * index0];
 // CHECK-NEXT:     a[2 * index0] = b[0];
@@ -303,7 +303,7 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
 } 
 
 //CHECK: __attribute__((device)) void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) {
-//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int _d_index = 0U;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    *_d_val += _d_y;
 //CHECK-NEXT:}
@@ -324,7 +324,7 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
 //CHECK-NEXT:}
 
 // CHECK: __attribute__((device)) void device_fn_2_pullback_0(const double *in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int _d_index = 0U;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _d_in[index0] += _d_y;
@@ -359,7 +359,7 @@ __global__ void kernel_with_device_call_3(double *out, double *in, double *val) 
 } 
 
 // CHECK: __attribute__((device)) void device_fn_3_pullback_0_1(double *in, double *val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int _d_index = 0U;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _d_in[index0] += _d_y;
@@ -395,7 +395,7 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
 }
 
 // CHECK: __attribute__((device)) void device_fn_4_pullback_0_1(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int _d_index = 0U;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _d_in[index0] += _d_y;
@@ -434,7 +434,7 @@ __global__ void fn1(double *out, const double *in, double val) {
 }
 
 // CHECK: void fn1_grad_0_2(double *out, const double *in, double val, double *_d_out, double *_d_val) {
-// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int _d_index = 0U;
 // CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 // CHECK-NEXT:     double _d_temp = 0.;
 // CHECK-NEXT:     double temp = val;
@@ -501,7 +501,7 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    memset(_d_out_host, 0, 10 * sizeof(double));
 //CHECK-NEXT:    double *out_host = (double *)malloc(10 * sizeof(double));
 //CHECK-NEXT:    cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
-//CHECK-NEXT:    double _d_res = 0.;
+//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double res = 0;
 //CHECK-NEXT:    unsigned long _t0 = 0UL;
 //CHECK-NEXT:    for (i = 0; i < 10; ++i) {
@@ -562,7 +562,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 // CHECK-NEXT:     clad::tape<int> _t1 = {};
 // CHECK-NEXT:     clad::tape<int> _t2 = {};
 // CHECK-NEXT:     int _t3;
-// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int _d_index = 0U;
 // CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _cond0 = index0 < N;
@@ -662,13 +662,13 @@ __global__ void indices_perm(int *out, int *in) {
 }
 
 // CHECK: void indices_perm_grad(int *out, int *in, int *_d_out, int *_d_in) {
-// CHECK-NEXT:     int _d_index1 = 0;
+// CHECK-NEXT:     int _d_index1 = 0U;
 // CHECK-NEXT:     int index1 = threadIdx.x + blockIdx.x * blockDim.x;
-// CHECK-NEXT:     int _d_index2 = 0;
+// CHECK-NEXT:     int _d_index2 = 0U;
 // CHECK-NEXT:     int index2 = threadIdx.x + blockDim.x * blockIdx.x;
-// CHECK-NEXT:     int _d_index3 = 0;
+// CHECK-NEXT:     int _d_index3 = 0U;
 // CHECK-NEXT:     int index3 = blockIdx.x * blockDim.x + threadIdx.x;
-// CHECK-NEXT:     int _d_index4 = 0;
+// CHECK-NEXT:     int _d_index4 = 0U;
 // CHECK-NEXT:     int index4 = blockDim.x * blockIdx.x + threadIdx.x;
 // CHECK-NEXT:     int _t0 = out[index1];
 // CHECK-NEXT:     out[index1] += in[index1];
@@ -713,7 +713,7 @@ __global__ void indices_lin_comb(int *out, int *in) {
 }
 
 // CHECK: void indices_lin_comb_grad(int *out, int *in, int *_d_out, int *_d_in) {
-// CHECK-NEXT:     int _d_index = 0;
+// CHECK-NEXT:     int _d_index = 0U;
 // CHECK-NEXT:     int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 // CHECK-NEXT:     int _t0 = out[index0];
 // CHECK-NEXT:     out[index0] += in[2 * index0];
@@ -772,7 +772,7 @@ __global__ void kernel_device_injective(int *a) {
 }
 
 // CHECK: __attribute__((device)) void device_injective_index_pullback_0(int *a, int *_d_a) {
-// CHECK-NEXT:     int _d_index1 = 0;
+// CHECK-NEXT:     int _d_index1 = 0U;
 // CHECK-NEXT:     int index1 = threadIdx.x + blockIdx.x * blockDim.x;
 // CHECK-NEXT:     int _d_index2 = 0;
 // CHECK-NEXT:     int index2 = threadIdx.x;
@@ -813,9 +813,9 @@ __global__ void injective_reassignment(int *a) {
 // CHECK: void injective_reassignment_grad(int *a, int *_d_a) {
 // CHECK-NEXT:     bool _cond0;
 // CHECK-NEXT:     int _t2;
-// CHECK-NEXT:     int _d_index1 = 0;
+// CHECK-NEXT:     int _d_index1 = 0U;
 // CHECK-NEXT:     int index1 = threadIdx.x + blockIdx.x * blockDim.x;
-// CHECK-NEXT:     int _d_index2 = 0;
+// CHECK-NEXT:     int _d_index2 = 0U;
 // CHECK-NEXT:     int index2 = threadIdx.x + blockIdx.x * blockDim.x;
 // CHECK-NEXT:     int _t0 = index1;
 // CHECK-NEXT:     index1 = 1;

@@ -2187,7 +2187,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     } // Recreate the original call expression.
 
     if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
-      if (OCE->getOperator() == clang::OverloadedOperatorKind::OO_Subscript) {
+      // FIXME: This exception is only used for const subscript operators,
+      // while other operators are covered with `reverse_forw`. There's no reason
+      // to have an exception for this.
+      if (OCE->getOperator() == clang::OverloadedOperatorKind::OO_Subscript &&
+          CE->isLValue()) {
         // If the operator is subscript, we should return the adjoint expression
         auto AdjointCallArgs = CallArgs;
         Expr* adjointBase = CallArgDx[0];
@@ -2929,8 +2933,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                  initDiff.getExpr(), VD->isDirectInit());
 
     // FIXME: In principle, we can handle all type adjoints here.
-    if (VDDerived && !VDDerived->getType()->isBuiltinType() &&
-        !isCladArrayType(VDCloneType) &&
+    if (VDDerived && !isCladArrayType(VDCloneType) &&
         (!promoteToFnScope || isConstructInit)) {
       if (initDiff.getStmt_dx()) {
         SetDeclInit(VDDerived, initDiff.getExpr_dx());
@@ -3311,7 +3314,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff
   ReverseModeVisitor::VisitPseudoObjectExpr(const PseudoObjectExpr* POE) {
     // Used for CUDA Builtins
-    return {Clone(POE), Clone(POE)};
+    return {Clone(POE), getZeroInit(m_Context.IntTy)};
   }
 
   StmtDiff
