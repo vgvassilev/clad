@@ -633,10 +633,9 @@ void fill_pullback(::std::array<T, N>* arr,
   }
 }
 template <typename T, ::std::size_t N>
-clad::ValueAndAdjoint<T&, T&>
-back_reverse_forw(::std::array<T, N>* arr, ::std::array<T, N>* d_arr) noexcept {
-  return {arr->back(), d_arr->back()};
-}
+clad::ValueAndAdjoint<T&, T&> elidable_reverse_forw
+back_reverse_forw(::std::array<T, N>* arr, ::std::array<T, N>* d_arr) noexcept;
+
 template <typename T, ::std::size_t N>
 void back_pullback(const ::std::array<T, N>* arr,
                    typename ::std::array<T, N>::value_type d_u,
@@ -646,11 +645,8 @@ void back_pullback(const ::std::array<T, N>* arr,
 template <typename T, ::std::size_t N>
 void back_pullback(::std::array<T, N>* arr, ::std::array<T, N>* d_arr) noexcept;
 template <typename T, ::std::size_t N>
-clad::ValueAndAdjoint<T&, T&>
-front_reverse_forw(::std::array<T, N>* arr,
-                   ::std::array<T, N>* d_arr) noexcept {
-  return {arr->front(), d_arr->front()};
-}
+clad::ValueAndAdjoint<T&, T&> elidable_reverse_forw
+front_reverse_forw(::std::array<T, N>* arr, ::std::array<T, N>* d_arr) noexcept;
 template <typename T, ::std::size_t N>
 void front_pullback(const ::std::array<T, N>* arr,
                     typename ::std::array<T, N>::value_type d_u,

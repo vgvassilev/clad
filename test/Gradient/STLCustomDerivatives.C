@@ -600,14 +600,14 @@ int main() {
 // CHECK-NEXT:         *_t4 = x * x;
 // CHECK-NEXT:         std::array<double, 3> _d_b = {{.*}};
 // CHECK-NEXT:         const std::array<double, 3> b = _b0;
-// CHECK:              clad::ValueAndAdjoint<double &, double &> _t{{7|8}} = {{.*}}back_reverse_forw(&a, &_d_a);
+// CHECK:              {{.*}}value_type _t{{7|8}} = a.back();
 // CHECK-NEXT:         {{.*}}value_type _t6 = b.front();
 // CHECK-NEXT:         {{.*}}value_type _t5 = b.at(2);
 // CHECK-NEXT:         {
-// CHECK-NEXT:             _t{{7|8}}.adjoint += 1 * _t5 * _t6;
-// CHECK:                  {{.*}}front_pullback(&b, _t{{7|8}}.value * 1 * _t5, &_d_b);
+// CHECK-NEXT:             _d_a.back() += 1 * _t5 * _t6;
+// CHECK:                  {{.*}}front_pullback(&b, _t{{7|8}} * 1 * _t5, &_d_b);
 // CHECK-NEXT:             {{.*size_type|size_t}} _r0 = {{0U|0UL}};
-// CHECK-NEXT:             {{.*}}at_pullback(&b, 2, _t{{7|8}}.value * _t6 * 1, &_d_b, &_r0);
+// CHECK-NEXT:             {{.*}}at_pullback(&b, 2, _t{{7|8}} * _t6 * 1, &_d_b, &_r0);
 // CHECK-NEXT:             {{.*size_type|size_t}} _r1 = {{0U|0UL}};
 // CHECK-NEXT:             {{.*}}operator_subscript_pullback(&b, 1, 1, &_d_b, &_r1);
 // CHECK-NEXT:         }
