@@ -775,10 +775,8 @@ void constructor_pullback(const U& p, ::std::weak_ptr<T>* dthis,
 
 template <typename T>
 clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
-lock_reverse_forw(const ::std::weak_ptr<T>* p,
-                  const ::std::weak_ptr<T>* dp) noexcept {
-  return {p->lock(), dp->lock()};
-}
+    elidable_reverse_forw lock_reverse_forw(
+        const ::std::weak_ptr<T>* p, const ::std::weak_ptr<T>* dp) noexcept;
 
 template <typename T>
 void lock_pullback(const ::std::weak_ptr<T>* p, ::std::shared_ptr<T> dthis,
