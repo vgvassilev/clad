@@ -558,7 +558,6 @@ int main() {
 // CHECK:          void fn6_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:        size_t _d_i = {{0U|0UL}};
 // CHECK-NEXT:        size_t i = {{0U|0UL}};
-// CHECK-NEXT:        clad::tape<clad::ValueAndAdjoint<double &, double &> > _t2 = {};
 // CHECK-NEXT:        std::array<double, 3> _d_a = {{.*}};
 // CHECK-NEXT:        std::array<double, 3> a;
 // CHECK-NEXT:        std::array<double, 3> _t0 = a;
@@ -568,16 +567,14 @@ int main() {
 // CHECK-NEXT:        unsigned {{long|int}} _t1 = {{0U|0UL}};
 // CHECK-NEXT:        for (i = 0; i < a.size(); ++i) {
 // CHECK-NEXT:            _t1++;
-// CHECK-NEXT:            clad::push(_t2, {{.*}}at_reverse_forw(&a, i, &_d_a, {{0U|0UL}}));
-// CHECK-NEXT:            res += clad::back(_t2).value;
+// CHECK-NEXT:            res += a.at(i);
 // CHECK-NEXT:        }
 // CHECK-NEXT:        _d_res += 1;
 // CHECK-NEXT:        for (; _t1; _t1--) {
 // CHECK-NEXT:            --i;
 // CHECK-NEXT:            {
 // CHECK-NEXT:                double _r_d0 = _d_res;
-// CHECK-NEXT:                clad::back(_t2).adjoint += _r_d0;
-// CHECK-NEXT:                clad::pop(_t2);
+// CHECK-NEXT:                _d_a.at(i) += _r_d0;
 // CHECK-NEXT:            }
 // CHECK-NEXT:        }
 // CHECK-NEXT:        {
