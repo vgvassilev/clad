@@ -853,12 +853,11 @@ int main() {
 // CHECK-NEXT:     clad::ValueAndAdjoint< {{.*}}, {{.*}} > _t0 = {{.*}}class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{(std::)?}}unique_ptr{{.*}}(), p, _d_p);
 // CHECK-NEXT:     std::unique_ptr{{.*}} up(static_cast<std::unique_ptr{{.*}}(_t0.value));
 // CHECK-NEXT:     std::unique_ptr{{.*}} _d_up = static_cast<std::unique_ptr{{.*}}(_t0.adjoint);
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t1 = {{.*}}class_functions::operator_star_reverse_forw(&up, &_d_up);
-// CHECK-NEXT:     _t1.value += 5 * e;
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t2 = clad::custom_derivatives::class_functions::operator_star_reverse_forw(&up, &_d_up);
-// CHECK-NEXT:     _t2.adjoint += 1;
+// CHECK-NEXT:     double *_t1 = &* up;
+// CHECK-NEXT:     *_t1 += 5 * e;
+// CHECK-NEXT:     * _d_up += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r_d0 = _t1.adjoint;
+// CHECK-NEXT:         double _r_d0 = * _d_up;
 // CHECK-NEXT:         *_d_e += 5 * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_d += *_d_p;
@@ -959,8 +958,7 @@ int main() {
 // CHECK-NEXT:     {{.*}} _d_it{};
 // CHECK-NEXT:     clad::tape<{{.*}}> _t2 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
-// CHECK-NEXT:     clad::tape<clad::ValueAndAdjoint<{{.*}}> _t4 = {};
-// CHECK-NEXT:     clad::tape<int> _t5 = {};
+// CHECK-NEXT:     clad::tape<int> _t4 = {};
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = 0;
 // CHECK-NEXT:     int _d_u = 0;
@@ -971,9 +969,8 @@ int main() {
 // CHECK-NEXT:     _d_it = _t1.adjoint;
 // CHECK-NEXT:     for (; it != end; clad::push(_t2, it) , {{.*}}class_functions::operator_plus_plus_reverse_forw(&it, 0, &_d_it, 0)) {
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t4, {{.*}}class_functions::operator_star_reverse_forw(&it, &_d_it));
-// CHECK-NEXT:         sum += u * clad::push(_t3, clad::back(_t4).value);
-// CHECK-NEXT:         clad::push(_t5, u);
+// CHECK-NEXT:         sum += u * clad::push(_t3, * it);
+// CHECK-NEXT:         clad::push(_t4, u);
 // CHECK-NEXT:         u += 2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_sum += 1;
@@ -984,12 +981,11 @@ int main() {
 // CHECK-NEXT:             {{.*}}class_functions::operator_plus_plus_pullback(&it, 0, {}, &_d_it, &_r0);
 // CHECK-NEXT:             clad::pop(_t2);
 // CHECK-NEXT:         }
-// CHECK-NEXT:         u = clad::pop(_t5);
+// CHECK-NEXT:         u = clad::pop(_t4);
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_sum;
 // CHECK-NEXT:             _d_u += _r_d0 * clad::pop(_t3);
-// CHECK-NEXT:             clad::back(_t4).adjoint += u * _r_d0;
-// CHECK-NEXT:             clad::pop(_t4);
+// CHECK-NEXT:             * _d_it += u * _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -1059,15 +1055,14 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK-NEXT: void simple_func_pullback(std::shared_ptr<double> x_ptr, double _d_y, std::shared_ptr<double> *_d_x_ptr) {
-// CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}} &, {{.*}} &> _t0 = clad::custom_derivatives::class_functions::operator_star_reverse_forw(&x_ptr, &(*_d_x_ptr));
 // CHECK-NEXT:     double _d_x = 0.;
-// CHECK-NEXT:     double x = _t0.value;
+// CHECK-NEXT:     double x = * x_ptr;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_x += _d_y * x;
 // CHECK-NEXT:         _d_x += x * _d_y;
 // CHECK-NEXT:         _d_x += 2. * _d_y;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _t0.adjoint += _d_x;
+// CHECK-NEXT:     * (*_d_x_ptr) += _d_x;
 // CHECK-NEXT: }
 
 // CHECK: void fn21_grad(double x, double *_d_x) {
@@ -1090,15 +1085,14 @@ int main() {
 // CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t0 = clad::custom_derivatives::class_functions::lock_reverse_forw(&x_ptr, &(*_d_x_ptr));
 // CHECK-NEXT:     std::shared_ptr<double> s = _t0.value;
 // CHECK-NEXT:     std::shared_ptr<double> _d_s = _t0.adjoint;
-// CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}} &, {{.*}} &> _t1 = clad::custom_derivatives::class_functions::operator_star_reverse_forw(&s, &_d_s);
 // CHECK-NEXT:     double _d_x = 0.;
-// CHECK-NEXT:     double x = _t1.value;
+// CHECK-NEXT:     double x = * s;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_x += _d_y * x;
 // CHECK-NEXT:         _d_x += x * _d_y;
 // CHECK-NEXT:         _d_x += 2. * _d_y;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _t1.adjoint += _d_x;
+// CHECK-NEXT:     * _d_s += _d_x;
 // CHECK-NEXT: }
 
 // CHECK: void fn22_grad(double x, double *_d_x) {

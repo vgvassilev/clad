@@ -687,14 +687,13 @@ void constructor_pullback(T* p, ::std::unique_ptr<T>* dthis, T* dp) noexcept;
 
 // operator* custom derivatives
 template <typename T>
-clad::ValueAndAdjoint<decltype(*(T{}))&, decltype(*(T{}))&>
-operator_star_reverse_forw(
-    const ::std::enable_if_t<helpers::is_std_smart_ptr<T>::value ||
-                                 helpers::is_iterator<T>::value,
-                             T>* u,
-    const T* d_u) {
-  return {**u, **d_u};
-}
+elidable_reverse_forw
+    clad::ValueAndAdjoint<decltype(*(T{}))&, decltype(*(T{}))&>
+    operator_star_reverse_forw(
+        const ::std::enable_if_t<helpers::is_std_smart_ptr<T>::value ||
+                                     helpers::is_iterator<T>::value,
+                                 T>* u,
+        const T* d_u);
 
 // iterator custom derivatives
 template <
