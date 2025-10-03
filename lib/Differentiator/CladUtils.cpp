@@ -31,91 +31,47 @@ namespace clad {
   namespace utils {
     static SourceLocation noLoc{};
 
-    std::string ComputeEffectiveFnName(const FunctionDecl* FD) {
-      switch (FD->getOverloadedOperator()) {
-      case OverloadedOperatorKind::OO_Plus:
-        return "operator_plus";
-      case OverloadedOperatorKind::OO_Minus:
-        return "operator_minus";
-      case OverloadedOperatorKind::OO_Star:
-        return "operator_star";
-      case OverloadedOperatorKind::OO_Slash:
-        return "operator_slash";
-      case OverloadedOperatorKind::OO_Percent:
-        return "operator_percent";
-      case OverloadedOperatorKind::OO_Caret:
-        return "operator_caret";
-      case OverloadedOperatorKind::OO_Amp:
-        return "operator_amp";
-      case OverloadedOperatorKind::OO_Pipe:
-        return "operator_pipe";
-      case OverloadedOperatorKind::OO_Tilde:
-        return "operator_tilde";
-      case OverloadedOperatorKind::OO_Exclaim:
-        return "operator_exclaim";
-      case OverloadedOperatorKind::OO_Equal:
-        return "operator_equal";
-      case OverloadedOperatorKind::OO_Less:
-        return "operator_less";
-      case OverloadedOperatorKind::OO_Greater:
-        return "operator_greater";
-      case OverloadedOperatorKind::OO_PlusEqual:
-        return "operator_plus_equal";
-      case OverloadedOperatorKind::OO_MinusEqual:
-        return "operator_minus_equal";
-      case OverloadedOperatorKind::OO_StarEqual:
-        return "operator_star_equal";
-      case OverloadedOperatorKind::OO_SlashEqual:
-        return "operator_slash_equal";
-      case OverloadedOperatorKind::OO_PercentEqual:
-        return "operator_percent_equal";
-      case OverloadedOperatorKind::OO_CaretEqual:
-        return "operator_caret_equal";
-      case OverloadedOperatorKind::OO_AmpEqual:
-        return "operator_amp_equal";
-      case OverloadedOperatorKind::OO_PipeEqual:
-        return "operator_pipe_equal";
-      case OverloadedOperatorKind::OO_LessLess:
-        return "operator_less_less";
-      case OverloadedOperatorKind::OO_GreaterGreater:
-        return "operator_greater_greater";
-      case OverloadedOperatorKind::OO_GreaterGreaterEqual:
-        return "operator_greater_greater_equal";
-      case OverloadedOperatorKind::OO_LessLessEqual:
-        return "operator_less_less_equal";
-      case OverloadedOperatorKind::OO_EqualEqual:
-        return "operator_equal_equal";
-      case OverloadedOperatorKind::OO_ExclaimEqual:
-        return "operator_exclaim_equal";
-      case OverloadedOperatorKind::OO_LessEqual:
-        return "operator_less_equal";
-      case OverloadedOperatorKind::OO_GreaterEqual:
-        return "operator_greater_equal";
-      case OverloadedOperatorKind::OO_Spaceship:
-        return "operator_spaceship";
-      case OverloadedOperatorKind::OO_AmpAmp:
-        return "operator_AmpAmp";
-      case OverloadedOperatorKind::OO_PipePipe:
-        return "operator_pipe_pipe";
-      case OverloadedOperatorKind::OO_PlusPlus:
-        return "operator_plus_plus";
-      case OverloadedOperatorKind::OO_MinusMinus:
-        return "operator_minus_minus";
-      case OverloadedOperatorKind::OO_Comma:
-        return "operator_comma";
-      case OverloadedOperatorKind::OO_ArrowStar:
-        return "operator_arrow_star";
-      case OverloadedOperatorKind::OO_Arrow:
-        return "operator_arrow";
-      case OverloadedOperatorKind::OO_Call:
-        return "operator_call";
-      case OverloadedOperatorKind::OO_Subscript:
-        return "operator_subscript";
-      default:
-        if (isa<CXXConstructorDecl>(FD))
-          return "constructor";
-        return FD->getNameAsString();
+    static void replaceStr(std::string& str, const std::string& old_value,
+                           const std::string& new_value) {
+      for (size_t i = 0; (i = str.find(old_value, i)) != std::string::npos;
+           i += new_value.size()) {
+        // Replace the old substring with the new one
+        str.replace(i, old_value.size(), new_value);
+        // Add `_` for separation unless it's the previous symbol
+        if (i != 0 && str[i - 1] != '_') {
+          str.insert(i, "_");
+          ++i;
+        }
       }
+    }
+
+    std::string ComputeEffectiveFnName(const FunctionDecl* FD) {
+      if (isa<CXXConstructorDecl>(FD))
+        return "constructor";
+      std::string modifiedName = FD->getNameAsString();
+      // Replace special symbol combinations first
+      replaceStr(modifiedName, "->", "arrow");
+      replaceStr(modifiedName, "<=>", "spaceship");
+      replaceStr(modifiedName, "()", "call");
+      replaceStr(modifiedName, "[]", "subscript");
+
+      // Replace single symbols
+      replaceStr(modifiedName, " ", "");
+      replaceStr(modifiedName, "+", "plus");
+      replaceStr(modifiedName, "-", "minus");
+      replaceStr(modifiedName, "*", "star");
+      replaceStr(modifiedName, "/", "slash");
+      replaceStr(modifiedName, "%", "percent");
+      replaceStr(modifiedName, "^", "caret");
+      replaceStr(modifiedName, "&", "amp");
+      replaceStr(modifiedName, "|", "pipe");
+      replaceStr(modifiedName, "~", "tilde");
+      replaceStr(modifiedName, "!", "exclaim");
+      replaceStr(modifiedName, "=", "equal");
+      replaceStr(modifiedName, "<", "less");
+      replaceStr(modifiedName, ">", "greater");
+      replaceStr(modifiedName, ",", "comma");
+      return modifiedName;
     }
 
     Stmt* unwrapIfSingleStmt(Stmt* S) {

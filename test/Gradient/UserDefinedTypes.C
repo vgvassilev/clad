@@ -1186,6 +1186,42 @@ double fn32(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct structToConvert {
+  double data = 0;
+  operator double& () {
+    return data;
+  }
+};
+
+// CHECK:  clad::ValueAndAdjoint<double &, double &> operator_double_amp_reverse_forw(structToConvert *_d_this) {
+// CHECK-NEXT:      return {this->data, _d_this->data};
+// CHECK-NEXT:  }
+
+// CHECK:  void operator_double_amp_pullback(structToConvert *_d_this) {
+// CHECK-NEXT:  }
+
+double fn33(double x, double y) {
+  structToConvert obj;
+  obj.data = x;
+  return obj + y;
+}
+
+// CHECK:  void fn33_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      structToConvert _d_obj = {0.};
+// CHECK-NEXT:      structToConvert obj;
+// CHECK-NEXT:      obj.data = x;
+// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t0 = obj.operator_double_amp_reverse_forw(&_d_obj);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _t0.adjoint += 1;
+// CHECK-NEXT:          *_d_y += 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r_d0 = _d_obj.data;
+// CHECK-NEXT:          _d_obj.data = 0.;
+// CHECK-NEXT:          *_d_x += _r_d0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1317,4 +1353,7 @@ int main() {
 
     INIT_GRADIENT(fn32);
     TEST_GRADIENT(fn32, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+
+    INIT_GRADIENT(fn33);
+    TEST_GRADIENT(fn33, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
 }

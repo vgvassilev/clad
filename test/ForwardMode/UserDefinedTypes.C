@@ -1024,7 +1024,7 @@ TensorD5 fn13(double i, double j) {
 // CHECK-NEXT:     return {(bool)1, (bool)0};
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndPushforward<bool, bool> operator_AmpAmp_pushforward(Tensor<double, 5U> &lhs, const Tensor<double, 5U> &rhs, Tensor<double, 5U> &_d_lhs, const Tensor<double, 5U> &_d_rhs) {
+// CHECK: clad::ValueAndPushforward<bool, bool> operator_amp_amp_pushforward(Tensor<double, 5U> &lhs, const Tensor<double, 5U> &rhs, Tensor<double, 5U> &_d_lhs, const Tensor<double, 5U> &_d_rhs) {
 // CHECK-NEXT:     return {(bool)1, (bool)0};
 // CHECK-NEXT: }
 
@@ -1104,7 +1104,7 @@ TensorD5 fn13(double i, double j) {
 // CHECK-NEXT:     _t16.pushforward = _t17.pushforward + _t18.pushforward;
 // CHECK-NEXT:     _t16.value = _t17.value + _t18.value;
 // CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t19 = b.operator_subscript_pushforward(2, & _d_b, 0);
-// CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t20 = operator_AmpAmp_pushforward(a, b, _d_a, _d_b);
+// CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t20 = operator_amp_amp_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t21 = operator_pipe_pipe_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     _t19.pushforward = _t20.pushforward + _t21.pushforward;
 // CHECK-NEXT:     _t19.value = _t20.value + _t21.value;
