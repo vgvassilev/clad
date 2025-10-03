@@ -112,10 +112,10 @@ jobs:
             compiler: msvc
             clang-runtime: '21'
 
-          - name: ubu22-clang15-runtime18-debug
-            os: ubuntu-22.04
-            compiler: clang-15
-            clang-runtime: '18'
+          - name: ubu24-clang20-runtime21-debug
+            os: ubuntu-24.04
+            compiler: clang-20
+            clang-runtime: '21'
             debug_build: true
 
           - name: selfh-ubu22-gcc12-runtime18-analyzers
