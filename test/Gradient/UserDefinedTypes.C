@@ -1194,10 +1194,10 @@ public:
 struct PI : public PIBase {
   double getFourPi() {
     double tmp1 = static_cast<PIBase*>(this)->getPi();
-    //FIXME: double tmp2 = reinterpret_cast<PIBase*>(this)->getPi();
-    //FIXME: double tmp3 = dynamic_cast<PIBase*>(this)->getPi();
+    double tmp2 = reinterpret_cast<PIBase*>(this)->getPi();
+    double tmp3 = dynamic_cast<PIBase*>(this)->getPi();
     double tmp4 = ((PIBase*)this)->getPi();
-    return 2 * (tmp1 /*+ tmp2 + tmp3*/ + tmp4);
+    return 2 * (tmp1 + tmp2 + tmp3 + tmp4);
   }
 };
 double fn33(double x) {
@@ -1208,18 +1208,26 @@ double fn33(double x) {
 // CHECK: void getPi_pullback(double _d_y, PIBase *_d_this) {
 // CHECK-NEXT:    _d_this->pi += _d_y;
 // CHECK-NEXT:}
-// CHECK-NEXT:void getFourPi_pullback(double _d_y, PI *_d_this) {
-// CHECK-NEXT:    double _d_tmp1 = 0.;
-// CHECK-NEXT:    double tmp1 = static_cast<PIBase *>(this)->getPi();
-// CHECK-NEXT:    double _d_tmp4 = 0.;
-// CHECK-NEXT:    double tmp4 = ((PIBase *)this)->getPi();
-// CHECK-NEXT:    {
-// CHECK-NEXT:        _d_tmp1 += 2 * _d_y;
-// CHECK-NEXT:        _d_tmp4 += 2 * _d_y;
-// CHECK-NEXT:    }
-// CHECK-NEXT:    (PIBase *)this->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
-// CHECK-NEXT:    static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, _d_this);
-// CHECK-NEXT:}
+// CHECK-NEXT: void getFourPi_pullback(double _d_y, PI *_d_this) {
+// CHECK-NEXT:     double _d_tmp1 = 0.;
+// CHECK-NEXT:     double tmp1 = static_cast<PIBase *>(this)->getPi();
+// CHECK-NEXT:     double _d_tmp2 = 0.;
+// CHECK-NEXT:     double tmp2 = reinterpret_cast<PIBase *>(this)->getPi();
+// CHECK-NEXT:     double _d_tmp3 = 0.;
+// CHECK-NEXT:     double tmp3 = dynamic_cast<PIBase *>(this)->getPi();
+// CHECK-NEXT:     double _d_tmp4 = 0.;
+// CHECK-NEXT:     double tmp4 = ((PIBase *)this)->getPi();
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_tmp1 += 2 * _d_y;
+// CHECK-NEXT:         _d_tmp2 += 2 * _d_y;
+// CHECK-NEXT:         _d_tmp3 += 2 * _d_y;
+// CHECK-NEXT:         _d_tmp4 += 2 * _d_y;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     (PIBase *)this->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
+// CHECK-NEXT:     dynamic_cast<PIBase *>(this)->getPi_pullback(_d_tmp3, _d_this);
+// CHECK-NEXT:     reinterpret_cast<PIBase *>(this)->getPi_pullback(_d_tmp2, _d_this);
+// CHECK-NEXT:     static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, _d_this);
+// CHECK-NEXT: }
 // CHECK-NEXT:void fn33_grad(double x, double *_d_x) {
 // CHECK-NEXT:    PI _d_pi = {};
 // CHECK-NEXT:    PI pi;

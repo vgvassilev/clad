@@ -24,6 +24,8 @@
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -1558,28 +1560,21 @@ BaseForwardModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
   return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
 }
 
-StmtDiff BaseForwardModeVisitor::VisitImplicitValueInitExpr(
-    const ImplicitValueInitExpr* E) {
-  return StmtDiff(Clone(E), Clone(E));
-}
-
-StmtDiff
-BaseForwardModeVisitor::VisitCXXConstCastExpr(const CXXConstCastExpr* CCE) {
-  StmtDiff subExprDiff = Visit(CCE->getSubExpr());
-  Expr* castExpr =
-      m_Sema
-          .BuildCXXNamedCast(CCE->getBeginLoc(), tok::kw_const_cast,
-                             CCE->getTypeInfoAsWritten(), subExprDiff.getExpr(),
-                             CCE->getAngleBrackets(), CCE->getSourceRange())
-          .get();
-  Expr* castExprDiff =
-      m_Sema
-          .BuildCXXNamedCast(CCE->getBeginLoc(), tok::kw_const_cast,
-                             CCE->getTypeInfoAsWritten(),
-                             subExprDiff.getExpr_dx(), CCE->getAngleBrackets(),
-                             CCE->getSourceRange())
-          .get();
-  return StmtDiff(castExpr, castExprDiff);
+StmtDiff BaseForwardModeVisitor::VisitCXXFunctionalCastExpr(
+    const clang::CXXFunctionalCastExpr* FCE) {
+  StmtDiff castExprDiff = Visit(FCE->getSubExpr());
+  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
+  Expr* clonedFCE = m_Sema
+                        .BuildCXXFunctionalCastExpr(
+                            FCE->getTypeInfoAsWritten(), FCE->getType(),
+                            fakeLoc, castExprDiff.getExpr(), fakeLoc)
+                        .get();
+  Expr* derivedFCE = m_Sema
+                         .BuildCXXFunctionalCastExpr(
+                             FCE->getTypeInfoAsWritten(), FCE->getType(),
+                             fakeLoc, castExprDiff.getExpr_dx(), fakeLoc)
+                         .get();
+  return {clonedFCE, derivedFCE};
 }
 
 StmtDiff
@@ -1599,6 +1594,53 @@ BaseForwardModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
                                CSCE->getRParenLoc(), subExprDiff.getExpr_dx())
           .get();
   return StmtDiff(castExpr, castExprDiff);
+}
+
+StmtDiff
+BaseForwardModeVisitor::VisitCXXNamedCastExpr(const CXXNamedCastExpr* NCE) {
+  StmtDiff subExprDiff = Visit(NCE->getSubExpr());
+  tok::TokenKind CastKind = (tok::TokenKind)~0U;
+  switch (NCE->getStmtClass()) {
+  case Expr::CXXAddrspaceCastExprClass:
+    CastKind = tok::kw_addrspace_cast;
+    break;
+  case Expr::CXXConstCastExprClass:
+    CastKind = tok::kw_const_cast;
+    break;
+  case Expr::CXXDynamicCastExprClass:
+    CastKind = tok::kw_dynamic_cast;
+    break;
+  case Expr::CXXReinterpretCastExprClass:
+    CastKind = tok::kw_reinterpret_cast;
+    break;
+  case Expr::CXXStaticCastExprClass:
+    CastKind = tok::kw_static_cast;
+    break;
+  default:
+    assert(0 && "Unsupported cast kind!");
+    break;
+  }
+
+  SourceLocation Loc = NCE->getBeginLoc();
+  TypeSourceInfo* TSI = NCE->getTypeInfoAsWritten();
+  SourceRange Brackets = NCE->getAngleBrackets();
+  SourceRange Range = NCE->getSourceRange();
+  Expr* castExpr =
+      m_Sema
+          .BuildCXXNamedCast(Loc, CastKind, TSI, subExprDiff.getExpr(),
+                             Brackets, Range)
+          .get();
+  Expr* castExprDiff =
+      m_Sema
+          .BuildCXXNamedCast(Loc, CastKind, TSI, subExprDiff.getExpr_dx(),
+                             Brackets, Range)
+          .get();
+  return StmtDiff(castExpr, castExprDiff);
+}
+
+StmtDiff BaseForwardModeVisitor::VisitImplicitValueInitExpr(
+    const ImplicitValueInitExpr* E) {
+  return StmtDiff(Clone(E), Clone(E));
 }
 
 StmtDiff
@@ -2090,41 +2132,6 @@ BaseForwardModeVisitor::VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE) {
                           argDiff.getExpr_dx())
           .get();
   return {clonedDeleteE, derivedDeleteE};
-}
-
-StmtDiff BaseForwardModeVisitor::VisitCXXStaticCastExpr(
-    const clang::CXXStaticCastExpr* CSE) {
-  auto diff = Visit(CSE->getSubExpr());
-  Expr* clonedE =
-      m_Sema
-          .BuildCXXNamedCast(noLoc, tok::TokenKind::kw_static_cast,
-                             CSE->getTypeInfoAsWritten(), diff.getExpr(),
-                             SourceRange(), SourceRange())
-          .get();
-  Expr* derivedE =
-      m_Sema
-          .BuildCXXNamedCast(noLoc, tok::TokenKind::kw_static_cast,
-                             CSE->getTypeInfoAsWritten(), diff.getExpr_dx(),
-                             SourceRange(), SourceRange())
-          .get();
-  return {clonedE, derivedE};
-}
-
-StmtDiff BaseForwardModeVisitor::VisitCXXFunctionalCastExpr(
-    const clang::CXXFunctionalCastExpr* FCE) {
-  StmtDiff castExprDiff = Visit(FCE->getSubExpr());
-  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-  Expr* clonedFCE = m_Sema
-                        .BuildCXXFunctionalCastExpr(
-                            FCE->getTypeInfoAsWritten(), FCE->getType(),
-                            fakeLoc, castExprDiff.getExpr(), fakeLoc)
-                        .get();
-  Expr* derivedFCE = m_Sema
-                         .BuildCXXFunctionalCastExpr(
-                             FCE->getTypeInfoAsWritten(), FCE->getType(),
-                             fakeLoc, castExprDiff.getExpr_dx(), fakeLoc)
-                         .get();
-  return {clonedFCE, derivedFCE};
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCXXBindTemporaryExpr(

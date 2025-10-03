@@ -713,18 +713,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return StmtDiff(Clone(S));
   }
 
-  StmtDiff ReverseModeVisitor::VisitCXXFunctionalCastExpr(
-      const clang::CXXFunctionalCastExpr* FCE) {
-    StmtDiff castExprDiff = Visit(FCE->getSubExpr(), dfdx());
-    castExprDiff.updateStmt(m_Sema
-                                .BuildCXXFunctionalCastExpr(
-                                    FCE->getTypeInfoAsWritten(), FCE->getType(),
-                                    FCE->getBeginLoc(), castExprDiff.getExpr(),
-                                    FCE->getEndLoc())
-                                .get());
-    return castExprDiff;
-  }
-
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,
@@ -3295,9 +3283,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return result;
   }
 
-  StmtDiff ReverseModeVisitor::VisitImplicitValueInitExpr(
-      const ImplicitValueInitExpr* IVIE) {
-    return {Clone(IVIE), Clone(IVIE)};
+  StmtDiff ReverseModeVisitor::VisitCXXFunctionalCastExpr(
+      const clang::CXXFunctionalCastExpr* FCE) {
+    StmtDiff castExprDiff = Visit(FCE->getSubExpr(), dfdx());
+    castExprDiff.updateStmt(m_Sema
+                                .BuildCXXFunctionalCastExpr(
+                                    FCE->getTypeInfoAsWritten(), FCE->getType(),
+                                    FCE->getBeginLoc(), castExprDiff.getExpr(),
+                                    FCE->getEndLoc())
+                                .get());
+    return castExprDiff;
   }
 
   StmtDiff ReverseModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
@@ -3315,6 +3310,51 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                              CSCE->getRParenLoc(), subExprDiff.getExpr_dx())
                          .get();
     return {castExpr, castExprDiff};
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCXXNamedCastExpr(
+      const clang::CXXNamedCastExpr* NCE) {
+    StmtDiff subExprDiff = Visit(NCE->getSubExpr(), dfdx());
+
+    // Reconstruct the cast
+    TypeSourceInfo* TSI = NCE->getTypeInfoAsWritten();
+    SourceLocation KWLoc = NCE->getOperatorLoc();
+    SourceRange Brackets = NCE->getAngleBrackets();
+    SourceRange Range = NCE->getSourceRange();
+    tok::TokenKind CastKind = (tok::TokenKind)~0U;
+    switch (NCE->getStmtClass()) {
+    case Expr::CXXAddrspaceCastExprClass:
+      CastKind = tok::kw_addrspace_cast;
+      break;
+    case Expr::CXXConstCastExprClass:
+      CastKind = tok::kw_const_cast;
+      break;
+    case Expr::CXXDynamicCastExprClass:
+      CastKind = tok::kw_dynamic_cast;
+      break;
+    case Expr::CXXReinterpretCastExprClass:
+      CastKind = tok::kw_reinterpret_cast;
+      break;
+    case Expr::CXXStaticCastExprClass:
+      CastKind = tok::kw_static_cast;
+      break;
+    default:
+      assert(0 && "Unsupported cast kind!");
+      break;
+    }
+    Expr* castExpr =
+        m_Sema
+            .BuildCXXNamedCast(KWLoc, CastKind, TSI, subExprDiff.getExpr(),
+                               Brackets, Range)
+            .get();
+    subExprDiff.updateStmt(castExpr);
+
+    return subExprDiff;
+  }
+
+  StmtDiff ReverseModeVisitor::VisitImplicitValueInitExpr(
+      const ImplicitValueInitExpr* IVIE) {
+    return {Clone(IVIE), Clone(IVIE)};
   }
 
   StmtDiff
@@ -4488,31 +4528,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   DeclDiff<StaticAssertDecl> ReverseModeVisitor::DifferentiateStaticAssertDecl(
       const clang::StaticAssertDecl* SAD) {
     return DeclDiff<StaticAssertDecl>(nullptr, nullptr);
-  }
-
-  StmtDiff ReverseModeVisitor::VisitCXXStaticCastExpr(
-      const clang::CXXStaticCastExpr* SCE) {
-    StmtDiff subExprDiff = Visit(SCE->getSubExpr(), dfdx());
-
-    // Reconstruct the cast
-    TypeSourceInfo* TSI = SCE->getTypeInfoAsWritten();
-    SourceLocation KWLoc = SCE->getOperatorLoc();
-    SourceLocation RParenLoc = SCE->getRParenLoc();
-    Expr* castExpr =
-        m_Sema
-            .BuildCXXNamedCast(KWLoc, tok::kw_static_cast, TSI,
-                               subExprDiff.getExpr(), SCE->getAngleBrackets(),
-                               SourceRange(KWLoc, RParenLoc))
-            .get();
-    subExprDiff.updateStmt(castExpr);
-
-    return subExprDiff;
-  }
-
-  StmtDiff ReverseModeVisitor::VisitCXXConstCastExpr(
-      const clang::CXXConstCastExpr* CCE) {
-    StmtDiff subExprDiff = Visit(CCE->getSubExpr(), dfdx());
-    return {Clone(CCE), subExprDiff.getExpr_dx()};
   }
 
   clang::QualType ReverseModeVisitor::ComputeAdjointType(clang::QualType T) {

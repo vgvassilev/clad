@@ -381,8 +381,6 @@ namespace clad {
     StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);
     StmtDiff VisitStringLiteral(const clang::StringLiteral* SL);
     StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
-    StmtDiff
-    VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
     virtual StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
@@ -391,8 +389,11 @@ namespace clad {
     StmtDiff VisitIfStmt(const clang::IfStmt* If);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
     StmtDiff
-    VisitImplicitValueInitExpr(const clang::ImplicitValueInitExpr* IVIE);
+    VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
     StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
+    StmtDiff VisitCXXNamedCastExpr(const clang::CXXNamedCastExpr* NCE);
+    StmtDiff
+    VisitImplicitValueInitExpr(const clang::ImplicitValueInitExpr* IVIE);
     StmtDiff VisitPseudoObjectExpr(const clang::PseudoObjectExpr* POE);
     StmtDiff VisitInitListExpr(const clang::InitListExpr* ILE);
     StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
@@ -419,9 +420,7 @@ namespace clad {
     StmtDiff VisitCXXConstructExpr(const clang::CXXConstructExpr* CE);
     StmtDiff
     VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
-    StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* SCE);
     StmtDiff VisitCXXTryStmt(const clang::CXXTryStmt* TS);
-    StmtDiff VisitCXXConstCastExpr(const clang::CXXConstCastExpr* CCE);
     StmtDiff VisitCXXDefaultInitExpr(const clang::CXXDefaultInitExpr* DIE);
     StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
     StmtDiff VisitCaseStmt(const clang::CaseStmt* CS);
