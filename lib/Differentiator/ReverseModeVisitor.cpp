@@ -1943,19 +1943,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (isPassedByRef && !MD->isConst() && isCopiable &&
             m_DiffReq.shouldBeRecorded(baseOriginalE)) {
           hasStoredParams = true;
-          if (isCopiable) {
-            Expr* baseDiffStore =
-                GlobalStoreAndRef(baseExpr, "_t", /*force=*/true);
-            if (baseDiffStore != baseExpr) {
-              Expr* assign = BuildOp(BO_Assign, baseExpr, baseDiffStore);
-              PreCallStmts.push_back(assign);
-            }
+          Expr* baseDiffStore =
+              GlobalStoreAndRef(baseExpr, "_t", /*force=*/true);
+          if (baseDiffStore != baseExpr) {
+            Expr* assign = BuildOp(BO_Assign, baseExpr, baseDiffStore);
+            PreCallStmts.push_back(assign);
           }
         }
         if (Expr* baseDerivative = baseDiff.getExpr_dx()) {
           if (!baseDerivative->getType()->isPointerType())
-            baseDerivative =
-                BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
+            baseDerivative = BuildOp(UO_AddrOf, baseDerivative);
           CallArgDx.push_back(baseDerivative);
           revForwAdjointArgs.push_back(baseDerivative);
         }
