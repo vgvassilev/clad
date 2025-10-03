@@ -682,7 +682,6 @@ int main() {
 // CHECK-NEXT:          {{.*}}tape<{{.*}}vector<double> > _t1 = {};
 // CHECK-NEXT:          size_t _d_i0 = {{0U|0UL|0}};
 // CHECK-NEXT:          size_t i0 = {{0U|0UL|0}};
-// CHECK-NEXT:          clad::tape<clad::ValueAndAdjoint<double &, double &> > _t3 = {};
 // CHECK-NEXT:          {{.*}}vector<double> v;
 // CHECK-NEXT:          {{.*}}vector<double> _d_v = {};
 // CHECK-NEXT:          clad::zero_init(_d_v);
@@ -697,12 +696,11 @@ int main() {
 // CHECK-NEXT:          {{.*}} _t2 = {{0U|0UL|0}};
 // CHECK-NEXT:          for (i0 = 0; i0 < v.size(); ++i0) {
 // CHECK-NEXT:              _t2++;
-// CHECK-NEXT:              clad::push(_t3, {{.*}}at_reverse_forw(&v, i0, &_d_v, {{0U|0UL|0}}));
-// CHECK-NEXT:              res += clad::back(_t3).value;
+// CHECK-NEXT:              res += v.at(i0);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          {{.*}}vector<double> _t4 = v;
+// CHECK-NEXT:          {{.*}}vector<double> _t3 = v;
 // CHECK-NEXT:          v.assign(3, 0);
-// CHECK-NEXT:          {{.*}}vector<double> _t5 = v;
+// CHECK-NEXT:          {{.*}}vector<double> _t4 = v;
 // CHECK-NEXT:          v.assign(2, y);
 // CHECK-NEXT:          {
 // CHECK-NEXT:              _d_res += 1;
@@ -711,12 +709,12 @@ int main() {
 // CHECK-NEXT:              _d_v[2] += 1;
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:              v = _t5;
+// CHECK-NEXT:              v = _t4;
 // CHECK-NEXT:              {{.*size_type|size_t}} _r2 = {{0U|0UL|0}};
 // CHECK-NEXT:              {{.*}}assign_pullback(&v, 2, y, &_d_v, &_r2, &*_d_y);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:              v = _t4;
+// CHECK-NEXT:              v = _t3;
 // CHECK-NEXT:              {{.*size_type|size_t}} _r0 = {{0U|0UL|0}};
 // CHECK-NEXT:              {{.*}}value_type _r1 = 0.;
 // CHECK-NEXT:              {{.*}}assign_pullback(&v, 3, 0, &_d_v, &_r0, &_r1);
@@ -725,8 +723,7 @@ int main() {
 // CHECK-NEXT:              --i0;
 // CHECK-NEXT:              {
 // CHECK-NEXT:                  double _r_d0 = _d_res;
-// CHECK-NEXT:                  clad::back(_t3).adjoint += _r_d0;
-// CHECK-NEXT:                  {{.*}}pop(_t3);
+// CHECK-NEXT:                  _d_v.at(i0) += _r_d0;
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
 // CHECK-NEXT:          for (; _t0; _t0--) {

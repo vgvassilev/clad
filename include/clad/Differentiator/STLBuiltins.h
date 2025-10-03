@@ -501,12 +501,9 @@ void operator_subscript_pullback(::std::vector<T>* vec,
                                  typename ::std::vector<T>::size_type* d_idx);
 
 template <typename T>
-clad::ValueAndAdjoint<T&, T&>
-at_reverse_forw(::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
-                ::std::vector<T>* d_vec,
-                typename ::std::vector<T>::size_type d_idx) {
-  return {(*vec)[idx], (*d_vec)[idx]};
-}
+clad::ValueAndAdjoint<T&, T&> elidable_reverse_forw at_reverse_forw(
+    ::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
+    ::std::vector<T>* d_vec, typename ::std::vector<T>::size_type d_idx);
 
 template <typename T, typename P>
 void at_pullback(const ::std::vector<T>* vec,
