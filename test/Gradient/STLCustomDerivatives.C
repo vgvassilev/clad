@@ -1082,9 +1082,8 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void weak_fn_pullback(std::weak_ptr<double> x_ptr, double _d_y, std::weak_ptr<double> *_d_x_ptr) {
-// CHECK-NEXT:     clad::ValueAndAdjoint< ::std::shared_ptr<double>, ::std::shared_ptr<double> > _t0 = clad::custom_derivatives::class_functions::lock_reverse_forw(&x_ptr, &(*_d_x_ptr));
-// CHECK-NEXT:     std::shared_ptr<double> s = _t0.value;
-// CHECK-NEXT:     std::shared_ptr<double> _d_s = _t0.adjoint;
+// CHECK-NEXT:     std::shared_ptr<double> s = x_ptr.lock();
+// CHECK-NEXT:     std::shared_ptr<double> _d_s = (*_d_x_ptr).lock();
 // CHECK-NEXT:     double _d_x = 0.;
 // CHECK-NEXT:     double x = * s;
 // CHECK-NEXT:     {
