@@ -1873,6 +1873,37 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // FIXME: Decide this in the diff planner
     bool needsForwPass = utils::isMemoryType(returnType);
     bool hasStoredParams = false;
+    // If the function has a single arg and does not return a reference or
+    // take arg by reference, we can request a derivative w.r.t. to this arg
+    // using the forward mode.
+    bool asGrad = !utils::canUsePushforwardInRevMode(FD);
+
+    // Build the DiffRequest
+    DiffRequest pullbackRequest{};
+    FunctionDecl* pullbackFD = nullptr;
+    if (!nonDiff) {
+      pullbackRequest.Function = FD;
+      pullbackRequest.BaseFunctionName =
+          clad::utils::ComputeEffectiveFnName(FD);
+      pullbackRequest.Mode =
+          asGrad ? DiffMode::pullback : DiffMode::pushforward;
+      // Silence diag outputs in nested derivation process.
+      pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
+      pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+      if (asGrad) {
+        size_t i = 0;
+        for (const ParmVarDecl* PVD : FD->parameters()) {
+          pullbackRequest.DVI.push_back(PVD);
+          if (!m_DiffReq.CUDAGlobalArgsIndexes.empty() &&
+              m_DiffReq.HasIndependentParameter(PVD))
+            pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
+          ++i;
+        }
+      }
+      pullbackFD = FindDerivedFunction(pullbackRequest);
+      if (pullbackFD && utils::hasEmptyBody(pullbackFD))
+        nonDiff = true;
+    }
 
     llvm::SmallVector<Stmt*, 16> PreCallStmts{};
     // Save current index in the current block, to potentially put some
@@ -1951,7 +1982,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // calls.
     llvm::SmallVector<Stmt*, 16> PostCallStmts{};
     bool hasDynamicNonDiffParams = false;
-
     if (!nonDiff) {
       // Build the args for the pullback
       llvm::SmallVector<Expr*, 16> pullbackCallArgs = CallArgs;
@@ -1966,47 +1996,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (arg)
           pullbackCallArgs.push_back(arg);
 
-      // Build the DiffRequest
-      DiffRequest pullbackRequest{};
-      pullbackRequest.Function = FD;
-
-      // If the function has a single arg and does not return a reference or
-      // take arg by reference, we can request a derivative w.r.t. to this arg
-      // using the forward mode.
-      bool asGrad = !utils::canUsePushforwardInRevMode(FD);
       if (!asGrad) {
         pullbackCallArgs.resize(1);
         pullbackCallArgs.push_back(ConstantFolder::synthesizeLiteral(
             pullbackCallArgs.front()->getType(), m_Context, /*val=*/1));
       }
-
-      pullbackRequest.BaseFunctionName =
-          clad::utils::ComputeEffectiveFnName(FD);
-      pullbackRequest.Mode =
-          asGrad ? DiffMode::pullback : DiffMode::pushforward;
-      hasDynamicNonDiffParams = false;
-
-      // Silence diag outputs in nested derivation process.
-      pullbackRequest.VerboseDiags = false;
-      pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-      pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
-      if (asGrad)
-        for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
-          const auto* PVD = FD->getParamDecl(i);
-          // static member function doesn't have `this` pointer
-          size_t offset = (bool)MD && MD->isInstance();
-          if (MD && isLambdaCallOperator(MD)) {
-            pullbackRequest.DVI.push_back(PVD);
-          } else if (CallArgDx[i + offset]) {
-            if (!m_DiffReq.CUDAGlobalArgsIndexes.empty() &&
-                m_DiffReq.HasIndependentParameter(PVD))
-              pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
-            pullbackRequest.DVI.push_back(PVD);
-          } else
-            hasDynamicNonDiffParams = true;
-        }
-
-      FunctionDecl* pullbackFD = nullptr;
 
       // FIXME: Error estimation currently uses singleton objects -
       // m_ErrorEstHandler and m_EstModel, which is cleared after each
@@ -2014,8 +2008,26 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // at the same time to access the singleton objects.
       // No call context corresponds to second derivatives used in hessians,
       // which aren't scheduled statically yet.
+      hasDynamicNonDiffParams = false;
+      pullbackRequest.DVI.clear();
+      pullbackRequest.CUDAGlobalArgsIndexes.clear();
+      if (asGrad)
+        for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
+          const auto* PVD = FD->getParamDecl(i);
+          // static member function doesn't have `this` pointer
+          size_t offset =
+              (bool)MD && MD->isInstance() && !isLambdaCallOperator(MD);
+          if (CallArgDx[i + offset]) {
+            if (!m_DiffReq.CUDAGlobalArgsIndexes.empty() &&
+                m_DiffReq.HasIndependentParameter(PVD))
+              pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
+            pullbackRequest.DVI.push_back(PVD);
+          } else
+            hasDynamicNonDiffParams = true;
+        }
       if (m_ExternalSource || !m_DiffReq.CallContext ||
           hasDynamicNonDiffParams || FD->getNameAsString() == "cudaMemcpy") {
+        pullbackFD = nullptr;
         // Try to find it in builtin derivatives.
         std::string customPullback = pullbackRequest.ComputeDerivativeName();
         OverloadedDerivedFn =
@@ -2045,13 +2057,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           } else
             pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
         }
-      } else
-        pullbackFD = FindDerivedFunction(pullbackRequest);
+      }
 
       if (pullbackFD) {
-        if (!utils::hasEmptyBody(pullbackFD))
-          OverloadedDerivedFn = BuildCallExprToFunction(
-              pullbackFD, pullbackCallArgs, CUDAExecConfig);
+        OverloadedDerivedFn = BuildCallExprToFunction(
+            pullbackFD, pullbackCallArgs, CUDAExecConfig);
       } else if (!utils::HasAnyReferenceOrPointerArgument(FD) && !MD) {
         // FIXME: Add support for reference arguments to the numerical diff. If
         // it already correctly support reference arguments then confirm the

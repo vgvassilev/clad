@@ -591,10 +591,6 @@ double fn14(double x, double y) {
 // CHECK-NEXT:         *_d_x += 1;
 // CHECK-NEXT:         *_d_y += 1;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         *_d_y += _r0;
-// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 double fn15(double x, double y) {
