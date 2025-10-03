@@ -578,11 +578,12 @@ void shrink_to_fit_pullback(::std::vector<T>* /*v*/,
 // array reverse mode
 
 template <typename T, ::std::size_t N>
-clad::ValueAndAdjoint<T&, T&> operator_subscript_reverse_forw(
-    ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
-    ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type d_idx) {
-  return {(*arr)[idx], (*d_arr)[idx]};
-}
+elidable_reverse_forw clad::ValueAndAdjoint<T&, T&>
+operator_subscript_reverse_forw(::std::array<T, N>* arr,
+                                typename ::std::array<T, N>::size_type idx,
+                                ::std::array<T, N>* d_arr,
+                                typename ::std::array<T, N>::size_type d_idx);
+
 template <typename T, ::std::size_t N, typename P>
 void operator_subscript_pullback(
     const ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
