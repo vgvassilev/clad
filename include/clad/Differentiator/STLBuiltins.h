@@ -867,8 +867,9 @@ constexpr void forward_pullback(T&& t, T dy, T* dt) noexcept {
 
 // std::make_shared<T> custom derivatives...
 template <typename T>
-clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
-make_shared_reverse_forw(T& x, T& dx) {
+elidable_reverse_forw
+    clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
+    make_shared_reverse_forw(T& x, T& dx) {
   return {::std::make_shared<T>(x), ::std::make_shared<T>(dx)};
 }
 
