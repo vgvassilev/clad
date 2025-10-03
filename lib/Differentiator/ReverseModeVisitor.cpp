@@ -1890,9 +1890,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Silence diag outputs in nested derivation process.
       pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
       pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
-      if (asGrad)
-        for (const ParmVarDecl* PVD : FD->parameters())
+      if (asGrad) {
+        size_t i = 0;
+        for (const ParmVarDecl* PVD : FD->parameters()) {
           pullbackRequest.DVI.push_back(PVD);
+          if (!m_DiffReq.CUDAGlobalArgsIndexes.empty() &&
+              m_DiffReq.HasIndependentParameter(PVD))
+            pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
+          ++i;
+        }
+      }
       pullbackFD = FindDerivedFunction(pullbackRequest);
       if (pullbackFD && utils::hasEmptyBody(pullbackFD))
         nonDiff = true;
@@ -1975,7 +1982,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // calls.
     llvm::SmallVector<Stmt*, 16> PostCallStmts{};
     bool hasDynamicNonDiffParams = false;
-
     if (!nonDiff) {
       // Build the args for the pullback
       llvm::SmallVector<Expr*, 16> pullbackCallArgs = CallArgs;
@@ -2004,6 +2010,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // which aren't scheduled statically yet.
       hasDynamicNonDiffParams = false;
       pullbackRequest.DVI.clear();
+      pullbackRequest.CUDAGlobalArgsIndexes.clear();
       if (asGrad)
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
           const auto* PVD = FD->getParamDecl(i);
