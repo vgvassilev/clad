@@ -86,12 +86,11 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
     // or pointer type, only one of the indices have been requested
     if (DVI.size() > 1 || (isArrayOrPointerType(diffVarInfo.param->getType()) &&
                            (diffVarInfo.paramIndexInterval.size() != 1))) {
-      diag(DiagnosticsEngine::Error,
-           m_DiffReq.Args ? m_DiffReq.Args->getEndLoc() : noLoc,
-           "Forward mode differentiation w.r.t. several parameters at once is "
-           "not "
-           "supported, call 'clad::differentiate' for each parameter "
-           "separately");
+      SourceLocation L = m_DiffReq.Args ? m_DiffReq.Args->getBeginLoc() : noLoc;
+      diag(DiagnosticsEngine::Error, L,
+           "forward mode differentiation w.r.t. several parameters at once is "
+           "not supported; call 'clad::differentiate' for each parameter")
+          << L;
       return {};
     }
 
@@ -113,10 +112,11 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
       if (!m_IndependentVar->getType()
                ->getPointeeOrArrayElementType()
                ->isRealType()) {
-        diag(DiagnosticsEngine::Error, m_IndependentVar->getEndLoc(),
-             "attempted differentiation w.r.t. a parameter ('%0') which is not"
-             " an array or pointer of a real type",
-             {m_IndependentVar->getNameAsString()});
+        SourceLocation L = m_IndependentVar->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "attempted differentiation w.r.t. parameter %0 which is not"
+             " array or pointer of real type")
+            << m_IndependentVar << L;
         return {};
       }
       m_IndependentVarIndex = diffVarInfo.paramIndexInterval.Start;
@@ -130,10 +130,11 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
         isField = true;
       }
       if (!IsRealNonReferenceType(T)) {
-        diag(DiagnosticsEngine::Error, m_DiffReq.Args->getEndLoc(),
-             "Attempted differentiation w.r.t. %0 '%1' which is not "
-             "of real type.",
-             {(isField ? "member" : "parameter"), diffVarInfo.source});
+        SourceLocation L = m_DiffReq.Args->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "attempted differentiation w.r.t. %select{member|parameter}0 '%1' "
+             "which is not of real type")
+            << isField << diffVarInfo.source << L;
         return {};
       }
     }
@@ -436,8 +437,7 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitStmt(const Stmt* S) {
-  diag(DiagnosticsEngine::Warning, S->getBeginLoc(),
-       "attempted to differentiate unsupported statement, no changes applied");
+  diagUnsupported(S);
   // Unknown stmt, just clone it.
   return StmtDiff(Clone(S));
 }
@@ -994,8 +994,7 @@ DiffMode BaseForwardModeVisitor::GetPushForwardMode() {
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
-    diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
-         "Differentiation of only direct calls is supported. Ignored");
+    diagUnsupportedIndirectCalls(CE);
     return StmtDiff(Clone(CE));
   }
 
@@ -1332,9 +1331,11 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
         (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
          Expr::MLV_Valid) &&
         !isCladArrayType(Ldiff.getExpr_dx()->getType())) {
-      diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
+      SourceLocation L = BinOp->getBeginLoc();
+      diag(DiagnosticsEngine::Warning, L,
            "derivative of an assignment attempts to assign to unassignable "
-           "expr, assignment ignored");
+           "expr, assignment ignored")
+          << L;
       opDiff = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
     } else if (opCode == BO_Assign || opCode == BO_AddAssign ||
                opCode == BO_SubAssign) {
@@ -1492,8 +1493,7 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
         if (auto* VD = dyn_cast<VarDecl>(D))
           decls.push_back(VD);
         else
-          diag(DiagnosticsEngine::Warning, D->getEndLoc(),
-               "Unsupported declaration");
+          diagUnsupported(D);
       }
       Stmt* DSClone = BuildDeclStmt(decls);
       return StmtDiff(DSClone, nullptr);
@@ -1538,8 +1538,7 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       if (SADDiff.getDecl_dx())
         declsDiff.push_back(SADDiff.getDecl_dx());
     } else {
-      diag(DiagnosticsEngine::Warning, D->getEndLoc(),
-           "Unsupported declaration");
+      diagUnsupported(D);
     }
   }
 
@@ -1966,10 +1965,12 @@ BaseForwardModeVisitor::DeriveSwitchStmtBodyHelper(const Stmt* stmt,
         // We can also solve this issue by creating new scope and compound
         // statement block wherever they are required instead of enclosing all
         // the statements of a case label in a single compound statement.
-        diag(DiagnosticsEngine::Error, containedSC->getBeginLoc(),
-             "Differentiating switch case label contained in a compound "
+        SourceLocation L = containedSC->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "differentiating switch case label contained in a compound "
              "statement, other than the switch statement compound "
-             "statement, is not supported.");
+             "statement, is not supported")
+            << L;
         return activeSC;
       }
     }

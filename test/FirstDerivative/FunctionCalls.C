@@ -205,18 +205,18 @@ double test_10(double x) {
 int main () {
   clad::differentiate(test_1, 0);
   clad::differentiate(test_2, 0);
-  clad::differentiate(test_3, 0); //expected-error {{Invalid argument index '0' of '0' argument(s)}}
+  clad::differentiate(test_3, 0); //expected-error {{invalid argument index 0 of 0 argument(s)}}
   clad::differentiate(test_4, 0);
   clad::differentiate(test_5, 0);
   clad::differentiate(test_6, "x");
   clad::differentiate(test_7, "i");
   clad::differentiate(test_8, "x");
-  clad::differentiate<clad::opts::enable_tbr>(test_8); // expected-error {{TBR analysis is not meant for forward mode AD.}}
-  clad::differentiate<clad::opts::enable_tbr, clad::opts::disable_tbr>(test_8); // expected-error {{Both enable and disable TBR options are specified.}}
-  clad::gradient<clad::opts::enable_va, clad::opts::disable_va>(test_8); // expected-error {{Both enable and disable VA options are specified.}}
-  clad::gradient<clad::opts::enable_ua, clad::opts::disable_ua>(test_8); // expected-error {{Both enable and disable UA options are specified.}}
+  clad::differentiate<clad::opts::enable_tbr>(test_8); // expected-error {{tbr analysis is not meant for forward mode AD}}
+  clad::differentiate<clad::opts::enable_tbr, clad::opts::disable_tbr>(test_8); // expected-error {{both enable and disable TBR options are specified}}
+  clad::gradient<clad::opts::enable_va, clad::opts::disable_va>(test_8); // expected-error {{both enable and disable VA options are specified}}
+  clad::gradient<clad::opts::enable_ua, clad::opts::disable_ua>(test_8); // expected-error {{both enable and disable UA options are specified}}
 
-  clad::differentiate<clad::opts::diagonal_only>(test_8); // expected-error {{Diagonal only option is only valid for Hessian mode.}}
+  clad::differentiate<clad::opts::diagonal_only>(test_8); // expected-error {{diagonal only option is only valid for hessian mode}}
   clad::differentiate(test_9);
   clad::differentiate(test_10);
   return 0;

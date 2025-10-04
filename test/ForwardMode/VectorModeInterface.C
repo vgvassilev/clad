@@ -35,7 +35,7 @@ double f2(double x, double y) {
 // CHECK-NEXT: }
 
 double f_try_catch(double x, double y)
-  try { // expected-warning {{attempted to differentiate unsupported statement, no changes applied}}
+  try { // expected-warning {{statement kind 'CXXTryStmt' is not supported}}
     return x;
   }
   catch (int) {
@@ -57,8 +57,8 @@ int main() {
   clad::differentiate<clad::opts::vector_mode>(f1);
   clad::differentiate<clad::opts::vector_mode>(f2);
   clad::differentiate<clad::opts::vector_mode>(f_try_catch);
-  clad::differentiate<2, clad::opts::vector_mode>(f_try_catch); // expected-error {{Only first order derivative is supported for now in vector forward mode}}
-  clad::differentiate<clad::opts::use_enzyme, clad::opts::vector_mode>(f1); // expected-error {{Enzyme's vector mode is not yet supported}}
-  clad::gradient<clad::opts::vector_mode>(f1, "x, y, z"); // expected-error {{Reverse vector mode is not yet supported.}}
+  clad::differentiate<2, clad::opts::vector_mode>(f_try_catch); // expected-error {{only first order derivative is supported for now in vector forward mode}}
+  clad::differentiate<clad::opts::use_enzyme, clad::opts::vector_mode>(f1); // expected-error {{enzyme's vector mode is not yet supported}}
+  clad::gradient<clad::opts::vector_mode>(f1, "x, y, z"); // expected-error {{reverse vector mode is not yet supported}}
   return 0;
 }

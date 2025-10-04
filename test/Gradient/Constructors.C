@@ -78,14 +78,14 @@ double fn1(double x, double y) {
 struct S1{
   double p;
   double d;
-  S1(double x) : p(x), d([](){return 12.;}()) {} // expected-warning {{Direct lambda calls are not supported, ignored.}}
+  S1(double x) : p(x), d([](){return 12.;}()) {} // expected-warning {{direct lambda calls are not supported, ignored}}
 };
 
 struct S2{
   double p;
   double i;
   double d;
-  S2(double x) : p(x), i(1.), d([&](){i *= 32; return 12.;}()) {} // expected-warning {{Direct lambda calls are not supported, ignored.}}
+  S2(double x) : p(x), i(1.), d([&](){i *= 32; return 12.;}()) {} // expected-warning {{direct lambda calls are not supported, ignored}}
 };
 
 struct S3{
@@ -104,7 +104,7 @@ struct S4{
 struct S5{
   double i;
   S5(double x) 
-    try { // expected-warning {{Try statements are not supported, ignored.}}
+    try { // expected-warning {{statement kind 'CXXTryStmt' is not supported}}
       i = x;
     } catch(...) {
       printf("caught\n");
