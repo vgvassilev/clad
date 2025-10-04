@@ -147,10 +147,9 @@ bool ErrorEstimationHandler::ShouldEstimateErrorFor(VarDecl* VD) {
     // because we assume the cast is intensional.
     if (init && init->IgnoreImpCasts()->getType()->isFloatingType())
       m_RMV->diag(DiagnosticsEngine::Warning, VD->getEndLoc(),
-                  "Lossy assignment from '%0' to '%1', this error will not be "
-                  "taken into cosideration while estimation",
-                  {init->IgnoreImpCasts()->getType().getAsString(),
-                   varDeclBase.getAsString()});
+                  "lossy assignment from %0 to %1, this error will not be "
+                  "taken into cosideration while estimation")
+          << init->IgnoreImpCasts()->getType() << varDeclBase;
     // Secondly, we want to only register floating-point types
     // So return false here.
     return false;

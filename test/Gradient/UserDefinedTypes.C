@@ -401,7 +401,7 @@ struct MyStruct{
   double b;
 }; 
 
-MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports differentiation functions of real return types. Return stmt ignored.}}
+MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports differentiation functions of real return types. Return stmt ignored}}
   s = {2 * s.a, 2 * s.b + 2};
   return s;
 }
@@ -521,8 +521,8 @@ namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
 template<::std::size_t N>
-::clad::ValueAndAdjoint<SimpleArray<double, N>, SimpleArray<double, N>> // expected-note {{'clad::custom_derivatives::class_functions::constructor_reverse_forw<2}}{{' is defined here}}
-constructor_reverse_forw(::clad::Tag<SimpleArray<double, N>>) {
+::clad::ValueAndAdjoint<SimpleArray<double, N>, SimpleArray<double, N>>
+constructor_reverse_forw(::clad::Tag<SimpleArray<double, N>>) {  // expected-note {{'constructor_reverse_forw<2}}{{' is defined here}}
   SimpleArray<double, N> a;
   SimpleArray<double, N> d_a;
   return {a, d_a};
@@ -530,7 +530,7 @@ constructor_reverse_forw(::clad::Tag<SimpleArray<double, N>>) {
 }}}
 
 double fn15(double x, double y) {
-  SimpleArray<double, 2> arr; // expected-warning {{'SimpleArray<double, 2>' is an aggregate type and its constructor does not require a user-defined forward sweep function}}
+  SimpleArray<double, 2> arr; // expected-warning {{'SimpleArray<double, 2>' is aggregate type and its constructor does not require user-defined forward sweep function}}
   return arr.elements[0];
 }
 
@@ -1354,7 +1354,7 @@ int main() {
     TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 5, 10, &d_i, &d_j);  // CHECK-EXEC: {1.00, 0.00}
     TEST_GRADIENT(fn11, /*numOfDerivativeArgs=*/2, 3, -14, &d_i, &d_j);  // CHECK-EXEC: {1.00, -1.00}
     MyStruct s = {1.0, 2.0}, d_s = {1.0, 1.0};
-    auto fn12_test = clad::gradient(fn12); // expected-note {{Use clad::jacobian to compute derivatives of multiple real outputs w.r.t. multiple real inputs.}}
+    auto fn12_test = clad::gradient(fn12); // expected-note {{use clad::jacobian to compute derivatives of multiple real outputs w.r.t. multiple real inputs}}
     fn12_test.execute(s, &d_s);
     print(d_s); // CHECK-EXEC: {2.00, 2.00}
 
