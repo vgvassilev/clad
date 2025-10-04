@@ -154,12 +154,12 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
           }
           std::string helperMsg("clad::hessian(" + FD->getNameAsString() +
                                 ", \"" + suggestedArgsStr + "\")");
-          diag(DiagnosticsEngine::Error,
-               m_DiffReq.Args ? m_DiffReq.Args->getEndLoc() : noLoc,
+          SourceLocation L = PVD->getBeginLoc();
+          diag(DiagnosticsEngine::Error, L,
                "Hessian mode differentiation w.r.t. array or pointer "
                "parameters needs explicit declaration of the indices of the "
-               "array using the args parameter; did you mean '%0'",
-               {helperMsg});
+               "array using the args parameter; did you mean '%0'")
+              << helperMsg << L;
           return {};
         }
 

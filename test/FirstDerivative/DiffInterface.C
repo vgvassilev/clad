@@ -67,7 +67,7 @@ int f_redeclared(int x);
 // CHECK: }
 
 int f_try_catch(int x)
-  try { // expected-warning {{attempted to differentiate unsupported statement, no changes applied}}
+  try { // expected-warning {{statement kind 'CXXTryStmt' is not supported}}
     return x;
   }
   catch (int) {
@@ -122,7 +122,7 @@ int dummy(double k) {
 }
 
 double fn_func_param(double x, int (*f)(double)) {
-  int n = f(x); // expected-warning {{Differentiation of only direct calls is supported. Ignored}}
+  int n = f(x); // expected-warning {{differentiation of indirect calls is not supported}}
   return x;
 }
 
@@ -152,26 +152,26 @@ int main () {
 
   clad::differentiate(f_2, 2);
 
-  clad::differentiate(f_2, -1); // expected-error {{Invalid argument index '-1' of '3' argument(s)}}
+  clad::differentiate(f_2, -1); // expected-error {{invalid argument index -1 of 3 argument(s)}}
 
-  clad::differentiate(f_2, 3); // expected-error {{Invalid argument index '3' of '3' argument(s)}}
+  clad::differentiate(f_2, 3); // expected-error {{invalid argument index 3 of 3 argument(s)}}
 
-  clad::differentiate(f_2, 9); // expected-error {{Invalid argument index '9' of '3' argument(s)}}
+  clad::differentiate(f_2, 9); // expected-error {{invalid argument index 9 of 3 argument(s)}}
 
-  clad::differentiate(f_2, x); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
+  clad::differentiate(f_2, x); // expected-error {{failed to parse the parameters, must be string or numeric literal}}
 
-  clad::differentiate(f_2, f_2); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
+  clad::differentiate(f_2, f_2); // expected-error {{failed to parse the parameters, must be string or numeric literal}}
 
-  clad::gradient(f_2, -1); // expected-error {{Invalid argument index '-1' of '3' argument(s)}}
+  clad::gradient(f_2, -1); // expected-error {{invalid argument index -1 of 3 argument(s)}}
 
-  clad::gradient(f_2, "9"); // expected-error {{Invalid argument index '9' of '3' argument(s)}}
+  clad::gradient(f_2, "9"); // expected-error {{invalid argument index 9 of 3 argument(s)}}
   
-  clad::differentiate(f_3, 0); // expected-error {{Invalid argument index '0' of '0' argument(s)}}
+  clad::differentiate(f_3, 0); // expected-error {{invalid argument index 0 of 0 argument(s)}}
 
   float one = 1.0;
-  clad::differentiate(f_2, one); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
+  clad::differentiate(f_2, one); // expected-error {{failed to parse the parameters, must be string or numeric literal}}
 
-  clad::differentiate(f_no_definition, 0); // expected-error {{attempted differentiation of function 'f_no_definition', which does not have a definition}}
+  clad::differentiate(f_no_definition, 0); // expected-error {{attempted differentiation of function 'f_no_definition', without definition}}
 
   clad::differentiate(f_redeclared, 0);
 
@@ -181,19 +181,19 @@ int main () {
   clad::differentiate(f_2, " y ");
   clad::differentiate(f_2, "z");
 
-  clad::differentiate(f_2, "x, y"); // expected-error {{Forward mode differentiation w.r.t. several parameters at once is not supported, call 'clad::differentiate' for each parameter separately}}
-  clad::differentiate(f_2, "t"); // expected-error {{Requested parameter name 't' was not found among function parameters}}
-  clad::differentiate(f_2, "x, x"); // expected-error {{Requested parameter 'x' was specified multiple times}}
+  clad::differentiate(f_2, "x, y"); // expected-error {{forward mode differentiation w.r.t. several parameters at once is not supported; call 'clad::differentiate' for each parameter}}
+  clad::differentiate(f_2, "t"); // expected-error {{requested parameter name 't' was not found among function parameters}}
+  clad::differentiate(f_2, "x, x"); // expected-error {{requested parameter 'x' was specified multiple times}}
   
-  clad::differentiate(f_2, ""); // expected-error {{No parameters were provided}}
+  clad::differentiate(f_2, ""); // expected-error {{no parameters were provided}}
   clad::differentiate(fn_with_no_return, "x");
-  clad::differentiate(fn_with_no_params); // expected-error {{Attempted to differentiate a function without parameters}}
+  clad::differentiate(fn_with_no_params); // expected-error {{attempted to differentiate function with no parameters}}
 
-  clad::differentiate(f_2, "x.mem1");                                   // expected-error {{Fields can only be provided for class type parameters. Field information is incorrectly specified in 'x.mem1' for non-class type parameter 'x'}}
-  clad::differentiate(fn_with_Complex_type_param, "c.real.im");         // expected-error {{Path specified by fields in 'c.real.im' is invalid.}}
-  clad::differentiate(fn_with_ComplexPair_type_param, "cp.c1");         // expected-error {{Attempted differentiation w.r.t. member 'cp.c1' which is not of real type.}}
-  clad::differentiate(fn_with_Complex_type_param, "c.getReal");         // expected-error {{Path specified by fields in 'c.getReal' is invalid.}}
-  clad::differentiate(fn_with_Complex_type_param, "c.invalidField");    // expected-error {{Path specified by fields in 'c.invalidField' is invalid.}}
+  clad::differentiate(f_2, "x.mem1");                                   // expected-error {{fields can only be provided for class type parameters; field information is incorrectly specified in 'x.mem1' for non-class type parameter 'x'}}
+  clad::differentiate(fn_with_Complex_type_param, "c.real.im");         // expected-error {{path specified by fields in 'c.real.im' is invalid}}
+  clad::differentiate(fn_with_ComplexPair_type_param, "cp.c1");         // expected-error {{attempted differentiation w.r.t. parameter 'cp.c1' which is not of real type}}
+  clad::differentiate(fn_with_Complex_type_param, "c.getReal");         // expected-error {{path specified by fields in 'c.getReal' is invalid}}
+  clad::differentiate(fn_with_Complex_type_param, "c.invalidField");    // expected-error {{path specified by fields in 'c.invalidField' is invalid}}
   clad::differentiate(fn_with_func_param_call);
   return 0;
 }

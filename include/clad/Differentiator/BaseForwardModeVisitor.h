@@ -6,6 +6,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -87,12 +88,10 @@ public:
   virtual DeclDiff<clang::VarDecl>
   DifferentiateVarDecl(const clang::VarDecl* VD, bool ignoreInit);
   /// Shorthand for warning on differentiation of unsupported operators
-  void unsupportedOpWarn(clang::SourceLocation loc,
-                         llvm::ArrayRef<llvm::StringRef> args = {}) {
+  void unsupportedOpWarn(clang::SourceLocation loc) {
     diag(clang::DiagnosticsEngine::Warning, loc,
-         "attempt to differentiate unsupported operator,  derivative \
-                         set to 0",
-         args);
+         "attempt to differentiate unsupported operator, derivative \
+                         set to 0");
   }
   StmtDiff VisitCXXForRangeStmt(const clang::CXXForRangeStmt* FRS);
   StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
