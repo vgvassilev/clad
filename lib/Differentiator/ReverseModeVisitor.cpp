@@ -271,10 +271,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       else if (!returnTy->isVoidType()) {
         diag(DiagnosticsEngine::Warning, m_DiffReq.Function->getBeginLoc(),
              "clad::gradient only supports differentiation functions of real "
-             "return types. Return stmt ignored.");
+             "return types. Return stmt ignored")
+            << m_DiffReq.Function->getReturnTypeSourceRange();
         diag(DiagnosticsEngine::Note, m_DiffReq.CallContext->getBeginLoc(),
-             "Use clad::jacobian to compute derivatives of multiple real "
-             "outputs w.r.t. multiple real inputs.");
+             "use clad::jacobian to compute derivatives of multiple real "
+             "outputs w.r.t. multiple real inputs");
       }
       shouldCreateOverload = !m_ExternalSource;
       if (!m_DiffReq.DeclarationOnly && !m_DiffReq.DerivedFDPrototypes.empty())
@@ -395,11 +396,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // We cannot initialize derived variable for pointer types because
           // we do not know the correct size.
           if (!utils::GetValueType(paramTy).isConstQualified()) {
-            diag(DiagnosticsEngine::Error, param->getLocation(),
-                 "Non-differentiable non-const pointer and array parameters "
-                 "are not supported. Please differentiate w.r.t. '%0' or mark "
-                 "it const.",
-                 {param->getNameAsString()});
+            SourceLocation L = param->getLocation();
+            diag(DiagnosticsEngine::Error, L,
+                 "dependent non-const pointer and array parameters "
+                 "are not supported; differentiate w.r.t. %0 or mark it const")
+                << param << L;
             return;
           }
           continue;
@@ -517,8 +518,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitCXXTryStmt(const CXXTryStmt* TS) {
     // FIXME: Add support for try statements.
-    diag(DiagnosticsEngine::Warning, TS->getBeginLoc(),
-         "Try statements are not supported, ignored.");
+    diagUnsupported(TS);
     return StmtDiff();
   }
 
@@ -707,9 +707,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
-    diag(
-        DiagnosticsEngine::Warning, S->getBeginLoc(),
-        "attempted to differentiate unsupported statement, no changes applied");
+    diagUnsupported(S);
     // Unknown stmt, just clone it.
     return StmtDiff(Clone(S));
   }
@@ -1583,9 +1581,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         LookupResult deviceToHostResult =
             utils::LookupQualifiedName("cudaMemcpyDeviceToHost", m_Sema);
         if (deviceToHostResult.empty()) {
-          diag(DiagnosticsEngine::Error, arg->getEndLoc(),
-               "Failed to create cudaMemcpy call; cudaMemcpyDeviceToHost not "
-               "found. Creating kernel pullback aborted.");
+          SourceLocation L = arg->getBeginLoc();
+          diag(DiagnosticsEngine::Error, L,
+               "'cudaMemcpyDeviceToHost' not found and cannot create call to"
+               "'cudaMemcpy'; creating kernel pullback aborted")
+              << L;
           return Visit(arg);
         }
         CXXScopeSpec SS;
@@ -1688,9 +1688,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return {};
     const FunctionDecl* FD = CE->getDirectCallee();
     if (!FD) {
-      diag(DiagnosticsEngine::Warning,
-           CE->getEndLoc(),
-           "Differentiation of only direct calls is supported. Ignored");
+      diagUnsupportedIndirectCalls(CE);
       return StmtDiff(Clone(CE));
     }
 
@@ -1752,8 +1750,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // [](){return 12.;}()
     if (MD && isLambdaCallOperator(MD) &&
         !isa<DeclRefExpr>(baseOriginalE->IgnoreImplicit())) {
-      diag(DiagnosticsEngine::Warning, baseOriginalE->getBeginLoc(),
-           "Direct lambda calls are not supported, ignored.");
+      SourceLocation L = baseOriginalE->getBeginLoc();
+      diag(DiagnosticsEngine::Warning, L,
+           "direct lambda calls are not supported, ignored")
+          << L;
       return getZeroInit(CE->getType());
     }
 
@@ -2451,13 +2451,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       addToCurrentBlock(utils::unwrapIfSingleStmt(LPop), direction::reverse);
       std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RResult);
     } else if (BinOp->isAssignmentOp()) {
-      if (L->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
-        diag(DiagnosticsEngine::Warning,
-             BinOp->getEndLoc(),
-             "derivative of an assignment attempts to assign to unassignable "
-             "expr, assignment ignored");
-        return Clone(BinOp);
-      }
+      assert(L->isModifiableLvalue(m_Context) == Expr::MLV_Valid &&
+             "LHS of an assignment is not modifiable");
 
       // Visit LHS, but delay emission of its derivative statements, save them
       // in Lblock
@@ -3088,9 +3083,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (SADDiff.getDecl_dx())
           declsDiff.push_back(SADDiff.getDecl_dx());
       } else {
-        diag(DiagnosticsEngine::Warning,
-             D->getEndLoc(),
-             "Unsupported declaration");
+        diagUnsupported(D);
       }
     }
 
@@ -4405,20 +4398,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* customReverseForwFnCall =
           BuildCallExprToFunction(constrForw, reverseForwAdjointArgs);
       if (RD->isAggregate()) {
-        SmallString<128> Name_class;
-        llvm::raw_svector_ostream OS_class(Name_class);
-        RD->getNameForDiagnostic(OS_class, m_Context.getPrintingPolicy(),
-                                 /*qualified=*/true);
-        diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
-             "'%0' is an aggregate type and its constructor does not require a "
-             "user-defined forward sweep function",
-             {OS_class.str()});
-        SmallString<128> Name_forw;
-        llvm::raw_svector_ostream OS_forw(Name_forw);
-        constrForw->getNameForDiagnostic(OS_forw, m_Context.getPrintingPolicy(),
-                                         /*qualified=*/true);
-        diag(DiagnosticsEngine::Note, constrForw->getBeginLoc(),
-             "'%0' is defined here", {OS_forw.str()});
+        SourceLocation L = CE->getBeginLoc();
+        diag(DiagnosticsEngine::Warning, L,
+             "%0 is aggregate type and its constructor does not require "
+             "user-defined forward sweep function %1")
+            << RD << constrForw << L;
+        SourceLocation NoteL = constrForw->getNameInfo().getLoc();
+        diag(DiagnosticsEngine::Note, NoteL, "%0 is defined here")
+            << constrForw << NoteL;
       }
       Expr* callRes = StoreAndRef(customReverseForwFnCall);
       Expr* val =

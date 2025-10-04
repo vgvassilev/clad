@@ -774,24 +774,23 @@ namespace clad {
     bool NumDiffEnabled =
         !m_Sema.getPreprocessor().isMacroDefined("CLAD_NO_NUM_DIFF");
     // FIXME: Switch to the real diagnostics engine and pass FD directly.
-    std::string funcName = FD->getNameAsString();
     diag(DiagnosticsEngine::Warning, srcLoc,
-         "function '%0' was not differentiated because clad failed to "
+         "function %0 was not differentiated because clad failed to "
          "differentiate it and no suitable overload was found in "
-         "namespace 'custom_derivatives'",
-         {funcName});
+         "namespace 'custom_derivatives'")
+        << FD << srcLoc;
     if (NumDiffEnabled) {
       diag(DiagnosticsEngine::Note, srcLoc,
-           "falling back to numerical differentiation for '%0' since no "
+           "falling back to numerical differentiation for %0 since no "
            "suitable overload was found and clad could not derive it; "
            "to disable this feature, compile your programs with "
-           "-DCLAD_NO_NUM_DIFF",
-           {funcName});
+           "-DCLAD_NO_NUM_DIFF")
+          << FD << srcLoc;
     } else {
       diag(DiagnosticsEngine::Note, srcLoc,
            "fallback to numerical differentiation is disabled by the "
-           "'CLAD_NO_NUM_DIFF' macro; considering '%0' as 0",
-           {funcName});
+           "'CLAD_NO_NUM_DIFF' macro; considering %0 as 0")
+          << FD << srcLoc;
     }
   }
 

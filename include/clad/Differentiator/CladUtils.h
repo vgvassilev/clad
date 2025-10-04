@@ -13,10 +13,12 @@
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <cassert>
 #include <string>
 
 namespace clang {
@@ -49,16 +51,18 @@ namespace clad {
                                                      clang::Stmt* initial,
                                                      clang::Stmt* S);
 
-    /// Shorthand to issues a warning or error.
     template <std::size_t N>
-    void EmitDiag(clang::Sema& semaRef,
-              clang::DiagnosticsEngine::Level level, // Warning or Error
-              clang::SourceLocation loc, const char (&format)[N],
-              llvm::ArrayRef<llvm::StringRef> args = {}) {
-      unsigned diagID = semaRef.Diags.getCustomDiagID(level, format);
-      clang::Sema::SemaDiagnosticBuilder stream = semaRef.Diag(loc, diagID);
-      for (auto arg : args)
-        stream << arg;
+    clang::Sema::SemaDiagnosticBuilder
+    diag(clang::Sema& S, clang::DiagnosticsEngine::Level Level,
+         clang::SourceLocation Loc, const char (&Format)[N]) {
+      static_assert(N > 1, "Diagnostic format string must not be empty");
+      assert(!std::isupper(Format[0]) && "Diagnostics start with lower case!");
+      assert((std::isalpha(Format[N - 2]) || Format[N - 2] == ')' ||
+              Format[N - 2] == '\'' || std::isdigit(Format[N - 2])) &&
+             "Diagnostics end with no punctuation!");
+      unsigned DiagID = S.Diags.getCustomDiagID(Level, Format);
+      clang::Sema::SemaDiagnosticBuilder B = S.Diag(Loc, DiagID);
+      return B;
     }
 
     /// Creates nested name specifier associated with declaration context
