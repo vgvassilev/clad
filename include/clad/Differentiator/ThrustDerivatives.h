@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <iterator>
+#include <thrust/adjacent_difference.h>
 #include <thrust/count.h>
 #include <thrust/device_ptr.h>
 #include <thrust/fill.h> // NOLINT(misc-include-cleaner)
@@ -724,6 +725,78 @@ void transform_reduce_pullback(InputIterator first, InputIterator last,
   transform_pullback(first, last, transformed_values.begin(), unary_op,
                      d_result_dummy.begin(), // d_return dummy
                      d_first, d_last, &d_transformed_values_it, d_unary_op);
+}
+
+template <typename InputIt, typename OutputIt>
+void adjacent_difference_pullback(InputIt first, InputIt last, OutputIt result,
+                                  OutputIt /*d_return*/, InputIt* d_first,
+                                  InputIt* d_last, OutputIt* d_result) {
+  using Value = typename ::std::iterator_traits<InputIt>::value_type;
+  ::thrust::minus<Value> op;
+  ::thrust::minus<Value>* d_op = nullptr;
+  adjacent_difference_pullback(first, last, result, op, {}, d_first, d_last,
+                               d_result, d_op);
+}
+
+template <typename InputIt, typename OutputIt, typename BinaryOp>
+void adjacent_difference_pullback(InputIt first, InputIt last, OutputIt result,
+                                  BinaryOp /*op*/, OutputIt /*d_return*/,
+                                  InputIt* d_first, InputIt* d_last,
+                                  OutputIt* d_result, BinaryOp* /*d_op*/) {
+  size_t n = ::thrust::distance(first, last);
+  if (n == 0)
+    return;
+
+  using ValueConst = typename ::std::iterator_traits<InputIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+
+  auto d_src_const_ptr = ::thrust::raw_pointer_cast((*d_first).base());
+  auto d_src_ptr = const_cast<Value*>(d_src_const_ptr);
+  ::thrust::device_ptr<Value> d_src_dev_ptr(d_src_ptr);
+
+  auto d_dst_const_ptr = ::thrust::raw_pointer_cast((*d_result).base());
+  auto d_dst_ptr = const_cast<Value*>(d_dst_const_ptr);
+  ::thrust::device_ptr<Value> d_dst_dev_ptr(d_dst_ptr);
+
+  // First, accumulate direct contribution: d_x[i] += d_y[i]
+  ::thrust::transform(d_src_dev_ptr, d_src_dev_ptr + n, d_dst_dev_ptr,
+                      d_src_dev_ptr, ::thrust::plus<Value>());
+
+  if constexpr (::std::is_same_v<BinaryOp, ::thrust::minus<Value>> ||
+                ::std::is_same_v<BinaryOp, ::thrust::plus<Value>>) {
+    if (n > 1) {
+      using ShiftOp = ::std::conditional_t<
+          ::std::is_same_v<BinaryOp, ::thrust::minus<Value>>,
+          ::thrust::minus<Value>, ::thrust::plus<Value>>;
+      ::thrust::transform(d_src_dev_ptr, d_src_dev_ptr + (n - 1),
+                          d_dst_dev_ptr + 1, d_src_dev_ptr, ShiftOp());
+    }
+  } else {
+    static_assert(::std::is_same_v<Value, void>,
+                  "This binary operation is not supported by the custom "
+                  "adjacent_difference_pullback.");
+  }
+
+  // Clear output adjoints
+  ::thrust::fill(d_dst_dev_ptr, d_dst_dev_ptr + n, Value(0));
+}
+
+template <typename InputIt, typename OutputIt>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+adjacent_difference_reverse_forw(InputIt first, InputIt last, OutputIt result,
+                                 InputIt, InputIt, OutputIt) {
+  using Value = typename ::std::iterator_traits<InputIt>::value_type;
+  return {::thrust::adjacent_difference(first, last, result,
+                                        ::thrust::minus<Value>()),
+          {}};
+}
+
+template <typename InputIt, typename OutputIt, typename BinaryOp>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+adjacent_difference_reverse_forw(InputIt first, InputIt last, OutputIt result,
+                                 BinaryOp op, InputIt, InputIt, OutputIt,
+                                 BinaryOp) {
+  return {::thrust::adjacent_difference(first, last, result, op), {}};
 }
 
 } // namespace clad::custom_derivatives::thrust
