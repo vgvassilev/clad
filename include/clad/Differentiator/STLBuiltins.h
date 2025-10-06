@@ -120,8 +120,7 @@ end_pushforward(const ::std::initializer_list<T>* il,
 template <typename T>
 clad::ValueAndPushforward<::std::vector<T>, ::std::vector<T>>
 constructor_pushforward(
-    ConstructorPushforwardTag<::std::vector<T>>,
-    typename ::std::vector<T>::size_type n,
+    clad::Tag<::std::vector<T>>, typename ::std::vector<T>::size_type n,
     const typename ::std::vector<T>::allocator_type& alloc,
     typename ::std::vector<T>::size_type d_n,
     const typename ::std::vector<T>::allocator_type& d_alloc) {
@@ -133,8 +132,7 @@ constructor_pushforward(
 template <typename T>
 clad::ValueAndPushforward<::std::vector<T>, ::std::vector<T>>
 constructor_pushforward(
-    ConstructorPushforwardTag<::std::vector<T>>,
-    typename ::std::vector<T>::size_type n, T val,
+    clad::Tag<::std::vector<T>>, typename ::std::vector<T>::size_type n, T val,
     const typename ::std::vector<T>::allocator_type& alloc,
     typename ::std::vector<T>::size_type d_n, T d_val,
     const typename ::std::vector<T>::allocator_type& d_alloc) {
@@ -146,8 +144,7 @@ constructor_pushforward(
 template <typename T>
 clad::ValueAndPushforward<::std::vector<T>, ::std::vector<T>>
 constructor_pushforward(
-    ConstructorPushforwardTag<::std::vector<T>>,
-    ::std::initializer_list<T> list,
+    clad::Tag<::std::vector<T>>, ::std::initializer_list<T> list,
     const typename ::std::vector<T>::allocator_type& alloc,
     ::std::initializer_list<T> dlist,
     const typename ::std::vector<T>::allocator_type& dalloc) {
@@ -158,7 +155,7 @@ constructor_pushforward(
 
 template <typename T>
 clad::ValueAndPushforward<::std::vector<T>, ::std::vector<T>>
-constructor_pushforward(ConstructorPushforwardTag<::std::vector<T>>,
+constructor_pushforward(clad::Tag<::std::vector<T>>,
                         typename ::std::vector<T>::size_type n,
                         typename ::std::vector<T>::size_type d_n) {
   ::std::vector<T> v(n);
@@ -168,7 +165,7 @@ constructor_pushforward(ConstructorPushforwardTag<::std::vector<T>>,
 
 template <typename T>
 clad::ValueAndPushforward<::std::vector<T>, ::std::vector<T>>
-constructor_pushforward(ConstructorPushforwardTag<::std::vector<T>>,
+constructor_pushforward(clad::Tag<::std::vector<T>>,
                         typename ::std::vector<T>::size_type n, T val,
                         typename ::std::vector<T>::size_type d_n, T d_val) {
   ::std::vector<T> v(n, val);
@@ -178,7 +175,7 @@ constructor_pushforward(ConstructorPushforwardTag<::std::vector<T>>,
 
 template <typename T>
 clad::ValueAndPushforward<::std::vector<T>, ::std::vector<T>>
-constructor_pushforward(ConstructorPushforwardTag<::std::vector<T>>,
+constructor_pushforward(clad::Tag<::std::vector<T>>,
                         ::std::initializer_list<T> list,
                         ::std::initializer_list<T> dlist) {
   ::std::vector<T> v(list);

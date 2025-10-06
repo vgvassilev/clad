@@ -821,25 +821,10 @@ namespace clad {
         .get();
   }
 
-  clang::TemplateDecl* VisitorBase::GetCladConstructorPushforwardTag() {
-    if (!m_CladConstructorPushforwardTag)
-      m_CladConstructorPushforwardTag =
-          utils::LookupTemplateDeclInCladNamespace(m_Sema,
-                                                   "ConstructorPushforwardTag");
-    return m_CladConstructorPushforwardTag;
-  }
-
-  clang::QualType
-  VisitorBase::GetCladConstructorPushforwardTagOfType(clang::QualType T) {
-    return utils::InstantiateTemplate(m_Sema,
-                                      GetCladConstructorPushforwardTag(), {T});
-  }
-
   clang::TemplateDecl* VisitorBase::GetCladTag() {
-    if (!m_CladConstructorPushforwardTag)
-      m_CladConstructorReverseForwTag =
-          utils::LookupTemplateDeclInCladNamespace(m_Sema, "Tag");
-    return m_CladConstructorReverseForwTag;
+    if (!m_CladTag)
+      m_CladTag = utils::LookupTemplateDeclInCladNamespace(m_Sema, "Tag");
+    return m_CladTag;
   }
 
   clang::QualType VisitorBase::GetCladTagOfType(clang::QualType T) {

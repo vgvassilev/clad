@@ -17,16 +17,16 @@ namespace class_functions {
 template <class DataType, class... ViewParams>
 clad::ValueAndPushforward<Kokkos::View<DataType, ViewParams...>,
                           Kokkos::View<DataType, ViewParams...>>
-constructor_pushforward(
-    clad::ConstructorPushforwardTag<Kokkos::View<DataType, ViewParams...>>,
-    const ::std::string& name, const size_t& idx0, const size_t& idx1,
-    const size_t& idx2, const size_t& idx3, const size_t& idx4,
-    const size_t& idx5, const size_t& idx6, const size_t& idx7,
-    const ::std::string& /*d_name*/, const size_t& /*d_idx0*/,
-    const size_t& /*d_idx1*/, const size_t& /*d_idx2*/,
-    const size_t& /*d_idx3*/, const size_t& /*d_idx4*/,
-    const size_t& /*d_idx5*/, const size_t& /*d_idx6*/,
-    const size_t& /*d_idx7*/) {
+constructor_pushforward(clad::Tag<Kokkos::View<DataType, ViewParams...>>,
+                        const ::std::string& name, const size_t& idx0,
+                        const size_t& idx1, const size_t& idx2,
+                        const size_t& idx3, const size_t& idx4,
+                        const size_t& idx5, const size_t& idx6,
+                        const size_t& idx7, const ::std::string& /*d_name*/,
+                        const size_t& /*d_idx0*/, const size_t& /*d_idx1*/,
+                        const size_t& /*d_idx2*/, const size_t& /*d_idx3*/,
+                        const size_t& /*d_idx4*/, const size_t& /*d_idx5*/,
+                        const size_t& /*d_idx6*/, const size_t& /*d_idx7*/) {
   return {Kokkos::View<DataType, ViewParams...>(name, idx0, idx1, idx2, idx3,
                                                 idx4, idx5, idx6, idx7),
           Kokkos::View<DataType, ViewParams...>(

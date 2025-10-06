@@ -2184,17 +2184,17 @@ clang::Expr* BaseForwardModeVisitor::BuildCustomDerivativeConstructorPFCall(
     llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
     llvm::SmallVectorImpl<clang::Expr*>& derivedArgs) {
   llvm::SmallVector<Expr*, 4> customPushforwardArgs;
-  QualType constructorPushforwardTagT = GetCladConstructorPushforwardTagOfType(
-      CE->getType().withoutLocalFastQualifiers());
-  // Builds clad::ConstructorPushforwardTag<T> declaration
-  Expr* constructorPushforwardTagArg =
+  QualType CladTagTy =
+      GetCladTagOfType(CE->getType().withoutLocalFastQualifiers());
+  // Builds clad::Tag<T> declaration
+  Expr* tagArg =
       m_Sema
           .BuildCXXTypeConstructExpr(
-              m_Context.getTrivialTypeSourceInfo(constructorPushforwardTagT,
+              m_Context.getTrivialTypeSourceInfo(CladTagTy,
                                                  utils::GetValidSLoc(m_Sema)),
               noLoc, MultiExprArg{}, noLoc, /*ListInitialization=*/false)
           .get();
-  customPushforwardArgs.push_back(constructorPushforwardTagArg);
+  customPushforwardArgs.push_back(tagArg);
   customPushforwardArgs.append(clonedArgs.begin(), clonedArgs.end());
   customPushforwardArgs.append(derivedArgs.begin(), derivedArgs.end());
   std::string customPushforwardName =
