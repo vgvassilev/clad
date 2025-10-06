@@ -69,8 +69,7 @@ float fn1(
 // CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> v{{.*}}{u, b}{{.*}};
 // CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> _d_v(v);
 // CHECK-NEXT:     clad::zero_init(_d_v);
-// CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}}Tensor &, {{.*}}Tensor &> _t0 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&v, 1, &_d_v, 0);
-// CHECK-NEXT:     _t0.adjoint.data += 1;
+// CHECK-NEXT:     _d_v[1].data += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         clad::array<{{cladtorch::Tensor|std::vector<cladtorch::Tensor, std::allocator<cladtorch::Tensor> >::value_type}}> _r0 = {{2U|2UL}};
 // CHECK:              {{.*}}clad::custom_derivatives::class_functions::constructor_pullback({u, b}, {{.*}}&_d_v, &_r0{{.*}});

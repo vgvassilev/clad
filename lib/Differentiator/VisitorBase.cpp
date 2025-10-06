@@ -627,16 +627,19 @@ namespace clad {
   }
 
   Expr*
-  VisitorBase::BuildCallExprToFunction(FunctionDecl* FD,
+  VisitorBase::BuildCallExprToFunction(const FunctionDecl* FD,
                                        llvm::MutableArrayRef<Expr*> argExprs,
                                        clang::Expr* CUDAExecConfig /*=nullptr*/,
                                        bool useRefQualifiedThisObj /*=false*/) {
     Expr* call = nullptr;
     auto* MD = dyn_cast<CXXMethodDecl>(FD);
-    if (MD && MD->isInstance()) {
+    if (FD->isOverloadedOperator()) {
+      call = BuildOperatorCall(FD->getOverloadedOperator(), argExprs);
+    } else if (MD && MD->isInstance()) {
       // FIXME: We shouldn't have different overloads of BuildCallExprToMemFn.
       if (useRefQualifiedThisObj)
-        call = BuildCallExprToMemFn(MD, argExprs, useRefQualifiedThisObj);
+        call = BuildCallExprToMemFn(const_cast<CXXMethodDecl*>(MD), argExprs,
+                                    useRefQualifiedThisObj);
       else
         call = BuildCallExprToMemFn(argExprs[0], MD->getName(),
                                     argExprs.drop_front(), MD->getLocation());
@@ -645,7 +648,7 @@ namespace clad {
           FD->getParamDecl(0)->getType()->isPointerType() &&
           !utils::isArrayOrPointerType(argExprs[0]->getType()))
         argExprs[0] = BuildOp(UnaryOperatorKind::UO_AddrOf, argExprs[0]);
-      Expr* exprFunc = BuildDeclRef(FD);
+      Expr* exprFunc = BuildDeclRef(const_cast<FunctionDecl*>(FD));
       call = m_Sema
                  .ActOnCallExpr(
                      getCurrentScope(),

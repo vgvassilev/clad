@@ -415,6 +415,8 @@ namespace clad {
     /// forward-declared in the `clad::tensor_like` namespace.
     bool isTensorLike(clang::Sema& SemaRef, clang::QualType T);
 
+    bool hasElidableReverseForwAttribute(const clang::Decl* D);
+
     /// Returns true if FD can be differentiated as a pushforward
     /// And be used in the reverse mode.
     bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD);

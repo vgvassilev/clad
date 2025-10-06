@@ -643,6 +643,13 @@ namespace clad {
       return false;
     }
 
+    bool hasElidableReverseForwAttribute(const clang::Decl* D) {
+      for (auto* Attr : D->specific_attrs<clang::AnnotateAttr>())
+        if (Attr->getAnnotation() == "elidable_reverse_forw")
+          return true;
+      return false;
+    }
+
     bool hasNonDifferentiableAttribute(const clang::Expr* E) {
       // Check MemberExpr
       if (const clang::MemberExpr* ME = clang::dyn_cast<clang::MemberExpr>(E)) {

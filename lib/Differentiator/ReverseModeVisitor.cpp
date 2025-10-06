@@ -1831,9 +1831,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return getZeroInit(CE->getType());
     }
 
+    // Lookup a reverse_forw function and build if necessary.
+    DiffRequest calleeFnForwPassReq;
+    calleeFnForwPassReq.Function = FD;
+    calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
+    calleeFnForwPassReq.BaseFunctionName =
+        clad::utils::ComputeEffectiveFnName(FD);
+    FunctionDecl* calleeFnForwPassFD = FindDerivedFunction(calleeFnForwPassReq);
+    bool elideReverseForw =
+        calleeFnForwPassFD &&
+        utils::hasElidableReverseForwAttribute(calleeFnForwPassFD);
+
     // FIXME: consider moving non-diff analysis to DiffPlanner.
     bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
-
     // If the result does not depend on the result of the call, just clone
     // the call and visit arguments (since they may contain side-effects like
     // f(x = y))
@@ -1958,7 +1968,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           DifferentiateCallArg(arg, PVD, PreCallStmts, /*isNonDiff=*/nonDiff,
                                isa<CUDAKernelCallExpr>(CE));
       CallArgs.push_back(argDiff.getExpr());
-      revForwAdjointArgs.push_back(argDiff.getRevSweepAsExpr());
+      if (elideReverseForw && PVD->getType()->isIntegerType())
+        revForwAdjointArgs.push_back(argDiff.getExpr());
+      else
+        revForwAdjointArgs.push_back(argDiff.getRevSweepAsExpr());
       CallArgDx.push_back(argDiff.getExpr_dx());
       if (m_DiffReq.shouldBeRecorded(arg))
         hasStoredParams = true;
@@ -2107,15 +2120,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return StmtDiff(Clone(CE));
 
     Expr* call = nullptr;
-    // Lookup a reverse_forw function and build if necessary.
-    DiffRequest calleeFnForwPassReq;
-    calleeFnForwPassReq.Function = FD;
-    calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
-    calleeFnForwPassReq.BaseFunctionName =
-        clad::utils::ComputeEffectiveFnName(FD);
-    calleeFnForwPassReq.VerboseDiags = true;
+    if (elideReverseForw) {
+      call = BuildCallExprToFunction(FD, CallArgs, CUDAExecConfig);
+      if (MD && MD->isInstance())
+        if (auto* UO = dyn_cast<UnaryOperator>(revForwAdjointArgs[0]))
+          revForwAdjointArgs[0] = UO->getSubExpr();
+      Expr* call_dx =
+          BuildCallExprToFunction(FD, revForwAdjointArgs, CUDAExecConfig);
+      if (Expr* add_assign = BuildDiffIncrement(call_dx)) {
+        Stmts& block = getCurrentBlock(direction::reverse);
+        it = std::begin(block) + insertionPoint;
+        block.insert(it, add_assign);
+      }
+      return {call, call_dx};
+    }
 
-    FunctionDecl* calleeFnForwPassFD = FindDerivedFunction(calleeFnForwPassReq);
     if (calleeFnForwPassFD && !hasDynamicNonDiffParams &&
         (hasStoredParams || needsForwPass)) {
       CallArgs.insert(CallArgs.end(), revForwAdjointArgs.begin(),
@@ -2178,23 +2197,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         Stmts& block = getCurrentBlock(direction::reverse);
         it = std::begin(block) + insertionPoint;
         block.insert(it, add_assign);
-        // addToCurrentBlock(add_assign, direction::reverse);
       }
       return StmtDiff(resValue, resAdjoint);
     } // Recreate the original call expression.
 
     if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
-      if (OCE->getOperator() == clang::OverloadedOperatorKind::OO_Subscript) {
-        // If the operator is subscript, we should return the adjoint expression
-        auto AdjointCallArgs = CallArgs;
-        Expr* adjointBase = CallArgDx[0];
-        if (auto* UnOp = dyn_cast<UnaryOperator>(adjointBase))
-          adjointBase = UnOp->getSubExpr();
-        AdjointCallArgs[0] = adjointBase;
-        call = BuildOperatorCall(OCE->getOperator(), CallArgs);
-        Expr* call_dx = BuildOperatorCall(OCE->getOperator(), AdjointCallArgs);
-        return StmtDiff(call, call_dx);
-      }
       call = BuildOperatorCall(OCE->getOperator(), CallArgs);
       return StmtDiff(call);
     }
@@ -3031,7 +3038,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (stmtDx) {
       if (dxInForward)
         addToCurrentBlock(stmtDx, direction::forward);
-      else
+      else if (!clad_compat::isa_and_nonnull<Expr>(S))
         addToCurrentBlock(stmtDx, direction::reverse);
     }
     CompoundStmt* RCS = endBlock(direction::reverse);
