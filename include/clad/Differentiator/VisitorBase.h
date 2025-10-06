@@ -597,11 +597,11 @@ namespace clad {
     /// Returns type clad::Identify<T>
     clang::QualType GetCladConstructorPushforwardTagOfType(clang::QualType T);
 
-    /// Returns clad::ConstructorReverseForwTag template declaration.
-    clang::TemplateDecl* GetCladConstructorReverseForwTag();
+    /// Returns clad::Tag template declaration.
+    clang::TemplateDecl* GetCladTag();
 
-    /// Returns type clad::ConstructorReverseForwTag<T>
-    clang::QualType GetCladConstructorReverseForwTagOfType(clang::QualType T);
+    /// Returns type clad::Tag<T>
+    clang::QualType GetCladTagOfType(clang::QualType T);
     /// Find the derived function if present in the DerivedFnCollector.
     ///
     /// \param[in] request The request to find the derived function.

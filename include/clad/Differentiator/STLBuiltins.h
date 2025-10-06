@@ -677,8 +677,7 @@ operator_equal_pushforward(::std::tuple<Args1...>* tu,
 // std::unique_ptr<T> custom derivatives...
 template <typename T, typename U>
 clad::ValueAndAdjoint<::std::unique_ptr<T>, ::std::unique_ptr<T>>
-constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::unique_ptr<T>>,
-                         U* p, U* d_p) {
+constructor_reverse_forw(clad::Tag<::std::unique_ptr<T>>, U* p, U* d_p) {
   return {::std::unique_ptr<T>(p), ::std::unique_ptr<T>(d_p)};
 }
 
@@ -699,8 +698,8 @@ elidable_reverse_forw
 template <
     typename It,
     typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
-clad::ValueAndAdjoint<It, It>
-constructor_reverse_forw(clad::ConstructorReverseForwTag<It>, It it, It d_it) {
+clad::ValueAndAdjoint<It, It> constructor_reverse_forw(clad::Tag<It>, It it,
+                                                       It d_it) {
   return {It{it}, It{d_it}};
 }
 
@@ -739,7 +738,7 @@ void operator_plus_plus_pullback(It* it, int, It pullback, It* d_it, int*) {
 // std::shared_ptr<T> custom derivatives...
 template <typename T>
 clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
-constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::shared_ptr<T>>,
+constructor_reverse_forw(clad::Tag<::std::shared_ptr<T>>,
                          const ::std::shared_ptr<T>& p,
                          const ::std::shared_ptr<T>& d_p) {
   return {::std::shared_ptr<T>(p), ::std::shared_ptr<T>(d_p)};
@@ -762,8 +761,7 @@ void constructor_pullback(const ::std::shared_ptr<T>& p, U*,
 // std::weak_ptr<T> custom derivatives...
 template <typename T, typename U>
 clad::ValueAndAdjoint<::std::weak_ptr<T>, ::std::weak_ptr<T>>
-constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::weak_ptr<T>>,
-                         U p, U d_p) {
+constructor_reverse_forw(clad::Tag<::std::weak_ptr<T>>, U p, U d_p) {
   return {::std::weak_ptr<T>(p), ::std::weak_ptr<T>(d_p)};
 }
 template <typename T, typename U>
