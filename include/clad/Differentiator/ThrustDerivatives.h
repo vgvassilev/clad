@@ -20,6 +20,37 @@
 
 namespace clad::custom_derivatives::thrust {
 
+namespace detail {
+// Detection of functor operator_call_pullback for unary and binary ops
+template <typename, typename, typename = void>
+struct has_unary_operator_call_pullback : ::std::false_type {};
+
+template <typename Op, typename T>
+struct has_unary_operator_call_pullback<
+    Op, T,
+    ::std::void_t<decltype(::std::declval<Op&>().operator_call_pullback(
+        ::std::declval<T>(),                   // x
+        ::std::declval<T>(),                   // d_y
+        (::std::add_pointer_t<Op>)(nullptr),   // d_op
+        (::std::add_pointer_t<T>)(nullptr)))>> // d_x
+    : ::std::true_type {};
+
+template <typename, typename, typename = void>
+struct has_binary_operator_call_pullback : ::std::false_type {};
+
+template <typename Op, typename T>
+struct has_binary_operator_call_pullback<
+    Op, T,
+    ::std::void_t<decltype(::std::declval<Op&>().operator_call_pullback(
+        ::std::declval<T>(),                   // x1
+        ::std::declval<T>(),                   // x2
+        ::std::declval<T>(),                   // d_y
+        (::std::add_pointer_t<Op>)(nullptr),   // d_op
+        (::std::add_pointer_t<T>)(nullptr),    // d_x1
+        (::std::add_pointer_t<T>)(nullptr)))>> // d_x2
+    : ::std::true_type {};
+} // namespace detail
+
 template <typename Iterator, typename OutputIterator>
 void copy_pullback(Iterator first, Iterator last, OutputIterator result,
                    OutputIterator d_return, Iterator* d_first, Iterator* d_last,
@@ -451,6 +482,36 @@ void transform_pullback(InputIt first, InputIt last, OutputIt result,
     auto iter = ::thrust::make_zip_iterator(
         ::thrust::make_tuple(d_src_dev_ptr, d_dst_dev_ptr));
     ::thrust::for_each(iter, iter + n, grad_functor());
+  } else if constexpr (detail::has_unary_operator_call_pullback<UnaryOp,
+                                                                Value>::value) {
+    ::thrust::device_vector<UnaryOp> d_op_storage;
+    UnaryOp* d_op_device_ptr = nullptr;
+    if (d_op) {
+      d_op_storage.resize(1);
+      d_op_storage[0] = *d_op;
+      d_op_device_ptr = ::thrust::raw_pointer_cast(d_op_storage.data());
+    }
+
+    struct grad_functor {
+      UnaryOp op;
+      UnaryOp* d_op;
+      CUDA_HOST_DEVICE void
+      operator()(::thrust::tuple<Value&, Value&, const Value&> t) const {
+        Value& d_x = ::thrust::get<0>(t);
+        Value& d_y = ::thrust::get<1>(t);
+        const Value& x = ::thrust::get<2>(t);
+        Value d_x_local = Value(0);
+        // Backprop through user functor
+        op.operator_call_pullback(x, d_y, d_op, &d_x_local);
+        d_x += d_x_local;
+        d_y = 0;
+      }
+    };
+    auto iter = ::thrust::make_zip_iterator(
+        ::thrust::make_tuple(d_src_dev_ptr, d_dst_dev_ptr, first));
+    ::thrust::for_each(iter, iter + n, grad_functor{op, d_op_device_ptr});
+    if (d_op)
+      *d_op = d_op_storage[0];
   } else {
     static_assert(::std::is_same_v<Value, void>,
                   "This unary operation is not supported by the custom "
@@ -551,6 +612,41 @@ void transform_pullback(InputIt1 first1, InputIt1 last1, InputIt2 first2,
     auto iter = ::thrust::make_zip_iterator(::thrust::make_tuple(
         d_first1_dev_ptr, d_first2_dev_ptr, d_result_dev_ptr, first1, first2));
     ::thrust::for_each(iter, iter + n, grad_functor());
+  } else if constexpr (detail::has_binary_operator_call_pullback<
+                           BinaryOp, Value>::value) {
+    ::thrust::device_vector<BinaryOp> d_op_storage;
+    BinaryOp* d_op_device_ptr = nullptr;
+    if (d_op) {
+      d_op_storage.resize(1);
+      d_op_storage[0] = *d_op;
+      d_op_device_ptr = ::thrust::raw_pointer_cast(d_op_storage.data());
+    }
+
+    struct grad_functor {
+      BinaryOp op;
+      BinaryOp* d_op;
+      CUDA_HOST_DEVICE void operator()(
+          ::thrust::tuple<Value&, Value&, Value&, const Value&, const Value&> t)
+          const {
+        Value& d_x1 = ::thrust::get<0>(t);
+        Value& d_x2 = ::thrust::get<1>(t);
+        Value& d_y = ::thrust::get<2>(t);
+        const Value& x1 = ::thrust::get<3>(t);
+        const Value& x2 = ::thrust::get<4>(t);
+        Value d_x1_local = Value(0);
+        Value d_x2_local = Value(0);
+        // Backprop through user functor
+        op.operator_call_pullback(x1, x2, d_y, d_op, &d_x1_local, &d_x2_local);
+        d_x1 += d_x1_local;
+        d_x2 += d_x2_local;
+        d_y = 0;
+      }
+    };
+    auto iter = ::thrust::make_zip_iterator(::thrust::make_tuple(
+        d_first1_dev_ptr, d_first2_dev_ptr, d_result_dev_ptr, first1, first2));
+    ::thrust::for_each(iter, iter + n, grad_functor{op, d_op_device_ptr});
+    if (d_op)
+      *d_op = d_op_storage[0];
   } else {
     static_assert(::std::is_same_v<Value, void>,
                   "This binary operation is not supported by the custom "
