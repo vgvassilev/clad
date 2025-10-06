@@ -50,13 +50,17 @@ template <typename T, typename U> struct ValueAndAdjoint {
 ///
 /// In the case of constructor pushforward, there are no objects of the class
 /// type passed to the constructor. Therefore, we cannot simply use arguments
-/// to determine the class. To solve this, 'ConstructorPushforwardTag<T>' is
+/// to determine the class. To solve this, 'clad::Tag<T>' is
 /// used. A custom_derivative pushforward for constructor is required to have
-/// 'ConstructorPushforwardTag<T>' as the first argument, where 'T' is the
+/// 'clad::Tag<T>' as the first argument, where 'T' is the
 /// class for which constructor pushforward is defined.
-template <class T> class ConstructorPushforwardTag {};
+/// We do the same for constructor_reverse_forw.
+template <class T> class Tag {};
 
-template <class T> class ConstructorReverseForwTag {};
+/// We have aliases with for old tags for backwards compatibility.
+template <class T> using ConstructorPushforwardTag = Tag<T>;
+
+template <class T> using ConstructorReverseForwTag = Tag<T>;
 
 namespace custom_derivatives {
 #ifdef __CUDACC__
