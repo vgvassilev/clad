@@ -591,12 +591,6 @@ namespace clad {
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
 
-    /// Returns clad::Identify template declaration.
-    clang::TemplateDecl* GetCladConstructorPushforwardTag();
-
-    /// Returns type clad::Identify<T>
-    clang::QualType GetCladConstructorPushforwardTagOfType(clang::QualType T);
-
     /// Returns clad::Tag template declaration.
     clang::TemplateDecl* GetCladTag();
 
@@ -681,8 +675,7 @@ namespace clad {
     virtual ~VisitorBase() = 0;
 
   private:
-    clang::TemplateDecl* m_CladConstructorPushforwardTag = nullptr;
-    clang::TemplateDecl* m_CladConstructorReverseForwTag = nullptr;
+    clang::TemplateDecl* m_CladTag = nullptr;
   };
 
   /// A class that generates prettier stack traces when we crash on generating
