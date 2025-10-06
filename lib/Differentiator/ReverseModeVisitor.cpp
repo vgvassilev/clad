@@ -4438,7 +4438,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // ```
     // // forward-pass
     // clad::ValueAndAdjoint<SomeClass, SomeClass> _t0 =
-    //   constructor_reverse_forw(clad::ConstructorReverseForwTag<SomeClass>{},
+    //   constructor_reverse_forw(clad::Tag<SomeClass>{},
     //   u, v,
     //     _d_u, _d_v);
     // SomeClass _d_c = _t0.adjoint;
@@ -4693,18 +4693,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (auto CD = llvm::dyn_cast<CXXConstructorDecl>(FD)) {
       const RecordDecl* RD = CD->getParent();
-      QualType constructorReverseForwTagT =
-          GetCladConstructorReverseForwTagOfType(m_Context.getRecordType(RD));
-      Expr* constructorReverseForwTagArg =
-          m_Sema
-              .BuildCXXTypeConstructExpr(
-                  m_Context.getTrivialTypeSourceInfo(
-                      constructorReverseForwTagT, utils::GetValidSLoc(m_Sema)),
-                  utils::GetValidSLoc(m_Sema), MultiExprArg{},
-                  utils::GetValidSLoc(m_Sema),
-                  /*ListInitialization=*/false)
-              .get();
-      args.push_back(constructorReverseForwTagArg);
+      QualType CladTagTy = GetCladTagOfType(m_Context.getRecordType(RD));
+      Expr* tagArg = m_Sema
+                         .BuildCXXTypeConstructExpr(
+                             m_Context.getTrivialTypeSourceInfo(
+                                 CladTagTy, utils::GetValidSLoc(m_Sema)),
+                             utils::GetValidSLoc(m_Sema), MultiExprArg{},
+                             utils::GetValidSLoc(m_Sema),
+                             /*ListInitialization=*/false)
+                         .get();
+      args.push_back(tagArg);
     }
     args.append(primalArgs.begin(), primalArgs.end());
     args.append(derivedArgs.begin(), derivedArgs.end());

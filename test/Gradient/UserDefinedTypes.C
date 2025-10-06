@@ -520,7 +520,7 @@ namespace custom_derivatives {
 namespace class_functions {
 template<::std::size_t N>
 ::clad::ValueAndAdjoint<SimpleArray<double, N>, SimpleArray<double, N>> // expected-note {{'clad::custom_derivatives::class_functions::constructor_reverse_forw<2}}{{' is defined here}}
-constructor_reverse_forw(::clad::ConstructorReverseForwTag<SimpleArray<double, N>>) {
+constructor_reverse_forw(::clad::Tag<SimpleArray<double, N>>) {
   SimpleArray<double, N> a;
   SimpleArray<double, N> d_a;
   return {a, d_a};
@@ -533,7 +533,7 @@ double fn15(double x, double y) {
 }
 
 // CHECK:void fn15_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:    ::clad::ValueAndAdjoint<SimpleArray<double, {{2U|2UL|2ULL}}>, SimpleArray<double, {{2U|2UL|2ULL}}> > _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<SimpleArray<double, 2> >());
+// CHECK-NEXT:    ::clad::ValueAndAdjoint<SimpleArray<double, {{2U|2UL|2ULL}}>, SimpleArray<double, {{2U|2UL|2ULL}}> > _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::Tag<SimpleArray<double, 2> >());
 // CHECK-NEXT:    SimpleArray<double, 2> _d_arr = _t0.adjoint;
 // CHECK-NEXT:    SimpleArray<double, 2> arr(_t0.value);
 // CHECK-NEXT:    _d_arr.elements[0] += 1;
@@ -954,7 +954,7 @@ namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
 ::clad::ValueAndAdjoint<ptrClass, ptrClass>
-constructor_reverse_forw(::clad::ConstructorReverseForwTag<ptrClass>, double* mptr, double* d_mptr) {
+constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr) {
   return {ptrClass(mptr), ptrClass(d_mptr)};
 }
 }}}
@@ -972,7 +972,7 @@ double fn26(double x, double y) {
 }
 
 // CHECK:  void fn26_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      ::clad::ValueAndAdjoint<ptrClass, ptrClass> _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<ptrClass>(), &x, &*_d_x);
+// CHECK-NEXT:      ::clad::ValueAndAdjoint<ptrClass, ptrClass> _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::Tag<ptrClass>(), &x, &*_d_x);
 // CHECK-NEXT:      ptrClass p(_t0.value);
 // CHECK-NEXT:      ptrClass _d_p = _t0.adjoint;
 // CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t1 = p.operator_star_reverse_forw(&_d_p);
