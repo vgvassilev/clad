@@ -1237,6 +1237,62 @@ double fn33(double x) {
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
+struct otherStruct {
+  double val;
+  double* ptr;
+};
+
+struct structToConvert {
+  double data = 0;
+  operator double& () {
+    return data;
+  }
+
+  // CHECK: clad::ValueAndAdjoint<otherStruct, otherStruct> conversion_operator_reverse_forw(clad::Tag<otherStruct>, structToConvert *_d_this) {
+  // CHECK-NEXT:    return {{[{][{]}}2 * this->data, &this->data}, {0., &_d_this->data{{[}][}]}};
+  // CHECK-NEXT:}
+
+  // CHECK: void conversion_operator_pullback(otherStruct _d_y, structToConvert *_d_this) {
+  // CHECK-NEXT:    _d_this->data += 2 * _d_y.val;
+  // CHECK-NEXT:}
+
+  operator otherStruct () {
+    return {2 * data, &data};
+  }
+
+  // CHECK: clad::ValueAndAdjoint<double &, double &> conversion_operator_reverse_forw(clad::Tag<double &>, structToConvert *_d_this) {
+  // CHECK-NEXT:    return {this->data, _d_this->data};
+  // CHECK-NEXT:}
+
+  // CHECK: void conversion_operator_pullback(structToConvert *_d_this) {
+  // CHECK-NEXT:}
+};
+
+double fn34(double x, double y) {
+  structToConvert obj_x{x};
+  structToConvert obj_y{y};
+  otherStruct conv = (otherStruct)obj_y;
+  return (obj_x + 1.) + conv.val;
+} // x + 1. + 2 * y
+
+// CHECK: void fn34_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:    structToConvert _d_obj_x = {0.};
+// CHECK-NEXT:    structToConvert obj_x{x};
+// CHECK-NEXT:    structToConvert _d_obj_y = {0.};
+// CHECK-NEXT:    structToConvert obj_y{y};
+// CHECK-NEXT:    clad::ValueAndAdjoint<otherStruct, otherStruct> _t0 = obj_y.conversion_operator_reverse_forw(clad::Tag<otherStruct>(), &_d_obj_y);
+// CHECK-NEXT:    otherStruct _d_conv = (otherStruct)_t0.adjoint;
+// CHECK-NEXT:    otherStruct conv = (otherStruct)_t0.value;
+// CHECK-NEXT:    clad::ValueAndAdjoint<double &, double &> _t1 = obj_x.conversion_operator_reverse_forw(clad::Tag<double &>(), &_d_obj_x);
+// CHECK-NEXT:    {
+// CHECK-NEXT:        _t1.adjoint += 1;
+// CHECK-NEXT:        _d_conv.val += 1;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    obj_y.conversion_operator_pullback(_d_conv, &_d_obj_y);
+// CHECK-NEXT:    *_d_y += _d_obj_y.data;
+// CHECK-NEXT:    *_d_x += _d_obj_x.data;
+// CHECK-NEXT:}
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1371,4 +1427,7 @@ int main() {
 
     INIT_GRADIENT(fn33);
     TEST_GRADIENT(fn33, /*numOfDerivativeArgs=*/1, 3, &d_i);    // CHECK-EXEC: {1.00}
+
+    INIT_GRADIENT(fn34);
+    TEST_GRADIENT(fn34, /*numOfDerivativeArgs=*/2, -5, 6, &d_i, &d_j);    // CHECK-EXEC: {1.00, 2.00}
 }

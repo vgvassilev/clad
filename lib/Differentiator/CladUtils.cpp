@@ -114,6 +114,8 @@ namespace clad {
       default:
         if (isa<CXXConstructorDecl>(FD))
           return "constructor";
+        if (isa<CXXConversionDecl>(FD))
+          return "conversion_operator";
         return FD->getNameAsString();
       }
     }
@@ -1271,6 +1273,12 @@ namespace clad {
       if (forCustomDerv && !thisTy.isNull() && !isa<CXXConstructorDecl>(FD)) {
         FnTypes.insert(FnTypes.begin(), thisTy);
         EPI.TypeQuals.removeConst();
+      }
+
+      if (mode == DiffMode::reverse_mode_forward_pass &&
+          isa<CXXConversionDecl>(FD)) {
+        QualType typeTag = utils::GetCladTagOfType(S, oRetTy);
+        FnTypes.insert(FnTypes.begin(), typeTag);
       }
 
       if (mode == DiffMode::reverse_mode_forward_pass &&

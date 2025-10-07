@@ -1326,8 +1326,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get());
       return initDiff;
     }
-    if (!dfdx())
-      return StmtDiff(Clone(ILE));
     if (ILEType->isArrayType()) {
       bool isRealConstArray = false;
       if (const auto* arrType = dyn_cast<ConstantArrayType>(ILEType)) {
@@ -1343,10 +1341,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
         Expr* I =
             ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
-        Expr* array_at_i = m_Sema
-                               .ActOnArraySubscriptExpr(getCurrentScope(),
-                                                        dfdx(), noLoc, I, noLoc)
-                               .get();
+        Expr* array_at_i = nullptr;
+        if (dfdx())
+          array_at_i = m_Sema
+                           .ActOnArraySubscriptExpr(getCurrentScope(), dfdx(),
+                                                    noLoc, I, noLoc)
+                           .get();
         StmtDiff elemDiff = Visit(ILE->getInit(i), array_at_i);
         clonedExprs[i] = elemDiff.getExpr();
         if (!isRealConstArray) {
@@ -1365,10 +1365,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (ILEType->isRecordType()) {
       for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
         // fetch ith field of the struct.
-        auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
-        std::advance(field_iterator, i);
-        Expr* member_acess = utils::BuildMemberExpr(
-            m_Sema, getCurrentScope(), dfdx(), (*field_iterator)->getName());
+        Expr* member_acess = nullptr;
+        if (dfdx()) {
+          auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
+          std::advance(field_iterator, i);
+          member_acess = utils::BuildMemberExpr(
+              m_Sema, getCurrentScope(), dfdx(), (*field_iterator)->getName());
+        }
         StmtDiff elemDiff = Visit(ILE->getInit(i), member_acess);
         clonedExprs[i] = elemDiff.getExpr();
         if (elemDiff.getExpr_dx())
@@ -2137,6 +2140,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (calleeFnForwPassFD && !hasDynamicNonDiffParams &&
         (hasStoredParams || needsForwPass)) {
+      if (const auto* CD = dyn_cast<CXXConversionDecl>(FD))
+        CallArgs.push_back(
+            utils::GetCladTagExpr(m_Sema, CD->getConversionType()));
       CallArgs.insert(CallArgs.end(), revForwAdjointArgs.begin(),
                       revForwAdjointArgs.end());
       // Build the restore_tracker parameter
@@ -4575,7 +4581,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     bool HasRet = false;
-    // FIXME: We ignore the pointer return type for pullbacks.
     QualType dRetTy = FD->getReturnType().getNonReferenceType();
     dRetTy = utils::getNonConstType(dRetTy, m_Sema);
     if (m_DiffReq.Mode == DiffMode::pullback && !dRetTy->isVoidType() &&
