@@ -1293,6 +1293,17 @@ namespace clad {
       return utils::InstantiateTemplate(S, CladTag, {T});
     }
 
+    Expr* GetCladTagExpr(Sema& S, QualType T) {
+      QualType CladTagTy = utils::GetCladTagOfType(S, T);
+      return S
+          .BuildCXXTypeConstructExpr(S.getASTContext().getTrivialTypeSourceInfo(
+                                         CladTagTy, utils::GetValidSLoc(S)),
+                                     utils::GetValidSLoc(S), MultiExprArg{},
+                                     utils::GetValidSLoc(S),
+                                     /*ListInitialization=*/false)
+          .get();
+    }
+
     bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
       if (FD->getNumParams() != 1 ||
           utils::HasAnyReferenceOrPointerArgument(FD) ||
