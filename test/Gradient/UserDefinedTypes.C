@@ -954,9 +954,7 @@ namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
 ::clad::ValueAndAdjoint<ptrClass, ptrClass>
-constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr) {
-  return {ptrClass(mptr), ptrClass(d_mptr)};
-}
+constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr) elidable_reverse_forw;
 }}}
 
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this) {
@@ -972,11 +970,10 @@ double fn26(double x, double y) {
 }
 
 // CHECK:  void fn26_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      ::clad::ValueAndAdjoint<ptrClass, ptrClass> _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::Tag<ptrClass>(), &x, &*_d_x);
-// CHECK-NEXT:      ptrClass p(_t0.value);
-// CHECK-NEXT:      ptrClass _d_p(_t0.adjoint);
-// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t1 = p.operator_star_reverse_forw(&_d_p);
-// CHECK-NEXT:      _t1.adjoint += 1;
+// CHECK-NEXT:      ptrClass p(&x);
+// CHECK-NEXT:      ptrClass _d_p(&*_d_x);
+// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t0 = p.operator_star_reverse_forw(&_d_p);
+// CHECK-NEXT:      _t0.adjoint += 1;
 // CHECK-NEXT:  }
 
 struct MyStructWrapper {

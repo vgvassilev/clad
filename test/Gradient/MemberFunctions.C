@@ -5,6 +5,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
+
 class SimpleFunctions {
 public:
   SimpleFunctions(double p_x = 0, double p_y = 0) : x(p_x), y(p_y) {}
@@ -546,13 +548,11 @@ namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
     clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
-    constructor_reverse_forw(clad::Tag<SafeTestClass>, double x, double* y, double d_x, double* d_y) {
-        return {SafeTestClass(x, y), SafeTestClass(d_x, d_y)};
-    }
+    constructor_reverse_forw(clad::Tag<SafeTestClass>, double x, double* y, double d_x, double* d_y) elidable_reverse_forw;
+    
     clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
-    constructor_reverse_forw(clad::Tag<SafeTestClass>, double &x, double &d_x) {
-        return {SafeTestClass(x), SafeTestClass(d_x)};
-    }
+    constructor_reverse_forw(clad::Tag<SafeTestClass>, double &x, double &d_x) elidable_reverse_forw;
+
     clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
     constructor_reverse_forw(clad::Tag<SafeTestClass>) {
         return {SafeTestClass(), SafeTestClass()};
@@ -584,15 +584,13 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t0 = {{.*}}constructor_reverse_forw(clad::Tag<SafeTestClass>());
 // CHECK-NEXT:      SafeTestClass s1(_t0.value);
 // CHECK-NEXT:      SafeTestClass _d_s1(_t0.adjoint);
-// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t1 = {{.*}}constructor_reverse_forw(clad::Tag<SafeTestClass>(), u, &v, 0., &*_d_v);
-// CHECK-NEXT:      SafeTestClass s2(_t1.value);
-// CHECK-NEXT:      SafeTestClass _d_s2(_t1.adjoint);
-// CHECK-NEXT:      double _t2 = w;
-// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t3 = {{.*}}constructor_reverse_forw(clad::Tag<SafeTestClass>(), w, _d_w);
-// CHECK-NEXT:      SafeTestClass s3(_t3.value);
-// CHECK-NEXT:      SafeTestClass _d_s3(_t3.adjoint);
+// CHECK-NEXT:      SafeTestClass s2(u, &v);
+// CHECK-NEXT:      SafeTestClass _d_s2(0., &*_d_v);
+// CHECK-NEXT:      double _t1 = w;
+// CHECK-NEXT:      SafeTestClass s3(w);
+// CHECK-NEXT:      SafeTestClass _d_s3(_d_w);
 // CHECK-NEXT:      *_d_v += 1;
-// CHECK-NEXT:      w = _t2;
+// CHECK-NEXT:      w = _t1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;  
 // CHECK-NEXT:          SafeTestClass::constructor_pullback(u, &v, &_d_s2, &_r0, &*_d_v);
