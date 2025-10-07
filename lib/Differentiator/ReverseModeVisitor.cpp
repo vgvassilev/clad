@@ -4332,6 +4332,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {nullptr, nullptr};
   }
 
+  static Expr* BuildConstructorCall(Sema& S, const CXXConstructExpr* callsite,
+                                    llvm::SmallVectorImpl<clang::Expr*>& args,
+                                    bool isDeclInit) {
+    unsigned NArgs = callsite->getNumArgs();
+    if (NArgs == 1)
+      return args[0];
+    if (callsite->isListInitialization() || !isDeclInit)
+      return S.ActOnInitList(noLoc, args, noLoc).get();
+    // ParenList is empty -- default initialisation.
+    // Passing empty parenList here will silently cause 'most vexing
+    // parse' issue.
+    if (!NArgs)
+      return nullptr;
+    return S.ActOnParenListExpr(noLoc, noLoc, args).get();
+  }
+
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     CXXConstructorDecl* CD = CE->getConstructor();
@@ -4461,9 +4477,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // SomeClass _d_c = _t0.adjoint;
     // SomeClass c = _t0.value;
     // ```
-    if (Expr* customReverseForwFnCall =
-            BuildCallToCustomForwPassFn(CE, primalArgs, reverseForwAdjointArgs,
-                                        /*baseExpr=*/nullptr)) {
+    Expr* customReverseForwFnCall =
+        BuildCallToCustomForwPassFn(CE, primalArgs, reverseForwAdjointArgs,
+                                    /*baseExpr=*/nullptr);
+    const FunctionDecl* constr_forw = nullptr;
+    if (customReverseForwFnCall)
+      constr_forw = cast<CallExpr>(customReverseForwFnCall->IgnoreImplicit())
+                        ->getDirectCallee();
+    bool elideReverseForw =
+        constr_forw && utils::hasElidableReverseForwAttribute(constr_forw);
+    if (customReverseForwFnCall && !elideReverseForw) {
       if (RD->isAggregate()) {
         SmallString<128> Name_class;
         llvm::raw_svector_ostream OS_class(Name_class);
@@ -4473,8 +4496,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
              "'%0' is an aggregate type and its constructor does not require a "
              "user-defined forward sweep function",
              {OS_class.str()});
-        const FunctionDecl* constr_forw =
-            cast<CallExpr>(customReverseForwFnCall)->getDirectCallee();
         SmallString<128> Name_forw;
         llvm::raw_svector_ostream OS_forw(Name_forw);
         constr_forw->getNameForDiagnostic(
@@ -4504,31 +4525,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return {primalArgs[0], reverseForwAdjointArgs[0]};
     }
 
-    Expr* clonedArgsE = nullptr;
-
-    if (CE->getNumArgs() != 1) {
-      // FIXME: We generate a InitListExpr when the constructor is called
-      // outside of a VarDecl init. This works out when it is later used in a
-      // ReturnStmt. However, to support member exprs/calls of constructors, we
-      // need to explicitly generate a constructor and not rely on higher level
-      // Sema functions.
-      if (CE->isListInitialization() || !m_TrackVarDeclConstructor) {
-        clonedArgsE = m_Sema.ActOnInitList(noLoc, primalArgs, noLoc).get();
-      } else {
-        if (CE->getNumArgs() == 0) {
-          // ParenList is empty -- default initialisation.
-          // Passing empty parenList here will silently cause 'most vexing
-          // parse' issue.
-          return StmtDiff();
-        }
-        clonedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, primalArgs).get();
-      }
-    } else {
-      clonedArgsE = primalArgs[0];
-    }
     // `CXXConstructExpr` node will be created automatically by passing these
     // initialiser to higher level `ActOn`/`Build` Sema functions.
-    return {clonedArgsE};
+    Expr* callClone =
+        BuildConstructorCall(m_Sema, CE, primalArgs, m_TrackVarDeclConstructor);
+    Expr* callDiff = nullptr;
+    if (elideReverseForw)
+      callDiff = BuildConstructorCall(m_Sema, CE, reverseForwAdjointArgs,
+                                      m_TrackVarDeclConstructor);
+    return {callClone, callDiff};
   }
 
   StmtDiff ReverseModeVisitor::VisitMaterializeTemporaryExpr(
