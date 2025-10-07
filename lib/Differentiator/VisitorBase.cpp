@@ -821,16 +821,6 @@ namespace clad {
         .get();
   }
 
-  clang::TemplateDecl* VisitorBase::GetCladTag() {
-    if (!m_CladTag)
-      m_CladTag = utils::LookupTemplateDeclInCladNamespace(m_Sema, "Tag");
-    return m_CladTag;
-  }
-
-  clang::QualType VisitorBase::GetCladTagOfType(clang::QualType T) {
-    return utils::InstantiateTemplate(m_Sema, GetCladTag(), {T});
-  }
-
   FunctionDecl*
   VisitorBase::CreateDerivativeOverload(FunctionDecl* derivative) {
     if (!derivative)

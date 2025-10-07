@@ -590,12 +590,6 @@ namespace clad {
                                  clang::SourceLocation srcLoc);
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
-
-    /// Returns clad::Tag template declaration.
-    clang::TemplateDecl* GetCladTag();
-
-    /// Returns type clad::Tag<T>
-    clang::QualType GetCladTagOfType(clang::QualType T);
     /// Find the derived function if present in the DerivedFnCollector.
     ///
     /// \param[in] request The request to find the derived function.
@@ -673,9 +667,6 @@ namespace clad {
                                    clang::Expr*& derivedR);
 
     virtual ~VisitorBase() = 0;
-
-  private:
-    clang::TemplateDecl* m_CladTag = nullptr;
   };
 
   /// A class that generates prettier stack traces when we crash on generating

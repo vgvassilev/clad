@@ -2184,8 +2184,8 @@ clang::Expr* BaseForwardModeVisitor::BuildCustomDerivativeConstructorPFCall(
     llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
     llvm::SmallVectorImpl<clang::Expr*>& derivedArgs) {
   llvm::SmallVector<Expr*, 4> customPushforwardArgs;
-  QualType CladTagTy =
-      GetCladTagOfType(CE->getType().withoutLocalFastQualifiers());
+  QualType CladTagTy = utils::GetCladTagOfType(
+      m_Sema, CE->getType().withoutLocalFastQualifiers());
   // Builds clad::Tag<T> declaration
   Expr* tagArg =
       m_Sema
