@@ -2943,7 +2943,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         !isCladArrayType(VDCloneType) &&
         (!promoteToFnScope || isConstructInit)) {
       if (initDiff.getStmt_dx()) {
-        SetDeclInit(VDDerived, initDiff.getExpr_dx());
+        bool isDirectInit = VD->isDirectInit();
+        if (const auto* arrType = dyn_cast<ConstantArrayType>(VDType)) {
+          QualType elemTy = arrType->getElementType();
+          if (elemTy->isRealType())
+            isDirectInit = false;
+        }
+        SetDeclInit(VDDerived, initDiff.getExpr_dx(), isDirectInit);
       } else if (shouldCopyInitialize) {
         Expr* copyExpr = BuildDeclRef(VDClone);
         QualType origTy = VDClone->getType();
@@ -3266,9 +3272,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // clad::zero_init(_d_v); // this line is generated below
         // ```
         const auto* CE = dyn_cast<CXXConstructExpr>(init->IgnoreImplicit());
-        bool copyInit =
-            CE && (CE->getNumArgs() == 0 ||
-                   isa<DeclRefExpr>(CE->getArg(0)->IgnoreImplicit()));
+        bool copyInit = CE && CE->getNumArgs() == 0;
+        if (!copyInit && CE) {
+          if (const auto* DRE =
+                  dyn_cast<DeclRefExpr>(CE->getArg(0)->IgnoreImplicit()))
+            if (cast<VarDecl>(decl)->getNameAsString() ==
+                "_d_" + cast<VarDecl>(DRE->getDecl())->getNameAsString())
+              copyInit = true;
+        }
         if (CE && utils::isTensorLike(m_Sema, CE->getType()))
           copyInit = true;
         if (copyInit) {

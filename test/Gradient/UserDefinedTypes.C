@@ -534,7 +534,7 @@ double fn15(double x, double y) {
 
 // CHECK:void fn15_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:    ::clad::ValueAndAdjoint<SimpleArray<double, {{2U|2UL|2ULL}}>, SimpleArray<double, {{2U|2UL|2ULL}}> > _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::Tag<SimpleArray<double, 2> >());
-// CHECK-NEXT:    SimpleArray<double, 2> _d_arr = _t0.adjoint;
+// CHECK-NEXT:    SimpleArray<double, 2> _d_arr(_t0.adjoint);
 // CHECK-NEXT:    SimpleArray<double, 2> arr(_t0.value);
 // CHECK-NEXT:    _d_arr.elements[0] += 1;
 // CHECK-NEXT:}
@@ -748,7 +748,7 @@ double fn21(double x, double y) {
 }
 
 // CHECK:  void fn21_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      Identity _d_di = {};
+// CHECK-NEXT:      Identity _d_di{};
 // CHECK-NEXT:      Identity di{};
 // CHECK-NEXT:      double _d_val = 0.;
 // CHECK-NEXT:      double val = di(x);
@@ -974,7 +974,7 @@ double fn26(double x, double y) {
 // CHECK:  void fn26_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      ::clad::ValueAndAdjoint<ptrClass, ptrClass> _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::Tag<ptrClass>(), &x, &*_d_x);
 // CHECK-NEXT:      ptrClass p(_t0.value);
-// CHECK-NEXT:      ptrClass _d_p = _t0.adjoint;
+// CHECK-NEXT:      ptrClass _d_p(_t0.adjoint);
 // CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t1 = p.operator_star_reverse_forw(&_d_p);
 // CHECK-NEXT:      _t1.adjoint += 1;
 // CHECK-NEXT:  }
@@ -1133,7 +1133,7 @@ double fn30(double x, double y) {
 }
 
 // CHECK:  void fn30_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      MyStruct _d_a = {0., 0.};
+// CHECK-NEXT:      MyStruct _d_a{0., 0.};
 // CHECK-NEXT:      MyStruct a{x, y};
 // CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t0 = objRef_reverse_forw(a, _d_a, _tracker0);
@@ -1276,9 +1276,9 @@ double fn34(double x, double y) {
 } // x + 1. + 2 * y
 
 // CHECK: void fn34_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:    structToConvert _d_obj_x = {0.};
+// CHECK-NEXT:    structToConvert _d_obj_x{0.};
 // CHECK-NEXT:    structToConvert obj_x{x};
-// CHECK-NEXT:    structToConvert _d_obj_y = {0.};
+// CHECK-NEXT:    structToConvert _d_obj_y{0.};
 // CHECK-NEXT:    structToConvert obj_y{y};
 // CHECK-NEXT:    clad::ValueAndAdjoint<otherStruct, otherStruct> _t0 = obj_y.conversion_operator_reverse_forw(clad::Tag<otherStruct>(), &_d_obj_y);
 // CHECK-NEXT:    otherStruct _d_conv = (otherStruct)_t0.adjoint;
