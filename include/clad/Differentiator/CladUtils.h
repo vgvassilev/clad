@@ -379,6 +379,8 @@ namespace clad {
     clang::QualType GetCladMatrixOfType(clang::Sema& S, clang::QualType T);
     /// Create clad::array_ref<T> type.
     clang::QualType GetCladArrayRefOfType(clang::Sema& S, clang::QualType T);
+    /// Returns type clad::Tag<T>
+    clang::QualType GetCladTagOfType(clang::Sema& S, clang::QualType T);
 
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);

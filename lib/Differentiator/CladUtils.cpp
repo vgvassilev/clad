@@ -1286,6 +1286,13 @@ namespace clad {
       return C.getFunctionType(dRetTy, FnTypes, EPI);
     }
 
+    QualType GetCladTagOfType(Sema& S, QualType T) {
+      static clang::TemplateDecl* CladTag = nullptr;
+      if (!CladTag)
+        CladTag = utils::LookupTemplateDeclInCladNamespace(S, "Tag");
+      return utils::InstantiateTemplate(S, CladTag, {T});
+    }
+
     bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
       if (FD->getNumParams() != 1 ||
           utils::HasAnyReferenceOrPointerArgument(FD) ||

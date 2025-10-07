@@ -4693,7 +4693,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (auto CD = llvm::dyn_cast<CXXConstructorDecl>(FD)) {
       const RecordDecl* RD = CD->getParent();
-      QualType CladTagTy = GetCladTagOfType(m_Context.getRecordType(RD));
+      QualType CladTagTy =
+          utils::GetCladTagOfType(m_Sema, m_Context.getRecordType(RD));
       Expr* tagArg = m_Sema
                          .BuildCXXTypeConstructExpr(
                              m_Context.getTrivialTypeSourceInfo(
