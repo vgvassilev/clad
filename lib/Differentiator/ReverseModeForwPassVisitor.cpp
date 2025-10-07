@@ -9,6 +9,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/Basic/LLVM.h"
 
@@ -95,6 +96,17 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       cast<FunctionProtoType>(m_Derivative->getType());
 
   std::size_t dParamTypesIdx = m_DiffReq->getNumParams();
+
+  if (const auto* CD = dyn_cast<CXXConversionDecl>(m_DiffReq.Function)) {
+    QualType typeTag = utils::GetCladTagOfType(m_Sema, CD->getConversionType());
+    IdentifierInfo* emptyII = &m_Context.Idents.get("");
+    ParmVarDecl* typeTagPVD =
+        utils::BuildParmVarDecl(m_Sema, m_Derivative, emptyII, typeTag);
+    params.push_back(typeTagPVD);
+    m_Sema.PushOnScopeChains(typeTagPVD, getCurrentScope(),
+                             /*AddToContext=*/false);
+    ++dParamTypesIdx;
+  }
 
   if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
     const CXXRecordDecl* RD = MD->getParent();
