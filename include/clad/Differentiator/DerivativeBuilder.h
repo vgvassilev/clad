@@ -9,11 +9,13 @@
 
 #include "Compatibility.h"
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Sema.h"
 
 #include <array>
@@ -126,14 +128,10 @@ namespace clad {
                           llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
-    void diag(clang::DiagnosticsEngine::Level level, // Warning or Error
-              clang::SourceLocation loc,
-              const char (&format)[N],
-              llvm::ArrayRef<llvm::StringRef> args = {}) {
-      unsigned diagID = m_Sema.Diags.getCustomDiagID(level, format);
-      clang::Sema::SemaDiagnosticBuilder stream = m_Sema.Diag(loc, diagID);
-      for (auto arg : args)
-        stream << arg;
+    clang::Sema::SemaDiagnosticBuilder
+    diag(clang::DiagnosticsEngine::Level Level, clang::SourceLocation Loc,
+         const char (&Format)[N]) {
+      return utils::diag(m_Sema, Level, Loc, Format);
     }
 
     /// Lookup the result of finding a custom derivative or numerical

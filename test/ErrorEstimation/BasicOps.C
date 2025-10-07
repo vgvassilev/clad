@@ -217,7 +217,7 @@ float func6(float x, float y) {
 //CHECK-NEXT: }
 
 float func7(float x) {
-  int z = x;  // expected-warning {{Lossy assignment from 'float' to 'int'}}
+  int z = x;  // expected-warning {{lossy assignment from 'float' to 'int'}}
   return z + z;
 }
 
