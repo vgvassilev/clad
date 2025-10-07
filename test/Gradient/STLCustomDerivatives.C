@@ -852,7 +852,7 @@ int main() {
 // CHECK-NEXT:     double *p = new double(d);
 // CHECK-NEXT:     clad::ValueAndAdjoint< {{.*}}, {{.*}} > _t0 = {{.*}}class_functions::constructor_reverse_forw(clad::Tag<{{(std::)?}}unique_ptr{{.*}}(), p, _d_p);
 // CHECK-NEXT:     std::unique_ptr{{.*}} up(static_cast<std::unique_ptr{{.*}}(_t0.value));
-// CHECK-NEXT:     std::unique_ptr{{.*}} _d_up = static_cast<std::unique_ptr{{.*}}(_t0.adjoint);
+// CHECK-NEXT:     std::unique_ptr{{.*}} _d_up(static_cast<std::unique_ptr{{.*}}(_t0.adjoint));
 // CHECK-NEXT:     double *_t1 = &* up;
 // CHECK-NEXT:     *_t1 += 5 * e;
 // CHECK-NEXT:     * _d_up += 1;

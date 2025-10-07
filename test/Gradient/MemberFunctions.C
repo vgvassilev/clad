@@ -583,14 +583,14 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      double &w = u;
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t0 = {{.*}}constructor_reverse_forw(clad::Tag<SafeTestClass>());
 // CHECK-NEXT:      SafeTestClass s1(_t0.value);
-// CHECK-NEXT:      SafeTestClass _d_s1 = _t0.adjoint;
+// CHECK-NEXT:      SafeTestClass _d_s1(_t0.adjoint);
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t1 = {{.*}}constructor_reverse_forw(clad::Tag<SafeTestClass>(), u, &v, 0., &*_d_v);
 // CHECK-NEXT:      SafeTestClass s2(_t1.value);
-// CHECK-NEXT:      SafeTestClass _d_s2 = _t1.adjoint;
+// CHECK-NEXT:      SafeTestClass _d_s2(_t1.adjoint);
 // CHECK-NEXT:      double _t2 = w;
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t3 = {{.*}}constructor_reverse_forw(clad::Tag<SafeTestClass>(), w, _d_w);
 // CHECK-NEXT:      SafeTestClass s3(_t3.value);
-// CHECK-NEXT:      SafeTestClass _d_s3 = _t3.adjoint;
+// CHECK-NEXT:      SafeTestClass _d_s3(_t3.adjoint);
 // CHECK-NEXT:      *_d_v += 1;
 // CHECK-NEXT:      w = _t2;
 // CHECK-NEXT:      {
