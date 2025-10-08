@@ -101,11 +101,6 @@ namespace clad {
     // Function to Differentiate with Enzyme as Backend
     void DifferentiateWithEnzyme();
 
-    /// Tries to find and build call to user-provided `_forw` function.
-    clang::Expr* BuildCallToCustomForwPassFn(
-        const clang::Expr* callSite, llvm::ArrayRef<clang::Expr*> primalArgs,
-        llvm::ArrayRef<clang::Expr*> derivedArgs, clang::Expr* baseExpr);
-
   public:
     using direction = rmv::direction;
     virtual clang::Expr* dfdx() {

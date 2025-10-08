@@ -290,6 +290,7 @@ void InitTimers();
           // FIXME: Doing this with other function types might lead to
           // accidental numerical diff.
           if (isa<CXXConstructorDecl>(FD) &&
+              (request.Mode == DiffMode::pullback) &&
               utils::hasEmptyBody(DerivativeDecl))
             return nullptr;
           if (DerivativeDecl)

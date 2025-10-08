@@ -4435,16 +4435,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // SomeClass _d_c = _t0.adjoint;
     // SomeClass c = _t0.value;
     // ```
-    Expr* customReverseForwFnCall =
-        BuildCallToCustomForwPassFn(CE, primalArgs, reverseForwAdjointArgs,
-                                    /*baseExpr=*/nullptr);
-    const FunctionDecl* constr_forw = nullptr;
-    if (customReverseForwFnCall)
-      constr_forw = cast<CallExpr>(customReverseForwFnCall->IgnoreImplicit())
-                        ->getDirectCallee();
+    DiffRequest forwPassReq;
+    forwPassReq.Function = CD;
+    forwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
+    forwPassReq.BaseFunctionName = "constructor";
+    FunctionDecl* constrForw = FindDerivedFunction(forwPassReq);
     bool elideReverseForw =
-        constr_forw && utils::hasElidableReverseForwAttribute(constr_forw);
-    if (customReverseForwFnCall && !elideReverseForw) {
+        constrForw && utils::hasElidableReverseForwAttribute(constrForw);
+    if (constrForw && !elideReverseForw) {
+      reverseForwAdjointArgs.insert(reverseForwAdjointArgs.begin(),
+                                    primalArgs.begin(), primalArgs.end());
+      reverseForwAdjointArgs.insert(
+          reverseForwAdjointArgs.begin(),
+          utils::GetCladTagExpr(m_Sema, m_Context.getRecordType(RD)));
+      Expr* customReverseForwFnCall =
+          BuildCallExprToFunction(constrForw, reverseForwAdjointArgs);
       if (RD->isAggregate()) {
         SmallString<128> Name_class;
         llvm::raw_svector_ostream OS_class(Name_class);
@@ -4456,9 +4461,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
              {OS_class.str()});
         SmallString<128> Name_forw;
         llvm::raw_svector_ostream OS_forw(Name_forw);
-        constr_forw->getNameForDiagnostic(
-            OS_forw, m_Context.getPrintingPolicy(), /*qualified=*/true);
-        diag(DiagnosticsEngine::Note, constr_forw->getBeginLoc(),
+        constrForw->getNameForDiagnostic(OS_forw, m_Context.getPrintingPolicy(),
+                                         /*qualified=*/true);
+        diag(DiagnosticsEngine::Note, constrForw->getBeginLoc(),
              "'%0' is defined here", {OS_forw.str()});
       }
       Expr* callRes = StoreAndRef(customReverseForwFnCall);
@@ -4653,35 +4658,5 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       params.push_back(dPVD);
     }
-  }
-
-  Expr* ReverseModeVisitor::BuildCallToCustomForwPassFn(
-      const Expr* callSite, llvm::ArrayRef<Expr*> primalArgs,
-      llvm::ArrayRef<clang::Expr*> derivedArgs, Expr* baseExpr) {
-    llvm::SmallVector<Expr*, 4> args;
-    if (baseExpr) {
-      baseExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, baseExpr,
-                         m_DiffReq->getLocation());
-      args.push_back(baseExpr);
-    }
-    const FunctionDecl* FD = nullptr;
-    if (const auto* CE = dyn_cast<CallExpr>(callSite))
-      FD = CE->getDirectCallee();
-    else
-      FD = cast<CXXConstructExpr>(callSite)->getConstructor();
-
-    if (auto CD = llvm::dyn_cast<CXXConstructorDecl>(FD)) {
-      const RecordDecl* RD = CD->getParent();
-      Expr* tagArg = utils::GetCladTagExpr(m_Sema, m_Context.getRecordType(RD));
-      args.push_back(tagArg);
-    }
-    args.append(primalArgs.begin(), primalArgs.end());
-    args.append(derivedArgs.begin(), derivedArgs.end());
-    std::string forwPassFnName =
-        clad::utils::ComputeEffectiveFnName(FD) + "_reverse_forw";
-    Expr* customForwPassCE =
-        m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-            forwPassFnName, args, getCurrentScope(), callSite);
-    return customForwPassCE;
   }
 } // end namespace clad
