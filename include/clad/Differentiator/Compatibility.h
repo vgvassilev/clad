@@ -15,6 +15,9 @@
 #include "clang/Basic/Version.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
+#if CLANG_VERSION_MAJOR > 18
+#include "clang/Sema/SemaOpenMP.h"
+#endif
 
 namespace clad_compat {
 
@@ -53,6 +56,13 @@ using namespace llvm;
 #define CLAD_COMPAT_CLANG20_SemaAACasting clang::Sema::AA_Casting
 #else
 #define CLAD_COMPAT_CLANG20_SemaAACasting clang::AssignmentAction::Casting
+#endif
+
+// clang-19 SemaOpenMP was introduced
+#if CLANG_VERSION_MAJOR < 19
+#define CLAD_COMPAT_SemaOpenMP(Sema) (Sema)
+#else
+#define CLAD_COMPAT_SemaOpenMP(Sema) ((Sema).OpenMP())
 #endif
 
 // clang-18 CXXThisExpr got extra argument
