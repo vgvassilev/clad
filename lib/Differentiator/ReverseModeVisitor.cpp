@@ -1317,75 +1317,47 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType ILEType = ILE->getType();
     llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
     llvm::SmallVector<Expr*, 16> exprsDiff(ILE->getNumInits());
-    // Handle basic types like pointers or numericals.
-    if (ILE->getNumInits() &&
-        !(ILEType->isArrayType() || ILEType->isRecordType())) {
-      StmtDiff initDiff = Visit(ILE->getInit(0), dfdx());
-      clonedExprs[0] = initDiff.getExpr();
-      initDiff.updateStmt(
-          m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get());
-      return initDiff;
-    }
-    if (ILEType->isArrayType()) {
-      bool isRealConstArray = false;
-      if (const auto* arrType = dyn_cast<ConstantArrayType>(ILEType)) {
-        QualType elemTy = arrType->getElementType();
-        if (elemTy->isRealType()) {
-          isRealConstArray = true;
-          exprsDiff.clear();
-          Expr* zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
-                                                         m_Context, /*val=*/0);
-          exprsDiff.push_back(zero);
-        }
+    bool isRealConstArray = false;
+    if (const auto* arrType = dyn_cast<ConstantArrayType>(ILEType)) {
+      QualType elemTy = arrType->getElementType();
+      if (elemTy->isRealType()) {
+        isRealConstArray = true;
+        exprsDiff.resize(1);
+        Expr* zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                       m_Context, /*val=*/0);
+        exprsDiff[0] = zero;
       }
-      for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
-        Expr* I =
-            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
-        Expr* array_at_i = nullptr;
-        if (dfdx())
-          array_at_i = m_Sema
-                           .ActOnArraySubscriptExpr(getCurrentScope(), dfdx(),
-                                                    noLoc, I, noLoc)
-                           .get();
-        StmtDiff elemDiff = Visit(ILE->getInit(i), array_at_i);
-        clonedExprs[i] = elemDiff.getExpr();
-        if (!isRealConstArray) {
-          if (elemDiff.getExpr_dx())
-            exprsDiff[i] = elemDiff.getExpr_dx();
-          else
-            exprsDiff[i] = getZeroInit(ILE->getInit(i)->getType());
-        }
-      }
-
-      Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-      Expr* ILEDiff = m_Sema.ActOnInitList(noLoc, exprsDiff, noLoc).get();
-      return StmtDiff(clonedILE, ILEDiff);
     }
-    // Check if type is a CXXRecordDecl
-    if (ILEType->isRecordType()) {
-      for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
-        // fetch ith field of the struct.
-        Expr* member_acess = nullptr;
-        if (dfdx()) {
+    for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
+      Expr* I =
+          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
+      Expr* elemDfDx = dfdx();
+      if (dfdx()) {
+        if (ILEType->isArrayType()) {
+          elemDfDx = m_Sema
+                         .ActOnArraySubscriptExpr(getCurrentScope(), dfdx(),
+                                                  noLoc, I, noLoc)
+                         .get();
+        } else if (ILEType->isRecordType()) {
           auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
           std::advance(field_iterator, i);
-          member_acess = utils::BuildMemberExpr(
-              m_Sema, getCurrentScope(), dfdx(), (*field_iterator)->getName());
+          elemDfDx = utils::BuildMemberExpr(m_Sema, getCurrentScope(), dfdx(),
+                                            (*field_iterator)->getName());
         }
-        StmtDiff elemDiff = Visit(ILE->getInit(i), member_acess);
-        clonedExprs[i] = elemDiff.getExpr();
+      }
+      StmtDiff elemDiff = Visit(ILE->getInit(i), elemDfDx);
+      clonedExprs[i] = elemDiff.getExpr();
+      if (!isRealConstArray) {
         if (elemDiff.getExpr_dx())
           exprsDiff[i] = elemDiff.getExpr_dx();
         else
-          exprsDiff[i] = getZeroInit(elemDiff.getExpr()->getType());
+          exprsDiff[i] = getZeroInit(ILE->getInit(i)->getType());
       }
-      Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-      Expr* ILEDiff = m_Sema.ActOnInitList(noLoc, exprsDiff, noLoc).get();
-      return StmtDiff(clonedILE, ILEDiff);
     }
 
-    Expr* clonedILE = m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
-    return StmtDiff(clonedILE);
+    Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
+    Expr* ILEDiff = m_Sema.ActOnInitList(noLoc, exprsDiff, noLoc).get();
+    return StmtDiff(clonedILE, ILEDiff);
   }
 
   Expr* ReverseModeVisitor::BuildDiffIncrement(Expr* E) {
