@@ -16,6 +16,10 @@
 #include <stack>
 #include <unordered_map>
 
+#ifndef NDEBUG
+#include <exception> // for std::terminate
+#endif
+
 namespace clad {
 /// A visitor for processing the function code in forward mode.
 /// Used to compute derivatives by clad::differentiate.
@@ -57,7 +61,6 @@ public:
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
-  StmtDiff VisitCXXConstCastExpr(const clang::CXXConstCastExpr* CCE);
   StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
   StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);
   StmtDiff VisitStringLiteral(const clang::StringLiteral* SL);
@@ -68,6 +71,9 @@ public:
   StmtDiff VisitForStmt(const clang::ForStmt* FS);
   StmtDiff VisitIfStmt(const clang::IfStmt* If);
   StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+  StmtDiff VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
+  StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
+  StmtDiff VisitCXXNamedCastExpr(const clang::CXXNamedCastExpr* NCE);
   StmtDiff VisitInitListExpr(const clang::InitListExpr* ILE);
   virtual StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
   StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
@@ -106,8 +112,6 @@ public:
   StmtDiff VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE);
   StmtDiff
   VisitCXXScalarValueInitExpr(const clang::CXXScalarValueInitExpr* SVIE);
-  StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* CSE);
-  StmtDiff VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
   StmtDiff VisitCXXBindTemporaryExpr(const clang::CXXBindTemporaryExpr* BTE);
   StmtDiff VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPL);
   StmtDiff
@@ -116,7 +120,6 @@ public:
   StmtDiff VisitSubstNonTypeTemplateParmExpr(
       const clang::SubstNonTypeTemplateParmExpr* NTTP);
   StmtDiff VisitImplicitValueInitExpr(const clang::ImplicitValueInitExpr* IVIE);
-  StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
   StmtDiff VisitNullStmt(const clang::NullStmt* NS) { return StmtDiff{}; };
   StmtDiff
   VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);

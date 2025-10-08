@@ -5,6 +5,7 @@
 // XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
+#include "clad/Differentiator/STLBuiltins.h"
 #include <cmath>
 #include <vector>
 
@@ -2650,12 +2651,88 @@ float fn42(const layer &l, float x) {
 //CHECK-NEXT:            float _r_d0 = _d_x;
 //CHECK-NEXT:            _d_x = 0.F;
 //CHECK-NEXT:            this->w[i].forward_pullback(x, _r_d0, &_d_this->w[i], &_d_x);
-//CHECK-NEXT:            size_type _r0 = {{0U|0UL}};
-//CHECK-NEXT:            this->w.operator_subscript_pullback(i, {}, &_d_this->w, &_r0);
-//CHECK-NEXT:            _d_i += _r0;
 //CHECK-NEXT:        }
 //CHECK-NEXT:    }
 //CHECK-NEXT:    *_d_inp += _d_x;
+//CHECK-NEXT:}
+
+double fn43(double* x, double y) {
+   double out = 0.0;
+   for (int i = 0; i < 3; i++) {
+      const double t4 = x[i];
+      out += 1. / t4;
+   }
+
+   return out;
+} // - 1 / x[0] - 1 / x[1] - 1 / x[2]
+
+//CHECK:   void fn43_grad_0(double *x, double y, double *_d_x) {
+//CHECK-NEXT:    double _d_y = 0.;
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    int i = 0;
+//CHECK-NEXT:    clad::tape<double> _t1 = {};
+//CHECK-NEXT:    double _d_t4 = 0.;
+//CHECK-NEXT:    double t4 = 0.;
+//CHECK-NEXT:    double _d_out = 0.;
+//CHECK-NEXT:    double out = 0.;
+//CHECK-NEXT:    unsigned {{int|long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:    for (i = 0; i < 3; i++) {
+//CHECK-NEXT:        _t0++;
+//CHECK-NEXT:        clad::push(_t1, t4) , t4 = x[i];
+//CHECK-NEXT:        out += 1. / t4;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    _d_out += 1;
+//CHECK-NEXT:    for (; _t0; _t0--) {
+//CHECK-NEXT:        i--;
+//CHECK-NEXT:        {
+//CHECK-NEXT:            double _r0 = _d_out * -(1. / (t4 * t4));
+//CHECK-NEXT:            _d_t4 += _r0;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        {
+//CHECK-NEXT:            _d_x[i] += _d_t4;
+//CHECK-NEXT:            _d_t4 = 0.;
+//CHECK-NEXT:            t4 = clad::pop(_t1);
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+double fn44(double u, double v) {
+  double sum = 0;
+  for (int i = 0; i != 1 ;) {
+    sum += u + v;
+    break;
+  }
+  return sum;
+}
+
+//CHECK: void fn44_grad(double u, double v, double *_d_u, double *_d_v) {
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    int i = 0;
+//CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t1 = {};
+//CHECK-NEXT:    double _d_sum = 0.;
+//CHECK-NEXT:    double sum = 0;
+//CHECK-NEXT:    unsigned {{int|long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:    for (i = 0; i != 1;) {
+//CHECK-NEXT:        _t0++;
+//CHECK-NEXT:        sum += u + v;
+//CHECK-NEXT:        {
+//CHECK-NEXT:            clad::push(_t1, {{1U|1UL}});
+//CHECK-NEXT:            break;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        clad::push(_t1, {{2U|2UL}});
+//CHECK-NEXT:    }
+//CHECK-NEXT:    _d_sum += 1;
+//CHECK-NEXT:    for (unsigned {{int|long}} _numRevIterations0 = _t0; _t0; _t0--)
+//CHECK-NEXT:        switch (clad::pop(_t1)) {
+//CHECK-NEXT:          case {{2U|2UL}}:
+//CHECK-NEXT:            ;
+//CHECK-NEXT:          case {{1U|1UL}}:
+//CHECK-NEXT:            ;
+//CHECK-NEXT:            {
+//CHECK-NEXT:                *_d_u += _d_sum;
+//CHECK-NEXT:                *_d_v += _d_sum;
+//CHECK-NEXT:            }
+//CHECK-NEXT:        }
 //CHECK-NEXT:}
 
 
@@ -2758,4 +2835,12 @@ int main() {
   layer d_l{ .w = {{0}, {0}, {0}, {0}}};
   d_fn42.execute(l, x_, &d_l);
   printf("{%.2f, %.2f, %.2f, %.2f}", d_l.w[0].z, d_l.w[1].z, d_l.w[2].z, d_l.w[3].z); // CHECK-EXEC: {1.00, 1.00, 1.00, 1.00}
+
+  for (int i = 0; i < 3; i++) p[i] = i+1; // p = {1, 2, 3}
+  for (int i = 0; i < 3; i++) result[i] = 0;
+  auto fn43_grad = clad::gradient(fn43, "x");
+  fn43_grad.execute(p, 5, result);
+  printf("{%.2f, %.2f, %.2f}\n", result[0], result[1], result[2]); // CHECK-EXEC: {-1.00, -0.25, -0.11}
+
+  TEST_2(fn44, 2, 3); // CHECK-EXEC: {1.00, 1.00}
 }

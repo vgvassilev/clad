@@ -406,10 +406,6 @@ namespace clad {
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type, Stmts& block,
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false);
-    /// For an expr E, decides if it is useful to store it in a temporary
-    /// variable and replace E's further usage by a reference to that variable
-    /// to avoid recomputation.
-    static bool UsefulToStore(clang::Expr* E);
     /// A flag for silencing warnings/errors output by diag function.
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
@@ -532,8 +528,9 @@ namespace clad {
     /// perfectly forwarded while calling member functions.
     /// \returns Built call expression
     clang::Expr*
-    BuildCallExprToFunction(clang::FunctionDecl* FD,
+    BuildCallExprToFunction(const clang::FunctionDecl* FD,
                             llvm::MutableArrayRef<clang::Expr*> argExprs,
+                            clang::Expr* CUDAExecConfig = nullptr,
                             bool useRefQualifiedThisObj = false);
 
     /// Build a call to templated free function inside the clad namespace.
@@ -593,18 +590,6 @@ namespace clad {
                                  clang::SourceLocation srcLoc);
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
-
-    /// Returns clad::Identify template declaration.
-    clang::TemplateDecl* GetCladConstructorPushforwardTag();
-
-    /// Returns type clad::Identify<T>
-    clang::QualType GetCladConstructorPushforwardTagOfType(clang::QualType T);
-
-    /// Returns clad::ConstructorReverseForwTag template declaration.
-    clang::TemplateDecl* GetCladConstructorReverseForwTag();
-
-    /// Returns type clad::ConstructorReverseForwTag<T>
-    clang::QualType GetCladConstructorReverseForwTagOfType(clang::QualType T);
     /// Find the derived function if present in the DerivedFnCollector.
     ///
     /// \param[in] request The request to find the derived function.
@@ -682,10 +667,6 @@ namespace clad {
                                    clang::Expr*& derivedR);
 
     virtual ~VisitorBase() = 0;
-
-  private:
-    clang::TemplateDecl* m_CladConstructorPushforwardTag = nullptr;
-    clang::TemplateDecl* m_CladConstructorReverseForwTag = nullptr;
   };
 
   /// A class that generates prettier stack traces when we crash on generating

@@ -172,9 +172,9 @@ void InitTimers();
       }
 #endif
 
-      // We could not delay the processing of derivatives, inform act as if each
+      // We could not delay the processing of derivatives, act as if each
       // call is final. That would still have vgvassilev/clad#248 unresolved.
-      if (!m_Multiplexer)
+      if (!m_Multiplexer && !m_CI.getDiagnostics().hasErrorOccurred())
         FinalizeTranslationUnit();
     }
 
@@ -481,8 +481,10 @@ void InitTimers();
       if (!m_CI.getPreprocessor().isIncrementalProcessingEnabled())
         S.TUScope = m_StoredTUScope;
       constexpr bool Enabled = true;
-      Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, Enabled);
-      Sema::LocalEagerInstantiationScope LocalInstantiations(S);
+      Sema::GlobalEagerInstantiationScope GlobalInstantiations(
+          S, Enabled CLAD_COMPAT_CLANG21_AtEndOfTUParam);
+      Sema::LocalEagerInstantiationScope LocalInstantiations(
+          S CLAD_COMPAT_CLANG21_AtEndOfTUParam);
 
       if (!m_DiffRequestGraph.isProcessingNode()) {
         // This check is to avoid recursive processing of the graph, as
@@ -507,30 +509,34 @@ void InitTimers();
     }
 
     void CladPlugin::HandleTranslationUnit(ASTContext& C) {
-      Sema& S = m_CI.getSema();
-      RequestOptions opts{};
-      SetRequestOptions(opts);
-      // Traverse all collected DeclGroupRef only once to create the static
-      // graph.
-      TimedAnalysisRegion R("Rest of TU");
-      for (auto DCI : m_DelayedCalls)
-        for (Decl* D : DCI.m_DGR) {
-          if (const auto* FD = dyn_cast<FunctionDecl>(D))
-            if (FD->isConstexpr())
-              continue;
-          DiffCollector collector(DCI.m_DGR, CladEnabledRange,
-                                  m_DiffRequestGraph, S, opts, m_AllAnalysisDC);
-          break;
+      // In case of diagnostics, don't bother, just let the compiler finish.
+      if (!m_CI.getDiagnostics().hasErrorOccurred()) {
+        Sema& S = m_CI.getSema();
+        RequestOptions opts{};
+        SetRequestOptions(opts);
+        // Traverse all collected DeclGroupRef only once to create the static
+        // graph.
+        TimedAnalysisRegion R("Rest of TU");
+        for (auto DCI : m_DelayedCalls)
+          for (Decl* D : DCI.m_DGR) {
+            if (const auto* FD = dyn_cast<FunctionDecl>(D))
+              if (FD->isConstexpr())
+                continue;
+            DiffCollector collector(DCI.m_DGR, CladEnabledRange,
+                                    m_DiffRequestGraph, S, opts,
+                                    m_AllAnalysisDC);
+            break;
+          }
+
+        if (m_CI.getFrontendOpts().ShowStats) {
+          // Print the graph of the diff requests.
+          llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
+          m_DiffRequestGraph.dump();
         }
 
-      if (m_CI.getFrontendOpts().ShowStats) {
-        // Print the graph of the diff requests.
-        llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
-        m_DiffRequestGraph.dump();
+        FinalizeTranslationUnit();
+        SendToMultiplexer();
       }
-
-      FinalizeTranslationUnit();
-      SendToMultiplexer();
       m_Multiplexer->HandleTranslationUnit(C);
     }
 

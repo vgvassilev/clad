@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -std=c++17 -oSwitchInit.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oSwitchInit.out 2>&1 | %filecheck %s
 // RUN: ./SwitchInit.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

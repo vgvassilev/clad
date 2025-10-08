@@ -93,7 +93,9 @@ class tape_impl {
   bool m_using_sbo = true;
 
   Slab* m_head = nullptr;
+  Slab* m_tail = nullptr;
   std::size_t m_size = 0;
+  std::size_t m_capacity = SBO_SIZE;
 
   CUDA_HOST_DEVICE T* sbo_elements() {
 #if __cplusplus >= 201703L
@@ -139,27 +141,24 @@ public:
         m_using_sbo = false;
 
       // Allocate new slab if required
-      if ((m_size - SBO_SIZE) % SLAB_SIZE == 0) {
+      if (m_size == m_capacity) {
         Slab* new_slab = new Slab();
-        if (!m_head) {
+        if (!m_head)
           m_head = new_slab;
-        } else {
-          Slab* last = m_head;
-          while (last->next)
-            last = last->next;
-          last->next = new_slab;
-        }
+        else
+          m_tail->next = new_slab;
+        m_tail = new_slab;
+        m_capacity += SLAB_SIZE;
+      } else if ((m_size - SBO_SIZE) % SLAB_SIZE == 0) {
+        if (m_size == SBO_SIZE)
+          m_tail = m_head;
+        else
+          m_tail = m_tail->next;
       }
-
-      // Find correct slab for element
-      Slab* slab = m_head;
-      std::size_t idx = (m_size - SBO_SIZE) / SLAB_SIZE;
-      while (idx--)
-        slab = slab->next;
 
       // Construct element in-place
       ::new (const_cast<void*>(static_cast<const volatile void*>(
-          slab->elements() + ((m_size - SBO_SIZE) % SLAB_SIZE))))
+          m_tail->elements() + ((m_size - SBO_SIZE) % SLAB_SIZE))))
           T(std::forward<ArgsT>(args)...);
     }
     m_size++;
@@ -204,7 +203,22 @@ public:
   CUDA_HOST_DEVICE void pop_back() {
     assert(m_size);
     m_size--;
-    destroy_element(at(m_size));
+    if (m_size < SBO_SIZE)
+      destroy_element(sbo_elements() + m_size);
+    else {
+      std::size_t offset = (m_size - SBO_SIZE) % SLAB_SIZE;
+      destroy_element(m_tail->elements() + offset);
+      if (offset == 0) {
+        Slab* slab = m_head;
+        Slab* prev = m_head;
+        std::size_t idx = (m_size - SBO_SIZE) / SLAB_SIZE;
+        while (idx--) {
+          prev = slab;
+          slab = slab->next;
+        }
+        m_tail = prev;
+      }
+    }
   }
 
 private:
@@ -266,7 +280,9 @@ private:
     }
 
     m_head = nullptr;
+    m_tail = nullptr;
     m_size = 0;
+    m_capacity = SBO_SIZE;
     m_using_sbo = true;
   }
 

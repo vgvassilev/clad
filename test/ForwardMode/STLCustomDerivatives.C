@@ -1,4 +1,4 @@
-// RUN: %cladclang -std=c++14 %s -I%S/../../include -oSTLCustomDerivatives.out | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oSTLCustomDerivatives.out | %filecheck %s
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 // XFAIL: valgrind
 
@@ -27,10 +27,10 @@ double fnVec1(double u, double v) {
 // CHECK: double fnVec1_darg0(double u, double v) {
 // CHECK-NEXT:     double _d_u = 1;
 // CHECK-NEXT:     double _d_v = 0;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::ConstructorPushforwardTag<std::vector<double> >(), 2, {{.*}}0{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, {{.*}}0{{.*}});
 // CHECK-NEXT:     std::vector<double> _d_V1(_t0.pushforward);
 // CHECK-NEXT:     std::vector<double> V1(_t0.value);
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<long double>, ::std::vector<long double> > _t1 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::ConstructorPushforwardTag<std::vector<long double> >(), 4, {{.*}}0{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<long double>, ::std::vector<long double> > _t1 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<long double> >(), 4, {{.*}}0{{.*}});
 // CHECK-NEXT:     std::vector<long double> _d_V2(_t1.pushforward);
 // CHECK-NEXT:     std::vector<long double> V2(_t1.value);
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<double &, double &> _t2 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&V1, 0, &_d_V1, 0);
@@ -67,10 +67,10 @@ double fnVec2(double u, double v) {
 // CHECK: double fnVec2_darg0(double u, double v) {
 // CHECK-NEXT:     double _d_u = 1;
 // CHECK-NEXT:     double _d_v = 0;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::ConstructorPushforwardTag<std::vector<double> >(), 2, u, {{.*}}0, _d_u{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, u, {{.*}}0, _d_u{{.*}});
 // CHECK-NEXT:     const std::vector<double> _d_V1(_t0.pushforward);
 // CHECK-NEXT:     const std::vector<double> V1(_t0.value);
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t1 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::ConstructorPushforwardTag<std::vector<double> >(), 2, v, {{.*}}0, _d_v{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t1 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, v, {{.*}}0, _d_v{{.*}});
 // CHECK-NEXT:     const std::vector<double> _d_V2(_t1.pushforward);
 // CHECK-NEXT:     const std::vector<double> V2(_t1.value);
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<const double &, const double &> _t2 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&V1, 0, &_d_V1, 0);
@@ -89,7 +89,7 @@ double fnVec3(double u, double v) {
 // CHECK: double fnVec3_darg0(double u, double v) {
 // CHECK-NEXT:     double _d_u = 1;
 // CHECK-NEXT:     double _d_v = 0;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::ConstructorPushforwardTag<std::vector<double> >(), 2, u, {{.*}}0, _d_u{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), 2, u, {{.*}}0, _d_u{{.*}});
 // CHECK-NEXT:     std::vector<double> _d_V1(_t0.pushforward);
 // CHECK-NEXT:     std::vector<double> V1(_t0.value);
 // CHECK-NEXT:     std::vector<double> &_d_V2 = _d_V1;
@@ -107,7 +107,7 @@ double fnVec4(double u, double v) {
 // CHECK: double fnVec4_darg0(double u, double v) {
 // CHECK-NEXT:     double _d_u = 1;
 // CHECK-NEXT:     double _d_v = 0;
-// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::ConstructorPushforwardTag<std::vector<double> >(), {u, v, u * v}, {{.*}}{_d_u, _d_v, _d_u * v + u * _d_v}{{.*}});
+// CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::Tag<std::vector<double> >(), {u, v, u * v}, {{.*}}{_d_u, _d_v, _d_u * v + u * _d_v}{{.*}});
 // CHECK-NEXT:     std::vector<double> _d_V(_t0.pushforward);
 // CHECK-NEXT:     std::vector<double> V(_t0.value);
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<double &, double &> _t1 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&V, 0, &_d_V, 0);
@@ -189,7 +189,7 @@ double fnVec6(double x, double y) {
 // CHECK:      double fnVec6_darg0(double x, double y) {
 // CHECK-NEXT:          double _d_x = 1;
 // CHECK-NEXT:          double _d_y = 0;
-// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = {{.*}}constructor_pushforward(clad::ConstructorPushforwardTag<std::vector<double> >(), 3, y{{.*}}, 0, _d_y{{.*}});
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = {{.*}}constructor_pushforward(clad::Tag<std::vector<double> >(), 3, y{{.*}}, 0, _d_y{{.*}});
 // CHECK-NEXT:          std::vector<double> _d_v(_t0.pushforward);
 // CHECK-NEXT:          std::vector<double> v(_t0.value);
 // CHECK-NEXT:          {{.*}}pop_back_pushforward(&v, &_d_v);
@@ -391,7 +391,7 @@ double fnTuple1(double x, double y) {
 } // = 2x + 2y
 
 //CHECK:      clad::ValueAndPushforward<{{.*}}> pack_pushforward({{.*}}) {
-//CHECK-NEXT:          clad::ValueAndPushforward<tuple<double, double, double>, tuple<double, double, double> > _t0 = clad::custom_derivatives::std::make_tuple_pushforward(x, 2 * x, 3 * x, _d_x, 0 * x + 2 * _d_x, 0 * x + 3 * _d_x);
+//CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t0 = clad::custom_derivatives::std::make_tuple_pushforward(x, 2 * x, 3 * x, _d_x, 0 * x + 2 * _d_x, 0 * x + 3 * _d_x);
 //CHECK-NEXT:          return {_t0.value, _t0.pushforward};
 //CHECK-NEXT:      }
 
@@ -400,7 +400,7 @@ double fnTuple1(double x, double y) {
 //CHECK-NEXT:          double _d_y = 0;
 //CHECK-NEXT:          double _d_u, _d_v = 0 * x + 288 * _d_x, _d_w;
 //CHECK-NEXT:          double u, v = 288 * x, w;
-//CHECK-NEXT:          clad::ValueAndPushforward<tuple<double &, double &, double &>, tuple<double &, double &, double &> > _t0 = clad::custom_derivatives::std::tie_pushforward(u, v, w, _d_u, _d_v, _d_w);
+//CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t0 = clad::custom_derivatives::std::tie_pushforward(u, v, w, _d_u, _d_v, _d_w);
 //CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t1 = pack_pushforward(x + y, _d_x + _d_y);
 //CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t2 = clad::custom_derivatives::class_functions::operator_equal_pushforward(&_t0.value, static_cast<std::tuple<double, double, double> &&>(_t1.value), &_t0.pushforward, static_cast<std::tuple<double, double, double> &&>(_t1.pushforward));
 //CHECK-NEXT:          return _d_v;

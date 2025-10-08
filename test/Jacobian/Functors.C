@@ -161,7 +161,7 @@ namespace outer {
       _clad_out_output[1] = i*j*j;
     };
 
-  // CHECK: inline void operator_call_jac(double i, double j, double *_clad_out_output, clad::matrix<double> *_d_vector__clad_out_output) const {
+  // CHECK: inline constexpr void operator_call_jac(double i, double j, double *_clad_out_output, clad::matrix<double> *_d_vector__clad_out_output) const {
   // CHECK-NEXT:     unsigned long indepVarCount = {{2U|2UL|2ULL}};
   // CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
   // CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
@@ -208,7 +208,7 @@ int main() {
     _clad_out_output[1] = i*j*j;
   };
 
-  // CHECK-NEXT: inline void operator_call_jac(double i, double j, double *_clad_out_output, clad::matrix<double> *_d_vector__clad_out_output) const {
+  // CHECK-NEXT: inline constexpr void operator_call_jac(double i, double j, double *_clad_out_output, clad::matrix<double> *_d_vector__clad_out_output) const {
   // CHECK-NEXT:     unsigned long indepVarCount = {{2U|2UL|2ULL}};
   // CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
   // CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
@@ -226,7 +226,7 @@ int main() {
     _clad_out_output[1] = y*i*jj*jj;
   };
 
-// CHECK: inline void operator_call_jac(double i, double jj, double *_clad_out_output, clad::matrix<double> *_d_vector__clad_out_output) const {
+// CHECK: inline constexpr void operator_call_jac(double i, double jj, double *_clad_out_output, clad::matrix<double> *_d_vector__clad_out_output) const {
 // CHECK-NEXT:     unsigned long indepVarCount = {{2U|2UL|2ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_jj = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});

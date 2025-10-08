@@ -30,6 +30,7 @@
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/OperatorKinds.h"
+#include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
@@ -961,77 +962,112 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     });
   }
 
-  static Expr* getOverloadExpr(clang::Sema& S, const std::string& Name,
-                               DeclContext* DC, QualType DerivativeType,
-                               const Expr* callSite, bool enableDiagnostics) {
-    IdentifierInfo* II = &S.getASTContext().Idents.get(Name);
-    DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(S));
-    LookupResult Found(S, DNInfo, Sema::LookupOrdinaryName);
-    S.LookupQualifiedName(Found, DC);
-    bool overloadFound = false;
+  static Expr* getOverloadExpr(Sema& S, DeclContext* DC, const DiffRequest& R) {
+
+    llvm::SmallVector<const ValueDecl*, 4> diffParams{};
+    for (const DiffInputVarInfo& VarInfo : R.DVI)
+      diffParams.push_back(VarInfo.param);
+    QualType dTy = utils::GetDerivativeType(S, R.Function, R.Mode, diffParams,
+                                            /*forCustomDerv=*/true);
+    // We disable diagnostics for methods and operators because they often have
+    // ideantical names: `constructor_pullback`, `operator_star_pushforward`,
+    // etc. If we turn it on, every such operator will trigger diagnostics
+    // because of our STL and Kokkos custom derivatives.
+    // FIXME: Add a way to silence the diagnostics.
+    bool enableDiagnostics = !isa<CXXMethodDecl>(R.Function) &&
+                             !R->isOverloadedOperator() &&
+                             R.BaseFunctionName != "forward";
+
+    ASTContext& C = S.getASTContext();
+    auto LookupPropagator = [&C, &S, &DC](const std::string& Name) {
+      IdentifierInfo* II = &C.Idents.get(Name);
+      DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(S));
+      LookupResult Found(S, DNInfo, Sema::LookupOrdinaryName);
+      S.LookupQualifiedName(Found, DC);
+      return Found;
+    };
+
+    std::string Name = R.ComputeDerivativeName();
+    LookupResult Found = LookupPropagator(Name);
+    // FIXME: This is a hack to reuse the builtin derivatives for vector mode.
+    if (Found.empty() && R.Mode == DiffMode::vector_pushforward)
+      Found = LookupPropagator(R.BaseFunctionName + "_pushforward");
+
+    if (Found.empty())
+      return nullptr; // Nothing found.
+
+    TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
+                                              /*ForTakingAddress=*/false);
+    CXXScopeSpec SS;
     // Check if any of the custom derivative signature satisfy the requirements.
-    for (NamedDecl* candidate : Found) {
+    for (LookupResult::iterator I = Found.begin(), E = Found.end(); I != E;
+         ++I) {
+      NamedDecl* candidate = I.getDecl();
       // Shadow decls don't provide enough information, go to the actual decl.
       if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
         candidate = usingShadow->getTargetDecl();
-      // Overload is just a FunctionDecl, check if the signature matches.
-      if (auto* FD = dyn_cast<FunctionDecl>(candidate)) {
-        if (utils::isSameCanonicalType(FD->getType(), DerivativeType)) {
-          overloadFound = true;
-          break;
-        }
-      } // Overload is a template, try to match the signature.
-      else if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate)) {
-        clang::FunctionDecl* Specialization = nullptr;
-        clang::sema::TemplateDeductionInfo Info(noLoc);
-        clang::TemplateArgumentListInfo ExplicitTemplateArgs;
-        auto R = S.DeduceTemplateArguments(
-            FTD, &ExplicitTemplateArgs, DerivativeType, Specialization, Info);
+
+      // Overload is a template, try to match the signature.
+      if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate)) {
+        FunctionDecl* Specialization = nullptr;
+        sema::TemplateDeductionInfo Info(FailedCandidates.getLocation());
+        TemplateArgumentListInfo ExplicitTemplateArgs;
+        auto TDK = S.DeduceTemplateArguments(FTD, &ExplicitTemplateArgs, dTy,
+                                             Specialization, Info);
+
         // Instantiation with the required signature succeeded.
-        if (R == clad_compat::CLAD_COMPAT_TemplateSuccess) {
-          overloadFound = true;
-          break;
-        }
+        if (TDK == clad_compat::CLAD_COMPAT_TemplateSuccess)
+          return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
+
+        FailedCandidates.addCandidate().set(
+            I.getPair(), FTD->getTemplatedDecl(),
+            MakeDeductionFailureInfo(C, TDK, Info));
+
         // Instantiation of parameters suceeded but clang doesn't consider
         // deduction successful because of the auto return type.
         if (Specialization && !Specialization->isTemplated() &&
-            Specialization->getReturnType()->isUndeducedAutoType()) {
-          overloadFound = true;
-          break;
-        }
+            Specialization->getReturnType()->isUndeducedAutoType())
+          return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
       }
+      auto* FD = dyn_cast<FunctionDecl>(candidate);
+      if (!FD)
+        continue;
+      // Overload is just a FunctionDecl, check if the signature matches.
+      if (C.hasSameFunctionTypeIgnoringExceptionSpec(FD->getType(), dTy))
+        return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
     }
-    // If a suitable overload is found, build DeclarationNameExpr to
-    // store overload candidates to resolve in DerivativeBuilder::Derive.
-    if (overloadFound) {
-      CXXScopeSpec SS;
-      return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
-    }
-    // If custom derivatives were found but the type didn't match,
-    // perform diagnostics.
-    if (!Found.empty() && enableDiagnostics) {
-      auto warnId = S.Diags.getCustomDiagID(
-          DiagnosticsEngine::Warning,
-          "A custom derivative for '%0' was found but not used "
-          "because its signature does not match the expected signature '%1'");
-      S.Diag(callSite->getBeginLoc(), warnId)
-          << Name << DerivativeType.getAsString();
 
-      for (NamedDecl* candidate : Found) {
-        if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
-          candidate = usingShadow->getTargetDecl();
-        QualType fnType;
-        if (auto* FD = dyn_cast<FunctionDecl>(candidate))
-          fnType = FD->getType();
-        else if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate))
-          fnType = FTD->getTemplatedDecl()->getType();
-        if (!fnType.isNull()) {
-          auto noteId = S.Diags.getCustomDiagID(
-              DiagnosticsEngine::Note, "Candidate not viable: cannot match the "
-                                       "requested signature with '%0'");
-          S.Diag(candidate->getLocation(), noteId) << fnType.getAsString();
-        }
-      }
+    if (!enableDiagnostics)
+      return nullptr;
+
+    // We did not match the found candidates. Warn and offer the user hints.
+    auto errId = S.Diags.getCustomDiagID(
+        DiagnosticsEngine::Error,
+        "user-defined derivative for %0 was provided but not used; "
+        "expected signature %1 does not match");
+    S.Diag(R.CallContext->getBeginLoc(), errId) << R.Function << dTy;
+    FailedCandidates.NoteCandidates(S, R.CallContext->getBeginLoc());
+
+    unsigned noteId = S.Diags.getCustomDiagID(
+        DiagnosticsEngine::Note,
+        "candidate '%0'"
+        "%select{| has different class%diff{ (expected $ but has $)|}1,2"
+        "| has different number of parameters (expected %2 but has %3)"
+        "| has type mismatch at %ordinal2 parameter"
+        "%diff{ (expected $ but has $)|}3,4"
+        "| has different return type%diff{ ($ expected but has $)|}2,3"
+        "| has different qualifiers (expected %2 but found %3)"
+        "| has different exception specification}1");
+
+    for (const NamedDecl* ND : Found) {
+      if (const auto* usingShadow = dyn_cast<UsingShadowDecl>(ND))
+        ND = usingShadow->getTargetDecl();
+      if (!isa<FunctionDecl>(ND))
+        continue;
+      const auto* FD = cast<FunctionDecl>(ND);
+      auto PD = PartialDiagnostic(noteId, C.getDiagAllocator()) << Name;
+      S.HandleFunctionTypeMismatch(PD, FD->getType(), dTy);
+      S.Diag(FD->getLocation(), PD);
     }
     return nullptr;
   }
@@ -1080,28 +1116,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     assert(request.Mode != DiffMode::unknown &&
            "Called lookup without specified DiffMode");
-    std::string Name = request.ComputeDerivativeName();
-    llvm::SmallVector<const ValueDecl*, 4> diffParams{};
-    for (const DiffInputVarInfo& VarInfo : request.DVI)
-      diffParams.push_back(VarInfo.param);
-    QualType DerivativeType =
-        utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
-                                 diffParams, /*forCustomDerv=*/true);
-    // We disable diagnostics for methods and operators because they often have
-    // ideantical names: `constructor_pullback`, `operator_star_pushforward`,
-    // etc. If we turn it on, every such operator will trigger diagnostics
-    // because of our STL and Kokkos custom derivatives.
-    bool enableDiagnostics = !isa<CXXMethodDecl>(request.Function) &&
-                             !request->isOverloadedOperator();
-    Expr* overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType, callSite,
-                                     enableDiagnostics);
-    if (!overload && request.Mode == DiffMode::vector_pushforward) {
-      Name = request.BaseFunctionName + "_pushforward";
-      overload = getOverloadExpr(m_Sema, Name, DC, DerivativeType, callSite,
-                                 enableDiagnostics);
-    }
 
-    if (overload) {
+    if (Expr* overload = getOverloadExpr(m_Sema, DC, request)) {
       // Overload found. Mark the request as custom derivative and save
       // the set of overloads to process later.
       request.CustomDerivative = overload;
@@ -1119,6 +1135,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (!FD)
       return true;
 
+    bool nonDiff = false;
     // FIXME: We might want to support nested calls to differentiate/gradient
     // inside differentiated functions.
     if (!m_TopMostReq) {
@@ -1172,32 +1189,39 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // should not produce any derivative expression for that function call,
       // and the function call in the primal should be used as it is.
       if (clad::utils::hasNonDifferentiableAttribute(E))
-        return true;
+        nonDiff = true;
 
-      if (const CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(FD)) {
+      const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+      if (MD) {
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD))
-          return true;
+          nonDiff = true;
       }
 
       QualType returnType = FD->getReturnType();
-      bool needsForwPass = utils::isNonConstReferenceType(returnType) ||
-                           returnType->isPointerType();
+      bool hasPointerOrRefReturn = utils::isNonConstReferenceType(returnType) ||
+                                   returnType->isPointerType();
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
-      if (!isa<CXXMemberCallExpr>(E) && !isa<CXXOperatorCallExpr>(E) &&
-          !needsForwPass &&
+      if (!(MD && MD->isInstance()) && !hasPointerOrRefReturn &&
           allArgumentsAreLiterals(E->arguments(), m_ParentReq))
+        nonDiff = true;
+      // In the reverse mode, such functions don't have dfdx()
+      if (!utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
+          m_TopMostReq->Mode == DiffMode::reverse)
+        nonDiff = true;
+
+      if (nonDiff && m_TopMostReq->Mode != DiffMode::reverse)
         return true;
 
       request.Function = FD;
+      request.CallContext = E;
       bool canUsePushforwardInRevMode =
           m_TopMostReq->Mode == DiffMode::reverse &&
           utils::canUsePushforwardInRevMode(FD);
 
-      // FIXME: hessians require second derivatives,
-      // i.e. apart from the pushforward, we also need
-      // to schedule pushforward_pullback.
+      // FIXME: hessians require second derivatives, i.e. apart from the
+      // pushforward, we also need to schedule pushforward_pullback.
       if (m_ParentReq->CustomDerivative ||
           m_ParentReq->Mode == DiffMode::unknown)
         request.Mode = DiffMode::unknown;
@@ -1231,7 +1255,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
       request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
-      request.CallContext = E;
 
       if (request.Mode != DiffMode::pushforward &&
           request.Mode != DiffMode::vector_pushforward) {
@@ -1263,9 +1286,43 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             request.CUDAGlobalArgsIndexes.push_back(i);
         }
       }
+
+      // Warn if we find pullbacks.
+      if (canUsePushforwardInRevMode &&
+          m_TopMostReq->Mode == DiffMode::reverse) {
+        DiffRequest R = request;
+        R.BaseFunctionName = utils::ComputeEffectiveFnName(R.Function);
+        R.Mode = DiffMode::pullback;
+        if (LookupCustomDerivativeDecl(R)) {
+          unsigned warnId = m_Sema.Diags.getCustomDiagID(
+              DiagnosticsEngine::Warning,
+              "unused function '%0_pullback'; '%0' is a real-domain, "
+              "single-argument function and only pushforward is required");
+
+          m_Sema.Diag(R.CallContext->getBeginLoc(), warnId)
+              << R.Function->getName() << R.CallContext->getSourceRange();
+          // Collect the unused decls.
+          llvm::SmallVector<const NamedDecl*, 2> UnusedDecls;
+          if (const auto* OvE = dyn_cast<OverloadExpr>(R.CustomDerivative)) {
+            UnusedDecls.append(OvE->decls_begin(), OvE->decls_end());
+          } else {
+            const auto* DRE = cast<DeclRefExpr>(R.CustomDerivative);
+            const auto* UnusedD = cast<FunctionDecl>(DRE->getDecl());
+            UnusedDecls.push_back(UnusedD);
+          }
+          unsigned noteId = m_Sema.Diags.getCustomDiagID(
+              DiagnosticsEngine::Note, "%0 is unused");
+          for (const NamedDecl* UnusedD : UnusedDecls) {
+            SourceLocation L = UnusedD->getLocation();
+            m_Sema.Diag(L, noteId) << UnusedD << L;
+          }
+        }
+      }
     }
 
-    request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
+    if (request.BaseFunctionName.empty())
+      request.BaseFunctionName =
+          utils::ComputeEffectiveFnName(request.Function);
 
     // FIXME: Here we copy all varied declarations down to the pullback, has to
     // be removed once AA and TBR are completely reworked, with better
@@ -1292,7 +1349,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         E->getDirectCallee();
     bool shouldUseRestoreTracker =
         utils::shouldUseRestoreTracker(request.Function);
-    if (!LookupCustomDerivativeDecl(request) || requestTBR) {
+    if (!(LookupCustomDerivativeDecl(request) || nonDiff) || requestTBR) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
           std::make_unique<AnalysisDeclContext>(
@@ -1365,19 +1422,18 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     if (request.Mode == DiffMode::pullback) {
       DiffRequest forwPassRequest;
-      forwPassRequest = request;
-      forwPassRequest.DVI.clear();
+      forwPassRequest.Function = request.Function;
+      forwPassRequest.BaseFunctionName = request.BaseFunctionName;
       forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
-      forwPassRequest.EnableTBRAnalysis = false;
-      forwPassRequest.EnableVariedAnalysis = false;
-      forwPassRequest.EnableUsefulAnalysis = false;
+      forwPassRequest.CallContext = request.CallContext;
       QualType returnType = request->getReturnType();
       if (LookupCustomDerivativeDecl(forwPassRequest) ||
           utils::isMemoryType(returnType) || shouldUseRestoreTracker)
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
     }
 
-    m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+    if (!nonDiff)
+      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     if (m_IsTraversingTopLevelDecl) {
       m_TopMostReq = nullptr;

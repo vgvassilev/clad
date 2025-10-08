@@ -1,4 +1,4 @@
-// RUN: %cladnumdiffclang %s -std=c++17 -I%S/../../include -oGradients.out -Xclang -verify 2>&1 | %filecheck %s
+// RUN: %cladnumdiffclang %s -I%S/../../include -oGradients.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: ./Gradients.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s  -I%S/../../include -oGradients.out
 // RUN: ./Gradients.out | %filecheck_exec %s
@@ -1156,6 +1156,31 @@ double f_static_assert(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double f_infinity(double x, double y) {
+  constexpr double inf = std::numeric_limits<double>::infinity();
+  if (x < inf)
+    return y;
+  return x + y;
+}
+
+//CHECK: void f_infinity_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     double _d_inf = 0.;
+//CHECK-NEXT:     const double inf = std::numeric_limits<double>::infinity();
+//CHECK-NEXT:     {
+//CHECK-NEXT:         _cond0 = x < inf;
+//CHECK-NEXT:         if (_cond0)
+//CHECK-NEXT:             goto _label0;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += 1;
+//CHECK-NEXT:         *_d_y += 1;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     if (_cond0)
+//CHECK-NEXT:       _label0:
+//CHECK-NEXT:         *_d_y += 1;
+//CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -1259,4 +1284,7 @@ int main() {
 
   INIT_GRADIENT(f_static_assert);
   TEST_GRADIENT(f_static_assert, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
+
+  INIT_GRADIENT(f_infinity);
+  TEST_GRADIENT(f_infinity, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {0.00, 1.00}
 }

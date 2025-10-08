@@ -101,7 +101,7 @@ namespace outer {
       return i*i*j*j;
     };
 
-    // CHECK: inline void operator_call_hessian(double i, double j, double *hessianMatrix) const {
+    // CHECK: inline constexpr void operator_call_hessian(double i, double j, double *hessianMatrix) const {
     // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
     // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
     // CHECK-NEXT: }
@@ -137,7 +137,7 @@ int main() {
     return i*i*j*j;
   };
 
-  // CHECK: inline void operator_call_hessian(double i, double j, double *hessianMatrix) const {
+  // CHECK: inline constexpr void operator_call_hessian(double i, double j, double *hessianMatrix) const {
   // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
   // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
   // CHECK-NEXT: }
@@ -146,7 +146,7 @@ int main() {
     return x*i*i*jj + y*i*jj*jj;
   };
 
-  // CHECK: inline void operator_call_hessian(double i, double jj, double *hessianMatrix) const {
+  // CHECK: inline constexpr void operator_call_hessian(double i, double jj, double *hessianMatrix) const {
   // CHECK-NEXT:     this->operator_call_darg0_grad(i, jj, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
   // CHECK-NEXT:     this->operator_call_darg1_grad(i, jj, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
   // CHECK-NEXT: }

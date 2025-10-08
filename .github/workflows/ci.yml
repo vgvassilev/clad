@@ -47,30 +47,40 @@ jobs:
             compiler: clang
             clang-runtime: '20'
 
-          - name: osx13-x86-clang-runtime16
-            os: macos-13
+          - name: osx14-arm-clang-runtime21
+            os: macos-14
+            compiler: clang
+            clang-runtime: '21'
+
+          - name: osx15-x86-clang-runtime16
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '16'
 
-          - name: osx13-x86-clang-runtime17
-            os: macos-13
+          - name: osx15-x86-clang-runtime17
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '17'
             
-          - name: osx13-x86-clang-runtime18
-            os: macos-13
+          - name: osx15-x86-clang-runtime18
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '18'
 
-          - name: osx13-x86-clang-runtime19
-            os: macos-13
+          - name: osx15-x86-clang-runtime19
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '19'
 
-          - name: osx13-x86-clang-runtime20
-            os: macos-13
+          - name: osx15-x86-clang-runtime20
+            os: macos-15-intel
             compiler: clang
             clang-runtime: '20'
+
+          - name: osx15-x86-clang-runtime21
+            os: macos-15-intel
+            compiler: clang
+            clang-runtime: '21'
 
           - name: win2022-msvc-runtime14
             os: windows-2022
@@ -103,10 +113,15 @@ jobs:
             compiler: msvc
             clang-runtime: '20'
 
-          - name: ubu22-clang15-runtime18-debug
-            os: ubuntu-22.04
-            compiler: clang-15
-            clang-runtime: '18'
+          - name: win2022-msvc-runtime21
+            os: windows-2022
+            compiler: msvc
+            clang-runtime: '21'
+
+          - name: ubu24-clang20-runtime21-debug
+            os: ubuntu-24.04
+            compiler: clang-20
+            clang-runtime: '21'
             debug_build: true
 
           - name: selfh-ubu22-gcc12-runtime18-analyzers
@@ -434,6 +449,11 @@ jobs:
             extra_packages: 'valgrind'
             extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
             clang-runtime: '20'
+
+          - name: ubu24-clang20-runtime21
+            os: ubuntu-24.04
+            compiler: clang-20
+            clang-runtime: '21'
 
           - name: ubu24-arm-clang16-runtime17
             os: ubuntu-24.04-arm

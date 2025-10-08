@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -std=c++14 -oconstexprTest.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oconstexprTest.out 2>&1 | %filecheck %s
 // RUN: ./constexprTest.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -std=c++14 -oconstexprTest.out
 // RUN: ./constexprTest.out | %filecheck_exec %s

@@ -3,19 +3,53 @@
 
 #include <cstddef>
 #include <iterator>
+#include <thrust/adjacent_difference.h>
 #include <thrust/count.h>
 #include <thrust/device_ptr.h>
+#include <thrust/fill.h> // NOLINT(misc-include-cleaner)
 // NOLINTNEXTLINE(misc-include-cleaner)
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/reduce.h>
+#include <thrust/scan.h>
 #include <thrust/transform.h>
 #include <thrust/tuple.h>
 #include <type_traits>
 
 namespace clad::custom_derivatives::thrust {
+
+namespace detail {
+// Detection of functor operator_call_pullback for unary and binary ops
+template <typename, typename, typename = void>
+struct has_unary_operator_call_pullback : ::std::false_type {};
+
+template <typename Op, typename T>
+struct has_unary_operator_call_pullback<
+    Op, T,
+    ::std::void_t<decltype(::std::declval<Op&>().operator_call_pullback(
+        ::std::declval<T>(),                   // x
+        ::std::declval<T>(),                   // d_y
+        (::std::add_pointer_t<Op>)(nullptr),   // d_op
+        (::std::add_pointer_t<T>)(nullptr)))>> // d_x
+    : ::std::true_type {};
+
+template <typename, typename, typename = void>
+struct has_binary_operator_call_pullback : ::std::false_type {};
+
+template <typename Op, typename T>
+struct has_binary_operator_call_pullback<
+    Op, T,
+    ::std::void_t<decltype(::std::declval<Op&>().operator_call_pullback(
+        ::std::declval<T>(),                   // x1
+        ::std::declval<T>(),                   // x2
+        ::std::declval<T>(),                   // d_y
+        (::std::add_pointer_t<Op>)(nullptr),   // d_op
+        (::std::add_pointer_t<T>)(nullptr),    // d_x1
+        (::std::add_pointer_t<T>)(nullptr)))>> // d_x2
+    : ::std::true_type {};
+} // namespace detail
 
 template <typename Iterator, typename OutputIterator>
 void copy_pullback(Iterator first, Iterator last, OutputIterator result,
@@ -244,6 +278,168 @@ void reduce_pullback(
                   d_op);
 }
 
+template <typename Iterator, typename T, typename BinaryOp>
+T reduce_reverse_forw(Iterator first, Iterator last, T init, BinaryOp op,
+                      Iterator /*dfirst*/, Iterator /*dlast*/, T /*dinit*/,
+                      BinaryOp /*dop*/) {
+  return ::thrust::reduce(first, last, init, op);
+}
+
+template <typename Iterator, typename T>
+T reduce_reverse_forw(Iterator first, Iterator last, T init,
+                      Iterator /*dfirst*/, Iterator /*dlast*/, T /*dinit*/) {
+  return ::thrust::reduce(first, last, init);
+}
+
+template <typename Iterator>
+typename ::std::iterator_traits<Iterator>::value_type
+reduce_reverse_forw(Iterator first, Iterator last, Iterator /*dfirst*/,
+                    Iterator /*dlast*/) {
+  return ::thrust::reduce(first, last);
+}
+
+template <typename InputIt, typename OutputIt>
+void inclusive_scan_pullback(InputIt first, InputIt last, OutputIt result,
+                             OutputIt d_return, InputIt* d_first,
+                             InputIt* d_last, OutputIt* d_result) {
+  using Value = typename ::std::iterator_traits<InputIt>::value_type;
+  ::thrust::plus<Value> op;
+  ::thrust::plus<Value>* d_op = nullptr;
+  inclusive_scan_pullback(first, last, result, op, d_return, d_first, d_last,
+                          d_result, d_op);
+}
+
+template <typename InputIt, typename OutputIt, typename BinaryOp>
+void inclusive_scan_pullback(InputIt first, InputIt last, OutputIt result,
+                             BinaryOp op, OutputIt d_return, InputIt* d_first,
+                             InputIt* d_last, OutputIt* d_result,
+                             BinaryOp* d_op) {
+  size_t n = ::thrust::distance(first, last);
+
+  if (n == 0)
+    return;
+
+  using ValueConst = typename ::std::iterator_traits<InputIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+
+  auto d_src_const_ptr = ::thrust::raw_pointer_cast((*d_first).base());
+  auto d_src_ptr = const_cast<Value*>(d_src_const_ptr);
+  ::thrust::device_ptr<Value> d_src_dev_ptr(d_src_ptr);
+
+  auto d_dst_const_ptr = ::thrust::raw_pointer_cast((*d_result).base());
+  auto d_dst_ptr = const_cast<Value*>(d_dst_const_ptr);
+  ::thrust::device_ptr<Value> d_dst_dev_ptr(d_dst_ptr);
+
+  if constexpr (::std::is_same_v<BinaryOp, ::thrust::plus<Value>>) {
+    ::thrust::device_vector<Value> suffix_sums(n);
+
+    ::thrust::inclusive_scan(::thrust::make_reverse_iterator(d_dst_dev_ptr + n),
+                             ::thrust::make_reverse_iterator(d_dst_dev_ptr),
+                             suffix_sums.begin(), op);
+
+    ::thrust::transform(d_src_dev_ptr, d_src_dev_ptr + n,
+                        ::thrust::make_reverse_iterator(suffix_sums.end()),
+                        d_src_dev_ptr, ::thrust::plus<Value>());
+
+    ::thrust::fill(d_dst_dev_ptr, d_dst_dev_ptr + n, Value(0));
+
+  } else {
+    static_assert(::std::is_same_v<Value, void>,
+                  "This binary operation is not supported by the custom "
+                  "inclusive_scan_pullback.");
+  }
+}
+
+template <typename InputIt, typename OutputIt>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+inclusive_scan_reverse_forw(InputIt first, InputIt last, OutputIt result,
+                            InputIt, InputIt, OutputIt) {
+  using Value = typename ::std::iterator_traits<InputIt>::value_type;
+  return {
+      ::thrust::inclusive_scan(first, last, result, ::thrust::plus<Value>()),
+      {}};
+}
+
+template <typename InputIt, typename OutputIt, typename BinaryOp>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+inclusive_scan_reverse_forw(InputIt first, InputIt last, OutputIt result,
+                            BinaryOp op, InputIt, InputIt, OutputIt, BinaryOp) {
+  return {::thrust::inclusive_scan(first, last, result, op), {}};
+}
+
+template <typename InputIt, typename OutputIt, typename T>
+void exclusive_scan_pullback(InputIt first, InputIt last, OutputIt result,
+                             T init, OutputIt d_return, InputIt* d_first,
+                             InputIt* d_last, OutputIt* d_result, T* d_init) {
+  using Value = typename ::std::iterator_traits<InputIt>::value_type;
+  ::thrust::plus<Value> op;
+  ::thrust::plus<Value>* d_op = nullptr;
+  exclusive_scan_pullback(first, last, result, init, op, d_return, d_first,
+                          d_last, d_result, d_init, d_op);
+}
+
+template <typename InputIt, typename OutputIt, typename T, typename BinaryOp>
+void exclusive_scan_pullback(InputIt first, InputIt last, OutputIt result,
+                             T init, BinaryOp op, OutputIt d_return,
+                             InputIt* d_first, InputIt* d_last,
+                             OutputIt* d_result, T* d_init, BinaryOp* d_op) {
+  size_t n = ::thrust::distance(first, last);
+  if (n == 0)
+    return;
+
+  using ValueConst = typename ::std::iterator_traits<InputIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+
+  auto d_src_const_ptr = ::thrust::raw_pointer_cast((*d_first).base());
+  auto d_src_ptr = const_cast<Value*>(d_src_const_ptr);
+  ::thrust::device_ptr<Value> d_src_dev_ptr(d_src_ptr);
+
+  auto d_dst_const_ptr = ::thrust::raw_pointer_cast((*d_result).base());
+  auto d_dst_ptr = const_cast<Value*>(d_dst_const_ptr);
+  ::thrust::device_ptr<Value> d_dst_dev_ptr(d_dst_ptr);
+
+  if constexpr (::std::is_same_v<BinaryOp, ::thrust::plus<Value>>) {
+    if (d_init) {
+      *d_init +=
+          ::thrust::reduce(d_dst_dev_ptr, d_dst_dev_ptr + n, Value(0), op);
+    }
+
+    ::thrust::device_vector<Value> suffix_sums(n);
+
+    ::thrust::exclusive_scan(::thrust::make_reverse_iterator(d_dst_dev_ptr + n),
+                             ::thrust::make_reverse_iterator(d_dst_dev_ptr),
+                             suffix_sums.begin(), Value(0), op);
+
+    ::thrust::transform(d_src_dev_ptr, d_src_dev_ptr + n,
+                        ::thrust::make_reverse_iterator(suffix_sums.end()),
+                        d_src_dev_ptr, ::thrust::plus<Value>());
+
+    ::thrust::fill(d_dst_dev_ptr, d_dst_dev_ptr + n, Value(0));
+  } else {
+    static_assert(::std::is_same_v<Value, void>,
+                  "This binary operation is not supported by the custom "
+                  "exclusive_scan_pullback.");
+  }
+}
+
+template <typename InputIt, typename OutputIt, typename T>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+exclusive_scan_reverse_forw(InputIt first, InputIt last, OutputIt result,
+                            T init, InputIt, InputIt, OutputIt, T) {
+  using Value = typename ::std::iterator_traits<InputIt>::value_type;
+  return {::thrust::exclusive_scan(first, last, result, init,
+                                   ::thrust::plus<Value>()),
+          {}};
+}
+
+template <typename InputIt, typename OutputIt, typename T, typename BinaryOp>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+exclusive_scan_reverse_forw(InputIt first, InputIt last, OutputIt result,
+                            T init, BinaryOp op, InputIt, InputIt, OutputIt, T,
+                            BinaryOp) {
+  return {::thrust::exclusive_scan(first, last, result, init, op), {}};
+}
+
 template <typename InputIt, typename OutputIt, typename UnaryOp>
 void transform_pullback(InputIt first, InputIt last, OutputIt result,
                         UnaryOp op, OutputIt d_return, InputIt* d_first,
@@ -286,6 +482,36 @@ void transform_pullback(InputIt first, InputIt last, OutputIt result,
     auto iter = ::thrust::make_zip_iterator(
         ::thrust::make_tuple(d_src_dev_ptr, d_dst_dev_ptr));
     ::thrust::for_each(iter, iter + n, grad_functor());
+  } else if constexpr (detail::has_unary_operator_call_pullback<UnaryOp,
+                                                                Value>::value) {
+    ::thrust::device_vector<UnaryOp> d_op_storage;
+    UnaryOp* d_op_device_ptr = nullptr;
+    if (d_op) {
+      d_op_storage.resize(1);
+      d_op_storage[0] = *d_op;
+      d_op_device_ptr = ::thrust::raw_pointer_cast(d_op_storage.data());
+    }
+
+    struct grad_functor {
+      UnaryOp op;
+      UnaryOp* d_op;
+      CUDA_HOST_DEVICE void
+      operator()(::thrust::tuple<Value&, Value&, const Value&> t) const {
+        Value& d_x = ::thrust::get<0>(t);
+        Value& d_y = ::thrust::get<1>(t);
+        const Value& x = ::thrust::get<2>(t);
+        Value d_x_local = Value(0);
+        // Backprop through user functor
+        op.operator_call_pullback(x, d_y, d_op, &d_x_local);
+        d_x += d_x_local;
+        d_y = 0;
+      }
+    };
+    auto iter = ::thrust::make_zip_iterator(
+        ::thrust::make_tuple(d_src_dev_ptr, d_dst_dev_ptr, first));
+    ::thrust::for_each(iter, iter + n, grad_functor{op, d_op_device_ptr});
+    if (d_op)
+      *d_op = d_op_storage[0];
   } else {
     static_assert(::std::is_same_v<Value, void>,
                   "This unary operation is not supported by the custom "
@@ -386,6 +612,41 @@ void transform_pullback(InputIt1 first1, InputIt1 last1, InputIt2 first2,
     auto iter = ::thrust::make_zip_iterator(::thrust::make_tuple(
         d_first1_dev_ptr, d_first2_dev_ptr, d_result_dev_ptr, first1, first2));
     ::thrust::for_each(iter, iter + n, grad_functor());
+  } else if constexpr (detail::has_binary_operator_call_pullback<
+                           BinaryOp, Value>::value) {
+    ::thrust::device_vector<BinaryOp> d_op_storage;
+    BinaryOp* d_op_device_ptr = nullptr;
+    if (d_op) {
+      d_op_storage.resize(1);
+      d_op_storage[0] = *d_op;
+      d_op_device_ptr = ::thrust::raw_pointer_cast(d_op_storage.data());
+    }
+
+    struct grad_functor {
+      BinaryOp op;
+      BinaryOp* d_op;
+      CUDA_HOST_DEVICE void operator()(
+          ::thrust::tuple<Value&, Value&, Value&, const Value&, const Value&> t)
+          const {
+        Value& d_x1 = ::thrust::get<0>(t);
+        Value& d_x2 = ::thrust::get<1>(t);
+        Value& d_y = ::thrust::get<2>(t);
+        const Value& x1 = ::thrust::get<3>(t);
+        const Value& x2 = ::thrust::get<4>(t);
+        Value d_x1_local = Value(0);
+        Value d_x2_local = Value(0);
+        // Backprop through user functor
+        op.operator_call_pullback(x1, x2, d_y, d_op, &d_x1_local, &d_x2_local);
+        d_x1 += d_x1_local;
+        d_x2 += d_x2_local;
+        d_y = 0;
+      }
+    };
+    auto iter = ::thrust::make_zip_iterator(::thrust::make_tuple(
+        d_first1_dev_ptr, d_first2_dev_ptr, d_result_dev_ptr, first1, first2));
+    ::thrust::for_each(iter, iter + n, grad_functor{op, d_op_device_ptr});
+    if (d_op)
+      *d_op = d_op_storage[0];
   } else {
     static_assert(::std::is_same_v<Value, void>,
                   "This binary operation is not supported by the custom "
@@ -560,6 +821,78 @@ void transform_reduce_pullback(InputIterator first, InputIterator last,
   transform_pullback(first, last, transformed_values.begin(), unary_op,
                      d_result_dummy.begin(), // d_return dummy
                      d_first, d_last, &d_transformed_values_it, d_unary_op);
+}
+
+template <typename InputIt, typename OutputIt>
+void adjacent_difference_pullback(InputIt first, InputIt last, OutputIt result,
+                                  OutputIt /*d_return*/, InputIt* d_first,
+                                  InputIt* d_last, OutputIt* d_result) {
+  using Value = typename ::std::iterator_traits<InputIt>::value_type;
+  ::thrust::minus<Value> op;
+  ::thrust::minus<Value>* d_op = nullptr;
+  adjacent_difference_pullback(first, last, result, op, {}, d_first, d_last,
+                               d_result, d_op);
+}
+
+template <typename InputIt, typename OutputIt, typename BinaryOp>
+void adjacent_difference_pullback(InputIt first, InputIt last, OutputIt result,
+                                  BinaryOp /*op*/, OutputIt /*d_return*/,
+                                  InputIt* d_first, InputIt* d_last,
+                                  OutputIt* d_result, BinaryOp* /*d_op*/) {
+  size_t n = ::thrust::distance(first, last);
+  if (n == 0)
+    return;
+
+  using ValueConst = typename ::std::iterator_traits<InputIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+
+  auto d_src_const_ptr = ::thrust::raw_pointer_cast((*d_first).base());
+  auto d_src_ptr = const_cast<Value*>(d_src_const_ptr);
+  ::thrust::device_ptr<Value> d_src_dev_ptr(d_src_ptr);
+
+  auto d_dst_const_ptr = ::thrust::raw_pointer_cast((*d_result).base());
+  auto d_dst_ptr = const_cast<Value*>(d_dst_const_ptr);
+  ::thrust::device_ptr<Value> d_dst_dev_ptr(d_dst_ptr);
+
+  // First, accumulate direct contribution: d_x[i] += d_y[i]
+  ::thrust::transform(d_src_dev_ptr, d_src_dev_ptr + n, d_dst_dev_ptr,
+                      d_src_dev_ptr, ::thrust::plus<Value>());
+
+  if constexpr (::std::is_same_v<BinaryOp, ::thrust::minus<Value>> ||
+                ::std::is_same_v<BinaryOp, ::thrust::plus<Value>>) {
+    if (n > 1) {
+      using ShiftOp = ::std::conditional_t<
+          ::std::is_same_v<BinaryOp, ::thrust::minus<Value>>,
+          ::thrust::minus<Value>, ::thrust::plus<Value>>;
+      ::thrust::transform(d_src_dev_ptr, d_src_dev_ptr + (n - 1),
+                          d_dst_dev_ptr + 1, d_src_dev_ptr, ShiftOp());
+    }
+  } else {
+    static_assert(::std::is_same_v<Value, void>,
+                  "This binary operation is not supported by the custom "
+                  "adjacent_difference_pullback.");
+  }
+
+  // Clear output adjoints
+  ::thrust::fill(d_dst_dev_ptr, d_dst_dev_ptr + n, Value(0));
+}
+
+template <typename InputIt, typename OutputIt>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+adjacent_difference_reverse_forw(InputIt first, InputIt last, OutputIt result,
+                                 InputIt, InputIt, OutputIt) {
+  using Value = typename ::std::iterator_traits<InputIt>::value_type;
+  return {::thrust::adjacent_difference(first, last, result,
+                                        ::thrust::minus<Value>()),
+          {}};
+}
+
+template <typename InputIt, typename OutputIt, typename BinaryOp>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+adjacent_difference_reverse_forw(InputIt first, InputIt last, OutputIt result,
+                                 BinaryOp op, InputIt, InputIt, OutputIt,
+                                 BinaryOp) {
+  return {::thrust::adjacent_difference(first, last, result, op), {}};
 }
 
 } // namespace clad::custom_derivatives::thrust

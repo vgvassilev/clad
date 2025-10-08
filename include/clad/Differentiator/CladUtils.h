@@ -379,6 +379,10 @@ namespace clad {
     clang::QualType GetCladMatrixOfType(clang::Sema& S, clang::QualType T);
     /// Create clad::array_ref<T> type.
     clang::QualType GetCladArrayRefOfType(clang::Sema& S, clang::QualType T);
+    /// Returns type clad::Tag<T>
+    clang::QualType GetCladTagOfType(clang::Sema& S, clang::QualType T);
+    /// Returns type clad::Tag<T>()
+    clang::Expr* GetCladTagExpr(clang::Sema& S, clang::QualType T);
 
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);
@@ -387,7 +391,6 @@ namespace clad {
 
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
-    bool IsLiteral(const clang::Expr* E);
     bool IsZeroOrNullValue(const clang::Expr* E);
 
     bool IsMemoryFunction(const clang::FunctionDecl* FD);
@@ -416,9 +419,14 @@ namespace clad {
     /// forward-declared in the `clad::tensor_like` namespace.
     bool isTensorLike(clang::Sema& SemaRef, clang::QualType T);
 
+    bool hasElidableReverseForwAttribute(const clang::Decl* D);
+
     /// Returns true if FD can be differentiated as a pushforward
     /// And be used in the reverse mode.
     bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD);
+
+    ///\returns a fully qualified type that is as close as coders would write.
+    clang::QualType makeTypeReadable(clang::Sema& S, clang::QualType Ty);
 
     /// We need to replace std::initializer_list with clad::array in the reverse
     /// mode because the former is temporary by design and it's not possible to
@@ -436,6 +444,10 @@ namespace clad {
     /// For an expr E, decides if we should recompute it or store it.
     /// This is the central point for checkpointing.
     bool ShouldRecompute(const clang::Expr* E, const clang::ASTContext& C);
+    /// For an expr E, decides if it is useful to store it in a temporary
+    /// variable and replace E's further usage by a reference to that variable
+    /// to avoid recomputation.
+    bool UsefulToStore(const clang::Expr* E);
     } // namespace utils
     } // namespace clad
 

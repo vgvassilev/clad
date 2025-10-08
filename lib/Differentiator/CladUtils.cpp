@@ -11,6 +11,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/ParentMapContext.h"
+#include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -113,6 +114,8 @@ namespace clad {
       default:
         if (isa<CXXConstructorDecl>(FD))
           return "constructor";
+        if (isa<CXXConversionDecl>(FD))
+          return "conversion_operator";
         return FD->getNameAsString();
       }
     }
@@ -134,8 +137,11 @@ namespace clad {
       FD = FD->getCanonicalDecl();
       if (const FunctionDecl* TIP = FD->getTemplateInstantiationPattern())
         FD = TIP;
+      // Derivatives with real locations are user-provided ones. If a
+      // user-provided derivative doesn't have a body at this point, we consider
+      // it to be empty.
       if (!FD->hasBody())
-        return false;
+        return FD->getLocation().isValid();
       return utils::unwrapIfSingleStmt(FD->getBody()) == nullptr;
     }
 
@@ -183,7 +189,8 @@ namespace clad {
         auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
         auto RDTypeSourceInfo = C.getTrivialTypeSourceInfo(RDQType);
         CSS.Extend(C,
-                   /*TemplateKWLoc=*/noLoc, RDTypeSourceInfo->getTypeLoc(),
+                   CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(noLoc)
+                       RDTypeSourceInfo->getTypeLoc(),
                    /*ColonColonLoc=*/noLoc);
       } else if (addGlobalNS && isa<TranslationUnitDecl>(DC)) {
         CSS.MakeGlobal(C, /*ColonColonLoc=*/noLoc);
@@ -638,6 +645,13 @@ namespace clad {
       return false;
     }
 
+    bool hasElidableReverseForwAttribute(const clang::Decl* D) {
+      for (auto* Attr : D->specific_attrs<clang::AnnotateAttr>())
+        if (Attr->getAnnotation() == "elidable_reverse_forw")
+          return true;
+      return false;
+    }
+
     bool hasNonDifferentiableAttribute(const clang::Expr* E) {
       // Check MemberExpr
       if (const clang::MemberExpr* ME = clang::dyn_cast<clang::MemberExpr>(E)) {
@@ -750,6 +764,24 @@ namespace clad {
       return false;
     }
 
+    bool UsefulToStore(const Expr* E) {
+      assert(E && "Must be non-null.");
+      E = E->IgnoreParenImpCasts();
+      // FIXME: find a more general way to determine that or add more options.
+      if (isa<DeclRefExpr>(E) || isa<FloatingLiteral>(E) ||
+          isa<IntegerLiteral>(E))
+        return false;
+      if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+        auto OpKind = UO->getOpcode();
+        if (OpKind == UO_Plus || OpKind == UO_Minus)
+          return UsefulToStore(UO->getSubExpr());
+        return false;
+      }
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+        return UsefulToStore(ASE->getBase()) || UsefulToStore(ASE->getIdx());
+      return true;
+    }
+
     bool ContainsFunctionCalls(const clang::Stmt* S) {
       class CallExprFinder : public RecursiveASTVisitor<CallExprFinder> {
       public:
@@ -770,13 +802,6 @@ namespace clad {
         caseStmt->setSubStmt(subStmt);
       else
         cast<DefaultStmt>(SC)->setSubStmt(subStmt);
-    }
-
-    bool IsLiteral(const clang ::Expr* E) {
-      return isa<IntegerLiteral>(E) || isa<FloatingLiteral>(E) ||
-             isa<CharacterLiteral>(E) || isa<StringLiteral>(E) ||
-             isa<ObjCBoolLiteralExpr>(E) || isa<CXXBoolLiteralExpr>(E) ||
-             isa<GNUNullExpr>(E);
     }
 
     bool IsZeroOrNullValue(const clang::Expr* E) {
@@ -1197,7 +1222,8 @@ namespace clad {
         // Handle pullbacks
         QualType argTy = oRetTy.getNonReferenceType();
         argTy = utils::getNonConstType(argTy, S);
-        if (!argTy->isVoidType() && !argTy->isPointerType())
+        if (!argTy->isVoidType() && !argTy->isPointerType() &&
+            !utils::isNonConstReferenceType(oRetTy))
           FnTypes.push_back(argTy);
       }
 
@@ -1250,6 +1276,12 @@ namespace clad {
       }
 
       if (mode == DiffMode::reverse_mode_forward_pass &&
+          isa<CXXConversionDecl>(FD)) {
+        QualType typeTag = utils::GetCladTagOfType(S, oRetTy);
+        FnTypes.insert(FnTypes.begin(), typeTag);
+      }
+
+      if (mode == DiffMode::reverse_mode_forward_pass &&
           shouldUseRestoreTracker(FD) && !forCustomDerv) {
         QualType trackerTy = GetRestoreTrackerType(S);
         trackerTy = C.getLValueReferenceType(trackerTy);
@@ -1262,6 +1294,24 @@ namespace clad {
       return C.getFunctionType(dRetTy, FnTypes, EPI);
     }
 
+    QualType GetCladTagOfType(Sema& S, QualType T) {
+      static clang::TemplateDecl* CladTag = nullptr;
+      if (!CladTag)
+        CladTag = utils::LookupTemplateDeclInCladNamespace(S, "Tag");
+      return utils::InstantiateTemplate(S, CladTag, {T});
+    }
+
+    Expr* GetCladTagExpr(Sema& S, QualType T) {
+      QualType CladTagTy = utils::GetCladTagOfType(S, T);
+      return S
+          .BuildCXXTypeConstructExpr(S.getASTContext().getTrivialTypeSourceInfo(
+                                         CladTagTy, utils::GetValidSLoc(S)),
+                                     utils::GetValidSLoc(S), MultiExprArg{},
+                                     utils::GetValidSLoc(S),
+                                     /*ListInitialization=*/false)
+          .get();
+    }
+
     bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
       if (FD->getNumParams() != 1 ||
           utils::HasAnyReferenceOrPointerArgument(FD) ||
@@ -1270,6 +1320,17 @@ namespace clad {
       QualType paramTy = FD->getParamDecl(0)->getType();
       paramTy = paramTy.getNonReferenceType();
       return paramTy->isRealType();
+    }
+
+    QualType makeTypeReadable(Sema& S, QualType Ty) {
+      ASTContext& C = S.getASTContext();
+      QualType retTy =
+          TypeName::getFullyQualifiedType(Ty, C, /*WithGlobalNsPrefix=*/false);
+
+      // FIXME: Add a type visitor which can fold stl-specific idioms such as
+      // X::value_type, X::size_type.
+      // FIXME: Drop the default arguments such as std::allocator.
+      return retTy;
     }
 
     QualType replaceStdInitListWithCladArray(Sema& S, QualType origTy) {
@@ -1487,7 +1548,7 @@ namespace clad {
           if (DRE == m_stopE)
             return false;
           if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-            if (m_Modifying && VD == m_idxVD) {
+            if (m_Modifying && VD->getName() == m_idxVD->getName()) {
               m_isLive = false;
               return false;
             }

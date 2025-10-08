@@ -15,7 +15,6 @@
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
-#include "llvm/Support/Casting.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attrs.inc"
@@ -33,6 +32,7 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
@@ -69,7 +69,7 @@ namespace clad {
     if (!S)
       return false;
     if (Expr* E = dyn_cast<Expr>(S)) {
-      if (isUnusedResult(E))
+      if (isUnusedResult(E->IgnoreCasts()))
         return false;
     }
     block.push_back(S);
@@ -265,18 +265,8 @@ namespace clad {
                                          ExprValueKind VK /*=VK_LValue*/) {
     CXXScopeSpec CSS;
     SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-    // FIXME: Remove once BuildDeclRef can automatically deduce class
-    // namespace specifiers.
-    auto* MD = dyn_cast<CXXMethodDecl>(D);
-    if (!NNS && MD && MD->isStatic()) {
-      const CXXRecordDecl* RD = MD->getParent();
-      IdentifierInfo* II = &m_Context.Idents.get(RD->getNameAsString());
-      NNS = NestedNameSpecifier::Create(m_Context, II);
-    }
 
-    if (NNS) {
-      CSS.MakeTrivial(m_Context, NNS, fakeLoc);
-    } else {
+    if (!NNS) {
       // If no CXXScopeSpec is provided we should try to find the common path
       // between the current scope (in which presumably we will make the call)
       // and where `D` is.
@@ -288,18 +278,25 @@ namespace clad {
         if (DeclDC->Equals(m_Sema.CurContext))
           break;
 
-        // FIXME: We should extend that for classes and class templates. See
-        // clang's getFullyQualifiedNestedNameSpecifier.
-        if (DeclDC->isNamespace() && !DeclDC->isInlineNamespace())
-          DCs.push_back(DeclDC);
-
+        DCs.push_back(DeclDC);
         DeclDC = DeclDC->getParent();
       }
 
-      for (unsigned i = DCs.size(); i > 0; --i)
-        CSS.Extend(m_Context, cast<NamespaceDecl>(DCs[i - 1]), fakeLoc,
-                   fakeLoc);
+      for (DeclContext* DC : llvm::reverse(DCs)) {
+        if (auto* ND = dyn_cast<NamespaceDecl>(DC)) {
+          if (!ND->isInline())
+            NNS = NestedNameSpecifier::Create(m_Context, NNS, ND);
+        } else if (auto* TD = dyn_cast<TagDecl>(DC)) {
+          clang::QualType T = m_Context.getTypeDeclType(TD);
+          NNS = NestedNameSpecifier::Create(
+              m_Context, NNS CLAD_COMPAT_CLANG21_TemplateKeywordParam,
+              /*Type*/ T.getTypePtr());
+        }
+        // FIXME: Add support for other DeclContext types.
+        // See clang's getFullyQualifiedNestedNameSpecifier.
+      }
     }
+    CSS.MakeTrivial(m_Context, NNS, fakeLoc);
     QualType T = D->getType();
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
@@ -365,35 +362,13 @@ namespace clad {
     return StoreAndRef(E, Type, block, prefix, forceDeclCreation);
   }
 
-  bool VisitorBase::UsefulToStore(Expr* E) {
-    if (!E)
-      return false;
-    Expr* B = E->IgnoreParenImpCasts();
-    // FIXME: find a more general way to determine that or add more options.
-    if (isa<DeclRefExpr>(B) || isa<FloatingLiteral>(B) ||
-        isa<IntegerLiteral>(B))
-      return false;
-    if (isa<UnaryOperator>(B)) {
-      auto UO = cast<UnaryOperator>(B);
-      auto OpKind = UO->getOpcode();
-      if (OpKind == UO_Plus || OpKind == UO_Minus)
-        return UsefulToStore(UO->getSubExpr());
-      return false;
-    }
-    if (isa<ArraySubscriptExpr>(B)) {
-      auto ASE = cast<ArraySubscriptExpr>(B);
-      return UsefulToStore(ASE->getBase()) || UsefulToStore(ASE->getIdx());
-    }
-    return true;
-  }
-
   Expr* VisitorBase::StoreAndRef(Expr* E, QualType Type, Stmts& block,
                                  llvm::StringRef prefix,
                                  bool forceDeclCreation) {
     if (!forceDeclCreation) {
       // If Expr is simple (i.e. a reference or a literal), there is no point
       // in storing it as there is no evaluation going on.
-      if (!UsefulToStore(E))
+      if (!utils::UsefulToStore(E))
         return E;
     }
     // Create variable declaration.
@@ -652,22 +627,35 @@ namespace clad {
   }
 
   Expr*
-  VisitorBase::BuildCallExprToFunction(FunctionDecl* FD,
+  VisitorBase::BuildCallExprToFunction(const FunctionDecl* FD,
                                        llvm::MutableArrayRef<Expr*> argExprs,
+                                       clang::Expr* CUDAExecConfig /*=nullptr*/,
                                        bool useRefQualifiedThisObj /*=false*/) {
     Expr* call = nullptr;
-    if (auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
-      if (MD->isInstance())
-        call = BuildCallExprToMemFn(MD, argExprs, useRefQualifiedThisObj);
+    auto* MD = dyn_cast<CXXMethodDecl>(FD);
+    if (FD->isOverloadedOperator()) {
+      call = BuildOperatorCall(FD->getOverloadedOperator(), argExprs);
+    } else if (MD && MD->isInstance()) {
+      // FIXME: We shouldn't have different overloads of BuildCallExprToMemFn.
+      if (useRefQualifiedThisObj)
+        call = BuildCallExprToMemFn(const_cast<CXXMethodDecl*>(MD), argExprs,
+                                    useRefQualifiedThisObj);
+      else
+        call = BuildCallExprToMemFn(argExprs[0], MD->getName(),
+                                    argExprs.drop_front(), MD->getLocation());
     } else {
-      Expr* exprFunc = BuildDeclRef(FD);
+      if (!argExprs.empty() &&
+          FD->getParamDecl(0)->getType()->isPointerType() &&
+          !utils::isArrayOrPointerType(argExprs[0]->getType()))
+        argExprs[0] = BuildOp(UnaryOperatorKind::UO_AddrOf, argExprs[0]);
+      Expr* exprFunc = BuildDeclRef(const_cast<FunctionDecl*>(FD));
       call = m_Sema
                  .ActOnCallExpr(
                      getCurrentScope(),
                      /*Fn=*/exprFunc,
                      /*LParenLoc=*/noLoc,
                      /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(argExprs),
-                     /*RParenLoc=*/m_DiffReq->getLocation())
+                     /*RParenLoc=*/m_DiffReq->getLocation(), CUDAExecConfig)
                  .get();
     }
     return call;
@@ -697,7 +685,7 @@ namespace clad {
 #endif
     FunctionDecl* FD = m_Sema.InstantiateFunctionDeclaration(FTD, &TL, loc);
 
-    return BuildCallExprToFunction(FD, argExprs,
+    return BuildCallExprToFunction(FD, argExprs, /*CUDAExecConfig=*/nullptr,
                                    /*useRefQualifiedThisObj=*/false);
   }
 
@@ -831,34 +819,6 @@ namespace clad {
         m_Sema.BuildDeclarationNameExpr(CSS, init, false).getAs<DeclRefExpr>();
     return m_Sema.ActOnCallExpr(getCurrentScope(), pushDRE, noLoc, args, noLoc)
         .get();
-  }
-
-  clang::TemplateDecl* VisitorBase::GetCladConstructorPushforwardTag() {
-    if (!m_CladConstructorPushforwardTag)
-      m_CladConstructorPushforwardTag =
-          utils::LookupTemplateDeclInCladNamespace(m_Sema,
-                                                   "ConstructorPushforwardTag");
-    return m_CladConstructorPushforwardTag;
-  }
-
-  clang::QualType
-  VisitorBase::GetCladConstructorPushforwardTagOfType(clang::QualType T) {
-    return utils::InstantiateTemplate(m_Sema,
-                                      GetCladConstructorPushforwardTag(), {T});
-  }
-
-  clang::TemplateDecl* VisitorBase::GetCladConstructorReverseForwTag() {
-    if (!m_CladConstructorPushforwardTag)
-      m_CladConstructorReverseForwTag =
-          utils::LookupTemplateDeclInCladNamespace(m_Sema,
-                                                   "ConstructorReverseForwTag");
-    return m_CladConstructorReverseForwTag;
-  }
-
-  clang::QualType
-  VisitorBase::GetCladConstructorReverseForwTagOfType(clang::QualType T) {
-    return utils::InstantiateTemplate(m_Sema,
-                                      GetCladConstructorReverseForwTag(), {T});
   }
 
   FunctionDecl*
@@ -995,6 +955,7 @@ namespace clad {
     }
 
     Expr* callExpr = BuildCallExprToFunction(derivative, callArgs,
+                                             /*CUDAExecConfig=*/nullptr,
                                              /*useRefQualifiedThisObj=*/true);
     addToCurrentBlock(callExpr);
     Stmt* diffOverloadBody = endBlock();

@@ -120,15 +120,11 @@ double fn2(double u, double v) {
 }
 
 // CHECK:  static void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
-// CHECK-NEXT:      S1 *_this = (S1 *)malloc(sizeof(S1));
-// CHECK-NEXT:      _this->p = x;
-// CHECK-NEXT:      _this->d = 0.;
 // CHECK-NEXT:      _d_this->d = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_this->p;
 // CHECK-NEXT:          _d_this->p = 0.;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
 // CHECK:  static void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
@@ -397,11 +393,11 @@ double fn8(double u, double v) {
 // CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t1 = clad::custom_derivatives::std::forward_reverse_forw(__{{u2|y}}, *_d___{{u2|y}});
 // CHECK-NEXT:      _this->second = _t1.value;
 // CHECK:           {
-// CHECK-NEXT:          clad::custom_derivatives::std::forward_pullback(__{{u2|y}}, _d_this->second, &*_d___{{u2|y}});
+// CHECK-NEXT:          _t1.adjoint += _d_this->second;
 // CHECK-NEXT:          _d_this->second = 0.;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
-// CHECK-NEXT:          clad::custom_derivatives::std::forward_pullback(__{{u1|x}}, _d_this->first, &*_d___{{u1|x}});
+// CHECK-NEXT:          _t0.adjoint += _d_this->first;
 // CHECK-NEXT:          _d_this->first = 0.;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      free(_this);
@@ -420,7 +416,34 @@ double fn8(double u, double v) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          u = _t0;
 // CHECK-NEXT:          v = _t1;
-// CHECK-NEXT:          pair::constructor_pullback(u, v, &_d_p, &*_d_u, &*_d_v);
+// CHECK-NEXT:          std::pair<double, double>::constructor_pullback(u, v, &_d_p, &*_d_u, &*_d_v);
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+struct S {
+  double* a;
+};
+
+double func2(S s) {
+  return s.a[2];
+}
+
+// CHECK:  void func2_pullback(S s, double _d_y, S *_d_s) {
+// CHECK-NEXT:      (*_d_s).a[2] += _d_y;
+// CHECK-NEXT:  }
+
+double fn9(S& s) {
+  double r = func2(s);
+  return r;
+}
+
+// CHECK:  void fn9_grad(S &s, S *_d_s) {
+// CHECK-NEXT:      double _d_r = 0.;
+// CHECK-NEXT:      double r = func2(s);
+// CHECK-NEXT:      _d_r += 1;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          S _r0 = (*_d_s);
+// CHECK-NEXT:          func2_pullback(s, _d_r, &_r0);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
@@ -449,4 +472,10 @@ int main() {
 
     INIT_GRADIENT(fn8);
     TEST_GRADIENT(fn8, /*numOfDerivativeArgs=*/2, 7, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+
+    S s{new double[3]{5, 6, 7}}, _d_s{new double[3]{0}};
+    auto dfn9 = clad::gradient(fn9);
+    dfn9.execute(s, &_d_s);
+    printf("{%.2f, %.2f, %.2f}\n", _d_s.a[0], _d_s.a[1], _d_s.a[2]);
+    // TEST_GRADIENT(fn9, /*numOfDerivativeArgs=*/1, s, &d_s);    // CHECK-EXEC: {0.00, 0.00, 1.00}
 }
