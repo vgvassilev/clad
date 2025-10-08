@@ -3078,10 +3078,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SmallVector<Stmt*, 16> inits;
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
-    llvm::SmallVector<Decl*, 4> classDeclsDiff;
+    llvm::SmallVector<Decl*, 4> declsToZeroInit;
     llvm::SmallVector<Stmt*, 4> memsetCalls;
-    // Need to put array decls inlined.
-    llvm::SmallVector<Decl*, 4> localDeclsDiff;
     // reverse_mode_forward_pass does not have a reverse pass so declarations
     // don't have to be moved to the function global scope.
     bool promoteToFnScope =
@@ -3165,11 +3163,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (VDDiff.getDecl_dx()) {
           const CXXRecordDecl* RD = VD->getType()->getAsCXXRecordDecl();
           bool isNonAggrClass = RD && !RD->isAggregate();
-          if (isa<VariableArrayType>(VD->getType()))
-            localDeclsDiff.push_back(VDDiff.getDecl_dx());
-          else if (isNonAggrClass) {
-            classDeclsDiff.push_back(VDDiff.getDecl_dx());
-          } else {
+          if (isa<VariableArrayType>(VD->getType()) || isNonAggrClass)
+            declsToZeroInit.push_back(VDDiff.getDecl_dx());
+          else {
             VarDecl* VDDerived = VDDiff.getDecl_dx();
             declsDiff.push_back(VDDerived);
             if (Stmt* memsetCall = CheckAndBuildCallToMemset(
@@ -3194,22 +3190,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmt* DSClone = nullptr;
     if (!decls.empty())
       DSClone = BuildDeclStmt(decls);
-
-    if (!localDeclsDiff.empty()) {
-      Stmt* localDSDIff = BuildDeclStmt(localDeclsDiff);
-      addToCurrentBlock(
-          localDSDIff,
-          clad::rmv::forward); // Doesnt work for arrays decl'd in loops.
-      for (Decl* decl : localDeclsDiff)
-        if (const auto* VAT =
-                dyn_cast<VariableArrayType>(cast<VarDecl>(decl)->getType())) {
-          std::array<Expr*, 2> args{};
-          args[0] = BuildDeclRef(cast<VarDecl>(decl));
-          args[1] = Clone(VAT->getSizeExpr());
-          Stmt* initCall = GetCladZeroInit(args);
-          addToCurrentBlock(initCall, direction::forward);
-        }
-    }
     if (!declsDiff.empty()) {
       Stmt* DSDiff = BuildDeclStmt(declsDiff);
       Stmts& block =
@@ -3217,11 +3197,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       addToBlock(DSDiff, block);
       for (Stmt* memset : memsetCalls)
         addToBlock(memset, block);
-    }
-
-    if (m_ExternalSource) {
-      declsDiff.append(localDeclsDiff.begin(), localDeclsDiff.end());
-      m_ExternalSource->ActBeforeFinalizingVisitDeclStmt(decls, declsDiff);
     }
 
     // This part in necessary to replace local variables inside loops
@@ -3247,22 +3222,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       DSClone = initAssignments;
     }
 
-    if (!classDeclsDiff.empty()) {
+    if (!declsToZeroInit.empty()) {
       addToCurrentBlock(DSClone, direction::forward);
       Stmts& block =
           promoteToFnScope ? m_Globals : getCurrentBlock(direction::forward);
       DSClone = nullptr;
-      addToBlock(BuildDeclStmt(classDeclsDiff), block);
-      for (Decl* decl : classDeclsDiff) {
+      addToBlock(BuildDeclStmt(declsToZeroInit), block);
+      for (Decl* decl : declsToZeroInit) {
         auto* vDecl = cast<VarDecl>(decl);
-        Expr* init = vDecl->getInit();
-        if (promoteToFnScope && init) {
-          auto* declRef = BuildDeclRef(vDecl);
-          auto* assignment = BuildOp(BO_Assign, declRef, init);
-          addToCurrentBlock(assignment, direction::forward);
-          SetDeclInit(vDecl, getZeroInit(vDecl->getType()),
-                      /*DirectInit=*/true);
-        }
         // Adjoints are initialized with copy-constructors only as a part of
         // the strategy to maintain the structure of the original variable.
         // In such cases, we need to zero-initialize the adjoint. e.g.
@@ -3271,23 +3238,42 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // std::vector<...> _d_v{v};
         // clad::zero_init(_d_v); // this line is generated below
         // ```
-        const auto* CE = dyn_cast<CXXConstructExpr>(init->IgnoreImplicit());
-        bool copyInit = CE && CE->getNumArgs() == 0;
-        if (!copyInit && CE) {
-          if (const auto* DRE =
-                  dyn_cast<DeclRefExpr>(CE->getArg(0)->IgnoreImplicit()))
-            if (cast<VarDecl>(decl)->getNameAsString() ==
-                "_d_" + cast<VarDecl>(DRE->getDecl())->getNameAsString())
-              copyInit = true;
+        bool copyInit = false;
+        if (Expr* init = vDecl->getInit()) {
+          if (promoteToFnScope) {
+            auto* declRef = BuildDeclRef(vDecl);
+            auto* assignment = BuildOp(BO_Assign, declRef, init);
+            addToCurrentBlock(assignment, direction::forward);
+            SetDeclInit(vDecl, getZeroInit(vDecl->getType()),
+                        /*DirectInit=*/true);
+          }
+          if (const auto* CE =
+                  dyn_cast<CXXConstructExpr>(init->IgnoreImplicit())) {
+            copyInit = CE && CE->getNumArgs() == 0;
+            if (!copyInit && CE) {
+              if (const auto* DRE =
+                      dyn_cast<DeclRefExpr>(CE->getArg(0)->IgnoreImplicit()))
+                if (cast<VarDecl>(decl)->getNameAsString() ==
+                    "_d_" + cast<VarDecl>(DRE->getDecl())->getNameAsString())
+                  copyInit = true;
+            }
+          }
         }
-        if (CE && utils::isTensorLike(m_Sema, CE->getType()))
-          copyInit = true;
-        if (copyInit) {
-          std::array<Expr*, 1> arg{BuildDeclRef(vDecl)};
-          Stmt* initCall = GetCladZeroInit(arg);
+        const auto* VAT =
+            dyn_cast<VariableArrayType>(cast<VarDecl>(decl)->getType());
+        if (copyInit || VAT) {
+          llvm::SmallVector<Expr*, 1> args{BuildDeclRef(vDecl)};
+          if (VAT)
+            args.push_back(Clone(VAT->getSizeExpr()));
+          Stmt* initCall = GetCladZeroInit(args);
           addToCurrentBlock(initCall, direction::forward);
         }
       }
+    }
+
+    if (m_ExternalSource) {
+      declsDiff.append(declsToZeroInit.begin(), declsToZeroInit.end());
+      m_ExternalSource->ActBeforeFinalizingVisitDeclStmt(decls, declsDiff);
     }
 
     return StmtDiff(DSClone);

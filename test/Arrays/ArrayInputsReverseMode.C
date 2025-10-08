@@ -207,9 +207,9 @@ double func5(int k) {
 //CHECK-NEXT:     int i0 = 0;
 //CHECK-NEXT:     int _d_n = 0;
 //CHECK-NEXT:     int n = k;
+//CHECK-NEXT:     double arr[n];
 //CHECK-NEXT:     double _d_arr[n];
 //CHECK-NEXT:     clad::zero_init(_d_arr, n);
-//CHECK-NEXT:     double arr[n];
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
