@@ -15,9 +15,11 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/OperatorKinds.h"
+#include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
+
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -506,7 +508,15 @@ namespace clad {
     BuildCallExprToMemFn(clang::Expr* Base, llvm::StringRef MemberFunctionName,
                          llvm::MutableArrayRef<clang::Expr*> ArgExprs,
                          clang::SourceLocation Loc = noLoc);
+    clang::Expr*
+    BuildCallExprToMemFn(clang::Expr* Base,
+                         clang::UnqualifiedId* MemberFunction,
+                         llvm::MutableArrayRef<clang::Expr*> ArgExprs,
+                         clang::SourceLocation Loc = noLoc);
 
+    // FIXME: This overload is only used because it builds calls to methods
+    // that are not yet added to the class, and therefore, we cannot perform
+    // a lookup.
     /// Build a call to member function through this pointer.
     ///
     /// \param[in] FD callee member function

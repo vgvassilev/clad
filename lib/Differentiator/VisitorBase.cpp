@@ -19,14 +19,17 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attrs.inc"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
@@ -550,17 +553,25 @@ namespace clad {
                                           StringRef MemberFunctionName,
                                           MutableArrayRef<Expr*> ArgExprs,
                                           SourceLocation Loc /*=noLoc*/) {
+    IdentifierInfo* II = &m_Context.Idents.get(MemberFunctionName);
+    UnqualifiedId Member;
+    Member.setIdentifier(II, Loc);
+    return BuildCallExprToMemFn(Base, &Member, ArgExprs, Loc);
+  }
+
+  Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base,
+                                          UnqualifiedId* MemberFunction,
+                                          MutableArrayRef<Expr*> ArgExprs,
+                                          SourceLocation Loc /*=noLoc*/) {
     if (Loc.isInvalid())
       Loc = m_DiffReq->getLocation();
-    UnqualifiedId Member;
-    Member.setIdentifier(&m_Context.Idents.get(MemberFunctionName), Loc);
     CXXScopeSpec SS;
     bool isArrow = Base->getType()->isPointerType();
     auto ME = m_Sema
                   .ActOnMemberAccessExpr(getCurrentScope(), Base, Loc,
                                          isArrow ? tok::TokenKind::arrow
                                                  : tok::TokenKind::period,
-                                         SS, noLoc, Member,
+                                         SS, noLoc, *MemberFunction,
                                          /*ObjCImpDecl=*/nullptr)
                   .getAs<MemberExpr>();
     return m_Sema.ActOnCallExpr(getCurrentScope(), ME, Loc, ArgExprs, Loc)
@@ -636,13 +647,22 @@ namespace clad {
     if (FD->isOverloadedOperator()) {
       call = BuildOperatorCall(FD->getOverloadedOperator(), argExprs);
     } else if (MD && MD->isInstance()) {
-      // FIXME: We shouldn't have different overloads of BuildCallExprToMemFn.
       if (useRefQualifiedThisObj)
         call = BuildCallExprToMemFn(const_cast<CXXMethodDecl*>(MD), argExprs,
                                     useRefQualifiedThisObj);
-      else
-        call = BuildCallExprToMemFn(argExprs[0], MD->getName(),
-                                    argExprs.drop_front(), MD->getLocation());
+      else {
+        UnqualifiedId Member;
+        SourceLocation loc = argExprs[0]->getBeginLoc();
+        if (const auto* CD = dyn_cast<CXXConversionDecl>(FD)) {
+          ParsedType PT = ParsedType::make(CD->getConversionType());
+          Member.setConversionFunctionId(loc, PT, loc);
+        } else {
+          IdentifierInfo* II = &m_Context.Idents.get(MD->getName());
+          Member.setIdentifier(II, MD->getLocation());
+        }
+        call = BuildCallExprToMemFn(argExprs[0], &Member, argExprs.drop_front(),
+                                    MD->getLocation());
+      }
     } else {
       if (!argExprs.empty() &&
           FD->getParamDecl(0)->getType()->isPointerType() &&
