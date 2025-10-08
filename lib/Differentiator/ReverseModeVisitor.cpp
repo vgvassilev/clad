@@ -2778,11 +2778,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     // Temporarily initialize the object with `*nullptr` to avoid
     // a potential error because of non-existing default constructor.
-    if (!VDDerivedInit && shouldCopyInitialize) {
-      QualType ptrType =
-          m_Context.getPointerType(VDDerivedType.getUnqualifiedType());
+    // FIXME: We need to have a more general way of determining this.
+    const auto* CAT = dyn_cast<ConstantArrayType>(VDDerivedType);
+    if (!VDDerivedInit && (shouldCopyInitialize ||
+                           (CAT && CAT->getElementType()->isRecordType()))) {
+      QualType dummyTy = VDDerivedType;
+      if (CAT)
+        dummyTy = CAT->getElementType();
+      QualType ptrType = m_Context.getPointerType(dummyTy.getUnqualifiedType());
       Expr* dummy = getZeroInit(ptrType);
       VDDerivedInit = BuildOp(UO_Deref, dummy);
+      if (CAT) {
+        llvm::SmallVector<Expr*, 2> args(CAT->getSize().getZExtValue(),
+                                         VDDerivedInit);
+        VDDerivedInit = m_Sema.ActOnInitList(noLoc, args, noLoc).get();
+      }
     }
 
     // If VD is a reference to a local variable, then the initial value is set
