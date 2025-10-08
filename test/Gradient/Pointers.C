@@ -434,7 +434,7 @@ double listInitPtrFn (double x, double y) {
 }
 
 // CHECK:  void listInitPtrFn_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      double *_d_ptr(&*_d_x);
+// CHECK-NEXT:      double *_d_ptr{&*_d_x};
 // CHECK-NEXT:      double *ptr{&x};
 // CHECK-NEXT:      *ptr += y;
 // CHECK-NEXT:      *_d_ptr += 1;
