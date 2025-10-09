@@ -33,6 +33,7 @@
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DiffMode.h"
 
 #include <algorithm>
 #include <cstdlib>  // for getenv

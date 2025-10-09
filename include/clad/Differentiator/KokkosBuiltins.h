@@ -45,7 +45,8 @@ constructor_reverse_forw(
   return {::Kokkos::View<DataType, ViewParams...>(name, idx0, idx1, idx2, idx3,
                                                   idx4, idx5, idx6, idx7),
           ::Kokkos::View<DataType, ViewParams...>(
-              "_diff_" + name, idx0, idx1, idx2, idx3, idx4, idx5, idx6, idx7)};
+              ::std::string("_diff_") + name, idx0, idx1, idx2, idx3, idx4,
+              idx5, idx6, idx7)};
 }
 template <class DataType, size_t N, class... ViewParams>
 void constructor_pullback(

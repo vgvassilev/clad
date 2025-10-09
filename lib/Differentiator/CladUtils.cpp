@@ -1059,6 +1059,7 @@ namespace clad {
 
     bool IsDifferentiableType(QualType T) {
       QualType origType = T;
+      T = T.getCanonicalType();
       // FIXME: arbitrary dimension array type as well.
       while (utils::isArrayOrPointerType(T) || T->isReferenceType())
         T = utils::GetValueType(T);

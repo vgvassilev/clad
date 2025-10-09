@@ -1483,6 +1483,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         (m_ParentReq->Mode != DiffMode::pullback))
       return true;
 
+    // FIXME: This only happens to perform nested TBR.
+    // Constructors are not yet suported
+    if (m_ParentReq->CustomDerivative)
+      return true;
+
     CXXConstructorDecl* CD = E->getConstructor();
     DiffRequest forwPassRequest;
     forwPassRequest.Function = CD;
@@ -1498,11 +1503,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
 
     if (clad::utils::hasNonDifferentiableAttribute(CD->getParent()))
-      return true;
-
-    // FIXME: This only happens to perform nested TBR.
-    // Constructors are not yet suported
-    if (m_ParentReq->CustomDerivative)
       return true;
 
     DiffRequest request;
