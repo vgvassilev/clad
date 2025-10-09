@@ -1076,7 +1076,6 @@ float fn29(float *input, Session const *session) {
 // CHECK-NEXT:      size_t id = {{0U|0UL|0ULL}};
 // CHECK-NEXT:      size_t _d_id0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:      size_t id0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:      Session _d_sess = {{.*}};
 // CHECK-NEXT:      const Session &sess = session[0];
 // CHECK-NEXT:      float _d_buffer[5] = {0};
 // CHECK-NEXT:      float buffer[5]{0., 0., 0., 0., 0};
@@ -1107,7 +1106,6 @@ float fn29(float *input, Session const *session) {
 // CHECK-NEXT:          {
 // CHECK-NEXT:              float _r_d0 = _d_buffer[id];
 // CHECK-NEXT:              _d_buffer[id] = 0.F;
-// CHECK-NEXT:              _d_sess.factors[id] += _r_d0 * input[id];
 // CHECK-NEXT:              _d_input[id] += sess.factors[id] * _r_d0;
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
