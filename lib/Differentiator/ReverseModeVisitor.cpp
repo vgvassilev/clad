@@ -2809,10 +2809,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (isRefType) {
       initDiff = Visit(VD->getInit());
       if (!initDiff.getStmt_dx()) {
-        VDDerivedType = ComputeAdjointType(VDType.getNonReferenceType());
-        isRefType = false;
+        initializeDerivedVar = false;
       }
-      if (promoteToFnScope || !isRefType)
+      if (promoteToFnScope)
         VDDerivedInit = getZeroInit(VDDerivedType);
       else
         VDDerivedInit = initDiff.getExpr_dx();

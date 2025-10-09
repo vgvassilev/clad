@@ -1010,7 +1010,6 @@ int main() {
 // CHECK-NEXT:     int id = 0;
 // CHECK-NEXT:     int _d_id0 = 0;
 // CHECK-NEXT:     int id0 = 0;
-// CHECK-NEXT:     Session _d_sess = {{.*}}, nullptr};
 // CHECK-NEXT:     const Session &sess = session[0];
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (id = 0; id < nVals; id++) {
@@ -1028,28 +1027,20 @@ int main() {
 // CHECK-NEXT:     for (; _t1; _t1--) {
 // CHECK-NEXT:         id0--;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             float _r_d1 = _d_out;
+// CHECK-NEXT:             float _r_d0 = _d_out;
 // CHECK-NEXT:             float _r0 = 0.F;
-// CHECK-NEXT:             _r0 += _r_d1 * clad::custom_derivatives::std::exp_pushforward(-sess.arr[id0], 1.F).pushforward;
-// CHECK-NEXT:             _d_sess.arr[id0] += -_r0;
+// CHECK-NEXT:             _r0 += _r_d0 * clad::custom_derivatives::std::exp_pushforward(-sess.arr[id0], 1.F).pushforward;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         id--;
-// CHECK-NEXT:         {
-// CHECK-NEXT:             float _r_d0 = _d_sess.arr[id];
-// CHECK-NEXT:             _d_sess.arr[id] = 0.F;
-// CHECK-NEXT:             _d_tensor_theory_params[0] += tensor_x[id] * _r_d0;
-// CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 // CHECK: void fn19_grad_1(const Session *session, float *tensor_theory_params, float *_d_tensor_theory_params) {
 // CHECK-NEXT:     int _d_id = 0;
 // CHECK-NEXT:     int id = 0;
-// CHECK-NEXT:     Session _d_sess = {{[{][{][}]}}, nullptr};
 // CHECK-NEXT:     const Session &sess = session[0];
-// CHECK-NEXT:     float *&_d_arr = _d_sess.arr;
 // CHECK-NEXT:     float *const &arr = sess.arr;
 // CHECK-NEXT:     float _d_out = 0.F;
 // CHECK-NEXT:     float out = 0.;
@@ -1063,7 +1054,6 @@ int main() {
 // CHECK-NEXT:         id--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             float _r_d0 = _d_out;
-// CHECK-NEXT:             _d_arr[id] += _r_d0 * tensor_theory_params[0];
 // CHECK-NEXT:             _d_tensor_theory_params[0] += arr[id] * _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
