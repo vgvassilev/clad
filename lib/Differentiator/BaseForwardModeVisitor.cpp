@@ -2222,9 +2222,9 @@ clang::OMPClause* BaseForwardModeVisitor::VisitOMPReductionClause(
   CXXScopeSpec ReductionIdScopeSpec;
   ReductionIdScopeSpec.Adopt(C->getQualifierLoc());
   DeclarationNameInfo NameInfo = C->getNameInfo();
-  return CLAD_COMPAT_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
-      Vars, C->getModifier(), C->getBeginLoc(), C->getLParenLoc(),
-      C->getModifierLoc(), C->getColonLoc(), C->getEndLoc(),
+  return CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
+      Vars, CLAD_COMPAT_CLANG21_getModifier(C), C->getBeginLoc(),
+      C->getLParenLoc(), C->getModifierLoc(), C->getColonLoc(), C->getEndLoc(),
       ReductionIdScopeSpec, NameInfo);
 }
 
@@ -2248,9 +2248,10 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
   TClauses.reserve(Clauses.size());
   for (auto* I : Clauses) {
     if (I) {
-      CLAD_COMPAT_SemaOpenMP(m_Sema).StartOpenMPClause(I->getClauseKind());
+      CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPClause(
+          I->getClauseKind());
       OMPClause* Clause = VisitOMPClause(I);
-      CLAD_COMPAT_SemaOpenMP(m_Sema).EndOpenMPClause();
+      CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPClause();
       if (Clause)
         TClauses.push_back(Clause);
     } else {
@@ -2259,15 +2260,16 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
   }
   StmtDiff AssociatedStmt;
   if (D->hasAssociatedStmt() && D->getAssociatedStmt()) {
-    CLAD_COMPAT_SemaOpenMP(m_Sema).ActOnOpenMPRegionStart(D->getDirectiveKind(),
-                                                          /*CurScope=*/nullptr);
+    CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPRegionStart(
+        D->getDirectiveKind(),
+        /*CurScope=*/nullptr);
     StmtDiff Body;
     {
       Sema::CompoundScopeRAII CompoundScope(m_Sema);
       const auto* CS = D->getInnermostCapturedStmt()->getCapturedStmt();
       Body = Visit(CS);
     }
-    AssociatedStmt = CLAD_COMPAT_SemaOpenMP(m_Sema)
+    AssociatedStmt = CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema)
                          .ActOnOpenMPRegionEnd(Body.getStmt(), TClauses)
                          .get();
   }
@@ -2275,7 +2277,7 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
   DeclarationNameInfo DirName;
   // if (D->getDirectiveKind() == OMPD_critical) {
   //   DirName = cast<OMPCriticalDirective>(D)->getDirectiveName();
-  //   DirName = TransformDeclarationNameInfo(DirName);
+  //   DirName = getDerived().TransformDeclarationNameInfo(DirName);
   // }
   OpenMPDirectiveKind CancelRegion = OMPD_unknown;
   if (D->getDirectiveKind() == OMPD_cancellation_point)
@@ -2283,7 +2285,7 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
   else if (D->getDirectiveKind() == OMPD_cancel)
     CancelRegion = cast<OMPCancelDirective>(D)->getCancelRegion();
 
-  return CLAD_COMPAT_SemaOpenMP(m_Sema)
+  return CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema)
       .ActOnOpenMPExecutableDirective(
           D->getDirectiveKind(), DirName, CancelRegion, TClauses,
           AssociatedStmt.getStmt(), D->getBeginLoc(), D->getEndLoc())
@@ -2293,10 +2295,10 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
 StmtDiff BaseForwardModeVisitor::VisitOMPParallelForDirective(
     const clang::OMPParallelForDirective* D) {
   DeclarationNameInfo DirName;
-  CLAD_COMPAT_SemaOpenMP(m_Sema).StartOpenMPDSABlock(
+  CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPDSABlock(
       llvm::omp::OMPD_parallel_for, DirName, nullptr, D->getBeginLoc());
   StmtDiff Res = VisitOMPExecutableDirective(D);
-  CLAD_COMPAT_SemaOpenMP(m_Sema).EndOpenMPDSABlock(Res.getStmt());
+  CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPDSABlock(Res.getStmt());
   return Res;
 }
 } // end namespace clad
