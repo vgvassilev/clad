@@ -51,6 +51,14 @@ using namespace llvm;
 #define CLAD_COMPAT_CLANG21_TemplateKeywordParam
 #endif
 
+// clang-21 OpenMPReductionClauseModifiers  got extra argument
+#if CLANG_VERSION_MAJOR < 21
+#define CLAD_COMPAT_CLANG21_getModifier(Clause) (Clause)->getModifier()
+#else
+#define CLAD_COMPAT_CLANG21_getModifier(Clause)                                \
+  {(Clause)->getModifier(), (Clause)->getOriginalSharingModifier()}
+#endif
+
 // clang-20 clang::Sema::AA_Casting became scoped
 #if CLANG_VERSION_MAJOR < 20
 #define CLAD_COMPAT_CLANG20_SemaAACasting clang::Sema::AA_Casting
@@ -60,9 +68,9 @@ using namespace llvm;
 
 // clang-19 SemaOpenMP was introduced
 #if CLANG_VERSION_MAJOR < 19
-#define CLAD_COMPAT_SemaOpenMP(Sema) (Sema)
+#define CLAD_COMPAT_CLANG19_SemaOpenMP(Sema) (Sema)
 #else
-#define CLAD_COMPAT_SemaOpenMP(Sema) ((Sema).OpenMP())
+#define CLAD_COMPAT_CLANG19_SemaOpenMP(Sema) ((Sema).OpenMP())
 #endif
 
 // clang-18 CXXThisExpr got extra argument
