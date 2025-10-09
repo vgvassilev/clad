@@ -1,6 +1,6 @@
 // RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath %cudaldflags -o VectorAddition.out %S/../../demos/CUDA/VectorAddition.cu 2>&1 | FileCheck -check-prefix CHECK_VECTOR_ADDITION %s
 // REQUIRES: cuda-runtime
-// CHECK_VECTOR_ADDITION: void vector_addition_grad(const thrust::device_vector<double> &x, const thrust::device_vector<double> &y, thrust::device_vector<double> &z, thrust::device_vector<double> *_d_x, thrust::device_vector<double> *_d_y, thrust::device_vector<double> *_d_z)
+// CHECK_VECTOR_ADDITION: void vector_addition_grad(const thrust::device_vector<double> &x, const thrust::device_vector<double> &y, thrust::device_vector<double> *_d_x, thrust::device_vector<double> *_d_y)
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::transform_reverse_forw
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::reduce_pullback
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::transform_pullback
@@ -10,7 +10,7 @@
 // CHECK_VECTOR_ADDITION_EXEC: Gradients of sum wrt initial x: 1 1 1 1 1 1 1 1 1 1 
 
 // RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath %cudaldflags -o ParticleSimulation.out %S/../../demos/CUDA/ParticleSimulation.cu 2>&1 | FileCheck -check-prefix CHECK_PARTICLE_SIMULATION %s
-// CHECK_PARTICLE_SIMULATION: void run_simulation_grad(thrust::device_vector<double> &x, thrust::device_vector<double> &y, const thrust::device_vector<double> &vx, const thrust::device_vector<double> &vy, const thrust::device_vector<double> &dts, thrust::device_vector<double> &tmp, thrust::device_vector<double> &x_buffer, thrust::device_vector<double> &y_buffer, thrust::device_vector<double> *_d_x, thrust::device_vector<double> *_d_y, thrust::device_vector<double> *_d_vx, thrust::device_vector<double> *_d_vy, thrust::device_vector<double> *_d_dts, thrust::device_vector<double> *_d_tmp, thrust::device_vector<double> *_d_x_buffer, thrust::device_vector<double> *_d_y_buffer)
+// CHECK_PARTICLE_SIMULATION: void run_simulation_grad(thrust::device_vector<double> &x, thrust::device_vector<double> &y, const thrust::device_vector<double> &vx, const thrust::device_vector<double> &vy, const thrust::device_vector<double> &dts, thrust::device_vector<double> *_d_x, thrust::device_vector<double> *_d_y, thrust::device_vector<double> *_d_vx, thrust::device_vector<double> *_d_vy, thrust::device_vector<double> *_d_dts)
 // CHECK_PARTICLE_SIMULATION: for (i = 0; i < n_steps; ++i)
 // CHECK_PARTICLE_SIMULATION: clad::custom_derivatives::thrust::reduce_pullback
 // CHECK_PARTICLE_SIMULATION: for (; _t0; _t0--)

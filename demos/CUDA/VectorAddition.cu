@@ -5,6 +5,7 @@
 // of `x`.
 
 #include "clad/Differentiator/Differentiator.h"
+#include "clad/Differentiator/ThrustBuiltins.h"
 #include "clad/Differentiator/ThrustDerivatives.h"
 
 #include <thrust/device_vector.h>
@@ -18,8 +19,8 @@
 #include <vector>
 
 double vector_addition(const thrust::device_vector<double>& x,
-                       const thrust::device_vector<double>& y,
-                       thrust::device_vector<double>& z) {
+                       const thrust::device_vector<double>& y) {
+  thrust::device_vector<double> z(x.size());
   thrust::transform(x.begin(), x.end(), y.begin(), z.begin(),
                     thrust::plus<double>());
   return thrust::reduce(z.begin(), z.end(), 0.0);
@@ -30,7 +31,6 @@ int main() {
 
   thrust::device_vector<double> x(N, 1.0);
   thrust::device_vector<double> y(N, 2.0);
-  thrust::device_vector<double> z(N, 0.0);
 
   std::cout << "Running vector addition demo." << std::endl;
 
@@ -38,9 +38,8 @@ int main() {
 
   thrust::device_vector<double> x_grad(N);
   thrust::device_vector<double> y_grad(N);
-  thrust::device_vector<double> z_grad(N);
 
-  vector_addition_grad.execute(x, y, z, &x_grad, &y_grad, &z_grad);
+  vector_addition_grad.execute(x, y, &x_grad, &y_grad);
 
   thrust::host_vector<double> host_gradients = x_grad;
   std::cout << "Gradients of sum wrt initial x: ";
