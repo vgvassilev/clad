@@ -290,6 +290,17 @@ double fn22(double x) {
     return weak_fn(w_ptr);
 }
 
+template<class T>
+double foo(T const *x) {
+    return x[0] * x[1] * x[2] * x[3];
+}
+
+double fn23(double *params) {
+   std::reference_wrapper<double> x[]{params[3], params[2], params[1], params[0]};
+   double y = foo(x);
+   return y;
+}
+
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn1);
@@ -349,6 +360,12 @@ int main() {
     TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/1, 3, &d_i);  // CHECK-EXEC: {8.00}
     INIT_GRADIENT(fn22);
     TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/1, 3, &d_i);  // CHECK-EXEC: {8.00}
+
+    double x[] = {1, 2, 3, 4};
+    double dx[4] = {0};
+    auto dfn23 = clad::gradient(fn23);
+    dfn23.execute(x, dx);
+    printf("{%.2f, %.2f, %.2f, %.2f}", dx[0], dx[1], dx[2], dx[3]);  // CHECK-EXEC: {24.00, 12.00, 8.00, 6.00}
 }
 
 // CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -1104,4 +1121,26 @@ int main() {
 // CHECK-NEXT:         x = _t0;
 // CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_s_ptr, &*_d_x);
 // CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void foo_pullback(const std::reference_wrapper<double> *x, double _d_y, std::reference_wrapper<double> *_d_x) {
+// CHECK-NEXT:     {{.*}} _t3 = x[0];
+// CHECK-NEXT:     {{.*}} _t2 = x[1];
+// CHECK-NEXT:     {{.*}} _t1 = x[2];
+// CHECK-NEXT:     {{.*}} _t0 = x[3];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_x[0] += _d_y * _t0 * _t1 * _t2;
+// CHECK-NEXT:         _d_x[1] += _t3 * _d_y * _t0 * _t1;
+// CHECK-NEXT:         _d_x[2] += _t3 * _t2 * _d_y * _t0;
+// CHECK-NEXT:         _d_x[3] += _t3 * _t2 * _t1 * _d_y;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void fn23_grad(double *params, double *_d_params) {
+// CHECK-NEXT:     std::reference_wrapper<double> _d_x[4]{_d_params[3], _d_params[2], _d_params[1], _d_params[0]};
+// CHECK-NEXT:     std::reference_wrapper<double> x[4]{params[3], params[2], params[1], params[0]};
+// CHECK-NEXT:     double _d_y = 0.;
+// CHECK-NEXT:     double y = foo(x);
+// CHECK-NEXT:     _d_y += 1;
+// CHECK-NEXT:     foo_pullback(x, _d_y, _d_x);
 // CHECK-NEXT: }

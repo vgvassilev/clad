@@ -5,6 +5,7 @@
 #include <clad/Differentiator/Array.h>
 #include <clad/Differentiator/BuiltinDerivatives.h>
 #include <clad/Differentiator/FunctionTraits.h>
+#include <functional>
 #include <initializer_list>
 #include <iterator>
 #include <memory>
@@ -770,6 +771,22 @@ clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
 template <typename T>
 void lock_pullback(const ::std::weak_ptr<T>* p, ::std::shared_ptr<T> dthis,
                    ::std::weak_ptr<T>* dp) noexcept;
+
+// std::reference_wrapper custom derivatives
+template <typename T, typename U>
+clad::ValueAndAdjoint<::std::reference_wrapper<T>, ::std::reference_wrapper<T>>
+constructor_reverse_forw(
+    clad::ConstructorReverseForwTag<::std::reference_wrapper<T>>, U&& p,
+    U&& d_p) elidable_reverse_forw;
+
+template <typename T, typename U>
+void constructor_pullback(U& /*p*/, ::std::reference_wrapper<T>* /*dthis*/,
+                          U* /*d_p*/);
+
+template <typename T>
+clad::ValueAndAdjoint<T&, T&> conversion_operator_reverse_forw(
+    clad::Tag<T&>, const ::std::reference_wrapper<T>* x,
+    const ::std::reference_wrapper<T>* dx) elidable_reverse_forw;
 } // namespace class_functions
 
 namespace std {
