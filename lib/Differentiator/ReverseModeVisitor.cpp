@@ -2744,9 +2744,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool initializeDerivedVar = m_DiffReq.shouldHaveAdjoint(VD) &&
                                 !clad::utils::hasNonDifferentiableAttribute(VD);
 
-    if (Expr* size = getStdInitListSizeExpr(VD->getInit()))
-      VDDerivedInit = size;
-
     // Check if the variable is pointer type and initialized by new expression
     if (isPointerType && VD->getInit() && isa<CXXNewExpr>(VD->getInit()))
       isInitializedByNewExpr = true;
@@ -2780,12 +2777,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // a potential error because of non-existing default constructor.
     // FIXME: We need to have a more general way of determining this.
     const auto* CAT = dyn_cast<ConstantArrayType>(VDDerivedType);
-    if (!VDDerivedInit && (shouldCopyInitialize ||
+    if (!VDDerivedInit && (shouldCopyInitialize || isRefType ||
                            (CAT && CAT->getElementType()->isRecordType()))) {
       QualType dummyTy = VDDerivedType;
       if (CAT)
         dummyTy = CAT->getElementType();
-      QualType ptrType = m_Context.getPointerType(dummyTy.getUnqualifiedType());
+      QualType ptrType = m_Context.getPointerType(
+          dummyTy.getUnqualifiedType().getNonReferenceType());
       Expr* dummy = getZeroInit(ptrType);
       VDDerivedInit = BuildOp(UO_Deref, dummy);
       if (CAT) {
@@ -2806,20 +2804,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!VDDerivedInit)
       VDDerivedInit = getZeroInit(VDType);
 
-    if (isRefType) {
-      initDiff = Visit(VD->getInit());
-      if (!initDiff.getStmt_dx()) {
-        initializeDerivedVar = false;
-      }
-      if (promoteToFnScope)
-        VDDerivedInit = getZeroInit(VDDerivedType);
-      else
-        VDDerivedInit = initDiff.getExpr_dx();
-    }
-
     // if VD is a pointer type, then the initial value is set to the derived
     // expression of the corresponding pointer type.
-    else if (isPointerType) {
+    if (isPointerType) {
       if (!isInitializedByNewExpr)
         initDiff = Visit(VD->getInit());
 
@@ -2847,14 +2834,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDDerived = BuildGlobalVarDecl(
           VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit);
 
-    // If `VD` is a reference to a local variable, then it is already
-    // differentiated and should not be differentiated again.
-    // If `VD` is a reference to a non-local variable then also there's no
-    // need to call `Visit` since non-local variables are not differentiated.
-    if (!isRefType && (!isPointerType || isInitializedByNewExpr)) {
+    if ((!isPointerType || isInitializedByNewExpr)) {
       Expr* derivedE = nullptr;
 
-      if (VDDerived) {
+      if (VDDerived && !isRefType) {
         derivedE = BuildDeclRef(VDDerived);
         if (isInitializedByNewExpr)
           derivedE = BuildOp(UnaryOperatorKind::UO_Deref, derivedE);
@@ -2879,7 +2862,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       //   *_d_i += _d_localVar;
       //   _d_localVar = 0;
       // }
-      if (VDDerived && isInsideLoop) {
+      if (VDDerived && isInsideLoop && !isRefType) {
         Stmt* assignToZero = nullptr;
         Expr* declRef = BuildDeclRef(VDDerived);
         if (isa<ArrayType>(VDDerivedType))
@@ -2891,6 +2874,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           addToCurrentBlock(assignToZero, direction::reverse);
       }
     }
+
+    if (isRefType && !initDiff.getStmt_dx())
+      VDDerived = nullptr;
 
     VarDecl* VDClone = nullptr;
     Expr* derivedVDE = nullptr;
@@ -2919,9 +2905,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
                                  initDiff.getExpr(), VD->isDirectInit());
 
+    if (Expr* size = getStdInitListSizeExpr(VD->getInit())) {
+      initDiff.updateStmtDx(Clone(size));
+      isConstructInit = true;
+    }
+
     // FIXME: In principle, we can handle all type adjoints here.
     if (VDDerived && !VDDerived->getType()->isBuiltinType() &&
-        !isCladArrayType(VDCloneType) &&
         (!promoteToFnScope || isConstructInit)) {
       if (initDiff.getStmt_dx()) {
         bool isDirectInit = VD->isDirectInit();
@@ -2968,6 +2958,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
                                         derivedVDE, initDiff.getExpr_dx());
       addToCurrentBlock(assignDerivativeE, direction::forward);
+      SetDeclInit(VDDerived, getZeroInit(VDDerivedType));
       if (isInsideLoop) {
         StmtDiff pushPop = StoreAndRestore(derivedVDE);
         if (!keepLocal)
