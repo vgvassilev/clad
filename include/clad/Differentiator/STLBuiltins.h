@@ -696,7 +696,8 @@ template <
     typename It,
     typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
 clad::ValueAndAdjoint<It, It>
-constructor_reverse_forw(clad::Tag<It>, It it, It d_it) elidable_reverse_forw;
+constructor_reverse_forw(clad::Tag<It>, const It& it,
+                         const It& d_it) elidable_reverse_forw;
 
 template <
     typename It,

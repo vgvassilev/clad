@@ -1059,6 +1059,7 @@ namespace clad {
 
     bool IsDifferentiableType(QualType T) {
       QualType origType = T;
+      T = T.getCanonicalType();
       // FIXME: arbitrary dimension array type as well.
       while (utils::isArrayOrPointerType(T) || T->isReferenceType())
         T = utils::GetValueType(T);
@@ -1191,14 +1192,15 @@ namespace clad {
           T = utils::replaceStdInitListWithCladArray(S, T);
 
       QualType oRetTy = FD->getReturnType();
+      if (const auto* CD = dyn_cast<CXXConstructorDecl>(FD))
+        oRetTy = CD->getThisType()->getPointeeType();
       QualType dRetTy = C.VoidTy;
       bool returnVoid = mode == DiffMode::reverse ||
                         mode == DiffMode::pullback ||
                         mode == DiffMode::error_estimation ||
                         mode == DiffMode::vector_forward_mode;
-      if (mode == DiffMode::reverse_mode_forward_pass &&
-          !oRetTy->isVoidType()) {
-        if (isMemoryType(oRetTy)) {
+      if (mode == DiffMode::reverse_mode_forward_pass) {
+        if (isMemoryType(oRetTy) || isa<CXXConstructorDecl>(FD)) {
           TemplateDecl* valAndAdjointTempDecl =
               utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
           dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
@@ -1223,14 +1225,18 @@ namespace clad {
         QualType argTy = oRetTy.getNonReferenceType();
         argTy = utils::getNonConstType(argTy, S);
         if (!argTy->isVoidType() && !argTy->isPointerType() &&
-            !utils::isNonConstReferenceType(oRetTy))
+            !utils::isNonConstReferenceType(oRetTy)) {
+          if (isa<CXXConstructorDecl>(FD))
+            argTy = C.getPointerType(argTy);
           FnTypes.push_back(argTy);
+        }
       }
 
       QualType thisTy;
       if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
         const CXXRecordDecl* RD = MD->getParent();
-        if (MD->isInstance() && !RD->isLambda() && mode != DiffMode::jacobian) {
+        if (MD->isInstance() && !RD->isLambda() && mode != DiffMode::jacobian &&
+            !isa<CXXConstructorDecl>(MD)) {
           thisTy = MD->getThisType();
           QualType dthisTy = utils::GetParameterDerivativeType(S, mode, thisTy);
           FnTypes.push_back(dthisTy);
@@ -1270,22 +1276,22 @@ namespace clad {
           FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
       }
 
-      if (forCustomDerv && !thisTy.isNull() && !isa<CXXConstructorDecl>(FD)) {
+      if (forCustomDerv && !thisTy.isNull()) {
         FnTypes.insert(FnTypes.begin(), thisTy);
         EPI.TypeQuals.removeConst();
       }
 
-      if (mode == DiffMode::reverse_mode_forward_pass &&
-          isa<CXXConversionDecl>(FD)) {
-        QualType typeTag = utils::GetCladTagOfType(S, oRetTy);
-        FnTypes.insert(FnTypes.begin(), typeTag);
-      }
+      if (mode == DiffMode::reverse_mode_forward_pass) {
+        if (isa<CXXConversionDecl>(FD) || isa<CXXConstructorDecl>(FD)) {
+          QualType typeTag = utils::GetCladTagOfType(S, oRetTy);
+          FnTypes.insert(FnTypes.begin(), typeTag);
+        }
 
-      if (mode == DiffMode::reverse_mode_forward_pass &&
-          shouldUseRestoreTracker(FD) && !forCustomDerv) {
-        QualType trackerTy = GetRestoreTrackerType(S);
-        trackerTy = C.getLValueReferenceType(trackerTy);
-        FnTypes.push_back(trackerTy);
+        if (shouldUseRestoreTracker(FD) && !forCustomDerv) {
+          QualType trackerTy = GetRestoreTrackerType(S);
+          trackerTy = C.getLValueReferenceType(trackerTy);
+          FnTypes.push_back(trackerTy);
+        }
       }
 
       for (QualType customTy : customParams)

@@ -1483,18 +1483,26 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         (m_ParentReq->Mode != DiffMode::pullback))
       return true;
 
+    // FIXME: This only happens to perform nested TBR.
+    // Constructors are not yet suported
+    if (m_ParentReq->CustomDerivative)
+      return true;
+
+    CXXConstructorDecl* CD = E->getConstructor();
+    DiffRequest forwPassRequest;
+    forwPassRequest.Function = CD;
+    forwPassRequest.BaseFunctionName = "constructor";
+    forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
+    forwPassRequest.CallContext = E;
+    if (LookupCustomDerivativeDecl(forwPassRequest))
+      m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+
     // Don't build propagators for calls that do not contribute in
     // differentiable way to the result.
     if (allArgumentsAreLiterals(E->arguments(), m_ParentReq))
       return true;
 
-    CXXConstructorDecl* CD = E->getConstructor();
     if (clad::utils::hasNonDifferentiableAttribute(CD->getParent()))
-      return true;
-
-    // FIXME: This only happens to perform nested TBR.
-    // Constructors are not yet suported
-    if (m_ParentReq->CustomDerivative)
       return true;
 
     DiffRequest request;
