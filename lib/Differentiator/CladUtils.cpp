@@ -537,10 +537,16 @@ namespace clad {
             CAT->getSizeModifier(), CAT->getIndexTypeCVRQualifiers());
       }
       T = T.getNonReferenceType();
+      bool isConstPtrType =
+          T->isPointerType() && T->getPointeeType().isConstQualified();
+      if (isConstPtrType)
+        T = T->getPointeeType();
       clang::Qualifiers quals(T.getQualifiers());
       quals.removeConst();
       clang::QualType nonConstType =
           S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
+      if (isConstPtrType)
+        nonConstType = S.getASTContext().getPointerType(nonConstType);
       if (isLValueRefType)
         return S.getASTContext().getLValueReferenceType(nonConstType);
       return nonConstType;
