@@ -10,10 +10,14 @@
 #include <new>
 #include <type_traits>
 #include <utility>
+#ifndef __CUDACC__
+#include <mutex>
+#endif
 
 namespace clad {
 
-template <typename T, std::size_t SBO_SIZE, std::size_t SLAB_SIZE>
+template <typename T, std::size_t SBO_SIZE, std::size_t SLAB_SIZE,
+          bool is_multithread>
 class tape_impl;
 
 /// A forward iterator for traversing elements in `clad::tape_impl`.
@@ -21,9 +25,10 @@ class tape_impl;
 /// - Dereferencing (`*`, `->`)
 /// - Increment (`++`)
 /// - Equality and inequality comparisons
-template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
+template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
+          bool is_multithread = false>
 class tape_iterator {
-  using tape_t = clad::tape_impl<T, SBO_SIZE, SLAB_SIZE>;
+  using tape_t = clad::tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread>;
   tape_t* m_tape;
   std::size_t m_index;
 
@@ -66,7 +71,8 @@ public:
 /// (SBO), primarily used for storing values in reverse-mode AD. Stores elements
 /// in a static buffer first, then falls back to dynamically allocated linked
 /// slabs if capacity exceeds SBO.
-template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
+template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
+          bool is_multithread = false>
 class tape_impl {
   /// A block of contiguous storage allocated dynamically when SBO capacity is
   /// exceeded.
@@ -97,6 +103,10 @@ class tape_impl {
   std::size_t m_size = 0;
   std::size_t m_capacity = SBO_SIZE;
 
+#ifndef __CUDACC__
+  mutable std::mutex m_TapeMutex;
+#endif
+
   CUDA_HOST_DEVICE T* sbo_elements() {
 #if __cplusplus >= 201703L
     return std::launder(reinterpret_cast<T*>(m_static_buffer));
@@ -121,8 +131,13 @@ public:
   using size_type = std::size_t;
   using difference_type = std::ptrdiff_t;
   using value_type = T;
-  using iterator = tape_iterator<T, SBO_SIZE, SLAB_SIZE>;
-  using const_iterator = tape_iterator<const T, SBO_SIZE, SLAB_SIZE>;
+  using iterator = tape_iterator<T, SBO_SIZE, SLAB_SIZE, is_multithread>;
+  using const_iterator =
+      tape_iterator<const T, SBO_SIZE, SLAB_SIZE, is_multithread>;
+
+#ifndef __CUDACC__
+  std::mutex& mutex() const { return m_TapeMutex; }
+#endif
 
   CUDA_HOST_DEVICE tape_impl() = default;
 
