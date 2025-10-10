@@ -2757,11 +2757,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs() &&
         utils::isCopyable(VDType->getAsCXXRecordDecl());
 
-    if (clad::utils::isTensorLike(m_Sema, VD->getType())) {
-      isConstructInit = true;
-      shouldCopyInitialize = true;
-    }
-
     // Temporarily initialize the object with `*nullptr` to avoid
     // a potential error because of non-existing default constructor.
     Expr* dummyInit = nullptr;
