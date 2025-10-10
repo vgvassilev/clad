@@ -2735,15 +2735,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType VDDerivedType = utils::getNonConstType(VDCloneType, m_Sema);
 
     bool isRefType = VDType->isLValueReferenceType();
-    VarDecl* VDDerived = nullptr;
     bool isPointerType = VDType->isPointerType();
-    bool isInitializedByNewExpr = false;
-    bool initializeDerivedVar = m_DiffReq.shouldHaveAdjoint(VD) &&
-                                !clad::utils::hasNonDifferentiableAttribute(VD);
-
-    // Check if the variable is pointer type and initialized by new expression
-    if (isPointerType && VD->getInit() && isa<CXXNewExpr>(VD->getInit()))
-      isInitializedByNewExpr = true;
 
     bool isConstructInit =
         VD->getInit() && isa<CXXConstructExpr>(VD->getInit()->IgnoreImplicit());
@@ -2769,20 +2761,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       isConstructInit = true;
       shouldCopyInitialize = true;
     }
-    StmtDiff initDiff;
-    // if VD is a pointer type, then the initial value is set to the derived
-    // expression of the corresponding pointer type.
-    if (isPointerType) {
-      if (!isInitializedByNewExpr)
-        initDiff = Visit(VD->getInit());
-
-      // If the pointer is const and derived expression is not available, then
-      // we should not create a derived variable for it. This will be useful
-      // for reducing number of differentiation variables in pullbacks.
-      bool constPointer = VDType->getPointeeType().isConstQualified();
-      if (constPointer && !isInitializedByNewExpr && !initDiff.getExpr_dx())
-        initializeDerivedVar = false;
-    }
 
     // Temporarily initialize the object with `*nullptr` to avoid
     // a potential error because of non-existing default constructor.
@@ -2804,52 +2782,58 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         dummyInit = m_Sema.ActOnInitList(noLoc, args, noLoc).get();
       }
     }
-    if (initializeDerivedVar)
+
+    // Build the adjoint VarDecl
+    VarDecl* VDDerived = nullptr;
+    if (m_DiffReq.shouldHaveAdjoint(VD) &&
+        !clad::utils::hasNonDifferentiableAttribute(VD))
       VDDerived = BuildGlobalVarDecl(VDDerivedType,
                                      "_d_" + VD->getNameAsString(), dummyInit);
 
-    if ((!isPointerType || isInitializedByNewExpr)) {
+    // Differentiate the initializer
+    StmtDiff initDiff;
+    if (const Expr* init = VD->getInit()) {
       Expr* derivedE = nullptr;
-
-      if (VDDerived && !isRefType) {
+      if (VDDerived && !isRefType && !isPointerType)
         derivedE = BuildDeclRef(VDDerived);
-        if (isInitializedByNewExpr)
-          derivedE = BuildOp(UnaryOperatorKind::UO_Deref, derivedE);
-      }
-
-      if (VD->getInit()) {
-        llvm::SaveAndRestore<bool> saveTrackVarDecl(m_TrackVarDeclConstructor,
-                                                    true);
-        initDiff = Visit(VD->getInit(), derivedE);
-      }
-
-      // If we are differentiating `VarDecl` corresponding to a local variable
-      // inside a loop, then we need to reset it to 0 at each iteration.
-      //
-      // for example, if defined inside a loop,
-      // ```
-      // double localVar = i;
-      // ```
-      // this statement should get differentiated to,
-      // ```
-      // {
-      //   *_d_i += _d_localVar;
-      //   _d_localVar = 0;
-      // }
-      if (VDDerived && isInsideLoop && !isRefType) {
-        Stmt* assignToZero = nullptr;
-        Expr* declRef = BuildDeclRef(VDDerived);
-        if (isa<ArrayType>(VDDerivedType))
-          assignToZero = GetCladZeroInit(declRef);
-        else if (!isNonAggrClass)
-          assignToZero = BuildOp(BinaryOperatorKind::BO_Assign, declRef,
-                                 getZeroInit(VDDerivedType));
-        if (!keepLocal)
-          addToCurrentBlock(assignToZero, direction::reverse);
-      }
+      else if (isa<CXXNewExpr>(init))
+        derivedE =
+            BuildOp(UnaryOperatorKind::UO_Deref, BuildDeclRef(VDDerived));
+      llvm::SaveAndRestore<bool> saveTrackVarDecl(m_TrackVarDeclConstructor,
+                                                  true);
+      initDiff = Visit(init, derivedE);
     }
 
-    if (isRefType && !initDiff.getStmt_dx())
+    // If we are differentiating `VarDecl` corresponding to a local variable
+    // inside a loop, then we need to reset it to 0 at each iteration.
+    //
+    // for example, if defined inside a loop,
+    // ```
+    // double localVar = i;
+    // ```
+    // this statement should get differentiated to,
+    // ```
+    // {
+    //   *_d_i += _d_localVar;
+    //   _d_localVar = 0;
+    // }
+    if (VDDerived && isInsideLoop && !isRefType && !isPointerType) {
+      Stmt* assignToZero = nullptr;
+      Expr* declRef = BuildDeclRef(VDDerived);
+      if (isa<ArrayType>(VDDerivedType))
+        assignToZero = GetCladZeroInit(declRef);
+      else if (!isNonAggrClass)
+        assignToZero = BuildOp(BinaryOperatorKind::BO_Assign, declRef,
+                               getZeroInit(VDDerivedType));
+      if (!keepLocal)
+        addToCurrentBlock(assignToZero, direction::reverse);
+    }
+
+    // If adjoint is a reference or a const pointer and derived expression is
+    // not available, then we should not create a derived variable for it.
+    bool constPointer =
+        isPointerType && VDType->getPointeeType().isConstQualified();
+    if ((isRefType || constPointer) && !initDiff.getStmt_dx())
       VDDerived = nullptr;
 
     VarDecl* VDClone = nullptr;
