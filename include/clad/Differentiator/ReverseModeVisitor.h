@@ -701,7 +701,6 @@ namespace clad {
     /// Builds and returns the sequence of derived function parameters.
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
 
-    clang::QualType ComputeAdjointType(clang::QualType T);
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {
       llvm::SmallVector<clang::SwitchCase*, 16> cases;
