@@ -2190,7 +2190,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
                               CallArgs, Loc, CUDAExecConfig)
                .get();
-    return StmtDiff(call);
+    return StmtDiff(call, getZeroInit(call->getType()));
   }
 
   Expr* ReverseModeVisitor::GetMultiArgCentralDiffCall(
@@ -2714,9 +2714,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   DeclDiff<VarDecl> ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
                                                              bool keepLocal) {
-    StmtDiff initDiff;
-    Expr* VDDerivedInit = nullptr;
-
     // Local declarations are promoted to the function global scope. This
     // procedure is done to make declarations visible in the reverse sweep.
     // The reverse_mode_forward_pass mode does not have a reverse pass so
@@ -2772,38 +2769,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       isConstructInit = true;
       shouldCopyInitialize = true;
     }
-
-    // Temporarily initialize the object with `*nullptr` to avoid
-    // a potential error because of non-existing default constructor.
-    // FIXME: We need to have a more general way of determining this.
-    const auto* CAT = dyn_cast<ConstantArrayType>(VDDerivedType);
-    if (!VDDerivedInit && (shouldCopyInitialize || isRefType ||
-                           (CAT && CAT->getElementType()->isRecordType()))) {
-      QualType dummyTy = VDDerivedType;
-      if (CAT)
-        dummyTy = CAT->getElementType();
-      QualType ptrType = m_Context.getPointerType(
-          dummyTy.getUnqualifiedType().getNonReferenceType());
-      Expr* dummy = getZeroInit(ptrType);
-      VDDerivedInit = BuildOp(UO_Deref, dummy);
-      if (CAT) {
-        llvm::SmallVector<Expr*, 2> args(CAT->getSize().getZExtValue(),
-                                         VDDerivedInit);
-        VDDerivedInit = m_Sema.ActOnInitList(noLoc, args, noLoc).get();
-      }
-    }
-
-    // If VD is a reference to a local variable, then the initial value is set
-    // to the derived variable of the corresponding local variable.
-    // If VD is a reference to a non-local variable (global variable, struct
-    // member etc), then no derived variable is available, thus `VDDerived`
-    // does not need to reference any variable, consequentially the
-    // `VDDerivedType` is the corresponding non-reference type and the initial
-    // value is set to 0.
-    // Otherwise, for non-reference types, the initial value is set to 0.
-    if (!VDDerivedInit)
-      VDDerivedInit = getZeroInit(VDType);
-
+    StmtDiff initDiff;
     // if VD is a pointer type, then the initial value is set to the derived
     // expression of the corresponding pointer type.
     if (isPointerType) {
@@ -2827,12 +2793,32 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // then create a new pointer type with the new pointee type
           VDDerivedType = m_Context.getPointerType(pointeeType);
         }
-        VDDerivedInit = getZeroInit(VDDerivedType);
+      }
+    }
+
+    // Temporarily initialize the object with `*nullptr` to avoid
+    // a potential error because of non-existing default constructor.
+    Expr* dummyInit = nullptr;
+    // FIXME: We need to have a more general way of determining this.
+    const auto* CAT = dyn_cast<ConstantArrayType>(VDDerivedType);
+    if (shouldCopyInitialize || isRefType ||
+        (CAT && CAT->getElementType()->isRecordType())) {
+      QualType dummyTy = VDDerivedType;
+      if (CAT)
+        dummyTy = CAT->getElementType();
+      QualType ptrType = m_Context.getPointerType(
+          dummyTy.getUnqualifiedType().getNonReferenceType());
+      Expr* dummy = getZeroInit(ptrType);
+      dummyInit = BuildOp(UO_Deref, dummy);
+      if (CAT) {
+        llvm::SmallVector<Expr*, 2> args(CAT->getSize().getZExtValue(),
+                                         dummyInit);
+        dummyInit = m_Sema.ActOnInitList(noLoc, args, noLoc).get();
       }
     }
     if (initializeDerivedVar)
-      VDDerived = BuildGlobalVarDecl(
-          VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit);
+      VDDerived = BuildGlobalVarDecl(VDDerivedType,
+                                     "_d_" + VD->getNameAsString(), dummyInit);
 
     if ((!isPointerType || isInitializedByNewExpr)) {
       Expr* derivedE = nullptr;
@@ -2905,21 +2891,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
                                  initDiff.getExpr(), VD->isDirectInit());
 
-    if (Expr* size = getStdInitListSizeExpr(VD->getInit())) {
+    // The choice of isDirectInit is mostly stylistic.
+    bool isDirectInit = VD->isDirectInit() && (!RD || isNonAggrClass);
+    if (VDDerivedType->isBuiltinType() || !VD->getInit()) {
+      initDiff.updateStmtDx(getZeroInit(VDType));
+      isDirectInit = false;
+    } else if (const auto* arrType = dyn_cast<ConstantArrayType>(VDType)) {
+      QualType elemTy = arrType->getElementType();
+      if (elemTy->isRealType())
+        isDirectInit = false;
+    } else if (Expr* size = getStdInitListSizeExpr(VD->getInit())) {
       initDiff.updateStmtDx(Clone(size));
       isConstructInit = true;
     }
 
-    // FIXME: In principle, we can handle all type adjoints here.
-    if (VDDerived && !VDDerived->getType()->isBuiltinType() &&
-        (!promoteToFnScope || isConstructInit)) {
+    // Update the initializer
+    if (VDDerived) {
       if (initDiff.getStmt_dx()) {
-        bool isDirectInit = VD->isDirectInit();
-        if (const auto* arrType = dyn_cast<ConstantArrayType>(VDType)) {
-          QualType elemTy = arrType->getElementType();
-          if (elemTy->isRealType())
-            isDirectInit = false;
-        }
         SetDeclInit(VDDerived, initDiff.getExpr_dx(), isDirectInit);
       } else if (shouldCopyInitialize) {
         Expr* copyExpr = BuildDeclRef(VDClone);
@@ -4482,7 +4470,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // This means we can always copy/default initialize the adjoint too.
     if (RD->isAggregate()) {
       if (CD->isDefaultConstructor())
-        return {};
+        return {nullptr, getZeroInit(m_Context.getRecordType(RD))};
       assert(CD->isCopyOrMoveConstructor() &&
              "unexpected aggregate constructor.");
       return {primalArgs[0], reverseForwAdjointArgs[0]};
