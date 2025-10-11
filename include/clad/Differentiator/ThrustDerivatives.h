@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <iterator>
 #include <thrust/adjacent_difference.h>
+#include <thrust/copy.h>
 #include <thrust/count.h>
 #include <thrust/device_ptr.h>
 #include <thrust/fill.h> // NOLINT(misc-include-cleaner)
@@ -14,6 +15,8 @@
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/scan.h>
+#include <thrust/sequence.h>
+#include <thrust/sort.h>
 #include <thrust/transform.h>
 #include <thrust/tuple.h>
 #include <type_traits>
@@ -893,6 +896,145 @@ adjacent_difference_reverse_forw(InputIt first, InputIt last, OutputIt result,
                                  BinaryOp op, InputIt, InputIt, OutputIt,
                                  BinaryOp) {
   return {::thrust::adjacent_difference(first, last, result, op), {}};
+}
+
+namespace detail {
+inline ::std::vector<::thrust::device_vector<::std::size_t>>&
+permutation_stack() {
+  static ::std::vector<::thrust::device_vector<::std::size_t>> stack;
+  return stack;
+}
+} // namespace detail
+
+template <typename KeyIterator, typename ValueIterator>
+void sort_by_key_reverse_forw(KeyIterator keys_first, KeyIterator keys_last,
+                              ValueIterator values_first, KeyIterator,
+                              KeyIterator, ValueIterator) {
+  const ::std::size_t n = ::thrust::distance(keys_first, keys_last);
+  if (n > 0) {
+    ::thrust::device_vector<::std::size_t> perm(n);
+    ::thrust::sequence(perm.begin(), perm.end());
+    struct index_comp_less {
+      KeyIterator keys_begin;
+      CUDA_HOST_DEVICE bool operator()(::std::size_t a, ::std::size_t b) const {
+        return keys_begin[a] < keys_begin[b];
+      }
+    };
+    ::thrust::sort(perm.begin(), perm.end(), index_comp_less{keys_first});
+    detail::permutation_stack().push_back(::std::move(perm));
+  }
+  ::thrust::sort_by_key(keys_first, keys_last, values_first);
+}
+
+template <typename KeyIterator, typename ValueIterator, typename Compare>
+void sort_by_key_reverse_forw(KeyIterator keys_first, KeyIterator keys_last,
+                              ValueIterator values_first, Compare comp,
+                              KeyIterator, KeyIterator, ValueIterator,
+                              Compare) {
+  const ::std::size_t n = ::thrust::distance(keys_first, keys_last);
+  if (n > 0) {
+    ::thrust::device_vector<::std::size_t> perm(n);
+    ::thrust::sequence(perm.begin(), perm.end());
+    struct index_comp_with {
+      KeyIterator keys_begin;
+      Compare comp;
+      CUDA_HOST_DEVICE bool operator()(::std::size_t a, ::std::size_t b) const {
+        return comp(keys_begin[a], keys_begin[b]);
+      }
+    };
+    ::thrust::sort(perm.begin(), perm.end(), index_comp_with{keys_first, comp});
+    detail::permutation_stack().push_back(::std::move(perm));
+  }
+  ::thrust::sort_by_key(keys_first, keys_last, values_first, comp);
+}
+
+// pullback without comparator
+template <typename KeyIterator, typename ValueIterator>
+void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
+                          ValueIterator values_first, KeyIterator* d_keys_first,
+                          KeyIterator* d_keys_last,
+                          ValueIterator* d_values_first) {
+  using ValueConst = typename ::std::iterator_traits<ValueIterator>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+  using KeyConst = typename ::std::iterator_traits<KeyIterator>::value_type;
+  using Key = ::std::remove_const_t<KeyConst>;
+
+  const ::std::size_t n = ::thrust::distance(keys_first, keys_last);
+  if (n == 0)
+    return;
+
+  // Retrieve permutation mapping sorted position j -> original index i
+  auto& stack = detail::permutation_stack();
+  ::thrust::device_vector<::std::size_t> perm = ::std::move(stack.back());
+  stack.pop_back();
+
+  // Build device pointers to adjoint buffers
+  auto d_vals_const_ptr = ::thrust::raw_pointer_cast((*d_values_first).base());
+  auto d_vals_ptr = const_cast<Value*>(d_vals_const_ptr);
+  ::thrust::device_ptr<Value> d_vals(d_vals_ptr);
+
+  // Make a copy of current (sorted order) adjoints, then scatter-add into
+  // original positions and clear the sorted adjoints.
+  ::thrust::device_vector<Value> dvals_tmp(n);
+  ::thrust::copy(d_vals, d_vals + n, dvals_tmp.begin());
+  ::thrust::fill(d_vals, d_vals + n, Value(0));
+
+  auto out_perm_begin =
+      ::thrust::make_permutation_iterator(d_vals, perm.begin());
+  auto out_perm_end =
+      ::thrust::make_permutation_iterator(d_vals, perm.begin() + n);
+  ::thrust::transform(out_perm_begin, out_perm_end, dvals_tmp.begin(),
+                      out_perm_begin, ::thrust::plus<Value>());
+
+  // Keys do not receive gradients.
+  if (d_keys_first && d_keys_last) {
+    auto d_keys_const_ptr = ::thrust::raw_pointer_cast((*d_keys_first).base());
+    auto d_keys_ptr = const_cast<Key*>(d_keys_const_ptr);
+    ::thrust::device_ptr<Key> d_keys(d_keys_ptr);
+    ::thrust::fill(d_keys, d_keys + n, Key(0));
+  }
+}
+
+// pullback with comparator
+template <typename KeyIterator, typename ValueIterator, typename Compare>
+void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
+                          ValueIterator values_first, Compare comp,
+                          KeyIterator* d_keys_first, KeyIterator* d_keys_last,
+                          ValueIterator* d_values_first, Compare* /*d_comp*/) {
+  using ValueConst = typename ::std::iterator_traits<ValueIterator>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+  using KeyConst = typename ::std::iterator_traits<KeyIterator>::value_type;
+  using Key = ::std::remove_const_t<KeyConst>;
+
+  const ::std::size_t n = ::thrust::distance(keys_first, keys_last);
+  if (n == 0)
+    return;
+
+  auto& stack = detail::permutation_stack();
+  ::thrust::device_vector<::std::size_t> perm = ::std::move(stack.back());
+  stack.pop_back();
+
+  auto d_vals_const_ptr = ::thrust::raw_pointer_cast((*d_values_first).base());
+  auto d_vals_ptr = const_cast<Value*>(d_vals_const_ptr);
+  ::thrust::device_ptr<Value> d_vals(d_vals_ptr);
+
+  ::thrust::device_vector<Value> dvals_tmp(n);
+  ::thrust::copy(d_vals, d_vals + n, dvals_tmp.begin());
+  ::thrust::fill(d_vals, d_vals + n, Value(0));
+
+  auto out_perm_begin =
+      ::thrust::make_permutation_iterator(d_vals, perm.begin());
+  auto out_perm_end =
+      ::thrust::make_permutation_iterator(d_vals, perm.begin() + n);
+  ::thrust::transform(out_perm_begin, out_perm_end, dvals_tmp.begin(),
+                      out_perm_begin, ::thrust::plus<Value>());
+
+  if (d_keys_first && d_keys_last) {
+    auto d_keys_const_ptr = ::thrust::raw_pointer_cast((*d_keys_first).base());
+    auto d_keys_ptr = const_cast<Key*>(d_keys_const_ptr);
+    ::thrust::device_ptr<Key> d_keys(d_keys_ptr);
+    ::thrust::fill(d_keys, d_keys + n, Key(0));
+  }
 }
 
 } // namespace clad::custom_derivatives::thrust
