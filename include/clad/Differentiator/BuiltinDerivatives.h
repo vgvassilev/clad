@@ -142,6 +142,9 @@ template <typename T>
 void cudaMalloc_pullback(T** devPtr, size_t sz, cudaError_t d_ret, T** d_devPtr,
                          size_t* d_sz) __attribute__((host));
 
+cudaError_t cudaFree_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
+
+void cudaFree_pullback(void* ptr, cudaError_t d_ret, void* d_ptr);
 #endif
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -1145,10 +1148,14 @@ ValueAndAdjoint<void*, void*>
 memset_reverse_forw(void* ptr, int val, size_t sz, void* d_ptr, int d_val,
                     size_t d_sz) elidable_reverse_forw;
 
+void free_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
+
 void realloc_pullback(void* ptr, size_t sz, void* d_ptr, size_t* d_sz);
 
 void memset_pullback(void* ptr, int val, size_t sz, void* d_ptr, int* d_val,
                      size_t* d_sz);
+
+void free_pullback(void* ptr, void* d_ptr);
 // NOLINTEND(cppcoreguidelines-owning-memory)
 // NOLINTEND(cppcoreguidelines-no-malloc)
 
