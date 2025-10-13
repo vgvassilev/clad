@@ -403,6 +403,10 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
 }
 
 bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
+  Expr* callee = CE->getCallee();
+  // Pseudo destructors don't contribute to TBR information.
+  if (isa<CXXPseudoDestructorExpr>(callee))
+    return false;
   // FIXME: Currently TBR analysis just stops here and assumes that all the
   // variables passed by value/reference are used/used and changed. Analysis
   // could proceed to the function to analyse data flow inside it.

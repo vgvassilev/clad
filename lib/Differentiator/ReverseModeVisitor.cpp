@@ -1667,6 +1667,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
+    // FIXME: Add general support for non-direct calls
+    const Expr* callee = CE->getCallee();
+    // Pseudo destructors do nothing and there's no need to differentiate or
+    // clone them.
+    if (isa<CXXPseudoDestructorExpr>(callee))
+      return {};
     const FunctionDecl* FD = CE->getDirectCallee();
     if (!FD) {
       diag(DiagnosticsEngine::Warning,

@@ -1229,6 +1229,31 @@ double fn33(double *params) {
 // CHECK-NEXT:     inner_fn_pullback(params, &out, _d_params, &_d_out);
 // CHECK-NEXT: }
 
+template <typename T>
+void destroy(T* p) {
+  p->~T();
+}
+
+// CHECK: void destroy_pullback(int *p, int *_d_p) {
+// CHECK-NEXT: }
+
+double fn34(double x, double y) {
+  int* a = new int(x + y);
+  destroy(a);
+  return *a;
+}
+
+// CHECK: void fn34_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     int *_d_a = new int(0.);
+// CHECK-NEXT:     int *a = new int(x + y);
+// CHECK-NEXT:     destroy(a);
+// CHECK-NEXT:     *_d_a += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += *_d_a;
+// CHECK-NEXT:         *_d_y += *_d_a;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -1386,6 +1411,9 @@ int main() {
   x_output[0] = 0; x_output[1] = 0;
   fn33_grad.execute(x_arr, x_output);
   printf("{%.2f, %.2f}\n", x_output[0], x_output[1]);  // CHECK-EXEC: {1.00, 0.00}
+
+  INIT(fn34);
+  TEST2(fn34, 2, 1);  // CHECK-EXEC: {1.00, 1.00}
 }
 
 double sq_defined_later(double x) {
