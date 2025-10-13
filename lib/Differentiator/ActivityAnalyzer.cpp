@@ -43,8 +43,7 @@ void VariedAnalyzer::Analyze() {
     setIsRequired(getVarDataFromDecl(i));
   }
 
-  if (isa<CXXConstructorDecl>(m_DiffReq.Function)) {
-    const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function);
+  if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function)) {
     m_Varied = true;
     m_Marking = true;
     for (auto* CI : CD->inits())

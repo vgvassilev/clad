@@ -32,9 +32,11 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -517,6 +519,15 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         return result;
       }
 
+      // Prior to Clang 16 some functions were not considered built-in on the
+      // AST level, like std::move, which led us to differentianting their
+      // bodies.
+#if CLANG_VERSION_MAJOR < 16
+      std::string FDName = FD->getNameAsString();
+      if (clang::AnalysisDeclContext::isInStdNamespace(FD) &&
+          (FDName == "move" || FDName == "forward" || FDName == "capacity"))
+        return {};
+#endif
       // Perform diagnostics for functions
       // If FD is only a declaration, try to find its definition.
       if (!FD->getDefinition()) {
