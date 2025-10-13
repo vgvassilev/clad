@@ -393,7 +393,6 @@ namespace clad {
 
     bool IsZeroOrNullValue(const clang::Expr* E);
 
-    bool IsMemoryFunction(const clang::FunctionDecl* FD);
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);
 
     /// Returns true if QT is a non-const reference type.

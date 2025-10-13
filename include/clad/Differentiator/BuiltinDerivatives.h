@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <cmath>
 
+#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
+
 namespace clad {
 template <typename T, typename U> struct ValueAndPushforward {
   T value;
@@ -130,6 +132,15 @@ void cudaMemcpy_pullback(T* destPtr, const T* srcPtr, size_t count,
     free(aux_destPtr);
   }
 }
+
+template <typename T>
+cudaError_t cudaMalloc_reverse_forw(T** devPtr, size_t sz, T** d_devPtr,
+                                    size_t d_sz)
+    __attribute__((host)) elidable_reverse_forw;
+
+template <typename T>
+void cudaMalloc_pullback(T** devPtr, size_t sz, cudaError_t d_ret, T** d_devPtr,
+                         size_t* d_sz) __attribute__((host));
 
 #endif
 
@@ -1118,6 +1129,26 @@ inline void free_pushforward(void* ptr, void* d_ptr) {
   free(ptr);
   free(d_ptr);
 }
+
+ValueAndAdjoint<void*, void*>
+malloc_reverse_forw(size_t sz, size_t d_sz) elidable_reverse_forw;
+
+ValueAndAdjoint<void*, void*>
+calloc_reverse_forw(size_t n, size_t sz, size_t d_n,
+                    size_t d_sz) elidable_reverse_forw;
+
+ValueAndAdjoint<void*, void*>
+realloc_reverse_forw(void* ptr, size_t sz, void* d_ptr,
+                     size_t d_sz) elidable_reverse_forw;
+
+ValueAndAdjoint<void*, void*>
+memset_reverse_forw(void* ptr, int val, size_t sz, void* d_ptr, int d_val,
+                    size_t d_sz) elidable_reverse_forw;
+
+void realloc_pullback(void* ptr, size_t sz, void* d_ptr, size_t* d_sz);
+
+void memset_pullback(void* ptr, int val, size_t sz, void* d_ptr, int* d_val,
+                     size_t* d_sz);
 // NOLINTEND(cppcoreguidelines-owning-memory)
 // NOLINTEND(cppcoreguidelines-no-malloc)
 

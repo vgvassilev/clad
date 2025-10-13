@@ -1726,41 +1726,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Args to be used in the pullback after the original args
     llvm::SmallVector<Expr*, 16> CallArgDx{};
 
-    // For calls to C-style memory allocation functions, we do not need to
-    // differentiate the call. We just need to visit the arguments to the
-    // function.
-    if (utils::IsMemoryFunction(FD)) {
-      for (const Expr* Arg : CE->arguments()) {
-        StmtDiff ArgDiff = Visit(Arg, dfdx());
-        CallArgs.push_back(ArgDiff.getExpr());
-        if (Arg->getType()->isPointerType())
-          CallArgDx.push_back(ArgDiff.getExpr_dx());
-        else
-          CallArgDx.push_back(ArgDiff.getExpr());
-      }
-      Expr* call =
-          m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                             llvm::MutableArrayRef<Expr*>(CallArgs), Loc)
-              .get();
-      Expr* call_dx =
-          m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                             llvm::MutableArrayRef<Expr*>(CallArgDx), Loc)
-              .get();
-      if (FD->getNameAsString() == "cudaMalloc") {
-        if (auto* addrOp = dyn_cast<UnaryOperator>(CallArgDx[0]))
-          if (addrOp->getOpcode() == UO_AddrOf)
-            CallArgDx[0] = addrOp->getSubExpr(); // get the pointer
-
-        llvm::SmallVector<Expr*, 3> args = {
-            CallArgDx[0], getZeroInit(m_Context.IntTy), CallArgDx[1]};
-        addToCurrentBlock(call_dx, direction::forward);
-        addToCurrentBlock(GetFunctionCall("cudaMemset", "", args));
-        call_dx = nullptr;
-      }
-      return StmtDiff(call, call_dx);
-    }
     // For calls to C-style memory deallocation functions, we do not need to
     // differentiate the call. We just need to visit the arguments to the
     // function. Also, don't add any statements either in forward or reverse
@@ -2113,6 +2078,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         Stmts& block = getCurrentBlock(direction::reverse);
         it = std::begin(block) + insertionPoint;
         block.insert(it, add_assign);
+      }
+      if (FD->getNameAsString() == "cudaMalloc") {
+        if (auto* addrOp = dyn_cast<UnaryOperator>(revForwAdjointArgs[0]))
+          if (addrOp->getOpcode() == UO_AddrOf)
+            revForwAdjointArgs[0] = addrOp->getSubExpr(); // get the pointer
+        llvm::SmallVector<Expr*, 3> args = {revForwAdjointArgs[0],
+                                            getZeroInit(m_Context.IntTy),
+                                            revForwAdjointArgs[1]};
+        addToCurrentBlock(call_dx, direction::forward);
+        addToCurrentBlock(GetFunctionCall("cudaMemset", "", args));
+        call_dx = nullptr;
       }
       return {call, call_dx};
     }
@@ -2971,19 +2947,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeFinalizingDifferentiateSingleStmt(direction::reverse);
 
-    // If the statement is a standalone call to a memory function, we want to
-    // add its derived statement in the same block as the original statement.
-    // For ex: memset(x, 0, 10) -> memset(_d_x, 0, 10)
     Stmt* stmtDx = SDiff.getStmt_dx();
-    bool dxInForward = false;
-    if (auto* callExpr = dyn_cast_or_null<CallExpr>(stmtDx))
-      if (auto* FD = dyn_cast<FunctionDecl>(callExpr->getCalleeDecl()))
-        if (utils::IsMemoryFunction(FD))
-          dxInForward = true;
     if (stmtDx) {
-      if (dxInForward)
+      // If the statement is a standalone call to a function with an adjoint, we
+      // want to add its derived statement in the same block as the original
+      // statement. For ex: memset(x, 0, 10) -> memset(_d_x, 0, 10)
+      if (isa<CallExpr>(S) && clad_compat::isa_and_nonnull<CallExpr>(stmtDx))
         addToCurrentBlock(stmtDx, direction::forward);
-      else if (!clad_compat::isa_and_nonnull<Expr>(S))
+      else if (!isa<Expr>(S))
         addToCurrentBlock(stmtDx, direction::reverse);
     }
     CompoundStmt* RCS = endBlock(direction::reverse);
