@@ -1726,39 +1726,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Args to be used in the pullback after the original args
     llvm::SmallVector<Expr*, 16> CallArgDx{};
 
-    // For calls to C-style memory deallocation functions, we do not need to
-    // differentiate the call. We just need to visit the arguments to the
-    // function. Also, don't add any statements either in forward or reverse
-    // pass. Instead, add it in m_DeallocExprs.
-    if (utils::IsMemoryDeallocationFunction(FD)) {
-      for (const Expr* Arg : CE->arguments()) {
-        StmtDiff ArgDiff = Visit(Arg, dfdx());
-        CallArgs.push_back(ArgDiff.getExpr());
-        if (const auto* DRE = dyn_cast<DeclRefExpr>(Arg->IgnoreImpCasts())) {
-          // If the arg is used as independent variable, then we cannot free it
-          // as it holds the result to be returned to the user.
-          if (llvm::find(m_DiffReq.DVI, DRE->getDecl()) == m_DiffReq.DVI.end())
-            CallArgDx.push_back(ArgDiff.getExpr_dx());
-        }
-      }
-      Expr* call =
-          m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                             llvm::MutableArrayRef<Expr*>(CallArgs), Loc)
-              .get();
-      m_DeallocExprs.push_back(call);
-
-      if (!CallArgDx.empty()) {
-        Expr* call_dx =
-            m_Sema
-                .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                               llvm::MutableArrayRef<Expr*>(CallArgDx), Loc)
-                .get();
-        m_DeallocExprs.push_back(call_dx);
-      }
-      return StmtDiff();
-    }
-
     // Determine the base of the call if any.
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     const Expr* baseOriginalE = nullptr;
@@ -2089,6 +2056,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         addToCurrentBlock(call_dx, direction::forward);
         addToCurrentBlock(GetFunctionCall("cudaMemset", "", args));
         call_dx = nullptr;
+      }
+      // Don't add any statements either in forward or reverse
+      // pass. Instead, add it in m_DeallocExprs.
+      if (utils::IsMemoryDeallocationFunction(FD)) {
+        m_DeallocExprs.push_back(call);
+        if (const auto* DRE =
+                dyn_cast<DeclRefExpr>(CE->getArg(0)->IgnoreImplicit()))
+          // If the arg is used as independent variable, then we cannot free it
+          // as it holds the result to be returned to the user.
+          if (!llvm::is_contained(m_DiffReq.DVI, DRE->getDecl()))
+            m_DeallocExprs.push_back(call_dx);
+        return StmtDiff{};
       }
       return {call, call_dx};
     }
