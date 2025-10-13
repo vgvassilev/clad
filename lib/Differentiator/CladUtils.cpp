@@ -826,31 +826,6 @@ namespace clad {
       return false;
     }
 
-    bool IsMemoryFunction(const clang::FunctionDecl* FD) {
-      if (FD->getNameAsString() == "cudaMalloc")
-        return true;
-#if CLANG_VERSION_MAJOR > 12
-      if (FD->getBuiltinID() == Builtin::BImalloc)
-        return true;
-      if (FD->getBuiltinID() == Builtin::ID::BIcalloc)
-        return true;
-      if (FD->getBuiltinID() == Builtin::ID::BIrealloc)
-        return true;
-      if (FD->getBuiltinID() == Builtin::ID::BImemset)
-        return true;
-#else
-      if (FD->getNameAsString() == "malloc")
-        return true;
-      if (FD->getNameAsString() == "calloc")
-        return true;
-      if (FD->getNameAsString() == "realloc")
-        return true;
-      if (FD->getNameAsString() == "memset")
-        return true;
-#endif
-      return false;
-    }
-
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD) {
       if (FD->getNameAsString() == "cudaFree")
         return true;

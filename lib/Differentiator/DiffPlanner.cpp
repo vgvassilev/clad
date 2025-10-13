@@ -1243,12 +1243,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
       }
 
-      // FIXME: Generalize this to other functions that we don't need
-      // pullbacks of.
+      // FIXME: Use elidable_reverse_forw
       std::string FDName = FD->getNameAsString();
       if (request.Mode == DiffMode::pullback &&
-          (FDName == "cudaMemcpy" || utils::IsMemoryFunction(FD) ||
-           FDName == "begin" || FDName == "end"))
+          (FDName == "cudaMemcpy" || FDName == "begin" || FDName == "end"))
         return true;
 
       request.VerboseDiags = false;
