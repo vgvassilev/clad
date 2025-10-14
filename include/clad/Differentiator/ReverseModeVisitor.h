@@ -74,6 +74,9 @@ namespace clad {
     Stmts m_Globals;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
+    /// A flag indicating if the Stmt we are currently inside a checkpointed
+    /// loop.
+    bool isInsideCheckpointedLoop = false;
     /// Output variable of vector-valued function
     std::string outputArrayStr;
     std::vector<Stmts> m_LoopBlock;
