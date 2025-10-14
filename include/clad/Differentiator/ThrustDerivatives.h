@@ -13,6 +13,7 @@
 #include <thrust/for_each.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/pair.h>
 #include <thrust/reduce.h>
 #include <thrust/scan.h>
 #include <thrust/sequence.h>
@@ -1019,6 +1020,144 @@ void transform_reduce_pullback(InputIterator first, InputIterator last,
   transform_pullback(first, last, transformed_values.begin(), unary_op,
                      d_result_dummy.begin(), // d_return dummy
                      d_first, d_last, &d_transformed_values_it, d_unary_op);
+}
+
+template <typename KeyInputIt, typename ValueInputIt, typename KeyOutputIt,
+          typename ValueOutputIt>
+clad::ValueAndAdjoint<::thrust::pair<KeyOutputIt, ValueOutputIt>,
+                      ::thrust::pair<KeyOutputIt, ValueOutputIt>>
+reduce_by_key_reverse_forw(KeyInputIt keys_first, KeyInputIt keys_last,
+                           ValueInputIt values_first, KeyOutputIt keys_output,
+                           ValueOutputIt values_output, KeyInputIt, KeyInputIt,
+                           ValueInputIt, KeyOutputIt, ValueOutputIt) {
+  using Key = typename ::std::iterator_traits<KeyInputIt>::value_type;
+  using Value = typename ::std::iterator_traits<ValueInputIt>::value_type;
+  auto p = ::thrust::reduce_by_key(
+      keys_first, keys_last, values_first, keys_output, values_output,
+      ::thrust::equal_to<Key>(), ::thrust::plus<Value>());
+  return {p, {}};
+}
+
+template <typename KeyInputIt, typename ValueInputIt, typename KeyOutputIt,
+          typename ValueOutputIt, typename BinaryPredicate, typename BinaryOp>
+clad::ValueAndAdjoint<::thrust::pair<KeyOutputIt, ValueOutputIt>,
+                      ::thrust::pair<KeyOutputIt, ValueOutputIt>>
+reduce_by_key_reverse_forw(KeyInputIt keys_first, KeyInputIt keys_last,
+                           ValueInputIt values_first, KeyOutputIt keys_output,
+                           ValueOutputIt values_output, BinaryPredicate pred,
+                           BinaryOp op, KeyInputIt, KeyInputIt, ValueInputIt,
+                           KeyOutputIt, ValueOutputIt, BinaryPredicate,
+                           BinaryOp) {
+  auto p = ::thrust::reduce_by_key(keys_first, keys_last, values_first,
+                                   keys_output, values_output, pred, op);
+  return {p, {}};
+}
+
+template <typename KeyInputIt, typename ValueInputIt, typename KeyOutputIt,
+          typename ValueOutputIt, typename BinaryPredicate, typename BinaryOp>
+void reduce_by_key_pullback(
+    KeyInputIt keys_first, KeyInputIt keys_last, ValueInputIt /*values_first*/,
+    KeyOutputIt /*keys_output*/, ValueOutputIt values_output,
+    BinaryPredicate pred, BinaryOp /*op*/,
+    ::thrust::pair<KeyOutputIt, ValueOutputIt> /*d_return*/,
+    KeyInputIt* /*d_kf*/, KeyInputIt* /*d_kl*/, ValueInputIt* d_values_first,
+    KeyOutputIt* /*d_keys_output*/, ValueOutputIt* d_values_output,
+    BinaryPredicate* /*d_pred*/, BinaryOp* /*d_op*/) {
+  using ValueConst = typename ::std::iterator_traits<ValueInputIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+  using KeyConst = typename ::std::iterator_traits<KeyInputIt>::value_type;
+  using Key = ::std::remove_const_t<KeyConst>;
+
+  static_assert(
+      ::std::is_same_v<BinaryPredicate, ::thrust::equal_to<Key>>,
+      "Only thrust::equal_to<Key> is supported for reduce_by_key pullback");
+  static_assert(
+      ::std::is_same_v<BinaryOp, ::thrust::plus<Value>> ||
+          ::std::is_same_v<BinaryOp, void>,
+      "Only thrust::plus<Value> is supported for reduce_by_key pullback");
+
+  const ::std::size_t n = ::thrust::distance(keys_first, keys_last);
+  if (n == 0)
+    return;
+
+  // Access adjoint buffers
+  auto d_in_const = ::thrust::raw_pointer_cast((*d_values_first).base());
+  auto d_in_ptr = const_cast<Value*>(d_in_const);
+  ::thrust::device_ptr<Value> d_in(d_in_ptr);
+
+  auto d_out_const = ::thrust::raw_pointer_cast((*d_values_output).base());
+  auto d_out_ptr = const_cast<Value*>(d_out_const);
+  ::thrust::device_ptr<Value> d_out(d_out_ptr);
+
+  // Build group start flags: 1 if i==0 or keys[i] not equal keys[i-1]
+  using Index = ::std::size_t;
+  auto kptr_const = ::thrust::raw_pointer_cast(keys_first.base());
+  auto kptr = const_cast<Key*>(kptr_const);
+  ::thrust::device_ptr<Key> keys(kptr);
+
+  ::thrust::device_vector<int> flags(n);
+  struct group_start_functor {
+    Key* keys{};
+    BinaryPredicate pred{};
+    CUDA_HOST_DEVICE int operator()(Index i) const {
+      if (i == 0)
+        return 1;
+      return pred(keys[i], keys[i - 1]) ? 0 : 1;
+    }
+  };
+  ::thrust::transform(::thrust::counting_iterator<Index>(0),
+                      ::thrust::counting_iterator<Index>(n), flags.begin(),
+                      group_start_functor{keys.get(), pred});
+
+  // Inclusive scan to get group ids in 1..m, then subtract 1 to [0..m-1]
+  ::thrust::device_vector<int> group_id(n);
+  ::thrust::inclusive_scan(flags.begin(), flags.end(), group_id.begin());
+  ::thrust::transform(group_id.begin(), group_id.end(), group_id.begin(),
+                      [] __device__(int x) { return x - 1; });
+
+  // Scatter output adjoints back to inputs: d_in[i] += d_out[group_id[i]]
+  struct scatter_functor {
+    Value* d_in{};
+    const Value* d_out{};
+    const int* gid{};
+    CUDA_HOST_DEVICE void operator()(Index i) const {
+      d_in[i] += d_out[gid[i]];
+    }
+  };
+  auto gid_ptr = ::thrust::raw_pointer_cast(group_id.data());
+  ::thrust::for_each(::thrust::counting_iterator<Index>(0),
+                     ::thrust::counting_iterator<Index>(n),
+                     scatter_functor{d_in.get(), d_out.get(), gid_ptr});
+
+  // Clear output adjoints
+  // m = sum(flags)
+  int m = ::thrust::reduce(flags.begin(), flags.end(), 0);
+  if (m > 0)
+    ::thrust::fill(d_out, d_out + m, Value(0));
+}
+
+// pullback (default predicate/op = equal_to/plus)
+template <typename KeyInputIt, typename ValueInputIt, typename KeyOutputIt,
+          typename ValueOutputIt>
+void reduce_by_key_pullback(
+    KeyInputIt keys_first, KeyInputIt keys_last, ValueInputIt values_first,
+    KeyOutputIt keys_output, ValueOutputIt values_output,
+    ::thrust::pair<KeyOutputIt, ValueOutputIt> /*d_return*/, KeyInputIt* d_kf,
+    KeyInputIt* d_kl, ValueInputIt* d_values_first, KeyOutputIt* d_keys_output,
+    ValueOutputIt* d_values_output) {
+  using ValueConst = typename ::std::iterator_traits<ValueInputIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+  using KeyConst = typename ::std::iterator_traits<KeyInputIt>::value_type;
+  using Key = ::std::remove_const_t<KeyConst>;
+
+  ::thrust::equal_to<Key> pred;
+  ::thrust::equal_to<Key>* d_pred = nullptr;
+  ::thrust::plus<Value> op;
+  ::thrust::plus<Value>* d_op = nullptr;
+  reduce_by_key_pullback(keys_first, keys_last, values_first, keys_output,
+                         values_output, pred, op, /*d_return*/ {}, d_kf, d_kl,
+                         d_values_first, d_keys_output, d_values_output, d_pred,
+                         d_op);
 }
 
 template <typename InputIt, typename OutputIt>
