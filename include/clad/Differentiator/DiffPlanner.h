@@ -12,6 +12,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
+#include "clang/Basic/SourceLocation.h"
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -19,6 +20,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <functional>
 #include <iterator>
 #include <map>
 #include <memory>
@@ -110,6 +112,10 @@ public:
   /// differentiated, for example, when we are computing higher
   /// order derivatives.
   const clang::CXXRecordDecl* Functor = nullptr;
+  /// Stores loop checkpoint pragma locations, if any.
+  /// The order is reversed to simplify lookups.
+  mutable std::map<clang::SourceLocation, bool, std::greater<>>
+      m_CladLoopCheckpoints;
 
   /// Global VarDecl to differentiate, if any.
   ///

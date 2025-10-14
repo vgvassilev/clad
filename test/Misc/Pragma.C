@@ -4,7 +4,7 @@
 #pragma clad ON
 #pragma clad OFF
 
-#pragma clad AAA // expected-warning {{expected 'ON' or 'OFF' or 'DEFAULT' in pragma}}
+#pragma clad AAA // expected-error {{expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma}}
 #pragma clang diagnostic clad // expected-warning {{pragma diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'}}
 
 // FIXME: Enumerate the various scenarios of decls and clad:: calls between
