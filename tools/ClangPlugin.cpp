@@ -26,6 +26,7 @@
 #include "clang/Lex/LexDiagnostic.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
+#include "clang/Basic/SourceLocation.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Timer.h"
@@ -39,6 +40,7 @@
 #include <cstdlib>  // for getenv
 #include <iostream> // for std::cerr
 #include <memory>
+#include <set>
 
 using namespace clang;
 
@@ -49,6 +51,7 @@ void InitTimers();
     /// Keeps track if we encountered #pragma clad on/off.
     // FIXME: Figure out how to make it a member of CladPlugin.
     std::vector<clang::SourceRange> CladEnabledRange;
+    std::set<clang::SourceLocation> CladLoopCheckpoints;
 
     // Define a pragma handler for #pragma clad
     class CladPragmaHandler : public PragmaHandler {
@@ -80,6 +83,25 @@ void InitTimers();
           assert(CladEnabledRange.back().getEnd().isInvalid());
           CladEnabledRange.back().setEnd(TokLoc);
         }
+      }
+    };
+
+    // Define a pragma handler for #pragma clad
+    class CladLoopCheckpointHandler : public PragmaHandler {
+    public:
+      CladLoopCheckpointHandler() : PragmaHandler("clad_checkpoint") {}
+      void HandlePragma(Preprocessor& PP, PragmaIntroducer Introducer,
+                        Token& PragmaTok) override {
+        // Handle #pragma clad ON/OFF/DEFAULT
+        if (PragmaTok.isNot(tok::identifier)) {
+          PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
+          return;
+        }
+        tok::OnOffSwitch OOS;
+        if (PP.LexOnOffSwitch(OOS))
+          return; // failure
+        if (OOS == tok::OOS_ON)
+          CladLoopCheckpoints.insert(PragmaTok.getLocation());
       }
     };
 
@@ -209,6 +231,21 @@ void InitTimers();
       }
     }
 
+    static void addCladLoopCheckpoints(ASTContext& C, DiffRequest& request) {
+      SourceRange range = request->getSourceRange();
+      if (range.isInvalid())
+        return;
+      SourceLocation begin = range.getBegin();
+      SourceLocation end = range.getEnd();
+      clang::SourceManager& SM = C.getSourceManager();
+      std::set<SourceLocation>::iterator it =
+          CladLoopCheckpoints.upper_bound(begin);
+      std::set<SourceLocation>::iterator e = CladLoopCheckpoints.end();
+
+      for (; it != e && SM.isBeforeInTranslationUnit(*it, end); ++it)
+        request.m_CladLoopCheckpoints.insert(*it);
+    }
+
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
       if (!m_DerivativeBuilder)
@@ -272,6 +309,9 @@ void InitTimers();
       if (m_DO.PrintNumDiffErrorInfo) {
         m_DerivativeBuilder->setNumDiffErrDiag(true);
       }
+
+      // Propagate relevant pragmas to diffrequests
+      addCladLoopCheckpoints(C, request);
 
       FunctionDecl* DerivativeDecl = nullptr;
       bool alreadyDerived = false;
@@ -624,6 +664,9 @@ X("clad", "Produces derivatives or arbitrary functions");
 
 static PragmaHandlerRegistry::Add<CladPragmaHandler>
     Y("clad", "Clad pragma directives handler.");
+
+static PragmaHandlerRegistry::Add<CladLoopCheckpointHandler>
+    Z("clad", "Clad loop checkpoint pragma handler.");
 
 // Attach the backend plugin.
 
