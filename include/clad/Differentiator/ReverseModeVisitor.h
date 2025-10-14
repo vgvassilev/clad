@@ -732,6 +732,8 @@ namespace clad {
     // other cases, we have to use InitListExpr and change the constructor
     // style. Remove this once we generate constructors explicitly.
     bool m_TrackVarDeclConstructor = false;
+    /// A flag indicating if the Stmt is contained in a checkpointed loop.
+    bool m_IsInsideCheckpointedLoop = false;
   };
 } // end namespace clad
 
