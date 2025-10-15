@@ -443,6 +443,201 @@ exclusive_scan_reverse_forw(InputIt first, InputIt last, OutputIt result,
   return {::thrust::exclusive_scan(first, last, result, init, op), {}};
 }
 
+template <typename KeyIt, typename ValIt, typename OutputIt>
+void inclusive_scan_by_key_pullback(KeyIt keys_first, KeyIt keys_last,
+                                    ValIt values_first, OutputIt result,
+                                    OutputIt /*d_return*/, KeyIt* d_keys_first,
+                                    KeyIt* d_keys_last, ValIt* d_values_first,
+                                    OutputIt* d_result) {
+  using Key = typename ::std::iterator_traits<KeyIt>::value_type;
+  using ValueConst = typename ::std::iterator_traits<ValIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+  ::thrust::equal_to<Key> pred;
+  ::thrust::plus<Value> op;
+  ::thrust::equal_to<Key>* d_pred = nullptr;
+  ::thrust::plus<Value>* d_op = nullptr;
+  inclusive_scan_by_key_pullback(keys_first, keys_last, values_first, result,
+                                 pred, op, {}, d_keys_first, d_keys_last,
+                                 d_values_first, d_result, d_pred, d_op);
+}
+
+template <typename KeyIt, typename ValIt, typename OutputIt, typename KeyEqual,
+          typename BinaryOp>
+void inclusive_scan_by_key_pullback(KeyIt keys_first, KeyIt keys_last,
+                                    ValIt values_first, OutputIt result,
+                                    KeyEqual /*pred*/, BinaryOp op,
+                                    OutputIt /*d_return*/, KeyIt* d_keys_first,
+                                    KeyIt* d_keys_last, ValIt* d_values_first,
+                                    OutputIt* d_result, KeyEqual* /*d_pred*/,
+                                    BinaryOp* /*d_op*/) {
+  size_t n = ::thrust::distance(keys_first, keys_last);
+  if (n == 0)
+    return;
+
+  using ValueConst = typename ::std::iterator_traits<ValIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+  using Key = typename ::std::iterator_traits<KeyIt>::value_type;
+
+  auto d_src_const_ptr = ::thrust::raw_pointer_cast((*d_values_first).base());
+  auto d_src_ptr = const_cast<Value*>(d_src_const_ptr);
+  ::thrust::device_ptr<Value> d_src_dev_ptr(d_src_ptr);
+
+  auto d_dst_const_ptr = ::thrust::raw_pointer_cast((*d_result).base());
+  auto d_dst_ptr = const_cast<Value*>(d_dst_const_ptr);
+  ::thrust::device_ptr<Value> d_dst_dev_ptr(d_dst_ptr);
+
+  if constexpr (::std::is_same_v<BinaryOp, ::thrust::plus<Value>> &&
+                ::std::is_same_v<KeyEqual, ::thrust::equal_to<Key>>) {
+    ::thrust::device_vector<Value> suffix_sums(n);
+
+    auto rev_keys_begin = ::thrust::make_reverse_iterator(keys_last);
+    auto rev_keys_end = ::thrust::make_reverse_iterator(keys_first);
+    auto rev_dy_begin = ::thrust::make_reverse_iterator(d_dst_dev_ptr + n);
+    auto rev_dy_end = ::thrust::make_reverse_iterator(d_dst_dev_ptr);
+
+    ::thrust::inclusive_scan_by_key(rev_keys_begin, rev_keys_end, rev_dy_begin,
+                                    suffix_sums.begin(),
+                                    ::thrust::equal_to<Key>(), op);
+
+    ::thrust::transform(d_src_dev_ptr, d_src_dev_ptr + n,
+                        ::thrust::make_reverse_iterator(suffix_sums.end()),
+                        d_src_dev_ptr, ::thrust::plus<Value>());
+
+    ::thrust::fill(d_dst_dev_ptr, d_dst_dev_ptr + n, Value(0));
+  } else {
+    static_assert(::std::is_same_v<Value, void>,
+                  "This predicate/operation is not supported by the custom "
+                  "inclusive_scan_by_key_pullback.");
+  }
+}
+
+template <typename KeyIt, typename ValIt, typename OutputIt>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+inclusive_scan_by_key_reverse_forw(KeyIt keys_first, KeyIt keys_last,
+                                   ValIt values_first, OutputIt result, KeyIt,
+                                   KeyIt, ValIt, OutputIt) {
+  using Key = typename ::std::iterator_traits<KeyIt>::value_type;
+  using Value = typename ::std::iterator_traits<ValIt>::value_type;
+  return {::thrust::inclusive_scan_by_key(keys_first, keys_last, values_first,
+                                          result, ::thrust::equal_to<Key>(),
+                                          ::thrust::plus<Value>()),
+          {}};
+}
+
+template <typename KeyIt, typename ValIt, typename OutputIt, typename KeyEqual,
+          typename BinaryOp>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+inclusive_scan_by_key_reverse_forw(KeyIt keys_first, KeyIt keys_last,
+                                   ValIt values_first, OutputIt result,
+                                   KeyEqual pred, BinaryOp op, KeyIt, KeyIt,
+                                   ValIt, OutputIt, KeyEqual, BinaryOp) {
+  return {::thrust::inclusive_scan_by_key(keys_first, keys_last, values_first,
+                                          result, pred, op),
+          {}};
+}
+
+template <typename KeyIt, typename ValIt, typename OutputIt, typename T>
+void exclusive_scan_by_key_pullback(KeyIt keys_first, KeyIt keys_last,
+                                    ValIt values_first, OutputIt result, T init,
+                                    OutputIt /*d_return*/, KeyIt* d_keys_first,
+                                    KeyIt* d_keys_last, ValIt* d_values_first,
+                                    OutputIt* d_result, T* d_init) {
+  using Key = typename ::std::iterator_traits<KeyIt>::value_type;
+  using ValueConst = typename ::std::iterator_traits<ValIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+  ::thrust::equal_to<Key> pred;
+  ::thrust::plus<Value> op;
+  ::thrust::equal_to<Key>* d_pred = nullptr;
+  ::thrust::plus<Value>* d_op = nullptr;
+  exclusive_scan_by_key_pullback(keys_first, keys_last, values_first, result,
+                                 init, pred, op, {}, d_keys_first, d_keys_last,
+                                 d_values_first, d_result, d_init, d_pred,
+                                 d_op);
+}
+
+template <typename KeyIt, typename ValIt, typename OutputIt, typename T,
+          typename KeyEqual, typename BinaryOp>
+void exclusive_scan_by_key_pullback(KeyIt keys_first, KeyIt keys_last,
+                                    ValIt values_first, OutputIt result, T init,
+                                    KeyEqual /*pred*/, BinaryOp op,
+                                    OutputIt /*d_return*/, KeyIt* d_keys_first,
+                                    KeyIt* d_keys_last, ValIt* d_values_first,
+                                    OutputIt* d_result, T* d_init,
+                                    KeyEqual* /*d_pred*/, BinaryOp* /*d_op*/) {
+  size_t n = ::thrust::distance(keys_first, keys_last);
+  if (n == 0) {
+    if (d_init)
+      *d_init += T(0);
+    return;
+  }
+
+  using ValueConst = typename ::std::iterator_traits<ValIt>::value_type;
+  using Value = ::std::remove_const_t<ValueConst>;
+  using Key = typename ::std::iterator_traits<KeyIt>::value_type;
+
+  auto d_src_const_ptr = ::thrust::raw_pointer_cast((*d_values_first).base());
+  auto d_src_ptr = const_cast<Value*>(d_src_const_ptr);
+  ::thrust::device_ptr<Value> d_src_dev_ptr(d_src_ptr);
+
+  auto d_dst_const_ptr = ::thrust::raw_pointer_cast((*d_result).base());
+  auto d_dst_ptr = const_cast<Value*>(d_dst_const_ptr);
+  ::thrust::device_ptr<Value> d_dst_dev_ptr(d_dst_ptr);
+
+  if constexpr (::std::is_same_v<BinaryOp, ::thrust::plus<Value>> &&
+                ::std::is_same_v<KeyEqual, ::thrust::equal_to<Key>>) {
+    if (d_init) {
+      *d_init +=
+          ::thrust::reduce(d_dst_dev_ptr, d_dst_dev_ptr + n, Value(0), op);
+    }
+
+    ::thrust::device_vector<Value> suffix_sums(n);
+
+    auto rev_keys_begin = ::thrust::make_reverse_iterator(keys_last);
+    auto rev_keys_end = ::thrust::make_reverse_iterator(keys_first);
+    auto rev_dy_begin = ::thrust::make_reverse_iterator(d_dst_dev_ptr + n);
+    auto rev_dy_end = ::thrust::make_reverse_iterator(d_dst_dev_ptr);
+
+    ::thrust::exclusive_scan_by_key(rev_keys_begin, rev_keys_end, rev_dy_begin,
+                                    suffix_sums.begin(), Value(0),
+                                    ::thrust::equal_to<Key>(), op);
+
+    ::thrust::transform(d_src_dev_ptr, d_src_dev_ptr + n,
+                        ::thrust::make_reverse_iterator(suffix_sums.end()),
+                        d_src_dev_ptr, ::thrust::plus<Value>());
+
+    ::thrust::fill(d_dst_dev_ptr, d_dst_dev_ptr + n, Value(0));
+  } else {
+    static_assert(::std::is_same_v<Value, void>,
+                  "This predicate/operation is not supported by the custom "
+                  "exclusive_scan_by_key_pullback.");
+  }
+}
+
+template <typename KeyIt, typename ValIt, typename OutputIt, typename T>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+exclusive_scan_by_key_reverse_forw(KeyIt keys_first, KeyIt keys_last,
+                                   ValIt values_first, OutputIt result, T init,
+                                   KeyIt, KeyIt, ValIt, OutputIt, T) {
+  using Key = typename ::std::iterator_traits<KeyIt>::value_type;
+  using Value = typename ::std::iterator_traits<ValIt>::value_type;
+  return {::thrust::exclusive_scan_by_key(
+              keys_first, keys_last, values_first, result, init,
+              ::thrust::equal_to<Key>(), ::thrust::plus<Value>()),
+          {}};
+}
+
+template <typename KeyIt, typename ValIt, typename OutputIt, typename T,
+          typename KeyEqual, typename BinaryOp>
+clad::ValueAndAdjoint<OutputIt, OutputIt>
+exclusive_scan_by_key_reverse_forw(KeyIt keys_first, KeyIt keys_last,
+                                   ValIt values_first, OutputIt result, T init,
+                                   KeyEqual pred, BinaryOp op, KeyIt, KeyIt,
+                                   ValIt, OutputIt, T, KeyEqual, BinaryOp) {
+  return {::thrust::exclusive_scan_by_key(keys_first, keys_last, values_first,
+                                          result, init, pred, op),
+          {}};
+}
+
 template <typename InputIt, typename OutputIt, typename UnaryOp>
 void transform_pullback(InputIt first, InputIt last, OutputIt result,
                         UnaryOp op, OutputIt d_return, InputIt* d_first,
