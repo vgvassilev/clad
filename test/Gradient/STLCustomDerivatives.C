@@ -709,10 +709,10 @@ int main() {
 // CHECK-NEXT:              _t2++;
 // CHECK-NEXT:              res += v.at(i0);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          {{.*}}vector<double> _t3 = v;
-// CHECK-NEXT:          v.assign(3, 0);
-// CHECK-NEXT:          {{.*}}vector<double> _t4 = v;
-// CHECK-NEXT:          v.assign(2, y);
+// CHECK-NEXT:          clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:          v.assign_reverse_forw(3, 0, &_d_v, 0, 0, _tracker0);
+// CHECK-NEXT:          clad::restore_tracker _tracker1 = {};
+// CHECK-NEXT:          v.assign_reverse_forw(2, y, &_d_v, 0, *_d_y, _tracker1);
 // CHECK-NEXT:          {
 // CHECK-NEXT:              _d_res += 1;
 // CHECK-NEXT:              _d_v[0] += 1;
@@ -720,12 +720,12 @@ int main() {
 // CHECK-NEXT:              _d_v[2] += 1;
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:              v = _t4;
+// CHECK-NEXT:              _tracker1.restore();
 // CHECK-NEXT:              {{.*size_type|size_t}} _r2 = {{0U|0UL|0}};
 // CHECK-NEXT:              {{.*}}assign_pullback(&v, 2, y, &_d_v, &_r2, _d_y);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:              v = _t3;
+// CHECK-NEXT:              _tracker0.restore();
 // CHECK-NEXT:              {{.*size_type|size_t}} _r0 = {{0U|0UL|0}};
 // CHECK-NEXT:              {{.*}}value_type _r1 = 0.;
 // CHECK-NEXT:              {{.*}}assign_pullback(&v, 3, 0, &_d_v, &_r0, &_r1);
@@ -751,14 +751,14 @@ int main() {
 // CHECK-NEXT:          {{.*}}vector<double> _d_v;
 // CHECK-NEXT:          clad::zero_init(_d_v);
 // CHECK-NEXT:          {{.*}}vector<double> _t0 = v;
-// CHECK-NEXT:          v.reserve(10);
+// CHECK-NEXT:          {{.*}}reserve_reverse_forw(&v, 10, &_d_v, 0);
 // CHECK-NEXT:          double _t1 = v.capacity();
 // CHECK-NEXT:          double _d_res = 0.;
 // CHECK-NEXT:          double res = x * _t1;
 // CHECK-NEXT:          {{.*}}vector<double> _t2 = v;
 // CHECK-NEXT:          {{.*}}push_back_reverse_forw(&v, x, &_d_v, *_d_x);
 // CHECK-NEXT:          {{.*}}vector<double> _t3 = v;
-// CHECK-NEXT:          v.shrink_to_fit();
+// CHECK-NEXT:          {{.*}}shrink_to_fit_reverse_forw(&v, &_d_v);
 // CHECK-NEXT:          double _t4 = v.capacity();
 // CHECK-NEXT:          double _t5 = v.size();
 // CHECK-NEXT:          res += y * _t4 + x * _t5;

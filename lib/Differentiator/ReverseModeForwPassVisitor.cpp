@@ -205,6 +205,17 @@ ReverseModeForwPassVisitor::VisitCompoundStmt(const clang::CompoundStmt* CS) {
   return {forward};
 }
 
+StmtDiff ReverseModeForwPassVisitor::VisitUnaryOperator(
+    const clang::UnaryOperator* UnOp) {
+  StmtDiff UnOpDiff = ReverseModeVisitor::VisitUnaryOperator(UnOp);
+  if (UnOp->isIncrementDecrementOp()) {
+    auto* base = cast<UnaryOperator>(UnOpDiff.getExpr())->getSubExpr();
+    StmtDiff pushPop = StoreAndRestore(base);
+    addToCurrentBlock(pushPop.getExpr());
+  }
+  return UnOpDiff;
+}
+
 ReverseModeForwPassVisitor::DelayedStoreResult
 ReverseModeForwPassVisitor::DelayedGlobalStoreAndRef(Expr* E,
                                                      llvm::StringRef prefix,
