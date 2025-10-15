@@ -1755,6 +1755,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool elideReverseForw =
         calleeFnForwPassFD &&
         utils::hasElidableReverseForwAttribute(calleeFnForwPassFD);
+    bool usingRestoreTracker = false;
+    QualType trackerType = utils::GetRestoreTrackerType(m_Sema);
+    // We need to check if the last parameter is actually a tracker because
+    // custom derivatives currently don't have it.
+    if (calleeFnForwPassFD) {
+      QualType lastParamType =
+          calleeFnForwPassFD->parameters().back()->getType();
+      usingRestoreTracker = (utils::GetValueType(lastParamType) == trackerType);
+    }
 
     // FIXME: consider moving non-diff analysis to DiffPlanner.
     bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
@@ -1851,17 +1860,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           baseDiff = Visit(baseOriginalE);
         Expr* baseExpr = baseDiff.getExpr();
         CallArgs.push_back(baseExpr);
-        bool isCopiable = utils::isCopyable(MD->getParent());
-        if (isPassedByRef && !MD->isConst() && isCopiable &&
+        if (isPassedByRef && !MD->isConst() &&
             m_DiffReq.shouldBeRecorded(baseOriginalE)) {
           hasStoredParams = true;
-          if (baseExpr->getType()->isPointerType())
-            baseExpr = BuildOp(UO_Deref, baseExpr);
-          Expr* baseDiffStore =
-              GlobalStoreAndRef(baseExpr, "_t", /*force=*/true);
-          if (baseDiffStore != baseExpr) {
-            Expr* assign = BuildOp(BO_Assign, baseExpr, baseDiffStore);
-            PreCallStmts.push_back(assign);
+          // If the user-provided derivative doesn't use clad::restore_tracker,
+          // attempt to store the base manually
+          bool isCopiable = utils::isCopyable(MD->getParent());
+          if (!usingRestoreTracker && isCopiable) {
+            if (baseExpr->getType()->isPointerType())
+              baseExpr = BuildOp(UO_Deref, baseExpr);
+            Expr* baseDiffStore =
+                GlobalStoreAndRef(baseExpr, "_t", /*force=*/true);
+            if (baseDiffStore != baseExpr) {
+              Expr* assign = BuildOp(BO_Assign, baseExpr, baseDiffStore);
+              PreCallStmts.push_back(assign);
+            }
           }
         }
         if (Expr* baseDerivative = baseDiff.getExpr_dx()) {
@@ -2090,12 +2103,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // _tracker0.restore();
       // ```
       Expr* trackerExpr = nullptr;
-      QualType lastParamType =
-          calleeFnForwPassFD->parameters().back()->getType();
-      QualType trackerType = utils::GetRestoreTrackerType(m_Sema);
-      // We need to check if the last parameter is actually a tracker because
-      // custom derivatives currently don't have it.
-      if (utils::GetValueType(lastParamType) == trackerType) {
+      if (usingRestoreTracker) {
         if (m_RestoreTracker) {
           // If the current function already has a restore tracker (i.e. a
           // reverse_forw is being built), just propagate the restore_tracker.
