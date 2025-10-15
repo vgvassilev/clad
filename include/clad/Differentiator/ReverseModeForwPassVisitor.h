@@ -6,6 +6,7 @@
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/VisitorBase.h"
 
+#include "clang/AST/Expr.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
 
@@ -40,6 +41,7 @@ public:
   StmtDiff ProcessSingleStmt(const clang::Stmt* S);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS) override;
   StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE) override;
+  StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
 };
 } // namespace clad

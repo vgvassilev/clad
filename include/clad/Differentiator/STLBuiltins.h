@@ -340,6 +340,14 @@ void reserve_pushforward(::std::vector<T>* v,
 }
 
 template <typename T>
+void reserve_reverse_forw(::std::vector<T>* v,
+                          typename ::std::vector<T>::size_type n,
+                          ::std::vector<T>* d_v,
+                          typename ::std::vector<T>::size_type /*d_n*/) {
+  v->reserve(n);
+}
+
+template <typename T>
 void shrink_to_fit_pushforward(::std::vector<T>* v, ::std::vector<T>* d_v) {
   v->shrink_to_fit();
   d_v->shrink_to_fit();
@@ -572,6 +580,12 @@ void reserve_pullback(::std::vector<T>* v,
 template <typename T>
 void shrink_to_fit_pullback(::std::vector<T>* /*v*/,
                             ::std::vector<T>* /*d_v*/) noexcept;
+
+template <typename T>
+void shrink_to_fit_reverse_forw(::std::vector<T>* v,
+                                ::std::vector<T>* /*d_v*/) {
+  v->shrink_to_fit();
+}
 
 // array reverse mode
 
