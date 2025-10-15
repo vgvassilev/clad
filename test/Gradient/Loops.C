@@ -2120,8 +2120,8 @@ double fn34(double x, double y){
 //CHECK-NEXT:     double *i = nullptr;
 //CHECK-NEXT:     for (; __begin1 != __end1; ++__begin1 , ++_d___begin1) {
 //CHECK-NEXT:         {
-//CHECK-NEXT:             _d_i = &*_d___begin1;
-//CHECK-NEXT:             i = &*__begin1;
+//CHECK-NEXT:             _d_i = _d___begin1;
+//CHECK-NEXT:             i = __begin1;
 //CHECK-NEXT:             clad::push(_t1, i);
 //CHECK-NEXT:             clad::push(_t2, _d_i);
 //CHECK-NEXT:         }
@@ -2191,8 +2191,8 @@ double fn35(double x, double y){
 // CHECK-NEXT:     double *i = nullptr;
 // CHECK-NEXT:     for (; __begin1 != __end1; ++__begin1 , ++_d___begin1) {
 // CHECK-NEXT:         {
-// CHECK-NEXT:             _d_i = &*_d___begin1;
-// CHECK-NEXT:             i = &*__begin1;
+// CHECK-NEXT:             _d_i = _d___begin1;
+// CHECK-NEXT:             i = __begin1;
 // CHECK-NEXT:             clad::push(_t5, i);
 // CHECK-NEXT:             clad::push(_t6, _d_i);
 // CHECK-NEXT:         }
@@ -2207,8 +2207,8 @@ double fn35(double x, double y){
 // CHECK-NEXT:         double *j = nullptr;
 // CHECK-NEXT:         for (; __begin2 != __end2; ++__begin2 , ++_d___begin2) {
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 _d_j = &*_d___begin2;
-// CHECK-NEXT:                 j = &*__begin2;
+// CHECK-NEXT:                 _d_j = _d___begin2;
+// CHECK-NEXT:                 j = __begin2;
 // CHECK-NEXT:                 clad::push(_t3, j);
 // CHECK-NEXT:                 clad::push(_t4, _d_j);
 // CHECK-NEXT:             }

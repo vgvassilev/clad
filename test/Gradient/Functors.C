@@ -248,7 +248,7 @@ int main() {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
   // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:         fn.operator_call_pullback(i, j, 1, &(*_d_fn), &_r0, &_r1);
+  // CHECK-NEXT:         fn.operator_call_pullback(i, j, 1, _d_fn, &_r0, &_r1);
   // CHECK-NEXT:         *_d_i += _r0;
   // CHECK-NEXT:         *_d_j += _r1;
   // CHECK-NEXT:     }
@@ -265,7 +265,7 @@ int main() {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
   // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:         fn.operator_call_pullback(i, j, _d_y, &(*_d_fn), &_r0, &_r1);
+  // CHECK-NEXT:         fn.operator_call_pullback(i, j, _d_y, _d_fn, &_r0, &_r1);
   // CHECK-NEXT:         *_d_i += _r0;
   // CHECK-NEXT:         *_d_j += _r1;
   // CHECK-NEXT:     }

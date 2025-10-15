@@ -115,7 +115,7 @@ double fn2(Tangent t, double i) {
 // CHECK-NEXT:         *_d_i += _r_d0;
 // CHECK-NEXT:         (*_d_t).data[0] += 2 * _r_d0;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     sum_pullback(t, _d_res, &(*_d_t));
+// CHECK-NEXT:     sum_pullback(t, _d_res, _d_t);
 // CHECK-NEXT: }
 
 double fn3(double i, double j) {
@@ -200,7 +200,7 @@ double fn5(const Tangent& t, double i) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         double _r1 = 0.;
-// CHECK-NEXT:         t.someMemFn2_pullback(i, i, 1, &(*_d_t), &_r0, &_r1);
+// CHECK-NEXT:         t.someMemFn2_pullback(i, i, 1, _d_t, &_r0, &_r1);
 // CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:         *_d_i += _r1;
 // CHECK-NEXT:     }
@@ -243,16 +243,16 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_res;
-// CHECK-NEXT:         c.real_pullback(4 * _r_d0, &(*_d_c));
+// CHECK-NEXT:         c.real_pullback(4 * _r_d0, _d_c);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         c.real_pullback(_d_res, &(*_d_c));
-// CHECK-NEXT:         c.imag_pullback(3 * _d_res, &(*_d_c));
+// CHECK-NEXT:         c.real_pullback(_d_res, _d_c);
+// CHECK-NEXT:         c.imag_pullback(3 * _d_res, _d_c);
 // CHECK-NEXT:         *_d_i += 6 * _d_res;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         c.real_pullback(5 * i, &(*_d_c), &_r0);
+// CHECK-NEXT:         c.real_pullback(5 * i, _d_c, &_r0);
 // CHECK-NEXT:         *_d_i += 5 * _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -267,14 +267,14 @@ double fn7(dcomplex c1, dcomplex c2) {
 // CHECK-NEXT:     c1.real(c2.imag() + 5 * _t0);
 // CHECK-NEXT:     double _t1 = c1.imag();
 // CHECK-NEXT:     {
-// CHECK-NEXT:         c1.real_pullback(1, &(*_d_c1));
-// CHECK-NEXT:         c1.imag_pullback(3 * 1, &(*_d_c1));
+// CHECK-NEXT:         c1.real_pullback(1, _d_c1);
+// CHECK-NEXT:         c1.imag_pullback(3 * 1, _d_c1);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         c1.real_pullback(c2.imag() + 5 * _t0, &(*_d_c1), &_r0);
-// CHECK-NEXT:         c2.imag_pullback(_r0, &(*_d_c2));
-// CHECK-NEXT:         c2.real_pullback(5 * _r0, &(*_d_c2));
+// CHECK-NEXT:         c1.real_pullback(c2.imag() + 5 * _t0, _d_c1, &_r0);
+// CHECK-NEXT:         c2.imag_pullback(_r0, _d_c2);
+// CHECK-NEXT:         c2.real_pullback(5 * _r0, _d_c2);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -304,11 +304,11 @@ double fn8(Tangent t, dcomplex c) {
 
 // CHECK: void fn8_grad(Tangent t, dcomplex c, Tangent *_d_t, dcomplex *_d_c) {
 // CHECK-NEXT:     t.updateTo(c.real());
-// CHECK-NEXT:     sum_pullback(t, 1, &(*_d_t));
+// CHECK-NEXT:     sum_pullback(t, 1, _d_t);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         t.updateTo_pullback(c.real(), &(*_d_t), &_r0);
-// CHECK-NEXT:         c.real_pullback(_r0, &(*_d_c));
+// CHECK-NEXT:         t.updateTo_pullback(c.real(), _d_t, &_r0);
+// CHECK-NEXT:         c.real_pullback(_r0, _d_c);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -336,13 +336,13 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d1 = _d_res;
-// CHECK-NEXT:         sum_pullback(t, _r_d1, &(*_d_t));
+// CHECK-NEXT:         sum_pullback(t, _r_d1, _d_t);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_res;
-// CHECK-NEXT:             c.real_pullback(_r_d0, &(*_d_c));
-// CHECK-NEXT:             c.imag_pullback(2 * _r_d0, &(*_d_c));
+// CHECK-NEXT:             c.real_pullback(_r_d0, _d_c);
+// CHECK-NEXT:             c.imag_pullback(2 * _r_d0, _d_c);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -359,7 +359,7 @@ double fn10(double x, double y) {
 }
 
 // CHECK: void fn10_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     A<double>::PtrType _d_ptr = &*_d_x;
+// CHECK-NEXT:     A<double>::PtrType _d_ptr = _d_x;
 // CHECK-NEXT:     A<double>::PtrType ptr = &x;
 // CHECK-NEXT:     ptr[0] += 6;
 // CHECK-NEXT:     *_d_ptr += 1;
@@ -388,7 +388,7 @@ double fn11(double x, double y) {
 // CHECK-NEXT:     Tangent _d_t;
 // CHECK-NEXT:     clad::zero_init(_d_t);
 // CHECK-NEXT:     t.data[0] = -y;
-// CHECK-NEXT:     operator_plus_pullback(x, t, 1, &*_d_x, &_d_t);
+// CHECK-NEXT:     operator_plus_pullback(x, t, 1, _d_x, &_d_t);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_t.data[0];
 // CHECK-NEXT:         _d_t.data[0] = 0.;
@@ -433,11 +433,11 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
 
 // CHECK: void fn12_grad(MyStruct s, MyStruct *_d_s) {
 // CHECK-NEXT:     MyStruct _t0 = s;
-// CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
+// CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, _d_s, {0., 0.});
 // CHECK-NEXT:    {
 // CHECK-NEXT:        s = _t0;
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
-// CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, &(*_d_s), &_r0);
+// CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, _d_s, &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
 // CHECK-NEXT:    }
@@ -721,11 +721,11 @@ void fn20(MyStruct s) {
 
 // CHECK: void fn20_grad(MyStruct s, MyStruct *_d_s) {
 // CHECK-NEXT:     MyStruct _t0 = s;
-// CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
+// CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, _d_s, {0., 0.});
 // CHECK-NEXT:    {
 // CHECK-NEXT:        s = _t0;
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
-// CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, &(*_d_s), &_r0);
+// CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, _d_s, &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
 // CHECK-NEXT:    }
@@ -971,7 +971,7 @@ double fn26(double x, double y) {
 
 // CHECK:  void fn26_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      ptrClass p(&x);
-// CHECK-NEXT:      ptrClass _d_p(&*_d_x);
+// CHECK-NEXT:      ptrClass _d_p(_d_x);
 // CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t0 = p.operator_star_reverse_forw(&_d_p);
 // CHECK-NEXT:      _t0.adjoint += 1;
 // CHECK-NEXT:  }
@@ -1153,7 +1153,7 @@ double fn31(double x, double y) {
 }
 
 // CHECK:  void fn31_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      PtrAndValAggr _d_s = {0., &*_d_y};
+// CHECK-NEXT:      PtrAndValAggr _d_s = {0., _d_y};
 // CHECK-NEXT:      PtrAndValAggr s = {x, &y};
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_s.x += 1;
@@ -1169,7 +1169,7 @@ double fn32(double x, double y) {
 
 // CHECK:  void fn32_grad(double x, double y, double *_d_x, double *_d_y) {
 //// Note: {{ is represented with {{[{][{]}} because of regex
-// CHECK-NEXT:      PtrAndValAggr _d_s[2] = {{[{][{]}}0., &*_d_x}, {0., &*_d_y{{[}][}]}};
+// CHECK-NEXT:      PtrAndValAggr _d_s[2] = {{[{][{]}}0., _d_x}, {0., _d_y{{[}][}]}};
 // CHECK-NEXT:      PtrAndValAggr s[2] = {{[{][{]}}x, &x}, {y, &y{{[}][}]}};
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_s[0].x += 1;

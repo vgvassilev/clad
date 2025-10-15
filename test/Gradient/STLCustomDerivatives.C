@@ -382,11 +382,11 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         vec = _t1;
-// CHECK-NEXT:         {{.*}}class_functions::push_back_pullback(&vec, v, &_d_vec, &*_d_v);
+// CHECK-NEXT:         {{.*}}class_functions::push_back_pullback(&vec, v, &_d_vec, _d_v);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         vec = _t0;
-// CHECK-NEXT:         {{.*}}class_functions::push_back_pullback(&vec, u, &_d_vec, &*_d_u);
+// CHECK-NEXT:         {{.*}}class_functions::push_back_pullback(&vec, u, &_d_vec, _d_u);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -411,11 +411,11 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         vec = _t1;
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::push_back_pullback(&vec, v, &_d_vec, &*_d_v);
+// CHECK-NEXT:         clad::custom_derivatives::class_functions::push_back_pullback(&vec, v, &_d_vec, _d_v);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         vec = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::push_back_pullback(&vec, u, &_d_vec, &*_d_u);
+// CHECK-NEXT:         clad::custom_derivatives::class_functions::push_back_pullback(&vec, u, &_d_vec, _d_u);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -539,7 +539,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}} _r0 = {{0U|0UL}};
-// CHECK-NEXT:         {{.*}}constructor_pullback(count, u, allocator, &_d_vec, &_r0, &*_d_u, &_d_allocator);
+// CHECK-NEXT:         {{.*}}constructor_pullback(count, u, allocator, &_d_vec, &_r0, _d_u, &_d_allocator);
 // CHECK-NEXT:         _d_count += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_u += _d_res;
@@ -564,11 +564,11 @@ int main() {
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
 // CHECK-NEXT:              a = _t1;
-// CHECK-NEXT:              {{.*}}push_back_pullback(&a, x, &_d_a, &*_d_x);
+// CHECK-NEXT:              {{.*}}push_back_pullback(&a, x, &_d_a, _d_x);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
 // CHECK-NEXT:              a = _t0;
-// CHECK-NEXT:              {{.*}}push_back_pullback(&a, x, &_d_a, &*_d_x);
+// CHECK-NEXT:              {{.*}}push_back_pullback(&a, x, &_d_a, _d_x);
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 
@@ -596,7 +596,7 @@ int main() {
 // CHECK-NEXT:        }
 // CHECK-NEXT:        {
 // CHECK-NEXT:            a = _t0;
-// CHECK-NEXT:            {{.*}}fill_pullback(&a, x, &_d_a, &*_d_x);
+// CHECK-NEXT:            {{.*}}fill_pullback(&a, x, &_d_a, _d_x);
 // CHECK-NEXT:        }
 // CHECK-NEXT: }
 
@@ -722,7 +722,7 @@ int main() {
 // CHECK-NEXT:          {
 // CHECK-NEXT:              v = _t4;
 // CHECK-NEXT:              {{.*size_type|size_t}} _r2 = {{0U|0UL|0}};
-// CHECK-NEXT:              {{.*}}assign_pullback(&v, 2, y, &_d_v, &_r2, &*_d_y);
+// CHECK-NEXT:              {{.*}}assign_pullback(&v, 2, y, &_d_v, &_r2, _d_y);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
 // CHECK-NEXT:              v = _t3;
@@ -740,7 +740,7 @@ int main() {
 // CHECK-NEXT:          for (; _t0; _t0--) {
 // CHECK-NEXT:              {
 // CHECK-NEXT:                  v = {{.*}}back(_t1);
-// CHECK-NEXT:                  {{.*}}push_back_pullback(&v, x, &_d_v, &*_d_x);
+// CHECK-NEXT:                  {{.*}}push_back_pullback(&v, x, &_d_v, _d_x);
 // CHECK-NEXT:                  {{.*}}pop(_t1);
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -771,7 +771,7 @@ int main() {
 // CHECK-NEXT:          v = _t3;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              v = _t2;
-// CHECK-NEXT:              {{.*}}push_back_pullback(&v, x, &_d_v, &*_d_x);
+// CHECK-NEXT:              {{.*}}push_back_pullback(&v, x, &_d_v, _d_x);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          *_d_x += _d_res * _t1;
 // CHECK-NEXT:          v = _t0;
@@ -1080,7 +1080,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_x_ptr, &*_d_x);
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_x_ptr, _d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1109,7 +1109,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_s_ptr, &*_d_x);
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_s_ptr, _d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

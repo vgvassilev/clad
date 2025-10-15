@@ -76,7 +76,7 @@ float fn1(
 // CHECK-NEXT:         Tensor::constructor_pullback(u, &_r0[0], &_d_u);
 // CHECK-NEXT:         Tensor::constructor_pullback(b, &_r0[1], &_d_b);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     Tensor::constructor_pullback(t, &_d_b, &(*_d_t));
+// CHECK-NEXT:     Tensor::constructor_pullback(t, &_d_b, _d_t);
 // CHECK-NEXT: }
 
 int main() {

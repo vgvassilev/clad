@@ -87,13 +87,13 @@ double fn2(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t2;
 // CHECK-NEXT:         j = _t3;
-// CHECK-NEXT:         modify1_pullback(i, j, _d_temp, &*_d_i, &*_d_j);
+// CHECK-NEXT:         modify1_pullback(i, j, _d_temp, _d_i, _d_j);
 // CHECK-NEXT:         _d_temp = 0.;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t0;
 // CHECK-NEXT:         j = _t1;
-// CHECK-NEXT:         modify1_pullback(i, j, _d_temp, &*_d_i, &*_d_j);
+// CHECK-NEXT:         modify1_pullback(i, j, _d_temp, _d_i, _d_j);
 // CHECK-NEXT:         _d_temp = 0.;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -130,11 +130,11 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     *_d_i += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         j = _t1;
-// CHECK-NEXT:         update1_pullback(i, j, &*_d_i, &*_d_j);
+// CHECK-NEXT:         update1_pullback(i, j, _d_i, _d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         j = _t0;
-// CHECK-NEXT:         update1_pullback(i, j, &*_d_i, &*_d_j);
+// CHECK-NEXT:         update1_pullback(i, j, _d_i, _d_j);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -366,8 +366,8 @@ double fn7(double i, double j) {
 // CHECK-NEXT:         double _r_d0 = _d_k;
 // CHECK-NEXT:         *_d_j += 7 * _r_d0;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     identity_pullback(j, &*_d_j);
-// CHECK-NEXT:     identity_pullback(i, &*_d_i);
+// CHECK-NEXT:     identity_pullback(j, _d_j);
+// CHECK-NEXT:     identity_pullback(i, _d_i);
 // CHECK-NEXT: }
 
 double check_and_return(double x, char c, const char* s) {
@@ -441,7 +441,7 @@ double fn9(double x, double y) {
 // CHECK:void fn9_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r0 = 0.;
-// CHECK-NEXT:        custom_max_pullback(x * y, y, 1, &_r0, &*_d_y);
+// CHECK-NEXT:        custom_max_pullback(x * y, y, 1, &_r0, _d_y);
 // CHECK-NEXT:        *_d_x += _r0 * y;
 // CHECK-NEXT:        *_d_y += x * _r0;
 // CHECK-NEXT:    }
@@ -519,7 +519,7 @@ double fn11(double x, double y) {
 }
 
 // CHECK: void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:    clad::custom_derivatives::n1::sum_pullback(x, y, 1, &*_d_x, &*_d_y);
+// CHECK-NEXT:    clad::custom_derivatives::n1::sum_pullback(x, y, 1, _d_x, _d_y);
 // CHECK-NEXT: }
 
 double do_nothing(double* u, double* v, double* w) {
@@ -535,7 +535,7 @@ double fn12(double x, double y) {
 }
 
 // CHECK: void fn12_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     do_nothing_pullback(&x, nullptr, 0, 1, &*_d_x, nullptr, 0);
+// CHECK-NEXT:     do_nothing_pullback(&x, nullptr, 0, 1, _d_x, nullptr, 0);
 // CHECK-NEXT: }
 
 double multiply(double* a, double* b) {
@@ -683,7 +683,7 @@ double fn17 (double x, const double* y) {
 //CHECK-NEXT:         double _r_d1 = *_d_x;
 //CHECK-NEXT:         *_d_x = 0.;
 //CHECK-NEXT:         double _r1 = 0.;
-//CHECK-NEXT:         add_pullback(x, &x, _r_d1, &_r1, &*_d_x);
+//CHECK-NEXT:         add_pullback(x, &x, _r_d1, &_r1, _d_x);
 //CHECK-NEXT:         *_d_x += _r1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
@@ -770,7 +770,7 @@ double fn21(double x) {
 }
 
 // CHECK: void fn21_grad(double x, double *_d_x) {
-// CHECK-NEXT:     double *_d_ptr = &*_d_x;
+// CHECK-NEXT:     double *_d_ptr = _d_x;
 // CHECK-NEXT:     double *ptr = &x;
 // CHECK-NEXT:     ptrRef_pullback(ptr, 1, &_d_ptr);
 // CHECK-NEXT: }
@@ -837,7 +837,7 @@ double fn24(double x) {
 // CHECK-NEXT:      *_d_x += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          x = _t0;
-// CHECK-NEXT:          unused_return_pullback(x, 0., &*_d_x);
+// CHECK-NEXT:          unused_return_pullback(x, 0., _d_x);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
  
