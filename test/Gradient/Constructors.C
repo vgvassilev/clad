@@ -283,7 +283,7 @@ double fn5(double x, double y) {
 // CHECK:  static void constructor_pullback(double v, argByValWrapper *_d_this, double *_d_v) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          argByVal::constructor_pullback(v, &*_d_this, &_r0);
+// CHECK-NEXT:          argByVal::constructor_pullback(v, _d_this, &_r0);
 // CHECK-NEXT:          *_d_v += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
@@ -324,7 +324,7 @@ double fn6(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          argByValWrapper::constructor_pullback(v, &*_d_this, &_r0);
+// CHECK-NEXT:          argByValWrapper::constructor_pullback(v, _d_this, &_r0);
 // CHECK-NEXT:          *_d_v += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      free(_this);
@@ -361,7 +361,7 @@ double fn7(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          argByVal::constructor_pullback(v, &*_d_this, &_r0);
+// CHECK-NEXT:          argByVal::constructor_pullback(v, _d_this, &_r0);
 // CHECK-NEXT:          *_d_v += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      free(_this);
@@ -416,7 +416,7 @@ double fn8(double u, double v) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          u = _t0;
 // CHECK-NEXT:          v = _t1;
-// CHECK-NEXT:          std::pair<double, double>::constructor_pullback(u, v, &_d_p, &*_d_u, &*_d_v);
+// CHECK-NEXT:          std::pair<double, double>::constructor_pullback(u, v, &_d_p, _d_u, _d_v);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 

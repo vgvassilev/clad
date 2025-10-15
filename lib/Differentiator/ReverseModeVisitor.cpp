@@ -2036,9 +2036,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* call = nullptr;
     if (elideReverseForw) {
       call = BuildCallExprToFunction(FD, CallArgs, CUDAExecConfig);
-      if (MD && MD->isInstance())
-        if (auto* UO = dyn_cast<UnaryOperator>(revForwAdjointArgs[0]))
-          revForwAdjointArgs[0] = UO->getSubExpr();
+      if (MD && MD->isInstance()) {
+        revForwAdjointArgs[0] = BuildOp(UO_Deref, revForwAdjointArgs[0]);
+        if (isa<UnaryOperator>(revForwAdjointArgs[0]))
+          revForwAdjointArgs[0] =
+              utils::BuildParenExpr(m_Sema, revForwAdjointArgs[0]);
+      }
       Expr* call_dx =
           BuildCallExprToFunction(FD, revForwAdjointArgs, CUDAExecConfig);
       if (Expr* add_assign = BuildDiffIncrement(call_dx)) {

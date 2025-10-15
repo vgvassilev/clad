@@ -22,6 +22,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
@@ -406,6 +407,14 @@ namespace clad {
                              SourceLocation OpLoc) {
     if (!E)
       return nullptr;
+    // Don't generate unary operators that cancel out, e.g. `&*x`.
+    // Note: overloaded unary operators are call exprs and are not handled here.
+    if (auto* UO = dyn_cast<UnaryOperator>(E->IgnoreParenImpCasts())) {
+      UnaryOperatorKind EKind = UO->getOpcode();
+      if ((EKind == UO_AddrOf && OpCode == UO_Deref) ||
+          (EKind == UO_Deref && OpCode == UO_AddrOf))
+        return UO->getSubExpr();
+    }
     // Debug clang requires the location to be valid
     if (!OpLoc.isValid())
       OpLoc = utils::GetValidSLoc(m_Sema);

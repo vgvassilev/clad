@@ -1078,9 +1078,9 @@ double f_ref_in_rhs(double x, double y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _cond0 = x != 55;
 //CHECK-NEXT:         if (_cond0) {
-//CHECK-NEXT:             _d_ref_x = &*_d_x;
+//CHECK-NEXT:             _d_ref_x = _d_x;
 //CHECK-NEXT:             ref_x = &x;
-//CHECK-NEXT:             _d_ref_y = &*_d_y;
+//CHECK-NEXT:             _d_ref_y = _d_y;
 //CHECK-NEXT:             ref_y = &y;
 //CHECK-NEXT:             goto _label0;
 //CHECK-NEXT:         }
