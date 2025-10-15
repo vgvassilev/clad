@@ -90,8 +90,13 @@ public:
   bool VerboseDiags = false;
   /// A flag to enable TBR analysis during reverse-mode differentiation.
   bool EnableTBRAnalysis = false;
+  /// A flag to enable varied analysis during reverse-mode differentiation.
   bool EnableVariedAnalysis = false;
+  /// A flag to enable useful analysis during reverse-mode differentiation.
   bool EnableUsefulAnalysis = false;
+  /// A flag to request a clad::restore_tracker parameter in the generated
+  /// _reverse_forw function.
+  bool UseRestoreTracker = false;
   /// A flag specifying whether this differentiation is to be used
   /// in immediate contexts.
   bool ImmediateMode = false;

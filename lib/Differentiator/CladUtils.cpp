@@ -1142,7 +1142,7 @@ namespace clad {
     QualType
     GetDerivativeType(Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
                       llvm::ArrayRef<const clang::ValueDecl*> diffParams,
-                      bool forCustomDerv,
+                      bool forCustomDerv, bool shouldUseRestoreTracker,
                       llvm::ArrayRef<QualType> customParams) {
       ASTContext& C = S.getASTContext();
       if (mode == DiffMode::forward)
@@ -1266,7 +1266,7 @@ namespace clad {
           FnTypes.insert(FnTypes.begin(), typeTag);
         }
 
-        if (shouldUseRestoreTracker(FD) && !forCustomDerv) {
+        if (shouldUseRestoreTracker) {
           QualType trackerTy = GetRestoreTrackerType(S);
           trackerTy = C.getLValueReferenceType(trackerTy);
           FnTypes.push_back(trackerTy);
