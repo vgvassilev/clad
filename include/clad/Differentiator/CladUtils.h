@@ -339,12 +339,11 @@ namespace clad {
     ///
     /// \param[in] forCustomDerv If true, turns member functions into regular
     /// functions by moving the base to the parameters.
-    clang::QualType
-    GetDerivativeType(clang::Sema& S, const clang::FunctionDecl* FD,
-                      DiffMode mode,
-                      llvm::ArrayRef<const clang::ValueDecl*> diffParams,
-                      bool forCustomDerv = false,
-                      llvm::ArrayRef<clang::QualType> customParams = {});
+    clang::QualType GetDerivativeType(
+        clang::Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
+        llvm::ArrayRef<const clang::ValueDecl*> diffParams,
+        bool forCustomDerv = false, bool shouldUseRestoreTracker = false,
+        llvm::ArrayRef<clang::QualType> customParams = {});
     /// Find declaration of clad::class templated type
     ///
     /// \param[in] className name of the class to be found

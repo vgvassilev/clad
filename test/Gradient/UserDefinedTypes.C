@@ -959,7 +959,7 @@ namespace class_functions {
 constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr) elidable_reverse_forw;
 }}}
 
-// CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this, clad::restore_tracker &_tracker0) {
+// CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this) {
 // CHECK-NEXT:      return {*this->ptr, *_d_this->ptr};
 // CHECK-NEXT:  }
 
@@ -974,12 +974,8 @@ double fn26(double x, double y) {
 // CHECK:  void fn26_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      ptrClass p(&x);
 // CHECK-NEXT:      ptrClass _d_p(_d_x);
-// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t0 = p.operator_star_reverse_forw(&_d_p, _tracker0);
-// CHECK-NEXT:      {
-// CHECK-NEXT:        _t0.adjoint += 1;
-// CHECK-NEXT:        _tracker0.restore();
-// CHECK-NEXT:      }
+// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t0 = p.operator_star_reverse_forw(&_d_p);
+// CHECK-NEXT:      _t0.adjoint += 1;
 // CHECK-NEXT:  }
 
 struct MyStructWrapper {
@@ -1120,7 +1116,7 @@ MyStruct& objRef(MyStruct& s) {
   return s;
 }
 
-// CHECK:  clad::ValueAndAdjoint<MyStruct &, MyStruct &> objRef_reverse_forw(MyStruct &s, MyStruct &_d_s, clad::restore_tracker &_tracker0) {
+// CHECK:  clad::ValueAndAdjoint<MyStruct &, MyStruct &> objRef_reverse_forw(MyStruct &s, MyStruct &_d_s) {
 // CHECK-NEXT:      return {s, _d_s};
 // CHECK-NEXT:  }
 
@@ -1135,12 +1131,8 @@ double fn30(double x, double y) {
 // CHECK:  void fn30_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      MyStruct _d_a = {0., 0.};
 // CHECK-NEXT:      MyStruct a{x, y};
-// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t0 = objRef_reverse_forw(a, _d_a, _tracker0);
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _tracker0.restore();
-// CHECK-NEXT:          _t0.adjoint.b += 1;
-// CHECK-NEXT:      }
+// CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t0 = objRef_reverse_forw(a, _d_a);
+// CHECK-NEXT:      _t0.adjoint.b += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_a.a;
 // CHECK-NEXT:          *_d_y += _d_a.b;
@@ -1248,7 +1240,7 @@ struct structToConvert {
     return data;
   }
 
-  // CHECK: clad::ValueAndAdjoint<otherStruct, otherStruct> conversion_operator_reverse_forw(clad::Tag<otherStruct>, structToConvert *_d_this, clad::restore_tracker &_tracker0) {
+  // CHECK: clad::ValueAndAdjoint<otherStruct, otherStruct> conversion_operator_reverse_forw(clad::Tag<otherStruct>, structToConvert *_d_this) {
   // CHECK-NEXT:    return {{[{][{]}}2 * this->data, &this->data}, {0., &_d_this->data{{[}][}]}};
   // CHECK-NEXT:}
 
@@ -1260,7 +1252,7 @@ struct structToConvert {
     return {2 * data, &data};
   }
 
-  // CHECK: clad::ValueAndAdjoint<double &, double &> conversion_operator_reverse_forw(clad::Tag<double &>, structToConvert *_d_this, clad::restore_tracker &_tracker0) {
+  // CHECK: clad::ValueAndAdjoint<double &, double &> conversion_operator_reverse_forw(clad::Tag<double &>, structToConvert *_d_this) {
   // CHECK-NEXT:    return {this->data, _d_this->data};
   // CHECK-NEXT:}
 
@@ -1280,21 +1272,15 @@ double fn34(double x, double y) {
 // CHECK-NEXT:    structToConvert obj_x{x};
 // CHECK-NEXT:    structToConvert _d_obj_y = {0.};
 // CHECK-NEXT:    structToConvert obj_y{y};
-// CHECK-NEXT:    clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:    clad::ValueAndAdjoint<otherStruct, otherStruct> _t0 = obj_y.conversion_operator_reverse_forw(clad::Tag<otherStruct>(), &_d_obj_y, _tracker0);
+// CHECK-NEXT:    clad::ValueAndAdjoint<otherStruct, otherStruct> _t0 = obj_y.conversion_operator_reverse_forw(clad::Tag<otherStruct>(), &_d_obj_y);
 // CHECK-NEXT:    otherStruct _d_conv = (otherStruct)_t0.adjoint;
 // CHECK-NEXT:    otherStruct conv = (otherStruct)_t0.value;
-// CHECK-NEXT:    clad::restore_tracker _tracker1 = {};
-// CHECK-NEXT:    clad::ValueAndAdjoint<double &, double &> _t1 = obj_x.conversion_operator_reverse_forw(clad::Tag<double &>(), &_d_obj_x, _tracker1);
+// CHECK-NEXT:    clad::ValueAndAdjoint<double &, double &> _t1 = obj_x.conversion_operator_reverse_forw(clad::Tag<double &>(), &_d_obj_x);
 // CHECK-NEXT:    {
 // CHECK-NEXT:        _t1.adjoint += 1;
-// CHECK-NEXT:        _tracker1.restore();
 // CHECK-NEXT:        _d_conv.val += 1;
 // CHECK-NEXT:    }
-// CHECK-NEXT:    {
-// CHECK-NEXT:        _tracker0.restore();
-// CHECK-NEXT:        obj_y.conversion_operator_pullback(_d_conv, &_d_obj_y);
-// CHECK-NEXT:    }
+// CHECK-NEXT:    obj_y.conversion_operator_pullback(_d_conv, &_d_obj_y);
 // CHECK-NEXT:    *_d_y += _d_obj_y.data;
 // CHECK-NEXT:    *_d_x += _d_obj_x.data;
 // CHECK-NEXT:}
