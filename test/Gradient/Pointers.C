@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
 // RUN: ./Pointers.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oPointers.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oPointers.out
 // RUN: ./Pointers.out | %filecheck_exec %s
 // XFAIL: target={{i586.*}}, valgrind
 
@@ -578,7 +578,7 @@ int main() {
   d_structPointer.execute(5, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 1.00
 
-  auto d_cStyleMemoryAlloc = clad::gradient<clad::opts::disable_tbr>(cStyleMemoryAlloc, "x");
+  auto d_cStyleMemoryAlloc = clad::gradient<clad::opts::disable_tbr, clad::opts::disable_va>(cStyleMemoryAlloc, "x");
   d_x = 0;
   d_cStyleMemoryAlloc.execute(5, 7, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 4.00

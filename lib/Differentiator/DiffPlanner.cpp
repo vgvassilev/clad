@@ -1191,8 +1191,16 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (clad::utils::hasNonDifferentiableAttribute(E))
         nonDiff = true;
 
+      request.VerboseDiags = false;
+      request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
+      request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+      request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
+      request.CallContext = E;
+
       const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       if (MD) {
+        if (isLambdaCallOperator(MD))
+          request.EnableVariedAnalysis = false;
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD))
           nonDiff = true;
@@ -1248,11 +1256,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (request.Mode == DiffMode::pullback &&
           (FDName == "cudaMemcpy" || FDName == "begin" || FDName == "end"))
         return true;
-
-      request.VerboseDiags = false;
-      request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
-      request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
-      request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
 
       if (request.Mode != DiffMode::pushforward &&
           request.Mode != DiffMode::vector_pushforward) {
@@ -1354,7 +1357,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               /*AnalysisDeclContextManager=*/nullptr, request.Function,
               Options);
 
-      if (m_TopMostReq->EnableVariedAnalysis) {
+      if (request.EnableVariedAnalysis && request->isDefined()) {
         TimedAnalysisRegion R("VA " + request.BaseFunctionName);
         VariedAnalyzer analyzer(AnalysisDC.get(), request,
                                 request.getVariedStmt());
@@ -1516,6 +1519,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     request.BaseFunctionName = "constructor";
     request.CallContext = E;
 
+    if (m_ParentReq)
+      for (const auto& decl : m_ParentReq->getVariedDecls())
+        request.addVariedDecl(decl);
+
     llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
@@ -1530,6 +1537,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           std::make_unique<AnalysisDeclContext>(
               /*AnalysisDeclContextManager=*/nullptr, request.Function,
               Options);
+      if (request.EnableVariedAnalysis) {
+        TimedAnalysisRegion R("VA " + request.BaseFunctionName);
+        VariedAnalyzer analyzer(AnalysisDC.get(), request,
+                                request.getVariedStmt());
+        analyzer.Analyze();
+      }
       // FIXME: Add proper support for objects in VA and UA.
       m_AllAnalysisDC.push_back(std::move(AnalysisDC));
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();

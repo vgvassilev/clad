@@ -2,6 +2,7 @@
 #include "AnalysisBase.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
@@ -12,6 +13,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
+#include <cstddef>
 #include <memory>
 #include <set>
 
@@ -28,9 +30,27 @@ void VariedAnalyzer::Analyze() {
 
   m_BlockData[m_CurBlockID] = std::make_unique<VarsData>();
 
+  const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function);
+  if (MD && !MD->isStatic()) {
+    VarData& thisData = getCurBlockVarsData()[nullptr];
+    thisData = VarData(MD->getThisType(), /*forceInit=*/true);
+    if (!isa<CXXConstructorDecl>(m_DiffReq.Function))
+      setIsRequired(&thisData);
+  }
+
   for (const auto* i : m_DiffReq.getVariedDecls()) {
     addVar(i, /*forceInit=*/true);
     setIsRequired(getVarDataFromDecl(i));
+  }
+
+  if (isa<CXXConstructorDecl>(m_DiffReq.Function)) {
+    const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function);
+    m_Varied = true;
+    m_Marking = true;
+    for (auto* CI : CD->inits())
+      TraverseStmt(CI->getInit());
+    m_Varied = false;
+    m_Marking = false;
   }
 
   auto paramsRef = m_DiffReq.Function->parameters();
@@ -155,8 +175,40 @@ bool VariedAnalyzer::TraverseConditionalOperator(ConditionalOperator* CO) {
   TraverseStmt(CO->getFalseExpr());
   return false;
 }
+bool VariedAnalyzer::TraverseCXXOperatorCallExpr(
+    clang::CXXOperatorCallExpr* CE) {
+  FunctionDecl* FD = CE->getDirectCallee();
+  const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+  bool isMethodOperatorCall = MD && isa<CXXOperatorCallExpr>(CE);
+  const Expr* baseOriginalE = CE->getArg(0);
+
+  if (const auto* baseDRE = dyn_cast<DeclRefExpr>(baseOriginalE)) {
+    if (const auto* baseVD = dyn_cast<VarDecl>(baseDRE->getDecl()))
+      m_DiffReq.addVariedDecl(baseVD);
+  }
+
+  for (std::size_t i = static_cast<std::size_t>(isMethodOperatorCall),
+                   e = CE->getNumArgs();
+       i != e; ++i) {
+    Expr* arg = CE->getArg(i);
+    const auto* PVD =
+        FD->getParamDecl(i - static_cast<unsigned long>(isMethodOperatorCall));
+    TraverseStmt(arg);
+    setVaried(arg);
+    markExpr(arg);
+    m_DiffReq.addVariedDecl(PVD);
+  }
+  // This is best we can do. Right now there is no way to artificially build
+  // ProfileID of obj->x.
+  m_Varied = true;
+  return false;
+}
 
 bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
+  Expr* callee = CE->getCallee();
+  if (isa<CXXPseudoDestructorExpr>(callee))
+    return false;
+
   bool variedBefore = m_Varied;
   bool hasVariedArg = false;
   FunctionDecl* FD = CE->getDirectCallee();
@@ -191,9 +243,8 @@ bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
       m_Marking = false;
       m_Varied = false;
     }
+    m_Varied = hasVariedArg || variedBefore;
   }
-
-  m_Varied = hasVariedArg || variedBefore;
   return false;
 }
 
@@ -219,13 +270,8 @@ bool VariedAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         // VarData of the RHS variable.
         if (VDExpr->m_Type == VarData::REF_TYPE || VDType->isPointerType()) {
           init = init->IgnoreParenCasts();
-          if (VDType->isPointerType()) {
-            // if (isa<CXXNewExpr>(init)) {
-            //   VDExpr->initializeAsArray(VDType);
-            //   return false;
-            // }
+          if (VDType->isPointerType())
             VDExpr->m_Type = VarData::REF_TYPE;
-          }
           new (&VDExpr->m_Val.m_RefData)
               std::unique_ptr<std::set<const VarDecl*>>(
                   std::make_unique<std::set<const VarDecl*>>());
@@ -233,6 +279,66 @@ bool VariedAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         }
       }
     }
+  }
+  return false;
+}
+
+bool VariedAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
+  CXXConstructorDecl* CD = CE->getConstructor();
+  auto parCD = CD->parameters();
+  for (unsigned i = 0; i < CE->getNumArgs(); ++i) {
+    clang::Expr* argExpr = CE->getArg(i);
+    m_Marking = true;
+    m_Varied = true;
+    TraverseStmt(argExpr);
+    m_Marking = false;
+    m_Varied = false;
+    markExpr(argExpr);
+    m_DiffReq.addVariedDecl(parCD[i]);
+  }
+
+  // This looks dumb considering the above, but it highlights that we want to
+  // set whatever we visit in the LHS as varied.
+  m_Varied = true;
+  return false;
+}
+
+bool VariedAnalyzer::TraverseCXXThisExpr(clang::CXXThisExpr* TE) {
+  markExpr(TE);
+  setVaried(TE);
+  return false;
+}
+
+bool VariedAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
+  TraverseStmt(CE->getImplicitObjectArgument());
+  // Here we have to traverse the arguments and if nothing is varied, remove
+  // adjoint of 'this'. Due to how member functions are handeled in RMV::VCE, we
+  // keep it varied regardless.
+
+  m_Varied = true;
+  m_Marking = true;
+  for (Expr* arg : CE->arguments())
+    TraverseStmt(arg);
+  m_Marking = false;
+  m_Varied = false;
+
+  if (const auto* DRE =
+          dyn_cast<DeclRefExpr>(CE->getImplicitObjectArgument())) {
+    if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+      m_DiffReq.addVariedDecl(VD);
+  }
+
+  // This looks dumb considering the above, but it highlights that we want to
+  // set whatever we visit in the LHS as varied.
+  m_Varied = true;
+  return false;
+}
+
+bool VariedAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
+  TraverseStmt(ME->getBase());
+  if (m_Varied) {
+    markExpr(ME);
+    setVaried(ME);
   }
   return false;
 }
