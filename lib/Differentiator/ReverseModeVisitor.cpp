@@ -3353,7 +3353,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return E;
 
     if (isInsideLoop) {
-      CladTapeResult CladTape = MakeCladTapeFor(E, prefix);
+      CladTapeResult CladTape = MakeCladTapeFor(E, prefix, Type);
       addToCurrentBlock(CladTape.Push, direction::forward);
       addToCurrentBlock(CladTape.Pop, direction::reverse);
 
@@ -3578,10 +3578,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)
       : m_RMV(RMV) {
     ASTContext& C = m_RMV.m_Context;
-    Expr* zero = ConstantFolder::synthesizeLiteral(C.getSizeType(), C,
-                                                   /*val=*/0);
-    m_Ref = m_RMV.GlobalStoreAndRef(zero, C.getSizeType(), "_t",
-                                    /*force=*/true);
+    m_Ref = m_RMV.GlobalStoreAndRef(m_RMV.getZeroInit(C.IntTy), C.getSizeType(),
+                                    "_t", /*force=*/true);
   }
 
   StmtDiff ReverseModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
