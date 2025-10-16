@@ -19,7 +19,7 @@ double addArr(const double *arr, int n) {
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     double _d_ret = 0.;
 //CHECK-NEXT:     double ret = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         ret += arr[i];
@@ -60,7 +60,7 @@ float func(float* a, float* b) {
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     float _d_sum = 0.F;
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, a[i]);
@@ -104,7 +104,7 @@ float func2(float* a) {
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     float _d_sum = 0.F;
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         sum += helper(a[i]);
@@ -131,7 +131,7 @@ float func3(float* a, float* b) {
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     float _d_sum = 0.F;
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         sum += (a[i] += b[i]);
@@ -162,7 +162,7 @@ double func4(double x) {
 //CHECK-NEXT:     double arr[3] = {x, 2 * x, x * x};
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         sum += addArr(arr, 3);
@@ -210,14 +210,14 @@ double func5(int k) {
 //CHECK-NEXT:     double arr[n];
 //CHECK-NEXT:     double _d_arr[n];
 //CHECK-NEXT:     clad::zero_init(_d_arr, n);
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         arr[i] = k;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t1 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t1 = 0;
 //CHECK-NEXT:     for (i0 = 0; i0 < 3; i0++) {
 //CHECK-NEXT:         _t1++;
 //CHECK-NEXT:         sum += addArr(arr, n);
@@ -259,7 +259,7 @@ double func6(double seed) {
 //CHECK-NEXT:     double arr[3] = {0};
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         double (&&_t1)[3] = {seed, seed * i, seed + i};
@@ -317,7 +317,7 @@ double func7(double *params) {
 //CHECK-NEXT:     double paramsPrime[1] = {0};
 //CHECK-NEXT:     double _d_out = 0.;
 //CHECK-NEXT:     double out = 0.;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 1; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         double (&&_t1)[1] = {params[0]};
@@ -413,7 +413,7 @@ double func9(double i, double j) {
 //CHECK-NEXT:     int idx = 0;
 //CHECK-NEXT:     double _d_arr[5] = {0};
 //CHECK-NEXT:     double arr[5] = {};
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (idx = 0; idx < 5; ++idx) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         modify(arr[idx], i);
@@ -468,7 +468,7 @@ double func10(double *arr, int n) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _d_res = 0.;
 //CHECK-NEXT:     double res = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, arr[i]);
@@ -504,7 +504,7 @@ double func11(double seed) {
 // CHECK-NEXT:    double arr[3];
 // CHECK-NEXT:    double _d_sum = 0.;
 // CHECK-NEXT:    double sum = 0;
-// CHECK-NEXT:    unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:    unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:    for (i = 0; i < 3; i++) {
 // CHECK-NEXT:        _t0++;
 // CHECK-NEXT:        arr[0] = seed;

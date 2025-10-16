@@ -111,7 +111,7 @@ __global__ void add_kernel_4(int *out, int *in, int N) {
 // CHECK-NEXT:         _cond0 = index0 < N;
 // CHECK-NEXT:         if (_cond0) {
 // CHECK-NEXT:             sum = 0;
-// CHECK-NEXT:             _t0 = 0UL;
+// CHECK-NEXT:             _t0 = 0;
 // CHECK-NEXT:             for (i = index0; i < N; clad::push(_t1, i) , (i += warpSize)) {
 // CHECK-NEXT:                 _t0++;
 // CHECK-NEXT:                 clad::push(_t2, sum);
@@ -176,7 +176,7 @@ __global__ void add_kernel_5(int *out, int *in, int N) {
 // CHECK-NEXT:         if (_cond0) {
 // CHECK-NEXT:             sum = 0;
 // CHECK-NEXT:             totalThreads = blockDim.x * gridDim.x;
-// CHECK-NEXT:             _t0 = 0UL;
+// CHECK-NEXT:             _t0 = 0;
 // CHECK-NEXT:             for (i = index0; i < N; clad::push(_t1, i) , (i += totalThreads)) {
 // CHECK-NEXT:                 _t0++;
 // CHECK-NEXT:                 clad::push(_t2, sum);
@@ -503,7 +503,7 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
 //CHECK-NEXT:    double _d_res = 0.;
 //CHECK-NEXT:    double res = 0;
-//CHECK-NEXT:    unsigned long _t0 = 0UL;
+//CHECK-NEXT:    unsigned long _t0 = 0;
 //CHECK-NEXT:    for (i = 0; i < 10; ++i) {
 //CHECK-NEXT:        _t0++;
 //CHECK-NEXT:        printf("Writing result of out[%d]\n", i);
@@ -568,7 +568,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 // CHECK-NEXT:         _cond0 = index0 < N;
 // CHECK-NEXT:         if (_cond0) {
 // CHECK-NEXT:             sum = 0;
-// CHECK-NEXT:             _t0 = 0UL;
+// CHECK-NEXT:             _t0 = 0;
 // CHECK-NEXT:             for (i = index0; i < N; clad::push(_t1, i) , (i += warpSize)) {
 // CHECK-NEXT:                 _t0++;
 // CHECK-NEXT:                 clad::push(_t2, sum);
@@ -859,7 +859,7 @@ __global__ void injective_reassignment_loop(int *a) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
-//CHECK-NEXT:     unsigned long _t0 = 0UL;
+//CHECK-NEXT:     unsigned long _t0 = 0;
 //CHECK-NEXT:     for (i = threadIdx.x + blockIdx.x * blockDim.x; i > 0; i--) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, a[i]);
