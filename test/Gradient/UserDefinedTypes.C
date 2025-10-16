@@ -406,8 +406,10 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
   return s;
 }
 
-// CHECK: inline constexpr clad::ValueAndAdjoint<MyStruct &, MyStruct &> operator_equal_reverse_forw(MyStruct &&arg, MyStruct *_d_this, MyStruct &&_d_arg) noexcept {
+// CHECK: inline constexpr clad::ValueAndAdjoint<MyStruct &, MyStruct &> operator_equal_reverse_forw(MyStruct &&arg, MyStruct *_d_this, MyStruct &&_d_arg, clad::restore_tracker &_tracker0) noexcept {
+// CHECK-NEXT:    _tracker0.store(this->a);
 // CHECK-NEXT:    this->a = static_cast<MyStruct &&>(arg).a;
+// CHECK-NEXT:    _tracker0.store(this->b);
 // CHECK-NEXT:    this->b = static_cast<MyStruct &&>(arg).b;
 // CHECK-NEXT:    return {*this, *_d_this};
 // CHECK-NEXT:}
@@ -432,10 +434,10 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
 // CHECK-NEXT:}
 
 // CHECK: void fn12_grad(MyStruct s, MyStruct *_d_s) {
-// CHECK-NEXT:     MyStruct _t0 = s;
-// CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.}, _tracker0);
 // CHECK-NEXT:    {
-// CHECK-NEXT:        s = _t0;
+// CHECK-NEXT:        _tracker0.restore();
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
 // CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, &(*_d_s), &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
@@ -720,10 +722,10 @@ void fn20(MyStruct s) {
 }
 
 // CHECK: void fn20_grad(MyStruct s, MyStruct *_d_s) {
-// CHECK-NEXT:     MyStruct _t0 = s;
-// CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.}, _tracker0);
 // CHECK-NEXT:    {
-// CHECK-NEXT:        s = _t0;
+// CHECK-NEXT:        _tracker0.restore();
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
 // CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, &(*_d_s), &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
@@ -980,17 +982,16 @@ struct MyStructWrapper {
   MyStruct val;
 };
 
-// CHECK:  inline constexpr clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> operator_equal_reverse_forw(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper &&_d_arg) noexcept {
-// CHECK-NEXT:      MyStruct _t0 = this->val;
-// CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, std::move(_d_arg.val));
+// CHECK:  inline constexpr clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> operator_equal_reverse_forw(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper &&_d_arg, clad::restore_tracker &_tracker0) noexcept {
+// CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, std::move(_d_arg.val), _tracker0);
 // CHECK-NEXT:      return {*this, *_d_this};
 // CHECK-NEXT:  }
 
 // CHECK:  inline constexpr void operator_equal_pullback(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper *_d_arg) noexcept {
-// CHECK-NEXT:      MyStruct _t0 = this->val;
-// CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, std::move((*_d_arg).val));
+// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, std::move((*_d_arg).val), _tracker0);
 // CHECK-NEXT:      {
-// CHECK-NEXT:          this->val = _t0;
+// CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:          this->val.operator_equal_pullback(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, &(*_d_arg).val);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
@@ -1004,14 +1005,14 @@ double fn27(double x, double y) {
 // CHECK:  void fn27_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      MyStructWrapper _d_s = {{.*0., 0..*}};
 // CHECK-NEXT:      MyStructWrapper s;
-// CHECK-NEXT:      MyStructWrapper _t0 = s;
-// CHECK-NEXT:      s.operator_equal_reverse_forw({{.*2 \* y, 3 \* x \+ 2.*}}, &_d_s, {{.*0., 0..*}});
+// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:      s.operator_equal_reverse_forw({{.*2 \* y, 3 \* x \+ 2.*}}, &_d_s, {{.*0., 0..*}}, _tracker0);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _d_s.val.a += 1 * s.val.b;
 // CHECK-NEXT:          _d_s.val.b += s.val.a * 1;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
-// CHECK-NEXT:          s = _t0;  
+// CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:          MyStructWrapper _r0 = {{.*0., 0..*}};
 // CHECK-NEXT:          s.operator_equal_pullback({{.*2 \* y, 3 \* x \+ 2.*}}, &_d_s, &_r0);
 // CHECK-NEXT:          *_d_y += 2 * _r0.val.a;
@@ -1115,7 +1116,7 @@ MyStruct& objRef(MyStruct& s) {
   return s;
 }
 
-// CHECK:  clad::ValueAndAdjoint<MyStruct &, MyStruct &> objRef_reverse_forw(MyStruct &s, MyStruct &_d_s, clad::restore_tracker &_tracker0) {
+// CHECK:  clad::ValueAndAdjoint<MyStruct &, MyStruct &> objRef_reverse_forw(MyStruct &s, MyStruct &_d_s) {
 // CHECK-NEXT:      return {s, _d_s};
 // CHECK-NEXT:  }
 
@@ -1130,12 +1131,8 @@ double fn30(double x, double y) {
 // CHECK:  void fn30_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      MyStruct _d_a = {0., 0.};
 // CHECK-NEXT:      MyStruct a{x, y};
-// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t0 = objRef_reverse_forw(a, _d_a, _tracker0);
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _tracker0.restore();
-// CHECK-NEXT:          _t0.adjoint.b += 1;
-// CHECK-NEXT:      }
+// CHECK-NEXT:      clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t0 = objRef_reverse_forw(a, _d_a);
+// CHECK-NEXT:      _t0.adjoint.b += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_a.a;
 // CHECK-NEXT:          *_d_y += _d_a.b;

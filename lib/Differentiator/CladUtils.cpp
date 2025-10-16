@@ -971,11 +971,9 @@ namespace clad {
     }
 
     bool shouldUseRestoreTracker(const FunctionDecl* FD) {
-      // FIXME: We return false to disable the system for methods because
-      // reverse_forw will currently break some of them. We need to improve
-      // reverse_forw to support this.
-      if (isa<CXXMethodDecl>(FD) || FD->isOverloadedOperator())
-        return false;
+      const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+      if (MD && MD->isInstance() && !MD->isConst())
+        return true;
       // FIXME: clad::restore_tracker is not thread-safe.
       // We shoudn't disable reverse_forw for CUDA
       if (FD->hasAttr<clang::CUDAGlobalAttr>() ||
@@ -1144,7 +1142,7 @@ namespace clad {
     QualType
     GetDerivativeType(Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
                       llvm::ArrayRef<const clang::ValueDecl*> diffParams,
-                      bool forCustomDerv,
+                      bool forCustomDerv, bool shouldUseRestoreTracker,
                       llvm::ArrayRef<QualType> customParams) {
       ASTContext& C = S.getASTContext();
       if (mode == DiffMode::forward)
@@ -1268,7 +1266,7 @@ namespace clad {
           FnTypes.insert(FnTypes.begin(), typeTag);
         }
 
-        if (shouldUseRestoreTracker(FD) && !forCustomDerv) {
+        if (shouldUseRestoreTracker) {
           QualType trackerTy = GetRestoreTrackerType(S);
           trackerTy = C.getLValueReferenceType(trackerTy);
           FnTypes.push_back(trackerTy);
