@@ -59,6 +59,13 @@ using namespace llvm;
   {(Clause)->getModifier(), (Clause)->getOriginalSharingModifier()}
 #endif
 
+// clang-20 Clause varlist typo
+#if CLANG_VERSION_MAJOR < 20
+#define CLAD_COMPAT_CLANG20_getvarlist(Clause) (Clause)->varlists()
+#else
+#define CLAD_COMPAT_CLANG20_getvarlist(Clause) (Clause)->varlist()
+#endif
+
 // clang-20 clang::Sema::AA_Casting became scoped
 #if CLANG_VERSION_MAJOR < 20
 #define CLAD_COMPAT_CLANG20_SemaAACasting clang::Sema::AA_Casting

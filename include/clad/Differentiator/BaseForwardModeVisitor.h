@@ -6,6 +6,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
+#include <clang/AST/OpenMPClause.h>
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/SmallVector.h"
