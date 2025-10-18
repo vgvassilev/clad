@@ -549,7 +549,7 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // We should only update references of the declarations that were inside
   // the original function declaration context.
   // Original function = function that we are currently differentiating.
-  auto *Ctx = DRE->getDecl()->getDeclContext();
+  auto* Ctx = DRE->getDecl()->getDeclContext();
   // Skip the synthetic capture scope (e.g. OpenMP)
   while (isa<CapturedDecl>(Ctx))
     Ctx = Ctx->getParent();
