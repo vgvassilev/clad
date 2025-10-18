@@ -6,6 +6,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
+#include <clang/AST/OpenMPClause.h>
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -123,6 +124,13 @@ public:
   StmtDiff VisitNullStmt(const clang::NullStmt* NS) { return StmtDiff{}; };
   StmtDiff
   VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);
+
+  StmtDiff VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
+  StmtDiff
+  VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
+  clang::OMPClause* VisitOMPClause(const clang::OMPClause* S);
+  clang::OMPClause* VisitOMPReductionClause(const clang::OMPReductionClause* C);
+
   static DeclDiff<clang::StaticAssertDecl>
   DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 
