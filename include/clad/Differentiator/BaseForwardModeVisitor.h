@@ -59,7 +59,6 @@ public:
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
-  StmtDiff VisitCapturedStmt(const clang::CapturedStmt* S);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
   StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
@@ -77,11 +76,6 @@ public:
   StmtDiff VisitCXXNamedCastExpr(const clang::CXXNamedCastExpr* NCE);
   StmtDiff VisitInitListExpr(const clang::InitListExpr* ILE);
   virtual StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
-  StmtDiff VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
-  StmtDiff
-  VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
-  clang::OMPClause* VisitOMPClause(const clang::OMPClause* S);
-  clang::OMPClause* VisitOMPReductionClause(const clang::OMPReductionClause* C);
   StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
   StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
   virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
@@ -129,6 +123,13 @@ public:
   StmtDiff VisitNullStmt(const clang::NullStmt* NS) { return StmtDiff{}; };
   StmtDiff
   VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);
+
+  StmtDiff VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
+  StmtDiff
+  VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
+  clang::OMPClause* VisitOMPClause(const clang::OMPClause* S);
+  clang::OMPClause* VisitOMPReductionClause(const clang::OMPReductionClause* C);
+
   static DeclDiff<clang::StaticAssertDecl>
   DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 
