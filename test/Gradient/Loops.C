@@ -2735,6 +2735,56 @@ double fn44(double u, double v) {
 //CHECK-NEXT:        }
 //CHECK-NEXT:}
 
+double fn45(double x, double y) {
+  double sum = 0;
+  #pragma clad_checkpoint ON
+  for (int i = 0; i < 100; ++i) {
+    double t1 = x;
+    double t2 = y / t1;
+    sum += std::pow(t2, 2);
+  }
+  return sum; // 100 * (y / x) ^ 2  -->  200 * (y / x ^ 3) * (- y, x)
+}
+
+// CHECK: void fn45_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     double _d_t1 = 0.;
+// CHECK-NEXT:     double t1 = 0.;
+// CHECK-NEXT:     double _d_t2 = 0.;
+// CHECK-NEXT:     double t2 = 0.;
+// CHECK-NEXT:     double _d_sum = 0.;
+// CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (i = 0; i < 100; ++i) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         t1 = x;
+// CHECK-NEXT:         t2 = y / t1;
+// CHECK-NEXT:         sum += std::pow(t2, 2);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_sum += 1;
+// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:         t1 = x;
+// CHECK-NEXT:         t2 = y / t1;
+// CHECK-NEXT:         sum += std::pow(t2, 2);
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r1 = 0.;
+// CHECK-NEXT:             int _r2 = 0;
+// CHECK-NEXT:             clad::custom_derivatives::std::pow_pullback(t2, 2, _d_sum, &_r1, &_r2);
+// CHECK-NEXT:             _d_t2 += _r1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             *_d_y += _d_t2 / t1;
+// CHECK-NEXT:             double _r0 = _d_t2 * -(y / (t1 * t1));
+// CHECK-NEXT:             _d_t1 += _r0;
+// CHECK-NEXT:             _d_t2 = 0.;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             *_d_x += _d_t1;
+// CHECK-NEXT:             _d_t1 = 0.;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 #define TEST(F, x) { \
   result[0] = 0; \
@@ -2843,4 +2893,5 @@ int main() {
   printf("{%.2f, %.2f, %.2f}\n", result[0], result[1], result[2]); // CHECK-EXEC: {-1.00, -0.25, -0.11}
 
   TEST_2(fn44, 2, 3); // CHECK-EXEC: {1.00, 1.00}
+  TEST_2(fn45, 1, 0.5); // CHECK-EXEC: {-50.00, 100.00}
 }

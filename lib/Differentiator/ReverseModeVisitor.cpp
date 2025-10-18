@@ -2776,7 +2776,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     //   *_d_i += _d_localVar;
     //   _d_localVar = 0;
     // }
-    if (VDDerived && isInsideLoop && !isRefType && !isPointerType) {
+    if (VDDerived && (isInsideLoop || isInsideCheckpointedLoop) && !isRefType &&
+        !isPointerType) {
       Stmt* assignToZero = nullptr;
       Expr* declRef = BuildDeclRef(VDDerived);
       if (isa<ArrayType>(VDDerivedType))
@@ -3879,11 +3880,39 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {endBlock(direction::forward), endBlock(direction::reverse)};
   }
 
+  static bool hasCheckpointingPragma(ASTContext& C, const Stmt* body,
+                                     const DiffRequest& request) {
+    SourceLocation bodyLoc = body->getBeginLoc();
+    // Find the last pragma location before the loop.
+    if (request.m_CladLoopCheckpoints.empty() || bodyLoc.isInvalid())
+      return false;
+    std::set<SourceLocation>::iterator found =
+        request.m_CladLoopCheckpoints.upper_bound(bodyLoc);
+    if (found == request.m_CladLoopCheckpoints.begin())
+      return false;
+    found = std::prev(found);
+
+    clang::SourceManager& SM = C.getSourceManager();
+    int bodyLine = SM.getPresumedLoc(bodyLoc).getLine();
+    int pragmaLine = SM.getPresumedLoc(*found).getLine();
+    // Check if the pragma is on the previous line.
+    return (bodyLine == pragmaLine + 1);
+  }
+
   StmtDiff ReverseModeVisitor::DifferentiateLoopBody(const Stmt* body,
                                                      LoopCounter& loopCounter,
                                                      Stmt* condVarDiff,
                                                      Stmt* forLoopIncDiff,
                                                      bool isForLoop) {
+    // If the user marked this loop with a checkpointing pragma,
+    // we should avoid using tapes inside it in favor of recomputations.
+    llvm::SaveAndRestore<bool> Saved(isInsideLoop);
+    llvm::SaveAndRestore<bool> SavedCP(isInsideCheckpointedLoop);
+    bool shouldCheckpoint = hasCheckpointingPragma(m_Context, body, m_DiffReq);
+    if (shouldCheckpoint) {
+      isInsideLoop = false;
+      isInsideCheckpointedLoop = true;
+    }
     Expr* counterIncrement = loopCounter.getCounterIncrement();
     auto* activeBreakContHandler = PushBreakContStmtHandler();
     activeBreakContHandler->BeginCFSwitchStmtScope();
@@ -3891,18 +3920,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // differentiate loop body and add loop increment expression
     // in the forward block.
     StmtDiff bodyDiff = nullptr;
+    beginBlock(direction::forward);
     if (isa<CompoundStmt>(body)) {
       bodyDiff = Visit(body);
-      beginBlock(direction::forward);
-      addToCurrentBlock(counterIncrement);
       for (Stmt* S : cast<CompoundStmt>(bodyDiff.getStmt())->body())
         addToCurrentBlock(S);
-      bodyDiff = {endBlock(direction::forward), bodyDiff.getStmt_dx()};
     } else {
       // for forward-pass loop statement body
       beginScope(Scope::DeclScope);
-      beginBlock(direction::forward);
-      addToCurrentBlock(counterIncrement);
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingSingleStmtLoopBody();
       bodyDiff = DifferentiateSingleStmt(body, /*dfdS=*/nullptr);
@@ -3910,11 +3935,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingSingleStmtBodyInVisitForLoop();
 
-      Stmt* reverseBlock = utils::unwrapIfSingleStmt(bodyDiff.getStmt_dx());
-      bodyDiff = {endBlock(direction::forward), reverseBlock};
       // for forward-pass loop statement body
       endScope();
+      Stmt* reverseBlock = utils::unwrapIfSingleStmt(bodyDiff.getStmt_dx());
+      bodyDiff.updateStmtDx(reverseBlock);
     }
+    bodyDiff.updateStmt(endBlock(direction::forward));
     Stmts revLoopBlock = m_LoopBlock.back();
     utils::AppendIndividualStmts(revLoopBlock, bodyDiff.getStmt_dx());
     if (!revLoopBlock.empty())
@@ -3932,6 +3958,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       loopCounter.setNumRevIterations(numRevIterations);
     }
 
+    if (shouldCheckpoint) {
+      // Repeat all forward-pass operations in the reverse pass.
+      for (Stmt* S :
+           llvm::reverse(cast<CompoundStmt>(bodyDiff.getStmt())->body()))
+        bodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
+            m_Context, bodyDiff.getStmt_dx(), S));
+    }
     // Increment statement in the for-loop is executed for every case
     if (forLoopIncDiff) {
       Stmt* forLoopIncDiffExpr = forLoopIncDiff;
@@ -3972,6 +4005,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     addToCurrentBlock(bodyDiff.getStmt_dx(), direction::reverse);
     bodyDiff = {bodyDiff.getStmt(),
                 utils::unwrapIfSingleStmt(endBlock(direction::reverse))};
+    bodyDiff.updateStmt(utils::PrependAndCreateCompoundStmt(
+        m_Context, bodyDiff.getStmt(), counterIncrement));
     return bodyDiff;
   }
 
