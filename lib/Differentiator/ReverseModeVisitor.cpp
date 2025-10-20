@@ -1318,17 +1318,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType ILEType = ILE->getType();
     llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
     llvm::SmallVector<Expr*, 16> exprsDiff(ILE->getNumInits());
-    bool isRealConstArray = false;
-    if (const auto* arrType = dyn_cast<ConstantArrayType>(ILEType)) {
-      QualType elemTy = arrType->getElementType();
-      if (elemTy->isRealType()) {
-        isRealConstArray = true;
-        exprsDiff.resize(1);
-        Expr* zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
-                                                       m_Context, /*val=*/0);
-        exprsDiff[0] = zero;
-      }
-    }
     for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
       Expr* I =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
@@ -1348,12 +1337,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
       StmtDiff elemDiff = Visit(ILE->getInit(i), elemDfDx);
       clonedExprs[i] = elemDiff.getExpr();
-      if (!isRealConstArray) {
-        if (elemDiff.getExpr_dx())
-          exprsDiff[i] = elemDiff.getExpr_dx();
-        else
-          exprsDiff[i] = getZeroInit(ILE->getInit(i)->getType());
-      }
+      if (elemDiff.getExpr_dx())
+        exprsDiff[i] = elemDiff.getExpr_dx();
+      else
+        exprsDiff[i] = getZeroInit(ILE->getInit(i)->getType());
     }
 
     Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
@@ -2831,14 +2818,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                  initDiff.getExpr(), VD->isDirectInit());
 
     // The choice of isDirectInit is mostly stylistic.
+    bool isRealConstArray = false;
+    if (const auto* arrType = dyn_cast<ConstantArrayType>(VDType))
+      isRealConstArray = arrType->getElementType()->isRealType();
     bool isDirectInit = VD->isDirectInit() && (!RD || isNonAggrClass);
-    if (VDDerivedType->isBuiltinType() || !VD->getInit()) {
+    if (VDDerivedType->isBuiltinType() || !VD->getInit() || isRealConstArray) {
       initDiff.updateStmtDx(getZeroInit(VDType));
       isDirectInit = false;
-    } else if (const auto* arrType = dyn_cast<ConstantArrayType>(VDType)) {
-      QualType elemTy = arrType->getElementType();
-      if (elemTy->isRealType())
-        isDirectInit = false;
     } else if (Expr* size = getStdInitListSizeExpr(VD->getInit())) {
       initDiff.updateStmtDx(Clone(size));
       isConstructInit = true;
