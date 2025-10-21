@@ -57,6 +57,14 @@ float fn1(
   std::vector<cladtorch::Tensor> v{{u, b}};
   return v[1].data;
 }
+
+// CHECK: static inline constexpr void constructor_pullback(const {{.*}}Tensor &arg, cladtorch::Tensor *_d_this, {{.*}}Tensor *_d_arg) noexcept {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         (*_d_arg).data += _d_this->data;
+// CHECK-NEXT:         _d_this->data = 0.F;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 // CHECK: void fn1_grad_0(const cladtorch::Tensor &t, const cladtorch::Tensor &u, no_namespace o, decltype(anon) a, {{.*}}anon_namespace z, not_found::Tensor w, cladtorch::Tensor *_d_t) {
 // CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_u(u);
 // CHECK-NEXT:     no_namespace _d_o = {0.F};
@@ -64,11 +72,9 @@ float fn1(
 // CHECK-NEXT:     anon_namespace _d_z = {0.F};
 // CHECK-NEXT:     not_found::Tensor _d_w = {0.F};
 // CHECK-NEXT:     {{.*}}cladtorch::Tensor b = t;
-// CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_b(b);
-// CHECK-NEXT:     clad::zero_init(_d_b);
+// CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_b = (*_d_t);
 // CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> v{{.*}}{u, b}{{.*}};
-// CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> _d_v(v);
-// CHECK-NEXT:     clad::zero_init(_d_v);
+// CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> _d_v{{.*}}{_d_u, _d_b}{{.*}};
 // CHECK-NEXT:     _d_v[1].data += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         clad::array<{{cladtorch::Tensor|std::vector<cladtorch::Tensor, std::allocator<cladtorch::Tensor> >::value_type}}> _r0 = {{2U|2UL}};

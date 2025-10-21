@@ -437,8 +437,10 @@ namespace clad {
     ///
     /// \param[in] thisTy `this` type.
     ///
+    /// \param[in] isDerivedThis if true, will build `_d_this`.
+    ///
     /// \returns {_this, free(_this)}
-    StmtDiff BuildThisExpr(clang::QualType thisTy);
+    StmtDiff BuildThisExpr(clang::QualType thisTy, bool isDerivedThis = false);
 
     /// Helper function that checks whether the function to be derived
     /// is meant to be executed only by the GPU

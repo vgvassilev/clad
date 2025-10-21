@@ -1494,7 +1494,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     forwPassRequest.BaseFunctionName = "constructor";
     forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
     forwPassRequest.CallContext = E;
-    if (LookupCustomDerivativeDecl(forwPassRequest))
+    QualType recordTy = CD->getThisType()->getPointeeType();
+    bool elideRevForw =
+        utils::isElidableConstructor(CD, m_Sema.getASTContext());
+    if (LookupCustomDerivativeDecl(forwPassRequest) || !elideRevForw)
       m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
 
     // Don't build propagators for calls that do not contribute in
@@ -1522,7 +1525,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
 
-    QualType recordTy = CD->getThisType()->getPointeeType();
     if (m_Sema.isStdInitializerList(recordTy, /*elemType=*/nullptr))
       return true;
 

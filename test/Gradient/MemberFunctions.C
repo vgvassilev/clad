@@ -913,8 +913,7 @@ int main() {
 // CHECK-NEXT:     double _d_x = 0.;
 // CHECK-NEXT:     double _d_y = 0.;
 // CHECK-NEXT:     SimpleFunctions sf(x, y);
-// CHECK-NEXT:     SimpleFunctions _d_sf(sf);
-// CHECK-NEXT:     clad::zero_init(_d_sf);
+// CHECK-NEXT:     SimpleFunctions _d_sf(0., 0.);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r2 = 0.;
 // CHECK-NEXT:         double _r3 = 0.;
