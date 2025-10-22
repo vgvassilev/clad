@@ -842,13 +842,13 @@ struct GPT2 {
   }
 
   void forward(const int* inputs, const int* targets) {
-    size_t V = config.vocab_size;
-    size_t Vp = config.padded_vocab_size;
-    size_t L = config.num_layers;
-    size_t NH = config.num_heads;
-    size_t C = config.channels;
-    size_t B = batch_size;
-    size_t T = seq_len;
+    int V = config.vocab_size;
+    int Vp = config.padded_vocab_size;
+    int L = config.num_layers;
+    int NH = config.num_heads;
+    int C = config.channels;
+    int B = batch_size;
+    int T = seq_len;
 
     // validate inputs, all indices must be in the range [0, V)
     // for (int i = 0; i < B * T; i++) {
@@ -916,20 +916,20 @@ struct GPT2 {
         acts.residual3 + (L - 1) * B * T * C; // last residual is in residual3
     layernorm_forward(acts.lnf, acts.lnf_mean, acts.lnf_rstd, residual,
                       params.lnfw, params.lnfb, B, T, C);
-    matmul_forward(acts.logits, acts.lnf, params.wte, nullptr, B, T, C, Vp);
+    matmul_forward(acts.logits, acts.lnf, params.wte, /*bias=*/nullptr, B, T, C, Vp);
     softmax_forward(acts.probs, acts.logits, B, T, V, Vp);
 
     // also forward the cross-entropy loss function if we have the targets
     if (targets != nullptr) {
       crossentropy_forward(acts.losses, acts.probs, targets, B, T, Vp);
       // for convenience also evaluate the mean loss
-      mean_loss = 0.0f;
+      mean_loss = 0.0F;
       for (int i = 0; i < B * T; i++)
         mean_loss += acts.losses[i];
-      mean_loss /= B * T;
+      mean_loss /= (float)(B * T);
     } else {
       // if we don't have targets, we don't have a loss
-      mean_loss = -1.0f;
+      mean_loss = -1.0F;
     }
   }
 };
