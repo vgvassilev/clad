@@ -716,7 +716,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       bool VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
         if (!isa<VarDecl>(DRE->getDecl()))
           return true;
-        if (m_Request.shouldHaveAdjoint(DRE))
+        if (m_Request.shouldHaveAdjoint(dyn_cast<VarDecl>(DRE->getDecl())))
           return false;
         return true;
       }
@@ -1199,6 +1199,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.CallContext = E;
 
       const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+      auto* mm = dyn_cast<CXXMemberCallExpr>(E);
+      // mm->dump();
       if (MD) {
         if (isLambdaCallOperator(MD))
           request.EnableVariedAnalysis = false;
@@ -1214,6 +1216,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // differentiable way to the result.
       if (!(MD && MD->isInstance()) && !hasPointerOrRefReturn &&
           allArgumentsAreLiterals(E->arguments(), m_ParentReq))
+        nonDiff = true;
+      else if (!hasPointerOrRefReturn && mm && MD->isInstance() &&
+               allArgumentsAreLiterals(E->arguments(), m_ParentReq) &&
+               !m_ParentReq->isVaried(mm->getImplicitObjectArgument()))
         nonDiff = true;
       // In the reverse mode, such functions don't have dfdx()
       if (!utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
