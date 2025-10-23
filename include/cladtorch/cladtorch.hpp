@@ -128,18 +128,18 @@ public:
     return *this;
   }
 
-  // Tensor operator=(Tensor&& other) {
-  //   if (this != &other) {
-  //     delete[] _data;
-  //     _shape = std::move(other._shape);
-  //     _strides = std::move(other._strides);
-  //     _num_elements = other._num_elements;
-  //     _data = other._data;
-  //     other._num_elements = 0;
-  //     other._data = nullptr;
-  //   }
-  //   return *this;
-  // }
+  Tensor& operator=(Tensor&& other) noexcept {
+    if (this != &other) {
+      delete[] _data;
+      _shape = std::move(other._shape);
+      _strides = std::move(other._strides);
+      _num_elements = other._num_elements;
+      _data = other._data;
+      other._num_elements = 0;
+      other._data = nullptr;
+    }
+    return *this;
+  }
 
   // Move constructor
   Tensor(Tensor&& other) noexcept

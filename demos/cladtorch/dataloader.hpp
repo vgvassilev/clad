@@ -90,7 +90,7 @@ private:
   size_t m_total_batch_size_bytes;
   size_t m_local_batch_offset_bytes;
   size_t m_header_bytes;
-  int64_t m_file_size_bytes{};
+  uint64_t m_file_size_bytes{};
 
   bool m_init_ok{};
 
@@ -107,7 +107,7 @@ private:
       throw std::runtime_error("Bad version in data file");
   }
 
-  int64_t load_shard(int shard_index) {
+  uint64_t load_shard(int shard_index) {
     if (m_should_shuffle)
       shard_index = m_shard_indices[shard_index];
 
@@ -205,11 +205,11 @@ public:
     }
 
     // Validate all shards
-    int64_t ntok_total = 0;
-    for (size_t shard_index = 0; shard_index < m_GlobResult.gl_pathc;
+    uint64_t ntok_total = 0;
+    for (size_t shard_index = 0; shard_index < m_glob_result.gl_pathc;
          ++shard_index) {
-      int64_t shard_ntok = load_shard(static_cast<int>(shard_index));
-      if (shard_ntok < static_cast<int64_t>(m_NumProcesses * m_B * m_T + 1))
+      uint64_t shard_ntok = load_shard(static_cast<int>(shard_index));
+      if (shard_ntok < static_cast<uint64_t>(m_num_processes * m_B * m_T + 1))
         throw std::runtime_error("Shard has insufficient tokens");
       ntok_total += shard_ntok;
     }

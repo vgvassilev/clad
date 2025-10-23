@@ -554,7 +554,7 @@ void encoder_forward_pullback(float* out, const int* inp, float* wte,
   encoder_backward(dwte, dwpe, dout, inp, B, T, C);
 }
 void layernorm_forward_pullback(float* out, float* mean, float* rstd,
-                                float* inp, float* weight, float* bias, int B,
+                                float* inp, const float* weight, const float* bias, int B,
                                 int T, int C, float* dout, float* dmean,
                                 float* drstd, float* dinp, float* dweight,
                                 float* dbias, int* dB, int* dT, int* dC) {
@@ -568,7 +568,7 @@ void attention_forward_pullback(float* out, float* preatt, float* att,
                                 int* dNH) {
   attention_backward(dinp, dpreatt, datt, dout, inp, att, B, T, C, NH);
 }
-void residual_forward_pullback(float* out, float* inp1, float* inp2, int N,
+void residual_forward_pullback(float* out, const float* inp1, const float* inp2, int N,
                                float* dout, float* dinp1, float* dinp2,
                                int* dN) {
   residual_backward(dinp1, dinp2, dout, N);
@@ -799,7 +799,7 @@ struct GPT2 {
                    // the mean loss
 
   GPT2(const char* checkpoint_path)
-      : config(checkpoint_path), params(config), num_parameters(0), batch_size(0), seq_len(0), mean_loss(-1.0F), num_activations(0) {
+      : config(checkpoint_path), params(config), num_parameters(0), num_activations(0), batch_size(0), seq_len(0), mean_loss(-1.0F) {
     FILE* model_file = gpt2::utils::fopen_check(checkpoint_path, /*mode=*/"rb");
     int model_header[256];
     gpt2::utils::fread_check(model_header, sizeof(int), /*nmemb=*/256, model_file);
@@ -813,7 +813,7 @@ struct GPT2 {
   }
   
   // -1.0F will designate no loss
-  GPT2(GPT2Config config) : config(config), params(config), num_parameters(0), batch_size(0), seq_len(0), mean_loss(-1.0F), num_activations(0) {
+  GPT2(GPT2Config config) : config(config), params(config), num_parameters(0), num_activations(0), batch_size(0), seq_len(0), mean_loss(-1.0F) {
     // count the number of parameters
     for (size_t size : this->params.sizes)
       num_parameters += size;
@@ -841,7 +841,7 @@ struct GPT2 {
   // NOLINTNEXTLINE: not const because it modifies the object
   void update(const GPT2* d_model, const float lr) {
 #pragma omp simd
-    for (int i = 0; i < num_parameters; i++)
+    for (size_t i = 0; i < num_parameters; i++)
       params.memory[i] -= lr * d_model->params.memory[i];
   }
 

@@ -170,7 +170,7 @@ public:
 
   FTensor forward(const ITensor& input, const ITensor& input_pos) const {
     auto x = encoder.forward(input, input_pos);
-    for (int i = 0; i < blocks.size(); i++) {
+    for (size_t i = 0; i < blocks.size(); i++) {
       auto block_out = blocks[i].forward(x);
       x = block_out;
     }
