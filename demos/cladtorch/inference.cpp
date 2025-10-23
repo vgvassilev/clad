@@ -1,6 +1,7 @@
 #include "llm.hpp"
 #include "tokenizer.hpp"
 #include <iomanip>
+#include <iostream>
 using namespace gpt2;
 
 uint32_t random_u32(uint64_t* state) {
@@ -16,10 +17,10 @@ float random_f32(uint64_t* state) {
   return (random_u32(state) >> 8) / 16777216.0f;
 }
 
-int sample_mult(float* probs, int n, float coin) {
+int sample_mult(const float* probs, int n, float coin) {
   // sample index from probs (they must sum to 1!)
   // coin is a random number in [0, 1), usually from random_f32()
-  float cdf = 0.0f;
+  float cdf = 0.0F;
   for (int i = 0; i < n; i++) {
     cdf += probs[i];
     if (coin < cdf)
@@ -44,8 +45,9 @@ int main() {
 
   std::cout << "generating:\n---\n";
   std::cerr << std::setprecision(4);
-  struct timespec start, end; // timers for benchmarking per token
-  // clock_gettime(CLOCK_MONOTONIC, &start);
+  struct timespec start{};
+  struct timespec end{}; // timers for benchmarking per token
+
   for (int t = 1; t < gen_max_length; t++) {
     clock_gettime(CLOCK_MONOTONIC, &start);
     auto probs_t = model.forward(gen_tokens);
@@ -67,11 +69,5 @@ int main() {
     tokenizer.safe_print(next_token);
     std::cout << std::flush;
   }
-  // clock_gettime(CLOCK_MONOTONIC, &end);
-  // double time_taken = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec -
-  // start.tv_nsec) / 1e6; std::cerr << "\nTime taken: " << time_taken << " ms
-  // for " << gen_max_length - 1
-  //           << " tokens, " << (gen_max_length - 1) / (time_taken / 1000.0) <<
-  //           " tokens/sec\n";
   std::cout << "\n---\n";
 }

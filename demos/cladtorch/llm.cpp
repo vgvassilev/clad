@@ -4,22 +4,24 @@ This file trains the GPT-2 model.
 #include "llm_opt.hpp"
 #include "tokenizer.hpp"
 
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays)
+
 // sampler
 unsigned int random_u32(uint64_t* state) {
   // xorshift rng: https://en.wikipedia.org/wiki/Xorshift#xorshift.2A
   *state ^= *state >> 12;
   *state ^= *state << 25;
   *state ^= *state >> 27;
-  return (*state * 0x2545F4914F6CDD1Dull) >> 32;
+  return (*state * 0x2545F4914F6CDD1DULL) >> 32;
 }
 float random_f32(uint64_t* state) { // random float32 in [0,1)
-  return (random_u32(state) >> 8) / 16777216.0f;
+  return static_cast<float>(random_u32(state) >> 8) / 16777216.0F;
 }
 
-int sample_mult(float* probabilities, int n, float coin) {
+int sample_mult(const float* probabilities, int n, float coin) {
   // sample index from probabilities (they must sum to 1!)
   // coin is a random number in [0, 1), usually from random_f32()
-  float cdf = 0.0f;
+  float cdf = 0.0F;
   for (int i = 0; i < n; i++) {
     cdf += probabilities[i];
     if (coin < cdf)
@@ -36,19 +38,18 @@ float gpt2forw(GPT2* model, const int* inputs, const int* targets) {
 // ----------------------------------------------------------------------------
 // main training loop
 int main() {
-
   // build the GPT-2 model from a checkpoint
-  GPT2 model("gpt2_124M.bin");
-  GPT2 d_model("gpt2_124M.bin");
+  GPT2 model(/*checkpoint_path=*/"gpt2_124M.bin");
+  GPT2 d_model(/*checkpoint_path=*/"gpt2_124M.bin");
 
-  printf("[GPT-2]\n");
-  printf("max_seq_len: %d\n", model.config.max_seq_len);
-  printf("vocab_size: %d\n", model.config.vocab_size);
-  printf("padded_vocab_size: %d\n", model.config.padded_vocab_size);
-  printf("num_layers: %d\n", model.config.num_layers);
-  printf("num_heads: %d\n", model.config.num_heads);
-  printf("channels: %d\n", model.config.channels);
-  printf("num_parameters: %zu\n", model.num_parameters);
+  std::cout << "[GPT-2]\n";
+  std::cout << "max_seq_len: " << model.config.max_seq_len << "\n";
+  std::cout << "vocab_size: " << model.config.vocab_size << "\n";
+  std::cout << "padded_vocab_size: " << model.config.padded_vocab_size << "\n";
+  std::cout << "num_layers: " << model.config.num_layers << "\n";
+  std::cout << "num_heads: " << model.config.num_heads << "\n";
+  std::cout << "channels: " << model.config.channels << "\n";
+  std::cout << "num_parameters: " << model.num_parameters << "\n";
 
   // build the DataLoaders from tokens files. for now use tiny_shakespeare if
   // available, else tiny_stories
@@ -70,15 +71,20 @@ int main() {
   std::string val_tokens = access(tiny_shakespeare_val.c_str(), F_OK) != -1
                                ? tiny_shakespeare_val
                                : tiny_stories_val;
-  int B =
-      4; // batch size 4 (i.e. 4 independent token sequences will be trained on)
-  int T = 64; // sequence length 64 (i.e. each sequence is 64 tokens long). must
-              // be <= maxT, which is 1024 for GPT-2
-  gpt2::DataLoader train_loader(train_tokens, B, T, 0, 1, true);
-  gpt2::DataLoader val_loader(val_tokens, B, T, 0, 1, false);
-  printf("train dataset num_batches: %zu\n",
-         train_loader.num_tokens() / (B * T));
-  printf("val dataset num_batches: %zu\n", val_loader.num_tokens() / (B * T));
+  // batch size 4 (i.e. 4 independent token sequences will be trained on)
+  int B = 4;
+  // sequence length 64 (i.e. each sequence is 64 tokens long). must be <= maxT,
+  // which is 1024 for GPT-2
+  int T = 64;
+  gpt2::DataLoader train_loader(train_tokens, B, T, /*process_rank=*/0,
+                                /*num_processes=*/1, /*should_shuffle=*/true);
+  gpt2::DataLoader val_loader(val_tokens, B, T, /*process_rank=*/0,
+                              /*num_processes=*/1, /*should_shuffle=*/false);
+
+  std::cout << "train dataset num_batches: "
+            << train_loader.num_tokens() / (B * T) << std::endl;
+  std::cout << "val dataset num_batches: " << val_loader.num_tokens() / (B * T)
+            << std::endl;
   int val_num_batches = 5;
 
   auto grad = clad::gradient(gpt2forw, "0");
@@ -98,19 +104,20 @@ int main() {
   const int genT = 64; // number of steps of inference we will do
 
   // train
-  struct timespec start, end;
+  struct timespec start {};
+  struct timespec end {};
   for (int step = 0; step <= 40; step++) {
     // once in a while estimate the validation loss
     if (step % 10 == 0) {
-      float val_loss = 0.0f;
+      float val_loss = 0.0F;
       val_loader.reset();
       for (int i = 0; i < val_num_batches; i++) {
         val_loader.next_batch();
         model.forward(val_loader.inputs(), val_loader.targets());
         val_loss += model.mean_loss;
       }
-      val_loss /= val_num_batches;
-      printf("val loss %f\n", val_loss);
+      val_loss /= static_cast<float>(val_num_batches);
+      std::cout << "val loss " << val_loss << "\n";
     }
 
     // once in a while do model inference to print generated text
@@ -118,13 +125,13 @@ int main() {
       // fill up gen_tokens with the GPT2_EOT, which kicks off the generation
       gen_tokens.assign(B * T, tokenizer.eot_token());
       // now sample from the model autoregressively
-      printf("generating:\n---\n");
+      std::cout << "generating:\n---\n";
       for (int t = 1; t < genT; t++) {
         // note that inference is very wasteful here because for each token
         // we re-calculate the forward pass for all of (B,T) positions from
         // scratch but the inference here is just for sanity checking anyway and
         // we can maybe optimize a bit more later, with careful tests
-        model.forward(gen_tokens.data(), nullptr);
+        model.forward(gen_tokens.data(), /*targets=*/nullptr);
         // furthermore, below we're only using b=0 (i.e. the first row) of all B
         // rows we're in principle running B "inference streams" in parallel
         // here but only using position 0 get the Vp-dimensional vector probs[0,
@@ -140,7 +147,7 @@ int main() {
         tokenizer.safe_print(next_token);
         fflush(stdout);
       }
-      printf("\n---\n");
+      std::cout << "\n---\n";
     }
 
     // do a training step
@@ -149,12 +156,15 @@ int main() {
     d_model.zero_all();
     grad.execute(&model, train_loader.inputs(), train_loader.targets(),
                  &d_model);
-    model.update(&d_model, 1e-3f);
+    model.update(&d_model, /*lr=*/1e-3F);
     // gpt2_update(&model, 1e-4f, 0.9f, 0.999f, 1e-8f, 0.0f, step+1);
     clock_gettime(CLOCK_MONOTONIC, &end);
     double time_elapsed_s =
-        (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-    printf("step %d: train loss %f (took %f ms)\n", step, model.mean_loss,
-           time_elapsed_s * 1000);
+        static_cast<double>(end.tv_sec - start.tv_sec) +
+        static_cast<double>(end.tv_nsec - start.tv_nsec) / 1e9;
+    std::cout << "step " << step << ": train loss " << model.mean_loss
+              << " (took " << time_elapsed_s * 1000 << " ms)\n";
   }
 }
+
+// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays)

@@ -17,38 +17,38 @@ private:
   static constexpr uint32_t MAGIC_NUMBER = 20240328;
   static constexpr int HEADER_SIZE = 256;
 
-  uint32_t vocab_size_;
-  std::vector<std::string> token_table_;
-  int eot_token_;
+  uint32_t m_vocab_size = 0;
+  int m_eot_token = 0;
+  std::vector<std::string> m_token_table;
 
   void read_tokenizer_file(FILE* file) {
     // Read header
-    uint32_t header[HEADER_SIZE];
-    if (fread(header, sizeof(uint32_t), HEADER_SIZE, file) != HEADER_SIZE)
+    uint32_t header[HEADER_SIZE]; // NOLINT
+    if (fread(header, sizeof(uint32_t), HEADER_SIZE, file) != HEADER_SIZE) // NOLINT
       throw std::runtime_error("Failed to read tokenizer header");
     if (header[0] != MAGIC_NUMBER)
       throw std::runtime_error("Invalid magic number in tokenizer file");
-    int version = header[1];
-    vocab_size_ = header[2];
+    auto version = header[1];
+    m_vocab_size = header[2];
 
     if (version == 1) {
       // Version 1 didn't include the EOT token id
       // so we assume it is 50256, the EOT in GPT-2
-      if (vocab_size_ != 50257) {
+      if (m_vocab_size != 50257) {
         throw std::runtime_error(
             "Expected vocab_size 50257 for tokenizer version 1");
       }
-      eot_token_ = 50256;
+      m_eot_token = 50256;
     } else if (version == 2)
-      eot_token_ = header[3];
+      m_eot_token = static_cast<int>(header[3]);
     else
       throw std::runtime_error("Unsupported tokenizer version: " +
                                std::to_string(version));
 
     // Read all tokens
-    token_table_.reserve(vocab_size_);
-    for (uint32_t i = 0; i < vocab_size_; ++i) {
-      unsigned char length;
+    m_token_table.reserve(m_vocab_size);
+    for (uint32_t i = 0; i < m_vocab_size; ++i) {
+      unsigned char length = 0;
       if (fread(&length, sizeof(unsigned char), 1, file) != 1)
         throw std::runtime_error("Failed to read token length");
       if (length == 0)
@@ -57,13 +57,12 @@ private:
       std::string token(length, '\0');
       if (fread(token.data(), sizeof(char), length, file) != length)
         throw std::runtime_error("Failed to read token data");
-      token_table_.emplace_back(std::move(token));
+      m_token_table.emplace_back(std::move(token));
     }
   }
 
 public:
-  explicit Tokenizer(const std::string& filename)
-      : vocab_size_(0), eot_token_(0) {
+  explicit Tokenizer(const std::string& filename) {
     load(filename);
   }
   // Disable copy operations for simplicity
@@ -73,6 +72,7 @@ public:
   // Enable move operations
   Tokenizer(Tokenizer&&) = default;
   Tokenizer& operator=(Tokenizer&&) = default;
+  ~Tokenizer() = default;
 
   void load(const std::string& filename) {
     auto file = std::unique_ptr<FILE, decltype(&fclose)>(
@@ -88,7 +88,7 @@ public:
     }
     try {
       read_tokenizer_file(file.get());
-      std::cerr << "Tokenizer loaded: " << vocab_size_ << " tokens from "
+      std::cerr << "Tokenizer loaded: " << m_vocab_size << " tokens from "
                 << filename << '\n';
     } catch (const std::exception& e) {
       std::cerr << "Error loading tokenizer: " << e.what() << '\n';
@@ -97,17 +97,17 @@ public:
   }
 
   std::string decode(uint32_t token_id) const {
-    if (token_id >= vocab_size_)
+    if (token_id >= m_vocab_size)
       throw std::runtime_error("Invalid token id: " + std::to_string(token_id));
-    return token_table_[token_id];
+    return m_token_table[token_id];
   }
 
   void safe_print(uint32_t token_id) const {
-    if (token_id >= vocab_size_) {
+    if (token_id >= m_vocab_size) {
       std::cerr << "Invalid token id " << token_id << "!\n";
       return;
     }
-    const std::string& token = token_table_[token_id];
+    const std::string& token = m_token_table[token_id];
     if (token.empty())
       return;
     // Handle individual byte tokens
@@ -120,8 +120,8 @@ public:
   }
 
   // Getters
-  uint32_t vocab_size() const { return vocab_size_; }
-  int eot_token() const { return eot_token_; }
+  uint32_t vocab_size() const { return m_vocab_size; }
+  int eot_token() const { return m_eot_token; }
 };
 
 } // namespace gpt2
