@@ -3390,25 +3390,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   Expr* ReverseModeVisitor::BuildArrayAssignment(Expr* output, Expr* input,
                                                  direction d) {
-    // Build `type (&&_t0)[N] = input;`
-    QualType storeTy = input->getType();
-    if (input->isLValue())
-      storeTy = m_Context.getLValueReferenceType(storeTy);
-    else
-      storeTy = m_Context.getRValueReferenceType(storeTy);
-    input = StoreAndRef(input, storeTy, d);
-    llvm::SmallVector<Expr*, 1> argIn = {input};
-    // Build `std::begin(_t0)` and `std::end(_t0)`
-    Expr* beginIn = GetFunctionCall("begin", "std", argIn);
-    Expr* endIn = GetFunctionCall("end", "std", argIn);
-
     // Build `std::begin(_output)`
     llvm::SmallVector<Expr*, 1> argOut = {output};
     Expr* beginOut = GetFunctionCall("begin", "std", argOut);
 
-    // Build `std::move(std::begin(_t0), std::end(_t0), std::begin(_output));`
-    llvm::SmallVector<Expr*, 1> moveArgs = {beginIn, endIn, beginOut};
-    return GetFunctionCall("move", "std", moveArgs);
+    // Build `clad::move(_input, std::begin(_output));`
+    llvm::SmallVector<Expr*, 1> moveArgs = {input, beginOut};
+    return GetFunctionCall("move", "clad", moveArgs);
   }
 
   Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
