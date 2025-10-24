@@ -1356,7 +1356,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         utils::hasMemoryTypeParams(request.Function) && request->isDefined() &&
         E->getDirectCallee();
     bool shouldUseRestoreTracker =
-        utils::shouldUseRestoreTracker(request.Function);
+        utils::shouldUseRestoreTracker(request.Function) && !nonDiff;
     if (!(LookupCustomDerivativeDecl(request) || nonDiff) || requestTBR) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
