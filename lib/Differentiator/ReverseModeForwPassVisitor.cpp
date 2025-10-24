@@ -11,6 +11,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/Basic/LLVM.h"
 
 #include <algorithm>
@@ -67,15 +68,43 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
     beginBlock();
     beginBlock(direction::reverse);
 
+    // If we the differentiated function is a constructor, generate `this`
+    // object and differentiate its inits.
+    Stmt* ctorReturnStmt = nullptr;
+    if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function)) {
+      QualType thisTy = CD->getThisType();
+      StmtDiff thisObj = BuildThisExpr(thisTy);
+      StmtDiff dthisObj = BuildThisExpr(thisTy, /*isDerivedThis=*/true);
+      m_ThisExprDerivative = dthisObj.getExpr();
+      addToCurrentBlock(dthisObj.getStmt_dx());
+      for (CXXCtorInitializer* CI : CD->inits()) {
+        StmtDiff CI_diff = DifferentiateCtorInit(CI, thisObj.getExpr());
+        addToCurrentBlock(CI_diff.getStmt(), direction::forward);
+        addToCurrentBlock(CI_diff.getStmt_dx(), direction::forward);
+      }
+      // Build `return {*_this, *_d_this};`
+      SourceLocation validLoc{CD->getBeginLoc()};
+      llvm::SmallVector<Expr*, 2> returnArgs = {
+          BuildOp(UO_Deref, thisObj.getExpr()),
+          BuildOp(UO_Deref, dthisObj.getExpr())};
+      Expr* returnInitList =
+          m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
+      ctorReturnStmt = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();
+    }
+
     StmtDiff bodyDiff = Visit(m_DiffReq->getBody());
     Stmt* forward = bodyDiff.getStmt();
 
     for (Stmt* S : ReverseModeVisitor::m_Globals)
       addToCurrentBlock(S);
 
-    if (auto* CS = dyn_cast<CompoundStmt>(forward))
+    if (auto* CS = dyn_cast_or_null<CompoundStmt>(forward))
       for (Stmt* S : CS->body())
         addToCurrentBlock(S);
+    else
+      addToCurrentBlock(forward);
+
+    addToCurrentBlock(ctorReturnStmt);
 
     Stmt* fnBody = endBlock();
     m_Derivative->setBody(fnBody);
@@ -97,8 +126,13 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
 
   std::size_t dParamTypesIdx = m_DiffReq->getNumParams();
 
-  if (const auto* CD = dyn_cast<CXXConversionDecl>(m_DiffReq.Function)) {
-    QualType typeTag = utils::GetCladTagOfType(m_Sema, CD->getConversionType());
+  QualType tagType;
+  if (const auto* CD = dyn_cast<CXXConversionDecl>(m_DiffReq.Function))
+    tagType = CD->getConversionType();
+  else if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function))
+    tagType = CD->getThisType()->getPointeeType();
+  if (!tagType.isNull()) {
+    QualType typeTag = utils::GetCladTagOfType(m_Sema, tagType);
     IdentifierInfo* emptyII = &m_Context.Idents.get("");
     ParmVarDecl* typeTagPVD =
         utils::BuildParmVarDecl(m_Sema, m_Derivative, emptyII, typeTag);
@@ -110,7 +144,7 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
 
   if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
     const CXXRecordDecl* RD = MD->getParent();
-    if (MD->isInstance() && !RD->isLambda()) {
+    if (MD->isInstance() && !RD->isLambda() && !isa<CXXConstructorDecl>(MD)) {
       auto* thisDerivativePVD = utils::BuildParmVarDecl(
           m_Sema, m_Derivative, CreateUniqueIdentifier("_d_this"),
           derivativeFnType->getParamType(dParamTypesIdx));

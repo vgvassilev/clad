@@ -8,6 +8,8 @@
 
 namespace clad {
 
+#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
+
 // zero_init for thrust::device_vector
 template <class T> inline void zero_init(::thrust::device_vector<T>& v) {
   ::thrust::fill(v.begin(), v.end(), T(0)); // NOLINT(misc-include-cleaner)
@@ -16,6 +18,14 @@ template <class T> inline void zero_init(::thrust::device_vector<T>& v) {
 namespace custom_derivatives::class_functions {
 
 // Constructors (reverse mode pullbacks)
+
+template <typename T>
+clad::ValueAndAdjoint<::thrust::device_vector<T>, ::thrust::device_vector<T>>
+constructor_reverse_forw(clad::Tag<::thrust::device_vector<T>>,
+                         typename ::thrust::device_vector<T>::size_type count,
+                         const T& val,
+                         typename ::thrust::device_vector<T>::size_type d_count,
+                         const T& d_val) elidable_reverse_forw;
 
 template <typename T>
 inline void
@@ -28,6 +38,13 @@ constructor_pullback(typename ::thrust::device_vector<T>::size_type count,
     (*d_this)[i] = T(0);
   }
 }
+
+template <typename T>
+clad::ValueAndAdjoint<::thrust::device_vector<T>, ::thrust::device_vector<T>>
+constructor_reverse_forw(clad::Tag<::thrust::device_vector<T>>,
+                         typename ::thrust::device_vector<T>::size_type count,
+                         typename ::thrust::device_vector<T>::size_type d_count)
+    elidable_reverse_forw;
 
 template <typename T>
 inline void
