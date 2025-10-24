@@ -633,7 +633,9 @@ jobs:
           fi
 
           if [[ -n "$HAVE_LLVM" ]]; then
+            set +e
             brew install llvm@${{ matrix.clang-runtime }}
+            set -e
             PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
           else
             # FIXME: Make this generic. Currently this is broken...
