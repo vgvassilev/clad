@@ -296,6 +296,14 @@ bool VariedAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
     m_Varied = false;
     clang::Expr* argExpr = CE->getArg(i);
 
+    QualType parType = parCD[i]->getType();
+    m_Varied = false;
+    if ((utils::isArrayOrPointerType(parType)) ||
+        (parType->isLValueReferenceType())) {
+      m_Marking = true;
+      m_Varied = true;
+    }
+
     TraverseStmt(argExpr);
 
     if (m_Varied) {
@@ -374,8 +382,17 @@ bool VariedAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
 }
 
 bool VariedAnalyzer::TraverseInitListExpr(clang::InitListExpr* ILE) {
-  for (auto* init : ILE->inits())
+  bool hasVariedEntry = false;
+  bool variedBefore = m_Varied;
+  for (auto* init : ILE->inits()) {
+    m_Varied = false;
     TraverseStmt(init);
+    if (m_Varied) {
+      hasVariedEntry = true;
+      markExpr(ILE);
+    }
+  }
+  m_Varied = hasVariedEntry || variedBefore;
   return false;
 }
 
