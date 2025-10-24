@@ -1384,8 +1384,7 @@ double fn21(double x) {
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         double (&&_t1)[3] = {1, x, 2};
-// CHECK-NEXT:         std::move(std::begin(_t1), std::end(_t1), std::begin(arr));
+// CHECK-NEXT:         clad::move({1, x, 2}, std::begin(arr));
 // CHECK-NEXT:         res += arr[0] + arr[1];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
@@ -1415,7 +1414,7 @@ double fn22(double param) {
 // CHECK: void fn22_grad(double param, double *_d_param) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<double{{ ?}}[1]> _t2 = {};
+// CHECK-NEXT:     clad::tape<double{{ ?}}[1]> _t1 = {};
 // CHECK-NEXT:     double _d_arr[1] = {0};
 // CHECK-NEXT:     double arr[1] = {0};
 // CHECK-NEXT:     double _d_out = 0.;
@@ -1423,8 +1422,7 @@ double fn22(double param) {
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 1; i++) {
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         double (&&_t1)[1] = {1.};
-// CHECK-NEXT:         clad::push(_t2, arr) , std::move(std::begin(_t1), std::end(_t1), std::begin(arr));
+// CHECK-NEXT:         clad::push(_t1, arr) , clad::move({1.}, std::begin(arr));
 // CHECK-NEXT:         out += arr[0] * param;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_out += 1;
@@ -1436,9 +1434,8 @@ double fn22(double param) {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             clad::zero_init(_d_arr);
-// CHECK-NEXT:             double &_r0[1] = clad::back(_t2);
-// CHECK-NEXT:             std::move(std::begin(_r0), std::end(_r0), std::begin(arr));
-// CHECK-NEXT:             clad::pop(_t2);
+// CHECK-NEXT:             clad::move(clad::back(_t1), std::begin(arr));
+// CHECK-NEXT:             clad::pop(_t1);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
