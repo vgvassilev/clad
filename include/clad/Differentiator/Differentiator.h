@@ -197,6 +197,23 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
     for (std::size_t i = 0; i < N; ++i)
       zero_init(x[i]);
   }
+
+  // This function is similar to the iterator-based std::move but is designed to
+  // work with CUDA.
+  // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
+  template <class T, size_t N>
+  CUDA_HOST_DEVICE void move(T (&&Input)[N], T* Output) {
+    for (T& elem : Input) {
+      *Output = std::forward<T>(elem);
+      ++Output;
+    }
+  }
+
+  // We cannot use forwarding references
+  template <class T, size_t N>
+  CUDA_HOST_DEVICE void move(T (&Input)[N], T* Output) {
+    move(std::move(Input), Output);
+  }
   // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
   /// Pad the args supplied with nullptr(s) or zeros to match the the num of
