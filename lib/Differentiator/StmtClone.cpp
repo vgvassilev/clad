@@ -549,7 +549,11 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // We should only update references of the declarations that were inside
   // the original function declaration context.
   // Original function = function that we are currently differentiating.
-  if (!DRE->getDecl()->getDeclContext()->Encloses(m_Function))
+  auto* Ctx = DRE->getDecl()->getDeclContext();
+  // Skip the synthetic capture scope (e.g. OpenMP)
+  while (isa<CapturedDecl>(Ctx))
+    Ctx = Ctx->getParent();
+  if (!Ctx->Encloses(m_Function))
     return true;
 
   // Replace the declaration if it is present in `m_DeclReplacements`.
