@@ -74,13 +74,6 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
             break;
           }
         }
-        // OMPParallelForDirective is supported only in Clang 13 or later;
-        // macros are used here just for compilation.
-#if CLANG_VERSION_MAJOR > 12
-        Body = CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema)
-                   .ActOnOpenMPCanonicalLoop(Body.getStmt())
-                   .get();
-#endif
       }
     }
     AssociatedStmt = CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema)
@@ -101,11 +94,21 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
       .get();
 }
 
+StmtDiff BaseForwardModeVisitor::VisitOMPParallelDirective(
+    const clang::OMPParallelDirective* D) {
+  DeclarationNameInfo DirName;
+  CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPDSABlock(
+      OMPD_parallel, DirName, getCurrentScope(), D->getBeginLoc());
+  StmtDiff Res = VisitOMPExecutableDirective(D);
+  CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPDSABlock(Res.getStmt());
+  return Res;
+}
+
 StmtDiff BaseForwardModeVisitor::VisitOMPParallelForDirective(
     const clang::OMPParallelForDirective* D) {
   DeclarationNameInfo DirName;
   CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPDSABlock(
-      llvm::omp::OMPD_parallel_for, DirName, nullptr, D->getBeginLoc());
+      OMPD_parallel_for, DirName, getCurrentScope(), D->getBeginLoc());
   StmtDiff Res = VisitOMPExecutableDirective(D);
   CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPDSABlock(Res.getStmt());
   return Res;

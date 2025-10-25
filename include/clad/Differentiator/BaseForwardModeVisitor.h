@@ -4,9 +4,9 @@
 #include "Compatibility.h"
 #include "VisitorBase.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/OpenMPClause.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
-#include <clang/AST/OpenMPClause.h>
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -126,6 +126,7 @@ public:
   VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);
 
   StmtDiff VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
+  StmtDiff VisitOMPParallelDirective(const clang::OMPParallelDirective* D);
   StmtDiff
   VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
   clang::OMPClause* VisitOMPClause(const clang::OMPClause* S);

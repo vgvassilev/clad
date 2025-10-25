@@ -590,6 +590,7 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
     DRE->setDecl(VD);
     VD->setReferenced();
     VD->setIsUsed();
+    m_Sema.MarkDeclarationsReferencedInExpr(DRE);
   }
   updateType(DRE->getType());
   return true;
