@@ -247,6 +247,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   DerivativeAndOverload ReverseModeVisitor::Derive() {
     assert(m_DiffReq.Function && "Must not be null.");
+    // m_DiffReq->dump();
 
     PrettyStackTraceDerivative CrashInfo(m_DiffReq, m_Blocks, m_Sema,
                                          &m_CurVisitedStmt);

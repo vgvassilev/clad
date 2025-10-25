@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -fno-exceptions -I%S/../../include -oMemberFunctions.out 2>&1 | %filecheck %s
 // RUN: ./MemberFunctions.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -fno-exceptions -I%S/../../include -oMemberFunctions.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -fno-exceptions -I%S/../../include -oMemberFunctions.out
 // RUN: ./MemberFunctions.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

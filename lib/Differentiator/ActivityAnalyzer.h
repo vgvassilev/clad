@@ -4,6 +4,7 @@
 #include "AnalysisBase.h"
 
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -66,6 +67,11 @@ public:
   bool TraverseUnaryOperator(clang::UnaryOperator* UnOp);
   bool TraverseCompoundAssignOperator(clang::CompoundAssignOperator* CAO);
   bool TraverseInitListExpr(clang::InitListExpr* ILE);
+  bool TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE);
+  bool TraverseMemberExpr(clang::MemberExpr* ME);
+  bool TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE);
+  bool TraverseCXXThisExpr(clang::CXXThisExpr* TE);
+  bool TraverseCXXConstructExpr(clang::CXXConstructExpr* CE);
 };
 } // namespace clad
 #endif // CLAD_DIFFERENTIATOR_ACTIVITYANALYZER_H
