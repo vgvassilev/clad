@@ -47,3 +47,17 @@
 // RUN: ./LinearRegression.out | FileCheck -check-prefix CHECK_LINEAR_REGRESSION_EXEC %s
 // CHECK_LINEAR_REGRESSION_EXEC: Running linear regression demo.
 // CHECK_LINEAR_REGRESSION_EXEC: Gradients of loss wrt weights (w): -9 -18 -27 -36 -45 -54 -63 -72 -81 -90
+
+// RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath %cudaldflags -o BoWLogisticRegression.out %S/../../demos/CUDA/BoWLogisticRegression.cu 2>&1 | FileCheck -check-prefix CHECK_BOW_LOGREG %s
+// CHECK_BOW_LOGREG: void logistic_loss_single_grad(
+// CHECK_BOW_LOGREG: void logistic_loss_batch2_prepared_l2_grad(
+// CHECK_BOW_LOGREG: clad::custom_derivatives::thrust::inner_product_pullback
+
+// RUN: ./BoWLogisticRegression.out | FileCheck -check-prefix CHECK_BOW_LOGREG_EXEC %s
+// CHECK_BOW_LOGREG_EXEC: Running minimal logistic regression demo.
+// CHECK_BOW_LOGREG_EXEC: Loss:
+// CHECK_BOW_LOGREG_EXEC: Gradient wrt w:
+// CHECK_BOW_LOGREG_EXEC: Running SGD on 4-doc batch...
+// CHECK_BOW_LOGREG_EXEC: iter4 0: loss4=
+// CHECK_BOW_LOGREG_EXEC: iter4 49: loss4=
+// CHECK_BOW_LOGREG_EXEC: Batch-4 accuracy:
