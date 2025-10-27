@@ -1285,6 +1285,17 @@ double fn34(double x, double y) {
 // CHECK-NEXT:    *_d_x += _d_obj_x.data;
 // CHECK-NEXT:}
 
+double fn35(double x, double y) {
+    double& ref = *(PtrAndValAggr){x, &y}.ptr;
+    return ref;
+}
+
+// CHECK:  void fn35_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      double &_d_ref = *(PtrAndValAggr){0., _d_y}.ptr;
+// CHECK-NEXT:      double &ref = *(PtrAndValAggr){x, &y}.ptr;
+// CHECK-NEXT:      _d_ref += 1;
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1422,4 +1433,7 @@ int main() {
 
     INIT_GRADIENT(fn34);
     TEST_GRADIENT(fn34, /*numOfDerivativeArgs=*/2, -5, 6, &d_i, &d_j);    // CHECK-EXEC: {1.00, 2.00}
+
+    INIT_GRADIENT(fn35);
+    TEST_GRADIENT(fn35, /*numOfDerivativeArgs=*/2, -5, 6, &d_i, &d_j);    // CHECK-EXEC: {0.00, 1.00}
 }

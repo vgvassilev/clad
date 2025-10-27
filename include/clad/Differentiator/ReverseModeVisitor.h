@@ -371,6 +371,7 @@ namespace clad {
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
     virtual StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
+    StmtDiff VisitCompoundLiteralExpr(const clang::CompoundLiteralExpr* CLE);
     StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
     StmtDiff VisitCXXBindTemporaryExpr(const clang::CXXBindTemporaryExpr* BTE);
     StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);

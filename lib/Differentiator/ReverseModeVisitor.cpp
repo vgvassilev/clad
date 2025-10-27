@@ -714,6 +714,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return StmtDiff(Clone(S));
   }
 
+  StmtDiff
+  ReverseModeVisitor::VisitCompoundLiteralExpr(const CompoundLiteralExpr* CLE) {
+    StmtDiff result = Visit(CLE->getInitializer());
+    ParsedType PT = ParsedType::make(CLE->getType());
+    result.updateStmt(
+        m_Sema.ActOnCompoundLiteral(noLoc, PT, noLoc, result.getExpr()).get());
+    result.updateStmtDx(
+        m_Sema.ActOnCompoundLiteral(noLoc, PT, noLoc, result.getExpr_dx())
+            .get());
+    return result;
+  }
+
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,
