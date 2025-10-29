@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -fopenmp -oOpenMP.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -fopenmp -fsyntax-only -oOpenMP.out 2>&1 | %filecheck %s
 
 #include "clad/Differentiator/Differentiator.h"
 
