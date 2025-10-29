@@ -45,6 +45,7 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
@@ -654,7 +655,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           utils::LookupTemplateDeclInCladNamespace(m_Sema, "EnzymeGradient");
 
       TemplateArgumentListInfo TLI{};
-      llvm::APSInt argValue(std::to_string(enzymeRealParams.size()));
+      llvm::APSInt argValue = m_Context.MakeIntValue(enzymeRealParams.size(),
+                                                     m_Context.UnsignedIntTy);
       TemplateArgument TA(m_Context, argValue, m_Context.UnsignedIntTy);
       TLI.addArgument(TemplateArgumentLoc(TA, TemplateArgumentLocInfo()));
 
@@ -671,8 +673,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType enzymeFunctionType =
         m_Sema.BuildFunctionType(QT, enzymeParamsType, noLoc, nameEnzyme,
                                  originalFnType->getExtProtoInfo());
+    SourceLocation loc = m_DiffReq->getLocation();
     FunctionDecl* enzymeCallFD = FunctionDecl::Create(
-        m_Context, fdDeclContext, noLoc, noLoc, nameEnzyme, enzymeFunctionType,
+        m_Context, fdDeclContext, loc, loc, nameEnzyme, enzymeFunctionType,
         m_DiffReq->getTypeSourceInfo(), SC_Extern);
     enzymeCallFD->setParams(enzymeParams);
     Expr* enzymeCall = BuildCallExprToFunction(enzymeCallFD, enzymeArgs);
@@ -689,10 +692,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
         auto* ME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                           BuildDeclRef(gradVD), "d_arr");
-
-        Expr* gradIndex = dyn_cast<Expr>(
-            IntegerLiteral::Create(m_Context, llvm::APSInt(std::to_string(i)),
-                                   m_Context.UnsignedIntTy, noLoc));
+        llvm::APSInt V = m_Context.MakeIntValue(i, m_Context.UnsignedIntTy);
+        Expr* gradIndex = dyn_cast<Expr>(IntegerLiteral::Create(
+            m_Context, V, m_Context.UnsignedIntTy, noLoc));
         Expr* RHSExpr =
             m_Sema.CreateBuiltinArraySubscriptExpr(ME, noLoc, gradIndex, noLoc)
                 .get();

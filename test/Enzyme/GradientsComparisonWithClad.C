@@ -11,7 +11,7 @@ __attribute__((always_inline)) double f_add1(double x, double y) {
   return x + y;
 }
 
-// CHECK: void f_add1_grad_enzyme(double x, double y, double *_d_x, double *_d_y) __attribute__((always_inline)) {
+// CHECK: __attribute__((always_inline)) void f_add1_grad_enzyme(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     clad::EnzymeGradient<2> grad = __enzyme_autodiff_f_add1(f_add1, x, y);
 // CHECK-NEXT:     *_d_x = grad.d_arr[0U];
 // CHECK-NEXT:     *_d_y = grad.d_arr[1U];
