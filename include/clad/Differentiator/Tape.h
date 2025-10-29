@@ -80,9 +80,10 @@ class tape_impl {
     // std::aligned_storage_t<sizeof(T), alignof(T)> raw_data[SLAB_SIZE];
     // For now use the implementation below as above implementation is not
     // supported by c++11
-    alignas(T) char raw_data[SLAB_SIZE * sizeof(T)]{};
+    alignas(T) char raw_data[SLAB_SIZE * sizeof(T)];
+    Slab* prev;
     Slab* next;
-    CUDA_HOST_DEVICE Slab() : next(nullptr) {}
+    CUDA_HOST_DEVICE Slab() : prev(nullptr), next(nullptr) {}
     CUDA_HOST_DEVICE T* elements() {
 #if __cplusplus >= 201703L
       return std::launder(reinterpret_cast<T*>(raw_data));
@@ -95,8 +96,7 @@ class tape_impl {
   // std::aligned_storage_t<sizeof(T), alignof(T)> m_static_buffer[SBO_SIZE];
   // For now use the implementation below as above implementation is not
   // supported by c++11
-  alignas(T) char m_static_buffer[SBO_SIZE * sizeof(T)]{};
-  bool m_using_sbo = true;
+  alignas(T) char m_static_buffer[SBO_SIZE * sizeof(T)];
 
   Slab* m_head = nullptr;
   Slab* m_tail = nullptr;
@@ -151,20 +151,19 @@ public:
       ::new (const_cast<void*>(static_cast<const volatile void*>(
           sbo_elements() + m_size))) T(std::forward<ArgsT>(args)...);
     } else {
-      // Transition to dynamic storage if needed
-      if (m_using_sbo)
-        m_using_sbo = false;
-
+      const auto offset = (m_size - SBO_SIZE) % SLAB_SIZE;
       // Allocate new slab if required
-      if (m_size == m_capacity) {
-        Slab* new_slab = new Slab();
-        if (!m_head)
-          m_head = new_slab;
-        else
-          m_tail->next = new_slab;
-        m_tail = new_slab;
-        m_capacity += SLAB_SIZE;
-      } else if ((m_size - SBO_SIZE) % SLAB_SIZE == 0) {
+      if (!offset) {
+        if (m_size == m_capacity) {
+          Slab* new_slab = new Slab();
+          if (!m_head)
+            m_head = new_slab;
+          else {
+            m_tail->next = new_slab;
+            new_slab->prev = m_tail;
+          }
+          m_capacity += SLAB_SIZE;
+        }
         if (m_size == SBO_SIZE)
           m_tail = m_head;
         else
@@ -173,8 +172,7 @@ public:
 
       // Construct element in-place
       ::new (const_cast<void*>(static_cast<const volatile void*>(
-          m_tail->elements() + ((m_size - SBO_SIZE) % SLAB_SIZE))))
-          T(std::forward<ArgsT>(args)...);
+          m_tail->elements() + offset))) T(std::forward<ArgsT>(args)...);
     }
     m_size++;
   }
@@ -196,12 +194,20 @@ public:
   /// Access last value (must not be empty).
   CUDA_HOST_DEVICE reference back() {
     assert(m_size);
-    return (*this)[m_size - 1];
+    std::size_t index = m_size - 1;
+    if (index < SBO_SIZE)
+      return *(sbo_elements() + index);
+    index = (index - SBO_SIZE) % SLAB_SIZE;
+    return *(m_tail->elements() + index);
   }
 
   CUDA_HOST_DEVICE const_reference back() const {
     assert(m_size);
-    return (*this)[m_size - 1];
+    std::size_t index = m_size - 1;
+    if (index < SBO_SIZE)
+      return *(sbo_elements() + index);
+    index = (index - SBO_SIZE) % SLAB_SIZE;
+    return *(m_tail->elements() + index);
   }
 
   CUDA_HOST_DEVICE reference operator[](std::size_t i) {
@@ -224,14 +230,8 @@ public:
       std::size_t offset = (m_size - SBO_SIZE) % SLAB_SIZE;
       destroy_element(m_tail->elements() + offset);
       if (offset == 0) {
-        Slab* slab = m_head;
-        Slab* prev = m_head;
-        std::size_t idx = (m_size - SBO_SIZE) / SLAB_SIZE;
-        while (idx--) {
-          prev = slab;
-          slab = slab->next;
-        }
-        m_tail = prev;
+        if (m_tail != m_head)
+          m_tail = m_tail->prev;
       }
     }
   }
@@ -298,7 +298,6 @@ private:
     m_tail = nullptr;
     m_size = 0;
     m_capacity = SBO_SIZE;
-    m_using_sbo = true;
   }
 
   template <typename ElTy> void destroy_element(ElTy* elem) { elem->~ElTy(); }
