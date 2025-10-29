@@ -8,6 +8,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
+#include "clang/AST/StmtOpenMP.h"
 
 #include "llvm/ADT/SmallVector.h"
 
@@ -129,7 +130,13 @@ public:
   StmtDiff VisitOMPParallelDirective(const clang::OMPParallelDirective* D);
   StmtDiff
   VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
-  clang::OMPClause* VisitOMPClause(const clang::OMPClause* S);
+  clang::OMPClause* VisitOMPClause(const clang::OMPClause* C);
+  clang::OMPClause* VisitOMPPrivateClause(const clang::OMPPrivateClause* C);
+  clang::OMPClause*
+  VisitOMPFirstprivateClause(const clang::OMPFirstprivateClause* C);
+  clang::OMPClause*
+  VisitOMPLastprivateClause(const clang::OMPLastprivateClause* C);
+  clang::OMPClause* VisitOMPSharedClause(const clang::OMPSharedClause* C);
   clang::OMPClause* VisitOMPReductionClause(const clang::OMPReductionClause* C);
 
   static DeclDiff<clang::StaticAssertDecl>

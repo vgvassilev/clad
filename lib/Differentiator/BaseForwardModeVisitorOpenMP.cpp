@@ -1,16 +1,74 @@
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
-#include <clang/AST/OpenMPClause.h>
-#include <clang/AST/StmtOpenMP.h>
-#include <clang/Basic/OpenMPKinds.h>
-#include <llvm/Frontend/OpenMP/OMP.h.inc>
-#include <llvm/Support/ErrorHandling.h>
+#include "clad/Differentiator/Compatibility.h"
+
+#include "clang/AST/DeclarationName.h"
+#include "clang/AST/OpenMPClause.h"
+#include "clang/AST/Stmt.h"
+#include "clang/AST/StmtOpenMP.h"
+#include "clang/Basic/LLVM.h"
+#include "clang/Basic/OpenMPKinds.h"
+#include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/Sema.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Frontend/OpenMP/OMP.h.inc"
+#include "llvm/Support/ErrorHandling.h"
 
 using namespace clang;
 using namespace llvm::omp;
 
 namespace clad {
-clang::OMPClause* BaseForwardModeVisitor::VisitOMPReductionClause(
-    const clang::OMPReductionClause* C) {
+
+OMPClause*
+BaseForwardModeVisitor::VisitOMPPrivateClause(const OMPPrivateClause* C) {
+  llvm::SmallVector<Expr*, 16> Vars;
+  Vars.reserve(C->varlist_size());
+  for (const auto* Var : CLAD_COMPAT_CLANG20_getvarlist(C)) {
+    Vars.push_back(Visit(Var).getExpr_dx());
+    Vars.push_back(Clone(Var));
+  }
+  return CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPPrivateClause(
+      Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc());
+}
+
+OMPClause* BaseForwardModeVisitor::VisitOMPFirstprivateClause(
+    const OMPFirstprivateClause* C) {
+  llvm::SmallVector<Expr*, 16> Vars;
+  Vars.reserve(C->varlist_size());
+  for (const auto* Var : CLAD_COMPAT_CLANG20_getvarlist(C)) {
+    Vars.push_back(Visit(Var).getExpr_dx());
+    Vars.push_back(Clone(Var));
+  }
+  return CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
+      Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc());
+}
+
+OMPClause* BaseForwardModeVisitor::VisitOMPLastprivateClause(
+    const OMPLastprivateClause* C) {
+  llvm::SmallVector<Expr*, 16> Vars;
+  Vars.reserve(C->varlist_size());
+  for (const auto* Var : CLAD_COMPAT_CLANG20_getvarlist(C)) {
+    Vars.push_back(Visit(Var).getExpr_dx());
+    Vars.push_back(Clone(Var));
+  }
+  return CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPLastprivateClause(
+      Vars, C->getKind(), C->getKindLoc(), C->getColonLoc(), C->getBeginLoc(),
+      C->getLParenLoc(), C->getEndLoc());
+}
+
+OMPClause*
+BaseForwardModeVisitor::VisitOMPSharedClause(const OMPSharedClause* C) {
+  llvm::SmallVector<Expr*, 16> Vars;
+  Vars.reserve(C->varlist_size());
+  for (const auto* Var : CLAD_COMPAT_CLANG20_getvarlist(C)) {
+    Vars.push_back(Visit(Var).getExpr_dx());
+    Vars.push_back(Clone(Var));
+  }
+  return CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPSharedClause(
+      Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc());
+}
+
+OMPClause*
+BaseForwardModeVisitor::VisitOMPReductionClause(const OMPReductionClause* C) {
   llvm::SmallVector<Expr*, 16> Vars;
   Vars.reserve(C->varlist_size());
   for (const auto* Var : CLAD_COMPAT_CLANG20_getvarlist(C)) {
@@ -26,20 +84,27 @@ clang::OMPClause* BaseForwardModeVisitor::VisitOMPReductionClause(
       ReductionIdScopeSpec, NameInfo);
 }
 
-OMPClause* BaseForwardModeVisitor::VisitOMPClause(const OMPClause* S) {
-  if (!S)
+OMPClause* BaseForwardModeVisitor::VisitOMPClause(const OMPClause* C) {
+  if (!C)
     return nullptr;
-
-  switch (S->getClauseKind()) {
+  switch (C->getClauseKind()) {
+  case OMPC_private:
+    return VisitOMPPrivateClause(cast<OMPPrivateClause>(C));
+  case OMPC_firstprivate:
+    return VisitOMPFirstprivateClause(cast<OMPFirstprivateClause>(C));
+  case OMPC_lastprivate:
+    return VisitOMPLastprivateClause(cast<OMPLastprivateClause>(C));
+  case OMPC_shared:
+    return VisitOMPSharedClause(cast<OMPSharedClause>(C));
   case OMPC_reduction:
-    return VisitOMPReductionClause(cast<OMPReductionClause>(S));
+    return VisitOMPReductionClause(cast<OMPReductionClause>(C));
   default:
     llvm_unreachable("Clause is not supported.");
   }
 }
 
 StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
-    const clang::OMPExecutableDirective* D) {
+    const OMPExecutableDirective* D) {
   // Transform the clauses
   llvm::SmallVector<OMPClause*, 16> TClauses;
   ArrayRef<OMPClause*> Clauses = D->clauses();
@@ -82,11 +147,6 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
   }
   DeclarationNameInfo DirName;
   OpenMPDirectiveKind CancelRegion = OMPD_unknown;
-  if (D->getDirectiveKind() == OMPD_cancellation_point)
-    CancelRegion = cast<OMPCancellationPointDirective>(D)->getCancelRegion();
-  else if (D->getDirectiveKind() == OMPD_cancel)
-    CancelRegion = cast<OMPCancelDirective>(D)->getCancelRegion();
-
   return CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema)
       .ActOnOpenMPExecutableDirective(
           D->getDirectiveKind(), DirName, CancelRegion, TClauses,
@@ -95,7 +155,7 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
 }
 
 StmtDiff BaseForwardModeVisitor::VisitOMPParallelDirective(
-    const clang::OMPParallelDirective* D) {
+    const OMPParallelDirective* D) {
   DeclarationNameInfo DirName;
   CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPDSABlock(
       OMPD_parallel, DirName, getCurrentScope(), D->getBeginLoc());
@@ -105,7 +165,7 @@ StmtDiff BaseForwardModeVisitor::VisitOMPParallelDirective(
 }
 
 StmtDiff BaseForwardModeVisitor::VisitOMPParallelForDirective(
-    const clang::OMPParallelForDirective* D) {
+    const OMPParallelForDirective* D) {
   DeclarationNameInfo DirName;
   CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPDSABlock(
       OMPD_parallel_for, DirName, getCurrentScope(), D->getBeginLoc());
