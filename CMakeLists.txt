@@ -213,7 +213,6 @@ include_directories(SYSTEM ${CLANG_INCLUDE_DIRS})
 include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
 
 ## Code Coverage Configuration
-add_library(coverage_config INTERFACE)
 option(CLAD_CODE_COVERAGE "Enable coverage reporting" OFF)
 if(CLAD_CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
