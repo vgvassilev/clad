@@ -27,6 +27,8 @@ namespace clad {
 /// Used to compute derivatives by clad::differentiate.
 class BaseForwardModeVisitor
     : public clang::ConstStmtVisitor<BaseForwardModeVisitor, StmtDiff>,
+      public clang::ConstOMPClauseVisitor<BaseForwardModeVisitor,
+                                          clang::OMPClause*>,
       public VisitorBase {
   unsigned m_IndependentVarIndex = ~0;
 
@@ -53,6 +55,11 @@ public:
       std::terminate();
 #endif // NDEBUG
     return clang::ConstStmtVisitor<BaseForwardModeVisitor, StmtDiff>::Visit(S);
+  }
+
+  clang::OMPClause* Visit(const clang::OMPClause* C) {
+    return clang::ConstOMPClauseVisitor<BaseForwardModeVisitor,
+                                        clang::OMPClause*>::Visit(C);
   }
 
   virtual void ExecuteInsidePushforwardFunctionBlock() {}

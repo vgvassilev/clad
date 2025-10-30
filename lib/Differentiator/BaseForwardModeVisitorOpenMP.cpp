@@ -11,7 +11,6 @@
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Frontend/OpenMP/OMP.h.inc"
-#include "llvm/Support/ErrorHandling.h"
 
 using namespace clang;
 using namespace llvm::omp;
@@ -84,25 +83,6 @@ BaseForwardModeVisitor::VisitOMPReductionClause(const OMPReductionClause* C) {
       ReductionIdScopeSpec, NameInfo);
 }
 
-OMPClause* BaseForwardModeVisitor::VisitOMPClause(const OMPClause* C) {
-  if (!C)
-    return nullptr;
-  switch (C->getClauseKind()) {
-  case OMPC_private:
-    return VisitOMPPrivateClause(cast<OMPPrivateClause>(C));
-  case OMPC_firstprivate:
-    return VisitOMPFirstprivateClause(cast<OMPFirstprivateClause>(C));
-  case OMPC_lastprivate:
-    return VisitOMPLastprivateClause(cast<OMPLastprivateClause>(C));
-  case OMPC_shared:
-    return VisitOMPSharedClause(cast<OMPSharedClause>(C));
-  case OMPC_reduction:
-    return VisitOMPReductionClause(cast<OMPReductionClause>(C));
-  default:
-    llvm_unreachable("Clause is not supported.");
-  }
-}
-
 StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
     const OMPExecutableDirective* D) {
   // Transform the clauses
@@ -113,7 +93,7 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
     if (I) {
       CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPClause(
           I->getClauseKind());
-      OMPClause* Clause = VisitOMPClause(I);
+      OMPClause* Clause = Visit(I);
       CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPClause();
       if (Clause)
         TClauses.push_back(Clause);
