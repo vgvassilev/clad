@@ -97,8 +97,6 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
       CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPClause();
       if (Clause)
         TClauses.push_back(Clause);
-    } else {
-      TClauses.push_back(nullptr);
     }
   }
   StmtDiff AssociatedStmt;
