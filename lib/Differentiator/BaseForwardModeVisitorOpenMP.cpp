@@ -12,6 +12,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Frontend/OpenMP/OMP.h.inc"
 
+#include <cassert>
+
 using namespace clang;
 using namespace llvm::omp;
 
@@ -90,14 +92,13 @@ StmtDiff BaseForwardModeVisitor::VisitOMPExecutableDirective(
   ArrayRef<OMPClause*> Clauses = D->clauses();
   TClauses.reserve(Clauses.size());
   for (auto* I : Clauses) {
-    if (I) {
-      CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPClause(
-          I->getClauseKind());
-      OMPClause* Clause = Visit(I);
-      CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPClause();
-      if (Clause)
-        TClauses.push_back(Clause);
-    }
+    assert(I);
+    CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPClause(
+        I->getClauseKind());
+    OMPClause* Clause = Visit(I);
+    CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPClause();
+    assert(Clause);
+    TClauses.push_back(Clause);
   }
   StmtDiff AssociatedStmt;
   if (D->hasAssociatedStmt() && D->getAssociatedStmt()) {
