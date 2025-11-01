@@ -51,6 +51,9 @@ namespace clad {
   /// Used to compute derivatives by clad::gradient.
   class ReverseModeVisitor
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
+        public clang::ConstOMPClauseVisitor<
+            ReverseModeVisitor,
+            std::pair<clang::OMPClause*, clang::OMPClause*>>,
         public VisitorBase {
   protected:
     // FIXME: We should remove friend-dependency of the plugin classes here.
@@ -78,6 +81,9 @@ namespace clad {
     Stmts m_Globals;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
+    /// A flag indicating if the Stmt we are currently visiting is inside an
+    /// OpenMP parallel region.
+    bool isInsideOMPBlock = false;
     /// Output variable of vector-valued function
     std::string outputArrayStr;
     std::vector<Stmts> m_LoopBlock;
@@ -129,6 +135,13 @@ namespace clad {
       if (push)
         m_Stack.pop();
       return result;
+    }
+
+    std::pair<clang::OMPClause*, clang::OMPClause*>
+    Visit(const clang::OMPClause* C) {
+      return clang::ConstOMPClauseVisitor<
+          ReverseModeVisitor,
+          std::pair<clang::OMPClause*, clang::OMPClause*>>::Visit(C);
     }
 
     /// Get the latest block of code (i.e. place for statements output).
@@ -233,7 +246,8 @@ namespace clad {
     /// global scope.
     clang::VarDecl* GlobalStoreImpl(clang::QualType Type,
                                     llvm::StringRef prefix,
-                                    clang::Expr* init = nullptr);
+                                    clang::Expr* init = nullptr,
+                                    clang::StorageClass SC = clang::SC_None);
     /// Creates a (global in the function scope) variable declaration, puts
     /// it into m_Globals block (to be inserted into the beginning of fn's
     /// body). Returns reference R to the created declaration. If E is not null,
@@ -440,6 +454,13 @@ namespace clad {
       return StmtDiff{Clone(NS), Clone(NS)};
     }
 
+    std::pair<clang::OMPClause*, clang::OMPClause*>
+    VisitOMPReductionClause(const clang::OMPReductionClause* C);
+    StmtDiff
+    VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
+    StmtDiff
+    VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
+
     /// Helper function that builds `T* _this = malloc(sifeof(T));`
     /// and `free(_this)`.
     ///
@@ -586,6 +607,9 @@ namespace clad {
                                    clang::Stmt* forLoopIncDiff = nullptr,
                                    bool isForLoop = false);
 
+    StmtDiff DifferentiateCanonicalLoop(const clang::ForStmt* S,
+                                        bool isCaptureOnly = false);
+
     /// This class modifies forward and reverse blocks of the loop/switch
     /// body so that `break` and `continue` statements are correctly
     /// handled. `break` and `continue` statements are handled by
@@ -700,6 +724,8 @@ namespace clad {
 
     /// Builds and returns the sequence of derived function parameters.
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
+
+    void MarkDeclThreadPrivate(clang::Decl* decl);
 
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {

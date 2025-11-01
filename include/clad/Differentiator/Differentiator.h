@@ -26,6 +26,9 @@
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 #include <type_traits>
 #include <utility>
 #ifndef __CUDACC__
@@ -796,6 +799,61 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
 
   // Gradient Structure for Reverse Mode Enzyme
   template <unsigned N> struct EnzymeGradient { double d_arr[N]; };
+
+#ifdef _OPENMP
+  void GetStaticSchedule(int lo, int hi, int stride, int* threadlo,
+                         int* threadhi) {
+    assert(stride != 0);
+
+    int low = std::min(lo, hi);
+    int high = std::max(lo, hi);
+    int step = std::abs(stride);
+
+    int trip_count = 0;
+    if (high >= low)
+      trip_count = (high - low) / step + 1;
+    trip_count = std::max(trip_count, 0);
+
+    int nth = omp_get_num_threads();
+    int tid = omp_get_thread_num();
+
+    if (trip_count == 0) {
+      *threadlo = 0;
+      *threadhi = -1;
+      return;
+    }
+
+    if (trip_count < nth) {
+      if (tid < trip_count) {
+        int idx = tid;
+        int val = low + (idx * step);
+        *threadlo = val;
+        *threadhi = val;
+      } else {
+        *threadlo = 0;
+        *threadhi = -1;
+      }
+      return;
+    }
+
+    int chunksize = trip_count / nth;
+    int extras = trip_count % nth;
+    int start_idx = (tid * chunksize) + std::min(tid, extras);
+    int count = chunksize + (tid < extras ? 1 : 0);
+    int end_idx = start_idx + count - 1;
+
+    int start_val = low + (start_idx * step);
+    int end_val = low + (end_idx * step);
+
+    if (stride > 0) {
+      *threadlo = start_val;
+      *threadhi = end_val;
+    } else {
+      *threadlo = end_val;
+      *threadhi = start_val;
+    }
+  }
+#endif
   } // namespace clad
 #endif // CLAD_DIFFERENTIATOR
 
