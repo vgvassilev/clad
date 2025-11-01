@@ -386,22 +386,20 @@ double fn8(double u, double v) {
   return p.first + p.second;
 }
 
-// CHECK: static constexpr void constructor_pullback(double &__{{u1|x}}, double &__{{u2|y}}, std::pair<double, double> *_d_this, double *_d___{{u1|x}}, double *_d___{{u2|y}}) {{.*}}{
-// CHECK-NEXT:      std::pair<double, double> *_this = (std::pair<double, double> *)malloc(sizeof(std::pair<double, double>));
-// CHECK:           clad::ValueAndAdjoint<double &, double &> _t0 = clad::custom_derivatives::std::forward_reverse_forw(__{{u1|x}}, *_d___{{u1|x}}); 
-// CHECK-NEXT:      _this->first = _t0.value;
-// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t1 = clad::custom_derivatives::std::forward_reverse_forw(__{{u2|y}}, *_d___{{u2|y}});
-// CHECK-NEXT:      _this->second = _t1.value;
-// CHECK:           {
-// CHECK-NEXT:          _t1.adjoint += _d_this->second;
-// CHECK-NEXT:          _d_this->second = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _t0.adjoint += _d_this->first;
-// CHECK-NEXT:          _d_this->first = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      free(_this);
-// CHECK-NEXT:  }
+// CHECK: static constexpr void constructor_pullback(double &__{{u1|x}}, double &__{{u2|y}}, std::pair<double, double> *_d_this, double *_d___{{u1|x}}, double *_d___{{u2|y}}){{.*}}{
+// CHECK-NEXT:     std::pair<double, double> *_this = (std::pair<double, double> *)malloc(sizeof(std::pair<double, double>));
+// CHECK:     _this->first = __{{u1|x}};
+// CHECK-NEXT:     _this->second = __{{u2|y}};
+// CHECK:     {
+// CHECK-NEXT:         *_d___{{u2|y}} += _d_this->second;
+// CHECK-NEXT:         _d_this->second = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d___{{u1|x}} += _d_this->first;
+// CHECK-NEXT:         _d_this->first = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     free(_this);
+// CHECK-NEXT: }
 
 // CHECK:  void fn8_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      double _t0 = u;

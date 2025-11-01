@@ -128,9 +128,9 @@ void VariedAnalyzer::setVaried(const clang::Expr* E, bool isVaried) {
       if (curBranch.find(iterVD) == curBranch.end()) {
         if (VarData* data = getVarDataFromDecl(iterVD))
           curBranch[iterVD] = data->copy();
-        // else
-        //   // If this variable was not found in predecessors, add it.
-        //   addVar(iterVD);
+        else
+          // If this variable was not found in predecessors, add it.
+          addVar(iterVD);
       }
 
       VarData* data = getVarDataFromDecl(iterVD);
