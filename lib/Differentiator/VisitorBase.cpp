@@ -690,6 +690,52 @@ namespace clad {
     return call;
   }
 
+  //   Expr* VisitorBase::InstantiateFDWithCustomRule(llvm::StringRef
+  //   name,llvm::StringRef NSname, llvm::MutableArrayRef<clang::Expr*>
+  //   argExprs,
+  //       llvm::ArrayRef<clang::TemplateArgument> templateArgs,
+  // SourceLocation loc){
+  //
+  //     DeclarationName declName = &m_Context.Idents.get(name);
+  //
+  //     clang::LookupResult R(m_Sema, declName, noLoc,
+  //     Sema::LookupOrdinaryName);
+  //
+  //     NamespaceDecl* CladNS = utils::LookupNSD(m_Sema, NSname,
+  //     /*shouldExist=*/true);; CXXScopeSpec CSS; CSS.Extend(m_Context, CladNS,
+  //     loc, loc); m_Sema.LookupQualifiedName(R, CladNS, CSS);
+  //     FunctionTemplateDecl* resFD = nullptr;
+  //     if (!R.empty()) {
+  //       for (clang::NamedDecl *D : R) {
+  //         llvm::errs() << "found decl " << D->getQualifiedNameAsString() <<
+  //         "\n";
+  //
+  //         if (auto *FTD = llvm::dyn_cast<clang::FunctionTemplateDecl>(D)) {
+  //           clang::FunctionDecl *FD = FTD->getTemplatedDecl();
+  //           // FD->dump();
+  //           for(auto i: FD->parameters())
+  //             if(i->getType()->isLValueReferenceType())
+  //              resFD = FTD;
+  //         }
+  //       }
+  //     }
+  // #if CLANG_VERSION_MAJOR < 19
+  //     clang::TemplateArgumentList TL(TemplateArgumentList::OnStack,
+  //     templateArgs);
+  // #else
+  //     auto& TL = *TemplateArgumentList::CreateCopy(m_Context, templateArgs);
+  // #endif
+  //     FunctionDecl* FD = m_Sema.InstantiateFunctionDeclaration(resFD, &TL,
+  //     loc);
+  //
+  // // FD->dump();
+  //      auto j = BuildCallExprToFunction(FD, argExprs,
+  //      /*CUDAExecConfig=*/nullptr,
+  //                                    /*useRefQualifiedThisObj=*/false);
+  //
+  //     return j;
+  //   }
+
   Expr* VisitorBase::BuildCallExprToCladFunction(
       llvm::StringRef name, llvm::MutableArrayRef<clang::Expr*> argExprs,
       llvm::ArrayRef<clang::TemplateArgument> templateArgs,
