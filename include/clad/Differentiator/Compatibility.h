@@ -15,6 +15,9 @@
 #include "clang/Basic/Version.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
+#if CLANG_VERSION_MAJOR > 18
+#include "clang/Sema/SemaOpenMP.h"
+#endif
 
 namespace clad_compat {
 
@@ -48,11 +51,33 @@ using namespace llvm;
 #define CLAD_COMPAT_CLANG21_TemplateKeywordParam
 #endif
 
+// clang-21 OpenMPReductionClauseModifiers  got extra argument
+#if CLANG_VERSION_MAJOR < 21
+#define CLAD_COMPAT_CLANG21_getModifier(Clause) (Clause)->getModifier()
+#else
+#define CLAD_COMPAT_CLANG21_getModifier(Clause)                                \
+  {(Clause)->getModifier(), (Clause)->getOriginalSharingModifier()}
+#endif
+
+// clang-20 Clause varlist typo
+#if CLANG_VERSION_MAJOR < 20
+#define CLAD_COMPAT_CLANG20_getvarlist(Clause) (Clause)->varlists()
+#else
+#define CLAD_COMPAT_CLANG20_getvarlist(Clause) (Clause)->varlist()
+#endif
+
 // clang-20 clang::Sema::AA_Casting became scoped
 #if CLANG_VERSION_MAJOR < 20
 #define CLAD_COMPAT_CLANG20_SemaAACasting clang::Sema::AA_Casting
 #else
 #define CLAD_COMPAT_CLANG20_SemaAACasting clang::AssignmentAction::Casting
+#endif
+
+// clang-19 SemaOpenMP was introduced
+#if CLANG_VERSION_MAJOR < 19
+#define CLAD_COMPAT_CLANG19_SemaOpenMP(Sema) (Sema)
+#else
+#define CLAD_COMPAT_CLANG19_SemaOpenMP(Sema) ((Sema).OpenMP())
 #endif
 
 // clang-18 CXXThisExpr got extra argument
