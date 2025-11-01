@@ -21,6 +21,7 @@
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
@@ -35,6 +36,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Basic/TypeTraits.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Ownership.h"
@@ -1740,8 +1742,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return {call, callDiff};
     }
 
-    auto NArgs = FD->getNumParams();
     SourceLocation Loc = CE->getExprLoc();
+    bool shouldWrapInStdMove = false;
+    bool isCastSem = false;
+    if (clang::AnalysisDeclContext::isInStdNamespace(FD) &&
+        FDName == "forward") {
+      isCastSem = true;
+      if (!FD->getReturnType()->isLValueReferenceType())
+        shouldWrapInStdMove = true;
+    }
+
+    auto NArgs = FD->getNumParams();
 
     // Cloned original args
     llvm::SmallVector<Expr*, 16> CallArgs{};
@@ -1777,8 +1788,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         clad::utils::ComputeEffectiveFnName(FD);
     FunctionDecl* calleeFnForwPassFD = FindDerivedFunction(calleeFnForwPassReq);
     bool elideReverseForw =
-        calleeFnForwPassFD &&
-        utils::hasElidableReverseForwAttribute(calleeFnForwPassFD);
+        (calleeFnForwPassFD &&
+         utils::hasElidableReverseForwAttribute(calleeFnForwPassFD)) ||
+        isCastSem;
     bool usingRestoreTracker = false;
     QualType trackerType = utils::GetRestoreTrackerType(m_Sema);
     // We need to check if the last parameter is actually a tracker because
@@ -1919,10 +1931,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           DifferentiateCallArg(arg, PVD, PreCallStmts, /*isNonDiff=*/nonDiff,
                                isa<CUDAKernelCallExpr>(CE));
       CallArgs.push_back(argDiff.getExpr());
+
       if (elideReverseForw && PVD->getType()->isIntegerType())
         revForwAdjointArgs.push_back(argDiff.getExpr());
       else
         revForwAdjointArgs.push_back(argDiff.getRevSweepAsExpr());
+
       CallArgDx.push_back(argDiff.getExpr_dx());
       if (m_DiffReq.shouldBeRecorded(arg))
         hasStoredParams = true;
@@ -2072,15 +2086,28 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     Expr* call = nullptr;
     if (elideReverseForw) {
-      call = BuildCallExprToFunction(FD, CallArgs, CUDAExecConfig);
+      if (!isCastSem)
+        call = BuildCallExprToFunction(FD, CallArgs, CUDAExecConfig);
+      else if (shouldWrapInStdMove) {
+        llvm::SmallVector<Expr*, 1> params{CallArgs[0]};
+        call = GetFunctionCall("move", "std", params);
+      } else {
+        call = CallArgs[0];
+      }
+
       if (MD && MD->isInstance()) {
         revForwAdjointArgs[0] = BuildOp(UO_Deref, revForwAdjointArgs[0]);
         if (isa<UnaryOperator>(revForwAdjointArgs[0]))
           revForwAdjointArgs[0] =
               utils::BuildParenExpr(m_Sema, revForwAdjointArgs[0]);
       }
-      Expr* call_dx =
-          BuildCallExprToFunction(FD, revForwAdjointArgs, CUDAExecConfig);
+      Expr* call_dx = nullptr;
+      if (!isCastSem)
+        call_dx =
+            BuildCallExprToFunction(FD, revForwAdjointArgs, CUDAExecConfig);
+      else
+        call_dx = revForwAdjointArgs[0];
+
       if (Expr* add_assign = BuildDiffIncrement(call_dx)) {
         Stmts& block = getCurrentBlock(direction::reverse);
         it = std::begin(block) + insertionPoint;

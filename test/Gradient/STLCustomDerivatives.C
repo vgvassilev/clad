@@ -300,7 +300,10 @@ double fn23(double *params) {
    double y = foo(x);
    return y;
 }
-
+double fn24(double x){
+   std::pair<double, double> p(x,1);
+   return p.first;
+}
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn1);
@@ -366,6 +369,9 @@ int main() {
     auto dfn23 = clad::gradient(fn23);
     dfn23.execute(x, dx);
     printf("{%.2f, %.2f, %.2f, %.2f}", dx[0], dx[1], dx[2], dx[3]);  // CHECK-EXEC: {24.00, 12.00, 8.00, 6.00}
+
+    INIT_GRADIENT(fn24);
+    TEST_GRADIENT(fn24, /*numOfDerivativeArgs=*/1, 3, &d_i);  // CHECK-EXEC: {1.00}
 }
 
 // CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -1134,3 +1140,32 @@ int main() {
 // CHECK-NEXT:     _d_y += 1;
 // CHECK-NEXT:     foo_pullback(x, _d_y, _d_x);
 // CHECK-NEXT: }
+
+// CHECK: {{.*}}static constexpr void constructor_pullback(double &{{.*}}, int &&{{.*}}, std::pair<double, double> *_d_this, double *{{.*}}, int *{{.*}}){{.*}}{
+// CHECK-NEXT:     std::pair<double, double> *_this = (std::pair<double, double> *)malloc(sizeof(std::pair<double, double>));
+// CHECK:    _this->first = {{.*}};
+// CHECK-NEXT:   _this->second = std::move({{.*}});
+// CHECK:   {
+// CHECK-NEXT:       *{{.*}} += _d_this->second;
+// CHECK-NEXT:       _d_this->second = 0.;
+// CHECK-NEXT:   }
+// CHECK-NEXT:   {
+// CHECK-NEXT:       *{{.*}} += _d_this->first;
+// CHECK-NEXT:       _d_this->first = 0.;
+// CHECK-NEXT:   }
+// CHECK-NEXT:   free(_this);
+// CHECK-NEXT: }
+
+// CHECK: void fn24_grad(double x, double *_d_x) {
+// CHECK-NEXT:    double _t0 = x;
+// CHECK-NEXT:    std::pair<double, double> p(x, 1);
+// CHECK-NEXT:    std::pair<double, double> _d_p(p);
+// CHECK-NEXT:    clad::zero_init(_d_p);
+// CHECK-NEXT:    _d_p.first += 1;
+// CHECK-NEXT:    {
+// CHECK-NEXT:        x = _t0;
+// CHECK-NEXT:        int _r0 = 0;
+// CHECK-NEXT:        std::pair<double, double>::constructor_pullback(x, 1, &_d_p, _d_x, &_r0);
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
+

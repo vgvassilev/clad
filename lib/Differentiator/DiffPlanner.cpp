@@ -34,6 +34,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaDiagnostic.h"
@@ -1221,6 +1222,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           m_TopMostReq->Mode == DiffMode::reverse &&
           utils::canUsePushforwardInRevMode(FD);
 
+      std::string FDName = FD->getNameAsString();
+#if CLANG_VERSION_MAJOR < 16
+      if (clang::AnalysisDeclContext::isInStdNamespace(FD) &&
+          (FDName == "move" || FDName == "forward"))
+        return true;
+#endif
       // FIXME: hessians require second derivatives, i.e. apart from the
       // pushforward, we also need to schedule pushforward_pullback.
       if (m_ParentReq->CustomDerivative ||
@@ -1245,7 +1252,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
 
       // FIXME: Use elidable_reverse_forw
-      std::string FDName = FD->getNameAsString();
       if (request.Mode == DiffMode::pullback &&
           (FDName == "cudaMemcpy" || FDName == "begin" || FDName == "end"))
         return true;

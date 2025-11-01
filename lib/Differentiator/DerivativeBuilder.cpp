@@ -36,7 +36,6 @@
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
-#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
