@@ -21,6 +21,7 @@
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
@@ -35,6 +36,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Basic/TypeTraits.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Ownership.h"
@@ -1730,8 +1732,39 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return {call, callDiff};
     }
 
-    auto NArgs = FD->getNumParams();
+    FunctionDecl* handpickedFD = nullptr;
     SourceLocation Loc = CE->getExprLoc();
+    bool shouldWrapInStdMove = false;
+    if (clang::AnalysisDeclContext::isInStdNamespace(FD) &&
+        FDName == "forward") {
+      const Expr* arg = CE->getArg(0);
+      auto argDRE = dyn_cast<DeclRefExpr>(arg);
+      if (argDRE && argDRE->getDecl()->getType()->isRValueReferenceType()) {
+        shouldWrapInStdMove = true;
+
+        QualType QT = m_Context.getRValueReferenceType(arg->getType());
+        llvm::SmallVector<clang::TemplateArgument, 4> TemplateArgs;
+        TemplateArgs.push_back(clang::TemplateArgument(QT));
+        llvm::ArrayRef<clang::TemplateArgument> ArgsRef =
+            clad_compat::makeArrayRef(TemplateArgs.data(), TemplateArgs.size());
+
+        CXXScopeSpec SS;
+        auto* ForwardLookup =
+            m_Builder
+                .LookupCustomDerivativeOrNumericalDiff("forward_reverse_forw",
+                                                       FD->getDeclContext(), SS)
+                .getRepresentativeDecl();
+#if CLANG_VERSION_MAJOR < 19
+        clang::TemplateArgumentList TL(TemplateArgumentList::OnStack, ArgsRef);
+#else
+        auto& TL = *TemplateArgumentList::CreateCopy(m_Context, TemplateArgs);
+#endif
+        handpickedFD = m_Sema.InstantiateFunctionDeclaration(
+            dyn_cast<FunctionTemplateDecl>(ForwardLookup), &TL, Loc);
+      }
+    }
+
+    auto NArgs = FD->getNumParams();
 
     // Cloned original args
     llvm::SmallVector<Expr*, 16> CallArgs{};
@@ -1763,7 +1796,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
     calleeFnForwPassReq.BaseFunctionName =
         clad::utils::ComputeEffectiveFnName(FD);
-    FunctionDecl* calleeFnForwPassFD = FindDerivedFunction(calleeFnForwPassReq);
+    FunctionDecl* calleeFnForwPassFD = nullptr;
+    if (handpickedFD)
+      calleeFnForwPassFD = handpickedFD;
+    else
+      calleeFnForwPassFD = FindDerivedFunction(calleeFnForwPassReq);
+
     bool elideReverseForw =
         calleeFnForwPassFD &&
         utils::hasElidableReverseForwAttribute(calleeFnForwPassFD);
@@ -1906,11 +1944,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       StmtDiff argDiff =
           DifferentiateCallArg(arg, PVD, PreCallStmts, /*isNonDiff=*/nonDiff,
                                isa<CUDAKernelCallExpr>(CE));
-      CallArgs.push_back(argDiff.getExpr());
+
+      if (shouldWrapInStdMove) {
+        llvm::SmallVector<Expr*, 1> args{argDiff.getExpr()};
+        Expr* wrap = GetFunctionCall("move", "std", args);
+        CallArgs.push_back(wrap);
+      } else
+        CallArgs.push_back(argDiff.getExpr());
+
       if (elideReverseForw && PVD->getType()->isIntegerType())
         revForwAdjointArgs.push_back(argDiff.getExpr());
       else
+
+          if (shouldWrapInStdMove) {
+        llvm::SmallVector<Expr*, 1> args{argDiff.getRevSweepAsExpr()};
+        Expr* wrap = GetFunctionCall("move", "std", args);
+        revForwAdjointArgs.push_back(wrap);
+      } else
         revForwAdjointArgs.push_back(argDiff.getRevSweepAsExpr());
+
       CallArgDx.push_back(argDiff.getExpr_dx());
       if (m_DiffReq.shouldBeRecorded(arg))
         hasStoredParams = true;

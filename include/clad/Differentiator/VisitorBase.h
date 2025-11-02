@@ -474,6 +474,10 @@ namespace clad {
                                  const std::string& nmspace,
                                  llvm::SmallVectorImpl<clang::Expr*>& callArgs);
 
+    // clang::Expr* InstantiateFDWithCustomRule(llvm::StringRef
+    // name,llvm::StringRef NSname, llvm::MutableArrayRef<clang::Expr*>
+    // argExprs, llvm::ArrayRef<clang::TemplateArgument> templateArgs,
+    // clang::SourceLocation loc);
     clang::DeclRefExpr* GetCladTapePushDRE();
 
     clang::Stmt* GetCladZeroInit(llvm::MutableArrayRef<clang::Expr*> args);
