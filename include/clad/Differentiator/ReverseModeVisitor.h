@@ -42,12 +42,36 @@ namespace clad {
   class ErrorEstimationHandler;
   class ExternalRMVSource;
   class MultiplexExternalRMVSource;
+  class ActiveVariableAnalyzer {
+  private:
+    std::set<const clang::VarDecl*> m_ActiveVars;
+    std::set<const clang::Expr*> m_ActiveExprs;
+
+    void markActive(const clang::Expr* E);
+    void markActive(const clang::VarDecl* VD);
+
+  public:
+    /// Analyze function to find active variables
+    void analyze(const clang::FunctionDecl* FD);
+
+    /// Check if variable is active (affects return value)
+    bool isActive(const clang::VarDecl* VD) const {
+      return m_ActiveVars.count(VD) > 0;
+    }
+
+    void clear() {
+      m_ActiveVars.clear();
+      m_ActiveExprs.clear();
+    }
+  };
 
   /// A visitor for processing the function code in reverse mode.
   /// Used to compute derivatives by clad::gradient.
   class ReverseModeVisitor
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
         public VisitorBase {
+  private:
+    ActiveVariableAnalyzer m_ActiveVars;
   protected:
     // FIXME: We should remove friend-dependency of the plugin classes here.
     // For this we will need to separate out AST related functions in

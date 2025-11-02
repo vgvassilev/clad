@@ -66,6 +66,61 @@
 using namespace clang;
 
 namespace clad {
+void ActiveVariableAnalyzer::analyze(const FunctionDecl* FD) {
+  clear();
+  if (!FD || !FD->hasBody())
+    return;
+  // Find return statement(s)
+  struct ReturnFinder : public RecursiveASTVisitor<ReturnFinder> {
+    std::vector<const ReturnStmt*> Returns;
+    bool VisitReturnStmt(const ReturnStmt* RS) {
+      Returns.push_back(RS);
+      return true;
+    }
+  };
+  ReturnFinder Finder;
+  Finder.TraverseStmt(FD->getBody());
+
+  // Mark expressions in return statements as active
+  for (const ReturnStmt* RS : Finder.Returns)
+    if (const Expr* RetVal = RS->getRetValue())
+      markActive(RetVal);
+}
+
+void ActiveVariableAnalyzer::markActive(const Expr* E) {
+  if (!E)
+    return;
+
+  E = E->IgnoreImpCasts();
+
+  if (m_ActiveExprs.count(E))
+    return;
+
+  m_ActiveExprs.insert(E);
+
+  // Handle different expression types
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+    if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+      markActive(VD);
+  } else if (const auto* BO = dyn_cast<BinaryOperator>(E)) {
+    markActive(BO->getLHS());
+    markActive(BO->getRHS());
+  } else if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+    markActive(UO->getSubExpr());
+  } else if (const auto* CE = dyn_cast<CallExpr>(E)) {
+    for (unsigned i = 0; i < CE->getNumArgs(); ++i)
+      markActive(CE->getArg(i));
+  }
+}
+
+void ActiveVariableAnalyzer::markActive(const VarDecl* VD) {
+  if (!VD || m_ActiveVars.count(VD))
+    return;
+  m_ActiveVars.insert(VD);
+
+  if (const Expr* Init = VD->getInit())
+    markActive(Init);
+}
 
 Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   if (E)
@@ -335,6 +390,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       beginScope(Scope::FnScope | Scope::DeclScope);
       m_DerivativeFnScope = getCurrentScope();
       beginBlock();
+
+      m_ActiveVars.analyze(m_DiffReq.Function);
+
       if (m_ExternalSource)
         m_ExternalSource->ActOnStartOfDerivedFnBody(m_DiffReq);
 
@@ -1786,8 +1844,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // derivatives even if there is no `dfdx()` and thus we should call the
     // derived function. In the case of member functions, `implicit`
     // this object is always passed by reference.
-    if (!nonDiff && !dfdx() && !utils::hasMemoryTypeParams(FD))
-      nonDiff = true;
+    if (!nonDiff && !dfdx()){
+      if(!utils::hasMemoryTypeParams(FD))
+        nonDiff = true;
+    }
 
     // If all arguments are constant literals, then this does not contribute to
     // the gradient.
@@ -3023,8 +3083,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // double _d_y = _d_x; double y = x;
     for (auto* D : DS->decls()) {
       if (auto* VD = dyn_cast<VarDecl>(D)) {
+        if (!m_ActiveVars.isActive(VD)) {
+          // This variable is INACTIVE.
+          // Re-create its original declaration and skip differentiation.
+          Expr* originalInit = Visit(VD->getInit(), /*adjoint=*/nullptr).getExpr();
+          auto* newVD = BuildVarDecl(VD->getType(), VD->getName(), originalInit);
+          decls.push_back(newVD);
+          // Skip all the differentiation logic below (promoteToFnScope,declsDiff, etc.) for this inactive variable
+          continue; 
+        }
         DeclDiff<VarDecl> VDDiff;
-
         VDDiff = DifferentiateVarDecl(VD);
 
         // Here, we move the declaration to the function global scope.
