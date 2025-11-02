@@ -1141,7 +1141,7 @@ int main() {
 // CHECK-NEXT:     foo_pullback(x, _d_y, _d_x);
 // CHECK-NEXT: }
 
-// CHECK-NEXT: __attribute__((exclude_from_explicit_instantiation)) __attribute__((abi_tag("ne180100"))) static constexpr void constructor_pullback(double &__u1, int &&__u2, std::pair<double, double> *_d_this, double *_d___u1, int *_d___u2) noexcept((is_nothrow_constructible<first_type, double &>::value && is_nothrow_constructible<second_type, int>::value)) {
+// CHECK: __attribute__((exclude_from_explicit_instantiation)) __attribute__((abi_tag("ne180100"))) static constexpr void constructor_pullback(double &__u1, int &&__u2, std::pair<double, double> *_d_this, double *_d___u1, int *_d___u2) noexcept((is_nothrow_constructible<first_type, double &>::value && is_nothrow_constructible<second_type, int>::value)) {
 // CHECK-NEXT:     std::pair<double, double> *_this = (std::pair<double, double> *)malloc(sizeof(std::pair<double, double>));
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = clad::custom_derivatives::std::forward_reverse_forw(__u1, *_d___u1);
 // CHECK-NEXT:     _this->first = _t0.value;

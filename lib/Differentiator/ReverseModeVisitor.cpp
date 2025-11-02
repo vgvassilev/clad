@@ -21,6 +21,7 @@
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
@@ -35,6 +36,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Basic/TypeTraits.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Ownership.h"
@@ -1747,15 +1749,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             clad_compat::makeArrayRef(TemplateArgs.data(), TemplateArgs.size());
 
         CXXScopeSpec SS;
-        auto ForwardLookup =
+        auto* ForwardLookup =
             m_Builder
-                .LookupCustomDerivativeOrNumericalDiff(
-                    "forward_reverse_forw", FD->getDeclContext(), SS, 1, 1)
+                .LookupCustomDerivativeOrNumericalDiff("forward_reverse_forw",
+                                                       FD->getDeclContext(), SS)
                 .getRepresentativeDecl();
 #if CLANG_VERSION_MAJOR < 19
         clang::TemplateArgumentList TL(TemplateArgumentList::OnStack, ArgsRef);
 #else
-        auto& TL = *TemplateArgumentList::CreateCopy(m_Context, templateArgs);
+        auto& TL = *TemplateArgumentList::CreateCopy(m_Context, TemplateArgs);
 #endif
         handpickedFD = m_Sema.InstantiateFunctionDeclaration(
             dyn_cast<FunctionTemplateDecl>(ForwardLookup), &TL, Loc);
