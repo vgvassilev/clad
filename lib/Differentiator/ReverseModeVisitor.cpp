@@ -408,8 +408,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         auto VDDerivedType = utils::getNonConstType(paramTy, m_Sema);
         VDDerivedType = VDDerivedType.getNonReferenceType();
         Expr* initExpr = nullptr;
+        // We initialize adjoints with original variables as part of
+        // the strategy to maintain the structure of the original variable.
+        // After that, we'll zero-initialize the adjoint. e.g.
+        // ```
+        // std::vector<...> v{x, y, z};
+        // std::vector<...> _d_v{v}; // The length of the vector is preserved
+        // clad::zero_init(_d_v);
+        // ```
+        // Also, if the original is initialized with a zero-constructor, it can
+        // be used for the adjoint as well.
+        const CXXRecordDecl* RD = VDDerivedType->getAsCXXRecordDecl();
+        bool isNonAggrClass = RD && !RD->isAggregate();
         bool isDirectInit = false;
-        if (clad::utils::isTensorLike(m_Sema, VDDerivedType)) {
+        if (isNonAggrClass && utils::isCopyable(RD)) {
           ParmVarDecl* newFuncParam = nullptr;
           for (auto* p : m_Derivative->parameters()) {
             if (p->getName() == param->getName()) {
