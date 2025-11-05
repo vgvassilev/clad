@@ -317,16 +317,34 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
     // relation among them, thus it is safe (correct) to use the corresponding
     // non-reference type for creating the derivatives.
     QualType dParamType = param->getType().getNonReferenceType();
-    // We do not create derived variable for array/pointer parameters.
-    if (!utils::IsDifferentiableType(dParamType) ||
-        utils::isArrayOrPointerType(dParamType))
-      continue;
     Expr* dParam = nullptr;
-    if (dParamType->isRealType()) {
+    if (!utils::IsDifferentiableType(dParamType))
+      continue;
+    // If the parameter type decayed const array type, we can still initialize
+    // it. Therefore, we don't have to produce the error.
+    if (const auto* DT = dyn_cast<DecayedType>(dParamType))
+      dParamType = DT->getOriginalType();
+    if (dParamType->isConstantArrayType()) {
+      if (param == m_IndependentVar)
+        continue;
+      dParam = getZeroInit(dParamType);
+    } else if (dParamType->isRealType()) {
       // If param is independent variable, its derivative is 1, otherwise 0.
       int dValue = (param == m_IndependentVar);
       dParam =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, dValue);
+    } else if (utils::isArrayOrPointerType(dParamType)) {
+      // We cannot initialize a pointer array adjoint ourselves.
+      // Produce an error.
+      if (param != m_IndependentVar &&
+          !utils::GetValueType(dParamType).isConstQualified()) {
+        // FIXME: Use diagnostics style as in #1596
+        diag(DiagnosticsEngine::Error, param->getLocation(),
+             "dependent non-const pointer and array parameters "
+             "are not supported; differentiate w.r.t. '%0' or mark it const",
+             {param->getNameAsString()});
+      }
+      continue;
     }
     // For each function arg, create a variable _d_arg to store derivatives
     // of potential reassignments, e.g.:

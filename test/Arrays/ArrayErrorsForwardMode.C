@@ -14,10 +14,24 @@ double addDoubleArr(Double *arr) { // expected-error {{attempted differentiation
   return arr[0].n + arr[1].n + arr[2].n + arr[3].n;
 }
 
+double nonConstNonDiffArr(double x, double *y) { // expected-error {{dependent non-const pointer and array parameters are not supported; differentiate w.r.t. 'y' or mark it const}}
+    y[0] = 3; // expected-warning {{derivative of an assignment attempts to assign to unassignable expr, assignment ignored}}
+    return x * y[0];
+}
+
+double nonConstNonDiffConstArr(double x, double y[3]) {
+    y[0] = 3;
+    return x * y[0];
+}
+
 int main() {
   clad::differentiate(addArr, "arr[1:2]"); // expected-error {{Forward mode differentiation w.r.t. several parameters at once is not supported, call 'clad::differentiate' for each parameter separately}}
 
   clad::differentiate(addArr, "arr[2:1]"); // expected-error {{Range specified in 'arr[2:1]' is in incorrect format}}
 
   clad::differentiate(addDoubleArr, "arr[1]");
+
+  clad::differentiate(nonConstNonDiffArr, "x");
+
+  clad::differentiate(nonConstNonDiffConstArr, "x");
 }

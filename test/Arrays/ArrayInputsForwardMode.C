@@ -41,7 +41,7 @@ double addArr(const double *arr, int n) {
 //CHECK-NEXT:       return _d_ret;
 //CHECK-NEXT:   }
 
-double numMultIndex(double* arr, size_t n, double x) {
+double numMultIndex(const double* arr, size_t n, double x) {
   // compute x * i, where arr[i] = x
   // if x is not present in arr, return 0
   bool flag = false;
@@ -56,7 +56,7 @@ double numMultIndex(double* arr, size_t n, double x) {
   return flag ? idx * x : 0;
 }
 
-// CHECK:   double numMultIndex_darg2(double *arr, size_t n, double x) {
+// CHECK:   double numMultIndex_darg2(const double *arr, size_t n, double x) {
 // CHECK-NEXT:     size_t _d_n = 0;
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     bool _d_flag = 0;
