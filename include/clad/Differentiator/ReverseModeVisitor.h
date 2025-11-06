@@ -18,10 +18,13 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/OpenMPClause.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Sema/Sema.h"
 
 #include <llvm/ADT/ArrayRef.h>
@@ -33,6 +36,7 @@
 #include <queue>
 #include <stack>
 #include <unordered_map>
+#include <utility>
 
 #ifndef NDEBUG
 #include <exception> // for std::terminate
@@ -607,8 +611,7 @@ namespace clad {
                                    clang::Stmt* forLoopIncDiff = nullptr,
                                    bool isForLoop = false);
 
-    StmtDiff DifferentiateCanonicalLoop(const clang::ForStmt* S,
-                                        bool isCaptureOnly = false);
+    StmtDiff DifferentiateCanonicalLoop(const clang::ForStmt* S);
 
     /// This class modifies forward and reverse blocks of the loop/switch
     /// body so that `break` and `continue` statements are correctly

@@ -12,8 +12,7 @@ using namespace clang;
 using namespace llvm::omp;
 
 namespace clad {
-StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S,
-                                                        bool isCaptureOnly) {
+StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
   // OpenMP canonical loops have the form:
   // for (init-expr; test-expr; incr-expr) structured-block
   // where init-expr: var = lb
@@ -56,6 +55,12 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S,
 
   // Parse condition expression: var < ub, var <= ub, etc.
   // Need to handle implicit casts and other wrappers
+  // Track the original comparison operator to adjust bounds for
+  // GetStaticSchedule
+  BinaryOperatorKind CondOp = BO_LT; // Default
+  bool NeedAdjustUpperBound = false;
+  bool IsReversed = false; // true if pattern is ub > var instead of var < ub
+
   const Expr* CondExpr = Cond->IgnoreImplicitAsWritten();
   if (const auto* BO = dyn_cast<BinaryOperator>(CondExpr)) {
     // Try to match: var relop ub
@@ -65,12 +70,20 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S,
     if (const auto* DRE = dyn_cast<DeclRefExpr>(LHS)) {
       if (DRE->getDecl() == LoopVarDecl) {
         // Pattern: var < ub, var <= ub, var != ub
+        CondOp = BO->getOpcode();
         UpperBound = Clone(BO->getRHS());
+        IsReversed = false;
+        // For < and >, we need closed interval for GetStaticSchedule
+        NeedAdjustUpperBound = (CondOp == BO_LT || CondOp == BO_GT);
       }
     } else if (const auto* DRE = dyn_cast<DeclRefExpr>(RHS)) {
       if (DRE->getDecl() == LoopVarDecl) {
         // Pattern: ub > var, ub >= var, ub != var (reversed)
+        CondOp = BO->getOpcode();
         UpperBound = Clone(BO->getLHS());
+        IsReversed = true;
+        // For > and <, we need closed interval for GetStaticSchedule
+        NeedAdjustUpperBound = (CondOp == BO_GT || CondOp == BO_LT);
       }
     }
   }
@@ -121,6 +134,26 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S,
 
   assert(LoopVarDecl && LowerBound && UpperBound && Stride);
 
+  // Adjust upper bound for GetStaticSchedule if needed
+  // GetStaticSchedule expects a closed interval [lo, hi]
+  // If the original loop uses < or >, we need to adjust the bound
+  Expr* AdjustedUpperBound = UpperBound;
+  if (NeedAdjustUpperBound) {
+    // For increment loops with <: ub should become ub - 1
+    // For decrement loops with >: ub should become ub + 1
+    // For reversed patterns, the logic is inverted
+    Expr* One = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                                  /*val=*/1);
+    if ((CondOp == BO_LT && !IsReversed) || (CondOp == BO_GT && IsReversed)) {
+      // var < ub or ub > var: use ub - 1
+      AdjustedUpperBound = BuildOp(BO_Sub, Clone(UpperBound), One);
+    } else if ((CondOp == BO_GT && !IsReversed) ||
+               (CondOp == BO_LT && IsReversed)) {
+      // var > ub or ub < var: use ub + 1
+      AdjustedUpperBound = BuildOp(BO_Add, Clone(UpperBound), One);
+    }
+  }
+
   // If stride is negative (decrement), negate it for getStaticSchedule
   if (!IsIncrement)
     Stride = BuildOp(UO_Minus, Stride);
@@ -140,7 +173,7 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S,
   // Build call to GetStaticSchedule(lo, hi, stride, &threadlo, &threadhi)
   llvm::SmallVector<Expr*, 5> ScheduleCallArgs;
   ScheduleCallArgs.push_back(LowerBound);
-  ScheduleCallArgs.push_back(UpperBound);
+  ScheduleCallArgs.push_back(AdjustedUpperBound);
   ScheduleCallArgs.push_back(Stride);
   ScheduleCallArgs.push_back(BuildOp(UO_AddrOf, BuildDeclRef(ThreadLoDecl)));
   ScheduleCallArgs.push_back(BuildOp(UO_AddrOf, BuildDeclRef(ThreadHiDecl)));
@@ -237,7 +270,7 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S,
     // Use the chunk variables we already created
     llvm::SmallVector<Expr*, 5> RevScheduleCallArgs;
     RevScheduleCallArgs.push_back(Clone(LowerBound));
-    RevScheduleCallArgs.push_back(Clone(UpperBound));
+    RevScheduleCallArgs.push_back(Clone(AdjustedUpperBound));
     RevScheduleCallArgs.push_back(Clone(Stride));
     RevScheduleCallArgs.push_back(
         BuildOp(UO_AddrOf, BuildDeclRef(RevThreadLoDecl)));
@@ -358,7 +391,7 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
       m_Globals.swap(temp);
       if (isOpenMPLoopDirective(D->getDirectiveKind())) {
         const auto* FS = cast<ForStmt>(CS);
-        DifferentiateCanonicalLoop(FS, /*isCaptureOnly=*/true);
+        DifferentiateCanonicalLoop(FS);
       } else {
         Visit(CS);
       }
