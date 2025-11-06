@@ -1,4 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -fopenmp -fsyntax-only -oOpenMP.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -fopenmp -oOpenMP.out 2>&1 | %filecheck %s
+// REQUIRES: OpenMP
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -20,7 +21,7 @@ double fn1(const double *x, int n) {
 // CHECK-NEXT:          {
 // CHECK-NEXT:              int _t_chunklo0 = 0;
 // CHECK-NEXT:              int _t_chunkhi0 = 0;
-// CHECK-NEXT:              clad::GetStaticSchedule(1, n, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              clad::GetStaticSchedule(1, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
 // CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
 // CHECK-NEXT:                  total += x[i];
 // CHECK-NEXT:              }
@@ -30,7 +31,7 @@ double fn1(const double *x, int n) {
 // CHECK-NEXT:          {
 // CHECK-NEXT:              int _t_chunklo1 = 0;
 // CHECK-NEXT:              int _t_chunkhi1 = 0;
-// CHECK-NEXT:              clad::GetStaticSchedule(1, n, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              clad::GetStaticSchedule(1, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
 // CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_total;
@@ -42,7 +43,7 @@ double fn1(const double *x, int n) {
 
 void fn2(const double *x, int n, double *y) {
   #pragma omp parallel for
-  for (int i = 1; i < n; i++) {
+  for (int i = 1; i <= n; i++) {
     double t = x[i] * x[i];
     y[i] = t * t;
   }

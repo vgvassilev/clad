@@ -14,6 +14,7 @@ config.target_triple = "@LLVM_TARGET_TRIPLE@"
 if config.target_triple == "" :
   config.target_triple = "@TARGET_TRIPLE@"
 config.shlibext = "@TARGET_SHLIBEXT@"
+config.have_openmp = "@OpenMP_FOUND@"
 config.have_enzyme = "@CLAD_ENABLE_ENZYME_BACKEND@"
 config.cuda_path = "@CUDA_ROOT@"
 config.cuda_libdir = "@CUDA_LIBDIR@"
