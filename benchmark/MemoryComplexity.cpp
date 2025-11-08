@@ -66,7 +66,7 @@ void func(clad::tape<T, SBO_SIZE, SLAB_SIZE>& t, T x, int n) {
     clad::push<T, SBO_SIZE, SLAB_SIZE>(t, x);
 
   for (int i = 0; i < n; i++)
-    clad::pop<T, SBO_SIZE, SLAB_SIZE>(t);
+    benchmark::DoNotOptimize(clad::pop<T, SBO_SIZE, SLAB_SIZE>(t));
 }
 
 static void BM_TapeMemory(benchmark::State& state) {
