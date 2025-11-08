@@ -37,6 +37,7 @@
 #include "clang/Basic/Lambda.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Basic/TypeTraits.h"
@@ -1530,8 +1531,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         return StmtDiff(clonedDRE);
 
       clang::Expr* dExpr = it->second;
-      if (auto dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
-        auto dVar = cast<VarDecl>(dVarDRE->getDecl());
+      if (auto* dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
+        auto* dVar = cast<VarDecl>(dVarDRE->getDecl());
         if (dVar->getDeclContext() != m_Sema.CurContext)
           dExpr = BuildDeclRef(dVar, DRE->getQualifier());
       }
