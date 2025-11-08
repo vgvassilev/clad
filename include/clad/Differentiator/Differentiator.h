@@ -803,54 +803,47 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
 #ifdef _OPENMP
   void GetStaticSchedule(int lo, int hi, int stride, int* threadlo,
                          int* threadhi) {
-    assert(stride != 0);
-
-    int low = std::min(lo, hi);
-    int high = std::max(lo, hi);
-    int step = std::abs(stride);
-
-    int trip_count = 0;
-    if (high >= low)
-      trip_count = (high - low) / step + 1;
+    /* Static OpenMP scheduler, identical to what LLVM would use. Each thread
+       gets one chunk of consecutive iterations. The number of iterations per
+       chunk is aproximately trip_count/num_threads. If the trip count can not
+       be evenly divided among threads, the first few threads get one extra
+       iteration. As long as the number of threads stays constant, and when
+       called by the same thread, this subroutine will always return the same
+       threadstart and threadend when given the same imin,imax,istride as input.
+     */
+    assert(stride);
+    /* formula to compute the number of iterations */
+    int trip_count = (hi - lo + stride) / stride;
     trip_count = std::max(trip_count, 0);
 
     int nth = omp_get_num_threads();
     int tid = omp_get_thread_num();
 
-    if (trip_count == 0) {
-      *threadlo = 0;
-      *threadhi = -1;
-      return;
-    }
-
     if (trip_count < nth) {
+      /* fewer iterations than threads. some threads will get one iteration,
+         the other threads will get nothing. */
       if (tid < trip_count) {
-        int idx = tid;
-        int val = low + (idx * step);
-        *threadlo = val;
-        *threadhi = val;
+        /* do one iteration */
+        *threadlo = lo + tid * stride;
+        *threadhi = *threadlo;
       } else {
-        *threadlo = 0;
-        *threadhi = -1;
+        /* do nothing */
+        *threadhi = 0;
+        *threadlo = *threadhi + stride;
       }
-      return;
     }
-
-    int chunksize = trip_count / nth;
-    int extras = trip_count % nth;
-    int start_idx = (tid * chunksize) + std::min(tid, extras);
-    int count = chunksize + (tid < extras ? 1 : 0);
-    int end_idx = start_idx + count - 1;
-
-    int start_val = low + (start_idx * step);
-    int end_val = low + (end_idx * step);
-
-    if (stride > 0) {
-      *threadlo = start_val;
-      *threadhi = end_val;
-    } else {
-      *threadlo = end_val;
-      *threadhi = start_val;
+    /* at least one iteration per thread. since the total number of iterations
+       may not be evenly dividable by the number of threads, there will be a few
+       extra iterations. the first few threads will each get one of those, which
+       results in some offsetts that are applied to the start and end of the
+       chunks. */
+    else {
+      int chunksize = trip_count / nth;
+      int extras = trip_count % nth;
+      int tidextras = (tid < extras) ? tid : extras;
+      int incr = (tid < extras) ? 0 : stride;
+      *threadlo = lo + (tid * chunksize + tidextras) * stride;
+      *threadhi = *threadlo + chunksize * stride - incr;
     }
   }
 #endif
