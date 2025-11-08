@@ -1,10 +1,13 @@
 #include "ConstantFolder.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
+#include "clad/Differentiator/VisitorBase.h"
 
 #include <clang/AST/OpenMPClause.h>
+#include <clang/AST/Stmt.h>
 #include <clang/AST/StmtOpenMP.h>
 #include <clang/Basic/OpenMPKinds.h>
+#include <clang/Sema/Scope.h>
 #include <llvm/Frontend/OpenMP/OMP.h.inc>
 #include <llvm/Support/ErrorHandling.h>
 
@@ -12,6 +15,7 @@ using namespace clang;
 using namespace llvm::omp;
 
 namespace clad {
+// TODO: Support dynamic scheduling
 StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
   // OpenMP canonical loops have the form:
   // for (init-expr; test-expr; incr-expr) structured-block
@@ -343,17 +347,6 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
     assert(ClausePair.second);
     DiffClauses.push_back(ClausePair.second);
   }
-  // We only support a static schedule for now, so it must be used.
-  OrigClauses.push_back(
-      CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPScheduleClause(
-          OMPC_SCHEDULE_MODIFIER_unknown, OMPC_SCHEDULE_MODIFIER_unknown,
-          OMPC_SCHEDULE_static, nullptr, noLoc, noLoc, noLoc, noLoc, noLoc,
-          noLoc, noLoc));
-  DiffClauses.push_back(
-      CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPScheduleClause(
-          OMPC_SCHEDULE_MODIFIER_unknown, OMPC_SCHEDULE_MODIFIER_unknown,
-          OMPC_SCHEDULE_static, nullptr, noLoc, noLoc, noLoc, noLoc, noLoc,
-          noLoc, noLoc));
   StmtDiff AssociatedSDiff;
   if (D->hasAssociatedStmt() && D->getAssociatedStmt()) {
     const auto* CS = D->getInnermostCapturedStmt()->getCapturedStmt();
