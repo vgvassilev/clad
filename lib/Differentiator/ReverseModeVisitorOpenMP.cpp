@@ -311,6 +311,91 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
 }
 
 std::pair<OMPClause*, OMPClause*>
+ReverseModeVisitor::VisitOMPPrivateClause(const OMPPrivateClause* C) {
+  llvm::SmallVector<Expr*, 16> Vars;
+  llvm::SmallVector<Expr*, 16> DiffVars;
+  Vars.reserve(C->varlist_size());
+  DiffVars.reserve(C->varlist_size());
+  for (const auto* Var : CLAD_COMPAT_CLANG20_getvarlist(C)) {
+    DiffVars.push_back(Visit(Var).getExpr_dx());
+    Vars.push_back(Clone(Var));
+  }
+  return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPPrivateClause(
+              Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
+          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPPrivateClause(
+              DiffVars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc())};
+}
+
+std::pair<OMPClause*, OMPClause*>
+ReverseModeVisitor::VisitOMPFirstprivateClause(const OMPFirstprivateClause* C) {
+  llvm::SmallVector<Expr*, 16> Vars;
+  llvm::SmallVector<Expr*, 16> DiffVars;
+  Vars.reserve(C->varlist_size());
+  DiffVars.reserve(C->varlist_size());
+  for (const auto* Var : CLAD_COMPAT_CLANG20_getvarlist(C)) {
+    DiffVars.push_back(Visit(Var).getExpr_dx());
+    Vars.push_back(Clone(Var));
+  }
+  CXXScopeSpec ReductionIdScopeSpec;
+  DeclarationName ReductionOpName =
+      m_Context.DeclarationNames.getCXXOperatorName(clang::OO_Plus);
+  DeclarationNameInfo ReductonId(ReductionOpName, C->getBeginLoc());
+  return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
+              Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
+          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
+              DiffVars,
+              CLAD_COMPAT_CLANG21_createModifier(OMPC_REDUCTION_unknown),
+              C->getBeginLoc(), C->getLParenLoc(), noLoc, noLoc, C->getEndLoc(),
+              ReductionIdScopeSpec, ReductonId)};
+}
+
+std::pair<OMPClause*, OMPClause*>
+ReverseModeVisitor::VisitOMPLastprivateClause(const OMPLastprivateClause* C) {
+  llvm::SmallVector<Expr*, 16> Vars;
+  llvm::SmallVector<Expr*, 16> DiffVars;
+  Vars.reserve(C->varlist_size());
+  DiffVars.reserve(C->varlist_size());
+  for (const auto* Var : CLAD_COMPAT_CLANG20_getvarlist(C)) {
+    DiffVars.push_back(Visit(Var).getExpr_dx());
+    Vars.push_back(Clone(Var));
+  }
+  CXXScopeSpec ReductionIdScopeSpec;
+  DeclarationName ReductionOpName =
+      m_Context.DeclarationNames.getCXXOperatorName(clang::OO_Plus);
+  DeclarationNameInfo ReductonId(ReductionOpName, C->getBeginLoc());
+  return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
+              Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
+          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
+              DiffVars,
+              CLAD_COMPAT_CLANG21_createModifier(OMPC_REDUCTION_unknown),
+              C->getBeginLoc(), C->getLParenLoc(), noLoc, noLoc, C->getEndLoc(),
+              ReductionIdScopeSpec, ReductonId)};
+}
+
+std::pair<OMPClause*, OMPClause*>
+ReverseModeVisitor::VisitOMPSharedClause(const OMPSharedClause* C) {
+  llvm::SmallVector<Expr*, 16> Vars;
+  llvm::SmallVector<Expr*, 16> DiffVars;
+  Vars.reserve(C->varlist_size());
+  DiffVars.reserve(C->varlist_size());
+  for (const auto* Var : CLAD_COMPAT_CLANG20_getvarlist(C)) {
+    DiffVars.push_back(Visit(Var).getExpr_dx());
+    Vars.push_back(Clone(Var));
+  }
+  CXXScopeSpec ReductionIdScopeSpec;
+  DeclarationName ReductionOpName =
+      m_Context.DeclarationNames.getCXXOperatorName(clang::OO_Plus);
+  DeclarationNameInfo ReductonId(ReductionOpName, C->getBeginLoc());
+  return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPSharedClause(
+              Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
+          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
+              DiffVars,
+              CLAD_COMPAT_CLANG21_createModifier(OMPC_REDUCTION_unknown),
+              C->getBeginLoc(), C->getLParenLoc(), noLoc, noLoc, C->getEndLoc(),
+              ReductionIdScopeSpec, ReductonId)};
+}
+
+std::pair<OMPClause*, OMPClause*>
 ReverseModeVisitor::VisitOMPReductionClause(const OMPReductionClause* C) {
   llvm::SmallVector<Expr*, 16> Vars;
   llvm::SmallVector<Expr*, 16> DiffVars;
@@ -330,6 +415,7 @@ ReverseModeVisitor::VisitOMPReductionClause(const OMPReductionClause* C) {
           CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
               DiffVars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc())};
 }
+
 StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
     const OMPExecutableDirective* D) {
   llvm::SmallVector<OMPClause*, 16> OrigClauses;
@@ -412,7 +498,7 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
               .get()};
 }
 StmtDiff ReverseModeVisitor::VisitOMPParallelForDirective(
-    const clang::OMPParallelForDirective* D) {
+    const OMPParallelForDirective* D) {
   DeclarationNameInfo DirName;
   CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPDSABlock(
       OMPD_parallel, DirName, nullptr, D->getBeginLoc());

@@ -459,6 +459,14 @@ namespace clad {
     }
 
     std::pair<clang::OMPClause*, clang::OMPClause*>
+    VisitOMPPrivateClause(const clang::OMPPrivateClause* C);
+    std::pair<clang::OMPClause*, clang::OMPClause*>
+    VisitOMPFirstprivateClause(const clang::OMPFirstprivateClause* C);
+    std::pair<clang::OMPClause*, clang::OMPClause*>
+    VisitOMPLastprivateClause(const clang::OMPLastprivateClause* C);
+    std::pair<clang::OMPClause*, clang::OMPClause*>
+    VisitOMPSharedClause(const clang::OMPSharedClause* C);
+    std::pair<clang::OMPClause*, clang::OMPClause*>
     VisitOMPReductionClause(const clang::OMPReductionClause* C);
     StmtDiff
     VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
