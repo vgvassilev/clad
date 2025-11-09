@@ -224,7 +224,8 @@ public:
 
 private:
   static Config read_config_from_file(FILE* file) {
-    int header[HEADER_SIZE];
+    int header[HEADER_SIZE]; // NOLINT
+    // NOLINTNEXTLINE
     if (fread(header, sizeof(int), HEADER_SIZE, file) != HEADER_SIZE)
       throw std::runtime_error("Failed to read checkpoint header");
 
@@ -275,12 +276,12 @@ public:
     load_weights_from_checkpoint(checkpoint_path);
   }
 
-  ND ITensor get_input_pos(int B, int T) const {
+  ND static ITensor get_input_pos(int B, int T) {
     ITensor input_pos({B, T}); // Create position indices
     for (int b = 0; b < B; ++b)
       for (int t = 0; t < T; ++t)
-        input_pos.data()[b * T + t] =
-            t; // Fill with sequential positions 0, 1, ..., T-1 for each batch
+        input_pos.data()[(b * T) + t] = t; // NOLINT
+    // Fill with sequential positions 0, 1, ..., T-1 for each batch
     return input_pos;
   }
 

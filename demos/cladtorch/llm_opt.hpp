@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -21,7 +22,7 @@
 
 #include "dataloader.hpp"
 
-// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays, misc-definitions-in-headers)
 // ----------------------------------------------------------------------------
 // all the individual layers' forward and backward passes
 // B = batch_size, T = sequence_length, C = channels, V = vocab_size
@@ -36,13 +37,13 @@ void encoder_forward(float* out, const int* inp, float* wte, float* wpe, int B,
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
       // seek to the output position in out[b,t,:]
-      float* out_bt = out + b * T * C + t * C;
+      float* out_bt = out + (b * T * C) + (t * C);
       // get the index of the token at inp[b, t]
-      int ix = inp[b * T + t];
+      int ix = inp[(b * T) + t];
       // seek to the position in wte corresponding to the token
-      float* wte_ix = wte + ix * C;
+      float* wte_ix = wte + (ix * C);
       // seek to the position in wpe corresponding to the position
-      float* wpe_t = wpe + t * C;
+      float* wpe_t = wpe + (t * C);
       // add the two vectors and store the result in out[b,t,:]
       for (int i = 0; i < C; i++)
         out_bt[i] = wte_ix[i] + wpe_t[i];
@@ -54,10 +55,10 @@ void encoder_backward(float* dwte, float* dwpe, float* dout, const int* inp,
                       int B, int T, int C) {
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
-      float* dout_bt = dout + b * T * C + t * C;
-      int ix = inp[b * T + t];
-      float* dwte_ix = dwte + ix * C;
-      float* dwpe_t = dwpe + t * C;
+      float* dout_bt = dout + (b * T * C) + (t * C);
+      int ix = inp[(b * T) + t];
+      float* dwte_ix = dwte + (ix * C);
+      float* dwpe_t = dwpe + (t * C);
       for (int i = 0; i < C; i++) {
         float d = dout_bt[i];
         dwte_ix[i] += d;
@@ -79,7 +80,7 @@ void layernorm_forward(float* out, float* mean, float* rstd, float* inp,
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
       // seek to the input position inp[b,t,:]
-      float* x = inp + b * T * C + t * C;
+      float* x = inp + (b * T * C) + (t * C);
       // calculate the mean
       float m = 0.0F;
       for (int i = 0; i < C; i++)
@@ -95,15 +96,15 @@ void layernorm_forward(float* out, float* mean, float* rstd, float* inp,
       // calculate the rstd (reciprocal standard deviation)
       float s = 1.0F / std::sqrt(v + eps);
       // seek to the output position in out[b,t,:]
-      float* out_bt = out + b * T * C + t * C;
+      float* out_bt = out + (b * T * C) + (t * C);
       for (int i = 0; i < C; i++) {
         float n = (s * (x[i] - m));        // normalize
-        float o = n * weight[i] + bias[i]; // scale and shift
+        float o = (n * weight[i]) + bias[i]; // scale and shift
         out_bt[i] = o;                     // write
       }
       // cache the mean and rstd for the backward pass later
-      mean[b * T + t] = m;
-      rstd[b * T + t] = s;
+      mean[(b * T) + t] = m;
+      rstd[(b * T) + t] = s;
     }
   }
 }
@@ -113,11 +114,11 @@ void layernorm_backward(float* dinp, float* dweight, float* dbias, float* dout,
                         int B, int T, int C) {
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
-      float* dout_bt = dout + b * T * C + t * C;
-      float* inp_bt = inp + b * T * C + t * C;
-      float* dinp_bt = dinp + b * T * C + t * C;
-      float mean_bt = mean[b * T + t];
-      float rstd_bt = rstd[b * T + t];
+      float* dout_bt = dout + (b * T * C) + (t * C);
+      float* inp_bt = inp + (b * T * C) + (t * C);
+      float* dinp_bt = dinp + (b * T * C) + (t * C);
+      float mean_bt = mean[(b * T) + t];
+      float rstd_bt = rstd[(b * T) + t];
 
       // first: two reduce operations
       float dnorm_mean = 0.0F;
@@ -173,7 +174,7 @@ void matmul_forward(float* out, const float* inp, const float* weight,
 #pragma omp parallel for
     for (int bt = 0; bt < B * T; bt++)
       for (int o = 0; o < OC; o++)
-        out[bt * OC + o] += bias[o];
+        out[(bt * OC) + o] += bias[o];
   }
 }
 
@@ -254,23 +255,22 @@ void attention_forward(float* out, float* preatt, float* att, float* inp, int B,
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
       for (int h = 0; h < NH; h++) {
-        float* query_t = inp + b * T * C3 + t * C3 + h * hs;
-        float* preatt_bth = preatt + b * NH * T * T + h * T * T + t * T;
-        float* att_bth = att + b * NH * T * T + h * T * T + t * T;
+        float* query_t = inp + (b * T * C3) + (t * C3) + (h * hs);
+        float* preatt_bth = preatt + (b * NH * T * T) + (h * T * T) + (t * T);
+        float* att_bth = att + (b * NH * T * T) + (h * T * T) + (t * T);
 
         // pass 1: calculate query dot key and maxval
         float maxval = -10000.0F; // TODO something better
         for (int t2 = 0; t2 <= t; t2++) {
           float* key_t2 =
-              inp + b * T * C3 + t2 * C3 + h * hs + C; // +C because it's key
+              inp + (b * T * C3) + (t2 * C3) + (h * hs) + C; // +C because it's key
 
           // (query_t) dot (key_t2)
           float val = 0.0F;
           for (int i = 0; i < hs; i++)
             val += query_t[i] * key_t2[i];
           val *= scale;
-          if (val > maxval)
-            maxval = val;
+          maxval = std::max(val, maxval);
 
           preatt_bth[t2] = val;
         }
@@ -298,12 +298,12 @@ void attention_forward(float* out, float* preatt, float* att, float* inp, int B,
         }
 
         // pass 4: accumulate weighted values into the output of attention
-        float* out_bth = out + b * T * C + t * C + h * hs;
+        float* out_bth = out + (b * T * C) + (t * C) + (h * hs);
         for (int i = 0; i < hs; i++)
           out_bth[i] = 0.0F;
         for (int t2 = 0; t2 <= t; t2++) {
-          float* value_t2 = inp + b * T * C3 + t2 * C3 + h * hs +
-                            C * 2; // +C*2 because it's value
+          // +C*2 because it's value
+          float* value_t2 = inp + (b * T * C3) + (t2 * C3) + (h * hs) + (C * 2);
           float att_btht2 = att_bth[t2];
           for (int i = 0; i < hs; i++)
             out_bth[i] += att_btht2 * value_t2[i];
@@ -325,20 +325,20 @@ void attention_backward(float* __restrict dinp, float* __restrict dpreatt,
     for (int t = 0; t < T; ++t) {
       for (int h = 0; h < NH; ++h) {
         // Pointers for this (b,t,h)
-        float* att_bth = att + ((size_t)b * NH * T + h * T + t) *
-                                   T; // length T, but only 0..t used
-        float* datt_bth = datt + ((size_t)b * NH * T + h * T + t) * T;
-        float* dpreatt_bt = dpreatt + ((size_t)b * NH * T + h * T + t) * T;
+        // length T, but only 0..t used
+        float* att_bth = att + (((size_t)b * NH * T + h * T + t) * T);
+        float* datt_bth = datt + (((size_t)b * NH * T + h * T + t) * T);
+        float* dpreatt_bt = dpreatt + (((size_t)b * NH * T + h * T + t) * T);
 
-        float* q = inp + ((size_t)b * T + t) * C3 + h * hs;   // query_t
-        float* dq = dinp + ((size_t)b * T + t) * C3 + h * hs; // dquery_t
+        float* q = inp + (((size_t)b * T + t) * C3) + (h * hs);   // query_t
+        float* dq = dinp + (((size_t)b * T + t) * C3) + (h * hs); // dquery_t
         float* dout_h =
-            dout + ((size_t)b * T + t) * C + h * hs; // dout head slice
+            dout + (((size_t)b * T + t) * C) + (h * hs); // dout head slice
 
         // Build views K_{<=t}, V_{<=t}, dK_{<=t}, dV_{<=t}
         // Each row corresponds to timestep t2 in 0..t
         auto row_ptr = [&](float* base, int t2, int offset) -> float* {
-          return base + ((size_t)b * T + t2) * C3 + h * hs + offset;
+          return base + (((size_t)b * T + t2) * C3) + (h * hs) + offset;
         };
         float* K0 = inp; // +C offset for keys
         float* V0 = inp; // +2C offset for values
@@ -410,7 +410,7 @@ void attention_backward(float* __restrict dinp, float* __restrict dpreatt,
   }
 }
 
-inline float fast_tanhf(float x) { return 2.F / (1.F + expf(-2.F * x)) - 1.F; }
+inline float fast_tanhf(float x) { return (2.F / (1.F + expf(-2.F * x))) - 1.F; }
 
 void gelu_forward(float* out, const float* inp, int N) {
   const float scale = 0.7978845608028654F; // sqrt(2/pi)
@@ -433,9 +433,9 @@ void gelu_backward(float* dinp, const float* inp, const float* dout, int N) {
     float x2 = x * x;
     float u = s * (x + b * x2 * x);
     float t = fast_tanhf(u);               // tanh(u)
-    float dt = 1.0F - t * t;               // sech^2(u) but via tanh
+    float dt = 1.0F - (t * t);               // sech^2(u) but via tanh
     float du = s * (1.0F + 3.0F * b * x2); // du/dx
-    float local_grad = 0.5F * (1.0F + t) + 0.5F * x * dt * du;
+    float local_grad = (0.5F * (1.0F + t)) + (0.5F * x * dt * du);
     dinp[i] += local_grad * dout[i];
   }
 }
@@ -463,14 +463,13 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
       // probs <- softmax(logits)
-      float* logits_bt = logits + b * T * Vp + t * Vp;
-      float* probs_bt = probs + b * T * Vp + t * Vp;
+      float* logits_bt = logits + (b * T * Vp) + (t * Vp);
+      float* probs_bt = probs + (b * T * Vp) + (t * Vp);
 
       // maxval is only calculated and subtracted for numerical stability
       float maxval = -10000.0F; // TODO something better
       for (int i = 0; i < V; i++)
-        if (logits_bt[i] > maxval)
-          maxval = logits_bt[i];
+        maxval = std::max(logits_bt[i], maxval);
       float sum = 0.0F;
       for (int i = 0; i < V; i++) {
         probs_bt[i] = expf(logits_bt[i] - maxval);
@@ -491,9 +490,9 @@ void softmax_backward(float* dlogits, float* dprobs, float* probs, int B, int T,
   // backwards through softmax
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
-      float* dlogits_bt = dlogits + b * T * Vp + t * Vp;
-      float* dprobs_bt = dprobs + b * T * Vp + t * Vp;
-      float* probs_bt = probs + b * T * Vp + t * Vp;
+      float* dlogits_bt = dlogits + (b * T * Vp) + (t * Vp);
+      float* dprobs_bt = dprobs + (b * T * Vp) + (t * Vp);
+      float* probs_bt = probs + (b * T * Vp) + (t * Vp);
 
       // sum over all outputs. s = sum(dprobs[i] * probs[i])
       float sum = 0.0F;
@@ -515,9 +514,9 @@ void crossentropy_forward(float* losses, float* probs, const int* targets,
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
       // loss = -log(probs[target])
-      float* probs_bt = probs + b * T * Vp + t * Vp;
-      int ix = targets[b * T + t];
-      losses[b * T + t] = -logf(probs_bt[ix]);
+      float* probs_bt = probs + (b * T * Vp) + (t * Vp);
+      int ix = targets[(b * T) + t];
+      losses[(b * T) + t] = -logf(probs_bt[ix]);
     }
   }
 }
@@ -527,10 +526,10 @@ void crossentropy_backward(float* dprobs, const float* dlosses,
   // backwards through crossentropy
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
-      float* dprobs_bt = dprobs + b * T * Vp + t * Vp;
-      const float* probs_bt = probs + b * T * Vp + t * Vp;
-      int ix = targets[b * T + t];
-      float dloss = dlosses[b * T + t];
+      float* dprobs_bt = dprobs + (b * T * Vp) + (t * Vp);
+      const float* probs_bt = probs + (b * T * Vp) + (t * Vp);
+      int ix = targets[(b * T) + t];
+      float dloss = dlosses[(b * T) + t];
       // the gradient of cross-entropy loss w.r.t. the probabilities is:
       // dL/dprobs[i] = -1/probs[i] for i=target, and 0 otherwise
       // so we get this gradient, scaled by dloss
@@ -870,36 +869,36 @@ struct GPT2 {
         residual = acts.residual3 + (l - 1) * B * T * C;
 
       // get the pointers of the weights for this layer
-      float* l_ln1w = params.ln1w + l * C;
-      float* l_ln1b = params.ln1b + l * C;
-      float* l_qkvw = params.qkvw + l * 3 * C * C;
-      float* l_qkvb = params.qkvb + l * 3 * C;
-      float* l_attprojw = params.attprojw + l * C * C;
-      float* l_attprojb = params.attprojb + l * C;
-      float* l_ln2w = params.ln2w + l * C;
-      float* l_ln2b = params.ln2b + l * C;
-      float* l_fcw = params.fcw + l * 4 * C * C;
-      float* l_fcb = params.fcb + l * 4 * C;
-      float* l_fcprojw = params.fcprojw + l * C * 4 * C;
-      float* l_fcprojb = params.fcprojb + l * C;
+      float* l_ln1w = params.ln1w + (l * C);
+      float* l_ln1b = params.ln1b + (l * C);
+      float* l_qkvw = params.qkvw + (l * 3 * C * C);
+      float* l_qkvb = params.qkvb + (l * 3 * C);
+      float* l_attprojw = params.attprojw + (l * C * C);
+      float* l_attprojb = params.attprojb + (l * C);
+      float* l_ln2w = params.ln2w + (l * C);
+      float* l_ln2b = params.ln2b + (l * C);
+      float* l_fcw = params.fcw + (l * 4 * C * C);
+      float* l_fcb = params.fcb + (l * 4 * C);
+      float* l_fcprojw = params.fcprojw + (l * C * 4 * C);
+      float* l_fcprojb = params.fcprojb + (l * C);
 
       // get the pointers of the activations for this layer
-      float* l_ln1 = acts.ln1 + l * B * T * C;
-      float* l_ln1_mean = acts.ln1_mean + l * B * T;
-      float* l_ln1_rstd = acts.ln1_rstd + l * B * T;
-      float* l_qkv = acts.qkv + l * B * T * 3 * C;
-      float* l_atty = acts.atty + l * B * T * C;
-      float* l_preatt = acts.preatt + l * B * NH * T * T;
-      float* l_att = acts.att + l * B * NH * T * T;
-      float* l_attproj = acts.attproj + l * B * T * C;
-      float* l_residual2 = acts.residual2 + l * B * T * C;
-      float* l_ln2 = acts.ln2 + l * B * T * C;
-      float* l_ln2_mean = acts.ln2_mean + l * B * T;
-      float* l_ln2_rstd = acts.ln2_rstd + l * B * T;
-      float* l_fch = acts.fch + l * B * T * 4 * C;
-      float* l_fch_gelu = acts.fch_gelu + l * B * T * 4 * C;
-      float* l_fcproj = acts.fcproj + l * B * T * C;
-      float* l_residual3 = acts.residual3 + l * B * T * C;
+      float* l_ln1 = acts.ln1 + (l * B * T * C);
+      float* l_ln1_mean = acts.ln1_mean + (l * B * T);
+      float* l_ln1_rstd = acts.ln1_rstd + (l * B * T);
+      float* l_qkv = acts.qkv + (l * B * T * 3 * C);
+      float* l_atty = acts.atty + (l * B * T * C);
+      float* l_preatt = acts.preatt + (l * B * NH * T * T);
+      float* l_att = acts.att + (l * B * NH * T * T);
+      float* l_attproj = acts.attproj + (l * B * T * C);
+      float* l_residual2 = acts.residual2 + (l * B * T * C);
+      float* l_ln2 = acts.ln2 + (l * B * T * C);
+      float* l_ln2_mean = acts.ln2_mean + (l * B * T);
+      float* l_ln2_rstd = acts.ln2_rstd + (l * B * T);
+      float* l_fch = acts.fch + (l * B * T * 4 * C);
+      float* l_fch_gelu = acts.fch_gelu + (l * B * T * 4 * C);
+      float* l_fcproj = acts.fcproj + (l * B * T * C);
+      float* l_residual3 = acts.residual3 + (l * B * T * C);
 
       // now do the forward pass
       layernorm_forward(l_ln1, l_ln1_mean, l_ln1_rstd, residual, l_ln1w, l_ln1b,
@@ -969,4 +968,4 @@ struct GPT2 {
 //   }
 // }
 
-// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays)
+// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays, misc-definitions-in-headers)

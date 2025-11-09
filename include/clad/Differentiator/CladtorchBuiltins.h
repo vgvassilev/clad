@@ -7,6 +7,8 @@
 #include <cladtorch/cladtorch.hpp>
 #include <vector>
 
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays, misc-definitions-in-headers, readability-identifier-naming)
+
 namespace clad {
 // specialize the zero_init function for Tensor
 template <typename T> void zero_init(::cladtorch::Tensor<T>& tensor) {
@@ -25,7 +27,7 @@ gelu_kernel_pushforward(float x, float d_x) {
   const float sqrt_2_over_pi = 0.797884583F;
   float t0 = 0.0447149985F * x;
   float t1 = t0 * x;
-  float t2 = (x + t1 * x);
+  float t2 = (x + (t1 * x));
   ValueAndPushforward<float, float> t3 =
       ::clad::custom_derivatives::std::tanh_pushforward(
           sqrt_2_over_pi * t2,
@@ -180,13 +182,13 @@ void softmax_pullback(const ::cladtorch::Tensor<T>& input, bool is_casual,
 
     // Calculate the sum for this vector
     for (int i = 0; i < last_dim; ++i) {
-      int idx = vec * last_dim + i;
+      int idx = (vec * last_dim) + i;
       sum_grad_y_times_y += _d_y.data()[idx] * softmax_output.data()[idx];
     }
 
     // Compute gradient for each element in this vector
     for (int i = 0; i < last_dim; ++i) {
-      int idx = vec * last_dim + i;
+      int idx = (vec * last_dim) + i;
       T grad =
           softmax_output.data()[idx] * (_d_y.data()[idx] - sum_grad_y_times_y);
       _d_input->data()[idx] += grad;
@@ -220,11 +222,11 @@ void cross_entropy_loss_pullback(const ::cladtorch::Tensor<T>& probs,
   for (int batch = 0; batch < batch_size; ++batch) {
     int target = targets.data()[batch];
     for (int cls = 0; cls < num_classes; ++cls) {
-      int idx = batch * num_classes + cls;
+      int idx = (batch * num_classes) + cls;
       if (cls == target) {
         // Gradient is -1/p_target for the target class
         T prob_val = probs.data()[idx];
-        _d_probs->data()[idx] += avg_loss_grad * (-1.0f / prob_val);
+        _d_probs->data()[idx] += avg_loss_grad * (-1.0F / prob_val);
       }
       // Gradient is 0 for non-target classes (no addition needed)
     }
@@ -250,7 +252,7 @@ void cross_entropy_loss_pullback(const ::cladtorch::Tensor<T>& probs,
     if (cls == target_class) {
       // Gradient is -1/p_target for the target class
       T prob_val = probs.data()[cls];
-      _d_probs->data()[cls] += loss_grad * (-1.0f / prob_val);
+      _d_probs->data()[cls] += loss_grad * (-1.0F / prob_val);
     }
     // Gradient is 0 for non-target classes (no addition needed)
   }
@@ -277,27 +279,27 @@ void linear_kernel_naive_pullback(const float* input, const float* weight,
 #pragma omp parallel for
   for (size_t i = 0; i < batch_seq; ++i) {
     for (size_t k = 0; k < in_features; ++k) {
-      float grad_input = 0.0f;
+      float grad_input = 0.0F;
       for (size_t j = 0; j < out_features; ++j)
         grad_input +=
-            d_output[i * out_features + j] * weight[j * in_features + k];
-      d_input[i * in_features + k] += grad_input;
+            d_output[(i * out_features) + j] * weight[(j * in_features) + k];
+      d_input[(i * in_features) + k] += grad_input;
     }
   }
 
 #pragma omp parallel for
   for (size_t j = 0; j < out_features; ++j) {
-    float grad_bias = 0.0f;
+    float grad_bias = 0.0F;
     for (size_t i = 0; i < batch_seq; ++i)
-      grad_bias += d_output[i * out_features + j];
+      grad_bias += d_output[(i * out_features) + j];
     d_bias[j] += grad_bias;
 
     for (size_t k = 0; k < in_features; ++k) {
-      float grad_weight = 0.0f;
+      float grad_weight = 0.0F;
       for (size_t i = 0; i < batch_seq; ++i)
         grad_weight +=
-            d_output[i * out_features + j] * input[i * in_features + k];
-      d_weight[j * in_features + k] += grad_weight;
+            d_output[(i * out_features) + j] * input[(i * in_features) + k];
+      d_weight[(j * in_features) + k] += grad_weight;
     }
   }
 }
@@ -324,38 +326,38 @@ inline void linear_kernel_unrolled_pullback(
       float accum[UNROLL] = {0};
 
       for (size_t j = 0; j < out_features; ++j) {
-        const float w_jk = weight[j * in_features + k]; // W[j,k]
+        const float w_jk = weight[(j * in_features) + k]; // W[j,k]
 #pragma omp simd
         for (int u = 0; u < UNROLL; ++u)
-          accum[u] += d_output[(i0 + u) * out_features + j] * w_jk;
+          accum[u] += d_output[((i0 + u) * out_features) + j] * w_jk;
       }
 
 #pragma omp simd
       for (int u = 0; u < UNROLL; ++u)
-        d_input[(i0 + u) * in_features + k] += accum[u];
+        d_input[((i0 + u) * in_features) + k] += accum[u];
     }
   }
 
 // ---------- 2. d_weight & d_bias  ----------------------------------------
 #pragma omp parallel for schedule(static)
   for (size_t j = 0; j < out_features; ++j) {
-    ::std::vector<float> local_dw(in_features, 0.0f); // private to this thread
-    float local_db = 0.0f;
+    ::std::vector<float> local_dw(in_features, 0.0F); // private to this thread
+    float local_db = 0.0F;
 
     for (size_t i0 = 0; i0 < batch_seq; i0 += UNROLL) {
       float dout_blk[UNROLL];
 
 #pragma omp simd
       for (int u = 0; u < UNROLL; ++u) {
-        dout_blk[u] = d_output[(i0 + u) * out_features + j];
+        dout_blk[u] = d_output[((i0 + u) * out_features) + j];
         local_db += dout_blk[u]; // bias grad
       }
 
       for (size_t k = 0; k < in_features; ++k) {
-        float acc = 0.0f;
+        float acc = 0.0F;
 #pragma omp simd reduction(+ : acc)
         for (int u = 0; u < UNROLL; ++u)
-          acc += dout_blk[u] * input[(i0 + u) * in_features + k];
+          acc += dout_blk[u] * input[((i0 + u) * in_features) + k];
         local_dw[k] += acc; // weight grad
       }
     }
@@ -363,7 +365,7 @@ inline void linear_kernel_unrolled_pullback(
     // write-back – this thread is the *sole* owner of (j, :)
     d_bias[j] += local_db;
     for (size_t k = 0; k < in_features; ++k)
-      d_weight[j * in_features + k] += local_dw[k];
+      d_weight[(j * in_features) + k] += local_dw[k];
   }
 }
 
@@ -392,10 +394,10 @@ inline void linear_kernel_accelerate_pullback(
       /* transA    */ CblasNoTrans,
       /* transB    */ CblasNoTrans,
       /* M,N,K     */ (int)batch_seq, (int)in_features, (int)out_features,
-      /* α         */ 1.0f,
+      /* α         */ 1.0F,
       /* A, lda    */ d_output, (int)out_features,
       /* B, ldb    */ weight, (int)in_features,
-      /* β, C, ldc */ 1.0f, d_input, (int)in_features);
+      /* β, C, ldc */ 1.0F, d_input, (int)in_features);
 
   // 2. Compute d_weight = d_output.T @ input
   // d_output: [batch_seq, out_features] -> transpose to [out_features,
@@ -409,43 +411,19 @@ inline void linear_kernel_accelerate_pullback(
       /* transA    */ CblasTrans,
       /* transB    */ CblasNoTrans,
       /* M,N,K     */ (int)out_features, (int)in_features, (int)batch_seq,
-      /* α         */ 1.0f,
+      /* α         */ 1.0F,
       /* A, lda    */ d_output, (int)out_features,
       /* B, ldb    */ input, (int)in_features,
-      /* β, C, ldc */ 1.0f, d_weight, (int)in_features);
+      /* β, C, ldc */ 1.0F, d_weight, (int)in_features);
 
-  // // Use cblas_sgemv to compute bias gradient efficiently
-  // // d_bias = ones^T @ d_output where ones is a vector of 1s
-  // // This computes the column-wise sum of d_output
-
-  // // Create a temporary vector of ones for the matrix-vector multiplication
-  // float* ones = (float*)malloc(batch_seq * sizeof(float));
-  // for (size_t i = 0; i < batch_seq; ++i) {
-  //   ones[i] = 1.0f;
-  // }
-  // // Compute d_bias += ones^T @ d_output using GEMV
-  // // y := α·A^T·x + β·y
-  // // A = d_output [batch_seq, out_features]
-  // // x = ones [batch_seq]
-  // // y = d_bias [out_features]
-  // cblas_sgemv(
-  //   /* order     */ CblasRowMajor,
-  //   /* trans     */ CblasTrans,
-  //   /* M, N      */ (int)batch_seq, (int)out_features,
-  //   /* α         */ 1.0f,
-  //   /* A, lda    */ d_output, (int)out_features,
-  //   /* x, incx   */ ones, 1,
-  //   /* β, y, incy */ 1.0f, d_bias, 1
-  // );
-  // free(ones);
   // 3. Compute d_bias = sum(d_output, dim=0)
   // x = ones [batch_seq]
   // y = d_bias [out_features]
   // Simple loop is efficient for bias computation and avoids memory allocation
   for (size_t j = 0; j < out_features; ++j) {
-    float grad_bias = 0.0f;
+    float grad_bias = 0.0F;
     for (size_t i = 0; i < batch_seq; ++i)
-      grad_bias += d_output[i * out_features + j];
+      grad_bias += d_output[(i * out_features) + j];
     d_bias[j] += grad_bias;
   }
 #else
@@ -511,7 +489,7 @@ void linear_pullback(const ::cladtorch::Tensor<T>& input,
   // Call the kernel pullback
   kernels::linear_kernel_pullback(
       input.data(), weight.data(), bias.data(),
-      nullptr, // output not needed for pullback
+      /*output=*/nullptr, // output not needed for pullback
       static_cast<size_t>(batch_seq), static_cast<size_t>(in_features),
       static_cast<size_t>(out_features), _d_y.data(), _d_input->data(),
       _d_weight->data(), _d_bias->data());
@@ -566,7 +544,7 @@ void operator_plus_pullback(const ::cladtorch::Tensor<float>* _this,
     int len = _d_other->num_elements();
     for (int i = 0; i < batch_size; i++)
       for (int j = 0; j < len; j++)
-        _d_other->data()[j] += _d_y.data()[i * len + j];
+        _d_other->data()[j] += _d_y.data()[(i * len) + j];
     // *_d_other += _d_y; // Assuming _d_y can be broadcasted to both shapes
   }
 }
@@ -635,7 +613,7 @@ void operator_star_pullback(const ::cladtorch::Tensor<float>* _this,
     int len = _d_other->num_elements();
     for (int i = 0; i < batch_size; i++)
       for (int j = 0; j < len; j++)
-        _d_other->data()[j] += grad_other.data()[i * len + j];
+        _d_other->data()[j] += grad_other.data()[(i * len) + j];
   }
 }
 
@@ -909,37 +887,38 @@ void norm_pullback(const ::cladtorch::Tensor<T>* _this,
   // Calculate number of vectors and vector size
   int vec_size = _this->shape().back(); // Last dimension
   int num_vectors = _this->num_elements() / vec_size;
-  float eps = 1e-5f;
-
+  float eps = 1e-5F;
+  float vec_sizef = static_cast<float>(vec_size);
+  
   for (int idx = 0; idx < num_vectors; ++idx) {
     const float* x_vec = _this->data() + idx * vec_size;
     const float* grad_out = _d_y.data() + idx * vec_size;
     float* grad_in = _d_this->data() + idx * vec_size;
 
     // Compute mean and rstd (same as forward pass)
-    float mean = 0.0f;
+    float mean = 0.0F;
     for (int i = 0; i < vec_size; i++)
       mean += x_vec[i];
-    mean /= vec_size;
+    mean /= vec_sizef;
 
-    float var = 0.0f;
+    float var = 0.0F;
     for (int i = 0; i < vec_size; i++) {
       float diff = x_vec[i] - mean;
       var += diff * diff;
     }
-    var /= vec_size;
-    float rstd = 1.0f / ::std::sqrt(var + eps);
+    var /= vec_sizef;
+    float rstd = 1.0F / ::std::sqrt(var + eps);
 
     // Compute gradient statistics
-    float grad_mean = 0.0f;
+    float grad_mean = 0.0F;
     for (int i = 0; i < vec_size; i++)
       grad_mean += grad_out[i];
-    grad_mean /= vec_size;
+    grad_mean /= vec_sizef;
 
-    float grad_norm_mean = 0.0f;
+    float grad_norm_mean = 0.0F;
     for (int i = 0; i < vec_size; i++)
       grad_norm_mean += grad_out[i] * (x_vec[i] - mean);
-    grad_norm_mean /= vec_size;
+    grad_norm_mean /= vec_sizef;
 
     // Apply layer norm gradient formula
     for (int i = 0; i < vec_size; i++) {
@@ -1011,5 +990,7 @@ void split_pullback(const ::cladtorch::Tensor<T>* _this, int size, int axis,
 } // namespace class_functions
 } // namespace custom_derivatives
 } // namespace clad
+
+// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays, misc-definitions-in-headers, readability-identifier-naming)
 
 #endif // CLAD_TENSOR_BUILTINS_H
