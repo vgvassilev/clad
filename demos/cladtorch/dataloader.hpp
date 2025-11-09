@@ -38,7 +38,6 @@ inline void fread_check(void* ptr, size_t size, size_t nmemb, FILE* stream) {
     throw std::runtime_error("Partial read. Expected " +
                               std::to_string(nmemb) + " elements, read " +
                               std::to_string(result));
-  }
 }
 
 inline void fseek_check(FILE* fp, long off, int whence) {
@@ -63,36 +62,36 @@ private:
   // Batch and token information
   size_t m_B;
   size_t m_T;
-  size_t m_num_tokens;
-  size_t m_shard_num_samples{};
+  size_t m_NumTokens;
+  size_t m_ShardNumSamples{};
 
   // Shards and current position
-  glob_t m_glob_result{};
-  size_t m_current_shard_idx{};
-  size_t m_current_sample_idx{};
+  glob_t m_GlobResult{};
+  size_t m_CurrentShardIdx{};
+  size_t m_CurrentSampleIdx{};
 
   // File handle
   std::unique_ptr<FILE, decltype(&fclose)> m_TokenFile;
 
   // Data buffers
   std::vector<uint16_t> m_Buffer;
-  std::vector<int> m_inputs;
-  std::vector<int> m_targets;
+  std::vector<int> m_Inputs;
+  std::vector<int> m_Targets;
 
   // Random shuffle related variables
-  std::mt19937 m_rng;
+  std::mt19937 m_Rng;
   // mt19937_state shuffle_rng_;
-  bool m_should_shuffle;
-  std::vector<int> m_shard_indices;
-  std::vector<int> m_intra_shard_indices;
+  bool m_ShouldShuffle;
+  std::vector<int> m_ShardIndices;
+  std::vector<int> m_IntraShardIndices;
 
   // Sizes in bytes
-  size_t m_total_batch_size_bytes;
-  size_t m_local_batch_offset_bytes;
-  size_t m_header_bytes;
-  uint64_t m_file_size_bytes{};
+  size_t m_TotalBatchSizeBytes;
+  size_t m_LocalBatchOffsetBytes;
+  size_t m_HeaderBytes;
+  uint64_t m_FileSizeBytes{};
 
-  bool m_init_ok{};
+  bool m_InitOk{};
 
   static void validate_file_header(FILE* file) {
     int header[HEADER_SIZE];
@@ -108,8 +107,8 @@ private:
   }
 
   uint64_t load_shard(int shard_index) {
-    if (m_should_shuffle)
-      shard_index = m_shard_indices[shard_index];
+    if (m_ShouldShuffle)
+      shard_index = m_ShardIndices[shard_index];
 
     const char* filename = m_GlobResult.gl_pathv[shard_index];
 
@@ -119,7 +118,7 @@ private:
 
     // Open new file
     FILE* file = utils::fopen_check(filename, /*mode=*/"rb");
-    m_tokens_file.reset(file);
+    m_TokenFile.reset(file);
 
     // Validate header
     validate_file_header(file);
@@ -135,28 +134,28 @@ private:
 
     // Determine file size and validate consistency
     utils::fseek_check(file, /*off=*/0, SEEK_END);
-    m_file_size_bytes = ftell(file);
+    m_FileSizeBytes = ftell(file);
     utils::fseek_check(file, /*off=*/0, SEEK_SET);
 
     uint64_t expected_file_size =
-        HEADER_SIZE * sizeof(int) + ntok * sizeof(uint16_t);
-    if (m_file_size_bytes != expected_file_size)
+        (HEADER_SIZE * sizeof(int)) + (ntok * sizeof(uint16_t));
+    if (m_FileSizeBytes != expected_file_size)
       throw std::runtime_error("File size is not as expected");
 
     // Calculate shard samples
     m_ShardNumSamples =
-        (ntok * sizeof(uint16_t) - sizeof(uint16_t)) / m_total_batch_size_bytes;
+        (ntok * sizeof(uint16_t) - sizeof(uint16_t)) / m_TotalBatchSizeBytes;
 
     return ntok;
   }
 
   void prepare_intra_shard_indices() {
-    if (m_should_shuffle) {
-      m_intra_shard_indices.resize(m_ShardNumSamples);
+    if (m_ShouldShuffle) {
+      m_IntraShardIndices.resize(m_ShardNumSamples);
       for (size_t i = 0; i < m_ShardNumSamples; ++i)
-        m_intra_shard_indices[i] = static_cast<int>(i);
-      std::shuffle(m_intra_shard_indices.begin(), m_intra_shard_indices.end(),
-                   m_rng);
+        m_IntraShardIndices[i] = static_cast<int>(i);
+      std::shuffle(m_IntraShardIndices.begin(), m_IntraShardIndices.end(),
+                   m_Rng);
     }
   }
 
@@ -170,7 +169,7 @@ private:
     m_CurrentSampleIdx = 0;
     load_shard(static_cast<int>(m_CurrentShardIdx));
 
-    if (m_should_shuffle)
+    if (m_ShouldShuffle)
       prepare_intra_shard_indices();
   }
 
@@ -179,13 +178,13 @@ public:
              int process_rank = 0, int num_processes = 1,
              bool should_shuffle = false)
       : m_ProcessRank(process_rank), m_NumProcesses(num_processes), m_B(B),
-        m_T(T), m_TokenFile(nullptr, fclose), m_rng(37 + m_ProcessRank),
-        m_should_shuffle(should_shuffle),
-        m_total_batch_size_bytes(m_NumProcesses * m_B * m_T * sizeof(uint16_t)),
-        m_local_batch_offset_bytes(m_ProcessRank * m_B * m_T *
+        m_T(T), m_TokenFile(nullptr, fclose), m_Rng(37 + m_ProcessRank),
+        m_ShouldShuffle(should_shuffle),
+        m_TotalBatchSizeBytes(m_NumProcesses * m_B * m_T * sizeof(uint16_t)),
+        m_LocalBatchOffsetBytes(m_ProcessRank * m_B * m_T *
                                    sizeof(uint16_t)),
-        m_header_bytes(HEADER_SIZE * sizeof(int)) {
-    std::memset(&m_glob_result, 0, sizeof(m_glob_result));
+        m_HeaderBytes(HEADER_SIZE * sizeof(int)) {
+    std::memset(&m_GlobResult, 0, sizeof(m_GlobResult));
 
     // Glob to get list of files
     int glob_status = glob(filename_pattern.c_str(), 0, nullptr, &m_GlobResult);
@@ -197,35 +196,35 @@ public:
                                filename_pattern);
 
     // Initialize shuffle state if needed
-    if (m_should_shuffle) {
+    if (m_ShouldShuffle) {
       // rng_.seed(42 + process_rank_);
-      m_shard_indices.resize(m_GlobResult.gl_pathc);
+      m_ShardIndices.resize(m_GlobResult.gl_pathc);
       for (size_t i = 0; i < m_GlobResult.gl_pathc; ++i)
-        m_shard_indices[i] = static_cast<int>(i);
+        m_ShardIndices[i] = static_cast<int>(i);
     }
 
     // Validate all shards
     uint64_t ntok_total = 0;
-    for (size_t shard_index = 0; shard_index < m_glob_result.gl_pathc;
+    for (size_t shard_index = 0; shard_index < m_GlobResult.gl_pathc;
          ++shard_index) {
       uint64_t shard_ntok = load_shard(static_cast<int>(shard_index));
-      if (shard_ntok < static_cast<uint64_t>(m_num_processes * m_B * m_T + 1))
+      if (shard_ntok < ((m_NumProcesses * m_B * m_T) + 1))
         throw std::runtime_error("Shard has insufficient tokens");
       ntok_total += shard_ntok;
     }
 
     // Allocate buffers
-    m_Buffer.resize(m_B * m_T + 1);
-    m_inputs.resize(m_B * m_T);
-    m_targets.resize(m_B * m_T);
+    m_Buffer.resize((m_B * m_T) + 1);
+    m_Inputs.resize(m_B * m_T);
+    m_Targets.resize(m_B * m_T);
     m_NumTokens = ntok_total;
 
-    m_init_ok = true;
+    m_InitOk = true;
     reset();
   }
 
   ~DataLoader() {
-    if (m_init_ok)
+    if (m_InitOk)
       globfree(&m_GlobResult);
   }
 
@@ -238,45 +237,45 @@ public:
   DataLoader& operator=(DataLoader&& other) noexcept = default;
 
   void reset() {
-    if (!m_init_ok)
+    if (!m_InitOk)
       throw std::runtime_error("DataLoader not initialized");
 
     m_CurrentShardIdx = 0;
     m_CurrentSampleIdx = 0;
 
-    if (m_should_shuffle)
-      std::shuffle(m_shard_indices.begin(), m_shard_indices.end(), m_rng);
+    if (m_ShouldShuffle)
+      std::shuffle(m_ShardIndices.begin(), m_ShardIndices.end(), m_Rng);
     load_shard(static_cast<int>(m_CurrentShardIdx));
-    if (m_should_shuffle)
+    if (m_ShouldShuffle)
       prepare_intra_shard_indices();
   }
 
   void load_batch() {
-    if (!m_init_ok)
+    if (!m_InitOk)
       throw std::runtime_error("DataLoader not initialized");
 
     if (m_CurrentSampleIdx >= m_ShardNumSamples)
       throw std::runtime_error("Current sample index out of bounds");
 
     size_t idx =
-        m_should_shuffle
-            ? static_cast<size_t>(m_intra_shard_indices[m_CurrentSampleIdx])
+        m_ShouldShuffle
+            ? static_cast<size_t>(m_IntraShardIndices[m_CurrentSampleIdx])
             : m_CurrentSampleIdx;
 
-    size_t global_batch_offset_bytes = idx * m_total_batch_size_bytes;
+    size_t global_batch_offset_bytes = idx * m_TotalBatchSizeBytes;
     uint64_t current_offset =
-        m_header_bytes + global_batch_offset_bytes + m_local_batch_offset_bytes;
+        m_HeaderBytes + global_batch_offset_bytes + m_LocalBatchOffsetBytes;
 
     // Read B*T+1 tokens from file
     utils::fseek_check(m_TokenFile.get(), static_cast<long>(current_offset),
                        SEEK_SET);
-    utils::fread_check(m_Buffer.data(), sizeof(uint16_t), m_B * m_T + 1,
+    utils::fread_check(m_Buffer.data(), sizeof(uint16_t), (m_B * m_T) + 1,
                        m_TokenFile.get());
 
     // Decode buffer into inputs and targets
     for (size_t i = 0; i < m_B * m_T; ++i) {
-      m_inputs[i] = static_cast<int>(m_Buffer[i]);
-      m_targets[i] = static_cast<int>(m_Buffer[i + 1]);
+      m_Inputs[i] = static_cast<int>(m_Buffer[i]);
+      m_Targets[i] = static_cast<int>(m_Buffer[i + 1]);
     }
   }
 
@@ -288,7 +287,7 @@ public:
   }
 
   void resume(size_t current_shard_idx, size_t current_sample_idx) {
-    if (!m_init_ok)
+    if (!m_InitOk)
       throw std::runtime_error("DataLoader not initialized");
 
     m_CurrentShardIdx = current_shard_idx;
@@ -302,10 +301,10 @@ public:
   size_t num_tokens() const { return m_NumTokens; }
   size_t current_shard_idx() const { return m_CurrentShardIdx; }
   size_t current_sample_idx() const { return m_CurrentSampleIdx; }
-  bool is_initialized() const { return m_init_ok; }
+  bool is_initialized() const { return m_InitOk; }
 
-  const int* inputs() const { return m_inputs.data(); }
-  const int* targets() const { return m_targets.data(); }
+  const int* inputs() const { return m_Inputs.data(); }
+  const int* targets() const { return m_Targets.data(); }
 };
 
 class EvalLoader {
@@ -316,32 +315,32 @@ private:
   static constexpr int ASSUMED_NUM_COMPLETIONS = 4;
 
   // Distributed training variables
-  int m_process_rank;
-  int m_num_processes;
+  int m_ProcessRank;
+  int m_NumProcesses;
 
   // Hyperparameters
   size_t m_B;
   size_t m_T;
 
   // File handling
-  std::unique_ptr<FILE, decltype(&fclose)> m_eval_file;
-  std::vector<uint16_t> m_buffer;
+  std::unique_ptr<FILE, decltype(&fclose)> m_EvalFile;
+  std::vector<uint16_t> m_Buffer;
 
   // Public variables
-  int m_num_examples;
-  int m_num_batches;
-  int m_start_example_index;
-  int m_end_example_index;
-  int m_current_example_index;
+  int m_NumExamples;
+  int m_NumBatches;
+  int m_StartExampleIndex;
+  int m_EndExampleIndex;
+  int m_CurrentExampleIndex;
 
   // Data arrays
-  std::vector<int> m_inputs;
-  std::vector<int> m_targets;
-  std::vector<char> m_mask;
-  std::vector<int> m_label;
-  int m_num_completions;
+  std::vector<int> m_Inputs;
+  std::vector<int> m_Targets;
+  std::vector<char> m_Mask;
+  std::vector<int> m_Label;
+  int m_NumCompletions;
 
-  bool m_init_ok;
+  bool m_InitOk;
 
   static constexpr int ceil_div(int m, int n) { return (m + n - 1) / n; }
 
@@ -361,22 +360,22 @@ private:
 
     // Read example header
     uint16_t example_header[3];
-    utils::fread_check(example_header, sizeof(uint16_t), /*nmemb=*/3, m_eval_file.get());
+    utils::fread_check(example_header, sizeof(uint16_t), /*nmemb=*/3, m_EvalFile.get());
 
     // Validate header
     if (example_header[0] != 65535)
       throw std::runtime_error("Invalid example delimiter");
 
-    if (example_header[2] != m_current_example_index)
+    if (example_header[2] != m_CurrentExampleIndex)
       throw std::runtime_error("Example index mismatch");
 
     // Read rest of example
-    size_t example_bytes = example_header[1] - sizeof(uint16_t) * 3;
-    utils::fread_check(m_buffer.data(), sizeof(char), example_bytes,
-                       m_eval_file.get());
+    size_t example_bytes = example_header[1] - (sizeof(uint16_t) * 3);
+    utils::fread_check(m_Buffer.data(), sizeof(char), example_bytes,
+                       m_EvalFile.get());
 
     // Process example
-    int label = static_cast<int>(m_buffer[0]);
+    int label = static_cast<int>(m_Buffer[0]);
     int can_fit_examples = static_cast<int>(m_B / ASSUMED_NUM_COMPLETIONS);
 
     if (label < 0 || label >= ASSUMED_NUM_COMPLETIONS)
@@ -385,17 +384,17 @@ private:
     if (example_batch_index >= can_fit_examples)
       throw std::runtime_error("Example batch index out of bounds");
 
-    m_label[example_batch_index] = label;
+    m_Label[example_batch_index] = label;
 
-    int num_completions = static_cast<int>(m_buffer[1]);
+    int num_completions = static_cast<int>(m_Buffer[1]);
     if (num_completions != ASSUMED_NUM_COMPLETIONS)
       throw std::runtime_error("Unexpected number of completions");
 
-    m_num_completions = num_completions;
+    m_NumCompletions = num_completions;
 
     // Process context
-    int context_length = static_cast<int>(m_buffer[2]);
-    uint16_t* context_tokens_start = &m_buffer[3];
+    int context_length = static_cast<int>(m_Buffer[2]);
+    uint16_t* context_tokens_start = &m_Buffer[3];
 
     if (context_length <= 0 || context_length >= static_cast<int>(m_T))
       throw std::runtime_error("Invalid context length");
@@ -404,12 +403,12 @@ private:
       for (int i = 0; i < context_length; ++i) {
         int boff = batch_dim_offset + b;
         int tok_cur = static_cast<int>(context_tokens_start[i]);
-        m_inputs[boff * m_T + i] = tok_cur;
+        m_Inputs[(boff * m_T) + i] = tok_cur;
       }
     }
 
     // Process completions
-    uint16_t* completions_iter = m_buffer.data() + 3 + context_length;
+    uint16_t* completions_iter = m_Buffer.data() + 3 + context_length;
     for (int c = 0; c < num_completions; ++c) {
       int coff = batch_dim_offset + c;
       int completion_length = static_cast<int>(completions_iter[0]);
@@ -421,23 +420,23 @@ private:
 
       for (int i = 0; i < completion_length; ++i) {
         int tok_cur = static_cast<int>(completion_tokens_start[i]);
-        m_inputs[coff * m_T + context_length + i] = tok_cur;
-        m_targets[coff * m_T + context_length + i - 1] = tok_cur;
-        m_mask[coff * m_T + context_length + i - 1] = 1;
+        m_Inputs[(coff * m_T) + context_length + i] = tok_cur;
+        m_Targets[(coff * m_T) + context_length + i - 1] = tok_cur;
+        m_Mask[(coff * m_T) + context_length + i - 1] = 1;
       }
 
       completions_iter += 1 + completion_length;
     }
 
-    m_current_example_index += 1;
+    m_CurrentExampleIndex += 1;
   }
 
 public:
   EvalLoader()
-      : m_process_rank(0), m_num_processes(1), m_B(0), m_T(0),
-        m_eval_file(nullptr, fclose), m_num_examples(0), m_num_batches(0),
-        m_start_example_index(0), m_end_example_index(0),
-        m_current_example_index(0), m_num_completions(0), m_init_ok(false) {}
+      : m_ProcessRank(0), m_NumProcesses(1), m_B(0), m_T(0),
+        m_EvalFile(nullptr, fclose), m_NumExamples(0), m_NumBatches(0),
+        m_StartExampleIndex(0), m_EndExampleIndex(0),
+        m_CurrentExampleIndex(0), m_NumCompletions(0), m_InitOk(false) {}
 
   explicit EvalLoader(const std::string& filename, size_t B, size_t T,
                       int process_rank = 0, int num_processes = 1)
@@ -456,14 +455,14 @@ public:
 
   void init(const std::string& filename, size_t B, size_t T,
             int process_rank = 0, int num_processes = 1) {
-    m_process_rank = process_rank;
-    m_num_processes = num_processes;
+    m_ProcessRank = process_rank;
+    m_NumProcesses = num_processes;
     m_B = B;
     m_T = T;
 
     // Open file
     FILE* file = utils::fopen_check(filename.c_str(), /*mode=*/"rb");
-    m_eval_file.reset(file);
+    m_EvalFile.reset(file);
 
     // Validate header
     validate_file_header(file);
@@ -471,9 +470,9 @@ public:
     // Get file info from header
     utils::fseek_check(file, 2 * sizeof(int), SEEK_SET);
 
-    utils::fread_check(&m_num_examples, sizeof(int), /*nmemb=*/1, file);
+    utils::fread_check(&m_NumExamples, sizeof(int), /*nmemb=*/1, file);
 
-    if (m_num_examples < m_num_processes)
+    if (m_NumExamples < m_NumProcesses)
       throw std::runtime_error("Not enough examples for all processes");
 
     int longest_example_bytes = 0;
@@ -486,21 +485,21 @@ public:
 
     // Allocate buffers
     int can_fit_examples = static_cast<int>(m_B / ASSUMED_NUM_COMPLETIONS);
-    m_buffer.resize(longest_example_bytes);
-    m_inputs.resize(m_B * m_T);
-    m_targets.resize(m_B * m_T);
-    m_mask.resize(m_B * m_T);
-    m_label.resize(can_fit_examples);
+    m_Buffer.resize(longest_example_bytes);
+    m_Inputs.resize(m_B * m_T);
+    m_Targets.resize(m_B * m_T);
+    m_Mask.resize(m_B * m_T);
+    m_Label.resize(can_fit_examples);
 
-    m_init_ok = true;
+    m_InitOk = true;
     reset();
   }
 
   void reset() {
-    if (!m_init_ok)
+    if (!m_InitOk)
       throw std::runtime_error("EvalLoader not initialized");
 
-    int examples_per_process = ceil_div(m_num_examples, m_num_processes);
+    int examples_per_process = ceil_div(m_NumExamples, m_NumProcesses);
     int can_fit_examples = static_cast<int>(m_B / ASSUMED_NUM_COMPLETIONS);
 
     if (can_fit_examples == 0) {
@@ -509,22 +508,21 @@ public:
           "Disable HellaSwag eval or increase batch size.");
     }
 
-    m_num_batches = ceil_div(examples_per_process, can_fit_examples);
+    m_NumBatches = ceil_div(examples_per_process, can_fit_examples);
 
-    m_start_example_index = examples_per_process * m_process_rank;
-    m_end_example_index = examples_per_process * (m_process_rank + 1);
+    m_StartExampleIndex = examples_per_process * m_ProcessRank;
+    m_EndExampleIndex = examples_per_process * (m_ProcessRank + 1);
 
-    if (m_end_example_index > m_num_examples)
-      m_end_example_index = m_num_examples;
+    m_EndExampleIndex = std::min(m_EndExampleIndex, m_NumExamples);
 
     // Seek to start example
     int64_t header_bytes = HEADER_SIZE * sizeof(int);
-    utils::fseek_check(m_eval_file.get(), static_cast<long>(header_bytes),
+    utils::fseek_check(m_EvalFile.get(), static_cast<long>(header_bytes),
                        SEEK_SET);
 
-    for (int i = 0; i < m_start_example_index; ++i) {
+    for (int i = 0; i < m_StartExampleIndex; ++i) {
       uint16_t example_header[3];
-      utils::fread_check(example_header, sizeof(uint16_t), /*nmemb=*/3, m_eval_file.get());
+      utils::fread_check(example_header, sizeof(uint16_t), /*nmemb=*/3, m_EvalFile.get());
 
       if (example_header[0] != 65535)
         throw std::runtime_error("Invalid example delimiter during seek");
@@ -532,33 +530,33 @@ public:
       if (example_header[2] != i)
         throw std::runtime_error("Example index mismatch during seek");
 
-      size_t remaining_bytes = example_header[1] - sizeof(uint16_t) * 3;
+      size_t remaining_bytes = example_header[1] - (sizeof(uint16_t) * 3);
       if (remaining_bytes == 0)
         throw std::runtime_error("Invalid remaining bytes in example");
-      utils::fseek_check(m_eval_file.get(), static_cast<long>(remaining_bytes),
+      utils::fseek_check(m_EvalFile.get(), static_cast<long>(remaining_bytes),
                          SEEK_CUR);
     }
 
-    m_current_example_index = m_start_example_index;
+    m_CurrentExampleIndex = m_StartExampleIndex;
   }
 
   void next_batch() {
-    if (!m_init_ok)
+    if (!m_InitOk)
       throw std::runtime_error("EvalLoader not initialized");
 
     // Clear mask
-    std::fill(m_mask.begin(), m_mask.end(), 0);
+    std::fill(m_Mask.begin(), m_Mask.end(), 0);
 
     int can_fit_examples = static_cast<int>(m_B / ASSUMED_NUM_COMPLETIONS);
     for (int i = 0; i < can_fit_examples; ++i) {
-      if (m_current_example_index >= m_end_example_index)
+      if (m_CurrentExampleIndex >= m_EndExampleIndex)
         break;
       next_example(i);
     }
   }
 
   int stat_losses(const float* losses) const {
-    if (!m_init_ok)
+    if (!m_InitOk)
       throw std::runtime_error("EvalLoader not initialized");
 
     int correct = 0;
@@ -570,15 +568,15 @@ public:
       bool active = false;
 
       for (int b = 0; b < ASSUMED_NUM_COMPLETIONS; ++b) {
-        int boff = i * ASSUMED_NUM_COMPLETIONS + b;
+        int boff = (i * ASSUMED_NUM_COMPLETIONS) + b;
 
         float average_loss = 0.0F;
         int count = 0;
 
         for (size_t t = 0; t < m_T; ++t) {
-          if (m_mask[boff * m_T + t] == 1) {
+          if (m_Mask[(boff * m_T) + t] == 1) {
             active = true;
-            average_loss += losses[boff * m_T + t];
+            average_loss += losses[(boff * m_T) + t];
             count++;
           }
         }
@@ -592,7 +590,7 @@ public:
         }
       }
 
-      if (active && min_loss_index == m_label[i])
+      if (active && min_loss_index == m_Label[i])
         correct += 1;
     }
 
@@ -602,15 +600,15 @@ public:
   // Getters
   size_t batch_size() const { return m_B; }
   size_t sequence_length() const { return m_T; }
-  int num_examples() const { return m_num_examples; }
-  int num_batches() const { return m_num_batches; }
-  int current_example_index() const { return m_current_example_index; }
-  bool is_initialized() const { return m_init_ok; }
+  int num_examples() const { return m_NumExamples; }
+  int num_batches() const { return m_NumBatches; }
+  int current_example_index() const { return m_CurrentExampleIndex; }
+  bool is_initialized() const { return m_InitOk; }
 
-  const int* inputs() const { return m_inputs.data(); }
-  const int* targets() const { return m_targets.data(); }
-  const char* mask() const { return m_mask.data(); }
-  const int* labels() const { return m_label.data(); }
+  const int* inputs() const { return m_Inputs.data(); }
+  const int* targets() const { return m_Targets.data(); }
+  const char* mask() const { return m_Mask.data(); }
+  const int* labels() const { return m_Label.data(); }
 };
 
 } // namespace gpt2
