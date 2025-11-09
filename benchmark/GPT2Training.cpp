@@ -1,10 +1,10 @@
 #include "benchmark/benchmark.h"
 
-#include "../demos/cladtorch/llm.hpp"
-#include "../demos/cladtorch/llm_opt.hpp"
 #include <clad/Differentiator/CladtorchBuiltins.h>
 #include <clad/Differentiator/Differentiator.h>
 #include <clad/Differentiator/STLBuiltins.h>
+#include "../demos/cladtorch/llm.hpp"
+#include "../demos/cladtorch/llm_opt.hpp"
 
 // NOLINTBEGIN(cppcoreguidelines-*)
 class GPT2Optimized : public benchmark::Fixture {
@@ -59,17 +59,18 @@ static float gpt2forw_opt(GPT2* model, const int* inputs, const int* targets) {
 // The benchmark itself
 BENCHMARK_DEFINE_F(GPT2Optimized, FullTrainingIteration)
 (benchmark::State& state) {
-    auto grad = clad::gradient(gpt2forw_opt, "0");
-    int B = state.range(0);
-    int T = state.range(1);
+  auto grad = clad::gradient(gpt2forw_opt, "0");
+  int B = state.range(0);
+  int T = state.range(1);
 
-    for (auto _ : state) {
+  for (auto _ : state) {
     state.PauseTiming();
     d_model->zero_all();
 
     state.ResumeTiming();
     // The single training iteration:
-    // forward pass (calculated as part of gradient), backward pass, and update
+    // forward pass (calculated as part of gradient), backward pass, and
+    // update
     grad.execute(model, inputs, targets, d_model);
     model->update(d_model, /*lr=*/1e-3F);
   }
@@ -87,13 +88,13 @@ BENCHMARK_REGISTER_F(GPT2Optimized, FullTrainingIteration)
     ->Unit(benchmark::kMillisecond);
 
 class GPT2Cladtorch : public benchmark::Fixture {
-  public:
-    gpt2::GPT2* model;
-    gpt2::GPT2* d_model;
-    int* inputs;
-    int* targets;
+public:
+  gpt2::GPT2* model;
+  gpt2::GPT2* d_model;
+  int* inputs;
+  int* targets;
 
-    void SetUp(const ::benchmark::State& state) override {
+  void SetUp(const ::benchmark::State& state) override {
     const gpt2::Config config = {
         .max_seq_len = 1024,
         .vocab_size = 50257,
@@ -116,22 +117,22 @@ class GPT2Cladtorch : public benchmark::Fixture {
       inputs[i] = i % model->config.vocab_size;
       targets[i] = (i + 1) % model->config.vocab_size;
     }
-    }
+  }
 
-    void TearDown(const ::benchmark::State& state) override {
+  void TearDown(const ::benchmark::State& state) override {
     // This runs once after each benchmark test
     delete model;
     delete d_model;
     delete[] inputs;
     delete[] targets;
-    }
+  }
 };
 
 static float gpt2_loss(const gpt2::GPT2& model, const gpt2::ITensor& input,
-                const gpt2::ITensor& targets) {
-    auto probs = model.forward(input);
-    auto loss = cross_entropy_loss(probs, targets);
-    return loss.scalar();
+                       const gpt2::ITensor& targets) {
+  auto probs = model.forward(input);
+  auto loss = cross_entropy_loss(probs, targets);
+  return loss.scalar();
 }
 
 // The benchmark itself
@@ -154,10 +155,10 @@ BENCHMARK_DEFINE_F(GPT2Cladtorch,
       // Update parameters with a learning rate of 1e-4
       *params[i] += (*grads[i]) * -1e-3F;
     }
-    }
+  }
 
-    // You can set custom counters to report B and T
-    state.SetLabel("B=" + std::to_string(B) + " T=" + std::to_string(T));
+  // You can set custom counters to report B and T
+  state.SetLabel("B=" + std::to_string(B) + " T=" + std::to_string(T));
 }
 
 // Register the benchmark with different arguments

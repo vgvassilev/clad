@@ -104,8 +104,8 @@ int main() {
   const int genT = 64; // number of steps of inference we will do
 
   // train
-  struct timespec start {};
-  struct timespec end {};
+  struct timespec start{};
+  struct timespec end{};
   for (int step = 0; step <= 40; step++) {
     // once in a while estimate the validation loss
     if (step % 10 == 0) {

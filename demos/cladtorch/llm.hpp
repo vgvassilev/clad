@@ -1,13 +1,13 @@
 #pragma once
 
 #include <cassert>
+#include <clad/Differentiator/Differentiator.h>
 #include <cladtorch/cladtorch.hpp>
 #include <cmath>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <vector>
-#include <clad/Differentiator/Differentiator.h>
 
 namespace gpt2 {
 
@@ -353,9 +353,10 @@ public:
 } // namespace gpt2
 
 namespace clad::custom_derivatives::gpt2 {
-static void get_input_pos_pullback(int B, int T, ::gpt2::ITensor _d_y, int *_d_B, int *_d_T) {}
+static void get_input_pos_pullback(int B, int T, ::gpt2::ITensor _d_y,
+                                   int* _d_B, int* _d_T) {}
 static ::clad::ValueAndAdjoint<::gpt2::ITensor, ::gpt2::ITensor>
 get_input_pos_reverse_forw(int B, int T, int _d_B, int _d_T) {
   return {::gpt2::get_input_pos(B, T), ::gpt2::get_input_pos(B, T)};
 }
-}
+} // namespace clad::custom_derivatives::gpt2

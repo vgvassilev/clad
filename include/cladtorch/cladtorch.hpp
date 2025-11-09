@@ -11,8 +11,9 @@
 #include <vector>
 
 // #define ND __attribute__((annotate("non_differentiable")))
-#define ND 
-// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays, cppcoreguidelines-owning-memory)
+#define ND
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
+// cppcoreguidelines-owning-memory)
 
 // Register as a tensor for clad to understand
 namespace clad::tensor_like::cladtorch {
@@ -105,9 +106,9 @@ public:
   Tensor(const Tensor& other)
       : m_shape(other.m_shape), m_strides(other.m_strides),
         m_numel(other.m_numel), m_data(nullptr) {
-          if (m_numel > 0) {
-            m_data = new T[m_numel];
-            std::copy(other.m_data, other.m_data + m_numel, m_data);
+    if (m_numel > 0) {
+      m_data = new T[m_numel];
+      std::copy(other.m_data, other.m_data + m_numel, m_data);
     }
   }
 
@@ -142,9 +143,10 @@ public:
 
   // Move constructor
   Tensor(Tensor&& other) noexcept
-      : m_shape(std::move(other.m_shape)), m_strides(std::move(other.m_strides)),
-        m_numel(other.m_numel), m_data(other.m_data) {
-          other.m_numel = 0;
+      : m_shape(std::move(other.m_shape)),
+        m_strides(std::move(other.m_strides)), m_numel(other.m_numel),
+        m_data(other.m_data) {
+    other.m_numel = 0;
     other.m_data = nullptr;
   }
 
@@ -465,8 +467,7 @@ public:
   Tensor& operator+=(const Tensor& other) {
     if (m_shape == other.m_shape) {
       // Same shape, use optimized kernel
-      kernels::element_wise_add_kernel(m_data, other.m_data, m_data,
-                                       m_numel);
+      kernels::element_wise_add_kernel(m_data, other.m_data, m_data, m_numel);
     } else {
       // Different shapes, need broadcasting
       std::vector<int> result_shape = broadcast_shape(*this, other);
@@ -505,8 +506,7 @@ public:
   Tensor& operator-=(const Tensor& other) {
     if (m_shape == other.m_shape) {
       // Same shape, use optimized kernel
-      kernels::element_wise_sub_kernel(m_data, other.m_data, m_data,
-                                       m_numel);
+      kernels::element_wise_sub_kernel(m_data, other.m_data, m_data, m_numel);
     } else {
       // Different shapes, need broadcasting
       std::vector<int> result_shape = broadcast_shape(*this, other);
@@ -542,8 +542,7 @@ public:
   Tensor& operator*=(const Tensor& other) {
     if (m_shape == other.m_shape) {
       // Same shape, use optimized kernel
-      kernels::element_wise_mul_kernel(m_data, other.m_data, m_data,
-                                       m_numel);
+      kernels::element_wise_mul_kernel(m_data, other.m_data, m_data, m_numel);
     } else {
       // Different shapes, need broadcasting
       std::vector<int> result_shape = broadcast_shape(*this, other);
@@ -890,6 +889,7 @@ Tensor<T> linear(const Tensor<T>& input, const Tensor<T>& weight,
 
 } // namespace cladtorch
 
-// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays, cppcoreguidelines-owning-memory)
+// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
+// cppcoreguidelines-owning-memory)
 
 #endif // CLAD_TENSOR_HPP

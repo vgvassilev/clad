@@ -24,7 +24,8 @@ private:
   void read_tokenizer_file(FILE* file) {
     // Read header
     uint32_t header[HEADER_SIZE]; // NOLINT
-    if (fread(header, sizeof(uint32_t), HEADER_SIZE, file) != HEADER_SIZE) // NOLINT
+    if (fread(header, sizeof(uint32_t), HEADER_SIZE, file) !=
+        HEADER_SIZE) // NOLINT
       throw std::runtime_error("Failed to read tokenizer header");
     if (header[0] != MAGIC_NUMBER)
       throw std::runtime_error("Invalid magic number in tokenizer file");
@@ -62,9 +63,7 @@ private:
   }
 
 public:
-  explicit Tokenizer(const std::string& filename) {
-    load(filename);
-  }
+  explicit Tokenizer(const std::string& filename) { load(filename); }
   // Disable copy operations for simplicity
   Tokenizer(const Tokenizer&) = delete;
   Tokenizer& operator=(const Tokenizer&) = delete;

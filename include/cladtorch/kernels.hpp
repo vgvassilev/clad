@@ -592,7 +592,7 @@ inline void transpose_kernel(const T* src_data, T* dst_data,
 
 inline float vec_mean_kernel(size_t vec_size, const float* src) {
   float sum = 0.0F;
-#pragma omp simd reduction(+:sum)
+#pragma omp simd reduction(+ : sum)
   for (size_t i = 0; i < vec_size; i++)
     sum += src[i];
   return sum / (float)vec_size;

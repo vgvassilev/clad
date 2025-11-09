@@ -22,7 +22,8 @@
 
 #include "dataloader.hpp"
 
-// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays, misc-definitions-in-headers)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
+// misc-definitions-in-headers)
 // ----------------------------------------------------------------------------
 // all the individual layers' forward and backward passes
 // B = batch_size, T = sequence_length, C = channels, V = vocab_size
@@ -69,7 +70,8 @@ void encoder_backward(float* dwte, float* dwpe, float* dout, const int* inp,
 }
 
 void layernorm_forward(float* out, float* mean, float* rstd, float* inp,
-                       const float* weight, const float* bias, int B, int T, int C) {
+                       const float* weight, const float* bias, int B, int T,
+                       int C) {
   // reference:
   // https://pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html both inp
   // and out are (B,T,C) of the activations mean and rstd are (B,T) buffers, to
@@ -98,9 +100,9 @@ void layernorm_forward(float* out, float* mean, float* rstd, float* inp,
       // seek to the output position in out[b,t,:]
       float* out_bt = out + (b * T * C) + (t * C);
       for (int i = 0; i < C; i++) {
-        float n = (s * (x[i] - m));        // normalize
+        float n = (s * (x[i] - m));          // normalize
         float o = (n * weight[i]) + bias[i]; // scale and shift
-        out_bt[i] = o;                     // write
+        out_bt[i] = o;                       // write
       }
       // cache the mean and rstd for the backward pass later
       mean[(b * T) + t] = m;
@@ -110,8 +112,8 @@ void layernorm_forward(float* out, float* mean, float* rstd, float* inp,
 }
 
 void layernorm_backward(float* dinp, float* dweight, float* dbias, float* dout,
-                        float* inp, const float* weight, const float* mean, const float* rstd,
-                        int B, int T, int C) {
+                        float* inp, const float* weight, const float* mean,
+                        const float* rstd, int B, int T, int C) {
   for (int b = 0; b < B; b++) {
     for (int t = 0; t < T; t++) {
       float* dout_bt = dout + (b * T * C) + (t * C);
@@ -262,8 +264,8 @@ void attention_forward(float* out, float* preatt, float* att, float* inp, int B,
         // pass 1: calculate query dot key and maxval
         float maxval = -10000.0F; // TODO something better
         for (int t2 = 0; t2 <= t; t2++) {
-          float* key_t2 =
-              inp + (b * T * C3) + (t2 * C3) + (h * hs) + C; // +C because it's key
+          float* key_t2 = inp + (b * T * C3) + (t2 * C3) + (h * hs) +
+                          C; // +C because it's key
 
           // (query_t) dot (key_t2)
           float val = 0.0F;
@@ -410,7 +412,9 @@ void attention_backward(float* __restrict dinp, float* __restrict dpreatt,
   }
 }
 
-inline float fast_tanhf(float x) { return (2.F / (1.F + expf(-2.F * x))) - 1.F; }
+inline float fast_tanhf(float x) {
+  return (2.F / (1.F + expf(-2.F * x))) - 1.F;
+}
 
 void gelu_forward(float* out, const float* inp, int N) {
   const float scale = 0.7978845608028654F; // sqrt(2/pi)
@@ -433,7 +437,7 @@ void gelu_backward(float* dinp, const float* inp, const float* dout, int N) {
     float x2 = x * x;
     float u = s * (x + b * x2 * x);
     float t = fast_tanhf(u);               // tanh(u)
-    float dt = 1.0F - (t * t);               // sech^2(u) but via tanh
+    float dt = 1.0F - (t * t);             // sech^2(u) but via tanh
     float du = s * (1.0F + 3.0F * b * x2); // du/dx
     float local_grad = (0.5F * (1.0F + t)) + (0.5F * x * dt * du);
     dinp[i] += local_grad * dout[i];
@@ -553,10 +557,11 @@ void encoder_forward_pullback(float* out, const int* inp, float* wte,
   encoder_backward(dwte, dwpe, dout, inp, B, T, C);
 }
 void layernorm_forward_pullback(float* out, float* mean, float* rstd,
-                                float* inp, const float* weight, const float* bias, int B,
-                                int T, int C, float* dout, float* dmean,
-                                float* drstd, float* dinp, float* dweight,
-                                float* dbias, int* dB, int* dT, int* dC) {
+                                float* inp, const float* weight,
+                                const float* bias, int B, int T, int C,
+                                float* dout, float* dmean, float* drstd,
+                                float* dinp, float* dweight, float* dbias,
+                                int* dB, int* dT, int* dC) {
   layernorm_backward(dinp, dweight, dbias, dout, inp, weight, mean, rstd, B, T,
                      C);
 }
@@ -567,8 +572,8 @@ void attention_forward_pullback(float* out, float* preatt, float* att,
                                 int* dNH) {
   attention_backward(dinp, dpreatt, datt, dout, inp, att, B, T, C, NH);
 }
-void residual_forward_pullback(float* out, const float* inp1, const float* inp2, int N,
-                               float* dout, float* dinp1, float* dinp2,
+void residual_forward_pullback(float* out, const float* inp1, const float* inp2,
+                               int N, float* dout, float* dinp1, float* dinp2,
                                int* dN) {
   residual_backward(dinp1, dinp2, dout, N);
 }
@@ -588,62 +593,58 @@ void gelu_forward_pullback(float* out, const float* inp, int N, float* dout,
   gelu_backward(dinp, inp, dout, N);
 }
 // For matmul_forward_pullback
-void matmul_forward_reverse_forw(
-    float* out, const float* inp, const float* weight, const float* bias, 
-    int B, int T, int C, int OC,
-    float* d_out, const float* d_inp, const float* d_weight, const float* d_bias, 
-    int d_B, int d_T, int d_C, int d_OC) {
-}
+void matmul_forward_reverse_forw(float* out, const float* inp,
+                                 const float* weight, const float* bias, int B,
+                                 int T, int C, int OC, float* d_out,
+                                 const float* d_inp, const float* d_weight,
+                                 const float* d_bias, int d_B, int d_T, int d_C,
+                                 int d_OC) {}
 
 // For encoder_forward_pullback
-void encoder_forward_reverse_forw(
-    float* out, const int* inp, float* wte, float* wpe, int B, int T, int C,
-    float* d_out, const int* d_inp, float* d_wte, float* d_wpe, 
-    int d_B, int d_T, int d_C) {
-}
+void encoder_forward_reverse_forw(float* out, const int* inp, float* wte,
+                                  float* wpe, int B, int T, int C, float* d_out,
+                                  const int* d_inp, float* d_wte, float* d_wpe,
+                                  int d_B, int d_T, int d_C) {}
 
 // For layernorm_forward_pullback
-void layernorm_forward_reverse_forw(
-    float* out, float* mean, float* rstd, float* inp, 
-    const float* weight, const float* bias, int B, int T, int C,
-    float* d_out, float* d_mean, float* d_rstd, float* d_inp, 
-    const float* d_weight, const float* d_bias, int d_B, int d_T, int d_C) {
-}
+void layernorm_forward_reverse_forw(float* out, float* mean, float* rstd,
+                                    float* inp, const float* weight,
+                                    const float* bias, int B, int T, int C,
+                                    float* d_out, float* d_mean, float* d_rstd,
+                                    float* d_inp, const float* d_weight,
+                                    const float* d_bias, int d_B, int d_T,
+                                    int d_C) {}
 
 // For attention_forward_pullback
-void attention_forward_reverse_forw(
-    float* out, float* preatt, float* att, float* inp, 
-    int B, int T, int C, int NH,
-    float* d_out, float* d_preatt, float* d_att, float* d_inp, 
-    int d_B, int d_T, int d_C, int d_NH) {
-}
+void attention_forward_reverse_forw(float* out, float* preatt, float* att,
+                                    float* inp, int B, int T, int C, int NH,
+                                    float* d_out, float* d_preatt, float* d_att,
+                                    float* d_inp, int d_B, int d_T, int d_C,
+                                    int d_NH) {}
 
 // For residual_forward_pullback
-void residual_forward_reverse_forw(
-    float* out, const float* inp1, const float* inp2, int N,
-    float* d_out, const float* d_inp1, const float* d_inp2, int d_N) {
-}
+void residual_forward_reverse_forw(float* out, const float* inp1,
+                                   const float* inp2, int N, float* d_out,
+                                   const float* d_inp1, const float* d_inp2,
+                                   int d_N) {}
 
 // For softmax_forward_pullback
-void softmax_forward_reverse_forw(
-    float* probs, float* logits, int B, int T, int V, int Vp,
-    float* d_probs, float* d_logits, int d_B, int d_T, int d_V, int d_Vp) {
-}
+void softmax_forward_reverse_forw(float* probs, float* logits, int B, int T,
+                                  int V, int Vp, float* d_probs,
+                                  float* d_logits, int d_B, int d_T, int d_V,
+                                  int d_Vp) {}
 
 // For crossentropy_forward_pullback
-void crossentropy_forward_reverse_forw(
-    float* losses, float* probs, const int* targets, int B, int T, int Vp,
-    float* d_losses, float* d_probs, const int* d_targets, 
-    int d_B, int d_T, int d_Vp) {
-}
+void crossentropy_forward_reverse_forw(float* losses, float* probs,
+                                       const int* targets, int B, int T, int Vp,
+                                       float* d_losses, float* d_probs,
+                                       const int* d_targets, int d_B, int d_T,
+                                       int d_Vp) {}
 
 // For gelu_forward_pullback
-void gelu_forward_reverse_forw(
-    float* out, const float* inp, int N,
-    float* d_out, const float* d_inp, int d_N) {
-}
+void gelu_forward_reverse_forw(float* out, const float* inp, int N,
+                               float* d_out, const float* d_inp, int d_N) {}
 } // namespace clad::custom_derivatives
-
 
 // ----------------------------------------------------------------------------
 // GPT-2 model definition
@@ -662,7 +663,8 @@ struct GPT2Config {
     // *stream)
     FILE* model_file = gpt2::utils::fopen_check(checkpoint_path, /*mode=*/"rb");
     int model_header[256];
-    gpt2::utils::fread_check(model_header, sizeof(int), /*nmemb=*/256, model_file);
+    gpt2::utils::fread_check(model_header, sizeof(int), /*nmemb=*/256,
+                             model_file);
     fclose(model_file); // NOLINT
     if (model_header[0] != 20240326) {
       std::cerr << "Bad magic model file\n";
@@ -706,8 +708,8 @@ struct ParameterTensors {
   float* memory;
   size_t sizes[NUM_PARAMETER_TENSORS];
 
-  // allocate memory for the parameters and point the individual tensors to the right places
-  // NOLINTNEXTLINE: the tensors are initialized in the inner loop
+  // allocate memory for the parameters and point the individual tensors to the
+  // right places NOLINTNEXTLINE: the tensors are initialized in the inner loop
   ParameterTensors(GPT2Config config) {
     size_t Vp = config.padded_vocab_size;
     size_t C = config.channels;
@@ -749,7 +751,7 @@ struct ParameterTensors {
 
   ParameterTensors(ParameterTensors&& other) noexcept = delete;
   ParameterTensors& operator=(ParameterTensors&& other) noexcept = delete;
-  
+
   ~ParameterTensors() { delete[] memory; }
 };
 
@@ -853,10 +855,12 @@ struct GPT2 {
                    // the mean loss
 
   GPT2(const char* checkpoint_path)
-      : config(checkpoint_path), params(config), num_parameters(0), num_activations(0), batch_size(0), seq_len(0), mean_loss(-1.0F) {
+      : config(checkpoint_path), params(config), num_parameters(0),
+        num_activations(0), batch_size(0), seq_len(0), mean_loss(-1.0F) {
     FILE* model_file = gpt2::utils::fopen_check(checkpoint_path, /*mode=*/"rb");
     int model_header[256];
-    gpt2::utils::fread_check(model_header, sizeof(int), /*nmemb=*/256, model_file);
+    gpt2::utils::fread_check(model_header, sizeof(int), /*nmemb=*/256,
+                             model_file);
     // count the number of parameters
     for (size_t size : this->params.sizes)
       num_parameters += size;
@@ -865,9 +869,11 @@ struct GPT2 {
                              model_file);
     fclose(model_file); // NOLINT
   }
-  
+
   // -1.0F will designate no loss
-  GPT2(GPT2Config config) : config(config), params(config), num_parameters(0), num_activations(0), batch_size(0), seq_len(0), mean_loss(-1.0F) {
+  GPT2(GPT2Config config)
+      : config(config), params(config), num_parameters(0), num_activations(0),
+        batch_size(0), seq_len(0), mean_loss(-1.0F) {
     // count the number of parameters
     for (size_t size : this->params.sizes)
       num_parameters += size;
@@ -974,7 +980,8 @@ struct GPT2 {
         acts.residual3 + (L - 1) * B * T * C; // last residual is in residual3
     layernorm_forward(acts.lnf, acts.lnf_mean, acts.lnf_rstd, residual,
                       params.lnfw, params.lnfb, B, T, C);
-    matmul_forward(acts.logits, acts.lnf, params.wte, /*bias=*/nullptr, B, T, C, Vp);
+    matmul_forward(acts.logits, acts.lnf, params.wte, /*bias=*/nullptr, B, T, C,
+                   Vp);
     softmax_forward(acts.probs, acts.logits, B, T, V, Vp);
 
     // also forward the cross-entropy loss function if we have the targets
@@ -1023,4 +1030,5 @@ struct GPT2 {
 //   }
 // }
 
-// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays, misc-definitions-in-headers)
+// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
+// misc-definitions-in-headers)

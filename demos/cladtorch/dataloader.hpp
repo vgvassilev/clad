@@ -31,12 +31,10 @@ inline void fread_check(void* ptr, size_t size, size_t nmemb, FILE* stream) {
   if (result != nmemb) {
     if (feof(stream))
       throw std::runtime_error("Unexpected end of file");
-    if (ferror(stream)) {
+    if (ferror(stream))
       throw std::runtime_error("File read error");
-    }
-    throw std::runtime_error("Partial read. Expected " +
-                              std::to_string(nmemb) + " elements, read " +
-                              std::to_string(result));
+    throw std::runtime_error("Partial read. Expected " + std::to_string(nmemb) +
+                             " elements, read " + std::to_string(result));
   }
 }
 
@@ -181,8 +179,7 @@ public:
         m_T(T), m_TokenFile(nullptr, fclose), m_Rng(37 + m_ProcessRank),
         m_ShouldShuffle(should_shuffle),
         m_TotalBatchSizeBytes(m_NumProcesses * m_B * m_T * sizeof(uint16_t)),
-        m_LocalBatchOffsetBytes(m_ProcessRank * m_B * m_T *
-                                   sizeof(uint16_t)),
+        m_LocalBatchOffsetBytes(m_ProcessRank * m_B * m_T * sizeof(uint16_t)),
         m_HeaderBytes(HEADER_SIZE * sizeof(int)) {
     std::memset(&m_GlobResult, 0, sizeof(m_GlobResult));
 
@@ -360,7 +357,8 @@ private:
 
     // Read example header
     uint16_t example_header[3];
-    utils::fread_check(example_header, sizeof(uint16_t), /*nmemb=*/3, m_EvalFile.get());
+    utils::fread_check(example_header, sizeof(uint16_t), /*nmemb=*/3,
+                       m_EvalFile.get());
 
     // Validate header
     if (example_header[0] != 65535)
@@ -435,8 +433,8 @@ public:
   EvalLoader()
       : m_ProcessRank(0), m_NumProcesses(1), m_B(0), m_T(0),
         m_EvalFile(nullptr, fclose), m_NumExamples(0), m_NumBatches(0),
-        m_StartExampleIndex(0), m_EndExampleIndex(0),
-        m_CurrentExampleIndex(0), m_NumCompletions(0), m_InitOk(false) {}
+        m_StartExampleIndex(0), m_EndExampleIndex(0), m_CurrentExampleIndex(0),
+        m_NumCompletions(0), m_InitOk(false) {}
 
   explicit EvalLoader(const std::string& filename, size_t B, size_t T,
                       int process_rank = 0, int num_processes = 1)
@@ -522,7 +520,8 @@ public:
 
     for (int i = 0; i < m_StartExampleIndex; ++i) {
       uint16_t example_header[3];
-      utils::fread_check(example_header, sizeof(uint16_t), /*nmemb=*/3, m_EvalFile.get());
+      utils::fread_check(example_header, sizeof(uint16_t), /*nmemb=*/3,
+                         m_EvalFile.get());
 
       if (example_header[0] != 65535)
         throw std::runtime_error("Invalid example delimiter during seek");
