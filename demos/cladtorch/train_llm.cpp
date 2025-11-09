@@ -50,11 +50,9 @@ int main() {
   Tokenizer tokenizer("gpt2_tokenizer.bin");
 
   const std::string tiny_shakespeare_train =
-      "/Users/rohan/Developer/projects/gsoc25/workspace/ml/llm.c/dev/data/"
-      "tinyshakespeare/tiny_shakespeare_train.bin";
+      "data/tinyshakespeare/tiny_shakespeare_train.bin";
   const std::string tiny_shakespeare_val =
-      "/Users/rohan/Developer/projects/gsoc25/workspace/ml/llm.c/dev/data/"
-      "tinyshakespeare/tiny_shakespeare_val.bin";
+      "data/tinyshakespeare/tiny_shakespeare_val.bin";
   const std::string& train_token = tiny_shakespeare_train;
   const std::string& val_token = tiny_shakespeare_val;
   DataLoader train_loader(train_token, B, T, 0, 1, true);

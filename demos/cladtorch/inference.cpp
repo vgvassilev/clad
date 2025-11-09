@@ -45,8 +45,8 @@ int main() {
 
   std::cout << "generating:\n---\n";
   std::cerr << std::setprecision(4);
-  struct timespec start{};
-  struct timespec end{}; // timers for benchmarking per token
+  struct timespec start {};
+  struct timespec end {}; // timers for benchmarking per token
 
   for (int t = 1; t < gen_max_length; t++) {
     clock_gettime(CLOCK_MONOTONIC, &start);

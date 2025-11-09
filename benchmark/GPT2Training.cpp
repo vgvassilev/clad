@@ -136,8 +136,8 @@ static float gpt2_loss(const gpt2::GPT2& model, const gpt2::ITensor& input,
 }
 
 // The benchmark itself
-BENCHMARK_DEFINE_F(GPT2Cladtorch,
-                   FullTrainingIteration)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(GPT2Cladtorch, FullTrainingIteration)
+(benchmark::State& state) {
   auto grad = clad::gradient(gpt2_loss, "0");
   int B = (int)state.range(0);
   int T = (int)state.range(1);
