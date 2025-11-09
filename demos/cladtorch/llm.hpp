@@ -7,6 +7,7 @@
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#include <clad/Differentiator/Differentiator.h>
 
 namespace gpt2 {
 
@@ -170,14 +171,23 @@ public:
 
   FTensor forward(const ITensor& input, const ITensor& input_pos) const {
     auto x = encoder.forward(input, input_pos);
-    for (size_t i = 0; i < blocks.size(); i++) {
-      auto block_out = blocks[i].forward(x);
-      x = block_out;
-    }
+    // for (size_t i = 0; i < blocks.size(); i++) {
+    //   auto block_out = blocks[i].forward(x);
+    //   x = block_out;
+    // }
     auto final_norm = ln_f.forward(x);
     return final_norm;
   }
 };
+
+ND static ITensor get_input_pos(int B, int T) {
+  ITensor input_pos({B, T}); // Create position indices
+  for (int b = 0; b < B; ++b)
+    for (int t = 0; t < T; ++t)
+      input_pos.data()[(b * T) + t] = t; // NOLINT
+  // Fill with sequential positions 0, 1, ..., T-1 for each batch
+  return input_pos;
+}
 
 class GPT2 {
 private:
@@ -276,15 +286,6 @@ public:
     load_weights_from_checkpoint(checkpoint_path);
   }
 
-  ND static ITensor get_input_pos(int B, int T) {
-    ITensor input_pos({B, T}); // Create position indices
-    for (int b = 0; b < B; ++b)
-      for (int t = 0; t < T; ++t)
-        input_pos.data()[(b * T) + t] = t; // NOLINT
-    // Fill with sequential positions 0, 1, ..., T-1 for each batch
-    return input_pos;
-  }
-
   FTensor forward(const ITensor& input) const {
     const int B = input.size(0);
     const int T = input.size(1);
@@ -350,3 +351,11 @@ public:
 };
 
 } // namespace gpt2
+
+namespace clad::custom_derivatives::gpt2 {
+static void get_input_pos_pullback(int B, int T, ::gpt2::ITensor _d_y, int *_d_B, int *_d_T) {}
+static ::clad::ValueAndAdjoint<::gpt2::ITensor, ::gpt2::ITensor>
+get_input_pos_reverse_forw(int B, int T, int _d_B, int _d_T) {
+  return {::gpt2::get_input_pos(B, T), ::gpt2::get_input_pos(B, T)};
+}
+}

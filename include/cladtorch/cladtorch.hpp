@@ -10,8 +10,8 @@
 #include <utility>
 #include <vector>
 
-#define ND __attribute__((annotate("non_differentiable")))
-
+// #define ND __attribute__((annotate("non_differentiable")))
+#define ND 
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays, cppcoreguidelines-owning-memory)
 
 // Register as a tensor for clad to understand
@@ -167,7 +167,7 @@ public:
   int ndim() const { return m_shape.size(); }
   int num_elements() const { return m_numel; }
   ND int size(int dim) const {
-    CLAD_ASSERT(dim < m_shape.size(), "Dimension index out of range.");
+    // CLAD_ASSERT(dim < m_shape.size(), "Dimension index out of range.");
     return m_shape[dim];
   }
   T* data() { return m_data; }

@@ -587,6 +587,61 @@ void gelu_forward_pullback(float* out, const float* inp, int N, float* dout,
                            float* dinp, int* dN) {
   gelu_backward(dinp, inp, dout, N);
 }
+// For matmul_forward_pullback
+void matmul_forward_reverse_forw(
+    float* out, const float* inp, const float* weight, const float* bias, 
+    int B, int T, int C, int OC,
+    float* d_out, const float* d_inp, const float* d_weight, const float* d_bias, 
+    int d_B, int d_T, int d_C, int d_OC) {
+}
+
+// For encoder_forward_pullback
+void encoder_forward_reverse_forw(
+    float* out, const int* inp, float* wte, float* wpe, int B, int T, int C,
+    float* d_out, const int* d_inp, float* d_wte, float* d_wpe, 
+    int d_B, int d_T, int d_C) {
+}
+
+// For layernorm_forward_pullback
+void layernorm_forward_reverse_forw(
+    float* out, float* mean, float* rstd, float* inp, 
+    const float* weight, const float* bias, int B, int T, int C,
+    float* d_out, float* d_mean, float* d_rstd, float* d_inp, 
+    const float* d_weight, const float* d_bias, int d_B, int d_T, int d_C) {
+}
+
+// For attention_forward_pullback
+void attention_forward_reverse_forw(
+    float* out, float* preatt, float* att, float* inp, 
+    int B, int T, int C, int NH,
+    float* d_out, float* d_preatt, float* d_att, float* d_inp, 
+    int d_B, int d_T, int d_C, int d_NH) {
+}
+
+// For residual_forward_pullback
+void residual_forward_reverse_forw(
+    float* out, const float* inp1, const float* inp2, int N,
+    float* d_out, const float* d_inp1, const float* d_inp2, int d_N) {
+}
+
+// For softmax_forward_pullback
+void softmax_forward_reverse_forw(
+    float* probs, float* logits, int B, int T, int V, int Vp,
+    float* d_probs, float* d_logits, int d_B, int d_T, int d_V, int d_Vp) {
+}
+
+// For crossentropy_forward_pullback
+void crossentropy_forward_reverse_forw(
+    float* losses, float* probs, const int* targets, int B, int T, int Vp,
+    float* d_losses, float* d_probs, const int* d_targets, 
+    int d_B, int d_T, int d_Vp) {
+}
+
+// For gelu_forward_pullback
+void gelu_forward_reverse_forw(
+    float* out, const float* inp, int N,
+    float* d_out, const float* d_inp, int d_N) {
+}
 } // namespace clad::custom_derivatives
 
 

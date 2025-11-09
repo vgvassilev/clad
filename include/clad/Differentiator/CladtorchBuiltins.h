@@ -463,6 +463,8 @@ void linear_kernel_pullback(const float* input, const float* weight,
 #endif
 }
 
+
+
 } // namespace kernels
 
 // Linear function pullback
@@ -495,8 +497,269 @@ void linear_pullback(const ::cladtorch::Tensor<T>& input,
       _d_weight->data(), _d_bias->data());
 }
 
+// gelu_reverse_forw
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>, ::cladtorch::Tensor<float>>
+gelu_reverse_forw(const ::cladtorch::Tensor<float>& in,
+                  const ::cladtorch::Tensor<float>& d_in) {
+  ::cladtorch::Tensor<float> result = ::cladtorch::gelu(in);
+  ::cladtorch::Tensor<float> d_result = ::cladtorch::Tensor<float>(in.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// matmul_reverse_forw
+template <typename T>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+matmul_reverse_forw(const ::cladtorch::Tensor<T>& a,
+                    const ::cladtorch::Tensor<T>& b,
+                    const ::cladtorch::Tensor<T>& _d_a,
+                    const ::cladtorch::Tensor<T>& _d_b) {
+  ::cladtorch::Tensor<T> result = ::cladtorch::matmul(a, b);
+  ::cladtorch::Tensor<T> d_result = ::cladtorch::Tensor<T>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// softmax_reverse_forw
+template <typename T>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+softmax_reverse_forw(const ::cladtorch::Tensor<T>& input, bool is_casual,
+                     int vocab_size, const ::cladtorch::Tensor<T>& _d_input,
+                     bool _d_is_casual, int _d_vocab_size) {
+  ::cladtorch::Tensor<T> result = ::cladtorch::softmax(input, is_casual, vocab_size);
+  ::cladtorch::Tensor<T> d_result = ::cladtorch::Tensor<T>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// cross_entropy_loss_reverse_forw (batched version)
+template <typename T, typename U>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+cross_entropy_loss_reverse_forw(const ::cladtorch::Tensor<T>& probs,
+                                const ::cladtorch::Tensor<U>& targets,
+                                const ::cladtorch::Tensor<T>& _d_probs,
+                                const ::cladtorch::Tensor<U>& _d_targets) {
+  ::cladtorch::Tensor<T> result = ::cladtorch::cross_entropy_loss(probs, targets);
+  ::cladtorch::Tensor<T> d_result = ::cladtorch::Tensor<T>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// cross_entropy_loss_reverse_forw (single instance version)
+template <typename T>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+cross_entropy_loss_reverse_forw(const ::cladtorch::Tensor<T>& probs,
+                                int target_class,
+                                const ::cladtorch::Tensor<T>& _d_probs,
+                                int _d_target_class) {
+  ::cladtorch::Tensor<T> result = ::cladtorch::cross_entropy_loss(probs, target_class);
+  ::cladtorch::Tensor<T> d_result = ::cladtorch::Tensor<T>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// linear_reverse_forw
+template <typename T>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+linear_reverse_forw(const ::cladtorch::Tensor<T>& input,
+                    const ::cladtorch::Tensor<T>& weight,
+                    const ::cladtorch::Tensor<T>& bias,
+                    const ::cladtorch::Tensor<T>& _d_input,
+                    const ::cladtorch::Tensor<T>& _d_weight,
+                    const ::cladtorch::Tensor<T>& _d_bias) {
+  ::cladtorch::Tensor<T> result = ::cladtorch::linear(input, weight, bias);
+  ::cladtorch::Tensor<T> d_result = ::cladtorch::Tensor<T>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
 } // namespace cladtorch
 namespace class_functions {
+
+// scalar_reverse_forw
+template <typename T>
+::clad::ValueAndAdjoint<T, T>
+scalar_reverse_forw(const ::cladtorch::Tensor<T>* _this,
+                    const ::cladtorch::Tensor<T>* _d_this) {
+  T result = _this->scalar();
+  T d_result = 0;
+  return {result, d_result};
+}
+
+// operator_plus_equal_reverse_forw
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>&, ::cladtorch::Tensor<float>&>
+operator_plus_equal_reverse_forw(::cladtorch::Tensor<float>* _this,
+                                 const ::cladtorch::Tensor<float>& other,
+                                 ::cladtorch::Tensor<float>* _d_this,
+                                 const ::cladtorch::Tensor<float>& _d_other) {
+  *_this += other;
+  return {*_this, *_d_this};
+}
+
+// operator_plus_reverse_forw
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>, ::cladtorch::Tensor<float>>
+operator_plus_reverse_forw(const ::cladtorch::Tensor<float>* _this,
+                           const ::cladtorch::Tensor<float>& other,
+                           const ::cladtorch::Tensor<float>* _d_this,
+                           const ::cladtorch::Tensor<float>& _d_other) {
+  ::cladtorch::Tensor<float> result = *_this + other;
+  ::cladtorch::Tensor<float> d_result = ::cladtorch::Tensor<float>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// operator_minus_equal_reverse_forw
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>&, ::cladtorch::Tensor<float>&>
+operator_minus_equal_reverse_forw(::cladtorch::Tensor<float>* _this,
+                                  const ::cladtorch::Tensor<float>& other,
+                                  ::cladtorch::Tensor<float>* _d_this,
+                                  const ::cladtorch::Tensor<float>& _d_other) {
+  *_this -= other;
+  return {*_this, *_d_this};
+}
+
+// operator_minus_reverse_forw
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>, ::cladtorch::Tensor<float>>
+operator_minus_reverse_forw(const ::cladtorch::Tensor<float>* _this,
+                            const ::cladtorch::Tensor<float>& other,
+                            const ::cladtorch::Tensor<float>* _d_this,
+                            const ::cladtorch::Tensor<float>& _d_other) {
+  ::cladtorch::Tensor<float> result = *_this - other;
+  ::cladtorch::Tensor<float> d_result = ::cladtorch::Tensor<float>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// operator_star_equal_reverse_forw (tensor * tensor)
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>&, ::cladtorch::Tensor<float>&>
+operator_star_equal_reverse_forw(::cladtorch::Tensor<float>* _this,
+                                 const ::cladtorch::Tensor<float>& other,
+                                 ::cladtorch::Tensor<float>* _d_this,
+                                 const ::cladtorch::Tensor<float>& _d_other) {
+  *_this *= other;
+  return {*_this, *_d_this};
+}
+
+// operator_star_reverse_forw (tensor * tensor)
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>, ::cladtorch::Tensor<float>>
+operator_star_reverse_forw(const ::cladtorch::Tensor<float>* _this,
+                           const ::cladtorch::Tensor<float>& other,
+                           const ::cladtorch::Tensor<float>* _d_this,
+                           const ::cladtorch::Tensor<float>& _d_other) {
+  ::cladtorch::Tensor<float> result = *_this * other;
+  ::cladtorch::Tensor<float> d_result = ::cladtorch::Tensor<float>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// operator_star_equal_reverse_forw (tensor * scalar)
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>&, ::cladtorch::Tensor<float>&>
+operator_star_equal_reverse_forw(::cladtorch::Tensor<float>* _this,
+                                 float scalar,
+                                 ::cladtorch::Tensor<float>* _d_this,
+                                 float _d_scalar) {
+  *_this *= scalar;
+  return {*_this, *_d_this};
+}
+
+// operator_star_reverse_forw (tensor * scalar)
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>, ::cladtorch::Tensor<float>>
+operator_star_reverse_forw(const ::cladtorch::Tensor<float>* _this,
+                           float scalar,
+                           const ::cladtorch::Tensor<float>* _d_this,
+                           float _d_scalar) {
+  ::cladtorch::Tensor<float> result = *_this * scalar;
+  ::cladtorch::Tensor<float> d_result = ::cladtorch::Tensor<float>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// operator_divide_equal_reverse_forw
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>&, ::cladtorch::Tensor<float>&>
+operator_divide_equal_reverse_forw(::cladtorch::Tensor<float>* _this,
+                                   float scalar,
+                                   ::cladtorch::Tensor<float>* _d_this,
+                                   float _d_scalar) {
+  *_this /= scalar;
+  return {*_this, *_d_this};
+}
+
+// operator_divide_reverse_forw
+inline ::clad::ValueAndAdjoint<::cladtorch::Tensor<float>, ::cladtorch::Tensor<float>>
+operator_divide_reverse_forw(const ::cladtorch::Tensor<float>* _this,
+                             float scalar,
+                             const ::cladtorch::Tensor<float>* _d_this,
+                             float _d_scalar) {
+  ::cladtorch::Tensor<float> result = *_this / scalar;
+  ::cladtorch::Tensor<float> d_result = ::cladtorch::Tensor<float>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// transpose_reverse_forw
+template <typename T>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+transpose_reverse_forw(const ::cladtorch::Tensor<T>* _this, int dim0, int dim1,
+                       const ::cladtorch::Tensor<T>* _d_this, int _d_dim0,
+                       int _d_dim1) {
+  ::cladtorch::Tensor<T> result = _this->transpose(dim0, dim1);
+  ::cladtorch::Tensor<T> d_result = ::cladtorch::Tensor<T>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// lookup_reverse_forw
+template <typename T, typename U>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+lookup_reverse_forw(const ::cladtorch::Tensor<T>* _this,
+                    const ::cladtorch::Tensor<U>& indices,
+                    const ::cladtorch::Tensor<T>* _d_this,
+                    const ::cladtorch::Tensor<U>& _d_indices) {
+  ::cladtorch::Tensor<T> result = _this->lookup(indices);
+  ::cladtorch::Tensor<T> d_result = ::cladtorch::Tensor<T>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// reshape_reverse_forw
+template <typename T, typename U>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+reshape_reverse_forw(const ::cladtorch::Tensor<T>* _this,
+                     const ::std::vector<U>& new_shape,
+                     const ::cladtorch::Tensor<T>* _d_this,
+                     const ::std::vector<U>& _d_new_shape) {
+  ::cladtorch::Tensor<T> result = _this->reshape(new_shape);
+  ::cladtorch::Tensor<T> d_result = ::cladtorch::Tensor<T>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// norm_reverse_forw
+template <typename T>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+norm_reverse_forw(const ::cladtorch::Tensor<T>* _this,
+                  const ::cladtorch::Tensor<T>* _d_this) {
+  ::cladtorch::Tensor<T> result = _this->norm();
+  ::cladtorch::Tensor<T> d_result = ::cladtorch::Tensor<T>(result.shape());
+  d_result.fill(0);
+  return {result, d_result};
+}
+
+// split_reverse_forw
+template <typename T>
+::clad::ValueAndAdjoint<::std::vector<::cladtorch::Tensor<T>>, ::std::vector<::cladtorch::Tensor<T>>>
+split_reverse_forw(const ::cladtorch::Tensor<T>* _this, int size, int axis,
+                   const ::cladtorch::Tensor<T>* _d_this, int _d_size,
+                   int _d_axis) {
+  ::std::vector<::cladtorch::Tensor<T>> result = _this->split(size, axis);
+  ::std::vector<::cladtorch::Tensor<T>> d_result;
+  for (const auto& tensor : result) {
+    ::cladtorch::Tensor<T> d_tensor = ::cladtorch::Tensor<T>(tensor.shape());
+    d_tensor.fill(0);
+    d_result.push_back(d_tensor);
+  }
+  return {result, d_result};
+}
 
 template <typename T>
 void scalar_pullback(const ::cladtorch::Tensor<T>* _this, T _d_y,
@@ -819,6 +1082,25 @@ void constructor_pullback(const ::std::vector<int>& shape,
   // *_d_other += *_d_this;
   // _d_this->fill(0);
 }
+template <typename T>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+constructor_reverse_forw(ConstructorPushforwardTag<::cladtorch::Tensor<T>>,
+                        const ::cladtorch::Tensor<T>& p,
+                        const ::cladtorch::Tensor<T>& d_p) {
+  ::cladtorch::Tensor<T> v(p);
+  ::cladtorch::Tensor<T> d_v(d_p);
+  return {v, d_v};
+}
+
+template <typename T>
+::clad::ValueAndAdjoint<::cladtorch::Tensor<T>, ::cladtorch::Tensor<T>>
+constructor_reverse_forw(ConstructorPushforwardTag<::cladtorch::Tensor<T>>,
+                        ::cladtorch::Tensor<T>&& p,
+                        ::cladtorch::Tensor<T>&& d_p) {
+  ::cladtorch::Tensor<T> v(::std::move(p));
+  ::cladtorch::Tensor<T> d_v(::std::move(d_p));
+  return {v, d_v};
+}
 
 template <typename T>
 void transpose_pullback(const ::cladtorch::Tensor<T>* _this, int dim0, int dim1,
@@ -987,6 +1269,9 @@ void split_pullback(const ::cladtorch::Tensor<T>* _this, int size, int axis,
     }
   }
 }
+
+
+
 } // namespace class_functions
 } // namespace custom_derivatives
 } // namespace clad

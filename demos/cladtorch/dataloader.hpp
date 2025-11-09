@@ -31,13 +31,13 @@ inline void fread_check(void* ptr, size_t size, size_t nmemb, FILE* stream) {
   if (result != nmemb) {
     if (feof(stream))
       throw std::runtime_error("Unexpected end of file");
-    }
     if (ferror(stream)) {
       throw std::runtime_error("File read error");
     }
     throw std::runtime_error("Partial read. Expected " +
                               std::to_string(nmemb) + " elements, read " +
                               std::to_string(result));
+  }
 }
 
 inline void fseek_check(FILE* fp, long off, int whence) {
