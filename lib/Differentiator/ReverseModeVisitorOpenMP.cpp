@@ -1,4 +1,6 @@
 #include "ConstantFolder.h"
+#include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/VisitorBase.h"
@@ -6,14 +8,19 @@
 #include <clang/AST/Expr.h>
 #include <clang/AST/OpenMPClause.h>
 #include <clang/AST/OperationKinds.h>
+#include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/AST/Stmt.h>
 #include <clang/AST/StmtOpenMP.h>
+#include <clang/AST/Type.h>
 #include <clang/Basic/LLVM.h>
 #include <clang/Basic/OpenMPKinds.h>
+#include <clang/Basic/Specifiers.h>
+#include <clang/Sema/DeclSpec.h>
 #include <clang/Sema/Scope.h>
 #include <llvm/Frontend/OpenMP/OMP.h.inc>
 #include <llvm/Support/ErrorHandling.h>
 
+#include <array>
 #include <cassert>
 
 using namespace clang;
