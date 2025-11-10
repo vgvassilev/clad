@@ -129,7 +129,6 @@ public:
   StmtDiff VisitOMPParallelDirective(const clang::OMPParallelDirective* D);
   StmtDiff
   VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
-  clang::OMPClause* VisitOMPClause(const clang::OMPClause* C);
   clang::OMPClause* VisitOMPPrivateClause(const clang::OMPPrivateClause* C);
   clang::OMPClause*
   VisitOMPFirstprivateClause(const clang::OMPFirstprivateClause* C);
