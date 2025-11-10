@@ -5,6 +5,7 @@
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/VisitorBase.h"
 
+#include <clang/AST/DeclarationName.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/OpenMPClause.h>
 #include <clang/AST/OperationKinds.h>
@@ -14,6 +15,7 @@
 #include <clang/AST/Type.h>
 #include <clang/Basic/LLVM.h>
 #include <clang/Basic/OpenMPKinds.h>
+#include <clang/Basic/OperatorKinds.h>
 #include <clang/Basic/Specifiers.h>
 #include <clang/Sema/DeclSpec.h>
 #include <clang/Sema/Scope.h>
