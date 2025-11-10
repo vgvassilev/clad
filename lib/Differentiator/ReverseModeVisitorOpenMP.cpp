@@ -3,13 +3,18 @@
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/VisitorBase.h"
 
+#include <clang/AST/Expr.h>
 #include <clang/AST/OpenMPClause.h>
+#include <clang/AST/OperationKinds.h>
 #include <clang/AST/Stmt.h>
 #include <clang/AST/StmtOpenMP.h>
+#include <clang/Basic/LLVM.h>
 #include <clang/Basic/OpenMPKinds.h>
 #include <clang/Sema/Scope.h>
 #include <llvm/Frontend/OpenMP/OMP.h.inc>
 #include <llvm/Support/ErrorHandling.h>
+
+#include <cassert>
 
 using namespace clang;
 using namespace llvm::omp;
