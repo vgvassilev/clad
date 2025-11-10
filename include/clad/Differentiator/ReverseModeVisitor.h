@@ -463,8 +463,6 @@ namespace clad {
     std::array<clang::OMPClause*, 3>
     VisitOMPFirstprivateClause(const clang::OMPFirstprivateClause* C);
     std::array<clang::OMPClause*, 3>
-    VisitOMPLastprivateClause(const clang::OMPLastprivateClause* C);
-    std::array<clang::OMPClause*, 3>
     VisitOMPSharedClause(const clang::OMPSharedClause* C);
     std::array<clang::OMPClause*, 3>
     VisitOMPReductionClause(const clang::OMPReductionClause* C);
