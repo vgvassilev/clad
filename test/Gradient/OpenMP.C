@@ -14,32 +14,32 @@ double fn1(const double *x, int n) {
   return total;
 }
 
-// CHECK:  void fn1_grad(const double *x, int n, double *_d_x, int *_d_n) {
-// CHECK-NEXT:      double _d_total = 0.;
-// CHECK-NEXT:      double total = 0.;
-// CHECK-NEXT:      #pragma omp parallel reduction(+: total)
-// CHECK-NEXT:          {
-// CHECK-NEXT:              int _t_chunklo0 = 0;
-// CHECK-NEXT:              int _t_chunkhi0 = 0;
-// CHECK-NEXT:              clad::GetStaticSchedule(1, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
-// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
-// CHECK-NEXT:                  total += x[i];
-// CHECK-NEXT:              }
-// CHECK-NEXT:          }
-// CHECK-NEXT:      _d_total += 1;
-// CHECK-NEXT:      #pragma omp parallel firstprivate(_d_total)
-// CHECK-NEXT:          {
-// CHECK-NEXT:              int _t_chunklo1 = 0;
-// CHECK-NEXT:              int _t_chunkhi1 = 0;
-// CHECK-NEXT:              clad::GetStaticSchedule(1, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
-// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
-// CHECK-NEXT:                  {
-// CHECK-NEXT:                      double _r_d0 = _d_total;
-// CHECK-NEXT:                      _d_x[i] += _r_d0;
+// CHECK:      void fn1_grad(const double *x, int n, double *_d_x, int *_d_n) {
+// CHECK-NEXT:          double _d_total = 0.;
+// CHECK-NEXT:          double total = 0.;
+// CHECK-NEXT:          #pragma omp parallel reduction(+: total)
+// CHECK-NEXT:              {
+// CHECK-NEXT:                  int _t_chunklo0 = 0;
+// CHECK-NEXT:                  int _t_chunkhi0 = 0;
+// CHECK-NEXT:                  clad::GetStaticSchedule(1, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:                  for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                      total += x[i];
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
-// CHECK-NEXT:          }
-// CHECK-NEXT:  }
+// CHECK-NEXT:          _d_total += 1;
+// CHECK-NEXT:          #pragma omp parallel private(total) firstprivate(_d_total)
+// CHECK-NEXT:              {
+// CHECK-NEXT:                  int _t_chunklo1 = 0;
+// CHECK-NEXT:                  int _t_chunkhi1 = 0;
+// CHECK-NEXT:                  clad::GetStaticSchedule(1, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:                  for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                      {
+// CHECK-NEXT:                          double _r_d0 = _d_total;
+// CHECK-NEXT:                          _d_x[i] += _r_d0;
+// CHECK-NEXT:                      }
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:      }
 
 void fn2(const double *x, int n, double *y) {
   #pragma omp parallel for
@@ -88,8 +88,684 @@ void fn2(const double *x, int n, double *y) {
 // CHECK-NEXT:          }
 // CHECK-NEXT:  }
 
+// Test different loop initialization forms
+void fn3(const double *x, int n, double *y) {
+  int i;
+  #pragma omp parallel for
+  for (i = 0; i < n; i++) {
+    y[i] = x[i] * 2.0;
+  }
+}
+
+// CHECK:  void fn3_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      int _d_i = 0;
+// CHECK-NEXT:      int i;
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i0 = _t_chunklo0; i0 <= _t_chunkhi0; i0 += 1) {
+// CHECK-NEXT:                  y[i0] = x[i0] * 2.;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i0 = _t_chunkhi1; i0 >= _t_chunklo1; i0 -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i0];
+// CHECK-NEXT:                      _d_y[i0] = 0.;
+// CHECK-NEXT:                      _d_x[i0] += _r_d0 * 2.;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test loop with <= condition
+void fn4(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = 1; i <= n; i++) {
+    y[i] = x[i] + x[i];
+  }
+}
+
+// CHECK:  void fn4_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(1, n, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  y[i] = x[i] + x[i];
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(1, n, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0;
+// CHECK-NEXT:                      _d_x[i] += _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test loop with reversed condition (ub > var)
+void fn5(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = 0; n > i; i++) {
+    y[i] = x[i] * x[i];
+  }
+}
+
+// CHECK:  void fn5_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  y[i] = x[i] * x[i];
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test loop with reversed condition (ub >= var)
+void fn6(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = 1; n >= i; i++) {
+    y[i] = x[i] * 3.0;
+  }
+}
+
+// CHECK:  void fn6_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(1, n, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  y[i] = x[i] * 3.;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(1, n, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * 3.;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test decrement loop with --i
+void fn7(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = n; i > 0; --i) {
+    y[i] = x[i] * x[i];
+  }
+}
+
+// CHECK:  void fn7_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += -1) {
+// CHECK-NEXT:                  y[i] = x[i] * x[i];
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= -1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test decrement loop with i--
+void fn8(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = n; i >= 1; i--) {
+    y[i] = x[i] + 1.0;
+  }
+}
+
+// CHECK:  void fn8_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(n, 1, -1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += -1) {
+// CHECK-NEXT:                  y[i] = x[i] + 1.;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(n, 1, -1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= -1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test loop with += stride
+void fn9(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = 0; i < n; i += 2) {
+    y[i] = x[i] * 2.0;
+  }
+}
+
+// CHECK:  void fn9_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 2, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 2) {
+// CHECK-NEXT:                  y[i] = x[i] * 2.;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 2, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 2) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * 2.;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test loop with -= stride
+void fn10(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = n; i > 0; i -= 3) {
+    y[i] = x[i] * 4.0;
+  }
+}
+
+// CHECK:  void fn10_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -3, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += -3) {
+// CHECK-NEXT:                  y[i] = x[i] * 4.;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -3, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= -3) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * 4.;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test loop with i = i + stride
+void fn11(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = 0; i < n; i = i + 2) {
+    y[i] = x[i] * x[i];
+  }
+}
+
+// CHECK:  void fn11_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 2, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 2) {
+// CHECK-NEXT:                  y[i] = x[i] * x[i];
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 2, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 2) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test loop with i = stride + i
+void fn12(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = 0; i < n; i = 3 + i) {
+    y[i] = x[i] * 5.0;
+  }
+}
+
+// CHECK:  void fn12_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 3, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 3) {
+// CHECK-NEXT:                  y[i] = x[i] * 5.;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 3, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 3) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * 5.;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test loop with i = i - stride
+void fn13(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = n; i > 0; i = i - 2) {
+    y[i] = x[i] * x[i];
+  }
+}
+
+// CHECK:  void fn13_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -2, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += -2) {
+// CHECK-NEXT:                  y[i] = x[i] * x[i];
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -2, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= -2) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test private clause
+void fn14(const double *x, int n, double *y) {
+  double temp = 0.0;
+  #pragma omp parallel for private(temp)
+  for (int i = 0; i < n; i++) {
+    temp = x[i] * x[i];
+    y[i] = temp;
+  }
+}
+
+// CHECK:  void fn14_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      double _d_temp = 0.;
+// CHECK-NEXT:      double temp = 0.;
+// CHECK-NEXT:      #pragma omp parallel private(temp)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  temp = x[i] * x[i];
+// CHECK-NEXT:                  y[i] = temp;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel private(temp) private(_d_temp)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d1 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_temp += _r_d1;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_temp;
+// CHECK-NEXT:                      _d_temp = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test firstprivate clause
+void fn15(const double *x, int n, double *y) {
+  double scale = 2.0;
+  #pragma omp parallel for firstprivate(scale)
+  for (int i = 0; i < n; i++) {
+    y[i] = x[i] * scale;
+  }
+}
+
+// CHECK:  void fn15_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      double _d_scale = 0.;
+// CHECK-NEXT:      double scale = 2.;
+// CHECK-NEXT:      #pragma omp parallel firstprivate(scale)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  y[i] = x[i] * scale;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel private(scale) reduction(+: _d_scale)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * scale;
+// CHECK-NEXT:                      _d_scale += x[i] * _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test shared clause
+void fn16(const double *x, int n, double *y) {
+  double sum = 0.0;
+  #pragma omp parallel for shared(sum)
+  for (int i = 0; i < n; i++) {
+    y[i] = x[i] * x[i];
+  }
+}
+
+// CHECK:  void fn16_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      double _d_sum = 0.;
+// CHECK-NEXT:      double sum = 0.;
+// CHECK-NEXT:      #pragma omp parallel shared(sum)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  y[i] = x[i] * x[i];
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel shared(sum) reduction(+: _d_sum)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test multiple clauses combined
+void fn17(const double *x, int n, double *y) {
+  double temp = 0.0;
+  double scale = 3.0;
+  
+  #pragma omp parallel for private(temp) firstprivate(scale)
+  for (int i = 0; i < n; i++) {
+    temp = x[i] * scale;
+    y[i] = temp * temp;
+  }
+}
+
+// CHECK:  void fn17_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      static clad::tape<double> _t0 = {};
+// CHECK-NEXT:      #pragma omp threadprivate(_t0);
+// CHECK-NEXT:      double _d_temp = 0.;
+// CHECK-NEXT:      double temp = 0.;
+// CHECK-NEXT:      double _d_scale = 0.;
+// CHECK-NEXT:      double scale = 3.;
+// CHECK-NEXT:      #pragma omp parallel private(temp) firstprivate(scale)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  clad::push(_t0, temp);
+// CHECK-NEXT:                  temp = x[i] * scale;
+// CHECK-NEXT:                  y[i] = temp * temp;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel private(temp) private(_d_temp) private(scale) reduction(+: _d_scale)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d1 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_temp += _r_d1 * temp;
+// CHECK-NEXT:                      _d_temp += temp * _r_d1;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      temp = clad::pop(_t0);
+// CHECK-NEXT:                      double _r_d0 = _d_temp;
+// CHECK-NEXT:                      _d_temp = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * scale;
+// CHECK-NEXT:                      _d_scale += x[i] * _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test nested structure in loop body
+void fn18(const double *x, int n, double *y) {
+  #pragma omp parallel for
+  for (int i = 0; i < n; i++) {
+    double a = x[i];
+    double b = a * a;
+    if (b > 0) {
+      y[i] = b + a;
+    } else {
+      y[i] = b - a;
+    }
+  }
+}
+
+// CHECK:  void fn18_grad(const double *x, int n, double *y, double *_d_x, int *_d_n, double *_d_y) {
+// CHECK-NEXT:      static clad::tape<double> _t0 = {};
+// CHECK-NEXT:      #pragma omp threadprivate(_t0);
+// CHECK-NEXT:      static double _d_a = 0.;
+// CHECK-NEXT:      #pragma omp threadprivate(_d_a);
+// CHECK-NEXT:      static double a = 0.;
+// CHECK-NEXT:      #pragma omp threadprivate(a);
+// CHECK-NEXT:      static double _d_b = 0.;
+// CHECK-NEXT:      #pragma omp threadprivate(_d_b);
+// CHECK-NEXT:      static double b = 0.;
+// CHECK-NEXT:      #pragma omp threadprivate(b);
+// CHECK-NEXT:      static clad::tape<bool> _cond0 = {};
+// CHECK-NEXT:      #pragma omp threadprivate(_cond0);
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  clad::push(_t0, a) , a = x[i];
+// CHECK-NEXT:                  b = a * a;
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      clad::push(_cond0, b > 0);
+// CHECK-NEXT:                      if (clad::back(_cond0)) {
+// CHECK-NEXT:                          y[i] = b + a;
+// CHECK-NEXT:                      } else {
+// CHECK-NEXT:                          y[i] = b - a;
+// CHECK-NEXT:                      }
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      if (clad::back(_cond0)) {
+// CHECK-NEXT:                          {
+// CHECK-NEXT:                              double _r_d0 = _d_y[i];
+// CHECK-NEXT:                              _d_y[i] = 0.;
+// CHECK-NEXT:                              _d_b += _r_d0;
+// CHECK-NEXT:                              _d_a += _r_d0;
+// CHECK-NEXT:                          }
+// CHECK-NEXT:                      } else {
+// CHECK-NEXT:                          {
+// CHECK-NEXT:                              double _r_d1 = _d_y[i];
+// CHECK-NEXT:                              _d_y[i] = 0.;
+// CHECK-NEXT:                              _d_b += _r_d1;
+// CHECK-NEXT:                              _d_a += -_r_d1;
+// CHECK-NEXT:                          }
+// CHECK-NEXT:                      }
+// CHECK-NEXT:                      clad::pop(_cond0);
+// CHECK-NEXT:                  }
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      _d_a += _d_b * a;
+// CHECK-NEXT:                      _d_a += a * _d_b;
+// CHECK-NEXT:                      _d_b = 0.;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      _d_x[i] += _d_a;
+// CHECK-NEXT:                      _d_a = 0.;
+// CHECK-NEXT:                      a = clad::pop(_t0);
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+// Test complex loop bounds
+void fn19(const double *x, int start, int end, double *y) {
+  #pragma omp parallel for
+  for (int i = start + 1; i < end - 1; i++) {
+    y[i] = x[i] * x[i];
+  }
+}
+
+// CHECK:  void fn19_grad(const double *x, int start, int end, double *y, double *_d_x, int *_d_start, int *_d_end, double *_d_y) {
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(start + 1, end - 1 - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  y[i] = x[i] * x[i];
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(start + 1, end - 1 - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_y[i];
+// CHECK-NEXT:                      _d_y[i] = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
 int main() {
   auto fn1_grad = clad::gradient(fn1);
   auto fn2_grad = clad::gradient(fn2);
+  auto fn3_grad = clad::gradient(fn3);
+  auto fn4_grad = clad::gradient(fn4);
+  auto fn5_grad = clad::gradient(fn5);
+  auto fn6_grad = clad::gradient(fn6);
+  auto fn7_grad = clad::gradient(fn7);
+  auto fn8_grad = clad::gradient(fn8);
+  auto fn9_grad = clad::gradient(fn9);
+  auto fn10_grad = clad::gradient(fn10);
+  auto fn11_grad = clad::gradient(fn11);
+  auto fn12_grad = clad::gradient(fn12);
+  auto fn13_grad = clad::gradient(fn13);
+  auto fn14_grad = clad::gradient(fn14);
+  auto fn15_grad = clad::gradient(fn15);
+  auto fn17_grad = clad::gradient(fn16);
+  auto fn20_grad = clad::gradient(fn17);
+  auto fn21_grad = clad::gradient(fn18);
+  auto fn25_grad = clad::gradient(fn19);
   return 0;
 }

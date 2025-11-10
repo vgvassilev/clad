@@ -55,9 +55,8 @@ namespace clad {
   /// Used to compute derivatives by clad::gradient.
   class ReverseModeVisitor
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
-        public clang::ConstOMPClauseVisitor<
-            ReverseModeVisitor,
-            std::pair<clang::OMPClause*, clang::OMPClause*>>,
+        public clang::ConstOMPClauseVisitor<ReverseModeVisitor,
+                                            std::array<clang::OMPClause*, 3>>,
         public VisitorBase {
   protected:
     // FIXME: We should remove friend-dependency of the plugin classes here.
@@ -141,11 +140,9 @@ namespace clad {
       return result;
     }
 
-    std::pair<clang::OMPClause*, clang::OMPClause*>
-    Visit(const clang::OMPClause* C) {
+    std::array<clang::OMPClause*, 3> Visit(const clang::OMPClause* C) {
       return clang::ConstOMPClauseVisitor<
-          ReverseModeVisitor,
-          std::pair<clang::OMPClause*, clang::OMPClause*>>::Visit(C);
+          ReverseModeVisitor, std::array<clang::OMPClause*, 3>>::Visit(C);
     }
 
     /// Get the latest block of code (i.e. place for statements output).
@@ -457,16 +454,19 @@ namespace clad {
     StmtDiff VisitNullStmt(const clang::NullStmt* NS) {
       return StmtDiff{Clone(NS), Clone(NS)};
     }
+    clang::OMPClause* BuildOMPPrivateClause(
+        llvm::ArrayRef<clang::Expr*> VarList, clang::SourceLocation StartLoc,
+        clang::SourceLocation LParenLoc, clang::SourceLocation EndLoc);
 
-    std::pair<clang::OMPClause*, clang::OMPClause*>
+    std::array<clang::OMPClause*, 3>
     VisitOMPPrivateClause(const clang::OMPPrivateClause* C);
-    std::pair<clang::OMPClause*, clang::OMPClause*>
+    std::array<clang::OMPClause*, 3>
     VisitOMPFirstprivateClause(const clang::OMPFirstprivateClause* C);
-    std::pair<clang::OMPClause*, clang::OMPClause*>
+    std::array<clang::OMPClause*, 3>
     VisitOMPLastprivateClause(const clang::OMPLastprivateClause* C);
-    std::pair<clang::OMPClause*, clang::OMPClause*>
+    std::array<clang::OMPClause*, 3>
     VisitOMPSharedClause(const clang::OMPSharedClause* C);
-    std::pair<clang::OMPClause*, clang::OMPClause*>
+    std::array<clang::OMPClause*, 3>
     VisitOMPReductionClause(const clang::OMPReductionClause* C);
     StmtDiff
     VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);

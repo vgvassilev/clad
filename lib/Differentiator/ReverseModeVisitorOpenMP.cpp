@@ -23,6 +23,7 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
   //       test-expr: var relational-op ub
   //       incr-expr: ++var, var++, --var, var--, var += incr, var -= incr,
   //                  var = var + incr, var = incr + var, var = var - incr
+
   beginScope(Scope::DeclScope | Scope::ControlScope);
 
   // Extract loop components
@@ -71,24 +72,24 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
     const Expr* LHS = BO->getLHS()->IgnoreImplicitAsWritten();
     const Expr* RHS = BO->getRHS()->IgnoreImplicitAsWritten();
 
-    if (const auto* DRE = dyn_cast<DeclRefExpr>(LHS)) {
-      if (DRE->getDecl() == LoopVarDecl) {
-        // Pattern: var < ub, var <= ub, var != ub
-        CondOp = BO->getOpcode();
-        UpperBound = Clone(BO->getRHS());
-        IsReversed = false;
-        // For < and >, we need closed interval for GetStaticSchedule
-        NeedAdjustUpperBound = (CondOp == BO_LT || CondOp == BO_GT);
-      }
-    } else if (const auto* DRE = dyn_cast<DeclRefExpr>(RHS)) {
-      if (DRE->getDecl() == LoopVarDecl) {
-        // Pattern: ub > var, ub >= var, ub != var (reversed)
-        CondOp = BO->getOpcode();
-        UpperBound = Clone(BO->getLHS());
-        IsReversed = true;
-        // For > and <, we need closed interval for GetStaticSchedule
-        NeedAdjustUpperBound = (CondOp == BO_GT || CondOp == BO_LT);
-      }
+    // First try to find which side has the loop variable
+    const auto* LHS_DRE = dyn_cast<DeclRefExpr>(LHS);
+    const auto* RHS_DRE = dyn_cast<DeclRefExpr>(RHS);
+
+    if (LHS_DRE && LHS_DRE->getDecl() == LoopVarDecl) {
+      // Pattern: var < ub, var <= ub, var > ub, var >= ub, var != ub
+      CondOp = BO->getOpcode();
+      UpperBound = Clone(BO->getRHS());
+      IsReversed = false;
+      // For < and >, we need closed interval for GetStaticSchedule
+      NeedAdjustUpperBound = (CondOp == BO_LT || CondOp == BO_GT);
+    } else if (RHS_DRE && RHS_DRE->getDecl() == LoopVarDecl) {
+      // Pattern: ub > var, ub >= var, ub < var, ub <= var, ub != var (reversed)
+      CondOp = BO->getOpcode();
+      UpperBound = Clone(BO->getLHS());
+      IsReversed = true;
+      // For > and <, we need closed interval for GetStaticSchedule
+      NeedAdjustUpperBound = (CondOp == BO_GT || CondOp == BO_LT);
     }
   }
 
@@ -113,21 +114,24 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
       Stride = Clone(BO->getRHS());
     } else if (BO->getOpcode() == BO_Assign) {
       // var = var + incr or var = var - incr
-      if (const auto* InnerBO = dyn_cast<BinaryOperator>(BO->getRHS())) {
+      const Expr* RHS = BO->getRHS()->IgnoreImplicitAsWritten();
+      if (const auto* InnerBO = dyn_cast<BinaryOperator>(RHS)) {
         if (InnerBO->getOpcode() == BO_Add) {
           IsIncrement = true;
           // Check which side is the variable
-          if (const auto* DRE = dyn_cast<DeclRefExpr>(InnerBO->getLHS())) {
+          const Expr* InnerLHS = InnerBO->getLHS()->IgnoreImplicitAsWritten();
+          const Expr* InnerRHS = InnerBO->getRHS()->IgnoreImplicitAsWritten();
+          if (const auto* DRE = dyn_cast<DeclRefExpr>(InnerLHS)) {
             if (DRE->getDecl() == LoopVarDecl)
               Stride = Clone(InnerBO->getRHS());
-          } else if (const auto* DRE =
-                         dyn_cast<DeclRefExpr>(InnerBO->getRHS())) {
+          } else if (const auto* DRE = dyn_cast<DeclRefExpr>(InnerRHS)) {
             if (DRE->getDecl() == LoopVarDecl)
               Stride = Clone(InnerBO->getLHS());
           }
         } else if (InnerBO->getOpcode() == BO_Sub) {
           IsIncrement = false;
-          if (const auto* DRE = dyn_cast<DeclRefExpr>(InnerBO->getLHS())) {
+          const Expr* InnerLHS = InnerBO->getLHS()->IgnoreImplicitAsWritten();
+          if (const auto* DRE = dyn_cast<DeclRefExpr>(InnerLHS)) {
             if (DRE->getDecl() == LoopVarDecl)
               Stride = Clone(InnerBO->getRHS());
           }
@@ -310,7 +314,58 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
   return {ForwardBlock, ReverseBlock};
 }
 
-std::pair<OMPClause*, OMPClause*>
+OMPClause* ReverseModeVisitor::BuildOMPPrivateClause(ArrayRef<Expr*> VarList,
+                                                     SourceLocation StartLoc,
+                                                     SourceLocation LParenLoc,
+                                                     SourceLocation EndLoc) {
+  llvm::SmallVector<Expr*, 8> Vars;
+  llvm::SmallVector<Expr*, 8> PrivateCopies;
+
+  for (Expr* RefExpr : VarList) {
+    // Extract the variable declaration from the expression
+    Expr* SimpleRefExpr = RefExpr->IgnoreParenImpCasts();
+    auto* DRE = dyn_cast<DeclRefExpr>(SimpleRefExpr);
+    ValueDecl* D = DRE->getDecl();
+
+    // Get the type without qualifiers
+    QualType Type = D->getType().getNonReferenceType().getUnqualifiedType();
+
+    // Build a private copy variable using VarDecl::Create directly
+    // This matches the behavior of buildVarDecl in ActOnOpenMPPrivateClause
+    DeclContext* DC = m_Sema.CurContext;
+    IdentifierInfo* II = &m_Context.Idents.get(D->getName());
+    TypeSourceInfo* TInfo = m_Context.getTrivialTypeSourceInfo(Type, noLoc);
+
+    VarDecl* VDPrivate =
+        VarDecl::Create(m_Context, DC, noLoc, noLoc, II, Type, TInfo, SC_None);
+
+    // Mark it as implicit to match ActOnOpenMPPrivateClause behavior
+    VDPrivate->setImplicit();
+
+    // Create a DeclRefExpr using DeclRefExpr::Create directly
+    // This matches the behavior of buildDeclRefExpr in ActOnOpenMPPrivateClause
+    VDPrivate->setReferenced();
+    VDPrivate->markUsed(m_Context);
+
+    DeclRefExpr* VDPrivateRefExpr = DeclRefExpr::Create(
+        m_Context, NestedNameSpecifierLoc(), noLoc, VDPrivate,
+        /*RefersToEnclosingVariableOrCapture=*/false, noLoc,
+        RefExpr->getType().getUnqualifiedType(), VK_LValue);
+
+    // Add to the lists
+    Vars.push_back(RefExpr->IgnoreParens());
+    PrivateCopies.push_back(VDPrivateRefExpr);
+  }
+
+  if (Vars.empty())
+    return nullptr;
+
+  // Use invalid source locations since we're building this synthetically
+  return OMPPrivateClause::Create(m_Context, StartLoc, LParenLoc, EndLoc, Vars,
+                                  PrivateCopies);
+}
+
+std::array<OMPClause*, 3>
 ReverseModeVisitor::VisitOMPPrivateClause(const OMPPrivateClause* C) {
   llvm::SmallVector<Expr*, 16> Vars;
   llvm::SmallVector<Expr*, 16> DiffVars;
@@ -323,10 +378,12 @@ ReverseModeVisitor::VisitOMPPrivateClause(const OMPPrivateClause* C) {
   return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPPrivateClause(
               Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
           CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPPrivateClause(
+              Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
+          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPPrivateClause(
               DiffVars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc())};
 }
 
-std::pair<OMPClause*, OMPClause*>
+std::array<OMPClause*, 3>
 ReverseModeVisitor::VisitOMPFirstprivateClause(const OMPFirstprivateClause* C) {
   llvm::SmallVector<Expr*, 16> Vars;
   llvm::SmallVector<Expr*, 16> DiffVars;
@@ -342,6 +399,8 @@ ReverseModeVisitor::VisitOMPFirstprivateClause(const OMPFirstprivateClause* C) {
   DeclarationNameInfo ReductonId(ReductionOpName, C->getBeginLoc());
   return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
               Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
+          BuildOMPPrivateClause(Vars, C->getBeginLoc(), C->getLParenLoc(),
+                                C->getEndLoc()),
           CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
               DiffVars,
               CLAD_COMPAT_CLANG21_createModifier(OMPC_REDUCTION_unknown),
@@ -349,30 +408,7 @@ ReverseModeVisitor::VisitOMPFirstprivateClause(const OMPFirstprivateClause* C) {
               ReductionIdScopeSpec, ReductonId)};
 }
 
-std::pair<OMPClause*, OMPClause*>
-ReverseModeVisitor::VisitOMPLastprivateClause(const OMPLastprivateClause* C) {
-  llvm::SmallVector<Expr*, 16> Vars;
-  llvm::SmallVector<Expr*, 16> DiffVars;
-  Vars.reserve(C->varlist_size());
-  DiffVars.reserve(C->varlist_size());
-  for (const auto* Var : CLAD_COMPAT_CLANG20_getvarlist(C)) {
-    DiffVars.push_back(Visit(Var).getExpr_dx());
-    Vars.push_back(Clone(Var));
-  }
-  CXXScopeSpec ReductionIdScopeSpec;
-  DeclarationName ReductionOpName =
-      m_Context.DeclarationNames.getCXXOperatorName(clang::OO_Plus);
-  DeclarationNameInfo ReductonId(ReductionOpName, C->getBeginLoc());
-  return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
-              Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
-          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
-              DiffVars,
-              CLAD_COMPAT_CLANG21_createModifier(OMPC_REDUCTION_unknown),
-              C->getBeginLoc(), C->getLParenLoc(), noLoc, noLoc, C->getEndLoc(),
-              ReductionIdScopeSpec, ReductonId)};
-}
-
-std::pair<OMPClause*, OMPClause*>
+std::array<OMPClause*, 3>
 ReverseModeVisitor::VisitOMPSharedClause(const OMPSharedClause* C) {
   llvm::SmallVector<Expr*, 16> Vars;
   llvm::SmallVector<Expr*, 16> DiffVars;
@@ -388,6 +424,8 @@ ReverseModeVisitor::VisitOMPSharedClause(const OMPSharedClause* C) {
   DeclarationNameInfo ReductonId(ReductionOpName, C->getBeginLoc());
   return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPSharedClause(
               Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
+          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPSharedClause(
+              Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
           CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
               DiffVars,
               CLAD_COMPAT_CLANG21_createModifier(OMPC_REDUCTION_unknown),
@@ -395,7 +433,7 @@ ReverseModeVisitor::VisitOMPSharedClause(const OMPSharedClause* C) {
               ReductionIdScopeSpec, ReductonId)};
 }
 
-std::pair<OMPClause*, OMPClause*>
+std::array<OMPClause*, 3>
 ReverseModeVisitor::VisitOMPReductionClause(const OMPReductionClause* C) {
   llvm::SmallVector<Expr*, 16> Vars;
   llvm::SmallVector<Expr*, 16> DiffVars;
@@ -408,10 +446,14 @@ ReverseModeVisitor::VisitOMPReductionClause(const OMPReductionClause* C) {
   CXXScopeSpec ReductionIdScopeSpec;
   ReductionIdScopeSpec.Adopt(C->getQualifierLoc());
   DeclarationNameInfo NameInfo = C->getNameInfo();
+  assert(NameInfo.getAsString() == "operator+" &&
+         "Only support reduction with operator+");
   return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
               Vars, CLAD_COMPAT_CLANG21_getModifier(C), C->getBeginLoc(),
               C->getLParenLoc(), C->getModifierLoc(), C->getColonLoc(),
               C->getEndLoc(), ReductionIdScopeSpec, NameInfo),
+          BuildOMPPrivateClause(Vars, C->getBeginLoc(), C->getLParenLoc(),
+                                C->getEndLoc()),
           CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
               DiffVars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc())};
 }
@@ -427,11 +469,12 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
     assert(I);
     CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPClause(
         I->getClauseKind());
-    auto ClausePair = Visit(I);
+    auto Clauses = Visit(I);
     CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPClause();
-    OrigClauses.push_back(ClausePair.first);
-    assert(ClausePair.second);
-    DiffClauses.push_back(ClausePair.second);
+    OrigClauses.push_back(Clauses[0]);
+    assert(Clauses[2]);
+    DiffClauses.push_back(Clauses[1]);
+    DiffClauses.push_back(Clauses[2]);
   }
   StmtDiff AssociatedSDiff;
   if (D->hasAssociatedStmt() && D->getAssociatedStmt()) {
