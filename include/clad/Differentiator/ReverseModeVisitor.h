@@ -14,6 +14,7 @@
 #include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 #include "clad/Differentiator/VisitorBase.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
@@ -85,6 +86,9 @@ namespace clad {
     clang::Expr* m_CurrentBreakFlagExpr;
 
     clang::Expr* m_RestoreTracker = nullptr;
+    /// Map used to keep track of variable declarations and match them
+    /// with their derivatives.
+    std::unordered_map<const clang::ValueDecl*, clang::VarDecl*> m_Variables;
 
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
