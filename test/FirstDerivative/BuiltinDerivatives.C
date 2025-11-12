@@ -499,6 +499,22 @@ double f_pow_zero(double x, double y) { return std::pow(x, y); }
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
+double f_custom_max(double x, double y) { return std::max(x, y, std::greater<double>()); }
+// CHECK:  double f_custom_max_darg0(double x, double y) {
+// CHECK-NEXT:      double _d_x = 1;
+// CHECK-NEXT:      double _d_y = 0;
+// CHECK-NEXT:      ValueAndPushforward<const double &, const double &> _t0 = clad::custom_derivatives::std::max_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
+// CHECK-NEXT:      return _t0.pushforward;
+// CHECK-NEXT:  }
+
+double f_custom_min(double x, double y) { return std::min(x, y, std::greater<double>()); }
+// CHECK:  double f_custom_min_darg0(double x, double y) {
+// CHECK-NEXT:      double _d_x = 1;
+// CHECK-NEXT:      double _d_y = 0;
+// CHECK-NEXT:      ValueAndPushforward<const double &, const double &> _t0 = clad::custom_derivatives::std::min_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
+// CHECK-NEXT:      return _t0.pushforward;
+// CHECK-NEXT:  }
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -672,6 +688,12 @@ int main () { //expected-no-diagnostics
 
   auto d_pow_zero =  clad::differentiate(f_pow_zero, 0);
   printf("Result is = %.6f\n", d_pow_zero.execute(0, 0)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_custom_max =  clad::differentiate(f_custom_max, 0);
+  printf("Result is = %.6f\n", d_custom_max.execute(1, 2)); // CHECK-EXEC: Result is = 1.000000
+
+  auto d_custom_min =  clad::differentiate(f_custom_min, 0);
+  printf("Result is = %.6f\n", d_custom_min.execute(2, 3)); // CHECK-EXEC: Result is = 0.000000
 
   return 0;
 }
