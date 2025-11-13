@@ -394,7 +394,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // independent variables (args).
       for (const ParmVarDecl* param : m_NonIndepParams) {
         QualType paramTy = param->getType();
-        if (utils::isArrayOrPointerType(paramTy)) {
+        if (const auto* DT = dyn_cast<DecayedType>(paramTy))
+          paramTy = DT->getOriginalType();
+        if (utils::isArrayOrPointerType(paramTy) &&
+            !paramTy->isConstantArrayType()) {
           // We cannot initialize derived variable for pointer types because
           // we do not know the correct size.
           if (!utils::GetValueType(paramTy).isConstQualified()) {
