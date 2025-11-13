@@ -538,6 +538,33 @@ double func11(double seed) {
 // CHECK-NEXT:    }
 // CHECK-NEXT: }
 
+double func12(double x[3], double y[3]) {
+    double prod = 0;
+    for (int i = 0; i < 3; ++i)
+      prod += x[i] * y[i];
+    return prod;
+}
+
+//CHECK:   void func12_grad_0(double x[3], double y[3], double *_d_x) {
+//CHECK-NEXT:       double _d_y[3] = {0};
+//CHECK-NEXT:       int _d_i = 0;
+//CHECK-NEXT:       int i = 0;
+//CHECK-NEXT:       double _d_prod = 0.;
+//CHECK-NEXT:       double prod = 0;
+//CHECK-NEXT:       unsigned {{int|long|long long}} _t0 = 0;
+//CHECK-NEXT:       for (i = 0; i < 3; ++i) {
+//CHECK-NEXT:           _t0++;
+//CHECK-NEXT:           prod += x[i] * y[i];
+//CHECK-NEXT:       }
+//CHECK-NEXT:       _d_prod += 1;
+//CHECK-NEXT:       for (; _t0; _t0--) {
+//CHECK-NEXT:           --i;
+//CHECK-NEXT:           double _r_d0 = _d_prod;
+//CHECK-NEXT:           _d_x[i] += _r_d0 * y[i];
+//CHECK-NEXT:           _d_y[i] += x[i] * _r_d0;
+//CHECK-NEXT:       }
+//CHECK-NEXT:   }
+
 int main() {
   double arr[] = {1, 2, 3};
   auto f_dx = clad::gradient(f);
@@ -607,4 +634,9 @@ int main() {
   dseed = 0;
   func11grad.execute(1, &dseed);
   printf("Result = {%.2f}\n", dseed); // CHECK-EXEC: Result = {9.00}
+
+  double x[3] = {1, 2, 3}, y[3] = {5, 6, 7}, dx[3] = {0};
+  auto func12grad = clad::gradient(func12, "x");
+  func12grad.execute(x, y, dx);
+  printf("{%.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2]); // CHECK-EXEC: {5.00, 6.00, 7.00}
 }
