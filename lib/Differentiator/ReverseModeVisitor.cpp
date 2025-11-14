@@ -723,6 +723,49 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return Visit(ILE->getSubExpr(), dfdx());
   }
 
+  StmtDiff
+  ReverseModeVisitor::VisitArrayInitLoopExpr(const ArrayInitLoopExpr* AILE) {
+    // Since ArrayInitLoopExpr is not possible to express with regular syntax,
+    // we have to replicate it with loops.
+    // The code we're differentiated is of the form
+    // res = ArrayInitLoopExpr(arr[ArrayInitIndexExpr])
+    // We have to replace ArrayInitIndexExpr with an actual index `i`
+    // and wrap the code in a for loop to compute the derivative as follows:
+    // for (int i = 0; i < N; ++i)
+    //   _d_arr[i] += _d_res[i];
+    beginScope(Scope::DeclScope);
+    VarDecl* idxDecl = BuildVarDecl(m_Context.UnsignedIntTy, "i",
+                                    getZeroInit(m_Context.IntTy));
+    // Push the index to the queue so that we can replace ArrayInitIndexExpr
+    // when we encounter it.
+    m_ArrayInitLoopIdx.push(idxDecl);
+    Expr* idx = BuildDeclRef(idxDecl);
+    // Build `_d_res[i]`
+    Expr* diff = BuildArraySubscript(dfdx(), {idx});
+    beginBlock(direction::reverse);
+    Visit(AILE->getSubExpr(), diff);
+    Stmt* block = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
+    Stmt* loopDiff = BuildStandardForLoop(
+        idxDecl, AILE->getArraySize().getZExtValue(), block);
+    addToCurrentBlock(loopDiff, direction::reverse);
+    endScope();
+    // We cannot clone ArrayInitLoopExpr because it's not possible to express
+    // with standard c++ syntax.
+    return {};
+  }
+
+  StmtDiff
+  ReverseModeVisitor::VisitArrayInitIndexExpr(const ArrayInitIndexExpr* AIIE) {
+    VarDecl* idxDecl = m_ArrayInitLoopIdx.front();
+    m_ArrayInitLoopIdx.pop();
+    return {BuildDeclRef(idxDecl)};
+  }
+
+  StmtDiff
+  ReverseModeVisitor::VisitOpaqueValueExpr(const OpaqueValueExpr* OVE) {
+    return Visit(OVE->getSourceExpr(), dfdx());
+  }
+
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
     diagUnsupported(S);
     // Unknown stmt, just clone it.
