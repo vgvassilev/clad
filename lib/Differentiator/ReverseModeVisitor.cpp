@@ -1532,6 +1532,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       clang::Expr* dExpr = it->second;
       if (auto* dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
+        // FIXME: We should instead store the decl of the adjoint in m_Variables
+        // and rebuild the declref every time.
         auto* dVar = cast<VarDecl>(dVarDRE->getDecl());
         if (dVar->getDeclContext() != m_Sema.CurContext)
           dExpr = BuildDeclRef(dVar, DRE->getQualifier());
@@ -3318,7 +3320,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         for (auto* declDiff : declsDiff) {
           // If we are inside an OpenMP parallel region, mark the decl as
           // threadprivate
-          MarkDeclThreadPrivate(declDiff);
+          MarkDeclThreadPrivate(cast<VarDecl>(declDiff));
         }
       }
       for (Stmt* memset : memsetCalls)
@@ -3346,7 +3348,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // If we are inside an OpenMP parallel region, mark the decl as
         // threadprivate
         if (isInsideOMPBlock)
-          MarkDeclThreadPrivate(decl);
+          MarkDeclThreadPrivate(cast<VarDecl>(decl));
       }
       Stmt* initAssignments = MakeCompoundStmt(inits);
       initAssignments = utils::unwrapIfSingleStmt(initAssignments);
@@ -4818,22 +4820,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       params.push_back(dPVD);
     }
   }
-  void ReverseModeVisitor::MarkDeclThreadPrivate(Decl* decl) {
-    auto* Init = cast<VarDecl>(decl)->getInit();
+  void ReverseModeVisitor::MarkDeclThreadPrivate(VarDecl* decl) {
+    auto* Init = decl->getInit();
     // set to null to pass CheckOMPThreadPrivateDecl
-    cast<VarDecl>(decl)->setInit(nullptr);
-    auto* declRef = BuildDeclRef(cast<VarDecl>(decl));
+    decl->setInit(nullptr);
+    auto* declRef = BuildDeclRef(decl);
     llvm::SmallVector<Expr*, 1> Vars;
     Vars.push_back(declRef);
     auto* TPDecl =
         CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).CheckOMPThreadPrivateDecl(
             decl->getLocation(), Vars);
-    cast<VarDecl>(decl)->setInit(Init);
+    decl->setInit(Init);
     // Add the threadprivate declaration to the current context
     m_Sema.CurContext->addDecl(TPDecl);
     // Create a DeclStmt and add it to the global block for proper AST
     // structure
-    Stmt* TPStmt = new (m_Context) DeclStmt(DeclGroupRef(TPDecl), noLoc, noLoc);
+    Stmt* TPStmt = BuildDeclStmt(TPDecl);
     AddToGlobalBlock(TPStmt);
   }
 } // end namespace clad

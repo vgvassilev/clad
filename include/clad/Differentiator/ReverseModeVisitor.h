@@ -751,7 +751,7 @@ namespace clad {
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,
                      const clang::LambdaExpr* LE = nullptr);
 
-    void MarkDeclThreadPrivate(clang::Decl* decl);
+    void MarkDeclThreadPrivate(clang::VarDecl* decl);
 
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {
