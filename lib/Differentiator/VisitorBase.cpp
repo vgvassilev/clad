@@ -23,6 +23,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
@@ -41,6 +42,7 @@
 #include "llvm/Support/Casting.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <numeric>
 
 #include "clad/Differentiator/Compatibility.h"
@@ -262,6 +264,17 @@ namespace clad {
   DeclStmt* VisitorBase::BuildDeclStmt(llvm::MutableArrayRef<Decl*> Decls) {
     auto DGR = DeclGroupRef::Create(m_Context, Decls.data(), Decls.size());
     return new (m_Context) DeclStmt(DGR, noLoc, noLoc);
+  }
+
+  ForStmt* VisitorBase::BuildStandardForLoop(VarDecl* loopCounter, size_t N,
+                                             Stmt* body) {
+    Stmt* init = BuildDeclStmt(loopCounter);
+    Expr* numExpr =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, N);
+    Expr* cond = BuildOp(BO_LT, BuildDeclRef(loopCounter), numExpr);
+    Expr* inc = BuildOp(UO_PreInc, BuildDeclRef(loopCounter));
+    return new (m_Context) ForStmt(m_Context, init, cond, /*CondVar=*/nullptr,
+                                   inc, body, noLoc, noLoc, noLoc);
   }
 
   DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
