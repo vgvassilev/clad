@@ -734,7 +734,7 @@ namespace clad {
     /// Builds and returns the sequence of derived function parameters.
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
 
-    void MarkDeclThreadPrivate(clang::Decl* decl);
+    void MarkDeclThreadPrivate(clang::VarDecl* decl);
 
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {
