@@ -294,6 +294,14 @@ namespace clad {
     clang::Expr* BuildOperatorCall(clang::OverloadedOperatorKind OOK,
                                    llvm::MutableArrayRef<clang::Expr*> ArgExprs,
                                    clang::SourceLocation OpLoc = noLoc);
+
+    /// A shorthand to generage a standard loop of form
+    /// ```
+    /// for (type loopCounter = 0; loopCounter < N; ++loopCounter)
+    ///   body;
+    /// ```
+    clang::ForStmt* BuildStandardForLoop(clang::VarDecl* loopCounter, size_t N,
+                                         clang::Stmt* body);
     /// Function to resolve Unary Minus. If the leftmost operand
     /// has a Unary Minus then adds parens before adding the unary minus.
     /// \param[in] E Expression fed to the recursive call.

@@ -264,6 +264,17 @@ namespace clad {
     return new (m_Context) DeclStmt(DGR, noLoc, noLoc);
   }
 
+  ForStmt* VisitorBase::BuildStandardForLoop(VarDecl* loopCounter, size_t N,
+                                             Stmt* body) {
+    Stmt* init = BuildDeclStmt(loopCounter);
+    Expr* numExpr =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, N);
+    Expr* cond = BuildOp(BO_LT, BuildDeclRef(loopCounter), numExpr);
+    Expr* inc = BuildOp(UO_PreInc, BuildDeclRef(loopCounter));
+    return new (m_Context) ForStmt(m_Context, init, cond, /*CondVar=*/nullptr,
+                                   inc, body, noLoc, noLoc, noLoc);
+  }
+
   DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
                                          NestedNameSpecifier* NNS /*=nullptr*/,
                                          ExprValueKind VK /*=VK_LValue*/) {

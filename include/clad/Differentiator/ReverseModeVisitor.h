@@ -86,6 +86,13 @@ namespace clad {
 
     clang::Expr* m_RestoreTracker = nullptr;
 
+    // When differentiating ArrayInitLoopExpr, we need to replace
+    // ArrayInitIndexExpr with real indices. We need to both add and pop them in
+    // the right order, so we use std::queue. For example, for `arr[i][j]`, we
+    // add `i` first, then `j`, and then pop them in the same order to generate
+    // the subscript expr.
+    std::queue<clang::VarDecl*> m_ArrayInitLoopIdx;
+
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
     clang::Expr* m_Pullback = nullptr;
@@ -397,6 +404,9 @@ namespace clad {
     StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
     StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
+    StmtDiff VisitArrayInitLoopExpr(const clang::ArrayInitLoopExpr* AILE);
+    StmtDiff VisitArrayInitIndexExpr(const clang::ArrayInitIndexExpr* AIIE);
+    StmtDiff VisitOpaqueValueExpr(const clang::OpaqueValueExpr* OVE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
