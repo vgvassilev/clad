@@ -709,6 +709,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           return false;
         return true;
       }
+      // The sub-stmt of OpaqueValueExpr is not visited automatically
+      bool VisitOpaqueValueExpr(const clang::OpaqueValueExpr* OVE) {
+        return TraverseStmt(OVE->getSourceExpr());
+      }
       // FIXME: This is a temporary measure until we add support for
       // `this` in varied analysis.
       bool VisitCXXThisExpr(const clang::CXXThisExpr* TE) { return false; }
