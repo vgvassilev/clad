@@ -3438,12 +3438,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   Expr* ReverseModeVisitor::BuildArrayAssignment(Expr* output, Expr* input,
                                                  direction d) {
-    // Build `std::begin(_output)`
-    llvm::SmallVector<Expr*, 1> argOut = {output};
-    Expr* beginOut = GetFunctionCall("begin", "std", argOut);
-
-    // Build `clad::move(_input, std::begin(_output));`
-    llvm::SmallVector<Expr*, 1> moveArgs = {input, beginOut};
+    // Build `clad::move(_input, _output);`
+    llvm::SmallVector<Expr*, 1> moveArgs = {input, output};
     return GetFunctionCall("move", "clad", moveArgs);
   }
 
