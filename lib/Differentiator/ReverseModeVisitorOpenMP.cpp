@@ -371,8 +371,7 @@ OMPClause* ReverseModeVisitor::BuildOMPPrivateClause(ArrayRef<Expr*> VarList,
     PrivateCopies.push_back(VDPrivateRefExpr);
   }
 
-  if (Vars.empty())
-    return nullptr;
+  assert(!Vars.empty());
 
   // Use invalid source locations since we're building this synthetically
   return OMPPrivateClause::Create(m_Context, StartLoc, LParenLoc, EndLoc, Vars,
