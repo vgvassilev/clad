@@ -2591,6 +2591,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         StmtDiff pushPop = StoreAndRestore(LCloned);
         addToCurrentBlock(pushPop.getStmt(), direction::forward);
         addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
+        if (isInsideOMPBlock) {
+          addToBlock(pushPop.getStmt(), m_OMPBlocks);
+          addToBlock(pushPop.getStmt_dx(), m_OMPReverseBlocks);
+        }
       }
 
       if (!ResultRef)
@@ -2953,6 +2957,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               BuildDeclRef(VDDerived), /*prefix=*/"_t", /*moveToTape=*/true);
           addToCurrentBlock(pushPop.getStmt(), direction::forward);
           addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
+          if (isInsideOMPBlock) {
+            addToBlock(pushPop.getStmt(), m_OMPBlocks);
+            addToBlock(pushPop.getStmt_dx(), m_OMPReverseBlocks);
+          }
         }
         // if VDClone is volatile, we have to use const_cast to be able to use
         // most copy constructors.
