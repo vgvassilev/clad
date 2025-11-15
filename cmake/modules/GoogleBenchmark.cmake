@@ -20,7 +20,7 @@ ExternalProject_Add(
   GIT_REPOSITORY https://github.com/google/benchmark.git
   EXCLUDE_FROM_ALL 1
   GIT_SHALLOW 1
-  GIT_TAG v1.6.0
+  GIT_TAG v1.9.4
   UPDATE_COMMAND ""
   # TIMEOUT 10
   # # Force separate output paths for debug and release builds to allow easy
