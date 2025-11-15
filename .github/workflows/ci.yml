@@ -540,6 +540,7 @@ jobs:
                          llvm-${{ matrix.clang-runtime }}-tools \
                          clang-${{ matrix.clang-runtime }} \
                          libclang-${{ matrix.clang-runtime }}-dev \
+                         libomp-${{ matrix.clang-runtime }}-dev \
                          ${{ matrix.extra_packages }}
 
     - name: Setup compiler on Linux
@@ -937,7 +938,7 @@ jobs:
       if: ${{ success() && (matrix.coverage == true) }}
       uses: codecov/codecov-action@v5
       with:
-        file: ./coverage.info
+        files: ./coverage.info
         fail_ci_if_error: true
         verbose: true
         token: ${{ secrets.CODECOV_TOKEN }}

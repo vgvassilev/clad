@@ -17,6 +17,7 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/OperatorKinds.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
@@ -324,7 +325,8 @@ namespace clad {
     clang::VarDecl*
     BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
                  clang::Scope* scope, clang::Expr* Init = nullptr,
-                 bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr);
+                 bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr,
+                 clang::StorageClass SC = clang::SC_None);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -340,7 +342,8 @@ namespace clad {
                                  clang::IdentifierInfo* Identifier,
                                  clang::Expr* Init = nullptr,
                                  bool DirectInit = false,
-                                 clang::TypeSourceInfo* TSI = nullptr);
+                                 clang::TypeSourceInfo* TSI = nullptr,
+                                 clang::StorageClass SC = clang::SC_None);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -355,14 +358,16 @@ namespace clad {
                                  llvm::StringRef prefix = "_t",
                                  clang::Expr* Init = nullptr,
                                  bool DirectInit = false,
-                                 clang::TypeSourceInfo* TSI = nullptr);
+                                 clang::TypeSourceInfo* TSI = nullptr,
+                                 clang::StorageClass SC = clang::SC_None);
     /// Builds variable declaration to be used inside the derivative
     /// body in the derivative function global scope.
     clang::VarDecl* BuildGlobalVarDecl(clang::QualType Type,
                                        llvm::StringRef prefix = "_t",
                                        clang::Expr* Init = nullptr,
                                        bool DirectInit = false,
-                                       clang::TypeSourceInfo* TSI = nullptr);
+                                       clang::TypeSourceInfo* TSI = nullptr,
+                                       clang::StorageClass SC = clang::SC_None);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until
     /// m_Sema.PopDeclContextIsUsed.

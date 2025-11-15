@@ -54,9 +54,13 @@ using namespace llvm;
 // clang-21 OpenMPReductionClauseModifiers  got extra argument
 #if CLANG_VERSION_MAJOR < 21
 #define CLAD_COMPAT_CLANG21_getModifier(Clause) (Clause)->getModifier()
+#define CLAD_COMPAT_CLANG21_createModifier(Modifier) (Modifier)
 #else
 #define CLAD_COMPAT_CLANG21_getModifier(Clause)                                \
   {(Clause)->getModifier(), (Clause)->getOriginalSharingModifier()}
+#define CLAD_COMPAT_CLANG21_createModifier(Modifier)                           \
+  SemaOpenMP::OpenMPVarListDataTy::OpenMPReductionClauseModifiers(             \
+      Modifier, OMPC_ORIGINAL_SHARING_default)
 #endif
 
 // clang-20 Clause varlist typo
