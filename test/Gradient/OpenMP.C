@@ -606,9 +606,11 @@ void fn17(const double *x, int n, double *y) {
 // CHECK-NEXT:                  temp = x[i] * scale;
 // CHECK-NEXT:                  y[i] = temp * temp;
 // CHECK-NEXT:              }
+// CHECK-NEXT:              clad::push(_t0, temp);
 // CHECK-NEXT:          }
 // CHECK-NEXT:      #pragma omp parallel private(temp) private(_d_temp) private(scale) reduction(+: _d_scale)
 // CHECK-NEXT:          {
+// CHECK-NEXT:              temp = clad::pop(_t0);
 // CHECK-NEXT:              int _t_chunklo1 = 0;
 // CHECK-NEXT:              int _t_chunkhi1 = 0;
 // CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);

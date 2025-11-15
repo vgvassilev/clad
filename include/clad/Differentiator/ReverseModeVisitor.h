@@ -82,6 +82,12 @@ namespace clad {
     /// that will be put immediately in the beginning of derivative function
     /// block.
     Stmts m_Globals;
+    // Store the Tape-push operation that will be inserted at the end of the
+    // OpenMP forward pass
+    Stmts m_OMPBlocks;
+    // Store the Tape-pop operations that will be inserted at the beginning of
+    // the OpenMP reverse pass.
+    Stmts m_OMPReverseBlocks;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// A flag indicating if the Stmt we are currently visiting is inside an

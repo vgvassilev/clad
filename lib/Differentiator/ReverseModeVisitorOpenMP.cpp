@@ -282,6 +282,9 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
   addToCurrentBlock(BuildDeclStmt(ThreadHiDecl));
   addToCurrentBlock(ScheduleCall);
   addToCurrentBlock(ForwardLoop);
+  for (Stmt* S : m_OMPBlocks)
+    addToCurrentBlock(S, direction::forward);
+  m_OMPBlocks.clear();
   Stmt* ForwardBlock = endBlock(direction::forward);
 
   // Reverse: { int threadlo = 0, threadhi = 0;
@@ -322,6 +325,9 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
     addToCurrentBlock(RevScheduleCall, direction::reverse);
     addToCurrentBlock(BuildDeclStmt(RevThreadHiDecl), direction::reverse);
     addToCurrentBlock(BuildDeclStmt(RevThreadLoDecl), direction::reverse);
+    for (Stmt* S : m_OMPReverseBlocks)
+      addToCurrentBlock(S, direction::reverse);
+    m_OMPReverseBlocks.clear();
     ReverseBlock = endBlock(direction::reverse);
   }
   endScope();
