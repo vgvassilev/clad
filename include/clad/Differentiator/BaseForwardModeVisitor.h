@@ -172,6 +172,10 @@ protected:
       llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
       llvm::SmallVectorImpl<clang::Expr*>& derivedArgs);
 
+  /// Map used to keep track of variable declarations and match them
+  /// with their derivatives.
+  std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_Variables;
+
 private:
   /// Prepares the derivative function parameters.
   void

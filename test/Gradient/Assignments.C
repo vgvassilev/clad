@@ -713,7 +713,7 @@ double f23(double x, double y) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             double _r_d0 = _d_res;
 //CHECK-NEXT:             _d_res = 0.;
-//CHECK-NEXT:             *(std::end(*_d_ref) - 1) += _r_d0;
+//CHECK-NEXT:             *(std::end((*_d_ref)) - 1) += _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
