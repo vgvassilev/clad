@@ -15,8 +15,8 @@ namespace clad {
 
   FPErrorEstimationModel::~FPErrorEstimationModel() {}
 
-  Expr* TaylorApprox::AssignError(StmtDiff refExpr,
-                                  const std::string& varName) {
+  Expr* FPErrorEstimationModel::AssignError(StmtDiff refExpr,
+                                            const std::string& varName) {
     // Get the machine epsilon value.
     double val = std::numeric_limits<float>::epsilon();
     // Convert it into a floating point literal clang::Expr.

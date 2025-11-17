@@ -57,7 +57,7 @@ public:
   /// Function to set the error estimation model currently in use.
   ///
   /// \param[in] estModel The error estimation model, can be either
-  /// an in-built one (TaylorApprox) or one provided by the user.
+  /// an in-built one or one provided by the user.
   void SetErrorEstimationModel(FPErrorEstimationModel* estModel);
 
   /// Builds a reference to the final error parameter of the function.

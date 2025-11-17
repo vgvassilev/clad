@@ -440,11 +440,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     handler.push_back(std::move(pHandler));
     // Set error estimation model. If no custom model provided by user,
     // use the built in Taylor approximation model.
-    if (model.size() != handler.size()) {
-      std::unique_ptr<FPErrorEstimationModel> pModel(
-          new TaylorApprox(builder, request));
-      model.push_back(std::move(pModel));
-    }
+    if (model.size() != handler.size())
+      model.push_back(
+          std::make_unique<FPErrorEstimationModel>(builder, request));
     handler.back()->SetErrorEstimationModel(model.back().get());
   }
 
