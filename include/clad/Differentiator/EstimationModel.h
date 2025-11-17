@@ -25,10 +25,6 @@ namespace clad {
   /// A base class for user defined error estimation models.
   class FPErrorEstimationModel : public VisitorBase {
   private:
-    /// Map to keep track of the error estimate variables for each declaration
-    /// reference.
-    std::unordered_map<const clang::VarDecl*, clang::Expr*> m_EstimateVar;
-
     /// An Expr representing a custom `getErrorVal` function, if any.
     clang::Expr* m_CustomErrorFunction = nullptr;
     void LookupCustomErrorFunction();
@@ -37,10 +33,7 @@ namespace clad {
     // FIXME: Add a proper parameter for the DiffRequest here.
     FPErrorEstimationModel(DerivativeBuilder& builder,
                            const DiffRequest& request);
-    ~FPErrorEstimationModel() override;
-
-    /// Clear the variable estimate map so that we can start afresh.
-    void clearEstimationVariables() { m_EstimateVar.clear(); }
+    ~FPErrorEstimationModel() override = default;
 
     // FIXME: This is a dummy override needed because Derive is abstract.
     DerivativeAndOverload Derive() override { return {}; }
