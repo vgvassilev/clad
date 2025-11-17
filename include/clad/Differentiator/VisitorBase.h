@@ -11,9 +11,11 @@
 #include "DerivativeBuilder.h"
 #include "clad/Differentiator/CladUtils.h"
 
+#include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Ownership.h"
@@ -25,6 +27,7 @@
 #include "llvm/Support/PrettyStackTrace.h"
 
 #include <array>
+#include <cassert>
 #include <stack>
 #include <unordered_map>
 
@@ -411,10 +414,39 @@ namespace clad {
     /// A flag for silencing warnings/errors output by diag function.
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
-    void diag(clang::DiagnosticsEngine::Level level, // Warning or Error
-              clang::SourceLocation loc, const char (&format)[N],
-              llvm::ArrayRef<llvm::StringRef> args = {}) {
-      m_Builder.diag(level, loc, format, args);
+    clang::Sema::SemaDiagnosticBuilder
+    diag(clang::DiagnosticsEngine::Level level, clang::SourceLocation loc,
+         const char (&format)[N]) {
+      return m_Builder.diag(level, loc, format);
+    }
+
+    void diagUnsupported(const clang::Decl* D) {
+      clang::SourceLocation L = D->getBeginLoc();
+      diag(clang::DiagnosticsEngine::Warning, L,
+           "declaration kind '%0' is not supported")
+          << D->getDeclKindName() << L;
+    }
+
+    void diagUnsupported(const clang::Stmt* S) {
+      clang::SourceLocation L = S->getBeginLoc();
+      diag(clang::DiagnosticsEngine::Warning, L,
+           "statement kind '%0' is not supported")
+          << S->getStmtClassName() << L;
+    }
+
+    void diagUnsupportedIndirectCalls(const clang::CallExpr* CE) {
+      assert(!CE->getDirectCallee() && "This is a direct callee");
+      clang::SourceLocation L = CE->getBeginLoc();
+      diag(clang::DiagnosticsEngine::Warning, L,
+           "differentiation of indirect calls is not supported")
+          << L;
+    }
+
+    /// Shorthand for warning on differentiation of unsupported operators
+    void unsupportedOpWarn(clang::SourceLocation loc) {
+      diag(clang::DiagnosticsEngine::Warning, loc,
+           "attempted to differentiate unsupported operator; treated as "
+           "non-differentiable");
     }
 
     /// Creates unique identifier of the form "_nameBase<number>" that is

@@ -1254,6 +1254,31 @@ double fn34(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn35(double x, double y) {
+  double val_max = std::max(x, y, std::greater<double>()); // min(x, y)
+  double val_min = std::min(x, y, std::greater<double>()); // max(x, y)
+  return 2 * val_max - 3 * val_min;
+}
+
+// CHECK:  void fn35_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      double _d_val_max = 0.;
+// CHECK-NEXT:      double val_max = std::max(x, y, std::greater<double>());
+// CHECK-NEXT:      double _d_val_min = 0.;
+// CHECK-NEXT:      double val_min = std::min(x, y, std::greater<double>());
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_val_max += 2 * 1;
+// CHECK-NEXT:          _d_val_min += 3 * -1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          std::greater<double> _r1 = {};
+// CHECK-NEXT:          clad::custom_derivatives::std::min_pullback(x, y, std::greater<double>(), _d_val_min, _d_x, _d_y, &_r1);
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          std::greater<double> _r0 = {};
+// CHECK-NEXT:          clad::custom_derivatives::std::max_pullback(x, y, std::greater<double>(), _d_val_max, _d_x, _d_y, &_r0);
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -1414,6 +1439,9 @@ int main() {
 
   INIT(fn34);
   TEST2(fn34, 2, 1);  // CHECK-EXEC: {1.00, 1.00}
+
+  INIT(fn35);
+  TEST2(fn35, 10, 1);  // CHECK-EXEC: {-3.00, 2.00}
 }
 
 double sq_defined_later(double x) {

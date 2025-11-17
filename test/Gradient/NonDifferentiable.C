@@ -115,6 +115,12 @@ double fn_non_diff_param_call(double i, double j) {
   return fn_non_diff_param(i, obj1);
 }
 
+// Normally, not differentiating w.r.t. `float *buffer` results in
+// error diagnostics. Check that non_differentiable resolves the issue.
+float fn_non_diff_ptr_param(float *input, float const *factors, non_differentiable float *buffer) {
+   return input[0] + factors[0] + buffer[0];
+}
+
 #define INIT_EXPR(classname)                                                   \
   classname expr_1(2, 3);                                                      \
   classname expr_2(3, 5);
@@ -260,4 +266,10 @@ int main() {
   // CHECK-NEXT:    result(out, in);
   // CHECK-NEXT:    result_pullback(out, in, _d_out);
   // CHECK-NEXT:}
+
+  clad::gradient(fn_non_diff_ptr_param, "input");
+
+  // CHECK: void fn_non_diff_ptr_param_grad_0(float *input, const float *factors, float *buffer, float *_d_input) {
+  // CHECK-NEXT:    _d_input[0] += 1;
+  // CHECK-NEXT: }
 }

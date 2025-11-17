@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 #define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
 
@@ -962,10 +963,24 @@ CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y, T1* d_x,
   *d_exponent += t.pushforward * d_y;
 }
 
+template <typename T, class Compare>
+CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+min_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
+                const T& d_b, Compare /*dcomp*/) {
+  return {::std::min(a, b, comp), comp(a, b) ? d_a : d_b};
+}
+
 template <typename T>
 CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
 min_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
   return {::std::min(a, b), a < b ? d_a : d_b};
+}
+
+template <typename T, class Compare>
+CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+max_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
+                const T& d_b, Compare /*dcomp*/) {
+  return {::std::max(a, b, comp), comp(a, b) ? d_b : d_a};
 }
 
 template <typename T>
@@ -974,22 +989,34 @@ max_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
   return {::std::max(a, b), a < b ? d_b : d_a};
 }
 
-template <typename T, typename U>
-CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, U d_y, T* d_a,
-                                   T* d_b) {
-  if (a < b)
+template <typename T, typename U, class Compare>
+CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, Compare comp, U d_y,
+                                   T* d_a, T* d_b, Compare* /*dcomp*/) {
+  if (comp(a, b))
     *d_a += d_y;
   else
     *d_b += d_y;
 }
 
 template <typename T, typename U>
-CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, U d_y, T* d_a,
+CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, U d_y, T* d_a,
                                    T* d_b) {
-  if (a < b)
+  min_pullback(a, b, ::std::less<T>{}, d_y, d_a, d_b, (::std::less<T>*)nullptr);
+}
+
+template <typename T, typename U, class Compare>
+CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, Compare comp, U d_y,
+                                   T* d_a, T* d_b, Compare* /*dcomp*/) {
+  if (comp(a, b))
     *d_b += d_y;
   else
     *d_a += d_y;
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, U d_y, T* d_a,
+                                   T* d_b) {
+  max_pullback(a, b, ::std::less<T>{}, d_y, d_a, d_b, (::std::less<T>*)nullptr);
 }
 
 #if __cplusplus >= 201703L

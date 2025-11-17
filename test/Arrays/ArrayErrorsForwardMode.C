@@ -10,7 +10,7 @@ struct Double {
   double n;
 };
 
-double addDoubleArr(Double *arr) { // expected-error {{attempted differentiation w.r.t. a parameter ('arr') which is not an array or pointer of a real type}}
+double addDoubleArr(Double *arr) { // expected-error {{attempted differentiation w.r.t. parameter 'arr' which is not array or pointer of real type}}
   return arr[0].n + arr[1].n + arr[2].n + arr[3].n;
 }
 
@@ -25,13 +25,18 @@ double nonConstNonDiffConstArr(double x, double y[3]) {
 }
 
 int main() {
-  clad::differentiate(addArr, "arr[1:2]"); // expected-error {{Forward mode differentiation w.r.t. several parameters at once is not supported, call 'clad::differentiate' for each parameter separately}}
+  clad::differentiate(addArr, "arr[1:2]"); // expected-error {{forward mode differentiation w.r.t. several parameters at once is not supported; call 'clad::differentiate' for each parameter}}
 
-  clad::differentiate(addArr, "arr[2:1]"); // expected-error {{Range specified in 'arr[2:1]' is in incorrect format}}
+  clad::differentiate(addArr, "arr[2:1]"); // expected-error {{range specified in 'arr[2:1]' is in incorrect format}}
 
   clad::differentiate(addDoubleArr, "arr[1]");
 
   clad::differentiate(nonConstNonDiffArr, "x");
 
   clad::differentiate(nonConstNonDiffConstArr, "x");
+
+  clad::differentiate(addArr, "arr[i]"); // expected-error {{could not parse index 'arr[i]'}}
+
+  clad::differentiate(addArr, "arr[1:n]"); // expected-error {{could not parse range 'arr[1:n]}}
+
 }

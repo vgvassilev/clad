@@ -43,12 +43,12 @@ int f_simple_negative(int x) {
 
 int main () {
   int x = 4;
-  clad::differentiate(f_simple, x); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
+  clad::differentiate(f_simple, x); // expected-error {{failed to parse the parameters, must be string or numeric literal}}
   // Here the second arg denotes the differentiation of f with respect to the
   // given arg.
   //clad::differentiate(f_simple, 1);
   clad::differentiate<3>(f_simple, 0);
-  clad::differentiate(f_simple, -1); // expected-error {{Invalid argument index '-1' of '1' argument(s)}}
+  clad::differentiate(f_simple, -1); // expected-error {{invalid argument index -1 of 1 argument(s)}}
   clad::differentiate(f_simple, 0);
   clad::differentiate(f_simple_negative, 0);
 

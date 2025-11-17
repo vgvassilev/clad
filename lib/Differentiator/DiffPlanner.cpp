@@ -34,11 +34,13 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
@@ -144,20 +146,17 @@ static bool findTargetFunction(DiffRequest& DR, CallExpr* call, Sema& SemaRef) {
 
       // Emit error diagnostics
       if (R.empty()) {
-        const char diagFmt[] = "'%0' has no defined operator()";
-        auto diagId = m_SemaRef.Diags.getCustomDiagID(
-            DiagnosticsEngine::Level::Error, diagFmt);
-        m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
+        utils::diag(m_SemaRef, DiagnosticsEngine::Error, m_BeginLoc,
+                    "%0 has no defined operator()")
+            << RD << m_BeginLoc;
         return false;
       }
 
       if (!R.isSingleResult()) {
-        const char diagFmt[] =
-            "'%0' has multiple definitions of operator(). "
-            "Multiple definitions of call operators are not supported.";
-        auto diagId = m_SemaRef.Diags.getCustomDiagID(
-            DiagnosticsEngine::Level::Error, diagFmt);
-        m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
+        utils::diag(m_SemaRef, DiagnosticsEngine::Error, m_BeginLoc,
+                    "%0 has multiple definitions of operator(); "
+                    "multiple definitions of call operators are not supported")
+            << RD << m_BeginLoc;
 
         // Emit diagnostics for candidate functions
         for (auto oper = R.begin(), operEnd = R.end(); oper != operEnd;
@@ -172,18 +171,15 @@ static bool findTargetFunction(DiffRequest& DR, CallExpr* call, Sema& SemaRef) {
       NamedDecl* FoundDecl = R.getFoundDecl();
       AccessSpecifier FoundDeclAccess = FoundDecl->getAccess();
       if (FoundDeclAccess != AccessSpecifier::AS_public) {
-        const char diagFmt[] =
-            "'%0' contains %1 call operator. Differentiation of "
-            "private/protected call operator is not supported.";
-
-        auto diagId = m_SemaRef.Diags.getCustomDiagID(
-            DiagnosticsEngine::Level::Error, diagFmt);
         // Compute access specifier name so that it can be used in
         // diagnostic message.
         const char* callOperatorAS =
             (FoundDeclAccess == AccessSpecifier::AS_private ? "private"
                                                             : "protected");
-        m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName() << callOperatorAS;
+        utils::diag(m_SemaRef, DiagnosticsEngine::Error, m_BeginLoc,
+                    "%0 contains %1 call operator; differentiation of "
+                    "non-public call operators is not supported")
+            << RD << callOperatorAS << m_BeginLoc;
 
         // Compute if the access specifier of the found operator is implicit.
         bool isImplicit = true;
@@ -372,12 +368,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     DiffParams params{};
     auto E = diffArgs->IgnoreParenImpCasts();
     // Case 1)
+    SourceLocation dArgsL = diffArgs->getBeginLoc();
     if (auto SL = dyn_cast<StringLiteral>(E)) {
       IndexIntervalTable indexes{};
       llvm::StringRef string = SL->getString().trim();
       if (string.empty()) {
-        utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
-                        diffArgs->getEndLoc(), "No parameters were provided");
+        utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                    "no parameters were provided")
+            << dArgsL;
         return;
       }
       // Split the string by ',' characters, trim whitespaces.
@@ -441,10 +439,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           unsigned idx = std::stoi(dVarInfo.source);
           // Fail if the specified index is invalid.
           if (idx >= FD->getNumParams()) {
-            utils::EmitDiag(
-                semaRef, DiagnosticsEngine::Error, diffArgs->getEndLoc(),
-                "Invalid argument index '%0' of '%1' argument(s)",
-                {std::to_string(idx), std::to_string(FD->getNumParams())});
+            utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                        "invalid argument index %0 of %1 argument(s)")
+                << idx << FD->getNumParams() << dArgsL;
             return;
           }
           dVarInfo.param = FD->getParamDecl(idx);
@@ -459,12 +456,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
         if (it == std::end(candidates)) {
           // Fail if the function has no parameter with specified name.
-          utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
-                          diffArgs->getEndLoc(),
-                          "Requested parameter name '%0' was not found among "
-                          "function "
-                          "parameters",
-                          {pName});
+          utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                      "requested parameter name '%0' was not found among "
+                      "function parameters")
+              << pName << dArgsL;
           return;
         }
 
@@ -474,10 +469,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                                  });
 
         if (f_it != DVI.end()) {
-          utils::
-              EmitDiag(semaRef, DiagnosticsEngine::Error, diffArgs->getEndLoc(),
-                       "Requested parameter '%0' was specified multiple times",
-                       {it->second->getName()});
+          utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                      "requested parameter %0 was specified multiple times")
+              << it->second << dArgsL;
           return;
         }
 
@@ -494,26 +488,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             // The string is not a range just a single index
             size_t index;
             if (firstStr.getAsInteger(Radix, index)) {
-                utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
-                                diffArgs->getEndLoc(),
-                                "Could not parse index '%0'", {diffSpec});
-                return;
+              utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                          "could not parse index '%0'")
+                  << diffSpec << dArgsL;
+              return;
             }
             dVarInfo.paramIndexInterval = IndexInterval(index);
           } else {
             size_t first, last;
             if (firstStr.getAsInteger(Radix, first) ||
                 lastStr.getAsInteger(Radix, last)) {
-                utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
-                                diffArgs->getEndLoc(),
-                                "Could not parse range '%0'", {diffSpec});
-                return;
+              utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                          "could not parse range '%0'")
+                  << diffSpec << dArgsL;
+              return;
             }
             if (first >= last) {
-              utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
-                              diffArgs->getEndLoc(),
-                              "Range specified in '%0' is in incorrect format",
-                              {diffSpec});
+              utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                          "range specified in '%0' is in incorrect format")
+                  << diffSpec << dArgsL;
               return;
             }
             dVarInfo.paramIndexInterval = IndexInterval(first, last);
@@ -533,12 +526,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
         if (!dVarInfo.param->getType()->isRecordType() &&
             !dVarInfo.fields.empty()) {
-          utils::EmitDiag(
-              semaRef, DiagnosticsEngine::Level::Error, diffArgs->getEndLoc(),
-              "Fields can only be provided for class type parameters. "
-              "Field information is incorrectly specified in '%0' "
-              "for non-class type parameter '%1'",
-              {diffSpec, pName});
+          utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                      "fields can only be provided for class type parameters; "
+                      "field information is incorrectly specified in '%0' "
+                      "for non-class type parameter '%1'")
+              << diffSpec << pName << dArgsL;
           return;
         }
 
@@ -548,9 +540,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                                                     dVarInfo.fields.end());
           bool isValid = utils::IsValidMemExprPath(semaRef, RD, ref);
           if (!isValid) {
-            utils::EmitDiag(
-                semaRef, DiagnosticsEngine::Level::Error, diffArgs->getEndLoc(),
-                "Path specified by fields in '%0' is invalid.", {diffSpec});
+            utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                        "path specified by fields in '%0' is invalid")
+                << diffSpec << dArgsL;
             return;
           }
         }
@@ -577,22 +569,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                                         Functor->field_end());
         // Fail if the specified index is invalid.
         if ((idx < 0) || idx >= totalFields) {
-          utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
-                          diffArgs->getEndLoc(),
-                          "Invalid member variable index '%0' of '%1' member "
-                          "variable(s)",
-                          {std::to_string(idx), std::to_string(totalFields)});
+          utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                      "invalid member variable index %0 of %1 member "
+                      "variable(s)")
+              << std::to_string(idx) << totalFields << dArgsL;
           return;
         }
         dVarInfo.param = *std::next(Functor->field_begin(), idx);
       } else {
         // Fail if the specified index is invalid.
         if ((idx < 0) || (idx >= FD->getNumParams())) {
-          utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
-                          diffArgs->getEndLoc(),
-                          "Invalid argument index '%0' of '%1' argument(s)",
-                          {std::to_string(idx),
-                           std::to_string(FD->getNumParams())});
+          utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                      "invalid argument index %0 of %1 argument(s)")
+              << std::to_string(idx) << FD->getNumParams() << dArgsL;
           return;
         }
         dVarInfo.param = FD->getParamDecl(idx);
@@ -610,10 +599,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // If the function has no parameters, then we cannot differentiate it."
       // and if the DiffMode is Jacobian, we must have atleast 2 parameters.
       if (params.empty()) {
-        utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
-                        CallContext->getEndLoc(),
-                        "Attempted to differentiate a function without "
-                        "parameters");
+        SourceLocation L = CallContext->getBeginLoc();
+        utils::diag(semaRef, DiagnosticsEngine::Error, L,
+                    "attempted to differentiate function with no parameters")
+            << L;
         return;
       }
 
@@ -625,9 +614,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return;
     }
     // Fail if the argument is not a string or numeric literal.
-    utils::EmitDiag(semaRef, DiagnosticsEngine::Error, diffArgs->getEndLoc(),
-                    "Failed to parse the parameters, must be a string or "
-                    "numeric literal");
+    utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                "failed to parse the parameters, must be string or "
+                "numeric literal");
     return;
   }
 
@@ -811,7 +800,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   ///\returns true on error.
-  static bool ProcessInvocationArgs(Sema& S, SourceLocation endLoc,
+  static bool ProcessInvocationArgs(Sema& S, SourceLocation BeginLoc,
                                     const RequestOptions& ReqOpts,
                                     const FunctionDecl* FD,
                                     DiffRequest& request) {
@@ -831,11 +820,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::jacobian;
     else if (Annotation == "G")
       request.Mode = DiffMode::reverse;
-    else {
-      utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc, "Unknown mode '%0'",
-                      A->getAnnotation());
-      return true;
-    }
+    else
+      llvm_unreachable("unknown mode");
     if (request.Mode == DiffMode::reverse ||
         request.Mode == DiffMode::hessian ||
         request.Mode == DiffMode::error_estimation)
@@ -868,31 +854,36 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         clad::HasOption(bitmasked_opts_value, clad::opts::disable_ua);
     // Sanity checks.
     if (enable_tbr_in_req && disable_tbr_in_req) {
-      utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
-                      "Both enable and disable TBR options are specified.");
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                  "both enable and disable TBR options are specified")
+          << BeginLoc;
       return true;
     }
     if (enable_va_in_req && disable_va_in_req) {
-      utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
-                      "Both enable and disable VA options are specified.");
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                  "both enable and disable VA options are specified")
+          << BeginLoc;
       return true;
     }
     if (enable_ua_in_req && disable_ua_in_req) {
-      utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
-                      "Both enable and disable UA options are specified.");
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                  "both enable and disable UA options are specified")
+          << BeginLoc;
       return true;
     }
     if (enable_tbr_in_req && request.Mode == DiffMode::forward) {
-      utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
-                      "TBR analysis is not meant for forward mode AD.");
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                  "tbr analysis is not meant for forward mode AD")
+          << BeginLoc;
       return true;
     }
 
     // reverse vector mode is not yet supported.
     if (request.Mode == DiffMode::reverse &&
         clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
-      utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
-                      "Reverse vector mode is not yet supported.");
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                  "reverse vector mode is not yet supported")
+          << BeginLoc;
       return true;
     }
 
@@ -914,8 +905,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         request.Mode = DiffMode::hessian_diagonal;
         return false;
       }
-      utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
-                      "Diagonal only option is only valid for Hessian mode.");
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                  "diagonal only option is only valid for hessian mode");
       return true;
     }
 
@@ -937,16 +928,18 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
         // Currently only first order derivative is supported.
         if (request.RequestedDerivativeOrder != 1) {
-          utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
-                          "Only first order derivative is supported for now "
-                          "in vector forward mode.");
+          utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                      "only first order derivative is supported for now "
+                      "in vector forward mode")
+              << BeginLoc;
           return true;
         }
 
         // We don't yet support enzyme with vector mode.
         if (request.use_enzyme) {
-          utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc,
-                          "Enzyme's vector mode is not yet supported.");
+          utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                      "enzyme's vector mode is not yet supported")
+              << BeginLoc;
           return true;
         }
       }
@@ -1229,6 +1222,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           m_TopMostReq->Mode == DiffMode::reverse &&
           utils::canUsePushforwardInRevMode(FD);
 
+      std::string FDName = FD->getNameAsString();
+#if CLANG_VERSION_MAJOR < 16
+      if (clang::AnalysisDeclContext::isInStdNamespace(FD) &&
+          (FDName == "move" || FDName == "forward"))
+        return true;
+#endif
       // FIXME: hessians require second derivatives, i.e. apart from the
       // pushforward, we also need to schedule pushforward_pullback.
       if (m_ParentReq->CustomDerivative ||
@@ -1253,7 +1252,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
 
       // FIXME: Use elidable_reverse_forw
-      std::string FDName = FD->getNameAsString();
       if (request.Mode == DiffMode::pullback &&
           (FDName == "cudaMemcpy" || FDName == "begin" || FDName == "end"))
         return true;
@@ -1296,12 +1294,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         R.BaseFunctionName = utils::ComputeEffectiveFnName(R.Function);
         R.Mode = DiffMode::pullback;
         if (LookupCustomDerivativeDecl(R)) {
-          unsigned warnId = m_Sema.Diags.getCustomDiagID(
-              DiagnosticsEngine::Warning,
+          utils::diag(
+              m_Sema, DiagnosticsEngine::Warning, R.CallContext->getBeginLoc(),
               "unused function '%0_pullback'; '%0' is a real-domain, "
-              "single-argument function and only pushforward is required");
-
-          m_Sema.Diag(R.CallContext->getBeginLoc(), warnId)
+              "single-argument function and only pushforward is required")
               << R.Function->getName() << R.CallContext->getSourceRange();
           // Collect the unused decls.
           llvm::SmallVector<const NamedDecl*, 2> UnusedDecls;

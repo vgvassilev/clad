@@ -19,6 +19,8 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Sema.h"
 
 #include <llvm/ADT/ArrayRef.h>
@@ -504,14 +506,6 @@ namespace clad {
                          const clang::ParmVarDecl* param,
                          llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
                          bool isNonDiff, bool isCUDAKernel = false);
-    /// Shorthand for warning on differentiation of unsupported operators
-    void unsupportedOpWarn(clang::SourceLocation loc,
-                           llvm::ArrayRef<llvm::StringRef> args = {}) {
-      diag(clang::DiagnosticsEngine::Warning,
-           loc,
-           "attempt to differentiate unsupported operator, ignored.",
-           args);
-    }
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop.

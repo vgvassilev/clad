@@ -43,7 +43,7 @@ ExternalProject_Add(
   GIT_REPOSITORY https://github.com/google/googletest.git
   EXCLUDE_FROM_ALL 1
   GIT_SHALLOW 1
-  GIT_TAG v1.16.0
+  GIT_TAG v1.17.0
   UPDATE_COMMAND ""
   # # Force separate output paths for debug and release builds to allow easy
   # # identification of correct lib in subsequent TARGET_LINK_LIBRARIES commands

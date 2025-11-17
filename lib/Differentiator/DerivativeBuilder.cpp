@@ -36,7 +36,6 @@
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
-#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -526,14 +525,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // functions or custom derivatives.
         if (!request.DeclarationOnly ||
             !(m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD))) {
-          if (request.VerboseDiags)
-            diag(DiagnosticsEngine::Error,
-                 request.CallContext ? request.CallContext->getBeginLoc()
-                                     : noLoc,
-                 "attempted differentiation of function '%0', which does not "
-                 "have a "
-                 "definition",
-                 {FD->getNameAsString()});
+          if (request.VerboseDiags) {
+            SourceLocation L = request.CallContext->getBeginLoc();
+            diag(DiagnosticsEngine::Error, L,
+                 "attempted differentiation of function %0, without definition")
+                << FD << L;
+          }
           return {};
         }
       }
@@ -543,11 +540,11 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
       // check if the function is non-differentiable.
       if (clad::utils::hasNonDifferentiableAttribute(FD)) {
-        diag(DiagnosticsEngine::Error,
-             request.CallContext ? request.CallContext->getBeginLoc() : noLoc,
-             "attempted differentiation of function '%0', which is marked as "
-             "non-differentiable",
-             {FD->getNameAsString()});
+        SourceLocation L = request.CallContext->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "attempted differentiation of function %0, which is marked as "
+             "non-differentiable")
+            << FD;
         return {};
       }
 
@@ -556,23 +553,21 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       if (const CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(FD)) {
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD)) {
-          diag(DiagnosticsEngine::Error, MD->getLocation(),
-               "attempted differentiation of method '%0' in class '%1', which "
-               "is "
-               "marked as "
-               "non-differentiable",
-               {MD->getNameAsString(), CD->getNameAsString()});
+          SourceLocation L = MD->getLocation();
+          diag(DiagnosticsEngine::Error, L,
+               "attempted differentiation of method %0 in class %1, which "
+               "is marked as non-differentiable")
+              << MD << CD << L;
           return {};
         }
       }
     } else if (const VarDecl* VD = request.Global) {
       // Warn the user about the usage of global variables.
-      auto diagId = m_Sema.Diags.getCustomDiagID(
-          DiagnosticsEngine::Warning,
-          "The gradient utilizes a global variable '%0'"
-          ". Please make sure to properly reset '%0' before re-running "
-          "the gradient.");
-      m_Sema.Diag(VD->getLocation(), diagId) << VD->getName();
+      SourceLocation L = VD->getLocation();
+      diag(DiagnosticsEngine::Warning, L,
+           "gradient uses a global variable %0; "
+           "rerunning the gradient requires %0 to be reset")
+          << VD << L;
     }
 
     DerivativeAndOverload result{};
