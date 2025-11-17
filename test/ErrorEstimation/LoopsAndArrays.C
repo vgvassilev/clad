@@ -321,10 +321,8 @@ double func6(double x) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         sum = clad::pop(_t1);
 //CHECK-NEXT:         double _r0 = 0.;
-//CHECK-NEXT:         double _t2 = 0.;
-//CHECK-NEXT:         fun_pullback(x, _d_sum, &_r0, _t2);
+//CHECK-NEXT:         fun_pullback(x, _d_sum, &_r0, _final_error);
 //CHECK-NEXT:         *_d_x += _r0;
-//CHECK-NEXT:         _final_error += _t2;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});

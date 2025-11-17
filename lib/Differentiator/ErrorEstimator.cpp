@@ -26,19 +26,6 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
   return baseType;
 }
 
-Expr* UpdateErrorForFuncCallAssigns(ErrorEstimationHandler* handler,
-                                    Expr* savedExpr, Expr* origExpr,
-                                    Expr*& callError, const std::string& name) {
-  Expr* errorExpr = nullptr;
-  if (!callError)
-    errorExpr = handler->GetError(savedExpr, origExpr, name);
-  else {
-    errorExpr = callError;
-    callError = nullptr;
-  }
-  return errorExpr;
-}
-
 void ErrorEstimationHandler::SetErrorEstimationModel(
     FPErrorEstimationModel* estModel) {
   m_EstModel = estModel;
@@ -63,16 +50,11 @@ void ErrorEstimationHandler::BuildReturnErrorStmt() {
   }
 }
 
-void ErrorEstimationHandler::AddErrorStmtToBlock(Expr* errorExpr,
-                                                 bool addToTheFront) {
+void ErrorEstimationHandler::AddErrorStmtToBlock(Expr* errorExpr) {
   Expr* FinalError = BuildFinalErrorExpr();
   Stmt* errorStmt = m_RMV->BuildOp(BO_AddAssign, FinalError, errorExpr);
-  if (addToTheFront) {
-    auto& block = m_RMV->getCurrentBlock(direction::reverse);
-    block.insert(block.begin(), errorStmt);
-  } else {
-    m_RMV->addToCurrentBlock(errorStmt, direction::reverse);
-  }
+  auto& block = m_RMV->getCurrentBlock(direction::reverse);
+  block.insert(block.begin(), errorStmt);
 }
 
 void ErrorEstimationHandler::EmitErrorEstimationStmts(
@@ -252,10 +234,10 @@ void ErrorEstimationHandler::EmitBinaryOpErrorStmts(Expr* LExpr,
   auto decl = GetUnderlyingDeclRefOrNull(LExpr)->getDecl();
   if (!ShouldEstimateErrorFor(cast<VarDecl>(decl)))
     return;
-  bool errorFromFunctionCall = (bool)m_NestedFuncError;
-  Expr* errorExpr = UpdateErrorForFuncCallAssigns(
-      this, LExpr, oldValue, m_NestedFuncError, decl->getNameAsString());
-  AddErrorStmtToBlock(errorExpr, /*addToTheFront=*/!errorFromFunctionCall);
+  if (m_ErrorFromFunctionCall)
+    return;
+  Expr* errorExpr = GetError(LExpr, oldValue, decl->getNameAsString());
+  AddErrorStmtToBlock(errorExpr);
   // If there are assign statements to emit in reverse, do that.
   EmitErrorEstimationStmts(direction::reverse);
 }
@@ -265,17 +247,18 @@ void ErrorEstimationHandler::EmitDeclErrorStmts(DeclDiff<VarDecl> VDDiff,
   auto VD = VDDiff.getDecl();
   if (!ShouldEstimateErrorFor(VD))
     return;
+  if (m_ErrorFromFunctionCall)
+    return;
   // Build the delta expresion for the variable to be registered.
   DeclRefExpr* VDRef = m_RMV->BuildDeclRef(VD);
   // FIXME: We should do this for arrays too.
   if (!VD->getType()->isArrayType()) {
     // If the VarDecl has an init, we should assign it with an error.
     if (VD->getInit() && !GetUnderlyingDeclRefOrNull(VD->getInit())) {
-      bool errorFromFunctionCall = (bool)m_NestedFuncError;
-      Expr* errorExpr = UpdateErrorForFuncCallAssigns(
-          this, VDRef, m_RMV->BuildDeclRef(VDDiff.getDecl_dx()),
-          m_NestedFuncError, VD->getNameAsString());
-      AddErrorStmtToBlock(errorExpr, /*addToTheFront=*/!errorFromFunctionCall);
+      Expr* errorExpr =
+          GetError(VDRef, m_RMV->BuildDeclRef(VDDiff.getDecl_dx()),
+                   VD->getNameAsString());
+      AddErrorStmtToBlock(errorExpr);
     }
   }
 }
@@ -470,20 +453,9 @@ void ErrorEstimationHandler::ActBeforeFinalizingDifferentiateSingleExpr(
 }
 
 void ErrorEstimationHandler::ActBeforeDifferentiatingCallExpr(
-    llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
-    llvm::SmallVectorImpl<Stmt*>& ArgDecls, bool hasAssignee) {
-  auto errorRef =
-      m_RMV->BuildVarDecl(m_RMV->m_Context.DoubleTy, "_t",
-                          m_RMV->getZeroInit(m_RMV->m_Context.DoubleTy));
-  ArgDecls.push_back(m_RMV->BuildDeclStmt(errorRef));
-  auto finErr = m_RMV->BuildDeclRef(errorRef);
-  pullbackArgs.push_back(finErr);
-  if (hasAssignee) {
-    if (m_NestedFuncError)
-      m_NestedFuncError = m_RMV->BuildOp(BO_Add, m_NestedFuncError, finErr);
-    else
-      m_NestedFuncError = finErr;
-  }
+    llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs) {
+  m_ErrorFromFunctionCall = true;
+  pullbackArgs.push_back(BuildFinalErrorExpr());
 }
 
 void ErrorEstimationHandler::ActBeforeFinalizingVisitDeclStmt(
