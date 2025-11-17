@@ -12,8 +12,10 @@
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
 
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/SmallVector.h"
 
+#include <limits>
 #include <string>
 using namespace clang;
 
@@ -25,52 +27,49 @@ FPErrorEstimationModel::FPErrorEstimationModel(DerivativeBuilder& builder,
   LookupCustomErrorFunction();
 }
 
-  FPErrorEstimationModel::~FPErrorEstimationModel() {}
+void FPErrorEstimationModel::LookupCustomErrorFunction() {
+  CXXScopeSpec SS;
+  NamespaceDecl* cladNS =
+      utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
+  SS.Extend(m_Context, cladNS, noLoc, noLoc);
+  IdentifierInfo* II = &m_Context.Idents.get("getErrorVal");
+  DeclarationNameInfo DNInfo(DeclarationName(II), utils::GetValidSLoc(m_Sema));
+  LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
+  m_Sema.LookupQualifiedName(R, cladNS);
+  if (R.empty())
+    return;
+  m_CustomErrorFunction =
+      m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+}
 
-  void FPErrorEstimationModel::LookupCustomErrorFunction() {
-    CXXScopeSpec SS;
-    NamespaceDecl* cladNS =
-        utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
-    SS.Extend(m_Context, cladNS, noLoc, noLoc);
-    IdentifierInfo* II = &m_Context.Idents.get("getErrorVal");
-    DeclarationNameInfo DNInfo(DeclarationName(II),
-                               utils::GetValidSLoc(m_Sema));
-    LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
-    m_Sema.LookupQualifiedName(R, cladNS);
-    if (R.empty())
-      return;
-    m_CustomErrorFunction =
-        m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+Expr* FPErrorEstimationModel::AssignError(StmtDiff refExpr,
+                                          const std::string& varName) {
+  if (m_CustomErrorFunction) {
+    llvm::SmallVector<clang::Expr*, 3> callParams{
+        refExpr.getExpr_dx(), refExpr.getExpr(),
+        clad::utils::CreateStringLiteral(m_Context, varName)};
+    return m_Sema
+        .ActOnCallExpr(getCurrentScope(), m_CustomErrorFunction, noLoc,
+                       callParams, noLoc)
+        .get();
   }
-
-  Expr* FPErrorEstimationModel::AssignError(StmtDiff refExpr,
-                                            const std::string& varName) {
-    if (m_CustomErrorFunction) {
-      llvm::SmallVector<clang::Expr*, 3> callParams{
-          refExpr.getExpr_dx(), refExpr.getExpr(),
-          clad::utils::CreateStringLiteral(m_Context, varName)};
-      return m_Sema
-          .ActOnCallExpr(getCurrentScope(), m_CustomErrorFunction, noLoc,
-                         callParams, noLoc)
-          .get();
-    }
-    // Get the machine epsilon value.
-    double val = std::numeric_limits<float>::epsilon();
-    // Convert it into a floating point literal clang::Expr.
-    auto epsExpr = FloatingLiteral::Create(m_Context, llvm::APFloat(val), true,
-                                           m_Context.DoubleTy, noLoc);
-    // Here, we first build a multiplication operation for the following:
-    // refExpr * <--floating point literal (i.e. machine dependent constant)-->
-    // Build another multiplication operation with above and the derivative
-    auto errExpr = BuildOp(BO_Mul, refExpr.getExpr_dx(),
-                           BuildOp(BO_Mul, refExpr.getExpr(), epsExpr));
-    // Next, build a llvm vector-like container to store the parameters
-    // of the function call.
-    llvm::SmallVector<Expr*, 1> params{errExpr};
-    // Finally, build a call to std::abs
-    auto absExpr = GetFunctionCall("abs", "std", params);
-    // Return the built error expression.
-    return absExpr;
-  }
+  // Get the machine epsilon value.
+  double val = std::numeric_limits<float>::epsilon();
+  // Convert it into a floating point literal clang::Expr.
+  Expr* epsExpr = FloatingLiteral::Create(m_Context, llvm::APFloat(val), true,
+                                          m_Context.DoubleTy, noLoc);
+  // Here, we first build a multiplication operation for the following:
+  // refExpr * <--floating point literal (i.e. machine dependent constant)-->
+  // Build another multiplication operation with above and the derivative
+  Expr* errExpr = BuildOp(BO_Mul, refExpr.getExpr_dx(),
+                          BuildOp(BO_Mul, refExpr.getExpr(), epsExpr));
+  // Next, build a llvm vector-like container to store the parameters
+  // of the function call.
+  llvm::SmallVector<Expr*, 1> params{errExpr};
+  // Finally, build a call to std::abs
+  Expr* absExpr = GetFunctionCall("abs", "std", params);
+  // Return the built error expression.
+  return absExpr;
+}
 
 } // namespace clad

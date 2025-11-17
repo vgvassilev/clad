@@ -425,30 +425,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return derivative;
   }
 
-  void InitErrorEstimation(
-      llvm::SmallVectorImpl<std::unique_ptr<ErrorEstimationHandler>>& handler,
-      llvm::SmallVectorImpl<std::unique_ptr<FPErrorEstimationModel>>& model,
-      DerivativeBuilder& builder, const DiffRequest& request) {
-    // Set the handler.
-    std::unique_ptr<ErrorEstimationHandler> pHandler(
-        new ErrorEstimationHandler());
-    handler.push_back(std::move(pHandler));
-    // Set error estimation model. If no custom model provided by user,
-    // use the built in Taylor approximation model.
-    if (model.size() != handler.size())
-      model.push_back(
-          std::make_unique<FPErrorEstimationModel>(builder, request));
-    handler.back()->SetErrorEstimationModel(model.back().get());
-  }
-
-  void CleanupErrorEstimation(
-      llvm::SmallVectorImpl<std::unique_ptr<ErrorEstimationHandler>>& handler,
-      llvm::SmallVectorImpl<std::unique_ptr<FPErrorEstimationModel>>& model) {
-    model.back()->clearEstimationVariables();
-    model.pop_back();
-    handler.pop_back();
-  }
-
   DerivativeAndOverload
   DerivativeBuilder::Derive(const DiffRequest& request) {
     TimedGenerationRegion G([&request]() { return (std::string)request; });
@@ -580,14 +556,15 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       ReverseModeVisitor V(*this, request);
       result = V.Derive();
     } else if (request.Mode == DiffMode::pullback) {
+      ErrorEstimationHandler handler;
+      std::unique_ptr<FPErrorEstimationModel> model;
       ReverseModeVisitor V(*this, request);
-      if (!m_ErrorEstHandler.empty()) {
-        InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
-        V.AddExternalSource(*m_ErrorEstHandler.back());
+      if (m_ErrorEstimationInFlight) {
+        model = std::make_unique<FPErrorEstimationModel>(*this, request);
+        handler.SetErrorEstimationModel(model.get());
+        V.AddExternalSource(handler);
       }
       result = V.Derive();
-      if (!m_ErrorEstHandler.empty())
-        CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
     } else if (request.Mode == DiffMode::reverse_mode_forward_pass) {
       ReverseModeForwPassVisitor V(*this, request);
       result = V.Derive();
@@ -599,14 +576,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       JacobianModeVisitor J(*this, request);
       result = J.Derive();
     } else if (request.Mode == DiffMode::error_estimation) {
+      llvm::SaveAndRestore<bool> Saved(m_ErrorEstimationInFlight, true);
+      ErrorEstimationHandler handler;
+      FPErrorEstimationModel model(*this, request);
+      handler.SetErrorEstimationModel(&model);
       ReverseModeVisitor R(*this, request);
-      InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
-      R.AddExternalSource(*m_ErrorEstHandler.back());
+      R.AddExternalSource(handler);
       // Finally begin estimation.
       result = R.Derive();
-      // Once we are done, we want to clear the model for any further
-      // calls to estimate_error.
-      CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
     } else if (const VarDecl* VD = request.Global) {
       // The request represents a global variable, construct the adjoint and
       // register it.

@@ -89,15 +89,13 @@ namespace clad {
     clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
-    /// A reference to the model to use for error estimation (if any).
-    llvm::SmallVector<std::unique_ptr<FPErrorEstimationModel>, 4> m_EstModel;
     clang::NamespaceDecl* m_NumericalDiffNSD;
     /// A flag to keep track of whether error diagnostics are requested by user
     /// for numerical differentiation.
     bool m_PrintNumericalDiffErrorDiag = false;
-    // A pointer to a the handler to be used for estimation requests.
-    llvm::SmallVector<std::unique_ptr<ErrorEstimationHandler>, 4>
-        m_ErrorEstHandler;
+    // FIXME: Track this in the diffrequest.
+    // A flag signaling whether the current diffrequest is for error estimation.
+    bool m_ErrorEstimationInFlight = false;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
                                   clad::VisitorBase& VB, clang::DeclContext* DC,
                                   clang::SourceLocation& noLoc,
