@@ -12,9 +12,9 @@ namespace {
       cur_num_deallocs = 0;
       cur_max_bytes_used = 0;
     }
-    void Stop(Result* result) override {
-      result->num_allocs = cur_num_allocs;
-      result->max_bytes_used = cur_max_bytes_used;
+    void Stop(Result& result) override {
+      result.num_allocs = cur_num_allocs;
+      result.max_bytes_used = cur_max_bytes_used;
     }
   };
   static auto mm = std::unique_ptr<MemoryManager>(new MemoryManager());
