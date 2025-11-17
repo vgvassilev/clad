@@ -40,20 +40,9 @@ namespace clad {
     // FIXME: This is a dummy override needed because Derive is abstract.
     DerivativeAndOverload Derive() override { return {}; }
 
-    /// User overridden function to return the error expression of a
+    /// The function to build the error expression of a
     /// specific estimation model. The error expression is returned in the form
-    /// of a clang::Expr, the user may use BuildOp() to build the final
-    /// expression. An example of a possible override is:
-    ///
-    /// \n \code
-    /// clang::Expr*
-    /// AssignError(clad::StmtDiff* refExpr, const std::string& name) {
-    ///   return BuildOp(BO_Mul, refExpr->getExpr_dx(), refExpr->getExpr());
-    /// }
-    /// \endcode
-    /// \n The above returns the expression: drefExpr * refExpr. For more
-    /// examples refer the TaylorApprox class.
-    ///
+    /// of a clang::Expr.
     /// \param[in] refExpr The reference of the expression to which the error
     /// has to be assigned, this is a StmtDiff type hence one can use getExpr()
     /// to get the unmodified expression and getExpr_dx() to get the absolute
@@ -61,8 +50,9 @@ namespace clad {
     /// \param [in] name Name of the variable being analysed.
     ///
     /// \returns The error expression of the input value.
-    virtual clang::Expr* AssignError(StmtDiff refExpr,
-                                     const std::string& name) = 0;
+    // Return an expression of the following kind:
+    // std::abs(dfdx * delta_x * Em)
+    virtual clang::Expr* AssignError(StmtDiff refExpr, const std::string& name);
 
     friend class ErrorEstimationHandler;
   };
@@ -99,17 +89,6 @@ namespace clad {
       return std::unique_ptr<FPErrorEstimationModel>(
           new CustomClass(builder, request));
     }
-  };
-
-  /// Example class for taylor series approximation based error estimation.
-  class TaylorApprox : public FPErrorEstimationModel {
-  public:
-    TaylorApprox(DerivativeBuilder& builder, const DiffRequest& request)
-        : FPErrorEstimationModel(builder, request) {}
-    // Return an expression of the following kind:
-    // std::abs(dfdx * delta_x * Em)
-    clang::Expr* AssignError(StmtDiff refExpr,
-                             const std::string& name) override;
   };
 
   /// Register any custom error estimation model a user provides
