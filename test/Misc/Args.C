@@ -22,7 +22,7 @@
 
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
 // RUN:  -Xclang -fcustom-estimation-model %s 2>&1 | FileCheck --check-prefix=CHECK_EST_INVALID %s
-// CHECK_EST_INVALID: No shared object was specified
+// CHECK_EST_INVALID: `-fcustom-estimation-model` is deprecated
 
 // RUN: touch %t.so
 // RUN: ! %cladclang -fsyntax-only  -Xclang -plugin-arg-clad \

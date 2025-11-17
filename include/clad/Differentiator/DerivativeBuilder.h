@@ -159,11 +159,6 @@ namespace clad {
                       DerivedFnCollector& DFC,
                       clad::DynamicGraph<DiffRequest>& DRG);
     ~DerivativeBuilder();
-    /// Reset the model use for error estimation (if any).
-    /// \param[in] estModel The error estimation model, can be either
-    /// an in-built one or one provided by the user.
-    void
-    AddErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
     /// Fuction to set the error diagnostic printing value for numerical
     /// differentiation.
     ///

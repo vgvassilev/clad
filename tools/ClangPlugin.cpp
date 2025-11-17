@@ -297,30 +297,8 @@ void InitTimers();
         FD->print(llvm::outs(), Policy);
       }
       // if enabled, print ASTs of the original functions
-      if (m_DO.DumpSourceFnAST) {
+      if (m_DO.DumpSourceFnAST)
         FD->dumpColor();
-      }
-      // if enabled, load the dynamic library input from user to use
-      // as a custom estimation model.
-      if (m_DO.CustomEstimationModel) {
-        std::string Err;
-        if (llvm::sys::DynamicLibrary::
-                LoadLibraryPermanently(m_DO.CustomModelName.c_str(), &Err)) {
-          unsigned diagID = S.Diags.getCustomDiagID(
-              DiagnosticsEngine::Error, "Failed to load '%0', %1. Aborting.");
-          clang::Sema::SemaDiagnosticBuilder stream = S.Diag(noLoc, diagID);
-          stream << m_DO.CustomModelName << Err;
-          return nullptr;
-        }
-        for (auto it = ErrorEstimationModelRegistry::begin(),
-                  ie = ErrorEstimationModelRegistry::end();
-             it != ie; ++it) {
-          auto estimationPlugin = it->instantiate();
-          m_DerivativeBuilder->AddErrorEstimationModel(
-              estimationPlugin->InstantiateCustomModel(*m_DerivativeBuilder,
-                                                       request));
-        }
-      }
 
       // If enabled, set the proper fields in derivative builder.
       if (m_DO.PrintNumDiffErrorInfo) {
