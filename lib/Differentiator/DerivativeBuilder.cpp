@@ -425,11 +425,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return derivative;
   }
 
-  void DerivativeBuilder::AddErrorEstimationModel(
-      std::unique_ptr<FPErrorEstimationModel> estModel) {
-    m_EstModel.push_back(std::move(estModel));
-  }
-
   void InitErrorEstimation(
       llvm::SmallVectorImpl<std::unique_ptr<ErrorEstimationHandler>>& handler,
       llvm::SmallVectorImpl<std::unique_ptr<FPErrorEstimationModel>>& model,

@@ -74,7 +74,3 @@ FPErrorEstimationModel::FPErrorEstimationModel(DerivativeBuilder& builder,
   }
 
 } // namespace clad
-
-// instantiate our error estimation model registry so that we can register
-// custom models passed by users as a shared lib
-LLVM_INSTANTIATE_REGISTRY(clad::ErrorEstimationModelRegistry)
