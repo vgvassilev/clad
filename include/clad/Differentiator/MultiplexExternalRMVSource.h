@@ -61,8 +61,7 @@ public:
   void ActBeforeFinalizingDifferentiateSingleStmt(const direction& d) override;
   void ActBeforeFinalizingDifferentiateSingleExpr(const direction& d) override;
   void ActBeforeDifferentiatingCallExpr(
-      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
-      llvm::SmallVectorImpl<clang::Stmt*>& ArgDecls, bool hasAssignee) override;
+      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs) override;
   void ActBeforeFinalizingVisitDeclStmt(
       llvm::SmallVectorImpl<clang::Decl*>& decls,
       llvm::SmallVectorImpl<clang::Decl*>& declsDiff) override;

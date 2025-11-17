@@ -2062,7 +2062,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                 pullbackRequest.DVI.push_back(PVD);
             }
             m_ExternalSource->ActBeforeDifferentiatingCallExpr(
-                pullbackCallArgs, PreCallStmts, dfdx());
+                pullbackCallArgs);
             pullbackFD =
                 plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
           } else

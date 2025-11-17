@@ -141,8 +141,7 @@ public:
   virtual void ActBeforeFinalizingDifferentiateSingleExpr(const direction& d) {}
 
   virtual void ActBeforeDifferentiatingCallExpr(
-      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
-      llvm::SmallVectorImpl<clang::Stmt*>& ArgDecls, bool hasAssignee) {}
+      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs) {}
 
   virtual void ActBeforeFinalizingVisitDeclStmt(
       llvm::SmallVectorImpl<clang::Decl*>& decls,
