@@ -63,7 +63,6 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
   )
 
-list(APPEND CLAD_TEST_DEPS clad cladCustomModelPlugin cladPrintModelPlugin)
 # Try to append dependencies only if we are building in-tree.
 if(NOT CLAD_BUILT_STANDALONE)
   list(APPEND CLAD_TEST_DEPS llvm-config FileCheck clang opt count not)

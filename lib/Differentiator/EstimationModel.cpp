@@ -2,21 +2,58 @@
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
 
-#include "llvm/Support/Registry.h"
+#include "llvm/ADT/SmallVector.h"
+
+#include <string>
 using namespace clang;
 
 namespace clad {
 
+FPErrorEstimationModel::FPErrorEstimationModel(DerivativeBuilder& builder,
+                                               const DiffRequest& request)
+    : VisitorBase(builder, request) {
+  LookupCustomErrorFunction();
+}
+
   FPErrorEstimationModel::~FPErrorEstimationModel() {}
+
+  void FPErrorEstimationModel::LookupCustomErrorFunction() {
+    CXXScopeSpec SS;
+    NamespaceDecl* cladNS =
+        utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
+    SS.Extend(m_Context, cladNS, noLoc, noLoc);
+    IdentifierInfo* II = &m_Context.Idents.get("getErrorVal");
+    DeclarationNameInfo DNInfo(DeclarationName(II),
+                               utils::GetValidSLoc(m_Sema));
+    LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
+    m_Sema.LookupQualifiedName(R, cladNS);
+    if (R.empty())
+      return;
+    m_CustomErrorFunction =
+        m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+  }
 
   Expr* FPErrorEstimationModel::AssignError(StmtDiff refExpr,
                                             const std::string& varName) {
+    if (m_CustomErrorFunction) {
+      llvm::SmallVector<clang::Expr*, 3> callParams{
+          refExpr.getExpr_dx(), refExpr.getExpr(),
+          clad::utils::CreateStringLiteral(m_Context, varName)};
+      return m_Sema
+          .ActOnCallExpr(getCurrentScope(), m_CustomErrorFunction, noLoc,
+                         callParams, noLoc)
+          .get();
+    }
     // Get the machine epsilon value.
     double val = std::numeric_limits<float>::epsilon();
     // Convert it into a floating point literal clang::Expr.

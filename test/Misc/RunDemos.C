@@ -136,9 +136,7 @@
 //-----------------------------------------------------------------------------/
 // Demo: Custom Error Estimation Plugin
 //-----------------------------------------------------------------------------/
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model \
-// RUN:  -Xclang -plugin-arg-clad -Xclang %clad_obj_root/demos/ErrorEstimation/CustomModel/libcladCustomModelPlugin%shlibext \
-// RUN:   %S/../../demos/ErrorEstimation/CustomModel/test.cpp \
+// RUN: %cladclang %S/../../demos/ErrorEstimation/CustomModel/test.cpp \
 // RUN: -I%S/../../include -oCustomModelTest.out | FileCheck -check-prefix CHECK_CUSTOM_MODEL %s
 
 // CHECK_CUSTOM_MODEL-NOT: Could not load {{.*}}cladCustomModelPlugin{{.*}}
@@ -153,22 +151,20 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    z = x + y;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:        _final_error += _d_z * z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        _final_error += clad::getErrorVal(_d_z, z, "z");
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        z = _t0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_x += _d_z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_y += _d_z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        _d_z = 0.F;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    }
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += *_d_x * x;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += *_d_y * y;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += clad::getErrorVal(*_d_x, x, "x");
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += clad::getErrorVal(*_d_y, y, "y");
 // CHECK_CUSTOM_MODEL_EXEC-NEXT: }
 
 //-----------------------------------------------------------------------------/
 // Demo: Print Error Estimation Plugin
 //-----------------------------------------------------------------------------/
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model \
-// RUN:  -Xclang -plugin-arg-clad -Xclang %clad_obj_root/demos/ErrorEstimation/PrintModel/libcladPrintModelPlugin%shlibext \
-// RUN:   %S/../../demos/ErrorEstimation/PrintModel/test.cpp \
+// RUN: %cladclang %S/../../demos/ErrorEstimation/PrintModel/test.cpp \
 // RUN: -I%S/../../include -oPrintModelTest.out | FileCheck -check-prefix CHECK_PRINT_MODEL %s
 
 // CHECK_PRINT_MODEL-NOT: Could not load {{.*}}cladPrintModelPlugin{{.*}}

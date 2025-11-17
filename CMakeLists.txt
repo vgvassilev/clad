@@ -322,9 +322,6 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     include(GoogleBenchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
 
-  add_subdirectory(demos/ErrorEstimation/CustomModel)
-  add_subdirectory(demos/ErrorEstimation/PrintModel)
-
   if (NOT CLAD_DISABLE_TESTS OR CLAD_ENABLE_BENCHMARKS)
     # Change the default compiler to the clang which we run clad upon. Our unittests
     # need to use a supported by clad compiler. Note that's a huge hack and it is
