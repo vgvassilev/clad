@@ -3,8 +3,9 @@
 
 #include "VisitorBase.h"
 
-#include "llvm/Support/Registry.h"
+#include "clad/Differentiator/DiffPlanner.h"
 
+#include <string>
 #include <unordered_map>
 
 namespace clang {
@@ -16,6 +17,7 @@ namespace clang {
 
 namespace clad {
   class DerivativeBuilder;
+  class ErrorEstimationHandler;
 } // namespace clad
 
 namespace clad {
@@ -27,11 +29,14 @@ namespace clad {
     /// reference.
     std::unordered_map<const clang::VarDecl*, clang::Expr*> m_EstimateVar;
 
+    /// An Expr representing a custom `getErrorVal` function, if any.
+    clang::Expr* m_CustomErrorFunction = nullptr;
+    void LookupCustomErrorFunction();
+
   public:
     // FIXME: Add a proper parameter for the DiffRequest here.
     FPErrorEstimationModel(DerivativeBuilder& builder,
-                           const DiffRequest& request)
-        : VisitorBase(builder, request) {}
+                           const DiffRequest& request);
     ~FPErrorEstimationModel() override;
 
     /// Clear the variable estimate map so that we can start afresh.

@@ -10,6 +10,10 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+namespace clad {
+double getErrorVal(double dx, double x, const char* name) { return dx * x; }
+} // namespace clad
+
 // Use a trivial dummy example to check if the our custom model is working
 // correctly.
 float func(float x, float y) {
