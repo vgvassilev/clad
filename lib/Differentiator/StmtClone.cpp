@@ -593,22 +593,29 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
     VD->setIsUsed();
     m_Sema.MarkDeclarationsReferencedInExpr(DRE);
   }
-  updateType(DRE->getType());
+  QualType QT = DRE->getType();
+  updateType(QT);
   return true;
 }
 
 bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
-  if (auto* E = dyn_cast<Expr>(S))
-    updateType(E->getType());
+  if (auto* E = dyn_cast<Expr>(S)) {
+    QualType QT = E->getType();
+    updateType(QT);
+  }
   return true;
 }
 
 void ReferencesUpdater::updateType(QualType QT) {
+  if (QT.isNull())
+    return;
   if (const auto* varArrType = dyn_cast<VariableArrayType>(QT))
     TraverseStmt(varArrType->getSizeExpr());
 }
 
 QualType StmtClone::CloneType(const clang::QualType T) {
+  if (T.isNull())
+    return T;
   if (const auto* varArrType =
           dyn_cast<clang::VariableArrayType>(T.getTypePtr())) {
     auto elemType = varArrType->getElementType();
