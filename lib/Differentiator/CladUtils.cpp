@@ -17,8 +17,11 @@
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/Sema.h"
+#include "clang/Sema/TemplateDeduction.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
@@ -945,6 +948,80 @@ namespace clad {
       assert(!TapeR.empty() && isa<TemplateDecl>(TapeR.getFoundDecl()) &&
              "cannot find clad::tape");
       return cast<TemplateDecl>(TapeR.getFoundDecl());
+    }
+
+    Expr* MatchOverloadType(Sema& S, QualType FnTy, LookupResult& Overloads,
+                            TemplateSpecCandidateSet& FailedCandidates) {
+      CXXScopeSpec SS;
+      ASTContext& C = S.getASTContext();
+      // Check if any of the custom derivative signature satisfy the
+      // requirements.
+      for (LookupResult::iterator I = Overloads.begin(), E = Overloads.end();
+           I != E; ++I) {
+        NamedDecl* candidate = I.getDecl();
+        // Shadow decls don't provide enough information, go to the actual decl.
+        if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
+          candidate = usingShadow->getTargetDecl();
+
+        // Overload is a template, try to match the signature.
+        if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate)) {
+          FunctionDecl* Specialization = nullptr;
+          sema::TemplateDeductionInfo Info(FailedCandidates.getLocation());
+          TemplateArgumentListInfo ExplicitTemplateArgs;
+          auto TDK = S.DeduceTemplateArguments(FTD, &ExplicitTemplateArgs, FnTy,
+                                               Specialization, Info);
+
+          // Instantiation with the required signature succeeded.
+          if (TDK == clad_compat::CLAD_COMPAT_TemplateSuccess)
+            return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false)
+                .get();
+
+          FailedCandidates.addCandidate().set(
+              I.getPair(), FTD->getTemplatedDecl(),
+              MakeDeductionFailureInfo(C, TDK, Info));
+
+          // Instantiation of parameters suceeded but clang doesn't consider
+          // deduction successful because of the auto return type.
+          if (Specialization && !Specialization->isTemplated() &&
+              Specialization->getReturnType()->isUndeducedAutoType())
+            return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false)
+                .get();
+        }
+        auto* FD = dyn_cast<FunctionDecl>(candidate);
+        if (!FD)
+          continue;
+        // Overload is just a FunctionDecl, check if the signature matches.
+        if (C.hasSameFunctionTypeIgnoringExceptionSpec(FD->getType(), FnTy))
+          return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false).get();
+      }
+      return nullptr;
+    }
+
+    void DiagnoseSignatureMismatch(Sema& S, QualType FnTy,
+                                   const LookupResult& Overloads) {
+      ASTContext& C = S.getASTContext();
+      std::string Name = Overloads.getLookupName().getAsString();
+      unsigned noteId = S.Diags.getCustomDiagID(
+          DiagnosticsEngine::Note,
+          "candidate '%0'"
+          "%select{| has different class%diff{ (expected $ but has $)|}1,2"
+          "| has different number of parameters (expected %2 but has %3)"
+          "| has type mismatch at %ordinal2 parameter"
+          "%diff{ (expected $ but has $)|}3,4"
+          "| has different return type%diff{ ($ expected but has $)|}2,3"
+          "| has different qualifiers (expected %2 but found %3)"
+          "| has different exception specification}1");
+
+      for (const NamedDecl* ND : Overloads) {
+        if (const auto* usingShadow = dyn_cast<UsingShadowDecl>(ND))
+          ND = usingShadow->getTargetDecl();
+        if (!isa<FunctionDecl>(ND))
+          continue;
+        const auto* FD = cast<FunctionDecl>(ND);
+        auto PD = PartialDiagnostic(noteId, C.getDiagAllocator()) << Name;
+        S.HandleFunctionTypeMismatch(PD, FD->getType(), FnTy);
+        S.Diag(FD->getLocation(), PD);
+      }
     }
 
     bool isMemoryType(QualType T) {

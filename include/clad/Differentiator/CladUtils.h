@@ -177,6 +177,27 @@ namespace clad {
     clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
                                                         llvm::StringRef name);
 
+    /// Checks if a set of overloads has one that matches the required type.
+    ///
+    ///\param[in] S reference to `Sema`
+    ///\param[in] FnTy required type
+    ///\param[in] Overloads set of overloads
+    ///\param[in] FailedCandidates set for accumulating failed overload
+    /// candidates
+    clang::Expr*
+    MatchOverloadType(clang::Sema& S, clang::QualType FnTy,
+                      clang::LookupResult& Overloads,
+                      clang::TemplateSpecCandidateSet& FailedCandidates);
+
+    /// Produces note-diagnostics about type mismatches between user-provided
+    /// functions and the required signature.
+    ///
+    ///\param[in] S reference to `Sema`
+    ///\param[in] FnTy required type
+    ///\param[in] Overloads set of overloads
+    void DiagnoseSignatureMismatch(clang::Sema& S, clang::QualType FnTy,
+                                   const clang::LookupResult& Overloads);
+
     /// Returns true if the function has any reference or pointer parameter;
     /// otherwise returns false.
     bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD);

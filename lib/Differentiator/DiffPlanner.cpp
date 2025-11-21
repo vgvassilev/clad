@@ -987,7 +987,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     std::string Name = R.ComputeDerivativeName();
     LookupResult Found = LookupPropagator(Name);
-    // FIXME: This is a hack to reuse the builtin derivatives for vector mode.
+    // This is a hack to reuse the builtin derivatives for vector mode.
     if (Found.empty() && R.Mode == DiffMode::vector_pushforward)
       Found = LookupPropagator(R.BaseFunctionName + "_pushforward");
 
@@ -996,44 +996,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
                                               /*ForTakingAddress=*/false);
-    CXXScopeSpec SS;
-    // Check if any of the custom derivative signature satisfy the requirements.
-    for (LookupResult::iterator I = Found.begin(), E = Found.end(); I != E;
-         ++I) {
-      NamedDecl* candidate = I.getDecl();
-      // Shadow decls don't provide enough information, go to the actual decl.
-      if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
-        candidate = usingShadow->getTargetDecl();
-
-      // Overload is a template, try to match the signature.
-      if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate)) {
-        FunctionDecl* Specialization = nullptr;
-        sema::TemplateDeductionInfo Info(FailedCandidates.getLocation());
-        TemplateArgumentListInfo ExplicitTemplateArgs;
-        auto TDK = S.DeduceTemplateArguments(FTD, &ExplicitTemplateArgs, dTy,
-                                             Specialization, Info);
-
-        // Instantiation with the required signature succeeded.
-        if (TDK == clad_compat::CLAD_COMPAT_TemplateSuccess)
-          return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
-
-        FailedCandidates.addCandidate().set(
-            I.getPair(), FTD->getTemplatedDecl(),
-            MakeDeductionFailureInfo(C, TDK, Info));
-
-        // Instantiation of parameters suceeded but clang doesn't consider
-        // deduction successful because of the auto return type.
-        if (Specialization && !Specialization->isTemplated() &&
-            Specialization->getReturnType()->isUndeducedAutoType())
-          return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
-      }
-      auto* FD = dyn_cast<FunctionDecl>(candidate);
-      if (!FD)
-        continue;
-      // Overload is just a FunctionDecl, check if the signature matches.
-      if (C.hasSameFunctionTypeIgnoringExceptionSpec(FD->getType(), dTy))
-        return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
-    }
+    if (Expr* overload =
+            utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
+      return overload;
 
     if (!enableDiagnostics)
       return nullptr;
@@ -1045,28 +1010,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         "expected signature %1 does not match");
     S.Diag(R.CallContext->getBeginLoc(), errId) << R.Function << dTy;
     FailedCandidates.NoteCandidates(S, R.CallContext->getBeginLoc());
+    utils::DiagnoseSignatureMismatch(S, dTy, Found);
 
-    unsigned noteId = S.Diags.getCustomDiagID(
-        DiagnosticsEngine::Note,
-        "candidate '%0'"
-        "%select{| has different class%diff{ (expected $ but has $)|}1,2"
-        "| has different number of parameters (expected %2 but has %3)"
-        "| has type mismatch at %ordinal2 parameter"
-        "%diff{ (expected $ but has $)|}3,4"
-        "| has different return type%diff{ ($ expected but has $)|}2,3"
-        "| has different qualifiers (expected %2 but found %3)"
-        "| has different exception specification}1");
-
-    for (const NamedDecl* ND : Found) {
-      if (const auto* usingShadow = dyn_cast<UsingShadowDecl>(ND))
-        ND = usingShadow->getTargetDecl();
-      if (!isa<FunctionDecl>(ND))
-        continue;
-      const auto* FD = cast<FunctionDecl>(ND);
-      auto PD = PartialDiagnostic(noteId, C.getDiagAllocator()) << Name;
-      S.HandleFunctionTypeMismatch(PD, FD->getType(), dTy);
-      S.Diag(FD->getLocation(), PD);
-    }
     return nullptr;
   }
 
