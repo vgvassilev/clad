@@ -672,10 +672,7 @@ namespace clad {
 
     /// Builds the QualType of the derivative to be generated.
     ///
-    /// \param[in] forCustomDerv If true, turns member functions into regular
-    /// functions by moving the base to the parameters.
-    clang::QualType
-    GetDerivativeType(llvm::ArrayRef<clang::QualType> customParams = {});
+    clang::QualType GetDerivativeType();
 
     /// Builds an overload for the derivative function that has derived params
     /// for all the arguments of the requested function and it calls the

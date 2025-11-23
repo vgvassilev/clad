@@ -559,7 +559,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       ErrorEstimationHandler handler;
       std::unique_ptr<FPErrorEstimationModel> model;
       ReverseModeVisitor V(*this, request);
-      if (m_ErrorEstimationInFlight) {
+      if (request.EnableErrorEstimation) {
         model = std::make_unique<FPErrorEstimationModel>(*this, request);
         handler.SetErrorEstimationModel(model.get());
         V.AddExternalSource(handler);
@@ -576,7 +576,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       JacobianModeVisitor J(*this, request);
       result = J.Derive();
     } else if (request.Mode == DiffMode::error_estimation) {
-      llvm::SaveAndRestore<bool> Saved(m_ErrorEstimationInFlight, true);
       ErrorEstimationHandler handler;
       FPErrorEstimationModel model(*this, request);
       handler.SetErrorEstimationModel(&model);

@@ -34,8 +34,6 @@ public:
   void
   ActAfterProcessingArraySubscriptExpr(const clang::Expr* revArrSub) override;
   void ActBeforeCreatingDerivedFnParamTypes(unsigned& numExtraParams) override;
-  void ActAfterCreatingDerivedFnParamTypes(
-      llvm::SmallVectorImpl<clang::QualType>& paramTypes) override;
   void ActAfterCreatingDerivedFnParams(
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) override;
   void ActOnStartOfDerivedFnBody(const DiffRequest& request) override;
