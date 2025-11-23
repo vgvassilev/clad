@@ -461,7 +461,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
     typename std::enable_if<std::is_same<FnType, NoFunction*>::value,
                             return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
     operator()(Args&&... args) const {
-      return execute(std::forward<Args>(args)...);
+      return return execute(std::forward<Args>(args)...);
     }
 
 
