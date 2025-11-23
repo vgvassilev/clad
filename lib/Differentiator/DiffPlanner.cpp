@@ -812,7 +812,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     std::string Annotation = A->getAnnotation().str();
     if (Annotation == "E") {
       // Error estimation has no options yet.
-      request.Mode = DiffMode::error_estimation;
+      request.Mode = DiffMode::reverse;
       request.EnableErrorEstimation = true;
       return false;
     }
@@ -827,9 +827,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::reverse;
     else
       llvm_unreachable("unknown mode");
-    if (request.Mode == DiffMode::reverse ||
-        request.Mode == DiffMode::hessian ||
-        request.Mode == DiffMode::error_estimation)
+    if (request.Mode == DiffMode::reverse || request.Mode == DiffMode::hessian)
       request.EnableTBRAnalysis = ReqOpts.EnableTBRAnalysis;
     request.EnableVariedAnalysis = ReqOpts.EnableVariedAnalysis;
     request.EnableUsefulAnalysis = ReqOpts.EnableUsefulAnalysis;
@@ -1184,6 +1182,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.CallContext = E;
       bool canUsePushforwardInRevMode =
           m_TopMostReq->Mode == DiffMode::reverse &&
+          !request.EnableErrorEstimation &&
           utils::canUsePushforwardInRevMode(FD);
 
       std::string FDName = FD->getNameAsString();
@@ -1201,8 +1200,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                m_TopMostReq->Mode == DiffMode::hessian ||
                canUsePushforwardInRevMode)
         request.Mode = DiffMode::pushforward;
-      else if (m_TopMostReq->Mode == DiffMode::reverse ||
-               m_TopMostReq->Mode == DiffMode::error_estimation)
+      else if (m_TopMostReq->Mode == DiffMode::reverse)
         request.Mode = DiffMode::pullback;
       else if (m_TopMostReq->Mode == DiffMode::vector_forward_mode ||
                m_TopMostReq->Mode == DiffMode::jacobian ||
