@@ -1187,8 +1187,7 @@ namespace clad {
         return resType;
       }
 
-      if (Mode == DiffMode::reverse || Mode == DiffMode::pullback ||
-          Mode == DiffMode::error_estimation) {
+      if (Mode == DiffMode::reverse || Mode == DiffMode::pullback) {
         QualType ValueType = GetNonConstValueType(Type);
         QualType nonRefValueType = ValueType.getNonReferenceType();
         return C.getPointerType(nonRefValueType);
@@ -1253,7 +1252,6 @@ namespace clad {
       QualType dRetTy = C.VoidTy;
       bool returnVoid = mode == DiffMode::reverse ||
                         mode == DiffMode::pullback ||
-                        mode == DiffMode::error_estimation ||
                         mode == DiffMode::vector_forward_mode;
       if (mode == DiffMode::reverse_mode_forward_pass) {
         if (isMemoryType(oRetTy) || isa<CXXConstructorDecl>(FD)) {

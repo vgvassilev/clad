@@ -552,10 +552,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     } else if (request.Mode == DiffMode::vector_pushforward) {
       VectorPushForwardModeVisitor V(*this, request);
       result = V.Derive();
-    } else if (request.Mode == DiffMode::reverse) {
-      ReverseModeVisitor V(*this, request);
-      result = V.Derive();
-    } else if (request.Mode == DiffMode::pullback) {
+    } else if (request.Mode == DiffMode::reverse ||
+               request.Mode == DiffMode::pullback) {
       ErrorEstimationHandler handler;
       std::unique_ptr<FPErrorEstimationModel> model;
       ReverseModeVisitor V(*this, request);
@@ -575,14 +573,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     } else if (request.Mode == DiffMode::jacobian) {
       JacobianModeVisitor J(*this, request);
       result = J.Derive();
-    } else if (request.Mode == DiffMode::error_estimation) {
-      ErrorEstimationHandler handler;
-      FPErrorEstimationModel model(*this, request);
-      handler.SetErrorEstimationModel(&model);
-      ReverseModeVisitor R(*this, request);
-      R.AddExternalSource(handler);
-      // Finally begin estimation.
-      result = R.Derive();
     } else if (const VarDecl* VD = request.Global) {
       // The request represents a global variable, construct the adjoint and
       // register it.

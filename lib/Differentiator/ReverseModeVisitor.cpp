@@ -255,9 +255,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
-    if (m_DiffReq.Mode == DiffMode::error_estimation)
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-      const_cast<DiffRequest&>(m_DiffReq).Mode = DiffMode::reverse;
 
     QualType returnTy = m_DiffReq->getReturnType();
     // If reverse mode differentiates only part of the arguments it needs to
