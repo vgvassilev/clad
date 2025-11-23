@@ -413,6 +413,17 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
 #endif
     }
 
+    /// call overload for 'execute' function, that can be called as functor.
+    /// Delegates to execute for backward compatibility.
+
+    /// If not Nofunction*
+    template <typename... Args, class FnType = CladFunctionType>
+    typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
+                           return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
+    operator()(Args&&... args) const {
+      return execute(std::forward<Args>(args)...);
+    }
+
 #ifdef __CUDACC__
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
@@ -443,6 +454,17 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
     execute(Args&&... args) const {
       return static_cast<return_type_t<F>>(0);
     }
+
+    
+   /// call opreator for Nofunction* case
+    template <typename... Args, class FnType = CladFunctionType>
+    typename std::enable_if<std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
+    operator()(Args&&... args) const {
+      return execute(std::forward<Args>(args)...);
+    }
+
+
 
     /// Return the string representation for the generated derivative.
     constexpr const char* getCode() const {
