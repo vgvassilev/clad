@@ -813,6 +813,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (Annotation == "E") {
       // Error estimation has no options yet.
       request.Mode = DiffMode::error_estimation;
+      request.EnableErrorEstimation = true;
       return false;
     }
 
@@ -959,8 +960,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     });
   }
 
-  static Expr* getOverloadExpr(Sema& S, DeclContext* DC, const DiffRequest& R) {
-
+  static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R) {
+    // Error estimation only uses forward mode derivatives if they are
+    // user-prodived to handle builtin derivatives. If found, we have to change
+    // the mode of the request.
+    if (R.EnableErrorEstimation && R.Mode == DiffMode::pullback &&
+        utils::canUsePushforwardInRevMode(R.Function)) {
+      R.Mode = DiffMode::pushforward;
+      R.EnableErrorEstimation = false;
+      if (Expr* overload = getOverloadExpr(S, DC, R)) {
+        R.DVI.clear();
+        return overload;
+      }
+      R.Mode = DiffMode::pullback;
+      R.EnableErrorEstimation = true;
+    }
     llvm::SmallVector<const ValueDecl*, 4> diffParams{};
     for (const DiffInputVarInfo& VarInfo : R.DVI)
       diffParams.push_back(VarInfo.param);
@@ -972,9 +986,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // etc. If we turn it on, every such operator will trigger diagnostics
     // because of our STL and Kokkos custom derivatives.
     // FIXME: Add a way to silence the diagnostics.
-    bool enableDiagnostics = !isa<CXXMethodDecl>(R.Function) &&
-                             !R->isOverloadedOperator() &&
-                             R.BaseFunctionName != "forward";
+    bool enableDiagnostics =
+        !isa<CXXMethodDecl>(R.Function) && !R->isOverloadedOperator() &&
+        R.BaseFunctionName != "forward" && !R.EnableErrorEstimation;
 
     ASTContext& C = S.getASTContext();
     auto LookupPropagator = [&C, &S, &DC](const std::string& Name) {
@@ -1138,6 +1152,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
       request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
+      request.EnableErrorEstimation = m_TopMostReq->EnableErrorEstimation;
       request.CallContext = E;
 
       const auto* MD = dyn_cast<CXXMethodDecl>(FD);
@@ -1186,15 +1201,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                m_TopMostReq->Mode == DiffMode::hessian ||
                canUsePushforwardInRevMode)
         request.Mode = DiffMode::pushforward;
-      else if (m_TopMostReq->Mode == DiffMode::reverse)
+      else if (m_TopMostReq->Mode == DiffMode::reverse ||
+               m_TopMostReq->Mode == DiffMode::error_estimation)
         request.Mode = DiffMode::pullback;
       else if (m_TopMostReq->Mode == DiffMode::vector_forward_mode ||
                m_TopMostReq->Mode == DiffMode::jacobian ||
                m_TopMostReq->Mode == DiffMode::vector_pushforward) {
         request.Mode = DiffMode::vector_pushforward;
-      } else if (m_TopMostReq->Mode == DiffMode::error_estimation) {
-        // FIXME: Add support for static graphs in error estimation.
-        return true;
       } else {
         assert(0 && "unexpected mode.");
         return true;

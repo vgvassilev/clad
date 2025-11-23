@@ -274,14 +274,6 @@ void ErrorEstimationHandler::ActBeforeCreatingDerivedFnParamTypes(
   numExtraParam += 1;
 }
 
-void ErrorEstimationHandler::ActAfterCreatingDerivedFnParamTypes(
-    llvm::SmallVectorImpl<QualType>& paramTypes) {
-  // If we are performing error estimation, our gradient function
-  // will have an extra argument which will hold the final error value
-  ASTContext& C = m_RMV->m_Context;
-  paramTypes.push_back(C.getLValueReferenceType(C.DoubleTy));
-}
-
 void ErrorEstimationHandler::ActAfterCreatingDerivedFnParams(
     llvm::SmallVectorImpl<ParmVarDecl*>& params) {
   m_Params = &params;

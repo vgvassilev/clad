@@ -1220,7 +1220,7 @@ namespace clad {
     GetDerivativeType(Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
                       llvm::ArrayRef<const clang::ValueDecl*> diffParams,
                       bool forCustomDerv, bool shouldUseRestoreTracker,
-                      llvm::ArrayRef<QualType> customParams) {
+                      bool isForErrorEstimation) {
       ASTContext& C = S.getASTContext();
       if (mode == DiffMode::forward)
         return FD->getType();
@@ -1350,8 +1350,8 @@ namespace clad {
         }
       }
 
-      for (QualType customTy : customParams)
-        FnTypes.push_back(customTy);
+      if (isForErrorEstimation)
+        FnTypes.push_back(C.getLValueReferenceType(C.DoubleTy));
 
       return C.getFunctionType(dRetTy, FnTypes, EPI);
     }
