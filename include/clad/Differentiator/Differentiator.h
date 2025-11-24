@@ -444,6 +444,11 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
       return static_cast<return_type_t<F>>(0);
     }
 
+    template <typename... Args>
+    constexpr CUDA_HOST_DEVICE auto operator()(Args&&... args) const {
+      return execute(std::forward<Args>(args)...);
+    }
+
     /// Return the string representation for the generated derivative.
     constexpr const char* getCode() const {
       if (m_Code)
