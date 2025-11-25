@@ -56,11 +56,13 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
     }
     if (isReq || sequenceFound) {
       if (curBranch.find(iterVD) == curBranch.end()) {
-        if (VarData* data = getVarDataFromDecl(iterVD))
-          curBranch[iterVD] = data->copy();
-        else
+        if (VarData* data = getVarDataFromDecl(iterVD)) {
+          if (findReq(*data))
+            curBranch[iterVD] = data->copy();
+        } else {
           // If this variable was not found in predecessors, add it.
           addVar(iterVD);
+        }
       }
 
       if (!isReq ||

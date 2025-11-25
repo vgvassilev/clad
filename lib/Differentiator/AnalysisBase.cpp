@@ -169,7 +169,7 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
       QualType VDType = VD->getType();
       if (VDType->isLValueReferenceType() || VDType->isPointerType()) {
         VarData* refData = getVarDataFromDecl(VD);
-        if (refData->m_Type == VarData::REF_TYPE) {
+        if (refData && refData->m_Type == VarData::REF_TYPE) {
           std::set<const VarDecl*>& vars = *refData->m_Val.m_RefData;
           if (vars.size() == 1) {
             VD = *vars.begin();
@@ -220,8 +220,9 @@ bool AnalysisBase::findReq(const VarData& varData) {
   }
   if (varData.m_Type == VarData::REF_TYPE)
     for (const VarDecl* VD : *varData.m_Val.m_RefData)
-      if (findReq(*getVarDataFromDecl(VD)))
-        return true;
+      if (VarData* data = getVarDataFromDecl(VD))
+        if (findReq(*data))
+          return true;
   return false;
 }
 
@@ -238,24 +239,35 @@ bool AnalysisBase::findReq(const Expr* E) {
   std::set<const clang::VarDecl*> vars;
   getDependencySet(E, vars);
   for (const VarDecl* VD : vars)
-    if (findReq(*getVarDataFromDecl(VD)))
-      return true;
+    if (VarData* data = getVarDataFromDecl(VD))
+      if (findReq(*data))
+        return true;
   return false;
 }
 
 bool AnalysisBase::merge(VarData& targetData, VarData& mergeData) {
   if (targetData.m_Type == VarData::FUND_TYPE) {
+    if (mergeData.m_Type != VarData::FUND_TYPE)
+      return false;
     bool oldTargetVal = targetData.m_Val.m_FundData;
     targetData.m_Val.m_FundData =
         targetData.m_Val.m_FundData || mergeData.m_Val.m_FundData;
     return oldTargetVal != targetData.m_Val.m_FundData;
   } else if (targetData.m_Type == VarData::OBJ_TYPE) {
+    if (mergeData.m_Type != VarData::OBJ_TYPE &&
+        mergeData.m_Type != VarData::ARR_TYPE) {
+      return false;
+    }
     bool isMod = false;
     for (auto& pair : *targetData.m_Val.m_ArrData)
       isMod =
           merge(pair.second, (*mergeData.m_Val.m_ArrData)[pair.first]) || isMod;
     return isMod;
   } else if (targetData.m_Type == VarData::ARR_TYPE) {
+    if (mergeData.m_Type != VarData::ARR_TYPE &&
+        mergeData.m_Type != VarData::OBJ_TYPE) {
+      return false;
+    }
     bool isMod = false;
     // FIXME: Currently non-constant indices are not supported in merging.
     for (auto& pair : *targetData.m_Val.m_ArrData) {
@@ -289,6 +301,8 @@ VarData* AnalysisBase::getVarDataFromDecl(const clang::VarDecl* VD) {
 
 void AnalysisBase::setIsRequired(VarData* data, bool isReq,
                                  llvm::MutableArrayRef<ProfileID> IDSequence) {
+  if (!data)
+    return;
   if (data->m_Type == VarData::UNDEFINED)
     return;
   if (data->m_Type == VarData::FUND_TYPE) {

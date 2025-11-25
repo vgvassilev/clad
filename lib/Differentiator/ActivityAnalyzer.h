@@ -33,6 +33,12 @@ class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer>,
   bool m_Varied = false;
   bool m_Marking = false;
 
+  std::set<const clang::Expr*> m_PotentialNaNExprs;
+  std::set<const clang::VarDecl*> m_PotentialNaNVars;
+
+  bool exprHasNaNRisk(const clang::Expr* E);
+  static bool isNaNRiskCallee(const clang::FunctionDecl* FD);
+
   DiffRequest& m_DiffReq;
   std::set<const clang::Stmt*>& m_ResSet;
   void markExpr(const clang::Stmt* S) { m_ResSet.insert(S); }
@@ -49,6 +55,10 @@ public:
   /// Destructor
   ~VariedAnalyzer() = default;
 
+  [[nodiscard]] const std::set<const clang::VarDecl*>&
+  getPotentialNanVars() const {
+    return m_PotentialNaNVars;
+  }
   /// Delete copy/move operators and constructors.
   VariedAnalyzer(const VariedAnalyzer&) = delete;
   VariedAnalyzer& operator=(const VariedAnalyzer&) = delete;

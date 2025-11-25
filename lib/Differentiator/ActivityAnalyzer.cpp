@@ -5,6 +5,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
@@ -68,6 +69,54 @@ void VariedAnalyzer::Analyze() {
     CFGBlock& nextBlock = *getCFGBlockByID(m_AnalysisDC, m_CurBlockID);
     AnalyzeCFGBlock(nextBlock);
   }
+}
+
+bool VariedAnalyzer::isNaNRiskCallee(const clang::FunctionDecl* FD) {
+  if (!FD)
+    return false;
+  if (!FD->getDeclName().isIdentifier())
+    return false;
+  llvm::StringRef name = FD->getName();
+
+  // List of domain-restricted math functions
+  return name == "acos" || name == "asin" || name == "atan" ||
+         name == "atan2" || name == "atanh" || name == "sqrt" ||
+         name == "log" || name == "log10" || name == "log2" || name == "pow";
+}
+bool VariedAnalyzer::exprHasNaNRisk(const clang::Expr* E) {
+  if (!E)
+    return false;
+  E = E->IgnoreParenCasts();
+
+  // Check if we already marked this expression
+  if (m_PotentialNaNExprs.count(E))
+    return true;
+
+  // Check if it's a call to a NaN-risk function
+  if (const auto* CE = dyn_cast<CallExpr>(E)) {
+    if (const FunctionDecl* FD = CE->getDirectCallee()) {
+      if (isNaNRiskCallee(FD))
+        return true;
+    }
+  }
+
+  // Check if it references a NaN-risk variable
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+    if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      if (m_PotentialNaNVars.count(VD))
+        return true;
+    }
+  }
+
+  // Recursively check children
+  for (const Stmt* child : E->children()) {
+    if (const Expr* childExpr = dyn_cast_or_null<Expr>(child)) {
+      if (exprHasNaNRisk(childExpr))
+        return true;
+    }
+  }
+
+  return false;
 }
 
 void VariedAnalyzer::TraverseAllStmtInsideBlock(const CFGBlock& block) {
@@ -154,6 +203,22 @@ bool VariedAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     TraverseStmt(L);
     TraverseStmt(R);
   }
+  if (BinOp->isAssignmentOp() || BinOp->isCompoundAssignmentOp()) {
+    Expr* R = BinOp->getRHS();
+    Expr* L = BinOp->getLHS();
+
+    if (exprHasNaNRisk(R)) {
+      L = L->IgnoreParenCasts();
+
+      // Mark the LHS variable as NaN-risk
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(L)) {
+        if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          if (VD->getDeclName().isIdentifier())
+            m_PotentialNaNVars.insert(VD);
+        }
+      }
+    }
+  }
   return false;
 }
 
@@ -216,6 +281,8 @@ bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
   bool variedBefore = m_Varied;
   bool hasVariedArg = false;
   FunctionDecl* FD = CE->getDirectCallee();
+  if (!FD)
+    return RecursiveASTVisitor::TraverseCallExpr(CE);
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
   if (noHiddenParam) {
     MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
@@ -248,6 +315,10 @@ bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
       m_Varied = false;
     }
     m_Varied = hasVariedArg || variedBefore;
+  }
+  if (const FunctionDecl* FD = CE->getDirectCallee()) {
+    if (isNaNRiskCallee(FD))
+      m_PotentialNaNExprs.insert(CE);
   }
   return false;
 }
@@ -282,6 +353,12 @@ bool VariedAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
           getDependencySet(init, *VDExpr->m_Val.m_RefData);
         }
       }
+
+      const auto* init = dyn_cast<VarDecl>(D)->getInit();
+      if (init && exprHasNaNRisk(init))
+        if (VD->getDeclName().isIdentifier())
+          if (exprHasNaNRisk(init))
+            m_PotentialNaNVars.insert(VD);
     }
   }
   return false;
@@ -401,6 +478,8 @@ bool VariedAnalyzer::TraverseUnaryOperator(UnaryOperator* UnOp) {
 bool VariedAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
   auto* VD = cast<VarDecl>(DRE->getDecl());
 
+  if (VD->hasGlobalStorage() && VD->isFileVarDecl())
+    return false;
   if (m_Varied && m_Marking) {
     setVaried(DRE);
     m_DiffReq.addVariedDecl(VD);
