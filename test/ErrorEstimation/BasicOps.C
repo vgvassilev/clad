@@ -1,6 +1,9 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -Xclang -verify -oBasicOps.out 2>&1 | %filecheck %s
+// RUN: ./BasicOps.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
+#include "../TestUtils.h"
 
 #include <cmath>
 
@@ -328,14 +331,36 @@ double func10(double x, double y) {
 // CHECK-NEXT: }
 
 int main() {
-  clad::estimate_error(func);
-  clad::estimate_error(func2);
-  clad::estimate_error(func3);
-  clad::estimate_error(func4);
-  clad::estimate_error(func5);
-  clad::estimate_error(func6);
-  clad::estimate_error(func7);
-  clad::estimate_error(func8);
-  clad::estimate_error(func9);
-  clad::estimate_error(func10);
+  float dx = 0, dy = 0;
+  double dxd = 0, dyd = 0;
+
+  INIT_ERROR_ESTIMATION(func);
+  TEST_ERROR_ESTIMATION(func, /*PrecissionType*/float, 3, 1, &dx, &dy); // CHECK-EXEC: {76.00}
+  
+  INIT_ERROR_ESTIMATION(func2);
+  TEST_ERROR_ESTIMATION(func2, /*PrecissionType*/float, 4, 9, &dx, &dy); // CHECK-EXEC: {0.32}
+  
+  INIT_ERROR_ESTIMATION(func3);
+  TEST_ERROR_ESTIMATION(func3, /*PrecissionType*/float, 5, 2, &dx, &dy); // CHECK-EXEC: {136.00}
+  
+  INIT_ERROR_ESTIMATION(func4);
+  TEST_ERROR_ESTIMATION(func4, /*PrecissionType*/float, 2, 4, &dx, &dy); // CHECK-EXEC: {124.36}
+  
+  INIT_ERROR_ESTIMATION(func5);
+  TEST_ERROR_ESTIMATION(func5, /*PrecissionType*/float, 1, 4, &dx, &dy); // CHECK-EXEC: {3.03}
+  
+  INIT_ERROR_ESTIMATION(func6);
+  TEST_ERROR_ESTIMATION(func6, /*PrecissionType*/float, 6, -1, &dx, &dy); // CHECK-EXEC: {330.00}
+  
+  INIT_ERROR_ESTIMATION(func7);
+  TEST_ERROR_ESTIMATION(func7, /*PrecissionType*/float, 7, &dx); // CHECK-EXEC: {14.00}
+  
+  INIT_ERROR_ESTIMATION(func8);
+  TEST_ERROR_ESTIMATION(func8, /*PrecissionType*/float, -3, 2, &dx, &dy); // CHECK-EXEC: {47.00}
+  
+  INIT_ERROR_ESTIMATION(func9);
+  TEST_ERROR_ESTIMATION(func9, /*PrecissionType*/float, 0, 5, &dx, &dy); // CHECK-EXEC: {25.00}
+  
+  INIT_ERROR_ESTIMATION(func10);
+  TEST_ERROR_ESTIMATION(func10, /*PrecissionType*/float, 8, 5, &dxd, &dyd); // CHECK-EXEC: {240.00}
 }
