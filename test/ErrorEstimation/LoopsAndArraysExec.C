@@ -3,6 +3,7 @@
 // XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
+#include "../TestUtils.h"
 
 #include <cmath>
 
@@ -155,32 +156,29 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT: }
 
 int main() {
-  auto df = clad::estimate_error(runningSum);
   float arrf[3] = {0.456, 0.77, 0.95};
-  double finalError = 0;
   float darr[3] = {0, 0, 0};
   int dn = 0;
-  df.execute(arrf, 3, darr, &dn, finalError);
-  printf("Result (RS) = {%.2f, %.2f, %.2f} error = %.5f\n", darr[0], darr[1],
-         darr[2], finalError); // CHECK-EXEC: Result (RS) = {1.00, 2.00, 1.00} error = 0.00000
+  INIT_ERROR_ESTIMATION(runningSum);
+  TEST_ERROR_ESTIMATION(runningSum, /*PrecissionType*/float, arrf, 3, darr, &dn); // CHECK-EXEC: {7.12}
+  printf("Result (RS) = {%.2f, %.2f, %.2f}\n", darr[0], darr[1], darr[2]); 
+         // CHECK-EXEC: Result (RS) = {1.00, 2.00, 1.00}
 
-  finalError = 0;
   darr[0] = darr[1] = darr[2] = 0;
   dn = 0;
   float darr2[3] = {0, 0, 0};
-  auto df2 = clad::estimate_error(mulSum);
-  df2.execute(arrf, arrf, 3, darr, darr2, &dn, finalError);
-  printf("Result (MS) = {%.2f, %.2f, %.2f}, {%.2f, %.2f, %.2f}  error = %.5f\n",
-         darr[0], darr[1], darr[2], darr2[0], darr2[1], darr2[2],
-         finalError); // CHECK-EXEC: Result (MS) = {2.18, 2.18, 2.18}, {2.18, 2.18, 2.18}  error = 0.00000
+  INIT_ERROR_ESTIMATION(mulSum);
+  TEST_ERROR_ESTIMATION(mulSum, /*PrecissionType*/float, arrf, arrf, 3, darr, darr2, &dn); // CHECK-EXEC: {28.85}
+  printf("Result (MS) = {%.2f, %.2f, %.2f}, {%.2f, %.2f, %.2f}\n",
+         darr[0], darr[1], darr[2], darr2[0], darr2[1], darr2[2]);
+         // CHECK-EXEC: Result (MS) = {2.18, 2.18, 2.18}, {2.18, 2.18, 2.18}
 
-  finalError = 0;
   darr[0] = darr[1] = darr[2] = 0;
   darr2[0] = darr2[1] = darr2[2] = 0;
   dn = 0;
-  auto df3 = clad::estimate_error(divSum);
-  df3.execute(arrf, arrf, 3, darr, darr2, &dn, finalError);
-  printf("Result (DS) = {%.2f, %.2f, %.2f}, {%.2f, %.2f, %.2f}  error = %.5f\n",
-         darr[0], darr[1], darr[2], darr2[0], darr2[1], darr2[2],
-         finalError); // CHECK-EXEC: Result (DS) = {2.19, 1.30, 1.05}, {-2.19, -1.30, -1.05}  error = 0.00000
+  INIT_ERROR_ESTIMATION(divSum);
+  TEST_ERROR_ESTIMATION(divSum, /*PrecissionType*/float, arrf, arrf, 3, darr, darr2, &dn); // CHECK-EXEC: {12.00}
+  printf("Result (DS) = {%.2f, %.2f, %.2f}, {%.2f, %.2f, %.2f}\n",
+         darr[0], darr[1], darr[2], darr2[0], darr2[1], darr2[2]);
+         // CHECK-EXEC: Result (DS) = {2.19, 1.30, 1.05}, {-2.19, -1.30, -1.05}
 }
