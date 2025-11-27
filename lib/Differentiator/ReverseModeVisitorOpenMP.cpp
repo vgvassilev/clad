@@ -345,7 +345,7 @@ OMPClause* ReverseModeVisitor::BuildOMPPrivateClause(ArrayRef<Expr*> VarList,
   for (Expr* RefExpr : VarList) {
     // Extract the variable declaration from the expression
     Expr* SimpleRefExpr = RefExpr->IgnoreParenImpCasts();
-    auto* DRE = dyn_cast<DeclRefExpr>(SimpleRefExpr);
+    auto* DRE = cast<DeclRefExpr>(SimpleRefExpr);
     ValueDecl* D = DRE->getDecl();
 
     // Get the type without qualifiers
