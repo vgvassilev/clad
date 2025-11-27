@@ -3,6 +3,8 @@
 #include <clad/Differentiator/CladtorchBuiltins.h>
 #include <clad/Differentiator/Differentiator.h>
 #include <clad/Differentiator/STLBuiltins.h>
+#include <cstddef>
+#include <string>
 #include "../demos/cladtorch/llm.hpp"
 #include "../demos/cladtorch/llm_opt.hpp"
 

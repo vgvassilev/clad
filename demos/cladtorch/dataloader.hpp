@@ -13,7 +13,8 @@
 #include <string>
 #include <vector>
 
-// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
+// modernize-use-nodiscard)
 namespace gpt2 {
 
 // Error-checking utility functions similar to the C version
@@ -611,6 +612,7 @@ public:
 };
 
 } // namespace gpt2
-// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays)
+// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
+// modernize-use-nodiscard)
 
 #endif // DATALOADER_HPP

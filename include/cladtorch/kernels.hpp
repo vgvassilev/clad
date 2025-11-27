@@ -16,7 +16,8 @@
 
 #define CLAD_ASSERT(condition, message) assert((condition) && message)
 
-// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
+// modernize-loop-convert)
 
 // === Kernel Functions (Operating on raw pointers) ===
 // These functions are low-level, high-performance routines
@@ -128,8 +129,8 @@ inline void mat_mul_kernel(const float* a, const float* b, float* out, size_t R,
 // Dispatch to unrolled or regular kernel based on R
 #ifdef __APPLE__
   // Use Accelerate framework for unrolled matrix multiplication
-  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, R, C2, C1, 1.0F, a, C1,
-              b, C2, 0.0f, out, C2);
+  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, (int)R, (int)C2,
+              (int)C1, 1.0F, a, (int)C1, b, (int)C2, 0.0F, out, (int)C2);
   return;
 #endif
   if (R % UNROLL == 0)
@@ -734,4 +735,5 @@ inline void broadcast_add_kernel(const T* a_data, const T* b_data,
 
 } // namespace cladtorch::kernels
 
-// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays)
+// NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
+// modernize-loop-convert)

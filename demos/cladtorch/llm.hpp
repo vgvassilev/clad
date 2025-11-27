@@ -4,11 +4,13 @@
 #include <clad/Differentiator/Differentiator.h>
 #include <cladtorch/cladtorch.hpp>
 #include <cmath>
+#include <cstdio>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <vector>
 
+// NOLINTBEGIN(modernize-use-nodiscard)
 namespace gpt2 {
 
 namespace ct = cladtorch;
@@ -351,12 +353,16 @@ public:
 };
 
 } // namespace gpt2
+// NOLINTEND(modernize-use-nodiscard)
 
+// NOLINTBEGIN(readability-identifier-naming,
+// performance-unnecessary-value-param)
 namespace clad::custom_derivatives::gpt2 {
-static void get_input_pos_pullback(int B, int T, ::gpt2::ITensor _d_y,
+static void get_input_pos_pullback(int B, int T, ::gpt2::ITensor _d_y, // NOLINT
                                    int* _d_B, int* _d_T) {}
 static ::clad::ValueAndAdjoint<::gpt2::ITensor, ::gpt2::ITensor>
-get_input_pos_reverse_forw(int B, int T, int _d_B, int _d_T) {
+get_input_pos_reverse_forw(int B, int T, int _d_B, int _d_T) { // NOLINT
   return {::gpt2::get_input_pos(B, T), ::gpt2::get_input_pos(B, T)};
 }
 } // namespace clad::custom_derivatives::gpt2
+// NOLINTEND(readability-identifier-naming, performance-unnecessary-value-param)
