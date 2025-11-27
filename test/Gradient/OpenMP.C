@@ -1,4 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -fopenmp -oOpenMP.out 2>&1 | %filecheck %s
+// RUN: ./OpenMP.out | %filecheck_exec %s
 // REQUIRES: OpenMP
 
 #include "clad/Differentiator/Differentiator.h"
@@ -749,25 +750,108 @@ void fn19(const double *x, int start, int end, double *y) {
 // CHECK-NEXT:          }
 // CHECK-NEXT:  }
 
+template <size_t N>
+void reset(double (&arr)[N], double val = 0) {
+  for (size_t i = 0; i < N; ++i)
+    arr[i] = val;
+}
+
 int main() {
+  double x[] = {2, 3, 4, 5}, dx[4] = {0};
+  int dn = 0;
   auto fn1_grad = clad::gradient(fn1);
+  fn1_grad.execute(x, 4, dx, &dn);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {0.00, 1.00, 1.00, 1.00}
+
+  reset(dx);
+  double y[4] = {0}, dy[4] = {1, 1, 1, 1};
   auto fn2_grad = clad::gradient(fn2);
+  fn2_grad.execute(x, 3, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {0.00, 108.00, 256.00, 500.00}
+
+  reset(dx); reset(dy, 1);
   auto fn3_grad = clad::gradient(fn3);
+  fn3_grad.execute(x, 4, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {2.00, 2.00, 2.00, 2.00}
+
+  reset(dx); reset(dy, 1);
   auto fn4_grad = clad::gradient(fn4);
+  fn4_grad.execute(x, 3, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {0.00, 2.00, 2.00, 2.00}
+  
+  reset(dx); reset(dy, 1);
   auto fn5_grad = clad::gradient(fn5);
+  fn5_grad.execute(x, 4, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {4.00, 6.00, 8.00, 10.00}
+
+  reset(dx); reset(dy, 1);
   auto fn6_grad = clad::gradient(fn6);
+  fn6_grad.execute(x, 3, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {0.00, 3.00, 3.00, 3.00}
+  
+  reset(dx); reset(dy, 1);
   auto fn7_grad = clad::gradient(fn7);
+  // fn7_grad.execute(x, 3, y, dx, &dn, dy);
+  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {0.00, 6.00, 8.00, 10.00}
+  
+  reset(dx); reset(dy, 1);
   auto fn8_grad = clad::gradient(fn8);
+  // fn8_grad.execute(x, 3, y, dx, &dn, dy);
+  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {0.00, 1.00, 1.00, 1.00}
+  
+  reset(dx); reset(dy, 1);
   auto fn9_grad = clad::gradient(fn9);
+  fn9_grad.execute(x, 4, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {2.00, 0.00, 2.00, 0.00}
+  
+  reset(dx); reset(dy, 1);
   auto fn10_grad = clad::gradient(fn10);
+  // fn10_grad.execute(x, 3, y, dx, &dn, dy);
+  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {0.00, 0.00, 0.00, 4.00}
+  
+  reset(dx); reset(dy, 1);
   auto fn11_grad = clad::gradient(fn11);
+  fn11_grad.execute(x, 4, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {4.00, 0.00, 8.00, 0.00}
+  
+  reset(dx); reset(dy, 1);
   auto fn12_grad = clad::gradient(fn12);
+  fn12_grad.execute(x, 4, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {5.00, 0.00, 0.00, 5.00}
+  
+  reset(dx); reset(dy, 1);
   auto fn13_grad = clad::gradient(fn13);
+  // fn13_grad.execute(x, 3, y, dx, &dn, dy);
+  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {5.00, 0.00, 0.00, 5.00}
+  
+  reset(dx); reset(dy, 1);
   auto fn14_grad = clad::gradient(fn14);
+  fn14_grad.execute(x, 4, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {4.00, 6.00, 8.00, 10.00}
+  
+  reset(dx); reset(dy, 1);
   auto fn15_grad = clad::gradient(fn15);
-  auto fn17_grad = clad::gradient(fn16);
-  auto fn20_grad = clad::gradient(fn17);
-  auto fn21_grad = clad::gradient(fn18);
-  auto fn25_grad = clad::gradient(fn19);
+  // fn15_grad.execute(x, 4, y, dx, &dn, dy);
+  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {2.00, 2.00, 2.00, 2.00}
+    
+  reset(dx); reset(dy, 1);
+  auto fn16_grad = clad::gradient(fn16);
+  fn16_grad.execute(x, 4, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {4.00, 6.00, 8.00, 10.00}
+   
+  reset(dx); reset(dy, 1);
+  auto fn17_grad = clad::gradient(fn17);
+  // fn17_grad.execute(x, 4, y, dx, &dn, dy);
+  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {36.00, 54.00, 72.00, 90.00}
+   
+  reset(dx); reset(dy, 1);
+  auto fn18_grad = clad::gradient(fn18);
+  fn18_grad.execute(x, 4, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {5.00, 7.00, 9.00, 11.00}
+  
+  reset(dx); reset(dy, 1);
+  auto fn19_grad = clad::gradient(fn19);
+  fn19_grad.execute(x, 0, 4, y, dx, &dn, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {0.00, 6.00, 8.00, 0.00}
   return 0;
 }
