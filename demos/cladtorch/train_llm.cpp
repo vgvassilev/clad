@@ -76,8 +76,8 @@ int main() {
   auto grad = clad::gradient(gpt2_loss, "0");
   grad.dump(); // Dump the gradient function for debugging
 
-  struct timespec start{};
-  struct timespec end{};
+  struct timespec start {};
+  struct timespec end {};
   for (int step = 0; step <= 40; step++) {
     // once in a while, estimate the validation loss
     if (step % 10 == 0) {
