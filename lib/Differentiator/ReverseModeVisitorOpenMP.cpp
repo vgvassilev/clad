@@ -419,8 +419,8 @@ ReverseModeVisitor::VisitOMPFirstprivateClause(const OMPFirstprivateClause* C) {
   DeclarationNameInfo ReductonId(ReductionOpName, C->getBeginLoc());
   return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
               Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
-          BuildOMPPrivateClause(Vars, C->getBeginLoc(), C->getLParenLoc(),
-                                C->getEndLoc()),
+          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
+              Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
           CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
               DiffVars,
               CLAD_COMPAT_CLANG21_createModifier(OMPC_REDUCTION_unknown),
