@@ -4701,8 +4701,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // set to null to pass CheckOMPThreadPrivateDecl
     decl->setInit(nullptr);
     auto* declRef = BuildDeclRef(decl);
-    llvm::SmallVector<Expr*, 1> Vars;
-    Vars.push_back(declRef);
+    llvm::SmallVector<Expr*, 1> Vars{declRef};
     auto* TPDecl =
         CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).CheckOMPThreadPrivateDecl(
             decl->getLocation(), Vars);
