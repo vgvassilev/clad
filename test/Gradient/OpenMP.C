@@ -525,7 +525,7 @@ void fn15(const double *x, int n, double *y) {
 // CHECK-NEXT:                  y[i] = x[i] * scale;
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
-// CHECK-NEXT:      #pragma omp parallel private(scale) reduction(+: _d_scale)
+// CHECK-NEXT:      #pragma omp parallel firstprivate(scale) reduction(+: _d_scale)
 // CHECK-NEXT:          {
 // CHECK-NEXT:              int _t_chunklo1 = 0;
 // CHECK-NEXT:              int _t_chunkhi1 = 0;
@@ -609,7 +609,7 @@ void fn17(const double *x, int n, double *y) {
 // CHECK-NEXT:              }
 // CHECK-NEXT:              clad::push(_t0, temp);
 // CHECK-NEXT:          }
-// CHECK-NEXT:      #pragma omp parallel private(temp) private(_d_temp) private(scale) reduction(+: _d_scale)
+// CHECK-NEXT:      #pragma omp parallel private(temp) private(_d_temp) firstprivate(scale) reduction(+: _d_scale)
 // CHECK-NEXT:          {
 // CHECK-NEXT:              temp = clad::pop(_t0);
 // CHECK-NEXT:              int _t_chunklo1 = 0;
@@ -831,8 +831,8 @@ int main() {
   
   reset(dx); reset(dy, 1);
   auto fn15_grad = clad::gradient(fn15);
-  // fn15_grad.execute(x, 4, y, dx, &dn, dy);
-  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {2.00, 2.00, 2.00, 2.00}
+  fn15_grad(x, 4, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {2.00, 2.00, 2.00, 2.00}
     
   reset(dx); reset(dy, 1);
   auto fn16_grad = clad::gradient(fn16);
@@ -841,8 +841,8 @@ int main() {
    
   reset(dx); reset(dy, 1);
   auto fn17_grad = clad::gradient(fn17);
-  // fn17_grad.execute(x, 4, y, dx, &dn, dy);
-  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {36.00, 54.00, 72.00, 90.00}
+  fn17_grad.execute(x, 4, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {36.00, 54.00, 72.00, 90.00}
    
   reset(dx); reset(dy, 1);
   auto fn18_grad = clad::gradient(fn18);
