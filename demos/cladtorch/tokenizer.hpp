@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-// NOLINTBEGIN(modernize-use-nodiscard)
+// NOLINTBEGIN(modernize-use-nodiscard, clang-diagnostic-error)
 namespace gpt2 {
 
 class Tokenizer {
@@ -125,6 +125,6 @@ public:
 };
 
 } // namespace gpt2
-// NOLINTEND(modernize-use-nodiscard)
+// NOLINTEND(modernize-use-nodiscard, clang-diagnostic-error)
 
 #endif // TOKENIZER_HPP

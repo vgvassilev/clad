@@ -1,3 +1,6 @@
+#ifndef CLADTORCH_KERNELS_HPP
+#define CLADTORCH_KERNELS_HPP
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -737,3 +740,5 @@ inline void broadcast_add_kernel(const T* a_data, const T* b_data,
 
 // NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
 // modernize-loop-convert)
+
+#endif // CLADTORCH_KERNELS_HPP

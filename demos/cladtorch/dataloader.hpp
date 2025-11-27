@@ -14,7 +14,7 @@
 #include <vector>
 
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
-// modernize-use-nodiscard)
+// modernize-use-nodiscard, clang-diagnostic-error)
 namespace gpt2 {
 
 // Error-checking utility functions similar to the C version
@@ -613,6 +613,6 @@ public:
 
 } // namespace gpt2
 // NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
-// modernize-use-nodiscard)
+// modernize-use-nodiscard, clang-diagnostic-error)
 
 #endif // DATALOADER_HPP

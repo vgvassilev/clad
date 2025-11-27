@@ -365,4 +365,5 @@ get_input_pos_reverse_forw(int B, int T, int _d_B, int _d_T) { // NOLINT
   return {::gpt2::get_input_pos(B, T), ::gpt2::get_input_pos(B, T)};
 }
 } // namespace clad::custom_derivatives::gpt2
-// NOLINTEND(readability-identifier-naming, performance-unnecessary-value-param)
+// NOLINTEND(readability-identifier-naming,
+// performance-unnecessary-value-param)

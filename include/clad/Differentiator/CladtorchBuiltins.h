@@ -1,5 +1,5 @@
-#ifndef CLAD_TENSOR_BUILTINS_H
-#define CLAD_TENSOR_BUILTINS_H
+#ifndef CLAD_DIFFERENTIATOR_CLADTORCHBUILTINS_H
+#define CLAD_DIFFERENTIATOR_CLADTORCHBUILTINS_H
 
 #include <clad/Differentiator/Array.h>
 #include <clad/Differentiator/BuiltinDerivatives.h>
@@ -1296,4 +1296,4 @@ void split_pullback(const ::cladtorch::Tensor<T>* _this, int size, int axis,
 // NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
 // misc-definitions-in-headers, readability-identifier-naming)
 
-#endif // CLAD_TENSOR_BUILTINS_H
+#endif // CLAD_DIFFERENTIATOR_CLADTORCHBUILTINS_H

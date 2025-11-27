@@ -1,5 +1,5 @@
-#ifndef CLAD_TENSOR_HPP
-#define CLAD_TENSOR_HPP
+#ifndef CLADTORCH_CLADTORCH_HPP
+#define CLADTORCH_CLADTORCH_HPP
 
 #include "kernels.hpp" // Include kernel functions for operations
 #include <algorithm>
@@ -892,4 +892,4 @@ Tensor<T> linear(const Tensor<T>& input, const Tensor<T>& weight,
 // NOLINTEND(cppcoreguidelines-pro-bounds-*, *-avoid-c-arrays,
 // cppcoreguidelines-owning-memory)
 
-#endif // CLAD_TENSOR_HPP
+#endif // CLADTORCH_CLADTORCH_HPP
