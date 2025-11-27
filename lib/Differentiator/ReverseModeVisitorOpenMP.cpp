@@ -214,8 +214,8 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
   Stmt* FwdInit = BuildDeclStmt(FwdLoopVar);
 
   // Condition: i <= threadhi (or appropriate comparison based on original)
-  Expr* FwdCond =
-      BuildOp(BO_LE, BuildDeclRef(FwdLoopVar), BuildDeclRef(ThreadHiDecl));
+  Expr* FwdCond = BuildOp((IsIncrement ? BO_LE : BO_GE),
+                          BuildDeclRef(FwdLoopVar), BuildDeclRef(ThreadHiDecl));
 
   // Increment: i += stride
   Expr* FwdInc = BuildOp(BO_AddAssign, BuildDeclRef(FwdLoopVar), Clone(Stride));
@@ -310,7 +310,8 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
 
     // Condition: rev_loop_var >= threadlo
     Expr* RevCond =
-        BuildOp(BO_GE, BuildDeclRef(RevLoopVar), BuildDeclRef(RevThreadLoDecl));
+        BuildOp((IsIncrement ? BO_GE : BO_LE), BuildDeclRef(RevLoopVar),
+                BuildDeclRef(RevThreadLoDecl));
 
     // Decrement: rev_loop_var -= stride
     Expr* RevInc =

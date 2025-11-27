@@ -240,7 +240,7 @@ void fn7(const double *x, int n, double *y) {
 // CHECK-NEXT:              int _t_chunklo0 = 0;
 // CHECK-NEXT:              int _t_chunkhi0 = 0;
 // CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -1, &_t_chunklo0, &_t_chunkhi0);
-// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += -1) {
+// CHECK-NEXT:              for (int i = _t_chunklo0; i >= _t_chunkhi0; i += -1) {
 // CHECK-NEXT:                  y[i] = x[i] * x[i];
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -249,7 +249,7 @@ void fn7(const double *x, int n, double *y) {
 // CHECK-NEXT:              int _t_chunklo1 = 0;
 // CHECK-NEXT:              int _t_chunkhi1 = 0;
 // CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -1, &_t_chunklo1, &_t_chunkhi1);
-// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= -1) {
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i <= _t_chunklo1; i -= -1) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
@@ -274,7 +274,7 @@ void fn8(const double *x, int n, double *y) {
 // CHECK-NEXT:              int _t_chunklo0 = 0;
 // CHECK-NEXT:              int _t_chunkhi0 = 0;
 // CHECK-NEXT:              clad::GetStaticSchedule(n, 1, -1, &_t_chunklo0, &_t_chunkhi0);
-// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += -1) {
+// CHECK-NEXT:              for (int i = _t_chunklo0; i >= _t_chunkhi0; i += -1) {
 // CHECK-NEXT:                  y[i] = x[i] + 1.;
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -283,7 +283,7 @@ void fn8(const double *x, int n, double *y) {
 // CHECK-NEXT:              int _t_chunklo1 = 0;
 // CHECK-NEXT:              int _t_chunkhi1 = 0;
 // CHECK-NEXT:              clad::GetStaticSchedule(n, 1, -1, &_t_chunklo1, &_t_chunkhi1);
-// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= -1) {
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i <= _t_chunklo1; i -= -1) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
@@ -340,7 +340,7 @@ void fn10(const double *x, int n, double *y) {
 // CHECK-NEXT:              int _t_chunklo0 = 0;
 // CHECK-NEXT:              int _t_chunkhi0 = 0;
 // CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -3, &_t_chunklo0, &_t_chunkhi0);
-// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += -3) {
+// CHECK-NEXT:              for (int i = _t_chunklo0; i >= _t_chunkhi0; i += -3) {
 // CHECK-NEXT:                  y[i] = x[i] * 4.;
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -349,7 +349,7 @@ void fn10(const double *x, int n, double *y) {
 // CHECK-NEXT:              int _t_chunklo1 = 0;
 // CHECK-NEXT:              int _t_chunkhi1 = 0;
 // CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -3, &_t_chunklo1, &_t_chunkhi1);
-// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= -3) {
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i <= _t_chunklo1; i -= -3) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
@@ -440,7 +440,7 @@ void fn13(const double *x, int n, double *y) {
 // CHECK-NEXT:              int _t_chunklo0 = 0;
 // CHECK-NEXT:              int _t_chunkhi0 = 0;
 // CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -2, &_t_chunklo0, &_t_chunkhi0);
-// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += -2) {
+// CHECK-NEXT:              for (int i = _t_chunklo0; i >= _t_chunkhi0; i += -2) {
 // CHECK-NEXT:                  y[i] = x[i] * x[i];
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -449,7 +449,7 @@ void fn13(const double *x, int n, double *y) {
 // CHECK-NEXT:              int _t_chunklo1 = 0;
 // CHECK-NEXT:              int _t_chunkhi1 = 0;
 // CHECK-NEXT:              clad::GetStaticSchedule(n, 0 + 1, -2, &_t_chunklo1, &_t_chunkhi1);
-// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= -2) {
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i <= _t_chunklo1; i -= -2) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
@@ -791,13 +791,13 @@ int main() {
   
   reset(dx); reset(dy, 1);
   auto fn7_grad = clad::gradient(fn7);
-  // fn7_grad.execute(x, 3, y, dx, &dn, dy);
-  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {0.00, 6.00, 8.00, 10.00}
+  fn7_grad(x, 3, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {0.00, 6.00, 8.00, 10.00}
   
   reset(dx); reset(dy, 1);
   auto fn8_grad = clad::gradient(fn8);
-  // fn8_grad.execute(x, 3, y, dx, &dn, dy);
-  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {0.00, 1.00, 1.00, 1.00}
+  fn8_grad.execute(x, 3, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {0.00, 1.00, 1.00, 1.00}
   
   reset(dx); reset(dy, 1);
   auto fn9_grad = clad::gradient(fn9);
@@ -806,8 +806,8 @@ int main() {
   
   reset(dx); reset(dy, 1);
   auto fn10_grad = clad::gradient(fn10);
-  // fn10_grad.execute(x, 3, y, dx, &dn, dy);
-  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {0.00, 0.00, 0.00, 4.00}
+  fn10_grad.execute(x, 3, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {0.00, 0.00, 0.00, 4.00}
   
   reset(dx); reset(dy, 1);
   auto fn11_grad = clad::gradient(fn11);
@@ -821,8 +821,8 @@ int main() {
   
   reset(dx); reset(dy, 1);
   auto fn13_grad = clad::gradient(fn13);
-  // fn13_grad.execute(x, 3, y, dx, &dn, dy);
-  // printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // {5.00, 0.00, 0.00, 5.00}
+  fn13_grad.execute(x, 3, y, dx, &dn, dy);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {0.00, 6.00, 0.00, 10.00}
   
   reset(dx); reset(dy, 1);
   auto fn14_grad = clad::gradient(fn14);
