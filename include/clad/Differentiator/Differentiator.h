@@ -413,17 +413,6 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
 #endif
     }
 
-    /// call overload for 'execute' function, that can be called as functor.
-    /// Delegates to execute for backward compatibility.
-
-    /// If not Nofunction*
-    template <typename... Args, class FnType = CladFunctionType>
-    typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
-                           return_type_t<F>> constexpr CUDA_HOST_DEVICE
-    operator()(Args&&... args) const {
-      return execute(std::forward<Args>(args)...);
-    }
-
 #ifdef __CUDACC__
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
