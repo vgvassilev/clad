@@ -6,6 +6,8 @@
 #include <cstring>
 #include <map>
 #include <utility>
+#include <algorithm>
+#include <execution>
 #include <vector>
 
 namespace clad {
@@ -41,10 +43,21 @@ public:
   }
   // Set all stored addresses to the corresponsing values bitwise.
   void restore() {
-    for (std::pair<const Address, RawMemory>& pair : m_data) {
-      std::vector<uint8_t>& buffer = pair.second;
-      std::memcpy(pair.first, buffer.data(), buffer.size());
+    // Copy pointers to a vector for efficient parallel iteration
+    std::vector<std::pair<Address, RawMemory*>> work;
+    work.reserve(m_data.size());
+    for (auto& kv : m_data) {
+        work.emplace_back(kv.first, &kv.second);
     }
+
+    // Parallel restore
+    std::for_each(std::execution::par, work.begin(), work.end(),
+        [](auto& entry) {
+            Address addr = entry.first;
+            RawMemory* buf = entry.second;
+            std::memcpy(addr, buf->data(), buf->size());
+        }
+    );
     m_data.clear();
   }
 };
