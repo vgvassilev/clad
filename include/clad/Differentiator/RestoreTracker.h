@@ -58,6 +58,8 @@ public:
             std::memcpy(addr, buf->data(), buf->size());
         }
     );
+
+    // Clear the map
     m_data.clear();
   }
 };
