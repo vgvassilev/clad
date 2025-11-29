@@ -18,10 +18,13 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/OpenMPClause.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Sema/Sema.h"
 
 #include <llvm/ADT/ArrayRef.h>
@@ -33,6 +36,7 @@
 #include <queue>
 #include <stack>
 #include <unordered_map>
+#include <utility>
 
 #ifndef NDEBUG
 #include <exception> // for std::terminate
@@ -51,6 +55,8 @@ namespace clad {
   /// Used to compute derivatives by clad::gradient.
   class ReverseModeVisitor
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
+        public clang::ConstOMPClauseVisitor<ReverseModeVisitor,
+                                            std::array<clang::OMPClause*, 3>>,
         public VisitorBase {
   protected:
     // FIXME: We should remove friend-dependency of the plugin classes here.
@@ -76,8 +82,17 @@ namespace clad {
     /// that will be put immediately in the beginning of derivative function
     /// block.
     Stmts m_Globals;
+    // Store the Tape-push operation that will be inserted at the end of the
+    // OpenMP forward pass
+    Stmts m_OMPBlocks;
+    // Store the Tape-pop operations that will be inserted at the beginning of
+    // the OpenMP reverse pass.
+    Stmts m_OMPReverseBlocks;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
+    /// A flag indicating if the Stmt we are currently visiting is inside an
+    /// OpenMP parallel region.
+    bool isInsideOMPBlock = false;
     /// Output variable of vector-valued function
     std::string outputArrayStr;
     std::vector<Stmts> m_LoopBlock;
@@ -129,6 +144,11 @@ namespace clad {
       if (push)
         m_Stack.pop();
       return result;
+    }
+
+    std::array<clang::OMPClause*, 3> Visit(const clang::OMPClause* C) {
+      return clang::ConstOMPClauseVisitor<
+          ReverseModeVisitor, std::array<clang::OMPClause*, 3>>::Visit(C);
     }
 
     /// Get the latest block of code (i.e. place for statements output).
@@ -233,7 +253,8 @@ namespace clad {
     /// global scope.
     clang::VarDecl* GlobalStoreImpl(clang::QualType Type,
                                     llvm::StringRef prefix,
-                                    clang::Expr* init = nullptr);
+                                    clang::Expr* init = nullptr,
+                                    clang::StorageClass SC = clang::SC_None);
     /// Creates a (global in the function scope) variable declaration, puts
     /// it into m_Globals block (to be inserted into the beginning of fn's
     /// body). Returns reference R to the created declaration. If E is not null,
@@ -439,6 +460,22 @@ namespace clad {
     StmtDiff VisitNullStmt(const clang::NullStmt* NS) {
       return StmtDiff{Clone(NS), Clone(NS)};
     }
+    clang::OMPClause* BuildOMPPrivateClause(
+        llvm::ArrayRef<clang::Expr*> VarList, clang::SourceLocation StartLoc,
+        clang::SourceLocation LParenLoc, clang::SourceLocation EndLoc);
+
+    std::array<clang::OMPClause*, 3>
+    VisitOMPPrivateClause(const clang::OMPPrivateClause* C);
+    std::array<clang::OMPClause*, 3>
+    VisitOMPFirstprivateClause(const clang::OMPFirstprivateClause* C);
+    std::array<clang::OMPClause*, 3>
+    VisitOMPSharedClause(const clang::OMPSharedClause* C);
+    std::array<clang::OMPClause*, 3>
+    VisitOMPReductionClause(const clang::OMPReductionClause* C);
+    StmtDiff
+    VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
+    StmtDiff
+    VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
 
     /// Helper function that builds `T* _this = malloc(sifeof(T));`
     /// and `free(_this)`.
@@ -586,6 +623,8 @@ namespace clad {
                                    clang::Stmt* forLoopIncDiff = nullptr,
                                    bool isForLoop = false);
 
+    StmtDiff DifferentiateCanonicalLoop(const clang::ForStmt* S);
+
     /// This class modifies forward and reverse blocks of the loop/switch
     /// body so that `break` and `continue` statements are correctly
     /// handled. `break` and `continue` statements are handled by
@@ -700,6 +739,8 @@ namespace clad {
 
     /// Builds and returns the sequence of derived function parameters.
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
+
+    void MarkDeclThreadPrivate(clang::VarDecl* decl);
 
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {

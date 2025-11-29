@@ -27,6 +27,7 @@
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
@@ -144,18 +145,18 @@ namespace clad {
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI) {
+                                     TypeSourceInfo* TSI, StorageClass SC) {
     return BuildVarDecl(Type, Identifier, getCurrentScope(), Init, DirectInit,
-                        TSI);
+                        TSI, SC);
   }
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Scope* Scope, Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI) {
+                                     TypeSourceInfo* TSI, StorageClass SC) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
-    auto* VD = VarDecl::Create(
-        m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
-        m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
+    auto* VD =
+        VarDecl::Create(m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
+                        m_DiffReq->getLocation(), Identifier, Type, TSI, SC);
 
     SetDeclInit(VD, Init, DirectInit);
     m_Sema.FinalizeDeclaration(VD);
@@ -172,17 +173,17 @@ namespace clad {
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, llvm::StringRef prefix,
                                      Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI) {
+                                     TypeSourceInfo* TSI, StorageClass SC) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit,
-                        TSI);
+                        TSI, SC);
   }
 
   VarDecl* VisitorBase::BuildGlobalVarDecl(QualType Type,
                                            llvm::StringRef prefix, Expr* Init,
-                                           bool DirectInit,
-                                           TypeSourceInfo* TSI) {
+                                           bool DirectInit, TypeSourceInfo* TSI,
+                                           StorageClass SC) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix),
-                        m_DerivativeFnScope, Init, DirectInit, TSI);
+                        m_DerivativeFnScope, Init, DirectInit, TSI, SC);
   }
 
   NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,
