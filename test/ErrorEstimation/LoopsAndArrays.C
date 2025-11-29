@@ -1,7 +1,9 @@
 // RUN: %cladclang -I%S/../../include -oLoopsAndArrays.out %s 2>&1 | %filecheck %s
+// RUN: ./LoopsAndArrays.out | %filecheck_exec %s
 // XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
+#include "../TestUtils.h"
 
 #include <cmath>
 
@@ -43,7 +45,6 @@ float func(float* p, int n) {
 //CHECK-NEXT:     for (; i0 <= p_size; i0++)
 //CHECK-NEXT:         _final_error += std::abs(_d_p[i0] * p[i0] * {{.+}});
 //CHECK-NEXT: }
-
 
 float func2(float x) {
   float z;
@@ -329,10 +330,31 @@ double func6(double x) {
 //CHECK-NEXT: }
 
 int main() {
-  clad::estimate_error(func);
-  clad::estimate_error(func2);
-  clad::estimate_error(func3);
-  clad::estimate_error(func4);
-  clad::estimate_error(func5);
-  clad::estimate_error(func6);
+  float p[] = {1, 2, 3, 4, 5}, dp[5] = {0};
+  int dn = 0;
+  INIT_ERROR_ESTIMATION(func);
+  TEST_ERROR_ESTIMATION(func, /*PrecissionType*/float, p, 5, dp, &dn); // CHECK-EXEC: {50.00}
+
+  float dx = 0, dy = 0;;
+  INIT_ERROR_ESTIMATION(func2);
+  TEST_ERROR_ESTIMATION(func2, /*PrecissionType*/float, 3, &dx); // CHECK-EXEC: {72.00}
+
+  INIT_ERROR_ESTIMATION(func3);
+  TEST_ERROR_ESTIMATION(func3, /*PrecissionType*/float, 2, 6, &dx, &dy); // CHECK-EXEC: {40.00}
+
+  float x_arr[10] = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19}; 
+  float y_arr[10] = {0, -2, -4, -6, -8, -10, -12, -14, -16, -18};
+  float dx_arr[10] = {0}, dy_arr[10] = {0};
+  INIT_ERROR_ESTIMATION(func4);
+  TEST_ERROR_ESTIMATION(func4, /*PrecissionType*/float, x_arr, y_arr, dx_arr, dy_arr); // CHECK-EXEC: {255.00}
+
+  double x_arr_d[3] = {1, 3, 5}, dx_arr_d[3] = {0};
+  double y_arr_d[3] = {0, -2, -4}, dy_arr_d[3] = {0};
+  double out[3] = {0}, dout[3] = {0};
+  INIT_ERROR_ESTIMATION(func5);
+  TEST_ERROR_ESTIMATION(func5, /*PrecissionType*/float, x_arr_d, y_arr_d, out, dx_arr_d, dy_arr_d, dout); // CHECK-EXEC: {48.00}
+
+  double dx_d = 0;
+  INIT_ERROR_ESTIMATION(func6);
+  TEST_ERROR_ESTIMATION(func6, /*PrecissionType*/float, -3, &dx_d); // CHECK-EXEC: {405.00}
 }

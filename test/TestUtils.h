@@ -115,6 +115,14 @@ void run_gradient_impl(CF cf, index_pack<S...> s, Args&&... args) {
   cf.execute(args...);
   display(std::get<S>(t)...);
 }
+template <typename PrecissionType, class CF, std::size_t... S, class... Args>
+void run_error_estimation_impl(CF cf, index_pack<S...> s, Args&&... args) {
+  std::tuple<Args...> t = {args...};
+  reset(std::get<S>(t)...);
+  double error = 0;
+  cf.execute(args..., error);
+  display(std::ldexp(error, std::numeric_limits<PrecissionType>::digits - 1));
+}
 
 template <class CF, class... Args>
 void run_jacobian_impl(CF cf, std::size_t size, Args&&... args) {
@@ -154,6 +162,14 @@ void run_gradient(CF cf, Args&&... args) {
       typename GenerateRange<sizeof...(Args) - NumOfDerivativeArgs,
                              sizeof...(Args) - 1>::type;
   run_gradient_impl(cf, DerivativeArgsRange(), std::forward<Args>(args)...);
+}
+
+template <typename PrecissionType, class CF, class... Args>
+void run_error_estimation(CF cf, Args&&... args) {
+  using DerivativeArgsRange =
+      typename GenerateRange<sizeof...(Args) / 2,
+                             sizeof...(Args) - 1>::type;
+  run_error_estimation_impl<PrecissionType>(cf, DerivativeArgsRange(), std::forward<Args>(args)...);
 }
 
 template <std::size_t NumOfDerivativeArgs, std::size_t size, class CF,
@@ -227,6 +243,9 @@ void EssentiallyEqualArrays(A* a, B* b, unsigned size) {
   GET_MACRO(__VA_ARGS__, INIT_HESSIAN_SPECIFIC, INIT_HESSIAN_ALL)              \
   (__VA_ARGS__)
 
+#define INIT_ERROR_ESTIMATION(fn)                                             \
+  auto fn##_err = clad::estimate_error(fn);
+
 #define TEST_GRADIENT(fn, numOfDerivativeArgs, ...)                            \
   test_utils::run_gradient<numOfDerivativeArgs>(fn##_grad, __VA_ARGS__);
 
@@ -238,6 +257,9 @@ void EssentiallyEqualArrays(A* a, B* b, unsigned size) {
 
 #define TEST_HESSIAN(fn, numOfDerivativeArgs, ...)                             \
   test_utils::run_hessian<numOfDerivativeArgs>(fn##_hessian, __VA_ARGS__);
+
+#define TEST_ERROR_ESTIMATION(fn, PrecissionType, ...)                    \
+  test_utils::run_error_estimation<PrecissionType>(fn##_err, __VA_ARGS__);
 
 #endif
 }

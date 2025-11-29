@@ -368,7 +368,7 @@ namespace clad {
         clang::Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
         llvm::ArrayRef<const clang::ValueDecl*> diffParams,
         bool forCustomDerv = false, bool shouldUseRestoreTracker = false,
-        llvm::ArrayRef<clang::QualType> customParams = {});
+        bool isForErrorEstimation = false);
     /// Find declaration of clad::class templated type
     ///
     /// \param[in] className name of the class to be found

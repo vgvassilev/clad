@@ -1013,15 +1013,15 @@ namespace clad {
 
   VisitorBase::~VisitorBase() = default;
 
-  QualType
-  VisitorBase::GetDerivativeType(llvm::ArrayRef<QualType> customParams) {
+  QualType VisitorBase::GetDerivativeType() {
     llvm::SmallVector<const ValueDecl*, 4> diffParams{};
     for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
       diffParams.push_back(VarInfo.param);
     return utils::GetDerivativeType(
         m_Sema, m_DiffReq.Function, m_DiffReq.Mode, diffParams,
         /*forCustomDerv=*/false,
-        /*shouldUseRestoreTracker=*/m_DiffReq.UseRestoreTracker, customParams);
+        /*shouldUseRestoreTracker=*/m_DiffReq.UseRestoreTracker,
+        m_DiffReq.EnableErrorEstimation);
   }
 
   FunctionDecl* VisitorBase::FindDerivedFunction(DiffRequest& request) {

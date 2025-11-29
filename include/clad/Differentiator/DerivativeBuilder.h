@@ -93,9 +93,6 @@ namespace clad {
     /// A flag to keep track of whether error diagnostics are requested by user
     /// for numerical differentiation.
     bool m_PrintNumericalDiffErrorDiag = false;
-    // FIXME: Track this in the diffrequest.
-    // A flag signaling whether the current diffrequest is for error estimation.
-    bool m_ErrorEstimationInFlight = false;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
                                   clad::VisitorBase& VB, clang::DeclContext* DC,
                                   clang::SourceLocation& noLoc,

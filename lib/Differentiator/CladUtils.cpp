@@ -1187,8 +1187,7 @@ namespace clad {
         return resType;
       }
 
-      if (Mode == DiffMode::reverse || Mode == DiffMode::pullback ||
-          Mode == DiffMode::error_estimation) {
+      if (Mode == DiffMode::reverse || Mode == DiffMode::pullback) {
         QualType ValueType = GetNonConstValueType(Type);
         QualType nonRefValueType = ValueType.getNonReferenceType();
         return C.getPointerType(nonRefValueType);
@@ -1220,7 +1219,7 @@ namespace clad {
     GetDerivativeType(Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
                       llvm::ArrayRef<const clang::ValueDecl*> diffParams,
                       bool forCustomDerv, bool shouldUseRestoreTracker,
-                      llvm::ArrayRef<QualType> customParams) {
+                      bool isForErrorEstimation) {
       ASTContext& C = S.getASTContext();
       if (mode == DiffMode::forward)
         return FD->getType();
@@ -1253,7 +1252,6 @@ namespace clad {
       QualType dRetTy = C.VoidTy;
       bool returnVoid = mode == DiffMode::reverse ||
                         mode == DiffMode::pullback ||
-                        mode == DiffMode::error_estimation ||
                         mode == DiffMode::vector_forward_mode;
       if (mode == DiffMode::reverse_mode_forward_pass) {
         if (isMemoryType(oRetTy) || isa<CXXConstructorDecl>(FD)) {
@@ -1350,8 +1348,8 @@ namespace clad {
         }
       }
 
-      for (QualType customTy : customParams)
-        FnTypes.push_back(customTy);
+      if (isForErrorEstimation)
+        FnTypes.push_back(C.getLValueReferenceType(C.DoubleTy));
 
       return C.getFunctionType(dRetTy, FnTypes, EPI);
     }

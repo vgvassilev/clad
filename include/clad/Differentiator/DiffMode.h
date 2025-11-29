@@ -13,8 +13,7 @@ enum class DiffMode {
   hessian,
   hessian_diagonal,
   jacobian,
-  reverse_mode_forward_pass,
-  error_estimation
+  reverse_mode_forward_pass
 };
 
 /// Convert enum value to string.
@@ -40,8 +39,6 @@ inline const char* DiffModeToString(DiffMode mode) {
     return "jacobian";
   case DiffMode::reverse_mode_forward_pass:
     return "reverse_forw";
-  case DiffMode::error_estimation:
-    return "error_estimation";
   default:
     return "unknown";
   }

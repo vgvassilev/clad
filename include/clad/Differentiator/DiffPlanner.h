@@ -102,6 +102,9 @@ public:
   /// A flag specifying whether this differentiation is to be used
   /// in immediate contexts.
   bool ImmediateMode = false;
+  /// A flag specifying whether this differentiation is to be used
+  /// for error estimation.
+  bool EnableErrorEstimation = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                   clang::Sema& SemaRef);

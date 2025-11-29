@@ -255,9 +255,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
-    if (m_DiffReq.Mode == DiffMode::error_estimation)
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-      const_cast<DiffRequest&>(m_DiffReq).Mode = DiffMode::reverse;
 
     QualType returnTy = m_DiffReq->getReturnType();
     // If reverse mode differentiates only part of the arguments it needs to
@@ -284,15 +281,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // If the overload is already created, we don't need to create it again.
         shouldCreateOverload = false;
     }
-    // For a function f of type R(A1, A2, ..., An),
-    // the type of the gradient function is void(A1, A2, ..., An, R*, R*, ...,
-    // R*) . the type of the jacobian function is void(A1, A2, ..., An, R*, R*)
-    // and for error estimation, the function type is
-    // void(A1, A2, ..., An, R*, R*, ..., R*, double&)
-    llvm::SmallVector<QualType, 1> customParams{};
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(customParams);
-    QualType dFnType = GetDerivativeType(customParams);
+    QualType dFnType = GetDerivativeType();
 
     // Check if the function is already declared as a custom derivative.
     std::string name = m_DiffReq.ComputeDerivativeName();
@@ -1893,6 +1882,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Silence diag outputs in nested derivation process.
       pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
       pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+      pullbackRequest.EnableErrorEstimation = m_DiffReq.EnableErrorEstimation;
+      // Error estimation only uses forward mode derivatives if they are
+      // user-prodived to handle builtin derivatives. We cannot determine which
+      // mode is used unless we check both.
+      if (pullbackRequest.EnableErrorEstimation && !asGrad) {
+        pullbackFD = FindDerivedFunction(pullbackRequest);
+        if (!pullbackFD) {
+          pullbackRequest.Mode = DiffMode::pullback;
+          asGrad = true;
+        }
+      }
       if (asGrad) {
         size_t i = 0;
         for (const ParmVarDecl* PVD : FD->parameters()) {
@@ -2013,12 +2013,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             pullbackCallArgs.front()->getType(), m_Context, /*val=*/1));
       }
 
-      // FIXME: Error estimation currently uses singleton objects -
-      // m_ErrorEstHandler and m_EstModel, which is cleared after each
-      // error_estimate request. This requires the pullback to be derived
-      // at the same time to access the singleton objects.
-      // No call context corresponds to second derivatives used in hessians,
-      // which aren't scheduled statically yet.
+      // FIXME: No call context corresponds to second derivatives
+      // used in hessians, which aren't scheduled statically yet.
       hasDynamicNonDiffParams = false;
       pullbackRequest.DVI.clear();
       pullbackRequest.CUDAGlobalArgsIndexes.clear();
@@ -2036,8 +2032,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           } else
             hasDynamicNonDiffParams = true;
         }
-      if (m_ExternalSource || !m_DiffReq.CallContext ||
-          hasDynamicNonDiffParams || FD->getNameAsString() == "cudaMemcpy") {
+      if (!m_DiffReq.CallContext || hasDynamicNonDiffParams ||
+          FD->getNameAsString() == "cudaMemcpy") {
         pullbackFD = nullptr;
         // Try to find it in builtin derivatives.
         std::string customPullback = pullbackRequest.ComputeDerivativeName();
@@ -2050,27 +2046,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           pullbackFD = foundCE->getDirectCallee();
 
         // Derivative was not found, request differentiation
-        if (!pullbackFD) {
-          if (m_ExternalSource) {
-            if (!asGrad) {
-              asGrad = true;
-              pullbackRequest.Mode = DiffMode::pullback;
-              pullbackCallArgs.resize(1);
-              pullbackCallArgs.push_back(dfdx());
-              pullbackCallArgs.push_back(CallArgDx.back());
-              for (const ParmVarDecl* PVD : FD->parameters())
-                pullbackRequest.DVI.push_back(PVD);
-            }
-            m_ExternalSource->ActBeforeDifferentiatingCallExpr(
-                pullbackCallArgs);
-            pullbackFD =
-                plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
-          } else
-            pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
-        }
+        if (!pullbackFD)
+          pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
       }
 
       if (pullbackFD) {
+        if (m_ExternalSource &&
+            pullbackCallArgs.size() != pullbackFD->getNumParams())
+          m_ExternalSource->ActBeforeDifferentiatingCallExpr(pullbackCallArgs);
         OverloadedDerivedFn = BuildCallExprToFunction(
             pullbackFD, pullbackCallArgs, CUDAExecConfig);
       } else if (!utils::HasAnyReferenceOrPointerArgument(FD) && !MD) {

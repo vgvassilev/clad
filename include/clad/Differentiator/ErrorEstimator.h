@@ -165,8 +165,6 @@ public:
   void InitialiseRMV(ReverseModeVisitor& RMV) override;
   void ForgetRMV() override;
   void ActBeforeCreatingDerivedFnParamTypes(unsigned&) override;
-  void ActAfterCreatingDerivedFnParamTypes(
-      llvm::SmallVectorImpl<clang::QualType>& paramTypes) override;
   void ActAfterCreatingDerivedFnParams(
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) override;
   void ActOnEndOfDerivedFnBody() override;
