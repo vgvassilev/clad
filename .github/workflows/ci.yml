@@ -127,6 +127,7 @@ jobs:
             compiler: gcc-10
             clang-runtime: '11'
             extra_cmake_options: '-DCLAD_ENABLE_BENCHMARKS=On -DCLAD_ENABLE_ENZYME_BACKEND=On'
+            extra_packages: "libomp-dev"
             benchmark: true
 
           - name: ubu22-gcc10-runtime11-coverity
