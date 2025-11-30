@@ -64,15 +64,6 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     endif()
 
     set(_enzyme_build_type ${CMAKE_CFG_INTDIR})
-    set(_enzyme_cmake_logging_settings
-      LOG_DOWNLOAD ON
-      LOG_CONFIGURE ON
-      LOG_BUILD ON
-      LOG_INSTALL ON
-      LOG_OUTPUT_ON_FAILURE ON
-    )
-
-    include(ExternalProject)
 
     set(_enzyme_patch_command
       ${CMAKE_COMMAND} -E copy_if_different
@@ -87,31 +78,24 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
       set(ENZYME_BYPRODUCTS ${_enzyme_static_archive_name})
     endif()
 
-    ExternalProject_Add(
+    set(EXTRA_CMAKE_ARGS "-DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
+                       -DLLVM_DIR=${LLVM_DIR}
+                       -DENZYME_CLANG=OFF
+                       -DENZYME_STATIC_LIB=On
+                       -DLLVM_EXTERNAL_LIT=${LLVM_EXTERNAL_LIT}")
+    clad_externalProject_add(
       Enzyme
       GIT_REPOSITORY https://github.com/wsmoses/Enzyme
       GIT_TAG v0.0.95
-      GIT_SHALLOW 1 # Do not clone the history
       PATCH_COMMAND #${_enzyme_patch_command}
       UPDATE_COMMAND ""
-      CMAKE_ARGS -G ${CMAKE_GENERATOR}
-                 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-                 -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-                 -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
-                 -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-                 -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
-                 -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
-                 -DLLVM_DIR=${LLVM_DIR}
-                 -DENZYME_CLANG=OFF
-                 -DENZYME_STATIC_LIB=On
-                 -DLLVM_EXTERNAL_LIT=${LLVM_EXTERNAL_LIT}
+      EXTRA_CMAKE_ARGS ${EXTRA_CMAKE_ARGS}
       SOURCE_SUBDIR enzyme
       BUILD_COMMAND ${CMAKE_COMMAND} --build . --config ${_enzyme_build_type} --target ${_enzyme_static_target} -- -j8
       #TEST_COMMAND ${CMAKE_COMMAND} --build . --config ${_enzyme_build_type} --target check-enzyme
       #TEST_BEFORE_INSTALL 1
       INSTALL_COMMAND ${CMAKE_COMMAND} --build . --config ${_enzyme_build_type} --target install-${_enzyme_static_target} -- -j8
       BUILD_BYPRODUCTS ${ENZYME_BYPRODUCTS}
-      ${_enzyme_cmake_logging_settings}
       DEPENDS LLVMSupport
     )
 
