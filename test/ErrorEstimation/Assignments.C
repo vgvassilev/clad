@@ -1,7 +1,9 @@
 // RUN: %cladclang -I%S/../../include -oAssignments.out %s 2>&1 | %filecheck %s
-// RUN: ./Assignments.out
+// RUN: ./Assignments.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
+#include "../TestUtils.h"
 
 #include <cmath>
 
@@ -158,12 +160,30 @@ float func8(int x, int y) {
 //CHECK-NEXT: }
 
 int main() {
-  clad::estimate_error(func);
-  clad::estimate_error(func2);
-  clad::estimate_error(func3);
-  clad::estimate_error(func4);
-  clad::estimate_error(func5);
-  clad::estimate_error(func6);
-  clad::estimate_error(func7);
-  clad::estimate_error(func8);
+  int dxi = 0, dyi = 0;
+  float dxf = 0, dyf = 0;
+
+  INIT_ERROR_ESTIMATION(func);
+  TEST_ERROR_ESTIMATION(func, /*PrecissionType*/float, 3, 5, &dxf, &dyf); // CHECK-EXEC: {16.00}
+
+  INIT_ERROR_ESTIMATION(func2);
+  TEST_ERROR_ESTIMATION(func2, /*PrecissionType*/float, -2, 2, &dxf, &dyi); // CHECK-EXEC: {4.00}
+
+  INIT_ERROR_ESTIMATION(func3);
+  TEST_ERROR_ESTIMATION(func3, /*PrecissionType*/float, 8, 4, &dyi, &dyi); // CHECK-EXEC: {0.00}
+  
+  INIT_ERROR_ESTIMATION(func4);
+  TEST_ERROR_ESTIMATION(func4, /*PrecissionType*/float, 0, 9, &dxf, &dyf); // CHECK-EXEC: {36.00}
+  
+  INIT_ERROR_ESTIMATION(func5);
+  TEST_ERROR_ESTIMATION(func5, /*PrecissionType*/float, 5, -7, &dxf, &dyf); // CHECK-EXEC: {56.00}
+  
+  INIT_ERROR_ESTIMATION(func6);
+  TEST_ERROR_ESTIMATION(func6, /*PrecissionType*/float, 3, &dxf); // CHECK-EXEC: {3.00}
+  
+  INIT_ERROR_ESTIMATION(func7);
+  TEST_ERROR_ESTIMATION(func7, /*PrecissionType*/float, 2, 1, &dxf, &dyf); // CHECK-EXEC: {6.00}
+  
+  INIT_ERROR_ESTIMATION(func8);
+  TEST_ERROR_ESTIMATION(func8, /*PrecissionType*/float, -1, 6, &dyi, &dyi); // CHECK-EXEC: {0.00}
 }

@@ -186,6 +186,8 @@ Custom Derivatives
 Pushforward and Pullback functions
 ===================================
 
+.. _PushforwardFunctions:
+
 Pushforward functions
 -------------------------
 
@@ -267,6 +269,8 @@ Please note the following specification of the pushforward functions:
 
 All of these specifications must be exactly satisfied when creating a custom
 derivative pushforward function.
+
+.. _PullbackFunctions:
 
 Pullback functions
 --------------------

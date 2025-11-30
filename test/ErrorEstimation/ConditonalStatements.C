@@ -1,6 +1,9 @@
 // RUN: %cladclang -I%S/../../include -oCondStmts.out %s 2>&1 | %filecheck %s
+// RUN: ./CondStmts.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
+#include "../TestUtils.h"
 
 #include <cmath>
 
@@ -175,8 +178,18 @@ float func4(float x, float y) {
 //CHECK-NEXT: }
 
 int main() {
-  clad::estimate_error(func);
-  clad::estimate_error(func2);
-  clad::estimate_error(func3);
-  clad::estimate_error(func4);
+  float dx = 0, dy = 0;
+  
+  INIT_ERROR_ESTIMATION(func);
+  TEST_ERROR_ESTIMATION(func, /*PrecissionType*/float, 8, 2, &dx, &dy); // CHECK-EXEC: {80.00}
+
+  INIT_ERROR_ESTIMATION(func2);
+  TEST_ERROR_ESTIMATION(func2, /*PrecissionType*/float, 2, &dx); // CHECK-EXEC: {12.00}
+  
+  INIT_ERROR_ESTIMATION(func3);
+  TEST_ERROR_ESTIMATION(func3, /*PrecissionType*/float, 1, 3, &dx, &dy); // CHECK-EXEC: {8.00}
+  
+  INIT_ERROR_ESTIMATION(func4);
+  TEST_ERROR_ESTIMATION(func4, /*PrecissionType*/float, -7, 2, &dx, &dy); // CHECK-EXEC: {0.20}
+  
 }

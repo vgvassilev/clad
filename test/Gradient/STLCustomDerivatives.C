@@ -343,7 +343,13 @@ int main() {
     TEST_GRADIENT(fn16, /*NumOfDerivativeArgs=*/2, 3, 1, &d_i, &d_j);  // CHECK-EXEC: {48.00, 48.00}
     TEST_GRADIENT(fn17, /*numOfDerivativeArgs=*/2, 1, 1, &d_i, &d_j);  // CHECK-EXEC: {1.00, 3.00}
     auto d_fn18 = clad::gradient(fn18, "tensor_theory_params");
+
+    Session s;
+    s.arr[0] = 4; s.arr[1] = 3;
+    float p[] = {9}, dp[] = {0};
     auto d_fn19 = clad::gradient(fn19, "tensor_theory_params");
+    d_fn19.execute(&s, p, dp);
+    printf("{%.2f}\n", dp[0]); // CHECK-EXEC: {7.00}
 
     std::vector<double> v{1, 3, 5, 7, 9};
     std::vector<double> dv(5, 0);
