@@ -57,7 +57,10 @@ BENCHMARK(BM_ReverseModeSumExecute);
 
 // Benchmark computing gradient using vector forward mode via
 // a forward declaration.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundefined-inline"
 inline void sum_dvec_0(double*, int, clad::array_ref<double>);
+#pragma clang diagnostic pop
 static void BM_VectorForwardModeSumFwdDecl(benchmark::State &state) {
   auto vm_grad = clad::differentiate<clad::opts::vector_mode>(sum, "p");
   (void) vm_grad;

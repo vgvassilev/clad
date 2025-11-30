@@ -122,10 +122,10 @@ jobs:
             #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
             #clang-format: true
 
-          - name: ubu22-gcc10-runtime11-benchmarks
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '11'
+          - name: ubu24-gcc13-runtime20-benchmarks
+            os: ubuntu-24.04
+            compiler: gcc-13
+            clang-runtime: '20'
             extra_cmake_options: '-DCLAD_ENABLE_BENCHMARKS=On -DCLAD_ENABLE_ENZYME_BACKEND=On'
             benchmark: true
 

@@ -13,29 +13,29 @@
 
 // inline double gaus(const double* x, double* p /*means*/, double sigma, int
 // dim);
-static void BM_NumericGausP(benchmark::State& state) {
-  using namespace numerical_diff;
-  long double sum = 0;
-  double x[] = {1, 1, 1, 1, 1};
-  double p[] = {1, 2, 3, 4, 5};
-  double dx[5] = {0, 0, 0, 0, 0};
-  double dp[5] = {0, 0, 0, 0, 0};
-  clad::tape<clad::array_ref<double>> results = {};
-  int dim = 5;
-  results.emplace_back(dx, dim);
-  results.emplace_back(dp, dim);
-  for (auto _ : state) {
-    central_difference(gaus, results, /*printErrors*/ false, x, p,
-                       /*sigma*/ 2., /*dim*/ dim);
+// static void BM_NumericGausP(benchmark::State& state) {
+//   using namespace numerical_diff;
+//   long double sum = 0;
+//   double x[] = {1, 1, 1, 1, 1};
+//   double p[] = {1, 2, 3, 4, 5};
+//   double dx[5] = {0, 0, 0, 0, 0};
+//   double dp[5] = {0, 0, 0, 0, 0};
+//   clad::tape<clad::array_ref<double>> results = {};
+//   int dim = 5;
+//   results.emplace_back(dx, dim);
+//   results.emplace_back(dp, dim);
+//   for (auto _ : state) {
+//     central_difference(gaus, results, /*printErrors*/ false, x, p,
+//                        /*sigma*/ 2., /*dim*/ dim);
 
-    for (int i = 0; i < dim; i++) {
-      benchmark::DoNotOptimize(sum += dp[i]);
-      dp[i] = 0; // clear for the next benchmark iteration
-    }
-  }
-}
+//     for (int i = 0; i < dim; i++) {
+//       benchmark::DoNotOptimize(sum += dp[i]);
+//       dp[i] = 0; // clear for the next benchmark iteration
+//     }
+//   }
+// }
 // FIXME: Add the right interface to numerical_diff and enable the BM.
-//BENCHMARK(BM_NumericGausP);
+// BENCHMARK(BM_NumericGausP);
 
 static void BM_ForwardGausP(benchmark::State& state) {
   auto dfdp0 = clad::differentiate(gaus, "p[0]");
