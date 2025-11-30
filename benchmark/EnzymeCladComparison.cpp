@@ -212,7 +212,7 @@ static void BM_ReverseModeWeightedSum(benchmark::State& state) {
   for (auto _ : state) {
     grad.execute(inputs, weights, n, dinp, dweights);
     for (int i = 0; i < n; ++i) {
-      sum += dinp[i] + dweights[i];
+      benchmark::DoNotOptimize(sum += dinp[i] + dweights[i]);
       dinp[i] = 0;
       dweights[i] = 0;
     }
@@ -241,7 +241,7 @@ static void BM_VectorForwardModeWeightedSum(benchmark::State& state) {
   for (auto _ : state) {
     vm_grad.execute(inputs, weights, n, dinp, dweights);
     for (int i = 0; i < n; ++i) {
-      sum += dinp[i] + dweights[i];
+      benchmark::DoNotOptimize(sum += dinp[i] + dweights[i]);
       dinp[i] = 0;
       dweights[i] = 0;
     }
@@ -269,7 +269,7 @@ static void BM_ReverseModeWeightedSumEnzyme(benchmark::State& state) {
   for (auto _ : state) {
     grad.execute(inputs, weights, n, dinp, dweights);
     for (int i = 0; i < n; ++i) {
-      sum += dinp[i] + dweights[i];
+      benchmark::DoNotOptimize(sum += dinp[i] + dweights[i]);
       dinp[i] = 0;
       dweights[i] = 0;
     }
