@@ -303,6 +303,8 @@ if (TARGET clang-headers)
   list(APPEND LLVM_COMMON_DEPENDS clang-headers)
 endif()
 
+include(AddClad)
+
 add_subdirectory(lib)
 add_subdirectory(tools)
 
@@ -316,8 +318,6 @@ endif()
 
 
 if (NOT CLAD_BUILD_STATIC_ONLY)
-  include(AddClad)
-
   if (CLAD_ENABLE_BENCHMARKS)
     include(GoogleBenchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
