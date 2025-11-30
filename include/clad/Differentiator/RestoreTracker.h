@@ -43,25 +43,26 @@ public:
   }
   // Set all stored addresses to the corresponsing values bitwise.
   void restore() {
-    // Copy pointers to a vector for efficient parallel iteration
+    // store the map to a vector of pointers for efficient execution
     std::vector<std::pair<Address, RawMemory*>> work;
     work.reserve(m_data.size());
     for (auto& kv : m_data) {
         work.emplace_back(kv.first, &kv.second);
     }
 
-    // Parallel restore
+    // Parallel restore 
     std::for_each(std::execution::par, work.begin(), work.end(),
         [](auto& entry) {
-            Address addr = entry.first;
-            RawMemory* buf = entry.second;
-            std::memcpy(addr, buf->data(), buf->size());
+            std::memcpy(
+                entry.first,
+                entry.second->data(),
+                entry.second->size()
+            );
         }
     );
-
-    // Clear the map
     m_data.clear();
   }
+
 };
 } // namespace clad
 

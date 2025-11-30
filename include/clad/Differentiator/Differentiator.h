@@ -396,7 +396,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
 
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
-                            return_type_t<F>> constexpr CUDA_HOST_DEVICE
+                            return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
     execute(Args&&... args) const {
       if (!m_Function)
         return static_cast<return_type_t<F>>(return_type_t<F>());
@@ -439,7 +439,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
     /// subsystem.
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<std::is_same<FnType, NoFunction*>::value,
-                            return_type_t<F>> constexpr CUDA_HOST_DEVICE
+                            return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
     execute(Args&&... args) const {
       return static_cast<return_type_t<F>>(0);
     }
