@@ -113,13 +113,14 @@ jobs:
             clang-runtime: '21'
             debug_build: true
 
-          - name: selfh-ubu22-gcc12-runtime18-analyzers
+          - name: selfh-ubu22-gcc12-runtime19-analyzers
             os: self-hosted #ubuntu-22.04
             compiler: gcc-12
-            clang-runtime: '18'
+            clang-runtime: '19'
             coverage: true
             cuda: true
-            #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
+            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
+            extra_packages: ' libzstd-dev '
             #clang-format: true
 
           - name: ubu24-gcc13-runtime20-benchmarks
