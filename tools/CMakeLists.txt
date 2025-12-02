@@ -87,7 +87,8 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
       Enzyme
       GIT_REPOSITORY https://github.com/EnzymeAD/Enzyme
       GIT_TAG v0.0.224
-      PATCH_COMMAND #${_enzyme_patch_command}
+      PATCH_COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_BINARY_DIR}/tools/Enzyme-prefix/src/Enzyme/enzyme/benchmarks
+      #PATCH_COMMAND #${_enzyme_patch_command}
       UPDATE_COMMAND ""
       EXTRA_CMAKE_ARGS ${EXTRA_CMAKE_ARGS}
       SOURCE_SUBDIR enzyme
