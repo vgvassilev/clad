@@ -11,6 +11,8 @@ endif ()
 # Needed for '%shlibext'
 set(TARGET_SHLIBEXT "${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
+find_package(OpenMP)
+
 # Define variables which cmake will export for lit. Typically in an installation
 # they are not defined or defined in the wrong way.
 if(CLAD_BUILT_STANDALONE)
