@@ -578,7 +578,7 @@ double f_issue138(double x, double y) {
 
 void f_issue138_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK:   void f_issue138_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       double _d__t1 = 0.;
+//CHECK-NEXT:       double _d_t1 = 0.;
 //CHECK-NEXT:       double _t10 = 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_d_x += 1 * x * x * x;

@@ -386,16 +386,17 @@ double fn8(double u, double v) {
   return p.first + p.second;
 }
 
-// CHECK: static constexpr void constructor_pullback(double &__{{u1|x}}, double &__{{u2|y}}, std::pair<double, double> *_d_this, double *_d___{{u1|x}}, double *_d___{{u2|y}}){{.*}}{
+// CHECK: constructor_pullback(double &__{{u1|x}}, double &__{{u2|y}}, std::pair<double, double> *_d_this, double *_d_{{u1|x}}, double *_d_{{u2|y}})
+// CHECK-SAME: {
 // CHECK-NEXT:     std::pair<double, double> *_this = (std::pair<double, double> *)malloc(sizeof(std::pair<double, double>));
 // CHECK:     _this->first = __{{u1|x}};
 // CHECK-NEXT:     _this->second = __{{u2|y}};
 // CHECK:     {
-// CHECK-NEXT:         *_d___{{u2|y}} += _d_this->second;
+// CHECK-NEXT:         *_d_{{u2|y}} += _d_this->second;
 // CHECK-NEXT:         _d_this->second = 0.;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         *_d___{{u1|x}} += _d_this->first;
+// CHECK-NEXT:         *_d_{{u1|x}} += _d_this->first;
 // CHECK-NEXT:         _d_this->first = 0.;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     free(_this);
