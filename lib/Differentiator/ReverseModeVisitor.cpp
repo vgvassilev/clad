@@ -433,9 +433,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // If the type is not a tensor, we can use zero initialization.
           initExpr = getZeroInit(VDDerivedType);
         }
-        auto* VDDerived =
-            BuildGlobalVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
-                               initExpr, isDirectInit);
+        auto* VDDerived = BuildGlobalVarDecl(
+            VDDerivedType, "_d_" + param->getName().ltrim('_').str(), initExpr,
+            isDirectInit);
         m_Variables[param] = BuildDeclRef(VDDerived);
         addToBlock(BuildDeclStmt(VDDerived), m_Globals);
       }
@@ -1491,7 +1491,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (it == std::end(m_Variables)) {
         if (VD->isFileVarDecl() && !VD->getType().isConstQualified()) {
           // VD is a global variable, attempt to find its adjoint.
-          std::string nameDiff_str = "_d_" + VD->getNameAsString();
+          llvm::StringRef Name = VD->getName();
+          std::string CleanName = Name.ltrim('_').str();
+          std::string nameDiff_str = "_d_" + CleanName;
           DeclarationName nameDiff = &m_Context.Idents.get(nameDiff_str);
           DeclContext* DC = VD->getDeclContext();
           LookupResult result(m_Sema, nameDiff, noLoc,
@@ -2830,10 +2832,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Build the adjoint VarDecl
     VarDecl* VDDerived = nullptr;
     if (m_DiffReq.shouldHaveAdjoint(VD) &&
-        !clad::utils::hasNonDifferentiableAttribute(VD))
-      VDDerived = BuildGlobalVarDecl(VDDerivedType,
-                                     "_d_" + VD->getNameAsString(), dummyInit);
-
+        !clad::utils::hasNonDifferentiableAttribute(VD)) {
+      llvm::StringRef Name = VD->getName();
+      std::string CleanName = Name.ltrim('_').str();
+      VDDerived =
+          BuildGlobalVarDecl(VDDerivedType, "_d_" + CleanName, dummyInit);
+    }
     // Differentiate the initializer
     StmtDiff initDiff;
     if (const Expr* init = VD->getInit()) {
@@ -3222,10 +3226,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             copyInit = CE && CE->getNumArgs() == 0;
             if (!copyInit && CE) {
               if (const auto* DRE =
-                      dyn_cast<DeclRefExpr>(CE->getArg(0)->IgnoreImplicit()))
-                if (cast<VarDecl>(decl)->getNameAsString() ==
-                    "_d_" + cast<VarDecl>(DRE->getDecl())->getNameAsString())
+                      dyn_cast<DeclRefExpr>(CE->getArg(0)->IgnoreImplicit())) {
+                llvm::StringRef OrigName =
+                    cast<VarDecl>(DRE->getDecl())->getName();
+                std::string CleanName = "_d_" + OrigName.ltrim('_').str();
+                if (cast<VarDecl>(decl)->getNameAsString() == CleanName)
                   copyInit = true;
+              }
             }
           }
         }
@@ -4634,8 +4641,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         m_NonIndepParams.push_back(PVD);
         continue;
       }
-      IdentifierInfo* II =
-          CreateUniqueIdentifier("_d_" + PVD->getNameAsString());
+      llvm::StringRef Name = PVD->getName();
+      std::string CleanName = Name.ltrim('_').str();
+      IdentifierInfo* II = CreateUniqueIdentifier("_d_" + CleanName);
       QualType dPVDTy = FnType->getParamType(p++);
       auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, dPVDTy,
                                            PVD->getStorageClass());
