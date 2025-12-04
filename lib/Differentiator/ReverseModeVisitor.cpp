@@ -436,7 +436,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         auto* VDDerived =
             BuildGlobalVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
                                initExpr, isDirectInit);
-        m_Variables[param] = BuildDeclRef(VDDerived);
+        m_Variables[param] = VDDerived;
         addToBlock(BuildDeclStmt(VDDerived), m_Globals);
       }
     }
@@ -1017,14 +1017,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     beginBlock(direction::reverse);
     // Create all declarations needed.
-    DeclRefExpr* beginDeclRef = BuildDeclRef(VisitBegin.getDecl());
-    Expr* d_beginDeclRef = m_Variables[beginDeclRef->getDecl()];
+    DeclRefExpr* beginDeclRef = BuildDeclRef(VisitBegin.getDecl()); //// what
+    Expr* d_beginDeclRef = BuildDeclRef(VisitBegin.getDecl_dx());
     addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl()));
-    if (VisitRange.getDecl_dx())
-      addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl_dx()));
+    addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl_dx()));
     addToCurrentBlock(BuildDeclStmt(VisitBegin.getDecl()));
-    if (VisitBegin.getDecl_dx())
-      addToCurrentBlock(BuildDeclStmt(VisitBegin.getDecl_dx()));
+    addToCurrentBlock(BuildDeclStmt(VisitBegin.getDecl_dx()));
 
     const auto* EndDecl = cast<VarDecl>(FRS->getEndStmt()->getSingleDecl());
     QualType endType = CloneType(EndDecl->getType());
@@ -1061,13 +1059,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff storeAdjLoop;
     if (LoopVDDiff.getDecl_dx())
       storeAdjLoop = StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl_dx()));
-    if (LoopVDDiff.getDecl_dx())
-      addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl_dx()));
+    addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl_dx()));
     Expr* loopInit = LoopVDDiff.getDecl()->getInit();
     SetDeclInit(LoopVDDiff.getDecl(),
                 getZeroInit(LoopVDDiff.getDecl()->getType()));
-    if (LoopVDDiff.getDecl())
-      addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl()));
+    addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl()));
     Expr* assignLoop =
         BuildOp(BO_Assign, BuildDeclRef(LoopVDDiff.getDecl()), loopInit);
 
@@ -1483,8 +1479,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // This case happens when ref-type variables have to become function
       // global. Ref-type declarations cannot be moved to the function global
       // scope because they can't be separated from their inits.
-      if (DRE->getDecl()->getType()->isReferenceType() &&
-          VD->getType()->isPointerType())
+      bool isPromotedToPointer = DRE->getDecl()->getType()->isReferenceType() &&
+                                 VD->getType()->isPointerType();
+      if (isPromotedToPointer)
         clonedDRE = BuildOp(UO_Deref, clonedDRE);
       // Check DeclRefExpr is a reference to an independent variable.
       auto it = m_Variables.find(VD);
@@ -1501,17 +1498,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           if (result.empty())
             return StmtDiff(clonedDRE);
           // Found, return a reference
-          Expr* foundExpr =
-              m_Sema
-                  .BuildDeclarationNameExpr(CXXScopeSpec{}, result,
-                                            /*ADL=*/false)
-                  .get();
-          it = m_Variables.emplace(VD, foundExpr).first;
+          auto* declDiff = cast<VarDecl>(result.getFoundDecl());
+          it = m_Variables.emplace(VD, declDiff).first;
           // On the start of computing every derivative, we have to reset the
           // global adjoint to zero in case it was used by another gradient.
           if (m_DiffReq.Mode == DiffMode::reverse) {
-            Expr* assignToZero = BuildOp(BO_Assign, Clone(foundExpr),
-                                         getZeroInit(foundExpr->getType()));
+            Expr* assignToZero = BuildOp(BO_Assign, BuildDeclRef(declDiff),
+                                         getZeroInit(declDiff->getType()));
             addToBlock(assignToZero, m_Globals);
           }
         } else
@@ -1521,10 +1514,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       if (!it->second)
         return StmtDiff(clonedDRE);
+
+      clang::Expr* dExpr = BuildDeclRef(it->second);
+      // Ensure that parameters passed by value are always dereferenced on use.
+      // For example d_x in f(float x, float *d_x) should be used as (*d_x) to
+      // matching the type of the input x from the original function.
+      if (isa<ParmVarDecl>(VD) && !utils::isArrayOrPointerType(VD->getType()) &&
+          !llvm::is_contained(m_NonIndepParams, VD))
+        isPromotedToPointer = true;
+      if (isPromotedToPointer) {
+        dExpr = BuildOp(UO_Deref, dExpr);
+        if (dExpr->getType()->isRecordType())
+          dExpr = utils::BuildParenExpr(m_Sema, dExpr);
+      }
       // Create the (_d_param[idx] += dfdx) statement.
-      if (Expr* add_assign = BuildDiffIncrement(it->second))
+      if (Expr* add_assign = BuildDiffIncrement(dExpr))
         addToCurrentBlock(add_assign, direction::reverse);
-      return StmtDiff(clonedDRE, it->second);
+      return StmtDiff(clonedDRE, dExpr);
     }
 
     return StmtDiff(clonedDRE);
@@ -2705,7 +2711,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                  m_Globals);
       Expr* condVarRef = BuildDeclRef(condVar);
       Expr* assignExpr = BuildOp(BO_Assign, condVarRef, Clone(R));
-      m_Variables.emplace(condVar, BuildDeclRef(derivedCondVar));
+      m_Variables.emplace(condVar, derivedCondVar);
       auto* IfStmt = clad_compat::IfStmt_Create(
           /*Ctx=*/m_Context, /*IL=*/noLoc, /*IsConstexpr=*/false,
           /*Init=*/nullptr, /*Var=*/nullptr,
@@ -2883,9 +2889,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     VarDecl* VDClone = nullptr;
     Expr* derivedVDE = nullptr;
-    // FIXME: Sometimes, the derivative of `x` is not `_d_x` but `*_d_x`. We
-    // should handle this in VisitDeclRefExpr
-    Expr* valueDx = nullptr;
     if (VDDerived)
       derivedVDE = BuildDeclRef(VDDerived);
 
@@ -2897,11 +2900,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // double* ref;
     // ref = &x;
     if (isRefType && promoteToFnScope) {
-      // FIXME: Add extra parantheses if derived variable pointer is pointing to
-      // a class type object.
       initDiff = {BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),
                   BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr_dx())};
-      valueDx = BuildOp(UnaryOperatorKind::UO_Deref, derivedVDE);
       isPointerType = true;
     }
 
@@ -2972,10 +2972,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
-    if (!valueDx)
-      valueDx = derivedVDE;
-    if (valueDx)
-      m_Variables.emplace(VDClone, valueDx);
+    m_Variables.emplace(VDClone, VDDerived);
 
     // Check if decl's name is the same as before. The name may be changed
     // if decl name collides with something in the derivative body.
@@ -4640,20 +4637,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, dPVDTy,
                                            PVD->getStorageClass());
       m_Sema.PushOnScopeChains(dPVD, getCurrentScope(), /*AddToContext=*/false);
-      // Ensure that parameters passed by value are always dereferenced on use.
-      // For example d_x in f(float x, float *d_x) should be used as (*d_x) to
-      // matching the type of the input x from the original function.
-      if (utils::isArrayOrPointerType(oPVD->getType())) {
-        m_Variables[PVD] = BuildDeclRef(dPVD);
-
-      } else {
-        Expr* Deref =
-            BuildOp(UO_Deref, BuildDeclRef(dPVD), oPVD->getLocation());
-        if (dPVDTy->getPointeeType()->isRecordType())
-          Deref = utils::BuildParenExpr(m_Sema, Deref);
-        m_Variables[PVD] = Deref;
-      }
-
+      m_Variables[PVD] = dPVD;
       params.push_back(dPVD);
     }
   }
