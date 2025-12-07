@@ -498,6 +498,8 @@ jobs:
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
       run: |
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
+        # Cleanup some space: https://github.com/orgs/community/discussions/25678
+        rm -fr /opt/hostedtoolcache
     - name: Setup default Build Type on Windows
       if: runner.os == 'windows'
       run: |
