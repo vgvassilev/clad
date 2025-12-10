@@ -425,6 +425,37 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return derivative;
   }
 
+  void
+  DerivativeBuilder::diagnoseUndefinedFunction(const clang::FunctionDecl* FD,
+                                               SourceLocation srcLoc,
+                                               bool numDiffViable) {
+    bool NumDiffEnabled =
+        !m_Sema.getPreprocessor().isMacroDefined("CLAD_NO_NUM_DIFF");
+    diag(DiagnosticsEngine::Warning, srcLoc,
+         "attempted differentiation of function %0 without definition "
+         "and no suitable overload was found in "
+         "namespace 'custom_derivatives'")
+        << FD << srcLoc;
+    if (!numDiffViable) {
+      diag(
+          DiagnosticsEngine::Note, srcLoc,
+          "numerical differentiation is not viable for %0; considering %0 as 0")
+          << FD << srcLoc;
+    } else if (NumDiffEnabled) {
+      diag(DiagnosticsEngine::Note, srcLoc,
+           "falling back to numerical differentiation for %0 since no "
+           "suitable overload was found and clad could not derive it; "
+           "to disable this feature, compile your programs with "
+           "-DCLAD_NO_NUM_DIFF")
+          << FD << srcLoc;
+    } else {
+      diag(DiagnosticsEngine::Note, srcLoc,
+           "fallback to numerical differentiation is disabled by the "
+           "'CLAD_NO_NUM_DIFF' macro; considering %0 as 0")
+          << FD << srcLoc;
+    }
+  }
+
   DerivativeAndOverload
   DerivativeBuilder::Derive(const DiffRequest& request) {
     TimedGenerationRegion G([&request]() { return (std::string)request; });
@@ -494,11 +525,17 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // functions or custom derivatives.
         if (!request.DeclarationOnly ||
             !(m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD))) {
-          if (request.VerboseDiags) {
-            SourceLocation L = request.CallContext->getBeginLoc();
-            diag(DiagnosticsEngine::Error, L,
-                 "attempted differentiation of function %0, without definition")
-                << FD << L;
+          const auto& name = FD->getName();
+          // FIXME: Currently, these functions cannot be covered with custom
+          // derivatives because templates are not well-supported in custom
+          // derivatives. We have to use workarounds to support them.
+          if (name != "forward" && name != "move" &&
+              name != "__builtin_expect") {
+            SourceLocation L;
+            if (request.CallContext)
+              L = request.CallContext->getBeginLoc();
+            diagnoseUndefinedFunction(
+                FD, L, /*numDiffViable=*/utils::IsRealFunction(FD));
           }
           return {};
         }

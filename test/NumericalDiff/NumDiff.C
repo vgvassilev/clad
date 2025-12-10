@@ -5,7 +5,7 @@
 #include "clad/Differentiator/Differentiator.h"
 
 double test_1(double x){
-  return std::tgamma(x); // expected-warning {{function 'tgamma' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+  return std::tgamma(x); // expected-warning {{attempted differentiation of function 'tgamma' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
   // expected-note@8 {{falling back to numerical differentiation for 'tgamma'}}
 }
 

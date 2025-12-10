@@ -1391,7 +1391,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
     }
 
-    if (!nonDiff)
+    if (!nonDiff && request.Mode != DiffMode::unknown)
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     if (m_IsTraversingTopLevelDecl) {
