@@ -633,14 +633,6 @@ namespace clad {
         unsigned numArgs, llvm::SmallVectorImpl<clang::Expr*>& args,
         clang::Expr* CUDAExecConfig = nullptr);
 
-    /// Emits diagnostic messages on differentiation (or lack thereof) for
-    /// call expressions.
-    ///
-    /// \param[in] \c FD - The function declaration.
-    /// \param[in] \c srcLoc Any associated source location information.
-    void CallExprDiffDiagnostics(const clang::FunctionDecl* FD,
-                                 clang::SourceLocation srcLoc);
-
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
     /// Find the derived function if present in the DerivedFnCollector.
     ///

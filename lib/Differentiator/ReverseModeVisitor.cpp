@@ -2076,7 +2076,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               CE->getNumArgs(), dfdx(), PreCallStmts, pullbackCallArgs,
               CallArgDx, CUDAExecConfig);
         }
-        CallExprDiffDiagnostics(FD, CE->getBeginLoc());
       }
       // If the derivative is called through _darg0 instead of _grad.
       if (OverloadedDerivedFn && !asGrad) {

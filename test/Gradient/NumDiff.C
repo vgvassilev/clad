@@ -8,7 +8,7 @@
 double single_arg(double x);
 
 double f1(double x, double y) {
-  return single_arg(x * y); // expected-warning {{function 'single_arg' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+  return single_arg(x * y); // expected-warning {{attempted differentiation of function 'single_arg' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
   // expected-note@11 {{falling back to numerical differentiation for 'single_arg'}}
 }
 
@@ -24,7 +24,7 @@ double f1(double x, double y) {
 double multi_arg(double x, double y);
 
 double f2(double x, double y) {
-  return multi_arg(x, y); // expected-warning {{function 'multi_arg' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+  return multi_arg(x, y); // expected-warning {{attempted differentiation of function 'multi_arg' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
   // expected-note@27 {{falling back to numerical differentiation for 'multi_arg'}}
 }
 
@@ -43,7 +43,8 @@ double f2(double x, double y) {
 void noNumDiff(double& x);
 
 double f3(double x, double y) {
-  noNumDiff(x);
+  noNumDiff(x); // expected-warning {{attempted differentiation of function 'noNumDiff' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
+  // expected-note@46 {{numerical differentiation is not viable for 'noNumDiff'; considering 'noNumDiff' as 0}}
   return x + y;
 }
 
