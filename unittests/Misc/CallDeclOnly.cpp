@@ -27,16 +27,12 @@ void wrapper1_grad(double *params, double *_d_params) {
     double _d_ix = 0.;
     const double ix = 1 + params[0];
     {
-        double _r0 = 0.;
-        double _r1 = 0.;
-        double _r2 = 0.;
-        double _r3 = 0.;
         double _grad0[4] = {0};
         numerical_diff::central_difference(foo, _grad0, 0, 10., ix, 1., 0);
-        _r0 += 1 * _grad0[0];
-        _r1 += 1 * _grad0[1];
-        _r2 += 1 * _grad0[2];
-        _r3 += 1 * _grad0[3];
+        double _r0 = 1 * _grad0[0];
+        double _r1 = 1 * _grad0[1];
+        double _r2 = 1 * _grad0[2];
+        double _r3 = 1 * _grad0[3];
         _d_ix += _r1;
     }
     _d_params[0] += _d_ix;

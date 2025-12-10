@@ -326,6 +326,7 @@ namespace clad {
 
     /// A function to get the multi-argument "central_difference"
     /// call expression for the given arguments.
+    /// The call is automatically inserted in PreCallStmts.
     ///
     /// \param[in] targetFuncCall The function to get the derivative for.
     /// \param[in] retType The return type of the target call expression.
@@ -333,16 +334,13 @@ namespace clad {
     /// \param[in] numArgs The total number of 'args'.
     /// \param[in] PreCallStmts The built statements to add to block
     /// before the call to the derived function.
-    /// \param[in] PostCallStmts The built statements to add to block
-    /// after the call to the derived function.
     /// \param[in] args All the arguments to the target function.
     /// \param[in] outputArgs The output gradient arguments.
     ///
     /// \returns The derivative function call.
-    clang::Expr* GetMultiArgCentralDiffCall(
+    void GetMultiArgCentralDiffCall(
         clang::Expr* targetFuncCall, clang::QualType retType, unsigned numArgs,
         clang::Expr* dfdx, llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
-        llvm::SmallVectorImpl<clang::Stmt*>& PostCallStmts,
         llvm::SmallVectorImpl<clang::Expr*>& args,
         llvm::SmallVectorImpl<clang::Expr*>& outputArgs,
         clang::Expr* CUDAExecConfig = nullptr);
