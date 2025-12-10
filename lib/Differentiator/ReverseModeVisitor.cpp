@@ -2289,9 +2289,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* gradExpr = BuildOp(BO_Mul, dfdx, gradElem);
       // Inputs were not pointers, so the output args are not in global GPU
       // memory. Hence, no need to use atomic ops.
-      auto* UnOp = cast<UnaryOperator>(outputArgs[i]);
-      PostCallStmts.push_back(
-          BuildOp(BO_AddAssign, UnOp->getSubExpr(), gradExpr));
+      Expr* derefExpr = BuildOp(UO_Deref, outputArgs[i]);
+      PostCallStmts.push_back(BuildOp(BO_AddAssign, derefExpr, gradExpr));
       NumDiffArgs.push_back(args[i]);
     }
     std::string Name = "central_difference";
