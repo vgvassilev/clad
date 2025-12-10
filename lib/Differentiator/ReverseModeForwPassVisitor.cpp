@@ -155,7 +155,7 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       if (dPVD->getIdentifier())
         m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
                                  /*AddToContext=*/false);
-      m_Variables[*it] = BuildDeclRef(dPVD), m_DiffReq->getLocation();
+      m_Variables[*it] = dPVD;
     }
   }
   if (m_DiffReq.UseRestoreTracker) {
@@ -243,7 +243,7 @@ StmtDiff ReverseModeForwPassVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   auto foundAdjoint = m_Variables.find(decl);
   Expr* adjoint = nullptr;
   if (foundAdjoint != m_Variables.end())
-    adjoint = foundAdjoint->second;
+    adjoint = BuildDeclRef(foundAdjoint->second);
 
   return StmtDiff(clonedDRE, adjoint);
 }
@@ -282,7 +282,7 @@ ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   auto* VDDerived =
       BuildGlobalVarDecl(DerivedType, "_d_" + VD->getNameAsString(),
                          initDiff.getExpr_dx(), VD->isDirectInit());
-  m_Variables.emplace(VDCloned, BuildDeclRef(VDDerived));
+  m_Variables.emplace(VDCloned, VDDerived);
   if ((VD->getDeclName() != VDCloned->getDeclName() ||
        DerivedType != VD->getType()))
     m_DeclReplacements[VD] = VDCloned;

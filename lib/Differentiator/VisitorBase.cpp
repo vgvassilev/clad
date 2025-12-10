@@ -254,6 +254,8 @@ namespace clad {
   }
 
   DeclStmt* VisitorBase::BuildDeclStmt(Decl* D) {
+    if (!D)
+      return nullptr;
     Stmt* DS = m_Sema
                    .ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(D),
                                   D->getBeginLoc(), D->getEndLoc())
@@ -280,6 +282,8 @@ namespace clad {
   DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
                                          NestedNameSpecifier* NNS /*=nullptr*/,
                                          ExprValueKind VK /*=VK_LValue*/) {
+    if (!D)
+      return nullptr;
     CXXScopeSpec CSS;
     SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
 

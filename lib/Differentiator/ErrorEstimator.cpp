@@ -164,17 +164,18 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
     llvm::SmallVectorImpl<ParmVarDecl*>& params, unsigned numParams) {
   // Emit error variables of parameters at the end.
   for (size_t i = 0; i < numParams; i++) {
-    auto* decl = cast<VarDecl>(params[i]);
+    ParmVarDecl* decl = params[i];
+    Expr* LdiffExpr = m_RMV->BuildDeclRef(m_RMV->m_Variables[decl]);
     if (ShouldEstimateErrorFor(decl)) {
       if (!m_RMV->isArrayOrPointerType(params[i]->getType())) {
+        LdiffExpr = m_RMV->BuildOp(UO_Deref, LdiffExpr);
         auto* paramClone = m_RMV->BuildDeclRef(decl);
         // Finally emit the error.
-        auto* errorExpr = GetError(paramClone, m_RMV->m_Variables[decl],
-                                   params[i]->getNameAsString());
+        auto* errorExpr =
+            GetError(paramClone, LdiffExpr, params[i]->getNameAsString());
         m_RMV->addToCurrentBlock(
             m_RMV->BuildOp(BO_AddAssign, BuildFinalErrorExpr(), errorExpr));
       } else {
-        auto LdiffExpr = m_RMV->m_Variables[decl];
         Expr* size = getSizeExpr(decl);
         VarDecl* idxExprDecl = nullptr;
         // Save our index expression so it can be used later.
@@ -315,7 +316,7 @@ void ErrorEstimationHandler::ActAfterProcessingArraySubscriptExpr(
     if (const auto* DRE =
             dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit())) {
       const auto* VD = cast<VarDecl>(DRE->getDecl());
-      Expr* VDdiff = m_RMV->m_Variables[VD];
+      VarDecl* VDdiff = m_RMV->m_Variables[VD];
       // We only need to track sizes for arrays and pointers.
       if (!utils::isArrayOrPointerType(VDdiff->getType()))
         return;
