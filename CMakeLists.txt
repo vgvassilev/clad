@@ -322,21 +322,6 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     include(GoogleBenchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
 
-  if (NOT CLAD_DISABLE_TESTS OR CLAD_ENABLE_BENCHMARKS)
-    # Change the default compiler to the clang which we run clad upon. Our unittests
-    # need to use a supported by clad compiler. Note that's a huge hack and it is
-    # not guaranteed to work with cmake.
-    set(stored_cxx_compiler ${CMAKE_CXX_COMPILER})
-    set(stored_cxx_flags ${CMAKE_CXX_FLAGS})
-    set(stored_c_flags ${CMAKE_C_FLAGS})
-    # FIXME: Remove when vgvassilev/clad#1665 is resolved.
-    disable_werror(CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
-    set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
-    # Filter some unsupported flags by clang.
-    string(REPLACE "-fno-lifetime-dse" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    string(REPLACE "-Wno-class-memaccess" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  endif()
-
   if (NOT CLAD_DISABLE_TESTS)
     add_subdirectory(unittests)
     add_subdirectory(test)
@@ -344,6 +329,7 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
 
   # Add benchmarking infrastructure.
   if (CLAD_ENABLE_BENCHMARKS)
+    include(ClangBenchmark)
     add_subdirectory(benchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
 
