@@ -2060,7 +2060,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           m_ExternalSource->ActBeforeDifferentiatingCallExpr(pullbackCallArgs);
         OverloadedDerivedFn = BuildCallExprToFunction(
             pullbackFD, pullbackCallArgs, CUDAExecConfig);
-      } else if (!utils::HasAnyReferenceOrPointerArgument(FD) && !MD) {
+      } else if (utils::IsRealFunction(FD)) {
         // FIXME: Add support for reference arguments to the numerical diff. If
         // it already correctly support reference arguments then confirm the
         // support and add tests for the same.
