@@ -42,6 +42,13 @@ double f2(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+void noNumDiff(double& x);
+
+double f3(double x, double y) {
+  noNumDiff(x);
+  return x + y;
+}
+
 int main() {
   double dx = 0, dy = 0;
   INIT_GRADIENT(f1);
@@ -50,5 +57,9 @@ int main() {
   dx = 0; dy = 0;
   INIT_GRADIENT(f2);
   TEST_GRADIENT(f2, /*numOfDerivativeArgs=*/2, 2, 3, &dx, &dy); // CHECK-EXEC: {1.00, 1.00}
+
+  dx = 0; dy = 0;
+  INIT_GRADIENT(f3);
+  TEST_GRADIENT(f3, /*numOfDerivativeArgs=*/2, 2, 3, &dx, &dy); // CHECK-EXEC: {1.00, 1.00}
   return 0;
 }

@@ -376,15 +376,14 @@ namespace clad {
       return DeclarationNameInfo(II, noLoc);
     }
 
-    bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD) {
+    bool IsRealFunction(const clang::FunctionDecl* FD) {
+      if (isa<CXXMethodDecl>(FD) || !FD->getReturnType()->isRealType())
+        return false;
       for (auto PVD : FD->parameters()) {
-        QualType paramTy = PVD->getType();
-        bool isConstTy = paramTy.getNonReferenceType().isConstQualified();
-        if ((paramTy->isReferenceType() || isArrayOrPointerType(paramTy)) &&
-            !isConstTy)
-          return true;
+        if (!PVD->getType()->isRealType())
+          return false;
       }
-      return false;
+      return true;
     }
 
     bool IsReferenceOrPointerArg(const Expr* arg) {
@@ -1373,13 +1372,7 @@ namespace clad {
     }
 
     bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
-      if (FD->getNumParams() != 1 ||
-          utils::HasAnyReferenceOrPointerArgument(FD) ||
-          isa<CXXMethodDecl>(FD) || !FD->getReturnType()->isRealType())
-        return false;
-      QualType paramTy = FD->getParamDecl(0)->getType();
-      paramTy = paramTy.getNonReferenceType();
-      return paramTy->isRealType();
+      return FD->getNumParams() == 1 && utils::IsRealFunction(FD);
     }
 
     QualType makeTypeReadable(Sema& S, QualType Ty) {
