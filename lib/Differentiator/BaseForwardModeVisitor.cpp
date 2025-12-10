@@ -1218,7 +1218,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           GetSingleArgCentralDiffCall(fnCallee, CallArgs[0],
                                       /*targetPos=*/0, /*numArgs=*/1, CallArgs);
     }
-    CallExprDiffDiagnostics(FD, CE->getBeginLoc());
     if (!callDiff) {
       auto zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
