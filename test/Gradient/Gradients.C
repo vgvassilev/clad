@@ -648,7 +648,7 @@ float running_sum(float* p, int n) {
 // CHECK: void running_sum_grad(float *p, int n, float *_d_p, int *_d_n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 1; i < n; i++) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         p[i] += p[i - 1];
@@ -663,7 +663,7 @@ float running_sum(float* p, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-double global = 7; // expected-warning {{The gradient utilizes a global variable 'global'. Please make sure to properly reset 'global' before re-running the gradient.}}
+double global = 7; // expected-warning {{gradient uses a global variable 'global'; rerunning the gradient requires 'global' to be reset}}
 // CHECK: double _d_global = 0.;
 
 double fn_global_var_use(double i, double j) {
@@ -1078,9 +1078,9 @@ double f_ref_in_rhs(double x, double y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _cond0 = x != 55;
 //CHECK-NEXT:         if (_cond0) {
-//CHECK-NEXT:             _d_ref_x = &*_d_x;
+//CHECK-NEXT:             _d_ref_x = _d_x;
 //CHECK-NEXT:             ref_x = &x;
-//CHECK-NEXT:             _d_ref_y = &*_d_y;
+//CHECK-NEXT:             _d_ref_y = _d_y;
 //CHECK-NEXT:             ref_y = &y;
 //CHECK-NEXT:             goto _label0;
 //CHECK-NEXT:         }
@@ -1095,7 +1095,7 @@ double f_ref_in_rhs(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
-double glob1 = 5; // expected-warning {{The gradient utilizes a global variable 'glob1'. Please make sure to properly reset 'glob1' before re-running the gradient.}}
+double glob1 = 5; // expected-warning {{gradient uses a global variable 'glob1'; rerunning the gradient requires 'glob1' to be reset}}
 //CHECK: double _d_glob1 = 0.;
 
 double g(double a, double b) {

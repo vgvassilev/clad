@@ -59,12 +59,6 @@ public:
   /// This is called just before creating derived function parameter types.
   virtual void ActBeforeCreatingDerivedFnParamTypes(unsigned& numExtraParam) {}
 
-  /// This is called just after creating derived function parameter types.
-  ///
-  /// \param paramTypes sequence container containing derived function
-  /// parameter types.
-  virtual void ActAfterCreatingDerivedFnParamTypes(
-      llvm::SmallVectorImpl<clang::QualType>& paramTypes) {}
   virtual void ActAfterCreatingDerivedFnParams(
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) {}
 
@@ -141,8 +135,7 @@ public:
   virtual void ActBeforeFinalizingDifferentiateSingleExpr(const direction& d) {}
 
   virtual void ActBeforeDifferentiatingCallExpr(
-      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
-      llvm::SmallVectorImpl<clang::Stmt*>& ArgDecls, bool hasAssignee) {}
+      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs) {}
 
   virtual void ActBeforeFinalizingVisitDeclStmt(
       llvm::SmallVectorImpl<clang::Decl*>& decls,

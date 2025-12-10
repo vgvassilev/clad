@@ -12,6 +12,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+
+#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
 
 namespace clad {
 template <typename T, typename U> struct ValueAndPushforward {
@@ -131,6 +134,18 @@ void cudaMemcpy_pullback(T* destPtr, const T* srcPtr, size_t count,
   }
 }
 
+template <typename T>
+cudaError_t cudaMalloc_reverse_forw(T** devPtr, size_t sz, T** d_devPtr,
+                                    size_t d_sz)
+    __attribute__((host)) elidable_reverse_forw;
+
+template <typename T>
+void cudaMalloc_pullback(T** devPtr, size_t sz, cudaError_t d_ret, T** d_devPtr,
+                         size_t* d_sz) __attribute__((host));
+
+cudaError_t cudaFree_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
+
+void cudaFree_pullback(void* ptr, cudaError_t d_ret, void* d_ptr);
 #endif
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -948,10 +963,24 @@ CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y, T1* d_x,
   *d_exponent += t.pushforward * d_y;
 }
 
+template <typename T, class Compare>
+CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+min_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
+                const T& d_b, Compare /*dcomp*/) {
+  return {::std::min(a, b, comp), comp(a, b) ? d_a : d_b};
+}
+
 template <typename T>
 CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
 min_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
   return {::std::min(a, b), a < b ? d_a : d_b};
+}
+
+template <typename T, class Compare>
+CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+max_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
+                const T& d_b, Compare /*dcomp*/) {
+  return {::std::max(a, b, comp), comp(a, b) ? d_b : d_a};
 }
 
 template <typename T>
@@ -960,22 +989,34 @@ max_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
   return {::std::max(a, b), a < b ? d_b : d_a};
 }
 
-template <typename T, typename U>
-CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, U d_y, T* d_a,
-                                   T* d_b) {
-  if (a < b)
+template <typename T, typename U, class Compare>
+CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, Compare comp, U d_y,
+                                   T* d_a, T* d_b, Compare* /*dcomp*/) {
+  if (comp(a, b))
     *d_a += d_y;
   else
     *d_b += d_y;
 }
 
 template <typename T, typename U>
-CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, U d_y, T* d_a,
+CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, U d_y, T* d_a,
                                    T* d_b) {
-  if (a < b)
+  min_pullback(a, b, ::std::less<T>{}, d_y, d_a, d_b, (::std::less<T>*)nullptr);
+}
+
+template <typename T, typename U, class Compare>
+CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, Compare comp, U d_y,
+                                   T* d_a, T* d_b, Compare* /*dcomp*/) {
+  if (comp(a, b))
     *d_b += d_y;
   else
     *d_a += d_y;
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, U d_y, T* d_a,
+                                   T* d_b) {
+  max_pullback(a, b, ::std::less<T>{}, d_y, d_a, d_b, (::std::less<T>*)nullptr);
 }
 
 #if __cplusplus >= 201703L
@@ -1118,6 +1159,30 @@ inline void free_pushforward(void* ptr, void* d_ptr) {
   free(ptr);
   free(d_ptr);
 }
+
+ValueAndAdjoint<void*, void*>
+malloc_reverse_forw(size_t sz, size_t d_sz) elidable_reverse_forw;
+
+ValueAndAdjoint<void*, void*>
+calloc_reverse_forw(size_t n, size_t sz, size_t d_n,
+                    size_t d_sz) elidable_reverse_forw;
+
+ValueAndAdjoint<void*, void*>
+realloc_reverse_forw(void* ptr, size_t sz, void* d_ptr,
+                     size_t d_sz) elidable_reverse_forw;
+
+ValueAndAdjoint<void*, void*>
+memset_reverse_forw(void* ptr, int val, size_t sz, void* d_ptr, int d_val,
+                    size_t d_sz) elidable_reverse_forw;
+
+void free_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
+
+void realloc_pullback(void* ptr, size_t sz, void* d_ptr, size_t* d_sz);
+
+void memset_pullback(void* ptr, int val, size_t sz, void* d_ptr, int* d_val,
+                     size_t* d_sz);
+
+void free_pullback(void* ptr, void* d_ptr);
 // NOLINTEND(cppcoreguidelines-owning-memory)
 // NOLINTEND(cppcoreguidelines-no-malloc)
 

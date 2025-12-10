@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
 // RUN: ./Pointers.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oPointers.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oPointers.out
 // RUN: ./Pointers.out | %filecheck_exec %s
 // XFAIL: target={{i586.*}}, valgrind
 
@@ -23,7 +23,7 @@ double minimalPointer(double x) {
 }
 
 // CHECK: void minimalPointer_grad(double x, double *_d_x) {
-// CHECK-NEXT:     double *_d_p = &*_d_x;
+// CHECK-NEXT:     double *_d_p = _d_x;
 // CHECK-NEXT:     double *const p = &x;
 // CHECK-NEXT:     double _t0 = *p;
 // CHECK-NEXT:     *p = *p * *p;
@@ -126,7 +126,7 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:     clad::tape<double *> _t4 = {};
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         _d_j = &_d_i;
@@ -434,7 +434,7 @@ double listInitPtrFn (double x, double y) {
 }
 
 // CHECK:  void listInitPtrFn_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      double *_d_ptr = &*_d_x;
+// CHECK-NEXT:      double *_d_ptr{_d_x};
 // CHECK-NEXT:      double *ptr{&x};
 // CHECK-NEXT:      *ptr += y;
 // CHECK-NEXT:      *_d_ptr += 1;
@@ -578,7 +578,7 @@ int main() {
   d_structPointer.execute(5, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 1.00
 
-  auto d_cStyleMemoryAlloc = clad::gradient<clad::opts::disable_tbr>(cStyleMemoryAlloc, "x");
+  auto d_cStyleMemoryAlloc = clad::gradient<clad::opts::disable_tbr, clad::opts::disable_va>(cStyleMemoryAlloc, "x");
   d_x = 0;
   d_cStyleMemoryAlloc.execute(5, 7, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 4.00

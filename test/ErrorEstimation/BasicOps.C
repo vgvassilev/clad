@@ -1,6 +1,9 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -Xclang -verify -oBasicOps.out 2>&1 | %filecheck %s
+// RUN: ./BasicOps.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
+#include "../TestUtils.h"
 
 #include <cmath>
 
@@ -205,11 +208,9 @@ float func6(float x, float y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         double _r1 = 0.;
-//CHECK-NEXT:         double _t0 = 0.;
-//CHECK-NEXT:         helper_pullback(x, y, _d_z, &_r0, &_r1, _t0);
+//CHECK-NEXT:         helper_pullback(x, y, _d_z, &_r0, &_r1, _final_error);
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:         *_d_y += _r1;
-//CHECK-NEXT:         _final_error += _t0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     _final_error += std::abs(*_d_y * y * {{.+}});
@@ -217,7 +218,7 @@ float func6(float x, float y) {
 //CHECK-NEXT: }
 
 float func7(float x) {
-  int z = x;  // expected-warning {{Lossy assignment from 'float' to 'int'}}
+  int z = x;  // expected-warning {{lossy assignment from 'float' to 'int'}}
   return z + z;
 }
 
@@ -262,10 +263,8 @@ float func8(float x, float y) {
 //CHECK-NEXT:         z = _t0;
 //CHECK-NEXT:         *_d_y += _d_z;
 //CHECK-NEXT:         x = _t1;
-//CHECK-NEXT:         double _t2 = 0.;
-//CHECK-NEXT:         helper2_pullback(x, _d_z, &*_d_x, _t2);
+//CHECK-NEXT:         helper2_pullback(x, _d_z, _d_x, _final_error);
 //CHECK-NEXT:         _d_z = 0.F;
-//CHECK-NEXT:         _final_error += _t2;
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
@@ -279,53 +278,89 @@ float func9(float x, float y) {
 }
 
 //CHECK: void func9_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     float _t1 = x;
+//CHECK-NEXT:     float _t0 = x;
 //CHECK-NEXT:     float _d_z = 0.F;
 //CHECK-NEXT:     float z = helper(x, y) + helper2(x);
-//CHECK-NEXT:     float _t3 = z;
-//CHECK-NEXT:     float _t5 = x;
-//CHECK-NEXT:     double _t7 = helper2(x);
-//CHECK-NEXT:     float _t8 = y;
-//CHECK-NEXT:     double _t4 = helper2(y);
-//CHECK-NEXT:     z += _t7 * _t4;
+//CHECK-NEXT:     float _t1 = z;
+//CHECK-NEXT:     float _t3 = x;
+//CHECK-NEXT:     double _t4 = helper2(x);
+//CHECK-NEXT:     float _t5 = y;
+//CHECK-NEXT:     double _t2 = helper2(y);
+//CHECK-NEXT:     z += _t4 * _t2;
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         z = _t3;
-//CHECK-NEXT:         x = _t5;
-//CHECK-NEXT:         double _t6 = 0.;
-//CHECK-NEXT:         helper2_pullback(x, _d_z * _t4, &*_d_x, _t6);
-//CHECK-NEXT:         y = _t8;
-//CHECK-NEXT:         double _t9 = 0.;
-//CHECK-NEXT:         helper2_pullback(y, _t7 * _d_z, &*_d_y, _t9);
-//CHECK-NEXT:         _final_error += _t6 + _t9;
+//CHECK-NEXT:         z = _t1;
+//CHECK-NEXT:         x = _t3;
+//CHECK-NEXT:         helper2_pullback(x, _d_z * _t2, _d_x, _final_error);
+//CHECK-NEXT:         y = _t5;
+//CHECK-NEXT:         helper2_pullback(y, _t4 * _d_z, _d_y, _final_error);
 //CHECK-NEXT:         _final_error += std::abs(*_d_y * y * {{.+}});
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         double _r1 = 0.;
-//CHECK-NEXT:         double _t0 = 0.;
-//CHECK-NEXT:         helper_pullback(x, y, _d_z, &_r0, &_r1, _t0);
+//CHECK-NEXT:         helper_pullback(x, y, _d_z, &_r0, &_r1, _final_error);
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:         *_d_y += _r1;
-//CHECK-NEXT:         x = _t1;
-//CHECK-NEXT:         double _t2 = 0.;
-//CHECK-NEXT:         helper2_pullback(x, _d_z, &*_d_x, _t2);
-//CHECK-NEXT:         _final_error += _t0 + _t2;
+//CHECK-NEXT:         x = _t0;
+//CHECK-NEXT:         helper2_pullback(x, _d_z, _d_x, _final_error);
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     _final_error += std::abs(*_d_y * y * {{.+}});
 //CHECK-NEXT: }
 
+double func10(double x, double y) {
+    return helper(x, y);
+}
+
+// CHECK: void func10_grad(double x, double y, double *_d_x, double *_d_y, double &_final_error) {
+// CHECK-NEXT:     double _ret_value0 = 0.;
+// CHECK-NEXT:     _ret_value0 = helper(x, y);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         helper_pullback(x, y, 1, &_r0, &_r1, _final_error);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         *_d_y += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
+// CHECK-NEXT:     _final_error += std::abs(*_d_y * y * {{.+}});
+// CHECK-NEXT:     _final_error += std::abs(1. * _ret_value0 * {{.+}});
+// CHECK-NEXT: }
+
 int main() {
-  clad::estimate_error(func);
-  clad::estimate_error(func2);
-  clad::estimate_error(func3);
-  clad::estimate_error(func4);
-  clad::estimate_error(func5);
-  clad::estimate_error(func6);
-  clad::estimate_error(func7);
-  clad::estimate_error(func8);
-  clad::estimate_error(func9);
+  float dx = 0, dy = 0;
+  double dxd = 0, dyd = 0;
+
+  INIT_ERROR_ESTIMATION(func);
+  TEST_ERROR_ESTIMATION(func, /*PrecissionType*/float, 3, 1, &dx, &dy); // CHECK-EXEC: {76.00}
+  
+  INIT_ERROR_ESTIMATION(func2);
+  TEST_ERROR_ESTIMATION(func2, /*PrecissionType*/float, 4, 9, &dx, &dy); // CHECK-EXEC: {0.32}
+  
+  INIT_ERROR_ESTIMATION(func3);
+  TEST_ERROR_ESTIMATION(func3, /*PrecissionType*/float, 5, 2, &dx, &dy); // CHECK-EXEC: {136.00}
+  
+  INIT_ERROR_ESTIMATION(func4);
+  TEST_ERROR_ESTIMATION(func4, /*PrecissionType*/float, 2, 4, &dx, &dy); // CHECK-EXEC: {124.36}
+  
+  INIT_ERROR_ESTIMATION(func5);
+  TEST_ERROR_ESTIMATION(func5, /*PrecissionType*/float, 1, 4, &dx, &dy); // CHECK-EXEC: {3.03}
+  
+  INIT_ERROR_ESTIMATION(func6);
+  TEST_ERROR_ESTIMATION(func6, /*PrecissionType*/float, 6, -1, &dx, &dy); // CHECK-EXEC: {330.00}
+  
+  INIT_ERROR_ESTIMATION(func7);
+  TEST_ERROR_ESTIMATION(func7, /*PrecissionType*/float, 7, &dx); // CHECK-EXEC: {14.00}
+  
+  INIT_ERROR_ESTIMATION(func8);
+  TEST_ERROR_ESTIMATION(func8, /*PrecissionType*/float, -3, 2, &dx, &dy); // CHECK-EXEC: {47.00}
+  
+  INIT_ERROR_ESTIMATION(func9);
+  TEST_ERROR_ESTIMATION(func9, /*PrecissionType*/float, 0, 5, &dx, &dy); // CHECK-EXEC: {25.00}
+  
+  INIT_ERROR_ESTIMATION(func10);
+  TEST_ERROR_ESTIMATION(func10, /*PrecissionType*/float, 8, 5, &dxd, &dyd); // CHECK-EXEC: {240.00}
 }

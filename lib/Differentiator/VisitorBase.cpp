@@ -19,14 +19,19 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attrs.inc"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/OperationKinds.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
@@ -37,6 +42,7 @@
 #include "llvm/Support/Casting.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <numeric>
 
 #include "clad/Differentiator/Compatibility.h"
@@ -260,6 +266,17 @@ namespace clad {
     return new (m_Context) DeclStmt(DGR, noLoc, noLoc);
   }
 
+  ForStmt* VisitorBase::BuildStandardForLoop(VarDecl* loopCounter, size_t N,
+                                             Stmt* body) {
+    Stmt* init = BuildDeclStmt(loopCounter);
+    Expr* numExpr =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, N);
+    Expr* cond = BuildOp(BO_LT, BuildDeclRef(loopCounter), numExpr);
+    Expr* inc = BuildOp(UO_PreInc, BuildDeclRef(loopCounter));
+    return new (m_Context) ForStmt(m_Context, init, cond, /*CondVar=*/nullptr,
+                                   inc, body, noLoc, noLoc, noLoc);
+  }
+
   DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
                                          NestedNameSpecifier* NNS /*=nullptr*/,
                                          ExprValueKind VK /*=VK_LValue*/) {
@@ -403,6 +420,14 @@ namespace clad {
                              SourceLocation OpLoc) {
     if (!E)
       return nullptr;
+    // Don't generate unary operators that cancel out, e.g. `&*x`.
+    // Note: overloaded unary operators are call exprs and are not handled here.
+    if (auto* UO = dyn_cast<UnaryOperator>(E->IgnoreParenImpCasts())) {
+      UnaryOperatorKind EKind = UO->getOpcode();
+      if ((EKind == UO_AddrOf && OpCode == UO_Deref) ||
+          (EKind == UO_Deref && OpCode == UO_AddrOf))
+        return UO->getSubExpr();
+    }
     // Debug clang requires the location to be valid
     if (!OpLoc.isValid())
       OpLoc = utils::GetValidSLoc(m_Sema);
@@ -550,17 +575,25 @@ namespace clad {
                                           StringRef MemberFunctionName,
                                           MutableArrayRef<Expr*> ArgExprs,
                                           SourceLocation Loc /*=noLoc*/) {
+    IdentifierInfo* II = &m_Context.Idents.get(MemberFunctionName);
+    UnqualifiedId Member;
+    Member.setIdentifier(II, Loc);
+    return BuildCallExprToMemFn(Base, &Member, ArgExprs, Loc);
+  }
+
+  Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base,
+                                          UnqualifiedId* MemberFunction,
+                                          MutableArrayRef<Expr*> ArgExprs,
+                                          SourceLocation Loc /*=noLoc*/) {
     if (Loc.isInvalid())
       Loc = m_DiffReq->getLocation();
-    UnqualifiedId Member;
-    Member.setIdentifier(&m_Context.Idents.get(MemberFunctionName), Loc);
     CXXScopeSpec SS;
     bool isArrow = Base->getType()->isPointerType();
     auto ME = m_Sema
                   .ActOnMemberAccessExpr(getCurrentScope(), Base, Loc,
                                          isArrow ? tok::TokenKind::arrow
                                                  : tok::TokenKind::period,
-                                         SS, noLoc, Member,
+                                         SS, noLoc, *MemberFunction,
                                          /*ObjCImpDecl=*/nullptr)
                   .getAs<MemberExpr>();
     return m_Sema.ActOnCallExpr(getCurrentScope(), ME, Loc, ArgExprs, Loc)
@@ -636,13 +669,22 @@ namespace clad {
     if (FD->isOverloadedOperator()) {
       call = BuildOperatorCall(FD->getOverloadedOperator(), argExprs);
     } else if (MD && MD->isInstance()) {
-      // FIXME: We shouldn't have different overloads of BuildCallExprToMemFn.
       if (useRefQualifiedThisObj)
         call = BuildCallExprToMemFn(const_cast<CXXMethodDecl*>(MD), argExprs,
                                     useRefQualifiedThisObj);
-      else
-        call = BuildCallExprToMemFn(argExprs[0], MD->getName(),
-                                    argExprs.drop_front(), MD->getLocation());
+      else {
+        UnqualifiedId Member;
+        SourceLocation loc = argExprs[0]->getBeginLoc();
+        if (const auto* CD = dyn_cast<CXXConversionDecl>(FD)) {
+          ParsedType PT = ParsedType::make(CD->getConversionType());
+          Member.setConversionFunctionId(loc, PT, loc);
+        } else {
+          IdentifierInfo* II = &m_Context.Idents.get(MD->getName());
+          Member.setIdentifier(II, MD->getLocation());
+        }
+        call = BuildCallExprToMemFn(argExprs[0], &Member, argExprs.drop_front(),
+                                    MD->getLocation());
+      }
     } else {
       if (!argExprs.empty() &&
           FD->getParamDecl(0)->getType()->isPointerType() &&
@@ -745,24 +787,23 @@ namespace clad {
     bool NumDiffEnabled =
         !m_Sema.getPreprocessor().isMacroDefined("CLAD_NO_NUM_DIFF");
     // FIXME: Switch to the real diagnostics engine and pass FD directly.
-    std::string funcName = FD->getNameAsString();
     diag(DiagnosticsEngine::Warning, srcLoc,
-         "function '%0' was not differentiated because clad failed to "
+         "function %0 was not differentiated because clad failed to "
          "differentiate it and no suitable overload was found in "
-         "namespace 'custom_derivatives'",
-         {funcName});
+         "namespace 'custom_derivatives'")
+        << FD << srcLoc;
     if (NumDiffEnabled) {
       diag(DiagnosticsEngine::Note, srcLoc,
-           "falling back to numerical differentiation for '%0' since no "
+           "falling back to numerical differentiation for %0 since no "
            "suitable overload was found and clad could not derive it; "
            "to disable this feature, compile your programs with "
-           "-DCLAD_NO_NUM_DIFF",
-           {funcName});
+           "-DCLAD_NO_NUM_DIFF")
+          << FD << srcLoc;
     } else {
       diag(DiagnosticsEngine::Note, srcLoc,
            "fallback to numerical differentiation is disabled by the "
-           "'CLAD_NO_NUM_DIFF' macro; considering '%0' as 0",
-           {funcName});
+           "'CLAD_NO_NUM_DIFF' macro; considering %0 as 0")
+          << FD << srcLoc;
     }
   }
 
@@ -972,14 +1013,15 @@ namespace clad {
 
   VisitorBase::~VisitorBase() = default;
 
-  QualType
-  VisitorBase::GetDerivativeType(llvm::ArrayRef<QualType> customParams) {
+  QualType VisitorBase::GetDerivativeType() {
     llvm::SmallVector<const ValueDecl*, 4> diffParams{};
     for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
       diffParams.push_back(VarInfo.param);
-    return utils::GetDerivativeType(m_Sema, m_DiffReq.Function, m_DiffReq.Mode,
-                                    diffParams, /*forCustomDerv=*/false,
-                                    customParams);
+    return utils::GetDerivativeType(
+        m_Sema, m_DiffReq.Function, m_DiffReq.Mode, diffParams,
+        /*forCustomDerv=*/false,
+        /*shouldUseRestoreTracker=*/m_DiffReq.UseRestoreTracker,
+        m_DiffReq.EnableErrorEstimation);
   }
 
   FunctionDecl* VisitorBase::FindDerivedFunction(DiffRequest& request) {

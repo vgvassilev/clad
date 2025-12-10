@@ -13,10 +13,12 @@
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <cassert>
 #include <string>
 
 namespace clang {
@@ -49,16 +51,18 @@ namespace clad {
                                                      clang::Stmt* initial,
                                                      clang::Stmt* S);
 
-    /// Shorthand to issues a warning or error.
     template <std::size_t N>
-    void EmitDiag(clang::Sema& semaRef,
-              clang::DiagnosticsEngine::Level level, // Warning or Error
-              clang::SourceLocation loc, const char (&format)[N],
-              llvm::ArrayRef<llvm::StringRef> args = {}) {
-      unsigned diagID = semaRef.Diags.getCustomDiagID(level, format);
-      clang::Sema::SemaDiagnosticBuilder stream = semaRef.Diag(loc, diagID);
-      for (auto arg : args)
-        stream << arg;
+    clang::Sema::SemaDiagnosticBuilder
+    diag(clang::Sema& S, clang::DiagnosticsEngine::Level Level,
+         clang::SourceLocation Loc, const char (&Format)[N]) {
+      static_assert(N > 1, "Diagnostic format string must not be empty");
+      assert(!std::isupper(Format[0]) && "Diagnostics start with lower case!");
+      assert((std::isalpha(Format[N - 2]) || Format[N - 2] == ')' ||
+              Format[N - 2] == '\'' || std::isdigit(Format[N - 2])) &&
+             "Diagnostics end with no punctuation!");
+      unsigned DiagID = S.Diags.getCustomDiagID(Level, Format);
+      clang::Sema::SemaDiagnosticBuilder B = S.Diag(Loc, DiagID);
+      return B;
     }
 
     /// Creates nested name specifier associated with declaration context
@@ -172,6 +176,27 @@ namespace clad {
 
     clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
                                                         llvm::StringRef name);
+
+    /// Checks if a set of overloads has one that matches the required type.
+    ///
+    ///\param[in] S reference to `Sema`
+    ///\param[in] FnTy required type
+    ///\param[in] Overloads set of overloads
+    ///\param[in] FailedCandidates set for accumulating failed overload
+    /// candidates
+    clang::Expr*
+    MatchOverloadType(clang::Sema& S, clang::QualType FnTy,
+                      clang::LookupResult& Overloads,
+                      clang::TemplateSpecCandidateSet& FailedCandidates);
+
+    /// Produces note-diagnostics about type mismatches between user-provided
+    /// functions and the required signature.
+    ///
+    ///\param[in] S reference to `Sema`
+    ///\param[in] FnTy required type
+    ///\param[in] Overloads set of overloads
+    void DiagnoseSignatureMismatch(clang::Sema& S, clang::QualType FnTy,
+                                   const clang::LookupResult& Overloads);
 
     /// Returns true if the function has any reference or pointer parameter;
     /// otherwise returns false.
@@ -339,12 +364,11 @@ namespace clad {
     ///
     /// \param[in] forCustomDerv If true, turns member functions into regular
     /// functions by moving the base to the parameters.
-    clang::QualType
-    GetDerivativeType(clang::Sema& S, const clang::FunctionDecl* FD,
-                      DiffMode mode,
-                      llvm::ArrayRef<const clang::ValueDecl*> diffParams,
-                      bool forCustomDerv = false,
-                      llvm::ArrayRef<clang::QualType> customParams = {});
+    clang::QualType GetDerivativeType(
+        clang::Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
+        llvm::ArrayRef<const clang::ValueDecl*> diffParams,
+        bool forCustomDerv = false, bool shouldUseRestoreTracker = false,
+        bool isForErrorEstimation = false);
     /// Find declaration of clad::class templated type
     ///
     /// \param[in] className name of the class to be found
@@ -393,7 +417,6 @@ namespace clad {
 
     bool IsZeroOrNullValue(const clang::Expr* E);
 
-    bool IsMemoryFunction(const clang::FunctionDecl* FD);
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);
 
     /// Returns true if QT is a non-const reference type.
@@ -414,10 +437,6 @@ namespace clad {
     bool shouldUseRestoreTracker(const clang::FunctionDecl* FD);
 
     bool IsDifferentiableType(clang::QualType T);
-
-    /// Returns true if T is a Tensor-like type. This type must be
-    /// forward-declared in the `clad::tensor_like` namespace.
-    bool isTensorLike(clang::Sema& SemaRef, clang::QualType T);
 
     bool hasElidableReverseForwAttribute(const clang::Decl* D);
 

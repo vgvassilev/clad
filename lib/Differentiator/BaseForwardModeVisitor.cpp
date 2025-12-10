@@ -9,6 +9,7 @@
 #include "ConstantFolder.h"
 
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
@@ -86,12 +87,11 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
     // or pointer type, only one of the indices have been requested
     if (DVI.size() > 1 || (isArrayOrPointerType(diffVarInfo.param->getType()) &&
                            (diffVarInfo.paramIndexInterval.size() != 1))) {
-      diag(DiagnosticsEngine::Error,
-           m_DiffReq.Args ? m_DiffReq.Args->getEndLoc() : noLoc,
-           "Forward mode differentiation w.r.t. several parameters at once is "
-           "not "
-           "supported, call 'clad::differentiate' for each parameter "
-           "separately");
+      SourceLocation L = m_DiffReq.Args ? m_DiffReq.Args->getBeginLoc() : noLoc;
+      diag(DiagnosticsEngine::Error, L,
+           "forward mode differentiation w.r.t. several parameters at once is "
+           "not supported; call 'clad::differentiate' for each parameter")
+          << L;
       return {};
     }
 
@@ -113,10 +113,11 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
       if (!m_IndependentVar->getType()
                ->getPointeeOrArrayElementType()
                ->isRealType()) {
-        diag(DiagnosticsEngine::Error, m_IndependentVar->getEndLoc(),
-             "attempted differentiation w.r.t. a parameter ('%0') which is not"
-             " an array or pointer of a real type",
-             {m_IndependentVar->getNameAsString()});
+        SourceLocation L = m_IndependentVar->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "attempted differentiation w.r.t. parameter %0 which is not"
+             " array or pointer of real type")
+            << m_IndependentVar << L;
         return {};
       }
       m_IndependentVarIndex = diffVarInfo.paramIndexInterval.Start;
@@ -130,10 +131,11 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
         isField = true;
       }
       if (!IsRealNonReferenceType(T)) {
-        diag(DiagnosticsEngine::Error, m_DiffReq.Args->getEndLoc(),
-             "Attempted differentiation w.r.t. %0 '%1' which is not "
-             "of real type.",
-             {(isField ? "member" : "parameter"), diffVarInfo.source});
+        SourceLocation L = m_DiffReq.Args->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "attempted differentiation w.r.t. %select{member|parameter}0 '%1' "
+             "which is not of real type")
+            << isField << diffVarInfo.source << L;
         return {};
       }
     }
@@ -317,16 +319,34 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
     // relation among them, thus it is safe (correct) to use the corresponding
     // non-reference type for creating the derivatives.
     QualType dParamType = param->getType().getNonReferenceType();
-    // We do not create derived variable for array/pointer parameters.
-    if (!utils::IsDifferentiableType(dParamType) ||
-        utils::isArrayOrPointerType(dParamType))
-      continue;
     Expr* dParam = nullptr;
-    if (dParamType->isRealType()) {
+    if (!utils::IsDifferentiableType(dParamType))
+      continue;
+    // If the parameter type decayed const array type, we can still initialize
+    // it. Therefore, we don't have to produce the error.
+    if (const auto* DT = dyn_cast<DecayedType>(dParamType))
+      dParamType = DT->getOriginalType();
+    if (dParamType->isConstantArrayType()) {
+      if (param == m_IndependentVar)
+        continue;
+      dParam = getZeroInit(dParamType);
+    } else if (dParamType->isRealType()) {
       // If param is independent variable, its derivative is 1, otherwise 0.
       int dValue = (param == m_IndependentVar);
       dParam =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, dValue);
+    } else if (utils::isArrayOrPointerType(dParamType)) {
+      // We cannot initialize a pointer array adjoint ourselves.
+      // Produce an error.
+      if (param != m_IndependentVar &&
+          !utils::GetValueType(dParamType).isConstQualified()) {
+        SourceLocation L = param->getLocation();
+        diag(DiagnosticsEngine::Error, L,
+             "dependent non-const pointer and array parameters "
+             "are not supported; differentiate w.r.t. %0 or mark it const")
+            << param << L;
+      }
+      continue;
     }
     // For each function arg, create a variable _d_arg to store derivatives
     // of potential reassignments, e.g.:
@@ -436,8 +456,7 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitStmt(const Stmt* S) {
-  diag(DiagnosticsEngine::Warning, S->getBeginLoc(),
-       "attempted to differentiate unsupported statement, no changes applied");
+  diagUnsupported(S);
   // Unknown stmt, just clone it.
   return StmtDiff(Clone(S));
 }
@@ -994,8 +1013,7 @@ DiffMode BaseForwardModeVisitor::GetPushForwardMode() {
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
-    diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
-         "Differentiation of only direct calls is supported. Ignored");
+    diagUnsupportedIndirectCalls(CE);
     return StmtDiff(Clone(CE));
   }
 
@@ -1332,9 +1350,11 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
         (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
          Expr::MLV_Valid) &&
         !isCladArrayType(Ldiff.getExpr_dx()->getType())) {
-      diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
+      SourceLocation L = BinOp->getBeginLoc();
+      diag(DiagnosticsEngine::Warning, L,
            "derivative of an assignment attempts to assign to unassignable "
-           "expr, assignment ignored");
+           "expr, assignment ignored")
+          << L;
       opDiff = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
     } else if (opCode == BO_Assign || opCode == BO_AddAssign ||
                opCode == BO_SubAssign) {
@@ -1489,11 +1509,9 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
     if (typeDecl && (clad::utils::hasNonDifferentiableAttribute(typeDecl) ||
                      typeDecl->isLambda())) {
       for (auto* D : DS->decls()) {
-        if (auto* VD = dyn_cast<VarDecl>(D))
-          decls.push_back(VD);
-        else
-          diag(DiagnosticsEngine::Warning, D->getEndLoc(),
-               "Unsupported declaration");
+        assert(isa<VarDecl>(D) && "Mixed decl types in a single decl stmt is "
+                                  "not standard c++ syntax");
+        decls.push_back(cast<VarDecl>(D));
       }
       Stmt* DSClone = BuildDeclStmt(decls);
       return StmtDiff(DSClone, nullptr);
@@ -1538,8 +1556,7 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       if (SADDiff.getDecl_dx())
         declsDiff.push_back(SADDiff.getDecl_dx());
     } else {
-      diag(DiagnosticsEngine::Warning, D->getEndLoc(),
-           "Unsupported declaration");
+      diagUnsupported(D);
     }
   }
 
@@ -1966,10 +1983,12 @@ BaseForwardModeVisitor::DeriveSwitchStmtBodyHelper(const Stmt* stmt,
         // We can also solve this issue by creating new scope and compound
         // statement block wherever they are required instead of enclosing all
         // the statements of a case label in a single compound statement.
-        diag(DiagnosticsEngine::Error, containedSC->getBeginLoc(),
-             "Differentiating switch case label contained in a compound "
+        SourceLocation L = containedSC->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "differentiating switch case label contained in a compound "
              "statement, other than the switch statement compound "
-             "statement, is not supported.");
+             "statement, is not supported")
+            << L;
         return activeSC;
       }
     }

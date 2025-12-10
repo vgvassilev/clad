@@ -14,17 +14,18 @@
 #include "clad/Differentiator/Version.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclBase.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Version.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Sema/SemaConsumer.h"
-#include <clang/AST/DeclBase.h>
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <deque>
 #include <map>
@@ -52,8 +53,7 @@ struct DifferentiationOptions {
         ValidateClangVersion(true), EnableTBRAnalysis(false),
         DisableTBRAnalysis(false), EnableVariedAnalysis(false),
         DisableVariedAnalysis(false), EnableUsefulAnalysis(false),
-        DisableUsefulAnalysis(false), CustomEstimationModel(false),
-        PrintNumDiffErrorInfo(false) {}
+        DisableUsefulAnalysis(false), PrintNumDiffErrorInfo(false) {}
 
   bool DumpSourceFn : 1;
   bool DumpSourceFnAST : 1;
@@ -67,9 +67,7 @@ struct DifferentiationOptions {
   bool DisableVariedAnalysis : 1;
   bool EnableUsefulAnalysis : 1;
   bool DisableUsefulAnalysis : 1;
-  bool CustomEstimationModel : 1;
   bool PrintNumDiffErrorInfo : 1;
-  std::string CustomModelName;
 };
 
     class CladExternalSource : public clang::ExternalSemaSource {
@@ -326,12 +324,9 @@ struct DifferentiationOptions {
           } else if (args[i] == "-disable-ua") {
             m_DO.DisableUsefulAnalysis = true;
           } else if (args[i] == "-fcustom-estimation-model") {
-            m_DO.CustomEstimationModel = true;
-            if (++i == e) {
-              llvm::errs() << "No shared object was specified.";
-              return false;
-            }
-            m_DO.CustomModelName = args[i];
+            llvm::errs() << "`-fcustom-estimation-model` is deprecated.";
+            ++i;
+            return false;
           } else if (args[i] == "-fprint-num-diff-errors") {
             m_DO.PrintNumDiffErrorInfo = true;
           } else if (args[i] == "-help") {

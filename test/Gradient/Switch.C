@@ -1,5 +1,7 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oSwitch.out 2>&1 -lm | %filecheck %s
 // RUN: ./Switch.out | %filecheck_exec %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oSwitch.out
+// RUN: ./Switch.out | %filecheck_exec %s
 // XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
@@ -262,7 +264,7 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 2;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     while (counter--)
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _t0++;
@@ -395,7 +397,7 @@ double fn4(double i, double j) {
 // CHECK-NEXT:               case 1:
 // CHECK-NEXT:                 counter = 2;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             _t2 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:             _t2 = 0;
 // CHECK-NEXT:             while (counter--)
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     _t2++;
@@ -572,7 +574,7 @@ double fn7(double u, double v) {
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         {

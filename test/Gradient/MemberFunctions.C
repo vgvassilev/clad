@@ -1,9 +1,11 @@
 // RUN: %cladclang %s -fno-exceptions -I%S/../../include -oMemberFunctions.out 2>&1 | %filecheck %s
 // RUN: ./MemberFunctions.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -fno-exceptions -I%S/../../include -oMemberFunctions.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -fno-exceptions -I%S/../../include -oMemberFunctions.out
 // RUN: ./MemberFunctions.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
+
+#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
 
 class SimpleFunctions {
 public:
@@ -429,8 +431,10 @@ double fn2(SimpleFunctions& sf, double i) {
   return sf.ref_mem_fn(i);
 }
 
-// CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_reverse_forw(double i, SimpleFunctions *_d_this, double _d_i) {
+// CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_reverse_forw(double i, SimpleFunctions *_d_this, double _d_i, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     _tracker0.store(this->x);
 // CHECK-NEXT:     this->x = +i;
+// CHECK-NEXT:     _tracker0.store(this->x);
 // CHECK-NEXT:     this->x = -i;
 // CHECK-NEXT:     return {this->x, _d_this->x};
 // CHECK-NEXT: }
@@ -455,13 +459,13 @@ double fn2(SimpleFunctions& sf, double i) {
 // CHECK-NEXT: }
 
 // CHECK: void fn2_grad(SimpleFunctions &sf, double i, SimpleFunctions *_d_sf, double *_d_i) {
-// CHECK-NEXT:     SimpleFunctions _t0 = sf;
-// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = sf.ref_mem_fn_reverse_forw(i, &(*_d_sf), 0.);
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = sf.ref_mem_fn_reverse_forw(i, _d_sf, 0., _tracker0);
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _t1.adjoint += 1;
-// CHECK-NEXT:         sf = _t0;
+// CHECK-NEXT:         _t0.adjoint += 1;
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         sf.ref_mem_fn_pullback(i, &(*_d_sf), &_r0);
+// CHECK-NEXT:         sf.ref_mem_fn_pullback(i, _d_sf, &_r0);
 // CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -476,7 +480,8 @@ double fn5(SimpleFunctions& v, double value) {
   return v.x;
 }
 
-// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_reverse_forw(double value, SimpleFunctions *_d_this, double _d_value) {
+// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_reverse_forw(double value, SimpleFunctions *_d_this, double _d_value, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     _tracker0.store(this->x);
 // CHECK-NEXT:     this->x += value;
 // CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }
@@ -492,13 +497,13 @@ double fn5(SimpleFunctions& v, double value) {
 // CHECK-NEXT: }
 
 // CHECK: void fn5_grad(SimpleFunctions &v, double value, SimpleFunctions *_d_v, double *_d_value) {
-// CHECK-NEXT:     SimpleFunctions _t0 = v;
-// CHECK-NEXT:     v.operator_plus_equal_reverse_forw(value, &(*_d_v), 0.);
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     v.operator_plus_equal_reverse_forw(value, _d_v, 0., _tracker0);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         v = _t0;
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         v.operator_plus_equal_pullback(value, &(*_d_v), &_r0);
+// CHECK-NEXT:         v.operator_plus_equal_pullback(value, _d_v, &_r0);
 // CHECK-NEXT:         *_d_value += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -508,7 +513,8 @@ double fn4(SimpleFunctions& v) {
   return v.x;
 }
 
-// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_reverse_forw(SimpleFunctions *_d_this) {
+// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_reverse_forw(SimpleFunctions *_d_this, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     _tracker0.store(this->x);
 // CHECK-NEXT:     this->x += 1.;
 // CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }
@@ -523,12 +529,12 @@ double fn4(SimpleFunctions& v) {
 // CHECK-NEXT: }
 
 // CHECK: void fn4_grad(SimpleFunctions &v, SimpleFunctions *_d_v) {
-// CHECK-NEXT:     SimpleFunctions _t0 = v;
-// CHECK-NEXT:     v.operator_plus_plus_reverse_forw(&(*_d_v));
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     v.operator_plus_plus_reverse_forw(_d_v, _tracker0);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         v = _t0;
-// CHECK-NEXT:         v.operator_plus_plus_pullback(&(*_d_v));
+// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         v.operator_plus_plus_pullback(_d_v);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -546,13 +552,11 @@ namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
     clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
-    constructor_reverse_forw(clad::Tag<SafeTestClass>, double x, double* y, double d_x, double* d_y) {
-        return {SafeTestClass(x, y), SafeTestClass(d_x, d_y)};
-    }
+    constructor_reverse_forw(clad::Tag<SafeTestClass>, double x, double* y, double d_x, double* d_y) elidable_reverse_forw;
+    
     clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
-    constructor_reverse_forw(clad::Tag<SafeTestClass>, double &x, double &d_x) {
-        return {SafeTestClass(x), SafeTestClass(d_x)};
-    }
+    constructor_reverse_forw(clad::Tag<SafeTestClass>, double &x, double &d_x) elidable_reverse_forw;
+
     clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
     constructor_reverse_forw(clad::Tag<SafeTestClass>) {
         return {SafeTestClass(), SafeTestClass()};
@@ -583,19 +587,17 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      double &w = u;
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t0 = {{.*}}constructor_reverse_forw(clad::Tag<SafeTestClass>());
 // CHECK-NEXT:      SafeTestClass s1(_t0.value);
-// CHECK-NEXT:      SafeTestClass _d_s1 = _t0.adjoint;
-// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t1 = {{.*}}constructor_reverse_forw(clad::Tag<SafeTestClass>(), u, &v, 0., &*_d_v);
-// CHECK-NEXT:      SafeTestClass s2(_t1.value);
-// CHECK-NEXT:      SafeTestClass _d_s2 = _t1.adjoint;
-// CHECK-NEXT:      double _t2 = w;
-// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t3 = {{.*}}constructor_reverse_forw(clad::Tag<SafeTestClass>(), w, _d_w);
-// CHECK-NEXT:      SafeTestClass s3(_t3.value);
-// CHECK-NEXT:      SafeTestClass _d_s3 = _t3.adjoint;
+// CHECK-NEXT:      SafeTestClass _d_s1(_t0.adjoint);
+// CHECK-NEXT:      SafeTestClass s2(u, &v);
+// CHECK-NEXT:      SafeTestClass _d_s2(0., _d_v);
+// CHECK-NEXT:      double _t1 = w;
+// CHECK-NEXT:      SafeTestClass s3(w);
+// CHECK-NEXT:      SafeTestClass _d_s3(_d_w);
 // CHECK-NEXT:      *_d_v += 1;
-// CHECK-NEXT:      w = _t2;
+// CHECK-NEXT:      w = _t1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;  
-// CHECK-NEXT:          SafeTestClass::constructor_pullback(u, &v, &_d_s2, &_r0, &*_d_v);
+// CHECK-NEXT:          SafeTestClass::constructor_pullback(u, &v, &_d_s2, &_r0, _d_v);
 // CHECK-NEXT:          *_d_u += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
@@ -670,7 +672,7 @@ double fn10(double x, double y) {
 // CHECK-NEXT:          S _r0 = {0., false};
 // CHECK-NEXT:          ((s - 4 * x) - y).getVal_pullback(1, &_r0);
 // CHECK-NEXT:          S _r1 = {0., false};
-// CHECK-NEXT:          (s - 4 * x).operator_minus_pullback(y, _r0, &_r1, &*_d_y);
+// CHECK-NEXT:          (s - 4 * x).operator_minus_pullback(y, _r0, &_r1, _d_y);
 // CHECK-NEXT:          double _r2 = 0.;
 // CHECK-NEXT:          s.operator_minus_pullback(4 * x, _r1, &_d_s, &_r2);
 // CHECK-NEXT:          *_d_x += 4 * _r2;
@@ -696,6 +698,11 @@ public:
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+// CHECK:  void increment_reverse_forw(A *_d_this, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:      _tracker0.store(this->data);
+// CHECK-NEXT:      this->data++;
+// CHECK-NEXT:  }
+
 // CHECK:  void increment_pullback(A *_d_this) {
 // CHECK-NEXT:      this->data++;
 // CHECK-NEXT:      this->data--;
@@ -717,11 +724,11 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      A a;
 // CHECK-NEXT:      a.setData(u);
 // CHECK-NEXT:      res += a.data * v;
-// CHECK-NEXT:      A _t0 = a;
-// CHECK-NEXT:      a.increment();
+// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:      a.increment_reverse_forw(&_d_a, _tracker0);
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          a = _t0;
+// CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:          a.increment_pullback(&_d_a);
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
@@ -763,7 +770,7 @@ float fn12(const B b, const float* in) {
 // CHECK-NEXT:      float res = 0;
 // CHECK-NEXT:      b.scale(in, &res);
 // CHECK-NEXT:      _d_res += 1;
-// CHECK-NEXT:      b.scale_pullback(in, &res, &(*_d_b), &_d_res);
+// CHECK-NEXT:      b.scale_pullback(in, &res, _d_b, &_d_res);
 // CHECK-NEXT:  }
 
 int main() {

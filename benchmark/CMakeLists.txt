@@ -9,6 +9,7 @@ if (CLAD_ENABLE_ENZYME_BACKEND)
 endif(CLAD_ENABLE_ENZYME_BACKEND)
 CB_ADD_GBENCHMARK(VectorModeComparison VectorModeComparison.cpp)
 CB_ADD_GBENCHMARK(MemoryComplexity MemoryComplexity.cpp)
+CB_ADD_GBENCHMARK(Multithreading Multithreading.cpp)
 CB_ADD_GBENCHMARK(Hessians Hessians.cpp)
 
 set (CLAD_BENCHMARK_DEPS clad)

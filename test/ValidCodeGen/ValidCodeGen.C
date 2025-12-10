@@ -11,7 +11,7 @@
 #include "../PrintOverloads.h"
 
 namespace TN {
-    int coefficient = 3; // expected-warning {{The gradient utilizes a global variable 'coefficient'. Please make sure to properly reset 'coefficient' before re-running the gradient.}}
+    int coefficient = 3; // expected-warning {{gradient uses a global variable 'coefficient'; rerunning the gradient requires 'coefficient' to be reset}}
     template <typename T>
     struct Test2 {
         T operator[](T x) {

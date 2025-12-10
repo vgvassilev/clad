@@ -17,8 +17,11 @@
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/Sema.h"
+#include "clang/Sema/TemplateDeduction.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
@@ -537,10 +540,16 @@ namespace clad {
             CAT->getSizeModifier(), CAT->getIndexTypeCVRQualifiers());
       }
       T = T.getNonReferenceType();
+      bool isConstPtrType =
+          T->isPointerType() && T->getPointeeType().isConstQualified();
+      if (isConstPtrType)
+        T = T->getPointeeType();
       clang::Qualifiers quals(T.getQualifiers());
       quals.removeConst();
       clang::QualType nonConstType =
           S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
+      if (isConstPtrType)
+        nonConstType = S.getASTContext().getPointerType(nonConstType);
       if (isLValueRefType)
         return S.getASTContext().getLValueReferenceType(nonConstType);
       return nonConstType;
@@ -820,31 +829,6 @@ namespace clad {
       return false;
     }
 
-    bool IsMemoryFunction(const clang::FunctionDecl* FD) {
-      if (FD->getNameAsString() == "cudaMalloc")
-        return true;
-#if CLANG_VERSION_MAJOR > 12
-      if (FD->getBuiltinID() == Builtin::BImalloc)
-        return true;
-      if (FD->getBuiltinID() == Builtin::ID::BIcalloc)
-        return true;
-      if (FD->getBuiltinID() == Builtin::ID::BIrealloc)
-        return true;
-      if (FD->getBuiltinID() == Builtin::ID::BImemset)
-        return true;
-#else
-      if (FD->getNameAsString() == "malloc")
-        return true;
-      if (FD->getNameAsString() == "calloc")
-        return true;
-      if (FD->getNameAsString() == "realloc")
-        return true;
-      if (FD->getNameAsString() == "memset")
-        return true;
-#endif
-      return false;
-    }
-
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD) {
       if (FD->getNameAsString() == "cudaFree")
         return true;
@@ -966,6 +950,80 @@ namespace clad {
       return cast<TemplateDecl>(TapeR.getFoundDecl());
     }
 
+    Expr* MatchOverloadType(Sema& S, QualType FnTy, LookupResult& Overloads,
+                            TemplateSpecCandidateSet& FailedCandidates) {
+      CXXScopeSpec SS;
+      ASTContext& C = S.getASTContext();
+      // Check if any of the custom derivative signature satisfy the
+      // requirements.
+      for (LookupResult::iterator I = Overloads.begin(), E = Overloads.end();
+           I != E; ++I) {
+        NamedDecl* candidate = I.getDecl();
+        // Shadow decls don't provide enough information, go to the actual decl.
+        if (auto* usingShadow = dyn_cast<UsingShadowDecl>(candidate))
+          candidate = usingShadow->getTargetDecl();
+
+        // Overload is a template, try to match the signature.
+        if (auto* FTD = dyn_cast<FunctionTemplateDecl>(candidate)) {
+          FunctionDecl* Specialization = nullptr;
+          sema::TemplateDeductionInfo Info(FailedCandidates.getLocation());
+          TemplateArgumentListInfo ExplicitTemplateArgs;
+          auto TDK = S.DeduceTemplateArguments(FTD, &ExplicitTemplateArgs, FnTy,
+                                               Specialization, Info);
+
+          // Instantiation with the required signature succeeded.
+          if (TDK == clad_compat::CLAD_COMPAT_TemplateSuccess)
+            return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false)
+                .get();
+
+          FailedCandidates.addCandidate().set(
+              I.getPair(), FTD->getTemplatedDecl(),
+              MakeDeductionFailureInfo(C, TDK, Info));
+
+          // Instantiation of parameters suceeded but clang doesn't consider
+          // deduction successful because of the auto return type.
+          if (Specialization && !Specialization->isTemplated() &&
+              Specialization->getReturnType()->isUndeducedAutoType())
+            return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false)
+                .get();
+        }
+        auto* FD = dyn_cast<FunctionDecl>(candidate);
+        if (!FD)
+          continue;
+        // Overload is just a FunctionDecl, check if the signature matches.
+        if (C.hasSameFunctionTypeIgnoringExceptionSpec(FD->getType(), FnTy))
+          return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false).get();
+      }
+      return nullptr;
+    }
+
+    void DiagnoseSignatureMismatch(Sema& S, QualType FnTy,
+                                   const LookupResult& Overloads) {
+      ASTContext& C = S.getASTContext();
+      std::string Name = Overloads.getLookupName().getAsString();
+      unsigned noteId = S.Diags.getCustomDiagID(
+          DiagnosticsEngine::Note,
+          "candidate '%0'"
+          "%select{| has different class%diff{ (expected $ but has $)|}1,2"
+          "| has different number of parameters (expected %2 but has %3)"
+          "| has type mismatch at %ordinal2 parameter"
+          "%diff{ (expected $ but has $)|}3,4"
+          "| has different return type%diff{ ($ expected but has $)|}2,3"
+          "| has different qualifiers (expected %2 but found %3)"
+          "| has different exception specification}1");
+
+      for (const NamedDecl* ND : Overloads) {
+        if (const auto* usingShadow = dyn_cast<UsingShadowDecl>(ND))
+          ND = usingShadow->getTargetDecl();
+        if (!isa<FunctionDecl>(ND))
+          continue;
+        const auto* FD = cast<FunctionDecl>(ND);
+        auto PD = PartialDiagnostic(noteId, C.getDiagAllocator()) << Name;
+        S.HandleFunctionTypeMismatch(PD, FD->getType(), FnTy);
+        S.Diag(FD->getLocation(), PD);
+      }
+    }
+
     bool isMemoryType(QualType T) {
       T = T.getCanonicalType();
       if (T->isReferenceType())
@@ -990,11 +1048,9 @@ namespace clad {
     }
 
     bool shouldUseRestoreTracker(const FunctionDecl* FD) {
-      // FIXME: We return false to disable the system for methods because
-      // reverse_forw will currently break some of them. We need to improve
-      // reverse_forw to support this.
-      if (isa<CXXMethodDecl>(FD) || FD->isOverloadedOperator())
-        return false;
+      const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+      if (MD && MD->isInstance() && !MD->isConst())
+        return true;
       // FIXME: clad::restore_tracker is not thread-safe.
       // We shoudn't disable reverse_forw for CUDA
       if (FD->hasAttr<clang::CUDAGlobalAttr>() ||
@@ -1059,6 +1115,7 @@ namespace clad {
 
     bool IsDifferentiableType(QualType T) {
       QualType origType = T;
+      T = T.getCanonicalType();
       // FIXME: arbitrary dimension array type as well.
       while (utils::isArrayOrPointerType(T) || T->isReferenceType())
         T = utils::GetValueType(T);
@@ -1130,8 +1187,7 @@ namespace clad {
         return resType;
       }
 
-      if (Mode == DiffMode::reverse || Mode == DiffMode::pullback ||
-          Mode == DiffMode::error_estimation) {
+      if (Mode == DiffMode::reverse || Mode == DiffMode::pullback) {
         QualType ValueType = GetNonConstValueType(Type);
         QualType nonRefValueType = ValueType.getNonReferenceType();
         return C.getPointerType(nonRefValueType);
@@ -1162,8 +1218,8 @@ namespace clad {
     QualType
     GetDerivativeType(Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
                       llvm::ArrayRef<const clang::ValueDecl*> diffParams,
-                      bool forCustomDerv,
-                      llvm::ArrayRef<QualType> customParams) {
+                      bool forCustomDerv, bool shouldUseRestoreTracker,
+                      bool isForErrorEstimation) {
       ASTContext& C = S.getASTContext();
       if (mode == DiffMode::forward)
         return FD->getType();
@@ -1191,14 +1247,14 @@ namespace clad {
           T = utils::replaceStdInitListWithCladArray(S, T);
 
       QualType oRetTy = FD->getReturnType();
+      if (const auto* CD = dyn_cast<CXXConstructorDecl>(FD))
+        oRetTy = CD->getThisType()->getPointeeType();
       QualType dRetTy = C.VoidTy;
       bool returnVoid = mode == DiffMode::reverse ||
                         mode == DiffMode::pullback ||
-                        mode == DiffMode::error_estimation ||
                         mode == DiffMode::vector_forward_mode;
-      if (mode == DiffMode::reverse_mode_forward_pass &&
-          !oRetTy->isVoidType()) {
-        if (isMemoryType(oRetTy)) {
+      if (mode == DiffMode::reverse_mode_forward_pass) {
+        if (isMemoryType(oRetTy) || isa<CXXConstructorDecl>(FD)) {
           TemplateDecl* valAndAdjointTempDecl =
               utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
           dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
@@ -1223,14 +1279,18 @@ namespace clad {
         QualType argTy = oRetTy.getNonReferenceType();
         argTy = utils::getNonConstType(argTy, S);
         if (!argTy->isVoidType() && !argTy->isPointerType() &&
-            !utils::isNonConstReferenceType(oRetTy))
+            !utils::isNonConstReferenceType(oRetTy)) {
+          if (isa<CXXConstructorDecl>(FD))
+            argTy = C.getPointerType(argTy);
           FnTypes.push_back(argTy);
+        }
       }
 
       QualType thisTy;
       if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
         const CXXRecordDecl* RD = MD->getParent();
-        if (MD->isInstance() && !RD->isLambda() && mode != DiffMode::jacobian) {
+        if (MD->isInstance() && !RD->isLambda() && mode != DiffMode::jacobian &&
+            !isa<CXXConstructorDecl>(MD)) {
           thisTy = MD->getThisType();
           QualType dthisTy = utils::GetParameterDerivativeType(S, mode, thisTy);
           FnTypes.push_back(dthisTy);
@@ -1270,26 +1330,26 @@ namespace clad {
           FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
       }
 
-      if (forCustomDerv && !thisTy.isNull() && !isa<CXXConstructorDecl>(FD)) {
+      if (forCustomDerv && !thisTy.isNull()) {
         FnTypes.insert(FnTypes.begin(), thisTy);
         EPI.TypeQuals.removeConst();
       }
 
-      if (mode == DiffMode::reverse_mode_forward_pass &&
-          isa<CXXConversionDecl>(FD)) {
-        QualType typeTag = utils::GetCladTagOfType(S, oRetTy);
-        FnTypes.insert(FnTypes.begin(), typeTag);
+      if (mode == DiffMode::reverse_mode_forward_pass) {
+        if (isa<CXXConversionDecl>(FD) || isa<CXXConstructorDecl>(FD)) {
+          QualType typeTag = utils::GetCladTagOfType(S, oRetTy);
+          FnTypes.insert(FnTypes.begin(), typeTag);
+        }
+
+        if (shouldUseRestoreTracker) {
+          QualType trackerTy = GetRestoreTrackerType(S);
+          trackerTy = C.getLValueReferenceType(trackerTy);
+          FnTypes.push_back(trackerTy);
+        }
       }
 
-      if (mode == DiffMode::reverse_mode_forward_pass &&
-          shouldUseRestoreTracker(FD) && !forCustomDerv) {
-        QualType trackerTy = GetRestoreTrackerType(S);
-        trackerTy = C.getLValueReferenceType(trackerTy);
-        FnTypes.push_back(trackerTy);
-      }
-
-      for (QualType customTy : customParams)
-        FnTypes.push_back(customTy);
+      if (isForErrorEstimation)
+        FnTypes.push_back(C.getLValueReferenceType(C.DoubleTy));
 
       return C.getFunctionType(dRetTy, FnTypes, EPI);
     }
@@ -1634,70 +1694,6 @@ namespace clad {
         // go up to get more information.
       } while (E->IgnoreImplicit() != E);
       return false;
-    }
-
-    bool isTensorLike(clang::Sema& SemaRef, clang::QualType T) {
-      if (!isa<TemplateSpecializationType>(T) && !T->isRecordType())
-        return false;
-      // We check if the type is a vector, and if so, recursively check its
-      // template argument.
-      auto isVector = [](const TemplateSpecializationType* TST) {
-        TemplateName TM = TST->getTemplateName();
-        TemplateDecl* TD = TM.getAsTemplateDecl();
-        if (!TD)
-          return false;
-        return TD->getName() == "vector";
-      };
-
-      if (const auto* TST = T->getAs<TemplateSpecializationType>()) {
-        if (isVector(TST)) {
-          auto args = TST->template_arguments();
-          if (!args.empty()) {
-            // Recursively check the first template argument.
-            const clang::TemplateArgument& Arg = args[0];
-            if (Arg.getKind() == clang::TemplateArgument::Type)
-              return isTensorLike(SemaRef, Arg.getAsType());
-          }
-        }
-      }
-
-      const auto* CXXRD = T->getAsCXXRecordDecl();
-      // Find the special `tensor_like` namespace.
-      // This looks for `clad::tensor_like`.
-      clang::NamespaceDecl* CladNS =
-          utils::LookupNSD(SemaRef, "clad", /*shouldExist=*/true);
-      clang::NamespaceDecl* TensorLikeNS = utils::LookupNSD(
-          SemaRef, "tensor_like", /*shouldExist=*/false, CladNS);
-      if (!TensorLikeNS)
-        return false;
-
-      // Get the original type's name and its enclosing namespace.
-      clang::IdentifierInfo* TypeName = CXXRD->getIdentifier();
-      if (!TypeName)
-        return false;
-
-      const auto* OriginalDC = CXXRD->getDeclContext();
-      // The type is not in a namespace (e.g., it's a nested class or in
-      // global scope). You could extend this logic if needed, but for now,
-      // we'll assume tensor types are in a namespace like `at` or `cladtorch`.
-      if (!OriginalDC->isNamespace())
-        return false;
-      const auto* OriginalNS = clang::cast<clang::NamespaceDecl>(OriginalDC);
-      clang::IdentifierInfo* OriginalNSName = OriginalNS->getIdentifier();
-      if (!OriginalNSName)
-        return false;
-
-      clang::NamespaceDecl* FoundMirroredNS =
-          utils::LookupNSD(SemaRef, OriginalNSName->getName(),
-                           /*shouldExist=*/false, TensorLikeNS);
-      if (!FoundMirroredNS)
-        return false;
-
-      clang::LookupResult R(SemaRef, clang::DeclarationName(TypeName),
-                            clang::SourceLocation(),
-                            clang::Sema::LookupOrdinaryName);
-
-      return SemaRef.LookupQualifiedName(R, FoundMirroredNS) && !R.empty();
     }
 
     /// Called in ShouldRecompute. In CUDA, to access a current thread/block id

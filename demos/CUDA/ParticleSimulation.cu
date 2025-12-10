@@ -5,6 +5,7 @@
 // respect to the initial x-velocities of the particles.
 
 #include "clad/Differentiator/Differentiator.h"
+#include "clad/Differentiator/ThrustBuiltins.h"
 #include "clad/Differentiator/ThrustDerivatives.h"
 
 #include <thrust/copy.h>
@@ -20,11 +21,13 @@ double run_simulation(thrust::device_vector<double>& x,
                       thrust::device_vector<double>& y,
                       const thrust::device_vector<double>& vx,
                       const thrust::device_vector<double>& vy,
-                      const thrust::device_vector<double>& dts,
-                      thrust::device_vector<double>& tmp,
-                      thrust::device_vector<double>& x_buffer,
-                      thrust::device_vector<double>& y_buffer) {
+                      const thrust::device_vector<double>& dts) {
   const int n_steps = 5;
+
+  // Allocate buffers.
+  thrust::device_vector<double> tmp(x.size());
+  thrust::device_vector<double> x_buffer(x.size());
+  thrust::device_vector<double> y_buffer(x.size());
 
   for (int i = 0; i < n_steps; ++i) {
     // Update x-position.
@@ -56,9 +59,6 @@ int main() {
   thrust::device_vector<double> vx(N, 2.0);
   thrust::device_vector<double> vy(N, 1.0);
   thrust::device_vector<double> dts(N, dt);
-  thrust::device_vector<double> tmp(N);
-  thrust::device_vector<double> x_buffer(N);
-  thrust::device_vector<double> y_buffer(N);
 
   // 2. Differentiate `run_simulation`.
   auto run_simulation_grad = clad::gradient(run_simulation);
@@ -69,14 +69,10 @@ int main() {
   thrust::device_vector<double> vx_grad(N);
   thrust::device_vector<double> vy_grad(N);
   thrust::device_vector<double> dts_grad(N);
-  thrust::device_vector<double> tmp_grad(N);
-  thrust::device_vector<double> x_buffer_grad(N);
-  thrust::device_vector<double> y_buffer_grad(N);
 
   // 4. Execute the generated gradient function.
-  run_simulation_grad.execute(x, y, vx, vy, dts, tmp, x_buffer, y_buffer,
-                              &x_grad, &y_grad, &vx_grad, &vy_grad, &dts_grad,
-                              &tmp_grad, &x_buffer_grad, &y_buffer_grad);
+  run_simulation_grad.execute(x, y, vx, vy, dts, &x_grad, &y_grad, &vx_grad,
+                              &vy_grad, &dts_grad);
 
   // 5. Print the results.
   std::cout << "Running particle simulation demo." << std::endl;

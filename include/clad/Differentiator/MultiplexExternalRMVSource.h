@@ -34,8 +34,6 @@ public:
   void
   ActAfterProcessingArraySubscriptExpr(const clang::Expr* revArrSub) override;
   void ActBeforeCreatingDerivedFnParamTypes(unsigned& numExtraParams) override;
-  void ActAfterCreatingDerivedFnParamTypes(
-      llvm::SmallVectorImpl<clang::QualType>& paramTypes) override;
   void ActAfterCreatingDerivedFnParams(
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) override;
   void ActOnStartOfDerivedFnBody(const DiffRequest& request) override;
@@ -61,8 +59,7 @@ public:
   void ActBeforeFinalizingDifferentiateSingleStmt(const direction& d) override;
   void ActBeforeFinalizingDifferentiateSingleExpr(const direction& d) override;
   void ActBeforeDifferentiatingCallExpr(
-      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
-      llvm::SmallVectorImpl<clang::Stmt*>& ArgDecls, bool hasAssignee) override;
+      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs) override;
   void ActBeforeFinalizingVisitDeclStmt(
       llvm::SmallVectorImpl<clang::Decl*>& decls,
       llvm::SmallVectorImpl<clang::Decl*>& declsDiff) override;

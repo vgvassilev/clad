@@ -19,7 +19,7 @@ double f1(double x) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _d_t = 0.;
 //CHECK-NEXT:     double t = 1;
-//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, t);
@@ -52,7 +52,7 @@ double f2(double val) {
 //CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
 //CHECK-NEXT:     double _d_res = 0.;
 //CHECK-NEXT:     double res = 0;
-//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 1; i < 5; ++i) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         {

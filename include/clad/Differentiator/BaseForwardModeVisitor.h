@@ -4,7 +4,9 @@
 #include "Compatibility.h"
 #include "VisitorBase.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/OpenMPClause.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
 
@@ -25,6 +27,8 @@ namespace clad {
 /// Used to compute derivatives by clad::differentiate.
 class BaseForwardModeVisitor
     : public clang::ConstStmtVisitor<BaseForwardModeVisitor, StmtDiff>,
+      public clang::ConstOMPClauseVisitor<BaseForwardModeVisitor,
+                                          clang::OMPClause*>,
       public VisitorBase {
   unsigned m_IndependentVarIndex = ~0;
 
@@ -51,6 +55,11 @@ public:
       std::terminate();
 #endif // NDEBUG
     return clang::ConstStmtVisitor<BaseForwardModeVisitor, StmtDiff>::Visit(S);
+  }
+
+  clang::OMPClause* Visit(const clang::OMPClause* C) {
+    return clang::ConstOMPClauseVisitor<BaseForwardModeVisitor,
+                                        clang::OMPClause*>::Visit(C);
   }
 
   virtual void ExecuteInsidePushforwardFunctionBlock() {}
@@ -86,14 +95,6 @@ public:
   DifferentiateVarDecl(const clang::VarDecl* VD);
   virtual DeclDiff<clang::VarDecl>
   DifferentiateVarDecl(const clang::VarDecl* VD, bool ignoreInit);
-  /// Shorthand for warning on differentiation of unsupported operators
-  void unsupportedOpWarn(clang::SourceLocation loc,
-                         llvm::ArrayRef<llvm::StringRef> args = {}) {
-    diag(clang::DiagnosticsEngine::Warning, loc,
-         "attempt to differentiate unsupported operator,  derivative \
-                         set to 0",
-         args);
-  }
   StmtDiff VisitCXXForRangeStmt(const clang::CXXForRangeStmt* FRS);
   StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
   StmtDiff VisitDoStmt(const clang::DoStmt* DS);
@@ -123,6 +124,20 @@ public:
   StmtDiff VisitNullStmt(const clang::NullStmt* NS) { return StmtDiff{}; };
   StmtDiff
   VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);
+
+  StmtDiff VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
+  StmtDiff VisitOMPParallelDirective(const clang::OMPParallelDirective* D);
+  StmtDiff
+  VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
+  clang::OMPClause* VisitOMPClause(const clang::OMPClause* C);
+  clang::OMPClause* VisitOMPPrivateClause(const clang::OMPPrivateClause* C);
+  clang::OMPClause*
+  VisitOMPFirstprivateClause(const clang::OMPFirstprivateClause* C);
+  clang::OMPClause*
+  VisitOMPLastprivateClause(const clang::OMPLastprivateClause* C);
+  clang::OMPClause* VisitOMPSharedClause(const clang::OMPSharedClause* C);
+  clang::OMPClause* VisitOMPReductionClause(const clang::OMPReductionClause* C);
+
   static DeclDiff<clang::StaticAssertDecl>
   DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 

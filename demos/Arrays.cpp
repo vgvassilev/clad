@@ -14,7 +14,7 @@
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
 
-double weighted_avg(double* arr, const double* weights) {
+double weighted_avg(const double* arr, const double* weights) {
   return (arr[0] * weights[0] + arr[1] * weights[1] + arr[2] * weights[2]) / 3;
 }
 

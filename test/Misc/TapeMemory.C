@@ -4,6 +4,9 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#include <thread>
+#include <vector>
+
 struct A {
   bool operator!=(const A& other){ return false; }
 };
@@ -23,6 +26,31 @@ template <typename T> void func(T x, int n) {
     T seen = clad::pop<T>(t);
     if (seen != x)
       printf("error: tape is invalid!\n");
+  }
+}
+
+template <typename T>
+void concurrent_push_test(T x, int n_threads, int pushes_per_thread) {
+  // Use thread_local clad::tape<T> t = {}; and clad::push<T>(t, x); for local thread storage
+  clad::tape<T, 64, 1024, true> t = {};
+  std::vector<std::thread> threads;
+
+  for (int i = 0; i < n_threads; ++i) {
+    threads.emplace_back([&]() {
+      for (int j = 0; j < pushes_per_thread; ++j) {
+        clad::push<T>(t, x);
+      }
+    });
+  }
+
+  for (auto& thread : threads) {
+    thread.join();
+  }
+
+  size_t expected = n_threads * pushes_per_thread;
+  size_t actual = t.size();
+  if (expected != actual) {
+    printf("error: expected size %zu, actual size %zu\n", expected, actual);
   }
 }
 
@@ -46,5 +74,9 @@ int main() {
                                 block);
     // custom type
     func<A>(A(), block);
+  }
+
+  for (int i = 0; i < 1000; ++i) {
+    concurrent_push_test<int>(1, 8, 1000);
   }
 }

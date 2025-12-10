@@ -19,58 +19,17 @@ elseif(APPLE)
                        -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES})
 endif()
 
-# Remove the coverage flags when compiling external libraries.
-string(REPLACE "${GCC_COVERAGE_COMPILE_FLAGS}" "" CMAKE_CXX_FLAGS_NOCOV "${CMAKE_CXX_FLAGS}")
-string(REPLACE "${GCC_COVERAGE_COMPILE_FLAGS}" "" CMAKE_C_FLAGS_NOCOV "${CMAKE_C_FLAGS}")
-string(REPLACE "${GCC_COVERAGE_COMPILE_FLAGS}" "" CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS_NOCOV "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS}")
-string(REPLACE "${GCC_COVERAGE_LINK_FLAGS}" "" CMAKE_EXE_LINKER_FLAGS_NOCOV "${CMAKE_EXE_LINKER_FLAGS}")
-string(REPLACE "${GCC_COVERAGE_LINK_FLAGS}" "" CMAKE_SHARED_LINKER_FLAGS_NOCOV "${CMAKE_SHARED_LINKER_FLAGS}")
-
-# Turn off -Werror for external packages.
-if (LLVM_ENABLE_WERROR)
-  if (MSVC)
-    set(CMAKE_CXX_FLAGS_NOCOV "${CMAKE_CXX_FLAGS_NOCOV} /w ")
-    set(CMAKE_C_FLAGS_NOCOV "${CMAKE_C_FLAGS_NOCOV} /w ")
-  elseif(LLVM_COMPILER_IS_GCC_COMPATIBLE)
-    set(CMAKE_CXX_FLAGS_NOCOV "${CMAKE_CXX_FLAGS_NOCOV} -Wno-error ")
-    set(CMAKE_C_FLAGS_NOCOV "${CMAKE_C_FLAGS_NOCOV} -Wno-error ")
-  endif()
-endif(LLVM_ENABLE_WERROR)
-
-include(ExternalProject)
-ExternalProject_Add(
+set(EXTRA_CMAKE_ARGS "-DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} ${EXTRA_GTEST_OPTS}")
+clad_externalproject_add(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  EXCLUDE_FROM_ALL 1
-  GIT_SHALLOW 1
-  GIT_TAG v1.16.0
-  UPDATE_COMMAND ""
-  # # Force separate output paths for debug and release builds to allow easy
-  # # identification of correct lib in subsequent TARGET_LINK_LIBRARIES commands
-  # CMAKE_ARGS -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG:PATH=DebugLibs
-  #            -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE:PATH=ReleaseLibs
-  #            -Dgtest_force_shared_crt=ON
-  CMAKE_ARGS -G ${CMAKE_GENERATOR}
-                -DCMAKE_BUILD_TYPE=Release
-                -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-                -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS_NOCOV}
-                -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-                -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS_NOCOV}
-                -DCMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS=${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS_NOCOV}
-                -DCMAKE_EXE_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS_NOCOV}
-                -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS_NOCOV}
-                -DCMAKE_AR=${CMAKE_AR}
-                -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
-                ${EXTRA_GTEST_OPTS}
+  GIT_TAG v1.17.0
   BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release -- -j6
   # Disable install step
-  INSTALL_COMMAND ""
+  INSTALL_COMMAND cmake -E echo "Skipping install step."
   BUILD_BYPRODUCTS ${_gtest_byproducts}
   # Wrap download, configure and build steps in a script to log output
-  LOG_DOWNLOAD ON
-  LOG_CONFIGURE ON
-  LOG_BUILD ON
-  TIMEOUT 600
+  EXTRA_CMAKE_ARGS ${EXTRA_CMAKE_ARGS}
   )
 
 # Specify include dirs for gtest and gmock

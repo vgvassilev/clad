@@ -213,7 +213,6 @@ include_directories(SYSTEM ${CLANG_INCLUDE_DIRS})
 include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
 
 ## Code Coverage Configuration
-add_library(coverage_config INTERFACE)
 option(CLAD_CODE_COVERAGE "Enable coverage reporting" OFF)
 if(CLAD_CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
@@ -304,6 +303,8 @@ if (TARGET clang-headers)
   list(APPEND LLVM_COMMON_DEPENDS clang-headers)
 endif()
 
+include(AddClad)
+
 add_subdirectory(lib)
 add_subdirectory(tools)
 
@@ -317,14 +318,9 @@ endif()
 
 
 if (NOT CLAD_BUILD_STATIC_ONLY)
-  include(AddClad)
-
   if (CLAD_ENABLE_BENCHMARKS)
     include(GoogleBenchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
-
-  add_subdirectory(demos/ErrorEstimation/CustomModel)
-  add_subdirectory(demos/ErrorEstimation/PrintModel)
 
   if (NOT CLAD_DISABLE_TESTS OR CLAD_ENABLE_BENCHMARKS)
     # Change the default compiler to the clang which we run clad upon. Our unittests
@@ -332,7 +328,9 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     # not guaranteed to work with cmake.
     set(stored_cxx_compiler ${CMAKE_CXX_COMPILER})
     set(stored_cxx_flags ${CMAKE_CXX_FLAGS})
-
+    set(stored_c_flags ${CMAKE_C_FLAGS})
+    # FIXME: Remove when vgvassilev/clad#1665 is resolved.
+    disable_werror(CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
     set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
     # Filter some unsupported flags by clang.
     string(REPLACE "-fno-lifetime-dse" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -353,6 +351,7 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     # Restore the default compiler.
     set(CMAKE_CXX_COMPILER ${stored_cxx_compiler})
     set(CMAKE_CXX_FLAGS ${stored_cxx_flags})
+    set(CMAKE_C_FLAGS ${stored_c_flags})
   endif()
 endif()
 

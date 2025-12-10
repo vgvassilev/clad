@@ -18,7 +18,9 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Version.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
@@ -33,11 +35,14 @@
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DiffMode.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstdlib>  // for getenv
 #include <iostream> // for std::cerr
 #include <memory>
+#include <set>
 
 using namespace clang;
 
@@ -48,6 +53,7 @@ void InitTimers();
     /// Keeps track if we encountered #pragma clad on/off.
     // FIXME: Figure out how to make it a member of CladPlugin.
     std::vector<clang::SourceRange> CladEnabledRange;
+    std::set<clang::SourceLocation> CladLoopCheckpoints;
 
     // Define a pragma handler for #pragma clad
     class CladPragmaHandler : public PragmaHandler {
@@ -55,7 +61,6 @@ void InitTimers();
       CladPragmaHandler() : PragmaHandler("clad") {}
       void HandlePragma(Preprocessor& PP, PragmaIntroducer Introducer,
                         Token& PragmaTok) override {
-        // Handle #pragma clad ON/OFF/DEFAULT
         if (PragmaTok.isNot(tok::identifier)) {
           PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
           return;
@@ -65,27 +70,55 @@ void InitTimers();
         assert(II->isStr("clad"));
 #endif
 
-        tok::OnOffSwitch OOS;
-        if (PP.LexOnOffSwitch(OOS))
-          return; // failure
+        PP.Lex(PragmaTok);
+        llvm::StringRef OptionName = PragmaTok.getIdentifierInfo()->getName();
         SourceLocation TokLoc = PragmaTok.getLocation();
-        if (OOS == tok::OOS_ON) {
+        // Handle #pragma clad ON
+        if (OptionName == "ON") {
           SourceRange R(TokLoc, /*end*/ SourceLocation());
           // If a second ON is seen, ignore it if the interval is open.
           if (CladEnabledRange.empty() ||
               CladEnabledRange.back().getEnd().isValid())
             CladEnabledRange.push_back(R);
-        } else if (!CladEnabledRange.empty()) { // OOS_OFF or OOS_DEFAULT
-          assert(CladEnabledRange.back().getEnd().isInvalid());
-          CladEnabledRange.back().setEnd(TokLoc);
+          return;
         }
+        // Handle #pragma clad OFF/DEFAULT
+        if (OptionName == "OFF" || OptionName == "DEFAULT") {
+          if (!CladEnabledRange.empty()) {
+            assert(CladEnabledRange.back().getEnd().isInvalid());
+            CladEnabledRange.back().setEnd(TokLoc);
+          }
+          return;
+        }
+        // Handle #pragma clad checkpoint loop
+        if (OptionName == "checkpoint") {
+          PP.Lex(PragmaTok);
+          // Ensure the next token is `loop`
+          if (PragmaTok.isNot(tok::identifier) ||
+              PragmaTok.getIdentifierInfo()->getName() != "loop") {
+            PP.Diag(PragmaTok.getLocation(),
+                    PP.getDiagnostics().getCustomDiagID(
+                        DiagnosticsEngine::Error,
+                        "expected 'loop' after 'checkpoint' in #pragma clad"));
+            return;
+          }
+          CladLoopCheckpoints.insert(PragmaTok.getLocation());
+          return;
+        }
+        // Diagnose unknown clad pragma option
+        PP.Diag(
+            TokLoc,
+            PP.getDiagnostics().getCustomDiagID(
+                DiagnosticsEngine::Error,
+                "expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma"));
       }
     };
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
+      CodeGenOptions& CGOpts = m_CI.getCodeGenOpts();
 #if CLANG_VERSION_MAJOR > 11
-      bool WantTiming = m_CI.getCodeGenOpts().TimePasses;
+      bool WantTiming = CGOpts.TimePasses;
 #else
       bool WantTiming = m_CI.getFrontendOpts().ShowTimers;
 #endif
@@ -102,11 +135,9 @@ void InitTimers();
           break;
         }
 
-      if (!CladSoPath.empty()) {
-        // Register clad as a backend pass.
-        CodeGenOptions& CGOpts = CI.getCodeGenOpts();
+      // Register clad as a backend pass.
+      if (!CladSoPath.empty())
         CGOpts.PassPlugins.push_back(CladSoPath.str());
-      }
 
       // Add define for __CLAD__, so that CladFunction::CladFunction()
       // doesn't throw an error.
@@ -208,6 +239,30 @@ void InitTimers();
       }
     }
 
+    static void addCladLoopCheckpoints(ASTContext& C, DiffRequest& request) {
+      SourceRange range = request->getSourceRange();
+      assert(range.isValid());
+      SourceLocation begin = range.getBegin();
+      SourceLocation end = range.getEnd();
+      clang::SourceManager& SM = C.getSourceManager();
+      auto it = CladLoopCheckpoints.upper_bound(begin);
+      auto e = CladLoopCheckpoints.end();
+
+      for (; it != e && SM.isBeforeInTranslationUnit(*it, end); ++it)
+        request.m_CladLoopCheckpoints.emplace(*it, false);
+    }
+
+    static void diagnoseUnusedPragma(Sema& S, DiffRequest& request) {
+      for (const auto& pair : request.m_CladLoopCheckpoints) {
+        if (!pair.second) {
+          unsigned diagID = S.Diags.getCustomDiagID(
+              DiagnosticsEngine::Error,
+              "'#pragma clad checkpoint loop' is only allowed before a loop");
+          S.Diag(pair.first, diagID);
+        }
+      }
+    }
+
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
       if (!m_DerivativeBuilder)
@@ -242,35 +297,16 @@ void InitTimers();
         FD->print(llvm::outs(), Policy);
       }
       // if enabled, print ASTs of the original functions
-      if (m_DO.DumpSourceFnAST) {
+      if (m_DO.DumpSourceFnAST)
         FD->dumpColor();
-      }
-      // if enabled, load the dynamic library input from user to use
-      // as a custom estimation model.
-      if (m_DO.CustomEstimationModel) {
-        std::string Err;
-        if (llvm::sys::DynamicLibrary::
-                LoadLibraryPermanently(m_DO.CustomModelName.c_str(), &Err)) {
-          unsigned diagID = S.Diags.getCustomDiagID(
-              DiagnosticsEngine::Error, "Failed to load '%0', %1. Aborting.");
-          clang::Sema::SemaDiagnosticBuilder stream = S.Diag(noLoc, diagID);
-          stream << m_DO.CustomModelName << Err;
-          return nullptr;
-        }
-        for (auto it = ErrorEstimationModelRegistry::begin(),
-                  ie = ErrorEstimationModelRegistry::end();
-             it != ie; ++it) {
-          auto estimationPlugin = it->instantiate();
-          m_DerivativeBuilder->AddErrorEstimationModel(
-              estimationPlugin->InstantiateCustomModel(*m_DerivativeBuilder,
-                                                       request));
-        }
-      }
 
       // If enabled, set the proper fields in derivative builder.
       if (m_DO.PrintNumDiffErrorInfo) {
         m_DerivativeBuilder->setNumDiffErrDiag(true);
       }
+
+      // Propagate relevant pragmas to diffrequests
+      addCladLoopCheckpoints(C, request);
 
       FunctionDecl* DerivativeDecl = nullptr;
       bool alreadyDerived = false;
@@ -290,6 +326,7 @@ void InitTimers();
           // FIXME: Doing this with other function types might lead to
           // accidental numerical diff.
           if (isa<CXXConstructorDecl>(FD) &&
+              (request.Mode == DiffMode::pullback) &&
               utils::hasEmptyBody(DerivativeDecl))
             return nullptr;
           if (DerivativeDecl)
@@ -297,6 +334,9 @@ void InitTimers();
                                     OverloadedDerivativeDecl));
         }
       }
+
+      // Propagate relevant pragmas to diffrequests
+      diagnoseUnusedPragma(S, request);
 
       if (OverloadedDerivativeDecl) {
         S.MarkFunctionReferenced(SourceLocation(), OverloadedDerivativeDecl);
@@ -624,7 +664,6 @@ static PragmaHandlerRegistry::Add<CladPragmaHandler>
     Y("clad", "Clad pragma directives handler.");
 
 // Attach the backend plugin.
-
 #include "ClangBackendPlugin.h"
 
 #define BACKEND_PLUGIN_NAME "CladBackendPlugin"

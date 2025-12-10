@@ -158,7 +158,7 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       m_Variables[*it] = BuildDeclRef(dPVD), m_DiffReq->getLocation();
     }
   }
-  if (utils::shouldUseRestoreTracker(m_DiffReq.Function)) {
+  if (m_DiffReq.UseRestoreTracker) {
     QualType trackerTy = utils::GetRestoreTrackerType(m_Sema);
     trackerTy = m_Sema.getASTContext().getLValueReferenceType(trackerTy);
     ParmVarDecl* trackerPVD = utils::BuildParmVarDecl(
@@ -203,6 +203,17 @@ ReverseModeForwPassVisitor::VisitCompoundStmt(const clang::CompoundStmt* CS) {
   CompoundStmt* forward = endBlock();
   endScope();
   return {forward};
+}
+
+StmtDiff ReverseModeForwPassVisitor::VisitUnaryOperator(
+    const clang::UnaryOperator* UnOp) {
+  StmtDiff UnOpDiff = ReverseModeVisitor::VisitUnaryOperator(UnOp);
+  if (UnOp->isIncrementDecrementOp()) {
+    auto* base = cast<UnaryOperator>(UnOpDiff.getExpr())->getSubExpr();
+    StmtDiff pushPop = StoreAndRestore(base);
+    addToCurrentBlock(pushPop.getExpr());
+  }
+  return UnOpDiff;
 }
 
 ReverseModeForwPassVisitor::DelayedStoreResult

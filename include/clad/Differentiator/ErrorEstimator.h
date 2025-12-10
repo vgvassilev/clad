@@ -40,9 +40,9 @@ class ErrorEstimationHandler : public ExternalRMVSource {
   clang::Expr* m_IdxExpr;
   /// A map from var decls to their size variables (e.g. `var_size`).
   std::unordered_map<const clang::VarDecl*, clang::Expr*> m_ArrSizes;
-  /// An expression to match nested function call errors with their
-  /// assignee (if any exists).
-  clang::Expr* m_NestedFuncError = nullptr;
+  // FIXME: Solve this in a more general way.
+  /// A flag signaling if the current error comes from a function call.
+  bool m_ErrorFromFunctionCall = false;
 
   std::stack<bool> m_ShouldEmit;
   ReverseModeVisitor* m_RMV;
@@ -57,7 +57,7 @@ public:
   /// Function to set the error estimation model currently in use.
   ///
   /// \param[in] estModel The error estimation model, can be either
-  /// an in-built one (TaylorApprox) or one provided by the user.
+  /// an in-built one or one provided by the user.
   void SetErrorEstimationModel(FPErrorEstimationModel* estModel);
 
   /// Builds a reference to the final error parameter of the function.
@@ -70,9 +70,7 @@ public:
   /// Function to emit error statements into the derivative body.
   ///
   /// \param[in] errorExpr The error expression (LHS) of the variable.
-  /// \param[in] addToTheFront A flag to decide whether the error stmts
-  /// should be added to the beginning of the block or the current position.
-  void AddErrorStmtToBlock(clang::Expr* errorExpr, bool addToTheFront = true);
+  void AddErrorStmtToBlock(clang::Expr* errorExpr);
 
   /// Emit the error estimation related statements that were saved to be
   /// emitted at later points into specific blocks.
@@ -167,8 +165,6 @@ public:
   void InitialiseRMV(ReverseModeVisitor& RMV) override;
   void ForgetRMV() override;
   void ActBeforeCreatingDerivedFnParamTypes(unsigned&) override;
-  void ActAfterCreatingDerivedFnParamTypes(
-      llvm::SmallVectorImpl<clang::QualType>& paramTypes) override;
   void ActAfterCreatingDerivedFnParams(
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) override;
   void ActOnEndOfDerivedFnBody() override;
@@ -192,8 +188,7 @@ public:
   void ActBeforeFinalizingDifferentiateSingleStmt(const direction& d) override;
   void ActBeforeFinalizingDifferentiateSingleExpr(const direction& d) override;
   void ActBeforeDifferentiatingCallExpr(
-      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
-      llvm::SmallVectorImpl<clang::Stmt*>& ArgDecls, bool hasAssignee) override;
+      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs) override;
   void ActBeforeFinalizingVisitDeclStmt(
       llvm::SmallVectorImpl<clang::Decl*>& decls,
       llvm::SmallVectorImpl<clang::Decl*>& declsDiff) override;

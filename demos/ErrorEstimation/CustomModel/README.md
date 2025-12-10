@@ -3,39 +3,12 @@ Clad's error estimation framework provides users with a choice to write their ow
 
 The aim of this demo is to illustrate how one can integrate a custom model with clad. For in depth information on how to *write* your own custom estimation model, check out [this tutorial](https://compiler-research.org/tutorials/fp_error_estimation_clad_tutorial/).
 
-## Building the demo
-
-Before we can use the custom model, it must be compiled into a [shared object](https://www.thegeekstuff.com/2012/06/linux-shared-libraries/). To do this, you can use your favorite compiler. For this demo, we will be using the clang compiler.
-
-Firstly, we shall set up some environment variables to simplify following the rest of the tutorial.
-
-After building the code as specified in the [README.md](https://github.com/vgvassilev/clad#how-to-install), run the following command to set environment variables which we will use later:
-
-```bash
-$ export CLAD_INST=$PWD/../inst;
-$ export CLAD_BASE=$PWD/../clad;
-```
-
-> **TIP**: You can put the above lines in your ~/.bashrc or equivalent shell "rc" file to maintain the same variables across multiple sessions.
-
-Now, in a terminal, run the following:
-
-```bash
-$ clang++ -ICLAD_INST/include -fPIC -shared -fno-rtti -Wl,-undefined -Wl,suppress CLAD_BASE/demos/CustomModel/CustomModel.cpp -o libCustomModel.so
-``` 
- The above should create a `libCustomModel.so` in the same directory you executed that command in. Once the shared object is created, we are ready to run it with clad.
-
 ## Running the demo
 
-Now, to use your custom estimation model, you can just specify the `.so` created in the previous section as an input to clad via CLI. The specific parameters you would need to add are given below:
+A typical invocation to clad would then look like the following:
 
 ```bash
--Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model -Xclang -plugin-arg-clad -Xclang ./libCustomModel.so
-``` 
-So a typical invocation to clad would then look like the following:
-
-```bash
-clang++ -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang CLAD_INST/lib/clad.so -ICLAD_INST/include -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model -Xclang -plugin-arg-clad -Xclang ./libCustomModel.so CLAD_BASE/demos/CustomModel/test.cpp
+clang++ -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang CLAD_INST/lib/clad.so -ICLAD_INST/include CLAD_BASE/demos/CustomModel/test.cpp
 ```
 ## Verifying results
 
@@ -50,14 +23,14 @@ The code is: void func_grad(float x, float y, float *_d_x, float *_d_y, double &
     z = x + y;
     _d_z += 1;
     {
-        _final_error += _d_z * z;
+        _final_error += clad::getErrorVal(_d_z, z, "z");
         z = _t0;
         *_d_x += _d_z;
         *_d_y += _d_z;
         _d_z = 0;
     }
-    _final_error += *_d_x * x;
-    _final_error += *_d_y * y;
+    _final_error += clad::getErrorVal(*_d_x, x, "x");
+    _final_error += clad::getErrorVal(*_d_y, y, "y");
  }
 ```
 

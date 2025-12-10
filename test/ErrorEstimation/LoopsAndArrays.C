@@ -1,7 +1,9 @@
 // RUN: %cladclang -I%S/../../include -oLoopsAndArrays.out %s 2>&1 | %filecheck %s
+// RUN: ./LoopsAndArrays.out | %filecheck_exec %s
 // XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
+#include "../TestUtils.h"
 
 #include <cmath>
 
@@ -21,7 +23,7 @@ float func(float* p, int n) {
 //CHECK-NEXT:     unsigned {{int|long}} p_size = {{0U|0UL}};
 //CHECK-NEXT:     float _d_sum = 0.F;
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
@@ -44,7 +46,6 @@ float func(float* p, int n) {
 //CHECK-NEXT:         _final_error += std::abs(_d_p[i0] * p[i0] * {{.+}});
 //CHECK-NEXT: }
 
-
 float func2(float x) {
   float z;
   for (int i = 0; i < 9; i++) {
@@ -63,7 +64,7 @@ float func2(float x) {
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float _d_z = 0.F;
 //CHECK-NEXT:     float z;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 9; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, m) , m = x * x;
@@ -155,7 +156,7 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float _d_sum = 0.F;
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 10; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, x[i]);
@@ -310,7 +311,7 @@ double func6(double x) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 1; i < 10; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
@@ -321,20 +322,39 @@ double func6(double x) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         sum = clad::pop(_t1);
 //CHECK-NEXT:         double _r0 = 0.;
-//CHECK-NEXT:         double _t2 = 0.;
-//CHECK-NEXT:         fun_pullback(x, _d_sum, &_r0, _t2);
+//CHECK-NEXT:         fun_pullback(x, _d_sum, &_r0, _final_error);
 //CHECK-NEXT:         *_d_x += _r0;
-//CHECK-NEXT:         _final_error += _t2;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT: }
 
 int main() {
-  clad::estimate_error(func);
-  clad::estimate_error(func2);
-  clad::estimate_error(func3);
-  clad::estimate_error(func4);
-  clad::estimate_error(func5);
-  clad::estimate_error(func6);
+  float p[] = {1, 2, 3, 4, 5}, dp[5] = {0};
+  int dn = 0;
+  INIT_ERROR_ESTIMATION(func);
+  TEST_ERROR_ESTIMATION(func, /*PrecissionType*/float, p, 5, dp, &dn); // CHECK-EXEC: {50.00}
+
+  float dx = 0, dy = 0;;
+  INIT_ERROR_ESTIMATION(func2);
+  TEST_ERROR_ESTIMATION(func2, /*PrecissionType*/float, 3, &dx); // CHECK-EXEC: {72.00}
+
+  INIT_ERROR_ESTIMATION(func3);
+  TEST_ERROR_ESTIMATION(func3, /*PrecissionType*/float, 2, 6, &dx, &dy); // CHECK-EXEC: {40.00}
+
+  float x_arr[10] = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19}; 
+  float y_arr[10] = {0, -2, -4, -6, -8, -10, -12, -14, -16, -18};
+  float dx_arr[10] = {0}, dy_arr[10] = {0};
+  INIT_ERROR_ESTIMATION(func4);
+  TEST_ERROR_ESTIMATION(func4, /*PrecissionType*/float, x_arr, y_arr, dx_arr, dy_arr); // CHECK-EXEC: {255.00}
+
+  double x_arr_d[3] = {1, 3, 5}, dx_arr_d[3] = {0};
+  double y_arr_d[3] = {0, -2, -4}, dy_arr_d[3] = {0};
+  double out[3] = {0}, dout[3] = {0};
+  INIT_ERROR_ESTIMATION(func5);
+  TEST_ERROR_ESTIMATION(func5, /*PrecissionType*/float, x_arr_d, y_arr_d, out, dx_arr_d, dy_arr_d, dout); // CHECK-EXEC: {48.00}
+
+  double dx_d = 0;
+  INIT_ERROR_ESTIMATION(func6);
+  TEST_ERROR_ESTIMATION(func6, /*PrecissionType*/float, -3, &dx_d); // CHECK-EXEC: {405.00}
 }

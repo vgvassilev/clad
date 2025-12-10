@@ -34,7 +34,7 @@ double fn2(double i, double j) {
 // CHECK: double fn2_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     return *&_d_i * *&*&j + *&i * *&*&_d_j;
+// CHECK-NEXT:     return _d_i * j + i * _d_j;
 // CHECK-NEXT: }
 
 double fn3(double i, double j) {

@@ -1,6 +1,6 @@
 // RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath %cudaldflags -o VectorAddition.out %S/../../demos/CUDA/VectorAddition.cu 2>&1 | FileCheck -check-prefix CHECK_VECTOR_ADDITION %s
 // REQUIRES: cuda-runtime
-// CHECK_VECTOR_ADDITION: void vector_addition_grad(const thrust::device_vector<double> &x, const thrust::device_vector<double> &y, thrust::device_vector<double> &z, thrust::device_vector<double> *_d_x, thrust::device_vector<double> *_d_y, thrust::device_vector<double> *_d_z)
+// CHECK_VECTOR_ADDITION: void vector_addition_grad(const thrust::device_vector<double> &x, const thrust::device_vector<double> &y, thrust::device_vector<double> *_d_x, thrust::device_vector<double> *_d_y)
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::transform_reverse_forw
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::reduce_pullback
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::transform_pullback
@@ -10,7 +10,7 @@
 // CHECK_VECTOR_ADDITION_EXEC: Gradients of sum wrt initial x: 1 1 1 1 1 1 1 1 1 1 
 
 // RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath %cudaldflags -o ParticleSimulation.out %S/../../demos/CUDA/ParticleSimulation.cu 2>&1 | FileCheck -check-prefix CHECK_PARTICLE_SIMULATION %s
-// CHECK_PARTICLE_SIMULATION: void run_simulation_grad(thrust::device_vector<double> &x, thrust::device_vector<double> &y, const thrust::device_vector<double> &vx, const thrust::device_vector<double> &vy, const thrust::device_vector<double> &dts, thrust::device_vector<double> &tmp, thrust::device_vector<double> &x_buffer, thrust::device_vector<double> &y_buffer, thrust::device_vector<double> *_d_x, thrust::device_vector<double> *_d_y, thrust::device_vector<double> *_d_vx, thrust::device_vector<double> *_d_vy, thrust::device_vector<double> *_d_dts, thrust::device_vector<double> *_d_tmp, thrust::device_vector<double> *_d_x_buffer, thrust::device_vector<double> *_d_y_buffer)
+// CHECK_PARTICLE_SIMULATION: void run_simulation_grad(thrust::device_vector<double> &x, thrust::device_vector<double> &y, const thrust::device_vector<double> &vx, const thrust::device_vector<double> &vy, const thrust::device_vector<double> &dts, thrust::device_vector<double> *_d_x, thrust::device_vector<double> *_d_y, thrust::device_vector<double> *_d_vx, thrust::device_vector<double> *_d_vy, thrust::device_vector<double> *_d_dts)
 // CHECK_PARTICLE_SIMULATION: for (i = 0; i < n_steps; ++i)
 // CHECK_PARTICLE_SIMULATION: clad::custom_derivatives::thrust::reduce_pullback
 // CHECK_PARTICLE_SIMULATION: for (; _t0; _t0--)
@@ -47,3 +47,17 @@
 // RUN: ./LinearRegression.out | FileCheck -check-prefix CHECK_LINEAR_REGRESSION_EXEC %s
 // CHECK_LINEAR_REGRESSION_EXEC: Running linear regression demo.
 // CHECK_LINEAR_REGRESSION_EXEC: Gradients of loss wrt weights (w): -9 -18 -27 -36 -45 -54 -63 -72 -81 -90
+
+// RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath %cudaldflags -o BoWLogisticRegression.out %S/../../demos/CUDA/BoWLogisticRegression.cu 2>&1 | FileCheck -check-prefix CHECK_BOW_LOGREG %s
+// CHECK_BOW_LOGREG: void logistic_loss_single_grad(
+// CHECK_BOW_LOGREG: void logistic_loss_batch2_prepared_l2_grad(
+// CHECK_BOW_LOGREG: clad::custom_derivatives::thrust::inner_product_pullback
+
+// RUN: ./BoWLogisticRegression.out | FileCheck -check-prefix CHECK_BOW_LOGREG_EXEC %s
+// CHECK_BOW_LOGREG_EXEC: Running minimal logistic regression demo.
+// CHECK_BOW_LOGREG_EXEC: Loss:
+// CHECK_BOW_LOGREG_EXEC: Gradient wrt w:
+// CHECK_BOW_LOGREG_EXEC: Running SGD on 4-doc batch...
+// CHECK_BOW_LOGREG_EXEC: iter4 0: loss4=
+// CHECK_BOW_LOGREG_EXEC: iter4 49: loss4=
+// CHECK_BOW_LOGREG_EXEC: Batch-4 accuracy:

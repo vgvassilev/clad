@@ -1,7 +1,8 @@
 // RUN: %cladclang %s -I%S/../../include -oFunctors.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: ./Functors.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oFunctors.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oFunctors.out
 // RUN: ./Functors.out | %filecheck_exec %s
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -145,7 +146,7 @@ double FunctorAsArgWrapper(double i, double j) {
   E##Ref_grad.execute(7, 9, &res[0], &res[1]);                                 \
   printf("%.2f %.2f\n", res[0], res[1]);
 
-double x = 3;  // expected-warning {{The gradient utilizes a global variable 'x'. Please make sure to properly reset 'x' before re-running the gradient.}}
+double x = 3;  // expected-warning {{gradient uses a global variable 'x'; rerunning the gradient requires 'x' to be reset}}
 
 int main() {
   Experiment E(3, 5), d_E, d_E_Const;
@@ -248,7 +249,7 @@ int main() {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
   // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:         fn.operator_call_pullback(i, j, 1, &(*_d_fn), &_r0, &_r1);
+  // CHECK-NEXT:         fn.operator_call_pullback(i, j, 1, _d_fn, &_r0, &_r1);
   // CHECK-NEXT:         *_d_i += _r0;
   // CHECK-NEXT:         *_d_j += _r1;
   // CHECK-NEXT:     }
@@ -265,7 +266,7 @@ int main() {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
   // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:         fn.operator_call_pullback(i, j, _d_y, &(*_d_fn), &_r0, &_r1);
+  // CHECK-NEXT:         fn.operator_call_pullback(i, j, _d_y, _d_fn, &_r0, &_r1);
   // CHECK-NEXT:         *_d_i += _r0;
   // CHECK-NEXT:         *_d_j += _r1;
   // CHECK-NEXT:     }

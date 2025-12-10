@@ -47,12 +47,6 @@ void MultiplexExternalRMVSource::ActBeforeCreatingDerivedFnParamTypes(
     source->ActBeforeCreatingDerivedFnParamTypes(numExtraParams);
   }
 }
-void MultiplexExternalRMVSource::ActAfterCreatingDerivedFnParamTypes(
-    llvm::SmallVectorImpl<clang::QualType>& paramTypes) {
-  for (auto source : m_Sources) {
-    source->ActAfterCreatingDerivedFnParamTypes(paramTypes);
-  }
-}
 void MultiplexExternalRMVSource::ActAfterCreatingDerivedFnParams(
     llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) {
   // llvm::errs() << "Reaching multiplexer ActAfterCreatingDerivedFnParams\n";
@@ -179,11 +173,9 @@ void MultiplexExternalRMVSource::ActBeforeFinalizingDifferentiateSingleExpr(
 }
 
 void MultiplexExternalRMVSource::ActBeforeDifferentiatingCallExpr(
-    llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
-    llvm::SmallVectorImpl<clang::Stmt*>& ArgDecls, bool hasAssignee) {
+    llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs) {
   for (auto source : m_Sources)
-    source->ActBeforeDifferentiatingCallExpr(pullbackArgs, ArgDecls,
-                                             hasAssignee);
+    source->ActBeforeDifferentiatingCallExpr(pullbackArgs);
 }
 
 void MultiplexExternalRMVSource::ActBeforeFinalizingVisitDeclStmt(

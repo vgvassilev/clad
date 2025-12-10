@@ -22,33 +22,28 @@ jobs:
       matrix:
 
         include:
-          - name: osx14-arm-clang-runtime14
-            os: macos-14
-            compiler: clang
-            clang-runtime: '14'
-
-          - name: osx14-arm-clang-runtime17
-            os: macos-14
+          - name: osx26-arm-clang-runtime17
+            os: macos-26
             compiler: clang
             clang-runtime: '17'
             
-          - name: osx14-arm-clang-runtime18
-            os: macos-14
+          - name: osx26-arm-clang-runtime18
+            os: macos-26
             compiler: clang
             clang-runtime: '18'
 
-          - name: osx14-arm-clang-runtime19
-            os: macos-14
+          - name: osx26-arm-clang-runtime19
+            os: macos-26
             compiler: clang
             clang-runtime: '19'
 
-          - name: osx14-arm-clang-runtime20
-            os: macos-14
+          - name: osx26-arm-clang-runtime20
+            os: macos-26
             compiler: clang
             clang-runtime: '20'
 
-          - name: osx14-arm-clang-runtime21
-            os: macos-14
+          - name: osx26-arm-clang-runtime21
+            os: macos-26
             compiler: clang
             clang-runtime: '21'
 
@@ -124,19 +119,20 @@ jobs:
             clang-runtime: '21'
             debug_build: true
 
-          - name: selfh-ubu22-gcc12-runtime18-analyzers
+          - name: selfh-ubu22-gcc12-runtime19-analyzers
             os: self-hosted #ubuntu-22.04
             compiler: gcc-12
-            clang-runtime: '18'
+            clang-runtime: '19'
             coverage: true
             cuda: true
-            #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
+            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
+            extra_packages: ' libzstd-dev '
             #clang-format: true
 
-          - name: ubu22-gcc10-runtime11-benchmarks
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '11'
+          - name: ubu24-gcc13-runtime20-benchmarks
+            os: ubuntu-24.04
+            compiler: gcc-13
+            clang-runtime: '20'
             extra_cmake_options: '-DCLAD_ENABLE_BENCHMARKS=On -DCLAD_ENABLE_ENZYME_BACKEND=On'
             benchmark: true
 
@@ -533,7 +529,9 @@ jobs:
         else
           echo "ncpus=$(nproc --all)" >> $GITHUB_ENV
         fi
-        
+        # Cleanup some space: https://github.com/orgs/community/discussions/25678
+        rm -fr /opt/hostedtoolcache
+
     - name: Setup default Build Type on Windows
       if: runner.os == 'windows'
       run: |
@@ -673,7 +671,8 @@ jobs:
           fi
 
           if [[ -n "$HAVE_LLVM" ]]; then
-            brew install llvm@${{ matrix.clang-runtime }}
+            # || true is a workaround for https://github.com/actions/runner-images/issues/9966
+            brew install llvm@${{ matrix.clang-runtime }} || true
             PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
           else
             # FIXME: Make this generic. Currently this is broken...

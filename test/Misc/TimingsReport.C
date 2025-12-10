@@ -26,7 +26,7 @@
 // CHECK_STATS_TBR: <double test2(double a, double b)>[name=test2, order=1, mode=reverse, args='', tbr]: #3 (source), (unprocessed)
 
 #ifdef GLOBAL
-double g = 3.14; // expected-warning {{The gradient utilizes a global variable 'g'}}
+double g = 3.14; // expected-warning {{gradient uses a global variable 'g'; rerunning the gradient requires 'g' to be reset}}
 double global_fn(double x) {
   return g * x;
 }
