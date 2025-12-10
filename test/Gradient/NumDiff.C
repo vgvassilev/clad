@@ -31,12 +31,10 @@ double f2(double x, double y) {
 
 //CHECK: void f2_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = 0.;
-//CHECK-NEXT:         double _r1 = 0.;
 //CHECK-NEXT:         double _grad0[2] = {0};
 //CHECK-NEXT:         numerical_diff::central_difference(multi_arg, _grad0, 0, x, y);
-//CHECK-NEXT:         _r0 += 1 * _grad0[0];
-//CHECK-NEXT:         _r1 += 1 * _grad0[1];
+//CHECK-NEXT:         double _r0 = 1 * _grad0[0];
+//CHECK-NEXT:         double _r1 = 1 * _grad0[1];
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:         *_d_y += _r1;
 //CHECK-NEXT:     }
