@@ -1,6 +1,7 @@
 # Test runner infrastructure for Clad (copied and adapted from Clang). This
 # configures the Clad test trees for use by Lit, and delegates to LLVM's lit
 # test handlers.
+set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang++)
 
 if (CMAKE_CFG_INTDIR STREQUAL ".")
   set(LLVM_BUILD_MODE ".")

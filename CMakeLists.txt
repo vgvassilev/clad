@@ -21,7 +21,7 @@ endforeach()
 
 # Generate CMakeArgs.txt file with source, build dir and command line args
 write_file("${CMAKE_CURRENT_BINARY_DIR}/CMakeArgs.txt"
-  "-S${CMAKE_SOURCE_DIR} -B${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_ARGS}")
+           "-S${CMAKE_SOURCE_DIR} -B${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_ARGS}")
 
 if(POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
@@ -231,17 +231,17 @@ endif()
 include(Compatibility.cmake)
 
 set(C_INCLUDE_DIRS "" CACHE STRING
-  "Colon separated list of directories clad will search for headers.")
+          "Colon separated list of directories clad will search for headers.")
 
 set(CLAD_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CLAD_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR AND NOT MSVC_IDE )
   message(FATAL_ERROR "In-source builds are not allowed. CMake would overwrite "
-"the makefiles distributed with LLVM. Please create a directory and run cmake "
-"from there, passing the path to this source directory as the last argument. "
-"This process created the file `CMakeCache.txt' and the directory "
-"`CMakeFiles'. Please delete them.")
+      "the makefiles distributed with LLVM. Please create a directory and run cmake "
+      "from there, passing the path to this source directory as the last argument. "
+      "This process created the file `CMakeCache.txt' and the directory "
+      "`CMakeFiles'. Please delete them.")
 endif()
 
 if (APPLE)
@@ -326,12 +326,8 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     # Change the default compiler to the clang which we run clad upon. Our unittests
     # need to use a supported by clad compiler. Note that's a huge hack and it is
     # not guaranteed to work with cmake.
-    set(stored_cxx_compiler ${CMAKE_CXX_COMPILER})
-    set(stored_cxx_flags ${CMAKE_CXX_FLAGS})
-    set(stored_c_flags ${CMAKE_C_FLAGS})
     # FIXME: Remove when vgvassilev/clad#1665 is resolved.
     disable_werror(CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
-    set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
     # Filter some unsupported flags by clang.
     string(REPLACE "-fno-lifetime-dse" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     string(REPLACE "-Wno-class-memaccess" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -346,13 +342,6 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
   if (CLAD_ENABLE_BENCHMARKS)
     add_subdirectory(benchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
-
-  if (stored_cxx_compiler)
-    # Restore the default compiler.
-    set(CMAKE_CXX_COMPILER ${stored_cxx_compiler})
-    set(CMAKE_CXX_FLAGS ${stored_cxx_flags})
-    set(CMAKE_C_FLAGS ${stored_c_flags})
-  endif()
 endif()
 
 # Workaround for MSVS10 to avoid the Dialog Hell
