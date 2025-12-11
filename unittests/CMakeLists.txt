@@ -1,6 +1,13 @@
 add_custom_target(CladUnitTests)
 set_target_properties(CladUnitTests PROPERTIES FOLDER "Clad tests")
 
+set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang++)
+function(diff_compiler_test target)
+  target_compile_options(
+    ${target} PRIVATE  -Wno-undefined-inline)
+  target_compile_definitions(${target} PRIVATE CLAD_TESTING=1)
+endfunction()
+
 # LLVM builds (not installed llvm) provides gtest.
 if (NOT TARGET gtest)
   include(CladGoogleTest)
@@ -16,7 +23,7 @@ endif()
 function(add_clad_unittest test_dirname)
 
   add_unittest(CladUnitTests ${test_dirname} ${ARGN})
-
+  diff_compiler_test(${test_dirname})
   # Remove the llvm_gtest_* coming from add_unittest.
   get_target_property(GTEST_LINKED_LIBS ${test_dirname} LINK_LIBRARIES)
   list(REMOVE_ITEM GTEST_LINKED_LIBS llvm_gtest_main llvm_gtest)
