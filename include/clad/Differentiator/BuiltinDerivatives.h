@@ -1088,6 +1088,26 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_1_pushforward(T k, dT d_
   return {K, (numerator / denominator) * d_k};
 }
 
+// [Ayush]: Derivative w.r.t first argument (dK/dk)
+// This allows Clad to auto-generate both Forward and Reverse mode.
+CUDA_HOST_DEVICE double comp_ellint_1_darg0(double k) {
+  // [Ayush]: Calculate K(k) and E(k)
+  double K = ::std::comp_ellint_1(k);
+  double E = ::std::comp_ellint_2(k);
+
+  // [Ayush]: Helper variables
+  double one = 1.0;
+  double k_sq = k * k;
+  double term = one - k_sq;
+
+  // [Ayush]: Calculate Derivative D = dK/dk
+  // Formula: (E - (1-k^2)K) / (k * (1-k^2))
+  double numerator = E - (term * K);
+  double denominator = k * term;
+
+  return numerator / denominator;
+}
+
 } // namespace std
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -1353,6 +1373,7 @@ using std::pow_pullback;
 using std::pow_pushforward;
 using std::sqrt_pushforward;
 using std::comp_ellint_1_pushforward;
+using std::comp_ellint_1_darg0;
 
 namespace class_functions {
 template <typename T, typename U>
