@@ -332,10 +332,10 @@ double fn7(double i, double j) {
 
 // CHECK: void identity_pullback(double &i, double *_d_i) {
 // CHECK-NEXT:     MyStruct::myFunction();
-// CHECK-NEXT:     double _d__d_i = 0.;
+// CHECK-NEXT:     double _d_d_i = 0.;
 // CHECK-NEXT:     double _d_i0 = i;
 // CHECK-NEXT:     _d_i0 += 1;
-// CHECK-NEXT:     *_d_i += _d__d_i;
+// CHECK-NEXT:     *_d_i += _d_d_i;
 // CHECK-NEXT: }
 
 // CHECK: void custom_identity_pullback(double &i, double *_d_i) {
