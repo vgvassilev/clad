@@ -146,6 +146,9 @@ void cudaMalloc_pullback(T** devPtr, size_t sz, cudaError_t d_ret, T** d_devPtr,
 cudaError_t cudaFree_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
 
 void cudaFree_pullback(void* ptr, cudaError_t d_ret, void* d_ptr);
+
+template <typename... Args>
+unsigned __cudaPushCallConfiguration_reverse_forw(Args...);
 #endif
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
