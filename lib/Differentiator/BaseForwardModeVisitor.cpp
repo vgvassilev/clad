@@ -1212,13 +1212,12 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
             .get();
     // FIXME: Extend this for multiarg support
     // Check if the function is eligible for numerical differentiation.
-    if (CE->getNumArgs() == 1) {
+    if (CE->getNumArgs() == 1 && utils::IsRealFunction(FD)) {
       Expr* fnCallee = cast<CallExpr>(call)->getCallee();
       callDiff =
           GetSingleArgCentralDiffCall(fnCallee, CallArgs[0],
                                       /*targetPos=*/0, /*numArgs=*/1, CallArgs);
     }
-    CallExprDiffDiagnostics(FD, CE->getBeginLoc());
     if (!callDiff) {
       auto zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);

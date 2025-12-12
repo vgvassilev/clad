@@ -198,9 +198,9 @@ namespace clad {
     void DiagnoseSignatureMismatch(clang::Sema& S, clang::QualType FnTy,
                                    const clang::LookupResult& Overloads);
 
-    /// Returns true if the function has any reference or pointer parameter;
-    /// otherwise returns false.
-    bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD);
+    /// Returns true if the function has only real non-reference parameters and
+    /// returns a real number.
+    bool IsRealFunction(const clang::FunctionDecl* FD);
 
     /// Returns true if `arg` is an argument passed by reference or is of
     /// pointer/array type.

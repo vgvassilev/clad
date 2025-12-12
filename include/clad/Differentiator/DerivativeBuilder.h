@@ -16,6 +16,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Sema.h"
 
 #include <array>
@@ -196,6 +197,15 @@ namespace clad {
     /// \param[in] Request The request to be processed.
     /// \returns The derivative function if found, nullptr otherwise.
     clang::FunctionDecl* HandleNestedDiffRequest(DiffRequest& request);
+
+    /// Emits diagnostic messages on differentiation (or lack thereof) for
+    /// an function without a definition.
+    ///
+    /// \param[in] \c FD - The function declaration.
+    /// \param[in] \c srcLoc Any associated source location information.
+    void diagnoseUndefinedFunction(const clang::FunctionDecl* FD,
+                                   clang::SourceLocation srcLoc,
+                                   bool numDiffViable);
   };
 
 } // end namespace clad

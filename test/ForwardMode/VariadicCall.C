@@ -10,8 +10,8 @@ double fn1(double x, T... y) {
 
 double fn2(double x, double y) {
     // FIXME: Replace `printf` call with a proper variadic function without template
-    printf("x is %f, y is %f\n", x, y); // expected-warning {{function 'printf' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
-                                    // expected-note@-1 {{fallback to numerical differentiation is disabled by the 'CLAD_NO_NUM_DIFF' macro; considering 'printf' as 0}}
+    printf("x is %f, y is %f\n", x, y); // expected-warning {{attempted differentiation of function 'printf' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
+                                    // expected-note@-1 {{numerical differentiation is not viable for 'printf'; considering 'printf' as 0}}
     return fn1(x, y);
 }
 

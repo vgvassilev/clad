@@ -1991,9 +1991,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     Expr* OverloadedDerivedFn = nullptr;
-    // Stores tape decl and pushes for multiarg numerically differentiated
-    // calls.
-    llvm::SmallVector<Stmt*, 16> PostCallStmts{};
     bool hasDynamicNonDiffParams = false;
     if (!nonDiff) {
       // Build the args for the pullback
@@ -2058,7 +2055,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           m_ExternalSource->ActBeforeDifferentiatingCallExpr(pullbackCallArgs);
         OverloadedDerivedFn = BuildCallExprToFunction(
             pullbackFD, pullbackCallArgs, CUDAExecConfig);
-      } else if (!utils::HasAnyReferenceOrPointerArgument(FD) && !MD) {
+      } else if (utils::IsRealFunction(FD)) {
         // FIXME: Add support for reference arguments to the numerical diff. If
         // it already correctly support reference arguments then confirm the
         // support and add tests for the same.
@@ -2072,12 +2069,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           asGrad = !OverloadedDerivedFn;
         } else {
           auto CEType = utils::getNonConstType(CE->getType(), m_Sema);
-          OverloadedDerivedFn = GetMultiArgCentralDiffCall(
+          GetMultiArgCentralDiffCall(
               Clone(CE->getCallee()), CEType.getCanonicalType(),
-              CE->getNumArgs(), dfdx(), PreCallStmts, PostCallStmts,
-              pullbackCallArgs, CallArgDx, CUDAExecConfig);
+              CE->getNumArgs(), dfdx(), PreCallStmts, pullbackCallArgs,
+              CallArgDx, CUDAExecConfig);
         }
-        CallExprDiffDiagnostics(FD, CE->getBeginLoc());
       }
       // If the derivative is called through _darg0 instead of _grad.
       if (OverloadedDerivedFn && !asGrad) {
@@ -2109,8 +2105,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       it = block.insert(it, OverloadedDerivedFn);
       it++;
     }
-    // Insert PostCallStmts
-    block.insert(it, PostCallStmts.begin(), PostCallStmts.end());
 
     if (isa<CUDAKernelCallExpr>(CE))
       return StmtDiff(Clone(CE));
@@ -2248,10 +2242,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return StmtDiff(call, getZeroInit(call->getType()));
   }
 
-  Expr* ReverseModeVisitor::GetMultiArgCentralDiffCall(
+  void ReverseModeVisitor::GetMultiArgCentralDiffCall(
       Expr* targetFuncCall, QualType retType, unsigned numArgs, Expr* dfdx,
       llvm::SmallVectorImpl<Stmt*>& PreCallStmts,
-      llvm::SmallVectorImpl<Stmt*>& PostCallStmts,
       llvm::SmallVectorImpl<Expr*>& args,
       llvm::SmallVectorImpl<Expr*>& outputArgs,
       Expr* CUDAExecConfig /*=nullptr*/) {
@@ -2272,7 +2265,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* init = m_Sema.ActOnInitList(noLoc, {zero}, noLoc).get();
     auto* VD = BuildVarDecl(GradType, "_grad", init);
 
-    PreCallStmts.push_back(BuildDeclStmt(VD));
     NumDiffArgs.push_back(BuildDeclRef(VD));
     NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(
         m_Context.IntTy, m_Context, printErrorInf));
@@ -2287,17 +2279,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* gradExpr = BuildOp(BO_Mul, dfdx, gradElem);
       // Inputs were not pointers, so the output args are not in global GPU
       // memory. Hence, no need to use atomic ops.
-      auto* UnOp = cast<UnaryOperator>(outputArgs[i]);
-      PostCallStmts.push_back(
-          BuildOp(BO_AddAssign, UnOp->getSubExpr(), gradExpr));
+      Expr* dArgE = cast<UnaryOperator>(outputArgs[i])->getSubExpr();
+      auto* dArgVD = cast<VarDecl>(cast<DeclRefExpr>(dArgE)->getDecl());
+      SetDeclInit(dArgVD, gradExpr);
       NumDiffArgs.push_back(args[i]);
     }
     std::string Name = "central_difference";
-    return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+    Expr* call = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
         Name, NumDiffArgs, getCurrentScope(),
         /*callSite=*/nullptr,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false, CUDAExecConfig);
+    // The call and the `_grad` declaration must go before the declarations of
+    // `_r` temporaries.
+    PreCallStmts.insert(PreCallStmts.begin(), call);
+    PreCallStmts.insert(PreCallStmts.begin(), BuildDeclStmt(VD));
   }
 
   StmtDiff ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
