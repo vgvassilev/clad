@@ -73,8 +73,57 @@ double f1(double x) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+enum State {
+  should_return,
+  no_return
+};
+
+double* filter(double* p, State s) {
+    if (s == State::should_return)
+        return p;
+    return nullptr;
+}
+
+//CHECK: clad::ValueAndAdjoint<double *, double *> filter_reverse_forw(double *p, State s, double *_d_p, State _d_s) {
+//CHECK-NEXT:     {
+//CHECK-NEXT:         bool _cond0 = s == State::should_return;
+//CHECK-NEXT:         if (_cond0)
+//CHECK-NEXT:             return {p, _d_p};
+//CHECK-NEXT:     }
+//CHECK-NEXT:     return {nullptr, nullptr};
+//CHECK-NEXT: }
+
+//CHECK: void filter_pullback(double *p, State s, double *_d_p, State *_d_s) {
+//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         _cond0 = s == State::should_return;
+//CHECK-NEXT:         if (_cond0)
+//CHECK-NEXT:             goto _label0;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     if (_cond0)
+//CHECK-NEXT:       _label0:
+//CHECK-NEXT:         ;
+//CHECK-NEXT: }
+
+double f2(double x) {
+    return *filter(&x, State::should_return);
+}
+
+//CHECK: void f2_grad(double x, double *_d_x) {
+//CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0 = filter_reverse_forw(&x, State::should_return, _d_x, static_cast<State>(0U));
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_t0.adjoint += 1;
+//CHECK-NEXT:         State _r0 = static_cast<State>(0U);
+//CHECK-NEXT:         filter_pullback(&x, State::should_return, _d_x, &_r0);
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 int main() {
   double dx = 0;
   INIT_GRADIENT(f1);
   TEST_GRADIENT(f1, /*numOfDerivativeArgs=*/1, -9, &dx); // CHECK-EXEC: -1.00
+
+  dx = 0;
+  INIT_GRADIENT(f2);
+  TEST_GRADIENT(f2, /*numOfDerivativeArgs=*/1, 3, &dx); // CHECK-EXEC: 1.00
 }
