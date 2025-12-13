@@ -295,9 +295,11 @@ DEFINE_FUNCTIONS(atanh) // x in [-1,1]
 //
 DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
 
-// Manually defined to match DEFINE_FUNCTIONS pattern (comp_ellint_1f does not exist)
 template <typename T>
 T f_comp_ellint_1(T x) { return std::comp_ellint_1(x); }
+
+inline float f_comp_ellint_1f(float x) { return std::comp_ellint_1(x); }
+inline long double f_comp_ellint_1l(long double x) { return std::comp_ellint_1(x); }
 
 int main() {
   // Absolute value
