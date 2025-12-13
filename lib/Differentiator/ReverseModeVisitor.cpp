@@ -2371,7 +2371,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* derivedE = BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr_dx());
       return {cloneE, derivedE};
     } else if (opCode == UnaryOperatorKind::UO_Deref) {
+      beginBlock(direction::reverse);
       diff = Visit(E);
+      Stmts revBlock = EndBlockWithoutCreatingCS(direction::reverse);
       Expr* cloneE = BuildOp(UnaryOperatorKind::UO_Deref, diff.getExpr());
 
       // If we have a pointer to a member expression, which is
@@ -2385,6 +2387,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Create the (target += dfdx) statement.
       if (Expr* add_assign = BuildDiffIncrement(derivedE))
         addToCurrentBlock(add_assign, direction::reverse);
+      for (Stmt* S : revBlock)
+        addToCurrentBlock(S, direction::reverse);
       return {cloneE, derivedE};
     } else {
       if (opCode != UO_LNot)
