@@ -1059,45 +1059,32 @@ CUDA_HOST_DEVICE void hypot_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   *d_y += (y / h) * d_z;
 }
 
-// -------------------------------------------------------------------------
-// [Ayush GSoC 2026 Contribution]
-// Feature: Added support for Complete Elliptic Integral of the First Kind
-// Target: std::comp_ellint_1(k)
-// Formula: dK/dk = (E(k) - (1-k^2)*K(k)) / (k * (1-k^2))
-// -------------------------------------------------------------------------
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_1_pushforward(T k, dT d_k) {
-  // [Ayush]: Calculate K(k) and E(k) using C++17 std math
+
   T K = ::std::comp_ellint_1(k);
   T E = ::std::comp_ellint_2(k);
 
-  // [Ayush]: Helper variables for the derivative formula
   T one = 1.0;
   T k_sq = k * k;
   T term = one - k_sq;
 
-  // [Ayush]: Calculate Derivative
   // Formula: (E - (1-k^2)K) / (k * (1-k^2))
   T numerator = E - (term * K);
   T denominator = k * term;
 
-  // [Ayush]: Return value and pushforward (chain rule applied)
   return {K, (numerator / denominator) * d_k};
 }
 
-// [Ayush]: Derivative w.r.t first argument (dK/dk)
 // This allows Clad to auto-generate both Forward and Reverse mode.
 CUDA_HOST_DEVICE double comp_ellint_1_darg0(double k) {
-  // [Ayush]: Calculate K(k) and E(k)
   double K = ::std::comp_ellint_1(k);
   double E = ::std::comp_ellint_2(k);
 
-  // [Ayush]: Helper variables
   double one = 1.0;
   double k_sq = k * k;
   double term = one - k_sq;
 
-  // [Ayush]: Calculate Derivative D = dK/dk
   // Formula: (E - (1-k^2)K) / (k * (1-k^2))
   double numerator = E - (term * K);
   double denominator = k * term;
