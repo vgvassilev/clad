@@ -295,6 +295,10 @@ DEFINE_FUNCTIONS(atanh) // x in [-1,1]
 //
 DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
 
+double comp_ellint_1_wrapper(double k) {
+  return std::comp_ellint_1(k);
+}
+
 int main() {
   // Absolute value
   CHECK(abs);
@@ -352,6 +356,10 @@ int main() {
 
   // Error / Gamma functions
   CHECK_ALL(erf);
+
+  auto ellint1_d = clad::differentiate(comp_ellint_1_wrapper, "k");
+  if (std::abs(ellint1_d.execute(0.5) - 0.541732) > 1e-5)
+    return 1;
 
   return 0;
 }
