@@ -1326,7 +1326,8 @@ namespace clad {
             if (param == FD->getParamDecl(i))
               FnTypes.push_back(
                   utils::GetParameterDerivativeType(S, mode, PVDTy));
-        } else if (utils::IsDifferentiableType(PVDTy))
+        } else if (mode == DiffMode::reverse_mode_forward_pass ||
+                   utils::IsDifferentiableType(PVDTy))
           FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
       }
 
