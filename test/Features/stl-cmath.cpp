@@ -295,9 +295,9 @@ DEFINE_FUNCTIONS(atanh) // x in [-1,1]
 //
 DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
 
-double comp_ellint_1_wrapper(double k) {
-  return std::comp_ellint_1(k);
-}
+// Manually defined to match DEFINE_FUNCTIONS pattern (comp_ellint_1f does not exist)
+template <typename T>
+T f_comp_ellint_1(T x) { return std::comp_ellint_1(x); }
 
 int main() {
   // Absolute value
@@ -357,7 +357,10 @@ int main() {
   // Error / Gamma functions
   CHECK_ALL(erf);
 
-  auto ellint1_d = clad::differentiate(comp_ellint_1_wrapper, "k");
+  // Test for std::comp_ellint_1
+  // We use the templated wrapper 'f_comp_ellint_1' defined above.
+  // The argument name in the template is "x".
+  auto ellint1_d = clad::differentiate(f_comp_ellint_1<double>, "x");
   if (std::abs(ellint1_d.execute(0.5) - 0.541732) > 1e-5)
     return 1;
 
