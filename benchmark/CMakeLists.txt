@@ -12,6 +12,13 @@ CB_ADD_GBENCHMARK(MemoryComplexity MemoryComplexity.cpp)
 CB_ADD_GBENCHMARK(Multithreading Multithreading.cpp)
 CB_ADD_GBENCHMARK(Hessians Hessians.cpp)
 
+function(clad_apply_benchmark_compiler target)
+    target_compile_options(
+    ${target} PRIVATE  -Wno-undefined-inline)
+
+    set_property(TARGET ${target} PROPERTY CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang++)
+endfunction()
+
 # This is to Apply Clang-specific flags and definitions for all benchmarks
 clad_apply_benchmark_compiler(Simple)
 clad_apply_benchmark_compiler(AlgorithmicComplexity)

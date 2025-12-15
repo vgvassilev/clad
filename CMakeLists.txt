@@ -337,7 +337,6 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
 
   # Add benchmarking infrastructure.
   if (CLAD_ENABLE_BENCHMARKS)
-    include(ClangBenchmark)
     add_subdirectory(benchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
 
