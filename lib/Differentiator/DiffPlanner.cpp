@@ -683,6 +683,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return found != m_ActivityRunInfo.VariedS.end();
   }
   bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
+    // Integer types shouldn't have adjoints.
+    if (VD->getType()->isIntegralOrEnumerationType())
+      return false;
     if (!EnableVariedAnalysis)
       return true;
     return getVariedDecls().find(VD) != getVariedDecls().end();
