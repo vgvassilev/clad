@@ -265,7 +265,7 @@ double f13(double x) {
 //CHECK-NEXT: }
 //CHECK-NEXT: double f13_d2arg0(double x) {
 //CHECK-NEXT:     double _d_x = 1;
-//CHECK-NEXT:     double _d__d_x = 0;
+//CHECK-NEXT:     double _d__d_x = 0.;
 //CHECK-NEXT:     double _d_x0 = 1;
 //CHECK-NEXT:     clad::ValueAndPushforward<clad::ValueAndPushforward<double, double>, clad::ValueAndPushforward<double, double> > _t0 = clad::custom_derivatives::custom_f13_pushforward_pushforward(x, _d_x0, _d_x, _d__d_x);
 //CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = _t0.pushforward;

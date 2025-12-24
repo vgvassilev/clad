@@ -1463,14 +1463,34 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
       initDiff = StmtDiff(Clone(init));
   }
 
-  // Here we are assuming that derived type and the original type are same.
-  // This may not necessarily be true in the future.
+  Expr* finalInit = initDiff.getExpr();
+  if (init && VD->getType()->isRealFloatingType()) {
+    if (const auto* IL =
+            dyn_cast<IntegerLiteral>(init->IgnoreParenImpCasts())) {
+      if (IL->getValue() == 0)
+        finalInit = getZeroInit(VD->getType());
+    }
+  }
+
   VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
-                                  initDiff.getExpr(), VD->isDirectInit());
-  // FIXME: Create unique identifier for derivative.
+                                  finalInit, VD->isDirectInit());
+
   Expr* initDx = initDiff.getExpr_dx();
+
+  if (VD->getType()->isRealFloatingType()) {
+    bool needsFix = false;
+
+    if (!initDx) {
+      needsFix = true;
+    } else if (auto* IL =
+                   dyn_cast<IntegerLiteral>(initDx->IgnoreParenImpCasts())) {
+      if (IL->getValue() == 0)
+        needsFix = true;
+    }
+    if (needsFix)
+      initDx = getZeroInit(VD->getType());
+  }
   if (VD->getType()->isPointerType() && !initDx) {
-    // initialize with nullptr.
     // NOLINTBEGIN(cppcoreguidelines-owned-memory)
     initDx =
         new (m_Context) CXXNullPtrLiteralExpr(VD->getType(), VD->getBeginLoc());
@@ -1485,7 +1505,6 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
     m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
-
 StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
   llvm::SmallVector<Decl*, 4> decls;
   llvm::SmallVector<Decl*, 4> declsDiff;

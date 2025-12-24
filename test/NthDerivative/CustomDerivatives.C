@@ -12,7 +12,7 @@ float test_sin(float x) {
 
 // CHECK: float test_sin_d2arg0(float x) {
 // CHECK-NEXT:    float _d_x = 1;
-// CHECK-NEXT:    float _d__d_x = 0;
+// CHECK-NEXT:    float _d__d_x = 0.F;
 // CHECK-NEXT:    float _d_x0 = 1;
 // CHECK-NEXT:    clad::ValueAndPushforward<ValueAndPushforward<float, float>, ValueAndPushforward<float, float> > _t0 = clad::custom_derivatives::std::sin_pushforward_pushforward(x, _d_x0, _d_x, _d__d_x);
 // CHECK-NEXT:    ValueAndPushforward<float, float> _d__t0 = _t0.pushforward;
@@ -26,7 +26,7 @@ float test_cos(float x) {
 
 // CHECK: float test_cos_d2arg0(float x) {
 // CHECK-NEXT:    float _d_x = 1;
-// CHECK-NEXT:    float _d__d_x = 0;
+// CHECK-NEXT:    float _d__d_x = 0.F;
 // CHECK-NEXT:    float _d_x0 = 1;
 // CHECK-NEXT:    clad::ValueAndPushforward<ValueAndPushforward<float, float>, ValueAndPushforward<float, float> > _t0 = clad::custom_derivatives::std::cos_pushforward_pushforward(x, _d_x0, _d_x, _d__d_x);
 // CHECK-NEXT:    ValueAndPushforward<float, float> _d__t0 = _t0.pushforward;
@@ -44,10 +44,10 @@ float test_trig(float x, float y, int a, int b) {
 // CHECK-NEXT:    float _d_y = 0;
 // CHECK-NEXT:    int _d_a = 0;
 // CHECK-NEXT:    int _d_b = 0;
-// CHECK-NEXT:    float _d__d_x = 0;
+// CHECK-NEXT:    float _d__d_x = 0.F;
 // CHECK-NEXT:    float _d_x0 = 1;
-// CHECK-NEXT:    float _d__d_y = 0;
-// CHECK-NEXT:    float _d_y0 = 0;
+// CHECK-NEXT:    float _d__d_y = 0.F;
+// CHECK-NEXT:    float _d_y0 = 0.F;
 // CHECK-NEXT:    int _d__d_a = 0;
 // CHECK-NEXT:    int _d_a0 = 0;
 // CHECK-NEXT:    int _d__d_b = 0;
@@ -81,9 +81,9 @@ float test_trig(float x, float y, int a, int b) {
 // CHECK-NEXT:    float _d_y = 1;
 // CHECK-NEXT:    int _d_a = 0;
 // CHECK-NEXT:    int _d_b = 0;
-// CHECK-NEXT:    float _d__d_x = 0;
-// CHECK-NEXT:    float _d_x0 = 0;
-// CHECK-NEXT:    float _d__d_y = 0;
+// CHECK-NEXT:    float _d__d_x = 0.F;
+// CHECK-NEXT:    float _d_x0 = 0.F;
+// CHECK-NEXT:    float _d__d_y = 0.F;
 // CHECK-NEXT:    float _d_y0 = 1;
 // CHECK-NEXT:    int _d__d_a = 0;
 // CHECK-NEXT:    int _d_a0 = 0;
@@ -128,7 +128,7 @@ float test_exp(float x) {
 
 // CHECK:   float test_exp_d2arg0(float x) {
 // CHECK-NEXT:    float _d_x = 1;
-// CHECK-NEXT:    float _d__d_x = 0;
+// CHECK-NEXT:    float _d__d_x = 0.F;
 // CHECK-NEXT:    float _d_x0 = 1;
 // CHECK-NEXT:    clad::ValueAndPushforward<ValueAndPushforward<{{float|double}}, {{float|double}}>, ValueAndPushforward<{{float|double}}, {{float|double}}> > _t0 = clad::custom_derivatives::std::exp_pushforward_pushforward(x * x, _d_x0 * x + x * _d_x0, _d_x * x + x * _d_x, _d__d_x * x + _d_x0 * _d_x + _d_x * _d_x0 + x * _d__d_x);
 // CHECK-NEXT:    {{(clad::)?}}ValueAndPushforward<{{float|double}}, {{float|double}}> _d__t0 = _t0.pushforward;

@@ -18,7 +18,7 @@ double addArr(const double *arr, int n) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     double _d_ret = 0.;
-//CHECK-NEXT:     double ret = 0;
+//CHECK-NEXT:     double ret = 0.;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
@@ -59,7 +59,7 @@ float func(float* a, float* b) {
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     float _d_sum = 0.F;
-//CHECK-NEXT:     float sum = 0;
+//CHECK-NEXT:     float sum = 0.F;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
@@ -103,7 +103,7 @@ float func2(float* a) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     float _d_sum = 0.F;
-//CHECK-NEXT:     float sum = 0;
+//CHECK-NEXT:     float sum = 0.F;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
@@ -130,7 +130,7 @@ float func3(float* a, float* b) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     float _d_sum = 0.F;
-//CHECK-NEXT:     float sum = 0;
+//CHECK-NEXT:     float sum = 0.F;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
@@ -161,7 +161,7 @@ double func4(double x) {
 //CHECK-NEXT:     double _d_arr[3] = {0};
 //CHECK-NEXT:     double arr[3] = {x, 2 * x, x * x};
 //CHECK-NEXT:     double _d_sum = 0.;
-//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     double sum = 0.;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
@@ -216,7 +216,7 @@ double func5(int k) {
 //CHECK-NEXT:         arr[i] = k;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _d_sum = 0.;
-//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     double sum = 0.;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t1 = 0;
 //CHECK-NEXT:     for (i0 = 0; i0 < 3; i0++) {
 //CHECK-NEXT:         _t1++;
@@ -258,7 +258,7 @@ double func6(double seed) {
 //CHECK-NEXT:     double _d_arr[3] = {0};
 //CHECK-NEXT:     double arr[3] = {0};
 //CHECK-NEXT:     double _d_sum = 0.;
-//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     double sum = 0.;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
@@ -316,7 +316,7 @@ double func7(double *params) {
 //CHECK-NEXT:     double _d_out = 0.;
 //CHECK-NEXT:     double out = 0.;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
-//CHECK-NEXT:     for (i = 0; i < 1; ++i) {
+//CHECK-NEXT:     for (i = {{0|0U|0UL}}; i < 1; ++i) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::move({params[0]}, paramsPrime);
 //CHECK-NEXT:         out = out + inv_square(paramsPrime);
@@ -357,7 +357,7 @@ double func8(double i, double *arr, int n) {
 
 //CHECK: void func8_grad(double i, double *arr, int n, double *_d_i, double *_d_arr, int *_d_n) {
 //CHECK-NEXT:     double _d_res = 0.;
-//CHECK-NEXT:     double res = 0;
+//CHECK-NEXT:     double res = 0.;
 //CHECK-NEXT:     arr[0] = 1;
 //CHECK-NEXT:     res = helper2(i, arr, n);
 //CHECK-NEXT:     double _t0 = arr[0];
@@ -464,7 +464,7 @@ double func10(double *arr, int n) {
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _d_res = 0.;
-//CHECK-NEXT:     double res = 0;
+//CHECK-NEXT:     double res = 0.;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -500,7 +500,7 @@ double func11(double seed) {
 // CHECK-NEXT:    double _d_arr[3] = {0};
 // CHECK-NEXT:    double arr[3];
 // CHECK-NEXT:    double _d_sum = 0.;
-// CHECK-NEXT:    double sum = 0;
+// CHECK-NEXT:    double sum = 0.;
 // CHECK-NEXT:    unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:    for (i = 0; i < 3; i++) {
 // CHECK-NEXT:        _t0++;
@@ -550,7 +550,7 @@ double func12(double x[3], double y[3]) {
 //CHECK-NEXT:       int _d_i = 0;
 //CHECK-NEXT:       int i = 0;
 //CHECK-NEXT:       double _d_prod = 0.;
-//CHECK-NEXT:       double prod = 0;
+//CHECK-NEXT:       double prod = 0.;
 //CHECK-NEXT:       unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:       for (i = 0; i < 3; ++i) {
 //CHECK-NEXT:           _t0++;
@@ -581,7 +581,7 @@ double func13(double* x, double y) {
 // CHECK-NEXT:      double _d_arr[4] = {0};
 // CHECK-NEXT:      double arr[4] = {0};
 // CHECK-NEXT:      double _d_prod = 0.;
-// CHECK-NEXT:      double prod = 0;
+// CHECK-NEXT:      double prod = 0.;
 // CHECK-NEXT:      unsigned {{int|long}} _t0 = 0;
 // CHECK-NEXT:      for (i = 0; i < 2; ++i) {
 // CHECK-NEXT:          _t0++;

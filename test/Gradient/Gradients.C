@@ -860,7 +860,7 @@ double fn_empty_if_block(double x) {
 //CHECK:void fn_empty_if_block_grad(double x, double *_d_x) {
 //CHECK-NEXT:    bool _cond0;
 //CHECK-NEXT:    double _d_res = 0.;
-//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    double res = 0.;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _cond0 = x > 0;
 //CHECK-NEXT:        if (_cond0)
@@ -883,7 +883,7 @@ double fn_empty_if_else(double x) {
 //CHECK: void fn_empty_if_else_grad(double x, double *_d_x) {
 //CHECK-NEXT:    bool _cond0;
 //CHECK-NEXT:    double _d_res = 0.;
-//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    double res = 0.;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _cond0 = (res = 0);
 //CHECK-NEXT:        if (_cond0)
@@ -923,7 +923,7 @@ double fn_cond_false(double i, double j) {
 // CHECK-NEXT:    bool _cond1;
 // CHECK-NEXT:    bool _cond2;
 // CHECK-NEXT:    double _d_res = 0.;
-// CHECK-NEXT:    double res = 0;
+// CHECK-NEXT:    double res = 0.;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        {
 // CHECK-NEXT:            _cond1 = i * j;
@@ -970,7 +970,7 @@ double fn_cond_add_assign(double i, double j) {
 // CHECK-NEXT:    bool _cond3;
 // CHECK-NEXT:    bool _cond4;
 // CHECK-NEXT:    double _d_res = 0.;
-// CHECK-NEXT:    double res = 0;
+// CHECK-NEXT:    double res = 0.;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        {
 // CHECK-NEXT:            {
