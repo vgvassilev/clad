@@ -503,11 +503,13 @@ CUDA_HOST_DEVICE void fdiml_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
 // 2. Exponential Functions
 
 // 2.1 exp, expf, expl
+// Allow disabling built-in derivative if user-defined derivative provided.
+#ifndef CLAD_NO_BUILTIN_EXP
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp_pushforward(T x, dT d_x) {
   return {::std::exp(x), ::std::exp(x) * d_x};
 }
-
+#endif
 // pushforward for expf, expl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expf_pushforward(T x, dT d_x) {
@@ -1236,7 +1238,9 @@ using std::remainderl_pushforward;
 using std::exp2_pushforward;
 using std::exp2f_pushforward;
 using std::exp2l_pushforward;
-using std::exp_pushforward;
+#ifndef CLAD_NO_BUILTIN_EXP
+using std::exp_pushforward;  //disable built-in exp derivative
+#endif
 using std::expf_pushforward;
 using std::expl_pushforward;
 using std::expm1_pushforward;
