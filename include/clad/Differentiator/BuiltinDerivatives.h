@@ -510,6 +510,7 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp_pushforward(T x, dT d_x) {
   return {::std::exp(x), ::std::exp(x) * d_x};
 }
 #endif
+
 // pushforward for expf, expl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expf_pushforward(T x, dT d_x) {
