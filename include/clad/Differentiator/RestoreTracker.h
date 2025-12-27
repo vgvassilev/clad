@@ -4,7 +4,9 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <map>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -41,10 +43,29 @@ public:
   }
   // Set all stored addresses to the corresponsing values bitwise.
   void restore() {
-    for (std::pair<const Address, RawMemory>& pair : m_data) {
-      std::vector<uint8_t>& buffer = pair.second;
-      std::memcpy(pair.first, buffer.data(), buffer.size());
+    size_t total_items = m_data.size();
+    if (total_items == 0)
+      return;
+    size_t avail_threads = std::thread::hardware_concurrency();
+    std::vector<std::thread> workers;
+    workers.reserve(avail_threads);
+    size_t task_per_worker = total_items / avail_threads;
+    size_t left_task = total_items % avail_threads;
+    auto block_start = m_data.begin();
+    for (size_t i = 0; i < avail_threads; i++) {
+      size_t temp = task_per_worker + (i < left_task ? 1 : 0);
+      auto block_end = block_start;
+      std::advance(block_end, temp);
+      workers.emplace_back([block_start, block_end]() {
+        for (auto it = block_start; it != block_end; it++)
+          std::memcpy(it->first, it->second.data(), it->second.size());
+      });
+      block_start = block_end;
     }
+    for (auto& it : workers)
+      if (it.joinable())
+        it.join();
+
     m_data.clear();
   }
 };
