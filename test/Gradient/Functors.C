@@ -146,7 +146,7 @@ double FunctorAsArgWrapper(double i, double j) {
   E##Ref_grad.execute(7, 9, &res[0], &res[1]);                                 \
   printf("%.2f %.2f\n", res[0], res[1]);
 
-double x = 3;  // expected-warning {{The gradient utilizes a global variable 'x'. Please make sure to properly reset 'x' before re-running the gradient.}}
+double x = 3;  // expected-warning {{gradient uses a global variable 'x'; rerunning the gradient requires 'x' to be reset}}
 
 int main() {
   Experiment E(3, 5), d_E, d_E_Const;

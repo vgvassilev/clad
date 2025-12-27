@@ -14,11 +14,14 @@
 #include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 #include "clad/Differentiator/VisitorBase.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Sema.h"
 
 #include <llvm/ADT/ArrayRef.h>
@@ -27,6 +30,7 @@
 #include <array>
 #include <limits>
 #include <memory>
+#include <queue>
 #include <stack>
 #include <unordered_map>
 
@@ -395,6 +399,9 @@ namespace clad {
     StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
     StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
+    StmtDiff VisitArrayInitLoopExpr(const clang::ArrayInitLoopExpr* AILE);
+    StmtDiff VisitArrayInitIndexExpr(const clang::ArrayInitIndexExpr* AIIE);
+    StmtDiff VisitOpaqueValueExpr(const clang::OpaqueValueExpr* OVE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
@@ -504,14 +511,6 @@ namespace clad {
                          const clang::ParmVarDecl* param,
                          llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
                          bool isNonDiff, bool isCUDAKernel = false);
-    /// Shorthand for warning on differentiation of unsupported operators
-    void unsupportedOpWarn(clang::SourceLocation loc,
-                           llvm::ArrayRef<llvm::StringRef> args = {}) {
-      diag(clang::DiagnosticsEngine::Warning,
-           loc,
-           "attempt to differentiate unsupported operator, ignored.",
-           args);
-    }
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop.
@@ -724,6 +723,13 @@ namespace clad {
     void PopSwitchStmtInfo() { m_SwitchStmtsData.pop_back(); }
 
   private:
+    // When differentiating ArrayInitLoopExpr, we need to replace
+    // ArrayInitIndexExpr with real indices. We need to both add and pop them in
+    // the right order, so we use std::queue. For example, for `arr[i][j]`, we
+    // add `i` first, then `j`, and then pop them in the same order to generate
+    // the subscript expr.
+    std::queue<clang::VarDecl*> m_ArrayInitLoopIdx;
+
     // FIXME: This variable is used to track
     // whether we're currently visiting an init of a var decl.
     // This is only necessary because we don't create constructors
@@ -732,6 +738,7 @@ namespace clad {
     // other cases, we have to use InitListExpr and change the constructor
     // style. Remove this once we generate constructors explicitly.
     bool m_TrackVarDeclConstructor = false;
+
     /// A flag indicating if the Stmt is contained in a checkpointed loop.
     bool m_IsInsideCheckpointedLoop = false;
   };

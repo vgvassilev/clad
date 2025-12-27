@@ -23,6 +23,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
@@ -41,6 +42,7 @@
 #include "llvm/Support/Casting.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <numeric>
 
 #include "clad/Differentiator/Compatibility.h"
@@ -262,6 +264,17 @@ namespace clad {
   DeclStmt* VisitorBase::BuildDeclStmt(llvm::MutableArrayRef<Decl*> Decls) {
     auto DGR = DeclGroupRef::Create(m_Context, Decls.data(), Decls.size());
     return new (m_Context) DeclStmt(DGR, noLoc, noLoc);
+  }
+
+  ForStmt* VisitorBase::BuildStandardForLoop(VarDecl* loopCounter, size_t N,
+                                             Stmt* body) {
+    Stmt* init = BuildDeclStmt(loopCounter);
+    Expr* numExpr =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, N);
+    Expr* cond = BuildOp(BO_LT, BuildDeclRef(loopCounter), numExpr);
+    Expr* inc = BuildOp(UO_PreInc, BuildDeclRef(loopCounter));
+    return new (m_Context) ForStmt(m_Context, init, cond, /*CondVar=*/nullptr,
+                                   inc, body, noLoc, noLoc, noLoc);
   }
 
   DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
@@ -774,24 +787,23 @@ namespace clad {
     bool NumDiffEnabled =
         !m_Sema.getPreprocessor().isMacroDefined("CLAD_NO_NUM_DIFF");
     // FIXME: Switch to the real diagnostics engine and pass FD directly.
-    std::string funcName = FD->getNameAsString();
     diag(DiagnosticsEngine::Warning, srcLoc,
-         "function '%0' was not differentiated because clad failed to "
+         "function %0 was not differentiated because clad failed to "
          "differentiate it and no suitable overload was found in "
-         "namespace 'custom_derivatives'",
-         {funcName});
+         "namespace 'custom_derivatives'")
+        << FD << srcLoc;
     if (NumDiffEnabled) {
       diag(DiagnosticsEngine::Note, srcLoc,
-           "falling back to numerical differentiation for '%0' since no "
+           "falling back to numerical differentiation for %0 since no "
            "suitable overload was found and clad could not derive it; "
            "to disable this feature, compile your programs with "
-           "-DCLAD_NO_NUM_DIFF",
-           {funcName});
+           "-DCLAD_NO_NUM_DIFF")
+          << FD << srcLoc;
     } else {
       diag(DiagnosticsEngine::Note, srcLoc,
            "fallback to numerical differentiation is disabled by the "
-           "'CLAD_NO_NUM_DIFF' macro; considering '%0' as 0",
-           {funcName});
+           "'CLAD_NO_NUM_DIFF' macro; considering %0 as 0")
+          << FD << srcLoc;
     }
   }
 
@@ -1001,15 +1013,15 @@ namespace clad {
 
   VisitorBase::~VisitorBase() = default;
 
-  QualType
-  VisitorBase::GetDerivativeType(llvm::ArrayRef<QualType> customParams) {
+  QualType VisitorBase::GetDerivativeType() {
     llvm::SmallVector<const ValueDecl*, 4> diffParams{};
     for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
       diffParams.push_back(VarInfo.param);
     return utils::GetDerivativeType(
         m_Sema, m_DiffReq.Function, m_DiffReq.Mode, diffParams,
         /*forCustomDerv=*/false,
-        /*shouldUseRestoreTracker=*/m_DiffReq.UseRestoreTracker, customParams);
+        /*shouldUseRestoreTracker=*/m_DiffReq.UseRestoreTracker,
+        m_DiffReq.EnableErrorEstimation);
   }
 
   FunctionDecl* VisitorBase::FindDerivedFunction(DiffRequest& request) {

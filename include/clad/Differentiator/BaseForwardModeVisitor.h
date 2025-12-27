@@ -95,14 +95,6 @@ public:
   DifferentiateVarDecl(const clang::VarDecl* VD);
   virtual DeclDiff<clang::VarDecl>
   DifferentiateVarDecl(const clang::VarDecl* VD, bool ignoreInit);
-  /// Shorthand for warning on differentiation of unsupported operators
-  void unsupportedOpWarn(clang::SourceLocation loc,
-                         llvm::ArrayRef<llvm::StringRef> args = {}) {
-    diag(clang::DiagnosticsEngine::Warning, loc,
-         "attempt to differentiate unsupported operator,  derivative \
-                         set to 0",
-         args);
-  }
   StmtDiff VisitCXXForRangeStmt(const clang::CXXForRangeStmt* FRS);
   StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
   StmtDiff VisitDoStmt(const clang::DoStmt* DS);

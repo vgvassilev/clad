@@ -36,7 +36,6 @@
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
-#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -426,37 +425,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return derivative;
   }
 
-  void DerivativeBuilder::AddErrorEstimationModel(
-      std::unique_ptr<FPErrorEstimationModel> estModel) {
-    m_EstModel.push_back(std::move(estModel));
-  }
-
-  void InitErrorEstimation(
-      llvm::SmallVectorImpl<std::unique_ptr<ErrorEstimationHandler>>& handler,
-      llvm::SmallVectorImpl<std::unique_ptr<FPErrorEstimationModel>>& model,
-      DerivativeBuilder& builder, const DiffRequest& request) {
-    // Set the handler.
-    std::unique_ptr<ErrorEstimationHandler> pHandler(
-        new ErrorEstimationHandler());
-    handler.push_back(std::move(pHandler));
-    // Set error estimation model. If no custom model provided by user,
-    // use the built in Taylor approximation model.
-    if (model.size() != handler.size()) {
-      std::unique_ptr<FPErrorEstimationModel> pModel(
-          new TaylorApprox(builder, request));
-      model.push_back(std::move(pModel));
-    }
-    handler.back()->SetErrorEstimationModel(model.back().get());
-  }
-
-  void CleanupErrorEstimation(
-      llvm::SmallVectorImpl<std::unique_ptr<ErrorEstimationHandler>>& handler,
-      llvm::SmallVectorImpl<std::unique_ptr<FPErrorEstimationModel>>& model) {
-    model.back()->clearEstimationVariables();
-    model.pop_back();
-    handler.pop_back();
-  }
-
   DerivativeAndOverload
   DerivativeBuilder::Derive(const DiffRequest& request) {
     TimedGenerationRegion G([&request]() { return (std::string)request; });
@@ -526,14 +494,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // functions or custom derivatives.
         if (!request.DeclarationOnly ||
             !(m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD))) {
-          if (request.VerboseDiags)
-            diag(DiagnosticsEngine::Error,
-                 request.CallContext ? request.CallContext->getBeginLoc()
-                                     : noLoc,
-                 "attempted differentiation of function '%0', which does not "
-                 "have a "
-                 "definition",
-                 {FD->getNameAsString()});
+          if (request.VerboseDiags) {
+            SourceLocation L = request.CallContext->getBeginLoc();
+            diag(DiagnosticsEngine::Error, L,
+                 "attempted differentiation of function %0, without definition")
+                << FD << L;
+          }
           return {};
         }
       }
@@ -543,11 +509,11 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
       // check if the function is non-differentiable.
       if (clad::utils::hasNonDifferentiableAttribute(FD)) {
-        diag(DiagnosticsEngine::Error,
-             request.CallContext ? request.CallContext->getBeginLoc() : noLoc,
-             "attempted differentiation of function '%0', which is marked as "
-             "non-differentiable",
-             {FD->getNameAsString()});
+        SourceLocation L = request.CallContext->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "attempted differentiation of function %0, which is marked as "
+             "non-differentiable")
+            << FD;
         return {};
       }
 
@@ -556,23 +522,21 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       if (const CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(FD)) {
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD)) {
-          diag(DiagnosticsEngine::Error, MD->getLocation(),
-               "attempted differentiation of method '%0' in class '%1', which "
-               "is "
-               "marked as "
-               "non-differentiable",
-               {MD->getNameAsString(), CD->getNameAsString()});
+          SourceLocation L = MD->getLocation();
+          diag(DiagnosticsEngine::Error, L,
+               "attempted differentiation of method %0 in class %1, which "
+               "is marked as non-differentiable")
+              << MD << CD << L;
           return {};
         }
       }
     } else if (const VarDecl* VD = request.Global) {
       // Warn the user about the usage of global variables.
-      auto diagId = m_Sema.Diags.getCustomDiagID(
-          DiagnosticsEngine::Warning,
-          "The gradient utilizes a global variable '%0'"
-          ". Please make sure to properly reset '%0' before re-running "
-          "the gradient.");
-      m_Sema.Diag(VD->getLocation(), diagId) << VD->getName();
+      SourceLocation L = VD->getLocation();
+      diag(DiagnosticsEngine::Warning, L,
+           "gradient uses a global variable %0; "
+           "rerunning the gradient requires %0 to be reset")
+          << VD << L;
     }
 
     DerivativeAndOverload result{};
@@ -588,18 +552,17 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     } else if (request.Mode == DiffMode::vector_pushforward) {
       VectorPushForwardModeVisitor V(*this, request);
       result = V.Derive();
-    } else if (request.Mode == DiffMode::reverse) {
+    } else if (request.Mode == DiffMode::reverse ||
+               request.Mode == DiffMode::pullback) {
+      ErrorEstimationHandler handler;
+      std::unique_ptr<FPErrorEstimationModel> model;
       ReverseModeVisitor V(*this, request);
-      result = V.Derive();
-    } else if (request.Mode == DiffMode::pullback) {
-      ReverseModeVisitor V(*this, request);
-      if (!m_ErrorEstHandler.empty()) {
-        InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
-        V.AddExternalSource(*m_ErrorEstHandler.back());
+      if (request.EnableErrorEstimation) {
+        model = std::make_unique<FPErrorEstimationModel>(*this, request);
+        handler.SetErrorEstimationModel(model.get());
+        V.AddExternalSource(handler);
       }
       result = V.Derive();
-      if (!m_ErrorEstHandler.empty())
-        CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
     } else if (request.Mode == DiffMode::reverse_mode_forward_pass) {
       ReverseModeForwPassVisitor V(*this, request);
       result = V.Derive();
@@ -610,15 +573,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     } else if (request.Mode == DiffMode::jacobian) {
       JacobianModeVisitor J(*this, request);
       result = J.Derive();
-    } else if (request.Mode == DiffMode::error_estimation) {
-      ReverseModeVisitor R(*this, request);
-      InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
-      R.AddExternalSource(*m_ErrorEstHandler.back());
-      // Finally begin estimation.
-      result = R.Derive();
-      // Once we are done, we want to clear the model for any further
-      // calls to estimate_error.
-      CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
     } else if (const VarDecl* VD = request.Global) {
       // The request represents a global variable, construct the adjoint and
       // register it.

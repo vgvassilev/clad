@@ -872,14 +872,12 @@ template <typename... Args> auto make_tuple_pushforward(Args... args) noexcept {
 
 // std::forward custom derivatives
 template <class T>
-clad::ValueAndAdjoint<T&&, T&&> forward_reverse_forw(T&& t, T&& dt) {
-  return {::std::forward<T>(t), ::std::forward<T>(dt)};
-}
+clad::ValueAndAdjoint<T&&, T&&>
+    elidable_reverse_forw forward_reverse_forw(T&& t, T&& dt);
 
 template <class T>
-clad::ValueAndAdjoint<T&, T&> forward_reverse_forw(T& t, T& dt) {
-  return {t, dt};
-}
+clad::ValueAndAdjoint<T&, T&> elidable_reverse_forw forward_reverse_forw(T& t,
+                                                                         T& dt);
 
 template <class T>
 constexpr void forward_pullback(T&& t, T dy, T* dt) noexcept {

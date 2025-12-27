@@ -18,6 +18,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Version.h"
@@ -115,8 +116,9 @@ void InitTimers();
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
+      CodeGenOptions& CGOpts = m_CI.getCodeGenOpts();
 #if CLANG_VERSION_MAJOR > 11
-      bool WantTiming = m_CI.getCodeGenOpts().TimePasses;
+      bool WantTiming = CGOpts.TimePasses;
 #else
       bool WantTiming = m_CI.getFrontendOpts().ShowTimers;
 #endif
@@ -133,11 +135,9 @@ void InitTimers();
           break;
         }
 
-      if (!CladSoPath.empty()) {
-        // Register clad as a backend pass.
-        CodeGenOptions& CGOpts = CI.getCodeGenOpts();
+      // Register clad as a backend pass.
+      if (!CladSoPath.empty())
         CGOpts.PassPlugins.push_back(CladSoPath.str());
-      }
 
       // Add define for __CLAD__, so that CladFunction::CladFunction()
       // doesn't throw an error.
@@ -297,30 +297,8 @@ void InitTimers();
         FD->print(llvm::outs(), Policy);
       }
       // if enabled, print ASTs of the original functions
-      if (m_DO.DumpSourceFnAST) {
+      if (m_DO.DumpSourceFnAST)
         FD->dumpColor();
-      }
-      // if enabled, load the dynamic library input from user to use
-      // as a custom estimation model.
-      if (m_DO.CustomEstimationModel) {
-        std::string Err;
-        if (llvm::sys::DynamicLibrary::
-                LoadLibraryPermanently(m_DO.CustomModelName.c_str(), &Err)) {
-          unsigned diagID = S.Diags.getCustomDiagID(
-              DiagnosticsEngine::Error, "Failed to load '%0', %1. Aborting.");
-          clang::Sema::SemaDiagnosticBuilder stream = S.Diag(noLoc, diagID);
-          stream << m_DO.CustomModelName << Err;
-          return nullptr;
-        }
-        for (auto it = ErrorEstimationModelRegistry::begin(),
-                  ie = ErrorEstimationModelRegistry::end();
-             it != ie; ++it) {
-          auto estimationPlugin = it->instantiate();
-          m_DerivativeBuilder->AddErrorEstimationModel(
-              estimationPlugin->InstantiateCustomModel(*m_DerivativeBuilder,
-                                                       request));
-        }
-      }
 
       // If enabled, set the proper fields in derivative builder.
       if (m_DO.PrintNumDiffErrorInfo) {
@@ -686,7 +664,6 @@ static PragmaHandlerRegistry::Add<CladPragmaHandler>
     Y("clad", "Clad pragma directives handler.");
 
 // Attach the backend plugin.
-
 #include "ClangBackendPlugin.h"
 
 #define BACKEND_PLUGIN_NAME "CladBackendPlugin"

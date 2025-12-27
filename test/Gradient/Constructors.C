@@ -78,14 +78,14 @@ double fn1(double x, double y) {
 struct S1{
   double p;
   double d;
-  S1(double x) : p(x), d([](){return 12.;}()) {} // expected-warning {{Direct lambda calls are not supported, ignored.}}
+  S1(double x) : p(x), d([](){return 12.;}()) {} // expected-warning {{direct lambda calls are not supported, ignored}}
 };
 
 struct S2{
   double p;
   double i;
   double d;
-  S2(double x) : p(x), i(1.), d([&](){i *= 32; return 12.;}()) {} // expected-warning {{Direct lambda calls are not supported, ignored.}}
+  S2(double x) : p(x), i(1.), d([&](){i *= 32; return 12.;}()) {} // expected-warning {{direct lambda calls are not supported, ignored}}
 };
 
 struct S3{
@@ -104,7 +104,7 @@ struct S4{
 struct S5{
   double i;
   S5(double x) 
-    try { // expected-warning {{Try statements are not supported, ignored.}}
+    try { // expected-warning {{statement kind 'CXXTryStmt' is not supported}}
       i = x;
     } catch(...) {
       printf("caught\n");
@@ -386,22 +386,21 @@ double fn8(double u, double v) {
   return p.first + p.second;
 }
 
-// CHECK: static constexpr void constructor_pullback(double &__{{u1|x}}, double &__{{u2|y}}, std::pair<double, double> *_d_this, double *_d___{{u1|x}}, double *_d___{{u2|y}}) {{.*}}{
-// CHECK-NEXT:      std::pair<double, double> *_this = (std::pair<double, double> *)malloc(sizeof(std::pair<double, double>));
-// CHECK:           clad::ValueAndAdjoint<double &, double &> _t0 = clad::custom_derivatives::std::forward_reverse_forw(__{{u1|x}}, *_d___{{u1|x}}); 
-// CHECK-NEXT:      _this->first = _t0.value;
-// CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t1 = clad::custom_derivatives::std::forward_reverse_forw(__{{u2|y}}, *_d___{{u2|y}});
-// CHECK-NEXT:      _this->second = _t1.value;
-// CHECK:           {
-// CHECK-NEXT:          _t1.adjoint += _d_this->second;
-// CHECK-NEXT:          _d_this->second = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      {
-// CHECK-NEXT:          _t0.adjoint += _d_this->first;
-// CHECK-NEXT:          _d_this->first = 0.;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      free(_this);
-// CHECK-NEXT:  }
+// CHECK: constructor_pullback(double &__{{u1|x}}, double &__{{u2|y}}, std::pair<double, double> *_d_this, double *_d_{{u1|x}}, double *_d_{{u2|y}})
+// CHECK-SAME: {
+// CHECK-NEXT:     std::pair<double, double> *_this = (std::pair<double, double> *)malloc(sizeof(std::pair<double, double>));
+// CHECK:     _this->first = __{{u1|x}};
+// CHECK-NEXT:     _this->second = __{{u2|y}};
+// CHECK:     {
+// CHECK-NEXT:         *_d_{{u2|y}} += _d_this->second;
+// CHECK-NEXT:         _d_this->second = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_{{u1|x}} += _d_this->first;
+// CHECK-NEXT:         _d_this->first = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     free(_this);
+// CHECK-NEXT: }
 
 // CHECK:  void fn8_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      double _t0 = u;
@@ -447,6 +446,123 @@ double fn9(S& s) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct arrWrapper {
+    double arr[2];
+};
+
+// CHECK:  static inline constexpr void constructor_pullback(const arrWrapper &arg, arrWrapper *_d_this, arrWrapper *_d_arg) noexcept {
+// CHECK-NEXT:      for (unsigned {{int|long}} i = 0; i < 2; ++i)
+// CHECK-NEXT:          (*_d_arg).arr[i] += _d_this->arr[i];
+// CHECK-NEXT:  }
+
+double fn10(double x, double y) {
+    arrWrapper a = {x, y};
+    arrWrapper b = a;
+    return b.arr[0] + b.arr[1];
+}
+
+// CHECK:  void fn10_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      arrWrapper _d_a = {{.*0.*}};
+// CHECK-NEXT:      arrWrapper a = {{.*x, y.*}};
+// CHECK-NEXT:      arrWrapper _d_b = _d_a;
+// CHECK-NEXT:      arrWrapper b = a;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_b.arr[0] += 1;
+// CHECK-NEXT:          _d_b.arr[1] += 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      arrWrapper::constructor_pullback(a, &_d_b, &_d_a);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_x += _d_a.arr[0];
+// CHECK-NEXT:          *_d_y += _d_a.arr[1];
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+struct arr2DWrapper {
+    double arr[1][2];
+};
+
+// CHECK:  static inline constexpr void constructor_pullback(const arr2DWrapper &arg, arr2DWrapper *_d_this, arr2DWrapper *_d_arg) noexcept {
+// CHECK-NEXT:      for (unsigned {{int|long}} i = 0; i < 1; ++i)
+// CHECK-NEXT:          for (unsigned {{int|long}} i0 = 0; i0 < 2; ++i0)
+// CHECK-NEXT:              (*_d_arg).arr[i][i0] += _d_this->arr[i][i0];
+// CHECK-NEXT:  }
+
+double fn11(double x, double y) {
+    arr2DWrapper a = {x, y};
+    arr2DWrapper b = a;
+    return b.arr[0][0] + b.arr[0][1];
+}
+
+// CHECK:  void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      arr2DWrapper _d_a = {{.*0.*}};
+// CHECK-NEXT:      arr2DWrapper a = {{.*x, y.*}};
+// CHECK-NEXT:      arr2DWrapper _d_b = _d_a;
+// CHECK-NEXT:      arr2DWrapper b = a;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_b.arr[0][0] += 1;
+// CHECK-NEXT:          _d_b.arr[0][1] += 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      arr2DWrapper::constructor_pullback(a, &_d_b, &_d_a);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_x += _d_a.arr[0][0];
+// CHECK-NEXT:          *_d_y += _d_a.arr[0][1];
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+struct cust_double {
+    cust_double(double x = 0): val(x) {} 
+    double val;
+};
+
+// CHECK:  static void constructor_pullback(double x, cust_double *_d_this, double *_d_x) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_x += _d_this->val;
+// CHECK-NEXT:          _d_this->val = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK:  static inline constexpr void constructor_pullback(const cust_double &arg, cust_double *_d_this, cust_double *_d_arg) noexcept {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).val += _d_this->val;
+// CHECK-NEXT:          _d_this->val = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+struct arrStructWrapper {
+    cust_double arr[2];
+};
+
+// CHECK:  static inline constexpr void constructor_pullback(const arrStructWrapper &arg, arrStructWrapper *_d_this, arrStructWrapper *_d_arg) noexcept {
+// CHECK-NEXT:      for (unsigned {{int|long}} i = 0; i < 2; ++i)
+// CHECK-NEXT:          cust_double::constructor_pullback(arg.arr[i], &_d_this->arr[i], &(*_d_arg).arr[i]);
+// CHECK-NEXT:  }
+
+double fn12(double x, double y) {
+    arrStructWrapper a = {x, y};
+    arrStructWrapper b = a;
+    return b.arr[0].val + b.arr[1].val;
+}
+
+// CHECK:  void fn12_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      arrStructWrapper _d_a = {{.*}};
+// CHECK-NEXT:      arrStructWrapper a = {{.*x, y.*}};
+// CHECK-NEXT:      arrStructWrapper _d_b = _d_a;
+// CHECK-NEXT:      arrStructWrapper b = a;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_b.arr[0].val += 1;
+// CHECK-NEXT:          _d_b.arr[1].val += 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      arrStructWrapper::constructor_pullback(a, &_d_b, &_d_a);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r0 = 0.;
+// CHECK-NEXT:          cust_double::constructor_pullback(x, &_d_a.arr[0], &_r0);
+// CHECK-NEXT:          *_d_x += _r0;
+// CHECK-NEXT:          double _r1 = 0.;
+// CHECK-NEXT:          cust_double::constructor_pullback(y, &_d_a.arr[1], &_r1);
+// CHECK-NEXT:          *_d_y += _r1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 int main() {
     double d_i, d_j;
 
@@ -476,6 +592,14 @@ int main() {
     S s{new double[3]{5, 6, 7}}, _d_s{new double[3]{0}};
     auto dfn9 = clad::gradient(fn9);
     dfn9.execute(s, &_d_s);
-    printf("{%.2f, %.2f, %.2f}\n", _d_s.a[0], _d_s.a[1], _d_s.a[2]);
-    // TEST_GRADIENT(fn9, /*numOfDerivativeArgs=*/1, s, &d_s);    // CHECK-EXEC: {0.00, 0.00, 1.00}
+    printf("{%.2f, %.2f, %.2f}\n", _d_s.a[0], _d_s.a[1], _d_s.a[2]);   // CHECK-EXEC: {0.00, 0.00, 1.00}
+
+    INIT_GRADIENT(fn10);
+    TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 7, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+
+    INIT_GRADIENT(fn11);
+    TEST_GRADIENT(fn11, /*numOfDerivativeArgs=*/2, 9, -1, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
+
+    INIT_GRADIENT(fn12);
+    TEST_GRADIENT(fn12, /*numOfDerivativeArgs=*/2, 3, 6, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
 }

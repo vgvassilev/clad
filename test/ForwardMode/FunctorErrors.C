@@ -49,12 +49,12 @@ int main() {
   auto d_NoCallOperator = clad::differentiate(E_NoCallOperator, "i"); // expected-error {{'ExperimentNoCallOperator' has no defined operator()}}
   d_NoCallOperator.execute(1, 3);
   ExperimentMultipleCallOperators E_MultipleCallOperators;
-  auto d_MultipleCallOperators = clad::differentiate(E_MultipleCallOperators, "i"); // expected-error {{'ExperimentMultipleCallOperators' has multiple definitions of operator(). Multiple definitions of call operators are not supported.}}
+  auto d_MultipleCallOperators = clad::differentiate(E_MultipleCallOperators, "i"); // expected-error {{ExperimentMultipleCallOperators' has multiple definitions of operator(); multiple definitions of call operators are not supported}}
   ExperimentPrivateCallOperator E_PrivateCallOperator;
-  auto d_PrivateCallOperator = clad::differentiate(E_PrivateCallOperator, "i"); // expected-error {{'ExperimentPrivateCallOperator' contains private call operator. Differentiation of private/protected call operator is not supported.}}
+  auto d_PrivateCallOperator = clad::differentiate(E_PrivateCallOperator, "i"); // expected-error {{'ExperimentPrivateCallOperator' contains private call operator; differentiation of non-public call operators is not supported}}
   ExperimentProtectedCallOperator E_ProtectedCallOperator;
-  auto d_ProtectedCallOperator = clad::differentiate(E_ProtectedCallOperator, "i"); // expected-error {{'ExperimentProtectedCallOperator' contains protected call operator. Differentiation of private/protected call operator is not supported.}}
+  auto d_ProtectedCallOperator = clad::differentiate(E_ProtectedCallOperator, "i"); // expected-error {{'ExperimentProtectedCallOperator' contains protected call operator; differentiation of non-public call operators is not supported}}
   Widget W(3, 5);
   auto d_W = clad::differentiate(W, 0);
-  auto d_W_Again = clad::differentiate(W, 10);  // expected-error {{Invalid member variable index '10' of '4' member variable(s)}}
+  auto d_W_Again = clad::differentiate(W, 10);  // expected-error {{invalid member variable index 10 of 4 member variable(s)}}
 }

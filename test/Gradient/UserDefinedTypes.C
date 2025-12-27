@@ -401,7 +401,7 @@ struct MyStruct{
   double b;
 }; 
 
-MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports differentiation functions of real return types. Return stmt ignored.}}
+MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports differentiation functions of real return types. Return stmt ignored}}
   s = {2 * s.a, 2 * s.b + 2};
   return s;
 }
@@ -521,8 +521,8 @@ namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
 template<::std::size_t N>
-::clad::ValueAndAdjoint<SimpleArray<double, N>, SimpleArray<double, N>> // expected-note {{'clad::custom_derivatives::class_functions::constructor_reverse_forw<2}}{{' is defined here}}
-constructor_reverse_forw(::clad::Tag<SimpleArray<double, N>>) {
+::clad::ValueAndAdjoint<SimpleArray<double, N>, SimpleArray<double, N>>
+constructor_reverse_forw(::clad::Tag<SimpleArray<double, N>>) {  // expected-note {{'constructor_reverse_forw<2}}{{' is defined here}}
   SimpleArray<double, N> a;
   SimpleArray<double, N> d_a;
   return {a, d_a};
@@ -530,7 +530,7 @@ constructor_reverse_forw(::clad::Tag<SimpleArray<double, N>>) {
 }}}
 
 double fn15(double x, double y) {
-  SimpleArray<double, 2> arr; // expected-warning {{'SimpleArray<double, 2>' is an aggregate type and its constructor does not require a user-defined forward sweep function}}
+  SimpleArray<double, 2> arr; // expected-warning {{'SimpleArray<double, 2>' is aggregate type and its constructor does not require user-defined forward sweep function}}
   return arr.elements[0];
 }
 
@@ -1296,6 +1296,52 @@ double fn35(double x, double y) {
 // CHECK-NEXT:      _d_ref += 1;
 // CHECK-NEXT:  }
 
+class PrivClass {
+private:
+  size_t n_;
+public:
+  PrivClass(size_t n) : n_(n) {}
+
+  double multiply(double x) {
+    return n_*x;
+  }
+};
+
+// CHECK:  static void constructor_pullback(size_t n, PrivClass *_d_this, size_t *_d_n) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_n += _d_this->n_;
+// CHECK-NEXT:          _d_this->n_ = {{0U|0UL|0ULL}};
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK:  void multiply_pullback(double x, double _d_y, PrivClass *_d_this, double *_d_x) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_this->n_ += _d_y * x;
+// CHECK-NEXT:          *_d_x += this->n_ * _d_y;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+double fn36(double x, size_t n){
+  PrivClass E(n);
+  return E.multiply(x); // (x*n)
+}
+
+// CHECK:  void fn36_grad_0(double x, size_t n, double *_d_x) {
+// CHECK-NEXT:      size_t _d_n = {{0U|0UL|0ULL}};
+// CHECK-NEXT:      PrivClass E(n);
+// CHECK-NEXT:      PrivClass _d_E(E);
+// CHECK-NEXT:      clad::zero_init(_d_E);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r1 = 0.;
+// CHECK-NEXT:          E.multiply_pullback(x, 1, &_d_E, &_r1);
+// CHECK-NEXT:          *_d_x += _r1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          size_t _r0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:          PrivClass::constructor_pullback(n, &_d_E, &_r0);
+// CHECK-NEXT:          _d_n += _r0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -1354,7 +1400,7 @@ int main() {
     TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 5, 10, &d_i, &d_j);  // CHECK-EXEC: {1.00, 0.00}
     TEST_GRADIENT(fn11, /*numOfDerivativeArgs=*/2, 3, -14, &d_i, &d_j);  // CHECK-EXEC: {1.00, -1.00}
     MyStruct s = {1.0, 2.0}, d_s = {1.0, 1.0};
-    auto fn12_test = clad::gradient(fn12); // expected-note {{Use clad::jacobian to compute derivatives of multiple real outputs w.r.t. multiple real inputs.}}
+    auto fn12_test = clad::gradient(fn12); // expected-note {{use clad::jacobian to compute derivatives of multiple real outputs w.r.t. multiple real inputs}}
     fn12_test.execute(s, &d_s);
     print(d_s); // CHECK-EXEC: {2.00, 2.00}
 
@@ -1436,4 +1482,9 @@ int main() {
 
     INIT_GRADIENT(fn35);
     TEST_GRADIENT(fn35, /*numOfDerivativeArgs=*/2, -5, 6, &d_i, &d_j);    // CHECK-EXEC: {0.00, 1.00}
+
+    auto fn36_grad = clad::gradient(fn36, "x");
+    d_i = 0;
+    fn36_grad.execute(i, 5, &d_i);
+    printf("{%.2f}\n", d_i);    // CHECK-EXEC: {5.00}
 }

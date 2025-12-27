@@ -24,6 +24,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <initializer_list>
 #include <iterator>
 #include <type_traits>
 #include <utility>
@@ -201,18 +202,22 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   // This function is similar to the iterator-based std::move but is designed to
   // work with CUDA.
   // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
+  // An overload to initialize arrays from buffers, e.g., `clad::move(t0, arr)`
   template <class T, size_t N>
-  CUDA_HOST_DEVICE void move(T (&&Input)[N], T* Output) {
-    for (T& elem : Input) {
-      *Output = std::forward<T>(elem);
-      ++Output;
-    }
+  CUDA_HOST_DEVICE void move(T* Input, T (&Output)[N]) {
+    for (size_t i = 0; i < N; ++i)
+      Output[i] = std::move(Input[i]);
   }
 
-  // We cannot use forwarding references
+  // An overload to initialize arrays with init lists, e.g., `clad::move({1, 2},
+  // arr)`
   template <class T, size_t N>
-  CUDA_HOST_DEVICE void move(T (&Input)[N], T* Output) {
-    move(std::move(Input), Output);
+  CUDA_HOST_DEVICE void move(std::initializer_list<T> Input, T (&Output)[N]) {
+    size_t i = 0;
+    for (auto it = Input.begin(); it != Input.end() && i < N; ++it, ++i)
+      Output[i] = *it;
+    for (; i < N; ++i)
+      Output[i] = T();
   }
   // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
@@ -437,6 +442,11 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
                             return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
     execute(Args&&... args) const {
       return static_cast<return_type_t<F>>(0);
+    }
+
+    template <typename... Args>
+    constexpr CUDA_HOST_DEVICE auto operator()(Args&&... args) const {
+      return execute(std::forward<Args>(args)...);
     }
 
     /// Return the string representation for the generated derivative.

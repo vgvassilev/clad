@@ -578,7 +578,7 @@ double f_issue138(double x, double y) {
 
 void f_issue138_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK:   void f_issue138_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       double _d__t1 = 0.;
+//CHECK-NEXT:       double _d_t1 = 0.;
 //CHECK-NEXT:       double _t10 = 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_d_x += 1 * x * x * x;
@@ -663,7 +663,7 @@ float running_sum(float* p, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-double global = 7; // expected-warning {{The gradient utilizes a global variable 'global'. Please make sure to properly reset 'global' before re-running the gradient.}}
+double global = 7; // expected-warning {{gradient uses a global variable 'global'; rerunning the gradient requires 'global' to be reset}}
 // CHECK: double _d_global = 0.;
 
 double fn_global_var_use(double i, double j) {
@@ -1095,7 +1095,7 @@ double f_ref_in_rhs(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
-double glob1 = 5; // expected-warning {{The gradient utilizes a global variable 'glob1'. Please make sure to properly reset 'glob1' before re-running the gradient.}}
+double glob1 = 5; // expected-warning {{gradient uses a global variable 'glob1'; rerunning the gradient requires 'glob1' to be reset}}
 //CHECK: double _d_glob1 = 0.;
 
 double g(double a, double b) {

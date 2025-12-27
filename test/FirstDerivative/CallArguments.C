@@ -132,24 +132,24 @@ float f_const_args_func_8(const float x, float y) {
 // CHECK-NEXT: return _t0.pushforward + _t1.pushforward - _d_y;
 // CHECK-NEXT: }
 
-float f_literal_helper(float x, char ch, float* p, float* q) {
+float f_literal_helper(float x, char ch, const float* p, float* q) {
   if (ch == 'a')
     return x * x;
   return -x * x;
 }
 
-// CHECK: clad::ValueAndPushforward<float, float> f_literal_helper_pushforward(float x, char ch, float *p, float *q, float _d_x, char _d_ch, float *_d_p, float *_d_q) {
+// CHECK: clad::ValueAndPushforward<float, float> f_literal_helper_pushforward(float x, char ch, const float *p, float *q, float _d_x, char _d_ch, const float *_d_p, float *_d_q) {
 // CHECK-NEXT:     if (ch == 'a')
 // CHECK-NEXT:         return {x * x, _d_x * x + x * _d_x};
 // CHECK-NEXT:     return {-x * x, -_d_x * x + -x * _d_x};
 // CHECK-NEXT: }
 
-float f_literal_args_func(float x, float y, float *z) {
+float f_literal_args_func(float x, float y, const float *z) {
   printf("hello world ");
   return x * f_literal_helper(x, 'a', z, nullptr);
 } // x ^ 3
 
-// CHECK: float f_literal_args_func_darg0(float x, float y, float *z) {
+// CHECK: float f_literal_args_func_darg0(float x, float y, const float *z) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
 // CHECK-NEXT: printf("hello world ");
