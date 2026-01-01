@@ -66,9 +66,6 @@
 // D tgamma/ tgammaf/ tgammal          (C++11) gamma function
 // D lgamma/ lgammaf/ lgammal          (C++11) log gamma
 //
-//------------------------ Elliptic integrals -----------------------------
-// D comp_ellint_1/ comp_ellint_1f/ comp_ellint_1l (C++17) complete elliptic integral of the first kind
-//
 //---------------------- Nearest integer operations ----------------------------
 // N ceil/ ceilf/ ceill                (C++11) smallest integer >= x
 // N floor/ floorf/ floorl             (C++11) largest integer <= x
@@ -184,26 +181,26 @@ void test_func(const std::string &name,
 #define CHECK_LD(X) test_func<long double>(STRINGIFY(X), \
                            X, clad::differentiate(X), \
                            clad::gradient(X));
-#define CHECK_RANGE_F(X, ...)                                   \
-  {                                                             \
-    float arr[] = __VA_ARGS__;                                  \
-    test_func<float>(STRINGIFY(X),                              \
-                     X, clad::differentiate(X),                 \
-                     clad::gradient(X), arr);                   \
+#define CHECK_RANGE_F(X, ...)                           \
+  {                                                     \
+    float arr[] = __VA_ARGS__;                          \
+    test_func<float>(STRINGIFY(X),                      \
+                     X, clad::differentiate(X),         \
+                     clad::gradient(X), arr);           \
   }
-#define CHECK_RANGE_D(X, ...)                                   \
-  {                                                             \
-    double arr[] = __VA_ARGS__;                                 \
-    test_func<double>(STRINGIFY(X),                             \
-                      X, clad::differentiate(X),                \
-                      clad::gradient(X), arr);                  \
+#define CHECK_RANGE_D(X, ...)                           \
+  {                                                     \
+    double arr[] = __VA_ARGS__;                         \
+    test_func<double>(STRINGIFY(X),                     \
+                      X, clad::differentiate(X),        \
+                      clad::gradient(X), arr);          \
   }
-#define CHECK_RANGE_LD(X, ...)                                  \
-  {                                                             \
-    long double arr[] = __VA_ARGS__;                            \
-    test_func<long double>(STRINGIFY(X),                        \
-                           X, clad::differentiate(X),           \
-                           clad::gradient(X), arr);             \
+#define CHECK_RANGE_LD(X, ...)                          \
+  {                                                     \
+    long double arr[] = __VA_ARGS__;                    \
+    test_func<long double>(STRINGIFY(X),                \
+                           X, clad::differentiate(X),   \
+                           clad::gradient(X), arr);     \
   }
 
 #define CHECK(X)            CHECK_LD(f_##X<long double>);               \
@@ -298,14 +295,6 @@ DEFINE_FUNCTIONS(atanh) // x in [-1,1]
 //
 DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
 
-//------------------------ Elliptic integrals -----------------------------
-//
-// Helper wrappers to enable DEFINE_FUNCTIONS for comp_ellint_1
-inline float comp_ellint_1f(float x) { return std::comp_ellint_1(x); }
-inline long double comp_ellint_1l(long double x) { return std::comp_ellint_1(x); }
-
-DEFINE_FUNCTIONS(comp_ellint_1) // k in (-1, 1)
-
 int main() {
   // Absolute value
   CHECK(abs);
@@ -363,10 +352,6 @@ int main() {
 
   // Error / Gamma functions
   CHECK_ALL(erf);
-
-  // Elliptic integrals
-  // Avoid 0 (singularity) and 0.95 (float precision issues)
-  CHECK_ALL_RANGE(comp_ellint_1, {-0.9, -0.5, -0.2, 0.1, 0.2, 0.5, 0.9});
 
   return 0;
 }

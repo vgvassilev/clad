@@ -1062,39 +1062,6 @@ CUDA_HOST_DEVICE void hypot_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   *d_y += (y / h) * d_z;
 }
 
-template <typename T, typename dT>
-CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_1_pushforward(T k, dT d_k) {
-
-  T K = ::std::comp_ellint_1(k);
-  T E = ::std::comp_ellint_2(k);
-
-  T one = 1.0;
-  T k_sq = k * k;
-  T term = one - k_sq;
-
-  // Formula: (E - (1-k^2)K) / (k * (1-k^2))
-  T numerator = E - (term * K);
-  T denominator = k * term;
-
-  return {K, (numerator / denominator) * d_k};
-}
-
-// This allows Clad to auto-generate both Forward and Reverse mode.
-CUDA_HOST_DEVICE double comp_ellint_1_darg0(double k) {
-  double K = ::std::comp_ellint_1(k);
-  double E = ::std::comp_ellint_2(k);
-
-  double one = 1.0;
-  double k_sq = k * k;
-  double term = one - k_sq;
-
-  // Formula: (E - (1-k^2)K) / (k * (1-k^2))
-  double numerator = E - (term * K);
-  double denominator = k * term;
-
-  return numerator / denominator;
-}
-
 } // namespace std
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -1359,8 +1326,6 @@ using std::min_pushforward;
 using std::pow_pullback;
 using std::pow_pushforward;
 using std::sqrt_pushforward;
-using std::comp_ellint_1_pushforward;
-using std::comp_ellint_1_darg0;
 
 namespace class_functions {
 template <typename T, typename U>
