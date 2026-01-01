@@ -61,7 +61,6 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   ReverseModeRequest.EnableUsefulAnalysis = true;
   ReverseModeRequest.EnableTBRAnalysis = true;
 
-
   FunctionDecl* secondDerivative =
       Builder.HandleNestedDiffRequest(ReverseModeRequest);
   return secondDerivative;
