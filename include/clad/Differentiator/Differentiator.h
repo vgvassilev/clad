@@ -245,6 +245,14 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   constexpr CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
+
+    // We cannot safely pad missing arguments with nullptr because the generated 
+    // code might try to write to them (segfault). Force explicit arguments.
+    static_assert(sizeof...(Rest) == 0, 
+        "Clad Error: execution failed due to missing arguments. "
+        "Automatic array unpacking is not supported in execute(). "
+        "Please provide explicit pointers for all gradient variables.");
+
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
       constexpr size_t totalArgs = sizeof...(args) + sizeof...(Rest);
@@ -292,6 +300,14 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
                             list<fArgTypes...>,
                             Args&&... args) -> return_type_t<decltype(f)> {
+
+    // We cannot safely pad missing arguments with nullptr because the generated 
+    // code might try to write to them (segfault). Force explicit arguments.
+    static_assert(sizeof...(Rest) == 0,
+        "Clad Error: execution failed due to missing arguments. "
+        "Automatic array unpacking is not supported in execute(). "
+        "Please provide explicit pointers for all gradient variables.");
+
     return (static_cast<Obj>(obj).*f)((fArgTypes)(args)...,
                                       static_cast<Rest>(nullptr)...);
   }
