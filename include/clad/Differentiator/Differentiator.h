@@ -244,8 +244,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
             typename std::enable_if<EnablePadding, bool>::type = true>
   constexpr CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
-                            CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
-    
+                            CUDA_ARGS CUDA_REST_ARGS Args&&... args) {  
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
       constexpr size_t totalArgs = sizeof...(args) + sizeof...(Rest);
@@ -293,7 +292,6 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
                             list<fArgTypes...>,
                             Args&&... args) -> return_type_t<decltype(f)> {
-
     return (static_cast<Obj>(obj).*f)((fArgTypes)(args)...,
                                       static_cast<Rest>(nullptr)...);
   }
@@ -791,10 +789,10 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
        static_assert(sizeof...(Rest) == 0, 
            "Clad: Passing an array requires it to be the only argument. Mixed arguments are not supported.");
 
-       return execute(std::forward<Functor>(f), &arg[0], sizeof(arg) / sizeof(arg[0]));
+       return std::forward<Functor>(f).execute(&arg[0], sizeof(arg) / sizeof(arg[0]));
+    } else {
+       return std::forward<Functor>(f).execute(std::forward<Arg>(arg), std::forward<Rest>(args)...);
     }
-
-    return std::forward<Functor>(f).execute(std::forward<Arg>(arg), std::forward<Rest>(args)...);
   }
 
   template <typename ArgSpec = const char*, typename F,
