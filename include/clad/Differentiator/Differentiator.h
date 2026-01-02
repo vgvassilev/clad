@@ -245,14 +245,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   constexpr CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
-
-    // We cannot safely pad missing arguments with nullptr because the generated 
-    // code might try to write to them (segfault). Force explicit arguments.
-    static_assert(sizeof...(Rest) == 0, 
-        "Clad Error: execution failed due to missing arguments. "
-        "Automatic array unpacking is not supported in execute(). "
-        "Please provide explicit pointers for all gradient variables.");
-
+    
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
       constexpr size_t totalArgs = sizeof...(args) + sizeof...(Rest);
@@ -300,13 +293,6 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
                             list<fArgTypes...>,
                             Args&&... args) -> return_type_t<decltype(f)> {
-
-    // We cannot safely pad missing arguments with nullptr because the generated 
-    // code might try to write to them (segfault). Force explicit arguments.
-    static_assert(sizeof...(Rest) == 0,
-        "Clad Error: execution failed due to missing arguments. "
-        "Automatic array unpacking is not supported in execute(). "
-        "Please provide explicit pointers for all gradient variables.");
 
     return (static_cast<Obj>(obj).*f)((fArgTypes)(args)...,
                                       static_cast<Rest>(nullptr)...);
@@ -797,6 +783,18 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
                         /*EnablePadding=*/true>(
         derivedFn /* will be replaced by Jacobian*/, code, f);
+  }
+
+  template <typename Functor, typename Arg, typename... Rest>
+  auto execute(Functor&& f, Arg&& arg, Rest&&... args) {
+    if constexpr (std::is_array_v<std::remove_reference_t<Arg>>) {
+       static_assert(sizeof...(Rest) == 0, 
+           "Clad: Passing an array requires it to be the only argument. Mixed arguments are not supported.");
+
+       return execute(std::forward<Functor>(f), &arg[0], sizeof(arg) / sizeof(arg[0]));
+    }
+
+    return std::forward<Functor>(f).execute(std::forward<Arg>(arg), std::forward<Rest>(args)...);
   }
 
   template <typename ArgSpec = const char*, typename F,
