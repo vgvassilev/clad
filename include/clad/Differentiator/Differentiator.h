@@ -259,10 +259,10 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
                        stream);
       return return_type_t<F>();
     } else {
-      return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
+      return f(std::forward<Args>(args)..., static_cast<Rest>(nullptr)...);
     }
 #else
-    return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
+    return f(std::forward<Args>(args)..., static_cast<Rest>(nullptr)...);
 #endif
   }
 
@@ -278,9 +278,9 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
       cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
       return return_type_t<F>();
     }
-    return f(static_cast<Args>(args)...);
+    return f(std::forward<Args>(args)...);
 #else
-    return f(static_cast<Args>(args)...);
+    return f(std::forward<Args>(args)...);
 #endif
   }
 
@@ -303,7 +303,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
                             list<fArgTypes...>,
                             Args&&... args) -> return_type_t<decltype(f)> {
-    return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...);
+    return (static_cast<Obj>(obj).*f)(std::forward<Args>(args)...);
   }
 
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
@@ -407,9 +407,9 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
       // here static_cast is used to achieve perfect forwarding
 #ifdef __CUDACC__
       return execute_helper(m_Function, m_CUDAkernel, dim3(0), dim3(0),
-                            static_cast<Args>(args)...);
+                            std::forward<Args>(args)...);
 #else
-      return execute_helper(m_Function, static_cast<Args>(args)...);
+      return execute_helper(m_Function, std::forward<Args>(args)...);
 #endif
     }
 
@@ -428,7 +428,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
       }
 
       return execute_helper(m_Function, m_CUDAkernel, grid, block,
-                            static_cast<Args>(args)...);
+                            std::forward<Args>(args)...);
     }
 #endif
 
@@ -495,24 +495,24 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
                   TakeNFirstArgs_t<sizeof...(Args) - 2, decltype(f)>{},
                   CUDAkernel, grid, block, shared_mem, stream,
                   static_cast<decltype(args_)>(args_)...);
-            }(static_cast<Args>(args)...);
+            }(std::forward<Args>(args)...);
           } else {
             return execute_with_default_args<EnablePadding>(
                 DropArgs_t<sizeof...(Args), F>{}, f,
                 TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, CUDAkernel,
-                grid, block, 0, nullptr, static_cast<Args>(args)...);
+                grid, block, 0, nullptr, std::forward<Args>(args)...);
           }
         } else {
           return execute_with_default_args<EnablePadding>(
               DropArgs_t<sizeof...(Args), F>{}, f,
               TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, CUDAkernel,
-              grid, block, 0, nullptr, static_cast<Args>(args)...);
+              grid, block, 0, nullptr, std::forward<Args>(args)...);
         }
 #else
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), F>{}, f,
             TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
-            static_cast<Args>(args)...);
+            std::forward<Args>(args)...);
 #endif
       }
 
@@ -530,7 +530,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
             DropArgs_t<sizeof...(Args), decltype(f)>{}, f,
             static_cast<Obj>(obj),
             TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
-            static_cast<Args>(args)...);
+            std::forward<Args>(args)...);
       }
       /// If user have not passed object explicitly, then this specialization
       /// will be used and derived function will be called through the object
@@ -542,7 +542,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), decltype(f)>{}, f, *m_Functor,
             TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
-            static_cast<Args>(args)...);
+            std::forward<Args>(args)...);
       }
   };
 
