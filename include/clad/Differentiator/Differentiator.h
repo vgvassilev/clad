@@ -785,13 +785,27 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
 
   template <typename Functor, typename Arg, typename... Rest>
   auto execute(Functor&& f, Arg&& arg, Rest&&... args) {
-    if constexpr (std::is_array_v<std::remove_reference_t<Arg>>) {
-       static_assert(sizeof...(Rest) == 0, 
-           "Clad: Passing an array requires it to be the only argument. Mixed arguments are not supported.");
+    constexpr bool first_is_array = std::is_array_v<std::remove_reference_t<Arg>>;
+    constexpr bool rest_has_array = (std::is_array_v<std::remove_reference_t<Rest>> || ...);
 
-       return std::forward<Functor>(f).execute(&arg[0], sizeof(arg) / sizeof(arg[0]));
+    if constexpr (first_is_array || rest_has_array) {
+      constexpr bool is_single_array = first_is_array && (sizeof...(Rest) == 0);
+
+      constexpr bool is_object_call = !first_is_array && 
+                                      std::is_class_v<std::remove_reference_t<Arg>> &&
+                                      (sizeof...(Rest) == 1) && 
+                                      rest_has_array;
+
+      static_assert(is_single_array || is_object_call,
+          "Clad: Mixed scalar/array arguments are not supported. Arrays must be the only argument (or the second argument for member functions).");
+
+      if constexpr (is_single_array) {
+        return std::forward<Functor>(f).execute(&arg[0], sizeof(arg) / sizeof(arg[0]));
+      } else {
+        return std::forward<Functor>(f).execute(std::forward<Arg>(arg), std::forward<Rest>(args)...);
+      }
     } else {
-       return std::forward<Functor>(f).execute(std::forward<Arg>(arg), std::forward<Rest>(args)...);
+      return std::forward<Functor>(f).execute(std::forward<Arg>(arg), std::forward<Rest>(args)...);
     }
   }
 
