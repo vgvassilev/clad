@@ -789,12 +789,10 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
     constexpr bool rest_has_array = (std::is_array_v<std::remove_reference_t<Rest>> || ...);
 
     if constexpr (first_is_array || rest_has_array) {
-      constexpr bool is_single_array = first_is_array && (sizeof...(Rest) == 0);
+      constexpr bool is_single_array = (sizeof...(Rest) == 0);
 
-      constexpr bool is_object_call = !first_is_array && 
-                                      std::is_class_v<std::remove_reference_t<Arg>> &&
-                                      (sizeof...(Rest) == 1) && 
-                                      rest_has_array;
+      constexpr bool is_object_call = (sizeof...(Rest) == 1) && 
+                                      !std::is_arithmetic_v<std::remove_reference_t<Arg>>;
 
       static_assert(is_single_array || is_object_call,
           "Clad: Mixed scalar/array arguments are not supported. Arrays must be the only argument (or the second argument for member functions).");
