@@ -14,4 +14,4 @@ void test_array_crash() {
   grad.execute(x, y, grads);
 }
 
-// CHECK: Clad Error: execution failed due to missing arguments. Automatic array unpacking is not supported in execute(). Please provide explicit pointers for all gradient variables.
+// CHECK: error: static assertion failed {{.*}}Clad: Mixed scalar/array arguments are not supported.
