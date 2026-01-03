@@ -303,7 +303,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
                             list<fArgTypes...>,
                             Args&&... args) -> return_type_t<decltype(f)> {
-    return (static_cast<Obj>(obj).*f)(std::forward<Args>(args)...);
+    return (obj.*f)(std::forward<Args>(args)...);
   }
 
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
