@@ -159,7 +159,7 @@ namespace clad {
     SetDeclInit(VD, Init, DirectInit);
     m_Sema.FinalizeDeclaration(VD);
     // Add the identifier to the scope and IdResolver
-    m_Sema.PushOnScopeChains(VD, Scope, /*AddToContext*/ false);
+    m_Sema.PushOnScopeChains(VD, Scope);
     return VD;
   }
 
