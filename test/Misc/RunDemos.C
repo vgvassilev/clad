@@ -112,7 +112,7 @@
 //CHECK_FLOAT_SUM:    float _d_sum = 0.F;
 //CHECK_FLOAT_SUM:    float sum = 0.;
 //CHECK_FLOAT_SUM:    unsigned {{int|long|long long}} _t0 = 0;
-//CHECK_FLOAT_SUM:    for (i = 0; i < n; i++) {
+//CHECK_FLOAT_SUM:    for (i = {{0|0U|0UL}}; i < n; i++) {
 //CHECK_FLOAT_SUM:        _t0++;
 //CHECK_FLOAT_SUM:        clad::push(_t1, sum);
 //CHECK_FLOAT_SUM:        sum = sum + x;

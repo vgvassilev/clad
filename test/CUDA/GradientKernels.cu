@@ -502,7 +502,7 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    double *out_host = (double *)malloc(10 * sizeof(double));
 //CHECK-NEXT:    cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
 //CHECK-NEXT:    double _d_res = 0.;
-//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    double res = 0.;
 //CHECK-NEXT:    unsigned long _t0 = 0;
 //CHECK-NEXT:    for (i = 0; i < 10; ++i) {
 //CHECK-NEXT:        _t0++;

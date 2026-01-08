@@ -59,7 +59,7 @@ double sum(Tangent& t) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -84,7 +84,7 @@ double sum(double *data) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -326,7 +326,7 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -817,7 +817,7 @@ double fn23(double u, double v) {
 // CHECK-NEXT:      B b;
 // CHECK-NEXT:      b.data = v;
 // CHECK-NEXT:      double _d_res = 0.;
-// CHECK-NEXT:      double res = 0;
+// CHECK-NEXT:      double res = 0.;
 // CHECK-NEXT:      res = add(b, u);
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      {
@@ -1083,14 +1083,14 @@ float fn29(float *input, Session const *session) {
 // CHECK-NEXT:      size_t _d_n = {{0U|0UL|0ULL}};
 // CHECK-NEXT:      const size_t n = 5;
 // CHECK-NEXT:      unsigned {{int|long|long long}} _t0 = 0;
-// CHECK-NEXT:      for (id = 0; id < n; id++) {
+// CHECK-NEXT:      for (id = {{0|0U|0UL}}; id < n; id++) {
 // CHECK-NEXT:          _t0++;
 // CHECK-NEXT:          buffer[id] = sess.factors[id] * input[id];
 // CHECK-NEXT:      }
 // CHECK-NEXT:      float _d_out = 0.F;
 // CHECK-NEXT:      float out = 0.;
 // CHECK-NEXT:      unsigned {{int|long|long long}} _t1 = 0;
-// CHECK-NEXT:      for (id0 = 0; id0 < n; id0++) {
+// CHECK-NEXT:      for (id0 = {{0|0U|0UL}}; id0 < n; id0++) {
 // CHECK-NEXT:          _t1++;
 // CHECK-NEXT:          out += input[id0];
 // CHECK-NEXT:      }

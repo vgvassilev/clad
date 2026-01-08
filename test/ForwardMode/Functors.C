@@ -233,8 +233,8 @@ struct WidgetArr {
   // CHECK-NEXT:       double _d_i = 0;
   // CHECK-NEXT:       double _d_j = 0;
   // CHECK-NEXT:       double _d_arr[10] = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0};
-  // CHECK-NEXT:       double _d_temp = 0;
-  // CHECK-NEXT:       double temp = 0;
+  // CHECK-NEXT:       double _d_temp = 0.;
+  // CHECK-NEXT:       double temp = 0.;
   // CHECK-NEXT:       {
   // CHECK-NEXT:           int _d_k = 0;
   // CHECK-NEXT:           for (int k = 0; k < 10; ++k) {
@@ -259,8 +259,8 @@ struct WidgetArr {
   // CHECK-NEXT:       double _d_i = 0;
   // CHECK-NEXT:       double _d_j = 0;
   // CHECK-NEXT:       double _d_arr[10] = {0, 0, 0, 0, 0, 1, 0, 0, 0, 0};
-  // CHECK-NEXT:       double _d_temp = 0;
-  // CHECK-NEXT:       double temp = 0;
+  // CHECK-NEXT:       double _d_temp = 0.;
+  // CHECK-NEXT:       double temp = 0.;
   // CHECK-NEXT:       {
   // CHECK-NEXT:           int _d_k = 0;
   // CHECK-NEXT:           for (int k = 0; k < 10; ++k) {
@@ -318,8 +318,8 @@ struct WidgetPointer {
   // CHECK-NEXT:       double _d_i = 0;
   // CHECK-NEXT:       double _d_j = 0;
   // CHECK-NEXT:       double *_d_arr = nullptr;
-  // CHECK-NEXT:       double _d_temp = 0;
-  // CHECK-NEXT:       double temp = 0;
+  // CHECK-NEXT:       double _d_temp = 0.;
+  // CHECK-NEXT:       double temp = 0.;
   // CHECK-NEXT:       {
   // CHECK-NEXT:           int _d_k = 0;
   // CHECK-NEXT:           for (int k = 0; k < 10; ++k) {
@@ -350,8 +350,8 @@ struct WidgetPointer {
   // CHECK-NEXT:       double _d_i = 0;
   // CHECK-NEXT:       double _d_j = 0;
   // CHECK-NEXT:       double *_d_arr = nullptr;
-  // CHECK-NEXT:       double _d_temp = 0;
-  // CHECK-NEXT:       double temp = 0;
+  // CHECK-NEXT:       double _d_temp = 0.;
+  // CHECK-NEXT:       double temp = 0.;
   // CHECK-NEXT:       {
   // CHECK-NEXT:           int _d_k = 0;
   // CHECK-NEXT:           for (int k = 0; k < 10; ++k) {

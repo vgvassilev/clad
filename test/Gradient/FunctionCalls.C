@@ -76,7 +76,7 @@ double fn2(double i, double j) {
 
 // CHECK: void fn2_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_temp = 0.;
-// CHECK-NEXT:     double temp = 0;
+// CHECK-NEXT:     double temp = 0.;
 // CHECK-NEXT:     double _t0 = i;
 // CHECK-NEXT:     double _t1 = j;
 // CHECK-NEXT:     temp = modify1(i, j);
@@ -148,7 +148,7 @@ float sum(double* arr, int n) {
 
 // CHECK: float sum_reverse_forw(double *arr, int n, double *_d_arr, int _d_n, clad::restore_tracker &_tracker0) {
 // CHECK-NEXT:     float _d_res = 0;
-// CHECK-NEXT:     float res = 0;
+// CHECK-NEXT:     float res = 0.F;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     for (int i = 0; i < n; ++i) {
@@ -164,7 +164,7 @@ float sum(double* arr, int n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     float _d_res = 0.F;
-// CHECK-NEXT:     float res = 0;
+// CHECK-NEXT:     float res = 0.F;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -211,7 +211,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     res += sum_reverse_forw(arr, n, _d_arr, 0, _tracker0);
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
@@ -561,7 +561,7 @@ double fn13(double* x, const double* w) {
 // CHECK-NEXT:     double _d_wCopy[2] = {0};
 // CHECK-NEXT:     double wCopy[2];
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
-// CHECK-NEXT:     for (i = 0; i < 2; ++i) {
+// CHECK-NEXT:     for (i = {{0|0U|0UL}}; i < 2; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         wCopy[i] = w[i];
 // CHECK-NEXT:     }
@@ -1063,7 +1063,7 @@ inline double flexibleInterp(double const *params, const double *high) {
 // CHECK-NEXT:     double _d_total = 0.;
 // CHECK-NEXT:     double total = 1.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
-// CHECK-NEXT:     for (i = 0; i < 1; ++i) {
+// CHECK-NEXT:     for (i = {{0|0U|0UL}}; i < 1; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         total += params[i];
 // CHECK-NEXT:     }
@@ -1223,7 +1223,7 @@ double fn33(double *params) {
 }
 // CHECK: void fn33_grad(double *params, double *_d_params) {
 // CHECK-NEXT:     double _d_out = 0.;
-// CHECK-NEXT:     double out = 0;
+// CHECK-NEXT:     double out = 0.;
 // CHECK-NEXT:     inner_fn(params, &out);
 // CHECK-NEXT:     _d_out += 1;
 // CHECK-NEXT:     inner_fn_pullback(params, &out, _d_params, &_d_out);
@@ -1466,7 +1466,7 @@ double fn25_defined_later(double x) {
 // CHECK-NEXT:     double _d_total = 0.;
 // CHECK-NEXT:     double total = 1.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
-// CHECK-NEXT:     for (i = 0; i < 1; ++i) {
+// CHECK-NEXT:     for (i = {{0|0U|0UL}}; i < 1; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, total);
 // CHECK-NEXT:         total += params[i];
