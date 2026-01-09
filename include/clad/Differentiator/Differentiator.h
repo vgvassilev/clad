@@ -785,14 +785,15 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
 
   template <typename Functor, typename Arg, typename... Rest>
   auto execute(Functor&& f, Arg&& arg, Rest&&... args) {
-    constexpr bool first_is_array = std::is_array_v<std::remove_reference_t<Arg>>;
-    constexpr bool rest_has_array = (std::is_array_v<std::remove_reference_t<Rest>> || ...);
+    constexpr bool first_is_array = std::is_array<typename std::remove_reference<Arg>::type>::value;
+    constexpr bool rest_has_array = (std::is_array<typename std::remove_reference<Rest>::type>::value || ...);
 
     if constexpr (first_is_array || rest_has_array) {
-      constexpr bool is_single_array = (sizeof...(Rest) == 0);
-
+      constexpr bool is_single_array = sizeof...(Rest) == 0;
+      
+      using FirstType = typename std::remove_reference<Arg>::type;
       constexpr bool is_object_call = (sizeof...(Rest) == 1) && 
-                                      !std::is_arithmetic_v<std::remove_reference_t<Arg>>;
+                                      (std::is_class<FirstType>::value || std::is_pointer<FirstType>::value);
 
       static_assert(is_single_array || is_object_call,
           "Clad: Mixed scalar/array arguments are not supported. Arrays must be the only argument (or the second argument for member functions).");
