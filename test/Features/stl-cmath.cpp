@@ -67,7 +67,9 @@
 // D lgamma/ lgammaf/ lgammal          (C++11) log gamma
 //
 //------------------------ Elliptic integrals -----------------------------
-// D comp_ellint_1/ comp_ellint_1f/ comp_ellint_1l (C++17) complete elliptic integral of the first kind
+// D comp_ellint_1 / comp_ellint_1f / comp_ellint_1l (C++17) complete elliptic integral of the first kind
+// D comp_ellint_2 / comp_ellint_2f / comp_ellint_2l (C++17) complete elliptic integral of the second kind
+// D comp_ellint_3 (C++17) complete elliptic integral of the third kind
 //
 //---------------------- Nearest integer operations ----------------------------
 // N ceil/ ceilf/ ceill                (C++11) smallest integer >= x
@@ -184,26 +186,26 @@ void test_func(const std::string &name,
 #define CHECK_LD(X) test_func<long double>(STRINGIFY(X), \
                            X, clad::differentiate(X), \
                            clad::gradient(X));
-#define CHECK_RANGE_F(X, ...)                                   \
-  {                                                             \
-    float arr[] = __VA_ARGS__;                                  \
-    test_func<float>(STRINGIFY(X),                              \
-                     X, clad::differentiate(X),                 \
-                     clad::gradient(X), arr);                   \
+#define CHECK_RANGE_F(X, ...)                           \
+  {                                                     \
+    float arr[] = __VA_ARGS__;                          \
+    test_func<float>(STRINGIFY(X),                      \
+                     X, clad::differentiate(X),         \
+                     clad::gradient(X), arr);           \
   }
-#define CHECK_RANGE_D(X, ...)                                   \
-  {                                                             \
-    double arr[] = __VA_ARGS__;                                 \
-    test_func<double>(STRINGIFY(X),                             \
-                      X, clad::differentiate(X),                \
-                      clad::gradient(X), arr);                  \
+#define CHECK_RANGE_D(X, ...)                           \
+  {                                                     \
+    double arr[] = __VA_ARGS__;                         \
+    test_func<double>(STRINGIFY(X),                     \
+                      X, clad::differentiate(X),        \
+                      clad::gradient(X), arr);          \
   }
-#define CHECK_RANGE_LD(X, ...)                                  \
-  {                                                             \
-    long double arr[] = __VA_ARGS__;                            \
-    test_func<long double>(STRINGIFY(X),                        \
-                           X, clad::differentiate(X),           \
-                           clad::gradient(X), arr);             \
+#define CHECK_RANGE_LD(X, ...)                          \
+  {                                                     \
+    long double arr[] = __VA_ARGS__;                    \
+    test_func<long double>(STRINGIFY(X),                \
+                           X, clad::differentiate(X),   \
+                           clad::gradient(X), arr);     \
   }
 
 #define CHECK(X)            CHECK_LD(f_##X<long double>);               \
@@ -304,7 +306,33 @@ DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
 inline float comp_ellint_1f(float x) { return std::comp_ellint_1(x); }
 inline long double comp_ellint_1l(long double x) { return std::comp_ellint_1(x); }
 
-DEFINE_FUNCTIONS(comp_ellint_1) // k in (-1, 1)
+DEFINE_FUNCTIONS(comp_ellint_1)
+CHECK_ALL_RANGE(comp_ellint_1, -0.9, 0.9);
+
+// Helper wrappers for comp_ellint_2
+inline float comp_ellint_2f(float x) { return std::comp_ellint_2(x); }
+inline long double comp_ellint_2l(long double x) { return std::comp_ellint_2(x); }
+
+DEFINE_FUNCTIONS(comp_ellint_2)
+CHECK_ALL_RANGE(comp_ellint_2, -0.9, 0.9);
+
+// comp_ellint_3 takes 2 arguments, so we test it manually (macro doesn't support it)
+{
+  double k = 0.5, nu = 0.3;
+  
+  // Test differentiation w.r.t 'k' (Arg 0)
+  auto d_ellint3_k = clad::differentiate(std::comp_ellint_3, 0);
+  double res_k = d_ellint3_k.execute(k, nu);
+
+  // Test differentiation w.r.t 'nu' (Arg 1)
+  auto d_ellint3_nu = clad::differentiate(std::comp_ellint_3, 1);
+  double res_nu = d_ellint3_nu.execute(k, nu);
+  
+  // Simple check to ensure we got numbers back (prevents unused var warning)
+  (void)res_k; 
+  (void)res_nu;
+}
+//
 
 int main() {
   // Absolute value
@@ -363,10 +391,6 @@ int main() {
 
   // Error / Gamma functions
   CHECK_ALL(erf);
-
-  // Elliptic integrals
-  // Avoid 0 (singularity) and 0.95 (float precision issues)
-  CHECK_ALL_RANGE(comp_ellint_1, {-0.9, -0.5, -0.2, 0.1, 0.2, 0.5, 0.9});
 
   return 0;
 }

@@ -1059,39 +1059,59 @@ CUDA_HOST_DEVICE void hypot_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   *d_y += (y / h) * d_z;
 }
 
+CUDA_HOST_DEVICE inline double comp_ellint_1_darg0(double k) {
+  const double K = std::comp_ellint_1(k);
+  const double E = std::comp_ellint_2(k);
+  const double k_sq = k * k;
+
+  if (k_sq >= 1.0 || k == 0.0) return 0.0;
+  return (E - (1.0 - k_sq) * K) / (k * (1.0 - k_sq));
+}
+
+CUDA_HOST_DEVICE inline double comp_ellint_2_darg0(double k) {
+  const double K = std::comp_ellint_1(k);
+  const double E = std::comp_ellint_2(k);
+
+  if (k == 0.0) return 0.0;
+  return (E - K) / k;
+}
+
+CUDA_HOST_DEVICE inline void comp_ellint_3_dargs(double k, double nu, double& d_k, double& d_nu) {
+  const double K = std::comp_ellint_1(k);
+  const double E = std::comp_ellint_2(k);
+  const double Pi = std::comp_ellint_3(k, nu);
+  const double k2 = k * k;
+
+  const double term_k = E / (1.0 - k2);
+  d_k = (k / (k2 - nu)) * (term_k - Pi);
+
+  const double p1 = E;
+  const double p2 = ((k2 - nu) / nu) * K;
+  const double p3 = ((nu * nu - k2) / nu) * Pi;
+  d_nu = (1.0 / (2.0 * (nu - 1.0) * (k2 - nu))) * (p1 + p2 + p3);
+}
+
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_1_pushforward(T k, dT d_k) {
-
-  T K = ::std::comp_ellint_1(k);
-  T E = ::std::comp_ellint_2(k);
-
-  T one = 1.0;
-  T k_sq = k * k;
-  T term = one - k_sq;
-
-  // Formula: (E - (1-k^2)K) / (k * (1-k^2))
-  T numerator = E - (term * K);
-  T denominator = k * term;
-
-  return {K, (numerator / denominator) * d_k};
+  return { ::std::comp_ellint_1(k), d_k * comp_ellint_1_darg0(k) };
 }
 
-// This allows Clad to auto-generate both Forward and Reverse mode.
-CUDA_HOST_DEVICE double comp_ellint_1_darg0(double k) {
-  double K = ::std::comp_ellint_1(k);
-  double E = ::std::comp_ellint_2(k);
-
-  double one = 1.0;
-  double k_sq = k * k;
-  double term = one - k_sq;
-
-  // Formula: (E - (1-k^2)K) / (k * (1-k^2))
-  double numerator = E - (term * K);
-  double denominator = k * term;
-
-  return numerator / denominator;
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_2_pushforward(T k, dT d_k) {
+  return { ::std::comp_ellint_2(k), d_k * comp_ellint_2_darg0(k) };
 }
 
+template <typename T, typename U, typename dT, typename dU>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_3_pushforward(T k, U nu, dT d_k, dU d_nu) {
+  double grad_k = 0.0;
+  double grad_nu = 0.0;
+  comp_ellint_3_dargs(k, nu, grad_k, grad_nu);
+
+  T result = ::std::comp_ellint_3(k, nu);
+  dT d_result = (d_k * grad_k) + (d_nu * grad_nu);
+
+  return {result, d_result};
+}
 } // namespace std
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -1358,6 +1378,9 @@ using std::pow_pushforward;
 using std::sqrt_pushforward;
 using std::comp_ellint_1_pushforward;
 using std::comp_ellint_1_darg0;
+using std::comp_ellint_2_pushforward;
+using std::comp_ellint_2_darg0;
+using std::comp_ellint_3_pushforward;
 
 namespace class_functions {
 template <typename T, typename U>
