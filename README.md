@@ -288,6 +288,19 @@ If you have already added `conda-forge` as a channel, the `-c conda-forge` is un
 conda config --add channels conda-forge
 conda update --all
 ```
+### Windows Users (WSL2 & VS Code)
+
+If you are developing on Windows using WSL2, it is highly recommended to use the WSL Extension(https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl) for Visual Studio Code.
+
+**Setup Steps:**
+1. Install the WSL extension in VS Code.
+2. Open your Ubuntu terminal.
+3. Navigate to the project directory `cd clad`.
+4. Launch VS Code from inside the terminal by typing: `code .`
+
+**Why?**
+Opening the folder directly from Windows can cause build errors due to incorrect compiler paths (MSVC vs Clang). Using the WSL extension ensures VS Code runs natively in the Linux environment.
+
 
 ### Building from source (example was tested on Ubuntu 24.04 LTS)
 ```
@@ -301,6 +314,23 @@ make && make install
 ```
 
 > **NOTE**: On some Linux distributions (e.g. Arch Linux), the LLVM and Clang libraries are installed at `/usr/lib/cmake/llvm` and `/usr/lib/cmake/clang`. If compilation fails with the above provided command, ensure that you are using the correct path to the libraries.
+
+
+> **Troubleshooting LLVM Versions:**
+> If CMake fails or finds an old version (e.g., LLVM 6.0) instead of LLVM 18+, ensure your `PATH` is correct. You can verify this by running `llvm-config --version`. If it returns an old version, export the correct path before building:
+> ```bash
+> export PATH=/usr/lib/llvm-18/bin:$PATH
+
+  **Note**: This change is temporary. To make it permanent, add the export line to your shell configuration file (e.g., ~/.bashrc or ~/.zshrc) and run source ~/.bashrc."
+> ```
+
+### Windows Users (WSL2 & VS Code)
+If you are developing on Windows using WSL2, use the [WSL Extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl) for Visual Studio Code to avoid compiler errors.
+
+**Setup Steps:**
+1. Open your Ubuntu terminal (WSL).
+2. Navigate to the project: `cd clad`
+3. Launch VS Code from *inside* the terminal: `code .`
 
 ###  Building from source (example was tested on macOS)
 ```
