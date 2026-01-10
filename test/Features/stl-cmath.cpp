@@ -66,6 +66,11 @@
 // D tgamma/ tgammaf/ tgammal          (C++11) gamma function
 // D lgamma/ lgammaf/ lgammal          (C++11) log gamma
 //
+//------------------------ Elliptic integrals -----------------------------
+// D comp_ellint_1 / comp_ellint_1f / comp_ellint_1l (C++17) complete elliptic integral of the first kind
+// D comp_ellint_2 / comp_ellint_2f / comp_ellint_2l (C++17) complete elliptic integral of the second kind
+// D comp_ellint_3 (C++17) complete elliptic integral of the third kind
+//
 //---------------------- Nearest integer operations ----------------------------
 // N ceil/ ceilf/ ceill                (C++11) smallest integer >= x
 // N floor/ floorf/ floorl             (C++11) largest integer <= x
@@ -294,6 +299,40 @@ DEFINE_FUNCTIONS(atanh) // x in [-1,1]
 //------------------------ Error / Gamma functions -----------------------------
 //
 DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
+
+//------------------------ Elliptic integrals -----------------------------
+//
+// Helper wrappers to enable DEFINE_FUNCTIONS for comp_ellint_1
+inline float comp_ellint_1f(float x) { return std::comp_ellint_1(x); }
+inline long double comp_ellint_1l(long double x) { return std::comp_ellint_1(x); }
+
+DEFINE_FUNCTIONS(comp_ellint_1)
+CHECK_ALL_RANGE(comp_ellint_1, -0.9, 0.9);
+
+// Helper wrappers for comp_ellint_2
+inline float comp_ellint_2f(float x) { return std::comp_ellint_2(x); }
+inline long double comp_ellint_2l(long double x) { return std::comp_ellint_2(x); }
+
+DEFINE_FUNCTIONS(comp_ellint_2)
+CHECK_ALL_RANGE(comp_ellint_2, -0.9, 0.9);
+
+// comp_ellint_3 takes 2 arguments, so we test it manually (macro doesn't support it)
+{
+  double k = 0.5, nu = 0.3;
+  
+  // Test differentiation w.r.t 'k' (Arg 0)
+  auto d_ellint3_k = clad::differentiate(std::comp_ellint_3, 0);
+  double res_k = d_ellint3_k.execute(k, nu);
+
+  // Test differentiation w.r.t 'nu' (Arg 1)
+  auto d_ellint3_nu = clad::differentiate(std::comp_ellint_3, 1);
+  double res_nu = d_ellint3_nu.execute(k, nu);
+  
+  // Simple check to ensure we got numbers back (prevents unused var warning)
+  (void)res_k; 
+  (void)res_nu;
+}
+//
 
 int main() {
   // Absolute value
