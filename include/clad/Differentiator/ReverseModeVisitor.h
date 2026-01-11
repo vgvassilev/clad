@@ -26,6 +26,7 @@
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/SmallVector.h>
+#include <vector>
 
 #include <array>
 #include <limits>
@@ -75,7 +76,17 @@ namespace clad {
     /// A sequence of DeclStmts containing "tape" variable declarations
     /// that will be put immediately in the beginning of derivative function
     /// block.
-    Stmts m_Globals;
+    ///Stmts m_Globals;
+    std::vector<Stmts> m_Globals = {{}};
+
+    Stmts& globals() { return m_Globals.back(); }
+    const Stmts& globals() const { return m_Globals.back(); }
+
+    struct GlobalsScope {
+      ReverseModeVisitor& V;
+      explicit GlobalsScope(ReverseModeVisitor& V) : V(V) { V.m_Globals.emplace_back(); }
+      ~GlobalsScope() { V.m_Globals.pop_back(); }
+    };
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// Output variable of vector-valued function
@@ -179,7 +190,8 @@ namespace clad {
     /// \param[in] S The statement to add to the block.
     ///
     /// \returns True if the statement was added to the block, false otherwise.
-    bool AddToGlobalBlock(clang::Stmt* S) { return addToBlock(S, m_Globals); }
+    //bool AddToGlobalBlock(clang::Stmt* S) { return addToBlock(S, m_Globals); }
+    bool AddToGlobalBlock(clang::Stmt* S) { return addToBlock(S, globals()); }
 
     /// Updates size references in VariableArrayType and replaces
     /// std::initializer_list with clad::array.

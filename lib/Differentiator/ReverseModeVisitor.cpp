@@ -437,7 +437,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             VDDerivedType, "_d_" + param->getName().ltrim('_').str(), initExpr,
             isDirectInit);
         m_Variables[param] = BuildDeclRef(VDDerived);
-        addToBlock(BuildDeclStmt(VDDerived), m_Globals);
+        addToBlock(BuildDeclStmt(VDDerived), this->globals());
       }
     }
 
@@ -471,7 +471,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmt* Reverse = BodyDiff.getStmt_dx();
     // Create the body of the function.
     // Firstly, all "global" Stmts are put into fn's body.
-    for (Stmt* S : m_Globals)
+    for (Stmt* S : this->globals())
       addToCurrentBlock(S, direction::forward);
     // Forward pass.
     if (auto* CS = dyn_cast_or_null<CompoundStmt>(Forward))
@@ -1514,7 +1514,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           if (m_DiffReq.Mode == DiffMode::reverse) {
             Expr* assignToZero = BuildOp(BO_Assign, Clone(foundExpr),
                                          getZeroInit(foundExpr->getType()));
-            addToBlock(assignToZero, m_Globals);
+            addToBlock(assignToZero, this->globals());
           }
         } else
           // Is not an independent variable, ignored.
@@ -2700,7 +2700,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       addToBlock(BuildOp(BO_Assign, BuildDeclRef(derivedCondVar),
                          ConstantFolder::synthesizeLiteral(
                              m_Context.DoubleTy, m_Context, /*val=*/0)),
-                 m_Globals);
+                 this->globals());
       Expr* condVarRef = BuildDeclRef(condVar);
       Expr* assignExpr = BuildOp(BO_Assign, condVarRef, Clone(R));
       m_Variables.emplace(condVar, BuildDeclRef(derivedCondVar));
@@ -3163,7 +3163,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!declsDiff.empty()) {
       Stmt* DSDiff = BuildDeclStmt(declsDiff);
       Stmts& block =
-          promoteToFnScope ? m_Globals : getCurrentBlock(direction::forward);
+          promoteToFnScope ? this->globals() : getCurrentBlock(direction::forward);
       addToBlock(DSDiff, block);
       for (Stmt* memset : memsetCalls)
         addToBlock(memset, block);
@@ -3186,7 +3186,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // If we remove the need for clad::array here,
       // just add DSClone to the block.
       for (Decl* decl : decls)
-        addToBlock(BuildDeclStmt(decl), m_Globals);
+        addToBlock(BuildDeclStmt(decl), this->globals());
       Stmt* initAssignments = MakeCompoundStmt(inits);
       initAssignments = utils::unwrapIfSingleStmt(initAssignments);
       DSClone = initAssignments;
@@ -3195,7 +3195,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!declsToZeroInit.empty()) {
       addToCurrentBlock(DSClone, direction::forward);
       Stmts& block =
-          promoteToFnScope ? m_Globals : getCurrentBlock(direction::forward);
+          promoteToFnScope ? this->globals() : getCurrentBlock(direction::forward);
       DSClone = nullptr;
       addToBlock(BuildDeclStmt(declsToZeroInit), block);
       for (Decl* decl : declsToZeroInit) {
@@ -3430,7 +3430,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     VarDecl* Var = BuildVarDecl(Type, identifier, init);
 
     // Add the declaration to the body of the gradient function.
-    addToBlock(BuildDeclStmt(Var), m_Globals);
+    addToBlock(BuildDeclStmt(Var), this->globals());
     return Var;
   }
 
@@ -3459,7 +3459,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       addToCurrentBlock(decl, direction::forward);
       SetDeclInit(VD, E);
     } else {
-      addToBlock(decl, m_Globals);
+      addToBlock(decl, this->globals());
       Expr* Set = BuildOp(BO_Assign, Ref, E);
       addToCurrentBlock(Set, direction::forward);
     }
@@ -3512,7 +3512,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         Store = decl;
         SetDeclInit(VD, E);
       } else {
-        addToBlock(decl, m_Globals);
+        addToBlock(decl, this->globals());
         Store = BuildOp(BO_Assign, Ref, Clone(E));
       }
     }
@@ -3639,7 +3639,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         utils::getNonConstType(E->getType(), m_Sema), prefix);
     Expr* Ref = BuildDeclRef(VD);
     if (!isFnScope)
-      addToBlock(BuildDeclStmt(VD), m_Globals);
+      addToBlock(BuildDeclStmt(VD), this->globals());
     // Return reference to the declaration instead of original expression.
     return DelayedStoreResult{*this,
                               StmtDiff{Ref, nullptr, Ref},

@@ -17,6 +17,8 @@ namespace clad {
 class ReverseModeForwPassVisitor : public ReverseModeVisitor {
 private:
   Stmts m_Globals;
+  Stmts& globalblock() { return m_Globals; }
+  const Stmts& globalblock() const { return m_Globals; }
 
   llvm::SmallVector<clang::ParmVarDecl*, 8> BuildParams(DiffParams& diffParams);
 
