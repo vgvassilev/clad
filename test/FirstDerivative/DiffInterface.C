@@ -171,8 +171,8 @@ int main () {
   float one = 1.0;
   clad::differentiate(f_2, one); // expected-error {{failed to parse the parameters, must be string or numeric literal}}
 
-  clad::differentiate(f_no_definition, 0); // expected-error {{attempted differentiation of function 'f_no_definition', without definition}}
-
+  clad::differentiate(f_no_definition, 0); // expected-warning {{attempted differentiation of function 'f_no_definition' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
+  //expected-note@174 {{fallback to numerical differentiation is disabled by the 'CLAD_NO_NUM_DIFF' macro; considering 'f_no_definition' as 0}}
   clad::differentiate(f_redeclared, 0);
 
   clad::differentiate(f_try_catch, 0);

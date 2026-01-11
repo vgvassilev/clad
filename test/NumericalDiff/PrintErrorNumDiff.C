@@ -10,7 +10,7 @@
 extern "C" int printf(const char* fmt, ...);
 
 double test_1(double x){
-  return std::tgamma(x); // expected-warning {{function 'tgamma' was not differentiated because}}
+  return std::tgamma(x); // expected-warning {{attempted differentiation of function 'tgamma' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
   // expected-note@13 {{falling back to numerical differentiation for 'tgamma}}
 }
 
