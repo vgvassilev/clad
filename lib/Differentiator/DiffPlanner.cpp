@@ -1041,7 +1041,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             break;
           }
         }
-        
+
         if (paramsMatch) {
           CXXScopeSpec SS;
           return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
