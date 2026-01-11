@@ -1015,17 +1015,17 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // Manual check for void-returning overload (Void Pushforward feature)
     if (R.Mode == DiffMode::forward || R.Mode == DiffMode::pushforward) {
       const auto* FTP = dTy->getAs<FunctionProtoType>();
-      
+
       for (LookupResult::iterator I = Found.begin(), E = Found.end(); I != E;
            ++I) {
         auto* FD = dyn_cast<FunctionDecl>(I.getDecl());
         if (!FD)
           continue;
-        
+
         // Custom derivative must return void
         if (!FD->getReturnType()->isVoidType())
           continue;
-        
+
         // Parameter count must match
         if (FD->getNumParams() != FTP->getNumParams())
           continue;
