@@ -443,8 +443,8 @@ double fn6(TensorD5 t, double i) {
 }
 
 // CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(Tensor<double, 5> *_d_this) {
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         int _d_i = 0;
 // CHECK-NEXT:         for (int i = 0; i < 5U; ++i) {
@@ -466,8 +466,8 @@ double fn6(TensorD5 t, double i) {
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(Tensor<double, 5U> &t, Tensor<double, 5U> &_d_t) {
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         int _d_i = 0;
 // CHECK-NEXT:         for (int i = 0; i < 5U; ++i) {
@@ -942,7 +942,7 @@ TensorD5 fn13(double i, double j) {
 }
 
 // CHECK: clad::ValueAndPushforward<bool, bool> operator_less_pushforward(Tensor<double, 5U> &lhs, const Tensor<double, 5U> &rhs, Tensor<double, 5U> &_d_lhs, const Tensor<double, 5U> &_d_rhs) {
-// CHECK-NEXT:     double _d_lsum, _d_rsum;
+// CHECK-NEXT:     double _d_lsum = 0., _d_rsum = 0.;
 // CHECK-NEXT:     double lsum, rsum;
 // CHECK-NEXT:     _d_lsum = _d_rsum = 0;
 // CHECK-NEXT:     lsum = rsum = 0;
@@ -959,7 +959,7 @@ TensorD5 fn13(double i, double j) {
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<bool, bool> operator_greater_pushforward(Tensor<double, 5U> &lhs, const Tensor<double, 5U> &rhs, Tensor<double, 5U> &_d_lhs, const Tensor<double, 5U> &_d_rhs) {
-// CHECK-NEXT:     double _d_lsum, _d_rsum;
+// CHECK-NEXT:     double _d_lsum = 0., _d_rsum = 0.;
 // CHECK-NEXT:     double lsum, rsum;
 // CHECK-NEXT:     _d_lsum = _d_rsum = 0;
 // CHECK-NEXT:     lsum = rsum = 0;

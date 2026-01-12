@@ -164,7 +164,7 @@ double f4_darg0(double x, int y);
 // CHECK: double f4_darg0(double x, int y) {
 // CHECK-NEXT:   double _d_x = 1;
 // CHECK-NEXT:   int _d_y = 0;
-// CHECK-NEXT:   double _d_r = 0;
+// CHECK-NEXT:   double _d_r = 0.;
 // CHECK-NEXT:   double r = 1;
 // CHECK-NEXT:   int _d_i;
 // CHECK-NEXT:   int i;
@@ -197,7 +197,7 @@ double f4_inc_darg0(double x, int y);
 //CHECK:   double f4_inc_darg0(double x, int y) {
 //CHECK-NEXT:       double _d_x = 1;
 //CHECK-NEXT:       int _d_y = 0;
-//CHECK-NEXT:       double _d_r = 0;
+//CHECK-NEXT:       double _d_r = 0.;
 //CHECK-NEXT:       double r = 1;
 //CHECK-NEXT:       int _d_i;
 //CHECK-NEXT:       int i;
@@ -231,8 +231,8 @@ double fn5(double i, double j) {
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     int _d_b = 0;
 // CHECK-NEXT:     int b = 3;
-// CHECK-NEXT:     double _d_a = 0;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double _d_a = 0.;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     while (b)
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _d_a += _d_i;
@@ -258,8 +258,8 @@ double fn6(double i, double j) {
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     int _d_b = 0;
 // CHECK-NEXT:     int b = 3;
-// CHECK-NEXT:     double _d_a = 0;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double _d_a = 0.;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     do {
 // CHECK-NEXT:         _d_a += _d_i;
 // CHECK-NEXT:         a += i;
@@ -288,9 +288,9 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     int _d_b = 0;
 // CHECK-NEXT:     int b = 3;
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     double _d_a;
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0.;
+// CHECK-NEXT:     double _d_a = 0.;
 // CHECK-NEXT:     double a;
 // CHECK-NEXT:     while ((_d_a = _d_b) , (a = b))
 // CHECK-NEXT:         {
@@ -377,8 +377,8 @@ double fn10_darg0(double x, size_t n);
 // CHECK: double fn10_darg0(double x, size_t n) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     size_t _d_n = 0;
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         size_t _d_count = 0;
 // CHECK-NEXT:         size_t _d_max_count;
@@ -411,8 +411,8 @@ double fn11_darg0(double x, double y);
 // CHECK:      double fn11_darg0(double x, double y) {
 // CHECK-NEXT:          double _d_x = 1;
 // CHECK-NEXT:          double _d_y = 0;
-// CHECK-NEXT:          double _d_r = 0;
-// CHECK-NEXT:          double r = 0;
+// CHECK-NEXT:          double _d_r = 0.;
+// CHECK-NEXT:          double r = 0.;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              int _d_i = 0;
 // CHECK-NEXT:              for (int i = 0; (_d_r = _d_x) , (r = x); ++i) {
@@ -439,11 +439,11 @@ double fn12_darg0(double x, double y);
 // CHECK:      double fn12_darg0(double x, double y) {
 // CHECK-NEXT:          double _d_x = 1;
 // CHECK-NEXT:          double _d_y = 0;
-// CHECK-NEXT:          double _d_r = 0;
-// CHECK-NEXT:          double r = 0;
+// CHECK-NEXT:          double _d_r = 0.;
+// CHECK-NEXT:          double r = 0.;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              int _d_i = 0;
-// CHECK-NEXT:              double _d_c;
+// CHECK-NEXT:              double _d_c = 0.;
 // CHECK-NEXT:              double c;
 // CHECK-NEXT:              for (int i = 0; (_d_c = _d_x) , (c = x); ++i) {
 // CHECK-NEXT:                      if (i == 3)
@@ -467,8 +467,8 @@ double fn13_darg0(double u, double v);
 // CHECK:           double fn13_darg0(double u, double v) {
 // CHECK-NEXT:               double _d_u = 1;
 // CHECK-NEXT:               double _d_v = 0;
-// CHECK-NEXT:               double _d_res = 0;
-// CHECK-NEXT:               double res = 0;
+// CHECK-NEXT:               double _d_res = 0.;
+// CHECK-NEXT:               double res = 0.;
 // CHECK-NEXT:               for (; ((_d_res = _d_u * v + u * _d_v) , (res = u * v)) && ((_d_u = 0) , (u = 0));) {
 // CHECK-NEXT:               }
 // CHECK-NEXT:               return _d_res;
@@ -487,8 +487,8 @@ double fn14(double x) {
 double fn14_darg0(double x);
 // CHECK:       double fn14_darg0(double x) {
 // CHECK-NEXT:           double _d_x = 1;
-// CHECK-NEXT:           double _d_r = 0;
-// CHECK-NEXT:           double r = 0;
+// CHECK-NEXT:           double _d_r = 0.;
+// CHECK-NEXT:           double r = 0.;
 // CHECK-NEXT:           double _d_t = _d_x;
 // CHECK-NEXT:           double t = x;
 // CHECK-NEXT:           {
@@ -513,8 +513,8 @@ double fn15_darg0(double u, double v);
 //CHECK:       double fn15_darg0(double u, double v) {
 // CHECK-NEXT:      double _d_u = 1;
 // CHECK-NEXT:      double _d_v = 0;
-// CHECK-NEXT:      double _d_res = 0;
-// CHECK-NEXT:      double res = 0;
+// CHECK-NEXT:      double _d_res = 0.;
+// CHECK-NEXT:      double res = 0.;
 // CHECK-NEXT:      for (; (_d_res = _d_u * v + u * _d_v) , !(res = u * v);) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      return 0 * res + 2 * _d_res;
@@ -528,7 +528,7 @@ double fn16(double x) {
 double fn16_darg0(double x);
 // CHECK:       double fn16_darg0(double x) {
 // CHECK-NEXT:       double _d_x = 1;
-// CHECK-NEXT:       double _d_t;
+// CHECK-NEXT:       double _d_t = 0.;
 // CHECK-NEXT:       double t;
 // CHECK-NEXT:       while ((_d_t = (_d_x = 0)) , (t = (x = 0)))
 // CHECK-NEXT:       {
@@ -564,8 +564,8 @@ double fn18(double u, double v) {
 // CHECK-NEXT:     double _d_v = 0;
 // CHECK-NEXT:     {{.*}}initializer_list<double> _d_dl = {_d_u, _d_v, _d_u * v + u * _d_v};
 // CHECK-NEXT:     {{.*}}initializer_list<double> dl = {u, v, u * v};
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<{{.*}}, {{.*}}> _t0 = {{.*}}end_pushforward(&dl, &_d_dl);
 // CHECK-NEXT:     {{.*}}_d_dl_end = _t0.pushforward;
 // CHECK-NEXT:     {{.*}}dl_end = _t0.value;
@@ -596,8 +596,8 @@ double fn19_darg0(double x, double y);
 // CHECK:     double fn19_darg0(double x, double y) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     double _d_y = 0;
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     double _t0 = 2 * x;
 // CHECK-NEXT:     double _d_f[5] = {_d_x * x + x * _d_x, (0 * x + 2 * _d_x) * y + _t0 * _d_y, _d_y * y + y * _d_y, _d_x, _d_y};
 // CHECK-NEXT:     double f[5] = {x * x, _t0 * y, y * y, x, y};
@@ -661,8 +661,8 @@ double fn21_darg0(double x, double y);
 // CHECK-NEXT:     double _d_y = 0;
 // CHECK-NEXT:     int _d_coefficients[3] = {0, 0, 0};
 // CHECK-NEXT:     int coefficients[3] = {4, 7, 3};
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     int (&_d___range1)[3] = _d_coefficients;
 // CHECK-NEXT:     int (&__range1)[3] = coefficients;
 // CHECK-NEXT:     int *_d___begin1 = _d___range1;

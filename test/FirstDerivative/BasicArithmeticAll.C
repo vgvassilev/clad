@@ -36,7 +36,7 @@ double fn1(double i, double j) {
 // CHECK:  double fn1_darg0(double i, double j) {
 // CHECK-NEXT:      double _d_i = 1;
 // CHECK-NEXT:      double _d_j = 0;
-// CHECK-NEXT:      double _d_t = 0;
+// CHECK-NEXT:      double _d_t = 0.;
 // CHECK-NEXT:      double t = 1;
 // CHECK-NEXT:      double &_t0 = (_d_t = _d_t * j + t * _d_j);
 // CHECK-NEXT:      double &_t1 = (t *= j);
@@ -78,7 +78,7 @@ double fn3(double i, double j) {
 // CHECK:  double fn3_darg0(double i, double j) {
 // CHECK-NEXT:      double _d_i = 1;
 // CHECK-NEXT:      double _d_j = 0;
-// CHECK-NEXT:      double _d_t = 0;
+// CHECK-NEXT:      double _d_t = 0.;
 // CHECK-NEXT:      double t = 1;
 // CHECK-NEXT:      double _t0 = (_d_i * j + i * _d_j);
 // CHECK-NEXT:      double _t1 = (i * j);

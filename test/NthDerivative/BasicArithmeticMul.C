@@ -19,10 +19,10 @@ float test_2(float x, float y) {
 //CHECK:   float test_2_d2arg0(float x, float y) {
 //CHECK-NEXT:       float _d_x = 1;
 //CHECK-NEXT:       float _d_y = 0;
-//CHECK-NEXT:       float _d__d_x = 0;
+//CHECK-NEXT:       float _d__d_x = 0.F;
 //CHECK-NEXT:       float _d_x0 = 1;
-//CHECK-NEXT:       float _d__d_y = 0;
-//CHECK-NEXT:       float _d_y0 = 0;
+//CHECK-NEXT:       float _d__d_y = 0.F;
+//CHECK-NEXT:       float _d_y0 = 0.F;
 //CHECK-NEXT:       return _d__d_x * x + _d_x0 * _d_x + _d_x * _d_x0 + x * _d__d_x + _d__d_y * y + _d_y0 * _d_y + _d_y * _d_y0 + y * _d__d_y;
 //CHECK-NEXT:   }
 
@@ -35,26 +35,26 @@ float test_2(float x, float y) {
 //CHECK:   float test_2_d2arg1(float x, float y) {
 //CHECK-NEXT:       float _d_x = 0;
 //CHECK-NEXT:       float _d_y = 1;
-//CHECK-NEXT:       float _d__d_x = 0;
-//CHECK-NEXT:       float _d_x0 = 0;
-//CHECK-NEXT:       float _d__d_y = 0;
+//CHECK-NEXT:       float _d__d_x = 0.F;
+//CHECK-NEXT:       float _d_x0 = 0.F;
+//CHECK-NEXT:       float _d__d_y = 0.F;
 //CHECK-NEXT:       float _d_y0 = 1;
 //CHECK-NEXT:       return _d__d_x * x + _d_x0 * _d_x + _d_x * _d_x0 + x * _d__d_x + _d__d_y * y + _d_y0 * _d_y + _d_y * _d_y0 + y * _d__d_y;
 //CHECK-NEXT:   } 
 //CHECK:   float test_2_d3arg1(float x, float y) {
 //CHECK-NEXT:       float _d_x = 0;
 //CHECK-NEXT:       float _d_y = 1;
-//CHECK-NEXT:       float _d__d_x = 0;
-//CHECK-NEXT:       float _d_x0 = 0;
-//CHECK-NEXT:       float _d__d_y = 0;
+//CHECK-NEXT:       float _d__d_x = 0.F;
+//CHECK-NEXT:       float _d_x0 = 0.F;
+//CHECK-NEXT:       float _d__d_y = 0.F;
 //CHECK-NEXT:       float _d_y0 = 1;
-//CHECK-NEXT:       float _d__d__d_x = 0;
-//CHECK-NEXT:       float _d__d_x0 = 0;
-//CHECK-NEXT:       float _d__d_x00 = 0;
-//CHECK-NEXT:       float _d_x00 = 0;
-//CHECK-NEXT:       float _d__d__d_y = 0;
-//CHECK-NEXT:       float _d__d_y0 = 0;
-//CHECK-NEXT:       float _d__d_y00 = 0;
+//CHECK-NEXT:       float _d__d__d_x = 0.F;
+//CHECK-NEXT:       float _d__d_x0 = 0.F;
+//CHECK-NEXT:       float _d__d_x00 = 0.F;
+//CHECK-NEXT:       float _d_x00 = 0.F;
+//CHECK-NEXT:       float _d__d__d_y = 0.F;
+//CHECK-NEXT:       float _d__d_y0 = 0.F;
+//CHECK-NEXT:       float _d__d_y00 = 0.F;
 //CHECK-NEXT:       float _d_y00 = 1;
 //CHECK-NEXT:       return _d__d__d_x * x + _d__d_x0 * _d_x + _d__d_x00 * _d_x0 + _d_x00 * _d__d_x + _d__d_x * _d_x00 + _d_x0 * _d__d_x00 + _d_x * _d__d_x0 + x * _d__d__d_x + _d__d__d_y * y + _d__d_y0 * _d_y + _d__d_y00 * _d_y0 + _d_y00 * _d__d_y + _d__d_y * _d_y00 + _d_y0 * _d__d_y00 + _d_y * _d__d_y0 + y * _d__d__d_y;
 //CHECK-NEXT:   } 
