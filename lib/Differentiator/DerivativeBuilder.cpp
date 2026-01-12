@@ -592,13 +592,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     } else if (request.Mode == DiffMode::reverse ||
                request.Mode == DiffMode::pullback) {
       ErrorEstimationHandler handler;
-      std::unique_ptr<FPErrorEstimationModel> model;
       ReverseModeVisitor V(*this, request);
-      if (request.EnableErrorEstimation) {
-        model = std::make_unique<FPErrorEstimationModel>(*this, request);
-        handler.SetErrorEstimationModel(model.get());
+      if (request.EnableErrorEstimation)
         V.AddExternalSource(handler);
-      }
       result = V.Derive();
     } else if (request.Mode == DiffMode::reverse_mode_forward_pass) {
       ReverseModeForwPassVisitor V(*this, request);

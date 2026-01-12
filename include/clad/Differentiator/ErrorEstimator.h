@@ -1,13 +1,13 @@
 #ifndef CLAD_ERROR_ESTIMATOR_H
 #define CLAD_ERROR_ESTIMATOR_H
 
-#include "EstimationModel.h"
 #include "clad/Differentiator/ExternalRMVSource.h"
 #include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 
 #include "clang/AST/OperationKinds.h"
 
 #include <stack>
+#include <string>
 
 namespace clang {
 class Stmt;
@@ -29,15 +29,29 @@ class ErrorEstimationHandler : public ExternalRMVSource {
   // `Stmts` is originally defined in `VisitorBase`.
   using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
   /// Reference to the return error expression.
-  clang::Expr* m_RetErrorExpr;
-  /// An instance of the custom error estimation model to be used.
-  FPErrorEstimationModel* m_EstModel; // We do not own this.
+  clang::Expr* m_RetErrorExpr = nullptr;
+  /// An Expr representing a custom `getErrorVal` function, if any.
+  clang::Expr* m_CustomErrorFunction = nullptr;
+  void LookupCustomErrorFunction();
+  /// The function to build the error expression of a
+  /// specific estimation model. The error expression is returned in the form
+  /// of a clang::Expr.
+  /// \param[in] refExpr The reference of the expression to which the error
+  /// has to be assigned, this is a StmtDiff type hence one can use getExpr()
+  /// to get the unmodified expression and getExpr_dx() to get the absolute
+  /// derivative of the same.
+  /// \param [in] name Name of the variable being analysed.
+  ///
+  /// \returns The error expression of the input value.
+  // Return an expression of the following kind:
+  // std::abs(dfdx * delta_x * Em)
+  clang::Expr* AssignError(StmtDiff refExpr, const std::string& name);
   /// A set of assignments resulting for declaration statments.
   Stmts m_ForwardReplStmts;
   /// A vector to keep track of error statements for delayed emission.
   Stmts m_ReverseErrorStmts;
   /// The index expression for emitting final errors for input param errors.
-  clang::Expr* m_IdxExpr;
+  clang::Expr* m_IdxExpr = nullptr;
   /// A map from var decls to their size variables (e.g. `var_size`).
   std::unordered_map<const clang::VarDecl*, clang::Expr*> m_ArrSizes;
   // FIXME: Solve this in a more general way.
@@ -45,20 +59,13 @@ class ErrorEstimationHandler : public ExternalRMVSource {
   bool m_ErrorFromFunctionCall = false;
 
   std::stack<bool> m_ShouldEmit;
-  ReverseModeVisitor* m_RMV;
+  ReverseModeVisitor* m_RMV = nullptr;
   llvm::SmallVectorImpl<clang::ParmVarDecl*>* m_Params = nullptr;
 
 public:
   using direction = rmv::direction;
-  ErrorEstimationHandler()
-      : m_RetErrorExpr(nullptr), m_EstModel(nullptr), m_IdxExpr(nullptr) {}
+  ErrorEstimationHandler() = default;
   ~ErrorEstimationHandler() override = default;
-
-  /// Function to set the error estimation model currently in use.
-  ///
-  /// \param[in] estModel The error estimation model, can be either
-  /// an in-built one or one provided by the user.
-  void SetErrorEstimationModel(FPErrorEstimationModel* estModel);
 
   /// Builds a reference to the final error parameter of the function.
   clang::DeclRefExpr* BuildFinalErrorExpr();
@@ -122,7 +129,7 @@ public:
   /// \returns The error in the variable 'var'.
   clang::Expr* GetError(clang::Expr* var, clang::Expr* varDiff,
                         const std::string& varName) {
-    return m_EstModel->AssignError({var, varDiff}, varName);
+    return AssignError({var, varDiff}, varName);
   }
 
   /// This function adds the final error and the other parameter errors to the
