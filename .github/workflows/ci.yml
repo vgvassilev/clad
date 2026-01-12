@@ -762,7 +762,7 @@ jobs:
               -DCMAKE_ASM_MASM_COMPILER=llvm-ml           `
               -DLLVM_BUILD_LLVM_DYLIB_VIS=On              `
               -DLLVM_LINK_LLVM_DYLIB=On                   `
-              -DLLVM_INCLUDE_EXAMPLES=OFF                  `
+              -DCLANG_ENABLE_STATIC_ANALYZER=OFF                  `
               -DCLANG_LINK_CLANG_DYLIB=On                                 
         cmake --build build --config RelWithDebInfo --parallel ${{ env.ncpus }}
         rm -r -force $(find.exe . -maxdepth 1 ! -name "build" ! -name "llvm" ! -name "clang" ! -name ".")    
