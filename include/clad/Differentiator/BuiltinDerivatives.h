@@ -1062,6 +1062,55 @@ CUDA_HOST_DEVICE void hypot_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   *d_y += (y / h) * d_z;
 }
 
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_1_pushforward(T k, dT d_k) {
+  T K = ::std::comp_ellint_1(k);
+  T E = ::std::comp_ellint_2(k);
+  T k_sq = k * k;
+  T one = 1.0;
+
+  T derivative = 0.0;
+  if (k_sq < 1.0 && k != 0.0) {
+    derivative = (E - (one - k_sq) * K) / (k * (one - k_sq));
+  }
+
+  return {K, d_k * derivative};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_2_pushforward(T k, dT d_k) {
+  T K = ::std::comp_ellint_1(k);
+  T E = ::std::comp_ellint_2(k);
+
+  T derivative = 0.0;
+  if (k != 0.0) {
+    derivative = (E - K) / k;
+  }
+
+  return {E, d_k * derivative};
+}
+
+template <typename T, typename U, typename dT, typename dU>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_3_pushforward(T k, U nu, dT d_k, dU d_nu) {
+  T K = ::std::comp_ellint_1(k);
+  T E = ::std::comp_ellint_2(k);
+  T Pi = ::std::comp_ellint_3(k, nu);
+  
+  T k2 = k * k;
+  T one = 1.0;
+
+  T term_k = E / (one - k2);
+  T grad_k = (k / (k2 - nu)) * (term_k - Pi);
+
+  T p2 = ((k2 - nu) / nu) * K;
+  T p3 = ((nu * nu - k2) / nu) * Pi;
+  T grad_nu = (one / (2.0 * (nu - one) * (k2 - nu))) * (E + p2 + p3);
+
+  T result = Pi;
+  dT d_result = (d_k * grad_k) + (d_nu * grad_nu);
+
+  return {result, d_result};
+}
 } // namespace std
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -1326,6 +1375,9 @@ using std::min_pushforward;
 using std::pow_pullback;
 using std::pow_pushforward;
 using std::sqrt_pushforward;
+using std::comp_ellint_1_pushforward;
+using std::comp_ellint_2_pushforward;
+using std::comp_ellint_3_pushforward;
 
 namespace class_functions {
 template <typename T, typename U>

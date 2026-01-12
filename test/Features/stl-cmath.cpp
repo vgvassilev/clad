@@ -66,6 +66,11 @@
 // D tgamma/ tgammaf/ tgammal          (C++11) gamma function
 // D lgamma/ lgammaf/ lgammal          (C++11) log gamma
 //
+//------------------------ Elliptic integrals -----------------------------
+// D comp_ellint_1 / comp_ellint_1f / comp_ellint_1l (C++17) complete elliptic integral of the first kind
+// D comp_ellint_2 / comp_ellint_2f / comp_ellint_2l (C++17) complete elliptic integral of the second kind
+// D comp_ellint_3 (C++17) complete elliptic integral of the third kind
+//
 //---------------------- Nearest integer operations ----------------------------
 // N ceil/ ceilf/ ceill                (C++11) smallest integer >= x
 // N floor/ floorf/ floorl             (C++11) largest integer <= x
@@ -295,6 +300,24 @@ DEFINE_FUNCTIONS(atanh) // x in [-1,1]
 //
 DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
 
+//------------------------ Elliptic integrals -----------------------------
+//
+// Domain: k in (-1, 1)
+template<typename T> T f_comp_ellint_1(T k) { return std::comp_ellint_1(k); }
+float f_comp_ellint_1f(float k) { return std::comp_ellint_1(k); }
+long double f_comp_ellint_1l(long double k) { return std::comp_ellint_1(k); }
+
+// Domain: k in (-1, 1)
+template<typename T> T f_comp_ellint_2(T k) { return std::comp_ellint_2(k); }
+float f_comp_ellint_2f(float k) { return std::comp_ellint_2(k); }
+long double f_comp_ellint_2l(long double k) { return std::comp_ellint_2(k); }
+
+// Domain: k in (-1, 1). Fixed nu = 0.5 for testing.
+template<typename T> T f_comp_ellint_3(T k) { return std::comp_ellint_3(k, (T)0.5); }
+float f_comp_ellint_3f(float k) { return std::comp_ellint_3(k, 0.5f); }
+long double f_comp_ellint_3l(long double k) { return std::comp_ellint_3(k, 0.5L); }
+
+
 int main() {
   // Absolute value
   CHECK(abs);
@@ -352,6 +375,11 @@ int main() {
 
   // Error / Gamma functions
   CHECK_ALL(erf);
+
+  // Elliptic Integrals
+  CHECK_ALL_RANGE(comp_ellint_1, -0.9, 0.9);
+  CHECK_ALL_RANGE(comp_ellint_2, -0.9, 0.9);
+  CHECK_ALL_RANGE(comp_ellint_3, -0.9, 0.9);
 
   return 0;
 }
