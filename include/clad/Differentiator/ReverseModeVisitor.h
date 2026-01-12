@@ -29,7 +29,10 @@
 #include <llvm/ADT/SmallVector.h>
 #include <vector>
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/ArrayRef.h"
+#include <llvm/ADT/SmallVector.h>
 #include "llvm/ADT/SmallVector.h"
+#include <vector>
 
 #include <array>
 #include <limits>
