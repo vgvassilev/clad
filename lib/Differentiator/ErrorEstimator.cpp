@@ -6,12 +6,20 @@
 #include "clad/Differentiator/ReverseModeVisitor.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/Lookup.h"
+#include "clang/Sema/TemplateDeduction.h"
 
-#include <llvm/ADT/STLExtras.h>
-#include <llvm/ADT/SmallVector.h>
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
+
+#include <limits>
+#include <string>
 
 using namespace clang;
 
@@ -26,11 +34,6 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
   return baseType;
 }
 
-void ErrorEstimationHandler::SetErrorEstimationModel(
-    FPErrorEstimationModel* estModel) {
-  m_EstModel = estModel;
-}
-
 DeclRefExpr* ErrorEstimationHandler::BuildFinalErrorExpr() {
   return m_RMV->BuildDeclRef(m_Params->back());
 }
@@ -42,8 +45,7 @@ void ErrorEstimationHandler::BuildReturnErrorStmt() {
     auto flitr =
         FloatingLiteral::Create(m_RMV->m_Context, llvm::APFloat(1.0), true,
                                 m_RMV->m_Context.DoubleTy, noLoc);
-    Expr* finExpr =
-        m_EstModel->AssignError(StmtDiff(m_RetErrorExpr, flitr), "return_expr");
+    Expr* finExpr = AssignError(StmtDiff(m_RetErrorExpr, flitr), "return_expr");
     m_RMV->addToCurrentBlock(
         m_RMV->BuildOp(BO_AddAssign, BuildFinalErrorExpr(), finExpr),
         direction::forward);
@@ -102,9 +104,9 @@ void ErrorEstimationHandler::EmitNestedFunctionParamError(
     // if (utils::IsReferenceOrPointerType(fnDecl->getParamDecl(i)->getType()))
     //   continue;
     auto* derefExpr = m_RMV->BuildOp(UO_Deref, ArgResult[i]);
-    Expr* errorExpr = m_EstModel->AssignError(
-        {derivedCallArgs[i], derefExpr},
-        fnDecl->getNameInfo().getAsString() + "_param_" + std::to_string(i));
+    Expr* errorExpr = AssignError({derivedCallArgs[i], derefExpr},
+                                  fnDecl->getNameInfo().getAsString() +
+                                      "_param_" + std::to_string(i));
     Expr* FinalError = BuildFinalErrorExpr();
     Expr* errorStmt = m_RMV->BuildOp(BO_AddAssign, FinalError, errorExpr);
     m_ReverseErrorStmts.push_back(errorStmt);
@@ -265,6 +267,7 @@ void ErrorEstimationHandler::EmitDeclErrorStmts(DeclDiff<VarDecl> VDDiff,
 
 void ErrorEstimationHandler::InitialiseRMV(ReverseModeVisitor& RMV) {
   m_RMV = &RMV;
+  LookupCustomErrorFunction();
 }
 
 void ErrorEstimationHandler::ForgetRMV() { m_RMV = nullptr; }
@@ -333,7 +336,7 @@ void ErrorEstimationHandler::ActAfterProcessingArraySubscriptExpr(
           m_RMV->m_Sema.ImpCastExprToType(idx, size->getType(), CK_IntegralCast)
               .get();
       llvm::SmallVector<clang::Expr*, 2> args{size, idx};
-      Expr* extendedSize = m_EstModel->GetFunctionCall("max", "std", args);
+      Expr* extendedSize = m_RMV->GetFunctionCall("max", "std", args);
       size = m_RMV->Clone(size);
       Stmt* updateSize = m_RMV->BuildOp(BO_Assign, size, extendedSize);
       m_RMV->addToCurrentBlock(updateSize, direction::reverse);
@@ -448,6 +451,77 @@ void ErrorEstimationHandler::ActBeforeDifferentiatingCallExpr(
     llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs) {
   m_ErrorFromFunctionCall = true;
   pullbackArgs.push_back(BuildFinalErrorExpr());
+}
+
+void ErrorEstimationHandler::LookupCustomErrorFunction() {
+  Sema& S = m_RMV->m_Sema;
+  ASTContext& C = m_RMV->m_Context;
+  NamespaceDecl* cladNS = utils::LookupNSD(S, "clad", /*shouldExist=*/true);
+  IdentifierInfo* II = &C.Idents.get("getErrorVal");
+  DeclarationNameInfo DNInfo(DeclarationName(II), utils::GetValidSLoc(S));
+  LookupResult R(S, DNInfo, Sema::LookupOrdinaryName);
+  S.LookupQualifiedName(R, cladNS);
+  if (R.empty())
+    return;
+
+  FunctionProtoType::ExtProtoInfo EPI;
+  QualType ConstCharPtr = C.getPointerType(C.getConstType(C.CharTy));
+  QualType DoubleTy = C.DoubleTy;
+  llvm::SmallVector<QualType, 3> FnTypes = {DoubleTy, DoubleTy, ConstCharPtr};
+  QualType FnTy = C.getFunctionType(DoubleTy, FnTypes, EPI);
+  TemplateSpecCandidateSet FailedCandidates(utils::GetValidSLoc(S),
+                                            /*ForTakingAddress=*/false);
+  if (utils::MatchOverloadType(S, FnTy, R, FailedCandidates)) {
+    // FIXME: MatchOverloadType returns an overload expr without the `clad::`
+    // namespace specifier. Here, we rebuild manually.
+    CXXScopeSpec SS;
+    SS.Extend(C, cladNS, noLoc, noLoc);
+    m_CustomErrorFunction =
+        S.BuildDeclarationNameExpr(SS, R, /*ADL=*/false).get();
+    return;
+  }
+
+  // We did not match the found candidates. Warn and offer the user hints.
+  auto errId = S.Diags.getCustomDiagID(
+      DiagnosticsEngine::Error,
+      "user-defined derivative error function was provided but not used; "
+      "expected signature %0 does not match");
+  S.Diag(m_RMV->m_DiffReq->getLocation(), errId) << FnTy;
+  FailedCandidates.NoteCandidates(S, utils::GetValidSLoc(S));
+  utils::DiagnoseSignatureMismatch(S, FnTy, R);
+}
+
+Expr* ErrorEstimationHandler::AssignError(StmtDiff refExpr,
+                                          const std::string& varName) {
+  Sema& S = m_RMV->m_Sema;
+  ASTContext& C = m_RMV->m_Context;
+  if (m_CustomErrorFunction) {
+    llvm::SmallVector<clang::Expr*, 3> callParams{
+        refExpr.getExpr_dx(), refExpr.getExpr(),
+        clad::utils::CreateStringLiteral(C, varName)};
+    return S
+        .ActOnCallExpr(m_RMV->getCurrentScope(), m_CustomErrorFunction, noLoc,
+                       callParams, noLoc)
+        .get();
+  }
+  // Get the machine epsilon value.
+  double val = std::numeric_limits<float>::epsilon();
+  // Convert it into a floating point literal clang::Expr.
+  Expr* epsExpr =
+      FloatingLiteral::Create(C, llvm::APFloat(val), true, C.DoubleTy, noLoc);
+  // Here, we first build a multiplication operation for the following:
+  // refExpr * <--floating point literal (i.e. machine dependent constant)-->
+  // Build another multiplication operation with above and the derivative
+  Expr* errExpr =
+      m_RMV->BuildOp(BO_Mul, refExpr.getExpr_dx(),
+                     m_RMV->BuildOp(BO_Mul, refExpr.getExpr(), epsExpr));
+  // Next, build a llvm vector-like container to store the parameters
+  // of the function call.
+  llvm::SmallVector<Expr*, 1> params{errExpr};
+  // Finally, build a call to std::abs
+  Expr* absExpr = m_RMV->GetFunctionCall("abs", "std", params);
+  // Return the built error expression.
+  return absExpr;
 }
 
 void ErrorEstimationHandler::ActBeforeFinalizingVisitDeclStmt(
