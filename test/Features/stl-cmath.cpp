@@ -302,49 +302,21 @@ DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
 
 //------------------------ Elliptic integrals -----------------------------
 //
-// Helper wrappers to enable DEFINE_FUNCTIONS for comp_ellint_1
-inline float comp_ellint_1f(float x) { return std::comp_ellint_1(x); }
-inline long double comp_ellint_1l(long double x) { return std::comp_ellint_1(x); }
+// Domain: k in (-1, 1)
+template<typename T> T f_comp_ellint_1(T k) { return std::comp_ellint_1(k); }
+float f_comp_ellint_1f(float k) { return std::comp_ellint_1(k); }
+long double f_comp_ellint_1l(long double k) { return std::comp_ellint_1(k); }
 
 // Domain: k in (-1, 1)
-DEFINE_FUNCTIONS(comp_ellint_1)
-CHECK_ALL_RANGE(comp_ellint_1, -0.9, 0.9);
+template<typename T> T f_comp_ellint_2(T k) { return std::comp_ellint_2(k); }
+float f_comp_ellint_2f(float k) { return std::comp_ellint_2(k); }
+long double f_comp_ellint_2l(long double k) { return std::comp_ellint_2(k); }
 
-// Helper wrappers for comp_ellint_2
-inline float comp_ellint_2f(float x) { return std::comp_ellint_2(x); }
-inline long double comp_ellint_2l(long double x) { return std::comp_ellint_2(x); }
+// Domain: k in (-1, 1). Fixed nu = 0.5 for testing.
+template<typename T> T f_comp_ellint_3(T k) { return std::comp_ellint_3(k, (T)0.5); }
+float f_comp_ellint_3f(float k) { return std::comp_ellint_3(k, 0.5f); }
+long double f_comp_ellint_3l(long double k) { return std::comp_ellint_3(k, 0.5L); }
 
-// Domain: k in (-1, 1)
-DEFINE_FUNCTIONS(comp_ellint_2)
-CHECK_ALL_RANGE(comp_ellint_2, -0.9, 0.9);
-
-// comp_ellint_3 takes 2 arguments, so we test it manually (macro doesn't support it)
-{
-  double k = 0.5, nu = 0.3;
-  double h = 1e-8;
-  double tol = 1e-5;
-
-  // Test differentiation w.r.t 'k' (Arg 0)
-  auto d_ellint3_k = clad::differentiate(std::comp_ellint_3, 0);
-  double sym_k = d_ellint3_k.execute(k, nu);
-  // Numerical approximation: (f(k+h) - f(k-h)) / 2h
-  double num_k = (std::comp_ellint_3(k + h, nu) - std::comp_ellint_3(k - h, nu)) / (2 * h);
-  
-  if (std::abs(sym_k - num_k) > tol) {
-    return 1;
-  }
-
-  // Test differentiation w.r.t 'nu' (Arg 1)
-  auto d_ellint3_nu = clad::differentiate(std::comp_ellint_3, 1);
-  double sym_nu = d_ellint3_nu.execute(k, nu);
-  // Numerical approximation: (f(nu+h) - f(nu-h)) / 2h
-  double num_nu = (std::comp_ellint_3(k, nu + h) - std::comp_ellint_3(k, nu - h)) / (2 * h);
-
-  if (std::abs(sym_nu - num_nu) > tol) {
-    return 1;
-  }
-}
-//
 
 int main() {
   // Absolute value
@@ -403,6 +375,11 @@ int main() {
 
   // Error / Gamma functions
   CHECK_ALL(erf);
+
+  // Elliptic Integrals
+  CHECK_ALL_RANGE(comp_ellint_1, -0.9, 0.9);
+  CHECK_ALL_RANGE(comp_ellint_2, -0.9, 0.9);
+  CHECK_ALL_RANGE(comp_ellint_3, -0.9, 0.9);
 
   return 0;
 }
