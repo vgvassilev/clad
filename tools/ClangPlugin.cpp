@@ -8,7 +8,6 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
-#include "clad/Differentiator/EstimationModel.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
