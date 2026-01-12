@@ -454,10 +454,6 @@ namespace clad {
         valueType = T.getNonReferenceType();
       else if (const auto* AT = dyn_cast<clang::ArrayType>(T))
         valueType = AT->getElementType();
-      else if (T->isEnumeralType()) {
-        if (const auto* ET = dyn_cast<EnumType>(T))
-          valueType = ET->getDecl()->getIntegerType();
-      }
       return valueType;
     }
 
@@ -1325,7 +1321,8 @@ namespace clad {
             if (param == FD->getParamDecl(i))
               FnTypes.push_back(
                   utils::GetParameterDerivativeType(S, mode, PVDTy));
-        } else if (utils::IsDifferentiableType(PVDTy))
+        } else if (mode == DiffMode::reverse_mode_forward_pass ||
+                   utils::IsDifferentiableType(PVDTy))
           FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
       }
 

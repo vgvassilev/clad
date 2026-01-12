@@ -22,11 +22,14 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Sema.h"
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/SmallVector.h>
 #include <vector>
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include <array>
 #include <limits>
@@ -101,7 +104,7 @@ namespace clad {
 
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
-    clang::Expr* m_Pullback = nullptr;
+    llvm::SmallVector<clang::Expr*, 1> m_Pullback;
     const char* funcPostfix() const {
       if (m_DiffReq.Mode == DiffMode::jacobian)
         return "_jac";
@@ -398,6 +401,10 @@ namespace clad {
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
     StmtDiff VisitIfStmt(const clang::IfStmt* If);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+
+#if CLANG_VERSION_MAJOR > 16
+    StmtDiff VisitLambdaExpr(const clang::LambdaExpr* LE);
+#endif // CLANG_VERSION_MAJOR
     StmtDiff
     VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
     StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
@@ -708,8 +715,21 @@ namespace clad {
     ///\paramp[in] source An external RMV source
     void AddExternalSource(ExternalRMVSource& source);
 
+    clang::QualType GetLambdaDerivativeType(const clang::LambdaExpr* LE) {
+      clang::FunctionDecl* FD = LE->getCallOperator();
+      llvm::SmallVector<const clang::ValueDecl*, 4> diffParams{};
+      for (const auto* param : FD->parameters())
+        diffParams.push_back(param);
+
+      return utils::GetDerivativeType(m_Sema, FD, DiffMode::pullback,
+                                      diffParams,
+                                      /*forCustomDerv=*/false,
+                                      /*shouldUseRestoreTracker=*/false);
+    }
+    clang::Expr* buildDerivedLambda(const clang::LambdaExpr* LE);
     /// Builds and returns the sequence of derived function parameters.
-    void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
+    void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,
+                     const clang::LambdaExpr* LE = nullptr);
 
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {
