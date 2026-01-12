@@ -749,8 +749,9 @@ jobs:
     - name: Build LLVM/Cling on Windows systems if the cache is invalid
       if: ${{ (matrix.debug_build == true) && runner.os == 'windows' && steps.cache.outputs.cache-hit != 'true' }}
       run: |
-        git clone --depth=1 https://github.com/llvm/llvm-project.git 
+        git clone https://github.com/llvm/llvm-project.git 
         cd llvm-project
+        git checkout 282f8f79d7844af8952a444535e7bae204d28836
         cmake -S ./llvm/ -B build -G Ninja                `
               -DCMAKE_ASM_MASM_FLAGS="-m64"     `
               -DLLVM_ENABLE_PROJECTS="clang"              `
