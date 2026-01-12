@@ -244,7 +244,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
             typename std::enable_if<EnablePadding, bool>::type = true>
   constexpr CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
-                            CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
+                            CUDA_ARGS CUDA_REST_ARGS Args&&... args) {  
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
       constexpr size_t totalArgs = sizeof...(args) + sizeof...(Rest);
@@ -259,10 +259,10 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
                        stream);
       return return_type_t<F>();
     } else {
-      return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
+      return f(std::forward<Args>(args)..., static_cast<Rest>(nullptr)...);
     }
 #else
-    return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
+    return f(std::forward<Args>(args)..., static_cast<Rest>(nullptr)...);
 #endif
   }
 
@@ -278,9 +278,9 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
       cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
       return return_type_t<F>();
     }
-    return f(static_cast<Args>(args)...);
+    return f(std::forward<Args>(args)...);
 #else
-    return f(static_cast<Args>(args)...);
+    return f(std::forward<Args>(args)...);
 #endif
   }
 
@@ -303,7 +303,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
                             list<fArgTypes...>,
                             Args&&... args) -> return_type_t<decltype(f)> {
-    return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...);
+    return (obj.*f)(std::forward<Args>(args)...);
   }
 
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
@@ -407,9 +407,9 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
       // here static_cast is used to achieve perfect forwarding
 #ifdef __CUDACC__
       return execute_helper(m_Function, m_CUDAkernel, dim3(0), dim3(0),
-                            static_cast<Args>(args)...);
+                            std::forward<Args>(args)...);
 #else
-      return execute_helper(m_Function, static_cast<Args>(args)...);
+      return execute_helper(m_Function, std::forward<Args>(args)...);
 #endif
     }
 
@@ -428,7 +428,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
       }
 
       return execute_helper(m_Function, m_CUDAkernel, grid, block,
-                            static_cast<Args>(args)...);
+                            std::forward<Args>(args)...);
     }
 #endif
 
@@ -495,24 +495,24 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
                   TakeNFirstArgs_t<sizeof...(Args) - 2, decltype(f)>{},
                   CUDAkernel, grid, block, shared_mem, stream,
                   static_cast<decltype(args_)>(args_)...);
-            }(static_cast<Args>(args)...);
+            }(std::forward<Args>(args)...);
           } else {
             return execute_with_default_args<EnablePadding>(
                 DropArgs_t<sizeof...(Args), F>{}, f,
                 TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, CUDAkernel,
-                grid, block, 0, nullptr, static_cast<Args>(args)...);
+                grid, block, 0, nullptr, std::forward<Args>(args)...);
           }
         } else {
           return execute_with_default_args<EnablePadding>(
               DropArgs_t<sizeof...(Args), F>{}, f,
               TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, CUDAkernel,
-              grid, block, 0, nullptr, static_cast<Args>(args)...);
+              grid, block, 0, nullptr, std::forward<Args>(args)...);
         }
 #else
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), F>{}, f,
             TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
-            static_cast<Args>(args)...);
+            std::forward<Args>(args)...);
 #endif
       }
 
@@ -530,7 +530,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
             DropArgs_t<sizeof...(Args), decltype(f)>{}, f,
             static_cast<Obj>(obj),
             TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
-            static_cast<Args>(args)...);
+            std::forward<Args>(args)...);
       }
       /// If user have not passed object explicitly, then this specialization
       /// will be used and derived function will be called through the object
@@ -542,7 +542,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), decltype(f)>{}, f, *m_Functor,
             TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
-            static_cast<Args>(args)...);
+            std::forward<Args>(args)...);
       }
   };
 
@@ -781,6 +781,31 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
                         /*EnablePadding=*/true>(
         derivedFn /* will be replaced by Jacobian*/, code, f);
+  }
+
+  template <typename Functor, typename Arg, typename... Rest>
+  auto execute(Functor&& f, Arg&& arg, Rest&&... args) {
+    constexpr bool first_is_array = std::is_array<typename std::remove_reference<Arg>::type>::value;
+    constexpr bool rest_has_array = (std::is_array<typename std::remove_reference<Rest>::type>::value || ...);
+
+    if constexpr (first_is_array || rest_has_array) {
+      constexpr bool is_single_array = sizeof...(Rest) == 0;
+      
+      using FirstType = typename std::remove_reference<Arg>::type;
+      constexpr bool is_object_call = (sizeof...(Rest) == 1) && 
+                                      (std::is_class<FirstType>::value || std::is_pointer<FirstType>::value);
+
+      static_assert(is_single_array || is_object_call,
+          "Clad: Mixed scalar/array arguments are not supported. Arrays must be the only argument (or the second argument for member functions).");
+
+      if constexpr (is_single_array) {
+        return std::forward<Functor>(f).execute(&arg[0], sizeof(arg) / sizeof(arg[0]));
+      } else {
+        return std::forward<Functor>(f).execute(std::forward<Arg>(arg), std::forward<Rest>(args)...);
+      }
+    } else {
+      return std::forward<Functor>(f).execute(std::forward<Arg>(arg), std::forward<Rest>(args)...);
+    }
   }
 
   template <typename ArgSpec = const char*, typename F,
