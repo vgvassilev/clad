@@ -151,12 +151,12 @@ jobs:
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
-          - name: ubu24-clang19-runtime20-vg
+          - name: ubu24-clang19-runtime21-vg
             os: ubuntu-24.04
             compiler: clang-19
             extra_packages: 'valgrind'
             extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
-            clang-runtime: '20'
+            clang-runtime: '21'
 
           - name: ubu24-arm-clang16-runtime17-shared-libs
             os: ubuntu-24.04-arm
