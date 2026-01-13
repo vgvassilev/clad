@@ -751,7 +751,6 @@ jobs:
       run: |
         git clone --depth=1 https://github.com/llvm/llvm-project.git 
         cd llvm-project
-        git log
         cmake -S ./llvm/ -B build -G Ninja                `
               -DCMAKE_ASM_MASM_FLAGS="-m64"     `
               -DLLVM_ENABLE_PROJECTS="clang"              `
