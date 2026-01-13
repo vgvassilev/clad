@@ -40,9 +40,6 @@
 #include <exception> // for std::terminate
 #endif
 
-
-
-
 namespace llvm {
 template <typename T> class SmallVectorImpl;
 }
