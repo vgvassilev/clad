@@ -27,7 +27,6 @@
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -160,7 +159,7 @@ namespace clad {
     SetDeclInit(VD, Init, DirectInit);
     m_Sema.FinalizeDeclaration(VD);
     // Add the identifier to the scope and IdResolver
-    m_Sema.PushOnScopeChains(VD, Scope, /*AddToContext*/ false);
+    m_Sema.PushOnScopeChains(VD, Scope);
     return VD;
   }
 
@@ -780,31 +779,6 @@ namespace clad {
         /*OriginalFnDC=*/nullptr,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false, CUDAExecConfig);
-  }
-
-  void VisitorBase::CallExprDiffDiagnostics(const clang::FunctionDecl* FD,
-                                            SourceLocation srcLoc) {
-    bool NumDiffEnabled =
-        !m_Sema.getPreprocessor().isMacroDefined("CLAD_NO_NUM_DIFF");
-    // FIXME: Switch to the real diagnostics engine and pass FD directly.
-    diag(DiagnosticsEngine::Warning, srcLoc,
-         "function %0 was not differentiated because clad failed to "
-         "differentiate it and no suitable overload was found in "
-         "namespace 'custom_derivatives'")
-        << FD << srcLoc;
-    if (NumDiffEnabled) {
-      diag(DiagnosticsEngine::Note, srcLoc,
-           "falling back to numerical differentiation for %0 since no "
-           "suitable overload was found and clad could not derive it; "
-           "to disable this feature, compile your programs with "
-           "-DCLAD_NO_NUM_DIFF")
-          << FD << srcLoc;
-    } else {
-      diag(DiagnosticsEngine::Note, srcLoc,
-           "fallback to numerical differentiation is disabled by the "
-           "'CLAD_NO_NUM_DIFF' macro; considering %0 as 0")
-          << FD << srcLoc;
-    }
   }
 
   ParmVarDecl* VisitorBase::CloneParmVarDecl(const ParmVarDecl* PVD,

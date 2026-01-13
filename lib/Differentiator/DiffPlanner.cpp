@@ -1155,8 +1155,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       if (MD) {
-        if (isLambdaCallOperator(MD))
+        if (isLambdaCallOperator(MD) &&
+            m_TopMostReq->Mode == DiffMode::reverse) {
           request.EnableVariedAnalysis = false;
+          return true;
+        }
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD))
           nonDiff = true;
@@ -1391,7 +1394,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
     }
 
-    if (!nonDiff)
+    if (!nonDiff && request.Mode != DiffMode::unknown)
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     if (m_IsTraversingTopLevelDecl) {
