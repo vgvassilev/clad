@@ -3306,8 +3306,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       DSClone = BuildDeclStmt(decls);
     if (!declsDiff.empty()) {
       Stmt* DSDiff = BuildDeclStmt(declsDiff);
-      Stmts& block =
-          promoteToFnScope ? this->globals() : getCurrentBlock(direction::forward);
+      Stmts& block = promoteToFnScope ? this->globals()
+                                      : getCurrentBlock(direction::forward);
       addToBlock(DSDiff, block);
       for (Stmt* memset : memsetCalls)
         addToBlock(memset, block);
@@ -3338,8 +3338,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (!declsToZeroInit.empty()) {
       addToCurrentBlock(DSClone, direction::forward);
-      Stmts& block =
-          promoteToFnScope ? this->globals() : getCurrentBlock(direction::forward);
+      Stmts& block = promoteToFnScope ? this->globals()
+                                      : getCurrentBlock(direction::forward);
       DSClone = nullptr;
       addToBlock(BuildDeclStmt(declsToZeroInit), block);
       for (Decl* decl : declsToZeroInit) {
