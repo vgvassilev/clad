@@ -1823,9 +1823,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             getCurrentScope(), DS));
 
     m_DerivativeFnScope = getCurrentScope();
+    Stmts OuterGlobals;
+    std::swap(m_Globals, OuterGlobals);
+
     beginBlock();
 
-    // FIXME: Fix m_Globals being emmitted to the outer function.
     StmtDiff BodyDiff = Visit(LE->getCallOperator()->getBody());
     for (auto* S : cast<CompoundStmt>(BodyDiff.getStmt())->body())
       addToCurrentBlock(S);
@@ -1833,6 +1835,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       addToCurrentBlock(S);
 
     CompoundStmt* DerivedBody = endBlock();
+
+    if (!m_Globals.empty()) {
+      llvm::SmallVector<Stmt*, 32> NewBodyStmts;
+      NewBodyStmts.append(m_Globals.begin(), m_Globals.end());
+      NewBodyStmts.append(DerivedBody->body().begin(),
+                          DerivedBody->body().end());
+
+      DerivedBody = CompoundStmt::Create(
+          m_Sema.getASTContext(), NewBodyStmts, FPOptionsOverride(),
+          DerivedBody->getLBracLoc(), DerivedBody->getRBracLoc());
+    }
+    m_Globals.clear();
+    std::swap(m_Globals, OuterGlobals);
 
     Expr* lambda =
         m_Sema
