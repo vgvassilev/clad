@@ -764,7 +764,7 @@ jobs:
               -DLLVM_LINK_LLVM_DYLIB=On                   `
               -DCLANG_ENABLE_STATIC_ANALYZER=OFF                  `
               -DCLANG_LINK_CLANG_DYLIB=On                                 
-        cmake --build build --target clang FileCheck llvm-config clang-repl --config RelWithDebInfo --parallel ${{ env.ncpus }}
+        cmake --build build --config RelWithDebInfo --parallel ${{ env.ncpus }}
         rm -r -force $(find.exe . -maxdepth 1 ! -name "build" ! -name "llvm" ! -name "clang" ! -name ".")    
         cd .\llvm\
         rm -r -force $(find.exe . -maxdepth 1 ! -name "include" ! -name "lib" ! -name "cmake" ! -name ".")
