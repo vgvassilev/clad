@@ -92,6 +92,12 @@ jobs:
             compiler: msvc
             clang-runtime: '18'
 
+          - name: win2022-msvc-runtime21-debug
+            os: windows-2022
+            compiler: clang-20
+            clang-runtime: '21'
+            debug_build: true
+
           - name: win2022-msvc-runtime19
             os: windows-2022
             compiler: msvc
@@ -476,12 +482,26 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: 3.11
-    - name: Save PR Info
-      if: ${{ matrix.coverage == true }}
+    - name: Save PR Info on Unix systems
+      if: ${{ runner.os != 'windows' }}
       run: |
         mkdir -p ./pr
         echo ${{ github.event.number }} > ./pr/NR
         echo ${{ github.repository }} > ./pr/REPO
+        export LLVM_HASH=$(git ls-remote https://github.com/llvm/llvm-project.git refs/heads/release/${{ matrix.clang-runtime}}.x | tr '\t' '-')
+        echo "LLVM_HASH=$LLVM_HASH" >> $GITHUB_ENV
+
+    - name: Save PR Info on Windows systems
+      if: ${{ runner.os == 'windows' }}
+      run: |
+        #can be found
+        mkdir  ./pr
+        echo "${{ github.event.number }}" > ./pr/NR
+        echo ${{ github.repository }} > ./pr/REPO
+        $env:LLVM_HASH_TEMP = (git ls-remote https://github.com/llvm/llvm-project.git refs/heads/release/${{ matrix.clang-runtime}}.x )
+        $env:LLVM_HASH = $env:LLVM_HASH_TEMP -replace "\t","-"
+        echo "LLVM_HASH=$env:LLVM_HASH" >> $GITHUB_ENV
+        
     - uses: actions/upload-artifact@v4
       if: ${{ matrix.coverage == true }}
       with:
@@ -494,12 +514,24 @@ jobs:
       run: |
         echo "BUILD_TYPE=Release" >> $GITHUB_ENV
         echo "CLAD_CODE_COVERAGE=0" >> $GITHUB_ENV
+        if [[ "${os}" == "macos"* ]]; then
+          echo "ncpus=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
+        else
+          echo "ncpus=$(nproc --all)" >> $GITHUB_ENV
+        fi
+        
     - name: Setup default Build Type on *nux (build_debug & asserts)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
       run: |
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
+        if [[ "${os}" == "macos"* ]]; then
+          echo "ncpus=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
+        else
+          echo "ncpus=$(nproc --all)" >> $GITHUB_ENV
+        fi
         # Cleanup some space: https://github.com/orgs/community/discussions/25678
         rm -fr /opt/hostedtoolcache
+
     - name: Setup default Build Type on Windows
       if: runner.os == 'windows'
       run: |
@@ -507,6 +539,9 @@ jobs:
         $env:CLAD_CODE_COVERAGE="0"
         echo "BUILD_TYPE=Release" >> $env:GITHUB_ENV
         echo "CLAD_CODE_COVERAGE=0" >> $env:GITHUB_ENV
+        $env:ncpus=$([Environment]::ProcessorCount) 
+        echo "ncpus=$env:ncpus" >> $env:GITHUB_ENV
+        
     - name: Download Coverity Build Tool - Linux
       if: ${{ (matrix.coverity == true) && (runner.os == 'Linux') }}
       run: |
@@ -589,10 +624,10 @@ jobs:
           echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
           clang --version
           #
-          $env:CC="clang"
-          $env:CXX="clang++"
-          echo "CC=clang" >> $env:GITHUB_ENV
-          echo "CXX=clang++" >> $env:GITHUB_ENV
+          $env:CC="clang-cl"
+          $env:CXX="clang-cl"
+          echo "CC=clang-cl" >> $env:GITHUB_ENV
+          echo "CXX=clang-cl" >> $env:GITHUB_ENV
         }
         elseif ( "${{ matrix.compiler }}" -imatch "msvc" )
         {
@@ -604,7 +639,7 @@ jobs:
         }
 
     - name: Setup LLVM/Clang on macOS
-      if: runner.os == 'macOS'
+      if: ${{ runner.os == 'macOS' && (matrix.debug_build != true) }}
       run: |
         # llvm <=@11 are deprecated or deleted.
         # Install llvm from github releases.
@@ -675,14 +710,14 @@ jobs:
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
 
-    - name: Restore Cache LLVM/Clang runtime build directory (debug_build==true)
-      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
-      uses: actions/cache/restore@v4
-      id: cache
-      with:
-        path: |
-          llvm-project
-        key: ${{ matrix.os }}-clang-${{ matrix.clang-runtime }}.x-${{ env.BUILD_TYPE }}
+    - name: Install deps on Windows
+      if: ${{ runner.os == 'windows' && steps.cache.outputs.cache-hit != 'true' && matrix.debug_build == true }}
+      run: |
+        choco install ninja findutils
+        choco upgrade cmake
+        $env:PATH="C:\Program Files (x86)\GnuWin32\bin;$env:PATH"
+        $env:PATH="C:\Program Files (x86)\Ninja\bin;$env:PATH"
+        
     - name: Build LLVM/Cling on Unix if the cache is invalid (debug_build==true)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
       run: |
@@ -692,7 +727,6 @@ jobs:
         # Build
         mkdir build
         cd build
-        export CPU_COUNT="$(nproc --all)"
         cmake \
               -DLLVM_ENABLE_PROJECTS="clang"        \
               -DLLVM_TARGETS_TO_BUILD="host;NVPTX"  \
@@ -708,15 +742,36 @@ jobs:
               -DLLVM_INCLUDE_TESTS=OFF              \
               -DLLVM_INCLUDE_DOCS=OFF               \
               ../llvm
-        cmake --build . --target clang FileCheck not llvm-config clang-repl --parallel ${CPU_COUNT}
+        cmake --build . --target clang FileCheck llvm-config clang-repl --parallel ${{ env.ncpus }}
         cd ../../
-    - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
-      uses: actions/cache/save@v4
-      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
-      with:
-        path: |
-          llvm-project
-        key: ${{ steps.cache.outputs.cache-primary-key }}
+
+
+    - name: Build LLVM/Cling on Windows systems if the cache is invalid
+      if: ${{ (matrix.debug_build == true) && runner.os == 'windows' && steps.cache.outputs.cache-hit != 'true' }}
+      run: |
+        git clone --depth=1 https://github.com/llvm/llvm-project.git 
+        cd llvm-project
+        cmake -S ./llvm/ -B build -G Ninja                `
+              -DCMAKE_ASM_MASM_FLAGS="-m64"     `
+              -DLLVM_ENABLE_PROJECTS="clang"              `
+              -DLLVM_ENABLE_PLUGINS=On                    `
+              -DLLVM_TARGETS_TO_BUILD="host"              `
+              -DCMAKE_BUILD_TYPE=RelWithDebInfo           `
+              -DCMAKE_CXX_COMPILER=clang-cl               `
+              -DCMAKE_C_COMPILER=clang-cl                 `
+              -DCMAKE_ASM_MASM_COMPILER=llvm-ml           `
+              -DLLVM_BUILD_LLVM_DYLIB_VIS=On              `
+              -DLLVM_LINK_LLVM_DYLIB=On                   `
+              -DCLANG_ENABLE_STATIC_ANALYZER=OFF                  `
+              -DCLANG_LINK_CLANG_DYLIB=On                                 
+        cmake --build build --config RelWithDebInfo --parallel ${{ env.ncpus }}
+        rm -r -force $(find.exe . -maxdepth 1 ! -name "build" ! -name "llvm" ! -name "clang" ! -name ".")    
+        cd .\llvm\
+        rm -r -force $(find.exe . -maxdepth 1 ! -name "include" ! -name "lib" ! -name "cmake" ! -name ".")
+        cd ..\clang\
+        rm -r -force $(find.exe . -maxdepth 1 ! -name "include" ! -name "lib" ! -name "cmake"  ! -name ".")
+        cd ..\..
+        
     - name: Set LLVM/Cling build path on Unix (debug_build==true)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
       run: |
@@ -741,8 +796,9 @@ jobs:
         pip3 install lit # LLVM lit is not part of the llvm releases...
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
+        
     - name: Setup LLVM/Clang on Windows
-      if: ${{ runner.os == 'windows' }}
+      if: ${{ runner.os == 'windows' && (matrix.debug_build != true) }}
       run: |
         C:\Miniconda\condabin\conda.bat install -y -c conda-forge "clangdev=${{ matrix.clang-runtime }}"
         $env:PATH_TO_LLVM_BUILD="$env:CONDA\Library"
@@ -823,7 +879,7 @@ jobs:
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
         mkdir obj
-        cd obj
+        cd obj        
         if ( "$env:BUILD_TYPE" -eq "" )
         {
           $env:BUILD_TYPE="RelWithDebInfo"
@@ -832,10 +888,25 @@ jobs:
         {
           $env:CLAD_CODE_COVERAGE="0"
         }
-        ((Get-Content -path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake
-        $lit = @(which lit)
-        cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
-        cmake --build . --config Release
+        if ( "${{ matrix.debug_build }}" -imatch "true" )
+        {
+          ((Get-Content -path $env:GITHUB_WORKSPACE/llvm-project/build/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path $env:GITHUB_WORKSPACE/llvm-project/build/lib/cmake/llvm/LLVMConfig.cmake
+          $env:PATH_TO_LLVM_BUILD="$env:GITHUB_WORKSPACE\llvm-project\build"
+          echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
+          echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
+          $lit = @(which lit)
+          cmake -G Ninja  -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD"  -DLLVM_BUILD_LLVM_DYLIB_VIS=On -DLLVM_LINK_LLVM_DYLIB=On -DCLANG_LINK_CLANG_DYLIB=On -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+          cmake --build . --config "$env:BUILD_TYPE" --parallel ${{ env.ncpus }}
+        }
+        else
+        {
+          ((Get-Content -path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake
+          $lit = @(which lit)
+          cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+          cmake --build . --config Release --parallel ${{ env.ncpus }}
+        }
+        
+        
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
       run: |
@@ -864,11 +935,11 @@ jobs:
           export SDKROOT=`xcrun --show-sdk-path`
         fi
         cmake --build . --target check-clad -- -j4
-    - name: Test Clad on Windows
-      if: ${{ matrix.coverity == false && runner.os == 'windows' }}
+    - name: Test Clad on Windows (only on debug mode for now)
+      if: ${{ (matrix.debug_build == true) && runner.os == 'windows' }}
       run: |
         cd obj
-        #cmake --build . --target check-clad
+        cmake --build . --target check-clad
     - name: Benchmark Clad
       if: ${{ matrix.benchmark }}
       run: |
