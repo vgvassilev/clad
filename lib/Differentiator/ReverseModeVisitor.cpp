@@ -1851,7 +1851,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const LambdaExpr* LE) {
     Expr* lambdaE = buildDerivedLambda(LE);
-    m_Pullback.pop_back();
+    if (!m_Pullback.empty())
+      m_Pullback.pop_back();
     // FIXME: Clone lambda properly.
     return {const_cast<Expr*>(cast<Expr>(LE)), lambdaE};
   }
