@@ -6,7 +6,7 @@ endif()
 
 enable_language(CXX)
 set(CMAKE_CXX_EXTENSIONS NO)
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(GNUInstallDirs)
 
 # MUST be done before call to clad project
