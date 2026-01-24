@@ -8,8 +8,6 @@
 // RUN: ./GradientKernels.out | %filecheck_exec %s
 //
 // REQUIRES: cuda-runtime
-//
-// expected-no-diagnostics
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -476,7 +474,8 @@ double fn_memory(double *out, double *in) {
   cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
   double res = 0;
   for (int i=0; i < 10; ++i) {
-    printf("Writing result of out[%d]\n", i);
+    printf("Writing result of out[%d]\n", i); // expected-warning {{attempted differentiation of function 'printf' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
+                                    // expected-note@477 {{numerical differentiation is not viable for 'printf'; considering 'printf' as 0}}
     res += out_host[i];
   }
   free(out_host);
