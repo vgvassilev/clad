@@ -1192,6 +1192,24 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     } else
       // Request the derivative
       pushforwardFD = FindDerivedFunction(pushforwardFnRequest);
+    // Handle void-returning pushforward as non-differentiable
+    // Only if the original function is NOT void (otherwise void return is
+    // normal)
+    if (pushforwardFD && pushforwardFD->getReturnType()->isVoidType() &&
+        !CE->getType()->isVoidType()) {
+      llvm::SmallVector<Expr*, 4> ClonedArgs;
+      for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i)
+        ClonedArgs.push_back(Clone(CE->getArg(i)));
+
+      Expr* Call =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                             validLoc, ClonedArgs, validLoc, CUDAExecConfig)
+              .get();
+
+      Expr* zero = getZeroInit(Call->getType());
+      return StmtDiff(Call, zero);
+    }
     if (pushforwardFD) {
       if (Expr* baseE = baseDiff.getExpr())
         pushforwardFnArgs.insert(pushforwardFnArgs.begin(), baseE);

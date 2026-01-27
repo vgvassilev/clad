@@ -1012,6 +1012,43 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
       return overload;
 
+    // Manual check for void-returning overload (Void Pushforward feature)
+    if (R.Mode == DiffMode::forward || R.Mode == DiffMode::pushforward) {
+      const auto* FTP = dTy->getAs<FunctionProtoType>();
+
+      for (LookupResult::iterator I = Found.begin(), E = Found.end(); I != E;
+           ++I) {
+        auto* FD = dyn_cast<FunctionDecl>(I.getDecl());
+        if (!FD)
+          continue;
+
+        // Custom derivative must return void
+        if (!FD->getReturnType()->isVoidType())
+          continue;
+
+        // Parameter count must match
+        if (FD->getNumParams() != FTP->getNumParams())
+          continue;
+
+        // Parameter types must match (using canonical types)
+        bool paramsMatch = true;
+        for (unsigned i = 0; i < FD->getNumParams(); ++i) {
+          QualType candParamTy =
+              FD->getParamDecl(i)->getType().getCanonicalType();
+          QualType reqParamTy = FTP->getParamType(i).getCanonicalType();
+          if (candParamTy != reqParamTy) {
+            paramsMatch = false;
+            break;
+          }
+        }
+
+        if (paramsMatch) {
+          CXXScopeSpec SS;
+          return S.BuildDeclarationNameExpr(SS, Found, /*ADL=*/false).get();
+        }
+      }
+    }
+
     if (!enableDiagnostics)
       return nullptr;
 
