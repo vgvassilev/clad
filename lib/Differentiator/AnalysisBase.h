@@ -43,7 +43,7 @@ struct ProfileIDHash {
 };
 
 struct VarData;
-using ArrMap = std::unordered_map<const ProfileID, VarData, ProfileIDHash>;
+using ArrMap = std::unordered_map<ProfileID, VarData, ProfileIDHash>;
 
 // NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
 /// Stores all the necessary information about one variable. Fundamental type
