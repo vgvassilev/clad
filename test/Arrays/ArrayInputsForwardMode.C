@@ -29,8 +29,8 @@ double addArr(const double *arr, int n) {
 
 //CHECK:   double addArr_darg0_1(const double *arr, int n) {
 //CHECK-NEXT:       int _d_n = 0;
-//CHECK-NEXT:       double _d_ret = 0;
-//CHECK-NEXT:       double ret = 0;
+//CHECK-NEXT:       double _d_ret = 0.;
+//CHECK-NEXT:       double ret = 0.;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           int _d_i = 0;
 //CHECK-NEXT:           for (int i = 0; i < n; i++) {

@@ -214,7 +214,7 @@ int main() {
 //CHECK-NEXT:    double _d_d_a = 0.;
 //CHECK-NEXT:    double _d_a0 = 1;
 //CHECK-NEXT:    double _d_d_b = 0.;
-//CHECK-NEXT:    double _d_b0 = 0;
+//CHECK-NEXT:    double _d_b0 = 0.;
 //CHECK-NEXT:    double _d_t0 = 0.;
 //CHECK-NEXT:    double _t00 = a * a;
 //CHECK-NEXT:    double _d_t1 = 0.;
@@ -247,7 +247,7 @@ int main() {
 
 //CHECK:{{[__attribute__((always_inline)) ]*}}void f_cubed_add1_darg1_grad(double a, double b, double *_d_a, double *_d_b){{[ __attribute__((always_inline))]*}} {
 //CHECK-NEXT:    double _d_d_a = 0.;
-//CHECK-NEXT:    double _d_a0 = 0;
+//CHECK-NEXT:    double _d_a0 = 0.;
 //CHECK-NEXT:    double _d_d_b = 0.;
 //CHECK-NEXT:    double _d_b0 = 1;
 //CHECK-NEXT:    double _d_t0 = 0.;

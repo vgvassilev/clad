@@ -3275,8 +3275,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             if (isa<ArrayType>(VD->getType()))
               assignment = BuildArrayAssignment(declRef, decl->getInit(),
                                                 direction::forward);
-            else
-              assignment = BuildOp(BO_Assign, declRef, decl->getInit());
+            else {
+              Expr* Init = decl->getInit();
+              if (auto* IL =
+                      dyn_cast<IntegerLiteral>(Init->IgnoreParenImpCasts())) {
+                if (IL->getValue() == 0)
+                  Init = getZeroInit(VD->getType());
+              }
+              assignment = BuildOp(BO_Assign, declRef, Init);
+            }
             if (isInsideLoop) {
               if (m_DiffReq.shouldBeRecorded(DS)) {
                 auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
@@ -3408,7 +3415,24 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       declsDiff.append(declsToZeroInit.begin(), declsToZeroInit.end());
       m_ExternalSource->ActBeforeFinalizingVisitDeclStmt(decls, declsDiff);
     }
-
+    if (DSClone) {
+      if (auto* DS = dyn_cast<DeclStmt>(DSClone)) {
+        for (auto* D : DS->decls()) {
+          if (auto* VD = dyn_cast<VarDecl>(D)) {
+            if (VD && VD->hasInit()) {
+              Expr* Init = VD->getInit();
+              if (Init && VD->getType()->isRealFloatingType()) {
+                if (auto* IL =
+                        dyn_cast<IntegerLiteral>(Init->IgnoreParenImpCasts())) {
+                  if (IL->getValue() == 0)
+                    VD->setInit(getZeroInit(VD->getType()));
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     return StmtDiff(DSClone);
   }
 
