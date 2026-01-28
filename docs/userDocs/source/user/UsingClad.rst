@@ -592,6 +592,55 @@ Currently, class type support have the following limitations:
 Class type support is under active development and thus, most of these 
 limitations will be removed soon.
 
+The ``non_differentiable`` Attribute
+------------------------------------
+
+Clad allows users to mark specific variables, functions, or members as ``non-differentiable``. 
+Any entity marked this way will be ignored during the AD transformation meaning its derivative contribution is treated as zero.
+
+This feature is useful for:
+
+* **Handling Unsupported Types:** You can exclude pointers or legacy types (which are currently listed as limitations in Class differentiation) from the derivative computation.
+
+* **Optimization:** Reducing the size of the generated gradient by ignoring irrelevant fields (e.g., caches or debug counters).
+
+.. note::
+
+  Clad leverages Clang's "annotate" attribute mechanism. Clad may provide a convenience macro for this in the future, but users can also define it manually:
+  
+  .. code-block:: cpp
+
+    #define non_differentiable __attribute__((annotate("non_differentiable")))
+
+Examples:
+
+**1. Variables and class members**: Useful when a differentiable type contains fields that should not participate in calculus.
+
+.. code-block:: cpp
+
+  struct {
+    double val;
+    non_differentiable double* ptr; // ignored during differentiation
+  };
+
+Clad treats "ptr" as constant: It is used in the primal execution but contributes nothing to the derivatives.
+
+**2. Functions**: Functions marked as non-differentiable are treated as constants. They are invoked during the primal (forward) execution, but they contribute ``0`` to the gradient.
+
+.. code-block:: cpp
+
+  non_differentiable double f(double x) {
+       return x;  // used normally in primal execution
+   }
+
+   double f1(double x) {
+       // Clad differentiates 'x * x' but ignores the derivative of f
+       return x * x + f(x);
+   }
+
+Here, ``df1/dx = 2x`` because the ``f`` contribution is 
+excluded from the derivative.
+
 Specifying Custom Derivatives
 -------------------------------
 
