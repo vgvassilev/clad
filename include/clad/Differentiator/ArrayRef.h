@@ -7,14 +7,6 @@
 #include <assert.h>
 #include <type_traits>
 
-// --- BACKWARD COMPATIBILITY MACRO ---
-#if __cplusplus >= 201402L
-    #define CLAD_CONSTEXPR_CXX14 constexpr
-#else
-    #define CLAD_CONSTEXPR_CXX14 inline
-#endif
-// ------------------------------------
-
 namespace clad {
 /// Stores the pointer to and the size of an array and provides some helper
 /// functions for it. The array is supplied should have a life greater than
@@ -55,8 +47,8 @@ public:
     return *this;
   }
 
-  // FIXED: Loop inside constexpr crashes C++11
-  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE array_ref<T>& operator=(const array_ref<T>& a) {
+  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE array_ref<T>&
+  operator=(const array_ref<T>& a) {
     assert(m_size == a.size());
     for (std::size_t i = 0; i < m_size; ++i)
       m_arr[i] = a[i];
@@ -74,21 +66,22 @@ public:
   /// Returns the size of the underlying array
   constexpr CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
   constexpr CUDA_HOST_DEVICE PUREFUNC T* ptr() const { return m_arr; }
-  
+
   CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE PUREFUNC T*& ptr_ref() { return m_arr; }
-  
+
   /// Returns an array_ref to a part of the underlying array starting at
   /// offset and having the specified size
-  // FIXED: assert inside constexpr crashes C++11
   CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE array_ref<T> slice(std::size_t offset,
-                                                std::size_t size) {
+                                                           std::size_t size) {
     assert((offset >= 0) && (offset + size <= m_size) &&
            "Window is outside array. Please provide an offset and size "
            "inside the array size.");
     return array_ref<T>(&m_arr[offset], size);
   }
   /// Returns the reference to the underlying array
-  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE PUREFUNC T& operator*() { return *m_arr; }
+  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE PUREFUNC T& operator*() {
+    return *m_arr;
+  }
 
   // Arithmetic overloads
   /// Divides the arrays element wise
@@ -230,39 +223,39 @@ public:
   }
 };
 
-  /// `array_ref<void>` specialisation is created to be used as a placeholder
-  /// type in the overloaded derived function. All `array_ref<T>` types are
-  /// implicitly convertible to `array_ref<void>` type.
-  template <> class array_ref<void> {
-  private:
-    /// The pointer to the underlying array
-    void* m_arr = nullptr;
-    /// The size of the array
-    std::size_t m_size = 0;
+/// `array_ref<void>` specialisation is created to be used as a placeholder
+/// type in the overloaded derived function. All `array_ref<T>` types are
+/// implicitly convertible to `array_ref<void>` type.
+template <> class array_ref<void> {
+private:
+  /// The pointer to the underlying array
+  void* m_arr = nullptr;
+  /// The size of the array
+  std::size_t m_size = 0;
 
-  public:
-    // delete the default constructor
-    array_ref() = delete;
+public:
+  // delete the default constructor
+  array_ref() = delete;
 
-    template <typename T, class = typename std::enable_if<
-                              std::is_pointer<T>::value ||
-                              std::is_same<T, std::nullptr_t>::value>::type>
-    constexpr CUDA_HOST_DEVICE array_ref(T arr, std::size_t size = 1)
-        : m_arr((void*)arr), m_size(size) {}
-    template <typename T>
-    constexpr CUDA_HOST_DEVICE array_ref(const array_ref<T>& other)
-        : m_arr(other.ptr()), m_size(other.size()) {}
-        
-    // FIXED: Implicit conversion inside constexpr crashes C++11
-    template <typename T> CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE operator array_ref<T>() {
-      return array_ref<T>((T*)(m_arr), m_size);
-    }
-    [[nodiscard]] constexpr CUDA_HOST_DEVICE void* ptr() const { return m_arr; }
-    [[nodiscard]] constexpr CUDA_HOST_DEVICE std::size_t size() const {
-      return m_size;
-    }
-  };
-  // NOLINTEND(*-pointer-arithmetic)
+  template <typename T, class = typename std::enable_if<
+                            std::is_pointer<T>::value ||
+                            std::is_same<T, std::nullptr_t>::value>::type>
+  constexpr CUDA_HOST_DEVICE array_ref(T arr, std::size_t size = 1)
+      : m_arr((void*)arr), m_size(size) {}
+  template <typename T>
+  constexpr CUDA_HOST_DEVICE array_ref(const array_ref<T>& other)
+      : m_arr(other.ptr()), m_size(other.size()) {}
+
+  template <typename T>
+  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE operator array_ref<T>() {
+    return array_ref<T>((T*)(m_arr), m_size);
+  }
+  [[nodiscard]] constexpr CUDA_HOST_DEVICE void* ptr() const { return m_arr; }
+  [[nodiscard]] constexpr CUDA_HOST_DEVICE std::size_t size() const {
+    return m_size;
+  }
+};
+// NOLINTEND(*-pointer-arithmetic)
 } // namespace clad
 
 #endif // CLAD_ARRAY_REF_H

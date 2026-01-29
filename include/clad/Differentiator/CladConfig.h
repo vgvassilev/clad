@@ -3,6 +3,12 @@
 #ifndef CLAD_CONFIG_H
 #define CLAD_CONFIG_H
 
+#if __cplusplus >= 201402L
+#define CLAD_CONSTEXPR_CXX14 constexpr
+#else
+#define CLAD_CONSTEXPR_CXX14 inline
+#endif
+
 #include <cstdlib>
 #include <memory>
 
@@ -82,7 +88,7 @@ inline __host__ __device__ void trap(int code) {
 inline void trap(int code) { exit(code); }
 #endif
 
-#ifdef  __CUDACC__
+#ifdef __CUDACC__
 template <typename T> __host__ __device__ T* clad_addressof(T& r) {
 #ifdef __CUDA_ARCH__
   return __builtin_addressof(r);
@@ -91,10 +97,7 @@ template <typename T> __host__ __device__ T* clad_addressof(T& r) {
 #endif
 }
 #else
-template<typename T>
-T* clad_addressof(T& r) {
-  return std::addressof(r);
-}
+template <typename T> T* clad_addressof(T& r) { return std::addressof(r); }
 #endif
 
 #endif // CLAD_CONFIG_H
