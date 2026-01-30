@@ -265,7 +265,7 @@ bool AnalysisBase::merge(VarData& targetData, VarData& mergeData) {
     }
     for (auto& pair : *mergeData.m_Val.m_ArrData) {
       auto it = targetData.m_Val.m_ArrData->find(pair.first);
-      if (it == mergeData.m_Val.m_ArrData->end())
+      if (it == targetData.m_Val.m_ArrData->end())
         (*targetData.m_Val.m_ArrData)[pair.first] = pair.second.copy();
     }
     return isMod;
