@@ -114,7 +114,7 @@ jobs:
             debug_build: true
 
           - name: selfh-ubu22-gcc12-runtime19-analyzers
-            os: self-hosted #ubuntu-22.04
+            os: [self-hosted, cuda]
             compiler: gcc-12
             clang-runtime: '19'
             coverage: true
@@ -193,7 +193,7 @@ jobs:
             cuda: true
 
           - name: selfh-ubu22-clang16-runtime18-cuda
-            os: self-hosted #ubuntu-22.04
+            os: [self-hosted, cuda]
             runs-on: cuda
             compiler: clang-16
             clang-runtime: '18'
