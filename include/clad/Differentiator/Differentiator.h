@@ -446,7 +446,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
                             return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
     execute(Args&&... args) const {
       #if __cplusplus >= 201703L
-      static_assert((!std::is_array<typename std::remove_reference<Args>::type>::value && ...),
+      static_assert((!std::is_array<std::remove_reference_t<Args>>::value && ...),
                     "Clad: Mixed scalar/array arguments are not supported.");
       #endif
       return static_cast<return_type_t<F>>(0);
