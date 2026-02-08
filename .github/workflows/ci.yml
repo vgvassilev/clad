@@ -523,9 +523,9 @@ jobs:
     - name: Setup Ubuntu apt sources
       if: runner.os == 'Linux'
       run: |
-        # FIX: Bypass the broken regional mirror immediately
-        sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|http://archive.ubuntu.com|g' /etc/apt/sources.list
-        sudo apt-get update -qq  # Quick update to sync with the main archive
+        #Bypass the broken regional mirror immediately
+        sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list
+        sudo apt-get update -qq
         
         export ARCHITECHURE=$(uname -m)
         
