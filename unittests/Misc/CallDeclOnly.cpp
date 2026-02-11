@@ -84,7 +84,7 @@ TEST(CallDeclOnly, CheckCustomDiff2) {
   float result[4] = {0.0, 0.0, 0.0, 0.0};
   float x = 1.0;
   float y = 2.0;
-  hessian.execute(x, y, result);
+  hessian.execute(x, y, (float*)result);
   EXPECT_FLOAT_EQ(result[0], -sin(x));
   EXPECT_FLOAT_EQ(result[1], 0.0);
   EXPECT_FLOAT_EQ(result[2], 0.0);

@@ -394,6 +394,18 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
 
     constexpr CladFunctionType getFunctionPtr() const { return m_Function; }
 
+    template <typename T>
+    static constexpr typename std::enable_if<std::is_array<typename std::remove_reference<T>::type>::value, typename std::decay<T>::type>::type
+    to_ptr_if_array(T&& arg) {
+        return arg;
+    }
+
+    template <typename T>
+    static constexpr typename std::enable_if<!std::is_array<typename std::remove_reference<T>::type>::value, T&&>::type
+    to_ptr_if_array(T&& arg) {
+        return std::forward<T>(arg);
+    }
+
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
                             return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
@@ -407,9 +419,9 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
       // here static_cast is used to achieve perfect forwarding
 #ifdef __CUDACC__
       return execute_helper(m_Function, m_CUDAkernel, dim3(0), dim3(0),
-                            static_cast<Args>(args)...);
+                            to_ptr_if_array(std::forward<Args>(args))...);
 #else
-      return execute_helper(m_Function, static_cast<Args>(args)...);
+      return execute_helper(m_Function, to_ptr_if_array(std::forward<Args>(args))...);
 #endif
     }
 
