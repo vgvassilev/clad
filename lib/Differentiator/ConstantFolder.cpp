@@ -173,7 +173,7 @@ namespace clad {
       Result = clad::synthesizeLiteral(QT, C, APVal);
     } else {
       // Unsupported type: do not silently convert to int
-      return nullptr;
+      Result =  nullptr;
     }
     assert(Result && "Unsupported type passed to ConstantFolder::synthesizeLiteral");
     return Result;
