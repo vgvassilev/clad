@@ -3049,7 +3049,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         QualType AutoQT = m_Context.getAutoDeductType();
         VDDerived = BuildGlobalVarDecl(
             AutoQT, "_d_" + VD->getNameAsString(), initDiff.getExpr_dx(), false,
-            m_Context.getTrivialTypeSourceInfo(AutoQT, noLoc));
+            m_Context.getTrivialTypeSourceInfo(AutoQT, noLoc), SC);
       }
     }
     // If we are differentiating `VarDecl` corresponding to a local variable
@@ -3115,8 +3115,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       isPointerType = true;
     }
 
+    TypeSourceInfo* VDCloneTSI = nullptr;
+    if (isLambdaDS) {
+      VDCloneType = m_Context.getAutoDeductType();
+      VDCloneTSI = m_Context.getTrivialTypeSourceInfo(VDCloneType, noLoc);
+    }
+
     VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
-                                 initDiff.getExpr(), VD->isDirectInit());
+                                 initDiff.getExpr(), VD->isDirectInit(),
+                                 VDCloneTSI, SC);
 
     // The choice of isDirectInit is mostly stylistic.
     bool isRealConstArray = false;
