@@ -38,7 +38,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <clang/AST/DeclarationName.h>
 #include <cstdlib>  // for getenv
 #include <iostream> // for std::cerr
 #include <memory>
@@ -467,8 +466,9 @@ void InitTimers();
       // out-of-tree and hybrid. When we pick up the wrong header files we
       // usually see a problem with C.Idents not being properly initialized.
       // This assert tries to catch such situations heuristically.
-      assert(&C.Idents == &m_CI.getPreprocessor().getIdentifierTable()
-             && "Miscompiled?");
+      assert(&m_CI.getASTContext().Idents ==
+                 &m_CI.getPreprocessor().getIdentifierTable() &&
+             "Miscompiled?");
       NamespaceDecl* CladNS =
           utils::LookupNSD(m_CI.getSema(), "clad", /*shouldExist=*/false);
       m_HasRuntime = (CladNS != nullptr);
