@@ -48,6 +48,8 @@ public:
   }
 
   constexpr CUDA_HOST_DEVICE array_ref<T>& operator=(const array_ref<T>& a) {
+    if (this == &a)
+      return *this;
     assert(m_size == a.size());
     for (std::size_t i = 0; i < m_size; ++i)
       m_arr[i] = a[i];
