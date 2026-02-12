@@ -750,6 +750,72 @@ void fn19(const double *x, int start, int end, double *y) {
 // CHECK-NEXT:          }
 // CHECK-NEXT:  }
 
+struct Box20 {
+  double v;
+  Box20() : v(0.0) {}
+  Box20(double seed) : v(seed) {}
+};
+
+double fn20(const double* x, int n) {
+  double total = 0.0;
+  #pragma omp parallel for reduction(+:total)
+  for (int i = 0; i < n; ++i) {
+    Box20 b(1.0);
+    b.v = x[i];
+    total += b.v * b.v;
+  }
+  return total;
+}
+
+// CHECK:  void fn20_grad(const double *x, int n, double *_d_x, int *_d_n) {
+// CHECK-NEXT:      static clad::tape<Box20> _t0 = {};
+// CHECK-NEXT:      #pragma omp threadprivate(_t0);
+// CHECK-NEXT:      static clad::tape<Box20> _t1 = {};
+// CHECK-NEXT:      #pragma omp threadprivate(_t1);
+// CHECK-NEXT:      static Box20 b = {};
+// CHECK-NEXT:      #pragma omp threadprivate(b);
+// CHECK-NEXT:      static Box20 _d_b{};
+// CHECK-NEXT:      #pragma omp threadprivate(_d_b);
+// CHECK-NEXT:      double _d_total = 0.;
+// CHECK-NEXT:      double total = 0.;
+// CHECK-NEXT:      #pragma omp parallel reduction(+: total)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  clad::push(_t0, std::move(_d_b));
+// CHECK-NEXT:                  clad::push(_t1, std::move(b)) , b = 1.;
+// CHECK-NEXT:                  _d_b = 0.;
+// CHECK-NEXT:                  b.v = x[i];
+// CHECK-NEXT:                  total += b.v * b.v;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      _d_total += 1;
+// CHECK-NEXT:      #pragma omp parallel private(total) firstprivate(_d_total)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d1 = _d_total;
+// CHECK-NEXT:                      _d_b.v += _r_d1 * b.v;
+// CHECK-NEXT:                      _d_b.v += b.v * _r_d1;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      double _r_d0 = _d_b.v;
+// CHECK-NEXT:                      _d_b.v = 0.;
+// CHECK-NEXT:                      _d_x[i] += _r_d0;
+// CHECK-NEXT:                  }
+// CHECK-NEXT:                  {
+// CHECK-NEXT:                      _d_b = clad::pop(_t0);
+// CHECK-NEXT:                      b = clad::pop(_t1);
+// CHECK-NEXT:                  }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
 template <size_t N>
 void reset(double (&arr)[N], double val = 0) {
   for (size_t i = 0; i < N; ++i)
@@ -853,5 +919,10 @@ int main() {
   auto fn19_grad = clad::gradient(fn19);
   fn19_grad.execute(x, 0, 4, y, dx, &dn, &dn, dy);
   printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {0.00, 6.00, 8.00, 0.00}
+
+  reset(dx);
+  auto fn20_grad = clad::gradient(fn20);
+  fn20_grad.execute(x, 4, dx, &dn);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {4.00, 6.00, 8.00, 10.00}
   return 0;
 }

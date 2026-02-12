@@ -3376,6 +3376,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         auto* vDecl = cast<VarDecl>(decl);
         if (Expr* init = vDecl->getInit()) {
           if (promoteToFnScope) {
+            if (isInsideOMPBlock)
+              MarkDeclThreadPrivate(vDecl);
             auto* declRef = BuildDeclRef(vDecl);
             auto* assignment = BuildOp(BO_Assign, declRef, init);
             addToCurrentBlock(assignment, direction::forward);
