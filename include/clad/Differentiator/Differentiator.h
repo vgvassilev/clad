@@ -338,11 +338,17 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
                            "you pass clad.so to clang.");
 #endif
       size_t length = GetLength(code);
-      char* temp = (char*)malloc(length + 1);
-      m_Code = temp;
-      while ((*temp++ = *code++))
-        ;
-    }
+      m_Code = (char*)malloc(length + 1);
+
+      if (m_Code) {
+        memcpy((void*)m_Code, code, length + 1);
+      } else {
+#ifdef __CUDACC__
+        printf("stderr: Error: Failed to allocate memory for m_Code\n");
+#else
+        fprintf(stderr, "Error: Failed to allocate memory for m_Code\n");
+#endif
+      }
 
     constexpr CUDA_HOST_DEVICE CladFunction(CladFunctionType f,
                                             FunctorType* functor = nullptr,
