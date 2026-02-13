@@ -1047,10 +1047,6 @@ int main(void) {
   TEST_2_N(add_kernel_5, dim3(2, 1, 1), dim3(1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
   TEST_2(add_kernel_6, dim3(1), dim3(5, 1, 1), 0, false, "a, b", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 25, 0, 0, 0, 0
 
-  cudaFree(dummy_in);
-  cudaFree(dummy_out);
-  cudaFree(d_out);
-  cudaFree(d_in);
 
   double *dummy_in_double, *dummy_out_double, *d_out_double, *d_in_double;
   cudaMalloc(&dummy_in_double, 10 * sizeof(double));
@@ -1156,6 +1152,11 @@ int main(void) {
   TEST(kernel_device_injective, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 4
   TEST(injective_reassignment, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 1
   TEST(injective_reassignment_loop, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 1
+
+  cudaFree(dummy_in);
+  cudaFree(dummy_out);
+  cudaFree(d_out);
+  cudaFree(d_in);
 
   cudaFree(n);
   cudaFree(d_n);
