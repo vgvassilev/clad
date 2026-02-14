@@ -21,15 +21,16 @@ jobs:
     steps:
       - name: Send Magic Packet
         env:
-          TARGET_IP: ${{ secrets.DELL_IP }}
-          MAC_ADDR: ${{ secrets.DELL_MAC }}
+          TARGET_IP: 192.168.100.30
+          MAC_ADDR: a4:bb:6d:51:d5:d2
           # The container has no ping, emulate it.
-          PING: "timeout 1 bash -c 'cat < /dev/null > /dev/tcp/${{ secrets.DELL_IP }}/22' 2>/dev/null"
         run: |
           # Mask the IP and potential broadcast to keep logs clean
+          echo "::add-mask::$MAC_ADDR"
+          echo "::add-mask::$BROADCAST"
           echo "::add-mask::$TARGET_IP"
           BROADCAST=$(echo $TARGET_IP | sed 's/\.[0-9]*$/ .255/' | tr -d ' ')
-          echo "::add-mask::$BROADCAST"
+          PING="timeout 1 bash -c 'cat < /dev/null > /dev/tcp/$TARGET_IP/22' 2>/dev/null"
 
           # Install tool silently
           sudo apt-get update -qq && sudo apt-get install -y -qq wakeonlan > /dev/null
