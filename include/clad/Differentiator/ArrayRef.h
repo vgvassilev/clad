@@ -35,7 +35,7 @@ public:
       : m_arr(a.ptr()), m_size(a.size()) {}
 
   /// Operator for conversion from array_ref<T> to T*.
-  constexpr CUDA_HOST_DEVICE operator T*() { return m_arr; }
+  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE operator T*() { return m_arr; }
   /// Operator for conversion from array_ref<T> to const T*.
   constexpr CUDA_HOST_DEVICE operator const T*() const { return m_arr; }
 
@@ -47,7 +47,8 @@ public:
     return *this;
   }
 
-  constexpr CUDA_HOST_DEVICE array_ref<T>& operator=(const array_ref<T>& a) {
+  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE array_ref<T>&
+  operator=(const array_ref<T>& a) {
     if (this == &a)
       return *this;
     assert(m_size == a.size());
@@ -67,18 +68,20 @@ public:
   /// Returns the size of the underlying array
   constexpr CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
   constexpr CUDA_HOST_DEVICE PUREFUNC T* ptr() const { return m_arr; }
-  constexpr CUDA_HOST_DEVICE PUREFUNC T*& ptr_ref() { return m_arr; }
+  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE PUREFUNC T*& ptr_ref() { return m_arr; }
   /// Returns an array_ref to a part of the underlying array starting at
   /// offset and having the specified size
-  constexpr CUDA_HOST_DEVICE array_ref<T> slice(std::size_t offset,
-                                                std::size_t size) {
+  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE array_ref<T> slice(std::size_t offset,
+                                                           std::size_t size) {
     assert((offset >= 0) && (offset + size <= m_size) &&
            "Window is outside array. Please provide an offset and size "
            "inside the array size.");
     return array_ref<T>(&m_arr[offset], size);
   }
   /// Returns the reference to the underlying array
-  constexpr CUDA_HOST_DEVICE PUREFUNC T& operator*() { return *m_arr; }
+  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE PUREFUNC T& operator*() {
+    return *m_arr;
+  }
 
   // Arithmetic overloads
   /// Divides the arrays element wise
@@ -254,7 +257,8 @@ public:
     template <typename T>
     constexpr CUDA_HOST_DEVICE array_ref(const array_ref<T>& other)
         : m_arr(other.ptr()), m_size(other.size()) {}
-    template <typename T> constexpr CUDA_HOST_DEVICE operator array_ref<T>() {
+    template <typename T>
+    CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE operator array_ref<T>() {
       return array_ref<T>((T*)(m_arr), m_size);
     }
     [[nodiscard]] constexpr CUDA_HOST_DEVICE void* ptr() const { return m_arr; }

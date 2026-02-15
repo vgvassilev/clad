@@ -259,7 +259,7 @@ T& back(
   template <bool EnablePadding, class... Rest, class F, class... Args,
             class... fArgTypes,
             typename std::enable_if<EnablePadding, bool>::type = true>
-  constexpr CUDA_HOST_DEVICE return_type_t<F>
+  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
@@ -286,7 +286,7 @@ T& back(
   template <bool EnablePadding, class... Rest, class F, class... Args,
             class... fArgTypes,
             typename std::enable_if<!EnablePadding, bool>::type = true>
-  constexpr return_type_t<F>
+  CLAD_CONSTEXPR_CXX14 return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
@@ -316,7 +316,7 @@ T& back(
   template <bool EnablePadding, class... Rest, class ReturnType, class C,
             class Obj, class... Args, class... fArgTypes,
             typename std::enable_if<!EnablePadding, bool>::type = true>
-  constexpr auto
+  CLAD_CONSTEXPR_CXX14 auto
   execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
                             list<fArgTypes...>,
                             Args&&... args) -> return_type_t<decltype(f)> {
@@ -414,8 +414,9 @@ T& back(
 
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
-                            return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
-    execute(Args&&... args) const {
+                            return_type_t<F>>::type
+        CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE
+        execute(Args&&... args) const {
       if (!m_Function)
         return static_cast<return_type_t<F>>(return_type_t<F>());
       if (m_CUDAkernel) {
@@ -425,9 +426,9 @@ T& back(
       // here static_cast is used to achieve perfect forwarding
 #ifdef __CUDACC__
       return execute_helper(m_Function, m_CUDAkernel, dim3(0), dim3(0),
-                            static_cast<Args>(args)...);
+                            std::forward<Args>(args)...);
 #else
-      return execute_helper(m_Function, static_cast<Args>(args)...);
+      return execute_helper(m_Function, std::forward<Args>(args)...);
 #endif
     }
 
@@ -463,12 +464,13 @@ T& back(
     }
 
     template <typename... Args>
-    constexpr CUDA_HOST_DEVICE auto operator()(Args&&... args) const {
+    constexpr CUDA_HOST_DEVICE auto operator()(Args&&... args) const
+        -> decltype(this->execute(std::forward<Args>(args)...)) {
       return execute(std::forward<Args>(args)...);
     }
 
     /// Return the string representation for the generated derivative.
-    constexpr const char* getCode() const {
+    CLAD_CONSTEXPR_CXX14 const char* getCode() const {
       if (m_Code)
         return m_Code;
       return "<invalid>";
@@ -498,7 +500,7 @@ T& back(
     private:
       /// Helper function for executing non-member derived functions.
       template <class Fn, class... Args>
-      constexpr CUDA_HOST_DEVICE return_type_t<CladFunctionType>
+      CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE return_type_t<CladFunctionType>
       execute_helper(Fn f, CUDA_ARGS Args&&... args) const {
         // `static_cast` is required here for perfect forwarding.
 #if defined(__CUDACC__)
@@ -541,7 +543,7 @@ T& back(
                 class = typename std::enable_if<std::is_same<
                     typename std::decay<Obj>::type, C>::value>::type,
                 class... Args>
-      constexpr return_type_t<CladFunctionType>
+      CLAD_CONSTEXPR_CXX14 return_type_t<CladFunctionType>
       execute_helper(ReturnType C::*f, Obj&& obj, Args&&... args) const {
         // `static_cast` is required here for perfect forwarding.
         return execute_with_default_args<EnablePadding>(
@@ -554,7 +556,7 @@ T& back(
       /// will be used and derived function will be called through the object
       /// saved in `CladFunction`.
       template <class ReturnType, class C, class... Args>
-      constexpr return_type_t<CladFunctionType>
+      CLAD_CONSTEXPR_CXX14 return_type_t<CladFunctionType>
       execute_helper(ReturnType C::*f, Args&&... args) const {
         // `static_cast` is required here for perfect forwarding.
         return execute_with_default_args<EnablePadding>(
