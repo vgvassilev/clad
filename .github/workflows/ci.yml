@@ -3,11 +3,9 @@ on:
   push:
     branches:
       - master
-      - coverity_scan
   pull_request:
     branches:
       - master
-      - coverity_scan
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -174,12 +172,6 @@ jobs:
             clang-runtime: '20'
             extra_cmake_options: '-DCLAD_ENABLE_BENCHMARKS=On -DCLAD_ENABLE_ENZYME_BACKEND=On'
             benchmark: true
-
-          - name: ubu22-gcc10-runtime11-coverity
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '11'
-            coverity: true
 
           - name: ubu22-gcc10-runtime11
             os: ubuntu-22.04
@@ -534,7 +526,7 @@ jobs:
         path: pr/
         overwrite: true
     - uses: nelonoel/branch-name@v1.0.1
-    - name: Setup default Build Type on *nux (coverity)
+    - name: Setup default Build Type on *nux
       if: ${{ (matrix.debug_build != true) && (runner.os != 'windows') }}
       run: |
         echo "BUILD_TYPE=Release" >> $GITHUB_ENV
@@ -552,19 +544,6 @@ jobs:
         $env:CLAD_CODE_COVERAGE="0"
         echo "BUILD_TYPE=Release" >> $env:GITHUB_ENV
         echo "CLAD_CODE_COVERAGE=0" >> $env:GITHUB_ENV
-    - name: Download Coverity Build Tool - Linux
-      if: ${{ (matrix.coverity == true) && (runner.os == 'Linux') }}
-      run: |
-        # FIXME: Ideally the check should be in the if: block of the action
-        if [ "$BRANCH_NAME" == "coverity_scan" ]; then
-          # wget -q https://scan.coverity.com/download/cxx/linux64 --post-data "token=$TOKEN&project=vgvassilev/clad" -O cov-analysis-linux64.tar.gz
-          mkdir cov-analysis-linux64
-          # tar xzf cov-analysis-linux64.tar.gz --strip 1 -C cov-analysis-linux64
-          echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
-          echo "$GITHUB_WORKSPACE/cov-analysis-linux64/bin" >> $GITHUB_PATH
-        fi
-      # env:
-      #  TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
     - name: Setup Ubuntu apt sources
       if: runner.os == 'Linux'
       run: |
@@ -869,7 +848,7 @@ jobs:
 
         cmake --build . -- -j4
     - name: Build Clad on Windows
-      if: ${{ matrix.coverity == false && runner.os == 'windows' }}
+      if: ${{ runner.os == 'windows' }}
       run: |
         mkdir obj
         cd obj
@@ -885,27 +864,8 @@ jobs:
         $lit = @(which lit)
         cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
         cmake --build . --config Release
-    - name: Build Clad for Coverity Scan
-      if: ${{ matrix.coverity == true }}
-      run: |
-        # FIXME: Ideally the check should be in the if: block of the action
-        if [ "$BRANCH_NAME" == "coverity_scan" ]; then
-          if [[ "${{ matrix.compiler }}" == "gcc-8" ]]; then
-            rm -rf obj && mkdir obj && cd obj
-            cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
-              -DLLVM_DIR="$PATH_TO_LLVM_BUILD" \
-              -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
-              $GITHUB_WORKSPACE
-            cov-build --dir cov-out cmake --build .  -- -j4
-          else
-            echo "Coverity Scan can only be triggered for GCC 6. Fix Github Actions YAML"
-            exit 1
-          fi
-        else
-          echo "This action only runs on branch coverity_scan"
-        fi
     - name: Test Clad on *nix
-      if: ${{ matrix.coverity == false && runner.os != 'windows' }}
+      if: ${{ runner.os != 'windows' }}
       run: |
         cd obj
         # Packages downloaded and unzipped require setting the SDKROOT.
@@ -914,7 +874,7 @@ jobs:
         fi
         cmake --build . --target check-clad -- -j4
     - name: Test Clad on Windows
-      if: ${{ matrix.coverity == false && runner.os == 'windows' }}
+      if: ${{ runner.os == 'windows' }}
       run: |
         cd obj
         #cmake --build . --target check-clad
@@ -993,24 +953,3 @@ jobs:
         fail_ci_if_error: true
         verbose: true
         token: ${{ secrets.CODECOV_TOKEN }}
-
-    - name: Upload report to coverity_scan
-      if: ${{ success() && (matrix.coverity == true) }}
-      run: |
-        # FIXME: Ideally the check should be in the if: block of the action
-        if [ "$BRANCH_NAME" == "coverity_scan" ]; then
-          # Upload to coverity
-          tar czvf clad.tgz cov-out
-          # curl \
-          #   --form project=vgvassilev/clad \
-          #   --form token=$TOKEN \
-          #   --form email=v.g.vassilev@gmail.com \
-          #   --form file=@clad.tgz \
-          #   --form version=trunk \
-          #   --form description=""Clad build submitted via Travis CI"" \
-          #   https://scan.coverity.com/builds?project=vgvassilev/clad
-        else
-          echo "This action only runs on branch coverity_scan"
-        fi
-      # env:
-      #  TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
