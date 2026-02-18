@@ -6,6 +6,17 @@
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"
+#include <cmath>
+
+#if !defined(__cpp_lib_math_special_functions)
+namespace std {
+  // Mock std::beta on Apple platforms so Clad's AST has a target to differentiate
+  inline double beta(double x, double y) {
+    return std::tgamma(x) * std::tgamma(y) / std::tgamma(x + y);
+  }
+}
+#endif
+
 extern "C" int printf(const char* fmt, ...);
 
 
@@ -515,6 +526,14 @@ double f_custom_min(double x, double y) { return std::min(x, y, std::greater<dou
 // CHECK-NEXT:      return _t0.pushforward;
 // CHECK-NEXT:  }
 
+double f_beta(double x, double y) { return std::beta(x, y); }
+// CHECK: double f_beta_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}beta_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -694,6 +713,9 @@ int main () { //expected-no-diagnostics
 
   auto d_custom_min =  clad::differentiate(f_custom_min, 0);
   printf("Result is = %.6f\n", d_custom_min.execute(2, 3)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_beta = clad::differentiate(f_beta, 0);
+  printf("Result is = %.6f\n", d_beta.execute(2.0, 3.0)); // CHECK-EXEC: Result is = -0.090278
 
   return 0;
 }
