@@ -65,91 +65,35 @@ jobs:
       matrix:
 
         include:
-          - name: osx26-arm-clang-runtime17
-            os: macos-26
-            compiler: clang
-            clang-runtime: '17'
-            
-          - name: osx26-arm-clang-runtime18
-            os: macos-26
-            compiler: clang
-            clang-runtime: '18'
+          # --- LINUX: Last 10 Runtimes (12-21) ---
+          # Using Ubuntu 22.04 for older runtimes, 24.04 for newer ones
+          - { name: ubu22-gcc10-runtime11, os: ubuntu-22.04, compiler: gcc-10, clang-runtime: '11' }
+          - { name: ubu22-gcc11-runtime12, os: ubuntu-22.04, compiler: gcc-11, clang-runtime: '12' }
+          - { name: ubu22-clang13-runtime13, os: ubuntu-22.04, compiler: clang-13, clang-runtime: '13' }
+          - { name: ubu24-gcc13-runtime14, os: ubuntu-24.04, compiler: gcc-13, clang-runtime: '14' }
+          - { name: ubu24-clang15-runtime15, os: ubuntu-24.04, compiler: clang-15, clang-runtime: '15' }
+          - { name: ubu24-gcc14-runtime16, os: ubuntu-24.04, compiler: gcc-14, clang-runtime: '16' }
+          - { name: ubu24-clang16-runtime17, os: ubuntu-24.04, compiler: clang-16, clang-runtime: '17' }
+          - { name: ubu24-gcc14-runtime18, os: ubuntu-24.04, compiler: gcc-14, clang-runtime: '18' }
+          - { name: ubu24-clang17-runtime19, os: ubuntu-24.04, compiler: clang-17, clang-runtime: '19' }
+          - { name: ubu24-clang19-runtime20, os: ubuntu-24.04, compiler: clang-19, clang-runtime: '20' }
+          - { name: ubu24-clang20-runtime21, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '21' }
+          # --- MACOS: Last 5 Runtimes (17-21) ---
+          # Using macOS ARM (standard) for all; Runtime 17 on Intel for x86 sanity
+          - { name: osx-intel-runtime17, os: macos-15-intel, compiler: clang, clang-runtime: '17' }
+          - { name: osx-arm-runtime18, os: macos-26, compiler: clang, clang-runtime: '18' }
+          - { name: osx-arm-runtime19, os: macos-26, compiler: clang, clang-runtime: '19' }
+          - { name: osx-arm-runtime20, os: macos-26, compiler: clang, clang-runtime: '20' }
+          - { name: osx-arm-runtime21, os: macos-26, compiler: clang, clang-runtime: '21' }
 
-          - name: osx26-arm-clang-runtime19
-            os: macos-26
-            compiler: clang
-            clang-runtime: '19'
+          # --- WINDOWS: Last 5 Runtimes (17-21) ---
+          - { name: win-msvc-runtime17, os: windows-2022, compiler: msvc, clang-runtime: '17' }
+          - { name: win-msvc-runtime18, os: windows-2022, compiler: msvc, clang-runtime: '18' }
+          - { name: win-msvc-runtime19, os: windows-2022, compiler: msvc, clang-runtime: '19' }
+          - { name: win-msvc-runtime20, os: windows-2022, compiler: msvc, clang-runtime: '20' }
+          - { name: win-msvc-runtime21, os: windows-2022, compiler: msvc, clang-runtime: '21' }
 
-          - name: osx26-arm-clang-runtime20
-            os: macos-26
-            compiler: clang
-            clang-runtime: '20'
-
-          - name: osx26-arm-clang-runtime21
-            os: macos-26
-            compiler: clang
-            clang-runtime: '21'
-
-          - name: osx15-x86-clang-runtime16
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '16'
-
-          - name: osx15-x86-clang-runtime17
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '17'
-            
-          - name: osx15-x86-clang-runtime18
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '18'
-
-          - name: osx15-x86-clang-runtime19
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '19'
-
-          - name: osx15-x86-clang-runtime20
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '20'
-
-          - name: osx15-x86-clang-runtime21
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '21'
-
-          - name: win2022-msvc-runtime14
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '14'
-
-          - name: win2022-msvc-runtime17
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '17'
-
-          - name: win2022-msvc-runtime18
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '18'
-
-          - name: win2022-msvc-runtime19
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '19'
-
-          - name: win2022-msvc-runtime20
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '20'
-
-          - name: win2022-msvc-runtime21
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '21'
-
+          # --- CUSTOM: Debug, coverage, benchmarks, static analysis ---
           - name: ubu24-clang20-runtime21-debug
             os: ubuntu-24.04
             compiler: clang-20
@@ -173,56 +117,6 @@ jobs:
             extra_cmake_options: '-DCLAD_ENABLE_BENCHMARKS=On -DCLAD_ENABLE_ENZYME_BACKEND=On'
             benchmark: true
 
-          - name: ubu22-gcc10-runtime11
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '11'
-
-          - name: ubu22-gcc10-runtime19
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '19'
-
-          - name: ubu22-gcc11-runtime11
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '11'
-
-          - name: ubu22-gcc11-runtime19
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '19'
-
-          - name: ubu22-clang12-runtime11
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '11'
-
-          - name: ubu22-clang13-runtime11
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '11'
-
-          - name: ubu22-gcc10-runtime12
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '12'
-
-          - name: ubu22-gcc11-runtime12
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '12'
-
-          - name: ubu22-clang12-runtime12
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '12'
-
-          - name: ubu22-clang13-runtime12
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '12'
-
           - name: ubu22-clang13-runtime13-cuda
             os: ubuntu-22.04
             compiler: clang-13
@@ -236,211 +130,11 @@ jobs:
             clang-runtime: '18'
             cuda: true
 
-          - name: ubu22-clang13-runtime15
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '15'
-
-          - name: ubu22-clang13-runtime16
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '16'
-
-          - name: ubu22-clang13-runtime17
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '17'
-
-          - name: ubu22-clang13-runtime18
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '18'
-
-          - name: ubu22-gcc11-runtime11
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '11'
-
-          - name: ubu22-gcc12-runtime11
-            os: ubuntu-22.04
-            compiler: gcc-12
-            clang-runtime: '11'
-
-          - name: ubu22-clang12-runtime11
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '11'
-
-          - name: ubu22-clang13-runtime11
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '11'
-
-          - name: ubu22-clang14-runtime11
-            os: ubuntu-22.04
-            compiler: clang-14
-            clang-runtime: '11'
-
-          - name: ubu22-clang15-runtime11
-            os: ubuntu-22.04
-            compiler: clang-15
-            clang-runtime: '11'
-
-          - name: ubu22-clang16-runtime11
-            os: ubuntu-22.04
-            compiler: 'clang-16'
-            clang-runtime: '11'
-
-          - name: ubu22-gcc11-runtime12
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '12'
-
-          - name: ubu22-gcc12-runtime12
-            os: ubuntu-22.04
-            compiler: gcc-12
-            clang-runtime: '12'
-
-          - name: ubu22-clang12-runtime12
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '12'
-
-          - name: ubu22-clang13-runtime12
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '12'
-
-          - name: ubu22-clang14-runtime12
-            os: ubuntu-22.04
-            compiler: clang-14
-            clang-runtime: '12'
-
-          - name: ubu22-clang15-runtime12
-            os: ubuntu-22.04
-            compiler: clang-15
-            clang-runtime: '12'
-
-          - name: ubu22-clang16-runtime12
-            os: ubuntu-22.04
-            compiler: 'clang-16'
-            clang-runtime: '12'
-
-          - name: ubu22-gcc12-runtime13
-            os: ubuntu-22.04
-            compiler: gcc-12
-            clang-runtime: '13'
-
-          - name: ubu22-clang12-runtime13
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '13'
-
-          - name: ubu22-clang13-runtime13
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '13'
-
-          - name: ubu22-clang14-runtime13
-            os: ubuntu-22.04
-            compiler: clang-14
-            clang-runtime: '13'
-
-          - name: ubu22-clang15-runtime13
-            os: ubuntu-22.04
-            compiler: clang-15
-            clang-runtime: '13'
-
-          - name: ubu22-clang16-runtime13
-            os: ubuntu-22.04
-            compiler: clang-16
-            clang-runtime: '13'
-
-          - name: ubu22-gcc12-runtime14
-            os: ubuntu-22.04
-            compiler: gcc-12
-            clang-runtime: '14'
-
-          - name: ubu24-gcc13-runtime14
-            os: ubuntu-24.04
-            compiler: gcc-13
-            clang-runtime: '14'
-
-          - name: ubu24-gcc14-runtime14
-            os: ubuntu-24.04
-            compiler: gcc-14
-            clang-runtime: '14'
-
-          - name: ubu24-gcc14-runtime15
-            os: ubuntu-24.04
-            compiler: gcc-14
-            clang-runtime: '15'
-
-          - name: ubu24-gcc14-runtime16
-            os: ubuntu-24.04
-            compiler: gcc-14
-            clang-runtime: '16'
-
-          - name: ubu24-gcc14-runtime17
-            os: ubuntu-24.04
-            compiler: gcc-14
-            clang-runtime: '17'
-
-          - name: ubu22-clang12-runtime14
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '14'
-
-          - name: ubu22-clang12-runtime15
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '15'
-
-          - name: ubu22-clang12-runtime16
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '16'
-
-          - name: ubu22-clang13-runtime14
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '14'
-
-          - name: ubu24-clang14-runtime14
-            os: ubuntu-24.04
-            compiler: clang-14
-            clang-runtime: '14'
-
-          - name: ubu24-clang14-runtime15
-            os: ubuntu-24.04
-            compiler: clang-15
-            clang-runtime: '14'
-
-          - name: ubu22-clang14-runtime15
-            os: ubuntu-22.04
-            compiler: clang-14
-            clang-runtime: '15'
-
-          - name: ubu24-clang15-runtime15
-            os: ubuntu-24.04
-            compiler: clang-15
-            clang-runtime: '15'
-
-          - name: ubu24-clang15-runtime16
-            os: ubuntu-24.04
-            compiler: clang-15
-            clang-runtime: '16'
-
           - name: ubuntu-clang15-runtime16-doc
             os: ubuntu-latest
             compiler: clang-15
             clang-runtime: '16'
             doc_build: true
-
-          - name: ubu24-clang16-runtime17
-            os: ubuntu-24.04
-            compiler: clang-16
-            clang-runtime: '17'
 
           - name: ubu24-clang16-runtime17-shared-libs
             os: ubuntu-24.04
@@ -455,37 +149,12 @@ jobs:
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
-          - name: ubu24-clang16-runtime18
-            os: ubuntu-24.04
-            compiler: clang-16
-            clang-runtime: '18'
-
-          - name: ubu24-clang17-runtime19
-            os: ubuntu-24.04
-            compiler: clang-17
-            clang-runtime: '19'
-
-          - name: ubu22-clang18-runtime20
-            os: ubuntu-22.04
-            compiler: clang-18
-            clang-runtime: '20'
-
           - name: ubu24-clang19-runtime20-vg
             os: ubuntu-24.04
             compiler: clang-19
             extra_packages: 'valgrind'
             extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
             clang-runtime: '20'
-
-          - name: ubu24-clang20-runtime21
-            os: ubuntu-24.04
-            compiler: clang-20
-            clang-runtime: '21'
-
-          - name: ubu24-arm-clang16-runtime17
-            os: ubuntu-24.04-arm
-            compiler: clang-16
-            clang-runtime: '17'
 
           - name: ubu24-arm-clang16-runtime17-shared-libs
             os: ubuntu-24.04-arm
