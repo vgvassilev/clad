@@ -914,6 +914,46 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfcl_pushforward(T x, dT d_x) {
   return erfc_pushforward(x, d_x);
 }
 
+// 7. Special Functions
+template <typename T>
+CUDA_HOST_DEVICE inline T clad_digamma(T x) {
+  if (x <= 0.0) {
+    if (x == ::std::floor(x)) return (T)NAN; 
+    return clad_digamma(1.0 - x) - ::std::acos((T)-1.0) / ::std::tan(::std::acos((T)-1.0) * x);
+  }
+  T result = 0.0;
+  while (x < 8.0) {
+    result -= 1.0 / x;
+    x += 1.0;
+  }
+  T inv_x = 1.0 / x;
+  T inv_x2 = inv_x * inv_x;
+  result += ::std::log(x) - 0.5 * inv_x 
+            - inv_x2 * (1.0/12.0 
+            - inv_x2 * (1.0/120.0 
+            - inv_x2 * (1.0/252.0 
+            - inv_x2 * (1.0/240.0))));
+  return result;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> beta_pushforward(T x, T y, dT d_x, dT d_y) {
+  T b = ::std::beta(x, y);
+  T psi_xy = clad_digamma(x + y);
+  dT pushforward = 0;
+  if (d_x) pushforward += b * (clad_digamma(x) - psi_xy) * d_x;
+  if (d_y) pushforward += b * (clad_digamma(y) - psi_xy) * d_y;
+  return {b, pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  T b = ::std::beta(x, y);
+  T psi_xy = clad_digamma(x + y);
+  if (d_x) *d_x += b * (clad_digamma(x) - psi_xy) * d_z;
+  if (d_y) *d_y += b * (clad_digamma(y) - psi_xy) * d_z;
+}
+
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sqrt_pushforward(T x, dT d_x) {
   return {::std::sqrt(x), (((T)1) / (((T)2) * ::std::sqrt(x))) * d_x};
@@ -1326,6 +1366,8 @@ using std::min_pushforward;
 using std::pow_pullback;
 using std::pow_pushforward;
 using std::sqrt_pushforward;
+using std::beta_pullback;
+using std::beta_pushforward;
 
 namespace class_functions {
 template <typename T, typename U>
