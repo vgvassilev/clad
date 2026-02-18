@@ -574,7 +574,7 @@ jobs:
           ..
         cmake --build . --target sphinx-clad doxygen-clad -- -j4
     - name: Failed job config
-      if: ${{ failure() && runner.os != 'windows' }}
+      if: ${{ failure() && runner.debug && runner.os != 'windows' }}
       env:
         GITHUB_CONTEXT: ${{ toJson(github) }}
       run: |
