@@ -2,7 +2,7 @@
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oThrustScanByKey.out \
 // RUN:     -Xclang -verify %s 2>&1 | %filecheck %s
 //
-// RUN: ./ThrustScanByKey.out | %filecheck_exec %s
+// RUN: %cudarun ./ThrustScanByKey.out | %filecheck_exec %s
 //
 // REQUIRES: cuda-runtime
 //

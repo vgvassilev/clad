@@ -106,7 +106,7 @@ jobs:
             clang-runtime: '19'
             coverage: true
             cuda: true
-            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
+            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On -DCLAD_CUDA_TEST_USE_SANITIZER=On'
             extra_packages: ' libzstd-dev '
             #clang-format: true
 
@@ -127,6 +127,7 @@ jobs:
             os: [self-hosted, cuda, heavy]
             runs-on: cuda
             compiler: clang-16
+            extra_cmake_options: '-DCLAD_CUDA_TEST_USE_SANITIZER=On'
             clang-runtime: '18'
             cuda: true
 

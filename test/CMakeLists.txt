@@ -84,10 +84,14 @@ if(NOT LLVM_MAIN_SRC_DIR)
   set(LLVM_MAIN_SRC_DIR ${LLVM_BUILD_MAIN_SRC_DIR})
 endif()
 
+option(CLAD_CUDA_TEST_USE_SANITIZER "Run Clang cuda tests with compute-sanitizer" OFF)
 option(CLAD_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
 set(CLAD_TEST_EXTRA_ARGS --verbose --show-skipped --show-unsupported)
 if(CLAD_TEST_USE_VG)
   set(CLAD_TEST_EXTRA_ARGS ${CLAD_TEST_EXTRA_ARGS} "--vg --vg-arg=-q")
+endif ()
+if(CLAD_CUDA_TEST_USE_SANITIZER)
+  set(CLAD_TEST_EXTRA_ARGS ${CLAD_TEST_EXTRA_ARGS} "--param" "cuda_sanitizer=1")
 endif ()
 
 add_lit_testsuite(check-clad "Running the Clad regression tests"

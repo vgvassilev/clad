@@ -5,7 +5,7 @@
 // RUN: %cladclang_cuda -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include --cuda-path=%cudapath \
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oGradientKernels.out %s
 //
-// RUN: ./GradientKernels.out | %filecheck_exec %s
+// RUN: %cudarun ./GradientKernels.out | %filecheck_exec %s
 //
 // REQUIRES: cuda-runtime
 
