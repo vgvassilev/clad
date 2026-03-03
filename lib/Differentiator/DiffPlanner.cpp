@@ -819,6 +819,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     if (Annotation == "D")
       request.Mode = DiffMode::forward;
+    else if (Annotation == "P")
+      request.Mode = DiffMode::pushforward;
     else if (Annotation == "H")
       request.Mode = DiffMode::hessian;
     else if (Annotation == "J")
@@ -1110,7 +1112,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
 
       std::string Annotation = A->getAnnotation().str();
-      if (Annotation != "D" && Annotation != "G" && Annotation != "H" &&
+      if (Annotation != "D" && Annotation != "P" && Annotation != "G" && Annotation != "H" &&
           Annotation != "J" && Annotation != "E")
         return true;
 
