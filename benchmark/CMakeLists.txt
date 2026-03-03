@@ -16,8 +16,6 @@ FetchContent_Declare(
   # We use a commit hash from the 'develop' branch because
   # the 'disk offloading' feature is not yet available in the stable release of tapenade.
   GIT_TAG        6f8cb04a4168cac5f6242cdeb65f6816c413f4ee 
-  
-  GIT_SHALLOW    TRUE
   GIT_PROGRESS   TRUE      
 )
 FetchContent_MakeAvailable(tapenade_kit)
