@@ -33,6 +33,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/CladDiagnostics.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffMode.h"
 
@@ -98,7 +99,7 @@ void InitTimers();
             PP.Diag(PragmaTok.getLocation(),
                     PP.getDiagnostics().getCustomDiagID(
                         DiagnosticsEngine::Error,
-                        "expected 'loop' after 'checkpoint' in #pragma clad"));
+                        "expected 'loop' after 'checkpoint' in #pragma clad [-Wclad-pragma]"));
             return;
           }
           CladLoopCheckpoints.insert(PragmaTok.getLocation());
@@ -109,7 +110,7 @@ void InitTimers();
             TokLoc,
             PP.getDiagnostics().getCustomDiagID(
                 DiagnosticsEngine::Error,
-                "expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma"));
+                "expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma [-Wclad-pragma]"));
       }
     };
 
