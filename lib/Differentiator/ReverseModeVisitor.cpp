@@ -2152,10 +2152,27 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       StmtDiff argDiff =
           DifferentiateCallArg(arg, PVD, PreCallStmts, /*isNonDiff=*/nonDiff,
                                isa<CUDAKernelCallExpr>(CE));
-      CallArgs.push_back(argDiff.getExpr());
+
+      Expr* finalArg = argDiff.getExpr();
+      if (const auto* ICE = dyn_cast<ImplicitCastExpr>(arg)) {
+        auto CK = ICE->getCastKind();
+        if (CK == CK_IntegralToFloating || CK == CK_FloatingCast ||
+            CK == CK_IntegralCast || CK == CK_FloatingToIntegral) {
+          if (finalArg->isGLValue()) {
+            ExprResult rvalueRes = m_Sema.DefaultLvalueConversion(finalArg);
+            if (rvalueRes.isUsable())
+              finalArg = rvalueRes.get();
+          }
+          ExprResult castExpr = m_Sema.ImpCastExprToType(
+              finalArg, ICE->getType(), CK, ICE->getValueKind());
+          if (castExpr.isUsable())
+            finalArg = castExpr.get();
+        }
+      }
+      CallArgs.push_back(finalArg);
 
       if (elideReverseForw && PVD->getType()->isIntegerType())
-        revForwAdjointArgs.push_back(argDiff.getExpr());
+        revForwAdjointArgs.push_back(finalArg);
       else
         revForwAdjointArgs.push_back(argDiff.getRevSweepAsExpr());
 
