@@ -335,6 +335,30 @@ extern "C" {
   double f18(double x) { return x * x; }
 }
 
+#if __cplusplus >= 201703L
+#include <version>
+#ifdef __cpp_lib_math_special_functions
+double f19(double x) {
+  return std::hermite(2, x);
+}
+//CHECK: double f19_darg0(double x) {
+//CHECK-NEXT:     double _d_x = 1;
+//CHECK-NEXT:     ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::std::hermite_pushforward(2, x, 0, _d_x);
+//CHECK-NEXT:     return _t0.pushforward;
+//CHECK-NEXT:     }
+
+void f19_grad(double x, double* d_x);
+//CHECK: void f19_grad(double x, double *_d_x) {
+//CHECK-NEXT:     {
+//CHECK-NEXT:     unsigned int _r0 = 0U;
+//CHECK-NEXT:     double _r1 = 0.;
+//CHECK-NEXT:     clad::custom_derivatives::std::hermite_pullback(2, x, 1, &_r0, &_r1);
+//CHECK-NEXT:     *_d_x += _r1;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     }
+#endif
+#endif
+
 double f_tan(double x) { return std::tan(x); }
 // CHECK: double f_tan_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
@@ -635,6 +659,18 @@ int main () { //expected-no-diagnostics
 
   auto f18_darg0 = clad::differentiate(f18, 0);
   printf("Result is = %f\n", f18_darg0.execute(1)); // CHECK-EXEC: Result is = 2
+
+  #if __cplusplus >= 201703L
+  #include <version>
+  #ifdef __cpp_lib_math_special_functions
+  auto f19_darg0 = clad::differentiate(f19, 0);
+  printf("Result is = %.6f\n", f19_darg0.execute(3)); // CHECK-EXEC: Result is = 24.000000
+
+  INIT_GRADIENT(f19);
+
+  TEST_GRADIENT(f19, 1, 3, &d_result[0]); //CHECK-EXEC: {24.00}
+  #endif
+  #endif
 
   auto d_tan = clad::differentiate(f_tan, 0);
   printf("Result is = %.6f\n", d_tan.execute(0.5)); // CHECK-EXEC: Result is = 1.298446
