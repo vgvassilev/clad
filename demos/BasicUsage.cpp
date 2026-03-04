@@ -8,7 +8,7 @@
 
 // To run the demo please type:
 // path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ -std=c++17 BasicUsage.cpp
+// path/to/clad.so  -I../include/ -std=c++17 BasicUsage.cpp
 
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
