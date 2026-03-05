@@ -125,7 +125,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # ClangConfig.cmake is not versioned and we will need to work harder to find
   # the correct package.
   if (DEFINED LLVM_VERSION AND NOT DEFINED Clang_DIR)
-    set(extra_hints HINTS ${Clang_DIR} "${LLVM_BINARY_DIR}/lib/cmake/clang" "${LLVM_BINARY_DIR}/cmake")
+    set(extra_hints HINTS ${Clang_DIR} "${LLVM_BINARY_DIR}/lib/cmake/clang" "${LLVM_BINARY_DIR}/cmake" "${LLVM_DIR}/../clang")
     find_package(Clang REQUIRED CONFIG ${extra_hints} NO_DEFAULT_PATH)
   endif()
 
