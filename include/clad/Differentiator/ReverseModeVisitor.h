@@ -31,6 +31,7 @@
 #include <limits>
 #include <memory>
 #include <queue>
+#include <set>
 #include <stack>
 #include <unordered_map>
 
@@ -52,6 +53,8 @@ namespace clad {
   class ReverseModeVisitor
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
         public VisitorBase {
+    std::set<const clang::VarDecl*> m_NaNRiskVars;
+
   protected:
     // FIXME: We should remove friend-dependency of the plugin classes here.
     // For this we will need to separate out AST related functions in

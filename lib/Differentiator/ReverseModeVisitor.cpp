@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 
 #include "clad/Differentiator/ReverseModeVisitor.h"
-
+#include "ActivityAnalyzer.h"
 #include "ConstantFolder.h"
 
 #include "TBRAnalyzer.h"
@@ -260,10 +260,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     assert(m_DiffReq.Function && "Must not be null.");
     PrettyStackTraceDerivative CrashInfo(m_DiffReq, m_Blocks, m_Sema,
                                          &m_CurVisitedStmt);
-
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
-
     QualType returnTy = m_DiffReq->getReturnType();
     // If reverse mode differentiates only part of the arguments it needs to
     // generate an overload that can take in all the diff variables
@@ -335,6 +333,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       beginScope(Scope::FnScope | Scope::DeclScope);
       m_DerivativeFnScope = getCurrentScope();
       beginBlock();
+      clang::AnalysisDeclContext AnalysisDC(nullptr, m_DiffReq.Function);
+      std::set<const clang::Stmt*> ActiveExprs;
+
+      clad::VariedAnalyzer Analyzer(
+          &AnalysisDC, const_cast<clad::DiffRequest&>(m_DiffReq), ActiveExprs);
+      Analyzer.Analyze();
+
+      const auto& NaNRiskVars = Analyzer.getPotentialNanVars();
+      m_NaNRiskVars = NaNRiskVars;
+
       if (m_ExternalSource)
         m_ExternalSource->ActOnStartOfDerivedFnBody(m_DiffReq);
 
@@ -393,6 +401,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         QualType paramTy = param->getType();
         if (const auto* DT = dyn_cast<DecayedType>(paramTy))
           paramTy = DT->getOriginalType();
+        if (!m_DiffReq.getVariedDecls().count(param)) {
+          // Check if this is stored as NaN-risk
+          if (m_NaNRiskVars.count(param))
+            continue;
+        }
         if (utils::isArrayOrPointerType(paramTy) &&
             !paramTy->isConstantArrayType()) {
           // We cannot initialize derived variable for pointer types because
@@ -1521,6 +1534,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       if (!it->second)
         return StmtDiff(clonedDRE);
+
+      if (!m_DiffReq.getVariedDecls().count(VD) && m_NaNRiskVars.count(VD))
+        return StmtDiff(clonedDRE);
+
       // Create the (_d_param[idx] += dfdx) statement.
       if (Expr* add_assign = BuildDiffIncrement(it->second))
         addToCurrentBlock(add_assign, direction::reverse);
