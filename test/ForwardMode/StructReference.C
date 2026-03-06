@@ -5,8 +5,8 @@
 #include "../TestUtils.h"
 
 struct T {
-    double x;
-    double y;
+    double x{};
+    double y{};
 };
 
 double fn1(T& t) {

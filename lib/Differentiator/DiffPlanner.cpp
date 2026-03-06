@@ -526,11 +526,15 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
         if (!dVarInfo.param->getType()->isRecordType() &&
             !dVarInfo.fields.empty()) {
-          if (!(dVarInfo.param->getType().getNonReferenceType()->isRecordType())) {
-            utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
-                        "fields can only be provided when parameters are of class types or are references to class types; "
-                        "field information is incorrectly specified in '%0' "
-                        "for non-class/non-reference to class type parameter '%1'")
+          if (!(dVarInfo.param->getType()
+                    .getNonReferenceType()
+                    ->isRecordType())) {
+            utils::diag(
+                semaRef, DiagnosticsEngine::Error, dArgsL,
+                "fields can only be provided when parameters are of class "
+                "types or are references to class types; "
+                "field information is incorrectly specified in '%0' "
+                "for non-class/non-reference to class type parameter '%1'")
                 << diffSpec << pName << dArgsL;
             return;
           }
@@ -541,7 +545,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
           if (dVarInfo.param->getType()->isRecordType()) {
             RD = dVarInfo.param->getType()->getAsCXXRecordDecl();
-          } else  {
+          } else {
             assert(dVarInfo.param->getType()->isReferenceType());
 
             RD = dVarInfo.param->getType()

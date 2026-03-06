@@ -124,9 +124,11 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
     } else {
       QualType T = m_IndependentVar->getType();
       bool isField = false;
-      if (auto* RD = diffVarInfo.param->getType().getNonReferenceType()->getAsCXXRecordDecl()) {
+      if (auto* RD = diffVarInfo.param->getType()
+                         .getNonReferenceType()
+                         ->getAsCXXRecordDecl()) {
         llvm::SmallVector<llvm::StringRef, 4> ref(diffVarInfo.fields.begin(),
-                                                    diffVarInfo.fields.end());
+                                                  diffVarInfo.fields.end());
         T = utils::ComputeMemExprPathType(m_Sema, RD, ref);
         isField = true;
       }
