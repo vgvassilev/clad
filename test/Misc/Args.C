@@ -10,6 +10,12 @@
 // CHECK_HELP-NEXT: -disable-tbr
 // CHECK_HELP-NEXT: -fcustom-estimation-model
 // CHECK_HELP-NEXT: -fprint-num-diff-errors
+// CHECK_HELP-NEXT: -Wclad / -Wno-clad
+// CHECK_HELP-NEXT: -Wclad-unsupported / -Wno-clad-unsupported
+// CHECK_HELP-NEXT: -Wclad-checkpointing / -Wno-clad-checkpointing
+// CHECK_HELP-NEXT: -Wclad-pragma / -Wno-clad-pragma
+// CHECK_HELP-NEXT: -Wclad-builtin / -Wno-clad-builtin
+// CHECK_HELP-NEXT: -Wclad-non-differentiable / -Wno-clad-non-differentiable
 // CHECK_HELP-NEXT: -help
 
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad\

@@ -1,11 +1,13 @@
-#ifndef CLAD_DIAGNOSTICS_H
-#define CLAD_DIAGNOSTICS_H
+#ifndef CLAD_DIFFERENTIATOR_CLADDIAGNOSTICS_H
+#define CLAD_DIFFERENTIATOR_CLADDIAGNOSTICS_H
 
 #include "clang/Basic/Diagnostic.h"
 
+#include <cstdint>
+
 namespace clad {
 
-enum class DiagnosticGroup {
+enum class DiagnosticGroup : std::uint8_t {
   Clad,
   CladUnsupported,
   CladCheckpointing,
@@ -31,4 +33,4 @@ bool shouldEmitDiagnostic(DiagnosticGroup Group,
 
 } // namespace clad
 
-#endif
+#endif // CLAD_DIFFERENTIATOR_CLADDIAGNOSTICS_H

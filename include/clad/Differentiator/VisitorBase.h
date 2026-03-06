@@ -4,8 +4,8 @@
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-#ifndef CLAD_VISITOR_BASE_H
-#define CLAD_VISITOR_BASE_H
+#ifndef CLAD_DIFFERENTIATOR_VISITORBASE_H
+#define CLAD_DIFFERENTIATOR_VISITORBASE_H
 
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
@@ -49,19 +49,19 @@ namespace clad {
   /// other (intermediate) statements, they are output to the current block.
   class StmtDiff {
   private:
-    std::array<clang::Stmt*, 2> data;
+    std::array<clang::Stmt*, 2> m_data;
     clang::Stmt* m_ValueForRevSweep;
 
   public:
     StmtDiff(clang::Stmt* orig = nullptr, clang::Stmt* diff = nullptr,
              clang::Stmt* valueForRevSweep = nullptr)
         : m_ValueForRevSweep(valueForRevSweep) {
-      data[1] = orig;
-      data[0] = diff;
+      m_data[1] = orig;
+      m_data[0] = diff;
     }
 
-    clang::Stmt* getStmt() { return data[1]; }
-    clang::Stmt* getStmt_dx() { return data[0]; }
+    clang::Stmt* getStmt() { return m_data[1]; }
+    clang::Stmt* getStmt_dx() { return m_data[0]; }
     clang::Expr* getExpr() {
       return llvm::cast_or_null<clang::Expr>(getStmt());
     }
@@ -69,11 +69,11 @@ namespace clad {
       return llvm::cast_or_null<clang::Expr>(getStmt_dx());
     }
 
-    void updateStmt(clang::Stmt* S) { data[1] = S; }
-    void updateStmtDx(clang::Stmt* S) { data[0] = S; }
+    void updateStmt(clang::Stmt* S) { m_data[1] = S; }
+    void updateStmtDx(clang::Stmt* S) { m_data[0] = S; }
     void updateRevSweep(clang::Stmt* S) { m_ValueForRevSweep = S; }
     // Stmt_dx goes first!
-    std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
+    std::array<clang::Stmt*, 2>& getBothStmts() { return m_data; }
 
     clang::Expr* getRevSweepAsExpr() {
       return llvm::cast_or_null<clang::Expr>(getRevSweepStmt());
@@ -83,7 +83,7 @@ namespace clad {
       /// If there is no specific value for
       /// the reverse sweep, use Stmt_dx.
       if (!m_ValueForRevSweep)
-        return data[1];
+        return m_data[1];
       return m_ValueForRevSweep;
     }
   };

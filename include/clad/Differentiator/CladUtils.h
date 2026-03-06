@@ -1,7 +1,7 @@
 // This file contains utility functions which do not belong anywhere else
 
-#ifndef CLAD_UTILS_CLADUTILS_H
-#define CLAD_UTILS_CLADUTILS_H
+#ifndef CLAD_DIFFERENTIATOR_CLADUTILS_H
+#define CLAD_DIFFERENTIATOR_CLADUTILS_H
 
 #include "CladDiagnostics.h"
 #include "DiffMode.h"
@@ -488,4 +488,4 @@ namespace clad {
     } // namespace utils
     } // namespace clad
 
-#endif
+#endif // CLAD_DIFFERENTIATOR_CLADUTILS_H

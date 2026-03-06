@@ -4,8 +4,8 @@
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-#ifndef CLAD_DERIVATIVE_BUILDER_H
-#define CLAD_DERIVATIVE_BUILDER_H
+#ifndef CLAD_DIFFERENTIATOR_DERIVATIVEBUILDER_H
+#define CLAD_DIFFERENTIATOR_DERIVATIVEBUILDER_H
 
 #include "Compatibility.h"
 
