@@ -430,9 +430,17 @@ namespace clad {
       return m_Builder.diag(level, loc, format);
     }
 
+    template <std::size_t N>
+    clang::Sema::SemaDiagnosticBuilder
+    diag(clang::DiagnosticsEngine::Level level, clang::SourceLocation loc,
+         clad::DiagnosticGroup group, const char (&format)[N]) {
+      return m_Builder.diag(level, loc, group, format);
+    }
+
     void diagUnsupported(const clang::Decl* D) {
       clang::SourceLocation L = D->getBeginLoc();
       diag(clang::DiagnosticsEngine::Warning, L,
+           clad::DiagnosticGroup::CladUnsupported,
            "declaration kind '%0' is not supported")
           << D->getDeclKindName() << L;
     }
@@ -440,6 +448,7 @@ namespace clad {
     void diagUnsupported(const clang::Stmt* S) {
       clang::SourceLocation L = S->getBeginLoc();
       diag(clang::DiagnosticsEngine::Warning, L,
+           clad::DiagnosticGroup::CladUnsupported,
            "statement kind '%0' is not supported")
           << S->getStmtClassName() << L;
     }
@@ -448,13 +457,15 @@ namespace clad {
       assert(!CE->getDirectCallee() && "This is a direct callee");
       clang::SourceLocation L = CE->getBeginLoc();
       diag(clang::DiagnosticsEngine::Warning, L,
+           clad::DiagnosticGroup::CladUnsupported,
            "differentiation of indirect calls is not supported")
           << L;
     }
 
     /// Shorthand for warning on differentiation of unsupported operators
     void unsupportedOpWarn(clang::SourceLocation loc) {
-      diag(clang::DiagnosticsEngine::Warning, loc,
+       diag(clang::DiagnosticsEngine::Warning, loc,
+         clad::DiagnosticGroup::CladUnsupported,
            "attempted to differentiate unsupported operator; treated as "
            "non-differentiable");
     }

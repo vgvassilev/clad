@@ -53,7 +53,10 @@ struct DifferentiationOptions {
         ValidateClangVersion(true), EnableTBRAnalysis(false),
         DisableTBRAnalysis(false), EnableVariedAnalysis(false),
         DisableVariedAnalysis(false), EnableUsefulAnalysis(false),
-        DisableUsefulAnalysis(false), PrintNumDiffErrorInfo(false) {}
+        DisableUsefulAnalysis(false), PrintNumDiffErrorInfo(false),
+        DiagClad(true), DiagCladUnsupported(true),
+        DiagCladCheckpointing(true), DiagCladPragma(true),
+        DiagCladBuiltin(true), DiagCladNonDifferentiable(true) {}
 
   bool DumpSourceFn : 1;
   bool DumpSourceFnAST : 1;
@@ -68,6 +71,12 @@ struct DifferentiationOptions {
   bool EnableUsefulAnalysis : 1;
   bool DisableUsefulAnalysis : 1;
   bool PrintNumDiffErrorInfo : 1;
+  bool DiagClad : 1;
+  bool DiagCladUnsupported : 1;
+  bool DiagCladCheckpointing : 1;
+  bool DiagCladPragma : 1;
+  bool DiagCladBuiltin : 1;
+  bool DiagCladNonDifferentiable : 1;
 };
 
     class CladExternalSource : public clang::ExternalSemaSource {
@@ -329,6 +338,30 @@ struct DifferentiationOptions {
             return false;
           } else if (args[i] == "-fprint-num-diff-errors") {
             m_DO.PrintNumDiffErrorInfo = true;
+          } else if (args[i] == "-Wclad") {
+            m_DO.DiagClad = true;
+          } else if (args[i] == "-Wno-clad") {
+            m_DO.DiagClad = false;
+          } else if (args[i] == "-Wclad-unsupported") {
+            m_DO.DiagCladUnsupported = true;
+          } else if (args[i] == "-Wno-clad-unsupported") {
+            m_DO.DiagCladUnsupported = false;
+          } else if (args[i] == "-Wclad-checkpointing") {
+            m_DO.DiagCladCheckpointing = true;
+          } else if (args[i] == "-Wno-clad-checkpointing") {
+            m_DO.DiagCladCheckpointing = false;
+          } else if (args[i] == "-Wclad-pragma") {
+            m_DO.DiagCladPragma = true;
+          } else if (args[i] == "-Wno-clad-pragma") {
+            m_DO.DiagCladPragma = false;
+          } else if (args[i] == "-Wclad-builtin") {
+            m_DO.DiagCladBuiltin = true;
+          } else if (args[i] == "-Wno-clad-builtin") {
+            m_DO.DiagCladBuiltin = false;
+          } else if (args[i] == "-Wclad-non-differentiable") {
+            m_DO.DiagCladNonDifferentiable = true;
+          } else if (args[i] == "-Wno-clad-non-differentiable") {
+            m_DO.DiagCladNonDifferentiable = false;
           } else if (args[i] == "-help") {
             // Print some help info.
             // CI.getFrontendOpts().ShowHelp does not give us control.
@@ -356,7 +389,18 @@ struct DifferentiationOptions {
                    "shared object to use as the custom estimation model.\n"
                 << "-fprint-num-diff-errors - allows users to print the "
                    "calculated numerical diff errors, this flag is overriden "
-                   "by -DCLAD_NO_NUM_DIFF.\n";
+                   "by -DCLAD_NO_NUM_DIFF.\n"
+                 << "-Wclad / -Wno-clad - enable/disable all clad warnings.\n"
+                 << "-Wclad-unsupported / -Wno-clad-unsupported - "
+                   "enable/disable unsupported construct warnings.\n"
+                 << "-Wclad-checkpointing / -Wno-clad-checkpointing - "
+                   "enable/disable checkpointing warnings.\n"
+                 << "-Wclad-pragma / -Wno-clad-pragma - enable/disable "
+                   "pragma-related warnings.\n"
+                 << "-Wclad-builtin / -Wno-clad-builtin - enable/disable "
+                   "builtin-related warnings.\n"
+                 << "-Wclad-non-differentiable / -Wno-clad-non-differentiable "
+                   "- enable/disable non-differentiable warnings.\n";
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
           } else if (args[i] == "-version" || args[i] == "-v") {

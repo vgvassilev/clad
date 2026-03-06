@@ -13,13 +13,13 @@ Clad organizes its diagnostics into logical groups, allowing fine-grained contro
 
 ```bash
 # Disable all clad diagnostics
-clang -Wno-clad file.cpp -fplugin=libclad.so
+clang -fplugin=libclad.so -Xclang -plugin-arg-clad -Xclang -Wno-clad file.cpp
 
-# Enable only unsupported construct warnings
-clang -Wno-clad -Wclad-unsupported file.cpp -fplugin=libclad.so
+# Disable unsupported construct warnings only
+clang -fplugin=libclad.so -Xclang -plugin-arg-clad -Xclang -Wno-clad-unsupported file.cpp
 
-# Disable pragma warnings, keep others
-clang -Wno-clad-pragma file.cpp -fplugin=libclad.so
+# Disable pragma warnings only
+clang -fplugin=libclad.so -Xclang -plugin-arg-clad -Xclang -Wno-clad-pragma file.cpp
 ```
 
 All diagnostics are shown by default. This feature allows users to selectively suppress warning categories to match project policies.

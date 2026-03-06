@@ -3,6 +3,7 @@
 #ifndef CLAD_UTILS_CLADUTILS_H
 #define CLAD_UTILS_CLADUTILS_H
 
+#include "CladDiagnostics.h"
 #include "DiffMode.h"
 
 #include "clang/AST/ASTContext.h"
@@ -63,6 +64,20 @@ namespace clad {
       unsigned DiagID = S.Diags.getCustomDiagID(Level, Format);
       clang::Sema::SemaDiagnosticBuilder B = S.Diag(Loc, DiagID);
       return B;
+    }
+
+    template <std::size_t N>
+    clang::Sema::SemaDiagnosticBuilder
+    diag(clang::Sema& S, clang::DiagnosticsEngine::Level Level,
+         clang::SourceLocation Loc, clad::DiagnosticGroup Group,
+         const char (&Format)[N]) {
+      if (!clad::shouldEmitDiagnostic(Group, Level)) {
+        unsigned IgnoredDiagID =
+            S.Diags.getCustomDiagID(clang::DiagnosticsEngine::Ignored,
+                                    "suppressed clad diagnostic");
+        return S.Diag(Loc, IgnoredDiagID);
+      }
+      return diag(S, Level, Loc, Format);
     }
 
     /// Creates nested name specifier associated with declaration context

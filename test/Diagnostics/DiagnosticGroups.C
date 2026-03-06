@@ -1,15 +1,22 @@
-// Test diagnostic groups allow controlling warnings with -W flags
-// RUN: %cladclang %s -I%S/../../include 2>&1 | %filecheck %s --check-prefix=CHECK-DEFAULT
-// RUN: %cladclang %s -I%S/../../include -Wno-clad 2>&1 | %filecheck %s --check-prefix=CHECK-NO-CLAD
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | %filecheck %s --check-prefix=CHECK-DEFAULT
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -plugin-arg-clad -Xclang -Wno-clad-unsupported 2>&1 | %filecheck %s --check-prefix=CHECK-NO-UNSUPPORTED
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -plugin-arg-clad -Xclang -Wno-clad 2>&1 | %filecheck %s --check-prefix=CHECK-NO-CLAD
 
 #include "clad/Differentiator/Differentiator.h"
 
-extern int (*indirect_func)(int);
+double id(double x) { return x; }
+double (*id_ptr)(double) = id;
 
-int test_unsupported(int x) {
+double test_unsupported(double x) {
   // CHECK-DEFAULT: indirect calls
+  // CHECK-DEFAULT: statement kind 'StmtExpr' is not supported
+  // CHECK-NO-UNSUPPORTED-NOT: indirect calls
+  // CHECK-NO-UNSUPPORTED-NOT: statement kind 'StmtExpr' is not supported
   // CHECK-NO-CLAD-NOT: indirect calls
-  return indirect_func(x);
+  // CHECK-NO-CLAD-NOT: statement kind 'StmtExpr' is not supported
+  double y = ({ double z = x; z; });
+  y += id_ptr(x);
+  return y;
 }
 
 double test_valid(double x) {
@@ -18,5 +25,8 @@ double test_valid(double x) {
 
 int main() {
   auto grad = clad::gradient(test_valid);
+  auto bad = clad::gradient(test_unsupported);
+  (void)grad;
+  (void)bad;
   return 0;
 }
