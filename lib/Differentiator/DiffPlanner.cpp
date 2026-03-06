@@ -10,7 +10,6 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
-#include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/Timers.h"
 
 #include "clang/AST/ASTContext.h"
