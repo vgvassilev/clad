@@ -18,6 +18,7 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/OperatorKinds.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
@@ -623,7 +624,7 @@ protected:
                                        clang::IdentifierInfo* II,
                                        bool pushOnScopeChains = false,
                                        bool cloneDefaultArg = true,
-                                       clang::SourceLocation Loc = noLoc);
+                                       clang::SourceLocatpion Loc = noLoc);
   /// A function to get the single argument "forward_central_difference"
   /// call expression for the given arguments.
   ///
