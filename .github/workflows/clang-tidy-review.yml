@@ -37,6 +37,7 @@ jobs:
           apt_packages: cmake,libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev,libomp-20-dev,libopenblas-dev
           exclude: "test/*,unittests/*"
           split_workflow: true
+          config_file: .clang-tidy
           cmake_command: >
             CC=$GITHUB_WORKSPACE/llvm/bin/clang CXX=$GITHUB_WORKSPACE/llvm/bin/clang++
             cmake . -B build -DLLVM_DIR="$GITHUB_WORKSPACE/llvm"
