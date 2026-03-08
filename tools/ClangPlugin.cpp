@@ -462,21 +462,16 @@ void InitTimers();
       if (m_HasRuntime)
         return true;
 
-      ASTContext& C = m_CI.getASTContext();
       // The plugin has a lot of different ways to be compiled: in-tree,
       // out-of-tree and hybrid. When we pick up the wrong header files we
       // usually see a problem with C.Idents not being properly initialized.
       // This assert tries to catch such situations heuristically.
-      assert(&C.Idents == &m_CI.getPreprocessor().getIdentifierTable()
-             && "Miscompiled?");
-      // FIXME: Use `utils::LookupNSD` instead.
-      DeclarationName Name = &C.Idents.get("clad");
-      Sema &SemaR = m_CI.getSema();
-      LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
-                     CLAD_COMPAT_Sema_ForVisibleRedeclaration);
-      SemaR.LookupQualifiedName(R, C.getTranslationUnitDecl(),
-                                /*allowBuiltinCreation*/ false);
-      m_HasRuntime = !R.empty();
+      assert(&m_CI.getASTContext().Idents ==
+                 &m_CI.getPreprocessor().getIdentifierTable() &&
+             "Miscompiled?");
+      NamespaceDecl* CladNS =
+          utils::LookupNSD(m_CI.getSema(), "clad", /*shouldExist=*/false);
+      m_HasRuntime = (CladNS != nullptr);
       return m_HasRuntime;
     }
 

@@ -1062,6 +1062,112 @@ CUDA_HOST_DEVICE void hypot_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   *d_y += (y / h) * d_z;
 }
 
+// 7. Special Functions
+#if __cplusplus >= 201703L
+template <typename T> CUDA_HOST_DEVICE inline T clad_beta_primal(T x, T y) {
+#if defined(__cpp_lib_math_special_functions)
+  return ::std::beta(x, y);
+#else
+  return ::std::tgamma(x) * ::std::tgamma(y) / ::std::tgamma(x + y);
+#endif
+}
+// Computes the digamma function psi(x) using a standard asymptotic expansion
+// NOTE: This is a numerical approximation
+// Reference: Wolfram MathWorld, Digamma Function
+// https://mathworld.wolfram.com/DigammaFunction.html
+
+template <typename T> CUDA_HOST_DEVICE inline T clad_digamma(T x) {
+  if (x <= 0.0) {
+    if (x == ::std::floor(x))
+      return (T)NAN;
+    return clad_digamma(1.0 - x) -
+           ::std::acos((T)-1.0) / ::std::tan(::std::acos((T)-1.0) * x);
+  }
+  T result = 0.0;
+  while (x < 8.0) {
+    result -= 1.0 / x;
+    x += 1.0;
+  }
+  T inv_x = 1.0 / x;
+  T inv_x2 = inv_x * inv_x;
+  result +=
+      ::std::log(x) - 0.5 * inv_x -
+      inv_x2 * (1.0 / 12.0 -
+                inv_x2 * (1.0 / 120.0 -
+                          inv_x2 * (1.0 / 252.0 - inv_x2 * (1.0 / 240.0))));
+  return result;
+}
+
+// NOTE: Like digamma this uses a truncated asymptotic expansion.
+// Used as a custom derivative for digamma
+// Reference: Wolfram MathWorld, Trigamma Function
+// https://mathworld.wolfram.com/TrigammaFunction.html
+
+template <typename T> CUDA_HOST_DEVICE inline T clad_trigamma(T x) {
+  if (x <= 0.0) {
+    if (x == ::std::floor(x))
+      return (T)NAN;
+    T pi = ::std::acos((T)-1.0);
+    T csc = 1.0 / ::std::sin(pi * x);
+    return -clad_trigamma(1.0 - x) + (pi * pi * csc * csc);
+  }
+
+  T result = 0.0;
+  while (x < 8.0) {
+    result += 1.0 / (x * x);
+    x += 1.0;
+  }
+
+  T inv_x = 1.0 / x;
+  T inv_x2 = inv_x * inv_x;
+
+  result += inv_x + 0.5 * inv_x2 +
+            inv_x2 * inv_x *
+                (1.0 / 6.0 -
+                 inv_x2 * (1.0 / 30.0 -
+                           inv_x2 * (1.0 / 42.0 - inv_x2 * (1.0 / 30.0))));
+  return result;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> digamma_pushforward(T x, dT d_x) {
+  T psi = clad_digamma(x);
+  dT pushforward = 0;
+  if (d_x)
+    pushforward += clad_trigamma(x) * d_x;
+  return {psi, pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void digamma_pullback(T x, U d_z, T* d_x) {
+  if (d_x)
+    *d_x += clad_trigamma(x) * d_z;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> beta_pushforward(T x, T y, dT d_x,
+                                                             dT d_y) {
+  T b = clad_beta_primal(x, y);
+  T psi_xy = clad_digamma(x + y);
+  dT pushforward = 0;
+  if (d_x)
+    pushforward += b * (clad_digamma(x) - psi_xy) * d_x;
+  if (d_y)
+    pushforward += b * (clad_digamma(y) - psi_xy) * d_y;
+  return {b, pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  T b = clad_beta_primal(x, y);
+  T psi_xy = clad_digamma(x + y);
+  if (d_x)
+    *d_x += b * (clad_digamma(x) - psi_xy) * d_z;
+  if (d_y)
+    *d_y += b * (clad_digamma(y) - psi_xy) * d_z;
+}
+#endif
+
 } // namespace std
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -1326,6 +1432,12 @@ using std::min_pushforward;
 using std::pow_pullback;
 using std::pow_pushforward;
 using std::sqrt_pushforward;
+
+// 7. Special Functions
+#if __cplusplus >= 201703L
+using std::beta_pullback;
+using std::beta_pushforward;
+#endif
 
 namespace class_functions {
 template <typename T, typename U>

@@ -169,6 +169,7 @@ int main() {
   TEST_FUNC(fn_non_diff_call, 3, 5) // CHECK-EXEC: 5.00 3.00
 
   TEST_FUNC(fn_non_diff_param_call, 3, 5) // CHECK-EXEC: 1.00 0.00
+
     // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {
     // CHECK-NEXT:     {
     // CHECK-NEXT:         _d_this->x += _d_y * i;
@@ -181,8 +182,7 @@ int main() {
 
     // CHECK: void fn_s1_mem_fn_grad(double i, double j, double *_d_i, double *_d_j) {
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
-    // CHECK-NEXT:     SimpleFunctions1 _d_obj(obj);
-    // CHECK-NEXT:     clad::zero_init(_d_obj);
+    // CHECK-NEXT:     SimpleFunctions1 _d_obj(0, 0);
     // CHECK-NEXT:     {
     // CHECK-NEXT:         double _r0 = 0.;
     // CHECK-NEXT:         double _r1 = 0.;
@@ -196,8 +196,7 @@ int main() {
     
     // CHECK: void fn_s1_field_grad(double i, double j, double *_d_i, double *_d_j) {
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
-    // CHECK-NEXT:     SimpleFunctions1 _d_obj(obj);
-    // CHECK-NEXT:     clad::zero_init(_d_obj);
+    // CHECK-NEXT:     SimpleFunctions1 _d_obj(0, 0);
     // CHECK-NEXT:     {
     // CHECK-NEXT:         _d_obj.x += 1 * obj.y;
     // CHECK-NEXT:         *_d_i += 1 * j;
@@ -207,8 +206,7 @@ int main() {
     
     // CHECK: void fn_s1_field_pointer_grad(double i, double j, double *_d_i, double *_d_j) {
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
-    // CHECK-NEXT:     SimpleFunctions1 _d_obj(obj);
-    // CHECK-NEXT:     clad::zero_init(_d_obj);
+    // CHECK-NEXT:     SimpleFunctions1 _d_obj(0, 0);
     // CHECK-NEXT:     {
     // CHECK-NEXT:         *_d_obj.x_pointer += 1 * *obj.y_pointer;
     // CHECK-NEXT:         *_d_i += 1 * j;

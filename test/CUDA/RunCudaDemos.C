@@ -5,7 +5,7 @@
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::reduce_pullback
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::transform_pullback
 
-// RUN: ./VectorAddition.out | FileCheck -check-prefix CHECK_VECTOR_ADDITION_EXEC %s
+// RUN: %cudarun ./VectorAddition.out | FileCheck -check-prefix CHECK_VECTOR_ADDITION_EXEC %s
 // CHECK_VECTOR_ADDITION_EXEC: Running vector addition demo.
 // CHECK_VECTOR_ADDITION_EXEC: Gradients of sum wrt initial x: 1 1 1 1 1 1 1 1 1 1 
 
@@ -17,7 +17,7 @@
 // CHECK_PARTICLE_SIMULATION: clad::custom_derivatives::thrust::copy_pullback
 // CHECK_PARTICLE_SIMULATION: clad::custom_derivatives::thrust::transform_pullback
 
-// RUN: ./ParticleSimulation.out | FileCheck -check-prefix CHECK_PARTICLE_SIMULATION_EXEC %s
+// RUN: %cudarun ./ParticleSimulation.out | FileCheck -check-prefix CHECK_PARTICLE_SIMULATION_EXEC %s
 // CHECK_PARTICLE_SIMULATION_EXEC: Running particle simulation demo.
 // CHECK_PARTICLE_SIMULATION_EXEC: Gradients of final x-pos sum wrt initial vx: 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5
 
@@ -44,7 +44,7 @@
 // CHECK_LINEAR_REGRESSION-NEXT:     }
 // CHECK_LINEAR_REGRESSION-NEXT: }
 
-// RUN: ./LinearRegression.out | FileCheck -check-prefix CHECK_LINEAR_REGRESSION_EXEC %s
+// RUN: %cudarun ./LinearRegression.out | FileCheck -check-prefix CHECK_LINEAR_REGRESSION_EXEC %s
 // CHECK_LINEAR_REGRESSION_EXEC: Running linear regression demo.
 // CHECK_LINEAR_REGRESSION_EXEC: Gradients of loss wrt weights (w): -9 -18 -27 -36 -45 -54 -63 -72 -81 -90
 
@@ -53,7 +53,7 @@
 // CHECK_BOW_LOGREG: void logistic_loss_batch2_prepared_l2_grad(
 // CHECK_BOW_LOGREG: clad::custom_derivatives::thrust::inner_product_pullback
 
-// RUN: ./BoWLogisticRegression.out | FileCheck -check-prefix CHECK_BOW_LOGREG_EXEC %s
+// RUN: %cudarun ./BoWLogisticRegression.out | FileCheck -check-prefix CHECK_BOW_LOGREG_EXEC %s
 // CHECK_BOW_LOGREG_EXEC: Running minimal logistic regression demo.
 // CHECK_BOW_LOGREG_EXEC: Loss:
 // CHECK_BOW_LOGREG_EXEC: Gradient wrt w:

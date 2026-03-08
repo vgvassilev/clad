@@ -3,18 +3,61 @@ on:
   push:
     branches:
       - master
-      - coverity_scan
   pull_request:
     branches:
       - master
-      - coverity_scan
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
+  # Pre-flight job to activate the cuda infrastructure
+  prepare-dell:
+    name: Activate self-host infrastructure
+    runs-on: [self-hosted, spotter]
+    steps:
+      - name: Send Magic Packet
+        env:
+          TARGET_IP: 192.168.100.30
+          MAC_ADDR: a4:bb:6d:51:d5:d2
+          # The container has no ping, emulate it.
+        run: |
+          # Mask the IP and potential broadcast to keep logs clean
+          echo "::add-mask::$MAC_ADDR"
+          echo "::add-mask::$BROADCAST"
+          echo "::add-mask::$TARGET_IP"
+          BROADCAST=$(echo $TARGET_IP | sed 's/\.[0-9]*$/ .255/' | tr -d ' ')
+          PING="timeout 1 bash -c 'cat < /dev/null > /dev/tcp/$TARGET_IP/22' 2>/dev/null"
+
+          # Install tool silently
+          sudo apt-get update -qq && sudo apt-get install -y -qq wakeonlan > /dev/null
+
+          # Check if already awake (using the Bash TCP PING variable)
+          if eval "$PING"; then
+            echo "Target machine is already awake. Exiting."
+            exit 0
+          fi
+
+          # If offline, send WoL
+          echo "Machine is offline. Sending WoL..."
+          wakeonlan -i $BROADCAST $MAC_ADDR > /dev/null
+
+          # Wait & Verify Loop (checks every 10s for 4 minutes)
+          echo "Waiting for response (checking Port 22)..."
+          for i in {1..24}; do
+            if eval "$PING"; then
+              echo "Machine is online and SSH is ready."
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Error: Target hardware did not respond within the timeout period."
+          exit 1
+
   build:
+    timeout-minutes: 600 # If some self-host machine is not available
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -22,91 +65,35 @@ jobs:
       matrix:
 
         include:
-          - name: osx26-arm-clang-runtime17
-            os: macos-26
-            compiler: clang
-            clang-runtime: '17'
-            
-          - name: osx26-arm-clang-runtime18
-            os: macos-26
-            compiler: clang
-            clang-runtime: '18'
+          # --- LINUX: Last 10 Runtimes (12-21) ---
+          # Using Ubuntu 22.04 for older runtimes, 24.04 for newer ones
+          - { name: ubu22-gcc10-runtime11, os: ubuntu-22.04, compiler: gcc-10, clang-runtime: '11' }
+          - { name: ubu22-gcc11-runtime12, os: ubuntu-22.04, compiler: gcc-11, clang-runtime: '12' }
+          - { name: ubu22-clang13-runtime13, os: ubuntu-22.04, compiler: clang-13, clang-runtime: '13' }
+          - { name: ubu24-gcc13-runtime14, os: ubuntu-24.04, compiler: gcc-13, clang-runtime: '14' }
+          - { name: ubu24-clang15-runtime15, os: ubuntu-24.04, compiler: clang-15, clang-runtime: '15' }
+          - { name: ubu24-gcc14-runtime16, os: ubuntu-24.04, compiler: gcc-14, clang-runtime: '16' }
+          - { name: ubu24-clang16-runtime17, os: ubuntu-24.04, compiler: clang-16, clang-runtime: '17' }
+          - { name: ubu24-gcc14-runtime18, os: ubuntu-24.04, compiler: gcc-14, clang-runtime: '18' }
+          - { name: ubu24-clang17-runtime19, os: ubuntu-24.04, compiler: clang-17, clang-runtime: '19' }
+          - { name: ubu24-clang19-runtime20, os: ubuntu-24.04, compiler: clang-19, clang-runtime: '20' }
+          - { name: ubu24-clang20-runtime21, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '21' }
+          # --- MACOS: Last 5 Runtimes (17-21) ---
+          # Using macOS ARM (standard) for all; Runtime 17 on Intel for x86 sanity
+          - { name: osx-intel-runtime17, os: macos-15-intel, compiler: clang, clang-runtime: '17' }
+          - { name: osx-arm-runtime18, os: macos-26, compiler: clang, clang-runtime: '18' }
+          - { name: osx-arm-runtime19, os: macos-26, compiler: clang, clang-runtime: '19' }
+          - { name: osx-arm-runtime20, os: macos-26, compiler: clang, clang-runtime: '20' }
+          - { name: osx-arm-runtime21, os: macos-26, compiler: clang, clang-runtime: '21' }
 
-          - name: osx26-arm-clang-runtime19
-            os: macos-26
-            compiler: clang
-            clang-runtime: '19'
+          # --- WINDOWS: Last 5 Runtimes (17-21) ---
+          - { name: win-msvc-runtime17, os: windows-2022, compiler: msvc, clang-runtime: '17' }
+          - { name: win-msvc-runtime18, os: windows-2022, compiler: msvc, clang-runtime: '18' }
+          - { name: win-msvc-runtime19, os: windows-2022, compiler: msvc, clang-runtime: '19' }
+          - { name: win-msvc-runtime20, os: windows-2022, compiler: msvc, clang-runtime: '20' }
+          - { name: win-msvc-runtime21, os: windows-2022, compiler: msvc, clang-runtime: '21' }
 
-          - name: osx26-arm-clang-runtime20
-            os: macos-26
-            compiler: clang
-            clang-runtime: '20'
-
-          - name: osx26-arm-clang-runtime21
-            os: macos-26
-            compiler: clang
-            clang-runtime: '21'
-
-          - name: osx15-x86-clang-runtime16
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '16'
-
-          - name: osx15-x86-clang-runtime17
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '17'
-            
-          - name: osx15-x86-clang-runtime18
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '18'
-
-          - name: osx15-x86-clang-runtime19
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '19'
-
-          - name: osx15-x86-clang-runtime20
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '20'
-
-          - name: osx15-x86-clang-runtime21
-            os: macos-15-intel
-            compiler: clang
-            clang-runtime: '21'
-
-          - name: win2022-msvc-runtime14
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '14'
-
-          - name: win2022-msvc-runtime17
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '17'
-
-          - name: win2022-msvc-runtime18
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '18'
-
-          - name: win2022-msvc-runtime19
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '19'
-
-          - name: win2022-msvc-runtime20
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '20'
-
-          - name: win2022-msvc-runtime21
-            os: windows-2022
-            compiler: msvc
-            clang-runtime: '21'
-
+          # --- CUSTOM: Debug, coverage, benchmarks, static analysis ---
           - name: ubu24-clang20-runtime21-debug
             os: ubuntu-24.04
             compiler: clang-20
@@ -114,12 +101,12 @@ jobs:
             debug_build: true
 
           - name: selfh-ubu22-gcc12-runtime19-analyzers
-            os: [self-hosted, cuda]
+            os: [self-hosted, cuda, heavy]
             compiler: gcc-12
             clang-runtime: '19'
             coverage: true
             cuda: true
-            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
+            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On -DCLAD_CUDA_TEST_USE_SANITIZER=On'
             extra_packages: ' libzstd-dev '
             #clang-format: true
 
@@ -128,63 +115,8 @@ jobs:
             compiler: gcc-13
             clang-runtime: '20'
             extra_cmake_options: '-DCLAD_ENABLE_BENCHMARKS=On -DCLAD_ENABLE_ENZYME_BACKEND=On'
+            extra_packages: "libomp-20-dev libopenblas-dev"
             benchmark: true
-
-          - name: ubu22-gcc10-runtime11-coverity
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '11'
-            coverity: true
-
-          - name: ubu22-gcc10-runtime11
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '11'
-
-          - name: ubu22-gcc10-runtime19
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '19'
-
-          - name: ubu22-gcc11-runtime11
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '11'
-
-          - name: ubu22-gcc11-runtime19
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '19'
-
-          - name: ubu22-clang12-runtime11
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '11'
-
-          - name: ubu22-clang13-runtime11
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '11'
-
-          - name: ubu22-gcc10-runtime12
-            os: ubuntu-22.04
-            compiler: gcc-10
-            clang-runtime: '12'
-
-          - name: ubu22-gcc11-runtime12
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '12'
-
-          - name: ubu22-clang12-runtime12
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '12'
-
-          - name: ubu22-clang13-runtime12
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '12'
 
           - name: ubu22-clang13-runtime13-cuda
             os: ubuntu-22.04
@@ -193,217 +125,18 @@ jobs:
             cuda: true
 
           - name: selfh-ubu22-clang16-runtime18-cuda
-            os: [self-hosted, cuda]
+            os: [self-hosted, cuda, heavy]
             runs-on: cuda
             compiler: clang-16
+            extra_cmake_options: '-DCLAD_CUDA_TEST_USE_SANITIZER=On'
             clang-runtime: '18'
             cuda: true
-
-          - name: ubu22-clang13-runtime15
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '15'
-
-          - name: ubu22-clang13-runtime16
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '16'
-
-          - name: ubu22-clang13-runtime17
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '17'
-
-          - name: ubu22-clang13-runtime18
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '18'
-
-          - name: ubu22-gcc11-runtime11
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '11'
-
-          - name: ubu22-gcc12-runtime11
-            os: ubuntu-22.04
-            compiler: gcc-12
-            clang-runtime: '11'
-
-          - name: ubu22-clang12-runtime11
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '11'
-
-          - name: ubu22-clang13-runtime11
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '11'
-
-          - name: ubu22-clang14-runtime11
-            os: ubuntu-22.04
-            compiler: clang-14
-            clang-runtime: '11'
-
-          - name: ubu22-clang15-runtime11
-            os: ubuntu-22.04
-            compiler: clang-15
-            clang-runtime: '11'
-
-          - name: ubu22-clang16-runtime11
-            os: ubuntu-22.04
-            compiler: 'clang-16'
-            clang-runtime: '11'
-
-          - name: ubu22-gcc11-runtime12
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '12'
-
-          - name: ubu22-gcc12-runtime12
-            os: ubuntu-22.04
-            compiler: gcc-12
-            clang-runtime: '12'
-
-          - name: ubu22-clang12-runtime12
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '12'
-
-          - name: ubu22-clang13-runtime12
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '12'
-
-          - name: ubu22-clang14-runtime12
-            os: ubuntu-22.04
-            compiler: clang-14
-            clang-runtime: '12'
-
-          - name: ubu22-clang15-runtime12
-            os: ubuntu-22.04
-            compiler: clang-15
-            clang-runtime: '12'
-
-          - name: ubu22-clang16-runtime12
-            os: ubuntu-22.04
-            compiler: 'clang-16'
-            clang-runtime: '12'
-
-          - name: ubu22-gcc12-runtime13
-            os: ubuntu-22.04
-            compiler: gcc-12
-            clang-runtime: '13'
-
-          - name: ubu22-clang12-runtime13
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '13'
-
-          - name: ubu22-clang13-runtime13
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '13'
-
-          - name: ubu22-clang14-runtime13
-            os: ubuntu-22.04
-            compiler: clang-14
-            clang-runtime: '13'
-
-          - name: ubu22-clang15-runtime13
-            os: ubuntu-22.04
-            compiler: clang-15
-            clang-runtime: '13'
-
-          - name: ubu22-clang16-runtime13
-            os: ubuntu-22.04
-            compiler: clang-16
-            clang-runtime: '13'
-
-          - name: ubu22-gcc12-runtime14
-            os: ubuntu-22.04
-            compiler: gcc-12
-            clang-runtime: '14'
-
-          - name: ubu24-gcc13-runtime14
-            os: ubuntu-24.04
-            compiler: gcc-13
-            clang-runtime: '14'
-
-          - name: ubu24-gcc14-runtime14
-            os: ubuntu-24.04
-            compiler: gcc-14
-            clang-runtime: '14'
-
-          - name: ubu24-gcc14-runtime15
-            os: ubuntu-24.04
-            compiler: gcc-14
-            clang-runtime: '15'
-
-          - name: ubu24-gcc14-runtime16
-            os: ubuntu-24.04
-            compiler: gcc-14
-            clang-runtime: '16'
-
-          - name: ubu24-gcc14-runtime17
-            os: ubuntu-24.04
-            compiler: gcc-14
-            clang-runtime: '17'
-
-          - name: ubu22-clang12-runtime14
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '14'
-
-          - name: ubu22-clang12-runtime15
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '15'
-
-          - name: ubu22-clang12-runtime16
-            os: ubuntu-22.04
-            compiler: clang-12
-            clang-runtime: '16'
-
-          - name: ubu22-clang13-runtime14
-            os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '14'
-
-          - name: ubu24-clang14-runtime14
-            os: ubuntu-24.04
-            compiler: clang-14
-            clang-runtime: '14'
-
-          - name: ubu24-clang14-runtime15
-            os: ubuntu-24.04
-            compiler: clang-15
-            clang-runtime: '14'
-
-          - name: ubu22-clang14-runtime15
-            os: ubuntu-22.04
-            compiler: clang-14
-            clang-runtime: '15'
-
-          - name: ubu24-clang15-runtime15
-            os: ubuntu-24.04
-            compiler: clang-15
-            clang-runtime: '15'
-
-          - name: ubu24-clang15-runtime16
-            os: ubuntu-24.04
-            compiler: clang-15
-            clang-runtime: '16'
 
           - name: ubuntu-clang15-runtime16-doc
             os: ubuntu-latest
             compiler: clang-15
             clang-runtime: '16'
             doc_build: true
-
-          - name: ubu24-clang16-runtime17
-            os: ubuntu-24.04
-            compiler: clang-16
-            clang-runtime: '17'
 
           - name: ubu24-clang16-runtime17-shared-libs
             os: ubuntu-24.04
@@ -418,37 +151,12 @@ jobs:
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
-          - name: ubu24-clang16-runtime18
-            os: ubuntu-24.04
-            compiler: clang-16
-            clang-runtime: '18'
-
-          - name: ubu24-clang17-runtime19
-            os: ubuntu-24.04
-            compiler: clang-17
-            clang-runtime: '19'
-
-          - name: ubu22-clang18-runtime20
-            os: ubuntu-22.04
-            compiler: clang-18
-            clang-runtime: '20'
-
           - name: ubu24-clang19-runtime20-vg
             os: ubuntu-24.04
             compiler: clang-19
             extra_packages: 'valgrind'
             extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
             clang-runtime: '20'
-
-          - name: ubu24-clang20-runtime21
-            os: ubuntu-24.04
-            compiler: clang-20
-            clang-runtime: '21'
-
-          - name: ubu24-arm-clang16-runtime17
-            os: ubuntu-24.04-arm
-            compiler: clang-16
-            clang-runtime: '17'
 
           - name: ubu24-arm-clang16-runtime17-shared-libs
             os: ubuntu-24.04-arm
@@ -489,7 +197,7 @@ jobs:
         path: pr/
         overwrite: true
     - uses: nelonoel/branch-name@v1.0.1
-    - name: Setup default Build Type on *nux (coverity)
+    - name: Setup default Build Type on *nux
       if: ${{ (matrix.debug_build != true) && (runner.os != 'windows') }}
       run: |
         echo "BUILD_TYPE=Release" >> $GITHUB_ENV
@@ -507,19 +215,6 @@ jobs:
         $env:CLAD_CODE_COVERAGE="0"
         echo "BUILD_TYPE=Release" >> $env:GITHUB_ENV
         echo "CLAD_CODE_COVERAGE=0" >> $env:GITHUB_ENV
-    - name: Download Coverity Build Tool - Linux
-      if: ${{ (matrix.coverity == true) && (runner.os == 'Linux') }}
-      run: |
-        # FIXME: Ideally the check should be in the if: block of the action
-        if [ "$BRANCH_NAME" == "coverity_scan" ]; then
-          # wget -q https://scan.coverity.com/download/cxx/linux64 --post-data "token=$TOKEN&project=vgvassilev/clad" -O cov-analysis-linux64.tar.gz
-          mkdir cov-analysis-linux64
-          # tar xzf cov-analysis-linux64.tar.gz --strip 1 -C cov-analysis-linux64
-          echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
-          echo "$GITHUB_WORKSPACE/cov-analysis-linux64/bin" >> $GITHUB_PATH
-        fi
-      # env:
-      #  TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
     - name: Setup Ubuntu apt sources
       if: runner.os == 'Linux'
       run: |
@@ -547,6 +242,7 @@ jobs:
                          llvm-${{ matrix.clang-runtime }}-tools \
                          clang-${{ matrix.clang-runtime }} \
                          libclang-${{ matrix.clang-runtime }}-dev \
+                         libomp-${{ matrix.clang-runtime }}-dev \
                          ${{ matrix.extra_packages }}
 
     - name: Setup compiler on Linux
@@ -824,7 +520,7 @@ jobs:
 
         cmake --build . -- -j4
     - name: Build Clad on Windows
-      if: ${{ matrix.coverity == false && runner.os == 'windows' }}
+      if: ${{ runner.os == 'windows' }}
       run: |
         mkdir obj
         cd obj
@@ -840,27 +536,8 @@ jobs:
         $lit = @(which lit)
         cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
         cmake --build . --config Release
-    - name: Build Clad for Coverity Scan
-      if: ${{ matrix.coverity == true }}
-      run: |
-        # FIXME: Ideally the check should be in the if: block of the action
-        if [ "$BRANCH_NAME" == "coverity_scan" ]; then
-          if [[ "${{ matrix.compiler }}" == "gcc-8" ]]; then
-            rm -rf obj && mkdir obj && cd obj
-            cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
-              -DLLVM_DIR="$PATH_TO_LLVM_BUILD" \
-              -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
-              $GITHUB_WORKSPACE
-            cov-build --dir cov-out cmake --build .  -- -j4
-          else
-            echo "Coverity Scan can only be triggered for GCC 6. Fix Github Actions YAML"
-            exit 1
-          fi
-        else
-          echo "This action only runs on branch coverity_scan"
-        fi
     - name: Test Clad on *nix
-      if: ${{ matrix.coverity == false && runner.os != 'windows' }}
+      if: ${{ runner.os != 'windows' }}
       run: |
         cd obj
         # Packages downloaded and unzipped require setting the SDKROOT.
@@ -869,7 +546,7 @@ jobs:
         fi
         cmake --build . --target check-clad -- -j4
     - name: Test Clad on Windows
-      if: ${{ matrix.coverity == false && runner.os == 'windows' }}
+      if: ${{ runner.os == 'windows' }}
       run: |
         cd obj
         #cmake --build . --target check-clad
@@ -900,7 +577,7 @@ jobs:
           ..
         cmake --build . --target sphinx-clad doxygen-clad -- -j4
     - name: Failed job config
-      if: ${{ failure() && runner.os != 'windows' }}
+      if: ${{ failure() && runner.debug && runner.os != 'windows' }}
       env:
         GITHUB_CONTEXT: ${{ toJson(github) }}
       run: |
@@ -944,28 +621,7 @@ jobs:
       if: ${{ success() && (matrix.coverage == true) }}
       uses: codecov/codecov-action@v5
       with:
-        file: ./coverage.info
+        files: ./coverage.info
         fail_ci_if_error: true
         verbose: true
         token: ${{ secrets.CODECOV_TOKEN }}
-
-    - name: Upload report to coverity_scan
-      if: ${{ success() && (matrix.coverity == true) }}
-      run: |
-        # FIXME: Ideally the check should be in the if: block of the action
-        if [ "$BRANCH_NAME" == "coverity_scan" ]; then
-          # Upload to coverity
-          tar czvf clad.tgz cov-out
-          # curl \
-          #   --form project=vgvassilev/clad \
-          #   --form token=$TOKEN \
-          #   --form email=v.g.vassilev@gmail.com \
-          #   --form file=@clad.tgz \
-          #   --form version=trunk \
-          #   --form description=""Clad build submitted via Travis CI"" \
-          #   https://scan.coverity.com/builds?project=vgvassilev/clad
-        else
-          echo "This action only runs on branch coverity_scan"
-        fi
-      # env:
-      #  TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}

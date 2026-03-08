@@ -228,8 +228,7 @@ int main() {
 
   // CHECK: void CallFunctor_grad(double i, double j, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment E(3, 5);
-  // CHECK-NEXT:     Experiment _d_E(E);
-  // CHECK-NEXT:     clad::zero_init(_d_E);
+  // CHECK-NEXT:     Experiment _d_E(0, 0);
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
   // CHECK-NEXT:         double _r1 = 0.;
@@ -285,10 +284,9 @@ int main() {
 
   // CHECK: void FunctorAsArgWrapper_grad(double i, double j, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment E(3, 5);
-  // CHECK-NEXT:     Experiment _d_E(E);
-  // CHECK-NEXT:     clad::zero_init(_d_E);
+  // CHECK-NEXT:     Experiment _d_E(0, 0);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         Experiment _r0 = {};
+  // CHECK-NEXT:         Experiment _r0 = _d_E;
   // CHECK-NEXT:         double _r1 = 0.;
   // CHECK-NEXT:         double _r2 = 0.;
   // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r0, &_r1, &_r2);

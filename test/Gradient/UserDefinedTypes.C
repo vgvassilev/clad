@@ -128,7 +128,6 @@ double fn3(double i, double j) {
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     Tangent t;
 // CHECK-NEXT:     Tangent _d_t;
-// CHECK-NEXT:     clad::zero_init(_d_t);
 // CHECK-NEXT:     t.data[0] = 2 * i;
 // CHECK-NEXT:     t.data[1] = 5 * i + 3 * j;
 // CHECK-NEXT:     sum_pullback(t, 1, &_d_t);
@@ -153,11 +152,9 @@ double fn4(double i, double j) {
 
 // CHECK: void fn4_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     pairdd p(1, 3);
-// CHECK-NEXT:     pairdd _d_p(p);
-// CHECK-NEXT:     clad::zero_init(_d_p);
+// CHECK-NEXT:     pairdd _d_p(0, 0);
 // CHECK-NEXT:     pairdd q{7, 5};
-// CHECK-NEXT:     pairdd _d_q(q);
-// CHECK-NEXT:     clad::zero_init(_d_q);
+// CHECK-NEXT:     pairdd _d_q{0, 0};
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_p.first += 1 * i;
 // CHECK-NEXT:         *_d_i += p.first * 1;
@@ -386,7 +383,6 @@ double fn11(double x, double y) {
 // CHECK: void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     Tangent t;
 // CHECK-NEXT:     Tangent _d_t;
-// CHECK-NEXT:     clad::zero_init(_d_t);
 // CHECK-NEXT:     t.data[0] = -y;
 // CHECK-NEXT:     operator_plus_pullback(x, t, 1, _d_x, &_d_t);
 // CHECK-NEXT:     {
@@ -583,8 +579,7 @@ public:
 
 // CHECK:  void operator_plus_pullback(const SimpleFunctions1 &other, SimpleFunctions1 _d_y, SimpleFunctions1 *_d_this, SimpleFunctions1 *_d_other) const {
 // CHECK-NEXT:      SimpleFunctions1 res(this->x + other.x, this->y + other.y);
-// CHECK-NEXT:      SimpleFunctions1 _d_res(res);
-// CHECK-NEXT:      clad::zero_init(_d_res);
+// CHECK-NEXT:      SimpleFunctions1 _d_res(0., 0.);
 // CHECK-NEXT:      SimpleFunctions1::constructor_pullback(std::move(res), &_d_y, &_d_res);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
@@ -605,11 +600,9 @@ double fn16(double i, double j) {
 
 // CHECK: void fn16_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:    SimpleFunctions1 obj1(2, 3);
-// CHECK-NEXT:    SimpleFunctions1 _d_obj1(obj1);
-// CHECK-NEXT:    clad::zero_init(_d_obj1);
+// CHECK-NEXT:    SimpleFunctions1 _d_obj1(0, 0);
 // CHECK-NEXT:    SimpleFunctions1 obj2(3, 5);
-// CHECK-NEXT:    SimpleFunctions1 _d_obj2(obj2);
-// CHECK-NEXT:    clad::zero_init(_d_obj2);
+// CHECK-NEXT:    SimpleFunctions1 _d_obj2(0, 0);
 // CHECK-NEXT:    {
 // CHECK-NEXT:        SimpleFunctions1 _r0 = {};
 // CHECK-NEXT:        double _r1 = 0.;
@@ -638,8 +631,7 @@ double fn17(double i, double j) {
 
 // CHECK: void fn17_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:    SimpleFunctions1 sf(3, 5);
-// CHECK-NEXT:    SimpleFunctions1 _d_sf(sf);
-// CHECK-NEXT:    clad::zero_init(_d_sf);
+// CHECK-NEXT:    SimpleFunctions1 _d_sf(0, 0);
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r0 = 0.;
 // CHECK-NEXT:        double _r1 = 0.;
@@ -656,8 +648,7 @@ double fn18(double i, double j) {
 
 // CHECK:  void fn18_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:      SimpleFunctions1 sf(3 * i, 5 * j);
-// CHECK-NEXT:      SimpleFunctions1 _d_sf(sf);
-// CHECK-NEXT:      clad::zero_init(_d_sf);
+// CHECK-NEXT:      SimpleFunctions1 _d_sf(0., 0.);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r2 = 0.;
 // CHECK-NEXT:          double _r3 = 0.;
@@ -694,11 +685,9 @@ double fn19(double i, double j) {
 
 // CHECK:  void fn19_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:      SimpleFunctions1 sf1(3, 5);
-// CHECK-NEXT:      SimpleFunctions1 _d_sf1(sf1);
-// CHECK-NEXT:      clad::zero_init(_d_sf1);
+// CHECK-NEXT:      SimpleFunctions1 _d_sf1(0, 0);
 // CHECK-NEXT:      SimpleFunctions1 sf2(i, j);
-// CHECK-NEXT:      SimpleFunctions1 _d_sf2(sf2);
-// CHECK-NEXT:      clad::zero_init(_d_sf2);
+// CHECK-NEXT:      SimpleFunctions1 _d_sf2(0., 0.);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          SimpleFunctions1 _r2 = {};
 // CHECK-NEXT:          double _r3 = 0.;
@@ -776,8 +765,7 @@ double fn22(double x){
 
 // CHECK:  void fn22_grad(double x, double *_d_x) {
 // CHECK-NEXT:      StructNoDefConstr t(0);
-// CHECK-NEXT:      StructNoDefConstr _d_t(t);
-// CHECK-NEXT:      clad::zero_init(_d_t);
+// CHECK-NEXT:      StructNoDefConstr _d_t(0);
 // CHECK-NEXT:      *_d_x += 1;
 // CHECK-NEXT:  }
 
@@ -886,8 +874,7 @@ double fn24(double x, double y) {
 
 // CHECK:  void fn24_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Vector3 v(x, x, y);
-// CHECK-NEXT:      Vector3 _d_v(v);
-// CHECK-NEXT:      clad::zero_init(_d_v);
+// CHECK-NEXT:      Vector3 _d_v(0., 0., 0.);
 // CHECK-NEXT:      Vector3 w = 2 * v;
 // CHECK-NEXT:      Vector3 _d_w;
 // CHECK-NEXT:      _d_w.x += 1;
@@ -926,8 +913,7 @@ double fn25(double x, double y) {
 
 // CHECK:  void fn25_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      Vector3 v{x, x, y};
-// CHECK-NEXT:      Vector3 _d_v(v);
-// CHECK-NEXT:      clad::zero_init(_d_v);
+// CHECK-NEXT:      Vector3 _d_v{0., 0., 0.};
 // CHECK-NEXT:      Vector3 w = - v;
 // CHECK-NEXT:      Vector3 _d_w;
 // CHECK-NEXT:      _d_w.x += 1;
@@ -1042,7 +1028,7 @@ double fn28(double x, double y) {
 // CHECK-NEXT:      double z = vecSum({x, y, x});
 // CHECK-NEXT:      _d_z += 1;
 // CHECK-NEXT:      {
-// CHECK-NEXT:          Vector3 _r0 = {};
+// CHECK-NEXT:          Vector3 _r0 = {0., 0., 0.};
 // CHECK-NEXT:          vecSum_pullback({x, y, x}, _d_z, &_r0);
 // CHECK-NEXT:          double _r1 = 0.;
 // CHECK-NEXT:          double _r2 = 0.;
@@ -1329,8 +1315,7 @@ double fn36(double x, size_t n){
 // CHECK:  void fn36_grad_0(double x, size_t n, double *_d_x) {
 // CHECK-NEXT:      size_t _d_n = {{0U|0UL|0ULL}};
 // CHECK-NEXT:      PrivClass E(n);
-// CHECK-NEXT:      PrivClass _d_E(E);
-// CHECK-NEXT:      clad::zero_init(_d_E);
+// CHECK-NEXT:      PrivClass _d_E(0{{.*}});
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r1 = 0.;
 // CHECK-NEXT:          E.multiply_pullback(x, 1, &_d_E, &_r1);

@@ -358,6 +358,44 @@ namespace clad {
       return true;
     }
 
+    bool isElidableConstructor(const clang::CXXConstructorDecl* CD,
+                               const clang::ASTContext& C) {
+      const CXXRecordDecl* RD = CD->getParent();
+      if (CD->isCopyOrMoveConstructor() && CD->isTrivial())
+        return true;
+      if (RD->isAggregate())
+        return true;
+      if (utils::unwrapIfSingleStmt(CD->getBody()))
+        return false;
+      bool isZeroOrCopyCtor = true;
+      for (CXXCtorInitializer* CI : CD->inits()) {
+        if (CI->isMemberInitializer()) {
+          QualType memberTy = CI->getMember()->getType();
+          if (memberTy->isPointerType() || memberTy->isLValueReferenceType())
+            continue;
+        }
+        Expr* init = CI->getInit()->IgnoreImplicit();
+        Expr::EvalResult value;
+        bool isZero = false;
+        if (clad_compat::Expr_EvaluateAsConstantExpr(init, value, C)) {
+          const auto* val = &value.Val;
+          if (val->isArray() && val->hasArrayFiller())
+            val = &val->getArrayFiller();
+          if (val->isInt())
+            isZero = val->getInt() == 0;
+          else if (val->isFloat())
+            isZero = val->getFloat().isZero();
+        }
+
+        if (!(isa<DeclRefExpr>(init) || isa<CXXConstructExpr>(init) ||
+              isZero)) {
+          isZeroOrCopyCtor = false;
+          break;
+        }
+      }
+      return isZeroOrCopyCtor;
+    }
+
     void getRecordDeclFields(
         const clang::RecordDecl* RD,
         llvm::SmallVectorImpl<const clang::FieldDecl*>& fields) {

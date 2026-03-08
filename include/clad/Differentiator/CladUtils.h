@@ -429,6 +429,9 @@ namespace clad {
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
 
+    bool isElidableConstructor(const clang::CXXConstructorDecl* CD,
+                               const clang::ASTContext& C);
+
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
 

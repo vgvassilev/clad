@@ -26,6 +26,9 @@
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 #include <type_traits>
 #include <utility>
 #ifndef __CUDACC__
@@ -59,90 +62,107 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 
 /// Tape type used for storing values in reverse-mode AD inside loops.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          bool is_multithread = false>
-using tape = tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread>;
+          bool is_multithread = false, bool DiskOffload = false>
+using tape = tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload>;
 
 /// Add value to the end of the tape, return the same value.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          typename... ArgsT>
-CUDA_HOST_DEVICE T& push(tape<T, SBO_SIZE, SLAB_SIZE>& to, ArgsT... val) {
+          bool DiskOffload = false, typename... ArgsT>
+CUDA_HOST_DEVICE T&
+push(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithread=*/false, DiskOffload>& to,
+     ArgsT... val) {
   to.emplace_back(std::forward<ArgsT>(val)...);
   return to.back();
 }
 
 /// A specialization for C arrays
 template <typename T, typename U, size_t N, std::size_t SBO_SIZE = 64,
-          std::size_t SLAB_SIZE = 1024>
-CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
+          std::size_t SLAB_SIZE = 1024, bool DiskOffload = false>
+CUDA_HOST_DEVICE void
+push(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithread=*/false, DiskOffload>& to,
+     const U& val) {
   to.emplace_back();
   std::copy(std::begin(val), std::end(val), std::begin(to.back()));
 }
 
   /// Remove the last value from the tape, return it.
-  template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
-  CUDA_HOST_DEVICE T pop(tape<T, SBO_SIZE, SLAB_SIZE>& to) {
-    T val = std::move(to.back());
-    to.pop_back();
-    return val;
-  }
+template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
+          bool DiskOffload = false>
+CUDA_HOST_DEVICE T
+pop(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithread=*/false, DiskOffload>& to) {
+  T val = std::move(to.back());
+  to.pop_back();
+  return val;
+}
 
   /// A specialization for C arrays
-  template <typename T, std::size_t N, std::size_t SBO_SIZE = 64,
-            std::size_t SLAB_SIZE = 1024>
-  CUDA_HOST_DEVICE void pop(tape<T[N], SBO_SIZE, SLAB_SIZE>& to) {
-    to.pop_back();
-  }
+template <typename T, std::size_t N, std::size_t SBO_SIZE = 64,
+          std::size_t SLAB_SIZE = 1024, bool DiskOffload = false>
+CUDA_HOST_DEVICE void pop(tape<T[N], SBO_SIZE, SLAB_SIZE,
+                               /*is_multithread=*/false, DiskOffload>& to) {
+  to.pop_back();
+}
 
   /// Access return the last value in the tape.
-  template <typename T> CUDA_HOST_DEVICE T& back(tape<T>& of) {
-    return of.back();
-  }
+template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
+          bool DiskOffload = false>
+CUDA_HOST_DEVICE T&
+back(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithread=*/false, DiskOffload>& of) {
+  return of.back();
+}
 
   /// Thread safe tape access functions with mutex locking mechanism
+/// Thread safe tape access functions with mutex locking mechanism
 #ifndef __CUDACC__
-  /// Add value to the end of the tape, return the same value.
-  template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-            typename... ArgsT>
-  T push(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true>& to,
-         ArgsT&&... val) {
-    std::lock_guard<std::mutex> lock(to.mutex());
-    to.emplace_back(std::forward<ArgsT>(val)...);
-    return to.back();
-  }
+/// Add value to the end of the tape, return the same value.
+template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
+          bool DiskOffload = false, typename... ArgsT>
+T push(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true, DiskOffload>& to,
+       ArgsT&&... val) {
+  std::lock_guard<std::mutex> lock(to.mutex());
+  to.emplace_back(std::forward<ArgsT>(val)...);
+  return to.back();
+}
 
   /// A specialization for C arrays
-  template <typename T, typename U, size_t N, std::size_t SBO_SIZE = 64,
-            std::size_t SLAB_SIZE = 1024>
-  void push(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true>& to,
-            const U& val) {
-    std::lock_guard<std::mutex> lock(to.mutex());
-    to.emplace_back();
-    std::copy(std::begin(val), std::end(val), std::begin(to.back()));
-  }
+template <typename T, typename U, size_t N, std::size_t SBO_SIZE = 64,
+          std::size_t SLAB_SIZE = 1024, bool DiskOffload = false>
+void push(
+    tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true, DiskOffload>& to,
+    const U& val) {
+  std::lock_guard<std::mutex> lock(to.mutex());
+  to.emplace_back();
+  std::copy(std::begin(val), std::end(val), std::begin(to.back()));
+}
 
   /// Remove the last value from the tape, return it.
-  template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
-  T pop(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true>& to) {
-    std::lock_guard<std::mutex> lock(to.mutex());
-    T val = std::move(to.back());
-    to.pop_back();
-    return val;
-  }
+template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
+          bool DiskOffload = false>
+T pop(
+    tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true, DiskOffload>& to) {
+  std::lock_guard<std::mutex> lock(to.mutex());
+  T val = std::move(to.back());
+  to.pop_back();
+  return val;
+}
 
   /// A specialization for C arrays
-  template <typename T, std::size_t N, std::size_t SBO_SIZE = 64,
-            std::size_t SLAB_SIZE = 1024>
-  void pop(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true>& to) {
-    std::lock_guard<std::mutex> lock(to.mutex());
-    to.pop_back();
-  }
+template <typename T, std::size_t N, std::size_t SBO_SIZE = 64,
+          std::size_t SLAB_SIZE = 1024, bool DiskOffload = false>
+void pop(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true,
+              DiskOffload>& to) {
+  std::lock_guard<std::mutex> lock(to.mutex());
+  to.pop_back();
+}
 
   /// Access return the last value in the tape.
-  template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024>
-  T& back(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true>& of) {
-    std::lock_guard<std::mutex> lock(of.mutex());
-    return of.back();
-  }
+template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
+          bool DiskOffload = false>
+T& back(
+    tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true, DiskOffload>& of) {
+  std::lock_guard<std::mutex> lock(of.mutex());
+  return of.back();
+}
 #endif
 
   /// The purpose of this function is to initialize adjoints
@@ -242,7 +262,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   template <bool EnablePadding, class... Rest, class F, class... Args,
             class... fArgTypes,
             typename std::enable_if<EnablePadding, bool>::type = true>
-  constexpr CUDA_HOST_DEVICE return_type_t<F>
+  CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
@@ -269,7 +289,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   template <bool EnablePadding, class... Rest, class F, class... Args,
             class... fArgTypes,
             typename std::enable_if<!EnablePadding, bool>::type = true>
-  constexpr return_type_t<F>
+  CLAD_CONSTEXPR_CXX14 return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
@@ -299,7 +319,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
   template <bool EnablePadding, class... Rest, class ReturnType, class C,
             class Obj, class... Args, class... fArgTypes,
             typename std::enable_if<!EnablePadding, bool>::type = true>
-  constexpr auto
+  CLAD_CONSTEXPR_CXX14 auto
   execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
                             list<fArgTypes...>,
                             Args&&... args) -> return_type_t<decltype(f)> {
@@ -338,10 +358,11 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
                            "you pass clad.so to clang.");
 #endif
       size_t length = GetLength(code);
-      char* temp = (char*)malloc(length + 1);
-      m_Code = temp;
-      while ((*temp++ = *code++))
-        ;
+      m_Code = (char*)malloc(length + 1);
+      if (m_Code)
+        memcpy((void*)m_Code, code, length + 1);
+      else
+        fprintf(stderr, "Error: Failed to allocate memory for m_Code\n");
     }
 
     constexpr CUDA_HOST_DEVICE CladFunction(CladFunctionType f,
@@ -396,8 +417,9 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
 
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
-                            return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
-    execute(Args&&... args) const {
+                            return_type_t<F>>::type
+        CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE
+        execute(Args&&... args) const {
       if (!m_Function)
         return static_cast<return_type_t<F>>(return_type_t<F>());
       if (m_CUDAkernel) {
@@ -407,9 +429,9 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
       // here static_cast is used to achieve perfect forwarding
 #ifdef __CUDACC__
       return execute_helper(m_Function, m_CUDAkernel, dim3(0), dim3(0),
-                            static_cast<Args>(args)...);
+                            std::forward<Args>(args)...);
 #else
-      return execute_helper(m_Function, static_cast<Args>(args)...);
+      return execute_helper(m_Function, std::forward<Args>(args)...);
 #endif
     }
 
@@ -445,12 +467,13 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
     }
 
     template <typename... Args>
-    constexpr CUDA_HOST_DEVICE auto operator()(Args&&... args) const {
+    constexpr CUDA_HOST_DEVICE auto operator()(Args&&... args) const
+        -> decltype(this->execute(std::forward<Args>(args)...)) {
       return execute(std::forward<Args>(args)...);
     }
 
     /// Return the string representation for the generated derivative.
-    constexpr const char* getCode() const {
+    CLAD_CONSTEXPR_CXX14 const char* getCode() const {
       if (m_Code)
         return m_Code;
       return "<invalid>";
@@ -480,7 +503,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
     private:
       /// Helper function for executing non-member derived functions.
       template <class Fn, class... Args>
-      constexpr CUDA_HOST_DEVICE return_type_t<CladFunctionType>
+      CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE return_type_t<CladFunctionType>
       execute_helper(Fn f, CUDA_ARGS Args&&... args) const {
         // `static_cast` is required here for perfect forwarding.
 #if defined(__CUDACC__)
@@ -523,7 +546,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
                 class = typename std::enable_if<std::is_same<
                     typename std::decay<Obj>::type, C>::value>::type,
                 class... Args>
-      constexpr return_type_t<CladFunctionType>
+      CLAD_CONSTEXPR_CXX14 return_type_t<CladFunctionType>
       execute_helper(ReturnType C::*f, Obj&& obj, Args&&... args) const {
         // `static_cast` is required here for perfect forwarding.
         return execute_with_default_args<EnablePadding>(
@@ -536,7 +559,7 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
       /// will be used and derived function will be called through the object
       /// saved in `CladFunction`.
       template <class ReturnType, class C, class... Args>
-      constexpr return_type_t<CladFunctionType>
+      CLAD_CONSTEXPR_CXX14 return_type_t<CladFunctionType>
       execute_helper(ReturnType C::*f, Args&&... args) const {
         // `static_cast` is required here for perfect forwarding.
         return execute_with_default_args<EnablePadding>(
@@ -796,6 +819,54 @@ CUDA_HOST_DEVICE void push(tape<T[N], SBO_SIZE, SLAB_SIZE>& to, const U& val) {
 
   // Gradient Structure for Reverse Mode Enzyme
   template <unsigned N> struct EnzymeGradient { double d_arr[N]; };
+
+#ifdef _OPENMP
+  inline void GetStaticSchedule(int lo, int hi, int stride, int* threadlo,
+                                int* threadhi) {
+    /* Static OpenMP scheduler, identical to what LLVM would use. Each thread
+       gets one chunk of consecutive iterations. The number of iterations per
+       chunk is aproximately trip_count/num_threads. If the trip count can not
+       be evenly divided among threads, the first few threads get one extra
+       iteration. As long as the number of threads stays constant, and when
+       called by the same thread, this subroutine will always return the same
+       threadstart and threadend when given the same imin,imax,istride as input.
+     */
+    assert(stride);
+    /* formula to compute the number of iterations */
+    int trip_count = (hi - lo + stride) / stride;
+    trip_count = std::max(trip_count, 0);
+
+    int nth = omp_get_num_threads();
+    int tid = omp_get_thread_num();
+
+    if (trip_count < nth) {
+      /* fewer iterations than threads. some threads will get one iteration,
+         the other threads will get nothing. */
+      if (tid < trip_count) {
+        /* do one iteration */
+        *threadlo = lo + tid * stride;
+        *threadhi = *threadlo;
+      } else {
+        /* do nothing */
+        *threadhi = 0;
+        *threadlo = *threadhi + stride;
+      }
+    }
+    /* at least one iteration per thread. since the total number of iterations
+       may not be evenly dividable by the number of threads, there will be a few
+       extra iterations. the first few threads will each get one of those, which
+       results in some offsetts that are applied to the start and end of the
+       chunks. */
+    else {
+      int chunksize = trip_count / nth;
+      int extras = trip_count % nth;
+      int tidextras = (tid < extras) ? tid : extras;
+      int incr = (tid < extras) ? 0 : stride;
+      *threadlo = lo + (tid * chunksize + tidextras) * stride;
+      *threadhi = *threadlo + chunksize * stride - incr;
+    }
+  }
+#endif
   } // namespace clad
 #endif // CLAD_DIFFERENTIATOR
 
