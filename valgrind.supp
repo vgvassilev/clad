@@ -1,0 +1,7 @@
+{
+   ignore_clang21_FunctionProtoType_uninit
+   Memcheck:Cond
+   fun:*clang*FunctionProtoType*
+   fun:*clang*ASTContext*getFunctionTypeInternal*
+   obj:*/libclang-cpp.so*
+}
