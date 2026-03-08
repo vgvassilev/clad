@@ -164,6 +164,37 @@ T& back(
   return of.back();
 }
 #endif
+/// Generic fallback overloads for user-defined custom tape types.
+template <typename T> struct is_clad_tape : std::false_type {};
+
+template <typename T, std::size_t SBO, std::size_t SLAB, bool MT, bool Disk>
+struct is_clad_tape<tape_impl<T, SBO, SLAB, MT, Disk>> : std::true_type {};
+
+template <typename TapeType, typename... ArgsT,
+          typename std::enable_if<!clad::is_clad_tape<TapeType>::value,
+                                  int>::type = 0>
+CUDA_HOST_DEVICE auto push(TapeType& to, ArgsT&&... val)
+    -> decltype(to.emplace_back(std::forward<ArgsT>(val)...), to.back()) {
+  to.emplace_back(std::forward<ArgsT>(val)...);
+  return to.back();
+}
+
+template <typename TapeType,
+          typename std::enable_if<!clad::is_clad_tape<TapeType>::value,
+                                  int>::type = 0>
+CUDA_HOST_DEVICE auto pop(TapeType& to) ->
+    typename std::decay<decltype(to.back())>::type {
+  typename std::decay<decltype(to.back())>::type val = std::move(to.back());
+  to.pop_back();
+  return val;
+}
+
+template <typename TapeType,
+          typename std::enable_if<!clad::is_clad_tape<TapeType>::value,
+                                  int>::type = 0>
+CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
+  return of.back();
+}
 
   /// The purpose of this function is to initialize adjoints
   /// (or all of its iteratable elements) with 0.
