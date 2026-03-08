@@ -1766,10 +1766,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<FunctionDecl*> SaveDerivative(m_Derivative);
 
-    // FIXME: Should be easy remove.
-    auto*& FuncRef = const_cast<const FunctionDecl*&>(m_DiffReq.Function);
-
-    llvm::SaveAndRestore<const FunctionDecl*> SaveReq(FuncRef);
     llvm::SaveAndRestore<Scope*> SaveFunctionScope(m_DerivativeFnScope);
     beginScope(Scope::LambdaScope | Scope::DeclScope |
                Scope::FunctionDeclarationScope | Scope::FunctionPrototypeScope);
@@ -1793,8 +1789,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     LSI->Lambda->setDeclContext(DC);
 
     m_Derivative = LSI->CallOperator;
-    // FIXME: Should be easy remove.
-    const_cast<DiffRequest&>(m_DiffReq).Function = LE->getCallOperator();
 
     BuildParams(params, LE);
     m_Derivative->setBody(MakeCompoundStmt({}));
@@ -1883,11 +1877,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const LambdaExpr* LE) {
-    Expr* lambdaE = buildDerivedLambda(LE);
-    if (!m_Pullback.empty())
-      m_Pullback.pop_back();
-    // FIXME: Clone lambda properly.
-    return {const_cast<Expr*>(cast<Expr>(LE)), lambdaE};
+    DiffRequest LambdaReq = m_DiffReq;
+    LambdaReq.Function = LE->getCallOperator();
+    LambdaReq.Functor = LE->getLambdaClass();
+
+    ReverseModeVisitor NestedVisitor(m_Builder, LambdaReq);
+    Expr* lambdaE = NestedVisitor.buildDerivedLambda(LE);
+
+    return {cast<Expr>(Clone(LE)), lambdaE};
   }
 #endif // CLANG_VERSION_MAJOR
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {

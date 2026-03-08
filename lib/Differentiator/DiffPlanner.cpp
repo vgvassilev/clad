@@ -329,6 +329,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       TraverseDecl(D);
   }
 
+  bool DiffCollector::TraverseLambdaExpr(LambdaExpr* LE) {
+    if (!m_ParentReq)
+      return RecursiveASTVisitor<DiffCollector>::TraverseLambdaExpr(LE);
+    // Create a nested request
+    DiffRequest LambdaReq = *m_ParentReq;
+
+    LambdaReq.Function = LE->getCallOperator();
+    LambdaReq.Functor = LE->getLambdaClass();
+    llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &LambdaReq);
+    RecursiveASTVisitor<DiffCollector>::TraverseLambdaExpr(LE);
+
+    return true;
+  }
+
   bool DiffCollector::isInInterval(SourceLocation Loc) const {
     const SourceManager &SM = m_Sema.getSourceManager();
     for (size_t i = 0, e = m_Interval.size(); i < e; ++i) {

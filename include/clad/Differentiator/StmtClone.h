@@ -10,11 +10,12 @@
 
 #include "Compatibility.h"
 
-#include "clang/AST/StmtVisitor.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Version.h"
-#include "clang/Sema/Sema.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include <unordered_map>
@@ -127,6 +128,7 @@ namespace utils {
     DECLARE_CLONE_FN(CXXScalarValueInitExpr)
     DECLARE_CLONE_FN(ConstantExpr)
     DECLARE_CLONE_FN(ValueStmt)
+    DECLARE_CLONE_FN(LambdaExpr)
 
     clang::Stmt* VisitStmt(clang::Stmt*);
   };
