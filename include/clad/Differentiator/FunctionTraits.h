@@ -7,6 +7,8 @@
 #include <type_traits>
 
 namespace clad {
+  template <typename T, typename U> struct ValueAndPushforward;
+
   /// Utility type trait to remove both reference and pointer
   /// from type `T`.
   ///
@@ -358,7 +360,9 @@ namespace clad {
   template <> struct MakeIndexSequence<1> : IndexSequence<0> {};
 
   template <std::size_t... Idx, typename... Rest>
-  auto wrapRest(placeholder<Idx>..., wrap<Rest>...) -> list<Rest...>;
+  auto wrapRest(placeholder<Idx>..., wrap<Rest>...) -> list<Rest...> {
+    return {};
+  }
 
   template <typename... T, std::size_t... Idx>
   auto dropUsingIndex(IndexSequence<Idx...>)
@@ -369,12 +373,57 @@ namespace clad {
   template <std::size_t N, typename... T>
   using Drop_t = decltype(dropUsingIndex<T...>(MakeIndexSequence<N>{}));
 
-  template <std::size_t N, typename... Args>
-  constexpr auto DropArgs(list<Args...>) -> Drop_t<N, Args...>;
+  template <std::size_t, typename T> struct DropArgs;
 
   // Returns the Args in the function F that come after the Nth arg
   template <std::size_t N, typename F>
-  using DropArgs_t = decltype(DropArgs<N>(argument_types_t<F>{}));
+  using DropArgs_t = typename DropArgs<N, F>::type;
+
+  template <std::size_t N, typename R, typename... Args>
+  struct DropArgs<N, R (*)(Args...)> {
+    using type = Drop_t<N, Args...>;
+  };
+
+  template <std::size_t N, typename R, typename... Args>
+  struct DropArgs<N, R (*)(Args..., ...)> {
+    using type = Drop_t<N, Args...>;
+  };
+
+  /// These macro expansions are used to cover all possible cases of
+  /// qualifiers in member functions when declaring DropArgs. They need to be
+  /// read from the bottom to the top. Starting from the use of AddCON,
+  /// the call to which is used to pass the cases with and without C-style
+  /// varargs, then as the macro name AddCON says it adds cases of const
+  /// qualifier. The AddVOL and AddREF macro similarly add cases for volatile
+  /// qualifier and reference respectively. The AddNOEX adds cases for noexcept
+  /// qualifier only if it is supported and finally AddSPECS declares the
+  /// function with all the cases
+#define DropArgs_AddSPECS(var, con, vol, ref, noex)                            \
+  template <std::size_t N, typename R, typename C, typename... Args>           \
+  struct DropArgs<N, R (C::*)(Args... REM_CTOR var) con vol ref noex> {        \
+    using type = Drop_t<N, Args...>;                                           \
+  };
+
+#if __cpp_noexcept_function_type > 0
+#define DropArgs_AddNOEX(var, con, vol, ref)                                   \
+  DropArgs_AddSPECS(var, con, vol, ref, )                                      \
+      DropArgs_AddSPECS(var, con, vol, ref, noexcept)
+#else
+#define DropArgs_AddNOEX(var, con, vol, ref)                                   \
+  DropArgs_AddSPECS(var, con, vol, ref, )
+#endif
+
+#define DropArgs_AddREF(var, con, vol)                                         \
+  DropArgs_AddNOEX(var, con, vol, ) DropArgs_AddNOEX(var, con, vol, &)         \
+      DropArgs_AddNOEX(var, con, vol, &&)
+
+#define DropArgs_AddVOL(var, con)                                              \
+  DropArgs_AddREF(var, con, ) DropArgs_AddREF(var, con, volatile)
+
+#define DropArgs_AddCON(var) DropArgs_AddVOL(var, ) DropArgs_AddVOL(var, const)
+
+  DropArgs_AddCON(())
+      DropArgs_AddCON((, ...)); // Declares all the specializations
 
   template <typename... Args, std::size_t... Idx>
   constexpr auto TakeNFirstArgs(IndexSequence<Idx...>)
@@ -782,6 +831,78 @@ namespace clad {
 
   template <class F>
   struct ExtractDerivedFnTraitsForwMode<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             !has_call_operator<F>::value>::type> {
+    using type = NoFunction*;
+  };
+
+  /// Compute function type for pushforward-mode derived functions.
+  template <class F, class = void>
+  struct ExtractDerivedFnTraitsPushforwardMode {};
+
+  template <class F>
+  using ExtractDerivedFnTraitsPushforwardMode_t =
+      typename ExtractDerivedFnTraitsPushforwardMode<F>::type;
+
+  template <class ReturnType, class... Args>
+  struct ExtractDerivedFnTraitsPushforwardMode<ReturnType (*)(Args...)> {
+    using type =
+        ValueAndPushforward<ReturnType, ReturnType> (*)(Args..., Args...);
+  };
+
+  template <class ReturnType, class... Args>
+  struct ExtractDerivedFnTraitsPushforwardMode<ReturnType (*)(Args..., ...)> {
+    using type =
+        ValueAndPushforward<ReturnType, ReturnType> (*)(Args..., Args...);
+  };
+
+#define PushforwardDerivedFnTraits_AddSPECS(var, con, vol, ref, noex)         \
+  template <typename R, typename C, typename... Args>                          \
+  struct ExtractDerivedFnTraitsPushforwardMode<                                 \
+      R (C::*)(Args... REM_CTOR var) con vol ref noex> {                       \
+    using type = ValueAndPushforward<R, R> (C::*)(Args..., Args...) con vol    \
+                                                  ref noex;                     \
+  };
+
+#if __cpp_noexcept_function_type > 0
+#define PushforwardDerivedFnTraits_AddNOEX(var, con, vol, ref)                \
+  PushforwardDerivedFnTraits_AddSPECS(var, con, vol, ref, )                    \
+      PushforwardDerivedFnTraits_AddSPECS(var, con, vol, ref, noexcept)
+#else
+#define PushforwardDerivedFnTraits_AddNOEX(var, con, vol, ref)                \
+  PushforwardDerivedFnTraits_AddSPECS(var, con, vol, ref, )
+#endif
+
+#define PushforwardDerivedFnTraits_AddREF(var, con, vol)                       \
+  PushforwardDerivedFnTraits_AddNOEX(var, con, vol, )                          \
+      PushforwardDerivedFnTraits_AddNOEX(var, con, vol, &)                     \
+          PushforwardDerivedFnTraits_AddNOEX(var, con, vol, &&)
+
+#define PushforwardDerivedFnTraits_AddVOL(var, con)                            \
+  PushforwardDerivedFnTraits_AddREF(var, con, )                                \
+      PushforwardDerivedFnTraits_AddREF(var, con, volatile)
+
+#define PushforwardDerivedFnTraits_AddCON(var)                                 \
+  PushforwardDerivedFnTraits_AddVOL(var, )                                     \
+      PushforwardDerivedFnTraits_AddVOL(var, const)
+
+  PushforwardDerivedFnTraits_AddCON(())
+      PushforwardDerivedFnTraits_AddCON((, ...));
+
+  template <class F>
+  struct ExtractDerivedFnTraitsPushforwardMode<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             has_call_operator<F>::value>::type> {
+    using ClassType =
+        typename std::decay<remove_reference_and_pointer_t<F>>::type;
+    using type =
+        ExtractDerivedFnTraitsPushforwardMode_t<decltype(&ClassType::operator())>;
+  };
+
+  template <class F>
+  struct ExtractDerivedFnTraitsPushforwardMode<
       F, typename std::enable_if<
              std::is_class<remove_reference_and_pointer_t<F>>::value &&
              !has_call_operator<F>::value>::type> {

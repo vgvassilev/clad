@@ -814,7 +814,8 @@ T& back(
   /// function.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
             typename F,
-            typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
+        typename DerivedFnType =
+          ExtractDerivedFnTraitsPushforwardMode_t<F>,
             typename = typename std::enable_if<
                 !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
                                  opts::immediate_mode) &&
@@ -830,7 +831,8 @@ T& back(
 
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
             typename F,
-            typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
+        typename DerivedFnType =
+          ExtractDerivedFnTraitsPushforwardMode_t<F>,
             typename = typename std::enable_if<
                 clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
                                 opts::immediate_mode) &&
@@ -848,7 +850,8 @@ T& back(
   /// by reference whereas functions have to be passed by value.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
             typename F,
-            typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
+        typename DerivedFnType =
+          ExtractDerivedFnTraitsPushforwardMode_t<F>,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
