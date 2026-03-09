@@ -1931,10 +1931,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
-    // FIXME: Revisit this when variadic functions are supported.
-    if (FD->getNameAsString() == "printf" || FD->getNameAsString() == "fprintf")
-      return StmtDiff(Clone(CE));
-
     Expr* CUDAExecConfig = nullptr;
     if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
       CUDAExecConfig = Clone(KCE->getConfig());
@@ -2148,6 +2144,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                      i = skip_this, e = CE->getNumArgs();
          i != e; ++i) {
       const Expr* arg = CE->getArg(i);
+      if ((i - skip_this) >= FD->getNumParams()) {
+        CallArgs.push_back(Clone(arg));
+        continue;
+      }
       const auto* PVD = FD->getParamDecl(i - skip_this);
       StmtDiff argDiff =
           DifferentiateCallArg(arg, PVD, PreCallStmts, /*isNonDiff=*/nonDiff,
@@ -2907,6 +2907,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                         direction::reverse);
       auto* condDiffStored = IfStmtDiff.getRevSweepAsExpr();
       return BuildOp(BO_LAnd, condDiffStored, condVarRef);
+    } else if (opCode == BO_Rem) {
+      return BuildOp(opCode, Visit(L).getExpr(), Visit(R).getExpr());
     } else {
       // We should not output any warning on visiting boolean conditions
       // FIXME: We should support boolean differentiation or ignore it
@@ -3427,6 +3429,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         ICE->getCastKind() == CK_LValueToRValue)
       result.updateStmtDx(getZeroInit(ICE->getType()));
     return result;
+  }
+
+  StmtDiff ReverseModeVisitor::VisitGNUNullExpr(const clang::GNUNullExpr* E) {
+    auto* Constant0 = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                        m_Context, /*val=*/0);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    return StmtDiff(const_cast<clang::GNUNullExpr*>(E), Constant0);
+  }
+
+  StmtDiff
+  ReverseModeVisitor::VisitPredefinedExpr(const clang::PredefinedExpr* E) {
+    auto* Constant0 = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                        m_Context, /*val=*/0);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    return StmtDiff(const_cast<clang::PredefinedExpr*>(E), Constant0);
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXFunctionalCastExpr(
