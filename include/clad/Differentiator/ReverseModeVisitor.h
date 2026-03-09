@@ -407,6 +407,8 @@ namespace clad {
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
     StmtDiff VisitIfStmt(const clang::IfStmt* If);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+    StmtDiff VisitGNUNullExpr(const clang::GNUNullExpr* E);
+    StmtDiff VisitPredefinedExpr(const clang::PredefinedExpr* E);
 
 #if CLANG_VERSION_MAJOR > 16
     StmtDiff VisitLambdaExpr(const clang::LambdaExpr* LE);

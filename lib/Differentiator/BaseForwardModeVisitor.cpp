@@ -1612,6 +1612,21 @@ BaseForwardModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
   return StmtDiff(castExpr, castExprDiff);
 }
 
+StmtDiff BaseForwardModeVisitor::VisitGNUNullExpr(const clang::GNUNullExpr* E) {
+  auto* Constant0 =
+      ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, /*val=*/0);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  return StmtDiff(const_cast<clang::GNUNullExpr*>(E), Constant0);
+}
+
+StmtDiff
+BaseForwardModeVisitor::VisitPredefinedExpr(const clang::PredefinedExpr* E) {
+  auto* Constant0 =
+      ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, /*val=*/0);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  return StmtDiff(const_cast<clang::PredefinedExpr*>(E), Constant0);
+}
+
 StmtDiff
 BaseForwardModeVisitor::VisitCXXNamedCastExpr(const CXXNamedCastExpr* NCE) {
   StmtDiff subExprDiff = Visit(NCE->getSubExpr());
