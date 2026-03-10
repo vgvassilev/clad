@@ -24,6 +24,10 @@ namespace std {
       return (2 * x * hermite(n - 1, x)) - (2 * (n - 1) * hermite(n - 2, x));
   }
 
+  float hermitef(unsigned int n, float x) { return hermite(n, x); }
+
+  long double hermitel(unsigned int n, long double x) { return hermite(n, x); }
+
 }
 #endif
 
