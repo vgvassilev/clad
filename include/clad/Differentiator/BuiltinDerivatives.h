@@ -1166,8 +1166,7 @@ CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   if (d_y)
     *d_y += b * (clad_digamma(y) - psi_xy) * d_z;
 }
-#include <version>
-#ifdef __cpp_lib_math_special_functions
+
 template <typename T>
 CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 hermite_pushforward(unsigned int n, T x, unsigned int, T d_x) {
@@ -1202,7 +1201,6 @@ CUDA_HOST_DEVICE void hermitel_pullback(unsigned int n, long double x, T d_z,
                                         unsigned int*, long double* d_x) {
   hermite_pullback(n, x, d_z, nullptr, d_x);
 }
-#endif
 #endif
 
 } // namespace std
