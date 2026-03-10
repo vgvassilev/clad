@@ -309,9 +309,11 @@ inline long double f_betal(long double x){ return std::beta(x, 2.0L); }
 //
 //------------------------ Mathematical special functions ----------------------
 //
+#if __cplusplus >= 201703L && defined(__cpp_lib_math_special_functions)
 template <typename T> T f_hermite(T x){ return std::hermite(2, x); } // x in (-inf, +inf)
 inline float f_hermitef(float x){ return std::hermitef(2, x); }
 inline long double f_hermitel(long double x){ return std::hermitel(2, x); }
+#endif
 
 int main() {
   // Absolute value
@@ -373,7 +375,9 @@ int main() {
   CHECK_ALL_RANGE(beta, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
 
   // Mathematical special functions
+  #if __cplusplus >= 201703L && defined(__cpp_lib_math_special_functions)
   CHECK_ALL_RANGE(hermite, {-12744.2, -67.23, 1.0, 1.539, 2.012, 3.045, 412.987});
+  #endif
 
   return 0;
 }
