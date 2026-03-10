@@ -1167,10 +1167,26 @@ CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
     *d_y += b * (clad_digamma(y) - psi_xy) * d_z;
 }
 
+template <typename T> T clad_hermite_primal(unsigned int n, T x) {
+#if defined(__cpp_lib_math_special_functions)
+  return ::std::hermite(n, x);
+#else
+
+  if (n == 0)
+    return 1;
+  else if (n == 1)
+    return 2 * x;
+  else
+    return (2 * x * clad_hermite_primal(n - 1, x)) -
+           (2 * (n - 1) * clad_hermite_primal(n - 2, x));
+#endif
+}
+
 template <typename T>
 CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 hermite_pushforward(unsigned int n, T x, unsigned int, T d_x) {
-  return {::std::hermite(n, x), 2 * n * ::std::hermite(n - 1, x) * d_x};
+  return {clad_hermite_primal(n, x),
+          2 * n * clad_hermite_primal(n - 1, x) * d_x};
 }
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -1470,17 +1486,14 @@ using std::sqrt_pushforward;
 
 // 7. Special Functions
 #if __cplusplus >= 201703L
-#include <version>
 using std::beta_pullback;
 using std::beta_pushforward;
-#ifdef __cpp_lib_math_special_functions
 using std::hermite_pullback;
 using std::hermite_pushforward;
 using std::hermitef_pullback;
 using std::hermitef_pushforward;
 using std::hermitel_pullback;
 using std::hermitel_pushforward;
-#endif
 #endif
 
 namespace class_functions {
