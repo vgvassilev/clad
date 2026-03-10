@@ -1203,7 +1203,7 @@ hermitel_pushforward(unsigned int n, long double x, unsigned int,
 template <typename T, typename U>
 CUDA_HOST_DEVICE void hermite_pullback(unsigned int n, T x, U d_z,
                                        unsigned int*, T* d_x) {
-  *d_x += 2 * n * ::std::hermite(n - 1, x) * d_z;
+  *d_x += 2 * n * clad_hermite_primal(n - 1, x) * d_z;
 }
 
 template <typename T>
