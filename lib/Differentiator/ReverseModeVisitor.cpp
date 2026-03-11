@@ -1882,13 +1882,45 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return lambda;
   }
 
-  StmtDiff ReverseModeVisitor::VisitLambdaExpr(const LambdaExpr* LE) {
-    Expr* lambdaE = buildDerivedLambda(LE);
-    if (!m_Pullback.empty())
-      m_Pullback.pop_back();
-    // FIXME: Clone lambda properly.
-    return {const_cast<Expr*>(cast<Expr>(LE)), lambdaE};
+ StmtDiff ReverseModeVisitor::VisitLambdaExpr(const LambdaExpr* LE) {
+  // 1. Build the differentiated version of the lambda body
+  Expr* lambdaE = buildDerivedLambda(LE);
+  
+  if (!m_Pullback.empty())
+    m_Pullback.pop_back();
+
+  // 2. THE FIX: Propagate gradients from lambda internal fields back to outer variables
+  for (const auto& C : LE->captures()) {
+    if (C.capturesVariable()) {
+      VarDecl* capturedVar = dyn_cast<VarDecl>(C.getCapturedVar());
+      
+      if (capturedVar) {
+        // Find the outer variable's adjoint in the m_Variables map
+        auto it = m_Variables.find(capturedVar);
+        if (it != m_Variables.end()) {
+          Expr* externalAdj = it->second;
+          
+          // Get the gradient signal flowing into this lambda expression
+          Expr* internalAdj = dfdx(); 
+
+          if (externalAdj && internalAdj) {
+            // Build the 'external_adjoint += internal_adjoint' math statement
+            // Using 'plusequal' for standard Clang token compatibility
+            Expr* accumulation = m_Sema.ActOnBinOp(
+                m_Sema.getCurScope(), LE->getBeginLoc(), tok::plusequal,
+                externalAdj, internalAdj).get();
+
+            // Store the accumulation logic in the pullback statement list
+            m_Pullback.push_back(accumulation);
+          }
+        }
+      }
+    }
   }
+
+  // FIXME: Clone lambda properly.
+  return {const_cast<Expr*>(cast<Expr>(LE)), lambdaE};
+}
 #endif // CLANG_VERSION_MAJOR
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // FIXME: Add general support for non-direct calls
