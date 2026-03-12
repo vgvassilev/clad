@@ -1098,7 +1098,7 @@ void inner_function(double *out, bool flag, const double *C) {
    if (flag)
       out[0] = C[0];
 }
-// CHECK: void inner_function_reverse_forw(double *out, bool flag, const double *C, double *_d_out, bool _d_flag, const double *_d_C, clad::restore_tracker &_tracker0) {
+// CHECK: void inner_function_reverse_forw(double *out, bool flag, const double *C, double *_d_out, bool _d_flag, {{(const )?}}double *_d_C, clad::restore_tracker &_tracker0) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         bool _cond0 = flag;
 // CHECK-NEXT:         if (_cond0) {
@@ -1132,7 +1132,7 @@ void fast_interp(double const *coefs, double const *sum_param, double const *dif
   out[0] += x * (diff[0] + x * sum[0]);
 }
 
-// CHECK: void fast_interp_reverse_forw(const double *coefs, const double *sum_param, const double *diff_param, double *out, const double *_d_coefs, const double *_d_sum_param, const double *_d_diff_param, double *_d_out, clad::restore_tracker &_tracker0) {
+// CHECK: void fast_interp_reverse_forw(const double *coefs, const double *sum_param, const double *diff_param, double *out, {{(const )?}}double *_d_coefs, {{(const )?}}double *_d_sum_param, {{(const )?}}double *_d_diff_param, double *_d_out, clad::restore_tracker &_tracker0) {
 // CHECK-NEXT:     const double *_d_sum = _d_sum_param;
 // CHECK-NEXT:     const double *sum0 = sum_param;
 // CHECK-NEXT:     const double *_d_diff = _d_diff_param;
@@ -1193,7 +1193,7 @@ void inner_fn(double const *coefs, double *out) {
   out[0] = b;
 }
 
-// CHECK: void inner_fn_reverse_forw(const double *coefs, double *out, const double *_d_coefs, double *_d_out, clad::restore_tracker &_tracker0) {
+// CHECK: void inner_fn_reverse_forw(const double *coefs, double *out, {{(const )?}}double *_d_coefs, double *_d_out, clad::restore_tracker &_tracker0) {
 // CHECK-NEXT:     double _d_b = 0.;
 // CHECK-NEXT:     double b = iden_func(coefs[0]);
 // CHECK-NEXT:     _tracker0.store(out[0]);

@@ -2166,7 +2166,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     Expr* OverloadedDerivedFn = nullptr;
     bool hasDynamicNonDiffParams = false;
-    if (!nonDiff) {
+    if (!nonDiff && m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass) {
       // Build the args for the pullback
       llvm::SmallVector<Expr*, 16> pullbackCallArgs = CallArgs;
       if (!(utils::isNonConstReferenceType(returnType) ||
