@@ -1072,7 +1072,7 @@ constructor_pushforward(ConstructorPushforwardTag<::cladtorch::Tensor<T>>,
                         ::cladtorch::Tensor<T>&& p,
                         ::cladtorch::Tensor<T>&& d_p) {
   ::cladtorch::Tensor<T> v(::std::move(p));
-  ::cladtorch::Tensor<T> d_v(d_p);
+  ::cladtorch::Tensor<T> d_v(::std::move(d_p));
   return {v, d_v};
 }
 
@@ -1117,7 +1117,7 @@ constructor_reverse_forw(ConstructorPushforwardTag<::cladtorch::Tensor<T>>,
                          ::cladtorch::Tensor<T>&& p,
                          ::cladtorch::Tensor<T>&& d_p) {
   ::cladtorch::Tensor<T> v(::std::move(p));
-  ::cladtorch::Tensor<T> d_v(d_p);
+  ::cladtorch::Tensor<T> d_v(::std::move(d_p));
   return {v, d_v};
 }
 
