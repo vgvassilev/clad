@@ -3287,6 +3287,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             }
             inits.push_back(assignment);
             SetDeclInit(decl, getZeroInit(VD->getType()));
+          } else if (isInsideLoop) {
+            // If the variable has no initializer but is declared inside a
+            // loop, we still need to store and restore it so it resets to
+            // its zero-initialized state on each iteration.
+            auto* declRef = BuildDeclRef(decl);
+            Expr* assignment =
+                BuildOp(BO_Assign, declRef, getZeroInit(VD->getType()));
+            if (m_DiffReq.shouldBeRecorded(DS)) {
+              auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
+                                             /*moveToTape=*/true);
+              if (pushPop.getExpr() != declRef)
+                addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
+              assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
+            }
+            inits.push_back(assignment);
+            SetDeclInit(decl, getZeroInit(VD->getType()));
           }
         }
 

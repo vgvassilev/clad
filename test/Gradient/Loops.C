@@ -2888,6 +2888,60 @@ double fn46(double x, double y) {
 // CHECK-NEXT:         }
 // CHECK-NEXT: }
 
+// Test for issue #1283: struct declared inside loop without initializer
+struct SimpleStruct {
+  double val;
+};
+ 
+double fn47(double a) {
+  double res = 0;
+  for (int i = 0; i < 3; i++) {
+    SimpleStruct s;
+    s.val = a * (i + 1);
+    res += s.val;
+  }
+  return res; // res = a*1 + a*2 + a*3 = 6*a
+}
+ 
+// CHECK: void fn47_grad(double a, double *_d_a) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<SimpleStruct> _t1 = {};
+// CHECK-NEXT:     SimpleStruct _d_s = {0.};
+// CHECK-NEXT:     SimpleStruct s = {0.};
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (i = 0; ; i++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 3))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, std::move(s)) , s = {0.};
+// CHECK-NEXT:         s.val = a * (i + 1);
+// CHECK-NEXT:         res += s.val;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _d_s.val += _d_res;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             *_d_a += _d_s.val * (i + 1);
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _d_s = {0.};
+// CHECK-NEXT:             s = clad::pop(_t1);
+// CHECK-NEXT:         }
+// CHECK-NEXT:         i--;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+ 
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient(F);\
@@ -2997,4 +3051,5 @@ int main() {
   TEST_2(fn44, 2, 3); // CHECK-EXEC: {1.00, 1.00}
   TEST_2(fn45, 1, 0.5); // CHECK-EXEC: {-50.00, 100.00}
   TEST_2(fn46, 1, 0.5); // CHECK-EXEC: {-50.00, 100.00}
+  TEST(fn47, 3); // CHECK-EXEC: {6.00}
 }
