@@ -18,7 +18,7 @@ D: Provider of a lot of feedback and real test examples
 
 N: Alexander Penev
 E: alexander_penev [at] yahoo.com; apenev [at] uni-plovdiv.bg
-W: http://www.alexander-penev.info
+W: https://www.alexander-penev.info
 D: Founder, provider of much wisdom, and motivator for clad
 
 N: Martin Vassilev

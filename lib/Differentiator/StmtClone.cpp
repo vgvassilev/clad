@@ -3,7 +3,7 @@
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 //
-// File originates from the Scout project (http://scout.zih.tu-dresden.de/)
+// File originates from the Scout project (https://scout.zih.tu-dresden.de/)
 
 #include "clad/Differentiator/StmtClone.h"
 #include "clad/Differentiator/Compatibility.h"

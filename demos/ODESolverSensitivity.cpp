@@ -7,7 +7,7 @@
 // Using clad we can switch a solver or modify an equation without having
 // to recalculate their derivatives manually.
 //
-// http://kitchingroup.cheme.cmu.edu/blog/2018/10/11/A-differentiable-ODE-integrator-for-sensitivity-analysis/
+// https://kitchingroup.cheme.cmu.edu/blog/2018/10/11/A-differentiable-ODE-integrator-for-sensitivity-analysis/
 //----------------------------------------------------------------------------//
 
 // To run the demo please type:

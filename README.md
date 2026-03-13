@@ -12,7 +12,7 @@
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/vgvassilev/clad/master?labpath=%2Fdemos%2FJupyter%2FIntro.ipynb)
 
 
-Clad is a source-transformation [automatic differentiation (AD)](https://en.wikipedia.org/wiki/Automatic_differentiation) library for C++,<br/>implemented as a plugin for the [Clang compiler](http://clang.llvm.org/). 
+Clad is a source-transformation [automatic differentiation (AD)](https://en.wikipedia.org/wiki/Automatic_differentiation) library for C++,<br/>implemented as a plugin for the [Clang compiler](https://clang.llvm.org/). 
 
 #### [Try Online](https://godbolt.org/z/3KWhY4j8M) | [Binder](https://mybinder.org/v2/gh/vgvassilev/clad/master?labpath=%2Fdemos%2FJupyter%2FIntro.ipynb) | [Usage](#how-to-use-clad) | [Installation](#how-to-install) | [Further Reading](#further-reading) | [Documentation](https://clad.readthedocs.io/en/latest/index.html) | [Contributing](#how-to-contribute)
 </div>

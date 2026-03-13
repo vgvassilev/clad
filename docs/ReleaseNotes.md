@@ -3,7 +3,7 @@ Introduction
 
 This document contains the release notes for the automatic differentiation
 plugin for clang Clad, release 2.3. Clad is built on top of
-[Clang](http://clang.llvm.org) and [LLVM](http://llvm.org>) compiler
+[Clang](https://clang.llvm.org) and [LLVM](https://llvm.org>) compiler
 infrastructure. Here we describe the status of Clad in some detail, including
 major improvements from the previous release and new feature work.
 
