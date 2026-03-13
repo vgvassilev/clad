@@ -109,7 +109,7 @@
 // D ellint_1/ f / l           (C++17) incomplete elliptic integral (1st kind)
 // D ellint_2/ f / l           (C++17) incomplete elliptic integral (2nd kind)
 // D ellint_3/ f / l           (C++17) incomplete elliptic integral (3rd kind)
-// D expint/ expintf/ expintl  (C++17) exponential integral
+// DS expint/ expintf/ expintl  (C++17) exponential integral
 // D hermite/ hermitef/ hermitel (C++17) Hermite polynomials
 // D legendre/ legendref/ legendrel (C++17) Legendre polynomials
 // D laguerre/ laguerref/ laguerrel (C++17) Laguerre polynomials
@@ -303,6 +303,13 @@ DEFINE_FUNCTIONS(atanh) // x in [-1,1]
 //
 DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
 
+
+#if defined(__cpp_lib_math_special_functions)
+template<typename T> T f_expint(T x) { return std::expint(x); }
+inline float f_expintf(float x) { return std::expint(x); }
+inline long double f_expintl(long double x) { return std::expint(x); }
+#endif
+
 template<typename T> T f_beta(T x){ return std::beta(x,(T)2.0); } // x in (0, +inf)
 inline float f_betaf(float x){ return std::beta(x, 2.0f); }
 inline long double f_betal(long double x){ return std::beta(x, 2.0L); }
@@ -364,7 +371,11 @@ int main() {
 
   // Error / Gamma functions
   CHECK_ALL(erf);
-  CHECK_ALL_RANGE(beta, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
+  #if defined(__cpp_lib_math_special_functions)
+  CHECK_ALL_RANGE(expint, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
+#endif
+
+CHECK_ALL_RANGE(beta, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
 
   return 0;
 }

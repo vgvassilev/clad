@@ -1144,6 +1144,40 @@ CUDA_HOST_DEVICE void digamma_pullback(T x, U d_z, T* d_x) {
     *d_x += clad_trigamma(x) * d_z;
 }
 
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expint_pushforward(T x, dT d_x) {
+  T pushforward = 0;
+  if (d_x)
+    pushforward += (::std::exp(x) / x) * d_x;
+  return {::std::expint(x), pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void expint_pullback(T x, U d_z, T* d_x) {
+  if (d_x)
+    *d_x += (::std::exp(x) / x) * d_z;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expintf_pushforward(T x, dT d_x) {
+  return expint_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expintl_pushforward(T x, dT d_x) {
+  return expint_pushforward(x, d_x);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void expintf_pullback(T x, U d_z, T* d_x) {
+  expint_pullback(x, d_z, d_x);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void expintl_pullback(T x, U d_z, T* d_x) {
+  expint_pullback(x, d_z, d_x);
+}
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> beta_pushforward(T x, T y, dT d_x,
                                                              dT d_y) {
@@ -1436,6 +1470,13 @@ using std::sqrt_pushforward;
 // 7. Special Functions
 #if __cplusplus >= 201703L
 using std::beta_pullback;
+
+using std::expint_pushforward;
+using std::expintf_pushforward;
+using std::expintl_pushforward;
+using std::expint_pullback;
+using std::expintf_pullback;
+using std::expintl_pullback;
 using std::beta_pushforward;
 #endif
 
