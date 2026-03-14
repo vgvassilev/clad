@@ -436,32 +436,31 @@ namespace clad {
     }
 
     void diagUnsupported(const clang::Decl* D) {
-      clang::SourceLocation L = D->getBeginLoc();
-      diag(clang::DiagnosticsEngine::Warning, L,
-           "declaration kind '%0' is not supported")
+        clang::SourceLocation L = D->getBeginLoc();
+        constexpr char fmt[] = "declaration kind '%0' is not supported";
+        diag(clang::DiagnosticsEngine::Warning, L, fmt)
           << D->getDeclKindName() << L;
     }
 
     void diagUnsupported(const clang::Stmt* S) {
-      clang::SourceLocation L = S->getBeginLoc();
-      diag(clang::DiagnosticsEngine::Warning, L,
-           "statement kind '%0' is not supported")
+        clang::SourceLocation L = S->getBeginLoc();
+        constexpr char fmt[] = "statement kind '%0' is not supported";
+        diag(clang::DiagnosticsEngine::Warning, L, fmt)
           << S->getStmtClassName() << L;
     }
 
     void diagUnsupportedIndirectCalls(const clang::CallExpr* CE) {
-      assert(!CE->getDirectCallee() && "This is a direct callee");
-      clang::SourceLocation L = CE->getBeginLoc();
-      diag(clang::DiagnosticsEngine::Warning, L,
-           "differentiation of indirect calls is not supported")
+        assert(!CE->getDirectCallee() && "This is a direct callee");
+        clang::SourceLocation L = CE->getBeginLoc();
+        constexpr char fmt[] = "differentiation of indirect calls is not supported";
+        diag(clang::DiagnosticsEngine::Warning, L, fmt)
           << L;
     }
 
     /// Shorthand for warning on differentiation of unsupported operators
     void unsupportedOpWarn(clang::SourceLocation loc) {
-      diag(clang::DiagnosticsEngine::Warning, loc,
-           "attempted to differentiate unsupported operator; treated as "
-           "non-differentiable");
+      constexpr char fmt[] = "attempted to differentiate unsupported operator; treated as non-differentiable";
+      diag(clang::DiagnosticsEngine::Warning, loc, fmt);
     }
 
     /// Creates unique identifier of the form "_nameBase<number>" that is

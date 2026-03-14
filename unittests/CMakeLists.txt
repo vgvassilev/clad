@@ -51,3 +51,6 @@ if (Kokkos_FOUND)
 endif(Kokkos_FOUND)
 
 add_subdirectory(Misc)
+
+# Enable CTest for test discovery
+include(CTest)

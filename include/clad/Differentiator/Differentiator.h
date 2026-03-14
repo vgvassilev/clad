@@ -794,7 +794,7 @@ T& back(
   /// by reference whereas functions have to be passed by value.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
             typename F, typename DerivedFnType = JacobianDerivedFnTraits_t<F>,
-            typename = typename std::enable_if<
+            typename = typename std::enable_if<\
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
                          /*EnablePadding=*/true> __attribute__((annotate("J")))
@@ -804,6 +804,66 @@ T& back(
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
                         /*EnablePadding=*/true>(
         derivedFn /* will be replaced by Jacobian*/, code, f);
+  }
+
+  /// Generates function which computes pushforward derivatives of the given
+  /// function wrt the parameters specified in `args` using forward mode AD.
+  /// Pushforward functions return ValueAndPushforward<value, derivative> and
+  /// allow users to provide custom seed values for the tangent computation.
+  ///
+  /// \param[in] fn function to differentiate
+  /// \param[in] args independent parameters information
+  /// \returns `CladFunction` object to access the corresponding pushforward
+  /// function.
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F,
+        typename DerivedFnType =
+          ExtractDerivedFnTraitsPushforwardMode_t<F>,
+            typename = typename std::enable_if<
+                !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
+                                 opts::immediate_mode) &&
+                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
+                         true> __attribute__((annotate("P")))
+  pushforward(F fn, ArgSpec args = "",
+              DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+              const char* code = "") {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn, code);
+  }
+
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F,
+        typename DerivedFnType =
+          ExtractDerivedFnTraitsPushforwardMode_t<F>,
+            typename = typename std::enable_if<
+                clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
+                                opts::immediate_mode) &&
+                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true,
+                         true> __attribute__((annotate("P")))
+  pushforward(F fn, ArgSpec args = "",
+              DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr)) {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true, true>(
+        derivedFn);
+  }
+
+  /// Specialization for differentiating functors.
+  /// The specialization is needed because objects have to be passed
+  /// by reference whereas functions have to be passed by value.
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F,
+        typename DerivedFnType =
+          ExtractDerivedFnTraitsPushforwardMode_t<F>,
+            typename = typename std::enable_if<
+                std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
+                         true> __attribute__((annotate("P")))
+  pushforward(F&& f, ArgSpec args = "",
+              DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+              const char* code = "") {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn, code, f);
   }
 
   template <typename ArgSpec = const char*, typename F,

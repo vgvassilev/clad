@@ -159,10 +159,8 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
           SourceLocation L = PVD->getBeginLoc();
           if (m_DiffReq.Args)
             L = m_DiffReq.Args->getExprLoc();
-          diag(DiagnosticsEngine::Error, L,
-               "hessian mode differentiation w.r.t. array or pointer "
-               "parameters needs explicit declaration of the indices of the "
-               "array using the args parameter; did you mean '%0'")
+            constexpr char fmt1[] = "hessian mode differentiation w.r.t. array or pointer parameters needs explicit declaration of the indices of the array using the args parameter; did you mean '%0'";
+            diag(DiagnosticsEngine::Error, L, fmt1)
               << helperMsg << L;
           return {};
         }

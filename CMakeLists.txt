@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.7.0)
 
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   project(clad)
+  include(CTest)
+endif()
+
+if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
+  project(clad)
 endif()
 
 enable_language(CXX)
