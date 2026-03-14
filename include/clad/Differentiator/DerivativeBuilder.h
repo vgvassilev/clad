@@ -129,13 +129,6 @@ private:
     return utils::diag(m_Sema, Level, Loc, Format);
   }
 
-  template <std::size_t N>
-  clang::Sema::SemaDiagnosticBuilder
-  diag(clang::DiagnosticsEngine::Level Level, clang::SourceLocation Loc,
-       clad::DiagnosticGroup Group, const char (&Format)[N]) {
-    return utils::diag(m_Sema, Level, Loc, Group, Format);
-  }
-
   /// Lookup the result of finding a custom derivative or numerical
   /// differentiation function.
   ///

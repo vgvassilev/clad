@@ -4638,13 +4638,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           BuildCallExprToFunction(constrForw, reverseForwAdjointArgs);
       if (RD->isAggregate()) {
         SourceLocation L = CE->getBeginLoc();
-        diag(DiagnosticsEngine::Warning, L,
-             "%0 is aggregate type and its constructor does not require "
-             "user-defined forward sweep function %1")
-            << RD << constrForw << L;
+        constexpr char fmtWarn[] = "%0 is aggregate type and its constructor does not require user-defined forward sweep function %1";
+        diag(DiagnosticsEngine::Warning, L, fmtWarn)
+          << RD << constrForw << L;
         SourceLocation NoteL = constrForw->getNameInfo().getLoc();
-        diag(DiagnosticsEngine::Note, NoteL, "%0 is defined here")
-            << constrForw << NoteL;
+        constexpr char fmtNote[] = "%0 is defined here";
+        diag(DiagnosticsEngine::Note, NoteL, fmtNote)
+          << constrForw << NoteL;
       }
       Expr* callRes = StoreAndRef(customReverseForwFnCall);
       Expr* val =

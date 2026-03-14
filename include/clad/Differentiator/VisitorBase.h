@@ -429,36 +429,32 @@ protected:
     return m_Builder.diag(level, loc, format);
   }
 
-  template <std::size_t N>
-  clang::Sema::SemaDiagnosticBuilder
-  diag(clang::DiagnosticsEngine::Level level, clang::SourceLocation loc,
-       clad::DiagnosticGroup group, const char (&format)[N]) {
-    return m_Builder.diag(level, loc, group, format);
-  }
-
   void diagUnsupported(const clang::Decl* D) {
     clang::SourceLocation L = D->getBeginLoc();
-    diag(clang::DiagnosticsEngine::Warning, L,
-         clad::DiagnosticGroup::CladUnsupported,
-         "declaration kind '%0' is not supported")
+    constexpr char fmt[] = "declaration kind '%0' is not supported";
+    diag(clang::DiagnosticsEngine::Warning, L, fmt)
         << D->getDeclKindName() << L;
   }
 
   void diagUnsupported(const clang::Stmt* S) {
     clang::SourceLocation L = S->getBeginLoc();
-    diag(clang::DiagnosticsEngine::Warning, L,
-         clad::DiagnosticGroup::CladUnsupported,
-         "statement kind '%0' is not supported")
+    constexpr char fmt[] = "statement kind '%0' is not supported";
+    diag(clang::DiagnosticsEngine::Warning, L, fmt)
         << S->getStmtClassName() << L;
   }
 
   void diagUnsupportedIndirectCalls(const clang::CallExpr* CE) {
     assert(!CE->getDirectCallee() && "This is a direct callee");
     clang::SourceLocation L = CE->getBeginLoc();
-    diag(clang::DiagnosticsEngine::Warning, L,
-         clad::DiagnosticGroup::CladUnsupported,
-         "differentiation of indirect calls is not supported")
-        << L;
+    constexpr char fmt[] = "differentiation of indirect calls is not supported";
+    diag(clang::DiagnosticsEngine::Warning, L, fmt) << L;
+  }
+
+  /// Shorthand for warning on differentiation of unsupported operators
+  void unsupportedOpWarn(clang::SourceLocation loc) {
+    constexpr char fmt[] = "attempted to differentiate unsupported operator; "
+                           "treated as non-differentiable";
+    diag(clang::DiagnosticsEngine::Warning, loc, fmt);
   }
 
   /// Shorthand for warning on differentiation of unsupported operators
