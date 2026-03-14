@@ -821,8 +821,8 @@ T& back(
   template <unsigned N> struct EnzymeGradient { double d_arr[N]; };
 
 #ifdef _OPENMP
-  void GetStaticSchedule(int lo, int hi, int stride, int* threadlo,
-                         int* threadhi) {
+  inline void GetStaticSchedule(int lo, int hi, int stride, int* threadlo,
+                                int* threadhi) {
     /* Static OpenMP scheduler, identical to what LLVM would use. Each thread
        gets one chunk of consecutive iterations. The number of iterations per
        chunk is aproximately trip_count/num_threads. If the trip count can not
