@@ -88,9 +88,8 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
     if (DVI.size() > 1 || (isArrayOrPointerType(diffVarInfo.param->getType()) &&
                            (diffVarInfo.paramIndexInterval.size() != 1))) {
       SourceLocation L = m_DiffReq.Args ? m_DiffReq.Args->getBeginLoc() : noLoc;
-      diag(DiagnosticsEngine::Error, L,
-           "forward mode differentiation w.r.t. several parameters at once is "
-           "not supported; call 'clad::differentiate' for each parameter")
+        constexpr char fmt1[] = "forward mode differentiation w.r.t. several parameters at once is not supported; call 'clad::differentiate' for each parameter";
+        diag(DiagnosticsEngine::Error, L, fmt1)
           << L;
       return {};
     }
@@ -114,10 +113,9 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
                ->getPointeeOrArrayElementType()
                ->isRealType()) {
         SourceLocation L = m_IndependentVar->getBeginLoc();
-        diag(DiagnosticsEngine::Error, L,
-             "attempted differentiation w.r.t. parameter %0 which is not"
-             " array or pointer of real type")
-            << m_IndependentVar << L;
+        constexpr char fmt2[] = "attempted differentiation w.r.t. parameter %0 which is not array or pointer of real type";
+        diag(DiagnosticsEngine::Error, L, fmt2)
+          << m_IndependentVar << L;
         return {};
       }
       m_IndependentVarIndex = diffVarInfo.paramIndexInterval.Start;
@@ -132,10 +130,9 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
       }
       if (!IsRealNonReferenceType(T)) {
         SourceLocation L = m_DiffReq.Args->getBeginLoc();
-        diag(DiagnosticsEngine::Error, L,
-             "attempted differentiation w.r.t. %select{member|parameter}0 '%1' "
-             "which is not of real type")
-            << isField << diffVarInfo.source << L;
+        constexpr char fmt3[] = "attempted differentiation w.r.t. %select{member|parameter}0 '%1' which is not of real type";
+        diag(DiagnosticsEngine::Error, L, fmt3)
+          << isField << diffVarInfo.source << L;
         return {};
       }
     }

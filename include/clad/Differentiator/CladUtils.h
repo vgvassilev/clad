@@ -19,6 +19,13 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <cassert>
+#include <cstddef>
+#include <clang/Sema/DeclSpec.h>
+#include <clang/Sema/Scope.h>
+#include <clang/Basic/Specifiers.h>
+#include <clang/AST/ExprCXX.h>
+#include <llvm/ADT/ArrayRef.h>
+#include <clang/AST/Stmt.h>
 #include <string>
 
 namespace clang {
