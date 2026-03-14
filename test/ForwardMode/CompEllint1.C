@@ -1,7 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oCompEllint1.out | %filecheck %s
 // RUN: ./CompEllint1.out | %filecheck_exec %s
-// RUN: %cladclang %s -I%S/../../include -oCompEllint1.out | %filecheck %s
-// RUN: ./CompEllint1.out | %filecheck_exec %s
 // XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"

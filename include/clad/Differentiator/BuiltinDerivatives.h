@@ -1170,6 +1170,7 @@ CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
 // Formula: dK/dk = [E(k) - (1-k^2)*K(k)] / [k*(1-k^2)]
 // where E(k) = std::comp_ellint_2(k)
 // Reference: https://dlmf.nist.gov/19.4
+#if defined(__cpp_lib_math_special_functions)
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
 comp_ellint_1_pushforward(T k, dT d_k) {
@@ -1177,8 +1178,13 @@ comp_ellint_1_pushforward(T k, dT d_k) {
   T E = ::std::comp_ellint_2(k);
   T k2 = k * k;
   dT pushforward = 0;
-  if (d_k)
-    pushforward = (E - (1 - k2) * K) / (k * (1 - k2)) * d_k;
+  if (d_k) {
+    if (k == T(0)) {
+      pushforward = 0;
+    } else {
+      pushforward = (E - (1 - k2) * K) / (k * (1 - k2)) * d_k;
+    }
+  }
   return {K, pushforward};
 }
 
@@ -1187,9 +1193,15 @@ CUDA_HOST_DEVICE void comp_ellint_1_pullback(T k, U d_z, T* d_k) {
   T K = ::std::comp_ellint_1(k);
   T E = ::std::comp_ellint_2(k);
   T k2 = k * k;
-  if (d_k)
-    *d_k += (E - (1 - k2) * K) / (k * (1 - k2)) * d_z;
+  if (d_k) {
+    if (k == T(0)) {
+      // dK/dk at k=0 is 0; no change to *d_k needed.
+    } else {
+      *d_k += (E - (1 - k2) * K) / (k * (1 - k2)) * d_z;
+    }
+  }
 }
+#endif // defined(__cpp_lib_math_special_functions)
 #endif
 
 } // namespace std
@@ -1461,8 +1473,10 @@ using std::sqrt_pushforward;
 #if __cplusplus >= 201703L
 using std::beta_pullback;
 using std::beta_pushforward;
+#if defined(__cpp_lib_math_special_functions)
 using std::comp_ellint_1_pullback;
 using std::comp_ellint_1_pushforward;
+#endif // defined(__cpp_lib_math_special_functions)
 #endif
 
 namespace class_functions {
