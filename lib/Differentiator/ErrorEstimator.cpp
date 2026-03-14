@@ -129,11 +129,11 @@ bool ErrorEstimationHandler::ShouldEstimateErrorFor(VarDecl* VD) {
     // making _delta_x = y - (double)x
     // For now, we will just warn the user of casts like these
     // because we assume the cast is intensional.
-    if (init && init->IgnoreImpCasts()->getType()->isFloatingType())
-      m_RMV->diag(DiagnosticsEngine::Warning, VD->getEndLoc(),
-                  "lossy assignment from %0 to %1, this error will not be "
-                  "taken into cosideration while estimation")
+    if (init && init->IgnoreImpCasts()->getType()->isFloatingType()) {
+        constexpr char fmt1[] = "lossy assignment from %0 to %1, this error will not be taken into cosideration while estimation";
+        m_RMV->diag(DiagnosticsEngine::Warning, VD->getEndLoc(), fmt1)
           << init->IgnoreImpCasts()->getType() << varDeclBase;
+    }
     // Secondly, we want to only register floating-point types
     // So return false here.
     return false;

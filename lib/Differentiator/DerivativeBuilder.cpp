@@ -431,27 +431,20 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                                                bool numDiffViable) {
     bool NumDiffEnabled =
         !m_Sema.getPreprocessor().isMacroDefined("CLAD_NO_NUM_DIFF");
-    diag(DiagnosticsEngine::Warning, srcLoc,
-         "attempted differentiation of function %0 without definition "
-         "and no suitable overload was found in "
-         "namespace 'custom_derivatives'")
-        << FD << srcLoc;
+    constexpr char fmt1[] = "attempted differentiation of function %0 without definition and no suitable overload was found in namespace 'custom_derivatives'";
+    diag(DiagnosticsEngine::Warning, srcLoc, fmt1)
+      << FD << srcLoc;
     if (!numDiffViable) {
-      diag(
-          DiagnosticsEngine::Note, srcLoc,
-          "numerical differentiation is not viable for %0; considering %0 as 0")
+      constexpr char fmt2[] = "numerical differentiation is not viable for %0; considering %0 as 0";
+      diag(DiagnosticsEngine::Note, srcLoc, fmt2)
           << FD << srcLoc;
     } else if (NumDiffEnabled) {
-      diag(DiagnosticsEngine::Note, srcLoc,
-           "falling back to numerical differentiation for %0 since no "
-           "suitable overload was found and clad could not derive it; "
-           "to disable this feature, compile your programs with "
-           "-DCLAD_NO_NUM_DIFF")
+      constexpr char fmt3[] = "falling back to numerical differentiation for %0 since no suitable overload was found and clad could not derive it; to disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF";
+      diag(DiagnosticsEngine::Note, srcLoc, fmt3)
           << FD << srcLoc;
     } else {
-      diag(DiagnosticsEngine::Note, srcLoc,
-           "fallback to numerical differentiation is disabled by the "
-           "'CLAD_NO_NUM_DIFF' macro; considering %0 as 0")
+      constexpr char fmt4[] = "fallback to numerical differentiation is disabled by the 'CLAD_NO_NUM_DIFF' macro; considering %0 as 0";
+      diag(DiagnosticsEngine::Note, srcLoc, fmt4)
           << FD << srcLoc;
     }
   }
@@ -547,9 +540,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // check if the function is non-differentiable.
       if (clad::utils::hasNonDifferentiableAttribute(FD)) {
         SourceLocation L = request.CallContext->getBeginLoc();
-        diag(DiagnosticsEngine::Error, L,
-             "attempted differentiation of function %0, which is marked as "
-             "non-differentiable")
+        constexpr char fmt5[] = "attempted differentiation of function %0, which is marked as non-differentiable";
+        diag(DiagnosticsEngine::Error, L, fmt5)
             << FD;
         return {};
       }
@@ -560,9 +552,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD)) {
           SourceLocation L = MD->getLocation();
-          diag(DiagnosticsEngine::Error, L,
-               "attempted differentiation of method %0 in class %1, which "
-               "is marked as non-differentiable")
+          constexpr char fmt6[] = "attempted differentiation of method %0 in class %1, which is marked as non-differentiable";
+          diag(DiagnosticsEngine::Error, L, fmt6)
               << MD << CD << L;
           return {};
         }
@@ -570,9 +561,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     } else if (const VarDecl* VD = request.Global) {
       // Warn the user about the usage of global variables.
       SourceLocation L = VD->getLocation();
-      diag(DiagnosticsEngine::Warning, L,
-           "gradient uses a global variable %0; "
-           "rerunning the gradient requires %0 to be reset")
+      constexpr char fmt7[] = "gradient uses a global variable %0; rerunning the gradient requires %0 to be reset";
+      diag(DiagnosticsEngine::Warning, L, fmt7)
           << VD << L;
     }
 

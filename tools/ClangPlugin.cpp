@@ -33,6 +33,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/CladDiagnostics.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffMode.h"
 
@@ -109,12 +110,25 @@ void InitTimers();
             TokLoc,
             PP.getDiagnostics().getCustomDiagID(
                 DiagnosticsEngine::Error,
-                "expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma"));
+            "expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma"));
       }
     };
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
+      resetDiagnosticSettings();
+      setDiagnosticGroupEnabled(DiagnosticGroup::Clad, m_DO.DiagClad);
+      setDiagnosticGroupEnabled(DiagnosticGroup::CladUnsupported,
+                                m_DO.DiagCladUnsupported);
+      setDiagnosticGroupEnabled(DiagnosticGroup::CladCheckpointing,
+                                m_DO.DiagCladCheckpointing);
+      setDiagnosticGroupEnabled(DiagnosticGroup::CladPragma,
+                                m_DO.DiagCladPragma);
+      setDiagnosticGroupEnabled(DiagnosticGroup::CladBuiltin,
+                                m_DO.DiagCladBuiltin);
+      setDiagnosticGroupEnabled(DiagnosticGroup::CladNonDifferentiable,
+                                m_DO.DiagCladNonDifferentiable);
+
       CodeGenOptions& CGOpts = m_CI.getCodeGenOpts();
 #if CLANG_VERSION_MAJOR > 11
       bool WantTiming = CGOpts.TimePasses;
