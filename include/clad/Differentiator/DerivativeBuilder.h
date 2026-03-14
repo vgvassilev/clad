@@ -84,6 +84,7 @@ struct DerivativeAndOverload {
     friend class HessianModeVisitor;
     friend class JacobianModeVisitor;
     friend class ReverseModeForwPassVisitor;
+    friend class JacobianVectorProductModeVisitor;
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;

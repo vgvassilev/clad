@@ -60,6 +60,7 @@ llvm_add_library(cladDifferentiator
   DiffPlanner.cpp
   ErrorEstimator.cpp
   JacobianModeVisitor.cpp
+  JacobianVectorProduct.cpp
   HessianModeVisitor.cpp
   MultiplexExternalRMVSource.cpp
   PushForwardModeVisitor.cpp
