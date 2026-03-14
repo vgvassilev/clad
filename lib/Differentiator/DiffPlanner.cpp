@@ -739,182 +739,22 @@ std::string DiffRequest::ComputeDerivativeName() const {
     if (DVI.size() == Function->getNumParams() && Mode != DiffMode::forward)
       break;
 
-<<<<<<< HEAD
-    ASTContext& C = S.getASTContext();
-    auto LookupPropagator = [&C, &S, &DC](const std::string& Name) {
-      IdentifierInfo* II = &C.Idents.get(Name);
-      DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(S));
-      LookupResult Found(S, DNInfo, Sema::LookupOrdinaryName);
-      S.LookupQualifiedName(Found, DC);
-      return Found;
-    };
-
-    std::string Name = R.ComputeDerivativeName();
-    LookupResult Found = LookupPropagator(Name);
-    // This is a hack to reuse the builtin derivatives for vector mode.
-    if (Found.empty() && R.Mode == DiffMode::vector_pushforward)
-      Found = LookupPropagator(R.BaseFunctionName + "_pushforward");
-
-    if (Found.empty())
-      return nullptr; // Nothing found.
-
-    TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
-                                              /*ForTakingAddress=*/false);
-    if (Expr* overload =
-            utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
-      return overload;
-
-    if (!enableDiagnostics)
-      return nullptr;
-
-    // We did not match the found candidates. Warn and offer the user hints.
-    auto errId = S.Diags.getCustomDiagID(
-        DiagnosticsEngine::Error,
-        "user-defined derivative for %0 was provided but not used; "
-        "expected signature %1 does not match");
-    S.Diag(R.CallContext->getBeginLoc(), errId) << R.Function << dTy;
-    FailedCandidates.NoteCandidates(S, R.CallContext->getBeginLoc());
-    utils::DiagnoseSignatureMismatch(S, dTy, Found);
-
-    return nullptr;
-  }
-
-  bool DiffCollector::LookupCustomDerivativeDecl(DiffRequest & request) {
-    NamespaceDecl* cladNS =
-        utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
-    NamespaceDecl* customDerNS = utils::LookupNSD(
-        m_Sema, "custom_derivatives", /*shouldExist=*/false, cladNS);
-    if (!customDerNS)
-      return false;
-    if (request.Mode == DiffMode::unknown)
-      return true;
-
-    const Expr* callSite = request.CallContext;
-    assert(callSite && "Called lookup without CallContext");
-
-    const Decl* fnDecl = nullptr;
-    // Check if the callSite is not associated with a shadow declaration.
-    if (request.Mode == DiffMode::pushforward ||
-        request.Mode == DiffMode::pullback ||
-        request.Mode == DiffMode::vector_pushforward) {
-      if (const auto* ME = dyn_cast<CXXMemberCallExpr>(callSite)) {
-        fnDecl = ME->getMethodDecl();
-      } else if (const auto* CE = dyn_cast<CallExpr>(callSite)) {
-        const Expr* Callee = CE->getCallee()->IgnoreParenCasts();
-        if (const auto* DRE = dyn_cast<DeclRefExpr>(Callee))
-          fnDecl = DRE->getFoundDecl();
-        else if (const auto* MemberE = dyn_cast<MemberExpr>(Callee))
-          fnDecl = MemberE->getFoundDecl().getDecl();
-      } else if (const auto* CtorExpr = dyn_cast<CXXConstructExpr>(callSite)) {
-        fnDecl = CtorExpr->getConstructor();
-      }
-    } else
-      fnDecl = request.Function;
-    DeclContext* DC = customDerNS;
-
-    if (isa<CXXMethodDecl>(fnDecl))
-      DC = utils::LookupNSD(m_Sema, "class_functions", /*shouldExist=*/false,
-                            DC);
-    else
-      DC = utils::FindDeclContext(m_Sema, DC, fnDecl->getDeclContext());
-
-    if (!DC)
-      return false;
-
-    assert(request.Mode != DiffMode::unknown &&
-           "Called lookup without specified DiffMode");
-
-    if (Expr* overload = getOverloadExpr(m_Sema, DC, request)) {
-      // Overload found. Mark the request as custom derivative and save
-      // the set of overloads to process later.
-      request.CustomDerivative = overload;
-      return true;
-    }
-
-    return false;
-  }
-
-  bool DiffCollector::VisitCallExpr(CallExpr * E) {
-    // Check if we should look into this.
-    DiffRequest request;
-
-    FunctionDecl* FD = E->getDirectCallee();
-    if (!FD)
-      return true;
-
-    bool nonDiff = false;
-    // FIXME: We might want to support nested calls to differentiate/gradient
-    // inside differentiated functions.
-    if (!m_TopMostReq) {
-      // FIXME: Generated code does not usually have valid source locations.
-      // In that case we should ask the enclosing ast nodes for a source
-      // location and check if it is within range.
-      SourceLocation endLoc = E->getEndLoc();
-      if (endLoc.isInvalid() || !isInInterval(endLoc))
-        return true;
-
-      // We need to find our 'special' diff annotated such:
-      // clad::differentiate(...) __attribute__((annotate("D")))
-      // TODO: why not check for its name? clad::differentiate/gradient?
-      const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
-
-      if (!A)
-        return true;
-
-      std::string Annotation = A->getAnnotation().str();
-      if (Annotation != "D" && Annotation != "G" && Annotation != "H" &&
-          Annotation != "J" && Annotation != "E")
-        return true;
-
-      // A call to clad::differentiate or clad::gradient was not found.
-      if (!findTargetFunction(request, E, m_Sema))
-        return true;
-
-      request.VerboseDiags = true;
-      // The root of the differentiation request graph should update the
-      // CladFunction object with the generated call.
-      request.CallUpdateRequired = true;
-      request.CallContext = E;
-
-      if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
-        return true;
-
-      request.Args = E->getArg(1);
-      request.UpdateDiffParamsInfo(m_Sema);
-      if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis) {
-        if (request.Args)
-          for (const auto& dParam : request.DVI)
-            request.addVariedDecl(cast<VarDecl>(dParam.param));
-      }
-
-      if (request.Function->hasAttr<CUDAGlobalAttr>())
-        for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i)
-          request.CUDAGlobalArgsIndexes.push_back(i);
-      m_TopMostReq = &request;
-=======
     const ValueDecl* IndP = dParamInfo.param;
-    // If we are differentiating a call operator, that has no parameters,
-    // then the specified independent argument is a member variable of the
-    // class defining the call operator.
-    // Thus, we need to find index of the member variable instead.
     unsigned idx = ~0U;
     if (Function->param_empty() && Functor) {
       auto it = std::find(Functor->field_begin(), Functor->field_end(), IndP);
       idx = std::distance(Functor->field_begin(), it);
->>>>>>> 36b275d8 (Enable CTest test discovery, update test registration, run clang-tidy, rebuild, and verify tests pass)
     } else {
       const auto* it =
           std::find(Function->param_begin(), Function->param_end(), IndP);
       idx = std::distance(Function->param_begin(), it);
     }
     argInfo += ((Mode == DiffMode::forward) ? "" : "_") + std::to_string(idx);
-
     if (dParamInfo.paramIndexInterval.isValid()) {
       assert(utils::isArrayOrPointerType(IndP->getType()) && "Not array?");
       // FIXME: What about ranges [Start;Finish)?
       argInfo += "_" + std::to_string(dParamInfo.paramIndexInterval.Start);
     }
-
     for (const std::string& field : dParamInfo.fields)
       argInfo += "_" + field;
   }
@@ -1071,40 +911,39 @@ static bool ProcessInvocationArgs(Sema& S, SourceLocation BeginLoc,
   if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme))
     request.use_enzyme = true;
 
-  if (request.Mode == DiffMode::forward) {
-    // Check for clad::differentiate<N>.
-    if (unsigned order = clad::GetDerivativeOrder(bitmasked_opts_value))
-      request.RequestedDerivativeOrder = order;
+  // Check for clad::differentiate<N>.
+  if (unsigned order = clad::GetDerivativeOrder(bitmasked_opts_value))
+    request.RequestedDerivativeOrder = order;
 
-    // Check for clad::differentiate<immediate_mode>.
-    if (clad::HasOption(bitmasked_opts_value, clad::opts::immediate_mode))
-      request.ImmediateMode = true;
+  // Check for clad::differentiate<immediate_mode>.
+  if (clad::HasOption(bitmasked_opts_value, clad::opts::immediate_mode))
+    request.ImmediateMode = true;
 
-    // Check for clad::differentiate<vector_mode>.
-    if (clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
-      request.Mode = DiffMode::vector_forward_mode;
+  // Check for clad::differentiate<vector_mode>.
+  if (clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
+    request.Mode = DiffMode::vector_forward_mode;
 
-      // Currently only first order derivative is supported.
-      if (request.RequestedDerivativeOrder != 1) {
-        utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
-                    "only first order derivative is supported for now "
-                    "in vector forward mode")
-            << BeginLoc;
-        return true;
-      }
+    // Currently only first order derivative is supported.
+    if (request.RequestedDerivativeOrder != 1) {
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                  "only first order derivative is supported for now "
+                  "in vector forward mode")
+          << BeginLoc;
+      return true;
+    }
 
-      // We don't yet support enzyme with vector mode.
-      if (request.use_enzyme) {
-        utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
-                    "enzyme's vector mode is not yet supported")
-            << BeginLoc;
-        return true;
-      }
+    // We don't yet support enzyme with vector mode.
+    if (request.use_enzyme) {
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                  "enzyme's vector mode is not yet supported")
+          << BeginLoc;
+      return true;
     }
   }
 
   return false;
 }
+// ...existing code...
 
 static bool allArgumentsAreLiterals(const CallExpr::arg_range& args,
                                     const DiffRequest* request) {

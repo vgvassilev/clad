@@ -3495,7 +3495,8 @@ bool ReverseModeVisitor::UsefulToStoreGlobal(Expr* E) {
 
 VarDecl* ReverseModeVisitor::GlobalStoreImpl(QualType Type,
                                              llvm::StringRef prefix,
-                                             Expr* init) {
+                                             Expr* init,
+                                             clang::StorageClass SC) {
   // Create identifier before going to topmost scope
   // to let Sema::LookupName see the whole scope.
   auto* identifier = CreateUniqueIdentifier(prefix);

@@ -457,14 +457,6 @@ protected:
     diag(clang::DiagnosticsEngine::Warning, loc, fmt);
   }
 
-  /// Shorthand for warning on differentiation of unsupported operators
-  void unsupportedOpWarn(clang::SourceLocation loc) {
-    diag(clang::DiagnosticsEngine::Warning, loc,
-         clad::DiagnosticGroup::CladUnsupported,
-         "attempted to differentiate unsupported operator; treated as "
-         "non-differentiable");
-  }
-
   /// Creates unique identifier of the form "_nameBase<number>" that is
   /// guaranteed not to collide with anything in the current scope.
   clang::IdentifierInfo* CreateUniqueIdentifier(llvm::StringRef nameBase);
@@ -620,7 +612,7 @@ protected:
                                        clang::IdentifierInfo* II,
                                        bool pushOnScopeChains = false,
                                        bool cloneDefaultArg = true,
-                                       clang::SourceLocatpion Loc = noLoc);
+                                       clang::SourceLocation Loc = noLoc);
   /// A function to get the single argument "forward_central_difference"
   /// call expression for the given arguments.
   ///
