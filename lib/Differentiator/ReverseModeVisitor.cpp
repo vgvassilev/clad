@@ -37,6 +37,7 @@
 #include "clang/Basic/Lambda.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Basic/TypeTraits.h"
@@ -115,11 +116,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType TapeType = GetCladTapeOfType(type);
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
-    Expr* TapeRef =
-        BuildDeclRef(GlobalStoreImpl(TapeType, prefix, getZeroInit(TapeType)));
+
+    // Threadprivate tapes must be static
+    StorageClass SC = isInsideOMPBlock ? SC_Static : SC_None;
+    Expr* TapeRef = BuildDeclRef(
+        GlobalStoreImpl(TapeType, prefix, getZeroInit(TapeType), SC));
     auto* VD = cast<VarDecl>(cast<DeclRefExpr>(TapeRef)->getDecl());
     // Add fake location, since Clang AST does assert(Loc.isValid()) somewhere.
     VD->setLocation(m_DiffReq->getLocation());
+
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
     auto* PopDRE = m_Sema
@@ -137,6 +142,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* PushExpr =
         m_Sema.ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, CallArgs, noLoc)
             .get();
+
+    if (isInsideOMPBlock)
+      MarkDeclThreadPrivate(VD);
     return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
   }
 
@@ -1521,10 +1529,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       if (!it->second)
         return StmtDiff(clonedDRE);
+
+      clang::Expr* dExpr = it->second;
+      if (auto* dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
+        // FIXME: We should instead store the decl of the adjoint in m_Variables
+        // and rebuild the declref every time.
+        auto* dVar = cast<VarDecl>(dVarDRE->getDecl());
+        if (dVar->getDeclContext() != m_Sema.CurContext)
+          dExpr = BuildDeclRef(dVar, DRE->getQualifier());
+      }
+
       // Create the (_d_param[idx] += dfdx) statement.
-      if (Expr* add_assign = BuildDiffIncrement(it->second))
+      if (Expr* add_assign = BuildDiffIncrement(dExpr))
         addToCurrentBlock(add_assign, direction::reverse);
-      return StmtDiff(clonedDRE, it->second);
+      return StmtDiff(clonedDRE, dExpr);
     }
 
     return StmtDiff(clonedDRE);
@@ -2744,6 +2762,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         StmtDiff pushPop = StoreAndRestore(LCloned);
         addToCurrentBlock(pushPop.getStmt(), direction::forward);
         addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
+        if (isInsideOMPBlock) {
+          addToBlock(pushPop.getStmt(), m_OMPBlocks);
+          addToBlock(pushPop.getStmt_dx(), m_OMPReverseBlocks);
+        }
       }
 
       if (!ResultRef)
@@ -2996,6 +3018,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
+    StorageClass SC = isInsideOMPBlock ? SC_Static : SC_None;
+
     // Build the adjoint VarDecl
     VarDecl* VDDerived = nullptr;
     if (m_DiffReq.shouldHaveAdjoint(VD) &&
@@ -3003,8 +3027,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (!isLambdaDS) {
         llvm::StringRef Name = VD->getName();
         std::string CleanName = Name.ltrim('_').str();
-        VDDerived =
-            BuildGlobalVarDecl(VDDerivedType, "_d_" + CleanName, dummyInit);
+        VDDerived = BuildGlobalVarDecl(VDDerivedType, "_d_" + CleanName,
+                                       dummyInit, false, nullptr, SC);
       }
     }
 
@@ -3025,7 +3049,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         QualType AutoQT = m_Context.getAutoDeductType();
         VDDerived = BuildGlobalVarDecl(
             AutoQT, "_d_" + VD->getNameAsString(), initDiff.getExpr_dx(), false,
-            m_Context.getTrivialTypeSourceInfo(AutoQT, noLoc));
+            m_Context.getTrivialTypeSourceInfo(AutoQT, noLoc), SC);
       }
     }
     // If we are differentiating `VarDecl` corresponding to a local variable
@@ -3091,13 +3115,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       isPointerType = true;
     }
 
-    if (isLambdaDS)
+    TypeSourceInfo* VDCloneTSI = nullptr;
+    if (isLambdaDS) {
       VDCloneType = m_Context.getAutoDeductType();
-    VDClone = BuildGlobalVarDecl(
-        VDCloneType, VD->getNameAsString(), initDiff.getExpr(),
-        VD->isDirectInit(),
-        isLambdaDS ? m_Context.getTrivialTypeSourceInfo(VDCloneType, noLoc)
-                   : nullptr);
+      VDCloneTSI = m_Context.getTrivialTypeSourceInfo(VDCloneType, noLoc);
+    }
+
+    VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
+                                 initDiff.getExpr(), VD->isDirectInit(),
+                                 VDCloneTSI, SC);
+
     // The choice of isDirectInit is mostly stylistic.
     bool isRealConstArray = false;
     if (const auto* arrType = dyn_cast<ConstantArrayType>(VDType))
@@ -3300,6 +3327,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Stmts& block =
           promoteToFnScope ? m_Globals : getCurrentBlock(direction::forward);
       addToBlock(DSDiff, block);
+      if (isInsideOMPBlock) {
+        for (auto* declDiff : declsDiff) {
+          // If we are inside an OpenMP parallel region, mark the decl as
+          // threadprivate
+          MarkDeclThreadPrivate(cast<VarDecl>(declDiff));
+        }
+      }
       for (Stmt* memset : memsetCalls)
         addToBlock(memset, block);
     }
@@ -3320,8 +3354,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // clad::array<double> b(5UL);
       // If we remove the need for clad::array here,
       // just add DSClone to the block.
-      for (Decl* decl : decls)
+      for (Decl* decl : decls) {
         addToBlock(BuildDeclStmt(decl), m_Globals);
+        // If we are inside an OpenMP parallel region, mark the decl as
+        // threadprivate
+        if (isInsideOMPBlock)
+          MarkDeclThreadPrivate(cast<VarDecl>(decl));
+      }
       Stmt* initAssignments = MakeCompoundStmt(inits);
       initAssignments = utils::unwrapIfSingleStmt(initAssignments);
       DSClone = initAssignments;
@@ -3337,6 +3376,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         auto* vDecl = cast<VarDecl>(decl);
         if (Expr* init = vDecl->getInit()) {
           if (promoteToFnScope) {
+            if (isInsideOMPBlock)
+              MarkDeclThreadPrivate(vDecl);
             auto* declRef = BuildDeclRef(vDecl);
             auto* assignment = BuildOp(BO_Assign, declRef, init);
             addToCurrentBlock(assignment, direction::forward);
@@ -3543,7 +3584,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   VarDecl* ReverseModeVisitor::GlobalStoreImpl(QualType Type,
                                                llvm::StringRef prefix,
-                                               Expr* init) {
+                                               Expr* init, StorageClass SC) {
     // Create identifier before going to topmost scope
     // to let Sema::LookupName see the whole scope.
     auto* identifier = CreateUniqueIdentifier(prefix);
@@ -3552,7 +3593,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     assert(m_DerivativeFnScope && "must be set");
     setCurrentScope(m_DerivativeFnScope);
 
-    VarDecl* Var = BuildVarDecl(Type, identifier, init);
+    VarDecl* Var = BuildVarDecl(Type, identifier, init, false, nullptr, SC);
 
     // Add the declaration to the body of the gradient function.
     addToBlock(BuildDeclStmt(Var), m_Globals);
@@ -4791,5 +4832,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       params.push_back(dPVD);
     }
+  }
+  void ReverseModeVisitor::MarkDeclThreadPrivate(VarDecl* decl) {
+    auto* Init = decl->getInit();
+    // set to null to pass CheckOMPThreadPrivateDecl
+    decl->setInit(nullptr);
+    auto* declRef = BuildDeclRef(decl);
+    llvm::SmallVector<Expr*, 1> Vars{declRef};
+    auto* TPDecl =
+        CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).CheckOMPThreadPrivateDecl(
+            decl->getLocation(), Vars);
+    decl->setInit(Init);
+    // Add the threadprivate declaration to the current context
+    m_Sema.CurContext->addDecl(TPDecl);
+    // Create a DeclStmt and add it to the global block for proper AST
+    // structure
+    Stmt* TPStmt = BuildDeclStmt(TPDecl);
+    AddToGlobalBlock(TPStmt);
   }
 } // end namespace clad
