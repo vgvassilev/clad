@@ -350,6 +350,20 @@ Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
   return result;
 }
 
+Stmt* StmtClone::VisitLambdaExpr(LambdaExpr* Node) {
+  // clone the initialization expressions for the captures
+  llvm::SmallVector<Expr*, 4> clonedCaptureInits;
+  for (Expr* init : Node->capture_inits())
+    clonedCaptureInits.push_back(Clone(init));
+
+  return LambdaExpr::Create(
+      Ctx, Node->getLambdaClass(), Node->getIntroducerRange(),
+      Node->getCaptureDefault(), Node->getCaptureDefaultLoc(),
+      Node->hasExplicitParameters(), Node->hasExplicitResultType(),
+      clonedCaptureInits, Node->getEndLoc(),
+      Node->containsUnexpandedParameterPack());
+}
+
 Stmt* StmtClone::VisitCUDAKernelCallExpr(CUDAKernelCallExpr* Node) {
   llvm::SmallVector<Expr*, 4> clonedArgs;
   for (Expr* arg : Node->arguments())

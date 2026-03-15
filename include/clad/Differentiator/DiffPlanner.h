@@ -286,6 +286,11 @@ public:
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
     bool shouldVisitImplicitCode() const { return true; }
+    /// Here we use TraverseLambdaExpr and not VisitLambdaExpr to ensure the
+    /// new nested DiffRequest is created before the visitor goes to the capture
+    /// or constructor initializers. If we use Visit they would be processed
+    /// under the parent DiffRequest which is not in the lambda scope.
+    bool TraverseLambdaExpr(clang::LambdaExpr* LE);
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
       llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
       if (m_Traversed.count(FD))
