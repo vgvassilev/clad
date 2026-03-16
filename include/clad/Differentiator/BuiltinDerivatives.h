@@ -929,9 +929,7 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, T> ceil_pushforward(T x, T /*d_x*/) {
   return {::std::ceil(x), (T)0};
 }
 
-template <typename T, typename dT> struct AdjOutType {
-  using type = T;
-};
+template <typename T, typename dT> struct AdjOutType { using type = T; };
 
 template <typename T, typename dT> struct AdjOutType<T, clad::array<dT>> {
   using type = clad::array<T>;
@@ -1172,18 +1170,17 @@ CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
 // Reference: https://dlmf.nist.gov/19.4
 #if defined(__cpp_lib_math_special_functions)
 template <typename T, typename dT>
-CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
-comp_ellint_1_pushforward(T k, dT d_k) {
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_1_pushforward(T k,
+                                                                      dT d_k) {
   T K = ::std::comp_ellint_1(k);
   T E = ::std::comp_ellint_2(k);
   T k2 = k * k;
   dT pushforward = 0;
   if (d_k) {
-    if (k == T(0)) {
+    if (k == T(0))
       pushforward = 0;
-    } else {
+    else
       pushforward = (E - (1 - k2) * K) / (k * (1 - k2)) * d_k;
-    }
   }
   return {K, pushforward};
 }
@@ -1490,15 +1487,15 @@ void constructor_pullback(ValueAndPushforward<T, U> rhs,
 } // namespace custom_derivatives
 } // namespace clad
 
-  // FIXME: These math functions depend on promote_2 just like pow:
-  // atan2
-  // fmod
-  // copysign
-  // fdim
-  // fmax
-  // fmin
-  // hypot
-  // nextafter
-  // remainder
-  // remquo
-#endif //CLAD_BUILTIN_DERIVATIVES
+// FIXME: These math functions depend on promote_2 just like pow:
+// atan2
+// fmod
+// copysign
+// fdim
+// fmax
+// fmin
+// hypot
+// nextafter
+// remainder
+// remquo
+#endif // CLAD_BUILTIN_DERIVATIVES
