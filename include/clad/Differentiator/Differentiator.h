@@ -713,6 +713,61 @@ T& back(
         derivedFn /* will be replaced by gradient*/, code, f);
   }
 
+  /// Generates the pullback of the specified function.
+  ///
+  /// A pullback executes the reverse-mode automatic differentiation pass but
+  /// omits the final gradient extraction step. This allows for the computation
+  /// of intermediate adjoints. It is highly efficient when chaining derivatives
+  /// or when interfacing with external Machine Learning frameworks.
+  ///
+  /// \param f The function or method to be differentiated.
+  /// \param args (Optional) A string literal with comma-separated names of
+  ///             independent variables (e.g. "x" or "x, y"). If not provided,
+  ///             the pullback is generated with respect to all arguments.
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+            typename = typename std::enable_if<
+                !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
+                                 opts::immediate_mode) &&
+                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
+                         true> __attribute__((annotate("P"))) CUDA_HOST_DEVICE
+  pullback(F f, ArgSpec args = "",
+           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+           const char* code = "", bool CUDAkernel = false) {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn /* will be replaced by pullback*/, code, nullptr, CUDAkernel);
+  }
+
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+            typename = typename std::enable_if<
+                clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
+                                opts::immediate_mode) &&
+                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true,
+                         true> __attribute__((annotate("P"))) CUDA_HOST_DEVICE
+  pullback(F f, ArgSpec args = "",
+           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+           bool CUDAkernel = false) {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true, true>(
+        derivedFn /* will be replaced by pullback*/, nullptr, CUDAkernel);
+  }
+
+  /// Specialization for differentiating functors.
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+            typename = typename std::enable_if<
+                std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
+                         true> __attribute__((annotate("P"))) CUDA_HOST_DEVICE
+  pullback(F&& f, ArgSpec args = "",
+           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+           const char* code = "") {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn /* will be replaced by pullback*/, code, f);
+  }
+
   /// Generates function which computes hessian matrix of the given function wrt
   /// the parameters specified in `args`.
   ///

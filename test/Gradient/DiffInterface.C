@@ -93,7 +93,12 @@ double f_2 (const double& x, const double& y) {
     F.execute(0, 0, 0, __VA_ARGS__);                                           \
     printf("{%.2f, %.2f, %.2f}\n", result[0], result[1], result[2]);           \
   }
+double f_3(double x, double y) {
+   return 2 * x + y;
+}
 
+//CHECK: void f_3_pullback(double x, double y, double _d_y0) {
+//CHECK-NEXT: }
 int main () {
   double result[3];
 
@@ -147,5 +152,7 @@ int main () {
   f2_dX.execute(2, 3, &result[0]);
   printf("{%.2f}\n", result[0]); // CHECK-EXEC: {1.00}
 
+  auto f3_pb = clad::pullback(f_3, "x, y");
+  
   return 0;
 }

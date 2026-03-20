@@ -271,22 +271,24 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // FIXME: Gradient overload doesn't know how to handle additional parameters
     // added by the plugins yet.
     if (m_DiffReq.Mode == DiffMode::reverse) {
-      if (returnTy->isRealType())
-        m_Pullback.push_back(ConstantFolder::synthesizeLiteral(m_Context.IntTy,
-                                                               m_Context,
-                                                               /*val=*/1));
-      else if (!returnTy->isVoidType()) {
-        diag(DiagnosticsEngine::Warning, m_DiffReq.Function->getBeginLoc(),
-             "clad::gradient only supports differentiation functions of real "
-             "return types. Return stmt ignored")
-            << m_DiffReq.Function->getReturnTypeSourceRange();
-        diag(DiagnosticsEngine::Note, m_DiffReq.CallContext->getBeginLoc(),
-             "use clad::jacobian to compute derivatives of multiple real "
-             "outputs w.r.t. multiple real inputs");
+      if (m_DiffReq.Mode != DiffMode::pullback) {
+        if (returnTy->isRealType())
+          m_Pullback.push_back(
+              ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                                /*val=*/1));
+        else if (!returnTy->isVoidType()) {
+          diag(DiagnosticsEngine::Warning, m_DiffReq.Function->getBeginLoc(),
+               "clad::gradient only supports differentiation functions of real "
+               "return types. Return stmt ignored")
+              << m_DiffReq.Function->getReturnTypeSourceRange();
+          diag(DiagnosticsEngine::Note, m_DiffReq.CallContext->getBeginLoc(),
+               "use clad::jacobian to compute derivatives of multiple real "
+               "outputs w.r.t. multiple real inputs");
+        }
       }
-      shouldCreateOverload = !m_ExternalSource;
+      shouldCreateOverload =
+          !m_ExternalSource && m_DiffReq.Mode != DiffMode::pullback;
       if (!m_DiffReq.DeclarationOnly && !m_DiffReq.DerivedFDPrototypes.empty())
-        // If the overload is already created, we don't need to create it again.
         shouldCreateOverload = false;
     }
     QualType dFnType = GetDerivativeType();
