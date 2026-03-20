@@ -347,10 +347,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
     // Diff info for pullbacks is generated automatically,
-    // its parameters are not provided by the user.
-    if (Mode == DiffMode::pullback)
+    // its parameters are not provided by the user (unless explicitly
+    // requested).
+    if (Mode == DiffMode::pullback && !Args)
       return;
-
     DVI.clear();
     auto& C = semaRef.getASTContext();
     const Expr* diffArgs = Args;
@@ -825,9 +825,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::jacobian;
     else if (Annotation == "G")
       request.Mode = DiffMode::reverse;
+    else if (Annotation == "P")
+      request.Mode = DiffMode::pullback;
     else
       llvm_unreachable("unknown mode");
-    if (request.Mode == DiffMode::reverse || request.Mode == DiffMode::hessian)
+    if (request.Mode == DiffMode::reverse ||
+        request.Mode == DiffMode::hessian || request.Mode == DiffMode::pullback)
       request.EnableTBRAnalysis = ReqOpts.EnableTBRAnalysis;
     request.EnableVariedAnalysis = ReqOpts.EnableVariedAnalysis;
     request.EnableUsefulAnalysis = ReqOpts.EnableUsefulAnalysis;
@@ -1111,7 +1114,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       std::string Annotation = A->getAnnotation().str();
       if (Annotation != "D" && Annotation != "G" && Annotation != "H" &&
-          Annotation != "J" && Annotation != "E")
+          Annotation != "J" && Annotation != "E" && Annotation != "P")
         return true;
 
       // A call to clad::differentiate or clad::gradient was not found.
