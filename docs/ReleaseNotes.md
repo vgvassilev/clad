@@ -51,8 +51,6 @@ Misc
 Fixed Bugs
 ----------
 
-[XXX](https://github.com/vgvassilev/clad/issues/XXX)
-
  <!---Get release bugs. Check for close, fix, resolve
  git log v2.2..master | grep -i "close" | grep '#' | sed -E 's,.*\#([0-9]*).*,\[\1\]\(https://github.com/vgvassilev/clad/issues/\1\),g' | sort -t'[' -k2,2n
  --->
