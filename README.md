@@ -351,7 +351,7 @@ make check-clad
 ```
 pip3 install lit
 ```
-Clone the LLVM project and checkout the required LLVM version (Currently supported versions 8.x - 18.x)
+Clone the LLVM project and checkout the required LLVM version (Currently supported versions 11.0.x - 21.1.x)
 
 ```
 git clone https://github.com/llvm/llvm-project.git
