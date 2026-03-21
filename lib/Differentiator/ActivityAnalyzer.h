@@ -68,6 +68,7 @@ public:
   bool TraverseCompoundAssignOperator(clang::CompoundAssignOperator* CAO);
   bool TraverseInitListExpr(clang::InitListExpr* ILE);
   bool TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* CE);
+  bool TraverseLambdaExpr(clang::LambdaExpr* LE);
   bool TraverseMemberExpr(clang::MemberExpr* ME);
   bool TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE);
   bool TraverseCXXThisExpr(clang::CXXThisExpr* TE);

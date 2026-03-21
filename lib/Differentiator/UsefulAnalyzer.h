@@ -67,6 +67,7 @@ public:
   bool VisitBinaryOperator(clang::BinaryOperator* BinOp);
   bool VisitDeclStmt(clang::DeclStmt* DS);
   bool VisitCallExpr(clang::CallExpr* CE);
+  bool TraverseLambdaExpr(clang::LambdaExpr* LE);
 };
 } // namespace clad
 #endif // CLAD_DIFFERENTIATOR_USEFULANALYZER_H

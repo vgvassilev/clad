@@ -208,6 +208,22 @@ bool VariedAnalyzer::TraverseCXXOperatorCallExpr(
   return false;
 }
 
+bool VariedAnalyzer::TraverseLambdaExpr(clang::LambdaExpr* LE) {
+  // Lambdas introduce a separate scope; analyze captures here and leave the
+  // lambda body to the call operator's own analysis.
+  for (const clang::LambdaCapture& capture : LE->captures()) {
+    if (!capture.capturesVariable())
+      continue;
+    const auto* VD = llvm::dyn_cast<clang::VarDecl>(capture.getCapturedVar());
+    if (!VD)
+      continue;
+    VarData* data = getVarDataFromDecl(VD);
+    if (data && findReq(*data))
+      m_Varied = true;
+  }
+  return false;
+}
+
 bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
   Expr* callee = CE->getCallee();
   if (isa<CXXPseudoDestructorExpr>(callee))
