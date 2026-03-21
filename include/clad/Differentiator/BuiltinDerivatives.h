@@ -557,6 +557,51 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expm1l_pushforward(T x, dT d_x) {
   return expm1_pushforward(x, d_x);
 }
 
+#if __cplusplus >= 201703L
+// 2.4 expint, expintf, expintl
+template <typename T> CUDA_HOST_DEVICE inline T expint_primal(T x) {
+#if defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__)
+  return ::std ::expint(x);
+#else
+  return T(0);
+#endif
+}
+
+template <typename T> CUDA_HOST_DEVICE inline T expintf_primal(T x) {
+#if defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__)
+  return ::std ::expintf(x);
+#else
+  return T(0);
+#endif
+}
+
+template <typename T> CUDA_HOST_DEVICE inline T expintl_primal(T x) {
+#if defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__)
+  return ::std ::expintl(x);
+#else
+  return T(0);
+#endif
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expint_pushforward(T x, dT d_x) {
+  return {static_cast<T>(expint_primal(x)),
+          static_cast<dT>((::std ::exp(x) / x) * d_x)};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expintf_pushforward(T x, dT d_x) {
+  return {static_cast<T>(expintf_primal(x)),
+          static_cast<dT>((::std ::exp(x) / x) * d_x)};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expintl_pushforward(T x, dT d_x) {
+  return {static_cast<T>(expintl_primal(x)),
+          static_cast<dT>((::std ::exp(x) / x) * d_x)};
+}
+#endif
+
 // 3. Logarithmic Functions
 
 // 3.1 log, logf, logl
@@ -1351,6 +1396,11 @@ using std::expl_pushforward;
 using std::expm1_pushforward;
 using std::expm1f_pushforward;
 using std::expm1l_pushforward;
+#if __cplusplus >= 201703L
+using std::expint_pushforward;
+using std::expintf_pushforward;
+using std::expintl_pushforward;
+#endif
 
 // 3. Logarithmic Functions
 using std::log10_pushforward;
