@@ -5,7 +5,10 @@
 #include "clad/Differentiator/CladConfig.h"
 
 #include <cassert>
+#include <cblas.h>
 #include <initializer_list>
+#include <openblas_config.h>
+#include <stdexcept>
 #include <type_traits>
 
 /// Implementing a matrix class using clad::array for storing the data.
@@ -165,6 +168,28 @@ public:
     matrix res(mat.m_rows, mat.m_cols);
     res.m_data = val - mat.m_data;
     return res;
+  }
+
+  CUDA_HOST_DEVICE matrix<T> matmul(const matrix<T>& other) {
+    if (!std::is_floating_point_v<float> && !std::is_floating_point_v<double>)
+      throw std::runtime_error{
+          "Error: Matrix multiplication can only be performed between matrices "
+          "with floating point values"};
+
+    if (this->cols() != other.rows())
+      throw std::runtime_error{
+          "Error: Invalid sizes for matrix multiplication"};
+
+    matrix<T> prod{this->rows(), other.cols()};
+
+    cblas_dgemm(CBLAS_ORDER::CblasRowMajor, CBLAS_TRANSPOSE::CblasNoTrans,
+                CBLAS_TRANSPOSE::CblasNoTrans, this->rows(), other.cols(),
+                this->cols(), 1, reinterpret_cast<double*>(this->m_data.ptr()),
+                this->cols(), reinterpret_cast<double*>(other.m_data.ptr()),
+                other.cols(), 1, reinterpret_cast<double*>(prod.m_data.ptr()),
+                prod.cols());
+
+    return prod;
   }
 }; // class matrix
 
