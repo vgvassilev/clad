@@ -1167,7 +1167,7 @@ CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
 // Derivative of std::comp_ellint_1(k) = K(k)
 // Formula: dK/dk = [E(k) - (1-k^2)*K(k)] / [k*(1-k^2)]
 // where E(k) = std::comp_ellint_2(k)
-// Reference: https://dlmf.nist.gov/19.4
+
 #if defined(__cpp_lib_math_special_functions)
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> comp_ellint_1_pushforward(T k,
@@ -1199,7 +1199,6 @@ CUDA_HOST_DEVICE void comp_ellint_1_pullback(T k, U d_z, T* d_k) {
   }
 }
 #endif // defined(__cpp_lib_math_special_functions)
-#endif
 
 } // namespace std
 
