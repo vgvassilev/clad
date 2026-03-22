@@ -171,23 +171,36 @@ public:
   }
 
   CUDA_HOST_DEVICE matrix<T> matmul(const matrix<T>& other) {
-    if (!std::is_floating_point_v<float> && !std::is_floating_point_v<double>)
-      throw std::runtime_error{
-          "Error: Matrix multiplication can only be performed between matrices "
-          "with floating point values"};
-
     if (this->cols() != other.rows())
       throw std::runtime_error{
           "Error: Invalid sizes for matrix multiplication"};
 
     matrix<T> prod{this->rows(), other.cols()};
 
-    cblas_dgemm(CBLAS_ORDER::CblasRowMajor, CBLAS_TRANSPOSE::CblasNoTrans,
-                CBLAS_TRANSPOSE::CblasNoTrans, this->rows(), other.cols(),
-                this->cols(), 1, reinterpret_cast<double*>(this->m_data.ptr()),
-                this->cols(), reinterpret_cast<double*>(other.m_data.ptr()),
-                other.cols(), 1, reinterpret_cast<double*>(prod.m_data.ptr()),
-                prod.cols());
+    if (std::is_floating_point_v<T>) {
+      if (sizeof(T) == sizeof(double))
+        // The reinterpret_cast in both branches is safe because they exist
+        // only to satisfy the compiler
+        cblas_dgemm(CBLAS_ORDER::CblasRowMajor, CBLAS_TRANSPOSE::CblasNoTrans,
+                    CBLAS_TRANSPOSE::CblasNoTrans, this->rows(), other.cols(),
+                    this->cols(), 1,
+                    reinterpret_cast<double*>(this->m_data.ptr()), this->cols(),
+                    reinterpret_cast<double*>(other.m_data.ptr()), other.cols(),
+                    1, reinterpret_cast<double*>(prod.m_data.ptr()),
+                    prod.cols());
+
+      else if (sizeof(T) == sizeof(float))
+        cblas_sgemm(CBLAS_ORDER::CblasRowMajor, CBLAS_TRANSPOSE::CblasNoTrans,
+                    CBLAS_TRANSPOSE::CblasNoTrans, this->rows(), other.cols(),
+                    this->cols(), 1,
+                    reinterpret_cast<float*>(this->m_data.ptr()), this->cols(),
+                    reinterpret_cast<float*>(other.m_data.ptr()), other.cols(),
+                    1, reinterpret_cast<float*>(prod.m_data.ptr()),
+                    prod.cols());
+    } else
+      throw std::runtime_error{
+          "Error: Matrix multiplication can only be performed between matrices "
+          "with floating point values"};
 
     return prod;
   }
