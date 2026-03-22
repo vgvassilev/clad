@@ -5,9 +5,12 @@
 #include "clad/Differentiator/CladConfig.h"
 
 #include <cassert>
+#ifdef __APPLE__
+#include <Accelerate/Accelerate.h>
+#else
 #include <cblas.h>
+#endif
 #include <initializer_list>
-#include <openblas_config.h>
 #include <stdexcept>
 #include <type_traits>
 
