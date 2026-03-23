@@ -5,7 +5,6 @@
 //------------------------------------------------------------------------------
 
 #include "clad/Differentiator/ReverseModeVisitor.h"
-
 #include "ConstantFolder.h"
 
 #include "TBRAnalyzer.h"
@@ -430,8 +429,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // be used for the adjoint as well.
         const CXXRecordDecl* RD = VDDerivedType->getAsCXXRecordDecl();
         bool isNonAggrClass = RD && !RD->isAggregate();
+        auto hasDangerousFields = [](const CXXRecordDecl* Record) {
+          bool result = false;
+          for (const clang::FieldDecl* FD : Record->fields())
+            result = result || FD->getType()->isPointerType() ||
+                     FD->getType()->isReferenceType();
+          return result;
+        };
         bool isDirectInit = false;
-        if (isNonAggrClass && utils::isCopyable(RD)) {
+        if (isNonAggrClass && utils::isCopyable(RD) &&
+            !hasDangerousFields(RD)) {
           ParmVarDecl* newFuncParam = nullptr;
           for (auto* p : m_Derivative->parameters()) {
             if (p->getName() == param->getName()) {
