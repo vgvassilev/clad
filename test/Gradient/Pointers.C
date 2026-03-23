@@ -475,6 +475,15 @@ double nestedStruct(double x) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct StructWithPtr {
+  double* ptr;
+};
+double pointerAliasing(double x) {
+  StructWithPtr s{&x};
+  return s.ptr[0] * 3.0; 
+}
+
+
 #define NON_MEM_FN_TEST(var)\
 res[0]=0;\
 var.execute(5,res);\
@@ -595,4 +604,9 @@ int main() {
 
   auto d_nestedStruct = clad::gradient(nestedStruct);
   NON_MEM_FN_TEST(d_nestedStruct); // CHECK-EXEC: 1.00
+
+  auto d_ptrAliasing = clad::gradient(pointerAliasing);
+  double d_x_1750 = 0;
+  d_ptrAliasing.execute(5.0, &d_x_1750);
+  printf("%.2f\n", d_x_1750); // CHECK-EXEC: 3.00
 }
