@@ -912,7 +912,15 @@ void make_shared_pullback(T& x, ::std::shared_ptr<T> dthis, T* dx) {
   *dx += *dthis;
 }
 
-} // namespace std
+}
+
+// namespace std
+// Registration for std::atan2 support
+CLAD_REGISTER_STL_DERIVATIVE(std::atan2, custom_derivatives::atan2_darg0, 0);
+CLAD_REGISTER_STL_DERIVATIVE(std::atan2, custom_derivatives::atan2_darg1, 1);
+
+CLAD_REGISTER_STL_PUSHFORWARD(std::atan2, custom_derivatives::atan2_pushforward);
+CLAD_REGISTER_STL_PULLBACK(std::atan2, custom_derivatives::atan2_pullback);
 
 } // namespace custom_derivatives
 } // namespace clad

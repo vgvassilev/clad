@@ -1010,7 +1010,36 @@ CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y, T1* d_x,
   t = pow_pushforward(x, exponent, static_cast<T1>(0), static_cast<T2>(1));
   *d_exponent += t.pushforward * d_y;
 }
+// --- atan2(y, x) Support ---
 
+template <typename T>
+CUDA_HOST_DEVICE T atan2_darg0(T y, T x) {
+  return x / (y * y + x * x);
+}
+
+template <typename T>
+CUDA_HOST_DEVICE T atan2_darg1(T y, T x) {
+  return -y / (y * y + x * x);
+}
+
+template <typename T1, typename T2, typename dT1, typename dT2,
+          typename T_out = decltype(::std::atan2(T1(), T2())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+atan2_pushforward(T1 y, T2 x, dT1 d_y, dT2 d_x) {
+  T_out val = ::std::atan2(y, x);
+  dT_out derivative = (x * d_y - y * d_x) / (y * y + x * x);
+  return {val, derivative};
+}
+
+template <typename T1, typename T2, typename T3>
+CUDA_HOST_DEVICE void atan2_pullback(T1 y, T2 x, T3 d_res, T1* d_y, T2* d_x) {
+  T1 common_denom = y * y + x * x;
+  if (d_y)
+    *d_y += d_res * (x / common_denom);
+  if (d_x)
+    *d_x += d_res * (-y / common_denom);
+}
 template <typename T, class Compare>
 CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
 min_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
