@@ -1211,6 +1211,57 @@ CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   if (d_y)
     *d_y += b * (clad_digamma(y) - psi_xy) * d_z;
 }
+
+template <typename T> T clad_hermite_primal(unsigned int n, T x) {
+#if defined(__cpp_lib_math_special_functions)
+  return ::std::hermite(n, x);
+#else
+
+  if (n == 0)
+    return 1;
+  else if (n == 1)
+    return 2 * x;
+  else
+    return (2 * x * clad_hermite_primal(n - 1, x)) -
+           (2 * (n - 1) * clad_hermite_primal(n - 2, x));
+#endif
+}
+
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
+hermite_pushforward(unsigned int n, T x, unsigned int, T d_x) {
+  return {clad_hermite_primal(n, x),
+          2 * n * clad_hermite_primal(n - 1, x) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+hermitef_pushforward(unsigned int n, float x, unsigned int, float d_x) {
+  return hermite_pushforward(n, x, 0, d_x);
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<long double, long double>
+hermitel_pushforward(unsigned int n, long double x, unsigned int,
+                     long double d_x) {
+  return hermite_pushforward(n, x, 0, d_x);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void hermite_pullback(unsigned int n, T x, U d_z,
+                                       unsigned int*, T* d_x) {
+  *d_x += 2 * n * clad_hermite_primal(n - 1, x) * d_z;
+}
+
+template <typename T>
+CUDA_HOST_DEVICE void hermitef_pullback(unsigned int n, float x, T d_z,
+                                        unsigned int*, float* d_x) {
+  hermite_pullback(n, x, d_z, nullptr, d_x);
+}
+
+template <typename T>
+CUDA_HOST_DEVICE void hermitel_pullback(unsigned int n, long double x, T d_z,
+                                        unsigned int*, long double* d_x) {
+  hermite_pullback(n, x, d_z, nullptr, d_x);
+}
 #endif
 
 } // namespace std
@@ -1487,6 +1538,12 @@ using std::sqrt_pushforward;
 #if __cplusplus >= 201703L
 using std::beta_pullback;
 using std::beta_pushforward;
+using std::hermite_pullback;
+using std::hermite_pushforward;
+using std::hermitef_pullback;
+using std::hermitef_pushforward;
+using std::hermitel_pullback;
+using std::hermitel_pushforward;
 #endif
 
 namespace class_functions {
