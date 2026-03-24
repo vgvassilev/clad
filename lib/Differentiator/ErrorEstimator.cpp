@@ -1,4 +1,5 @@
 #include "clad/Differentiator/ErrorEstimator.h"
+#include <cstring>
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
@@ -465,6 +466,8 @@ void ErrorEstimationHandler::LookupCustomErrorFunction() {
     return;
 
   FunctionProtoType::ExtProtoInfo EPI;
+  std::memset(&EPI, 0, sizeof(EPI));
+  EPI = FunctionProtoType::ExtProtoInfo();
   QualType ConstCharPtr = C.getPointerType(C.getConstType(C.CharTy));
   QualType DoubleTy = C.DoubleTy;
   llvm::SmallVector<QualType, 3> FnTypes = {DoubleTy, DoubleTy, ConstCharPtr};
