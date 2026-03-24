@@ -623,11 +623,11 @@ namespace clad {
     /// loop body; otherwise false.
     ///\returns {forward pass statements, reverse pass statements} for the loop
     /// body.
-    StmtDiff DifferentiateLoopBody(const clang::Stmt* body,
-                                   LoopCounter& loopCounter,
-                                   clang::Stmt* condVarDifff = nullptr,
-                                   clang::Stmt* forLoopIncDiff = nullptr,
-                                   bool isForLoop = false);
+    StmtDiff DifferentiateLoopBody(
+        const clang::Stmt* body, LoopCounter& loopCounter,
+        clang::Stmt* condVarDifff = nullptr,
+        clang::Stmt* forLoopIncDiff = nullptr, bool isForLoop = false,
+        clang::SourceLocation loopLoc = clang::SourceLocation());
 
     StmtDiff DifferentiateCanonicalLoop(const clang::ForStmt* S);
 

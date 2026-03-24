@@ -1078,7 +1078,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     const Stmt* body = FRS->getBody();
     StmtDiff bodyDiff =
         DifferentiateLoopBody(body, loopCounter, nullptr, nullptr,
-                              /*isForLoop=*/true);
+                              /*isForLoop=*/true, FRS->getForLoc());
 
     activeBreakContHandler->EndCFSwitchStmtScope();
     activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
@@ -1202,10 +1202,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     const Stmt* body = FS->getBody();
-    StmtDiff BodyDiff = DifferentiateLoopBody(body, loopCounter,
-                                              condVarRes.getStmt_dx(),
-                                              incDiff.getStmt_dx(),
-                                              /*isForLoop=*/true);
+    StmtDiff BodyDiff = DifferentiateLoopBody(
+        body, loopCounter, condVarRes.getStmt_dx(), incDiff.getStmt_dx(),
+        /*isForLoop=*/true, FS->getForLoc());
 
     /// FIXME: This part in necessary to replace local variables inside loops
     /// with function globals and replace initializations with assignments.
@@ -3879,8 +3878,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     const Stmt* body = WS->getBody();
-    StmtDiff bodyDiff = DifferentiateLoopBody(body, loopCounter,
-                                              condVarRes.getStmt_dx());
+    StmtDiff bodyDiff =
+        DifferentiateLoopBody(body, loopCounter, condVarRes.getStmt_dx(),
+                              /*forLoopIncDiff=*/nullptr,
+                              /*isForLoop=*/false, WS->getWhileLoc());
     // Create forward-pass `while` loop.
     Stmt* forwardWS =
         m_Sema
@@ -3920,7 +3921,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* clonedCond = (DS->getCond() ? Clone(DS->getCond()) : nullptr);
 
     const Stmt* body = DS->getBody();
-    StmtDiff bodyDiff = DifferentiateLoopBody(body, loopCounter);
+    StmtDiff bodyDiff =
+        DifferentiateLoopBody(body, loopCounter, /*condVarDiff=*/nullptr,
+                              /*forLoopIncDiff=*/nullptr,
+                              /*isForLoop=*/false, DS->getDoLoc());
 
     // Create forward-pass `do-while` statement.
     Stmt* forwardDS = m_Sema
@@ -4130,34 +4134,33 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {endBlock(direction::forward), endBlock(direction::reverse)};
   }
 
-  static bool hasCheckpointingPragma(ASTContext& C, const Stmt* body,
+  static bool hasCheckpointingPragma(ASTContext& C, SourceLocation loopLoc,
                                      const DiffRequest& request) {
-    SourceLocation bodyLoc = body->getBeginLoc();
-    // Find the last pragma location before the loop.
-    // Note: m_CladLoopCheckpoints has reversed order.
-    auto found = request.m_CladLoopCheckpoints.upper_bound(bodyLoc);
-    if (found == request.m_CladLoopCheckpoints.end())
+    if (!loopLoc.isValid())
       return false;
+
     clang::SourceManager& SM = C.getSourceManager();
-    unsigned bodyLine = SM.getPresumedLoc(bodyLoc).getLine();
-    unsigned pragmaLine = SM.getPresumedLoc(found->first).getLine();
-    // Check if the pragma is on the previous line.
-    bool pragmaFound = (bodyLine == pragmaLine + 1);
-    if (pragmaFound)
-      found->second = true;
-    return pragmaFound;
+    SourceLocation expandedLoopLoc = SM.getExpansionLoc(loopLoc);
+    for (const auto& entry : request.m_CladLoopCheckpoints) {
+      if (!entry.second.isValid())
+        continue;
+      if (SM.getExpansionLoc(entry.second) == expandedLoopLoc)
+        return true;
+    }
+    return false;
   }
 
-  StmtDiff ReverseModeVisitor::DifferentiateLoopBody(const Stmt* body,
-                                                     LoopCounter& loopCounter,
-                                                     Stmt* condVarDiff,
-                                                     Stmt* forLoopIncDiff,
-                                                     bool isForLoop) {
+  StmtDiff ReverseModeVisitor::DifferentiateLoopBody(
+      const Stmt* body, LoopCounter& loopCounter, Stmt* condVarDiff,
+      Stmt* forLoopIncDiff, bool isForLoop, SourceLocation loopLoc) {
     // If the user marked this loop with a checkpointing pragma,
     // we should avoid using tapes inside it in favor of recomputations.
     llvm::SaveAndRestore<bool> Saved(isInsideLoop);
     llvm::SaveAndRestore<bool> SavedCP(m_IsInsideCheckpointedLoop);
-    bool shouldCheckpoint = hasCheckpointingPragma(m_Context, body, m_DiffReq);
+    if (!loopLoc.isValid())
+      loopLoc = body->getBeginLoc();
+    bool shouldCheckpoint =
+        hasCheckpointingPragma(m_Context, loopLoc, m_DiffReq);
     if (shouldCheckpoint) {
       isInsideLoop = false;
       m_IsInsideCheckpointedLoop = true;
