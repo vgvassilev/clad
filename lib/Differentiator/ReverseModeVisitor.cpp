@@ -1994,6 +1994,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
     calleeFnForwPassReq.BaseFunctionName =
         clad::utils::ComputeEffectiveFnName(FD);
+    calleeFnForwPassReq.UseRestoreTracker =
+        utils::shouldUseRestoreTracker(FD);
     FunctionDecl* calleeFnForwPassFD = FindDerivedFunction(calleeFnForwPassReq);
     bool elideReverseForw =
         (calleeFnForwPassFD &&
@@ -2056,6 +2058,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
       pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
       pullbackRequest.EnableErrorEstimation = m_DiffReq.EnableErrorEstimation;
+      pullbackRequest.UseRestoreTracker = usingRestoreTracker;
       // Error estimation only uses forward mode derivatives if they are
       // user-prodived to handle builtin derivatives. We cannot determine which
       // mode is used unless we check both.
@@ -2085,6 +2088,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Save current index in the current block, to potentially put some
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
+    clang::VarDecl* callLocalRestoreTrackerDecl = nullptr;
+    clang::Expr* callLocalRestoreTrackerExpr = nullptr;
 
     // Method operators have a base like methods do but it's included in the
     // call arguments so we have to shift the indexing of call arguments.
@@ -2223,6 +2228,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
 
       if (pullbackFD) {
+        if (pullbackFD->getNumParams() > 0 &&
+            utils::GetValueType(pullbackFD->parameters().back()->getType()) ==
+                trackerType) {
+          if (m_RestoreTracker)
+            callLocalRestoreTrackerExpr = m_RestoreTracker;
+          else if (!callLocalRestoreTrackerExpr) {
+            callLocalRestoreTrackerDecl =
+                BuildVarDecl(trackerType, "_tracker", getZeroInit(trackerType));
+            addToCurrentBlock(BuildDeclStmt(callLocalRestoreTrackerDecl));
+            callLocalRestoreTrackerExpr =
+                BuildDeclRef(callLocalRestoreTrackerDecl);
+          }
+          pullbackCallArgs.push_back(callLocalRestoreTrackerExpr);
+        }
         if (m_ExternalSource &&
             pullbackCallArgs.size() != pullbackFD->getNumParams())
           m_ExternalSource->ActBeforeDifferentiatingCallExpr(pullbackCallArgs);
@@ -2372,14 +2391,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // ```
           trackerExpr = m_RestoreTracker;
         } else {
-          // Otherwise, generate the declaration
-          // ``clad::restore_tracker _tracker0 = {};``
-          VarDecl* trackerDecl =
-              BuildVarDecl(trackerType, "_tracker", getZeroInit(trackerType));
-          addToCurrentBlock(BuildDeclStmt(trackerDecl));
-          trackerExpr = BuildDeclRef(trackerDecl);
+          // Reuse tracker created for pullback (e.g. thrust::sort_by_key) or
+          // allocate a new one.
+          if (!callLocalRestoreTrackerExpr) {
+            callLocalRestoreTrackerDecl =
+                BuildVarDecl(trackerType, "_tracker", getZeroInit(trackerType));
+            addToCurrentBlock(BuildDeclStmt(callLocalRestoreTrackerDecl));
+            callLocalRestoreTrackerExpr =
+                BuildDeclRef(callLocalRestoreTrackerDecl);
+          }
+          trackerExpr = callLocalRestoreTrackerExpr;
           Expr* restoreCall = BuildCallExprToMemFn(
-              BuildDeclRef(trackerDecl), /*MemberFunctionName=*/"restore",
+              BuildDeclRef(callLocalRestoreTrackerDecl),
+              /*MemberFunctionName=*/"restore",
               /*ArgExprs=*/{}, Loc);
           it = std::begin(block) + insertionPoint;
           block.insert(it, restoreCall);

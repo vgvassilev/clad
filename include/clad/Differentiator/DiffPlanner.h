@@ -186,7 +186,8 @@ public:
            EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
-           CUDAGlobalArgsIndexes == other.CUDAGlobalArgsIndexes;
+           CUDAGlobalArgsIndexes == other.CUDAGlobalArgsIndexes &&
+           UseRestoreTracker == other.UseRestoreTracker;
   }
 
   const clang::FunctionDecl* operator->() const { return Function; }
