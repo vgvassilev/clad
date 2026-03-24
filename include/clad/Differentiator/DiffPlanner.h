@@ -115,9 +115,10 @@ public:
   /// differentiated, for example, when we are computing higher
   /// order derivatives.
   const clang::CXXRecordDecl* Functor = nullptr;
-  /// Stores loop checkpoint pragma locations, if any.
-  /// The order is reversed to simplify lookups.
-  mutable std::map<clang::SourceLocation, bool, std::greater<>>
+  /// Stores loop checkpoint pragma locations and attached loop locations.
+  /// Key: pragma location; value: attached loop location, if any.
+  /// The key order is reversed to simplify location range lookups.
+  mutable std::map<clang::SourceLocation, clang::SourceLocation, std::greater<>>
       m_CladLoopCheckpoints;
 
   /// Global VarDecl to differentiate, if any.

@@ -1078,7 +1078,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     const Stmt* body = FRS->getBody();
     StmtDiff bodyDiff =
         DifferentiateLoopBody(body, loopCounter, nullptr, nullptr,
-                              /*isForLoop=*/true);
+                              /*isForLoop=*/true, FRS->getForLoc());
 
     activeBreakContHandler->EndCFSwitchStmtScope();
     activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
@@ -1202,10 +1202,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     const Stmt* body = FS->getBody();
-    StmtDiff BodyDiff = DifferentiateLoopBody(body, loopCounter,
-                                              condVarRes.getStmt_dx(),
-                                              incDiff.getStmt_dx(),
-                                              /*isForLoop=*/true);
+    StmtDiff BodyDiff = DifferentiateLoopBody(
+        body, loopCounter, condVarRes.getStmt_dx(), incDiff.getStmt_dx(),
+        /*isForLoop=*/true, FS->getForLoc());
 
     /// FIXME: This part in necessary to replace local variables inside loops
     /// with function globals and replace initializations with assignments.
@@ -1931,10 +1930,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
-    // FIXME: Revisit this when variadic functions are supported.
-    if (FD->getNameAsString() == "printf" || FD->getNameAsString() == "fprintf")
-      return StmtDiff(Clone(CE));
-
     Expr* CUDAExecConfig = nullptr;
     if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
       CUDAExecConfig = Clone(KCE->getConfig());
@@ -2148,6 +2143,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                      i = skip_this, e = CE->getNumArgs();
          i != e; ++i) {
       const Expr* arg = CE->getArg(i);
+      if ((i - skip_this) >= FD->getNumParams()) {
+        CallArgs.push_back(Clone(arg));
+        continue;
+      }
       const auto* PVD = FD->getParamDecl(i - skip_this);
       StmtDiff argDiff =
           DifferentiateCallArg(arg, PVD, PreCallStmts, /*isNonDiff=*/nonDiff,
@@ -2907,6 +2906,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                         direction::reverse);
       auto* condDiffStored = IfStmtDiff.getRevSweepAsExpr();
       return BuildOp(BO_LAnd, condDiffStored, condVarRef);
+    } else if (opCode == BO_Rem) {
+      return BuildOp(opCode, Visit(L).getExpr(), Visit(R).getExpr());
     } else {
       // We should not output any warning on visiting boolean conditions
       // FIXME: We should support boolean differentiation or ignore it
@@ -3429,6 +3430,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return result;
   }
 
+  StmtDiff ReverseModeVisitor::VisitGNUNullExpr(const clang::GNUNullExpr* E) {
+    auto* Constant0 = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                        m_Context, /*val=*/0);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    return StmtDiff(const_cast<clang::GNUNullExpr*>(E), Constant0);
+  }
+
+  StmtDiff
+  ReverseModeVisitor::VisitPredefinedExpr(const clang::PredefinedExpr* E) {
+    auto* Constant0 = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                        m_Context, /*val=*/0);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    return StmtDiff(const_cast<clang::PredefinedExpr*>(E), Constant0);
+  }
+
   StmtDiff ReverseModeVisitor::VisitCXXFunctionalCastExpr(
       const clang::CXXFunctionalCastExpr* FCE) {
     StmtDiff castExprDiff = Visit(FCE->getSubExpr(), dfdx());
@@ -3862,8 +3878,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     const Stmt* body = WS->getBody();
-    StmtDiff bodyDiff = DifferentiateLoopBody(body, loopCounter,
-                                              condVarRes.getStmt_dx());
+    StmtDiff bodyDiff =
+        DifferentiateLoopBody(body, loopCounter, condVarRes.getStmt_dx(),
+                              /*forLoopIncDiff=*/nullptr,
+                              /*isForLoop=*/false, WS->getWhileLoc());
     // Create forward-pass `while` loop.
     Stmt* forwardWS =
         m_Sema
@@ -3903,7 +3921,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* clonedCond = (DS->getCond() ? Clone(DS->getCond()) : nullptr);
 
     const Stmt* body = DS->getBody();
-    StmtDiff bodyDiff = DifferentiateLoopBody(body, loopCounter);
+    StmtDiff bodyDiff =
+        DifferentiateLoopBody(body, loopCounter, /*condVarDiff=*/nullptr,
+                              /*forLoopIncDiff=*/nullptr,
+                              /*isForLoop=*/false, DS->getDoLoc());
 
     // Create forward-pass `do-while` statement.
     Stmt* forwardDS = m_Sema
@@ -4113,34 +4134,33 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {endBlock(direction::forward), endBlock(direction::reverse)};
   }
 
-  static bool hasCheckpointingPragma(ASTContext& C, const Stmt* body,
+  static bool hasCheckpointingPragma(ASTContext& C, SourceLocation loopLoc,
                                      const DiffRequest& request) {
-    SourceLocation bodyLoc = body->getBeginLoc();
-    // Find the last pragma location before the loop.
-    // Note: m_CladLoopCheckpoints has reversed order.
-    auto found = request.m_CladLoopCheckpoints.upper_bound(bodyLoc);
-    if (found == request.m_CladLoopCheckpoints.end())
+    if (!loopLoc.isValid())
       return false;
+
     clang::SourceManager& SM = C.getSourceManager();
-    unsigned bodyLine = SM.getPresumedLoc(bodyLoc).getLine();
-    unsigned pragmaLine = SM.getPresumedLoc(found->first).getLine();
-    // Check if the pragma is on the previous line.
-    bool pragmaFound = (bodyLine == pragmaLine + 1);
-    if (pragmaFound)
-      found->second = true;
-    return pragmaFound;
+    SourceLocation expandedLoopLoc = SM.getExpansionLoc(loopLoc);
+    for (const auto& entry : request.m_CladLoopCheckpoints) {
+      if (!entry.second.isValid())
+        continue;
+      if (SM.getExpansionLoc(entry.second) == expandedLoopLoc)
+        return true;
+    }
+    return false;
   }
 
-  StmtDiff ReverseModeVisitor::DifferentiateLoopBody(const Stmt* body,
-                                                     LoopCounter& loopCounter,
-                                                     Stmt* condVarDiff,
-                                                     Stmt* forLoopIncDiff,
-                                                     bool isForLoop) {
+  StmtDiff ReverseModeVisitor::DifferentiateLoopBody(
+      const Stmt* body, LoopCounter& loopCounter, Stmt* condVarDiff,
+      Stmt* forLoopIncDiff, bool isForLoop, SourceLocation loopLoc) {
     // If the user marked this loop with a checkpointing pragma,
     // we should avoid using tapes inside it in favor of recomputations.
     llvm::SaveAndRestore<bool> Saved(isInsideLoop);
     llvm::SaveAndRestore<bool> SavedCP(m_IsInsideCheckpointedLoop);
-    bool shouldCheckpoint = hasCheckpointingPragma(m_Context, body, m_DiffReq);
+    if (!loopLoc.isValid())
+      loopLoc = body->getBeginLoc();
+    bool shouldCheckpoint =
+        hasCheckpointingPragma(m_Context, loopLoc, m_DiffReq);
     if (shouldCheckpoint) {
       isInsideLoop = false;
       m_IsInsideCheckpointedLoop = true;

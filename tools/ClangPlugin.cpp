@@ -17,6 +17,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
@@ -238,6 +239,26 @@ void InitTimers();
       }
     }
 
+    static SourceLocation getAttachedLoopLoc(const FunctionDecl* FD,
+                                             SourceLocation pragmaLoc,
+                                             SourceManager& SM) {
+      const auto* body = cast<CompoundStmt>(FD->getBody());
+
+      const Stmt* nextStmt = nullptr;
+      for (const Stmt* S : body->body()) {
+        SourceLocation beginLoc = S->getBeginLoc();
+        if (!SM.isBeforeInTranslationUnit(pragmaLoc, beginLoc))
+          continue;
+        nextStmt = S;
+        break;
+      }
+
+      if (nextStmt && (isa<ForStmt>(nextStmt) || isa<WhileStmt>(nextStmt) ||
+                       isa<DoStmt>(nextStmt)))
+        return nextStmt->getBeginLoc();
+      return {};
+    }
+
     static void addCladLoopCheckpoints(ASTContext& C, DiffRequest& request) {
       SourceRange range = request->getSourceRange();
       assert(range.isValid());
@@ -248,17 +269,27 @@ void InitTimers();
       auto e = CladLoopCheckpoints.end();
 
       for (; it != e && SM.isBeforeInTranslationUnit(*it, end); ++it)
-        request.m_CladLoopCheckpoints.emplace(*it, false);
+        request.m_CladLoopCheckpoints.emplace(
+            *it, getAttachedLoopLoc(request.Function, *it, SM));
     }
 
     static void diagnoseUnusedPragma(Sema& S, DiffRequest& request) {
+      if (request.Mode != DiffMode::reverse &&
+          request.Mode != DiffMode::pullback)
+        return;
+
+      static std::set<clang::SourceLocation> DiagnosedCladLoopCheckpoints;
       for (const auto& pair : request.m_CladLoopCheckpoints) {
-        if (!pair.second) {
-          unsigned diagID = S.Diags.getCustomDiagID(
-              DiagnosticsEngine::Error,
-              "'#pragma clad checkpoint loop' is only allowed before a loop");
-          S.Diag(pair.first, diagID);
-        }
+        if (pair.second.isValid())
+          continue;
+
+        if (!DiagnosedCladLoopCheckpoints.insert(pair.first).second)
+          continue;
+
+        unsigned diagID = S.Diags.getCustomDiagID(
+            DiagnosticsEngine::Error,
+            "'#pragma clad checkpoint loop' is only allowed before a loop");
+        S.Diag(pair.first, diagID);
       }
     }
 
