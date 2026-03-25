@@ -911,8 +911,9 @@ namespace clad {
         return ConstantFolder::synthesizeLiteral(T, S.getASTContext(),
                                                  /*val=*/0);
       if (isa<ConstantArrayType>(T)) {
-        Expr* zero =
-            ConstantFolder::synthesizeLiteral(T, S.getASTContext(), /*val=*/0);
+        // Create a single zero element; C++ zero-initializes remaining elements.
+        Expr* zero = ConstantFolder::synthesizeLiteral(
+            S.getASTContext().IntTy, S.getASTContext(), /*val=*/0);
         return S.ActOnInitList(noLoc, {zero}, noLoc).get();
       }
       if (const auto* RD = T->getAsCXXRecordDecl())

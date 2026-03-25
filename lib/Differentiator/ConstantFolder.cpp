@@ -171,9 +171,50 @@ namespace clad {
     } else if (QT->isRealFloatingType()) {
       llvm::APFloat APVal(C.getFloatTypeSemantics(QT), val);
       Result = clad::synthesizeLiteral(QT, C, APVal);
+    } else if (QT->isComplexType()) {
+      // Handle _Complex types by creating {real, imag} InitListExpr.
+      const auto* CT = QT->castAs<ComplexType>();
+      QualType elemTy = CT->getElementType();
+      Expr* realPart = ConstantFolder::synthesizeLiteral(elemTy, C, val);
+      Expr* imagPart = ConstantFolder::synthesizeLiteral(elemTy, C, /*val=*/0);
+      SourceLocation noLoc;
+      Expr* initExprs[] = {realPart, imagPart};
+      auto* ILE = new (C) InitListExpr(C, noLoc, initExprs, noLoc);
+      ILE->setType(QT);
+      Result = ILE;
+    } else if (QT->isConstantArrayType()) {
+      // Handle constant-size arrays by creating {elem, elem, ...}.
+      const auto* CAT = C.getAsConstantArrayType(QT);
+      QualType elemTy = CAT->getElementType();
+      uint64_t numElems = CAT->getSize().getZExtValue();
+      SourceLocation noLoc;
+      llvm::SmallVector<Expr*, 8> initExprs;
+      for (uint64_t i = 0; i < numElems; ++i)
+        initExprs.push_back(
+            ConstantFolder::synthesizeLiteral(elemTy, C, val));
+      auto* ILE = new (C) InitListExpr(C, noLoc, initExprs, noLoc);
+      ILE->setType(QT);
+      Result = ILE;
+    } else if (QT->isRecordType()) {
+      // Handle struct/class types by initializing each field.
+      const RecordDecl* RD = QT->getAsRecordDecl();
+      if (RD)
+        RD = RD->getDefinition();
+      if (RD) {
+        SourceLocation noLoc;
+        llvm::SmallVector<Expr*, 4> initExprs;
+        for (const FieldDecl* FD : RD->fields())
+          initExprs.push_back(
+              ConstantFolder::synthesizeLiteral(FD->getType(), C, val));
+        auto* ILE = new (C) InitListExpr(C, noLoc, initExprs, noLoc);
+        ILE->setType(QT);
+        Result = ILE;
+      } else {
+        // Forward-declared type with no definition; fall back to zero-init.
+        Result = new (C) ImplicitValueInitExpr(QT);
+      }
     } else {
-      // FIXME: Handle other types, like Complex, Structs, typedefs, etc.
-      // typecasting may be needed right now
+      // Fallback for any remaining unhandled types.
       Result = ConstantFolder::synthesizeLiteral(C.IntTy, C, val);
     }
     assert(Result && "Unsupported type for constant folding.");

@@ -589,9 +589,91 @@ Currently, class type support have the following limitations:
   non-literal arguments (non-zero derivatives) are not supported.
 - Class cannot have pointer or reference data members.
 
-Class type support is under active development and thus, most of these 
+Class type support is under active development and thus, most of these
 limitations will be removed soon.
 
+The ``non_differentiable`` Attribute
+--------------------------------------
+Clad can automatically differentiate most C++ code, but sometimes certain
+functions, variables, or types should be excluded from differentiation. For
+example, a function that calls an external library with no available source
+code, a buffer parameter used only for scratch storage, or auxiliary state
+that has no meaningful derivative. The ``non_differentiable`` attribute tells
+Clad to skip differentiation for the marked entity and treat its derivative
+contribution as zero.
+To use the attribute, define the following macro::
+  #define non_differentiable __attribute__((annotate("non_differentiable")))
+When Clad encounters a ``non_differentiable`` entity during differentiation, it
+still executes the original code but produces a zero derivative for any
+expression involving that entity.
+**Marking a free function**
+A function marked ``non_differentiable`` will not be differentiated. Calls to
+it inside a differentiated function contribute zero to the derivative::
+  non_differentiable
+  double external_fn(double i, double j) {
+    return i * j;
+  }
+  double my_fn(double i, double j) {
+    // external_fn contributes zero derivative; only i * j is differentiated.
+    return external_fn(i, j) + i * j;
+  }
+**Marking class member fields**
+Individual fields of a class can be marked ``non_differentiable``. Their
+derivative is always treated as zero::
+  class MyClass {
+  public:
+    double x;
+    non_differentiable double y;  // derivative of y is always zero
+    double compute(double i, double j) { return (x + y) * i + i * j * j; }
+  };
+In this example, the derivative of ``y`` is zero, so ``y`` acts as a constant
+during differentiation even though its value participates in the computation.
+**Marking class member functions**
+A member function marked ``non_differentiable`` will not be differentiated.
+Calls to it contribute zero to the derivative::
+  class MyClass {
+  public:
+    double x;
+    non_differentiable double helper(double i, double j) { return i * j; }
+    double compute(double i, double j) { return helper(i, j) + i * j; }
+  };
+Here, ``helper`` contributes zero to the derivative of ``compute``.
+**Marking an entire class**
+When a class is marked ``non_differentiable``, all of its members and methods
+are treated as non-differentiable::
+  class non_differentiable ExternalState {
+  public:
+    double x;
+    double y;
+    double compute(double i, double j) { return (x + y) * i + i * j * j; }
+  };
+  double my_fn(double i, double j) {
+    ExternalState obj(2, 3);
+    // obj.compute() contributes zero derivative; only i * j is differentiated.
+    return obj.compute(i, j) + i * j;
+  }
+.. note::
+   Attempting to directly differentiate a function or method belonging to a
+   class marked ``non_differentiable`` will result in a compilation error.
+**Marking a local variable**
+A local variable marked ``non_differentiable`` is excluded from derivative
+tracking entirely::
+  double my_fn(double i, double j) {
+    non_differentiable double k = i * i * j;
+    return k;  // derivative is zero
+  }
+**Marking a function parameter**
+Parameters can be marked ``non_differentiable`` to exclude them from gradient
+computation. This is especially useful for buffer or scratch parameters that
+would otherwise cause errors during differentiation::
+  float my_fn(float *input, float const *factors,
+              non_differentiable float *buffer) {
+    return input[0] + factors[0] + buffer[0];
+  }
+.. note::
+   The ``non_differentiable`` attribute works with both forward mode
+   (``clad::differentiate``) and reverse mode (``clad::gradient``)
+   differentiation.
 Specifying Custom Derivatives
 -------------------------------
 
