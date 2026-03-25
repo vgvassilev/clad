@@ -239,24 +239,45 @@ void InitTimers();
       }
     }
 
+    class AttachedLoopStmtFinder
+        : public RecursiveASTVisitor<AttachedLoopStmtFinder> {
+      SourceLocation m_PragmaLoc;
+      SourceManager& m_SM;
+      Stmt* m_AttachedStmt = nullptr;
+      SourceLocation m_AttachedLoopLoc;
+
+    public:
+      AttachedLoopStmtFinder(SourceLocation pragmaLoc, SourceManager& SM)
+          : m_PragmaLoc(pragmaLoc), m_SM(SM) {}
+
+      bool VisitStmt(Stmt* S) {
+        SourceLocation beginLoc = S->getBeginLoc();
+        if (!beginLoc.isValid() ||
+            !m_SM.isBeforeInTranslationUnit(m_PragmaLoc, beginLoc))
+          return true;
+
+        if (!m_AttachedStmt || m_SM.isBeforeInTranslationUnit(
+                                   beginLoc, m_AttachedStmt->getBeginLoc())) {
+          m_AttachedStmt = S;
+          m_AttachedLoopLoc = {};
+          if (isa<ForStmt>(S) || isa<WhileStmt>(S) || isa<DoStmt>(S))
+            m_AttachedLoopLoc = beginLoc;
+        }
+        return true;
+      }
+
+      [[nodiscard]] SourceLocation getAttachedLoopLoc() const {
+        return m_AttachedLoopLoc;
+      }
+    };
+
     static SourceLocation getAttachedLoopLoc(const FunctionDecl* FD,
                                              SourceLocation pragmaLoc,
                                              SourceManager& SM) {
-      const auto* body = cast<CompoundStmt>(FD->getBody());
-
-      const Stmt* nextStmt = nullptr;
-      for (const Stmt* S : body->body()) {
-        SourceLocation beginLoc = S->getBeginLoc();
-        if (!SM.isBeforeInTranslationUnit(pragmaLoc, beginLoc))
-          continue;
-        nextStmt = S;
-        break;
-      }
-
-      if (nextStmt && (isa<ForStmt>(nextStmt) || isa<WhileStmt>(nextStmt) ||
-                       isa<DoStmt>(nextStmt)))
-        return nextStmt->getBeginLoc();
-      return {};
+      Stmt* body = FD->getBody();
+      AttachedLoopStmtFinder finder(pragmaLoc, SM);
+      finder.TraverseStmt(body);
+      return finder.getAttachedLoopLoc();
     }
 
     static void addCladLoopCheckpoints(ASTContext& C, DiffRequest& request) {
