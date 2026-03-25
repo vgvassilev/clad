@@ -96,13 +96,12 @@ void ErrorEstimationHandler::EmitNestedFunctionParamError(
     llvm::SmallVectorImpl<Expr*>& ArgResult, size_t numArgs) {
   assert(fnDecl && "Must have a value");
   for (size_t i = 0; i < numArgs; i++) {
-    if (!fnDecl->getParamDecl(0)->getType()->isLValueReferenceType())
+    // FIXME: Arguments passed by reference do not have any corresponding
+    // `ArgResultDecl`. Handle arguments passed by reference in error
+    // estimation.
+    QualType paramTy = fnDecl->getParamDecl(i)->getType();
+    if (paramTy->isReferenceType() || utils::isArrayOrPointerType(paramTy))
       continue;
-    // // FIXME: Argument passed by reference do not have any corresponding
-    // // `ArgResultDecl`. Handle arguments passed by reference in error
-    // // estimation.
-    // if (utils::IsReferenceOrPointerType(fnDecl->getParamDecl(i)->getType()))
-    //   continue;
     auto* derefExpr = m_RMV->BuildOp(UO_Deref, ArgResult[i]);
     Expr* errorExpr = AssignError({derivedCallArgs[i], derefExpr},
                                   fnDecl->getNameInfo().getAsString() +

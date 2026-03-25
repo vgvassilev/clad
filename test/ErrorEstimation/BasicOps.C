@@ -330,6 +330,25 @@ double func10(double x, double y) {
 // CHECK-NEXT:     _final_error += std::abs(1. * _ret_value0 * {{.+}});
 // CHECK-NEXT: }
 
+// Test for EmitNestedFunctionParamError: mixed value and reference params.
+// The fix ensures that error estimation is emitted for value-type params
+// and skipped for reference params.
+double mixed_helper(double x, double& y) { return x * y; }
+
+// CHECK: void mixed_helper_pullback(double x, double &y, double _d_y0, double *_d_x, double *_d_y, double &_final_error) {
+// CHECK:     *_d_x += _d_y0 * y;
+// CHECK:     *_d_y += x * _d_y0;
+// CHECK: }
+
+double func11(double x, double y) {
+  return mixed_helper(x, y);
+}
+
+// CHECK: void func11_grad(double x, double y, double *_d_x, double *_d_y, double &_final_error) {
+// CHECK:     mixed_helper_pullback(x, y, 1, &_r0, {{.*}}_final_error);
+// CHECK:     *_d_x += _r0;
+// CHECK: }
+
 int main() {
   float dx = 0, dy = 0;
   double dxd = 0, dyd = 0;
@@ -363,4 +382,8 @@ int main() {
   
   INIT_ERROR_ESTIMATION(func10);
   TEST_ERROR_ESTIMATION(func10, /*PrecissionType*/float, 8, 5, &dxd, &dyd); // CHECK-EXEC: {240.00}
+
+  dxd = 0; dyd = 0;
+  INIT_ERROR_ESTIMATION(func11);
+  TEST_ERROR_ESTIMATION(func11, /*PrecissionType*/float, 3, 5, &dxd, &dyd); // CHECK-EXEC: {{.+}}
 }
