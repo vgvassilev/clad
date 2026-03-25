@@ -1051,7 +1051,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                     getCurrentScope(),
                     utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                            derivBase, "join"),
-                    noLoc, {}, noLoc)                    
+                    noLoc, {}, noLoc)
                 .get();
 
         return StmtDiff(nullptr, derivJoin);
