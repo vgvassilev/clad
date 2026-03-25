@@ -29,6 +29,7 @@
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
@@ -58,6 +59,42 @@ BaseForwardModeVisitor::~BaseForwardModeVisitor() {}
 
 bool IsRealNonReferenceType(QualType T) {
   return T.getNonReferenceType()->isRealType();
+}
+
+bool IsStdThreadType(QualType T) {
+  const auto* RD = T->getAsCXXRecordDecl();
+  if (!RD || !RD->getIdentifier() || RD->getName() != "thread")
+    return false;
+
+  RD = RD->getCanonicalDecl();
+  bool isInStdNamespace = false;
+  for (const DeclContext* DC = RD->getDeclContext(); DC; DC = DC->getParent())
+    if (const auto* NS = dyn_cast<NamespaceDecl>(DC))
+      isInStdNamespace = isInStdNamespace || NS->isStdNamespace();
+  return isInStdNamespace;
+}
+
+bool IsStdRefLikeFunction(const FunctionDecl* FD) {
+  if (FD && FD->getIdentifier()) {
+    StringRef Name = FD->getName();
+    if (Name == "ref" || Name == "cref") {
+      for (const DeclContext* DC = FD->getDeclContext(); DC;
+           DC = DC->getParent()) {
+        if (const auto* NS = dyn_cast<NamespaceDecl>(DC))
+          if (NS->isStdNamespace())
+            return true;
+      }
+    }
+  }
+  return false;
+}
+
+const Expr* UnwrapStdRefLikeArgument(const Expr* E) {
+  const Expr* Arg = E->IgnoreParenImpCasts();
+  if (const auto* CE = dyn_cast<CallExpr>(Arg))
+    if (IsStdRefLikeFunction(CE->getDirectCallee()) && CE->getNumArgs() == 1)
+      return CE->getArg(0)->IgnoreParenImpCasts();
+  return Arg;
 }
 
 DerivativeAndOverload BaseForwardModeVisitor::Derive() {
@@ -2069,6 +2106,88 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     clonedArgsE = clonedArgs[0];
     derivedArgsE = derivedArgs[0];
   }
+
+  if (IsStdThreadType(CE->getType()) && CE->getNumArgs() > 0) {
+    const Expr* callableArg = CE->getArg(0)->IgnoreParenImpCasts();
+    const auto* callableDRE = dyn_cast<DeclRefExpr>(callableArg);
+    const auto* callableFD =
+        callableDRE ? dyn_cast<FunctionDecl>(callableDRE->getDecl()) : nullptr;
+
+    Expr* derivedThreadInitE = nullptr;
+    if (callableFD) {
+      const FunctionDecl* callableDef = callableFD->getDefinition();
+      callableDef = callableDef ? callableDef : callableFD;
+
+      llvm::SmallVector<Expr*, 8> callArgs;
+      llvm::SmallVector<Expr*, 8> diffArgs;
+      callArgs.reserve(CE->getNumArgs() - 1);
+      diffArgs.reserve(CE->getNumArgs() - 1);
+      for (unsigned i = 1; i < CE->getNumArgs(); ++i) {
+        const Expr* launchArg = UnwrapStdRefLikeArgument(CE->getArg(i));
+        StmtDiff argDiff = Visit(launchArg);
+        callArgs.push_back(argDiff.getExpr());
+        if (utils::IsDifferentiableType(launchArg->getType())) {
+          Expr* dArg = argDiff.getExpr_dx();
+          dArg = dArg ? dArg : getZeroInit(launchArg->getType());
+          diffArgs.push_back(dArg);
+        }
+      }
+
+      llvm::SmallVector<Expr*, 16> pushforwardFnArgs;
+      pushforwardFnArgs.insert(pushforwardFnArgs.end(), callArgs.begin(),
+                               callArgs.end());
+      pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
+                               diffArgs.end());
+
+      DiffRequest pushforwardFnRequest;
+      pushforwardFnRequest.Function = callableDef;
+      pushforwardFnRequest.Mode = GetPushForwardMode();
+      pushforwardFnRequest.BaseFunctionName =
+          utils::ComputeEffectiveFnName(callableDef);
+      pushforwardFnRequest.VerboseDiags = false;
+      pushforwardFnRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
+      pushforwardFnRequest.EnableVariedAnalysis =
+          m_DiffReq.EnableVariedAnalysis;
+
+      Expr* callDiffExpr = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+          pushforwardFnRequest.ComputeDerivativeName(), pushforwardFnArgs,
+          getCurrentScope(), CE,
+          /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
+          /*CUDAExecConfig=*/nullptr);
+
+      FunctionDecl* pushforwardFD = nullptr;
+      if (auto* foundCE = cast_or_null<CallExpr>(callDiffExpr))
+        pushforwardFD = foundCE->getDirectCallee();
+      if (!pushforwardFD)
+        pushforwardFD = m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
+      pushforwardFD = pushforwardFD ? pushforwardFD
+                                    : FindDerivedFunction(pushforwardFnRequest);
+      pushforwardFD =
+          pushforwardFD
+              ? pushforwardFD
+              : dyn_cast_or_null<FunctionDecl>(
+                    m_Builder.Derive(pushforwardFnRequest).derivative);
+      if (pushforwardFD)
+        callDiffExpr = BuildCallExprToFunction(pushforwardFD, pushforwardFnArgs,
+                                               /*CUDAExecConfig=*/nullptr);
+
+      if (callDiffExpr) {
+        SourceLocation callLoc = utils::GetValidSLoc(m_Sema);
+        Expr* defaultThreadE = m_Sema
+                                   .ActOnCXXTypeConstructExpr(
+                                       OpaquePtr<QualType>::make(CE->getType()),
+                                       callLoc, {}, callLoc,
+                                       /*isListInitialization=*/false)
+                                   .get();
+        if (callDiffExpr && defaultThreadE) {
+          derivedThreadInitE =
+              BuildOp(BO_Comma, BuildParens(callDiffExpr), defaultThreadE);
+        }
+      }
+    }
+    derivedArgsE = derivedThreadInitE;
+  }
+
   // `CXXConstructExpr` node will be created automatically by passing these
   // initialiser to higher level `ActOn`/`Build` Sema functions.
   return {clonedArgsE, derivedArgsE};
