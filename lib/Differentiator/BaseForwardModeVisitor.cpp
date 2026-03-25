@@ -1043,9 +1043,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         const Expr* baseExpr = MCE->getImplicitObjectArgument();
         StmtDiff baseDiff = Visit(baseExpr);
 
-        // Build primal: t1.join()
-        Expr* primalJoin = Clone(CE);
-
         // Build derivative: _d_t1.join()
         Expr* derivBase = baseDiff.getExpr_dx();
         Expr* derivJoin =
@@ -1054,10 +1051,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                     getCurrentScope(),
                     utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                            derivBase, "join"),
-                    noLoc, {}, noLoc)
+                    noLoc, {}, noLoc)                    
                 .get();
 
-        return StmtDiff(primalJoin, derivJoin);
+        return StmtDiff(nullptr, derivJoin);
       }
     }
   }
@@ -2119,17 +2116,12 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
         for (size_t i = 1; i < derivedArgs.size(); ++i)
           derivThreadArgs.push_back(derivedArgs[i]);
 
-        // Primal thread args: [add_square, x, _t0.value]
-        // (clonedArgs already has this — it's what the original thread uses)
-        Expr* primalInitList =
-            m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
-
         // Derivative thread args: [add_square_pushforward, x, _t0.value,
         //                          _d_x, _t0.pushforward]
         Expr* derivInitList =
             m_Sema.ActOnInitList(noLoc, derivThreadArgs, noLoc).get();
 
-        return StmtDiff(primalInitList, derivInitList);
+        return StmtDiff(nullptr, derivInitList);
       }
     }
   }
