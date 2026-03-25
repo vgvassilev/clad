@@ -489,11 +489,18 @@ namespace clad {
   }
 
   TemplateDecl* VisitorBase::GetCladTapeDecl() {
-    static TemplateDecl* Result = nullptr;
-    if (!Result)
-      Result = utils::LookupTemplateDeclInCladNamespace(m_Sema,
-                                                        /*ClassName=*/"tape");
-    return Result;
+
+    NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
+    IdentifierInfo& II = m_Sema.getASTContext().Idents.get("custom_tape");
+    LookupResult R(m_Sema, &II, clang::SourceLocation(),
+                   clang::Sema::LookupOrdinaryName);
+    R.suppressDiagnostics();
+    m_Sema.LookupQualifiedName(R, CladNS);
+    if (!R.empty() && R.getFoundDecl() &&
+        clang::isa<clang::TemplateDecl>(R.getFoundDecl()))
+      return clang::dyn_cast<clang::TemplateDecl>(R.getFoundDecl());
+
+    return utils::LookupTemplateDeclInCladNamespace(m_Sema, "tape");
   }
 
   LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
