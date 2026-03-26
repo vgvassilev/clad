@@ -57,6 +57,8 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   ReverseModeRequest.Function = firstDerivative;
   ReverseModeRequest.Args = ReverseModeArgs;
   ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
+  ReverseModeRequest.m_CladLoopCheckpoints =
+      IndependentArgRequest.m_CladLoopCheckpoints;
 
   FunctionDecl* secondDerivative =
       Builder.HandleNestedDiffRequest(ReverseModeRequest);

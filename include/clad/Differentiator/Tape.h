@@ -6,16 +6,25 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <fstream>
-#include <ios>
+#include <cstdlib> // Added for mkstemp
 #include <iterator>
 #include <memory>
 #include <new>
 #include <string>
 #include <type_traits>
 #include <utility>
+
+#ifndef __CUDA_ARCH__
+#include <cstring>
 #ifndef __CUDACC__
 #include <mutex>
+#endif
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 #endif
 
 namespace clad {
@@ -23,38 +32,152 @@ namespace clad {
 namespace detail {
 
 /// Manages offloading of data to disk when RAM capacity is exceeded.
-/// Handles files I/O operations for reading and writing slabs.
+/// Operates in two modes:
+/// 1. RAM-DISK mode: Zero SSD wears.
+/// 2. Disk offload mode: For heavy tasks
 template <typename T, std::size_t SLAB_SIZE> struct DiskManager {
 #ifndef __CUDA_ARCH__
-  std::fstream file;
-  std::string filename;
-  DiskManager() {
-    filename = "clad_tape_" + std::to_string((uintptr_t)this) + ".tmp";
-    file.open(filename, std::ios::in | std::ios::out | std::ios::binary |
-                            std::ios::trunc);
+  std::size_t capacity;
+  std::size_t current_offset;
+  void* data;
+  bool is_file_backed;
+
+#ifdef _WIN32
+  HANDLE file_handle_ = INVALID_HANDLE_VALUE;
+  HANDLE map_handle_ = NULL;
+#else
+  int fd = -1;
+#endif
+
+  DiskManager(bool use_file_offload = false)
+      : capacity((sizeof(std::size_t) >= 8) ? (64ULL * 1024 * 1024 * 1024)
+                                            : (1024ULL * 1024 * 1024)),
+        current_offset(0), data(nullptr), is_file_backed(use_file_offload) {
+
+    // Fallback loop: If OS rejects massive virtual allocation then shrink the
+    // capacity by half until the OS accepts it
+    while (!data && capacity >= SLAB_SIZE * sizeof(T)) {
+#ifdef _WIN32
+      if (is_file_backed) {
+        // Mode B: Disk Offload
+        char temp_path[MAX_PATH];
+        GetTempPathA(MAX_PATH, temp_path);
+        char temp_file[MAX_PATH];
+        GetTempFileNameA(temp_path, "clad", 0, temp_file);
+        file_handle_ = CreateFileA(
+            temp_file, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+            FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+        if (file_handle_ != INVALID_HANDLE_VALUE) {
+          map_handle_ = CreateFileMappingA(
+              file_handle_, NULL, PAGE_READWRITE, (DWORD)(capacity >> 32),
+              (DWORD)(capacity & 0xFFFFFFFF), NULL);
+        }
+      } else {
+        // Mode A: RAM-Disk
+        map_handle_ = CreateFileMappingA(
+            INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, (DWORD)(capacity >> 32),
+            (DWORD)(capacity & 0xFFFFFFFF), NULL);
+      }
+
+      if (map_handle_)
+        data = MapViewOfFile(map_handle_, FILE_MAP_ALL_ACCESS, 0, 0, capacity);
+
+      if (!data) {
+        if (map_handle_) {
+          CloseHandle(map_handle_);
+          map_handle_ = NULL;
+        }
+        if (file_handle_ != INVALID_HANDLE_VALUE) {
+          CloseHandle(file_handle_);
+          file_handle_ = INVALID_HANDLE_VALUE;
+        }
+      }
+#else
+#ifndef MAP_NORESERVE
+#define MAP_NORESERVE 0
+#endif
+
+      if (is_file_backed) {
+        // Mode B: Disk Offload
+        char template_path[] = "/tmp/clad_tape_XXXXXX";
+        fd = mkstemp(template_path);
+        if (fd != -1) {
+          unlink(template_path); // Auto-deletes on close
+          if (ftruncate(fd, capacity) == 0) {
+            data =
+                mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+          }
+        }
+      } else {
+        // Mode A: RAM-Disk
+        data = mmap(NULL, capacity, PROT_READ | PROT_WRITE,
+                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+      }
+
+      if (data == MAP_FAILED) {
+        data = nullptr;
+        if (fd != -1) {
+          close(fd);
+          fd = -1;
+        }
+      }
+#endif
+      if (!data)
+        capacity /= 2;
+    }
   }
+
   ~DiskManager() {
-    if (file.is_open())
-      file.close();
-    std::remove(filename.c_str());
+    if (!data)
+      return;
+#ifdef _WIN32
+    UnmapViewOfFile(data);
+    if (map_handle_)
+      CloseHandle(map_handle_);
+    if (file_handle_ != INVALID_HANDLE_VALUE)
+      CloseHandle(file_handle_);
+#else
+    munmap(data, capacity);
+    if (fd != -1)
+      close(fd);
+#endif
   }
-  std::size_t write_slab(const T* data) {
-    file.seekp(0, std::ios::end);
-    std::size_t offset = file.tellp();
-    const void* raw_data = static_cast<const void*>(data);
-    file.write(static_cast<const char*>(raw_data), SLAB_SIZE * sizeof(T));
-    return offset;
+
+  std::size_t write_slab(const T* incoming_data) {
+    if (!this->data || current_offset + (SLAB_SIZE * sizeof(T)) > capacity) {
+      assert(false && "Virtual memory capacity exceeded in DiskManager");
+      return static_cast<std::size_t>(-1);
+    }
+
+    std::size_t write_pos = current_offset;
+    void* dest = static_cast<char*>(this->data) + write_pos;
+    std::memcpy(dest, incoming_data, SLAB_SIZE * sizeof(T));
+
+    current_offset += SLAB_SIZE * sizeof(T);
+    return write_pos;
   }
+
   void read_slab(T* dest, std::size_t offset) {
-    file.seekg(offset, std::ios::beg);
-    void* raw_dest = static_cast<void*>(dest);
-    file.read(static_cast<char*>(raw_dest), SLAB_SIZE * sizeof(T));
+    if (!this->data)
+      return;
+    void* src = static_cast<char*>(this->data) + offset;
+    std::memcpy(dest, src, SLAB_SIZE * sizeof(T));
   }
 #else
   CUDA_HOST_DEVICE DiskManager() {}
   CUDA_HOST_DEVICE ~DiskManager() {}
   CUDA_HOST_DEVICE std::size_t write_slab(const T* data) { return 0; }
   CUDA_HOST_DEVICE void read_slab(T* dest, std::size_t offset) {}
+#endif
+};
+
+template <typename T, std::size_t SLAB_SIZE>
+struct RamDiskManager : public DiskManager<T, SLAB_SIZE> {
+#ifndef __CUDA_ARCH__
+  RamDiskManager(bool use_file_offload = false)
+      : DiskManager<T, SLAB_SIZE>(use_file_offload) {}
+#else
+  CUDA_HOST_DEVICE RamDiskManager() {}
 #endif
 };
 
@@ -141,7 +264,7 @@ class tape_impl {
   };
 
   struct DiskStorage {
-    T* data_ptr = nullptr;
+    T* dataptr = nullptr;
     bool is_on_disk = false;
     std::size_t disk_offset = 0;
 
@@ -152,16 +275,16 @@ class tape_impl {
     DiskStorage& operator=(const DiskStorage&) = delete;
 
     void allocate() {
-      if (!data_ptr)
-        data_ptr = static_cast<T*>(::operator new(SLAB_SIZE * sizeof(T)));
+      if (!dataptr)
+        dataptr = static_cast<T*>(::operator new(SLAB_SIZE * sizeof(T)));
     }
     void deallocate() {
-      if (data_ptr) {
-        ::operator delete(data_ptr);
-        data_ptr = nullptr;
+      if (dataptr) {
+        ::operator delete(dataptr);
+        dataptr = nullptr;
       }
     }
-    CUDA_HOST_DEVICE T* elements() { return data_ptr; }
+    CUDA_HOST_DEVICE T* elements() { return dataptr; }
   };
 
   using SlabBase =
@@ -176,7 +299,7 @@ public:
     CUDA_HOST_DEVICE Slab() : prev(nullptr), next(nullptr) {}
   };
 
-private:
+protected:
   // std::aligned_storage_t<sizeof(T), alignof(T)> m_static_buffer[SBO_SIZE];
   // For now use the implementation below as above implementation is not
   // supported by c++11
@@ -196,6 +319,7 @@ private:
     std::unique_ptr<detail::DiskManager<T, SLAB_SIZE>> m_DiskManager;
     std::size_t m_ActiveSlabs = 0;
     std::size_t m_MaxRamSlabs = 1024;
+    bool m_use_file_offload = false;
     DiskInfo() = default;
   };
   struct Empty {};
@@ -237,7 +361,8 @@ private:
         candidate = candidate->next;
       if (candidate) {
         if (!info.m_DiskManager)
-          info.m_DiskManager.reset(new detail::DiskManager<T, SLAB_SIZE>());
+          info.m_DiskManager.reset(
+              new detail::DiskManager<T, SLAB_SIZE>(info.m_use_file_offload));
         candidate->disk_offset =
             info.m_DiskManager->write_slab(candidate->elements());
         // FIXME: We probably should not deallocate the slab but use a pool
@@ -296,11 +421,11 @@ public:
       tape_iterator<T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload>;
   using const_iterator =
       tape_iterator<const T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload>;
+
 #ifndef __CUDACC__
-
   std::mutex& mutex() const { return m_TapeMutex; }
-
 #endif
+
   CUDA_HOST_DEVICE tape_impl() = default;
 
   CUDA_HOST_DEVICE ~tape_impl() { clear(); }
@@ -518,6 +643,9 @@ private:
       (*arr)[i].~ElTy();
   }
 };
+template <typename T, std::size_t SBO_SIZE, std::size_t SLAB_SIZE,
+          bool is_multithread, bool DiskOffload>
+using tape = tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload>;
 } // namespace clad
 
 #endif // CLAD_TAPE_H

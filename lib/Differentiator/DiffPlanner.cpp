@@ -1191,6 +1191,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (!utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
           m_TopMostReq->Mode == DiffMode::reverse)
         nonDiff = true;
+      // Skip reverse-mode scheduling for integral-return helper calls that
+      // cannot accumulate through memory arguments. Keep this narrow to avoid
+      // suppressing diagnostics on variadic/non-helper calls.
+      const bool HasPointerOrReferenceParam = std::any_of(
+          FD->parameters().begin(), FD->parameters().end(),
+          [](const ParmVarDecl* PVD) {
+            QualType ParamType = PVD->getType();
+            return ParamType->isPointerType() || ParamType->isReferenceType();
+          });
+      if (m_TopMostReq->Mode == DiffMode::reverse && !FD->isVariadic() &&
+          HasPointerOrReferenceParam && !utils::hasMemoryTypeParams(FD) &&
+          returnType->isIntegralOrEnumerationType())
+        nonDiff = true;
 
       if (nonDiff && m_TopMostReq->Mode != DiffMode::reverse)
         return true;

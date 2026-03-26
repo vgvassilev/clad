@@ -407,6 +407,8 @@ namespace clad {
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
     StmtDiff VisitIfStmt(const clang::IfStmt* If);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+    StmtDiff VisitGNUNullExpr(const clang::GNUNullExpr* E);
+    StmtDiff VisitPredefinedExpr(const clang::PredefinedExpr* E);
 
 #if CLANG_VERSION_MAJOR > 16
     StmtDiff VisitLambdaExpr(const clang::LambdaExpr* LE);
@@ -621,11 +623,11 @@ namespace clad {
     /// loop body; otherwise false.
     ///\returns {forward pass statements, reverse pass statements} for the loop
     /// body.
-    StmtDiff DifferentiateLoopBody(const clang::Stmt* body,
-                                   LoopCounter& loopCounter,
-                                   clang::Stmt* condVarDifff = nullptr,
-                                   clang::Stmt* forLoopIncDiff = nullptr,
-                                   bool isForLoop = false);
+    StmtDiff DifferentiateLoopBody(
+        const clang::Stmt* body, LoopCounter& loopCounter,
+        clang::Stmt* condVarDifff = nullptr,
+        clang::Stmt* forLoopIncDiff = nullptr, bool isForLoop = false,
+        clang::SourceLocation loopLoc = clang::SourceLocation());
 
     StmtDiff DifferentiateCanonicalLoop(const clang::ForStmt* S);
 

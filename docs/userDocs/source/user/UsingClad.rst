@@ -592,6 +592,42 @@ Currently, class type support have the following limitations:
 Class type support is under active development and thus, most of these 
 limitations will be removed soon.
 
+
+The ``non_differentiable`` Attribute
+------------------------------------
+
+Occasionally, you may want to skip differentiating a specific variable or function call. For example, some variables might be used purely for logging, as constants, or as standalone metrics. Clad provides the ``non_differentiable`` annotation attribute to safely omit generating derivatives for these components.
+
+You can apply this attribute using Clang's annotation syntax. The most common approach is to define a macro alias:
+
+.. code-block:: c++
+
+   #define non_differentiable __attribute__((annotate("non_differentiable")))
+
+If the ``non_differentiable`` attribute is applied to a variable, Clad skips generating a derivative counterpart for it:
+
+.. code-block:: c++
+
+   class PointData {
+   public:
+     double x;
+     double y;
+     non_differentiable double weight; // Clad will not compute derivatives with respect to this member
+   };
+
+If the attribute is applied to a function declaration, Clad refrains from producing any derivative expressions for that specific function. Instead, calls to the primal function are injected directly, behaving as if the result has a zero derivative:
+
+.. code-block:: c++
+
+   non_differentiable double get_scaling_factor(double i, double j) { 
+       return i * j; 
+   }
+
+   double compute(double i, double j) { 
+       // get_scaling_factor will skip differentiation completely. 
+       return get_scaling_factor(i, j) + i * j; 
+   }
+
 Specifying Custom Derivatives
 -------------------------------
 
