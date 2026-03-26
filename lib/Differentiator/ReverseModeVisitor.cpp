@@ -6,9 +6,11 @@
 
 #include "clad/Differentiator/ReverseModeVisitor.h"
 
+#include "ActivityAnalyzer.h"
 #include "ConstantFolder.h"
 
 #include "TBRAnalyzer.h"
+#include "UsefulAnalyzer.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
@@ -1880,6 +1882,27 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     DiffRequest LambdaReq = m_DiffReq;
     LambdaReq.Function = LE->getCallOperator();
     LambdaReq.Functor = LE->getLambdaClass();
+
+    std::unique_ptr<AnalysisDeclContext> LambdaAnalysisDC;
+    if (LambdaReq.EnableVariedAnalysis || LambdaReq.EnableUsefulAnalysis) {
+      clang::CFG::BuildOptions Options;
+      LambdaAnalysisDC = std::make_unique<AnalysisDeclContext>(
+          /*AnalysisDeclContextManager=*/nullptr, LambdaReq.Function, Options);
+
+      if (LambdaReq.EnableVariedAnalysis && LambdaReq->isDefined()) {
+        VariedAnalyzer analyzer(LambdaAnalysisDC.get(), LambdaReq,
+                                LambdaReq.getVariedStmt());
+        analyzer.Analyze();
+      }
+
+      if (LambdaReq.EnableUsefulAnalysis) {
+        UsefulAnalyzer analyzer(LambdaAnalysisDC.get(),
+                                LambdaReq.getUsefulDecls());
+        analyzer.Analyze(LambdaReq.Function);
+      }
+
+      LambdaReq.m_AnalysisDC = LambdaAnalysisDC.get();
+    }
 
     ReverseModeVisitor NestedVisitor(m_Builder, LambdaReq);
     Expr* lambdaE = NestedVisitor.buildDerivedLambda(LE);

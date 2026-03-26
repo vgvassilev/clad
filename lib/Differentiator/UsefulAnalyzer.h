@@ -1,5 +1,6 @@
 #ifndef CLAD_DIFFERENTIATOR_USEFULANALYZER_H
 #define CLAD_DIFFERENTIATOR_USEFULANALYZER_H
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
@@ -67,7 +68,7 @@ public:
   bool VisitBinaryOperator(clang::BinaryOperator* BinOp);
   bool VisitDeclStmt(clang::DeclStmt* DS);
   bool VisitCallExpr(clang::CallExpr* CE);
-  bool TraverseLambdaExpr(clang::LambdaExpr* LE);
+  static bool TraverseLambdaExpr(clang::LambdaExpr* LE);
 };
 } // namespace clad
 #endif // CLAD_DIFFERENTIATOR_USEFULANALYZER_H

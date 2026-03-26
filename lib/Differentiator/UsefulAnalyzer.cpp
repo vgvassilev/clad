@@ -1,4 +1,5 @@
 #include "UsefulAnalyzer.h"
+#include "clang/AST/ExprCXX.h"
 
 using namespace clang;
 
