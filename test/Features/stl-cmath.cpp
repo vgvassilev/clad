@@ -109,7 +109,7 @@
 // D ellint_1/ f / l           (C++17) incomplete elliptic integral (1st kind)
 // D ellint_2/ f / l           (C++17) incomplete elliptic integral (2nd kind)
 // D ellint_3/ f / l           (C++17) incomplete elliptic integral (3rd kind)
-// D expint/ expintf/ expintl  (C++17) exponential integral
+// DS expint/ expintf/ expintl  (C++17) exponential integral
 // D hermite/ hermitef/ hermitel (C++17) Hermite polynomials
 // D legendre/ legendref/ legendrel (C++17) Legendre polynomials
 // D laguerre/ laguerref/ laguerrel (C++17) Laguerre polynomials
@@ -262,6 +262,12 @@ long double f_fmal(long double x){ return fmal(x,2.0L, 1.0L); }
 DEFINE_FUNCTIONS(exp)   // x in (-inf,+inf)
 DEFINE_FUNCTIONS(exp2)  // x in (-inf,+inf)
 DEFINE_FUNCTIONS(expm1) // x in (-inf,+inf)
+#if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__))
+template <typename T> 
+T f_expint(T x) { return ::std ::expint(x); } // x in (-inf,0) U (0,+inf)
+inline float f_expintf(float x) { return ::std ::expintf(x); }
+inline long double f_expintl(long double x) { return ::std ::expintl(x); }
+#endif
 DEFINE_FUNCTIONS(log)   // x in (0,+inf)
 DEFINE_FUNCTIONS(log10) // x in (0,+inf)
 DEFINE_FUNCTIONS(log2)  // x in (0,+inf)
@@ -323,6 +329,10 @@ int main() {
   CHECK_ALL(exp);
   CHECK_ALL(exp2);
   CHECK_ALL(expm1);
+  #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__))
+  CHECK_ALL_RANGE(expint, {-2.0, -1.0, -0.5, 0.5, 1.0, 2.0, 3.0});
+  #endif
+
   CHECK_ALL(log);
   CHECK_ALL(log10);
   CHECK_ALL(log2);
