@@ -326,19 +326,22 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     add_subdirectory(unittests)
     add_subdirectory(test)
   endif()
-  function(clad_apply_test_compiler target)
+function(clad_apply_test_compiler target)
+
   target_compile_options(${target} PRIVATE
-    -Wno-class-memaccess
     -Wno-undefined-inline
-    -fno-lifetime-dse
+    $<$<CXX_COMPILER_ID:GNU>:-Wno-class-memaccess>
+    $<$<CXX_COMPILER_ID:GNU>:-fno-lifetime-dse>
   )
 
   target_compile_options(${target} PRIVATE
-    $<$<NOT:$<CXX_COMPILER_ID:Clang>>:-fno-exceptions>
+     $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:-fno-exceptions>
   )
 
   target_compile_definitions(${target} PRIVATE CLAD_TESTING=1)
-  endfunction()
+
+endfunction()
+
   # Add benchmarking infrastructure.
   if (CLAD_ENABLE_BENCHMARKS)
     add_subdirectory(benchmark)
