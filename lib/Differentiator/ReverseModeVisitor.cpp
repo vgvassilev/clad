@@ -1724,7 +1724,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     if (argDiff.getExpr_dx() && arg->isXValue() &&
         argDiff.getExpr_dx()->isLValue()) {
-      llvm::SmallVector<Expr*, 1> moveArg = {argDiff.getExpr_dx()};
+      Expr* revSweepAdjoint = Clone(argDiff.getExpr_dx());
+      // Preserve the original adjoint by moving from an explicit copy.
+      QualType adjointValueTy = utils::GetValueType(revSweepAdjoint->getType());
+      if (adjointValueTy->isRecordType())
+        revSweepAdjoint =
+            StoreAndRef(revSweepAdjoint, direction::forward, "_rr",
+                        /*forceDeclCreation=*/true);
+      llvm::SmallVector<Expr*, 1> moveArg = {revSweepAdjoint};
       Expr* moveCall = GetFunctionCall("move", "std", moveArg);
       result.updateRevSweep(moveCall);
     }
@@ -1973,7 +1980,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool shouldWrapInStdMove = false;
     bool isCastSem = false;
     if (clang::AnalysisDeclContext::isInStdNamespace(FD) &&
-        FDName == "forward") {
+        (FDName == "forward" || FDName == "move")) {
       isCastSem = true;
       if (!FD->getReturnType()->isLValueReferenceType())
         shouldWrapInStdMove = true;
