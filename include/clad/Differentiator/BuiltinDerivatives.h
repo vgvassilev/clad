@@ -1213,6 +1213,85 @@ CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
 }
 #endif
 
+#if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
+                               defined(__STDCPP_MATH_SPEC_FUNCS__))
+template <typename T, typename dT,
+          typename T_out = decltype(::std::comp_ellint_1(T())),
+          typename dT_out = typename AdjOutType<T_out, dT>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+comp_ellint_1_pushforward(T k, dT d_k) {
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out k_sq = k * k;
+  T_out one = 1.0;
+  T_out derivative = 0.0;
+  if (k_sq < 1.0 && k != 0.0)
+    derivative = (E - (one - k_sq) * K) / (k * (one - k_sq));
+  return {K, static_cast<dT_out>(d_k) * derivative};
+}
+
+template <typename T, typename dT,
+          typename T_out = decltype(::std::comp_ellint_2(T())),
+          typename dT_out = typename AdjOutType<T_out, dT>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+comp_ellint_2_pushforward(T k, dT d_k) {
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out derivative = 0.0;
+  if (k != 0.0)
+    derivative = (E - K) / k;
+  return {E, static_cast<dT_out>(d_k) * derivative};
+}
+
+template <typename T1, typename T2, typename dT1, typename dT2,
+          typename T_out = decltype(::std::comp_ellint_3(T1(), T2())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+comp_ellint_3_pushforward(T1 k, T2 nu, dT1 d_k, dT2 d_nu) {
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out Pi = ::std::comp_ellint_3(k, nu);
+  T_out k2 = k * k;
+  T_out one = 1.0;
+  T_out grad_k = 0.0;
+  if (k2 != static_cast<T_out>(nu) && k != 0.0 && k2 < 1.0) {
+    T_out term_k = E / (one - k2);
+    grad_k = (k / (k2 - static_cast<T_out>(nu))) * (term_k - Pi);
+  }
+  T_out grad_nu = 0.0;
+  if (nu != 0.0 && nu != 1.0 && k2 != static_cast<T_out>(nu)) {
+    T_out p2 = ((k2 - static_cast<T_out>(nu)) / static_cast<T_out>(nu)) * K;
+    T_out p3 = ((static_cast<T_out>(nu) * static_cast<T_out>(nu) - k2) /
+                static_cast<T_out>(nu)) *
+               Pi;
+    grad_nu = (one / (2.0 * (static_cast<T_out>(nu) - one) *
+                      (k2 - static_cast<T_out>(nu)))) *
+              (E + p2 + p3);
+  }
+  return {Pi, (static_cast<dT_out>(d_k) * grad_k) +
+                  (static_cast<dT_out>(d_nu) * grad_nu)};
+}
+
+template <typename T1, typename T2, typename T3>
+CUDA_HOST_DEVICE void comp_ellint_3_pullback(T1 k, T2 nu, T3 d_out, T1* d_k,
+                                             T2* d_nu) {
+  auto K = ::std::comp_ellint_1(k);
+  auto E = ::std::comp_ellint_2(k);
+  auto Pi = ::std::comp_ellint_3(k, nu);
+  auto k2 = k * k;
+  auto one = 1.0;
+  if (k2 != nu && k != 0.0 && k2 < 1.0) {
+    auto term_k = E / (one - k2);
+    *d_k += d_out * ((k / (k2 - nu)) * (term_k - Pi));
+  }
+  if (nu != 0.0 && nu != one && k2 != nu) {
+    auto p2 = ((k2 - nu) / nu) * K;
+    auto p3 = ((nu * nu - k2) / nu) * Pi;
+    *d_nu += d_out * ((one / (2.0 * (nu - one) * (k2 - nu))) * (E + p2 + p3));
+  }
+}
+#endif
+
 } // namespace std
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -1487,6 +1566,14 @@ using std::sqrt_pushforward;
 #if __cplusplus >= 201703L
 using std::beta_pullback;
 using std::beta_pushforward;
+#endif
+
+#if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
+                               defined(__STDCPP_MATH_SPEC_FUNCS__))
+using std::comp_ellint_1_pushforward;
+using std::comp_ellint_2_pushforward;
+using std::comp_ellint_3_pullback;
+using std::comp_ellint_3_pushforward;
 #endif
 
 namespace class_functions {

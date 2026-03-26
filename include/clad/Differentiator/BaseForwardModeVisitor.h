@@ -124,6 +124,8 @@ public:
   StmtDiff VisitNullStmt(const clang::NullStmt* NS) { return StmtDiff{}; };
   StmtDiff
   VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);
+  StmtDiff VisitGNUNullExpr(const clang::GNUNullExpr* E);
+  StmtDiff VisitPredefinedExpr(const clang::PredefinedExpr* E);
 
   StmtDiff VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
   StmtDiff VisitOMPParallelDirective(const clang::OMPParallelDirective* D);
