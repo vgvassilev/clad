@@ -526,29 +526,18 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
         if (!dVarInfo.param->getType().getNonReferenceType()->isRecordType() &&
             !dVarInfo.fields.empty()) {
-          utils::diag(
-              semaRef, DiagnosticsEngine::Error, dArgsL,
-              "fields can only be provided when parameters are of class "
-              "types or are references to class types; "
-              "field information is incorrectly specified in '%0' "
-              "for non-class/non-reference to class type parameter '%1'")
+          utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                      "fields can only be provided for class type parameters; "
+                      "field information is incorrectly specified in '%0' "
+                      "for non-class type parameter '%1'")
               << diffSpec << pName << dArgsL;
           return;
         }
 
         if (!dVarInfo.fields.empty()) {
-          RecordDecl* RD;
-
-          if (dVarInfo.param->getType()->isRecordType()) {
-            RD = dVarInfo.param->getType()->getAsCXXRecordDecl();
-          } else {
-            assert(dVarInfo.param->getType()->isReferenceType());
-
-            RD = dVarInfo.param->getType()
-                     .getNonReferenceType()
-                     ->getAsCXXRecordDecl();
-          }
-
+          RecordDecl* RD = dVarInfo.param->getType()
+                               .getNonReferenceType()
+                               ->getAsCXXRecordDecl();
           llvm::SmallVector<llvm::StringRef, 4> ref(dVarInfo.fields.begin(),
                                                     dVarInfo.fields.end());
           bool isValid = utils::IsValidMemExprPath(semaRef, RD, ref);
