@@ -27,6 +27,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cassert>
 #include <deque>
 #include <map>
 #include <set>
@@ -257,10 +258,15 @@ struct DifferentiationOptions {
     void AppendDelayed(DelayedCallInfo DCI) {
       // Incremental processing handles the translation unit in chunks and it is
       // expected to have multiple calls to this functionality.
-      assert((!m_MultiplexerProcessedDelayedCallsIdx ||
-              m_CI.getPreprocessor().isIncrementalProcessingEnabled()) &&
+      bool IsIncr = m_CI.getPreprocessor().isIncrementalProcessingEnabled();
+      assert((!m_MultiplexerProcessedDelayedCallsIdx || IsIncr) &&
              "Must start from index 0!");
       m_DelayedCalls.push_back(DCI);
+      // If we are in repl mode we might have an error or an undo operation
+      // which discards the set of declarations that were collected already.
+      // Clad should discard them, too.
+      if (IsIncr && m_CI.getDiagnostics().hasErrorOccurred())
+        m_MultiplexerProcessedDelayedCallsIdx = m_DelayedCalls.size();
     }
     void FinalizeTranslationUnit();
     void SendToMultiplexer();
