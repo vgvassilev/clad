@@ -837,6 +837,18 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
         derivedFn /* will be replaced by Jacobian*/, code, f);
   }
 
+  template <typename F, typename T, size_t N,
+            typename DerivedFnType = JacobianVectorProductDerivedFnTraits_t<
+                remove_reference_and_pointer_t<F>, T, N>>
+  constexpr CladFunction<
+      DerivedFnType> __attribute__((annotate("JVP")))
+  jvp(F&& f, T (&args)[N],
+      DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+      const char* code = "") {
+    return CladFunction<DerivedFnType>(
+        derivedFn, code);
+  }
+
   template <typename ArgSpec = const char*, typename F,
             typename DerivedFnType = GradientDerivedEstFnTraits_t<F>>
   constexpr CladFunction<DerivedFnType> __attribute__((annotate("E")))

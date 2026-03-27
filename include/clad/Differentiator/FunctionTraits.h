@@ -645,6 +645,20 @@ namespace clad {
     using type = NoFunction*;
   };
 
+  template <typename F, typename NumericType, size_t Size, typename = void>
+  struct JacobianVectorProductDerivedFnTraits {};
+
+  template <typename F, typename NumericType, size_t Size>
+  using JacobianVectorProductDerivedFnTraits_t =
+      typename JacobianVectorProductDerivedFnTraits<F, NumericType, Size>::type;
+
+  template <typename F, typename NumericType, size_t Size>
+  struct JacobianVectorProductDerivedFnTraits<
+      F, NumericType, Size,
+      typename std::enable_if<std::is_function_v<F>>::type> {
+    using type = void (*)(NumericType (&)[Size]);
+  };
+
   template <class T, class = void> struct HessianDerivedFnTraits {};
 
   // HessianDerivedFnTraits is used to deduce type of the derived functions
