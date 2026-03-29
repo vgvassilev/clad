@@ -31,8 +31,8 @@ double fn1 (double i, double j, int choice) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     int _d_choice = 0;
-// CHECK-NEXT:     double _d_a = 0, _d_b = 0;
-// CHECK-NEXT:     double a = 0, b = 0;
+// CHECK-NEXT:     double _d_a = 0., _d_b = 0.;
+// CHECK-NEXT:     double a = 0., b = 0.;
 // CHECK-NEXT:     double _d_c = _d_i + _d_j;
 // CHECK-NEXT:     double c = i + j;
 // CHECK-NEXT:     {
@@ -105,8 +105,8 @@ double fn2 (double i, double j, int choice) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     int _d_choice = 0;
-// CHECK-NEXT:     double _d_a = 0, _d_b = 0;
-// CHECK-NEXT:     double a = 0, b = 0;
+// CHECK-NEXT:     double _d_a = 0., _d_b = 0.;
+// CHECK-NEXT:     double a = 0., b = 0.;
 // CHECK-NEXT:     double _d_c = _d_i + _d_j;
 // CHECK-NEXT:     double c = i + j;
 // CHECK-NEXT:     {
@@ -167,8 +167,8 @@ double fn3 (double i, double j, int choice) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     int _d_choice = 0;
-// CHECK-NEXT:     double _d_a = 0;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double _d_a = 0.;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (choice) {
 // CHECK-NEXT:           case 0:
@@ -222,8 +222,8 @@ double fn4(double i, double j, int choice) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     int _d_choice = 0;
-// CHECK-NEXT:     double _d_a = 0, _d_b = 0;
-// CHECK-NEXT:     double a = 0, b = 0;
+// CHECK-NEXT:     double _d_a = 0., _d_b = 0.;
+// CHECK-NEXT:     double a = 0., b = 0.;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (choice) {
 // CHECK-NEXT:           case 0:

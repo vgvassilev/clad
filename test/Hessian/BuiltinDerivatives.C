@@ -300,7 +300,7 @@ int main() {
 // CHECK-NEXT:     float _d_d_x = 0.F;
 // CHECK-NEXT:     float _d_x0 = 1;
 // CHECK-NEXT:     float _d_d_y = 0.F;
-// CHECK-NEXT:     float _d_y0 = 0;
+// CHECK-NEXT:     float _d_y0 = 0.F;
 // CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _d_t0 = {0.F, 0.F};
 // CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t00 = clad::custom_derivatives::std::pow_pushforward(x, y, _d_x0, _d_y0);
 // CHECK-NEXT:     _d_t0.pushforward += 1;
@@ -319,7 +319,7 @@ int main() {
 
 // CHECK: void f6_darg1_grad(float x, float y, float *_d_x, float *_d_y) {
 // CHECK-NEXT:     float _d_d_x = 0.F;
-// CHECK-NEXT:     float _d_x0 = 0;
+// CHECK-NEXT:     float _d_x0 = 0.F;
 // CHECK-NEXT:     float _d_d_y = 0.F;
 // CHECK-NEXT:     float _d_y0 = 1;
 // CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _d_t0 = {0.F, 0.F};

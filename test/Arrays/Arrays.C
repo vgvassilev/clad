@@ -22,8 +22,8 @@ double sum(double x, double y, double z) {
 //CHECK-NEXT:       double _d_z = 0;
 //CHECK-NEXT:       double _d_vars[3] = {_d_x, _d_y, _d_z};
 //CHECK-NEXT:       double vars[3] = {x, y, z};
-//CHECK-NEXT:       double _d_s = 0;
-//CHECK-NEXT:       double s = 0;
+//CHECK-NEXT:       double _d_s = 0.;
+//CHECK-NEXT:       double s = 0.;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           int _d_i = 0;
 //CHECK-NEXT:           for (int i = 0; i < 3; i++) {
@@ -60,8 +60,8 @@ double sum_squares(double x, double y, double z) {
 //CHECK-NEXT:               squares[i] = vars[i] * vars[i];
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
-//CHECK-NEXT:       double _d_s = 0;
-//CHECK-NEXT:       double s = 0;
+//CHECK-NEXT:       double _d_s = 0.;
+//CHECK-NEXT:       double s = 0.;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           int _d_i = 0;
 //CHECK-NEXT:           for (int i = 0; i < 3; i++) {
