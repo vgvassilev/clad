@@ -1215,8 +1215,15 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           }
         }
       }
-      if (!dArg)
-        dArg = getZeroInit(arg->getType());
+      if (!dArg) {
+        QualType zeroTy = arg->getType();
+        if (zeroTy->isPointerType()) {
+          QualType pointeeTy = zeroTy->getPointeeType();
+          if (pointeeTy.isConstQualified())
+            zeroTy = m_Context.getPointerType(pointeeTy.getUnqualifiedType());
+        }
+        dArg = getZeroInit(zeroTy);
+      }
       // pointer/array arguments are dynamically synthesized above
       diffArgs.push_back(dArg);
     }
