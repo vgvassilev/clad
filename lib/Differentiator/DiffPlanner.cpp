@@ -994,7 +994,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       diffParams.push_back(VarInfo.param);
     QualType dTy = utils::GetDerivativeType(S, R.Function, R.Mode, diffParams,
                                             /*forCustomDerv=*/true,
-                                            /*shouldUseRestoreTracker=*/false);
+                                            /*shouldUseRestoreTracker=*/R.UseRestoreTracker);
     // We disable diagnostics for methods and operators because they often have
     // ideantical names: `constructor_pullback`, `operator_star_pushforward`,
     // etc. If we turn it on, every such operator will trigger diagnostics
@@ -1339,6 +1339,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         E->getDirectCallee();
     bool shouldUseRestoreTracker =
         utils::shouldUseRestoreTracker(request.Function);
+    if (request.Mode == DiffMode::pullback)
+      request.UseRestoreTracker = shouldUseRestoreTracker;
     if (!(LookupCustomDerivativeDecl(request) || nonDiff) || requestTBR) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
@@ -1411,6 +1413,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         }
       }
     }
+
+    if (request.Mode == DiffMode::pullback)
+      request.UseRestoreTracker = shouldUseRestoreTracker;
 
     if (request.Mode == DiffMode::pullback) {
       DiffRequest forwPassRequest;
