@@ -508,6 +508,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               return;
             }
             dVarInfo.paramIndexInterval = IndexInterval(index);
+            dVarInfo.TotalCapacity = index + 1;
           } else {
             size_t first, last;
             if (firstStr.getAsInteger(Radix, first) ||
@@ -524,6 +525,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               return;
             }
             dVarInfo.paramIndexInterval = IndexInterval(first, last);
+            dVarInfo.TotalCapacity = last + 1;
           }
         } else {
           dVarInfo.paramIndexInterval = IndexInterval();
@@ -1394,6 +1396,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               forwRequest.Args = utils::CreateStringLiteral(
                   m_Sema.getASTContext(), independentArgString);
               forwRequest.UpdateDiffParamsInfo(m_Sema);
+              if (!forwRequest.DVI.empty())
+                forwRequest.DVI.back().TotalCapacity = indexInterval.Finish;
               LookupCustomDerivativeDecl(forwRequest);
               m_DiffRequestGraph.addNode(forwRequest, /*isSource=*/true);
             }

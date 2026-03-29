@@ -26,7 +26,9 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -1117,9 +1119,105 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     CallArgs.push_back(argDiff.getExpr());
     if (utils::IsDifferentiableType(arg->getType())) {
       Expr* dArg = argDiff.getExpr_dx();
+
+      const Expr* cleanDArg = dArg;
+      bool isZeroDArg = !cleanDArg || clad::utils::IsZeroOrNullValue(cleanDArg);
+
+      if (!isZeroDArg && cleanDArg) {
+        if (const auto* ILE = dyn_cast<InitListExpr>(cleanDArg)) {
+          isZeroDArg = (ILE->getNumInits() == 0) ||
+                       (ILE->getNumInits() == 1 &&
+                        clad::utils::IsZeroOrNullValue(ILE->getInit(0)));
+        }
+      }
+
+      if (isZeroDArg &&
+          (arg->getType()->isPointerType() || arg->getType()->isArrayType())) {
+        const Expr* cleanArg = arg->IgnoreParenImpCasts();
+        if (const auto* DRE = dyn_cast<DeclRefExpr>(cleanArg)) {
+          if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+
+            std::size_t arrSize = 0;
+
+            // Try to get the size from the AST.
+            if (const auto* CAT =
+                    m_Context.getAsConstantArrayType(VD->getType())) {
+              arrSize = CAT->getSize().getZExtValue();
+            }
+            // Otherwise extract the size from DiffRequest using TotalCapacity.
+            else {
+              for (const auto& varInfo : m_DiffReq.DVI) {
+                bool isSameName = false;
+                if (varInfo.param->getIdentifier() && VD->getIdentifier())
+                  isSameName = (varInfo.param->getName() == VD->getName());
+                if (varInfo.param == VD || isSameName) {
+                  if (varInfo.TotalCapacity > 0)
+                    arrSize = varInfo.TotalCapacity;
+                  break;
+                }
+              }
+            }
+
+            // If array size was found construct AST node for arg[k] for all k.
+            if (arrSize > 0) {
+              QualType elemType =
+                  QualType(arg->getType()->getPointeeOrArrayElementType(), 0);
+
+              llvm::APInt sizeAPI(
+                  m_Context.getTypeSize(m_Context.getSizeType()), arrSize);
+              QualType arrType = clad_compat::getConstantArrayType(
+                  m_Context, elemType, sizeAPI, nullptr,
+                  clad_compat::ArraySizeModifier_Normal, 0);
+
+              llvm::SmallVector<Expr*, 4> initExprs;
+              for (std::size_t k = 0; k < arrSize; ++k) {
+                Expr* idxExpr = ConstantFolder::synthesizeLiteral(
+                    m_Context.IntTy, m_Context, k);
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+                Expr* safeBase = const_cast<Expr*>(arg->IgnoreParens());
+
+                // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+                Expr* subExpr = new (m_Context)
+                    ArraySubscriptExpr(safeBase, idxExpr, elemType, VK_LValue,
+                                       OK_Ordinary, CE->getBeginLoc());
+
+                StmtDiff subDiff = Visit(subExpr);
+                Expr* subDx = subDiff.getExpr_dx();
+
+                if (!subDx || clad::utils::IsZeroOrNullValue(subDx)) {
+                  Expr* zeroExpr = ConstantFolder::synthesizeLiteral(
+                      elemType, m_Context, /*val=*/0.0);
+                  initExprs.push_back(zeroExpr);
+                } else {
+                  initExprs.push_back(subDx);
+                }
+              }
+
+              // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+              auto* initList = new (m_Context) InitListExpr(
+                  m_Context, CE->getBeginLoc(), initExprs, CE->getEndLoc());
+              initList->setType(arrType);
+
+              TypeSourceInfo* tInfo =
+                  m_Context.getTrivialTypeSourceInfo(arrType);
+
+              // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+              auto* CLE = new (m_Context) CompoundLiteralExpr(
+                  CE->getBeginLoc(), tInfo, arrType, VK_LValue, initList,
+                  /*isFileScope=*/true);
+
+              dArg = m_Sema
+                         .ImpCastExprToType(CLE,
+                                            m_Context.getPointerType(elemType),
+                                            CK_ArrayToPointerDecay)
+                         .get();
+            }
+          }
+        }
+      }
       if (!dArg)
         dArg = getZeroInit(arg->getType());
-      // FIXME: What happens when dArg is nullptr?
+      // pointer/array arguments are dynamically synthesized above
       diffArgs.push_back(dArg);
     }
   }
