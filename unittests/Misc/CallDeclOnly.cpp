@@ -35,7 +35,8 @@ void wrapper1_grad(double *params, double *_d_params) {
         double _r3 = 1 * _grad0[3];
         _d_ix += _r1;
     }
-    _d_params[0] += _d_ix;
+    if (_d_params)
+        _d_params[0] += _d_ix;
 }
 
 )";
