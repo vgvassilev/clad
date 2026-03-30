@@ -1050,7 +1050,8 @@ int main() {
 // CHECK-NEXT:         id--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             float _r_d0 = _d_out;
-// CHECK-NEXT:             _d_tensor_theory_params[0] += arr[id] * _r_d0;
+// CHECK-NEXT:             if (_d_tensor_theory_params)
+// CHECK-NEXT:                _d_tensor_theory_params[0] += arr[id] * _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

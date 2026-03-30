@@ -71,8 +71,10 @@ __device__ __host__ double gauss(const double* x, double* p, double sigma, int d
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         double _r_d0 = _d_t;
-//CHECK-NEXT:         _d_p[i] += -_r_d0 * (x[i] - p[i]);
-//CHECK-NEXT:         _d_p[i] += -(x[i] - p[i]) * _r_d0;
+//CHECK-NEXT:         if (_d_p)
+//CHECK-NEXT:           _d_p[i] += -_r_d0 * (x[i] - p[i]);
+//CHECK-NEXT:         if (_d_p)
+//CHECK-NEXT:           _d_p[i] += -(x[i] - p[i]) * _r_d0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
