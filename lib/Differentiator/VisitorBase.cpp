@@ -999,8 +999,9 @@ namespace clad {
     llvm::SmallVector<const ValueDecl*, 4> diffParams{};
     for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
       diffParams.push_back(VarInfo.param);
+    DiffMode effectiveMode = m_DiffReq.Mode;
     return utils::GetDerivativeType(
-        m_Sema, m_DiffReq.Function, m_DiffReq.Mode, diffParams,
+        m_Sema, m_DiffReq.Function, effectiveMode, diffParams,
         /*forCustomDerv=*/false,
         /*shouldUseRestoreTracker=*/m_DiffReq.UseRestoreTracker,
         m_DiffReq.EnableErrorEstimation);
