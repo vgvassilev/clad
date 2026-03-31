@@ -4669,6 +4669,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // SomeClass _d_c = _t0.adjoint;
     // SomeClass c = _t0.value;
     // ```
+    // Copy/move constructors consume their source objects, so replaying them
+    // through constructor_reverse_forw can invalidate the same values that the
+    // pullback still needs to use. Keep them on the pre-9ed0b9e9 path.
+    if (CD->isCopyOrMoveConstructor()) {
+      if (RD->isAggregate())
+        return {primalArgs[0], reverseForwAdjointArgs[0]};
+
+      Expr* callClone = BuildConstructorCall(m_Sema, CE, primalArgs,
+                                             m_TrackVarDeclConstructor);
+      Expr* callDiff = nullptr;
+      if (elideReverseForw)
+        callDiff = BuildConstructorCall(m_Sema, CE, reverseForwAdjointArgs,
+                                        m_TrackVarDeclConstructor);
+      return {callClone, callDiff};
+    }
+
     if (constrForw && !elideReverseForw) {
       reverseForwAdjointArgs.insert(reverseForwAdjointArgs.begin(),
                                     primalArgs.begin(), primalArgs.end());
