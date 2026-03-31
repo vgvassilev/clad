@@ -172,11 +172,10 @@ namespace clad {
       llvm::APFloat APVal(C.getFloatTypeSemantics(QT), val);
       Result = clad::synthesizeLiteral(QT, C, APVal);
     } else {
-      // FIXME: Handle other types, like Complex, Structs, typedefs, etc.
-      // typecasting may be needed right now
-      Result = ConstantFolder::synthesizeLiteral(C.IntTy, C, val);
+      // Unsupported type: do not silently convert to int
+      Result =  nullptr;
     }
-    assert(Result && "Unsupported type for constant folding.");
+    assert(Result && "Unsupported type passed to ConstantFolder::synthesizeLiteral");
     return Result;
   }
 } // end namespace clad
