@@ -65,8 +65,7 @@ bool IsRealNonReferenceType(QualType T) {
 // Returns true if RD is in std namespace, handles libc++ inline
 // namespaces like std::__1 correctly.
 static bool isInStdNamespace(const CXXRecordDecl* RD) {
-  for (const DeclContext* DC = RD->getDeclContext(); DC;
-       DC = DC->getParent()) {
+  for (const DeclContext* DC = RD->getDeclContext(); DC; DC = DC->getParent()) {
     if (const auto* NS = dyn_cast<NamespaceDecl>(DC))
       if (NS->isStdNamespace())
         return true;
@@ -1037,8 +1036,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
     if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
       const CXXRecordDecl* RD = MD->getParent();
-      if (isInStdNamespace(RD) &&
-          RD->getName() == "thread" &&
+      if (isInStdNamespace(RD) && RD->getName() == "thread" &&
           FD->getName() == "join") {
 
         // Get base: t1 → {t1, _d_t1}
@@ -1059,7 +1057,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       }
     }
   }
-  
+
   SourceLocation validLoc{CE->getBeginLoc()};
 
   // Calls to lambda functions are processed differently
@@ -2174,8 +2172,7 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
 
   CXXConstructorDecl* CD = CE->getConstructor();
   CXXRecordDecl* RD = CD->getParent();
-  bool isStdThread = isInStdNamespace(RD) &&
-                     RD->getName() == "thread" &&
+  bool isStdThread = isInStdNamespace(RD) && RD->getName() == "thread" &&
                      CE->getNumArgs() >= 1;
 
   if (isStdThread) {
@@ -2196,7 +2193,8 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
           utils::ComputeEffectiveFnName(callableFD);
       pushforwardFnRequest.VerboseDiags = false;
       pushforwardFnRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-      pushforwardFnRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+      pushforwardFnRequest.EnableVariedAnalysis =
+          m_DiffReq.EnableVariedAnalysis;
 
       FunctionDecl* pushforwardFD =
           m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
@@ -2205,7 +2203,8 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
         // Original thread:    std::thread t1(add_square,    x, _t0.value)
         // Derivative thread:  std::thread _d_t1(add_square_pushforward,
         //                                       x, _t0.value,      ← orig args
-        //                                       _d_x, _t0.pushforward) ← deriv args
+        //                                       _d_x, _t0.pushforward) ← deriv
+        //                                       args
 
         llvm::SmallVector<Expr*, 8> derivThreadArgs;
 
