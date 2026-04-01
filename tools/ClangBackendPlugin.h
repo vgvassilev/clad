@@ -8,7 +8,13 @@
 #define CLANG_BACKEND_PLUGIN_H
 
 #include "llvm/IR/PassManager.h"
+#if CLANG_VERSION_MAJOR < 22
 #include "llvm/Passes/PassPlugin.h"
+#else
+#include "llvm/Plugins/PassPlugin.h"
+#endif
+
+
 
 namespace clad {
 
