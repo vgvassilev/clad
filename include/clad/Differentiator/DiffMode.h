@@ -13,7 +13,8 @@ enum class DiffMode {
   hessian,
   hessian_diagonal,
   jacobian,
-  reverse_mode_forward_pass
+  reverse_mode_forward_pass,
+  jacobian_vector_product
 };
 
 /// Convert enum value to string.

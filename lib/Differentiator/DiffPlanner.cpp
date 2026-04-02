@@ -629,6 +629,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
       return;
     }
+  if (E->getType().getNonReferenceType()->isArrayType()) {
+    DiffInputVarInfo dVarInfo{};
+    dVarInfo.jvp_out = E;
+    DVI.push_back(dVarInfo);
+    return;
+  }
     // Fail if the argument is not a string or numeric literal.
     utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
                 "failed to parse the parameters, must be string or "
@@ -841,6 +847,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::jacobian;
     else if (Annotation == "G")
       request.Mode = DiffMode::reverse;
+    else if (Annotation == "JVP")
+      request.Mode = DiffMode::jacobian_vector_product;
     else
       llvm_unreachable("unknown mode");
     if (request.Mode == DiffMode::reverse || request.Mode == DiffMode::hessian)
@@ -1127,7 +1135,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       std::string Annotation = A->getAnnotation().str();
       if (Annotation != "D" && Annotation != "G" && Annotation != "H" &&
-          Annotation != "J" && Annotation != "E")
+          Annotation != "J" && Annotation != "JVP" && Annotation != "E")
         return true;
 
       // A call to clad::differentiate or clad::gradient was not found.
@@ -1235,7 +1243,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       else if (m_TopMostReq->Mode == DiffMode::reverse)
         request.Mode = DiffMode::pullback;
       else if (m_TopMostReq->Mode == DiffMode::vector_forward_mode ||
-               m_TopMostReq->Mode == DiffMode::jacobian ||
+               m_TopMostReq->Mode == DiffMode::jacobian || m_TopMostReq->Mode == DiffMode::jacobian_vector_product ||
                m_TopMostReq->Mode == DiffMode::vector_pushforward) {
         request.Mode = DiffMode::vector_pushforward;
       } else {

@@ -73,6 +73,8 @@ namespace clad {
     std::size_t TotalCapacity = 0;
     /// Nested field information.
     llvm::SmallVector<std::string, 4> fields;
+    /// The output parameter to put the result into in case of JVP computation
+    const clang::Expr* jvp_out = nullptr;
     // FIXME: Add support for differentiating with respect to array fields.
     // llvm::SmallVector<IndexInterval> fieldIndexIntervals;
 

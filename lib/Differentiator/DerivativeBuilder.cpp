@@ -16,6 +16,7 @@
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/HessianModeVisitor.h"
+#include "clad/Differentiator/JacobianVectorProduct.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/PushForwardModeVisitor.h"
 #include "clad/Differentiator/ReverseModeForwPassVisitor.h"
@@ -606,6 +607,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     } else if (request.Mode == DiffMode::jacobian) {
       JacobianModeVisitor J(*this, request);
       result = J.Derive();
+    } else if (request.Mode == DiffMode::jacobian_vector_product) {
+      JacobianVectorProductModeVisitor JVP(*this, request);
+      result = JVP.Derive();
     } else if (const VarDecl* VD = request.Global) {
       // The request represents a global variable, construct the adjoint and
       // register it.
