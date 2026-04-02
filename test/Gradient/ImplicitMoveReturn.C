@@ -1,6 +1,6 @@
-// RUN: %cladclang -Wno-nontrivial-memcall %s -I%S/../../include -oImplicitMoveReturn.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Wno-unknown-warning-option -Wno-nontrivial-memcall -Wno-nontrivial-memaccess %s -I%S/../../include -oImplicitMoveReturn.out 2>&1 | %filecheck %s
 // RUN: ./ImplicitMoveReturn.out
-// RUN: %cladclang -Wno-nontrivial-memcall -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oImplicitMoveReturn.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Wno-unknown-warning-option -Wno-nontrivial-memcall -Wno-nontrivial-memaccess -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oImplicitMoveReturn.out 2>&1 | %filecheck %s
 // RUN: ./ImplicitMoveReturn.out
 // XFAIL: valgrind
 
