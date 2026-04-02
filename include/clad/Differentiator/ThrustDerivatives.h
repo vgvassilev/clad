@@ -1,6 +1,8 @@
 #ifndef CLAD_DIFFERENTIATOR_THRUSTDERIVATIVES_H
 #define CLAD_DIFFERENTIATOR_THRUSTDERIVATIVES_H
 
+#include "clad/Differentiator/RestoreTracker.h"
+
 #include <cstddef>
 #include <iterator>
 #include <thrust/adjacent_difference.h>
@@ -1232,18 +1234,11 @@ adjacent_difference_reverse_forw(InputIt first, InputIt last, OutputIt result,
   return {::thrust::adjacent_difference(first, last, result, op), {}};
 }
 
-namespace detail {
-inline ::std::vector<::thrust::device_vector<::std::size_t>>&
-permutation_stack() {
-  static ::std::vector<::thrust::device_vector<::std::size_t>> stack;
-  return stack;
-}
-} // namespace detail
-
 template <typename KeyIterator, typename ValueIterator>
 void sort_by_key_reverse_forw(KeyIterator keys_first, KeyIterator keys_last,
                               ValueIterator values_first, KeyIterator,
-                              KeyIterator, ValueIterator) {
+                              KeyIterator, ValueIterator,
+                              ::clad::restore_tracker& tracker) {
   const ::std::size_t n = ::thrust::distance(keys_first, keys_last);
   if (n > 0) {
     ::thrust::device_vector<::std::size_t> perm(n);
@@ -1255,7 +1250,7 @@ void sort_by_key_reverse_forw(KeyIterator keys_first, KeyIterator keys_last,
       }
     };
     ::thrust::sort(perm.begin(), perm.end(), index_comp_less{keys_first});
-    detail::permutation_stack().push_back(::std::move(perm));
+    tracker.push_thrust_sort_by_key_perm(::std::move(perm));
   }
   ::thrust::sort_by_key(keys_first, keys_last, values_first);
 }
@@ -1264,7 +1259,7 @@ template <typename KeyIterator, typename ValueIterator, typename Compare>
 void sort_by_key_reverse_forw(KeyIterator keys_first, KeyIterator keys_last,
                               ValueIterator values_first, Compare comp,
                               KeyIterator, KeyIterator, ValueIterator,
-                              Compare) {
+                              Compare, ::clad::restore_tracker& tracker) {
   const ::std::size_t n = ::thrust::distance(keys_first, keys_last);
   if (n > 0) {
     ::thrust::device_vector<::std::size_t> perm(n);
@@ -1277,7 +1272,7 @@ void sort_by_key_reverse_forw(KeyIterator keys_first, KeyIterator keys_last,
       }
     };
     ::thrust::sort(perm.begin(), perm.end(), index_comp_with{keys_first, comp});
-    detail::permutation_stack().push_back(::std::move(perm));
+    tracker.push_thrust_sort_by_key_perm(::std::move(perm));
   }
   ::thrust::sort_by_key(keys_first, keys_last, values_first, comp);
 }
@@ -1287,7 +1282,8 @@ template <typename KeyIterator, typename ValueIterator>
 void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
                           ValueIterator values_first, KeyIterator* d_keys_first,
                           KeyIterator* d_keys_last,
-                          ValueIterator* d_values_first) {
+                          ValueIterator* d_values_first,
+                          ::clad::restore_tracker& tracker) {
   using ValueConst = typename ::std::iterator_traits<ValueIterator>::value_type;
   using Value = ::std::remove_const_t<ValueConst>;
   using KeyConst = typename ::std::iterator_traits<KeyIterator>::value_type;
@@ -1297,10 +1293,8 @@ void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
   if (n == 0)
     return;
 
-  // Retrieve permutation mapping sorted position j -> original index i
-  auto& stack = detail::permutation_stack();
-  ::thrust::device_vector<::std::size_t> perm = ::std::move(stack.back());
-  stack.pop_back();
+  ::thrust::device_vector<::std::size_t> perm =
+      tracker.pop_thrust_sort_by_key_perm();
 
   // Build device pointers to adjoint buffers
   auto d_vals_const_ptr = ::thrust::raw_pointer_cast((*d_values_first).base());
@@ -1334,7 +1328,8 @@ template <typename KeyIterator, typename ValueIterator, typename Compare>
 void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
                           ValueIterator values_first, Compare comp,
                           KeyIterator* d_keys_first, KeyIterator* d_keys_last,
-                          ValueIterator* d_values_first, Compare* /*d_comp*/) {
+                          ValueIterator* d_values_first, Compare* /*d_comp*/,
+                          ::clad::restore_tracker& tracker) {
   using ValueConst = typename ::std::iterator_traits<ValueIterator>::value_type;
   using Value = ::std::remove_const_t<ValueConst>;
   using KeyConst = typename ::std::iterator_traits<KeyIterator>::value_type;
@@ -1344,9 +1339,8 @@ void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
   if (n == 0)
     return;
 
-  auto& stack = detail::permutation_stack();
-  ::thrust::device_vector<::std::size_t> perm = ::std::move(stack.back());
-  stack.pop_back();
+  ::thrust::device_vector<::std::size_t> perm =
+      tracker.pop_thrust_sort_by_key_perm();
 
   auto d_vals_const_ptr = ::thrust::raw_pointer_cast((*d_values_first).base());
   auto d_vals_ptr = const_cast<Value*>(d_vals_const_ptr);

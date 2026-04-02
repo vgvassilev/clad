@@ -1085,10 +1085,10 @@ namespace clad {
       if (MD && MD->isInstance() && !MD->isConst())
         return true;
       // FIXME: clad::restore_tracker is not thread-safe.
-      // We shoudn't disable reverse_forw for CUDA
+      // Disable restore_tracker only for device/global entry points; __host__
+      // __device__ Thrust APIs still need a tracker on the host-side AD path.
       if (FD->hasAttr<clang::CUDAGlobalAttr>() ||
-          FD->hasAttr<clang::CUDADeviceAttr>() ||
-          FD->hasAttr<clang::CUDAHostAttr>())
+          FD->hasAttr<clang::CUDADeviceAttr>())
         return false;
       for (const ParmVarDecl* PVD : FD->parameters()) {
         // Some functions (like in Kokkos) have dummy parameters for
@@ -1380,6 +1380,12 @@ namespace clad {
           trackerTy = C.getLValueReferenceType(trackerTy);
           FnTypes.push_back(trackerTy);
         }
+      }
+
+      if (mode == DiffMode::pullback && shouldUseRestoreTracker) {
+        QualType trackerTy = GetRestoreTrackerType(S);
+        trackerTy = C.getLValueReferenceType(trackerTy);
+        FnTypes.push_back(trackerTy);
       }
 
       if (isForErrorEstimation)
