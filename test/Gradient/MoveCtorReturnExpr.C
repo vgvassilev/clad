@@ -2,8 +2,6 @@
 // RUN: ./MoveCtorReturnExpr.out
 // RUN: %cladclang -Wno-unknown-warning-option -Wno-nontrivial-memcall -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oMoveCtorReturnExpr.out 2>&1 | %filecheck %s
 // RUN: ./MoveCtorReturnExpr.out
-// XFAIL: valgrind
-
 #include "clad/Differentiator/Differentiator.h"
 #include <utility>
 

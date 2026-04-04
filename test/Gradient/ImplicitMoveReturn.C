@@ -2,8 +2,6 @@
 // RUN: ./ImplicitMoveReturn.out
 // RUN: %cladclang -Wno-unknown-warning-option -Wno-nontrivial-memcall -Wno-nontrivial-memaccess -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oImplicitMoveReturn.out 2>&1 | %filecheck %s
 // RUN: ./ImplicitMoveReturn.out
-// XFAIL: valgrind
-
 #include "clad/Differentiator/Differentiator.h"
 
 struct S {
