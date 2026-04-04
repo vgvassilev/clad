@@ -36,7 +36,8 @@ double fn1(const double *x, int n) {
 // CHECK-NEXT:                  for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
 // CHECK-NEXT:                      {
 // CHECK-NEXT:                          double _r_d0 = _d_total;
-// CHECK-NEXT:                          _d_x[i] += _r_d0;
+// CHECK-NEXT:                          if (_d_x)
+// CHECK-NEXT:                            _d_x[i] += _r_d0;
 // CHECK-NEXT:                      }
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
@@ -80,8 +81,10 @@ void fn2(const double *x, int n, double *y) {
 // CHECK-NEXT:                      _d_t += t * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:                  {
-// CHECK-NEXT:                      _d_x[i] += _d_t * x[i];
-// CHECK-NEXT:                      _d_x[i] += x[i] * _d_t;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _d_t * x[i];
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += x[i] * _d_t;
 // CHECK-NEXT:                      _d_t = 0.;
 // CHECK-NEXT:                      t = clad::pop(_t0);
 // CHECK-NEXT:                  }
@@ -119,7 +122,8 @@ void fn3(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i0];
 // CHECK-NEXT:                      _d_y[i0] = 0.;
-// CHECK-NEXT:                      _d_x[i0] += _r_d0 * 2.;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i0] += _r_d0 * 2.;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -152,8 +156,10 @@ void fn4(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0;
-// CHECK-NEXT:                      _d_x[i] += _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -186,8 +192,10 @@ void fn5(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
-// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -220,7 +228,8 @@ void fn6(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * 3.;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * 3.;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -253,8 +262,10 @@ void fn7(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
-// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -287,7 +298,8 @@ void fn8(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -320,7 +332,8 @@ void fn9(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * 2.;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * 2.;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -353,7 +366,8 @@ void fn10(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * 4.;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * 4.;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -386,8 +400,10 @@ void fn11(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
-// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -420,7 +436,8 @@ void fn12(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * 5.;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * 5.;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -453,8 +470,10 @@ void fn13(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
-// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -497,8 +516,10 @@ void fn14(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_temp;
 // CHECK-NEXT:                      _d_temp = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
-// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -534,7 +555,8 @@ void fn15(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * scale;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * scale;
 // CHECK-NEXT:                      _d_scale += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
@@ -571,8 +593,10 @@ void fn16(const double *x, int n, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
-// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -626,7 +650,8 @@ void fn17(const double *x, int n, double *y) {
 // CHECK-NEXT:                      temp = clad::pop(_t0);
 // CHECK-NEXT:                      double _r_d0 = _d_temp;
 // CHECK-NEXT:                      _d_temp = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * scale;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * scale;
 // CHECK-NEXT:                      _d_scale += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
@@ -708,7 +733,8 @@ void fn18(const double *x, int n, double *y) {
 // CHECK-NEXT:                      _d_b = 0.;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:                  {
-// CHECK-NEXT:                      _d_x[i] += _d_a;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _d_a;
 // CHECK-NEXT:                      _d_a = 0.;
 // CHECK-NEXT:                      a = clad::pop(_t0);
 // CHECK-NEXT:                  }
@@ -743,8 +769,10 @@ void fn19(const double *x, int start, int end, double *y) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_y[i];
 // CHECK-NEXT:                      _d_y[i] = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0 * x[i];
-// CHECK-NEXT:                      _d_x[i] += x[i] * _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0 * x[i];
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += x[i] * _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
@@ -806,7 +834,8 @@ double fn20(const double* x, int n) {
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      double _r_d0 = _d_b.v;
 // CHECK-NEXT:                      _d_b.v = 0.;
-// CHECK-NEXT:                      _d_x[i] += _r_d0;
+// CHECK-NEXT:                      if (_d_x)
+// CHECK-NEXT:                        _d_x[i] += _r_d0;
 // CHECK-NEXT:                  }
 // CHECK-NEXT:                  {
 // CHECK-NEXT:                      _d_b = clad::pop(_t0);
