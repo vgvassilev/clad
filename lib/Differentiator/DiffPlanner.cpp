@@ -1420,9 +1420,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       forwPassRequest.CallContext = request.CallContext;
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
       QualType returnType = request->getReturnType();
-      if (LookupCustomDerivativeDecl(forwPassRequest) ||
-          utils::isMemoryType(returnType) || shouldUseRestoreTracker)
+      bool hasCustomPullback = request.CustomDerivative != nullptr;
+      bool hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
+
+      if (hasCustomReverseForw ||
+          (!hasCustomPullback &&
+           (utils::isMemoryType(returnType) || shouldUseRestoreTracker))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+      }
     }
 
     if (!nonDiff && request.Mode != DiffMode::unknown)

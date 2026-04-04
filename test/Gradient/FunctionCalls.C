@@ -1098,16 +1098,6 @@ void inner_function(double *out, bool flag, const double *C) {
    if (flag)
       out[0] = C[0];
 }
-// CHECK: void inner_function_reverse_forw(double *out, bool flag, const double *C, double *_d_out, bool _d_flag, {{(const )?}}double *_d_C, clad::restore_tracker &_tracker0) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         bool _cond0 = flag;
-// CHECK-NEXT:         if (_cond0) {
-// CHECK-NEXT:             _tracker0.store(out[0]);
-// CHECK-NEXT:             out[0] = C[0];
-// CHECK-NEXT:         }
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
-
 double fn31(double *variables) {
    double out = 0.;
    inner_function(&out, true, variables);
