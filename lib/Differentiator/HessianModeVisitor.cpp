@@ -46,6 +46,7 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   IndependentArgRequest.Args = ForwardModeArgs;
   IndependentArgRequest.Mode = DiffMode::forward;
   IndependentArgRequest.CallUpdateRequired = false;
+  IndependentArgRequest.ParentDVI = IndependentArgRequest.DVI;
   // FIXME: Find a way to do this without accessing plugin namespace functions
   IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
   FunctionDecl* firstDerivative =
@@ -59,6 +60,7 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
   ReverseModeRequest.m_CladLoopCheckpoints =
       IndependentArgRequest.m_CladLoopCheckpoints;
+  ReverseModeRequest.ParentDVI = IndependentArgRequest.ParentDVI;
 
   FunctionDecl* secondDerivative =
       Builder.HandleNestedDiffRequest(ReverseModeRequest);
@@ -76,6 +78,7 @@ static FunctionDecl* DeriveUsingForwardModeTwice(
   IndependentArgRequest.Args = ForwardModeArgs;
   IndependentArgRequest.Mode = DiffMode::forward;
   IndependentArgRequest.CallUpdateRequired = false;
+  IndependentArgRequest.ParentDVI = IndependentArgRequest.DVI;
   // Derive the function twice in forward mode.
   IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
   FunctionDecl* secondDerivative =
