@@ -1705,14 +1705,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       result.updateRevSweep(argDiff.getExpr_dx());
     else
       result.updateRevSweep(getZeroInit(arg->getType()));
-    if (isNonDiff)
-      result.updateStmtDx(nullptr);
-    QualType paramTy = param->getType();
-    if (Expr* adjointArg = result.getExpr_dx())
-      if (!(isNonDiff || utils::isArrayOrPointerType(paramTy) || isCUDAKernel))
-        result.updateStmtDx(
-            BuildOp(UO_AddrOf, adjointArg, m_DiffReq->getLocation()));
-
     // If a function returns an object by value, there
     // are an implicit move constructor and an implicit
     // cast to XValue. However, when providing arguments,
@@ -1727,6 +1719,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       llvm::SmallVector<Expr*, 1> moveArg = {argDiff.getExpr_dx()};
       Expr* moveCall = GetFunctionCall("move", "std", moveArg);
       result.updateRevSweep(moveCall);
+    }
+
+    if (isNonDiff)
+      result.updateStmtDx(nullptr);
+    QualType paramTy = param->getType();
+    if (Expr* adjointArg = result.getExpr_dx()) {
+      if (!(utils::isArrayOrPointerType(paramTy) || isCUDAKernel))
+        result.updateStmtDx(
+            BuildOp(UO_AddrOf, adjointArg, m_DiffReq->getLocation()));
     }
 
     // Save cloned arg in a "global" variable, so that it is accessible from
@@ -1973,7 +1974,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool shouldWrapInStdMove = false;
     bool isCastSem = false;
     if (clang::AnalysisDeclContext::isInStdNamespace(FD) &&
-        FDName == "forward") {
+        (FDName == "forward" || FDName == "move")) {
       isCastSem = true;
       if (!FD->getReturnType()->isLValueReferenceType())
         shouldWrapInStdMove = true;
