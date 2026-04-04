@@ -1,7 +1,10 @@
-// RUN: %cladclang %s -I%S/../../include -oCladMatrix.out 2>&1
+// RUN: %cladclang %s -I%S/../../include -oCladMatrix.out -lblas 2>&1
 // RUN: ./CladMatrix.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
+#include <clad/Differentiator/Matrix.h>
+#include <cstddef>
+#include <cstdio>
 
 int main() {
   clad::matrix<int> test_mat(2, 2);
@@ -168,4 +171,38 @@ int main() {
   // CHECK-EXEC: 2, 0 : 0
   // CHECK-EXEC: 2, 1 : 0
   // CHECK-EXEC: 2, 2 : 0
+
+  clad::matrix<double> test4_mat{2, 3};
+  clad::matrix<double> test5_mat{3, 4};
+
+  test4_mat[0][0] = 1;
+  test4_mat[0][1] = 2;
+  test4_mat[0][2] = 3;
+  test4_mat[1][0] = 4;
+  test4_mat[1][1] = 5;
+  test4_mat[1][2] = 6;
+
+  test5_mat[0][0] = 7;
+  test5_mat[0][1] = 8;
+  test5_mat[0][2] = 9;
+  test5_mat[0][3] = 10;
+  test5_mat[1][0] = 11;
+  test5_mat[1][1] = 12;
+  test5_mat[1][2] = 13;
+  test5_mat[1][3] = 14;
+  test5_mat[2][0] = 15;
+  test5_mat[2][1] = 16;
+  test5_mat[2][2] = 17;
+  test5_mat[2][3] = 18;
+
+  auto test1_prod = test4_mat.matmul(test5_mat);
+
+  for (size_t i = 0; i < test1_prod.rows(); i++) {
+    for (size_t j = 0; j < test1_prod.cols(); j++)
+      printf("%.1f ", test1_prod[i][j]);
+    printf("\n");
+  }
+
+  // CHECK-EXEC: 74.0 80.0 86.0 92.0
+  // CHECK-EXEC: 173.0 188.0 203.0 218.0
 }
