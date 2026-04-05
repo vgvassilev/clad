@@ -1705,14 +1705,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       result.updateRevSweep(argDiff.getExpr_dx());
     else
       result.updateRevSweep(getZeroInit(arg->getType()));
-    if (isNonDiff)
-      result.updateStmtDx(nullptr);
-    QualType paramTy = param->getType();
-    if (Expr* adjointArg = result.getExpr_dx())
-      if (!(isNonDiff || utils::isArrayOrPointerType(paramTy) || isCUDAKernel))
-        result.updateStmtDx(
-            BuildOp(UO_AddrOf, adjointArg, m_DiffReq->getLocation()));
-
     // If a function returns an object by value, there
     // are an implicit move constructor and an implicit
     // cast to XValue. However, when providing arguments,
@@ -1727,6 +1719,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       llvm::SmallVector<Expr*, 1> moveArg = {argDiff.getExpr_dx()};
       Expr* moveCall = GetFunctionCall("move", "std", moveArg);
       result.updateRevSweep(moveCall);
+    }
+
+    if (isNonDiff)
+      result.updateStmtDx(nullptr);
+    QualType paramTy = param->getType();
+    if (Expr* adjointArg = result.getExpr_dx()) {
+      if (!(utils::isArrayOrPointerType(paramTy) || isCUDAKernel))
+        result.updateStmtDx(
+            BuildOp(UO_AddrOf, adjointArg, m_DiffReq->getLocation()));
     }
 
     // Save cloned arg in a "global" variable, so that it is accessible from
@@ -1973,7 +1974,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool shouldWrapInStdMove = false;
     bool isCastSem = false;
     if (clang::AnalysisDeclContext::isInStdNamespace(FD) &&
-        FDName == "forward") {
+        (FDName == "forward" || FDName == "move")) {
       isCastSem = true;
       if (!FD->getReturnType()->isLValueReferenceType())
         shouldWrapInStdMove = true;
@@ -4669,6 +4670,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // SomeClass _d_c = _t0.adjoint;
     // SomeClass c = _t0.value;
     // ```
+    // Copy/move constructors consume their source objects, so replaying them
+    // through constructor_reverse_forw can invalidate the same values that the
+    // pullback still needs to use. Keep them on the pre-9ed0b9e9 path.
+    if (CD->isCopyOrMoveConstructor()) {
+      if (RD->isAggregate())
+        return {primalArgs[0], reverseForwAdjointArgs[0]};
+
+      Expr* callClone = BuildConstructorCall(m_Sema, CE, primalArgs,
+                                             m_TrackVarDeclConstructor);
+      Expr* callDiff = nullptr;
+      if (elideReverseForw)
+        callDiff = BuildConstructorCall(m_Sema, CE, reverseForwAdjointArgs,
+                                        m_TrackVarDeclConstructor);
+      return {callClone, callDiff};
+    }
+
     if (constrForw && !elideReverseForw) {
       reverseForwAdjointArgs.insert(reverseForwAdjointArgs.begin(),
                                     primalArgs.begin(), primalArgs.end());

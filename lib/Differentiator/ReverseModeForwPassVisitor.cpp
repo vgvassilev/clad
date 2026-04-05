@@ -297,8 +297,14 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   SourceLocation validLoc{RS->getBeginLoc()};
   if (!utils::isMemoryType(m_DiffReq->getReturnType()))
     return m_Sema.BuildReturnStmt(validLoc, returnDiff.getExpr()).get();
+  Expr* returnAdjoint = returnDiff.getExpr_dx();
+  // Copy/move constructors can stay on the pre-reverse_forw path and leave
+  // object returns without an explicit adjoint expression. Materialize a zero
+  // adjoint so the ValueAndAdjoint return stays well-formed.
+  if (!returnAdjoint)
+    returnAdjoint = getZeroInit(CloneType(m_DiffReq->getReturnType()));
   llvm::SmallVector<Expr*, 2> returnArgs = {returnDiff.getExpr(),
-                                            returnDiff.getExpr_dx()};
+                                            returnAdjoint};
   Expr* returnInitList =
       m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
   Stmt* newRS = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();
