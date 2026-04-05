@@ -365,6 +365,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (Mode == DiffMode::pullback)
       return;
 
+    if (ParentDVI.empty())
+      ParentDVI = DVI;
+
     DVI.clear();
     auto& C = semaRef.getASTContext();
     const Expr* diffArgs = Args;
