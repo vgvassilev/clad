@@ -62,6 +62,19 @@ bool IsRealNonReferenceType(QualType T) {
   return T.getNonReferenceType()->isRealType();
 }
 
+// Returns true if RD is in std namespace, handles libc++ inline
+// namespaces like std::__1 correctly.
+static bool isInStdNamespace(const CXXRecordDecl* RD) {
+  for (const DeclContext* DC = RD->getDeclContext(); DC; DC = DC->getParent()) {
+    if (const auto* NS = dyn_cast<NamespaceDecl>(DC))
+      if (NS->isStdNamespace())
+        return true;
+    if (isa<TranslationUnitDecl>(DC))
+      break;
+  }
+  return false;
+}
+
 DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == DiffMode::forward ||
@@ -1017,6 +1030,32 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   if (!FD) {
     diagUnsupportedIndirectCalls(CE);
     return StmtDiff(Clone(CE));
+  }
+
+  // When t1.join() is called, also call _d_t1.join() as the derivative
+  if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
+      const CXXRecordDecl* RD = MD->getParent();
+      if (isInStdNamespace(RD) && RD->getName() == "thread" &&
+          FD->getName() == "join") {
+
+        // Get base: t1 → {t1, _d_t1}
+        const Expr* baseExpr = MCE->getImplicitObjectArgument();
+        StmtDiff baseDiff = Visit(baseExpr);
+
+        // Build derivative: _d_t1.join()
+        Expr* derivBase = baseDiff.getExpr_dx();
+        Expr* derivJoin =
+            m_Sema
+                .ActOnCallExpr(getCurrentScope(),
+                               utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                                      derivBase, "join"),
+                               noLoc, {}, noLoc)
+                .get();
+
+        return StmtDiff(nullptr, derivJoin);
+      }
+    }
   }
 
   SourceLocation validLoc{CE->getBeginLoc()};
@@ -2129,6 +2168,65 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     auto argDiff = Visit(arg);
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
+  }
+
+  CXXConstructorDecl* CD = CE->getConstructor();
+  CXXRecordDecl* RD = CD->getParent();
+  bool isStdThread = isInStdNamespace(RD) && RD->getName() == "thread" &&
+                     CE->getNumArgs() >= 1;
+
+  if (isStdThread) {
+    // In std::thread t1(add_square, x, ref(result))
+    // CE->getArg(0) is add_square — a DeclRefExpr pointing to FunctionDecl
+    const Expr* callableArg = CE->getArg(0)->IgnoreParenImpCasts();
+    const FunctionDecl* callableFD = nullptr;
+
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(callableArg))
+      callableFD = dyn_cast<FunctionDecl>(DRE->getDecl());
+
+    if (callableFD) {
+      // This is exactly what VisitCallExpr does for regular function calls
+      DiffRequest pushforwardFnRequest;
+      pushforwardFnRequest.Function = callableFD;
+      pushforwardFnRequest.Mode = DiffMode::pushforward;
+      pushforwardFnRequest.BaseFunctionName =
+          utils::ComputeEffectiveFnName(callableFD);
+      pushforwardFnRequest.VerboseDiags = false;
+      pushforwardFnRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
+      pushforwardFnRequest.EnableVariedAnalysis =
+          m_DiffReq.EnableVariedAnalysis;
+
+      FunctionDecl* pushforwardFD =
+          m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
+
+      if (pushforwardFD) {
+        // Original thread:    std::thread t1(add_square,    x, _t0.value)
+        // Derivative thread:  std::thread _d_t1(add_square_pushforward,
+        //                                       x, _t0.value,      ← orig args
+        //                                       _d_x, _t0.pushforward) ← deriv
+        //                                       args
+
+        llvm::SmallVector<Expr*, 8> derivThreadArgs;
+
+        // First arg: the pushforward function itself
+        derivThreadArgs.push_back(BuildDeclRef(pushforwardFD));
+
+        // Original args (skip index 0 — that was the callable)
+        for (size_t i = 1; i < clonedArgs.size(); ++i)
+          derivThreadArgs.push_back(clonedArgs[i]);
+
+        // Derivative args (skip index 0 — no derivative of a function pointer)
+        for (size_t i = 1; i < derivedArgs.size(); ++i)
+          derivThreadArgs.push_back(derivedArgs[i]);
+
+        // Derivative thread args: [add_square_pushforward, x, _t0.value,
+        //                          _d_x, _t0.pushforward]
+        Expr* derivInitList =
+            m_Sema.ActOnInitList(noLoc, derivThreadArgs, noLoc).get();
+
+        return StmtDiff(nullptr, derivInitList);
+      }
+    }
   }
 
   Expr* pushforwardCall =
