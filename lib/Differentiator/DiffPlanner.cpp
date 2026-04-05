@@ -841,6 +841,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::jacobian;
     else if (Annotation == "G")
       request.Mode = DiffMode::reverse;
+    else if (Annotation == "P")
+      request.Mode = DiffMode::pullback;
     else
       llvm_unreachable("unknown mode");
     if (request.Mode == DiffMode::reverse || request.Mode == DiffMode::hessian)
@@ -1127,7 +1129,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       std::string Annotation = A->getAnnotation().str();
       if (Annotation != "D" && Annotation != "G" && Annotation != "H" &&
-          Annotation != "J" && Annotation != "E")
+          Annotation != "J" && Annotation != "E" && Annotation != "P")
         return true;
 
       // A call to clad::differentiate or clad::gradient was not found.
