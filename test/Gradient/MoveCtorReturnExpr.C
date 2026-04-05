@@ -6,12 +6,16 @@
 #include <utility>
 
 struct S {
+  double x;
   double* p;
-  S() : p(nullptr) {}
-  S(double* pp) : p(pp) {}
+  S() : x(0), p(nullptr) {}
+  S(double px) : x(px), p(nullptr) {}
   S(const S&) = default;
   S& operator=(const S&) = default;
-  S(S&& other) noexcept : p(other.p) { other.p = nullptr; }
+  S(S&& other) noexcept : x(other.x), p(other.p) {
+    other.x = 0;
+    other.p = nullptr;
+  }
 };
 
 struct M {
@@ -19,8 +23,8 @@ struct M {
 };
 
 double loss(const M& m, double x) {
-  auto y = m.g(S(&x));
-  return *y.p;
+  auto y = m.g(S(x));
+  return y.x;
 }
 
 // CHECK: clad::ValueAndAdjoint<S, S> g_reverse_forw(S v, M *_d_this, S _d_v, clad::restore_tracker &_tracker0) const {
