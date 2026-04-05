@@ -34,7 +34,7 @@ __device__ __host__ double gauss(const double* x, double* p, double sigma, int d
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     double _d_t = 0.;
-//CHECK-NEXT:     double t = 0;
+//CHECK-NEXT:     double t = 0.;
 //CHECK-NEXT:     unsigned long _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < dim; i++) {
 //CHECK-NEXT:         _t0++;

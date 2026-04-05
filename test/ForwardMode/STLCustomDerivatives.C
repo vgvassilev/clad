@@ -283,8 +283,8 @@ double fnVec7(double x, double y) {
 // CHECK-NEXT:                  {{.*}}push_back_pushforward(&v, static_cast<float &&>(fx), &_d_v, static_cast<float &&>(_d_fx));
 // CHECK-NEXT:              }
 // CHECK-NEXT:          }
-// CHECK-NEXT:          double _d_res = 0;
-// CHECK-NEXT:          double res = 0;
+// CHECK-NEXT:          double _d_res = 0.;
+// CHECK-NEXT:          double res = 0.;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              size_t _d_i = 0;
 // CHECK-NEXT:              for (size_t i = 0; i < v.size(); ++i) {
@@ -343,8 +343,8 @@ double fnArr1(double x) {
 //CHECK-NEXT:                 _t2 *= i;
 //CHECK-NEXT:             }
 //CHECK-NEXT:         }
-//CHECK-NEXT:         double _d_res = 0;
-//CHECK-NEXT:         double res = 0;
+//CHECK-NEXT:         double _d_res = 0.;
+//CHECK-NEXT:         double res = 0.;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             size_t _d_i = 0;
 //CHECK-NEXT:             for (size_t i = 0; i < a.size(); ++i) {
@@ -398,7 +398,7 @@ double fnTuple1(double x, double y) {
 //CHECK:      double fnTuple1_darg0(double x, double y) {
 //CHECK-NEXT:          double _d_x = 1;
 //CHECK-NEXT:          double _d_y = 0;
-//CHECK-NEXT:          double _d_u, _d_v = 0 * x + 288 * _d_x, _d_w;
+//CHECK-NEXT:          double _d_u = 0., _d_v = 0 * x + 288 * _d_x, _d_w = 0.;
 //CHECK-NEXT:          double u, v = 288 * x, w;
 //CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t0 = clad::custom_derivatives::std::tie_pushforward(u, v, w, _d_u, _d_v, _d_w);
 //CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t1 = pack_pushforward(x + y, _d_x + _d_y);

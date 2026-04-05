@@ -51,7 +51,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     double _d_d_x = 0.;
 // CHECK-NEXT:     double _d_x0 = 1;
 // CHECK-NEXT:     double _d_d_y = 0.;
-// CHECK-NEXT:     double _d_y0 = 0;
+// CHECK-NEXT:     double _d_y0 = 0.;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_t0 = {0., 0.};
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);
 // CHECK-NEXT:     double _d_d_ans = 0.;
@@ -76,7 +76,7 @@ double f2(double x, double y){
 
 // CHECK: void f2_darg1_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     double _d_d_x = 0.;
-// CHECK-NEXT:     double _d_x0 = 0;
+// CHECK-NEXT:     double _d_x0 = 0.;
 // CHECK-NEXT:     double _d_d_y = 0.;
 // CHECK-NEXT:     double _d_y0 = 1;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_t0 = {0., 0.};
