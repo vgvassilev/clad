@@ -67,7 +67,6 @@ jobs:
         include:
           # --- LINUX: Last 10 Runtimes (12-21) ---
           # Using Ubuntu 22.04 for older runtimes, 24.04 for newer ones
-          - { name: ubu22-gcc10-runtime11, os: ubuntu-22.04, compiler: gcc-10, clang-runtime: '11' }
           - { name: ubu22-gcc11-runtime12, os: ubuntu-22.04, compiler: gcc-11, clang-runtime: '12' }
           - { name: ubu22-clang13-runtime13, os: ubuntu-22.04, compiler: clang-13, clang-runtime: '13' }
           - { name: ubu24-gcc13-runtime14, os: ubuntu-24.04, compiler: gcc-13, clang-runtime: '14' }
@@ -78,6 +77,7 @@ jobs:
           - { name: ubu24-clang17-runtime19, os: ubuntu-24.04, compiler: clang-17, clang-runtime: '19' }
           - { name: ubu24-clang19-runtime20, os: ubuntu-24.04, compiler: clang-19, clang-runtime: '20' }
           - { name: ubu24-clang20-runtime21, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '21' }
+          - { name: ubu24-clang21-runtime22, os: ubuntu-24.04, compiler: clang-21, clang-runtime: '22' }
           # --- MACOS: Last 5 Runtimes (17-21) ---
           # Using macOS ARM (standard) for all; Runtime 17 on Intel for x86 sanity
           - { name: osx-intel-runtime17, os: macos-15-intel, compiler: clang, clang-runtime: '17' }
@@ -85,6 +85,7 @@ jobs:
           - { name: osx-arm-runtime19, os: macos-26, compiler: clang, clang-runtime: '19' }
           - { name: osx-arm-runtime20, os: macos-26, compiler: clang, clang-runtime: '20' }
           - { name: osx-arm-runtime21, os: macos-26, compiler: clang, clang-runtime: '21' }
+          - { name: osx-arm-runtime22, os: macos-26, compiler: clang, clang-runtime: '22' }
 
           # --- WINDOWS: Last 5 Runtimes (17-21) ---
           - { name: win-msvc-runtime17, os: windows-2022, compiler: msvc, clang-runtime: '17' }
@@ -92,6 +93,7 @@ jobs:
           - { name: win-msvc-runtime19, os: windows-2022, compiler: msvc, clang-runtime: '19' }
           - { name: win-msvc-runtime20, os: windows-2022, compiler: msvc, clang-runtime: '20' }
           - { name: win-msvc-runtime21, os: windows-2022, compiler: msvc, clang-runtime: '21' }
+          - { name: win-msvc-runtime22, os: windows-2022, compiler: msvc, clang-runtime: '22' }
 
           # --- CUSTOM: Debug, coverage, benchmarks, static analysis ---
           - name: ubu24-clang20-runtime21-debug
