@@ -190,7 +190,7 @@ struct NoOpMutex {
 } // namespace detail
 
 template <typename T, std::size_t SBO_SIZE, std::size_t SLAB_SIZE,
-          bool is_multithread, bool DiskOffload>
+          bool is_multithread, bool DiskOffload, bool GpuOffload>
 class tape_impl;
 
 /// A forward iterator for traversing elements in `clad::tape_impl`.
@@ -199,10 +199,11 @@ class tape_impl;
 /// - Increment (`++`)
 /// - Equality and inequality comparisons
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          bool is_multithread = false, bool DiskOffload = false>
+          bool is_multithread = false, bool DiskOffload = false,
+          bool GpuOffload = false>
 class tape_iterator {
-  using tape_t =
-      clad::tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload>;
+  using tape_t = clad::tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread,
+                                 DiskOffload, GpuOffload>;
   tape_t* m_tape;
   std::size_t m_index;
 
@@ -246,7 +247,8 @@ public:
 /// in a static buffer first, then falls back to dynamically allocated linked
 /// slabs if capacity exceeds SBO.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          bool is_multithread = false, bool DiskOffload = false>
+          bool is_multithread = false, bool DiskOffload = false,
+          bool GpuOffload = false>
 class tape_impl {
   /// Storage planning for slabs kept in memory (RAM).
   /// Provides access to the raw data buffer.
@@ -256,6 +258,12 @@ class tape_impl {
     // supported by c++11
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     alignas(T) char raw_data[SLAB_SIZE * sizeof(T)];
+
+    // Dummy flags required for C++11 compilation compatibility across templates
+    bool is_on_disk = false;
+    bool is_in_ram = true;
+    std::size_t disk_offset = 0;
+
     CUDA_HOST_DEVICE RAMStorage() {}
     CUDA_HOST_DEVICE T* elements() {
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -266,6 +274,7 @@ class tape_impl {
   struct DiskStorage {
     T* dataptr = nullptr;
     bool is_on_disk = false;
+    bool is_in_ram = true; // Required to prevent compilation errors
     std::size_t disk_offset = 0;
 
     CUDA_HOST_DEVICE DiskStorage() { allocate(); }
@@ -278,6 +287,8 @@ class tape_impl {
       if (!dataptr)
         dataptr = static_cast<T*>(::operator new(SLAB_SIZE * sizeof(T)));
     }
+    void allocate_ram() { allocate(); }
+
     void deallocate() {
       if (dataptr) {
         ::operator delete(dataptr);
@@ -287,8 +298,67 @@ class tape_impl {
     CUDA_HOST_DEVICE T* elements() { return dataptr; }
   };
 
-  using SlabBase =
-      typename std::conditional<DiskOffload, DiskStorage, RAMStorage>::type;
+  struct GpuStorage {
+    T* dataptr = nullptr;
+    bool is_on_disk = false;
+    bool is_in_ram = false;
+    std::size_t disk_offset = 0;
+
+    CUDA_HOST_DEVICE GpuStorage() { allocate_vram(); }
+    CUDA_HOST_DEVICE ~GpuStorage() { deallocate(); }
+
+    GpuStorage(const GpuStorage&) = delete;
+    GpuStorage& operator=(const GpuStorage&) = delete;
+
+    CUDA_HOST_DEVICE void allocate_vram() {
+      if (!dataptr) {
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+        if (cudaMalloc(&dataptr, SLAB_SIZE * sizeof(T)) != cudaSuccess) {
+          allocate_ram(); // Fallback to RAM instantly if VRAM is full
+          return;
+        }
+#else
+        // Fallback for Device-side allocation (mid-kernel) or non-CUDA
+        // compilation
+        dataptr = static_cast<T*>(::operator new(SLAB_SIZE * sizeof(T)));
+#endif
+        is_in_ram = false;
+        is_on_disk = false;
+      }
+    }
+
+    CUDA_HOST_DEVICE void allocate_ram() {
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+      cudaHostAlloc((void**)&dataptr, SLAB_SIZE * sizeof(T),
+                    cudaHostAllocDefault);
+#else
+      dataptr = static_cast<T*>(::operator new(SLAB_SIZE * sizeof(T)));
+#endif
+      is_in_ram = true;
+      is_on_disk = false;
+    }
+
+    CUDA_HOST_DEVICE void deallocate() {
+      if (dataptr) {
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+        if (is_in_ram)
+          cudaFreeHost(dataptr);
+        else
+          cudaFree(dataptr);
+#else
+        ::operator delete(dataptr);
+#endif
+        dataptr = nullptr;
+      }
+    }
+
+    CUDA_HOST_DEVICE T* elements() { return dataptr; }
+  };
+
+  using SlabBase = typename std::conditional<
+      GpuOffload, GpuStorage,
+      typename std::conditional<DiskOffload, DiskStorage,
+                                RAMStorage>::type>::type;
 
 public:
   /// A block of contiguous storage allocated dynamically when SBO capacity is
@@ -319,12 +389,15 @@ protected:
     std::unique_ptr<detail::DiskManager<T, SLAB_SIZE>> m_DiskManager;
     std::size_t m_ActiveSlabs = 0;
     std::size_t m_MaxRamSlabs = 1024;
+    std::size_t m_ActiveVramSlabs = 0;
+    std::size_t m_MaxVramSlabs = 64;
     bool m_use_file_offload = false;
     DiskInfo() = default;
   };
   struct Empty {};
 
-  using DiskInfoType = std::conditional_t<DiskOffload, DiskInfo, Empty>;
+  using DiskInfoType =
+      std::conditional_t<DiskOffload || GpuOffload, DiskInfo, Empty>;
   // NOLINTNEXTLINE(readability-identifier-naming)
   DiskInfoType m_state;
 
@@ -355,9 +428,30 @@ protected:
 
   void check_and_evict_impl(std::true_type) {
     DiskInfo& info = getDiskInfo();
-    if (info.m_ActiveSlabs >= info.m_MaxRamSlabs) {
+    if (GpuOffload && info.m_ActiveVramSlabs >= info.m_MaxVramSlabs) {
       Slab* candidate = m_head;
-      while (candidate && (candidate->is_on_disk || candidate == m_tail))
+      while (candidate && (candidate->is_in_ram || candidate->is_on_disk ||
+                           candidate == m_tail))
+        candidate = candidate->next;
+
+      if (candidate) {
+        T* old_device_ptr = candidate->dataptr;
+        candidate->allocate_ram(); // Allocates pinned host memory
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+        cudaMemcpy(candidate->dataptr, old_device_ptr, SLAB_SIZE * sizeof(T),
+                   cudaMemcpyDeviceToHost);
+        cudaFree(old_device_ptr);
+#endif
+        info.m_ActiveVramSlabs--;
+        info.m_ActiveSlabs++;
+      }
+    }
+
+    if (DiskOffload && info.m_ActiveSlabs >= info.m_MaxRamSlabs) {
+      Slab* candidate = m_head;
+      while (candidate &&
+             (candidate->is_on_disk || (GpuOffload && !candidate->is_in_ram) ||
+              candidate == m_tail))
         candidate = candidate->next;
       if (candidate) {
         if (!info.m_DiskManager)
@@ -369,6 +463,7 @@ protected:
         // where old ones would be recycled.
         candidate->deallocate();
         candidate->is_on_disk = true;
+        candidate->is_in_ram = false;
         info.m_ActiveSlabs--;
       }
     }
@@ -377,9 +472,60 @@ protected:
   void check_and_evict_impl(std::false_type) {}
 
   void ensure_loaded_impl(Slab* slab, std::true_type) {
+    if (GpuOffload) {
+      if (!slab->is_on_disk && !slab->is_in_ram)
+        return; // Already in VRAM
+
+      // Evict someone else first if VRAM is full
+      DiskInfo& info = getDiskInfo();
+      if (info.m_ActiveVramSlabs >= info.m_MaxVramSlabs) {
+        Slab* v = m_head;
+        while (v) {
+          if (!v->is_on_disk && !v->is_in_ram && v != slab) {
+            T* old_dev = v->dataptr;
+            v->allocate_ram();
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+            cudaMemcpy(v->dataptr, old_dev, SLAB_SIZE * sizeof(T),
+                       cudaMemcpyDeviceToHost);
+            cudaFree(old_dev);
+#endif
+            info.m_ActiveVramSlabs--;
+            info.m_ActiveSlabs++;
+            break;
+          }
+          v = v->next;
+        }
+      }
+
+      T* old_ptr = slab->dataptr;
+      bool was_on_disk = slab->is_on_disk;
+      slab->dataptr = nullptr;
+      slab->allocate_vram();
+
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+      if (was_on_disk) {
+        T* temp_ram;
+        cudaHostAlloc((void**)&temp_ram, SLAB_SIZE * sizeof(T),
+                      cudaHostAllocDefault);
+        info.m_DiskManager->read_slab(temp_ram, slab->disk_offset);
+        cudaMemcpy(slab->dataptr, temp_ram, SLAB_SIZE * sizeof(T),
+                   cudaMemcpyHostToDevice);
+        cudaFreeHost(temp_ram);
+      } else if (slab->is_in_ram) {
+        cudaMemcpy(slab->dataptr, old_ptr, SLAB_SIZE * sizeof(T),
+                   cudaMemcpyHostToDevice);
+        cudaFreeHost(old_ptr);
+        info.m_ActiveSlabs--;
+      }
+#endif
+      slab->is_on_disk = false;
+      slab->is_in_ram = false;
+      info.m_ActiveVramSlabs++;
+      return;
+    }
     if (slab && slab->is_on_disk) {
       DiskInfo& info = getDiskInfo();
-      if (info.m_ActiveSlabs >= info.m_MaxRamSlabs) {
+      if (DiskOffload && info.m_ActiveSlabs >= info.m_MaxRamSlabs) {
         Slab* v = m_head;
         while (v) {
           if (!v->is_on_disk && v != slab) {
@@ -402,11 +548,13 @@ protected:
   void ensure_loaded_impl(Slab* slab, std::false_type) {}
 
   void check_and_evict() {
-    check_and_evict_impl(std::integral_constant<bool, DiskOffload>{});
+    check_and_evict_impl(std::integral_constant < bool,
+                         DiskOffload || GpuOffload > {});
   }
 
   void ensure_loaded(Slab* slab) {
-    ensure_loaded_impl(slab, std::integral_constant<bool, DiskOffload>{});
+    ensure_loaded_impl(slab, std::integral_constant < bool,
+                       DiskOffload || GpuOffload > {});
   }
 
 public:
@@ -417,10 +565,10 @@ public:
   using size_type = std::size_t;
   using difference_type = std::ptrdiff_t;
   using value_type = T;
-  using iterator =
-      tape_iterator<T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload>;
-  using const_iterator =
-      tape_iterator<const T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload>;
+  using iterator = tape_iterator<T, SBO_SIZE, SLAB_SIZE, is_multithread,
+                                 DiskOffload, GpuOffload>;
+  using const_iterator = tape_iterator<const T, SBO_SIZE, SLAB_SIZE,
+                                       is_multithread, DiskOffload, GpuOffload>;
 
 #ifndef __CUDACC__
   std::mutex& mutex() const { return m_TapeMutex; }
@@ -451,8 +599,12 @@ public:
           check_and_evict();
 
           Slab* new_slab = new Slab();
-          if (DiskOffload)
-            getDiskInfo().m_ActiveSlabs++;
+          if (DiskOffload || GpuOffload) {
+            if (GpuOffload)
+              getDiskInfo().m_ActiveVramSlabs++;
+            else
+              getDiskInfo().m_ActiveSlabs++;
+          }
 
           if (!m_head)
             m_head = new_slab;
@@ -610,6 +762,7 @@ private:
       delete tmp;
     }
     getDiskInfo().m_ActiveSlabs = 0;
+    getDiskInfo().m_ActiveVramSlabs = 0;
   }
 
   void clear_impl(std::false_type) {
@@ -630,7 +783,7 @@ private:
   }
 
   void clear() {
-    clear_impl(std::integral_constant<bool, DiskOffload>{});
+    clear_impl(std::integral_constant < bool, DiskOffload || GpuOffload > {});
     m_head = nullptr;
     m_tail = nullptr;
     m_size = 0;
@@ -643,9 +796,7 @@ private:
       (*arr)[i].~ElTy();
   }
 };
-template <typename T, std::size_t SBO_SIZE, std::size_t SLAB_SIZE,
-          bool is_multithread, bool DiskOffload>
-using tape = tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload>;
-} // namespace clad
+
+// namespace clad
 
 #endif // CLAD_TAPE_H
