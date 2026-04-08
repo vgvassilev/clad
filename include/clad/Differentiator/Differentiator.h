@@ -112,9 +112,9 @@ pop(tape<T[N], SBO_SIZE, SLAB_SIZE,
   /// Access return the last value in the tape.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
           bool DiskOffload = false, bool GpuOffload = false>
-CUDA_HOST_DEVICE T& back(tape < T, SBO_SIZE, SLAB_SIZE,
-                         /*is_multithread=*/false, DiskOffload,
-                         GpuOffload& of) {
+CUDA_HOST_DEVICE T&
+back(tape<T, SBO_SIZE, SLAB_SIZE,
+          /*is_multithread=*/false, DiskOffload, GpuOffload>& of) {
   return of.back();
 }
 
@@ -147,8 +147,8 @@ void push(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true,
   /// Remove the last value from the tape, return it.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
           bool DiskOffload = false, bool GpuOffload = false>
-T pop(tape < T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true, DiskOffload,
-      GpuOffload& to) {
+T pop(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true, DiskOffload,
+           GpuOffload>& to) {
   std::lock_guard<std::mutex> lock(to.mutex());
   T val = std::move(to.back());
   to.pop_back();
