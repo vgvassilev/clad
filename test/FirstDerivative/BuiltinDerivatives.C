@@ -8,7 +8,7 @@
 #include "../TestUtils.h"
 #include <cmath>
 
-// Mocks for macOS/Apple Clang systems missing C++17 special math functions.
+// Mocks for macOS systems missing C++17 special math functions.
 #if !defined(__cpp_lib_math_special_functions)
 namespace std {
   // std::beta mock
@@ -549,7 +549,6 @@ double f_beta(double x, double y) { return std::beta(x, y); }
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
-#if defined(__cpp_lib_math_special_functions)
 double f_cyl_bessel_j(double nu, double x) { return std::cyl_bessel_j(nu, x); }
 // CHECK: double f_cyl_bessel_j_darg1(double nu, double x) {
 // CHECK-NEXT:      double _d_nu = 0;
@@ -573,7 +572,6 @@ double f_cyl_bessel_k(double nu, double x) { return std::cyl_bessel_k(nu, x); }
 // CHECK-NEXT:      {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}cyl_bessel_k_pushforward(nu, x, _d_nu, _d_x);
 // CHECK-NEXT:      return _t0.pushforward;
 // CHECK-NEXT: }
-#endif
 
 int main () { //expected-no-diagnostics
   float f_result[2];
@@ -761,20 +759,19 @@ int main () { //expected-no-diagnostics
   auto d_beta = clad::differentiate(f_beta, 0);
   printf("Result is = %.6f\n", d_beta.execute(2.0, 3.0)); // CHECK-EXEC: Result is = -0.090278
 
-#if defined(__cpp_lib_math_special_functions)
   auto d_bessel_j = clad::differentiate(f_cyl_bessel_j, 1);
-  printf("Result j is = %.6f\n", d_bessel_j.execute(1.0, 2.0)); // CHECK-EXEC: Result j is = -0.064472
-
   auto d_bessel_i = clad::differentiate(f_cyl_bessel_i, 1);
-  printf("Result i is = %.6f\n", d_bessel_i.execute(1.0, 2.0)); // CHECK-EXEC: Result i is = 1.484267
-
   auto d_bessel_k = clad::differentiate(f_cyl_bessel_k, 1);
+
+#if defined(__cpp_lib_math_special_functions)
+  printf("Result j is = %.6f\n", d_bessel_j.execute(1.0, 2.0)); // CHECK-EXEC: Result j is = -0.064472
+  printf("Result i is = %.6f\n", d_bessel_i.execute(1.0, 2.0)); // CHECK-EXEC: Result i is = 1.484267
   printf("Result k is = %.6f\n", d_bessel_k.execute(1.0, 2.0)); // CHECK-EXEC: Result k is = -0.183827
-  #else
+#else
   printf("Result j is = -0.064472\n");
   printf("Result i is = 1.484267\n");
   printf("Result k is = -0.183827\n");
-  #endif
-  
+#endif
+
   return 0;
 }
