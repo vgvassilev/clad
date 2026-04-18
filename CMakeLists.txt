@@ -229,7 +229,7 @@ endif()
 
 ##
 include(Compatibility.cmake)
-add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=1)
+
 set(C_INCLUDE_DIRS "" CACHE STRING
   "Colon separated list of directories clad will search for headers.")
 
