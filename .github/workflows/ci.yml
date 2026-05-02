@@ -215,6 +215,24 @@ jobs:
         $env:CLAD_CODE_COVERAGE="0"
         echo "BUILD_TYPE=Release" >> $env:GITHUB_ENV
         echo "CLAD_CODE_COVERAGE=0" >> $env:GITHUB_ENV
+    - name: Compute ncpus (cgroup-aware)
+      if: runner.os != 'windows'
+      run: |
+        if [[ "${{ runner.os }}" == "macOS" ]]; then
+          ncpus=$(sysctl -n hw.ncpu)
+        else
+          ncpus=$(nproc)
+          if [[ -r /sys/fs/cgroup/cpu.max ]]; then
+            read -r quota period < /sys/fs/cgroup/cpu.max || true
+            if [[ "${quota:-max}" != "max" && "${period:-0}" -gt 0 ]]; then
+              capped=$(( (quota + period - 1) / period ))
+              if [[ "$capped" -ge 1 && "$capped" -lt "$ncpus" ]]; then
+                ncpus="$capped"
+              fi
+            fi
+          fi
+        fi
+        echo "ncpus=$ncpus" >> $GITHUB_ENV
     - name: Setup Ubuntu apt sources
       if: runner.os == 'Linux'
       run: |
@@ -392,7 +410,6 @@ jobs:
         # Build
         mkdir build
         cd build
-        export CPU_COUNT="$(nproc --all)"
         cmake \
               -DLLVM_ENABLE_PROJECTS="clang"        \
               -DLLVM_TARGETS_TO_BUILD="host;NVPTX"  \
@@ -408,7 +425,7 @@ jobs:
               -DLLVM_INCLUDE_TESTS=OFF              \
               -DLLVM_INCLUDE_DOCS=OFF               \
               ../llvm
-        cmake --build . --target clang FileCheck not llvm-config clang-repl --parallel ${CPU_COUNT}
+        cmake --build . --target clang FileCheck not llvm-config clang-repl --parallel ${{ env.ncpus }}
         cd ../../
     - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
       uses: actions/cache/save@v4
@@ -518,7 +535,7 @@ jobs:
           $GITHUB_WORKSPACE                 \
           ${{ matrix.extra_cmake_options }}
 
-        cmake --build . -- -j4
+        cmake --build . -- -j${{ env.ncpus }}
     - name: Build Clad on Windows
       if: ${{ runner.os == 'windows' }}
       run: |
@@ -538,13 +555,19 @@ jobs:
         cmake --build . --config Release
     - name: Test Clad on *nix
       if: ${{ runner.os != 'windows' }}
+      env:
+        # lit reads LIT_OPTS at startup; without it, lit defaults to
+        # multiprocessing.cpu_count() which sees the host count and
+        # ignores cgroup CFS quotas, over-provisioning workers on
+        # constrained containers (cf. the LLVM build step's cap).
+        LIT_OPTS: -j${{ env.ncpus }}
       run: |
         cd obj
         # Packages downloaded and unzipped require setting the SDKROOT.
         if [[ "runner.os" == "macOS" ]]; then
           export SDKROOT=`xcrun --show-sdk-path`
         fi
-        cmake --build . --target check-clad -- -j4
+        cmake --build . --target check-clad -- -j${{ env.ncpus }}
     - name: Test Clad on Windows
       if: ${{ runner.os == 'windows' }}
       run: |
@@ -575,7 +598,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Debug          \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
           ..
-        cmake --build . --target sphinx-clad doxygen-clad -- -j4
+        cmake --build . --target sphinx-clad doxygen-clad -- -j${{ env.ncpus }}
     - name: Failed job config
       if: ${{ failure() && runner.debug && runner.os != 'windows' }}
       env:
