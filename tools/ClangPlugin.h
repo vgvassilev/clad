@@ -390,7 +390,7 @@ struct DifferentiationOptions {
       }
 
       PluginASTAction::ActionType getActionType() override {
-        return AddAfterMainAction;
+        return AddBeforeMainAction;
       }
     };
   } // end namespace plugin
