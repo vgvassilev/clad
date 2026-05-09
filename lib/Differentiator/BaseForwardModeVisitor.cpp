@@ -338,16 +338,58 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
       dParam =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, dValue);
     } else if (utils::isArrayOrPointerType(dParamType)) {
-      // We cannot initialize a pointer array adjoint ourselves.
-      // Produce an error.
+      bool isGloballyRequested = false;
+      std::size_t arrSize = 0;
+      for (const auto& varInfo : m_DiffReq.ParentDVI) {
+        bool isSameName = false;
+        if (varInfo.param->getIdentifier() && param->getIdentifier())
+          isSameName = (varInfo.param->getName() == param->getName());
+
+        if (varInfo.param == param || isSameName) {
+          isGloballyRequested = true;
+          arrSize = varInfo.TotalCapacity;
+          break;
+        }
+      }
+
       if (param != m_IndependentVar &&
           !utils::GetValueType(dParamType).isConstQualified()) {
-        SourceLocation L = param->getLocation();
-        diag(DiagnosticsEngine::Error, L,
-             "dependent non-const pointer and array parameters "
-             "are not supported; differentiate w.r.t. %0 or mark it const")
-            << param << L;
+        if (!isGloballyRequested) {
+          SourceLocation L = param->getLocation();
+          diag(DiagnosticsEngine::Error, L,
+               "dependent non-const pointer and array parameters "
+               "are not supported; differentiate w.r.t. %0 or mark it const")
+              << param << L;
+          continue;
+        }
       }
+
+      if (!isGloballyRequested || arrSize == 0)
+        continue;
+      QualType ElementType = utils::GetValueType(dParamType);
+      llvm::APInt ASTArrSize(m_Context.getTypeSize(m_Context.getSizeType()),
+                             arrSize);
+      QualType ArrayTy = m_Context.getConstantArrayType(
+          ElementType, ASTArrSize, nullptr,
+          clad_compat::ArraySizeModifier_Normal, 0);
+      std::vector<Expr*> initExprs;
+      for (size_t i = 0; i < arrSize; ++i) {
+        int dValue =
+            (param == m_IndependentVar && i == m_IndependentVarIndex) ? 1 : 0;
+
+        auto* dValueLiteral = ConstantFolder::synthesizeLiteral(
+            m_Context.IntTy, m_Context, dValue);
+        initExprs.push_back(dValueLiteral);
+      }
+      SourceLocation validLoc = param->getLocation();
+      Expr* dInitializer =
+          m_Sema.ActOnInitList(validLoc, initExprs, validLoc).get();
+
+      auto* dParamDecl =
+          BuildVarDecl(ArrayTy, "_d_" + param->getNameAsString(), dInitializer);
+      addToCurrentBlock(BuildDeclStmt(dParamDecl));
+      m_Variables[param] = BuildDeclRef(dParamDecl);
+
       continue;
     }
     // For each function arg, create a variable _d_arg to store derivatives

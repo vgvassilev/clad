@@ -130,6 +130,7 @@ public:
   /// includes info on indices range for array parameters, and nested data
   /// member information for record (class) type parameters.
   DiffInputVarsInfo DVI;
+  DiffInputVarsInfo ParentDVI;
 
   // A flag to enable the use of enzyme for backend instead of clad
   bool use_enzyme = false;
