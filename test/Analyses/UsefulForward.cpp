@@ -26,7 +26,7 @@ double f2(double x){
 
 // CHECK: double f2_darg0(double x) {
 // CHECK-NEXT:    double _d_x = 1;
-// CHECK-NEXT:    double a = 0;
+// CHECK-NEXT:    double a = 0.;
 // CHECK-NEXT:    a = 1;
 // CHECK-NEXT:    return _d_x;
 // CHECK-NEXT:}
@@ -44,8 +44,8 @@ double f3(double x){
 
 // CHECK: double f3_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     double _d_x1 = 0, _d_x2 = 0, _d_x3 = 0, _d_x4 = 0, _d_x5 = 0;
-// CHECK-NEXT:     double x1 = 0, x2 = 1, x3 = 1, x4 = 1, x5 = 1;
+// CHECK-NEXT:     double _d_x1 = 0., _d_x2 = 0., _d_x3 = 0., _d_x4 = 0., _d_x5 = 0.;
+// CHECK-NEXT:     double x1 = 0., x2 = 1, x3 = 1, x4 = 1, x5 = 1;
 // CHECK-NEXT:     while (x5)
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _d_x5 = _d_x4;
@@ -69,8 +69,8 @@ double f4(double x){
 
 // CHECK: double f4_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     double _d_a = 0;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double _d_a = 0.;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     if (0) {
 // CHECK-NEXT:         _d_a = _d_x;
 // CHECK-NEXT:         a = x;
@@ -111,8 +111,8 @@ double f6(double x){
 
 // CHECK: double f6_darg0(double x) {
 // CHECK-NEXT:    double _d_x = 1;
-// CHECK-NEXT:    double _d_j = 0;
-// CHECK-NEXT:    double j = 0;
+// CHECK-NEXT:    double _d_j = 0.;
+// CHECK-NEXT:    double j = 0.;
 // CHECK-NEXT:    for (int i = 0; i < 5; i++) {
 // CHECK-NEXT:        _d_j += _d_x + _d_x;
 // CHECK-NEXT:        j += x + x;

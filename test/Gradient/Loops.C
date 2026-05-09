@@ -188,7 +188,7 @@ double f_const_local(double x) {
 // CHECK-NEXT:     double _d_n = 0.;
 // CHECK-NEXT:     double n = 0.;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -222,7 +222,7 @@ double f_sum(double *p, int n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_s = 0.;
-// CHECK-NEXT:     double s = 0;
+// CHECK-NEXT:     double s = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; i++) {
 // CHECK-NEXT:         _t0++;
@@ -253,7 +253,7 @@ double f_sum_squares(double *p, int n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_s = 0.;
-// CHECK-NEXT:     double s = 0;
+// CHECK-NEXT:     double s = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; i++) {
 // CHECK-NEXT:         _t0++;
@@ -284,7 +284,7 @@ double f_log_gaus(const double* x, double* p /*means*/, double n, double sigma) 
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_power = 0.;
-// CHECK-NEXT:     double power = 0;
+// CHECK-NEXT:     double power = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; i++) {
 // CHECK-NEXT:         _t0++;
@@ -388,7 +388,7 @@ double f6 (double i, double j) {
 // CHECK-NEXT:     double _d_c = 0.;
 // CHECK-NEXT:     double c = 0.;
 // CHECK-NEXT:     double _d_a = 0.;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (counter = 0; counter < 3; ++counter) {
 // CHECK-NEXT:         _t0++;
@@ -428,7 +428,7 @@ double fn7(double i, double j) {
 
 // CHECK: void fn7_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_a = 0.;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
@@ -462,7 +462,7 @@ double fn8(double i, double j) {
 // CHECK: void fn8_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t1 = {};
 // CHECK-NEXT:     double _d_a = 0.;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
@@ -514,7 +514,7 @@ double fn9(double i, double j) {
 // CHECK-NEXT:     int counter, counter_again;
 // CHECK-NEXT:     counter = counter_again = 3;
 // CHECK-NEXT:     double _d_a = 0.;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     while (counter--)
 // CHECK-NEXT:         {
@@ -571,7 +571,7 @@ double fn10(double i, double j) {
 // CHECK-NEXT:     int _d_b = 0;
 // CHECK-NEXT:     int b = 0;
 // CHECK-NEXT:     double _d_a = 0.;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
@@ -615,7 +615,7 @@ double fn11(double i, double j) {
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
 // CHECK-NEXT:     double _d_a = 0.;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     do {
 // CHECK-NEXT:         _t0++;
@@ -660,7 +660,7 @@ double fn12(double i, double j) {
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
 // CHECK-NEXT:     double _d_a = 0.;
-// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     double a = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     do {
 // CHECK-NEXT:         _t0++;
@@ -726,7 +726,7 @@ double fn13(double i, double j) {
 // CHECK-NEXT:     double _d_temp = 0.;
 // CHECK-NEXT:     double temp = 0.;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
@@ -785,7 +785,7 @@ double fn14(double i, double j) {
 // CHECK-NEXT:     int _d_choice = 0;
 // CHECK-NEXT:     int choice = 5;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     while (choice--)
 // CHECK-NEXT:         {
@@ -892,7 +892,7 @@ double fn15(double i, double j) {
 // CHECK-NEXT:     int _d_choice = 0;
 // CHECK-NEXT:     int choice = 5;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     while (choice--)
 // CHECK-NEXT:         {
@@ -998,7 +998,7 @@ double fn16(double i, double j) {
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 5;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (ii = 0; ii < counter; ++ii) {
 // CHECK-NEXT:         _t0++;
@@ -1089,7 +1089,7 @@ double fn17(double i, double j) {
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 5;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (ii = 0; ii < counter; ++ii) {
 // CHECK-NEXT:         _t0++;
@@ -1198,7 +1198,7 @@ double fn18(double i, double j) {
 // CHECK-NEXT:     int _d_choice = 0;
 // CHECK-NEXT:     int choice = 5;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (counter = 0; counter < choice; ++counter) {
 // CHECK-NEXT:         _t0++;
@@ -1265,7 +1265,7 @@ double fn19(double* arr, int n) {
 // CHECK-NEXT:     double *_d_ref = nullptr;
 // CHECK-NEXT:     double *ref = {};
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -1300,7 +1300,7 @@ double f_loop_init_var(double lower, double upper) {
 // CHECK-NEXT:     double x = 0.;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_sum = 0.;
-// CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     double sum = 0.;
 // CHECK-NEXT:     double _d_num_points = 0.;
 // CHECK-NEXT:     double num_points = 10000;
 // CHECK-NEXT:     double _d_interval = 0.;
@@ -1345,7 +1345,7 @@ double fn20(double *arr, int n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -1380,7 +1380,7 @@ double fn21(double x) {
 // CHECK-NEXT:     double _d_arr[3] = {0};
 // CHECK-NEXT:     double arr[3] = {0};
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -1455,7 +1455,7 @@ double fn23(double i, double j) {
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (c = 0; (res = i * j); ++c) {
 // CHECK-NEXT:         _t0++;
@@ -1503,7 +1503,7 @@ double fn24(double i, double j) {
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (c = 0; (res += i * j) , c < 3; ++c) {
 // CHECK-NEXT:         _t0++;
@@ -1539,7 +1539,7 @@ double fn25(double i, double j) {
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (c = 0; (res += i * j) , c < 3; ++c) {
 // CHECK-NEXT:         _t0++;
@@ -1600,7 +1600,7 @@ double fn26(double i, double j) {
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (c = 0; (res += i * j); ++c , res = 7 * i * j) {
 // CHECK-NEXT:         _t0++;
@@ -1659,7 +1659,7 @@ double fn27(double i, double j) {
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (c = 0; (res += i * j); ++c) {
 // CHECK-NEXT:         _t0++;
@@ -1716,7 +1716,7 @@ double fn28(double i, double j) {
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (c = 0; (res = i * j) , c < 2; ++c) {
 // CHECK-NEXT:         _t0++;
@@ -1752,7 +1752,7 @@ double fn29(double i, double j) {
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (c = 0; res = i * j , c < 1; ++c , res = 3 * i * j) {
 // CHECK-NEXT:         _t0++;
@@ -1792,7 +1792,7 @@ double fn30(double i, double j) {
 // CHECK-NEXT:     _d_cond0 = 0.;
 // CHECK-NEXT:     clad::tape<bool> _cond1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     double res = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (c = 0; ; ++c) {
 // CHECK-NEXT:         {
@@ -1835,7 +1835,7 @@ double fn31(double i, double j) {
 //CHECK-NEXT:    int _d_c = 0;
 //CHECK-NEXT:    int c = 0;
 //CHECK-NEXT:    double _d_res = 0.;
-//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    double res = 0.;
 //CHECK-NEXT:    unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:    for (c = 0; (res = i * j) , (res = 2 * i * j) , c < 3; ++c) {
 //CHECK-NEXT:        _t0++;
@@ -1887,7 +1887,7 @@ double fn32(double i, double j) {
 //CHECK-NEXT:    clad::tape<bool> _cond1 = {};
 //CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t3 = {};
 //CHECK-NEXT:    double _d_res = 0.;
-//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    double res = 0.;
 //CHECK-NEXT:    unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:    for (c = 0; (res += i * j); ++c) {
 //CHECK-NEXT:        _t0++;
@@ -2003,7 +2003,7 @@ double fn33(double i, double j) {
 //CHECK-NEXT:    clad::tape<bool> _cond4 = {};
 //CHECK-NEXT:    clad::tape<bool> _cond5 = {};
 //CHECK-NEXT:    double _d_res = 0.;
-//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    double res = 0.;
 //CHECK-NEXT:    unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:    for (c = 0; (res = i * j); ++c) {
 //CHECK-NEXT:        _t0++;
@@ -2104,7 +2104,7 @@ double fn34(double x, double y){
 //CHECK-NEXT:     clad::tape<double *> _t1 = {};
 //CHECK-NEXT:     clad::tape<double *> _t2 = {};
 //CHECK-NEXT:     double _d_r = 0.;
-//CHECK-NEXT:     double r = 0;
+//CHECK-NEXT:     double r = 0.;
 //CHECK-NEXT:     double _d_a[3] = {0};
 //CHECK-NEXT:     double a[3] = {y, x * y, x * x + y};
 //CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
@@ -2175,7 +2175,7 @@ double fn35(double x, double y){
 // CHECK-NEXT:     clad::tape<double *> _t5 = {};
 // CHECK-NEXT:     clad::tape<double *> _t6 = {};
 // CHECK-NEXT:     double _d_r = 0.;
-// CHECK-NEXT:     double r = 0;
+// CHECK-NEXT:     double r = 0.;
 // CHECK-NEXT:     double _d_a[3] = {0};
 // CHECK-NEXT:     double a[3] = {x, x * y, 0};
 // CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
@@ -2298,7 +2298,7 @@ double fn36(double x, double y){
 //CHECK-NEXT:     double _d_a[3] = {0};
 //CHECK-NEXT:     double a[3] = {1, 2, 3};
 //CHECK-NEXT:     double _d_sum = 0.;
-//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     double sum = 0.;
 //CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
 //CHECK-NEXT:     double (&__range1)[3] = a;
 //CHECK-NEXT:     double (&_d_range1)[3] = _d_a;
@@ -2375,7 +2375,7 @@ double fn37(double x, double y) {
 //CHECK-NEXT:     double _d_range[3] = {0};
 //CHECK-NEXT:     double range[3] = {x, 4., y};
 //CHECK-NEXT:     double _d_sum = 0.;
-//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     double sum = 0.;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     double (&__range1)[3] = range;
 //CHECK-NEXT:     double (&_d_range1)[3] = _d_range;
@@ -2430,7 +2430,7 @@ double fn38(double x, double y) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
 //CHECK-NEXT:     double _d_sum = 0.;
-//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     double sum = 0.;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _cond0 = x > 0;
 //CHECK-NEXT:         if (_cond0) {
@@ -2488,7 +2488,7 @@ double fn39(double x) {
 //CHECK-NEXT:     int *_d_i = nullptr;
 //CHECK-NEXT:     {{const int *\*|const_iterator }}i = nullptr;
 //CHECK-NEXT:     double _d_res = 0.;
-//CHECK-NEXT:     double res = 0;
+//CHECK-NEXT:     double res = 0.;
 //CHECK-NEXT:     clad::array<int> _d_range = {{3U|3UL}};
 //CHECK-NEXT:     clad::array<int> range = {1, 2, 3};
 //CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
@@ -2569,7 +2569,7 @@ double fn41(double u, double v) {
 //CHECK-NEXT:    clad::tape<bool> _cond0 = {};
 //CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t1 = {};
 //CHECK-NEXT:    double _d_res = 0.;
-//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    double res = 0.;
 //CHECK-NEXT:    unsigned {{int|long}} _t0 = 0;
 //CHECK-NEXT:    for (i = 1; i < 3; i++) {
 //CHECK-NEXT:        _t0++;
@@ -2707,7 +2707,7 @@ double fn44(double u, double v) {
 //CHECK-NEXT:    int i = 0;
 //CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t1 = {};
 //CHECK-NEXT:    double _d_sum = 0.;
-//CHECK-NEXT:    double sum = 0;
+//CHECK-NEXT:    double sum = 0.;
 //CHECK-NEXT:    unsigned {{int|long}} _t0 = 0;
 //CHECK-NEXT:    for (i = 0; i != 1;) {
 //CHECK-NEXT:        _t0++;
@@ -2751,7 +2751,7 @@ double fn45(double x, double y) {
 // CHECK-NEXT:     double _d_t2 = 0.;
 // CHECK-NEXT:     double t2 = 0.;
 // CHECK-NEXT:     double _d_sum = 0.;
-// CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     double sum = 0.;
 // CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 100; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -2814,7 +2814,7 @@ double fn46(double x, double y) {
 // CHECK-NEXT:     double _d_t20 = 0.;
 // CHECK-NEXT:     double t20 = 0.;
 // CHECK-NEXT:     double _d_sum = 0.;
-// CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     double sum = 0.;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;

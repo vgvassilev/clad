@@ -36,8 +36,8 @@ double f_ops1(double x) {
 // CHECK-NEXT:    double t0 = x;
 // CHECK-NEXT:    double _d_t1 = 0 * x + 2 * _d_x;
 // CHECK-NEXT:    double t1 = 2 * x;
-// CHECK-NEXT:    double _d_t2 = 0;
-// CHECK-NEXT:    double t2 = 0;
+// CHECK-NEXT:    double _d_t2 = 0.;
+// CHECK-NEXT:    double t2 = 0.;
 // CHECK-NEXT:    double _d_t3 = _d_t1 * 2 + t1 * 0 + _d_t2;
 // CHECK-NEXT:    double t3 = t1 * 2 + t2;
 // CHECK-NEXT:    return _d_t3;
@@ -57,7 +57,7 @@ double f_ops2(double x) {
 // CHECK-NEXT:    double t0 = x;
 // CHECK-NEXT:    double _d_t1 = 0 * x + 2 * _d_x;
 // CHECK-NEXT:    double t1 = 2 * x;
-// CHECK-NEXT:    double _d_t2 = 0;
+// CHECK-NEXT:    double _d_t2 = 0.;
 // CHECK-NEXT:    double t2 = 5;
 // CHECK-NEXT:    double _d_t3 = _d_t1 * x + t1 * _d_x + _d_t2;
 // CHECK-NEXT:    double t3 = t1 * x + t2;

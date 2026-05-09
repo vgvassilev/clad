@@ -287,8 +287,8 @@ double sum(double* arr, int n) {
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(double *arr, int n, double *_d_arr, int _d_n) {
-// CHECK-NEXT:     double _d_val = 0;
-// CHECK-NEXT:     double val = 0;
+// CHECK-NEXT:     double _d_val = 0.;
+// CHECK-NEXT:     double val = 0.;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         int _d_i = 0;
 // CHECK-NEXT:         for (int i = 0; i < n; ++i) {

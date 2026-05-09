@@ -104,8 +104,8 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     cudaDeviceSynchronize();
 // CHECK-NEXT:     unsigned long _t12 = sizeof(double);
 // CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t13 = clad::custom_derivatives::cudaMemcpy_pushforward(c, device_c, n * _t12, cudaMemcpyDeviceToHost, _d_c, _d_device_c, _d_n * _t12 + n * sizeof(double));
-// CHECK-NEXT:     double _d_sum = 0;
-// CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     double _d_sum = 0.;
+// CHECK-NEXT:     double sum = 0.;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         int _d_idx = 0;
 // CHECK-NEXT:         for (int idx = 0; idx < n; ++idx) {

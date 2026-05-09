@@ -130,8 +130,8 @@ double test_7(double i, double j) {
 // CHECK: double test_7_darg0(double i, double j) {
 // CHECK-NEXT: double _d_i = 1;
 // CHECK-NEXT: double _d_j = 0;
-// CHECK-NEXT: double _d_res = 0;
-// CHECK-NEXT: double res = 0;
+// CHECK-NEXT: double _d_res = 0.;
+// CHECK-NEXT: double res = 0.;
 // CHECK-NEXT: {
 // CHECK-NEXT:    int _d_i0 = 0;
 // CHECK-NEXT:    for (int i0 = 0; i0 < 5; increment_pushforward(i0, _d_i0)) {
