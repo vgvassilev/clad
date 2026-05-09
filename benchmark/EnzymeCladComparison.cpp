@@ -16,9 +16,13 @@ BM_ReverseModeAddArrayAndMultiplyWithScalarsExecute(benchmark::State& state) {
   double darr[5] = {0};
   for (auto _ : state) {
     grad.execute(arr, x, y, 5, darr, &dx, &dy, &dn);
+    benchmark::DoNotOptimize(dx);
+    benchmark::DoNotOptimize(dy);
+    benchmark::DoNotOptimize(dn);
     dx = 0;
     dy = 0;
     for (int i = 0; i < n; i++) {
+      benchmark::DoNotOptimize(darr[i]);
       darr[i] = 0;
     }
   }
@@ -39,10 +43,15 @@ static void BM_VectorForwardModeAddArrayAndMultiplyWithScalarsExecute(
   clad::array_ref<double> d_arr_ref(darr, 5);
   for (auto _ : state) {
     grad.execute(arr, x, y, 5, d_arr_ref, &dx, &dy, &dn);
+    benchmark::DoNotOptimize(dx);
+    benchmark::DoNotOptimize(dy);
+    benchmark::DoNotOptimize(dn);
     dx = 0;
     dy = 0;
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < n; i++) {
+      benchmark::DoNotOptimize(darr[i]);
       darr[i] = 0;
+    }
   }
 }
 
@@ -60,9 +69,13 @@ static void BM_ReverseModeAddArrayAndMultiplyWithScalarsExecuteEnzyme(
   double darr[5] = {0};
   for (auto _ : state) {
     grad.execute(arr, x, y, 5, darr, &dx, &dy, &dn);
+    benchmark::DoNotOptimize(dx);
+    benchmark::DoNotOptimize(dy);
+    benchmark::DoNotOptimize(dn);
     dx = 0;
     dy = 0;
     for (int i = 0; i < n; i++) {
+      benchmark::DoNotOptimize(darr[i]);
       darr[i] = 0;
     }
   }
@@ -77,6 +90,7 @@ static void BM_ReverseModeSumExecute(benchmark::State& state) {
   for (auto _ : state) {
     grad.execute(inputs, /*dim*/ 5, result);
     for (int i = 0; i < 5; i++) {
+      benchmark::DoNotOptimize(result[i]);
       result[i] = 0;
     }
   }
@@ -90,8 +104,10 @@ static void BM_VectorForwardModeSumExecute(benchmark::State& state) {
   clad::array_ref<double> d_arr_ref(result, 5);
   for (auto _ : state) {
     grad.execute(inputs, /*dim*/ 5, d_arr_ref);
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 5; i++) {
+      benchmark::DoNotOptimize(result[i]);
       result[i] = 0;
+    }
   }
 }
 BENCHMARK(BM_VectorForwardModeSumExecute);
@@ -103,6 +119,7 @@ static void BM_ReverseModeSumExecuteWithEnzyme(benchmark::State& state) {
   for (auto _ : state) {
     grad.execute(inputs, /*dim*/ 5, result);
     for (int i = 0; i < 5; i++) {
+      benchmark::DoNotOptimize(result[i]);
       result[i] = 0;
     }
   }
@@ -116,6 +133,7 @@ static void BM_ReverseModeProductExecute(benchmark::State& state) {
   for (auto _ : state) {
     grad.execute(inputs, /*dim*/ 5, result);
     for (int i = 0; i < 5; i++) {
+      benchmark::DoNotOptimize(result[i]);
       result[i] = 0;
     }
   }
@@ -129,8 +147,10 @@ static void BM_VectorForwardModeProductExecute(benchmark::State& state) {
   clad::array_ref<double> d_arr_ref(result, 5);
   for (auto _ : state) {
     grad.execute(inputs, /*dim*/ 5, d_arr_ref);
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 5; i++) {
+      benchmark::DoNotOptimize(result[i]);
       result[i] = 0;
+    }
   }
 }
 BENCHMARK(BM_VectorForwardModeProductExecute);
@@ -142,6 +162,7 @@ static void BM_ReverseModeProductExecuteEnzyme(benchmark::State& state) {
   for (auto _ : state) {
     grad.execute(inputs, /*dim*/ 5, result);
     for (int i = 0; i < 5; i++) {
+      benchmark::DoNotOptimize(result[i]);
       result[i] = 0;
     }
   }
@@ -161,7 +182,11 @@ static void BM_ReverseGaus(benchmark::State& state) {
 
   for (auto _ : state) {
     dfdp_grad.execute(x, p, /*sigma*/ 2, dim, dx, dp, &ds, &ddim);
+    benchmark::DoNotOptimize(ds);
+    benchmark::DoNotOptimize(ddim);
     for (int i = 0; i < dim; i++) {
+      benchmark::DoNotOptimize(dx[i]);
+      benchmark::DoNotOptimize(dp[i]);
       dx[i] = 0; // clear for the next benchmark iteration
       dp[i] = 0; // clear for the next benchmark iteration
     }
@@ -185,7 +210,11 @@ static void BM_ReverseGausEnzyme(benchmark::State& state) {
 
   for (auto _ : state) {
     dfdp_grad.execute(x, p, /*sigma*/ 2, dim, dx, dp, &ds, &ddim);
+    benchmark::DoNotOptimize(ds);
+    benchmark::DoNotOptimize(ddim);
     for (int i = 0; i < dim; i++) {
+      benchmark::DoNotOptimize(dx[i]);
+      benchmark::DoNotOptimize(dp[i]);
       dx[i] = 0; // clear for the next benchmark iteration
       dp[i] = 0; // clear for the next benchmark iteration
     }

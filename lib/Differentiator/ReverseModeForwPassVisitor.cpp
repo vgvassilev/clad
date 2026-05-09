@@ -12,6 +12,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
 
 #include <algorithm>
@@ -145,9 +146,12 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
   if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
     const CXXRecordDecl* RD = MD->getParent();
     if (MD->isInstance() && !RD->isLambda() && !isa<CXXConstructorDecl>(MD)) {
+      QualType thisDType = derivativeFnType->getParamType(dParamTypesIdx);
+      if (thisDType->isPointerType() &&
+          thisDType->getPointeeType().isConstQualified())
+        thisDType = utils::getNonConstType(thisDType, m_Sema);
       auto* thisDerivativePVD = utils::BuildParmVarDecl(
-          m_Sema, m_Derivative, CreateUniqueIdentifier("_d_this"),
-          derivativeFnType->getParamType(dParamTypesIdx));
+          m_Sema, m_Derivative, CreateUniqueIdentifier("_d_this"), thisDType);
       paramDerivatives.push_back(thisDerivativePVD);
 
       if (thisDerivativePVD->getIdentifier())
@@ -179,6 +183,8 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
     if (it != std::end(diffParams)) {
       *it = newPVD;
       QualType dType = derivativeFnType->getParamType(dParamTypesIdx);
+      if (dType->isPointerType() && dType->getPointeeType().isConstQualified())
+        dType = utils::getNonConstType(dType, m_Sema);
       IdentifierInfo* dII =
           CreateUniqueIdentifier("_d_" + newPVD->getNameAsString());
       auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, dII, dType,

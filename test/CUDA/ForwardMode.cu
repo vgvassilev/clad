@@ -2,7 +2,7 @@
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oForwardMode.out \
 // RUN:     -Xclang -verify %s 2>&1 | %filecheck %s
 //
-// RUN: ./ForwardMode.out | %filecheck_exec %s
+// RUN: %cudarun ./ForwardMode.out | %filecheck_exec %s
 //
 // REQUIRES: cuda-runtime
 //

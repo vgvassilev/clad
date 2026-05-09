@@ -152,10 +152,10 @@ namespace clad {
                                                Stmt* S) {
       llvm::SmallVector<Stmt*, 16> block;
       block.push_back(S);
-      CompoundStmt* CS = dyn_cast<CompoundStmt>(initial);
+      auto* CS = llvm::dyn_cast_or_null<CompoundStmt>(initial);
       if (CS)
         block.append(CS->body_begin(), CS->body_end());
-      else
+      else if (initial)
         block.push_back(initial);
       auto stmtsRef = clad_compat::makeArrayRef(block.begin(), block.end());
       return clad_compat::CompoundStmt_Create(C, stmtsRef /**/CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS), noLoc, noLoc);

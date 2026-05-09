@@ -8,7 +8,7 @@
 // RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch \
 // RUN:      --cuda-path=%cudapath %cudaldflags -oGradientCuda.out %s
 //
-// RUN: ./GradientCuda.out | %filecheck_exec %s
+// RUN: %cudarun ./GradientCuda.out | %filecheck_exec %s
 //
 // REQUIRES: cuda-runtime
 //

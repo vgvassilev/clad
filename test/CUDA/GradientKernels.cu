@@ -5,7 +5,7 @@
 // RUN: %cladclang_cuda -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include --cuda-path=%cudapath \
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oGradientKernels.out %s
 //
-// RUN: ./GradientKernels.out | %filecheck_exec %s
+// RUN: %cudarun ./GradientKernels.out | %filecheck_exec %s
 //
 // REQUIRES: cuda-runtime
 
@@ -1019,11 +1019,11 @@ __global__ void injective_reassignment_loop(int *a) {
 
 int main(void) {
   int *a, *d_a;
-  cudaMalloc(&a, sizeof(int));
-  cudaMalloc(&d_a, sizeof(int));
+  cudaMalloc(&a, 2 * sizeof(int));
+  cudaMalloc(&d_a, 2 * sizeof(int));
 
-  TEST(kernel, dim3(1), dim3(1), 0, false, a, d_a, 1); // CHECK-EXEC: 10
-  TEST(kernel, dim3(1), dim3(1), 0, true, a, d_a, 1); // CHECK-EXEC: 10
+  TEST(kernel, dim3(1), dim3(1), 0, false, a, d_a, 2); // CHECK-EXEC: 10
+  TEST(kernel, dim3(1), dim3(1), 0, true, a, d_a, 2); // CHECK-EXEC: 10
 
   auto error = clad::gradient(fake_kernel); 
   error.execute_kernel(dim3(1), dim3(1), a, d_a); // CHECK-EXEC: Use execute() for non-global CUDA kernels
@@ -1146,12 +1146,12 @@ int main(void) {
   TEST_2(indices_lin_comb, dim3(1), dim3(5, 1, 1), 0, false, "out, in", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 20, 25, 45, 15, 15
 
   int *n, *d_n;
-  cudaMalloc(&n, sizeof(int));
-  cudaMalloc(&d_n, sizeof(int));
+  cudaMalloc(&n, 2 * sizeof(int));
+  cudaMalloc(&d_n, 2 * sizeof(int));
 
-  TEST(kernel_device_injective, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 4
-  TEST(injective_reassignment, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 1
-  TEST(injective_reassignment_loop, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 1
+  TEST(kernel_device_injective, dim3(1), dim3(1), 0, false, n, d_n, 2); // CHECK-EXEC: 4
+  TEST(injective_reassignment, dim3(1), dim3(1), 0, false, n, d_n, 2); // CHECK-EXEC: 1
+  TEST(injective_reassignment_loop, dim3(1), dim3(1), 0, false, n, d_n,2); // CHECK-EXEC: 1
 
   cudaFree(dummy_in);
   cudaFree(dummy_out);

@@ -329,6 +329,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       TraverseDecl(D);
   }
 
+  bool DiffCollector::TraverseLambdaExpr(LambdaExpr* LE) {
+    if (!m_ParentReq)
+      return RecursiveASTVisitor<DiffCollector>::TraverseLambdaExpr(LE);
+    // Create a nested request
+    DiffRequest LambdaReq = *m_ParentReq;
+
+    LambdaReq.Function = LE->getCallOperator();
+    LambdaReq.Functor = LE->getLambdaClass();
+    llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &LambdaReq);
+    RecursiveASTVisitor<DiffCollector>::TraverseLambdaExpr(LE);
+
+    return true;
+  }
+
   bool DiffCollector::isInInterval(SourceLocation Loc) const {
     const SourceManager &SM = m_Sema.getSourceManager();
     for (size_t i = 0, e = m_Interval.size(); i < e; ++i) {
@@ -494,6 +508,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               return;
             }
             dVarInfo.paramIndexInterval = IndexInterval(index);
+            dVarInfo.TotalCapacity = index + 1;
           } else {
             size_t first, last;
             if (firstStr.getAsInteger(Radix, first) ||
@@ -510,6 +525,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               return;
             }
             dVarInfo.paramIndexInterval = IndexInterval(first, last);
+            dVarInfo.TotalCapacity = last + 1;
           }
         } else {
           dVarInfo.paramIndexInterval = IndexInterval();
@@ -1177,6 +1193,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (!utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
           m_TopMostReq->Mode == DiffMode::reverse)
         nonDiff = true;
+      // Skip reverse-mode scheduling for integral-return helper calls that
+      // cannot accumulate through memory arguments. Keep this narrow to avoid
+      // suppressing diagnostics on variadic/non-helper calls.
+      const bool HasPointerOrReferenceParam = std::any_of(
+          FD->parameters().begin(), FD->parameters().end(),
+          [](const ParmVarDecl* PVD) {
+            QualType ParamType = PVD->getType();
+            return ParamType->isPointerType() || ParamType->isReferenceType();
+          });
+      if (m_TopMostReq->Mode == DiffMode::reverse && !FD->isVariadic() &&
+          HasPointerOrReferenceParam && !utils::hasMemoryTypeParams(FD) &&
+          returnType->isIntegralOrEnumerationType())
+        nonDiff = true;
 
       if (nonDiff && m_TopMostReq->Mode != DiffMode::reverse)
         return true;
@@ -1367,6 +1396,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               forwRequest.Args = utils::CreateStringLiteral(
                   m_Sema.getASTContext(), independentArgString);
               forwRequest.UpdateDiffParamsInfo(m_Sema);
+              if (!forwRequest.DVI.empty())
+                forwRequest.DVI.back().TotalCapacity = indexInterval.Finish;
               LookupCustomDerivativeDecl(forwRequest);
               m_DiffRequestGraph.addNode(forwRequest, /*isSource=*/true);
             }
@@ -1389,9 +1420,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       forwPassRequest.CallContext = request.CallContext;
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
       QualType returnType = request->getReturnType();
-      if (LookupCustomDerivativeDecl(forwPassRequest) ||
-          utils::isMemoryType(returnType) || shouldUseRestoreTracker)
+      bool hasCustomPullback = request.CustomDerivative != nullptr;
+      bool hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
+
+      if (hasCustomReverseForw ||
+          (!hasCustomPullback &&
+           (utils::isMemoryType(returnType) || shouldUseRestoreTracker))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+      }
     }
 
     if (!nonDiff && request.Mode != DiffMode::unknown)

@@ -27,6 +27,7 @@
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -143,18 +144,18 @@ namespace clad {
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI) {
+                                     TypeSourceInfo* TSI, StorageClass SC) {
     return BuildVarDecl(Type, Identifier, getCurrentScope(), Init, DirectInit,
-                        TSI);
+                        TSI, SC);
   }
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Scope* Scope, Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI) {
+                                     TypeSourceInfo* TSI, StorageClass SC) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
-    auto* VD = VarDecl::Create(
-        m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
-        m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
+    auto* VD =
+        VarDecl::Create(m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
+                        m_DiffReq->getLocation(), Identifier, Type, TSI, SC);
 
     SetDeclInit(VD, Init, DirectInit);
     m_Sema.FinalizeDeclaration(VD);
@@ -171,17 +172,17 @@ namespace clad {
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, llvm::StringRef prefix,
                                      Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI) {
+                                     TypeSourceInfo* TSI, StorageClass SC) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit,
-                        TSI);
+                        TSI, SC);
   }
 
   VarDecl* VisitorBase::BuildGlobalVarDecl(QualType Type,
                                            llvm::StringRef prefix, Expr* Init,
-                                           bool DirectInit,
-                                           TypeSourceInfo* TSI) {
+                                           bool DirectInit, TypeSourceInfo* TSI,
+                                           StorageClass SC) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix),
-                        m_DerivativeFnScope, Init, DirectInit, TSI);
+                        m_DerivativeFnScope, Init, DirectInit, TSI, SC);
   }
 
   NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,
@@ -488,11 +489,18 @@ namespace clad {
   }
 
   TemplateDecl* VisitorBase::GetCladTapeDecl() {
-    static TemplateDecl* Result = nullptr;
-    if (!Result)
-      Result = utils::LookupTemplateDeclInCladNamespace(m_Sema,
-                                                        /*ClassName=*/"tape");
-    return Result;
+
+    NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
+    IdentifierInfo& II = m_Sema.getASTContext().Idents.get("custom_tape");
+    LookupResult R(m_Sema, &II, clang::SourceLocation(),
+                   clang::Sema::LookupOrdinaryName);
+    R.suppressDiagnostics();
+    m_Sema.LookupQualifiedName(R, CladNS);
+    if (!R.empty() && R.getFoundDecl() &&
+        clang::isa<clang::TemplateDecl>(R.getFoundDecl()))
+      return clang::dyn_cast<clang::TemplateDecl>(R.getFoundDecl());
+
+    return utils::LookupTemplateDeclInCladNamespace(m_Sema, "tape");
   }
 
   LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
