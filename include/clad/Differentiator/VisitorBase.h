@@ -222,6 +222,21 @@ namespace clad {
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();
     }
+
+    /// Build a [&]-capture lambda whose body is produced by `func` and bind
+    /// it to a fresh VarDecl. Returns the VarDecl so the caller can wrap it
+    /// in a DeclStmt (placed at function-body scope) and call it from one or
+    /// more sites via DeclRefExpr + ActOnCallExpr. Use this when the same
+    /// lambda body must be invoked from multiple paths (e.g. a reverse-pass
+    /// segment shared between an early-return path and the natural tail).
+    template <typename F>
+    clang::VarDecl* buildAndBindLambda(const clang::Expr* LocE,
+                                       llvm::StringRef NameHint, F&& func) {
+      clang::Expr* lambda = buildLambda(*this, m_Sema, LocE, func);
+      clang::IdentifierInfo* II = CreateUniqueIdentifier(NameHint);
+      return BuildVarDecl(lambda->getType(), II, lambda);
+    }
+
     /// For a qualtype QT returns if it's type is Array or Pointer Type
     static bool isArrayOrPointerType(const clang::QualType QT) {
       return utils::isArrayOrPointerType(QT);
