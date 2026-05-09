@@ -18,6 +18,7 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/OperatorKinds.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
@@ -334,7 +335,8 @@ namespace clad {
     clang::VarDecl*
     BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
                  clang::Scope* scope, clang::Expr* Init = nullptr,
-                 bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr);
+                 bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr,
+                 clang::StorageClass SC = clang::SC_None);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -350,7 +352,8 @@ namespace clad {
                                  clang::IdentifierInfo* Identifier,
                                  clang::Expr* Init = nullptr,
                                  bool DirectInit = false,
-                                 clang::TypeSourceInfo* TSI = nullptr);
+                                 clang::TypeSourceInfo* TSI = nullptr,
+                                 clang::StorageClass SC = clang::SC_None);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -365,14 +368,16 @@ namespace clad {
                                  llvm::StringRef prefix = "_t",
                                  clang::Expr* Init = nullptr,
                                  bool DirectInit = false,
-                                 clang::TypeSourceInfo* TSI = nullptr);
+                                 clang::TypeSourceInfo* TSI = nullptr,
+                                 clang::StorageClass SC = clang::SC_None);
     /// Builds variable declaration to be used inside the derivative
     /// body in the derivative function global scope.
     clang::VarDecl* BuildGlobalVarDecl(clang::QualType Type,
                                        llvm::StringRef prefix = "_t",
                                        clang::Expr* Init = nullptr,
                                        bool DirectInit = false,
-                                       clang::TypeSourceInfo* TSI = nullptr);
+                                       clang::TypeSourceInfo* TSI = nullptr,
+                                       clang::StorageClass SC = clang::SC_None);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until
     /// m_Sema.PopDeclContextIsUsed.
@@ -632,14 +637,6 @@ namespace clad {
         clang::Expr* targetFuncCall, clang::Expr* targetArg, unsigned targetPos,
         unsigned numArgs, llvm::SmallVectorImpl<clang::Expr*>& args,
         clang::Expr* CUDAExecConfig = nullptr);
-
-    /// Emits diagnostic messages on differentiation (or lack thereof) for
-    /// call expressions.
-    ///
-    /// \param[in] \c FD - The function declaration.
-    /// \param[in] \c srcLoc Any associated source location information.
-    void CallExprDiffDiagnostics(const clang::FunctionDecl* FD,
-                                 clang::SourceLocation srcLoc);
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
     /// Find the derived function if present in the DerivedFnCollector.

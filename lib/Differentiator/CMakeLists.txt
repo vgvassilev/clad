@@ -59,13 +59,13 @@ llvm_add_library(cladDifferentiator
   DerivedFnInfo.cpp
   DiffPlanner.cpp
   ErrorEstimator.cpp
-  EstimationModel.cpp
   JacobianModeVisitor.cpp
   HessianModeVisitor.cpp
   MultiplexExternalRMVSource.cpp
   PushForwardModeVisitor.cpp
   ReverseModeForwPassVisitor.cpp
   ReverseModeVisitor.cpp
+  ReverseModeVisitorOpenMP.cpp
   TBRAnalyzer.cpp
   Timers.cpp
   StmtClone.cpp

@@ -5,11 +5,12 @@
 #ifndef CLAD_DIFFERENTIATOR_KOKKOSBUILTINS_H
 #define CLAD_DIFFERENTIATOR_KOKKOSBUILTINS_H
 
+#include "clad/Differentiator/Differentiator.h"
 #include <Kokkos_Core.hpp>
+#include <Kokkos_ExecPolicy.hpp>
 #include <cstddef>
 #include <string>
 #include <type_traits>
-#include "clad/Differentiator/Differentiator.h"
 
 namespace clad::custom_derivatives {
 namespace class_functions {
@@ -733,6 +734,24 @@ void parallel_for_pushforward(
         ::Kokkos::is_execution_policy<Policy>::value>* /*d_param*/) {
   parallel_for_pushforward(::std::string("anonymous_parallel_for"), policy,
                            functor, ::std::string(""), d_policy, d_functor);
+}
+template <typename FunctorType>
+void parallel_for_pushforward(const size_t range, const FunctorType& functor,
+                              size_t d_range, const FunctorType& d_functor) {
+  parallel_for_pushforward(
+      ::std::string("anonymous_parallel_for"),
+      ::Kokkos::RangePolicy<size_t>(0, range), functor, ::std::string(""),
+      ::Kokkos::RangePolicy<size_t>(0, d_range), d_functor);
+}
+
+template <typename FunctorType>
+void parallel_for_pushforward(const ::std::string& str, size_t range,
+                              const FunctorType& functor,
+                              const ::std::string& d_str, size_t d_range,
+                              const FunctorType& d_functor) {
+  parallel_for_pushforward(
+      str, ::Kokkos::RangePolicy<size_t>(0, range), functor, d_str,
+      ::Kokkos::RangePolicy<size_t>(0, d_range), d_functor);
 }
 template <typename Policy, class FunctorType> // alternative signature
 void parallel_for_pushforward(Policy policy, const FunctorType& functor,

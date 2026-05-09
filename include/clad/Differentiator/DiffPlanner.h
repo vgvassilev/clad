@@ -115,9 +115,10 @@ public:
   /// differentiated, for example, when we are computing higher
   /// order derivatives.
   const clang::CXXRecordDecl* Functor = nullptr;
-  /// Stores loop checkpoint pragma locations, if any.
-  /// The order is reversed to simplify lookups.
-  mutable std::map<clang::SourceLocation, bool, std::greater<>>
+  /// Stores loop checkpoint pragma locations and attached loop locations.
+  /// Key: pragma location; value: attached loop location, if any.
+  /// The key order is reversed to simplify location range lookups.
+  mutable std::map<clang::SourceLocation, clang::SourceLocation, std::greater<>>
       m_CladLoopCheckpoints;
 
   /// Global VarDecl to differentiate, if any.
@@ -286,6 +287,11 @@ public:
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
     bool shouldVisitImplicitCode() const { return true; }
+    /// Here we use TraverseLambdaExpr and not VisitLambdaExpr to ensure the
+    /// new nested DiffRequest is created before the visitor goes to the capture
+    /// or constructor initializers. If we use Visit they would be processed
+    /// under the parent DiffRequest which is not in the lambda scope.
+    bool TraverseLambdaExpr(clang::LambdaExpr* LE);
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
       llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
       if (m_Traversed.count(FD))

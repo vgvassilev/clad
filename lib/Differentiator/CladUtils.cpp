@@ -152,10 +152,10 @@ namespace clad {
                                                Stmt* S) {
       llvm::SmallVector<Stmt*, 16> block;
       block.push_back(S);
-      CompoundStmt* CS = dyn_cast<CompoundStmt>(initial);
+      auto* CS = llvm::dyn_cast_or_null<CompoundStmt>(initial);
       if (CS)
         block.append(CS->body_begin(), CS->body_end());
-      else
+      else if (initial)
         block.push_back(initial);
       auto stmtsRef = clad_compat::makeArrayRef(block.begin(), block.end());
       return clad_compat::CompoundStmt_Create(C, stmtsRef /**/CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS), noLoc, noLoc);
@@ -358,6 +358,44 @@ namespace clad {
       return true;
     }
 
+    bool isElidableConstructor(const clang::CXXConstructorDecl* CD,
+                               const clang::ASTContext& C) {
+      const CXXRecordDecl* RD = CD->getParent();
+      if (CD->isCopyOrMoveConstructor() && CD->isTrivial())
+        return true;
+      if (RD->isAggregate())
+        return true;
+      if (utils::unwrapIfSingleStmt(CD->getBody()))
+        return false;
+      bool isZeroOrCopyCtor = true;
+      for (CXXCtorInitializer* CI : CD->inits()) {
+        if (CI->isMemberInitializer()) {
+          QualType memberTy = CI->getMember()->getType();
+          if (memberTy->isPointerType() || memberTy->isLValueReferenceType())
+            continue;
+        }
+        Expr* init = CI->getInit()->IgnoreImplicit();
+        Expr::EvalResult value;
+        bool isZero = false;
+        if (clad_compat::Expr_EvaluateAsConstantExpr(init, value, C)) {
+          const auto* val = &value.Val;
+          if (val->isArray() && val->hasArrayFiller())
+            val = &val->getArrayFiller();
+          if (val->isInt())
+            isZero = val->getInt() == 0;
+          else if (val->isFloat())
+            isZero = val->getFloat().isZero();
+        }
+
+        if (!(isa<DeclRefExpr>(init) || isa<CXXConstructExpr>(init) ||
+              isZero)) {
+          isZeroOrCopyCtor = false;
+          break;
+        }
+      }
+      return isZeroOrCopyCtor;
+    }
+
     void getRecordDeclFields(
         const clang::RecordDecl* RD,
         llvm::SmallVectorImpl<const clang::FieldDecl*>& fields) {
@@ -376,15 +414,14 @@ namespace clad {
       return DeclarationNameInfo(II, noLoc);
     }
 
-    bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD) {
+    bool IsRealFunction(const clang::FunctionDecl* FD) {
+      if (isa<CXXMethodDecl>(FD) || !FD->getReturnType()->isRealType())
+        return false;
       for (auto PVD : FD->parameters()) {
-        QualType paramTy = PVD->getType();
-        bool isConstTy = paramTy.getNonReferenceType().isConstQualified();
-        if ((paramTy->isReferenceType() || isArrayOrPointerType(paramTy)) &&
-            !isConstTy)
-          return true;
+        if (!PVD->getType()->isRealType())
+          return false;
       }
-      return false;
+      return true;
     }
 
     bool IsReferenceOrPointerArg(const Expr* arg) {
@@ -455,10 +492,6 @@ namespace clad {
         valueType = T.getNonReferenceType();
       else if (const auto* AT = dyn_cast<clang::ArrayType>(T))
         valueType = AT->getElementType();
-      else if (T->isEnumeralType()) {
-        if (const auto* ET = dyn_cast<EnumType>(T))
-          valueType = ET->getDecl()->getIntegerType();
-      }
       return valueType;
     }
 
@@ -1326,7 +1359,8 @@ namespace clad {
             if (param == FD->getParamDecl(i))
               FnTypes.push_back(
                   utils::GetParameterDerivativeType(S, mode, PVDTy));
-        } else if (utils::IsDifferentiableType(PVDTy))
+        } else if (mode == DiffMode::reverse_mode_forward_pass ||
+                   utils::IsDifferentiableType(PVDTy))
           FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
       }
 
@@ -1373,13 +1407,7 @@ namespace clad {
     }
 
     bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
-      if (FD->getNumParams() != 1 ||
-          utils::HasAnyReferenceOrPointerArgument(FD) ||
-          isa<CXXMethodDecl>(FD) || !FD->getReturnType()->isRealType())
-        return false;
-      QualType paramTy = FD->getParamDecl(0)->getType();
-      paramTy = paramTy.getNonReferenceType();
-      return paramTy->isRealType();
+      return FD->getNumParams() == 1 && utils::IsRealFunction(FD);
     }
 
     QualType makeTypeReadable(Sema& S, QualType Ty) {

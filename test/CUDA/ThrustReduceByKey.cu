@@ -2,7 +2,7 @@
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oThrustReduceByKey.out \
 // RUN:     -Xclang -verify %s 2>&1 | %filecheck %s
 //
-// RUN: ./ThrustReduceByKey.out | %filecheck_exec %s
+// RUN: %cudarun ./ThrustReduceByKey.out | %filecheck_exec %s
 //
 // REQUIRES: cuda-runtime
 //

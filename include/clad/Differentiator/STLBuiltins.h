@@ -466,6 +466,21 @@ size_pushforward(const ::std::array<T, N>* a,
 // vector reverse mode
 // more can be found in tests: test/Gradient/STLCustomDerivatives.C
 
+template <typename T, typename... Args>
+clad::ValueAndAdjoint<::std::vector<T>, ::std::vector<T>>
+constructor_reverse_forw(clad::Tag<::std::vector<T>>,
+                         Args...) elidable_reverse_forw;
+
+template <typename T, typename... Args>
+clad::ValueAndAdjoint<::std::allocator<T>, ::std::allocator<T>>
+constructor_reverse_forw(clad::Tag<::std::allocator<T>>,
+                         Args...) elidable_reverse_forw;
+
+template <typename T, typename U, typename... Args>
+clad::ValueAndAdjoint<::std::pair<T, U>, ::std::pair<T, U>>
+constructor_reverse_forw(clad::Tag<::std::pair<T, U>>,
+                         Args...) elidable_reverse_forw;
+
 template <typename T, typename U, typename pU>
 void push_back_reverse_forw(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
                             pU /*d_val*/) {

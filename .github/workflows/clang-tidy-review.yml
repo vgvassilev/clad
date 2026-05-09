@@ -34,7 +34,7 @@ jobs:
         id: review
         with:
           build_dir: build
-          apt_packages: cmake,libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev
+          apt_packages: cmake,libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev,libomp-20-dev,libopenblas-dev
           exclude: "test/*,unittests/*"
           split_workflow: true
           config_file: .clang-tidy
@@ -45,6 +45,7 @@ jobs:
             -DCMAKE_BUILD_TYPE="Release"
             -DLLVM_EXTERNAL_LIT="`which lit`"
             -DCMAKE_EXPORT_COMPILE_COMMANDS=On
+            -DCMAKE_CXX_FLAGS="-fexceptions" # Clad demos can have exceptions
 
       - name: Upload artifacts
         uses: ZedThree/clang-tidy-review/upload@v0.20.1

@@ -3,6 +3,12 @@
 #ifndef CLAD_CONFIG_H
 #define CLAD_CONFIG_H
 
+#if __cplusplus >= 201402L
+#define CLAD_CONSTEXPR_CXX14 constexpr
+#else
+#define CLAD_CONSTEXPR_CXX14 inline
+#endif
+
 #include <cstdlib>
 #include <memory>
 

@@ -98,10 +98,10 @@
 //----------------------- Mathematical special functions -----------------------
 // D assoc_laguerre / f / l    (C++17) associated Laguerre polynomials
 // D assoc_legendre/ f / l     (C++17) associated Legendre polynomials
-// D beta/ betaf/ betal        (C++17) beta function
-// D comp_ellint_1/ f / l      (C++17) complete elliptic integral (1st kind)
-// D comp_ellint_2/ f / l      (C++17) complete elliptic integral (2nd kind)
-// D comp_ellint_3/ f / l      (C++17) complete elliptic integral (3rd kind)
+// DS beta/ betaf/ betal        (C++17) beta function
+// DS comp_ellint_1/ f / l      (C++17) complete elliptic integral (1st kind)
+// DS comp_ellint_2/ f / l      (C++17) complete elliptic integral (2nd kind)
+// DS comp_ellint_3/ f / l      (C++17) complete elliptic integral (3rd kind)
 // D cyl_bessel_i/ f / l       (C++17) modified cylindrical Bessel (regular)
 // D cyl_bessel_j/ f / l       (C++17) cylindrical Bessel functions (1st kind)
 // D cyl_bessel_k/ f / l       (C++17) modified cylindrical Bessel (irregular)
@@ -109,7 +109,7 @@
 // D ellint_1/ f / l           (C++17) incomplete elliptic integral (1st kind)
 // D ellint_2/ f / l           (C++17) incomplete elliptic integral (2nd kind)
 // D ellint_3/ f / l           (C++17) incomplete elliptic integral (3rd kind)
-// D expint/ expintf/ expintl  (C++17) exponential integral
+// DS expint/ expintf/ expintl  (C++17) exponential integral
 // D hermite/ hermitef/ hermitel (C++17) Hermite polynomials
 // D legendre/ legendref/ legendrel (C++17) Legendre polynomials
 // D laguerre/ laguerref/ laguerrel (C++17) Laguerre polynomials
@@ -123,6 +123,14 @@
 #include <cmath>
 #include <iostream>
 #include <iomanip>
+#if !defined(__cpp_lib_math_special_functions)
+namespace std {
+  template <typename T>
+  inline T beta(T x, T y) {
+    return std::tgamma(x) * std::tgamma(y) / std::tgamma(x + y);
+  }
+}
+#endif
 
 template <typename T>
 T get_tolerance() {
@@ -254,6 +262,12 @@ long double f_fmal(long double x){ return fmal(x,2.0L, 1.0L); }
 DEFINE_FUNCTIONS(exp)   // x in (-inf,+inf)
 DEFINE_FUNCTIONS(exp2)  // x in (-inf,+inf)
 DEFINE_FUNCTIONS(expm1) // x in (-inf,+inf)
+#if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__))
+template <typename T> 
+T f_expint(T x) { return ::std ::expint(x); } // x in (-inf,0) U (0,+inf)
+inline float f_expintf(float x) { return ::std ::expintf(x); }
+inline long double f_expintl(long double x) { return ::std ::expintl(x); }
+#endif
 DEFINE_FUNCTIONS(log)   // x in (0,+inf)
 DEFINE_FUNCTIONS(log10) // x in (0,+inf)
 DEFINE_FUNCTIONS(log2)  // x in (0,+inf)
@@ -295,6 +309,29 @@ DEFINE_FUNCTIONS(atanh) // x in [-1,1]
 //
 DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
 
+template<typename T> T f_beta(T x){ return std::beta(x,(T)2.0); } // x in (0, +inf)
+inline float f_betaf(float x){ return std::beta(x, 2.0f); }
+inline long double f_betal(long double x){ return std::beta(x, 2.0L); }
+
+#if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__))
+//------------------------ Elliptic integrals -----------------------------
+//
+// Domain: k in (-1, 1)
+template<typename T> T f_comp_ellint_1(T k) { return std::comp_ellint_1(k); }
+float f_comp_ellint_1f(float k) { return std::comp_ellint_1(k); }
+long double f_comp_ellint_1l(long double k) { return std::comp_ellint_1(k); }
+
+// Domain: k in (-1, 1)
+template<typename T> T f_comp_ellint_2(T k) { return std::comp_ellint_2(k); }
+float f_comp_ellint_2f(float k) { return std::comp_ellint_2(k); }
+long double f_comp_ellint_2l(long double k) { return std::comp_ellint_2(k); }
+
+// Domain: k in (-1, 1). Fixed nu = 0.5 for testing.
+template<typename T> T f_comp_ellint_3(T k) { return std::comp_ellint_3(k, (T)0.5); }
+float f_comp_ellint_3f(float k) { return std::comp_ellint_3(k, 0.5f); }
+long double f_comp_ellint_3l(long double k) { return std::comp_ellint_3(k, 0.5L); }
+#endif
+
 int main() {
   // Absolute value
   CHECK(abs);
@@ -311,6 +348,10 @@ int main() {
   CHECK_ALL(exp);
   CHECK_ALL(exp2);
   CHECK_ALL(expm1);
+  #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__))
+  CHECK_ALL_RANGE(expint, {-2.0, -1.0, -0.5, 0.5, 1.0, 2.0, 3.0});
+  #endif
+
   CHECK_ALL(log);
   CHECK_ALL(log10);
   CHECK_ALL(log2);
@@ -352,6 +393,14 @@ int main() {
 
   // Error / Gamma functions
   CHECK_ALL(erf);
+  CHECK_ALL_RANGE(beta, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
+
+  #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__))
+  // Elliptic Integrals
+  CHECK_ALL_RANGE(comp_ellint_1, {-0.9, -0.6, -0.3, 0.0, 0.3, 0.6, 0.9});
+  CHECK_ALL_RANGE(comp_ellint_2, {-0.9, -0.6, -0.3, 0.0, 0.3, 0.6, 0.9});
+  CHECK_ALL_RANGE(comp_ellint_3, {-0.9, -0.6, -0.3, 0.0, 0.3, 0.6, 0.9});
+  #endif
 
   return 0;
 }

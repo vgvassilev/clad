@@ -234,6 +234,23 @@ void f25(double x, const double *y) {
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
 
+double arr[2] = {4.0, 5.0};
+
+double f_inner(double* p) {
+    return p[0] * p[1];
+}
+
+double f_outer(double x) {
+    return f_inner(arr) * x;
+}
+
+// CHECK: double f_outer_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = f_inner_pushforward(arr, (double{{ *}}[2]){0., 0.});
+// CHECK-NEXT:     double &_t1 = _t0.value;
+// CHECK-NEXT:     return _t0.pushforward * x + _t1 * _d_x;
+// CHECK-NEXT: }
+
 int main () { // expected-no-diagnostics
   auto dsum = clad::differentiate(sum, 0);
   printf("%.2f\n", dsum.execute(11, 12, 13)); // CHECK-EXEC: 1.00
@@ -265,6 +282,11 @@ int main () { // expected-no-diagnostics
                             &const_output_test_result[1]);
   printf("{%.2f, %.2f}\n", const_output_test_result[0],
          const_output_test_result[1]); // CHECK-EXEC: {3.00, 0.00}
+
+    auto d_global = clad::differentiate(f_outer, "x");
+
+    printf("%.2f\n", d_global.execute(5.0));
+    // CHECK-EXEC: 20.00
 
   return 0;
 }

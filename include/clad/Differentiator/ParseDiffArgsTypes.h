@@ -69,6 +69,8 @@ namespace clad {
     const clang::ValueDecl* param = nullptr;
     /// array index range associated with the parameter.
     IndexInterval paramIndexInterval;
+    /// track the true global capacity across sub-requests
+    std::size_t TotalCapacity = 0;
     /// Nested field information.
     llvm::SmallVector<std::string, 4> fields;
     // FIXME: Add support for differentiating with respect to array fields.

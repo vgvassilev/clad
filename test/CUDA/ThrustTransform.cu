@@ -2,7 +2,7 @@
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oThrustTransform.out \
 // RUN:     -Xclang -verify %s 2>&1 | %filecheck %s
 //
-// RUN: ./ThrustTransform.out | %filecheck_exec %s
+// RUN: %cudarun ./ThrustTransform.out | %filecheck_exec %s
 //
 // REQUIRES: cuda-runtime
 //

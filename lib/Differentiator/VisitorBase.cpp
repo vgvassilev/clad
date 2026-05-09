@@ -27,7 +27,7 @@
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Lex/Preprocessor.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -144,23 +144,23 @@ namespace clad {
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI) {
+                                     TypeSourceInfo* TSI, StorageClass SC) {
     return BuildVarDecl(Type, Identifier, getCurrentScope(), Init, DirectInit,
-                        TSI);
+                        TSI, SC);
   }
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Scope* Scope, Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI) {
+                                     TypeSourceInfo* TSI, StorageClass SC) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
-    auto* VD = VarDecl::Create(
-        m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
-        m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
+    auto* VD =
+        VarDecl::Create(m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
+                        m_DiffReq->getLocation(), Identifier, Type, TSI, SC);
 
     SetDeclInit(VD, Init, DirectInit);
     m_Sema.FinalizeDeclaration(VD);
     // Add the identifier to the scope and IdResolver
-    m_Sema.PushOnScopeChains(VD, Scope, /*AddToContext*/ false);
+    m_Sema.PushOnScopeChains(VD, Scope);
     return VD;
   }
 
@@ -172,17 +172,17 @@ namespace clad {
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, llvm::StringRef prefix,
                                      Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI) {
+                                     TypeSourceInfo* TSI, StorageClass SC) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit,
-                        TSI);
+                        TSI, SC);
   }
 
   VarDecl* VisitorBase::BuildGlobalVarDecl(QualType Type,
                                            llvm::StringRef prefix, Expr* Init,
-                                           bool DirectInit,
-                                           TypeSourceInfo* TSI) {
+                                           bool DirectInit, TypeSourceInfo* TSI,
+                                           StorageClass SC) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix),
-                        m_DerivativeFnScope, Init, DirectInit, TSI);
+                        m_DerivativeFnScope, Init, DirectInit, TSI, SC);
   }
 
   NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,
@@ -489,11 +489,18 @@ namespace clad {
   }
 
   TemplateDecl* VisitorBase::GetCladTapeDecl() {
-    static TemplateDecl* Result = nullptr;
-    if (!Result)
-      Result = utils::LookupTemplateDeclInCladNamespace(m_Sema,
-                                                        /*ClassName=*/"tape");
-    return Result;
+
+    NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
+    IdentifierInfo& II = m_Sema.getASTContext().Idents.get("custom_tape");
+    LookupResult R(m_Sema, &II, clang::SourceLocation(),
+                   clang::Sema::LookupOrdinaryName);
+    R.suppressDiagnostics();
+    m_Sema.LookupQualifiedName(R, CladNS);
+    if (!R.empty() && R.getFoundDecl() &&
+        clang::isa<clang::TemplateDecl>(R.getFoundDecl()))
+      return clang::dyn_cast<clang::TemplateDecl>(R.getFoundDecl());
+
+    return utils::LookupTemplateDeclInCladNamespace(m_Sema, "tape");
   }
 
   LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
@@ -780,31 +787,6 @@ namespace clad {
         /*OriginalFnDC=*/nullptr,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false, CUDAExecConfig);
-  }
-
-  void VisitorBase::CallExprDiffDiagnostics(const clang::FunctionDecl* FD,
-                                            SourceLocation srcLoc) {
-    bool NumDiffEnabled =
-        !m_Sema.getPreprocessor().isMacroDefined("CLAD_NO_NUM_DIFF");
-    // FIXME: Switch to the real diagnostics engine and pass FD directly.
-    diag(DiagnosticsEngine::Warning, srcLoc,
-         "function %0 was not differentiated because clad failed to "
-         "differentiate it and no suitable overload was found in "
-         "namespace 'custom_derivatives'")
-        << FD << srcLoc;
-    if (NumDiffEnabled) {
-      diag(DiagnosticsEngine::Note, srcLoc,
-           "falling back to numerical differentiation for %0 since no "
-           "suitable overload was found and clad could not derive it; "
-           "to disable this feature, compile your programs with "
-           "-DCLAD_NO_NUM_DIFF")
-          << FD << srcLoc;
-    } else {
-      diag(DiagnosticsEngine::Note, srcLoc,
-           "fallback to numerical differentiation is disabled by the "
-           "'CLAD_NO_NUM_DIFF' macro; considering %0 as 0")
-          << FD << srcLoc;
-    }
   }
 
   ParmVarDecl* VisitorBase::CloneParmVarDecl(const ParmVarDecl* PVD,

@@ -18,14 +18,17 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/OpenMPClause.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Sema.h"
-
-#include <llvm/ADT/ArrayRef.h>
-#include <llvm/ADT/SmallVector.h>
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include <array>
 #include <limits>
@@ -33,6 +36,7 @@
 #include <queue>
 #include <stack>
 #include <unordered_map>
+#include <utility>
 
 #ifndef NDEBUG
 #include <exception> // for std::terminate
@@ -51,6 +55,8 @@ namespace clad {
   /// Used to compute derivatives by clad::gradient.
   class ReverseModeVisitor
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
+        public clang::ConstOMPClauseVisitor<ReverseModeVisitor,
+                                            std::array<clang::OMPClause*, 3>>,
         public VisitorBase {
   protected:
     // FIXME: We should remove friend-dependency of the plugin classes here.
@@ -76,8 +82,17 @@ namespace clad {
     /// that will be put immediately in the beginning of derivative function
     /// block.
     Stmts m_Globals;
+    // Store the Tape-push operation that will be inserted at the end of the
+    // OpenMP forward pass
+    Stmts m_OMPBlocks;
+    // Store the Tape-pop operations that will be inserted at the beginning of
+    // the OpenMP reverse pass.
+    Stmts m_OMPReverseBlocks;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
+    /// A flag indicating if the Stmt we are currently visiting is inside an
+    /// OpenMP parallel region.
+    bool isInsideOMPBlock = false;
     /// Output variable of vector-valued function
     std::string outputArrayStr;
     std::vector<Stmts> m_LoopBlock;
@@ -90,7 +105,7 @@ namespace clad {
 
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
-    clang::Expr* m_Pullback = nullptr;
+    llvm::SmallVector<clang::Expr*, 1> m_Pullback;
     const char* funcPostfix() const {
       if (m_DiffReq.Mode == DiffMode::jacobian)
         return "_jac";
@@ -129,6 +144,11 @@ namespace clad {
       if (push)
         m_Stack.pop();
       return result;
+    }
+
+    std::array<clang::OMPClause*, 3> Visit(const clang::OMPClause* C) {
+      return clang::ConstOMPClauseVisitor<
+          ReverseModeVisitor, std::array<clang::OMPClause*, 3>>::Visit(C);
     }
 
     /// Get the latest block of code (i.e. place for statements output).
@@ -233,7 +253,8 @@ namespace clad {
     /// global scope.
     clang::VarDecl* GlobalStoreImpl(clang::QualType Type,
                                     llvm::StringRef prefix,
-                                    clang::Expr* init = nullptr);
+                                    clang::Expr* init = nullptr,
+                                    clang::StorageClass SC = clang::SC_None);
     /// Creates a (global in the function scope) variable declaration, puts
     /// it into m_Globals block (to be inserted into the beginning of fn's
     /// body). Returns reference R to the created declaration. If E is not null,
@@ -326,6 +347,7 @@ namespace clad {
 
     /// A function to get the multi-argument "central_difference"
     /// call expression for the given arguments.
+    /// The call is automatically inserted in PreCallStmts.
     ///
     /// \param[in] targetFuncCall The function to get the derivative for.
     /// \param[in] retType The return type of the target call expression.
@@ -333,16 +355,13 @@ namespace clad {
     /// \param[in] numArgs The total number of 'args'.
     /// \param[in] PreCallStmts The built statements to add to block
     /// before the call to the derived function.
-    /// \param[in] PostCallStmts The built statements to add to block
-    /// after the call to the derived function.
     /// \param[in] args All the arguments to the target function.
     /// \param[in] outputArgs The output gradient arguments.
     ///
     /// \returns The derivative function call.
-    clang::Expr* GetMultiArgCentralDiffCall(
+    void GetMultiArgCentralDiffCall(
         clang::Expr* targetFuncCall, clang::QualType retType, unsigned numArgs,
         clang::Expr* dfdx, llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
-        llvm::SmallVectorImpl<clang::Stmt*>& PostCallStmts,
         llvm::SmallVectorImpl<clang::Expr*>& args,
         llvm::SmallVectorImpl<clang::Expr*>& outputArgs,
         clang::Expr* CUDAExecConfig = nullptr);
@@ -388,6 +407,12 @@ namespace clad {
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
     StmtDiff VisitIfStmt(const clang::IfStmt* If);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+    StmtDiff VisitGNUNullExpr(const clang::GNUNullExpr* E);
+    StmtDiff VisitPredefinedExpr(const clang::PredefinedExpr* E);
+
+#if CLANG_VERSION_MAJOR > 16
+    StmtDiff VisitLambdaExpr(const clang::LambdaExpr* LE);
+#endif // CLANG_VERSION_MAJOR
     StmtDiff
     VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
     StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
@@ -439,14 +464,32 @@ namespace clad {
     StmtDiff VisitNullStmt(const clang::NullStmt* NS) {
       return StmtDiff{Clone(NS), Clone(NS)};
     }
+    clang::OMPClause* BuildOMPPrivateClause(
+        llvm::ArrayRef<clang::Expr*> VarList, clang::SourceLocation StartLoc,
+        clang::SourceLocation LParenLoc, clang::SourceLocation EndLoc);
+
+    std::array<clang::OMPClause*, 3>
+    VisitOMPPrivateClause(const clang::OMPPrivateClause* C);
+    std::array<clang::OMPClause*, 3>
+    VisitOMPFirstprivateClause(const clang::OMPFirstprivateClause* C);
+    std::array<clang::OMPClause*, 3>
+    VisitOMPSharedClause(const clang::OMPSharedClause* C);
+    std::array<clang::OMPClause*, 3>
+    VisitOMPReductionClause(const clang::OMPReductionClause* C);
+    StmtDiff
+    VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
+    StmtDiff
+    VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
 
     /// Helper function that builds `T* _this = malloc(sifeof(T));`
     /// and `free(_this)`.
     ///
     /// \param[in] thisTy `this` type.
     ///
+    /// \param[in] isDerivedThis if true, will build `_d_this`.
+    ///
     /// \returns {_this, free(_this)}
-    StmtDiff BuildThisExpr(clang::QualType thisTy);
+    StmtDiff BuildThisExpr(clang::QualType thisTy, bool isDerivedThis = false);
 
     /// Helper function that checks whether the function to be derived
     /// is meant to be executed only by the GPU
@@ -580,11 +623,13 @@ namespace clad {
     /// loop body; otherwise false.
     ///\returns {forward pass statements, reverse pass statements} for the loop
     /// body.
-    StmtDiff DifferentiateLoopBody(const clang::Stmt* body,
-                                   LoopCounter& loopCounter,
-                                   clang::Stmt* condVarDifff = nullptr,
-                                   clang::Stmt* forLoopIncDiff = nullptr,
-                                   bool isForLoop = false);
+    StmtDiff DifferentiateLoopBody(
+        const clang::Stmt* body, LoopCounter& loopCounter,
+        clang::Stmt* condVarDifff = nullptr,
+        clang::Stmt* forLoopIncDiff = nullptr, bool isForLoop = false,
+        clang::SourceLocation loopLoc = clang::SourceLocation());
+
+    StmtDiff DifferentiateCanonicalLoop(const clang::ForStmt* S);
 
     /// This class modifies forward and reverse blocks of the loop/switch
     /// body so that `break` and `continue` statements are correctly
@@ -698,8 +743,23 @@ namespace clad {
     ///\paramp[in] source An external RMV source
     void AddExternalSource(ExternalRMVSource& source);
 
+    clang::QualType GetLambdaDerivativeType(const clang::LambdaExpr* LE) {
+      clang::FunctionDecl* FD = LE->getCallOperator();
+      llvm::SmallVector<const clang::ValueDecl*, 4> diffParams{};
+      for (const auto* param : FD->parameters())
+        diffParams.push_back(param);
+
+      return utils::GetDerivativeType(m_Sema, FD, DiffMode::pullback,
+                                      diffParams,
+                                      /*forCustomDerv=*/false,
+                                      /*shouldUseRestoreTracker=*/false);
+    }
+    clang::Expr* buildDerivedLambda(const clang::LambdaExpr* LE);
     /// Builds and returns the sequence of derived function parameters.
-    void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
+    void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,
+                     const clang::LambdaExpr* LE = nullptr);
+
+    void MarkDeclThreadPrivate(clang::VarDecl* decl);
 
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {

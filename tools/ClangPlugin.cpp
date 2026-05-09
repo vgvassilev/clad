@@ -8,7 +8,6 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
-#include "clad/Differentiator/EstimationModel.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
@@ -18,6 +17,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
@@ -239,6 +239,47 @@ void InitTimers();
       }
     }
 
+    class AttachedLoopStmtFinder
+        : public RecursiveASTVisitor<AttachedLoopStmtFinder> {
+      SourceLocation m_PragmaLoc;
+      SourceManager& m_SM;
+      Stmt* m_AttachedStmt = nullptr;
+      SourceLocation m_AttachedLoopLoc;
+
+    public:
+      AttachedLoopStmtFinder(SourceLocation pragmaLoc, SourceManager& SM)
+          : m_PragmaLoc(pragmaLoc), m_SM(SM) {}
+
+      bool VisitStmt(Stmt* S) {
+        SourceLocation beginLoc = S->getBeginLoc();
+        if (!beginLoc.isValid() ||
+            !m_SM.isBeforeInTranslationUnit(m_PragmaLoc, beginLoc))
+          return true;
+
+        if (!m_AttachedStmt || m_SM.isBeforeInTranslationUnit(
+                                   beginLoc, m_AttachedStmt->getBeginLoc())) {
+          m_AttachedStmt = S;
+          m_AttachedLoopLoc = {};
+          if (isa<ForStmt>(S) || isa<WhileStmt>(S) || isa<DoStmt>(S))
+            m_AttachedLoopLoc = beginLoc;
+        }
+        return true;
+      }
+
+      [[nodiscard]] SourceLocation getAttachedLoopLoc() const {
+        return m_AttachedLoopLoc;
+      }
+    };
+
+    static SourceLocation getAttachedLoopLoc(const FunctionDecl* FD,
+                                             SourceLocation pragmaLoc,
+                                             SourceManager& SM) {
+      Stmt* body = FD->getBody();
+      AttachedLoopStmtFinder finder(pragmaLoc, SM);
+      finder.TraverseStmt(body);
+      return finder.getAttachedLoopLoc();
+    }
+
     static void addCladLoopCheckpoints(ASTContext& C, DiffRequest& request) {
       SourceRange range = request->getSourceRange();
       assert(range.isValid());
@@ -249,17 +290,27 @@ void InitTimers();
       auto e = CladLoopCheckpoints.end();
 
       for (; it != e && SM.isBeforeInTranslationUnit(*it, end); ++it)
-        request.m_CladLoopCheckpoints.emplace(*it, false);
+        request.m_CladLoopCheckpoints.emplace(
+            *it, getAttachedLoopLoc(request.Function, *it, SM));
     }
 
     static void diagnoseUnusedPragma(Sema& S, DiffRequest& request) {
+      if (request.Mode != DiffMode::reverse &&
+          request.Mode != DiffMode::pullback)
+        return;
+
+      static std::set<clang::SourceLocation> DiagnosedCladLoopCheckpoints;
       for (const auto& pair : request.m_CladLoopCheckpoints) {
-        if (!pair.second) {
-          unsigned diagID = S.Diags.getCustomDiagID(
-              DiagnosticsEngine::Error,
-              "'#pragma clad checkpoint loop' is only allowed before a loop");
-          S.Diag(pair.first, diagID);
-        }
+        if (pair.second.isValid())
+          continue;
+
+        if (!DiagnosedCladLoopCheckpoints.insert(pair.first).second)
+          continue;
+
+        unsigned diagID = S.Diags.getCustomDiagID(
+            DiagnosticsEngine::Error,
+            "'#pragma clad checkpoint loop' is only allowed before a loop");
+        S.Diag(pair.first, diagID);
       }
     }
 
@@ -463,21 +514,16 @@ void InitTimers();
       if (m_HasRuntime)
         return true;
 
-      ASTContext& C = m_CI.getASTContext();
       // The plugin has a lot of different ways to be compiled: in-tree,
       // out-of-tree and hybrid. When we pick up the wrong header files we
       // usually see a problem with C.Idents not being properly initialized.
       // This assert tries to catch such situations heuristically.
-      assert(&C.Idents == &m_CI.getPreprocessor().getIdentifierTable()
-             && "Miscompiled?");
-      // FIXME: Use `utils::LookupNSD` instead.
-      DeclarationName Name = &C.Idents.get("clad");
-      Sema &SemaR = m_CI.getSema();
-      LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
-                     CLAD_COMPAT_Sema_ForVisibleRedeclaration);
-      SemaR.LookupQualifiedName(R, C.getTranslationUnitDecl(),
-                                /*allowBuiltinCreation*/ false);
-      m_HasRuntime = !R.empty();
+      assert(&m_CI.getASTContext().Idents ==
+                 &m_CI.getPreprocessor().getIdentifierTable() &&
+             "Miscompiled?");
+      NamespaceDecl* CladNS =
+          utils::LookupNSD(m_CI.getSema(), "clad", /*shouldExist=*/false);
+      m_HasRuntime = (CladNS != nullptr);
       return m_HasRuntime;
     }
 

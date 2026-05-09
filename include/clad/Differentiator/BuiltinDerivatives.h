@@ -146,6 +146,9 @@ void cudaMalloc_pullback(T** devPtr, size_t sz, cudaError_t d_ret, T** d_devPtr,
 cudaError_t cudaFree_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
 
 void cudaFree_pullback(void* ptr, cudaError_t d_ret, void* d_ptr);
+
+template <typename... Args>
+unsigned __cudaPushCallConfiguration_reverse_forw(Args...);
 #endif
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -553,6 +556,51 @@ template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expm1l_pushforward(T x, dT d_x) {
   return expm1_pushforward(x, d_x);
 }
+
+#if __cplusplus >= 201703L
+// 2.4 expint, expintf, expintl
+template <typename T> CUDA_HOST_DEVICE inline T expint_primal(T x) {
+#if defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__)
+  return ::std ::expint(x);
+#else
+  return T(0);
+#endif
+}
+
+template <typename T> CUDA_HOST_DEVICE inline T expintf_primal(T x) {
+#if defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__)
+  return ::std ::expintf(x);
+#else
+  return T(0);
+#endif
+}
+
+template <typename T> CUDA_HOST_DEVICE inline T expintl_primal(T x) {
+#if defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__)
+  return ::std ::expintl(x);
+#else
+  return T(0);
+#endif
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expint_pushforward(T x, dT d_x) {
+  return {static_cast<T>(expint_primal(x)),
+          static_cast<dT>((::std ::exp(x) / x) * d_x)};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expintf_pushforward(T x, dT d_x) {
+  return {static_cast<T>(expintf_primal(x)),
+          static_cast<dT>((::std ::exp(x) / x) * d_x)};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expintl_pushforward(T x, dT d_x) {
+  return {static_cast<T>(expintl_primal(x)),
+          static_cast<dT>((::std ::exp(x) / x) * d_x)};
+}
+#endif
 
 // 3. Logarithmic Functions
 
@@ -1059,6 +1107,191 @@ CUDA_HOST_DEVICE void hypot_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   *d_y += (y / h) * d_z;
 }
 
+// 7. Special Functions
+#if __cplusplus >= 201703L
+template <typename T> CUDA_HOST_DEVICE inline T clad_beta_primal(T x, T y) {
+#if defined(__cpp_lib_math_special_functions)
+  return ::std::beta(x, y);
+#else
+  return ::std::tgamma(x) * ::std::tgamma(y) / ::std::tgamma(x + y);
+#endif
+}
+// Computes the digamma function psi(x) using a standard asymptotic expansion
+// NOTE: This is a numerical approximation
+// Reference: Wolfram MathWorld, Digamma Function
+// https://mathworld.wolfram.com/DigammaFunction.html
+
+template <typename T> CUDA_HOST_DEVICE inline T clad_digamma(T x) {
+  if (x <= 0.0) {
+    if (x == ::std::floor(x))
+      return (T)NAN;
+    return clad_digamma(1.0 - x) -
+           ::std::acos((T)-1.0) / ::std::tan(::std::acos((T)-1.0) * x);
+  }
+  T result = 0.0;
+  while (x < 8.0) {
+    result -= 1.0 / x;
+    x += 1.0;
+  }
+  T inv_x = 1.0 / x;
+  T inv_x2 = inv_x * inv_x;
+  result +=
+      ::std::log(x) - 0.5 * inv_x -
+      inv_x2 * (1.0 / 12.0 -
+                inv_x2 * (1.0 / 120.0 -
+                          inv_x2 * (1.0 / 252.0 - inv_x2 * (1.0 / 240.0))));
+  return result;
+}
+
+// NOTE: Like digamma this uses a truncated asymptotic expansion.
+// Used as a custom derivative for digamma
+// Reference: Wolfram MathWorld, Trigamma Function
+// https://mathworld.wolfram.com/TrigammaFunction.html
+
+template <typename T> CUDA_HOST_DEVICE inline T clad_trigamma(T x) {
+  if (x <= 0.0) {
+    if (x == ::std::floor(x))
+      return (T)NAN;
+    T pi = ::std::acos((T)-1.0);
+    T csc = 1.0 / ::std::sin(pi * x);
+    return -clad_trigamma(1.0 - x) + (pi * pi * csc * csc);
+  }
+
+  T result = 0.0;
+  while (x < 8.0) {
+    result += 1.0 / (x * x);
+    x += 1.0;
+  }
+
+  T inv_x = 1.0 / x;
+  T inv_x2 = inv_x * inv_x;
+
+  result += inv_x + 0.5 * inv_x2 +
+            inv_x2 * inv_x *
+                (1.0 / 6.0 -
+                 inv_x2 * (1.0 / 30.0 -
+                           inv_x2 * (1.0 / 42.0 - inv_x2 * (1.0 / 30.0))));
+  return result;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> digamma_pushforward(T x, dT d_x) {
+  T psi = clad_digamma(x);
+  dT pushforward = 0;
+  if (d_x)
+    pushforward += clad_trigamma(x) * d_x;
+  return {psi, pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void digamma_pullback(T x, U d_z, T* d_x) {
+  if (d_x)
+    *d_x += clad_trigamma(x) * d_z;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> beta_pushforward(T x, T y, dT d_x,
+                                                             dT d_y) {
+  T b = clad_beta_primal(x, y);
+  T psi_xy = clad_digamma(x + y);
+  dT pushforward = 0;
+  if (d_x)
+    pushforward += b * (clad_digamma(x) - psi_xy) * d_x;
+  if (d_y)
+    pushforward += b * (clad_digamma(y) - psi_xy) * d_y;
+  return {b, pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  T b = clad_beta_primal(x, y);
+  T psi_xy = clad_digamma(x + y);
+  if (d_x)
+    *d_x += b * (clad_digamma(x) - psi_xy) * d_z;
+  if (d_y)
+    *d_y += b * (clad_digamma(y) - psi_xy) * d_z;
+}
+#endif
+
+#if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
+                               defined(__STDCPP_MATH_SPEC_FUNCS__))
+template <typename T, typename dT,
+          typename T_out = decltype(::std::comp_ellint_1(T())),
+          typename dT_out = typename AdjOutType<T_out, dT>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+comp_ellint_1_pushforward(T k, dT d_k) {
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out k_sq = k * k;
+  T_out one = 1.0;
+  T_out derivative = 0.0;
+  if (k_sq < 1.0 && k != 0.0)
+    derivative = (E - (one - k_sq) * K) / (k * (one - k_sq));
+  return {K, static_cast<dT_out>(d_k) * derivative};
+}
+
+template <typename T, typename dT,
+          typename T_out = decltype(::std::comp_ellint_2(T())),
+          typename dT_out = typename AdjOutType<T_out, dT>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+comp_ellint_2_pushforward(T k, dT d_k) {
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out derivative = 0.0;
+  if (k != 0.0)
+    derivative = (E - K) / k;
+  return {E, static_cast<dT_out>(d_k) * derivative};
+}
+
+template <typename T1, typename T2, typename dT1, typename dT2,
+          typename T_out = decltype(::std::comp_ellint_3(T1(), T2())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+comp_ellint_3_pushforward(T1 k, T2 nu, dT1 d_k, dT2 d_nu) {
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out Pi = ::std::comp_ellint_3(k, nu);
+  T_out k2 = k * k;
+  T_out one = 1.0;
+  T_out grad_k = 0.0;
+  if (k2 != static_cast<T_out>(nu) && k != 0.0 && k2 < 1.0) {
+    T_out term_k = E / (one - k2);
+    grad_k = (k / (k2 - static_cast<T_out>(nu))) * (term_k - Pi);
+  }
+  T_out grad_nu = 0.0;
+  if (nu != 0.0 && nu != 1.0 && k2 != static_cast<T_out>(nu)) {
+    T_out p2 = ((k2 - static_cast<T_out>(nu)) / static_cast<T_out>(nu)) * K;
+    T_out p3 = ((static_cast<T_out>(nu) * static_cast<T_out>(nu) - k2) /
+                static_cast<T_out>(nu)) *
+               Pi;
+    grad_nu = (one / (2.0 * (static_cast<T_out>(nu) - one) *
+                      (k2 - static_cast<T_out>(nu)))) *
+              (E + p2 + p3);
+  }
+  return {Pi, (static_cast<dT_out>(d_k) * grad_k) +
+                  (static_cast<dT_out>(d_nu) * grad_nu)};
+}
+
+template <typename T1, typename T2, typename T3>
+CUDA_HOST_DEVICE void comp_ellint_3_pullback(T1 k, T2 nu, T3 d_out, T1* d_k,
+                                             T2* d_nu) {
+  auto K = ::std::comp_ellint_1(k);
+  auto E = ::std::comp_ellint_2(k);
+  auto Pi = ::std::comp_ellint_3(k, nu);
+  auto k2 = k * k;
+  auto one = 1.0;
+  if (k2 != nu && k != 0.0 && k2 < 1.0) {
+    auto term_k = E / (one - k2);
+    *d_k += d_out * ((k / (k2 - nu)) * (term_k - Pi));
+  }
+  if (nu != 0.0 && nu != one && k2 != nu) {
+    auto p2 = ((k2 - nu) / nu) * K;
+    auto p3 = ((nu * nu - k2) / nu) * Pi;
+    *d_nu += d_out * ((one / (2.0 * (nu - one) * (k2 - nu))) * (E + p2 + p3));
+  }
+}
+#endif
+
 } // namespace std
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
@@ -1242,6 +1475,11 @@ using std::expl_pushforward;
 using std::expm1_pushforward;
 using std::expm1f_pushforward;
 using std::expm1l_pushforward;
+#if __cplusplus >= 201703L
+using std::expint_pushforward;
+using std::expintf_pushforward;
+using std::expintl_pushforward;
+#endif
 
 // 3. Logarithmic Functions
 using std::log10_pushforward;
@@ -1323,6 +1561,20 @@ using std::min_pushforward;
 using std::pow_pullback;
 using std::pow_pushforward;
 using std::sqrt_pushforward;
+
+// 7. Special Functions
+#if __cplusplus >= 201703L
+using std::beta_pullback;
+using std::beta_pushforward;
+#endif
+
+#if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
+                               defined(__STDCPP_MATH_SPEC_FUNCS__))
+using std::comp_ellint_1_pushforward;
+using std::comp_ellint_2_pushforward;
+using std::comp_ellint_3_pullback;
+using std::comp_ellint_3_pushforward;
+#endif
 
 namespace class_functions {
 template <typename T, typename U>

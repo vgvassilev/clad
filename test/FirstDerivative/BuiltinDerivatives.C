@@ -6,7 +6,28 @@
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"
+#include <cmath>
+
+#if !defined(__cpp_lib_math_special_functions)
+namespace std {
+  // Mock std::beta on Apple platforms so Clad's AST has a target to differentiate
+  inline double beta(double x, double y) {
+    return std::tgamma(x) * std::tgamma(y) / std::tgamma(x + y);
+  }
+}
+#endif
+
 extern "C" int printf(const char* fmt, ...);
+#include <cmath>
+
+#if !defined(__cpp_lib_math_special_functions)
+namespace std {
+  // std::expint mock for osx systems
+  inline double expint(double x) { return 0.0; }
+  inline float expintf(float x) { return 0.0f; }
+  inline long double expintl(long double x) { return 0.0L; }
+}
+#endif
 
 
 namespace N {
@@ -442,6 +463,13 @@ double f_expm1l(double x) { return std::expm1l(x); }
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
+double f_expint(double x) { return std::expint(x); }
+// CHECK: double f_expint_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}expint_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
 double f_log1pl(double x) { return std::log1pl(x); }
 // CHECK: double f_log1pl_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
@@ -514,6 +542,14 @@ double f_custom_min(double x, double y) { return std::min(x, y, std::greater<dou
 // CHECK-NEXT:      ValueAndPushforward<const double &, const double &> _t0 = clad::custom_derivatives::std::min_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
 // CHECK-NEXT:      return _t0.pushforward;
 // CHECK-NEXT:  }
+
+double f_beta(double x, double y) { return std::beta(x, y); }
+// CHECK: double f_beta_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}beta_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
 
 int main () { //expected-no-diagnostics
   float f_result[2];
@@ -665,6 +701,9 @@ int main () { //expected-no-diagnostics
   auto d_expm1l = clad::differentiate(f_expm1l, 0);
   printf("Result is = %.6f\n", d_expm1l.execute(0.5)); // CHECK-EXEC: Result is = 1.648721
 
+  auto d_expint = clad::differentiate(f_expint, 0);
+  printf("Result is = %.6f\n", d_expint.execute(0.5)); // CHECK-EXEC: Result is = 3.297443
+
   auto d_log1pl = clad::differentiate(f_log1pl, 0);
   printf("Result is = %.6f\n", d_log1pl.execute(0.5)); // CHECK-EXEC: Result is = 0.666667
 
@@ -694,6 +733,9 @@ int main () { //expected-no-diagnostics
 
   auto d_custom_min =  clad::differentiate(f_custom_min, 0);
   printf("Result is = %.6f\n", d_custom_min.execute(2, 3)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_beta = clad::differentiate(f_beta, 0);
+  printf("Result is = %.6f\n", d_beta.execute(2.0, 3.0)); // CHECK-EXEC: Result is = -0.090278
 
   return 0;
 }

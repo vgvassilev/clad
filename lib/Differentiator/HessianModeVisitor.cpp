@@ -57,6 +57,8 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   ReverseModeRequest.Function = firstDerivative;
   ReverseModeRequest.Args = ReverseModeArgs;
   ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
+  ReverseModeRequest.m_CladLoopCheckpoints =
+      IndependentArgRequest.m_CladLoopCheckpoints;
 
   FunctionDecl* secondDerivative =
       Builder.HandleNestedDiffRequest(ReverseModeRequest);
@@ -157,6 +159,8 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
           std::string helperMsg("clad::hessian(" + FD->getNameAsString() +
                                 ", \"" + suggestedArgsStr + "\")");
           SourceLocation L = PVD->getBeginLoc();
+          if (m_DiffReq.Args)
+            L = m_DiffReq.Args->getExprLoc();
           diag(DiagnosticsEngine::Error, L,
                "hessian mode differentiation w.r.t. array or pointer "
                "parameters needs explicit declaration of the indices of the "

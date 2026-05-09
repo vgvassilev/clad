@@ -13,15 +13,18 @@
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Sema.h"
 
 #include <array>
 #include <memory>
 #include <stack>
 #include <unordered_map>
+#include <utility>
 
 namespace clang {
   class ASTContext;
@@ -48,24 +51,23 @@ namespace clad {
 } // namespace clad
 
 namespace clad {
-  class ErrorEstimationHandler;
-  class FPErrorEstimationModel;
+class ErrorEstimationHandler;
 
-  /// A pair of FunctionDecl and potential enclosing context, e.g. a function
-  /// in nested namespaces.
-  // This is the type returned by cloneFunction. Using OverloadedDeclWithContext
-  // instead would lead to unnecessarily returning a nullptr in the overloaded
-  // FD
-  using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
-  /// Stores derivative and the corresponding overload. If no overload exist
-  /// then `second` data member should be `nullptr`.
-  struct DerivativeAndOverload {
-    clang::Decl* derivative = nullptr;
-    clang::FunctionDecl* overload = nullptr;
-    DerivativeAndOverload(clang::Decl* p_derivative = nullptr,
-                          clang::FunctionDecl* p_overload = nullptr)
-        : derivative(p_derivative), overload(p_overload) {}
-  };
+/// A pair of FunctionDecl and potential enclosing context, e.g. a function
+/// in nested namespaces.
+// This is the type returned by cloneFunction. Using OverloadedDeclWithContext
+// instead would lead to unnecessarily returning a nullptr in the overloaded
+// FD
+using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
+/// Stores derivative and the corresponding overload. If no overload exist
+/// then `second` data member should be `nullptr`.
+struct DerivativeAndOverload {
+  clang::Decl* derivative = nullptr;
+  clang::FunctionDecl* overload = nullptr;
+  DerivativeAndOverload(clang::Decl* p_derivative = nullptr,
+                        clang::FunctionDecl* p_overload = nullptr)
+      : derivative(p_derivative), overload(p_overload) {}
+};
 
   static clang::SourceLocation noLoc{};
   class VisitorBase;
@@ -196,6 +198,15 @@ namespace clad {
     /// \param[in] Request The request to be processed.
     /// \returns The derivative function if found, nullptr otherwise.
     clang::FunctionDecl* HandleNestedDiffRequest(DiffRequest& request);
+
+    /// Emits diagnostic messages on differentiation (or lack thereof) for
+    /// an function without a definition.
+    ///
+    /// \param[in] \c FD - The function declaration.
+    /// \param[in] \c srcLoc Any associated source location information.
+    void diagnoseUndefinedFunction(const clang::FunctionDecl* FD,
+                                   clang::SourceLocation srcLoc,
+                                   bool numDiffViable);
   };
 
 } // end namespace clad
