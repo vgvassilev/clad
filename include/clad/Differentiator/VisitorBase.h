@@ -154,14 +154,15 @@ namespace clad {
     /// The currently visited statement. Useful for crash pretty-printing.
     const clang::Stmt* m_CurVisitedStmt = nullptr;
 
-    /// A function used to wrap result of visiting E in a lambda. Returns a call
-    /// to the built lambda. Func is a functor that will be invoked inside
-    /// lambda scope and block. Statements inside lambda are expected to be
-    /// added by addToCurrentBlock from func invocation.
+    /// Build a lambda whose body is produced by `func`. Returns the
+    /// LambdaExpr without invoking it, so the caller can bind it to a VarDecl
+    /// and call it from multiple sites. `func` is invoked inside the lambda's
+    /// scope and block; statements are expected to be added via
+    /// addToCurrentBlock from func's invocation.
     // FIXME: This will become problematic when we try to support C.
     template <typename F>
-    static clang::Expr* wrapInLambda(VisitorBase& V, clang::Sema& S,
-                                     const clang::Expr* E, F&& func) {
+    static clang::Expr* buildLambda(VisitorBase& V, clang::Sema& S,
+                                    const clang::Expr* E, F&& func) {
       // FIXME: Here we use some of the things that are used from Parser, it
       // seems to be the easiest way to create lambda.
       clang::LambdaIntroducer Intro;
@@ -207,6 +208,17 @@ namespace clad {
                        V))
               .get();
       V.endScope();
+      return lambda;
+    }
+
+    /// A function used to wrap result of visiting E in a lambda. Returns a call
+    /// to the built lambda. Func is a functor that will be invoked inside
+    /// lambda scope and block. Statements inside lambda are expected to be
+    /// added by addToCurrentBlock from func invocation.
+    template <typename F>
+    static clang::Expr* wrapInLambda(VisitorBase& V, clang::Sema& S,
+                                     const clang::Expr* E, F&& func) {
+      clang::Expr* lambda = buildLambda(V, S, E, func);
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();
     }
