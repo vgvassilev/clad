@@ -73,6 +73,17 @@ namespace clad {
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
     std::vector<Stmts> m_Reverse;
+    /// Markers emitted at early-return sites in the forward block. Each is
+    /// patched with `{ _rev(); return; }` at function-body finalization,
+    /// where `_rev` is a [&] lambda wrapping the master reverse sweep.
+    /// Replaces the goto/label encoding (vgvassilev/clad#367) so the body
+    /// stays well-formed under [stmt.dcl]/2 and Sema::ActOnFinishFunctionBody.
+    llvm::SmallPtrSet<clang::Stmt*, 4> m_EarlyReturnMarkers;
+    /// The tail-return's adjoint-seed Reverse stmt, captured when the function
+    /// also has early returns so the seed can be emitted on the natural-tail
+    /// path only (outside the lambda) — applying it inside the lambda would
+    /// double-seed on every early-return path.
+    clang::Stmt* m_NaturalReturnSeed = nullptr;
     /// Storing expressions to delete/free memory in the reverse pass.
     Stmts m_DeallocExprs;
     /// Stack is used to pass the arguments (dfdx) to further nodes
@@ -119,6 +130,12 @@ namespace clad {
 
     // Function to Differentiate with Enzyme as Backend
     void DifferentiateWithEnzyme();
+
+    /// Walk the current forward block and replace every Stmt in
+    /// m_EarlyReturnMarkers with `Replacement`. Called once at function-body
+    /// finalization, after the forward sweep is fully assembled and before
+    /// the body is handed to Sema.
+    void patchEarlyReturnMarkers(clang::Stmt* Replacement);
 
   public:
     using direction = rmv::direction;

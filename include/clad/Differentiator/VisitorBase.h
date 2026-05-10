@@ -159,18 +159,43 @@ namespace clad {
     /// and call it from multiple sites. `func` is invoked inside the lambda's
     /// scope and block; statements are expected to be added via
     /// addToCurrentBlock from func's invocation.
+    ///
+    /// When `ExplicitCaptures` is empty the lambda uses `[&]` capture-default
+    /// and Sema scans the body for ODR-uses; this works only if the body's
+    /// DeclRefExprs are constructed inside the lambda's scope (`func`'s job).
+    /// When `ExplicitCaptures` is non-empty the lambda uses `[&v1, &v2, ...]`
+    /// and Sema synthesizes one closure FieldDecl per listed VarDecl up
+    /// front; the body may then attach pre-built statements that reference
+    /// the listed VarDecls — codegen translates each reference to the
+    /// corresponding closure field per [expr.prim.lambda.capture]/12.
     // FIXME: This will become problematic when we try to support C.
     template <typename F>
-    static clang::Expr* buildLambda(VisitorBase& V, clang::Sema& S,
-                                    const clang::Expr* E, F&& func) {
+    static clang::Expr*
+    buildLambda(VisitorBase& V, clang::Sema& S, const clang::Stmt* LocSrc,
+                F&& func,
+                llvm::ArrayRef<clang::VarDecl*> ExplicitCaptures = {}) {
       // FIXME: Here we use some of the things that are used from Parser, it
       // seems to be the easiest way to create lambda.
       clang::LambdaIntroducer Intro;
-      Intro.Default = clang::LCD_ByRef;
+      if (ExplicitCaptures.empty()) {
+        Intro.Default = clang::LCD_ByRef;
+      } else {
+        Intro.Default = clang::LCD_None;
+        for (clang::VarDecl* VD : ExplicitCaptures)
+          Intro.Captures.emplace_back(
+              /*Kind=*/clang::LCK_ByRef,
+              /*Loc=*/VD->getLocation(),
+              /*Id=*/VD->getIdentifier(),
+              /*EllipsisLoc=*/clang::SourceLocation(),
+              /*InitKind=*/clang::LambdaCaptureInitKind::NoInit,
+              /*Init=*/clang::ExprResult(),
+              /*InitCaptureType=*/clang::ParsedType(),
+              /*ExplicitRange=*/clang::SourceRange());
+      }
       // FIXME: Using noLoc here results in assert failure. Any other valid
       // SourceLocation seems to work fine.
-      Intro.Range.setBegin(E->getBeginLoc());
-      Intro.Range.setEnd(E->getEndLoc());
+      Intro.Range.setBegin(LocSrc->getBeginLoc());
+      Intro.Range.setEnd(LocSrc->getEndLoc());
       clang::AttributeFactory AttrFactory;
       const clang::DeclSpec DS(AttrFactory);
       clang::Declarator D(
@@ -217,8 +242,8 @@ namespace clad {
     /// added by addToCurrentBlock from func invocation.
     template <typename F>
     static clang::Expr* wrapInLambda(VisitorBase& V, clang::Sema& S,
-                                     const clang::Expr* E, F&& func) {
-      clang::Expr* lambda = buildLambda(V, S, E, func);
+                                     const clang::Stmt* LocSrc, F&& func) {
+      clang::Expr* lambda = buildLambda(V, S, LocSrc, func);
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();
     }
@@ -229,12 +254,28 @@ namespace clad {
     /// more sites via DeclRefExpr + ActOnCallExpr. Use this when the same
     /// lambda body must be invoked from multiple paths (e.g. a reverse-pass
     /// segment shared between an early-return path and the natural tail).
+    ///
+    /// The binding uses `auto` deduction so the pretty-printer renders it as
+    /// `auto X = [&] {...};` rather than the closure type's unspellable
+    /// `(lambda at ...)` form. Sema deduces the concrete closure type from
+    /// the initializer; the TypeSourceInfo retains the `auto` keyword.
+    ///
+    /// `ExplicitCaptures` is forwarded to buildLambda — pass an empty list
+    /// to use `[&]` capture-default (only valid when `func` builds the body
+    /// from scratch in the lambda's scope), or a non-empty list to use
+    /// `[&v1, &v2, ...]` so pre-built body statements that reference outer
+    /// VarDecls codegen correctly through the listed captures.
     template <typename F>
-    clang::VarDecl* buildAndBindLambda(const clang::Expr* LocE,
-                                       llvm::StringRef NameHint, F&& func) {
-      clang::Expr* lambda = buildLambda(*this, m_Sema, LocE, func);
+    clang::VarDecl*
+    buildAndBindLambda(const clang::Stmt* LocSrc, llvm::StringRef NameHint,
+                       F&& func,
+                       llvm::ArrayRef<clang::VarDecl*> ExplicitCaptures = {}) {
+      clang::Expr* lambda =
+          buildLambda(*this, m_Sema, LocSrc, func, ExplicitCaptures);
       clang::IdentifierInfo* II = CreateUniqueIdentifier(NameHint);
-      return BuildVarDecl(lambda->getType(), II, lambda);
+      clang::QualType AutoTy = m_Context.getAutoDeductType();
+      clang::TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(AutoTy);
+      return BuildVarDecl(AutoTy, II, lambda, /*DirectInit=*/false, TSI);
     }
 
     /// For a qualtype QT returns if it's type is Array or Pointer Type
