@@ -1480,8 +1480,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Create the target[idx] expression.
     result = BuildArraySubscript(target, reverseIndices);
     // Create the (target += dfdx) statement.
-    if (Expr* add_assign = BuildDiffIncrement(result))
-      addToCurrentBlock(add_assign, direction::reverse);
+    if (Expr* add_assign = BuildDiffIncrement(result)) {
+      if (target->getType()->isPointerType()) {
+        Stmt* nullCheck = clad_compat::IfStmt_Create(
+            m_Context, noLoc, /*isConstexpr=*/false, /*Init=*/nullptr,
+            /*Var=*/nullptr, target, noLoc, noLoc, add_assign, noLoc,
+            /*Else=*/nullptr);
+        addToCurrentBlock(nullCheck, direction::reverse);
+      } else {
+        addToCurrentBlock(add_assign, direction::reverse);
+      }
+    }
     if (m_ExternalSource)
       m_ExternalSource->ActAfterProcessingArraySubscriptExpr(valueForRevSweep);
     return StmtDiff(cloned, result, valueForRevSweep);

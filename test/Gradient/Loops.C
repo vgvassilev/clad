@@ -232,7 +232,8 @@ double f_sum(double *p, int n) {
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         i--;
 // CHECK-NEXT:         double _r_d0 = _d_s;
-// CHECK-NEXT:         _d_p[i] += _r_d0;
+// CHECK-NEXT:         if (_d_p)
+// CHECK-NEXT:           _d_p[i] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -265,7 +266,8 @@ double f_sum_squares(double *p, int n) {
 // CHECK-NEXT:         double _r_d0 = _d_s;
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         _r0 += _r_d0 * sq_pushforward(p[i], 1.).pushforward;
-// CHECK-NEXT:         _d_p[i] += _r0;
+// CHECK-NEXT:         if (_d_p)
+// CHECK-NEXT:            _d_p[i] += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -332,7 +334,8 @@ double f_log_gaus(const double* x, double* p /*means*/, double n, double sigma) 
 // CHECK-NEXT:         double _r_d0 = _d_power;
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         _r0 += _r_d0 * sq_pushforward(x[i] - p[i], 1.).pushforward;
-// CHECK-NEXT:         _d_p[i] += -_r0;
+// CHECK-NEXT:         if (_d_p)
+// CHECK-NEXT:            _d_p[i] += -_r0;
 // CHECK-NEXT:     }
 
 double f_const(const double a, const double b) {
@@ -1356,7 +1359,8 @@ double fn20(double *arr, int n) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_res;
-// CHECK-NEXT:             _d_arr[i] += _r_d0;
+// CHECK-NEXT:             if (_d_arr)
+// CHECK-NEXT:                _d_arr[i] += _r_d0;
 // CHECK-NEXT:             double _r_d1 = _d_arr[i];
 // CHECK-NEXT:             _d_arr[i] = 0.;
 // CHECK-NEXT:             _d_arr[i] += _r_d1 * 5;
@@ -2686,7 +2690,8 @@ double fn43(double* x, double y) {
 //CHECK-NEXT:            _d_t4 += _r0;
 //CHECK-NEXT:        }
 //CHECK-NEXT:        {
-//CHECK-NEXT:            _d_x[i] += _d_t4;
+//CHECK-NEXT:            if (_d_x)
+//CHECK-NEXT:               _d_x[i] += _d_t4;
 //CHECK-NEXT:            _d_t4 = 0.;
 //CHECK-NEXT:            t4 = clad::pop(_t1);
 //CHECK-NEXT:        }

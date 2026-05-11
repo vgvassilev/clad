@@ -35,9 +35,11 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:             sum = clad::pop(_t1);
 //CHECK-NEXT:             double _r_d0 = _d_sum;
-//CHECK-NEXT:             _d_f[i] += _r_d0;
+// CHECK-NEXT:            if (_d_f)
+// CHECK-NEXT:               _d_f[i] += _r_d0;
 //CHECK-NEXT:             f_size = std::max(f_size, i);
-//CHECK-NEXT:             _d_f[i - 1] += _r_d0;
+// CHECK-NEXT:            if (_d_f)
+//CHECK-NEXT:                _d_f[i - 1] += _r_d0;
 //CHECK-NEXT:             f_size = std::max(f_size, i - 1);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
@@ -88,9 +90,11 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:                 sum = clad::pop(_t3);
 //CHECK-NEXT:                 double _r_d0 = _d_sum;
 //CHECK-NEXT:                 b_size = std::max(b_size, j);
-//CHECK-NEXT:                 _d_a[i] += _r_d0 * b[j];
+//CHECK-NEXT:                 if (_d_a)
+//CHECK-NEXT:                   _d_a[i] += _r_d0 * b[j];
 //CHECK-NEXT:                 a_size = std::max(a_size, i);
-//CHECK-NEXT:                 _d_b[j] += a[i] * _r_d0;
+//CHECK-NEXT:                 if (_d_b)
+//CHECK-NEXT:                   _d_b[j] += a[i] * _r_d0;
 //CHECK-NEXT:                 b_size = std::max(b_size, j);
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
@@ -139,10 +143,12 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:             sum = clad::pop(_t1);
 //CHECK-NEXT:             double _r_d0 = _d_sum;
 //CHECK-NEXT:             b_size = std::max(b_size, i);
-//CHECK-NEXT:             _d_a[i] += _r_d0 / b[i];
+//CHECK-NEXT:             if (_d_a)
+//CHECK-NEXT:               _d_a[i] += _r_d0 / b[i];
 //CHECK-NEXT:             a_size = std::max(a_size, i);
 //CHECK-NEXT:             double _r0 = _r_d0 * -(a[i] / (b[i] * b[i]));
-//CHECK-NEXT:             _d_b[i] += _r0;
+//CHECK-NEXT:             if (_d_b)
+//CHECK-NEXT:               _d_b[i] += _r0;
 //CHECK-NEXT:             b_size = std::max(b_size, i);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }

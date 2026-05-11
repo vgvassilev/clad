@@ -653,12 +653,14 @@ float running_sum(float* p, int n) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         p[i] += p[i - 1];
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _d_p[n - 1] += 1;
+// CHECK-NEXT:     if (_d_p)
+// CHECK-NEXT:        _d_p[n - 1] += 1;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         i--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             float _r_d0 = _d_p[i];
-// CHECK-NEXT:             _d_p[i - 1] += _r_d0;
+// CHECK-NEXT:             if (_d_p)
+// CHECK-NEXT:                _d_p[i - 1] += _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

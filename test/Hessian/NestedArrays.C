@@ -52,41 +52,68 @@ double f2_outer(double x) {
 // CHECK-NEXT:     double {{_t[0-9]+}} = params[0] * params[1];
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{_d_t[0-9]+}} += _d_y.value * params[2];
-// CHECK-NEXT:         _d_params0[2] += {{_t[0-9]+}} * _d_y.value;
-// CHECK-NEXT:         _d_params0[3] += _d_y.value * params[3];
-// CHECK-NEXT:         _d_params0[3] += params[3] * _d_y.value;
-// CHECK-NEXT:         _d_params0[4] += _d_y.value * params[0];
-// CHECK-NEXT:         _d_params0[0] += params[4] * _d_y.value;
-// CHECK-NEXT:         _d_d_params[0] += _d_y.pushforward * params[2] * params[1];
-// CHECK-NEXT:         _d_params0[1] += _d_params[0] * _d_y.pushforward * params[2];
-// CHECK-NEXT:         _d_params0[0] += _d_y.pushforward * params[2] * _d_params[1];
-// CHECK-NEXT:         _d_d_params[1] += params[0] * _d_y.pushforward * params[2];
-// CHECK-NEXT:         _d_params0[2] += (_d_params[0] * params[1] + params[0] * _d_params[1]) * _d_y.pushforward;
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[2] += {{_t[0-9]+}} * _d_y.value;
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[3] += _d_y.value * params[3];
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[3] += params[3] * _d_y.value;
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[4] += _d_y.value * params[0];
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[0] += params[4] * _d_y.value;
+// CHECK-NEXT:         if (_d_d_params)
+// CHECK-NEXT:             _d_d_params[0] += _d_y.pushforward * params[2] * params[1];
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[1] += _d_params[0] * _d_y.pushforward * params[2];
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[0] += _d_y.pushforward * params[2] * _d_params[1];
+// CHECK-NEXT:         if (_d_d_params)
+// CHECK-NEXT:             _d_d_params[1] += params[0] * _d_y.pushforward * params[2];
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[2] += (_d_params[0] * params[1] + params[0] * _d_params[1]) * _d_y.pushforward;
 // CHECK-NEXT:         {{_d_t[0-9]+}} += _d_y.pushforward * _d_params[2];
-// CHECK-NEXT:         _d_d_params[2] += {{_t[0-9]+}} * _d_y.pushforward;
-// CHECK-NEXT:         _d_d_params[3] += _d_y.pushforward * params[3];
-// CHECK-NEXT:         _d_params0[3] += _d_params[3] * _d_y.pushforward;
-// CHECK-NEXT:         _d_params0[3] += _d_y.pushforward * _d_params[3];
-// CHECK-NEXT:         _d_d_params[3] += params[3] * _d_y.pushforward;
-// CHECK-NEXT:         _d_d_params[4] += _d_y.pushforward * params[0];
-// CHECK-NEXT:         _d_params0[0] += _d_params[4] * _d_y.pushforward;
-// CHECK-NEXT:         _d_params0[4] += _d_y.pushforward * _d_params[0];
-// CHECK-NEXT:         _d_d_params[0] += params[4] * _d_y.pushforward;
+// CHECK-NEXT:         if (_d_d_params)
+// CHECK-NEXT:             _d_d_params[2] += {{_t[0-9]+}} * _d_y.pushforward;
+// CHECK-NEXT:         if (_d_d_params)
+// CHECK-NEXT:             _d_d_params[3] += _d_y.pushforward * params[3];
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[3] += _d_params[3] * _d_y.pushforward;
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[3] += _d_y.pushforward * _d_params[3];
+// CHECK-NEXT:         if (_d_d_params)
+// CHECK-NEXT:             _d_d_params[3] += params[3] * _d_y.pushforward;
+// CHECK-NEXT:         if (_d_d_params)
+// CHECK-NEXT:             _d_d_params[4] += _d_y.pushforward * params[0];
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[0] += _d_params[4] * _d_y.pushforward;
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[4] += _d_y.pushforward * _d_params[0];
+// CHECK-NEXT:         if (_d_d_params)
+// CHECK-NEXT:             _d_d_params[0] += params[4] * _d_y.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d_params0[0] += {{_d_t[0-9]+}} * params[1];
-// CHECK-NEXT:         _d_params0[1] += params[0] * {{_d_t[0-9]+}};
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[0] += {{_d_t[0-9]+}} * params[1];
+// CHECK-NEXT:         if (_d_params0)
+// CHECK-NEXT:             _d_params0[1] += params[0] * {{_d_t[0-9]+}};
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 // CHECK: void f1_inner_pushforward_pullback(double *p, double *_d_p, clad::ValueAndPushforward<double, double> _d_y, double *_d_p0, double *_d_d_p) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d_p0[0] += _d_y.value * p[1];
-// CHECK-NEXT:         _d_p0[1] += p[0] * _d_y.value;
-// CHECK-NEXT:         _d_d_p[0] += _d_y.pushforward * p[1];
-// CHECK-NEXT:         _d_p0[1] += _d_p[0] * _d_y.pushforward;
-// CHECK-NEXT:         _d_p0[0] += _d_y.pushforward * _d_p[1];
-// CHECK-NEXT:         _d_d_p[1] += p[0] * _d_y.pushforward;
+// CHECK-NEXT:         if (_d_p0)
+// CHECK-NEXT:             _d_p0[0] += _d_y.value * p[1];
+// CHECK-NEXT:         if (_d_p0)
+// CHECK-NEXT:             _d_p0[1] += p[0] * _d_y.value;
+// CHECK-NEXT:         if (_d_d_p)
+// CHECK-NEXT:             _d_d_p[0] += _d_y.pushforward * p[1];
+// CHECK-NEXT:         if (_d_p0)
+// CHECK-NEXT:             _d_p0[1] += _d_p[0] * _d_y.pushforward;
+// CHECK-NEXT:         if (_d_p0)
+// CHECK-NEXT:             _d_p0[0] += _d_y.pushforward * _d_p[1];
+// CHECK-NEXT:         if (_d_d_p)
+// CHECK-NEXT:             _d_d_p[1] += p[0] * _d_y.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -96,16 +123,19 @@ double f2_outer(double x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{_d_t[0-9]+}} += _d_y.value * x;
 // CHECK-NEXT:         *_d_x0 += {{_t[0-9]+}} * _d_y.value;
-// CHECK-NEXT:         _d_d_p[0] += _d_y.pushforward * x * x;
+// CHECK-NEXT:         if (_d_d_p)
+// CHECK-NEXT:             _d_d_p[0] += _d_y.pushforward * x * x;
 // CHECK-NEXT:         *_d_x0 += _d_p[0] * _d_y.pushforward * x;
-// CHECK-NEXT:         _d_p0[0] += _d_y.pushforward * x * _d_x;
+// CHECK-NEXT:         if (_d_p0)
+// CHECK-NEXT:             _d_p0[0] += _d_y.pushforward * x * _d_x;
 // CHECK-NEXT:         *_d_d_x += p[0] * _d_y.pushforward * x;
 // CHECK-NEXT:         *_d_x0 += (_d_p[0] * x + p[0] * _d_x) * _d_y.pushforward;
 // CHECK-NEXT:         {{_d_t[0-9]+}} += _d_y.pushforward * _d_x;
 // CHECK-NEXT:         *_d_d_x += {{_t[0-9]+}} * _d_y.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d_p0[0] += {{_d_t[0-9]+}} * x;
+// CHECK-NEXT:         if (_d_p0)
+// CHECK-NEXT:             _d_p0[0] += {{_d_t[0-9]+}} * x;
 // CHECK-NEXT:         *_d_x0 += p[0] * {{_d_t[0-9]+}};
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

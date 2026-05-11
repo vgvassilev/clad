@@ -44,7 +44,8 @@ __global__ void add_kernel(int *out, int *in) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         out[index0] = _t0;
 //CHECK-NEXT:         int _r_d0 = _d_out[index0];
-//CHECK-NEXT:         atomicAdd(&_d_in[index0], _r_d0);
+//CHECK-NEXT:         if (_d_in)
+//CHECK-NEXT:           atomicAdd(&_d_in[index0], _r_d0);
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
@@ -58,7 +59,8 @@ __global__ void add_kernel_2(int *out, int *in) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         out[threadIdx.x] = _t0;
 //CHECK-NEXT:         int _r_d0 = _d_out[threadIdx.x];
-//CHECK-NEXT:         atomicAdd(&_d_in[threadIdx.x], _r_d0);
+//CHECK-NEXT:         if (_d_in)
+//CHECK-NEXT:           atomicAdd(&_d_in[threadIdx.x], _r_d0);
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
@@ -75,7 +77,8 @@ __global__ void add_kernel_3(int *out, int *in) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        out[index0] = _t0;
 //CHECK-NEXT:        int _r_d0 = _d_out[index0];
-//CHECK-NEXT:        _d_in[index0] += _r_d0;
+//CHECK-NEXT:        if (_d_in)
+//CHECK-NEXT:           _d_in[index0] += _r_d0;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
@@ -132,7 +135,8 @@ __global__ void add_kernel_4(int *out, int *in, int N) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     sum = clad::pop(_t2);
 // CHECK-NEXT:                     int _r_d0 = _d_sum;
-// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d0);
+//CHECK-NEXT:                      if (_d_in)
+// CHECK-NEXT:                        atomicAdd(&_d_in[i], _r_d0);
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             _d_index += _d_i;
@@ -200,7 +204,8 @@ __global__ void add_kernel_5(int *out, int *in, int N) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     sum = clad::pop(_t2);
 // CHECK-NEXT:                     int _r_d0 = _d_sum;
-// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d0);
+//CHECK-NEXT:                      if (_d_in)
+// CHECK-NEXT:                        atomicAdd(&_d_in[i], _r_d0);
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             _d_index += _d_i;
@@ -243,13 +248,15 @@ __global__ void add_kernel_7(double *a, double *b) {
 // CHECK-NEXT:         a[2 * index0 + 1] = _t1;
 // CHECK-NEXT:         double _r_d1 = _d_a[2 * index0 + 1];
 // CHECK-NEXT:         _d_a[2 * index0 + 1] = 0.;
-// CHECK-NEXT:         atomicAdd(&_d_b[0], _r_d1);
+//CHECK-NEXT:          if (_d_b)
+// CHECK-NEXT:            atomicAdd(&_d_b[0], _r_d1);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a[2 * index0] = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_a[2 * index0];
 // CHECK-NEXT:         _d_a[2 * index0] = 0.;
-// CHECK-NEXT:         atomicAdd(&_d_b[0], _r_d0);
+//CHECK-NEXT:          if (_d_b)
+// CHECK-NEXT:            atomicAdd(&_d_b[0], _r_d0);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -325,7 +332,8 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        _d_in[index0] += _d_y;
+//CHECK-NEXT:        if (_d_in)
+//CHECK-NEXT:           _d_in[index0] += _d_y;
 //CHECK-NEXT:        *_d_val += _d_y;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -360,7 +368,8 @@ __global__ void kernel_with_device_call_3(double *out, double *in, double *val) 
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        _d_in[index0] += _d_y;
+//CHECK-NEXT:        if (_d_in)
+//CHECK-NEXT:           _d_in[index0] += _d_y;
 //CHECK-NEXT:        atomicAdd(_d_val, _d_y);
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -396,7 +405,8 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        _d_in[index0] += _d_y;
+//CHECK-NEXT:        if (_d_in)
+//CHECK-NEXT:           _d_in[index0] += _d_y;
 //CHECK-NEXT:        *_d_val += _d_y;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -515,7 +525,8 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:        {
 //CHECK-NEXT:            res = clad::pop(_t1);
 //CHECK-NEXT:            double _r_d0 = _d_res;
-//CHECK-NEXT:            _d_out_host[i] += _r_d0;
+//CHECK-NEXT:            if (_d_out_host)
+//CHECK-NEXT:               _d_out_host[i] += _r_d0;
 //CHECK-NEXT:        }
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
@@ -590,7 +601,8 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     sum = clad::pop(_t2);
 // CHECK-NEXT:                     int _r_d0 = _d_sum;
-// CHECK-NEXT:                     atomicAdd(&_d_in[i], _r_d0);
+// CHECK-NEXT:                     if (_d_in)
+// CHECK-NEXT:                        atomicAdd(&_d_in[i], _r_d0);
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             _d_index += _d_i;
@@ -680,22 +692,26 @@ __global__ void indices_perm(int *out, int *in) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         out[index4] = _t3;
 // CHECK-NEXT:         int _r_d3 = _d_out[index4];
-// CHECK-NEXT:         _d_in[index4] += _r_d3;
+// CHECK-NEXT:         if (_d_in)
+// CHECK-NEXT:            _d_in[index4] += _r_d3;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         out[index3] = _t2;
 // CHECK-NEXT:         int _r_d2 = _d_out[index3];
-// CHECK-NEXT:         _d_in[index3] += _r_d2;
+// CHECK-NEXT:         if (_d_in)
+// CHECK-NEXT:            _d_in[index3] += _r_d2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         out[index2] = _t1;
 // CHECK-NEXT:         int _r_d1 = _d_out[index2];
-// CHECK-NEXT:         _d_in[index2] += _r_d1;
+// CHECK-NEXT:         if (_d_in)
+// CHECK-NEXT:            _d_in[index2] += _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         out[index1] = _t0;
 // CHECK-NEXT:         int _r_d0 = _d_out[index1];
-// CHECK-NEXT:         _d_in[index1] += _r_d0;
+// CHECK-NEXT:         if (_d_in)
+// CHECK-NEXT:            _d_in[index1] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -730,32 +746,38 @@ __global__ void indices_lin_comb(int *out, int *in) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         out[index0] = _t6;
 // CHECK-NEXT:         int _r_d5 = _d_out[index0];
-// CHECK-NEXT:         atomicAdd(&_d_in[index0 / 2], _r_d5);
+// CHECK-NEXT:         if (_d_in)
+// CHECK-NEXT:            atomicAdd(&_d_in[index0 / 2], _r_d5);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         out[index0] = _t5;
 // CHECK-NEXT:         int _r_d4 = _d_out[index0];
-// CHECK-NEXT:         atomicAdd(&_d_in[1 + 1], _r_d4);
+// CHECK-NEXT:         if (_d_in)
+// CHECK-NEXT:            atomicAdd(&_d_in[1 + 1], _r_d4);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         out[index0] = _t3;
 // CHECK-NEXT:         int _r_d3 = _d_out[index0];
-// CHECK-NEXT:         _d_in[2 * _t4 + 1] += _r_d3;
+// CHECK-NEXT:         if (_d_in)
+// CHECK-NEXT:            _d_in[2 * _t4 + 1] += _r_d3;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         out[index0] = _t2;
 // CHECK-NEXT:         int _r_d2 = _d_out[index0];
-// CHECK-NEXT:         _d_in[threadIdx.x + blockIdx.x * blockDim.x] += _r_d2;
+// CHECK-NEXT:         if (_d_in)
+// CHECK-NEXT:            _d_in[threadIdx.x + blockIdx.x * blockDim.x] += _r_d2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         out[index0] = _t1;
 // CHECK-NEXT:         int _r_d1 = _d_out[index0];
-// CHECK-NEXT:         _d_in[1 + index0] += _r_d1;
+// CHECK-NEXT:         if (_d_in)
+// CHECK-NEXT:            _d_in[1 + index0] += _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         out[index0] = _t0;
 // CHECK-NEXT:         int _r_d0 = _d_out[index0];
-// CHECK-NEXT:         _d_in[2 * index0] += _r_d0;
+// CHECK-NEXT:         if (_d_in)
+// CHECK-NEXT:            _d_in[2 * index0] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -782,12 +804,14 @@ __global__ void kernel_device_injective(int *a) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a[index2] = _t1;
 // CHECK-NEXT:         int _r_d1 = _d_a[index2];
-// CHECK-NEXT:         atomicAdd(&_d_a[index2], _r_d1);
+// CHECK-NEXT:         if (_d_a)
+// CHECK-NEXT:            atomicAdd(&_d_a[index2], _r_d1);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a[index1] = _t0;
 // CHECK-NEXT:         int _r_d0 = _d_a[index1];
-// CHECK-NEXT:         _d_a[index1] += _r_d0;
+// CHECK-NEXT:         if (_d_a)
+// CHECK-NEXT:            _d_a[index1] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -832,7 +856,8 @@ __global__ void injective_reassignment(int *a) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a[1] = _t3;
 // CHECK-NEXT:         int _r_d1 = _d_a[1];
-// CHECK-NEXT:         atomicAdd(&_d_a[index1], _r_d1);
+// CHECK-NEXT:         if (_d_a)
+// CHECK-NEXT:            atomicAdd(&_d_a[index1], _r_d1);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     if (_cond0) {
 // CHECK-NEXT:         index2 = _t2;
@@ -841,7 +866,8 @@ __global__ void injective_reassignment(int *a) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a[1] = _t1;
 // CHECK-NEXT:         int _r_d0 = _d_a[1];
-// CHECK-NEXT:         atomicAdd(&_d_a[index1], _r_d0);
+// CHECK-NEXT:         if (_d_a)
+// CHECK-NEXT:            atomicAdd(&_d_a[index1], _r_d0);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         index1 = _t0;
@@ -868,7 +894,8 @@ __global__ void injective_reassignment_loop(int *a) {
 //CHECK-NEXT:         i++;
 //CHECK-NEXT:         a[i] = clad::pop(_t1);
 //CHECK-NEXT:         int _r_d0 = _d_a[i];
-//CHECK-NEXT:         atomicAdd(&_d_a[i], _r_d0);
+// CHECK-NEXT:        if (_d_a)
+//CHECK-NEXT:           atomicAdd(&_d_a[i], _r_d0);
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 

@@ -94,7 +94,8 @@ double sum(double *data) {
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         double _r_d0 = _d_res;
-// CHECK-NEXT:         _d_data[i] += _r_d0;
+// CHECK-NEXT:         if (_d_data)
+// CHECK-NEXT:           _d_data[i] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -480,7 +481,8 @@ void fn13(double *x, double *y, int size)
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d2 = _d_y[p.j];
 // CHECK-NEXT:             _d_y[p.j] = 0.;
-// CHECK-NEXT:             _d_x[p.j] += 2. * _r_d2;
+// CHECK-NEXT:             if (_d_x)
+// CHECK-NEXT:                _d_x[p.j] += 2. * _r_d2;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -1085,7 +1087,8 @@ float fn29(float *input, Session const *session) {
 // CHECK-NEXT:          id0--;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              float _r_d1 = _d_out;
-// CHECK-NEXT:              _d_input[id0] += _r_d1;
+// CHECK-NEXT:              if (_d_input)
+// CHECK-NEXT:                _d_input[id0] += _r_d1;
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 // CHECK-NEXT:      for (; _t0; _t0--) {
@@ -1093,7 +1096,8 @@ float fn29(float *input, Session const *session) {
 // CHECK-NEXT:          {
 // CHECK-NEXT:              float _r_d0 = _d_buffer[id];
 // CHECK-NEXT:              _d_buffer[id] = 0.F;
-// CHECK-NEXT:              _d_input[id] += sess.factors[id] * _r_d0;
+// CHECK-NEXT:              if (_d_input)
+// CHECK-NEXT:                _d_input[id] += sess.factors[id] * _r_d0;
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }

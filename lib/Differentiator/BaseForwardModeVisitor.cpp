@@ -935,6 +935,19 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
   //  return;
   // Create the _result[idx] expression.
   auto result_at_is = BuildArraySubscript(target, clonedIndices);
+
+  if (target->getType()->isPointerType() &&
+      target->getType()->getPointeeType().isConstQualified()) {
+
+    Expr* targetClone = Clone(target);
+    Expr* nullPtr = getZeroInit(target->getType());
+    Expr* cond = BuildOp(BO_NE, targetClone, nullPtr);
+
+    Expr* safe_result =
+        m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, result_at_is, zero).get();
+    return StmtDiff(cloned, safe_result);
+  }
+
   return StmtDiff(cloned, result_at_is);
 }
 

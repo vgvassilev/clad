@@ -268,6 +268,7 @@ int main() {
   clad::gradient(fn_non_diff_ptr_param, "input");
 
   // CHECK: void fn_non_diff_ptr_param_grad_0(float *input, const float *factors, float *buffer, float *_d_input) {
-  // CHECK-NEXT:    _d_input[0] += 1;
+  // CHECK-NEXT: if (_d_input)
+  // CHECK-NEXT:   _d_input[0] += 1;
   // CHECK-NEXT: }
 }

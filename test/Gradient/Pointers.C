@@ -148,7 +148,8 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_sum;
-// CHECK-NEXT:             _d_arr[0] += _r_d0 * *j;
+// CHECK-NEXT:             if (_d_arr)
+// CHECK-NEXT:               _d_arr[0] += _r_d0 * *j;
 // CHECK-NEXT:             *_d_j += arr[0] * _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         j = clad::pop(_t2);
@@ -200,34 +201,43 @@ double pointerMultipleParams(const double* a, const double* b) {
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d3 = _d_sum;
-// CHECK-NEXT:         _d_a[0] += _r_d3;
-// CHECK-NEXT:         _d_b[0] += _r_d3;
+// CHECK-NEXT:         if (_d_a)
+// CHECK-NEXT:            _d_a[0] += _r_d3;
+// CHECK-NEXT:         if (_d_b)
+// CHECK-NEXT:            _d_b[0] += _r_d3;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     ++_d_a;
 // CHECK-NEXT:     ++_d_b;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d2 = _d_sum;
-// CHECK-NEXT:         _d_a[0] += _r_d2;
-// CHECK-NEXT:         _d_b[0] += _r_d2;
+// CHECK-NEXT:         if (_d_a)
+// CHECK-NEXT:            _d_a[0] += _r_d2;
+// CHECK-NEXT:         if (_d_b)
+// CHECK-NEXT:            _d_b[0] += _r_d2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_a++;
 // CHECK-NEXT:     _d_b++;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d1 = _d_sum;
-// CHECK-NEXT:         _d_a[0] += _r_d1;
-// CHECK-NEXT:         _d_b[0] += _r_d1;
+// CHECK-NEXT:         if (_d_a)
+// CHECK-NEXT:            _d_a[0] += _r_d1;
+// CHECK-NEXT:         if (_d_b)
+// CHECK-NEXT:            _d_b[0] += _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_a--;
 // CHECK-NEXT:     _d_b--;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_sum;
-// CHECK-NEXT:         _d_a[0] += _r_d0;
-// CHECK-NEXT:         _d_b[0] += _r_d0;
+// CHECK-NEXT:         if (_d_a)
+// CHECK-NEXT:            _d_a[0] += _r_d0;
+// CHECK-NEXT:         if (_d_b)
+// CHECK-NEXT:            _d_b[0] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     --_d_b;
 // CHECK-NEXT:     _d_a = _t1;
 // CHECK-NEXT:     _d_b = _t0;
-// CHECK-NEXT:     _d_b[2] += _d_sum;
+// CHECK-NEXT:     if (_d_b)
+// CHECK-NEXT:        _d_b[2] += _d_sum;
 // CHECK-NEXT: }
 
 double newAndDeletePointer(double i, double j) {
@@ -258,8 +268,10 @@ double newAndDeletePointer(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_p += _d_sum;
 // CHECK-NEXT:         *_d_q += _d_sum;
-// CHECK-NEXT:         _d_r[0] += _d_sum;
-// CHECK-NEXT:         _d_r[1] += _d_sum;
+// CHECK-NEXT:         if (_d_r)
+// CHECK-NEXT:            _d_r[0] += _d_sum;
+// CHECK-NEXT:         if (_d_r)
+// CHECK-NEXT:            _d_r[1] += _d_sum;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d1 = _d_r[1];
@@ -350,7 +362,8 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         res = _t5;
 // CHECK-NEXT:         double _r_d3 = _d_res;
-// CHECK-NEXT:         _d_p[1] += _r_d3;
+// CHECK-NEXT:         if (_d_p)
+// CHECK-NEXT:            _d_p[1] += _r_d3;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         p[1] = _t4;

@@ -22,8 +22,10 @@ void f_grad_1(const Double_t* x, Double_t* p, Double_t *_d_p);
 
 // CHECK: void f_grad_1(const Double_t *x, Double_t *p, Double_t *_d_p) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d_p[0] += 1;
-// CHECK-NEXT:         _d_p[1] += x[0] * 1;
+// CHECK-NEXT:         if (_d_p)
+// CHECK-NEXT:            _d_p[0] += 1;
+// CHECK-NEXT:         if (_d_p)
+// CHECK-NEXT:            _d_p[1] += x[0] * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

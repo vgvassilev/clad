@@ -499,7 +499,8 @@ double func2(S s) {
 }
 
 // CHECK:  void func2_pullback(S s, double _d_y, S *_d_s) {
-// CHECK-NEXT:      (*_d_s).a[2] += _d_y;
+// CHECK-NEXT:      if ((*_d_s).a)
+// CHECK-NEXT:        (*_d_s).a[2] += _d_y;
 // CHECK-NEXT:  }
 
 double fn9(S& s) {

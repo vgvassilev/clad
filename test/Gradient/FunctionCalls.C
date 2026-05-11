@@ -174,12 +174,14 @@ float sum(double* arr, int n) {
 // CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d1 = _d_arr[0];
-// CHECK-NEXT:         _d_arr[0] += 10 * _r_d1;
+// CHECK-NEXT:         if (_d_arr)
+// CHECK-NEXT:            _d_arr[0] += 10 * _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         float _r_d0 = _d_res;
-// CHECK-NEXT:         _d_arr[i] += _r_d0;
+// CHECK-NEXT:         if (_d_arr)
+// CHECK-NEXT:            _d_arr[i] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -226,7 +228,8 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d1 = _d_res;
-// CHECK-NEXT:             _d_arr[i] += _r_d1;
+// CHECK-NEXT:             if (_d_arr)
+// CHECK-NEXT:                _d_arr[i] += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             arr[i] = clad::pop(_t1);
@@ -258,8 +261,10 @@ double modify2(double* arr) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_arr[0];
 // CHECK-NEXT:         _d_arr[0] = 0.;
-// CHECK-NEXT:         _d_arr[0] += 5 * _r_d0;
-// CHECK-NEXT:         _d_arr[1] += _r_d0;
+// CHECK-NEXT:         if (_d_arr)
+// CHECK-NEXT:            _d_arr[0] += 5 * _r_d0;
+// CHECK-NEXT:         if (_d_arr)
+// CHECK-NEXT:            _d_arr[1] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -272,7 +277,8 @@ double fn5(double* arr, int n) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     double _d_temp = 0.;
 // CHECK-NEXT:     double temp = modify2_reverse_forw(arr, _d_arr, _tracker0);
-// CHECK-NEXT:     _d_arr[0] += 1;
+// CHECK-NEXT:     if (_d_arr)
+// CHECK-NEXT:        _d_arr[0] += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:       _tracker0.restore();
 // CHECK-NEXT:       modify2_pullback(arr, _d_temp, _d_arr);
@@ -527,7 +533,8 @@ double do_nothing(double* u, double* v, double* w) {
 }
 
 // CHECK: void do_nothing_pullback(double *u, double *v, double *w, double _d_y, double *_d_u, double *_d_v, double *_d_w) {
-// CHECK-NEXT:     _d_u[0] += _d_y;
+// CHECK-NEXT:     if (_d_u)
+// CHECK-NEXT:        _d_u[0] += _d_y;
 // CHECK-NEXT: }
 
 double fn12(double x, double y) {
@@ -544,8 +551,10 @@ double multiply(double* a, double* b) {
 
 // CHECK: void multiply_pullback(double *a, double *b, double _d_y, double *_d_a, double *_d_b) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d_a[0] += _d_y * b[0];
-// CHECK-NEXT:         _d_b[0] += a[0] * _d_y;
+// CHECK-NEXT:         if (_d_a)
+// CHECK-NEXT:            _d_a[0] += _d_y * b[0];
+// CHECK-NEXT:         if (_d_b)
+// CHECK-NEXT:            _d_b[0] += a[0] * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -662,7 +671,8 @@ double add(double a, const double* b) {
 //CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a, double *_d_b) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_a += _d_y;
-//CHECK-NEXT:         _d_b[0] += _d_y;
+// CHECK-NEXT:        if (_d_b)
+//CHECK-NEXT:           _d_b[0] += _d_y;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
@@ -867,7 +877,8 @@ double inner_func(double *params, double const *constants) {
 // CHECK-NOT: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params, double *_d_constants) {
 
 // CHECK: void inner_func_pullback(double *params, const double *constants, double _d_y, double *_d_params) {
-// CHECK-NEXT:     _d_params[0] += _d_y * constants[0];
+// CHECK-NEXT:     if (_d_params)
+// CHECK-NEXT:        _d_params[0] += _d_y * constants[0];
 // CHECK-NEXT: }
 
 double fn26(double *params, double const *constants) {
@@ -1026,8 +1037,10 @@ void foo(double *x) {
 // CHECK-NEXT:         x[0] = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_x[0];
 // CHECK-NEXT:         _d_x[0] = 0.;
-// CHECK-NEXT:         _d_x[0] += _r_d0 * x[0];
-// CHECK-NEXT:         _d_x[0] += x[0] * _r_d0;
+// CHECK-NEXT:         if (_d_x)
+// CHECK-NEXT:            _d_x[0] += _r_d0 * x[0];
+// CHECK-NEXT:         if (_d_x)
+// CHECK-NEXT:            _d_x[0] += x[0] * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1040,8 +1053,10 @@ double fn29(double *x) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     foo_reverse_forw(x, _d_x, _tracker0);
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d_x[0] += 1 * x[1];
-// CHECK-NEXT:         _d_x[1] += x[0] * 1;
+// CHECK-NEXT:         if (_d_x)
+// CHECK-NEXT:            _d_x[0] += 1 * x[1];
+// CHECK-NEXT:         if (_d_x)
+// CHECK-NEXT:            _d_x[1] += x[0] * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
@@ -1071,7 +1086,8 @@ inline double flexibleInterp(double const *params, const double *high) {
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         double _r_d0 = _d_total;
-// CHECK-NEXT:         _d_params[i] += _r_d0;
+// CHECK-NEXT:         if (_d_params)
+// CHECK-NEXT:            _d_params[i] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1144,11 +1160,14 @@ void fast_interp(double const *coefs, double const *sum_param, double const *dif
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_out[0];
 // CHECK-NEXT:         _d_x += _r_d0 * (diff[0] + x * sum0[0]);
-// CHECK-NEXT:         _d_diff[0] += x * _r_d0;
+// CHECK-NEXT:         if (_d_diff)
+// CHECK-NEXT:            _d_diff[0] += x * _r_d0;
 // CHECK-NEXT:         _d_x += x * _r_d0 * sum0[0];
-// CHECK-NEXT:         _d_sum[0] += x * x * _r_d0;
+// CHECK-NEXT:         if (_d_sum)
+// CHECK-NEXT:            _d_sum[0] += x * x * _r_d0;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _d_coefs[0] += _d_x;
+// CHECK-NEXT:     if (_d_coefs)
+// CHECK-NEXT:        _d_coefs[0] += _d_x;
 // CHECK-NEXT: }
 
 double fn32(double *params) {
@@ -1169,7 +1188,8 @@ double fn32(double *params) {
 // CHECK-NEXT:     fast_interp(t3, xlArr, xlArr + 1, t2);
 // CHECK-NEXT:     _d_t2[0] += 1;
 // CHECK-NEXT:     fast_interp_pullback(t3, xlArr, xlArr + 1, t2, _d_t3, _d_xlArr, _d_xlArr + 1, _d_t2);
-// CHECK-NEXT:     _d_params[0] += _d_t3[0];
+// CHECK-NEXT:     if (_d_params)
+// CHECK-NEXT:        _d_params[0] += _d_t3[0];
 // CHECK-NEXT: }
 
 double iden_func(double x) { return x; }
@@ -1202,7 +1222,8 @@ void inner_fn(double const *coefs, double *out) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         _r0 += _d_b * iden_func_pushforward(coefs[0], 1.).pushforward;
-// CHECK-NEXT:         _d_coefs[0] += _r0;
+// CHECK-NEXT:         if (_d_coefs)
+// CHECK-NEXT:            _d_coefs[0] += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1444,8 +1465,10 @@ double fn25_defined_later(double x) {
 
 // CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d_x[0] += w[0] * _d_y;
-// CHECK-NEXT:         _d_x[1] += w[1] * _d_y;
+// CHECK-NEXT:         if (_d_x)
+// CHECK-NEXT:            _d_x[0] += w[0] * _d_y;
+// CHECK-NEXT:         if (_d_x)
+// CHECK-NEXT:            _d_x[1] += w[1] * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1466,6 +1489,7 @@ double fn25_defined_later(double x) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         total = clad::pop(_t1);
 // CHECK-NEXT:         double _r_d0 = _d_total;
-// CHECK-NEXT:         _d_params[i] += _r_d0;
+// CHECK-NEXT:         if (_d_params)
+// CHECK-NEXT:            _d_params[i] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
