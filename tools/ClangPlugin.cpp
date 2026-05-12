@@ -157,6 +157,10 @@ void InitTimers();
       auto& MultiplexC = cast<MultiplexConsumer>(m_CI.getASTConsumer());
       auto& RobbedCs = ACCESS(MultiplexC, Consumers);
       assert(RobbedCs.front().get() == this && "Clad is not the first consumer");
+      if (m_CI.getPreprocessor().isIncrementalProcessingEnabled()) {
+        std::swap(RobbedCs.front(), RobbedCs.back());
+        return;
+      }
       std::vector<std::unique_ptr<ASTConsumer>> StolenConsumers;
 
       // The range-based for loop in MultiplexConsumer::Initialize has
@@ -445,8 +449,6 @@ void InitTimers();
     }
 
     void CladPlugin::SendToMultiplexer() {
-      if (!m_Multiplexer)
-        return;
       for (unsigned i = m_MultiplexerProcessedDelayedCallsIdx;
            i < m_DelayedCalls.size(); ++i) {
         auto DelayedCall = m_DelayedCalls[i];
@@ -623,8 +625,7 @@ void InitTimers();
         FinalizeTranslationUnit();
         SendToMultiplexer();
       }
-      if (m_Multiplexer)
-        m_Multiplexer->HandleTranslationUnit(C);
+      m_Multiplexer->HandleTranslationUnit(C);
     }
 
     void CladPlugin::PrintStats() {
