@@ -148,15 +148,13 @@ void InitTimers();
                  std::vector<std::unique_ptr<ASTConsumer>>);
 
     void CladPlugin::Initialize(clang::ASTContext& C) {
-      if (m_CI.getPreprocessor().isIncrementalProcessingEnabled())
-        return;
       // We know we have a multiplexer. We commit a sin here by stealing it and
       // making the consumer pass-through so that we can delay all operations
       // until clad is happy.
 
       auto& MultiplexC = cast<MultiplexConsumer>(m_CI.getASTConsumer());
       auto& RobbedCs = ACCESS(MultiplexC, Consumers);
-      assert(RobbedCs.front().get() == this && "Clad is not the first consumer");
+      assert(RobbedCs.back().get() == this && "Clad is not the last consumer");
       if (m_CI.getPreprocessor().isIncrementalProcessingEnabled()) {
         std::swap(RobbedCs.front(), RobbedCs.back());
         return;
@@ -167,9 +165,9 @@ void InitTimers();
       // dispatched this call. Generally, it is unsafe to delete elements while
       // iterating but we know we are in the end of the loop and ::end() won't
       // be invalidated.
-      std::move(RobbedCs.begin() + 1, RobbedCs.end(),
+      std::move(RobbedCs.begin(), RobbedCs.end() - 1,
                 std::back_inserter(StolenConsumers));
-      RobbedCs.erase(RobbedCs.begin() + 1, RobbedCs.end());
+      RobbedCs.erase(RobbedCs.begin(), RobbedCs.end() - 1);
       m_Multiplexer.reset(new MultiplexConsumer(std::move(StolenConsumers)));
     }
 
