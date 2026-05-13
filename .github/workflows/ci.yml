@@ -102,6 +102,7 @@ jobs:
 
           - name: selfh-ubu22-gcc12-runtime19-analyzers
             os: [self-hosted, cuda, heavy]
+            self-hosted-os: ubuntu-22.04
             compiler: gcc-12
             clang-runtime: '19'
             coverage: true
@@ -126,6 +127,7 @@ jobs:
 
           - name: selfh-ubu22-clang16-runtime18-cuda
             os: [self-hosted, cuda, heavy]
+            self-hosted-os: ubuntu-22.04
             runs-on: cuda
             compiler: clang-16
             extra_cmake_options: '-DCLAD_CUDA_TEST_USE_SANITIZER=On'
@@ -233,35 +235,25 @@ jobs:
           fi
         fi
         echo "ncpus=$ncpus" >> $GITHUB_ENV
-    - name: Setup Ubuntu apt sources
-      if: runner.os == 'Linux'
+    - name: Setup LLVM ${{ matrix.clang-runtime }}
+      if: runner.os != 'Windows' && matrix.debug_build != true
+      uses: compiler-research/ci-workflows/actions/setup-llvm@main
+      with:
+        version: ${{ matrix.clang-runtime }}
+        os:      ${{ matrix.self-hosted-os || matrix.os }}
+        flavor:  system
+
+    - name: Install extra Linux deps
+      # debug_build rows skip setup-llvm and never get apt-llvm.org, so
+      # libomp-N-dev past the noble archive cap is unreachable. OpenMP
+      # lit tests then skip on the debug row; other rows still cover them.
+      if: runner.os == 'Linux' && matrix.debug_build != true
       run: |
-        #Bypass the broken regional mirror immediately
-        sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list
-        sudo apt-get update -qq
-        
-        export ARCHITECHURE=$(uname -m)
-        
-        if [[ "$ARCHITECHURE" == "x86_64" ]]; then
-          if ! sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev ; then
-            curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-            os_codename="`cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2`"
-            echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
-            sudo apt update
-          fi
-        else
-          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/llvm-snapshot.gpg
-          sudo chmod a+r /etc/apt/keyrings/llvm-snapshot.gpg
-          echo   "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/"$(. /etc/os-release && echo "$VERSION_CODENAME")"/ llvm-toolchain-"$(. /etc/os-release && echo "$VERSION_CODENAME")" main" | sudo tee /etc/apt/sources.list.d/llvm-snapshot.list > /dev/null
-          echo   "deb-src [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/"$(. /etc/os-release && echo "$VERSION_CODENAME")"/ llvm-toolchain-"$(. /etc/os-release && echo "$VERSION_CODENAME")" main" | sudo tee -a /etc/apt/sources.list.d/llvm-snapshot.list > /dev/null
-          cat /etc/apt/sources.list.d/llvm-snapshot.list
-        fi        
-        sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev \
-                         llvm-${{ matrix.clang-runtime }}-tools \
-                         clang-${{ matrix.clang-runtime }} \
-                         libclang-${{ matrix.clang-runtime }}-dev \
-                         libomp-${{ matrix.clang-runtime }}-dev \
-                         ${{ matrix.extra_packages }}
+        # setup-llvm covers llvm-N-dev + clang-N + libclang-N-dev +
+        # libclang-rt-N-dev. Pick up libomp and per-row extras here.
+        # cmake is preinstalled on github-hosted ubuntu-24.04 but absent
+        # from catthehacker/ubuntu:act-24.04; install it so bin/repro works.
+        sudo apt install -y cmake libomp-${{ matrix.clang-runtime }}-dev ${{ matrix.extra_packages }}
 
     - name: Setup compiler on Linux
       if: runner.os == 'Linux'
@@ -321,76 +313,15 @@ jobs:
           echo "Unsupported compiler - fix YAML file"
         }
 
-    - name: Setup LLVM/Clang on macOS
+    - name: Setup LLVM extras on macOS
       if: runner.os == 'macOS'
       run: |
-        # llvm <=@11 are deprecated or deleted.
-        # Install llvm from github releases.
-        if [[ ${{ matrix.clang-runtime }} -le 11 ]]; then
-          PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
-          pushd /usr/local/opt
-          q="0"
-          sudo rm -fr /usr/local/clang*
-          sudo mv clang+llvm-${{ matrix.clang-runtime }}.$q.$w-x86_64-apple-darwin/ llvm@${{ matrix.clang-runtime }}/
-          # Use llvm/llvm@10/llvm@6 Filecheck
-          if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
-            if [[ -f /usr/local/opt/llvm/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            elif [[ -f /usr/local/opt/llvm\@10/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm\@10/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            elif [[ -f /usr/local/opt/llvm\@6/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            fi
-          fi
-          popd
-        fi
-
-        if [[ ${{ matrix.clang-runtime }} -gt 11 ]]; then
-          # If the version of clang is in brew then install it.
-          HAVE_LLVM=$(brew info --json llvm | jq -r '.[].aliases[],.[].versioned_formulae[]' | grep llvm@${{ matrix.clang-runtime }} || true)
-          if [[ -z "$HAVE_LLVM" ]]; then
-            brew update
-            HAVE_LLVM=$(brew info --json llvm | jq -r '.[].aliases[],.[].versioned_formulae[]' | grep llvm@${{ matrix.clang-runtime }} || true)
-          fi
-
-          if [[ -n "$HAVE_LLVM" ]]; then
-            # || true is a workaround for https://github.com/actions/runner-images/issues/9966
-            brew install llvm@${{ matrix.clang-runtime }} || true
-            PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
-          else
-            # FIXME: Make this generic. Currently this is broken...
-            sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.1.0/LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64.tar.xz | sudo xz -d -c | sudo tar -x
-            if [[ $(uname -p) == "arm" ]]; then
-              export PATH_TO_LLVM_BUILD=/opt/homebrew/llvm@${{ matrix.clang-runtime }}/
-            else
-              export PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
-            fi
-            sudo mv LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64 $PATH_TO_LLVM_BUILD
-            echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD"
-            ${PATH_TO_LLVM_BUILD}bin/clang --version
-          fi
-        else
-          # Remove the c++ headers that come with the llvm package from homebrew
-          # allowing clang to work with system's SDK.
-          sudo rm -fr /usr/local/opt/llvm*/include/c++
-        fi
-
+        # setup-llvm ran `brew install llvm@N` above; pick the prefix
+        # and copy SDK headers into /usr/local/include/ (ln fails on
+        # macOS-arm runners, so we copy).
         PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
-
-        pip3 install lit # LLVM lit is not part of the llvm releases...
-
-        # We need headers in correct place
-        #FIXME: ln solution fails with error message No such file or directory on osx arm, 
-        #Copying over files as a temporary solution
+        pip3 install lit
         sudo cp -r -n $(xcrun --show-sdk-path)/usr/include/ /usr/local/include/
-        #for file in $(xcrun --show-sdk-path)/usr/include/*
-        #do
-        #  if [ ! -f /usr/local/include/$(basename $file) ]; then
-        #    echo ${file}
-        #    ln -s ${file} /usr/local/include/$(basename $file)
-        #  fi
-        #done
-        # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
 
     - name: Restore Cache LLVM/Clang runtime build directory (debug_build==true)
