@@ -26,6 +26,7 @@
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Lex/LexDiagnostic.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 
@@ -155,7 +156,10 @@ void InitTimers();
       auto& MultiplexC = cast<MultiplexConsumer>(m_CI.getASTConsumer());
       auto& RobbedCs = ACCESS(MultiplexC, Consumers);
       assert(RobbedCs.back().get() == this && "Clad is not the last consumer");
-      if (m_CI.getPreprocessor().isIncrementalProcessingEnabled()) {
+      const auto& Macros = m_CI.getPreprocessorOpts().Macros;
+      const bool IsCling = llvm::any_of(
+          Macros, [](const auto& Macro) { return Macro.first == "__CLING__"; });
+      if (IsCling && m_CI.getPreprocessor().isIncrementalProcessingEnabled()) {
         std::swap(RobbedCs.front(), RobbedCs.back());
         return;
       }
