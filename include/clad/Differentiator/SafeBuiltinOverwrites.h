@@ -1,8 +1,9 @@
 #ifndef CLAD_SAFE_BUILTIN_OVERRIDES_H
 #define CLAD_SAFE_BUILTIN_OVERRIDES_H
 
-//#include "clad/Differentiator/ValueAndPushforward.h"
-
+#ifndef CLAD_SAFE_MATH // Must be defined here or when compiling to enable safe math functions and pushforwards. 
+#define CLAD_SAFE_MATH //It is not defined by default to avoid performance overhead in cases where it is not needed.
+#endif
 
 #include <cmath>
 #include <cstdio>
@@ -10,9 +11,19 @@
 #include <algorithm>
 
 namespace clad {
-    
 
+template <typename T, typename U> struct ValueAndPushforward {
+  T value;
+  U pushforward;
 
+  // Define the cast operator from ValueAndPushforward<T, U> to
+  // ValueAndPushforward<V, w> where V is convertible to T and W is
+  // convertible to U.
+  template <typename V = T, typename W = U>
+  operator ValueAndPushforward<V, W>() const {
+    return {static_cast<V>(value), static_cast<W>(pushforward)};
+  }
+};
 // Warning helpers
 
 #ifdef CLAD_SAFE_MATH
@@ -186,6 +197,66 @@ safe_log_pushforward(T x, dT d_x) {
 
 template<typename T, typename dT>
 inline ValueAndPushforward<T,dT>
+safe_log10_pushforward(T x, dT d_x) {
+
+#ifdef CLAD_SAFE_MATH
+    if (x <= 0) {
+        warn_domain("log10_pushforward", x);
+        return {
+            std::numeric_limits<T>::quiet_NaN(),
+            std::numeric_limits<dT>::quiet_NaN()
+        };
+    }
+#endif
+
+    return {
+        std::log10(x),
+        (1.0 / (x * std::log(10))) * d_x
+    };
+}
+
+template<typename T, typename dT>
+inline ValueAndPushforward<T,dT>
+safe_log2_pushforward(T x, dT d_x) {
+
+#ifdef CLAD_SAFE_MATH
+    if (x <= 0) {
+        warn_domain("log2_pushforward", x);
+        return {
+            std::numeric_limits<T>::quiet_NaN(),
+            std::numeric_limits<dT>::quiet_NaN()
+        };
+    }
+#endif
+
+    return {
+        std::log2(x),
+        (1.0 / (x * std::log(2))) * d_x
+    };
+}
+
+template<typename T, typename dT>
+inline ValueAndPushforward<T,dT>
+safe_log1p_pushforward(T x, dT d_x) {
+
+#ifdef CLAD_SAFE_MATH
+    if (x <= -1.0) {
+        warn_domain("log1p_pushforward", x);
+        return {
+            std::numeric_limits<T>::quiet_NaN(),
+            std::numeric_limits<dT>::quiet_NaN()
+        };
+    }
+#endif
+
+    return {
+        std::log1p(x),
+        (1.0 / (x + 1.0)) * d_x
+    };
+}
+
+template<typename T, typename dT>
+inline ValueAndPushforward<T,dT>
 safe_acos_pushforward(T x, dT d_x) {
 
 #ifdef CLAD_SAFE_MATH
@@ -226,6 +297,23 @@ safe_asin_pushforward(T x, dT d_x) {
 
 template<typename T, typename dT>
 inline ValueAndPushforward<T,dT>
+safe_acosh_pushforward(T x, dT d_x) {
+
+#ifdef CLAD_SAFE_MATH
+    if (x < 1) {
+        warn_domain("acosh_pushforward", x);
+        return {
+            std::numeric_limits<T>::quiet_NaN(),
+            std::numeric_limits<dT>::quiet_NaN()
+        };
+    }
+#endif
+
+    return {::std::acosh(x), d_x / ::std::sqrt(x * x - 1)};
+}
+
+template<typename T, typename dT>
+inline ValueAndPushforward<T,dT>
 safe_atanh_pushforward(T x, dT d_x) {
 
 #ifdef CLAD_SAFE_MATH
@@ -238,10 +326,7 @@ safe_atanh_pushforward(T x, dT d_x) {
     }
 #endif
 
-    return {
-        std::atanh(x),
-        (1.0 / (1 - x*x)) * d_x
-    };
+    return {::std::atanh(x), d_x / (1 - x * x)};
 }
 
 //Pullbacks
@@ -250,7 +335,7 @@ template<typename T, typename dT>
 inline void safe_sqrt_pullback(T x, dT d_y, dT* d_x) {
 
 #ifdef CLAD_SAFE_MATH
-    if (x < 0) {
+    if (x <= 0) {
         warn_domain("sqrt_pullback", x);
         *d_x += std::numeric_limits<dT>::quiet_NaN();
         return;
