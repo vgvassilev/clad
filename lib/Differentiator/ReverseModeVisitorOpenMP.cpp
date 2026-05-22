@@ -521,8 +521,8 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
     llvm::SaveAndRestore<bool> SaveisInsideOMPBlock(isInsideOMPBlock);
     isInsideOMPBlock = true;
 
-    CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPRegionStart(OMPD_parallel,
-                                                                  nullptr);
+    CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPRegionStart(
+        OMPD_parallel, getCurrentScope());
     StmtDiff BodyDiff;
     {
       Sema::CompoundScopeRAII CompoundScope(m_Sema);
@@ -537,8 +537,8 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
                         .ActOnOpenMPRegionEnd(BodyDiff.getStmt(), OrigClauses)
                         .get();
 
-    CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPRegionStart(OMPD_parallel,
-                                                                  nullptr);
+    CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPRegionStart(
+        OMPD_parallel, getCurrentScope());
     // Visit twice, but use only the result of the first visit, for capture
     // variables only.
     {
@@ -549,7 +549,17 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
         const auto* FS = cast<ForStmt>(CS);
         DifferentiateCanonicalLoop(FS);
       } else {
-        Visit(CS);
+        StmtDiff SecondDiff = Visit(CS);
+        auto& II = m_Context.Idents.get("_clad_reverse_guard");
+        DeclarationNameInfo CritDirName(DeclarationName(&II), D->getBeginLoc());
+        llvm::SmallVector<OMPClause*, 0> NoClauses;
+        Stmt* ProtectedReverse =
+            CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema)
+                .ActOnOpenMPExecutableDirective(
+                    OMPD_critical, CritDirName, OMPD_unknown, NoClauses,
+                    SecondDiff.getStmt_dx(), D->getBeginLoc(), D->getEndLoc())
+                .get();
+        BodyDiff = {BodyDiff.getStmt(), ProtectedReverse};
       }
       m_Globals.swap(temp);
     }
@@ -573,6 +583,15 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
                                               AssociatedSDiff.getStmt_dx(),
                                               D->getBeginLoc(), D->getEndLoc())
               .get()};
+}
+StmtDiff
+ReverseModeVisitor::VisitOMPParallelDirective(const OMPParallelDirective* D) {
+  DeclarationNameInfo DirName;
+  CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).StartOpenMPDSABlock(
+      OMPD_parallel, DirName, nullptr, D->getBeginLoc());
+  StmtDiff SDiff = VisitOMPExecutableDirective(D);
+  CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPDSABlock(SDiff.getStmt());
+  return SDiff;
 }
 StmtDiff ReverseModeVisitor::VisitOMPParallelForDirective(
     const OMPParallelForDirective* D) {
