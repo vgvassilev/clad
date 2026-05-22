@@ -816,6 +816,33 @@ double fn20(const double* x, int n) {
 // CHECK-NEXT:          }
 // CHECK-NEXT:  }
 
+double fn21(const double *x, int n) {
+    double result = 0;
+    #pragma omp parallel reduction(+:result)
+    {
+        result += x[0] * x[0];
+    }
+    return result;
+}
+
+// CHECK:  void fn21_grad(const double *x, int n, double *_d_x, int *_d_n) {
+// CHECK-NEXT:      double _d_result = 0.;
+// CHECK-NEXT:      double result = 0;
+// CHECK-NEXT:      #pragma omp parallel reduction(+: result)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              result += x[0] * x[0];
+// CHECK-NEXT:          }
+// CHECK-NEXT:      _d_result += 1;
+// CHECK-NEXT:      #pragma omp parallel private(result) firstprivate(_d_result)
+// CHECK-NEXT:          {
+// CHECK-NEXT:              {
+// CHECK-NEXT:                  double _r_d1 = _d_result;
+// CHECK-NEXT:                  _d_x[0] += _r_d1 * x[0];
+// CHECK-NEXT:                  _d_x[0] += x[0] * _r_d1;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
 template <size_t N>
 void reset(double (&arr)[N], double val = 0) {
   for (size_t i = 0; i < N; ++i)
@@ -924,5 +951,11 @@ int main() {
   auto fn20_grad = clad::gradient(fn20);
   fn20_grad.execute(x, 4, dx, &dn);
   printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {4.00, 6.00, 8.00, 10.00}
+
+  omp_set_num_threads(2);
+  reset(dx);
+  auto fn21_grad = clad::gradient(fn21);
+  fn21_grad.execute(x, 4, dx, &dn);
+  printf("{%.2f}\n", dx[0]); // CHECK-EXEC: {8.00}
   return 0;
 }
