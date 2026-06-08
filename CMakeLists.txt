@@ -37,12 +37,12 @@ set(CMAKE_MODULE_PATH
   )
 
 # Define clad supported version of clang and llvm.
-set(CLANG_MIN_SUPPORTED 11.0)
-set(CLANG_MAX_SUPPORTED "21.2.x")
-set(CLANG_VERSION_UPPER_BOUND 21.2.0)
-set(LLVM_MIN_SUPPORTED 11.0)
-set(LLVM_MAX_SUPPORTED "21.2.x")
-set(LLVM_VERSION_UPPER_BOUND 21.2.0)
+set(CLANG_MIN_SUPPORTED 12.0)
+set(CLANG_MAX_SUPPORTED "22.2.x")
+set(CLANG_VERSION_UPPER_BOUND 22.2.0)
+set(LLVM_MIN_SUPPORTED 12.0)
+set(LLVM_MAX_SUPPORTED "22.2.x")
+set(LLVM_VERSION_UPPER_BOUND 22.2.0)
 
 # If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:
@@ -186,6 +186,13 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
   add_definitions(${LLVM_DEFINITIONS})
+
+  # LLVM 22 sets _GLIBCXX_USE_CXX11_ABI twice (HandleLLVMOptions +
+  # LLVMConfig), which trips -Werror=macro-redefined. Suppress that
+  # specific warning -- it's an upstream duplication, not a code bug.
+  if (LLVM_VERSION_MAJOR GREATER_EQUAL 22)
+    add_compile_options(-Wno-macro-redefined)
+  endif()
 
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/)

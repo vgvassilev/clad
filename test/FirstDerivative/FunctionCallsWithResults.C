@@ -360,7 +360,7 @@ double fn10(double x) {
 // CHECK-NEXT:   std::mt19937 gen64;
 // CHECK-NEXT:   std::uniform_real_distribution<{{(double)?}}> _d_distribution{0., 0.};
 // CHECK-NEXT:   std::uniform_real_distribution<{{(double)?}}> distribution{0., 1.};
-// CHECK-NEXT:   clad::ValueAndPushforward<result_type, result_type> _t0 = distribution.operator_call_pushforward(gen64, &_d_distribution, _d_gen64);
+// CHECK-NEXT:   clad::ValueAndPushforward<{{(result_type|double)}}, {{(result_type|double)}}> _t0 = distribution.operator_call_pushforward(gen64, &_d_distribution, _d_gen64);
 // CHECK-NEXT:   double _d_rand = _t0.pushforward;
 // CHECK-NEXT:   double rand0 = _t0.value;
 // CHECK-NEXT:   return _d_x + _d_rand;

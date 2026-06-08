@@ -8,7 +8,12 @@
 #define CLANG_BACKEND_PLUGIN_H
 
 #include "llvm/IR/PassManager.h"
+// LLVM 22 moved PassPlugin.h from Passes/ to Plugins/.
+#if CLANG_VERSION_MAJOR < 22
 #include "llvm/Passes/PassPlugin.h"
+#else
+#include "llvm/Plugins/PassPlugin.h"
+#endif
 
 namespace clad {
 

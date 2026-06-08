@@ -117,11 +117,7 @@ void InitTimers();
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
       CodeGenOptions& CGOpts = m_CI.getCodeGenOpts();
-#if CLANG_VERSION_MAJOR > 11
       bool WantTiming = CGOpts.TimePasses;
-#else
-      bool WantTiming = m_CI.getFrontendOpts().ShowTimers;
-#endif
 
       if (WantTiming || getenv("CLAD_ENABLE_TIMING"))
         InitTimers();

@@ -295,10 +295,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       assert(!codeArgIdx && "We found the index of the code argument!");
       return;
     }
-    // Update the code parameter if it was found.
-    clang::LangOptions LangOpts;
-    LangOpts.CPlusPlus = true;
-    clang::PrintingPolicy Policy(LangOpts);
+    // Update the code parameter if it was found. Use the context's
+    // PrintingPolicy so DeclRefExpr / NestedNameSpecifier print the same
+    // as the rest of the translation unit -- a fresh PrintingPolicy
+    // built from a default-LangOptions object yields stricter defaults
+    // on LLVM 22 (notably for unwritten-scope decisions), which then
+    // makes locals print qualified as `::name` even though their DRE
+    // carries no qualifier.
+    clang::PrintingPolicy Policy = C.getPrintingPolicy();
     Policy.Bool = true;
 
     std::string s;
