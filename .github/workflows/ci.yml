@@ -17,44 +17,10 @@ jobs:
     name: Activate self-host infrastructure
     runs-on: [self-hosted, spotter]
     steps:
-      - name: Send Magic Packet
-        env:
-          TARGET_IP: 192.168.100.30
-          MAC_ADDR: a4:bb:6d:51:d5:d2
-          # The container has no ping, emulate it.
-        run: |
-          # Mask the IP and potential broadcast to keep logs clean
-          echo "::add-mask::$MAC_ADDR"
-          echo "::add-mask::$BROADCAST"
-          echo "::add-mask::$TARGET_IP"
-          BROADCAST=$(echo $TARGET_IP | sed 's/\.[0-9]*$/ .255/' | tr -d ' ')
-          PING="timeout 1 bash -c 'cat < /dev/null > /dev/tcp/$TARGET_IP/22' 2>/dev/null"
-
-          # Install tool silently
-          sudo apt-get update -qq && sudo apt-get install -y -qq wakeonlan > /dev/null
-
-          # Check if already awake (using the Bash TCP PING variable)
-          if eval "$PING"; then
-            echo "Target machine is already awake. Exiting."
-            exit 0
-          fi
-
-          # If offline, send WoL
-          echo "Machine is offline. Sending WoL..."
-          wakeonlan -i $BROADCAST $MAC_ADDR > /dev/null
-
-          # Wait & Verify Loop (checks every 10s for 4 minutes)
-          echo "Waiting for response (checking Port 22)..."
-          for i in {1..24}; do
-            if eval "$PING"; then
-              echo "Machine is online and SSH is ready."
-              exit 0
-            fi
-            sleep 10
-          done
-
-          echo "Error: Target hardware did not respond within the timeout period."
-          exit 1
+      - uses: compiler-research/ci-workflows/actions/wake-on-lan@main
+        with:
+          mac: a4:bb:6d:51:d5:d2
+          target-host: 192.168.100.30
 
   build:
     timeout-minutes: 600 # If some self-host machine is not available
@@ -100,17 +66,6 @@ jobs:
             clang-runtime: '21'
             debug_build: true
 
-          - name: selfh-ubu22-gcc12-runtime19-analyzers
-            os: [self-hosted, cuda, heavy]
-            self-hosted-os: ubuntu-22.04
-            compiler: gcc-12
-            clang-runtime: '19'
-            coverage: true
-            cuda: true
-            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On -DCLAD_CUDA_TEST_USE_SANITIZER=On'
-            extra_packages: ' libzstd-dev '
-            #clang-format: true
-
           - name: ubu24-gcc13-runtime20-benchmarks
             os: ubuntu-24.04
             compiler: gcc-13
@@ -123,15 +78,6 @@ jobs:
             os: ubuntu-22.04
             compiler: clang-13
             clang-runtime: '13'
-            cuda: true
-
-          - name: selfh-ubu22-clang16-runtime18-cuda
-            os: [self-hosted, cuda, heavy]
-            self-hosted-os: ubuntu-22.04
-            runs-on: cuda
-            compiler: clang-16
-            extra_cmake_options: '-DCLAD_CUDA_TEST_USE_SANITIZER=On'
-            clang-runtime: '18'
             cuda: true
 
           - name: ubuntu-clang15-runtime16-doc
@@ -178,7 +124,7 @@ jobs:
             compiler: clang-16
             clang-runtime: '18'
 
-    steps:
+    steps: &build_steps
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -530,6 +476,24 @@ jobs:
           -DLLVM_EXTERNAL_LIT="`which lit`" \
           ..
         cmake --build . --target sphinx-clad doxygen-clad -- -j${{ env.ncpus }}
+    - name: Show reproduce-locally hint
+      if: ${{ failure() }}
+      shell: bash
+      env:
+        REPO: ${{ github.repository }}
+        REPO_NAME: ${{ github.event.repository.name }}
+        SHA: ${{ github.sha }}
+        ROW: ${{ matrix.name }}
+      run: |
+        echo "::group::Reproduce this failure locally (requires Docker + nektos/act)"
+        cat <<EOF
+            git clone https://github.com/compiler-research/ci-workflows.git
+            git clone https://github.com/$REPO.git
+            cd $REPO_NAME
+            git checkout $SHA
+            ../ci-workflows/bin/repro $ROW
+        EOF
+        echo "::endgroup::"
     - name: Failed job config
       if: ${{ failure() && runner.debug && runner.os != 'windows' }}
       env:
@@ -579,3 +543,35 @@ jobs:
         fail_ci_if_error: true
         verbose: true
         token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Self-hosted CUDA rows. Separate job so `prepare-dell` gates only
+  # what depends on the dell; the hosted-runner matrix in `build` runs
+  # without waiting. Step list shared via the &build_steps anchor.
+  build-selfhost:
+    needs: prepare-dell
+    timeout-minutes: 600 # If the dell is slow to come back up.
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: selfh-ubu22-gcc12-runtime19-analyzers
+            os: [self-hosted, cuda, heavy]
+            self-hosted-os: ubuntu-22.04
+            compiler: gcc-12
+            clang-runtime: '19'
+            coverage: true
+            cuda: true
+            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On -DCLAD_CUDA_TEST_USE_SANITIZER=On'
+            extra_packages: ' libzstd-dev '
+
+          - name: selfh-ubu22-clang16-runtime18-cuda
+            os: [self-hosted, cuda, heavy]
+            self-hosted-os: ubuntu-22.04
+            compiler: clang-16
+            extra_cmake_options: '-DCLAD_CUDA_TEST_USE_SANITIZER=On'
+            clang-runtime: '18'
+            cuda: true
+
+    steps: *build_steps
