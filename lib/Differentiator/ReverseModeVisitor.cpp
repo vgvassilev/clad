@@ -3568,16 +3568,51 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
-    auto baseDiff = Visit(ME->getBase());
+    const Expr* base = ME->getBase();
+    const Expr* unwrappedBase = base->IgnoreParenImpCasts();
+    while (true)
+      if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(unwrappedBase))
+        unwrappedBase = MTE->getSubExpr()->IgnoreParenImpCasts();
+      else if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(unwrappedBase))
+        unwrappedBase = BTE->getSubExpr()->IgnoreParenImpCasts();
+      else if (const auto* EWC = dyn_cast<ExprWithCleanups>(unwrappedBase))
+        unwrappedBase = EWC->getSubExpr()->IgnoreParenImpCasts();
+      else
+        break;
+
     auto* field = ME->getMemberDecl();
     assert(!isa<CXXMethodDecl>(field) &&
            "CXXMethodDecl nodes not supported yet!");
-    Expr* clonedME = baseDiff.getExpr();
     llvm::StringRef fieldName = field->getName();
-    if (baseDiff.getExpr() && !fieldName.empty())
-      clonedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                        baseDiff.getExpr(), fieldName);
-    if (clad::utils::hasNonDifferentiableAttribute(ME)) {
+    bool nonDiffMember = clad::utils::hasNonDifferentiableAttribute(ME);
+
+    if (!nonDiffMember && dfdx() && !base->isLValue() &&
+        base->getType()->isRecordType() && isa<CallExpr>(unwrappedBase) &&
+        !fieldName.empty()) {
+      QualType dBaseTy =
+          utils::getNonConstType(CloneType(base->getType()), m_Sema);
+      VarDecl* dBaseDecl = BuildVarDecl(dBaseTy, "_r", getZeroInit(dBaseTy));
+      addToCurrentBlock(BuildDeclStmt(dBaseDecl), direction::reverse);
+      DeclRefExpr* dBaseRef = BuildDeclRef(dBaseDecl);
+      Expr* derivedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                               dBaseRef, fieldName);
+      if (Expr* addAssign = BuildDiffIncrement(derivedME))
+        addToCurrentBlock(addAssign, direction::reverse);
+
+      auto baseDiff = Visit(base, dBaseRef);
+      Expr* clonedME = baseDiff.getExpr();
+      if (clonedME)
+        clonedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(), clonedME,
+                                          fieldName);
+      return {clonedME, derivedME};
+    }
+
+    auto baseDiff = Visit(base);
+    Expr* clonedME = baseDiff.getExpr();
+    if (clonedME && !fieldName.empty())
+      clonedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(), clonedME,
+                                        fieldName);
+    if (nonDiffMember) {
       auto* zero = ConstantFolder::synthesizeLiteral(ME->getType(), m_Context,
                                                      /*val=*/0);
       return {clonedME, zero};
