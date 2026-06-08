@@ -31,9 +31,8 @@ jobs:
       matrix:
 
         include:
-          # --- LINUX: Last 10 Runtimes (12-21) ---
+          # --- LINUX: Last 11 Runtimes (12-22) ---
           # Using Ubuntu 22.04 for older runtimes, 24.04 for newer ones
-          - { name: ubu22-gcc10-runtime11, os: ubuntu-22.04, compiler: gcc-10, clang-runtime: '11' }
           - { name: ubu22-gcc11-runtime12, os: ubuntu-22.04, compiler: gcc-11, clang-runtime: '12' }
           - { name: ubu22-clang13-runtime13, os: ubuntu-22.04, compiler: clang-13, clang-runtime: '13' }
           - { name: ubu24-gcc13-runtime14, os: ubuntu-24.04, compiler: gcc-13, clang-runtime: '14' }
@@ -44,6 +43,7 @@ jobs:
           - { name: ubu24-clang17-runtime19, os: ubuntu-24.04, compiler: clang-17, clang-runtime: '19' }
           - { name: ubu24-clang19-runtime20, os: ubuntu-24.04, compiler: clang-19, clang-runtime: '20' }
           - { name: ubu24-clang20-runtime21, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '21' }
+          - { name: ubu24-clang20-runtime22, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '22' }
           # --- MACOS: Last 5 Runtimes (17-21) ---
           # Using macOS ARM (standard) for all; Runtime 17 on Intel for x86 sanity
           - { name: osx-intel-runtime17, os: macos-15-intel, compiler: clang, clang-runtime: '17' }
@@ -181,25 +181,26 @@ jobs:
           fi
         fi
         echo "ncpus=$ncpus" >> $GITHUB_ENV
-    - name: Setup LLVM ${{ matrix.clang-runtime }}
+    - name: Setup LLVM ${{ matrix.clang-runtime }}${{ matrix.flavor && format(' [{0}]', matrix.flavor) || '' }}
       if: runner.os != 'Windows' && matrix.debug_build != true
       uses: compiler-research/ci-workflows/actions/setup-llvm@main
       with:
         version: ${{ matrix.clang-runtime }}
         os:      ${{ matrix.self-hosted-os || matrix.os }}
-        flavor:  system
+        flavor:  ${{ matrix.flavor || 'system' }}
 
     - name: Install extra Linux deps
-      # debug_build rows skip setup-llvm and never get apt-llvm.org, so
-      # libomp-N-dev past the noble archive cap is unreachable. OpenMP
-      # lit tests then skip on the debug row; other rows still cover them.
       if: runner.os == 'Linux' && matrix.debug_build != true
       run: |
-        # setup-llvm covers llvm-N-dev + clang-N + libclang-N-dev +
-        # libclang-rt-N-dev. Pick up libomp and per-row extras here.
         # cmake is preinstalled on github-hosted ubuntu-24.04 but absent
         # from catthehacker/ubuntu:act-24.04; install it so bin/repro works.
-        sudo apt install -y cmake libomp-${{ matrix.clang-runtime }}-dev ${{ matrix.extra_packages }}
+        sudo apt install -y cmake ${{ matrix.extra_packages }}
+        # libomp-N-dev: best-effort. apt-llvm.org lags on the latest
+        # major; recipe-flavor rows get libomp from the recipe build,
+        # not apt. When missing, OpenMP lit tests skip via REQUIRES.
+        if apt-cache show "libomp-${{ matrix.clang-runtime }}-dev" >/dev/null 2>&1; then
+          sudo apt install -y "libomp-${{ matrix.clang-runtime }}-dev"
+        fi
 
     - name: Setup compiler on Linux
       if: runner.os == 'Linux'
@@ -328,12 +329,13 @@ jobs:
     - name: Setup LLVM/Clang on Linux
       if: ${{ (runner.os == 'Linux') && (matrix.debug_build != true) }}
       run: |
-        UNIX_DISTRO=$(lsb_release -rs)
-        PATH_TO_LLVM_BUILD=/usr/lib/llvm-${{ matrix.clang-runtime }}/
-        # Add -H to silence 'The directory '/home/..../pip/http' or its parent
-        # directory is not owned by the current user and the cache has been disabled.
+        # setup-llvm always lands the install at $GITHUB_WORKSPACE/install
+        # (a symlink to /usr/lib/llvm-N for flavor=system, a real install
+        # tree for the recipe flavors). Point clad's build prefix there so
+        # the cmake configs and their .a references resolve regardless of
+        # flavor.
+        PATH_TO_LLVM_BUILD="$GITHUB_WORKSPACE/install"
         pip3 install lit # LLVM lit is not part of the llvm releases...
-        # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
     - name: Setup LLVM/Clang on Windows
       if: ${{ runner.os == 'windows' }}

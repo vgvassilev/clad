@@ -128,19 +128,19 @@ static void getCXXCastPath(CastExpr* CE, CXXCastPath& Path) {
 Stmt* StmtClone::VisitImplicitCastExpr(ImplicitCastExpr* Node) {
   CXXCastPath Path;
   getCXXCastPath(Node, Path);
-  return ImplicitCastExpr::Create(
-      Ctx, CloneType(Node->getType()), Node->getCastKind(),
-      Clone(Node->getSubExpr()), &Path,
-      Node->getValueKind() /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node));
+  return ImplicitCastExpr::Create(Ctx, CloneType(Node->getType()),
+                                  Node->getCastKind(),
+                                  Clone(Node->getSubExpr()), &Path,
+                                  Node->getValueKind(), Node->getFPFeatures());
 }
 Stmt* StmtClone::VisitCStyleCastExpr(CStyleCastExpr* Node) {
   CXXCastPath Path;
   getCXXCastPath(Node, Path);
   return CStyleCastExpr::Create(
       Ctx, CloneType(Node->getType()), Node->getValueKind(),
-      Node->getCastKind(), Clone(Node->getSubExpr()),
-      &Path /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node),
-      Node->getTypeInfoAsWritten(), Node->getLParenLoc(), Node->getRParenLoc());
+      Node->getCastKind(), Clone(Node->getSubExpr()), &Path,
+      Node->getFPFeatures(), Node->getTypeInfoAsWritten(), Node->getLParenLoc(),
+      Node->getRParenLoc());
 }
 Stmt* StmtClone::VisitCXXStaticCastExpr(CXXStaticCastExpr* Node) {
   CXXCastPath Path;
@@ -148,8 +148,7 @@ Stmt* StmtClone::VisitCXXStaticCastExpr(CXXStaticCastExpr* Node) {
   return CXXStaticCastExpr::Create(
       Ctx, CloneType(Node->getType()), Node->getValueKind(),
       Node->getCastKind(), Clone(Node->getSubExpr()), &Path,
-      Node->getTypeInfoAsWritten() /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(
-          Node),
+      Node->getTypeInfoAsWritten(), Node->getFPFeatures(),
       Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets());
 }
 Stmt* StmtClone::VisitCXXDynamicCastExpr(CXXDynamicCastExpr* Node) {
@@ -186,8 +185,7 @@ DEFINE_CREATE_EXPR(
 DEFINE_CREATE_EXPR(CXXFunctionalCastExpr,
                    (Ctx, CloneType(Node->getType()), Node->getValueKind(),
                     Node->getTypeInfoAsWritten(), Node->getCastKind(),
-                    Clone(Node->getSubExpr()),
-                    nullptr /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node),
+                    Clone(Node->getSubExpr()), nullptr, Node->getFPFeatures(),
                     Node->getLParenLoc(), Node->getRParenLoc()))
 DEFINE_CREATE_EXPR(ExprWithCleanups, (Ctx, Node->getSubExpr(),
                                       Node->cleanupsHaveSideEffects(), {}))
@@ -253,9 +251,8 @@ DEFINE_CLONE_EXPR(CXXThrowExpr, (Clone(Node->getSubExpr()), Node->getType(), Nod
 DEFINE_CLONE_EXPR(
     SubstNonTypeTemplateParmExpr,
     (CloneType(Node->getType()), Node->getValueKind(), Node->getBeginLoc(),
-     Node->getParameter(),
-     CLAD_COMPAT_SubstNonTypeTemplateParmExpr_isReferenceParameter_ExtraParam(
-         Node) Node->getReplacement()))
+     Node->getParameter(), Node->isReferenceParameter(),
+     Node->getReplacement()))
 #elif CLANG_VERSION_MAJOR < 21
 DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
                   (CloneType(Node->getType()), Node->getValueKind(),
@@ -341,8 +338,8 @@ Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
 
   CallExpr* result = clad_compat::CallExpr_Create(
       Ctx, Clone(Node->getCallee()), clonedArgs, CloneType(Node->getType()),
-      Node->getValueKind(),
-      Node->getRParenLoc() CLAD_COMPAT_CLANG8_CallExpr_ExtraParams);
+      Node->getValueKind(), Node->getRParenLoc(), Node->getFPFeatures(),
+      Node->getNumArgs(), Node->getADLCallKind());
 
   // Copy Value and Type dependent
   clad_compat::ExprSetDeps(result, Node);
@@ -371,8 +368,8 @@ Stmt* StmtClone::VisitCUDAKernelCallExpr(CUDAKernelCallExpr* Node) {
 
   CUDAKernelCallExpr* result = clad_compat::CUDAKernelCallExpr_Create(
       Ctx, Clone(Node->getCallee()), Clone(Node->getConfig()), clonedArgs,
-      CloneType(Node->getType()), Node->getValueKind(),
-      Node->getRParenLoc() CLAD_COMPAT_CLANG8_CallExpr_ExtraParams);
+      CloneType(Node->getType()), Node->getValueKind(), Node->getRParenLoc(),
+      Node->getFPFeatures(), Node->getNumArgs(), Node->getADLCallKind());
 
   // Copy Value and Type dependent
   clad_compat::ExprSetDeps(result, Node);
@@ -415,11 +412,9 @@ Stmt* StmtClone::VisitCXXMemberCallExpr(CXXMemberCallExpr * Node) {
   for (Expr* arg : Node->arguments())
     clonedArgs.push_back(Clone(arg));
 
-  CXXMemberCallExpr* result = clad_compat::CXXMemberCallExpr_Create(
+  CXXMemberCallExpr* result = CXXMemberCallExpr::Create(
       Ctx, Clone(Node->getCallee()), clonedArgs, CloneType(Node->getType()),
-      Node->getValueKind(),
-      Node->getRParenLoc()
-      /*FP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node));
+      Node->getValueKind(), Node->getRParenLoc(), Node->getFPFeatures());
 
   // Copy Value and Type dependent
   clad_compat::ExprSetDeps(result, Node);
@@ -448,10 +443,9 @@ Stmt* StmtClone::VisitCaseStmt(CaseStmt* Node) {
 
 Stmt* StmtClone::VisitSwitchStmt(SwitchStmt* Node) {
   SourceLocation noLoc;
-  SwitchStmt* result
-    = clad_compat::SwitchStmt_Create(Ctx,
-        Node->getInit(), Node->getConditionVariable(), Node->getCond(),
-        noLoc, noLoc);
+  SwitchStmt* result = SwitchStmt::Create(
+      Ctx, Node->getInit(), Node->getConditionVariable(), Node->getCond(),
+      /*LParenLoc=*/noLoc, /*RParenLoc=*/noLoc);
   result->setBody(Clone(Node->getBody()));
   result->setSwitchLoc(Node->getSwitchLoc());
   return result;
@@ -467,13 +461,19 @@ DEFINE_CLONE_STMT_CO(WhileStmt,
                       Node->getWhileLoc(), Node->getLParenLoc(),
                       Node->getRParenLoc()))
 DEFINE_CLONE_STMT(DoStmt, (Clone(Node->getBody()), Clone(Node->getCond()), Node->getDoLoc(), Node->getWhileLoc(), Node->getRParenLoc()))
-DEFINE_CLONE_STMT_CO(IfStmt, (Ctx, Node->getIfLoc(),CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node), Node->getInit(), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()) /*EPs*/CLAD_COMPAT_CLANG12_LR_ExtraParams(Node), Clone(Node->getThen()), Node->getElseLoc(), Clone(Node->getElse())))
+DEFINE_CLONE_STMT_CO(IfStmt, (Ctx, Node->getIfLoc(),
+                              CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node),
+                              Node->getInit(),
+                              CloneDeclOrNull(Node->getConditionVariable()),
+                              Clone(Node->getCond()), Node->getLParenLoc(),
+                              Node->getRParenLoc(), Clone(Node->getThen()),
+                              Node->getElseLoc(), Clone(Node->getElse())))
 DEFINE_CLONE_STMT(LabelStmt, (Node->getIdentLoc(), Node->getDecl(), Clone(Node->getSubStmt())))
 DEFINE_CLONE_STMT(NullStmt, (Node->getSemiLoc()))
 DEFINE_CLONE_STMT(ForStmt, (Ctx, Clone(Node->getInit()), Clone(Node->getCond()), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getInc()), Clone(Node->getBody()),
                             Node->getForLoc(), Node->getLParenLoc(), Node->getRParenLoc()))
-DEFINE_CLONE_STMT(ContinueStmt, (Node->getContinueLoc()))
-DEFINE_CLONE_STMT(BreakStmt, (Node->getBreakLoc()))
+DEFINE_CLONE_STMT(ContinueStmt, (clad_compat::getContinueLoc(Node)))
+DEFINE_CLONE_STMT(BreakStmt, (clad_compat::getBreakLoc(Node)))
 DEFINE_CLONE_STMT(CXXCatchStmt, (Node->getCatchLoc(),
                                  CloneDeclOrNull(Node->getExceptionDecl()),
                                  Clone(Node->getHandlerBlock())))

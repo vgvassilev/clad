@@ -11,6 +11,7 @@
 #include "DerivativeBuilder.h"
 #include "clad/Differentiator/CladUtils.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
@@ -171,9 +172,9 @@ namespace clad {
       Intro.Range.setEnd(E->getEndLoc());
       clang::AttributeFactory AttrFactory;
       const clang::DeclSpec DS(AttrFactory);
-      clang::Declarator D(DS,
-                          CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam
-                          CLAD_COMPAT_CLANG12_Declarator_LambdaExpr);
+      clang::Declarator D(
+          DS, CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam
+                  clang::DeclaratorContext::LambdaExpr);
 #if CLANG_VERSION_MAJOR > 16
       V.beginScope(clang::Scope::LambdaScope | clang::Scope::DeclScope |
 
@@ -405,10 +406,10 @@ namespace clad {
     /// \param[in] D The declaration to build a DeclRefExpr for.
     /// \param[in] SS The nested name specifier for the declaration.
     /// \returns the DeclRefExpr for the given declaration.
-    clang::DeclRefExpr*
-    BuildDeclRef(clang::DeclaratorDecl* D,
-                 clang::NestedNameSpecifier* NNS = nullptr,
-                 clang::ExprValueKind VK = clang::VK_LValue);
+    clang::DeclRefExpr* BuildDeclRef(
+        clang::DeclaratorDecl* D,
+        clad_compat::NestedNameSpecifierTy NNS = clad_compat::nullNNS(),
+        clang::ExprValueKind VK = clang::VK_LValue);
 
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.
