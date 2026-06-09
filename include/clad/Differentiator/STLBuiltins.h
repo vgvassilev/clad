@@ -817,6 +817,10 @@ template <typename T>
 clad::ValueAndAdjoint<T&, T&> conversion_operator_reverse_forw(
     clad::Tag<T&>, const ::std::reference_wrapper<T>* x,
     const ::std::reference_wrapper<T>* dx) elidable_reverse_forw;
+
+template <typename T>
+void conversion_operator_pullback(const ::std::reference_wrapper<T>& /*x*/,
+                                  ::std::reference_wrapper<T>* /*dx*/) {}
 } // namespace class_functions
 
 namespace std {
