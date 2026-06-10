@@ -2205,8 +2205,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           !m_DiffReq.CallContext || hasDynamicNonDiffParams ||
           FD->getNameAsString() == "cudaMemcpy" || hasMemberForwPass;
       if (missingRefReturnPullback || !m_DiffReq.CallContext ||
-          hasDynamicNonDiffParams ||
-          FD->getNameAsString() == "cudaMemcpy") {
+          hasDynamicNonDiffParams || FD->getNameAsString() == "cudaMemcpy") {
         pullbackFD = nullptr;
         // Try to find it in builtin derivatives.
         std::string customPullback = pullbackRequest.ComputeDerivativeName();
