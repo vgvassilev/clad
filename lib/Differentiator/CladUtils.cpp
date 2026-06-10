@@ -13,6 +13,7 @@
 #include "clang/AST/ParentMapContext.h"
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
@@ -189,12 +190,11 @@ namespace clad {
           CSS.Extend(C, ND, /*NamespaceLoc=*/utils::GetValidSLoc(semaRef),
                      /*ColonColonLoc=*/utils::GetValidSLoc(semaRef));
       } else if (auto RD = dyn_cast<CXXRecordDecl>(DC)) {
-        auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
+        auto RDQType = clad_compat::getCanonicalTagType(C, RD);
         auto RDTypeSourceInfo = C.getTrivialTypeSourceInfo(RDQType);
-        CSS.Extend(C,
-                   CLAD_COMPAT_CLANG21_CSSExtendKWLocExtraParam(noLoc)
-                       RDTypeSourceInfo->getTypeLoc(),
-                   /*ColonColonLoc=*/noLoc);
+        clad_compat::CSS_ExtendType(CSS, C, /*KWLoc=*/noLoc,
+                                    RDTypeSourceInfo->getTypeLoc(),
+                                    /*ColonColonLoc=*/noLoc);
       } else if (addGlobalNS && isa<TranslationUnitDecl>(DC)) {
         CSS.MakeGlobal(C, /*ColonColonLoc=*/noLoc);
       }
@@ -203,16 +203,17 @@ namespace clad {
     // Adds a namespace specifier to the given type if the type is not already an elaborated type.
     clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext &C, clang::QualType QT) {
       auto typePtr = QT.getTypePtr();
-      if (typePtr->isRecordType() && !typePtr->getAs<clang::ElaboratedType>()) {
+      if (typePtr->isRecordType() && !clad_compat::isElaboratedType(QT)) {
         CXXScopeSpec CSS;
         const clang::CXXRecordDecl* recordDecl = typePtr->getAsCXXRecordDecl();
         const auto* declContext =
             static_cast<const clang::DeclContext*>(recordDecl);
         utils::BuildNNS(semaRef, const_cast<clang::DeclContext*>(declContext), CSS);
-        NestedNameSpecifier* NS = CSS.getScopeRep();
-        if (auto* Prefix = NS->getPrefix())
-          return C.getElaboratedType(clad_compat::ElaboratedTypeKeyword_None,
-                                     Prefix, QT);
+        clad_compat::NestedNameSpecifierTy NS = CSS.getScopeRep();
+        if (clad_compat::hasNNSPrefix(NS))
+          return clad_compat::getElaboratedType(
+              C, clad_compat::ElaboratedTypeKeyword_None,
+              clad_compat::getNNSPrefix(NS), QT);
       }
       return QT;
     }
@@ -351,7 +352,7 @@ namespace clad {
         Expr* init = CI->getInit()->IgnoreImplicit();
         Expr::EvalResult dummy;
         if (!(isa<DeclRefExpr>(init) || isa<CXXConstructExpr>(init) ||
-              clad_compat::Expr_EvaluateAsConstantExpr(init, dummy, C)))
+              init->EvaluateAsConstantExpr(dummy, C)))
           return false;
       }
       // The constructor is linear
@@ -377,7 +378,7 @@ namespace clad {
         Expr* init = CI->getInit()->IgnoreImplicit();
         Expr::EvalResult value;
         bool isZero = false;
-        if (clad_compat::Expr_EvaluateAsConstantExpr(init, value, C)) {
+        if (init->EvaluateAsConstantExpr(value, C)) {
           const auto* val = &value.Val;
           if (val->isArray() && val->hasArrayFiller())
             val = &val->getArrayFiller();
@@ -516,7 +517,7 @@ namespace clad {
       ASTContext& C = semaRef.getASTContext();
       auto CAT = cast<ConstantArrayType>(constArrE->getType());
       Expr* sizeE = ConstantFolder::synthesizeLiteral(
-          C.getSizeType(), C, CAT->getSize().getZExtValue());
+          clad_compat::getSizeType(C), C, CAT->getSize().getZExtValue());
       llvm::SmallVector<Expr*, 2> args = {constArrE, sizeE};
       return semaRef.ActOnInitList(noLoc, args, noLoc).get();
     }
@@ -664,7 +665,8 @@ namespace clad {
                            llvm::ArrayRef<llvm::StringRef> fields) {
       assert(IsValidMemExprPath(semaRef, RD, fields) &&
              "Invalid field path specified!");
-      QualType T = RD->getTypeForDecl()->getCanonicalTypeInternal();
+      QualType T =
+          clad_compat::getCanonicalTagType(semaRef.getASTContext(), RD);
       for (auto field : fields) {
         auto FD = LookupDataMember(semaRef, RD, field);
         if (FD->getType()->isRecordType())
@@ -928,18 +930,18 @@ namespace clad {
     QualType InstantiateTemplate(Sema& S, TemplateDecl* CladClassDecl,
                                  TemplateArgumentListInfo& TLI) {
       // This will instantiate tape<T> type and return it.
-      QualType TT = S.CheckTemplateIdType(TemplateName(CladClassDecl),
-                                          GetValidSLoc(S), TLI);
+      QualType TT = clad_compat::CheckTemplateIdType(
+          S, TemplateName(CladClassDecl), GetValidSLoc(S), TLI);
       // Get clad namespace and its identifier clad::.
       CXXScopeSpec CSS;
       CSS.Extend(S.getASTContext(), GetCladNamespace(S), GetValidSLoc(S),
                  GetValidSLoc(S));
-      NestedNameSpecifier* NS = CSS.getScopeRep();
+      clad_compat::NestedNameSpecifierTy NS = CSS.getScopeRep();
 
       // Create elaborated type with namespace specifier,
       // i.e. class<T> -> clad::class<T>
-      return S.getASTContext().getElaboratedType(
-          clad_compat::ElaboratedTypeKeyword_None, NS, TT);
+      return clad_compat::getElaboratedType(
+          S.getASTContext(), clad_compat::ElaboratedTypeKeyword_None, NS, TT);
     }
 
     clang::QualType GetRestoreTrackerType(clang::Sema& S) {
@@ -959,13 +961,14 @@ namespace clad {
       // This will instantiate restore_tracker<T> type and return it.
       auto* RD = cast<RecordDecl>(TrackerR.getFoundDecl());
       ASTContext& C = S.getASTContext();
-      T = C.getRecordType(RD);
+      T = clad_compat::getRecordType(C, RD);
       // Get clad namespace and its identifier clad::.
-      NestedNameSpecifier* NS = CSS.getScopeRep();
+      clad_compat::NestedNameSpecifierTy NS = CSS.getScopeRep();
 
       // Create elaborated type with namespace specifier,
       // i.e. class<T> -> clad::class<T>
-      T = C.getElaboratedType(clad_compat::ElaboratedTypeKeyword_None, NS, T);
+      T = clad_compat::getElaboratedType(
+          C, clad_compat::ElaboratedTypeKeyword_None, NS, T);
       return T;
     }
 
@@ -1671,10 +1674,10 @@ namespace clad {
           if (opCode == BO_Add || opCode == BO_Mul) {
             Expr::EvalResult dummy;
 
-            bool isConstL = clad_compat::Expr_EvaluateAsConstantExpr(
-                L, dummy, m_ADC->getASTContext());
-            bool isConstR = clad_compat::Expr_EvaluateAsConstantExpr(
-                R, dummy, m_ADC->getASTContext());
+            bool isConstL =
+                L->EvaluateAsConstantExpr(dummy, m_ADC->getASTContext());
+            bool isConstR =
+                R->EvaluateAsConstantExpr(dummy, m_ADC->getASTContext());
 
             if (isConstL && isConstR)
               return false;

@@ -278,12 +278,12 @@ namespace clad {
   }
 
   DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
-                                         NestedNameSpecifier* NNS /*=nullptr*/,
+                                         clad_compat::NestedNameSpecifierTy NNS,
                                          ExprValueKind VK /*=VK_LValue*/) {
     CXXScopeSpec CSS;
     SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
 
-    if (!NNS) {
+    if (!clad_compat::hasQualifier(NNS)) {
       // If no CXXScopeSpec is provided we should try to find the common path
       // between the current scope (in which presumably we will make the call)
       // and where `D` is.
@@ -302,18 +302,19 @@ namespace clad {
       for (DeclContext* DC : llvm::reverse(DCs)) {
         if (auto* ND = dyn_cast<NamespaceDecl>(DC)) {
           if (!ND->isInline())
-            NNS = NestedNameSpecifier::Create(m_Context, NNS, ND);
+            NNS = clad_compat::makeNNSNamespace(m_Context, NNS, ND);
         } else if (auto* TD = dyn_cast<TagDecl>(DC)) {
-          clang::QualType T = m_Context.getTypeDeclType(TD);
-          NNS = NestedNameSpecifier::Create(
-              m_Context, NNS CLAD_COMPAT_CLANG21_TemplateKeywordParam,
-              /*Type*/ T.getTypePtr());
+          NNS = clad_compat::makeNNSTagType(m_Context, NNS, TD);
         }
         // FIXME: Add support for other DeclContext types.
         // See clang's getFullyQualifiedNestedNameSpecifier.
       }
     }
-    CSS.MakeTrivial(m_Context, NNS, fakeLoc);
+    // MakeTrivial on a null/Invalid NNS renders as `::` on clang 22
+    // (the trivial-scope wraps it as Global); skip when there's no
+    // qualifier so local-variable refs print bare.
+    if (clad_compat::hasQualifier(NNS))
+      CSS.MakeTrivial(m_Context, NNS, fakeLoc);
     QualType T = D->getType();
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
@@ -373,7 +374,7 @@ namespace clad {
   Expr* VisitorBase::StoreAndRef(Expr* E, Stmts& block, llvm::StringRef prefix,
                                  bool forceDeclCreation) {
     assert(E && "cannot infer type from null expression");
-    QualType Type = E->getType();
+    QualType Type = clad_compat::stripPredefinedSugar(E->getType());
     if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid)
       Type = m_Context.getLValueReferenceType(Type);
     return StoreAndRef(E, Type, block, prefix, forceDeclCreation);
@@ -610,9 +611,8 @@ namespace clad {
   static QualType getRefQualifiedThisType(Sema& semaRef, CXXMethodDecl* MD) {
     ASTContext& C = semaRef.getASTContext();
     CXXRecordDecl* RD = MD->getParent();
-    auto RDType = RD->getTypeForDecl();
-    auto thisObjectQType =
-        C.getQualifiedType(RDType, MD->getMethodQualifiers());
+    auto thisObjectQType = C.getQualifiedType(
+        clad_compat::getCanonicalTagType(C, RD), MD->getMethodQualifiers());
     if (MD->getRefQualifier() == RefQualifierKind::RQ_RValue)
       thisObjectQType = C.getRValueReferenceType(thisObjectQType);
     else if (MD->getRefQualifier() == RefQualifierKind::RQ_LValue)

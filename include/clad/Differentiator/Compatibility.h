@@ -9,11 +9,18 @@
 #include "llvm/Config/llvm-config.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
-#include "clang/Basic/Version.h"
+#include "clang/AST/TemplateName.h"
+#include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Specifiers.h"
+#include "clang/Basic/Version.h"
+#include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
 #if CLANG_VERSION_MAJOR > 18
 #include "clang/Sema/SemaOpenMP.h"
@@ -154,6 +161,281 @@ const auto ElaboratedTypeKeyword_None = ETK_None;
 const auto ElaboratedTypeKeyword_None = ElaboratedTypeKeyword::None;
 #endif
 
+// Clang 22 reshaped the type-qualifier model (llvm/llvm-project#147835):
+// NestedNameSpecifier became a uintptr value type, ElaboratedType
+// folded into TagType, and several ASTContext::get* / TagDecl helpers
+// were renamed or removed. Wrappers below isolate the call sites.
+
+#if CLANG_VERSION_MAJOR < 22
+using NestedNameSpecifierTy = clang::NestedNameSpecifier*;
+
+// Default "no qualifier" NNS. On LLVM 22 a value-NNS `{}` evaluates
+// TRUE (Invalid kind), so the pre-22 `NNS = nullptr` idiom needs this
+// wrapper to keep the same truthiness across versions.
+inline NestedNameSpecifierTy nullNNS() { return nullptr; }
+
+// True iff NNS actually names a qualifier. Pre-22 a pointer-NNS is
+// "no qualifier" iff null; mirrors `if (!NNS)`.
+inline bool hasQualifier(NestedNameSpecifierTy NNS) { return NNS != nullptr; }
+
+// Wrap: does QT already carry namespace elaboration? Pre-22 stored
+// the elaboration in a separate ElaboratedType wrapper.
+inline bool isElaboratedType(clang::QualType QT) {
+  return QT->getAs<clang::ElaboratedType>() != nullptr;
+}
+
+// Pre-22 getPrefix() worked uniformly on any NNS kind.
+inline bool hasNNSPrefix(clang::NestedNameSpecifier* NS) {
+  return NS && NS->getPrefix() != nullptr;
+}
+inline clang::NestedNameSpecifier*
+getNNSPrefix(clang::NestedNameSpecifier* NS) {
+  return NS->getPrefix();
+}
+
+inline clang::QualType getElaboratedType(clang::ASTContext& C,
+                                         clang::ElaboratedTypeKeyword Keyword,
+                                         clang::NestedNameSpecifier* Qualifier,
+                                         clang::QualType QT) {
+  return C.getElaboratedType(Keyword, Qualifier, QT);
+}
+
+inline clang::QualType getRecordType(clang::ASTContext& C,
+                                     const clang::RecordDecl* RD) {
+  return C.getRecordType(RD);
+}
+
+inline clang::QualType getCanonicalTagType(clang::ASTContext& /*C*/,
+                                           const clang::TagDecl* TD) {
+  return TD->getTypeForDecl()->getCanonicalTypeInternal();
+}
+
+inline clang::QualType
+CheckTemplateIdType(clang::Sema& S, clang::TemplateName T,
+                    clang::SourceLocation Loc,
+                    clang::TemplateArgumentListInfo& TLI) {
+  return S.CheckTemplateIdType(T, Loc, TLI);
+}
+#else // CLANG_VERSION_MAJOR >= 22
+using NestedNameSpecifierTy = clang::NestedNameSpecifier;
+
+inline NestedNameSpecifierTy nullNNS() {
+  return clang::NestedNameSpecifier(std::nullopt);
+}
+
+// True iff NNS names a qualifier. LLVM 22's value-NNS distinguishes
+// Null from Invalid; both mean "no qualifier" to clad, mirroring the
+// pre-22 `if (!NNS)` idiom.
+inline bool hasQualifier(NestedNameSpecifierTy NNS) {
+  return bool(NNS) && NNS.getKind() != clang::NestedNameSpecifier::Kind::Null;
+}
+
+// Clang 22: TagType (and friends) carry keyword + qualifier inline.
+// "Already elaborated" becomes "the tag carries a non-default keyword
+// or a qualifier"; non-tag types are not elaboration carriers.
+inline bool isElaboratedType(clang::QualType QT) {
+  if (const auto* TT = QT->getAs<clang::TagType>())
+    return TT->getKeyword() != clang::ElaboratedTypeKeyword::None ||
+           bool(TT->getQualifier());
+  return false;
+}
+
+// Clang 22: only Namespace-kind NNS exposes a prefix; other kinds
+// have no analogue to the old uniform getPrefix(), so treat them as
+// "no prefix" -- the pre-22 callers branched on null-prefix anyway.
+inline bool hasNNSPrefix(clang::NestedNameSpecifier NS) {
+  if (NS.getKind() == clang::NestedNameSpecifier::Kind::Namespace)
+    return bool(NS.getAsNamespaceAndPrefix().Prefix);
+  return false;
+}
+inline clang::NestedNameSpecifier getNNSPrefix(clang::NestedNameSpecifier NS) {
+  if (NS.getKind() == clang::NestedNameSpecifier::Kind::Namespace)
+    return NS.getAsNamespaceAndPrefix().Prefix;
+  return clang::NestedNameSpecifier();
+}
+
+// Clang 22 (llvm/llvm-project#147835): keyword + qualifier ride inline
+// on the type, so getElaboratedType is gone -- rebuild via the
+// type-specific factory. Branches cover record/enum, typedef, and
+// template-specialization types.
+inline clang::QualType getElaboratedType(clang::ASTContext& C,
+                                         clang::ElaboratedTypeKeyword Keyword,
+                                         clang::NestedNameSpecifier Qualifier,
+                                         clang::QualType QT) {
+  // Alias-template TSTs (e.g. `clad::tape<T>`) must stay TSTs so the
+  // alias name survives; routing them through getTagType would resolve
+  // `tape` to its underlying `tape_impl` record.
+  if (const auto* TST = QT->getAs<clang::TemplateSpecializationType>();
+      TST && TST->isTypeAlias()) {
+    clang::TemplateName QTN = C.getQualifiedTemplateName(
+        Qualifier, /*TemplateKeyword=*/false, TST->getTemplateName());
+    return C.getTemplateSpecializationType(
+        Keyword, QTN, TST->template_arguments(),
+        /*CanonicalArgs=*/{}, TST->getAliasedType());
+  }
+  if (const auto* TT = QT->getAs<clang::TagType>())
+    return C.getTagType(Keyword, Qualifier, TT->getDecl(), /*OwnsTag=*/false);
+  if (const auto* TyD = QT->getAs<clang::TypedefType>())
+    return C.getTypedefType(Keyword, Qualifier, TyD->getDecl());
+  if (const auto* TST = QT->getAs<clang::TemplateSpecializationType>()) {
+    clang::TemplateName QTN = C.getQualifiedTemplateName(
+        Qualifier, /*TemplateKeyword=*/false, TST->getTemplateName());
+    return C.getTemplateSpecializationType(Keyword, QTN,
+                                           TST->template_arguments(),
+                                           /*CanonicalArgs=*/{}, QualType());
+  }
+  return QT;
+}
+
+// Clang 22: getRecordType -> getTagType with default keyword/qualifier.
+inline clang::QualType getRecordType(clang::ASTContext& C,
+                                     const clang::RecordDecl* RD) {
+  return C.getTagType(clang::ElaboratedTypeKeyword::None,
+                      clang::NestedNameSpecifier(), RD, /*OwnsTag=*/false);
+}
+
+// Clang 22: TagDecl::getTypeForDecl() was deleted; use
+// ASTContext::getCanonicalTagType(TD) instead.
+inline clang::QualType getCanonicalTagType(clang::ASTContext& C,
+                                           const clang::TagDecl* TD) {
+  return C.getCanonicalTagType(TD);
+}
+
+// Clang 22: CheckTemplateIdType gained Keyword + Scope* +
+// ForNestedNameSpecifier params; default them to match pre-22 behavior.
+inline clang::QualType
+CheckTemplateIdType(clang::Sema& S, clang::TemplateName T,
+                    clang::SourceLocation Loc,
+                    clang::TemplateArgumentListInfo& TLI) {
+  return S.CheckTemplateIdType(clang::ElaboratedTypeKeyword::None, T, Loc, TLI,
+                               /*Scope=*/nullptr,
+                               /*ForNestedNameSpecifier=*/false);
+}
+#endif
+
+// Clang 22 (llvm/llvm-project#147835): NestedNameSpecifier::Create
+// factories are gone -- value-NNS constructors take their place, and
+// the type-kind no longer accepts a prefix. The wrappers bake the
+// prefix into the type at construction so it rides transitively.
+inline NestedNameSpecifierTy makeNNSNamespace(clang::ASTContext& C,
+                                              NestedNameSpecifierTy Prefix,
+                                              const clang::NamespaceDecl* NS) {
+#if CLANG_VERSION_MAJOR < 22
+  return clang::NestedNameSpecifier::Create(C, Prefix, NS);
+#else
+  return clang::NestedNameSpecifier(C, NS, Prefix);
+#endif
+}
+
+// Build a NestedNameSpecifier of the form "Prefix::TD::". Pre-22 took
+// Prefix as a separate Create() arg; LLVM 22 bakes Prefix into the
+// TagType via getTagType so the value-NNS retains the full path.
+inline NestedNameSpecifierTy makeNNSTagType(clang::ASTContext& C,
+                                            NestedNameSpecifierTy Prefix,
+                                            const clang::TagDecl* TD) {
+#if CLANG_VERSION_MAJOR < 22
+  clang::QualType T = C.getTypeDeclType(TD);
+  return clang::NestedNameSpecifier::Create(
+      C, Prefix CLAD_COMPAT_CLANG21_TemplateKeywordParam, T.getTypePtr());
+#else
+  clang::QualType T = C.getTagType(clang::ElaboratedTypeKeyword::None, Prefix,
+                                   TD, /*OwnsTag=*/false);
+  return clang::NestedNameSpecifier(T.getTypePtr());
+#endif
+}
+
+// Clang 22: ASTContext::getTypeDeclType(TypeDecl*) was deleted in the
+// 1-arg form; the 3-arg form now requires Keyword + Qualifier.
+inline clang::QualType getTypeDeclType(clang::ASTContext& C,
+                                       const clang::TypeDecl* TD) {
+#if CLANG_VERSION_MAJOR < 22
+  return C.getTypeDeclType(TD);
+#else
+  return C.getTypeDeclType(clang::ElaboratedTypeKeyword::None,
+                           clang::NestedNameSpecifier(), TD);
+#endif
+}
+
+// Clang 22 (llvm/llvm-project#143653): getSizeType returns a
+// PredefinedSugarType that prints as "__size_t". clad's tests want
+// the platform integer spelling -- use the canonical type.
+inline clang::QualType getSizeType(clang::ASTContext& C) {
+#if CLANG_VERSION_MAJOR < 22
+  return C.getSizeType();
+#else
+  return C.getCanonicalSizeType();
+#endif
+}
+
+// LLVM 22 PredefinedSugarType (size_t/ptrdiff_t/...) leaks the
+// "__size_t" name into generated temporaries; strip to the canonical
+// integer at the declaration point.
+inline clang::QualType stripPredefinedSugar(clang::QualType QT) {
+#if CLANG_VERSION_MAJOR >= 22
+  if (clang::isa<clang::PredefinedSugarType>(QT.getTypePtr()))
+    return QT.getCanonicalType();
+#endif
+  return QT;
+}
+
+// Clang 22: ActOnBreakStmt / ActOnContinueStmt gained named-target
+// params (Label + LabelLoc). Default them for unnamed break/continue.
+inline clang::StmtResult ActOnBreakStmt(clang::Sema& S,
+                                        clang::SourceLocation Loc,
+                                        clang::Scope* CurScope) {
+#if CLANG_VERSION_MAJOR < 22
+  return S.ActOnBreakStmt(Loc, CurScope);
+#else
+  return S.ActOnBreakStmt(Loc, CurScope, /*Label=*/nullptr,
+                          /*LabelLoc=*/clang::SourceLocation());
+#endif
+}
+inline clang::StmtResult ActOnContinueStmt(clang::Sema& S,
+                                           clang::SourceLocation Loc,
+                                           clang::Scope* CurScope) {
+#if CLANG_VERSION_MAJOR < 22
+  return S.ActOnContinueStmt(Loc, CurScope);
+#else
+  return S.ActOnContinueStmt(Loc, CurScope, /*Label=*/nullptr,
+                             /*LabelLoc=*/clang::SourceLocation());
+#endif
+}
+
+// Clang 22: BreakStmt/ContinueStmt share LoopControlStmt::getKwLoc();
+// pre-22 had stmt-specific getBreakLoc/getContinueLoc.
+inline clang::SourceLocation getBreakLoc(const clang::BreakStmt* BS) {
+#if CLANG_VERSION_MAJOR < 22
+  return BS->getBreakLoc();
+#else
+  return BS->getKwLoc();
+#endif
+}
+inline clang::SourceLocation getContinueLoc(const clang::ContinueStmt* CS) {
+#if CLANG_VERSION_MAJOR < 22
+  return CS->getContinueLoc();
+#else
+  return CS->getKwLoc();
+#endif
+}
+
+// CXXScopeSpec::Extend's TypeLoc overload was removed in clang 22;
+// replacement is build-an-NNS + MakeTrivial. clang 20+ keeps the
+// 3-arg form; clang <20 used a leading SourceLocation keyword-loc
+// param. The wrapper hides all three call shapes.
+inline void CSS_ExtendType(clang::CXXScopeSpec& CSS, clang::ASTContext& C,
+                           clang::SourceLocation KWLoc, clang::TypeLoc TL,
+                           clang::SourceLocation ColonColonLoc) {
+#if CLANG_VERSION_MAJOR >= 22
+  clang::NestedNameSpecifier NNS(TL.getType().getTypePtr());
+  CSS.MakeTrivial(C, NNS, clang::SourceRange(TL.getBeginLoc(), ColonColonLoc));
+#elif CLANG_VERSION_MAJOR >= 21
+  (void)KWLoc;
+  CSS.Extend(C, TL, ColonColonLoc);
+#else
+  CSS.Extend(C, KWLoc, TL, ColonColonLoc);
+#endif
+}
+
 // Clang 18 endswith->ends_with
 // and starstwith->starts_with
 
@@ -216,18 +498,8 @@ NamespaceDecl_Create(ASTContext& C, DeclContext* DC, bool Inline,
 // ConstExprUsage Usage, ASTContext &)
 // => bool Expr::EvaluateAsConstantExpr(EvalResult &Result, ASTContext &)
 
-static inline bool Expr_EvaluateAsConstantExpr(const Expr* E,
-                                               Expr::EvalResult& res,
-                                               const ASTContext& Ctx) {
-#if CLANG_VERSION_MAJOR < 12
-  return E->EvaluateAsConstantExpr(res, Expr::EvaluateForCodeGen, Ctx);
-#else
-  return E->EvaluateAsConstantExpr(res, Ctx);
-#endif
-}
-
 // Compatibility helper function for creation IfStmt.
-// Clang 12 and above use two extra params.
+// Clang 14 switched from bool IsConstexpr to IfStatementKind.
 
 static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
    SourceLocation IL, bool IsConstexpr,
@@ -236,39 +508,20 @@ static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
    Stmt *Then, SourceLocation EL=SourceLocation(), Stmt *Else=nullptr)
 {
 
-#if CLANG_VERSION_MAJOR < 12
-  return IfStmt::Create(Ctx, IL, IsConstexpr, Init, Var, Cond, Then, EL, Else);
-#elif CLANG_VERSION_MAJOR < 14
+#if CLANG_VERSION_MAJOR < 14
   return IfStmt::Create(Ctx, IL, IsConstexpr, Init, Var, Cond, LPL, RPL, Then,
                         EL, Else);
-#elif CLANG_VERSION_MAJOR >= 14
-   IfStatementKind kind = IfStatementKind::Ordinary;
-   if (IsConstexpr)
-      kind = IfStatementKind::Constexpr;
-   return IfStmt::Create(Ctx, IL, kind, Init, Var, Cond, LPL, RPL, Then, EL, Else);   
+#else
+  IfStatementKind kind = IfStatementKind::Ordinary;
+  if (IsConstexpr)
+    kind = IfStatementKind::Constexpr;
+  return IfStmt::Create(Ctx, IL, kind, Init, Var, Cond, LPL, RPL, Then, EL,
+                        Else);
 #endif
 }
 
 // Compatibility helper function for creation CallExpr and CUDAKernelCallExpr.
-// Clang 12 and above use one extra param.
 
-#if CLANG_VERSION_MAJOR < 12
-static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
-   QualType Ty, ExprValueKind VK, SourceLocation RParenLoc,
-   unsigned MinNumArgs = 0, CallExpr::ADLCallKind UsesADL = CallExpr::NotADL)
-{
-   return CallExpr::Create(Ctx, Fn, Args, Ty, VK, RParenLoc, MinNumArgs, UsesADL);
-}
-
-static inline CUDAKernelCallExpr*
-CUDAKernelCallExpr_Create(const ASTContext& Ctx, Expr* Fn, CallExpr* Config,
-                          ArrayRef<Expr*> Args, QualType Ty, ExprValueKind VK,
-                          SourceLocation RParenLoc, unsigned MinNumArgs = 0,
-                          CallExpr::ADLCallKind UsesADL = CallExpr::NotADL) {
-  return CUDAKernelCallExpr::Create(Ctx, Fn, Config, Args, Ty, VK, RParenLoc,
-                                    MinNumArgs);
-}
-#elif CLANG_VERSION_MAJOR >= 12
 static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
    QualType Ty, ExprValueKind VK, SourceLocation RParenLoc, FPOptionsOverride FPFeatures,
    unsigned MinNumArgs = 0, CallExpr::ADLCallKind UsesADL = CallExpr::NotADL)
@@ -285,56 +538,12 @@ CUDAKernelCallExpr_Create(const ASTContext& Ctx, Expr* Fn, CallExpr* Config,
   return CUDAKernelCallExpr::Create(Ctx, Fn, Config, Args, Ty, VK, RParenLoc,
                                     FPFeatures, MinNumArgs);
 }
-#endif
-
-// Clang 12 and above use one extra param.
-
-#if CLANG_VERSION_MAJOR < 12
-#define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams                                \
-  , Node->getNumArgs(), Node->getADLCallKind()
-#elif CLANG_VERSION_MAJOR >= 12
-   #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams ,Node->getFPFeatures(),Node->getNumArgs(),Node->getADLCallKind()
-#endif
 
 static inline void ExprSetDeps(Expr* result, Expr* Node) {
   struct ExprDependenceAccessor : public Expr {
     void setDependence(ExprDependence Deps) { Expr::setDependence(Deps); }
   };
    ((ExprDependenceAccessor*)result)->setDependence(Node->getDependence());
-}
-
-// Compatibility helper function for creation CXXMemberCallExpr.
-// Clang 12 and above use two extra param.
-
-#if CLANG_VERSION_MAJOR < 12
-static inline CXXMemberCallExpr* CXXMemberCallExpr_Create(ASTContext &Ctx,
-   Expr *Fn, ArrayRef<Expr *> Args, QualType Ty, ExprValueKind VK, SourceLocation RP)
-{
-   return CXXMemberCallExpr::Create(const_cast<ASTContext&>(Ctx), Fn, Args, Ty, VK, RP);
-}
-#elif CLANG_VERSION_MAJOR >= 12
-static inline CXXMemberCallExpr* CXXMemberCallExpr_Create(ASTContext &Ctx,
-   Expr *Fn, ArrayRef<Expr *> Args, QualType Ty, ExprValueKind VK, SourceLocation RP,
-   FPOptionsOverride FPFeatures, unsigned MinNumArgs = 0)
-{
-   return CXXMemberCallExpr::Create(const_cast<ASTContext&>(Ctx), Fn, Args, Ty, VK, RP,
-                                    FPFeatures, MinNumArgs);
-}
-#endif
-
-// Compatibility helper function for creation SwitchStmt.
-// Clang 12 and above use two extra params.
-
-static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
-   Stmt *Init, VarDecl *Var, Expr *Cond,
-   SourceLocation LParenLoc, SourceLocation RParenLoc)
-{
-
-#if CLANG_VERSION_MAJOR < 12
-  return SwitchStmt::Create(Ctx, Init, Var, Cond);
-#elif CLANG_VERSION_MAJOR >= 12
-   return SwitchStmt::Create(Ctx, Init, Var, Cond, LParenLoc, RParenLoc);
-#endif
 }
 
 template<class T>
@@ -363,61 +572,14 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
 }
 #endif
 
-// Clang 12 rename DeclaratorContext::LambdaExprContext to DeclaratorContext::LambdaExpr.
-// Clang 15 add one extra param to clang::Declarator() - const ParsedAttributesView & DeclarationAttrs
-
-#if CLANG_VERSION_MAJOR < 12
-   #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr clang::DeclaratorContext::LambdaExprContext
-   #define CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam /**/
-#elif CLANG_VERSION_MAJOR < 15
-   #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr clang::DeclaratorContext::LambdaExpr
-   #define CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam /**/
-#elif CLANG_VERSION_MAJOR >= 15
-   #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr clang::DeclaratorContext::LambdaExpr
-   #define CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam clang::ParsedAttributesView::none(),
+// Clang 15 added one extra param to clang::Declarator() --
+// const ParsedAttributesView & DeclarationAttrs.
+#if CLANG_VERSION_MAJOR < 15
+#define CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam /**/
+#else
+#define CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam             \
+  clang::ParsedAttributesView::none(),
 #endif
-
-// Clang 12 add one extra param (FPO) that we get from Node in Create method of:
-// ImplicitCastExpr, CStyleCastExpr, CXXStaticCastExpr and CXXFunctionalCastExpr
-
-#if CLANG_VERSION_MAJOR < 12
-   #define CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node) /**/
-#elif CLANG_VERSION_MAJOR >= 12
-   #define CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node) ,Node->getFPFeatures()
-#endif
-
-// Clang 12 adds one extra param (FPO) in Create method of:
-// ImplicitCastExpr, CStyleCastExpr, CXXStaticCastExpr and CXXFunctionalCastExpr
-
-#if CLANG_VERSION_MAJOR < 12
-#define CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO /**/
-#elif CLANG_VERSION_MAJOR >= 12
-#define CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO , FPOptionsOverride()
-#endif
-
-// Clang 12 add two extra param (Left and Right paren location) in Create method of:
-// IfStat::Create
-
-#if CLANG_VERSION_MAJOR < 12
-   #define CLAD_COMPAT_CLANG12_LR_ExtraParams(Node) /**/
-#elif CLANG_VERSION_MAJOR >= 12
-   #define CLAD_COMPAT_CLANG12_LR_ExtraParams(Node) ,Node->getLParenLoc(),Node->getRParenLoc()
-#endif
-
-/// Clang >= 12 has more source locations parameters in `Sema::ActOnStartOfSwitchStmt`
-static inline StmtResult
-Sema_ActOnStartOfSwitchStmt(Sema& SemaRef, Stmt* initStmt,
-                            Sema::ConditionResult Cond) {
-  SourceLocation noLoc;
-#if CLANG_VERSION_MAJOR >= 12
-  return SemaRef.ActOnStartOfSwitchStmt(
-      /*SwitchLoc=*/noLoc,
-      /*LParenLoc=*/noLoc, initStmt, Cond,
-      /*RParenLoc=*/noLoc);
-#elif CLANG_VERSION_MAJOR < 12
-  return SemaRef.ActOnStartOfSwitchStmt(/*SwitchLoc=*/noLoc, initStmt, Cond);
-#endif
-}
 
 #if CLANG_VERSION_MAJOR < 13
 #define CLAD_COMPAT_ExprValueKind_R_or_PR_Value ExprValueKind::VK_RValue
@@ -486,15 +648,6 @@ CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
   return MD->getFunctionObjectParameterType();
 #endif
 }
-
-#if CLANG_VERSION_MAJOR < 12
-#define CLAD_COMPAT_SubstNonTypeTemplateParmExpr_isReferenceParameter_ExtraParam( \
-    Node) /**/
-#else
-#define CLAD_COMPAT_SubstNonTypeTemplateParmExpr_isReferenceParameter_ExtraParam( \
-    Node)                                                                         \
-  Node->isReferenceParameter(),
-#endif
 
 #if CLANG_VERSION_MAJOR < 16
 template <typename T>

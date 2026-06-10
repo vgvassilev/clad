@@ -1,6 +1,7 @@
 #include "clad/Differentiator/ErrorEstimator.h"
 
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
@@ -353,7 +354,7 @@ Expr* ErrorEstimationHandler::getSizeExpr(const VarDecl* VD) {
     return m_RMV->Clone(foundSize->second);
   // If the size variable is not generated yet,
   // generate it now.
-  QualType intTy = m_RMV->m_Context.getSizeType();
+  QualType intTy = clad_compat::getSizeType(m_RMV->m_Context);
   VarDecl* sizeVD = m_RMV->BuildGlobalVarDecl(
       intTy, VD->getNameAsString() + "_size", m_RMV->getZeroInit(intTy));
   m_RMV->AddToGlobalBlock(m_RMV->BuildDeclStmt(sizeVD));

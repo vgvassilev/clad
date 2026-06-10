@@ -17,44 +17,10 @@ jobs:
     name: Activate self-host infrastructure
     runs-on: [self-hosted, spotter]
     steps:
-      - name: Send Magic Packet
-        env:
-          TARGET_IP: 192.168.100.30
-          MAC_ADDR: a4:bb:6d:51:d5:d2
-          # The container has no ping, emulate it.
-        run: |
-          # Mask the IP and potential broadcast to keep logs clean
-          echo "::add-mask::$MAC_ADDR"
-          echo "::add-mask::$BROADCAST"
-          echo "::add-mask::$TARGET_IP"
-          BROADCAST=$(echo $TARGET_IP | sed 's/\.[0-9]*$/ .255/' | tr -d ' ')
-          PING="timeout 1 bash -c 'cat < /dev/null > /dev/tcp/$TARGET_IP/22' 2>/dev/null"
-
-          # Install tool silently
-          sudo apt-get update -qq && sudo apt-get install -y -qq wakeonlan > /dev/null
-
-          # Check if already awake (using the Bash TCP PING variable)
-          if eval "$PING"; then
-            echo "Target machine is already awake. Exiting."
-            exit 0
-          fi
-
-          # If offline, send WoL
-          echo "Machine is offline. Sending WoL..."
-          wakeonlan -i $BROADCAST $MAC_ADDR > /dev/null
-
-          # Wait & Verify Loop (checks every 10s for 4 minutes)
-          echo "Waiting for response (checking Port 22)..."
-          for i in {1..24}; do
-            if eval "$PING"; then
-              echo "Machine is online and SSH is ready."
-              exit 0
-            fi
-            sleep 10
-          done
-
-          echo "Error: Target hardware did not respond within the timeout period."
-          exit 1
+      - uses: compiler-research/ci-workflows/actions/wake-on-lan@main
+        with:
+          mac: a4:bb:6d:51:d5:d2
+          target-host: 192.168.100.30
 
   build:
     timeout-minutes: 600 # If some self-host machine is not available
@@ -65,9 +31,8 @@ jobs:
       matrix:
 
         include:
-          # --- LINUX: Last 10 Runtimes (12-21) ---
+          # --- LINUX: Last 11 Runtimes (12-22) ---
           # Using Ubuntu 22.04 for older runtimes, 24.04 for newer ones
-          - { name: ubu22-gcc10-runtime11, os: ubuntu-22.04, compiler: gcc-10, clang-runtime: '11' }
           - { name: ubu22-gcc11-runtime12, os: ubuntu-22.04, compiler: gcc-11, clang-runtime: '12' }
           - { name: ubu22-clang13-runtime13, os: ubuntu-22.04, compiler: clang-13, clang-runtime: '13' }
           - { name: ubu24-gcc13-runtime14, os: ubuntu-24.04, compiler: gcc-13, clang-runtime: '14' }
@@ -78,6 +43,7 @@ jobs:
           - { name: ubu24-clang17-runtime19, os: ubuntu-24.04, compiler: clang-17, clang-runtime: '19' }
           - { name: ubu24-clang19-runtime20, os: ubuntu-24.04, compiler: clang-19, clang-runtime: '20' }
           - { name: ubu24-clang20-runtime21, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '21' }
+          - { name: ubu24-clang20-runtime22, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '22' }
           # --- MACOS: Last 5 Runtimes (17-21) ---
           # Using macOS ARM (standard) for all; Runtime 17 on Intel for x86 sanity
           - { name: osx-intel-runtime17, os: macos-15-intel, compiler: clang, clang-runtime: '17' }
@@ -100,16 +66,6 @@ jobs:
             clang-runtime: '21'
             debug_build: true
 
-          - name: selfh-ubu22-gcc12-runtime19-analyzers
-            os: [self-hosted, cuda, heavy]
-            compiler: gcc-12
-            clang-runtime: '19'
-            coverage: true
-            cuda: true
-            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On -DCLAD_CUDA_TEST_USE_SANITIZER=On'
-            extra_packages: ' libzstd-dev '
-            #clang-format: true
-
           - name: ubu24-gcc13-runtime20-benchmarks
             os: ubuntu-24.04
             compiler: gcc-13
@@ -122,14 +78,6 @@ jobs:
             os: ubuntu-22.04
             compiler: clang-13
             clang-runtime: '13'
-            cuda: true
-
-          - name: selfh-ubu22-clang16-runtime18-cuda
-            os: [self-hosted, cuda, heavy]
-            runs-on: cuda
-            compiler: clang-16
-            extra_cmake_options: '-DCLAD_CUDA_TEST_USE_SANITIZER=On'
-            clang-runtime: '18'
             cuda: true
 
           - name: ubuntu-clang15-runtime16-doc
@@ -176,7 +124,7 @@ jobs:
             compiler: clang-16
             clang-runtime: '18'
 
-    steps:
+    steps: &build_steps
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -233,35 +181,26 @@ jobs:
           fi
         fi
         echo "ncpus=$ncpus" >> $GITHUB_ENV
-    - name: Setup Ubuntu apt sources
-      if: runner.os == 'Linux'
+    - name: Setup LLVM ${{ matrix.clang-runtime }}${{ matrix.flavor && format(' [{0}]', matrix.flavor) || '' }}
+      if: runner.os != 'Windows' && matrix.debug_build != true
+      uses: compiler-research/ci-workflows/actions/setup-llvm@main
+      with:
+        version: ${{ matrix.clang-runtime }}
+        os:      ${{ matrix.self-hosted-os || matrix.os }}
+        flavor:  ${{ matrix.flavor || 'system' }}
+
+    - name: Install extra Linux deps
+      if: runner.os == 'Linux' && matrix.debug_build != true
       run: |
-        #Bypass the broken regional mirror immediately
-        sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list
-        sudo apt-get update -qq
-        
-        export ARCHITECHURE=$(uname -m)
-        
-        if [[ "$ARCHITECHURE" == "x86_64" ]]; then
-          if ! sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev ; then
-            curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-            os_codename="`cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2`"
-            echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
-            sudo apt update
-          fi
-        else
-          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/llvm-snapshot.gpg
-          sudo chmod a+r /etc/apt/keyrings/llvm-snapshot.gpg
-          echo   "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/"$(. /etc/os-release && echo "$VERSION_CODENAME")"/ llvm-toolchain-"$(. /etc/os-release && echo "$VERSION_CODENAME")" main" | sudo tee /etc/apt/sources.list.d/llvm-snapshot.list > /dev/null
-          echo   "deb-src [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/"$(. /etc/os-release && echo "$VERSION_CODENAME")"/ llvm-toolchain-"$(. /etc/os-release && echo "$VERSION_CODENAME")" main" | sudo tee -a /etc/apt/sources.list.d/llvm-snapshot.list > /dev/null
-          cat /etc/apt/sources.list.d/llvm-snapshot.list
-        fi        
-        sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev \
-                         llvm-${{ matrix.clang-runtime }}-tools \
-                         clang-${{ matrix.clang-runtime }} \
-                         libclang-${{ matrix.clang-runtime }}-dev \
-                         libomp-${{ matrix.clang-runtime }}-dev \
-                         ${{ matrix.extra_packages }}
+        # cmake is preinstalled on github-hosted ubuntu-24.04 but absent
+        # from catthehacker/ubuntu:act-24.04; install it so bin/repro works.
+        sudo apt install -y cmake ${{ matrix.extra_packages }}
+        # libomp-N-dev: best-effort. apt-llvm.org lags on the latest
+        # major; recipe-flavor rows get libomp from the recipe build,
+        # not apt. When missing, OpenMP lit tests skip via REQUIRES.
+        if apt-cache show "libomp-${{ matrix.clang-runtime }}-dev" >/dev/null 2>&1; then
+          sudo apt install -y "libomp-${{ matrix.clang-runtime }}-dev"
+        fi
 
     - name: Setup compiler on Linux
       if: runner.os == 'Linux'
@@ -321,76 +260,15 @@ jobs:
           echo "Unsupported compiler - fix YAML file"
         }
 
-    - name: Setup LLVM/Clang on macOS
+    - name: Setup LLVM extras on macOS
       if: runner.os == 'macOS'
       run: |
-        # llvm <=@11 are deprecated or deleted.
-        # Install llvm from github releases.
-        if [[ ${{ matrix.clang-runtime }} -le 11 ]]; then
-          PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
-          pushd /usr/local/opt
-          q="0"
-          sudo rm -fr /usr/local/clang*
-          sudo mv clang+llvm-${{ matrix.clang-runtime }}.$q.$w-x86_64-apple-darwin/ llvm@${{ matrix.clang-runtime }}/
-          # Use llvm/llvm@10/llvm@6 Filecheck
-          if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
-            if [[ -f /usr/local/opt/llvm/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            elif [[ -f /usr/local/opt/llvm\@10/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm\@10/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            elif [[ -f /usr/local/opt/llvm\@6/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            fi
-          fi
-          popd
-        fi
-
-        if [[ ${{ matrix.clang-runtime }} -gt 11 ]]; then
-          # If the version of clang is in brew then install it.
-          HAVE_LLVM=$(brew info --json llvm | jq -r '.[].aliases[],.[].versioned_formulae[]' | grep llvm@${{ matrix.clang-runtime }} || true)
-          if [[ -z "$HAVE_LLVM" ]]; then
-            brew update
-            HAVE_LLVM=$(brew info --json llvm | jq -r '.[].aliases[],.[].versioned_formulae[]' | grep llvm@${{ matrix.clang-runtime }} || true)
-          fi
-
-          if [[ -n "$HAVE_LLVM" ]]; then
-            # || true is a workaround for https://github.com/actions/runner-images/issues/9966
-            brew install llvm@${{ matrix.clang-runtime }} || true
-            PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
-          else
-            # FIXME: Make this generic. Currently this is broken...
-            sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.1.0/LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64.tar.xz | sudo xz -d -c | sudo tar -x
-            if [[ $(uname -p) == "arm" ]]; then
-              export PATH_TO_LLVM_BUILD=/opt/homebrew/llvm@${{ matrix.clang-runtime }}/
-            else
-              export PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
-            fi
-            sudo mv LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64 $PATH_TO_LLVM_BUILD
-            echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD"
-            ${PATH_TO_LLVM_BUILD}bin/clang --version
-          fi
-        else
-          # Remove the c++ headers that come with the llvm package from homebrew
-          # allowing clang to work with system's SDK.
-          sudo rm -fr /usr/local/opt/llvm*/include/c++
-        fi
-
+        # setup-llvm ran `brew install llvm@N` above; pick the prefix
+        # and copy SDK headers into /usr/local/include/ (ln fails on
+        # macOS-arm runners, so we copy).
         PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
-
-        pip3 install lit # LLVM lit is not part of the llvm releases...
-
-        # We need headers in correct place
-        #FIXME: ln solution fails with error message No such file or directory on osx arm, 
-        #Copying over files as a temporary solution
+        pip3 install lit
         sudo cp -r -n $(xcrun --show-sdk-path)/usr/include/ /usr/local/include/
-        #for file in $(xcrun --show-sdk-path)/usr/include/*
-        #do
-        #  if [ ! -f /usr/local/include/$(basename $file) ]; then
-        #    echo ${file}
-        #    ln -s ${file} /usr/local/include/$(basename $file)
-        #  fi
-        #done
-        # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
 
     - name: Restore Cache LLVM/Clang runtime build directory (debug_build==true)
@@ -451,12 +329,13 @@ jobs:
     - name: Setup LLVM/Clang on Linux
       if: ${{ (runner.os == 'Linux') && (matrix.debug_build != true) }}
       run: |
-        UNIX_DISTRO=$(lsb_release -rs)
-        PATH_TO_LLVM_BUILD=/usr/lib/llvm-${{ matrix.clang-runtime }}/
-        # Add -H to silence 'The directory '/home/..../pip/http' or its parent
-        # directory is not owned by the current user and the cache has been disabled.
+        # setup-llvm always lands the install at $GITHUB_WORKSPACE/install
+        # (a symlink to /usr/lib/llvm-N for flavor=system, a real install
+        # tree for the recipe flavors). Point clad's build prefix there so
+        # the cmake configs and their .a references resolve regardless of
+        # flavor.
+        PATH_TO_LLVM_BUILD="$GITHUB_WORKSPACE/install"
         pip3 install lit # LLVM lit is not part of the llvm releases...
-        # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
     - name: Setup LLVM/Clang on Windows
       if: ${{ runner.os == 'windows' }}
@@ -599,6 +478,24 @@ jobs:
           -DLLVM_EXTERNAL_LIT="`which lit`" \
           ..
         cmake --build . --target sphinx-clad doxygen-clad -- -j${{ env.ncpus }}
+    - name: Show reproduce-locally hint
+      if: ${{ failure() }}
+      shell: bash
+      env:
+        REPO: ${{ github.repository }}
+        REPO_NAME: ${{ github.event.repository.name }}
+        SHA: ${{ github.sha }}
+        ROW: ${{ matrix.name }}
+      run: |
+        echo "::group::Reproduce this failure locally (requires Docker + nektos/act)"
+        cat <<EOF
+            git clone https://github.com/compiler-research/ci-workflows.git
+            git clone https://github.com/$REPO.git
+            cd $REPO_NAME
+            git checkout $SHA
+            ../ci-workflows/bin/repro $ROW
+        EOF
+        echo "::endgroup::"
     - name: Failed job config
       if: ${{ failure() && runner.debug && runner.os != 'windows' }}
       env:
@@ -648,3 +545,35 @@ jobs:
         fail_ci_if_error: true
         verbose: true
         token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Self-hosted CUDA rows. Separate job so `prepare-dell` gates only
+  # what depends on the dell; the hosted-runner matrix in `build` runs
+  # without waiting. Step list shared via the &build_steps anchor.
+  build-selfhost:
+    needs: prepare-dell
+    timeout-minutes: 600 # If the dell is slow to come back up.
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: selfh-ubu22-gcc12-runtime19-analyzers
+            os: [self-hosted, cuda, heavy]
+            self-hosted-os: ubuntu-22.04
+            compiler: gcc-12
+            clang-runtime: '19'
+            coverage: true
+            cuda: true
+            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On -DCLAD_CUDA_TEST_USE_SANITIZER=On'
+            extra_packages: ' libzstd-dev '
+
+          - name: selfh-ubu22-clang16-runtime18-cuda
+            os: [self-hosted, cuda, heavy]
+            self-hosted-os: ubuntu-22.04
+            compiler: clang-16
+            extra_cmake_options: '-DCLAD_CUDA_TEST_USE_SANITIZER=On'
+            clang-runtime: '18'
+            cuda: true
+
+    steps: *build_steps

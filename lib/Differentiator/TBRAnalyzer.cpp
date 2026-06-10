@@ -268,10 +268,9 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     // Multiplication results in a linear expression if and only if one of the
     // factors is constant.
     Expr::EvalResult dummy;
-    bool nonLinear = !clad_compat::Expr_EvaluateAsConstantExpr(
-                         R, dummy, m_AnalysisDC->getASTContext()) &&
-                     !clad_compat::Expr_EvaluateAsConstantExpr(
-                         L, dummy, m_AnalysisDC->getASTContext());
+    bool nonLinear =
+        !R->EvaluateAsConstantExpr(dummy, m_AnalysisDC->getASTContext()) &&
+        !L->EvaluateAsConstantExpr(dummy, m_AnalysisDC->getASTContext());
     bool LHSIsStored =
         !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
     bool RHSIsStored =
@@ -297,8 +296,8 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     // Division normally only results in a linear expression when the
     // denominator is constant.
     Expr::EvalResult dummy;
-    bool nonLinear = !clad_compat::Expr_EvaluateAsConstantExpr(
-        R, dummy, m_AnalysisDC->getASTContext());
+    bool nonLinear =
+        !R->EvaluateAsConstantExpr(dummy, m_AnalysisDC->getASTContext());
     if (nonLinear)
       startNonLinearMode();
     bool LHSIsStored =
@@ -335,8 +334,8 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
       // represents the same operation as 'x = x * y' ('x = x / y') and,
       // therefore, LHS has to be visited in kMarkingMode|kNonLinearMode.
       Expr::EvalResult dummy;
-      bool RisNotConst = !clad_compat::Expr_EvaluateAsConstantExpr(
-          R, dummy, m_AnalysisDC->getASTContext());
+      bool RisNotConst =
+          !R->EvaluateAsConstantExpr(dummy, m_AnalysisDC->getASTContext());
       if (RisNotConst)
         setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
       TraverseStmt(L);
