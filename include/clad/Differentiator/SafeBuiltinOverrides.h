@@ -12,6 +12,7 @@
 
 namespace clad {
 
+
 template <typename T, typename U> struct ValueAndPushforward {
   T value;
   U pushforward;
@@ -24,6 +25,8 @@ template <typename T, typename U> struct ValueAndPushforward {
     return {static_cast<V>(value), static_cast<W>(pushforward)};
   }
 };
+//If you want to delete this header file, this must be put back into BuiltinDerivatives.h
+
 // Warning helpers
 
 #ifdef CLAD_SAFE_MATH
