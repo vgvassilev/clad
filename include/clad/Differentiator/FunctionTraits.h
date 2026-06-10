@@ -645,6 +645,89 @@ namespace clad {
     using type = NoFunction*;
   };
 
+  template <class T, class = void> struct PullbackDerivedFnTraits {};
+
+  template <class T>
+  using PullbackDerivedFnTraits_t = typename PullbackDerivedFnTraits<T>::type;
+
+  template <class ReturnType, class... Args>
+  struct PullbackDerivedFnTraits<
+      ReturnType (*)(Args...),
+      typename std::enable_if<!std::is_void<ReturnType>::value &&
+                              !std::is_pointer<ReturnType>::value>::type> {
+    using type = void (*)(Args..., typename std::decay<ReturnType>::type,
+                          OutputParamType_t<Args, void>...);
+  };
+
+  template <class ReturnType, class... Args>
+  struct PullbackDerivedFnTraits<
+      ReturnType (*)(Args...),
+      typename std::enable_if<std::is_void<ReturnType>::value ||
+                              std::is_pointer<ReturnType>::value>::type> {
+    using type = void (*)(Args..., OutputParamType_t<Args, void>...);
+  };
+
+#define PullbackDerivedFnTraits_AddSPECS(var, cv, vol, ref, noex)            \
+    template <typename R, typename C, typename... Args>                        \
+    struct PullbackDerivedFnTraits<                                            \
+        R (C::*)(Args...) cv vol ref noex,                                     \
+        typename std::enable_if<!std::is_void<R>::value &&                     \
+                                !std::is_pointer<R>::value>::type> {           \
+      using type = void (C::*)(                                                \
+          Args..., typename std::decay<R>::type, OutputParamType_t<C, void>,   \
+          OutputParamType_t<Args, void>...) cv vol ref noex;                   \
+    };                                                                         \
+    template <typename R, typename C, typename... Args>                        \
+    struct PullbackDerivedFnTraits<                                            \
+        R (C::*)(Args...) cv vol ref noex,                                     \
+        typename std::enable_if<std::is_void<R>::value ||                      \
+                                std::is_pointer<R>::value>::type> {            \
+      using type =                                                             \
+          void (C::*)(Args..., OutputParamType_t<C, void>,                     \
+                      OutputParamType_t<Args, void>...) cv vol ref noex;       \
+    };
+
+#if __cpp_noexcept_function_type > 0
+#define PullbackDerivedFnTraits_AddNOEX(var, con, vol, ref)                  \
+    PullbackDerivedFnTraits_AddSPECS(var, con, vol, ref, )                     \
+        PullbackDerivedFnTraits_AddSPECS(var, con, vol, ref, noexcept)
+#else
+#define PullbackDerivedFnTraits_AddNOEX(var, con, vol, ref)                  \
+    PullbackDerivedFnTraits_AddSPECS(var, con, vol, ref, )
+#endif
+
+#define PullbackDerivedFnTraits_AddREF(var, con, vol)                        \
+    PullbackDerivedFnTraits_AddNOEX(var, con, vol, )                           \
+        PullbackDerivedFnTraits_AddNOEX(var, con, vol, &)                      \
+            PullbackDerivedFnTraits_AddNOEX(var, con, vol, &&)
+
+#define PullbackDerivedFnTraits_AddVOL(var, con)                             \
+    PullbackDerivedFnTraits_AddREF(var, con, )                                 \
+        PullbackDerivedFnTraits_AddREF(var, con, volatile)
+
+#define PullbackDerivedFnTraits_AddCON(var)                                  \
+    PullbackDerivedFnTraits_AddVOL(var, )                                      \
+        PullbackDerivedFnTraits_AddVOL(var, const)
+
+  PullbackDerivedFnTraits_AddCON(()); // Declares all the specializations
+
+  template <class F>
+  struct PullbackDerivedFnTraits<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             has_call_operator<F>::value>::type> {
+    using ClassType =
+        typename std::decay<remove_reference_and_pointer_t<F>>::type;
+    using type = PullbackDerivedFnTraits_t<decltype(&ClassType::operator())>;
+  };
+  template <class F>
+  struct PullbackDerivedFnTraits<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             !has_call_operator<F>::value>::type> {
+    using type = NoFunction*;
+  };
+
   template <class T, class = void> struct HessianDerivedFnTraits {};
 
   // HessianDerivedFnTraits is used to deduce type of the derived functions

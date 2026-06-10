@@ -270,7 +270,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool shouldCreateOverload = false;
     // FIXME: Gradient overload doesn't know how to handle additional parameters
     // added by the plugins yet.
-    if (m_DiffReq.Mode == DiffMode::reverse) {
+    if (m_DiffReq.Mode == DiffMode::reverse ||
+        m_DiffReq.Mode == DiffMode::pullback) {
       if (m_DiffReq.Mode != DiffMode::pullback) {
         if (returnTy->isRealType())
           m_Pullback.push_back(

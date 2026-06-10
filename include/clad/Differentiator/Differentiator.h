@@ -725,7 +725,7 @@ T& back(
   ///             independent variables (e.g. "x" or "x, y"). If not provided,
   ///             the pullback is generated with respect to all arguments.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
-            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+            typename F, typename DerivedFnType = PullbackDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
                                  opts::immediate_mode) &&
@@ -740,7 +740,7 @@ T& back(
   }
 
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
-            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+            typename F, typename DerivedFnType = PullbackDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
                                 opts::immediate_mode) &&
@@ -756,7 +756,7 @@ T& back(
 
   /// Specialization for differentiating functors.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
-            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+            typename F, typename DerivedFnType = PullbackDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
