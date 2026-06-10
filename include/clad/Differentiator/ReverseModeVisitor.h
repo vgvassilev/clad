@@ -480,6 +480,7 @@ namespace clad {
     VisitOMPExecutableDirective(const clang::OMPExecutableDirective* D);
     StmtDiff
     VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
+    StmtDiff VisitOMPCriticalDirective(const clang::OMPCriticalDirective* D);
 
     /// Helper function that builds `T* _this = malloc(sifeof(T));`
     /// and `free(_this)`.

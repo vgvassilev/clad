@@ -80,6 +80,33 @@ double accumulate_scale_parallel(double scale, int n) {
 // CHECK-NEXT:     return _d_sum;
 // CHECK-NEXT: }
 
+double accumulate_critical(const double *x, int n) {
+    double result = 0;
+    #pragma omp parallel for
+    for (int i = 0; i < n; i++) {
+        #pragma omp critical
+        {
+            result += x[0] * x[0];
+        }
+    }
+    return result;
+}
+
+// CHECK: double accumulate_critical_darg0_0(const double *x, int n) {
+// CHECK-NEXT:     int _d_n = 0;
+// CHECK-NEXT:     double _d_result = 0;
+// CHECK-NEXT:     double result = 0;
+// CHECK-NEXT:     #pragma omp parallel for
+// CHECK-NEXT:         for (int i = 0; i < n; i++) {
+// CHECK-NEXT:             #pragma omp critical
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     _d_result += 1. * x[0] + x[0] * 1.;
+// CHECK-NEXT:                     result += x[0] * x[0];
+// CHECK-NEXT:                 }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     return _d_result;
+// CHECK-NEXT: }
+
 int main() {
   double x[5] = {1, 2, 3, 4, 5};
   int n = 5;
@@ -90,5 +117,8 @@ int main() {
 
   auto d_accum_wrt_scale = clad::differentiate(accumulate_scale_parallel, "scale");
   double d3 = d_accum_wrt_scale.execute(3.5, 8);
+
+  auto d_critical = clad::differentiate(accumulate_critical, "x[0]");
+  double d4 = d_critical.execute(x, n);
   return 0;
 }
