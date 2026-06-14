@@ -978,7 +978,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     });
   }
 
-  static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R) {
+  static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R,
+                               bool* foundAnyDecl = nullptr) {
+    if (foundAnyDecl)
+      *foundAnyDecl = false;
     // Error estimation only uses forward mode derivatives if they are
     // user-prodived to handle builtin derivatives. If found, we have to change
     // the mode of the request.
@@ -986,7 +989,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         utils::canUsePushforwardInRevMode(R.Function)) {
       R.Mode = DiffMode::pushforward;
       R.EnableErrorEstimation = false;
-      if (Expr* overload = getOverloadExpr(S, DC, R)) {
+      if (Expr* overload = getOverloadExpr(S, DC, R, foundAnyDecl)) {
         R.DVI.clear();
         return overload;
       }
@@ -1025,6 +1028,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     if (Found.empty())
       return nullptr; // Nothing found.
+
+    if (foundAnyDecl)
+      *foundAnyDecl = true;
 
     TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
                                               /*ForTakingAddress=*/false);
@@ -1078,21 +1084,43 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
     } else
       fnDecl = request.Function;
-    DeclContext* DC = customDerNS;
-
-    if (isa<CXXMethodDecl>(fnDecl))
-      DC = utils::LookupNSD(m_Sema, "class_functions", /*shouldExist=*/false,
-                            DC);
-    else
-      DC = utils::FindDeclContext(m_Sema, DC, fnDecl->getDeclContext());
-
-    if (!DC)
-      return false;
-
     assert(request.Mode != DiffMode::unknown &&
            "Called lookup without specified DiffMode");
 
-    if (Expr* overload = getOverloadExpr(m_Sema, DC, request)) {
+    auto LookupOverload = [this, fnDecl, &request](NamespaceDecl* NSD,
+                                                   bool* foundAnyDecl) {
+      DeclContext* DC = NSD;
+      if (isa<CXXMethodDecl>(fnDecl))
+        DC = utils::LookupNSD(m_Sema, "class_functions",
+                              /*shouldExist=*/false, DC);
+      else
+        DC = utils::FindDeclContext(m_Sema, DC, fnDecl->getDeclContext());
+      if (!DC)
+        return static_cast<Expr*>(nullptr);
+      return getOverloadExpr(m_Sema, DC, request, foundAnyDecl);
+    };
+
+    // Look for the user overrides namespace nested inside custom_derivatives
+    NamespaceDecl* overridesNS = utils::LookupNSD(
+        m_Sema, "overrides", /*shouldExist=*/false, customDerNS);
+
+    // clad::custom_derivatives::overrides (user overrides, higher priority).
+    bool foundOverridesDecl = false;
+    if (overridesNS) {
+      if (Expr* overload = LookupOverload(overridesNS, &foundOverridesDecl)) {
+        // Overload found. Mark the request as custom derivative overrides and
+        // save the set of overloads to process later.
+        request.CustomDerivative = overload;
+        return true;
+      }
+      // Overrides declaration found but signature mismatch; do not fall back to
+      // builtin.
+      if (foundOverridesDecl)
+        return false;
+    }
+
+    // clad::custom_derivatives (builtins, fallback).
+    if (Expr* overload = LookupOverload(customDerNS, nullptr)) {
       // Overload found. Mark the request as custom derivative and save
       // the set of overloads to process later.
       request.CustomDerivative = overload;
