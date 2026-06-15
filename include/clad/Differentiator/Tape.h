@@ -457,12 +457,12 @@ protected:
 #endif
   }
 
-  DiskInfo& getDiskInfo() {
+  CUDA_HOST_DEVICE DiskInfo& getDiskInfo() {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     return *reinterpret_cast<DiskInfo*>(&m_state);
   }
 
-  void check_and_evict_impl(std::true_type) {
+  CUDA_HOST_DEVICE void check_and_evict_impl(std::true_type) {
     DiskInfo& info = getDiskInfo();
     if (GpuOffload && info.m_ActiveVramSlabs >= info.m_MaxVramSlabs) {
       Slab* candidate = m_head;
@@ -539,9 +539,9 @@ protected:
       }
     }
   }
-  void check_and_evict_impl(std::false_type) {}
+  CUDA_HOST_DEVICE void check_and_evict_impl(std::false_type) {}
 
-  void ensure_loaded_impl(Slab* slab, std::true_type) {
+  CUDA_HOST_DEVICE void ensure_loaded_impl(Slab* slab, std::true_type) {
     DiskInfo& info = getDiskInfo();
     if (GpuOffload) {
       // Already in host RAM — return immediately
@@ -604,14 +604,14 @@ protected:
     }
   }
 
-  void ensure_loaded_impl(Slab* slab, std::false_type) {}
+  CUDA_HOST_DEVICE void ensure_loaded_impl(Slab* slab, std::false_type) {}
 
-  void check_and_evict() {
+  CUDA_HOST_DEVICE void check_and_evict() {
     check_and_evict_impl(std::integral_constant < bool,
                          DiskOffload || GpuOffload > {});
   }
 
-  void ensure_loaded(Slab* slab) {
+  CUDA_HOST_DEVICE void ensure_loaded(Slab* slab) {
     ensure_loaded_impl(slab, std::integral_constant < bool,
                        DiskOffload || GpuOffload > {});
   }
@@ -923,8 +923,11 @@ private:
     m_capacity = SBO_SIZE;
   }
 
-  template <typename ElTy> void destroy_element(ElTy* elem) { elem->~ElTy(); }
-  template <typename ElTy, size_t N> void destroy_element(ElTy (*arr)[N]) {
+  template <typename ElTy> CUDA_HOST_DEVICE void destroy_element(ElTy* elem) {
+    elem->~ElTy();
+  }
+  template <typename ElTy, size_t N>
+  CUDA_HOST_DEVICE void destroy_element(ElTy (*arr)[N]) {
     for (size_t i = 0; i < N; ++i)
       (*arr)[i].~ElTy();
   }
