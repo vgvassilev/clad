@@ -64,10 +64,10 @@ namespace clad {
     // a separate namespace, as well as add getters/setters function of
     // several private/protected members of the visitor classes.
     friend class ErrorEstimationHandler;
-    // FIXME: Should we make this an object instead of a pointer?
-    // Downside of making it an object: We will need to include
-    // 'MultiplexExternalRMVSource.h' file
-    MultiplexExternalRMVSource* m_ExternalSource = nullptr;
+    // External sources are owned by the visitor and tied to the current
+    // derivative generation run. Keep them in a unique_ptr to avoid manual
+    // delete paths and stale ownership.
+    std::unique_ptr<MultiplexExternalRMVSource> m_ExternalSource;
     llvm::SmallVector<const clang::ParmVarDecl*, 16> m_NonIndepParams;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
