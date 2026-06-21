@@ -46,18 +46,21 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   SourceLocation loc{m_DiffReq->getLocation()};
   DeclarationNameInfo name(II, loc);
 
+  // Save Sema state before cloneFunction mutates it.
+  llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
-  DeclWithContext result = m_Builder.cloneFunction(
+  // `result` owns the namespace Scopes cloneFunction opens; its
+  // destructor pops them before SaveScope restores.
+  ClonedFunction result = m_Builder.cloneFunction(
       m_DiffReq.Function, *this, DC, loc, name, vectorDiffFunctionType);
-  FunctionDecl* vectorDiffFD = result.first;
+  FunctionDecl* vectorDiffFD = result.fd;
   m_Derivative = vectorDiffFD;
 
   // Function declaration scope
-  llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
   beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
              Scope::DeclScope);
   m_Sema.PushFunctionScope();
@@ -233,11 +236,18 @@ VectorForwardModeVisitor::CreateVectorModeOverload(FunctionDecl* derivative) {
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+  // Called while the caller's Derive() still holds a ClonedFunction for the
+  // same namespaces; cloneFunction rebuilds them from the root, so restore
+  // CurContext/Scope here or the caller's handle pops past the TU and crashes.
+  llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
   m_Sema.CurContext = DC;
-  DeclWithContext result =
+  // `result` owns its namespace Scopes; pops at end of this function,
+  // rebasing to the depth its outer caller had on entry.
+  ClonedFunction result =
       m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
                               vectorModeNameInfo, vectorModeFuncOverloadType);
-  FunctionDecl* vectorModeOverloadFD = result.first;
+  FunctionDecl* vectorModeOverloadFD = result.fd;
 
   // Function declaration scope
   beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |

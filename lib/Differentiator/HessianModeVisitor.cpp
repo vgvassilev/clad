@@ -239,9 +239,11 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
                                            getEnclosingNamespaceOrTUScope());
     m_Sema.CurContext = DC;
 
-    DeclWithContext result = m_Builder.cloneFunction(
+    // `result` owns the namespace Scopes cloneFunction opens; its
+    // destructor pops them before SaveScope restores.
+    ClonedFunction result = m_Builder.cloneFunction(
         m_DiffReq.Function, *this, DC, noLoc, name, hessianFunctionType);
-    FunctionDecl* hessianFD = result.first;
+    FunctionDecl* hessianFD = result.fd;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
@@ -392,7 +394,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return DerivativeAndOverload{result.first,
+    return DerivativeAndOverload{result.fd,
                                  /*OverloadFunctionDecl=*/nullptr};
   }
 } // end namespace clad

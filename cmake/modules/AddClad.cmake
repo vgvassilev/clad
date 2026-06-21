@@ -234,6 +234,15 @@ function(clad_externalproject_add NAME)
   remove_coverage_flags(C_FLAGS_EXT CXX_FLAGS_EXT SHARED_CREATE_CXX_FLAGS_EXT EXE_LINKER_FLAGS_EXT SHARED_LINKER_FLAGS_EXT)
   disable_werror(C_FLAGS_EXT CXX_FLAGS_EXT)
 
+
+  # Strip sanitizer flags: 3rd-party externals build with cmake
+  # defaults; the parent keeps its -fsanitize=* from LLVM_USE_SANITIZER.
+  foreach(_flags C_FLAGS_EXT CXX_FLAGS_EXT)
+    foreach(_san "-fsanitize=address" "-fsanitize=undefined" "-fsanitize=memory")
+      string(REPLACE "${_san}" "" ${_flags} "${${_flags}}")
+    endforeach()
+  endforeach()
+
   # Everything EXCEPT EXTRA_CMAKE_ARGS gets forwarded unchanged
   set(FORWARDED_ARGS ${ARG_UNPARSED_ARGUMENTS})
 

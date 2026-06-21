@@ -40,6 +40,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -241,15 +242,20 @@ namespace clad {
     return NDecl;
   }
 
-  NamespaceDecl* VisitorBase::RebuildEnclosingNamespaces(DeclContext* DC) {
+  unsigned VisitorBase::RebuildEnclosingNamespaces(DeclContext* DC) {
     if (NamespaceDecl* ND = dyn_cast_or_null<NamespaceDecl>(DC)) {
-      NamespaceDecl* Head = RebuildEnclosingNamespaces(ND->getDeclContext());
-      NamespaceDecl* NewD =
-          BuildNamespaceDecl(ND->getIdentifier(), ND->isInline());
-      return Head ? Head : NewD;
-    } else {
-      m_Sema.CurContext = DC;
-      return nullptr;
+      unsigned N = RebuildEnclosingNamespaces(ND->getDeclContext());
+      BuildNamespaceDecl(ND->getIdentifier(), ND->isInline());
+      return N + 1;
+    }
+    m_Sema.CurContext = DC;
+    return 0;
+  }
+
+  void VisitorBase::popEnclosingNamespaceScopes(unsigned N) {
+    for (unsigned i = 0; i < N; ++i) {
+      m_Sema.PopDeclContext();
+      endScope();
     }
   }
 
@@ -892,11 +898,19 @@ namespace clad {
     // FIXME: We should not use const_cast to get the decl context here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+    // Called while the caller's Derive() still holds a ClonedFunction for the
+    // same namespaces; cloneFunction rebuilds them from the root, so restore
+    // CurContext/Scope here or the caller's handle pops past the TU and
+    // crashes.
+    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
     m_Sema.CurContext = DC;
-    DeclWithContext diffOverloadFDWC =
+    // `cloned` owns its namespace Scopes; pops at end of this function,
+    // rebasing to the depth the outer Derive had on entry.
+    ClonedFunction cloned =
         m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
                                 diffNameInfo, diffFunctionOverloadType);
-    FunctionDecl* diffOverloadFD = diffOverloadFDWC.first;
+    FunctionDecl* diffOverloadFD = cloned.fd;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);

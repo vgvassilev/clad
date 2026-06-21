@@ -24,6 +24,7 @@
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/VectorForwardModeVisitor.h"
 #include "clad/Differentiator/VectorPushForwardModeVisitor.h"
+#include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
@@ -49,7 +50,6 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <utility>
 
 using namespace clang;
 
@@ -113,12 +113,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return false;
   }
 
-  DeclWithContext DerivativeBuilder::cloneFunction(
+  ClonedFunction DerivativeBuilder::cloneFunction(
       const clang::FunctionDecl* FD, clad::VisitorBase& VB,
       clang::DeclContext* DC, clang::SourceLocation& noLoc,
       clang::DeclarationNameInfo name, clang::QualType functionType) {
     FunctionDecl* returnedFD = nullptr;
-    NamespaceDecl* enclosingNS = nullptr;
+    // Count of namespace Scopes RebuildEnclosingNamespaces opens for
+    // this clone -- the returned handle pops exactly that many.
+    unsigned NamespaceCount = 0;
     TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(functionType);
     if (isa<CXXMethodDecl>(FD)) {
       CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
@@ -136,7 +138,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       returnedFD->setAccess(AS_public);
     } else {
       assert (isa<FunctionDecl>(FD) && "Unexpected!");
-      enclosingNS = VB.RebuildEnclosingNamespaces(DC);
+      NamespaceCount = VB.RebuildEnclosingNamespaces(DC);
 
       auto TrailingRequiresClause =
           CLAD_COMPAT_CLANG21_getTrailingRequiresClause(FD);
@@ -167,7 +169,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       }
     }
 
-    return { returnedFD, enclosingNS };
+    return ClonedFunction{VB, NamespaceCount, returnedFD};
+  }
+
+  // The destructor is defined here so the header can hold just a forward
+  // declaration of VisitorBase.
+  ClonedFunction::~ClonedFunction() {
+    if (m_Owner)
+      m_Owner->popEnclosingNamespaceScopes(m_NamespaceCount);
   }
 
   // This method is derived from the source code of both

@@ -53,12 +53,36 @@ namespace clad {
 namespace clad {
 class ErrorEstimationHandler;
 
-/// A pair of FunctionDecl and potential enclosing context, e.g. a function
-/// in nested namespaces.
-// This is the type returned by cloneFunction. Using OverloadedDeclWithContext
-// instead would lead to unnecessarily returning a nullptr in the overloaded
-// FD
-using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
+class VisitorBase;
+
+/// RAII handle for a cloned derivative function. cloneFunction opens one
+/// clang::Scope and pushes one DeclContext per enclosing namespace of the
+/// original function; ClonedFunction owns those and pops them on
+/// destruction. The contained FunctionDecl* is independently AST-owned,
+/// so callers may keep using it after the handle goes away.
+///
+/// The handle is neither copyable nor movable: cloneFunction returns it by
+/// value, but under C++17 guaranteed copy elision the prvalue constructs the
+/// caller's object directly (ClonedFunction r = cloneFunction(...)), so no
+/// move is ever performed and none needs to exist.
+class ClonedFunction {
+  VisitorBase* m_Owner = nullptr;
+  unsigned m_NamespaceCount = 0;
+
+public:
+  clang::FunctionDecl* fd = nullptr;
+
+  ClonedFunction(VisitorBase& VB, unsigned NamespaceCount,
+                 clang::FunctionDecl* FD)
+      : m_Owner(&VB), m_NamespaceCount(NamespaceCount), fd(FD) {}
+
+  ClonedFunction(const ClonedFunction&) = delete;
+  ClonedFunction& operator=(const ClonedFunction&) = delete;
+  ClonedFunction(ClonedFunction&&) = delete;
+  ClonedFunction& operator=(ClonedFunction&&) = delete;
+  ~ClonedFunction();
+};
+
 /// Stores derivative and the corresponding overload. If no overload exist
 /// then `second` data member should be `nullptr`.
 struct DerivativeAndOverload {
@@ -95,11 +119,11 @@ struct DerivativeAndOverload {
     /// A flag to keep track of whether error diagnostics are requested by user
     /// for numerical differentiation.
     bool m_PrintNumericalDiffErrorDiag = false;
-    DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
-                                  clad::VisitorBase& VB, clang::DeclContext* DC,
-                                  clang::SourceLocation& noLoc,
-                                  clang::DeclarationNameInfo name,
-                                  clang::QualType functionType);
+    ClonedFunction cloneFunction(const clang::FunctionDecl* FD,
+                                 clad::VisitorBase& VB, clang::DeclContext* DC,
+                                 clang::SourceLocation& noLoc,
+                                 clang::DeclarationNameInfo name,
+                                 clang::QualType functionType);
     /// Looks for a suitable overload for a given function.
     ///
     /// \param[in] Name The identification information of the function

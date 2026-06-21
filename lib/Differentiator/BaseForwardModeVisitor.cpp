@@ -157,9 +157,11 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
 
   m_Sema.CurContext = DC;
   QualType derivedFnType = GetDerivativeType();
-  DeclWithContext result =
+  // `result` owns the namespace Scopes cloneFunction opens; its
+  // destructor pops them before SaveScope restores.
+  ClonedFunction result =
       m_Builder.cloneFunction(FD, *this, DC, validLoc, name, derivedFnType);
-  FunctionDecl* derivedFD = result.first;
+  FunctionDecl* derivedFD = result.fd;
   m_Derivative = derivedFD;
 
   // Function declaration scope
@@ -232,7 +234,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
 
   endScope(); // Function decl scope
 
-  return DerivativeAndOverload{result.first,
+  return DerivativeAndOverload{result.fd,
                                /*OverloadFunctionDecl=*/nullptr};
 }
 

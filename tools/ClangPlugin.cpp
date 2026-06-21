@@ -21,6 +21,22 @@
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
+
+#ifdef _WIN32
+// <windows.h> defines function-like min/max macros that mangle
+// std::numeric_limits<>::max() in llvm/ADT/Sequence.h (included below);
+// NOMINMAX suppresses them. WIN32_LEAN_AND_MEAN trims unrelated Win32 surface.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
 #include "clang/Basic/Version.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
@@ -123,18 +139,26 @@ void InitTimers();
       if (WantTiming || getenv("CLAD_ENABLE_TIMING"))
         InitTimers();
 
-      FrontendOptions& Opts = CI.getFrontendOpts();
-      // Find the path to clad.
-      llvm::StringRef CladSoPath;
-      for (llvm::StringRef P : Opts.Plugins)
-        if (llvm::sys::path::stem(P).ends_with("clad")) {
-          CladSoPath = P;
-          break;
-        }
-
-      // Register clad as a backend pass.
-      if (!CladSoPath.empty())
-        CGOpts.PassPlugins.push_back(CladSoPath.str());
+        // Register clad as a backend pass via the path of clad.so itself,
+        // resolved from any symbol we own. Cleaner than iterating
+        // CI.getFrontendOpts().Plugins (which depends on how clang was
+        // invoked) and keeps the lookup inside this DSO.
+#ifdef _WIN32
+      HMODULE hm = nullptr;
+      if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                 GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                             reinterpret_cast<LPCSTR>(&InitTimers), &hm) &&
+          hm) {
+        char buf[MAX_PATH];
+        if (DWORD n = GetModuleFileNameA(hm, buf, MAX_PATH);
+            n > 0 && n < MAX_PATH)
+          CGOpts.PassPlugins.emplace_back(buf);
+      }
+#else
+      if (Dl_info info;
+          dladdr(reinterpret_cast<void*>(&InitTimers), &info) && info.dli_fname)
+        CGOpts.PassPlugins.emplace_back(info.dli_fname);
+#endif
 
       // Add define for __CLAD__, so that CladFunction::CladFunction()
       // doesn't throw an error.

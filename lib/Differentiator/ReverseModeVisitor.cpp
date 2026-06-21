@@ -303,9 +303,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     m_Sema.CurContext = DC;
     SourceLocation loc = m_DiffReq->getLocation();
     DeclarationNameInfo DNI = utils::BuildDeclarationNameInfo(m_Sema, name);
-    DeclWithContext result = m_Builder.cloneFunction(m_DiffReq.Function, *this,
-                                                     DC, loc, DNI, dFnType);
-    m_Derivative = result.first;
+    // `result` owns the namespace Scopes cloneFunction opens; its
+    // destructor pops them before SaveScope restores -- declaration order
+    // gives the correct LIFO unwind.
+    ClonedFunction result = m_Builder.cloneFunction(m_DiffReq.Function, *this,
+                                                    DC, loc, DNI, dFnType);
+    m_Derivative = result.fd;
 
     // Function declaration scope
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -378,9 +381,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     if (!shouldCreateOverload)
-      return DerivativeAndOverload{result.first, /*overload=*/nullptr};
+      return DerivativeAndOverload{result.fd, /*overload=*/nullptr};
 
-    return DerivativeAndOverload{result.first, CreateDerivativeOverload()};
+    return DerivativeAndOverload{result.fd, CreateDerivativeOverload()};
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
