@@ -654,8 +654,16 @@ namespace clad {
     /// modes.
     clang::FunctionDecl*
     CreateDerivativeOverload(clang::FunctionDecl derivative);
-    /// Rebuild a sequence of nested namespaces ending with DC.
-    clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);
+    /// Rebuild a sequence of nested namespaces ending with DC and return
+    /// how many were opened. Each opens a Scope that the caller (via
+    /// ClonedFunction's RAII handle) must balance with the same count
+    /// passed to popEnclosingNamespaceScopes -- otherwise the Scope
+    /// objects leak when SaveAndRestore restores the outer Scope*.
+    unsigned RebuildEnclosingNamespaces(clang::DeclContext* DC);
+
+    /// Pop N namespace Scopes (and their matching DeclContext pushes).
+    /// Used only by ClonedFunction's destructor.
+    void popEnclosingNamespaceScopes(unsigned N);
     /// Clones a statement
     clang::Stmt* Clone(const clang::Stmt* S);
     /// A shorthand to simplify cloning of expressions.

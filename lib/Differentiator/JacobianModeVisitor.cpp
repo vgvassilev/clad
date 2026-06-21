@@ -36,19 +36,22 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
 
   QualType vectorDiffFunctionType = GetDerivativeType();
 
+  // Save Sema state before cloneFunction mutates it.
+  llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
   // Create the function declaration for the derivative.
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
-  DeclWithContext result = m_Builder.cloneFunction(
+  // `result` owns the namespace Scopes cloneFunction opens; its
+  // destructor pops them before SaveScope restores.
+  ClonedFunction result = m_Builder.cloneFunction(
       m_DiffReq.Function, *this, DC, loc, name, vectorDiffFunctionType);
-  FunctionDecl* vectorDiffFD = result.first;
+  FunctionDecl* vectorDiffFD = result.fd;
   m_Derivative = vectorDiffFD;
 
   // Function declaration scope
-  llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
   beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
              Scope::DeclScope);
   m_Sema.PushFunctionScope();

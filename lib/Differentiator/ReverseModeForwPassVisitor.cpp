@@ -47,9 +47,11 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
 
   m_Sema.CurContext = DC;
   SourceLocation validLoc{m_DiffReq->getLocation()};
-  DeclWithContext fnBuildRes = m_Builder.cloneFunction(
+  // `fnBuildRes` owns the namespace Scopes cloneFunction opens; its
+  // destructor pops them before saveScope restores.
+  ClonedFunction fnBuildRes = m_Builder.cloneFunction(
       m_DiffReq.Function, *this, m_Sema.CurContext, validLoc, fnDNI, fnType);
-  m_Derivative = fnBuildRes.first;
+  m_Derivative = fnBuildRes.fd;
 
   beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
              Scope::DeclScope);

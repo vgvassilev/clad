@@ -7,6 +7,8 @@ endif()
 enable_language(CXX)
 set(CMAKE_CXX_EXTENSIONS NO)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# clad.so links libcladDifferentiator.a; every target must be PIC.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 include(GNUInstallDirs)
 
 # MUST be done before call to clad project
@@ -334,14 +336,20 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     # need to use a supported by clad compiler. Note that's a huge hack and it is
     # not guaranteed to work with cmake.
     set(stored_cxx_compiler ${CMAKE_CXX_COMPILER})
+    set(stored_c_compiler ${CMAKE_C_COMPILER})
     set(stored_cxx_flags ${CMAKE_CXX_FLAGS})
     set(stored_c_flags ${CMAKE_C_FLAGS})
     # FIXME: Remove when vgvassilev/clad#1665 is resolved.
     disable_werror(CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
+    # Swap both C and C++ -- clad_externalproject_add forwards both,
+    # so a CXX-only swap leaves gtest with a mixed toolchain.
     set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
-    # Filter some unsupported flags by clang.
-    string(REPLACE "-fno-lifetime-dse" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    string(REPLACE "-Wno-class-memaccess" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    set(CMAKE_C_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
+    # Drop GCC-only flags now that both C and CXX route through clang.
+    foreach(_flags CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
+      string(REPLACE "-fno-lifetime-dse" "" ${_flags} "${${_flags}}")
+      string(REPLACE "-Wno-class-memaccess" "" ${_flags} "${${_flags}}")
+    endforeach()
   endif()
 
   if (NOT CLAD_DISABLE_TESTS)
@@ -355,8 +363,9 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
   endif(CLAD_ENABLE_BENCHMARKS)
 
   if (stored_cxx_compiler)
-    # Restore the default compiler.
+    # Restore the default compilers.
     set(CMAKE_CXX_COMPILER ${stored_cxx_compiler})
+    set(CMAKE_C_COMPILER ${stored_c_compiler})
     set(CMAKE_CXX_FLAGS ${stored_cxx_flags})
     set(CMAKE_C_FLAGS ${stored_c_flags})
   endif()
