@@ -247,7 +247,7 @@ bool TBRAnalyzer::TraverseConditionalOperator(clang::ConditionalOperator* CO) {
 
   auto thenBranch = std::move(m_BlockData[m_CurBlockID]);
   m_BlockData[m_CurBlockID] = std::move(elseBranch);
-  TraverseStmt(CO->getTrueExpr());
+  TraverseStmt(CO->getFalseExpr());
 
   merge(m_BlockData[m_CurBlockID].get(), thenBranch.get());
   return false;
