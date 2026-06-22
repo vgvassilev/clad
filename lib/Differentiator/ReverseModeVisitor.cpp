@@ -252,16 +252,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                          const DiffRequest& request)
       : VisitorBase(builder, request) {}
 
-  ReverseModeVisitor::~ReverseModeVisitor() {
-    if (m_ExternalSource) {
-      // Inform external sources that `ReverseModeVisitor` object no longer
-      // exists.
-      // FIXME: Make this so the lifetime scope of the source matches.
-      // m_ExternalSource->ForgetRMV();
-      // Free the external sources multiplexer since we own this resource.
-      delete m_ExternalSource;
-    }
-  }
+  ReverseModeVisitor::~ReverseModeVisitor() = default;
 
   DerivativeAndOverload ReverseModeVisitor::Derive() {
     assert(m_DiffReq.Function && "Must not be null.");
@@ -4494,7 +4485,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   void ReverseModeVisitor::AddExternalSource(ExternalRMVSource& source) {
     if (!m_ExternalSource)
-      m_ExternalSource = new MultiplexExternalRMVSource();
+      m_ExternalSource = std::make_unique<MultiplexExternalRMVSource>();
     source.InitialiseRMV(*this);
     m_ExternalSource->AddSource(source);
   }
