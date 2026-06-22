@@ -68,9 +68,9 @@ void operator delete(void* p) noexcept {
 }
 
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          bool DiskOffload = false>
+          bool DiskOffload = false, bool GpuOffload = false>
 void func(clad::tape_impl<T, SBO_SIZE, SLAB_SIZE, /*is_Multithread=*/false,
-                          DiskOffload>& t,
+                          DiskOffload, GpuOffload>& t,
           T x, int n) {
   for (int i = 0; i < n; i++)
     clad::push(t, x);
@@ -85,11 +85,11 @@ static void BM_TapeMemory(benchmark::State& state) {
   int block = state.range(0);
   AddBMCounterRAII MemCounters(*mm.get(), state);
   for (auto _ : state) {
-    // Explicitly using false for DiskOffload to test baseline
     clad::tape_impl<double, 64, 1024, /*is_Multithread=*/false,
-                    /*DiskOffload=*/false>
+                    /*DiskOffload=*/false, /*GpuOffload=*/false>
         t;
-    func<double, 64, 1024, /*DiskOffload=*/false>(t, 1, block * 2 + 1);
+    func<double, 64, 1024, /*DiskOffload=*/false, /*GpuOffload=*/false>(
+        t, 1, block * 2 + 1);
   }
 }
 BENCHMARK(BM_TapeMemory)->RangeMultiplier(2)->Range(0, 4096);
@@ -100,10 +100,10 @@ static void BM_TapeMemory_Templated(benchmark::State& state) {
   AddBMCounterRAII MemCounters(*mm.get(), state);
   for (auto _ : state) {
     clad::tape_impl<double, SBO_SIZE, SLAB_SIZE, /*is_Multithread=*/false,
-                    /*DiskOffload=*/false>
+                    /*DiskOffload=*/false, /*GpuOffload=*/false>
         t;
-    func<double, SBO_SIZE, SLAB_SIZE, /*DiskOffload=*/false>(t, 1,
-                                                             block * 2 + 1);
+    func<double, SBO_SIZE, SLAB_SIZE, /*DiskOffload=*/false,
+         /*GpuOffload=*/false>(t, 1, block * 2 + 1);
   }
 }
 
@@ -124,10 +124,10 @@ static void BM_Multilayer_Storage(benchmark::State& state) {
   for (auto _ : state) {
     // Set DiskOffload = true here
     clad::tape_impl<double, SBO_SIZE, SLAB_SIZE, /*is_Multithread=*/false,
-                    /*DiskOffload=*/true>
+                    /*DiskOffload=*/true, /*GpuOffload=*/false>
         t;
-    func<double, SBO_SIZE, SLAB_SIZE, /*DiskOffload=*/true>(t, 1,
-                                                            block * 2 + 1);
+    func<double, SBO_SIZE, SLAB_SIZE, /*DiskOffload=*/true,
+         /*GpuOffload=*/false>(t, 1, block * 2 + 1);
   }
 }
 
@@ -135,6 +135,25 @@ BENCHMARK_TEMPLATE(BM_Multilayer_Storage, 64, 1024)
     ->RangeMultiplier(2)
     ->Range(0, 4096)
     ->Name("BM_Multilayer_Storage/SBO_64_SLAB_1024_DISK");
+
+// This explicitly tests the case where GpuOffload = true
+template <std::size_t SBO_SIZE, std::size_t SLAB_SIZE>
+static void BM_Gpu_Offload_Storage(benchmark::State& state) {
+  int64_t block = state.range(0);
+  AddBMCounterRAII MemCounters(*mm, state);
+  for (auto _ : state) {
+    clad::tape_impl<double, SBO_SIZE, SLAB_SIZE, /*is_Multithread=*/false,
+                    /*DiskOffload=*/true, /*GpuOffload=*/true>
+        t;
+    func<double, SBO_SIZE, SLAB_SIZE, /*DiskOffload=*/true,
+         /*GpuOffload=*/true>(t, 1, block * 2 + 1);
+  }
+}
+
+BENCHMARK_TEMPLATE(BM_Gpu_Offload_Storage, 64, 1024)
+    ->RangeMultiplier(2)
+    ->Range(0, 4096)
+    ->Name("BM_Gpu_Offload_Storage/SBO_64_SLAB_1024_GPU");
 
 #include "BenchmarkedFunctions.h"
 static void BM_ReverseGausMemoryP(benchmark::State& state) {
@@ -161,7 +180,7 @@ static void BM_CrashTest_OS_Paging(benchmark::State& state) {
   AddBMCounterRAII MemCounters(*mm, state);
   for (auto _ : state) {
     clad::tape_impl<double, 64, 1024, /*is_Multithread=*/false,
-                    /*DiskOffload=*/false>
+                    /*DiskOffload=*/false, /*GpuOffload=*/false>
         t;
 
     for (size_t i = 0; i < TARGET_ELEMENTS; ++i) {
@@ -181,7 +200,7 @@ static void BM_CrashTest_Clad_Offload(benchmark::State& state) {
   AddBMCounterRAII MemCounters(*mm, state);
   for (auto _ : state) {
     clad::tape_impl<double, 64, 1310720, /*is_Multithread=*/false,
-                    /*DiskOffload=*/true>
+                    /*DiskOffload=*/true, /*GpuOffload=*/false>
         t;
 
     for (size_t i = 0; i < TARGET_ELEMENTS; ++i)
@@ -195,9 +214,10 @@ struct Tapenade {
   void push(double val) { pushReal8(val); }
   void pop(double* val) { popReal8(val); }
 };
+
 struct CladDisk {
   clad::tape_impl<double, 64, 1024, /*is_multithread=*/false,
-                  /*DiskOffload=*/true>
+                  /*DiskOffload=*/true, /*GpuOffload=*/false>
       tape;
 
   void push(double val) { tape.emplace_back(val); }
@@ -206,6 +226,19 @@ struct CladDisk {
     tape.pop_back();
   }
 };
+
+struct CladGpu {
+  clad::tape_impl<double, 64, 1024, /*is_multithread=*/false,
+                  /*DiskOffload=*/true, /*GpuOffload=*/true>
+      tape;
+
+  void push(double val) { tape.emplace_back(val); }
+  void pop(double* val) {
+    *val = tape.back();
+    tape.pop_back();
+  }
+};
+
 template <typename Strategy> static void BM_PushPop(benchmark::State& state) {
   int64_t n = state.range(0);
   Strategy s; // Instantiate the specific strategy (Clad or Tapenade)
@@ -220,6 +253,38 @@ template <typename Strategy> static void BM_PushPop(benchmark::State& state) {
     }
   }
 }
+static void BM_Offload_Push_Only(benchmark::State& state) {
+  AddBMCounterRAII MemCounters(*mm, state);
+  const size_t MASSIVE_ELEMENTS = 250000000;
+
+  for (auto _ : state) {
+    clad::tape_impl<double, 64, 8388608, /*is_Multithread=*/false,
+                    /*DiskOffload=*/true, /*GpuOffload=*/false>
+        t;
+    for (size_t i = 0; i < MASSIVE_ELEMENTS; ++i)
+      t.emplace_back(1.0);
+  }
+}
+BENCHMARK(BM_Offload_Push_Only)->Unit(benchmark::kMillisecond)->Iterations(1);
+
+static void BM_Offload_Pop_Only(benchmark::State& state) {
+  AddBMCounterRAII MemCounters(*mm, state);
+  const size_t MASSIVE_ELEMENTS = 250000000;
+
+  for (auto _ : state) {
+    state.PauseTiming();
+    clad::tape_impl<double, 64, 8388608, /*is_Multithread=*/false,
+                    /*DiskOffload=*/true, /*GpuOffload=*/false>
+        t;
+    for (size_t i = 0; i < MASSIVE_ELEMENTS; ++i)
+      t.emplace_back(1.0);
+    state.ResumeTiming();
+    for (size_t i = 0; i < MASSIVE_ELEMENTS; i++)
+      t.pop_back();
+  }
+}
+BENCHMARK(BM_Offload_Pop_Only)->Unit(benchmark::kMillisecond)->Iterations(1);
+
 BENCHMARK_TEMPLATE(BM_PushPop, Tapenade)
     ->RangeMultiplier(4)
     ->Range(1024, 262144)
@@ -229,5 +294,10 @@ BENCHMARK_TEMPLATE(BM_PushPop, CladDisk)
     ->RangeMultiplier(4)
     ->Range(1024, 262144)
     ->Name("BM_PushPop/CladDiskStack");
+
+BENCHMARK_TEMPLATE(BM_PushPop, CladGpu)
+    ->RangeMultiplier(4)
+    ->Range(1024, 262144)
+    ->Name("BM_PushPop/CladGpuStack");
 
 BENCHMARK_MAIN();

@@ -301,7 +301,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
     // Creates callExprs to the second derivative functions genereated
     // and creates maps array elements to input array.
     for (size_t i = 0, e = secDerivFuncs.size(); i < e; ++i) {
-      auto size_type = m_Context.getSizeType();
+      auto size_type = clad_compat::getSizeType(m_Context);
       auto size_type_bits = m_Context.getIntWidth(size_type);
 
       // Transforms ParmVarDecls into Expr paramters for insertion into function

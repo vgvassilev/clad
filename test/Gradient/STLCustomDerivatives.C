@@ -714,10 +714,10 @@ int main() {
 // CHECK-NEXT:              _t2++;
 // CHECK-NEXT:              res += v.at(i0);
 // CHECK-NEXT:          }
-// CHECK-NEXT:          clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:          v.assign_reverse_forw(3, 0, &_d_v, 0, 0, _tracker0);
-// CHECK-NEXT:          clad::restore_tracker _tracker1 = {};
-// CHECK-NEXT:          v.assign_reverse_forw(2, y, &_d_v, 0, *_d_y, _tracker1);
+// CHECK-NEXT:          std::vector<double> _t3 = v;
+// CHECK-NEXT:          v.assign(3, 0);
+// CHECK-NEXT:          std::vector<double> _t4 = v;
+// CHECK-NEXT:          v.assign(2, y);
 // CHECK-NEXT:          {
 // CHECK-NEXT:              _d_res += 1;
 // CHECK-NEXT:              _d_v[0] += 1;
@@ -725,12 +725,12 @@ int main() {
 // CHECK-NEXT:              _d_v[2] += 1;
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:              _tracker1.restore();
+// CHECK-NEXT:              v = _t4;
 // CHECK-NEXT:              {{.*size_type|size_t}} _r2 = {{0U|0UL|0}};
 // CHECK-NEXT:              {{.*}}assign_pullback(&v, 2, y, &_d_v, &_r2, _d_y);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:              _tracker0.restore();
+// CHECK-NEXT:              v = _t3;
 // CHECK-NEXT:              {{.*size_type|size_t}} _r0 = {{0U|0UL|0}};
 // CHECK-NEXT:              {{.*}}value_type _r1 = 0.;
 // CHECK-NEXT:              {{.*}}assign_pullback(&v, 3, 0, &_d_v, &_r0, &_r1);

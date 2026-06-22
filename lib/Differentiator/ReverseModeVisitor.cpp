@@ -84,8 +84,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (const auto* ILE =
               dyn_cast<InitListExpr>(CXXILE->getSubExpr()->IgnoreImplicit())) {
         unsigned numInits = ILE->getNumInits();
-        return ConstantFolder::synthesizeLiteral(m_Context.getSizeType(),
-                                                 m_Context, numInits);
+        return ConstantFolder::synthesizeLiteral(
+            clad_compat::getSizeType(m_Context), m_Context, numInits);
       }
   return nullptr;
 }
@@ -252,16 +252,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                          const DiffRequest& request)
       : VisitorBase(builder, request) {}
 
-  ReverseModeVisitor::~ReverseModeVisitor() {
-    if (m_ExternalSource) {
-      // Inform external sources that `ReverseModeVisitor` object no longer
-      // exists.
-      // FIXME: Make this so the lifetime scope of the source matches.
-      // m_ExternalSource->ForgetRMV();
-      // Free the external sources multiplexer since we own this resource.
-      delete m_ExternalSource;
-    }
-  }
+  ReverseModeVisitor::~ReverseModeVisitor() = default;
 
   DerivativeAndOverload ReverseModeVisitor::Derive() {
     assert(m_DiffReq.Function && "Must not be null.");
@@ -527,7 +518,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType recordTy = thisTy->getPointeeType();
     TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(recordTy, noLoc);
     Expr* size = new (m_Context) UnaryExprOrTypeTraitExpr(
-        UETT_SizeOf, TSI, m_Context.getSizeType(), noLoc, noLoc);
+        UETT_SizeOf, TSI, clad_compat::getSizeType(m_Context), noLoc, noLoc);
 
     // Build `malloc(sizeof(T))`
     llvm::SmallVector<clang::Expr*, 1> param{size};
@@ -1227,7 +1218,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (condVarRes.getExpr() != nullptr && isa<Expr>(condVarRes.getExpr()))
       forwardCond = cast<Expr>(condVarRes.getExpr());
 
-    Stmt* breakStmt = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
+    Stmt* breakStmt =
+        clad_compat::ActOnBreakStmt(m_Sema, noLoc, getCurrentScope()).get();
 
     if (Stmt* condDiffUnwrap = utils::unwrapIfSingleStmt(condDiff.getStmt())) {
       /// This part adds the forward pass of loop condition stmt in the body
@@ -1541,8 +1533,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // FIXME: We should instead store the decl of the adjoint in m_Variables
         // and rebuild the declref every time.
         auto* dVar = cast<VarDecl>(dVarDRE->getDecl());
-        if (dVar->getDeclContext() != m_Sema.CurContext)
-          dExpr = BuildDeclRef(dVar, DRE->getQualifier());
+        if (dVar->getDeclContext() != m_Sema.CurContext) {
+          clad_compat::NestedNameSpecifierTy NNS = DRE->getQualifier();
+          dExpr = BuildDeclRef(dVar, clad_compat::hasQualifier(NNS)
+                                         ? NNS
+                                         : clad_compat::nullNNS());
+        }
       }
 
       // Create the (_d_param[idx] += dfdx) statement.
@@ -1804,14 +1800,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     for (auto* PVD : params)
       ParamInfoLambda.emplace_back(PVD->getIdentifier(), PVD->getLocation(),
                                    PVD, nullptr);
+    // ActOnStartOfLambdaDefinition uses LParenLoc.isValid() to flip
+    // LSI->ExplicitParams; an invalid LParen makes the lambda print
+    // without its parameter list (`[]{...}` instead of `[](T x){...}`).
+    // Use a real SourceLocation so the printer sees explicit params.
+    SourceLocation paramListLoc = utils::GetValidSLoc(m_Sema);
     D.AddTypeInfo(DeclaratorChunk::getFunction(
                       /*hasProto=*/true,
                       /*isAmbiguous=*/false,
-                      /*LParenLoc=*/noLoc,
+                      /*LParenLoc=*/paramListLoc,
                       /*Params=*/ParamInfoLambda.data(),
                       /*NumParams=*/ParamInfoLambda.size(),
                       /*EllipsisLoc=*/SourceLocation(),
-                      /*RParenLoc=*/noLoc,
+                      /*RParenLoc=*/paramListLoc,
                       /*RefQualifierIsLValueRef=*/true,
                       /*RefQualifierLoc=*/SourceLocation(),
                       /*MutableLoc=*/SourceLocation(),
@@ -2011,9 +2012,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // We need to check if the last parameter is actually a tracker because
     // custom derivatives currently don't have it.
     if (calleeFnForwPassFD) {
-      QualType lastParamType =
-          calleeFnForwPassFD->parameters().back()->getType();
-      usingRestoreTracker = (utils::GetValueType(lastParamType) == trackerType);
+      if (!calleeFnForwPassFD->parameters().empty()) {
+        QualType lastParamType =
+            calleeFnForwPassFD->parameters().back()->getType();
+        usingRestoreTracker =
+            (utils::GetValueType(lastParamType) == trackerType);
+      }
     }
 
     // FIXME: consider moving non-diff analysis to DiffPlanner.
@@ -2706,7 +2710,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                     /*force=*/true);
       Stmt* LPop = endBlock(direction::reverse);
       Expr::EvalResult dummy;
-      if (!clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context) ||
+      if (!R->EvaluateAsConstantExpr(dummy, m_Context) ||
           RDelayed.needsUpdate) {
         // dxi/xr = -xl / (xr * xr)
         // df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
@@ -3555,16 +3559,51 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
-    auto baseDiff = Visit(ME->getBase());
+    const Expr* base = ME->getBase();
+    const Expr* unwrappedBase = base->IgnoreParenImpCasts();
+    while (true)
+      if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(unwrappedBase))
+        unwrappedBase = MTE->getSubExpr()->IgnoreParenImpCasts();
+      else if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(unwrappedBase))
+        unwrappedBase = BTE->getSubExpr()->IgnoreParenImpCasts();
+      else if (const auto* EWC = dyn_cast<ExprWithCleanups>(unwrappedBase))
+        unwrappedBase = EWC->getSubExpr()->IgnoreParenImpCasts();
+      else
+        break;
+
     auto* field = ME->getMemberDecl();
     assert(!isa<CXXMethodDecl>(field) &&
            "CXXMethodDecl nodes not supported yet!");
-    Expr* clonedME = baseDiff.getExpr();
     llvm::StringRef fieldName = field->getName();
-    if (baseDiff.getExpr() && !fieldName.empty())
-      clonedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                        baseDiff.getExpr(), fieldName);
-    if (clad::utils::hasNonDifferentiableAttribute(ME)) {
+    bool nonDiffMember = clad::utils::hasNonDifferentiableAttribute(ME);
+
+    if (!nonDiffMember && dfdx() && !base->isLValue() &&
+        base->getType()->isRecordType() && isa<CallExpr>(unwrappedBase) &&
+        !fieldName.empty()) {
+      QualType dBaseTy =
+          utils::getNonConstType(CloneType(base->getType()), m_Sema);
+      VarDecl* dBaseDecl = BuildVarDecl(dBaseTy, "_r", getZeroInit(dBaseTy));
+      addToCurrentBlock(BuildDeclStmt(dBaseDecl), direction::reverse);
+      DeclRefExpr* dBaseRef = BuildDeclRef(dBaseDecl);
+      Expr* derivedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                               dBaseRef, fieldName);
+      if (Expr* addAssign = BuildDiffIncrement(derivedME))
+        addToCurrentBlock(addAssign, direction::reverse);
+
+      auto baseDiff = Visit(base, dBaseRef);
+      Expr* clonedME = baseDiff.getExpr();
+      if (clonedME)
+        clonedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(), clonedME,
+                                          fieldName);
+      return {clonedME, derivedME};
+    }
+
+    auto baseDiff = Visit(base);
+    Expr* clonedME = baseDiff.getExpr();
+    if (clonedME && !fieldName.empty())
+      clonedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(), clonedME,
+                                        fieldName);
+    if (nonDiffMember) {
       auto* zero = ConstantFolder::synthesizeLiteral(ME->getType(), m_Context,
                                                      /*val=*/0);
       return {clonedME, zero};
@@ -3680,15 +3719,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
                                               bool force) {
     assert(E && "cannot infer type");
-    return GlobalStoreAndRef(E, utils::getNonConstType(E->getType(), m_Sema),
-                             prefix, force);
+    return GlobalStoreAndRef(
+        E,
+        utils::getNonConstType(clad_compat::stripPredefinedSugar(E->getType()),
+                               m_Sema),
+        prefix, force);
   }
 
   StmtDiff ReverseModeVisitor::StoreAndRestore(clang::Expr* E,
                                                llvm::StringRef prefix,
                                                bool moveToTape) {
     assert(E && "must be provided");
-    QualType Type = E->getType();
+    QualType Type = clad_compat::stripPredefinedSugar(E->getType());
 
     Stmt* Store = nullptr;
     Stmt* Restore = nullptr;
@@ -3855,8 +3897,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)
       : m_RMV(RMV) {
     ASTContext& C = m_RMV.m_Context;
-    m_Ref = m_RMV.GlobalStoreAndRef(m_RMV.getZeroInit(C.IntTy), C.getSizeType(),
-                                    "_t", /*force=*/true);
+    m_Ref = m_RMV.GlobalStoreAndRef(m_RMV.getZeroInit(C.IntTy),
+                                    clad_compat::getSizeType(C), "_t",
+                                    /*force=*/true);
   }
 
   StmtDiff ReverseModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
@@ -4091,7 +4134,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Sema::ConditionResult condRes = m_Sema.ActOnCondition(
           getCurrentScope(), noLoc, condExpr, Sema::ConditionKind::Switch);
       SwitchStmt* forwardSS =
-          clad_compat::Sema_ActOnStartOfSwitchStmt(m_Sema, nullptr, condRes)
+          m_Sema
+              .ActOnStartOfSwitchStmt(/*SwitchLoc=*/noLoc,
+                                      /*LParenLoc=*/noLoc, nullptr, condRes,
+                                      /*RParenLoc=*/noLoc)
               .getAs<SwitchStmt>();
       activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
 
@@ -4125,7 +4171,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     Expr* ifCond = BuildOp(BinaryOperatorKind::BO_EQ, newSC->getLHS(),
                            SSData->switchStmtCond);
-    Stmt* ifThen = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
+    Stmt* ifThen =
+        clad_compat::ActOnBreakStmt(m_Sema, noLoc, getCurrentScope()).get();
     Stmt* ifBreakExpr = clad_compat::IfStmt_Create(
         m_Context, noLoc, false, nullptr, nullptr, ifCond, noLoc, noLoc, ifThen,
         noLoc, nullptr);
@@ -4144,7 +4191,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     auto* SSData = GetActiveSwitchStmtInfo();
     auto* newDefaultStmt =
         new (m_Sema.getASTContext()) DefaultStmt(noLoc, noLoc, nullptr);
-    Stmt* ifThen = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
+    Stmt* ifThen =
+        clad_compat::ActOnBreakStmt(m_Sema, noLoc, getCurrentScope()).get();
     Stmt* ifBreakExpr = clad_compat::IfStmt_Create(
         m_Context, noLoc, false, nullptr, nullptr, nullptr, noLoc, noLoc,
         ifThen, noLoc, nullptr);
@@ -4229,8 +4277,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     Expr* revCounter = loopCounter.getCounterConditionResult().get().second;
     if (m_CurrentBreakFlagExpr) {
-      VarDecl* numRevIterations = BuildVarDecl(m_Context.getSizeType(),
-                                               "_numRevIterations", revCounter);
+      VarDecl* numRevIterations = BuildVarDecl(
+          clad_compat::getSizeType(m_Context), "_numRevIterations", revCounter);
       loopCounter.setNumRevIterations(numRevIterations);
     }
 
@@ -4288,7 +4336,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitContinueStmt(const ContinueStmt* CS) {
     beginBlock(direction::forward);
-    Stmt* newCS = m_Sema.ActOnContinueStmt(noLoc, getCurrentScope()).get();
+    Stmt* newCS =
+        clad_compat::ActOnContinueStmt(m_Sema, noLoc, getCurrentScope()).get();
     auto* activeBreakContHandler = GetActiveBreakContStmtHandler();
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
     Stmt* pushExprToCurrentCase = activeBreakContHandler
@@ -4300,7 +4349,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitBreakStmt(const BreakStmt* BS) {
     beginBlock(direction::forward);
-    Stmt* newBS = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
+    Stmt* newBS =
+        clad_compat::ActOnBreakStmt(m_Sema, noLoc, getCurrentScope()).get();
     auto* activeBreakContHandler = GetActiveBreakContStmtHandler();
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
     Stmt* pushExprToCurrentCase = activeBreakContHandler
@@ -4324,8 +4374,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   Expr* ReverseModeVisitor::BreakContStmtHandler::CreateSizeTLiteralExpr(
       std::size_t value) {
     ASTContext& C = m_RMV.m_Context;
-    auto* literalExpr =
-        ConstantFolder::synthesizeLiteral(C.getSizeType(), C, value);
+    auto* literalExpr = ConstantFolder::synthesizeLiteral(
+        clad_compat::getSizeType(C), C, value);
     return literalExpr;
   }
 
@@ -4419,9 +4469,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     auto condResult = m_RMV.m_Sema.ActOnCondition(m_RMV.getCurrentScope(),
                                                   noLoc, m_ControlFlowTape->Pop,
                                                   Sema::ConditionKind::Switch);
-    auto* CFSS = clad_compat::Sema_ActOnStartOfSwitchStmt(m_RMV.m_Sema, nullptr,
-                                                          condResult)
-                     .getAs<SwitchStmt>();
+    auto* CFSS =
+        m_RMV.m_Sema
+            .ActOnStartOfSwitchStmt(/*SwitchLoc=*/noLoc,
+                                    /*LParenLoc=*/noLoc, nullptr, condResult,
+                                    /*RParenLoc=*/noLoc)
+            .getAs<SwitchStmt>();
     // Registers all the switch cases
     for (auto* SC : m_SwitchCases)
       CFSS->addSwitchCase(SC);
@@ -4432,7 +4485,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   void ReverseModeVisitor::AddExternalSource(ExternalRMVSource& source) {
     if (!m_ExternalSource)
-      m_ExternalSource = new MultiplexExternalRMVSource();
+      m_ExternalSource = std::make_unique<MultiplexExternalRMVSource>();
     source.InitialiseRMV(*this);
     m_ExternalSource->AddSource(source);
   }
@@ -4674,7 +4727,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                     primalArgs.begin(), primalArgs.end());
       reverseForwAdjointArgs.insert(
           reverseForwAdjointArgs.begin(),
-          utils::GetCladTagExpr(m_Sema, m_Context.getRecordType(RD)));
+          utils::GetCladTagExpr(m_Sema,
+                                clad_compat::getRecordType(m_Context, RD)));
       Expr* customReverseForwFnCall =
           BuildCallExprToFunction(constrForw, reverseForwAdjointArgs);
       if (RD->isAggregate()) {
@@ -4704,7 +4758,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     // Aggregate constructors are always element-wise initializers.
     if (RD->isAggregate() && CD->isDefaultConstructor())
-      return {nullptr, getZeroInit(m_Context.getRecordType(RD))};
+      return {nullptr, getZeroInit(clad_compat::getRecordType(m_Context, RD))};
 
     // `CXXConstructExpr` node will be created automatically by passing these
     // initialiser to higher level `ActOn`/`Build` Sema functions.

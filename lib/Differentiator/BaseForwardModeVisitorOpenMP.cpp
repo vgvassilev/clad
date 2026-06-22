@@ -152,4 +152,17 @@ StmtDiff BaseForwardModeVisitor::VisitOMPParallelForDirective(
   CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).EndOpenMPDSABlock(Res.getStmt());
   return Res;
 }
+
+StmtDiff BaseForwardModeVisitor::VisitOMPCriticalDirective(
+    const OMPCriticalDirective* D) {
+  StmtDiff BodyDiff = Visit(D->getAssociatedStmt());
+  DeclarationNameInfo DirName = D->getDirectiveName();
+  OpenMPDirectiveKind CancelRegion = OMPD_unknown;
+  llvm::SmallVector<OMPClause*, 0> Clauses;
+  return CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema)
+      .ActOnOpenMPExecutableDirective(OMPD_critical, DirName, CancelRegion,
+                                      Clauses, BodyDiff.getStmt(),
+                                      D->getBeginLoc(), D->getEndLoc())
+      .get();
+}
 } // namespace clad

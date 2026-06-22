@@ -954,9 +954,16 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     // Sema::BuildDeclRefExpr is responsible for adding captured fields
     // to the underlying struct of a lambda.
     if (clonedDRE->getDecl()->getDeclContext() != m_Sema.CurContext) {
-      NestedNameSpecifier* NNS = DRE->getQualifier();
+      // clang<22: getQualifier() returns NNS*, null on unqualified.
+      // clang>=22: it returns NNS-by-value; the unqualified case is
+      // Invalid (StoredOrFlag==4) -- bool-true under operator bool().
+      // Funnel through hasQualifier() so the "no qualifier" path stays
+      // consistent across versions.
+      clad_compat::NestedNameSpecifierTy NNS = DRE->getQualifier();
       auto* referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
-      clonedDRE = BuildDeclRef(referencedDecl, NNS);
+      clonedDRE = BuildDeclRef(referencedDecl, clad_compat::hasQualifier(NNS)
+                                                   ? NNS
+                                                   : clad_compat::nullNNS());
     }
   } else
     clonedDRE = cast<DeclRefExpr>(Clone(DRE));
@@ -970,8 +977,12 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
       // If a record was found, use the recorded derivative.
       if (auto dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
         auto dVar = cast<VarDecl>(dVarDRE->getDecl());
-        if (dVar->getDeclContext() != m_Sema.CurContext)
-          dExpr = BuildDeclRef(dVar, DRE->getQualifier());
+        if (dVar->getDeclContext() != m_Sema.CurContext) {
+          clad_compat::NestedNameSpecifierTy NNS = DRE->getQualifier();
+          dExpr = BuildDeclRef(dVar, clad_compat::hasQualifier(NNS)
+                                         ? NNS
+                                         : clad_compat::nullNNS());
+        }
       }
       return StmtDiff(clonedDRE, dExpr);
     }
@@ -1975,9 +1986,13 @@ StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
   // Scope for the switch statement
   beginScope(Scope::SwitchScope | Scope::ControlScope | Scope::BreakScope |
              Scope::DeclScope);
-  Stmt* switchStmtDiff = clad_compat::Sema_ActOnStartOfSwitchStmt(
-                             m_Sema, initVarRes.getStmt(), condResult)
-                             .get();
+  SourceLocation noLoc;
+  Stmt* switchStmtDiff =
+      m_Sema
+          .ActOnStartOfSwitchStmt(/*SwitchLoc=*/noLoc, /*LParenLoc=*/noLoc,
+                                  initVarRes.getStmt(), condResult,
+                                  /*RParenLoc=*/noLoc)
+          .get();
   // Scope and block for the corresponding compound statement of the
   // switch statement
   beginScope(Scope::DeclScope);

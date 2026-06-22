@@ -816,6 +816,98 @@ double fn20(const double* x, int n) {
 // CHECK-NEXT:          }
 // CHECK-NEXT:  }
 
+double fn21(const double *x, int n) {
+    double result = 0;
+    #pragma omp parallel for
+    for (int i = 0; i < n; i++) {
+        #pragma omp critical
+        {
+            result += x[0] * x[0];
+        }
+    }
+    return result;
+}
+
+// CHECK:  void fn21_grad(const double *x, int n, double *_d_x, int *_d_n) {
+// CHECK-NEXT:      double _d_result = 0.;
+// CHECK-NEXT:      double result = 0;
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  #pragma omp critical
+// CHECK-NEXT:                      {
+// CHECK-NEXT:                          result += x[0] * x[0];
+// CHECK-NEXT:                      }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      _d_result += 1;
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  #pragma omp critical
+// CHECK-NEXT:                      {
+// CHECK-NEXT:                          {
+// CHECK-NEXT:                              double _r_d0 = _d_result;
+// CHECK-NEXT:                              _d_x[0] += _r_d0 * x[0];
+// CHECK-NEXT:                              _d_x[0] += x[0] * _r_d0;
+// CHECK-NEXT:                          }
+// CHECK-NEXT:                      }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
+double fn22(const double *x, int n) {
+    double result = 0;
+    #pragma omp parallel for
+    for (int i = 0; i < n; i++) {
+        #pragma omp critical
+        {
+            result += x[0] * x[1];
+        }
+    }
+    return result;
+}
+
+// CHECK:  void fn22_grad(const double *x, int n, double *_d_x, int *_d_n) {
+// CHECK-NEXT:      double _d_result = 0.;
+// CHECK-NEXT:      double result = 0;
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo0 = 0;
+// CHECK-NEXT:              int _t_chunkhi0 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo0, &_t_chunkhi0);
+// CHECK-NEXT:              for (int i = _t_chunklo0; i <= _t_chunkhi0; i += 1) {
+// CHECK-NEXT:                  #pragma omp critical
+// CHECK-NEXT:                      {
+// CHECK-NEXT:                          result += x[0] * x[1];
+// CHECK-NEXT:                      }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:      _d_result += 1;
+// CHECK-NEXT:      #pragma omp parallel
+// CHECK-NEXT:          {
+// CHECK-NEXT:              int _t_chunklo1 = 0;
+// CHECK-NEXT:              int _t_chunkhi1 = 0;
+// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                  #pragma omp critical
+// CHECK-NEXT:                      {
+// CHECK-NEXT:                          {
+// CHECK-NEXT:                              double _r_d0 = _d_result;
+// CHECK-NEXT:                              _d_x[0] += _r_d0 * x[1];
+// CHECK-NEXT:                              _d_x[1] += x[0] * _r_d0;
+// CHECK-NEXT:                          }
+// CHECK-NEXT:                      }
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:  }
+
 template <size_t N>
 void reset(double (&arr)[N], double val = 0) {
   for (size_t i = 0; i < N; ++i)
@@ -924,5 +1016,15 @@ int main() {
   auto fn20_grad = clad::gradient(fn20);
   fn20_grad.execute(x, 4, dx, &dn);
   printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {4.00, 6.00, 8.00, 10.00}
+
+  reset(dx);
+  auto fn21_grad = clad::gradient(fn21);
+  fn21_grad.execute(x, 4, dx, &dn);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {16.00, 0.00, 0.00, 0.00}
+
+  reset(dx);
+  auto fn22_grad = clad::gradient(fn22);
+  fn22_grad.execute(x, 4, dx, &dn);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1], dx[2], dx[3]); // CHECK-EXEC: {12.00, 8.00, 0.00, 0.00}
   return 0;
 }

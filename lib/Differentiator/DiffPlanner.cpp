@@ -295,10 +295,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       assert(!codeArgIdx && "We found the index of the code argument!");
       return;
     }
-    // Update the code parameter if it was found.
-    clang::LangOptions LangOpts;
-    LangOpts.CPlusPlus = true;
-    clang::PrintingPolicy Policy(LangOpts);
+    // Update the code parameter if it was found. Use the context's
+    // PrintingPolicy so DeclRefExpr / NestedNameSpecifier print the same
+    // as the rest of the translation unit -- a fresh PrintingPolicy
+    // built from a default-LangOptions object yields stricter defaults
+    // on LLVM 22 (notably for unwritten-scope decisions), which then
+    // makes locals print qualified as `::name` even though their DRE
+    // carries no qualifier.
+    clang::PrintingPolicy Policy = C.getPrintingPolicy();
     Policy.Bool = true;
 
     std::string s;
@@ -1420,9 +1424,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       forwPassRequest.CallContext = request.CallContext;
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
       QualType returnType = request->getReturnType();
-      if (LookupCustomDerivativeDecl(forwPassRequest) ||
-          utils::isMemoryType(returnType) || shouldUseRestoreTracker)
+      bool hasCustomPullback = request.CustomDerivative != nullptr;
+      bool hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
+
+      if (hasCustomReverseForw ||
+          (!hasCustomPullback &&
+           (utils::isMemoryType(returnType) || shouldUseRestoreTracker))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+      }
     }
 
     if (!nonDiff && request.Mode != DiffMode::unknown)
