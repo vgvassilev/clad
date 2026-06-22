@@ -1,0 +1,124 @@
+diff --git a/LULESH/lulesh.cu b/LULESH/lulesh.cu
+index 30884bc..d5a5c1b 100644
+--- a/LULESH/lulesh.cu
++++ b/LULESH/lulesh.cu
+@@ -83,6 +83,15 @@ Additional BSD Notice
+ #include <unistd.h>
+ 
+ #include "lulesh.h"
++#ifdef USE_CLAD
++#include "clad/Differentiator/Differentiator.h"
++// Marks mutable pointer and array parameters that are not differentiation
++// targets as non-differentiable to avoid Clad's "dependent non-const pointer"
++// error without changing LULESH's function signatures.
++#define CLAD_NON_DIFF __attribute__((annotate("non_differentiable")))
++#else
++#define CLAD_NON_DIFF
++#endif
+ 
+ /****************************************************/
+ /* Allow flexibility for arithmetic representations */
+@@ -101,6 +110,7 @@ __device__ inline real8  FMAX(real8  arg1,real8  arg2) { return fmax(arg1,arg2)
+ 
+ #define MAX(a, b) ( ((a) > (b)) ? (a) : (b))
+ 
++#ifndef USE_CLAD
+ // Enzyme Autodifferentiation
+ //
+ //
+@@ -109,7 +119,7 @@ __device__
+ void __enzyme_autodiff(void*, Args...);
+ 
+ __device__ int enzyme_dup, enzyme_const, enzyme_active;
+-
++#endif
+ 
+ 
+ /* Stuff needed for boundary conditions */
+@@ -4231,15 +4241,15 @@ void Inner_ApplyMaterialPropertiesAndUpdateVolume_kernel(
+         Real_t e_cut,
+         Real_t emin,
+         #ifdef RESTRICT
+-        Real_t* __restrict__ ql,
+-        Real_t* __restrict__ qq,
+-        Real_t* __restrict__ vnew,
+-        Real_t* __restrict__ v,
++        CLAD_NON_DIFF Real_t* __restrict__ ql,
++        CLAD_NON_DIFF Real_t* __restrict__ qq,
++        CLAD_NON_DIFF Real_t* __restrict__ vnew,
++        CLAD_NON_DIFF Real_t* __restrict__ v,
+         #else
+-        Real_t* ql,
+-        Real_t* qq,
+-        Real_t* vnew,
+-        Real_t* v,
++        CLAD_NON_DIFF Real_t* ql,
++        CLAD_NON_DIFF Real_t* qq,
++        CLAD_NON_DIFF Real_t* vnew,
++        CLAD_NON_DIFF Real_t* v,
+         #endif
+         Real_t pmin,
+         Real_t p_cut,
+@@ -4247,29 +4257,29 @@ void Inner_ApplyMaterialPropertiesAndUpdateVolume_kernel(
+         Real_t eosvmin,
+         Real_t eosvmax,
+         #ifdef RESTRICT
+-        Index_t* __restrict__ regElemlist,
++        CLAD_NON_DIFF Index_t* __restrict__ regElemlist,
+         Real_t* __restrict__ e,
+-        Real_t* __restrict__ delv,
+-        Real_t* __restrict__ p,
+-        Real_t* __restrict__ q,
++        CLAD_NON_DIFF Real_t* __restrict__ delv,
++        CLAD_NON_DIFF Real_t* __restrict__ p,
++        CLAD_NON_DIFF Real_t* __restrict__ q,
+         #else
+-        Index_t* regElemlist,
++        CLAD_NON_DIFF Index_t* regElemlist,
+         Real_t* e,
+-        Real_t* delv,
+-        Real_t* p,
+-        Real_t* q,
++        CLAD_NON_DIFF Real_t* delv,
++        CLAD_NON_DIFF Real_t* p,
++        CLAD_NON_DIFF Real_t* q,
+         #endif
+         Real_t ss4o3,
+         #ifdef RESTRICT
+-        Real_t* __restrict__ ss,
++        CLAD_NON_DIFF Real_t* __restrict__ ss,
+         #else
+-        Real_t* ss,
++        CLAD_NON_DIFF Real_t* ss,
+         #endif
+         Real_t v_cut,
+         #ifdef RESTRICT
+-        Index_t* __restrict__ bad_vol,
++        CLAD_NON_DIFF Index_t* __restrict__ bad_vol,
+         #else
+-        Index_t* bad_vol,
++        CLAD_NON_DIFF Index_t* bad_vol,
+         #endif
+         const Int_t cost,
+         #ifdef RESTRICT
+@@ -4483,6 +4493,12 @@ void ApplyMaterialPropertiesAndUpdateVolume_kernel(
+     numReg
+   );
+   #else
++  #ifdef USE_CLAD
++  auto grad = clad::gradient(Inner_ApplyMaterialPropertiesAndUpdateVolume_kernel, "e");
++  grad.execute(length, rho0, e_cut, emin, ql, qq, vnew, v, pmin, p_cut, 
++                q_cut, eosvmin, eosvmax, regElemlist, e, delv, p, q, ss4o3, ss, 
++                v_cut, bad_vol, cost, regCSR, regReps, numReg, d_e);
++  #else
+   __enzyme_autodiff((void*)Inner_ApplyMaterialPropertiesAndUpdateVolume_kernel,
+     enzyme_const, length,
+     enzyme_const, rho0,
+@@ -4512,6 +4528,7 @@ void ApplyMaterialPropertiesAndUpdateVolume_kernel(
+     enzyme_const, numReg
+   );
+   #endif
++  #endif
+ }
+ 
+ 
