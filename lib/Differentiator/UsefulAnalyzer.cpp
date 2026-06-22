@@ -1,5 +1,7 @@
 #include "UsefulAnalyzer.h"
 
+#include "clang/AST/Stmt.h"
+
 using namespace clang;
 
 namespace clad {
@@ -46,12 +48,11 @@ static void mergeVarsData(std::set<const clang::VarDecl*>* targetData,
 }
 
 void UsefulAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
-  for (auto ib = block.end(); ib != block.begin() - 1; ib--) {
-    if (ib->getKind() == clang::CFGElement::Statement) {
-
-      const clang::Stmt* S = ib->castAs<clang::CFGStmt>().getStmt();
+  for (const auto* it = block.rbegin(); it != block.rend(); ++it) {
+    if (it->getKind() == clang::CFGElement::Statement) {
+      const clang::Stmt* S = it->castAs<clang::CFGStmt>().getStmt();
       // The const_cast is inevitable, since there is no
-      // ConstRecusiveASTVisitor.
+      // ConstRecursiveASTVisitor.
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       TraverseStmt(const_cast<clang::Stmt*>(S));
     }
