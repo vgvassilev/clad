@@ -4155,6 +4155,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     PopBreakContStmtHandler();
     PopSwitchStmtInfo();
+    // Pop the two scopes opened above (init/condition and body); leaving them
+    // open leaks the clang::Scope objects and strands Derive()'s scopes too.
+    endScope();
+    endScope();
     return {endBlock(direction::forward), endBlock(direction::reverse)};
   }
 
