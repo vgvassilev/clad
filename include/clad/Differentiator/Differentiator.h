@@ -389,22 +389,29 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
     bool m_CUDAkernel = false;
 
   public:
+    /// Wraps the derivative function \p f. \p code is the derivative's textual
+    /// source, used only by dump(); clad's plugin injects it as a string
+    /// literal.
+    ///
+    /// \warning \p code must have static storage duration: it is stored by
+    /// pointer and never copied, so a non-static buffer would dangle. Every
+    /// clad entry point defaults it to "" and the plugin rewrites that to a
+    /// StringLiteral, so the precondition holds for all generated code.
 #ifdef __cpp_concepts
     CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
                                   FunctorType* functor = nullptr,
                                   bool CUDAkernel = false)
       requires(!ImmediateMode)
-        : m_Function(f), m_Functor(functor), m_CUDAkernel(CUDAkernel) {
+        : m_Function(f), m_Code(code), m_Functor(functor),
+          m_CUDAkernel(CUDAkernel) {
 #ifndef __CLAD__
       static_assert(false, "clad doesn't appear to be loaded; make sure that "
                            "you pass clad.so to clang.");
 #endif
-      size_t length = GetLength(code);
-      m_Code = (char*)malloc(length + 1);
-      if (m_Code)
-        memcpy((void*)m_Code, code, length + 1);
-      else
-        fprintf(stderr, "Error: Failed to allocate memory for m_Code\n");
+      // `code` is a clad-emitted string literal (static storage duration), so
+      // point at it directly instead of malloc'ing a copy that was never freed
+      // (LeakSanitizer flagged it). This keeps CladFunction trivially
+      // destructible, which constexpr/immediate mode and CUDA require.
     }
 
     constexpr CUDA_HOST_DEVICE CladFunction(CladFunctionType f,
@@ -423,21 +430,14 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
     CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
                                   FunctorType* functor = nullptr,
                                   bool CUDAkernel = false)
-        : m_Function(f), m_Functor(functor), m_CUDAkernel(CUDAkernel) {
+        : m_Function(f), m_Code(code), m_Functor(functor),
+          m_CUDAkernel(CUDAkernel) {
 #ifndef __CLAD__
       static_assert(false, "clad doesn't appear to be loaded; make sure that "
                            "you pass clad.so to clang.");
 #endif
-      size_t length = GetLength(code);
-      m_Code = (char*)malloc(length + 1);
-      if (m_Code)
-        memcpy((void*)m_Code, code, length + 1);
-      else
-#ifdef __CUDACC__
-        printf("stderr: Error: Failed to allocate memory for m_Code\n");
-#else
-        fprintf(stderr, "Error: Failed to allocate memory for m_Code\n");
-#endif
+      // Point at the static-duration literal directly; see the constructor
+      // above.
     }
 #endif
 
@@ -451,9 +451,8 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
                                             FunctorType& functor)
         : CladFunction(f, &functor) {};
 
-    // Intentionally leak m_Code, otherwise we have to link against c++ runtime,
-    // i.e -lstdc++.
-    //~CladFunction() { /*free(m_Code);*/ }
+    // No destructor: m_Code is a static-duration literal, not heap, so there is
+    // nothing to free and CladFunction stays trivially destructible.
 
     constexpr CladFunctionType getFunctionPtr() const { return m_Function; }
 
