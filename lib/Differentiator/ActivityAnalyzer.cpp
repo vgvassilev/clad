@@ -274,11 +274,10 @@ bool VariedAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         // VarData of the RHS variable.
         if (VDExpr->m_Type == VarData::REF_TYPE || VDType->isPointerType()) {
           init = init->IgnoreParenCasts();
-          if (VDType->isPointerType())
-            VDExpr->m_Type = VarData::REF_TYPE;
-          new (&VDExpr->m_Val.m_RefData)
-              std::unique_ptr<std::set<const VarDecl*>>(
-                  std::make_unique<std::set<const VarDecl*>>());
+          // addVar already gave a reference-typed VDExpr an (empty) REF set;
+          // resetAsRef frees it before installing a fresh one rather than
+          // placement-new'ing over the live member and leaking it.
+          VDExpr->resetAsRef();
           getDependencySet(init, *VDExpr->m_Val.m_RefData);
         }
       }
