@@ -2,10 +2,14 @@ set(CTEST_BUILD_NAME ${ROOT_ARCHITECTURE}-${CMAKE_BUILD_TYPE})
 enable_testing()
 
 CB_ADD_GBENCHMARK(Simple Simple.cpp)
+clad_apply_test_compiler(Simple)
 CB_ADD_GBENCHMARK(AlgorithmicComplexity AlgorithmicComplexity.cpp)
+clad_apply_test_compiler(AlgorithmicComplexity)
 CB_ADD_GBENCHMARK(ArrayExpressionTemplates ArrayExpressionTemplates.cpp)
+clad_apply_test_compiler(ArrayExpressionTemplates)
 if (CLAD_ENABLE_ENZYME_BACKEND)
   CB_ADD_GBENCHMARK(EnzymeCladComparison EnzymeCladComparison.cpp)
+  clad_apply_test_compiler(EnzymeCladComparison)
 endif(CLAD_ENABLE_ENZYME_BACKEND)
 
 include(FetchContent)
@@ -30,10 +34,15 @@ target_compile_definitions(tapenade_support PRIVATE
 )
 
 CB_ADD_GBENCHMARK(VectorModeComparison VectorModeComparison.cpp)
+clad_apply_test_compiler(VectorModeComparison)
 CB_ADD_GBENCHMARK(MemoryComplexity_tapenade MemoryComplexity.cpp)
+clad_apply_test_compiler(MemoryComplexity_tapenade)
 CB_ADD_GBENCHMARK(Multithreading Multithreading.cpp)
+clad_apply_test_compiler(Multithreading)
 CB_ADD_GBENCHMARK(Hessians Hessians.cpp)
+clad_apply_test_compiler(Hessians)
 CB_ADD_GBENCHMARK(GPT2Training GPT2Training.cpp)
+clad_apply_test_compiler(GPT2Training)
 
 if(APPLE)
   # On macOS, we want to explicitly use the high-performance Accelerate framework for BLAS.
