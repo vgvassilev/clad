@@ -251,6 +251,25 @@ namespace clad {
     void beginScope(unsigned ScopeFlags);
     void endScope();
 
+    /// RAII guard that opens a scope on construction and closes it on
+    /// destruction, so a beginScope is always balanced by an endScope even
+    /// when a statement handler returns early. Use it for statement scopes
+    /// that nest within a single function; Derive()'s function-spanning scope
+    /// stays explicit because it is captured into m_DerivativeFnScope and
+    /// interleaves with Push/PopDeclContext.
+    class [[nodiscard]] ScopeRAII {
+      VisitorBase& m_Visitor;
+
+    public:
+      ScopeRAII(VisitorBase& Visitor, unsigned ScopeFlags)
+          : m_Visitor(Visitor) {
+        m_Visitor.beginScope(ScopeFlags);
+      }
+      ~ScopeRAII() { m_Visitor.endScope(); }
+      ScopeRAII(const ScopeRAII&) = delete;
+      ScopeRAII& operator=(const ScopeRAII&) = delete;
+    };
+
     /// A shorthand to simplify syntax for creation of new expressions.
     /// This function uses m_Sema.BuildUnOp internally to build unary
     /// operations. Typical usage of this function looks like the following:

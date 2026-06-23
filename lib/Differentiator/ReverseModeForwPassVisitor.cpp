@@ -236,14 +236,13 @@ StmtDiff ReverseModeForwPassVisitor::ProcessSingleStmt(const clang::Stmt* S) {
 
 StmtDiff
 ReverseModeForwPassVisitor::VisitCompoundStmt(const clang::CompoundStmt* CS) {
-  beginScope(Scope::DeclScope);
+  ScopeRAII compoundScope(*this, Scope::DeclScope);
   beginBlock();
   for (Stmt* S : CS->body()) {
     StmtDiff SDiff = ProcessSingleStmt(S);
     addToCurrentBlock(SDiff.getStmt());
   }
   CompoundStmt* forward = endBlock();
-  endScope();
   return {forward};
 }
 

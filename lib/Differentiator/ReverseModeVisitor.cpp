@@ -753,7 +753,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // and wrap the code in a for loop to compute the derivative as follows:
     // for (int i = 0; i < N; ++i)
     //   _d_arr[i] += _d_res[i];
-    beginScope(Scope::DeclScope);
+    ScopeRAII arrayInitScope(*this, Scope::DeclScope);
     VarDecl* idxDecl = BuildVarDecl(m_Context.UnsignedIntTy, "i",
                                     getZeroInit(m_Context.IntTy));
     // Push the index to the queue so that we can replace ArrayInitIndexExpr
@@ -768,7 +768,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmt* loopDiff = BuildStandardForLoop(
         idxDecl, AILE->getArraySize().getZExtValue(), block);
     addToCurrentBlock(loopDiff, direction::reverse);
-    endScope();
     // We cannot clone ArrayInitLoopExpr because it's not possible to express
     // with standard c++ syntax.
     return {};
@@ -810,7 +809,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // propagate the function scope.
     if (getCurrentScope() == m_DerivativeFnScope)
       scopeFlags |= Scope::FnScope;
-    beginScope(scopeFlags);
+    ScopeRAII compoundScope(*this, scopeFlags);
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
     for (Stmt* S : CS->body()) {
@@ -825,14 +824,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     CompoundStmt* Forward = endBlock(direction::forward);
     CompoundStmt* Reverse = endBlock(direction::reverse);
-    endScope();
     return StmtDiff(Forward, Reverse);
   }
 
   StmtDiff ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
     // Control scope of the IfStmt. E.g., in if (double x = ...) {...}, x goes
     // to this scope.
-    beginScope(Scope::DeclScope | Scope::ControlScope);
+    ScopeRAII ifScope(*this, Scope::DeclScope | Scope::ControlScope);
 
     // Create a block "around" if statement, e.g:
     // {
@@ -926,7 +924,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     addToCurrentBlock(Reverse, direction::reverse);
     CompoundStmt* ForwardBlock = endBlock(direction::forward);
     CompoundStmt* ReverseBlock = endBlock(direction::reverse);
-    endScope();
     return StmtDiff(utils::unwrapIfSingleStmt(ForwardBlock),
                     utils::unwrapIfSingleStmt(ReverseBlock),
                     /*valueForRevSweep=*/condDiffStored);
@@ -952,9 +949,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     auto VisitBranch = [&](const Expr* Branch,
                            Expr* dfdx) -> std::pair<StmtDiff, StmtDiff> {
-      beginScope(Scope::DeclScope);
+      ScopeRAII branchScope(*this, Scope::DeclScope);
       auto Result = DifferentiateSingleExpr(Branch, dfdx);
-      endScope();
       StmtDiff BranchDiff = Result.first;
       StmtDiff ExprDiff = Result.second;
       Stmt* Forward = utils::unwrapIfSingleStmt(BranchDiff.getStmt());
@@ -1031,8 +1027,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
-    beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
-               Scope::ContinueScope);
+    ScopeRAII rangeScope(*this, Scope::DeclScope | Scope::ControlScope |
+                                    Scope::BreakScope | Scope::ContinueScope);
 
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
@@ -1144,7 +1140,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                 FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
     addToCurrentBlock(Reverse, direction::reverse);
     Reverse = endBlock(direction::reverse);
-    endScope();
 
     return {utils::unwrapIfSingleStmt(Forward),
             utils::unwrapIfSingleStmt(Reverse)};
@@ -1153,8 +1148,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
     beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
-    beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
-               Scope::ContinueScope);
+    ScopeRAII forScope(*this, Scope::DeclScope | Scope::ControlScope |
+                                  Scope::BreakScope | Scope::ContinueScope);
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
@@ -1302,7 +1297,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     addToCurrentBlock(initResult.getStmt_dx(), direction::reverse);
     addToCurrentBlock(Reverse, direction::reverse);
     Reverse = endBlock(direction::reverse);
-    endScope();
 
     return {utils::unwrapIfSingleStmt(Forward),
             utils::unwrapIfSingleStmt(Reverse)};
@@ -3909,9 +3903,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
 
-    // begin scope for while statement
-    beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
-               Scope::ContinueScope);
+    // Scope for the whole while statement.
+    ScopeRAII whileScope(*this, Scope::DeclScope | Scope::ControlScope |
+                                    Scope::BreakScope | Scope::ContinueScope);
 
     llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
     isInsideLoop = true;
@@ -3968,8 +3962,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                             CounterCondition,
                             /*RParenLoc=*/noLoc, bodyDiff.getStmt_dx())
             .get();
-    // for while statement
-    endScope();
     addToCurrentBlock(reverseWS, direction::reverse);
     reverseWS = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
     return {forwardWS, reverseWS};
@@ -3979,8 +3971,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
 
-    // begin scope for do statement
-    beginScope(Scope::ContinueScope | Scope::BreakScope);
+    // Scope for the whole do-while statement.
+    ScopeRAII doScope(*this, Scope::ContinueScope | Scope::BreakScope);
 
     llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
     isInsideLoop = true;
@@ -4013,8 +4005,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                        /*CondLParen=*/noLoc, counterCondition,
                                        /*CondRParen=*/noLoc)
                           .get();
-    // for do-while statement
-    endScope();
     addToCurrentBlock(reverseDS, direction::reverse);
     reverseDS = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
     return {forwardDS, reverseDS};
@@ -4036,7 +4026,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Scope and blocks for the compound statement that encloses the switch
     // statement in both the forward and the reverse pass. Block is required
     // for handling condition variable and switch-init statement.
-    beginScope(Scope::DeclScope);
+    ScopeRAII switchScope(*this, Scope::DeclScope);
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
 
@@ -4068,7 +4058,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     SSData->switchStmtCond = condExpr;
 
     // scope for the switch statement body.
-    beginScope(Scope::DeclScope);
+    ScopeRAII switchBodyScope(*this, Scope::DeclScope);
 
     const Stmt* body = SS->getBody();
     StmtDiff bodyDiff = nullptr;
@@ -4158,10 +4148,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     PopBreakContStmtHandler();
     PopSwitchStmtInfo();
-    // Pop the two scopes opened above (init/condition and body); leaving them
-    // open leaks the clang::Scope objects and strands Derive()'s scopes too.
-    endScope();
-    endScope();
     return {endBlock(direction::forward), endBlock(direction::reverse)};
   }
 
@@ -4258,7 +4244,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         addToCurrentBlock(S);
     } else {
       // for forward-pass loop statement body
-      beginScope(Scope::DeclScope);
+      ScopeRAII bodyScope(*this, Scope::DeclScope);
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingSingleStmtLoopBody();
       bodyDiff = DifferentiateSingleStmt(body, /*dfdS=*/nullptr);
@@ -4266,8 +4252,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingSingleStmtBodyInVisitForLoop();
 
-      // for forward-pass loop statement body
-      endScope();
       Stmt* reverseBlock = utils::unwrapIfSingleStmt(bodyDiff.getStmt_dx());
       bodyDiff.updateStmtDx(reverseBlock);
     }
