@@ -654,6 +654,7 @@ BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
   Stmt* forStmtDiff = new (m_Context)
       ForStmt(m_Context, nullptr, cond, /*condVar=*/nullptr, Inc, bodyResult,
               FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
+  endScope();
   return StmtDiff(forStmtDiff);
 }
 
