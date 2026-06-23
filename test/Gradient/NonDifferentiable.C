@@ -2,7 +2,6 @@
 // RUN: ./NonDifferentiable.out | %filecheck_exec %s
 // RUN: %cladclang %s -I%S/../../include -oNonDifferentiable.out
 // RUN: ./NonDifferentiable.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 #define non_differentiable __attribute__((annotate("another_attribute"), annotate("non_differentiable")))
 
