@@ -466,7 +466,7 @@ StmtDiff BaseForwardModeVisitor::VisitStmt(const Stmt* S) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
-  beginScope(Scope::DeclScope);
+  ScopeRAII compoundScope(*this, Scope::DeclScope);
   beginBlock();
   for (Stmt* S : CS->body()) {
     StmtDiff SDiff = Visit(S);
@@ -474,7 +474,6 @@ StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     addToCurrentBlock(SDiff.getStmt());
   }
   CompoundStmt* Result = endBlock();
-  endScope();
   // Differentation of CompundStmt produces another CompoundStmt with both
   // original and derived statements, i.e. Stmt() is Result and Stmt_dx() is
   // null.
@@ -484,7 +483,7 @@ StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
 StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
   // Control scope of the IfStmt. E.g., in if (double x = ...) {...}, x goes
   // to this scope.
-  beginScope(Scope::DeclScope | Scope::ControlScope);
+  ScopeRAII ifScope(*this, Scope::DeclScope | Scope::ControlScope);
   // Create a block "around" if statement, e.g:
   // {
   //   ...
@@ -532,12 +531,11 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
       return BranchDiff.getStmt();
     } else {
       beginBlock();
-      beginScope(Scope::DeclScope);
+      ScopeRAII branchScope(*this, Scope::DeclScope);
       StmtDiff BranchDiff = Visit(Branch);
       for (Stmt* S : BranchDiff.getBothStmts())
         addToCurrentBlock(S);
       CompoundStmt* Block = endBlock();
-      endScope();
       if (Block->size() == 1)
         return Block->body_front();
       else
@@ -554,7 +552,6 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
   addToCurrentBlock(ifDiff);
   CompoundStmt* Block = endBlock();
   // If IfStmt is the only statement in the block, remove the block:
-  endScope();
   // {
   //   if (...) {...}
   // }
@@ -596,8 +593,8 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
 
 StmtDiff
 BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
-  beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
-             Scope::ContinueScope);
+  ScopeRAII rangeScope(*this, Scope::DeclScope | Scope::ControlScope |
+                                  Scope::BreakScope | Scope::ContinueScope);
   // Visiting for range-based ststement produces __range1, __begin1 and __end1
   // variables, so for(auto i: a){
   //      ...
@@ -656,13 +653,12 @@ BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
   Stmt* forStmtDiff = new (m_Context)
       ForStmt(m_Context, nullptr, cond, /*condVar=*/nullptr, Inc, bodyResult,
               FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
-  endScope();
   return StmtDiff(forStmtDiff);
 }
 
 StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
-  beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
-             Scope::ContinueScope);
+  ScopeRAII forScope(*this, Scope::DeclScope | Scope::ControlScope |
+                                Scope::BreakScope | Scope::ContinueScope);
   beginBlock();
   const Stmt* init = FS->getInit();
   StmtDiff initDiff = init ? Visit(init) : StmtDiff{};
@@ -760,14 +756,15 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
 
   // Build the derived for loop body.
   const Stmt* body = FS->getBody();
-  beginScope(Scope::DeclScope);
   Stmt* bodyResult = nullptr;
-  beginBlock();
-  StmtDiff bodyVisited = Visit(body);
-  for (Stmt* S : bodyVisited.getBothStmts())
-    addToCurrentBlock(S);
-  bodyResult = utils::unwrapIfSingleStmt(endBlock());
-  endScope();
+  {
+    ScopeRAII bodyScope(*this, Scope::DeclScope);
+    beginBlock();
+    StmtDiff bodyVisited = Visit(body);
+    for (Stmt* S : bodyVisited.getBothStmts())
+      addToCurrentBlock(S);
+    bodyResult = utils::unwrapIfSingleStmt(endBlock());
+  }
 
   Stmt* forStmtDiff = new (m_Context)
       ForStmt(m_Context, initDiff.getStmt(), cond, /*condVar=*/nullptr,
@@ -775,7 +772,6 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
 
   addToCurrentBlock(forStmtDiff);
   CompoundStmt* Block = endBlock();
-  endScope();
 
   StmtDiff Result =
       (Block->size() == 1) ? StmtDiff(forStmtDiff) : StmtDiff(Block);
@@ -1823,9 +1819,9 @@ StmtDiff BaseForwardModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
-  // begin scope for while loop
-  beginScope(Scope::ContinueScope | Scope::BreakScope | Scope::DeclScope |
-             Scope::ControlScope);
+  // Scope for the whole while loop.
+  ScopeRAII whileScope(*this, Scope::ContinueScope | Scope::BreakScope |
+                                  Scope::DeclScope | Scope::ControlScope);
 
   const VarDecl* condVar = WS->getConditionVariable();
   VarDecl* condVarClone = nullptr;
@@ -1882,13 +1878,12 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
   if (isa<CompoundStmt>(body)) {
     bodyResult = Visit(body).getStmt();
   } else {
-    beginScope(Scope::DeclScope);
+    ScopeRAII bodyScope(*this, Scope::DeclScope);
     beginBlock();
     StmtDiff Result = Visit(body);
     for (Stmt* S : Result.getBothStmts())
       addToCurrentBlock(S);
     CompoundStmt* Block = endBlock();
-    endScope();
     bodyResult = Block;
   }
 
@@ -1897,8 +1892,6 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
           .ActOnWhileStmt(/*WhileLoc=*/noLoc, /*LParenLoc=*/noLoc, condRes,
                           /*RParenLoc=*/noLoc, bodyResult)
           .get();
-  // end scope for while loop
-  endScope();
   return StmtDiff(WSDiff);
 }
 
@@ -1908,8 +1901,8 @@ BaseForwardModeVisitor::VisitContinueStmt(const ContinueStmt* ContStmt) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
-  // begin scope for do-while statement
-  beginScope(Scope::ContinueScope | Scope::BreakScope);
+  // Scope for the whole do-while statement.
+  ScopeRAII doScope(*this, Scope::ContinueScope | Scope::BreakScope);
   Expr* clonedCond = DS->getCond() ? Clone(DS->getCond()) : nullptr;
   const Stmt* body = DS->getBody();
 
@@ -1917,13 +1910,12 @@ StmtDiff BaseForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
   if (isa<CompoundStmt>(body)) {
     bodyResult = Visit(body).getStmt();
   } else {
-    beginScope(Scope::DeclScope);
+    ScopeRAII bodyScope(*this, Scope::DeclScope);
     beginBlock();
     StmtDiff Result = Visit(body);
     for (Stmt* S : Result.getBothStmts())
       addToCurrentBlock(S);
     CompoundStmt* Block = endBlock();
-    endScope();
     bodyResult = Block;
   }
 
@@ -1933,8 +1925,6 @@ StmtDiff BaseForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
                              /*CondRParen=*/noLoc)
                 .get();
 
-  // end scope for do-while statement
-  endScope();
   return StmtDiff(S);
 }
 
