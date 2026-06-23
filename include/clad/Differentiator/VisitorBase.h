@@ -378,7 +378,8 @@ namespace clad {
                                        clang::Expr* Init = nullptr,
                                        bool DirectInit = false,
                                        clang::TypeSourceInfo* TSI = nullptr,
-                                       clang::StorageClass SC = clang::SC_None);
+                                       clang::StorageClass SC = clang::SC_None,
+                                       const clang::VarDecl* OrigVD = nullptr);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until
     /// m_Sema.PopDeclContextIsUsed.

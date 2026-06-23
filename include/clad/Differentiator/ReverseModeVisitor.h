@@ -802,6 +802,10 @@ namespace clad {
 
     /// A flag indicating if the Stmt is contained in a checkpointed loop.
     bool m_IsInsideCheckpointedLoop = false;
+    void HandleCUDASharedMemoryDecl(
+        const clang::VarDecl* VD, clang::VarDecl* VDForward,
+        clang::VarDecl* VDDerived,
+        llvm::SmallVectorImpl<clang::Stmt*>& memsetCalls);
   };
 } // end namespace clad
 

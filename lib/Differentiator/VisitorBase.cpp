@@ -180,9 +180,15 @@ namespace clad {
   VarDecl* VisitorBase::BuildGlobalVarDecl(QualType Type,
                                            llvm::StringRef prefix, Expr* Init,
                                            bool DirectInit, TypeSourceInfo* TSI,
-                                           StorageClass SC) {
-    return BuildVarDecl(Type, CreateUniqueIdentifier(prefix),
-                        m_DerivativeFnScope, Init, DirectInit, TSI, SC);
+                                           StorageClass SC,
+                                           const VarDecl* OrigVD) {
+    VarDecl* VD = BuildVarDecl(Type, CreateUniqueIdentifier(prefix),
+                               m_DerivativeFnScope, Init, DirectInit, TSI, SC);
+    if (OrigVD) {
+      if (const auto* attr = OrigVD->getAttr<clang::CUDASharedAttr>())
+        VD->addAttr(attr->clone(OrigVD->getASTContext()));
+    }
+    return VD;
   }
 
   NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,
@@ -1086,4 +1092,4 @@ namespace clad {
     }
   }
 
-} // end namespace clad
+  } // end namespace clad
