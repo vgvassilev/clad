@@ -817,9 +817,47 @@ template <typename T>
 clad::ValueAndAdjoint<T&, T&> conversion_operator_reverse_forw(
     clad::Tag<T&>, const ::std::reference_wrapper<T>* x,
     const ::std::reference_wrapper<T>* dx) elidable_reverse_forw;
+
+template <class T>
+inline clad::ValueAndPushforward<const T&, const T&>
+get_pushforward(const ::std::reference_wrapper<const T>* w,
+                const ::std::reference_wrapper<const T>* d_w) noexcept {
+  return {w->get(), d_w->get()};
+}
+
+template <class T>
+inline clad::ValueAndPushforward<T&, T&>
+get_pushforward(const ::std::reference_wrapper<T>* w,
+                const ::std::reference_wrapper<T>* d_w) noexcept {
+  return {w->get(), d_w->get()};
+}
+
+template <class T>
+inline clad::ValueAndPushforward<T&, T&>
+operator_T_amp_pushforward(const ::std::reference_wrapper<T>* w,
+                           const ::std::reference_wrapper<T>* d_w) noexcept {
+  return {w->get(), d_w->get()};
+}
+
 } // namespace class_functions
 
 namespace std {
+
+// std::ref and std::cref
+
+template <class T>
+inline clad::ValueAndPushforward<::std::reference_wrapper<T>,
+                                 ::std::reference_wrapper<T>>
+ref_pushforward(T& t, T& d_t) noexcept {
+  return {::std::ref(t), ::std::ref(d_t)};
+}
+
+template <class T>
+inline clad::ValueAndPushforward<::std::reference_wrapper<const T>,
+                                 ::std::reference_wrapper<const T>>
+cref_pushforward(const T& t, const T& d_t) noexcept {
+  return {::std::cref(t), ::std::cref(d_t)};
+}
 
 // tie and maketuple forward mode
 
