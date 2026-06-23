@@ -20,6 +20,7 @@
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/TemplateDeduction.h"
@@ -882,6 +883,12 @@ namespace clad {
     bool isCopyable(const clang::CXXRecordDecl* RD) {
       if (RD->defaultedCopyConstructorIsDeleted())
         return false;
+      // Also treat inaccessible copy ctors as non-copyable (e.g. libc++
+      // thread).
+      for (const clang::CXXConstructorDecl* Ctor : RD->ctors())
+        if (Ctor->isCopyConstructor() &&
+            (Ctor->isDeleted() || Ctor->getAccess() != clang::AS_public))
+          return false;
       if (RD->hasUserDeclaredCopyConstructor()) {
         std::string qualifiedName = RD->getQualifiedNameAsString();
         // FIXME: I don't know why Clang things that unique_ptr has
