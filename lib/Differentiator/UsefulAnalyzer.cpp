@@ -1,4 +1,5 @@
 #include "UsefulAnalyzer.h"
+#include "clang/AST/ExprCXX.h"
 
 #include "clang/AST/Stmt.h"
 
@@ -128,6 +129,12 @@ bool UsefulAnalyzer::VisitReturnStmt(ReturnStmt* RS) {
 }
 
 bool UsefulAnalyzer::VisitCallExpr(CallExpr* CE) { return true; }
+
+bool UsefulAnalyzer::TraverseLambdaExpr(clang::LambdaExpr* LE) {
+  // Lambda bodies are analyzed through their call operators, not as part of
+  // the enclosing function's useful analysis.
+  return false;
+}
 
 bool UsefulAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
   auto* VD = dyn_cast<VarDecl>(DRE->getDecl());

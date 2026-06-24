@@ -1,5 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oLambdas.out 2>&1 | %filecheck %s
 // RUN: ./Lambdas.out | %filecheck_exec %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oLambdasVA.out 2>&1 | FileCheck --check-prefix=CHECK-VA %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -disable-va %s -I%S/../../include -oLambdas.out
 // RUN: ./Lambdas.out | %filecheck_exec %s
 // UNSUPPORTED: clang-11, clang-12, clang-13, clang-14, clang-15, clang-16
@@ -66,6 +67,17 @@ double f2(double i, double j) {
 // CHECK-NEXT:         *_d_i += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
+
+// CHECK-VA-LABEL: void f2_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-VA:     auto _d__f = [](double t, double k, double _d_y, double *_d_t, double *_d_k) {
+// CHECK-VA-NEXT:         double _d_a = 0.;
+// CHECK-VA-NEXT:         double a = t * k;
+// CHECK-VA-NEXT:         _d_a += _d_y;
+// CHECK-VA-NEXT:         {
+// CHECK-VA-NEXT:             *_d_t += _d_a * k;
+// CHECK-VA-NEXT:             *_d_k += t * _d_a;
+// CHECK-VA-NEXT:         }
+// CHECK-VA-NEXT:     };
 
 double f3(double i, double j) {
   double c = 3.0;
