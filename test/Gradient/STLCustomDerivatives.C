@@ -1116,9 +1116,13 @@ int main() {
 // CHECK-NEXT:     {{.*}} _t0 = x[3];
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_x[0] += _d_y * _t0 * _t1 * _t2;
+// CHECK-NEXT:         clad::custom_derivatives::class_functions::conversion_operator_pullback(x[0], &_d_x[0]);
 // CHECK-NEXT:         _d_x[1] += _t3 * _d_y * _t0 * _t1;
+// CHECK-NEXT:         clad::custom_derivatives::class_functions::conversion_operator_pullback(x[1], &_d_x[1]);
 // CHECK-NEXT:         _d_x[2] += _t3 * _t2 * _d_y * _t0;
+// CHECK-NEXT:         clad::custom_derivatives::class_functions::conversion_operator_pullback(x[2], &_d_x[2]);
 // CHECK-NEXT:         _d_x[3] += _t3 * _t2 * _t1 * _d_y;
+// CHECK-NEXT:         clad::custom_derivatives::class_functions::conversion_operator_pullback(x[3], &_d_x[3]);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

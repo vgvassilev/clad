@@ -2229,8 +2229,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           } else
             hasDynamicNonDiffParams = true;
         }
-      if (!m_DiffReq.CallContext || hasDynamicNonDiffParams ||
-          FD->getNameAsString() == "cudaMemcpy") {
+      // Reference-returning instance calls can have custom reverse_forw helpers
+      // that propagate through an adjoint reference. If the static planner did
+      // not schedule a pullback, retry custom lookup first. Only calls whose
+      // reverse_forw helper is a member function fall back to generated
+      // pullbacks here; custom free-function helpers such as smart pointer
+      // operator* should provide their own pullback or need none.
+      bool missingRefReturnPullback =
+          !pullbackFD && calleeFnForwPassFD && MD && MD->isInstance() &&
+          utils::isNonConstReferenceType(returnType);
+      bool hasMemberForwPass =
+          missingRefReturnPullback && isa<CXXMethodDecl>(calleeFnForwPassFD);
+      bool shouldGenerateMissingPullback =
+          !m_DiffReq.CallContext || hasDynamicNonDiffParams ||
+          FD->getNameAsString() == "cudaMemcpy" || hasMemberForwPass;
+      if (missingRefReturnPullback || !m_DiffReq.CallContext ||
+          hasDynamicNonDiffParams || FD->getNameAsString() == "cudaMemcpy") {
         pullbackFD = nullptr;
         // Try to find it in builtin derivatives.
         std::string customPullback = pullbackRequest.ComputeDerivativeName();
@@ -2243,7 +2257,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           pullbackFD = foundCE->getDirectCallee();
 
         // Derivative was not found, request differentiation
-        if (!pullbackFD)
+        if (!pullbackFD && shouldGenerateMissingPullback)
           pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
       }
 
