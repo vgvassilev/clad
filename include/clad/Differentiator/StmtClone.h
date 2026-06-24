@@ -81,6 +81,7 @@ namespace utils {
     DECLARE_CLONE_FN(CXXCatchStmt)
     DECLARE_CLONE_FN(CXXTryStmt)
     DECLARE_CLONE_FN(PredefinedExpr)
+    DECLARE_CLONE_FN(SourceLocExpr)
     DECLARE_CLONE_FN(CharacterLiteral)
     DECLARE_CLONE_FN(FloatingLiteral)
     DECLARE_CLONE_FN(ImaginaryLiteral)
