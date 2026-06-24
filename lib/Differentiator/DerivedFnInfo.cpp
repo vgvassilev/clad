@@ -12,13 +12,15 @@ DerivedFnInfo::DerivedFnInfo(const DiffRequest& request,
       m_DiffVarsInfo(request.DVI),
       m_CUDAGlobalArgsIndexes(request.CUDAGlobalArgsIndexes),
       m_UsesEnzyme(request.use_enzyme),
-      m_DeclarationOnly(request.DeclarationOnly) {}
+      m_DeclarationOnly(request.DeclarationOnly),
+      m_UseRestoreTracker(request.UseRestoreTracker) {}
 
 bool DerivedFnInfo::SatisfiesRequest(const DiffRequest& request) const {
   return (request.Function == m_OriginalFn && request.Mode == m_Mode &&
           request.DVI == m_DiffVarsInfo && request.use_enzyme == m_UsesEnzyme &&
           request.DeclarationOnly == m_DeclarationOnly &&
-          request.CUDAGlobalArgsIndexes == m_CUDAGlobalArgsIndexes);
+          request.CUDAGlobalArgsIndexes == m_CUDAGlobalArgsIndexes &&
+          request.UseRestoreTracker == m_UseRestoreTracker);
 }
 
 bool DerivedFnInfo::IsValid() const { return m_OriginalFn && m_DerivedFn; }
@@ -29,6 +31,7 @@ bool DerivedFnInfo::RepresentsSameDerivative(const DerivedFnInfo& lhs,
          lhs.m_DiffVarsInfo == rhs.m_DiffVarsInfo &&
          lhs.m_UsesEnzyme == rhs.m_UsesEnzyme &&
          lhs.m_DeclarationOnly == rhs.m_DeclarationOnly &&
-         lhs.m_CUDAGlobalArgsIndexes == rhs.m_CUDAGlobalArgsIndexes;
+         lhs.m_CUDAGlobalArgsIndexes == rhs.m_CUDAGlobalArgsIndexes &&
+         lhs.m_UseRestoreTracker == rhs.m_UseRestoreTracker;
 }
 } // namespace clad

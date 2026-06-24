@@ -8,6 +8,10 @@
 #include <utility>
 #include <vector>
 
+#ifdef __CUDACC__
+#include <thrust/device_vector.h>
+#endif
+
 namespace clad {
 
 /// This class is used for bitwise storing/restoring variables.
@@ -24,6 +28,12 @@ class restore_tracker {
   using RawMemory = std::vector<uint8_t>;
   using Address = char*;
   std::map<const Address, RawMemory> m_data;
+
+#ifdef __CUDACC__
+  /// LIFO stack of sort permutations for thrust::sort_by_key AD, scoped to
+  /// this tracker instance (replaces a process-wide static stack).
+  ::std::vector<::thrust::device_vector<::std::size_t>> m_thrustSortByKeyPerm{};
+#endif
 
 public:
   // Store the value and the address of `val`.
@@ -47,6 +57,22 @@ public:
     }
     m_data.clear();
   }
+
+#ifdef __CUDACC__
+  void push_thrust_sort_by_key_perm(
+      ::thrust::device_vector<::std::size_t>&& permutation) {
+    m_thrustSortByKeyPerm.push_back(::std::move(permutation));
+  }
+
+  ::thrust::device_vector<::std::size_t> pop_thrust_sort_by_key_perm() {
+    assert(!m_thrustSortByKeyPerm.empty() &&
+           "pop_thrust_sort_by_key_perm: empty permutation stack");
+    ::thrust::device_vector<::std::size_t> top =
+        ::std::move(m_thrustSortByKeyPerm.back());
+    m_thrustSortByKeyPerm.pop_back();
+    return top;
+  }
+#endif
 };
 } // namespace clad
 

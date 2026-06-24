@@ -26,12 +26,14 @@ void sort_by_key_simple(thrust::device_vector<int>& keys,
     thrust::sort_by_key(keys.begin(), keys.end(), vals.begin());
 }
 // CHECK: void sort_by_key_simple_grad(thrust::device_vector<int> &keys, thrust::device_vector<double> &vals, thrust::device_vector<int> *_d_keys, thrust::device_vector<double> *_d_vals) {
-// CHECK-NEXT: {{.*}}clad::custom_derivatives::thrust::sort_by_key_reverse_forw(std::begin(keys), std::end(keys), std::begin(vals), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_vals)));
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT: {{.*}}clad::custom_derivatives::thrust::sort_by_key_reverse_forw(std::begin(keys), std::end(keys), std::begin(vals), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_vals)), _tracker0);
 // CHECK-NEXT: {
+// CHECK-NEXT:     _tracker0.restore();
 // CHECK-NEXT:     {{.*}}iterator _r0 = std::begin((*_d_keys));
 // CHECK-NEXT:     {{.*}}iterator _r1 = std::end((*_d_keys));
 // CHECK-NEXT:     {{.*}}iterator _r2 = std::begin((*_d_vals));
-// CHECK-NEXT:     clad::custom_derivatives::thrust::sort_by_key_pullback(std::begin(keys), std::end(keys), std::begin(vals), &_r0, &_r1, &_r2);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::sort_by_key_pullback(std::begin(keys), std::end(keys), std::begin(vals), &_r0, &_r1, &_r2, _tracker0);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -41,13 +43,15 @@ void sort_by_key_comp(thrust::device_vector<int>& keys,
     thrust::sort_by_key(keys.begin(), keys.end(), vals.begin(), thrust::greater<int>());
 }
 // CHECK: void sort_by_key_comp_grad(thrust::device_vector<int> &keys, thrust::device_vector<double> &vals, thrust::device_vector<int> *_d_keys, thrust::device_vector<double> *_d_vals) {
-// CHECK-NEXT: {{.*}}clad::custom_derivatives::thrust::sort_by_key_reverse_forw(std::begin(keys), std::end(keys), std::begin(vals), thrust::greater<int>(), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_vals)), {});
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT: {{.*}}clad::custom_derivatives::thrust::sort_by_key_reverse_forw(std::begin(keys), std::end(keys), std::begin(vals), thrust::greater<int>(), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_vals)), {}, _tracker0);
 // CHECK-NEXT: {
+// CHECK-NEXT:     _tracker0.restore();
 // CHECK-NEXT:     {{.*}}iterator _r0 = std::begin((*_d_keys));
 // CHECK-NEXT:     {{.*}}iterator _r1 = std::end((*_d_keys));
 // CHECK-NEXT:     {{.*}}iterator _r2 = std::begin((*_d_vals));
 // CHECK-NEXT:     thrust::greater<int> _r3 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::sort_by_key_pullback(std::begin(keys), std::end(keys), std::begin(vals), thrust::greater<int>(), &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::sort_by_key_pullback(std::begin(keys), std::end(keys), std::begin(vals), thrust::greater<int>(), &_r0, &_r1, &_r2, &_r3, _tracker0);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
