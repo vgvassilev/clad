@@ -72,9 +72,9 @@ float fn1(
 // CHECK-NEXT:     anon_namespace _d_z = {0.F};
 // CHECK-NEXT:     not_found::Tensor _d_w = {0.F};
 // CHECK-NEXT:     {{.*}}cladtorch::Tensor b = t;
-// CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_b = (*_d_t);
+// CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_b;
 // CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> v{{.*}}{u, b}{{.*}};
-// CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> _d_v{{.*}}{_d_u, _d_b}{{.*}};
+// CHECK-NEXT:     {{.*}}std::vector<cladtorch::Tensor> _d_v{{.*}};
 // CHECK-NEXT:     _d_v[1].data += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         clad::array<{{cladtorch::Tensor|std::vector<cladtorch::Tensor, std::allocator<cladtorch::Tensor> >::value_type}}> _r0 = {{2U|2UL}};
