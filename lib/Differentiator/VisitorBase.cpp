@@ -1013,6 +1013,7 @@ namespace clad {
     llvm::SmallVector<const ValueDecl*, 4> diffParams{};
     for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
       diffParams.push_back(VarInfo.param);
+
     return utils::GetDerivativeType(
         m_Sema, m_DiffReq.Function, m_DiffReq.Mode, diffParams,
         /*forCustomDerv=*/false,
