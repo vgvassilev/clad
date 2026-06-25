@@ -10,6 +10,10 @@ set(CLAD_PLUGIN_SRC
 
 llvm_add_library(cladPlugin STATIC ${CLAD_PLUGIN_SRC})
 
+if (CLAD_BUILD_STATIC_ONLY)
+  target_compile_definitions(cladPlugin PRIVATE CLAD_BUILD_STATIC_ONLY)
+endif()
+
 set(link_libs cladDifferentiator)
 
 if (NOT CLAD_BUILD_STATIC_ONLY)
