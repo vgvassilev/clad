@@ -169,6 +169,12 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
       QualType VDType = VD->getType();
       if (VDType->isLValueReferenceType() || VDType->isPointerType()) {
         VarData* refData = getVarDataFromDecl(VD);
+        // Globals and other untracked declarations have no VarData.
+        if (!refData) {
+          IDSequence.clear();
+          VD = nullptr;
+          return false;
+        }
         if (refData->m_Type == VarData::REF_TYPE) {
           std::set<const VarDecl*>& vars = *refData->m_Val.m_RefData;
           if (vars.size() == 1) {
