@@ -893,16 +893,12 @@ namespace clad {
     }
 
     NamespaceDecl* GetCladNamespace(Sema& S) {
-      static NamespaceDecl* Result = nullptr;
-      if (Result)
-        return Result;
       DeclarationName CladName = &S.getASTContext().Idents.get("clad");
       LookupResult CladR(S, CladName, noLoc, Sema::LookupNamespaceName,
                          CLAD_COMPAT_Sema_ForVisibleRedeclaration);
       S.LookupQualifiedName(CladR, S.getASTContext().getTranslationUnitDecl());
       assert(!CladR.empty() && "cannot find clad namespace");
-      Result = cast<NamespaceDecl>(CladR.getFoundDecl());
-      return Result;
+      return cast<NamespaceDecl>(CladR.getFoundDecl());
     }
 
     Expr* getZeroInit(QualType T, Sema& S) {
@@ -945,9 +941,6 @@ namespace clad {
     }
 
     clang::QualType GetRestoreTrackerType(clang::Sema& S) {
-      static QualType T;
-      if (!T.isNull())
-        return T;
       NamespaceDecl* CladNS = GetCladNamespace(S);
       CXXScopeSpec CSS;
       CSS.Extend(S.getASTContext(), CladNS, noLoc, noLoc);
@@ -961,7 +954,7 @@ namespace clad {
       // This will instantiate restore_tracker<T> type and return it.
       auto* RD = cast<RecordDecl>(TrackerR.getFoundDecl());
       ASTContext& C = S.getASTContext();
-      T = clad_compat::getRecordType(C, RD);
+      QualType T = clad_compat::getRecordType(C, RD);
       // Get clad namespace and its identifier clad::.
       clad_compat::NestedNameSpecifierTy NS = CSS.getScopeRep();
 
@@ -1134,18 +1127,14 @@ namespace clad {
     }
 
     QualType GetCladMatrixOfType(Sema& S, clang::QualType T) {
-      static TemplateDecl* matrixDecl = nullptr;
-      if (!matrixDecl)
-        matrixDecl =
-            utils::LookupTemplateDeclInCladNamespace(S,
-                                                     /*ClassName=*/"matrix");
+      TemplateDecl* matrixDecl =
+          utils::LookupTemplateDeclInCladNamespace(S, /*ClassName=*/"matrix");
       return InstantiateTemplate(S, matrixDecl, {T});
     }
 
     QualType GetCladArrayOfType(Sema& S, clang::QualType T) {
-      static TemplateDecl* arrayDecl = nullptr;
-      if (!arrayDecl)
-        arrayDecl = LookupTemplateDeclInCladNamespace(S, /*ClassName=*/"array");
+      TemplateDecl* arrayDecl =
+          LookupTemplateDeclInCladNamespace(S, /*ClassName=*/"array");
       return utils::InstantiateTemplate(S, arrayDecl, {T});
     }
 
@@ -1188,10 +1177,8 @@ namespace clad {
     }
 
     QualType GetCladArrayRefOfType(Sema& S, QualType T) {
-      static TemplateDecl* arrayRefDecl = nullptr;
-      if (!arrayRefDecl)
-        arrayRefDecl = utils::LookupTemplateDeclInCladNamespace(
-            S, /*ClassName=*/"array_ref");
+      TemplateDecl* arrayRefDecl = utils::LookupTemplateDeclInCladNamespace(
+          S, /*ClassName=*/"array_ref");
       return utils::InstantiateTemplate(S, arrayRefDecl, {T});
     }
 
@@ -1392,9 +1379,8 @@ namespace clad {
     }
 
     QualType GetCladTagOfType(Sema& S, QualType T) {
-      static clang::TemplateDecl* CladTag = nullptr;
-      if (!CladTag)
-        CladTag = utils::LookupTemplateDeclInCladNamespace(S, "Tag");
+      clang::TemplateDecl* CladTag =
+          utils::LookupTemplateDeclInCladNamespace(S, "Tag");
       return utils::InstantiateTemplate(S, CladTag, {T});
     }
 
