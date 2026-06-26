@@ -831,7 +831,8 @@ namespace clad {
   Stmt* VisitorBase::GetCladZeroInit(llvm::MutableArrayRef<Expr*> args) {
     if (!m_TapeZeroInitLookup)
       m_TapeZeroInitLookup = LookupCladTapeMethod("zero_init");
-    LookupResult& init = clad_compat::llvm_Optional_GetValue(m_TapeZeroInitLookup);
+    LookupResult& init =
+        clad_compat::llvm_Optional_GetValue(m_TapeZeroInitLookup);
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
     auto* pushDRE =

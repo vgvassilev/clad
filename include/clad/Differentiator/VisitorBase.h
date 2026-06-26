@@ -21,6 +21,7 @@
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/Lookup.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
@@ -152,6 +153,7 @@ namespace clad {
     // expression to be of object type in the reverse mode as well.
     clang::Expr* m_ThisExprDerivative = nullptr;
 
+  private:
     /// Per-instance cache for tape lookup results. These are tied to the
     /// current Sema/ASTContext and must not be shared across translation units.
     clad_compat::llvm_Optional<clang::LookupResult> m_TapePushLookup;
@@ -159,6 +161,7 @@ namespace clad {
     clad_compat::llvm_Optional<clang::LookupResult> m_TapeBackLookup;
     clad_compat::llvm_Optional<clang::LookupResult> m_TapeZeroInitLookup;
 
+  protected:
     /// The currently visited statement. Useful for crash pretty-printing.
     const clang::Stmt* m_CurVisitedStmt = nullptr;
 
