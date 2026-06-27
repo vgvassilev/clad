@@ -300,6 +300,8 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
     return m_Sema.BuildReturnStmt(validLoc, returnDiff.getExpr()).get();
   llvm::SmallVector<Expr*, 2> returnArgs = {returnDiff.getExpr(),
                                             returnDiff.getExpr_dx()};
+  if (!returnArgs[1])
+    return {nullptr, nullptr};
   Expr* returnInitList =
       m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
   Stmt* newRS = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();
