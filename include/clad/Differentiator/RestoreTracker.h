@@ -4,8 +4,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-#include <map>
-#include <utility>
+#include <unordered_set>
 #include <vector>
 
 namespace clad {
@@ -20,32 +19,64 @@ namespace clad {
 /// We use it when we have to pass information between nested calls and
 /// clad::tape is not viable.
 class restore_tracker {
-  // m_data consists of pairs of memory addresses and bitwise values
-  using RawMemory = std::vector<uint8_t>;
-  using Address = char*;
-  std::map<const Address, RawMemory> m_data;
+  std::unordered_set<void*> m_Seen;
+  std::vector<uint8_t> m_Buffer;
 
 public:
-  // Store the value and the address of `val`.
+  restore_tracker() {
+    // Prior reservation of some buffer for small and medium workloads will save
+    // us from massive reallocation overhead
+    m_Buffer.reserve(4096);
+  }
+  // buffer stores three things: address|size|raw bytes of val
   template <typename T> void store(const T& val) {
+    void* addr = (void*)&val;
     // If a variable is stored multiple times, we should only take the first
     // value into consideration:
     // _tracker.store(x); // stored
     // ...
     // _tracker.store(x); // ignored
-    if (m_data.find((char*)&val) != m_data.end())
+    if (!m_Seen.insert(addr).second)
       return;
-    std::vector<uint8_t> buffer(sizeof(T));
-    std::memcpy(buffer.data(), &val, sizeof(T));
-    m_data.emplace((char*)&val, std::move(buffer));
+
+    size_t size = sizeof(T);
+    size_t current_size = m_Buffer.size();
+
+    m_Buffer.resize(current_size + sizeof(void*) + sizeof(size_t) + size);
+
+    uint8_t* ptr = m_Buffer.data() + current_size;
+    std::memcpy(ptr, &addr, sizeof(void*));
+    ptr += sizeof(void*);
+
+    std::memcpy(ptr, &size, sizeof(size_t));
+    ptr += sizeof(size_t);
+
+    std::memcpy(ptr, addr, size);
   }
-  // Set all stored addresses to the corresponsing values bitwise.
-  void restore() {
-    for (std::pair<const Address, RawMemory>& pair : m_data) {
-      std::vector<uint8_t>& buffer = pair.second;
-      std::memcpy(pair.first, buffer.data(), buffer.size());
+
+  template <typename = void> void restore() {
+    if (m_Buffer.empty())
+      return;
+
+    uint8_t* ptr = m_Buffer.data();
+    uint8_t* end = ptr + m_Buffer.size();
+
+    while (ptr < end) {
+      void* addr = nullptr;
+      size_t size = 0;
+
+      std::memcpy(&addr, ptr, sizeof(void*));
+      ptr += sizeof(void*);
+
+      std::memcpy(&size, ptr, sizeof(size_t));
+      ptr += sizeof(size_t);
+
+      std::memcpy(addr, ptr, size);
+      ptr += size;
     }
-    m_data.clear();
+
+    m_Buffer.clear();
+    m_Seen.clear();
   }
 };
 } // namespace clad
