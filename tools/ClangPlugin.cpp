@@ -143,7 +143,9 @@ void InitTimers();
         // resolved from any symbol we own. Cleaner than iterating
         // CI.getFrontendOpts().Plugins (which depends on how clang was
         // invoked) and keeps the lookup inside this DSO.
-#ifdef _WIN32
+#ifdef CLAD_BUILD_STATIC_ONLY
+        // Skip registration entirely if clad is statically linked
+#elif _WIN32
       HMODULE hm = nullptr;
       if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                                  GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
