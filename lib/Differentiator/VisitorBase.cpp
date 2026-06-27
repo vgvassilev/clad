@@ -523,10 +523,9 @@ namespace clad {
   }
 
   LookupResult& VisitorBase::GetCladTapePush() {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("push");
-    return clad_compat::llvm_Optional_GetValue(Result);
+    if (!m_TapePushLookup)
+      m_TapePushLookup = LookupCladTapeMethod("push");
+    return clad_compat::llvm_Optional_GetValue(m_TapePushLookup);
   }
 
   Expr* VisitorBase::GetFunctionCall(const std::string& funcName,
@@ -568,17 +567,15 @@ namespace clad {
   }
 
   LookupResult& VisitorBase::GetCladTapePop() {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("pop");
-    return clad_compat::llvm_Optional_GetValue(Result);
+    if (!m_TapePopLookup)
+      m_TapePopLookup = LookupCladTapeMethod("pop");
+    return clad_compat::llvm_Optional_GetValue(m_TapePopLookup);
   }
 
   LookupResult& VisitorBase::GetCladTapeBack() {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("back");
-    return clad_compat::llvm_Optional_GetValue(Result);
+    if (!m_TapeBackLookup)
+      m_TapeBackLookup = LookupCladTapeMethod("back");
+    return clad_compat::llvm_Optional_GetValue(m_TapeBackLookup);
   }
 
   QualType VisitorBase::GetCladTapeOfType(QualType T) {
@@ -838,10 +835,10 @@ namespace clad {
   }
 
   Stmt* VisitorBase::GetCladZeroInit(llvm::MutableArrayRef<Expr*> args) {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("zero_init");
-    LookupResult& init = clad_compat::llvm_Optional_GetValue(Result);
+    if (!m_TapeZeroInitLookup)
+      m_TapeZeroInitLookup = LookupCladTapeMethod("zero_init");
+    LookupResult& init =
+        clad_compat::llvm_Optional_GetValue(m_TapeZeroInitLookup);
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
     auto* pushDRE =
