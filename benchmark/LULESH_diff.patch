@@ -1,0 +1,402 @@
+diff --git a/LULESH/allocator.cu b/LULESH/allocator.cu
+index 0d2767e..e1092d7 100755
+--- a/LULESH/allocator.cu
++++ b/LULESH/allocator.cu
+@@ -8,10 +8,10 @@
+ # license agreement from NVIDIA CORPORATION is strictly prohibited.   
+ */
+ 
+-#include <allocator.h>
++#include "allocator.h"
+ #include <stack>
+ #include <map>
+-#include <vector.h>
++#include "vector.h"
+ 
+ template< typename T >
+ inline T* allocate( int size ) 
+diff --git a/LULESH/lulesh.cu b/LULESH/lulesh.cu
+index 30884bc..4c61ea3 100644
+--- a/LULESH/lulesh.cu
++++ b/LULESH/lulesh.cu
+@@ -69,10 +69,10 @@ Additional BSD Notice
+ #include <iomanip>
+ #include <sstream>
+ 
+-#include <util.h>
+-#include <sm_utils.inl>
++#include "util.h"
++#include "sm_utils.inl"
+ #include <cuda.h>
+-#include <allocator.h>
++#include "allocator.h"
+ #include "cuda_profiler_api.h"
+ 
+ #ifdef USE_MPI
+@@ -84,6 +84,8 @@ Additional BSD Notice
+ 
+ #include "lulesh.h"
+ 
++#include "clad/Differentiator/Differentiator.h"
++
+ /****************************************************/
+ /* Allow flexibility for arithmetic representations */
+ /****************************************************/
+@@ -101,16 +103,6 @@ __device__ inline real8  FMAX(real8  arg1,real8  arg2) { return fmax(arg1,arg2)
+ 
+ #define MAX(a, b) ( ((a) > (b)) ? (a) : (b))
+ 
+-// Enzyme Autodifferentiation
+-//
+-//
+-template<typename... Args>
+-__device__
+-void __enzyme_autodiff(void*, Args...);
+-
+-__device__ int enzyme_dup, enzyme_const, enzyme_active;
+-
+-
+ 
+ /* Stuff needed for boundary conditions */
+ /* 2 BCs on each of 6 hexahedral faces (12 bits) */
+@@ -325,7 +317,7 @@ void cuda_init(int rank)
+ 
+     cudaSafeCall( cudaGetDeviceProperties(&cuda_deviceProp, dev) );
+     if (cuda_deviceProp.major < 3) {
+-        fprintf(stderr, "cuda_init(): This implementation of Lulesh requires device SM 3.0+.\n", dev);
++        fprintf(stderr, "cuda_init(): This implementation of Lulesh requires device SM 3.0+. Has %d\n", dev);
+         exit(1);
+     }
+ 
+@@ -936,7 +928,7 @@ Domain *NewDomain(char* argv[], Int_t numRanks, Index_t colLoc,
+        fsuccess = fscanf(fp, "%d", &n) ;
+        freeSurf_h[i] = Index_t(n) ;
+     }
+-    printf("%c\n",fsuccess);//nothing
++    printf("%d\n",fsuccess);//nothing
+     fclose(fp);
+ 
+     /* set up boundary condition information */
+@@ -3928,9 +3920,9 @@ __forceinline__
+ void CalcPressureForElems_device(Real_t& p_new,
+                                  Real_t& bvc,
+                                  Real_t& pbvc,
+-                                 Real_t& e_old,
+-                                 Real_t& compression,
+-                                 Real_t& vnewc,
++                                 Real_t e_old,
++                                 Real_t compression,
++                                 Real_t vnewc,
+                                  Real_t pmin,
+                                  Real_t p_cut,
+                                  Real_t eosvmax)
+@@ -3960,18 +3952,18 @@ void CalcPressureForElems_device(Real_t& p_new,
+ static
+ __device__
+ __forceinline__
+-void CalcSoundSpeedForElems_device(Real_t& vnewc,
++void CalcSoundSpeedForElems_device(Real_t vnewc,
+                                    Real_t rho0,
+-                                   Real_t &enewc,
+-                                   Real_t &pnewc,
+-                                   Real_t &pbvc,
+-                                   Real_t &bvc,
++                                   Real_t enewc,
++                                   Real_t pnewc,
++                                   Real_t pbvc,
++                                   Real_t bvc,
+                                    Real_t ss4o3,
+                                    Index_t nz,
+                                    #ifdef RESTRICT
+-                                   Real_t *__restrict__ ss,
++                                   const Real_t *__restrict__ ss,
+                                    #else
+-                                   Real_t *ss,
++                                   const Real_t *ss,
+                                    #endif
+                                    Index_t iz)
+ {
+@@ -3983,27 +3975,27 @@ void CalcSoundSpeedForElems_device(Real_t& vnewc,
+   else {
+     ssTmp = SQRT(ssTmp) ;
+   }
+-  ss[iz] = ssTmp;
++  const_cast<Real_t&>(ss[iz]) = ssTmp;
+ }
+ 
+ static
+ __device__
+ __forceinline__ 
+ void ApplyMaterialPropertiesForElems_device(
+-    Real_t& eosvmin,
+-    Real_t& eosvmax,
++    Real_t eosvmin,
++    Real_t eosvmax,
+     #ifdef RESTRICT
+-    Real_t* __restrict__ vnew,
+-    Real_t *__restrict__ v,
++    const Real_t* __restrict__ vnew,
++    const Real_t *__restrict__ v,
+     #else
+-    Real_t*  vnew,
+-    Real_t *v,
++    const Real_t*  vnew,
++    const Real_t *v,
+     #endif
+     Real_t& vnewc,
+     #ifdef RESTRICT
+-    Index_t* __restrict__ bad_vol,
++    const Index_t* __restrict__ bad_vol,
+     #else
+-    Index_t* bad_vol,
++    const Index_t* bad_vol,
+     #endif
+     Index_t zn)
+ {
+@@ -4030,7 +4022,7 @@ void ApplyMaterialPropertiesForElems_device(
+         vc = eosvmax ;
+   }
+   if (vc <= 0.) {
+-     *bad_vol = zn;
++    const_cast<Index_t&>(*bad_vol) = zn;
+   }
+ 
+ }
+@@ -4039,9 +4031,9 @@ static
+ __device__
+ __forceinline__
+ void UpdateVolumesForElems_device(Index_t numElem,
+-                                  Real_t& v_cut,
+-                                  Real_t *vnew,
+-                                  Real_t *v,
++                                  Real_t v_cut,
++                                  const Real_t *vnew,
++                                  const Real_t *v,
+                                   int i)
+ {
+    Real_t tmpV ;
+@@ -4049,7 +4041,7 @@ void UpdateVolumesForElems_device(Index_t numElem,
+ 
+    if ( FABS(tmpV - Real_t(1.0)) < v_cut )
+       tmpV = Real_t(1.0) ;
+-   v[i] = tmpV ;
++   const_cast<Real_t&>(v[i]) = tmpV ;
+ }
+ 
+ 
+@@ -4061,23 +4053,23 @@ void CalcEnergyForElems_device(Real_t& p_new,
+                                Real_t& q_new,
+                                Real_t& bvc,
+                                Real_t& pbvc,
+-                               Real_t& p_old,
+-                               Real_t& e_old,
+-                               Real_t& q_old,
+-                               Real_t& compression,
+-                               Real_t& compHalfStep,
+-                               Real_t& vnewc,
+-                               Real_t& work,
+-                               Real_t& delvc,
++                               Real_t p_old,
++                               Real_t e_old,
++                               Real_t q_old,
++                               Real_t compression,
++                               Real_t compHalfStep,
++                               Real_t vnewc,
++                               Real_t work,
++                               Real_t delvc,
+                                Real_t pmin,
+                                Real_t p_cut,
+                                Real_t e_cut,
+                                Real_t q_cut,
+                                Real_t emin,
+-                               Real_t& qq,
+-                               Real_t& ql,
+-                               Real_t& rho0,
+-                               Real_t& eosvmax,
++                               Real_t qq,
++                               Real_t ql,
++                               Real_t rho0,
++                               Real_t eosvmax,
+                                Index_t length)
+ {
+    const Real_t sixth = Real_t(1.0) / Real_t(6.0) ;
+@@ -4210,7 +4202,7 @@ void CalcEnergyForElems_device(Real_t& p_new,
+       if (FABS(q_new) < q_cut) q_new = Real_t(0.) ;
+    }
+ 
+-   return ;
++  //  return ;
+ }
+ 
+ __device__ inline
+@@ -4231,15 +4223,15 @@ void Inner_ApplyMaterialPropertiesAndUpdateVolume_kernel(
+         Real_t e_cut,
+         Real_t emin,
+         #ifdef RESTRICT
+-        Real_t* __restrict__ ql,
+-        Real_t* __restrict__ qq,
+-        Real_t* __restrict__ vnew,
+-        Real_t* __restrict__ v,
++        const Real_t* __restrict__ ql,
++        const Real_t* __restrict__ qq,
++        const Real_t* __restrict__ vnew,
++        const Real_t* __restrict__ v,
+         #else
+-        Real_t* ql,
+-        Real_t* qq,
+-        Real_t* vnew,
+-        Real_t* v,
++        const Real_t* ql,
++        const Real_t* qq,
++        const Real_t* vnew,
++        const Real_t* v,
+         #endif
+         Real_t pmin,
+         Real_t p_cut,
+@@ -4247,29 +4239,29 @@ void Inner_ApplyMaterialPropertiesAndUpdateVolume_kernel(
+         Real_t eosvmin,
+         Real_t eosvmax,
+         #ifdef RESTRICT
+-        Index_t* __restrict__ regElemlist,
++        const Index_t* __restrict__ regElemlist,
+         Real_t* __restrict__ e,
+-        Real_t* __restrict__ delv,
+-        Real_t* __restrict__ p,
+-        Real_t* __restrict__ q,
++        const Real_t* __restrict__ delv,
++        const Real_t* __restrict__ p,
++        const Real_t* __restrict__ q,
+         #else
+-        Index_t* regElemlist,
++        const Index_t* regElemlist,
+         Real_t* e,
+-        Real_t* delv,
+-        Real_t* p,
+-        Real_t* q,
++        const Real_t* delv,
++        const Real_t* p,
++        const Real_t* q,
+         #endif
+         Real_t ss4o3,
+         #ifdef RESTRICT
+-        Real_t* __restrict__ ss,
++        const Real_t* __restrict__ ss,
+         #else
+-        Real_t* ss,
++        const Real_t* ss,
+         #endif
+         Real_t v_cut,
+         #ifdef RESTRICT
+-        Index_t* __restrict__ bad_vol,
++        const Index_t* __restrict__ bad_vol,
+         #else
+-        Index_t* bad_vol,
++        const Index_t* bad_vol,
+         #endif
+         const Int_t cost,
+         #ifdef RESTRICT
+@@ -4375,9 +4367,9 @@ void Inner_ApplyMaterialPropertiesAndUpdateVolume_kernel(
+ 
+  }//end for rep
+ 
+-    p[zidx] = p_new ;
++    const_cast<Real_t&>(p[zidx]) = p_new ;
+     e[zidx] = e_new ;
+-    q[zidx] = q_new ;
++    const_cast<Real_t&>(q[zidx]) = q_new ;
+ 
+     CalcSoundSpeedForElems_device(
+       vnewc,
+@@ -4483,34 +4475,38 @@ void ApplyMaterialPropertiesAndUpdateVolume_kernel(
+     numReg
+   );
+   #else
+-  __enzyme_autodiff((void*)Inner_ApplyMaterialPropertiesAndUpdateVolume_kernel,
+-    enzyme_const, length,
+-    enzyme_const, rho0,
+-    enzyme_const, e_cut,
+-    enzyme_const, emin,
+-    enzyme_const, ql,
+-    enzyme_const, qq,
+-    enzyme_const, vnew,
+-    enzyme_const, v,
+-    enzyme_const, pmin,
+-    enzyme_const, p_cut,
+-    enzyme_const, q_cut,
+-    enzyme_const, eosvmin,
+-    enzyme_const, eosvmax,
+-    enzyme_const, regElemlist,
+-    enzyme_dup, e, d_e,
+-    enzyme_const, delv,
+-    enzyme_const, p,
+-    enzyme_const, q,
+-    enzyme_const, ss4o3,
+-    enzyme_const, ss,
+-    enzyme_const, v_cut,
+-    enzyme_const, bad_vol,
+-    enzyme_const, cost,
+-    enzyme_const, regCSR,
+-    enzyme_const, regReps,
+-    enzyme_const, numReg
+-  );
++  auto grad = clad::gradient(Inner_ApplyMaterialPropertiesAndUpdateVolume_kernel, "e");
++  grad.execute(length, rho0, e_cut, emin, ql, qq, vnew, v, pmin, p_cut, 
++                q_cut, eosvmin, eosvmax, regElemlist, e, delv, p, q, ss4o3, ss, 
++                v_cut, bad_vol, cost, regCSR, regReps, numReg, d_e);
++  // __enzyme_autodiff((void*)Inner_ApplyMaterialPropertiesAndUpdateVolume_kernel,
++  //   enzyme_const, length,
++  //   enzyme_const, rho0,
++  //   enzyme_const, e_cut,
++  //   enzyme_const, emin,
++  //   enzyme_const, ql,
++  //   enzyme_const, qq,
++  //   enzyme_const, vnew,
++  //   enzyme_const, v,
++  //   enzyme_const, pmin,
++  //   enzyme_const, p_cut,
++  //   enzyme_const, q_cut,
++  //   enzyme_const, eosvmin,
++  //   enzyme_const, eosvmax,
++  //   enzyme_const, regElemlist,
++  //   enzyme_dup, e, d_e,
++  //   enzyme_const, delv,
++  //   enzyme_const, p,
++  //   enzyme_const, q,
++  //   enzyme_const, ss4o3,
++  //   enzyme_const, ss,
++  //   enzyme_const, v_cut,
++  //   enzyme_const, bad_vol,
++  //   enzyme_const, cost,
++  //   enzyme_const, regCSR,
++  //   enzyme_const, regReps,
++  //   enzyme_const, numReg
++  // );
+   #endif
+ }
+ 
+@@ -5365,7 +5361,7 @@ void VerifyAndWriteFinalOutput(Real_t elapsed_time,
+             if (MaxRelDiff <RelDiff)  MaxRelDiff = RelDiff;
+          }
+       }
+-      delete e_all;
++      delete[] e_all;
+ 
+       // Quick symmetry check
+       printf("   Testing Plane 0 of Energy Array on rank 0:\n");
+@@ -5464,7 +5460,7 @@ int main(int argc, char *argv[])
+ #endif
+ 
+   cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
+-  cudaDeviceSetLimit(cudaLimitMallocHeapSize,1024*1024*1024);
++  cudaDeviceSetLimit(cudaLimitMallocHeapSize,2L*1024*1024*1024);
+ 
+   /* timestep to solution */
+   int its=0;
+@@ -5538,5 +5534,4 @@ int main(int argc, char *argv[])
+ #endif
+ 
+   return 0 ;
+-}
+-
++}
+\ No newline at end of file
