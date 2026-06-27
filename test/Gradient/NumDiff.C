@@ -1,6 +1,5 @@
 // RUN: %cladnumdiffclang %s %S/NumDiffDefs.C -I%S/../../include -oNumDiff.out -Xclang -verify 2>&1 | FileCheck -check-prefix=CHECK %s
 // RUN: ./NumDiff.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"
