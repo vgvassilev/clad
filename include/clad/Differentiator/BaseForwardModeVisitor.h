@@ -174,6 +174,11 @@ protected:
       llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
       llvm::SmallVectorImpl<clang::Expr*>& derivedArgs);
 
+  clang::QualType GetLambdaPushforwardType(const clang::LambdaExpr* LE);
+
+  /// Builds the pushforward lambda for LE
+  clang::Expr* buildPushforwardLambda(const clang::LambdaExpr* LE);
+
 private:
   /// Prepares the derivative function parameters.
   void

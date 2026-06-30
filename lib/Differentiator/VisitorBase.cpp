@@ -21,6 +21,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
@@ -33,6 +34,7 @@
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
@@ -1100,4 +1102,170 @@ namespace clad {
     }
   }
 
+  clang::VarDecl*
+  VisitorBase::getEnclosingCaptureClone(const clang::VarDecl* capVD) {
+    auto it = m_DeclReplacements.find(capVD);
+    if (it != m_DeclReplacements.end())
+      if (auto* repl = dyn_cast<VarDecl>(it->second))
+        return repl;
+    LookupResult R(m_Sema, capVD->getDeclName(), capVD->getLocation(),
+                   Sema::LookupOrdinaryName);
+    if (m_Sema.LookupName(R, getCurrentScope()) && R.isSingleResult())
+      if (auto* found = dyn_cast<VarDecl>(R.getFoundDecl()))
+        return found;
+    return const_cast<VarDecl*>(capVD);
+  }
+
+#if CLANG_VERSION_MAJOR > 16
+  clang::Expr* VisitorBase::buildPrimalLambda(const clang::LambdaExpr* LE) {
+    LambdaIntroducer Intro;
+    Intro.Default = LCD_None;
+    Intro.Range.setBegin(noLoc);
+    Intro.Range.setEnd(noLoc);
+    AttributeFactory AttrFactory;
+    const DeclSpec DS(AttrFactory);
+    Declarator D(DS, clang::ParsedAttributesView::none(),
+                 clang::DeclaratorContext::LambdaExpr);
+
+    const FunctionDecl* FD = LE->getCallOperator();
+    QualType fnType = FD->getType();
+    if (LE->capture_size()) {
+      const auto* FPT = fnType->castAs<FunctionProtoType>();
+      llvm::SmallVector<QualType, 8> paramTypes(FPT->param_types().begin(),
+                                                FPT->param_types().end());
+      for (const LambdaCapture& Capture : LE->captures()) {
+        if (!Capture.capturesVariable())
+          continue;
+        const auto* capVD = dyn_cast<VarDecl>(Capture.getCapturedVar());
+        if (!capVD)
+          continue;
+        paramTypes.push_back(utils::getNonConstType(
+            capVD->getType().getNonReferenceType(), m_Sema));
+      }
+      fnType = m_Context.getFunctionType(FPT->getReturnType(), paramTypes,
+                                         FPT->getExtProtoInfo());
+    }
+
+    // Parent in the enclosing derivative not in the original closure
+    DeclContext* enclosingDC = m_Sema.CurContext;
+    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<FunctionDecl*> SaveDerivative(m_Derivative);
+    beginScope(Scope::LambdaScope | Scope::DeclScope |
+               Scope::FunctionDeclarationScope | Scope::FunctionPrototypeScope);
+    m_Sema.PushLambdaScope();
+    m_Sema.ActOnLambdaExpressionAfterIntroducer(Intro, getCurrentScope());
+    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
+               Scope::DeclScope);
+    llvm::SmallVector<DeclaratorChunk::ParamInfo> ParamInfoLambda;
+    llvm::SmallVector<ParmVarDecl*, 8> params;
+    m_Sema.ActOnLambdaClosureQualifiers(Intro, noLoc);
+    sema::LambdaScopeInfo* LSI = m_Sema.getCurLambda();
+    LSI->CallOperator->setType(fnType);
+    m_Sema.PushDeclContext(getCurrentScope(), LSI->CallOperator);
+    LSI->Lambda->setDeclContext(enclosingDC);
+    m_Derivative = LSI->CallOperator;
+
+    for (ParmVarDecl* PVD : FD->parameters()) {
+      IdentifierInfo* II = PVD->getIdentifier();
+      if (!PVD->getDeclName())
+        II = CreateUniqueIdentifier("arg");
+      auto* newPVD = CloneParmVarDecl(PVD, II, /*pushOnScopeChains=*/true,
+                                      /*cloneDefaultArg=*/false);
+      if (!PVD->getDeclName())
+        m_DeclReplacements[PVD] = newPVD;
+      params.push_back(newPVD);
+    }
+    std::map<const IdentifierInfo*, ParmVarDecl*> captureParam;
+    for (const LambdaCapture& Capture : LE->captures()) {
+      if (!Capture.capturesVariable())
+        continue;
+      auto* capVD = dyn_cast<VarDecl>(Capture.getCapturedVar());
+      if (!capVD)
+        continue;
+      QualType valTy = utils::getNonConstType(
+          capVD->getType().getNonReferenceType(), m_Sema);
+
+      auto* valPVD = utils::BuildParmVarDecl(
+          m_Sema, m_Derivative,
+          CreateUniqueIdentifier(capVD->getNameAsString()), valTy);
+      m_Sema.PushOnScopeChains(valPVD, getCurrentScope(),
+                               /*AddToContext=*/false);
+      params.push_back(valPVD);
+      m_DeclReplacements[capVD] = valPVD;
+      if (capVD->getIdentifier())
+        captureParam[capVD->getIdentifier()] = valPVD;
+    }
+
+    m_Derivative->setBody(MakeCompoundStmt({}));
+    m_Sema.PopDeclContext();
+    for (auto* PVD : params)
+      ParamInfoLambda.emplace_back(PVD->getIdentifier(), PVD->getLocation(),
+                                   PVD, nullptr);
+    SourceLocation paramListLoc = utils::GetValidSLoc(m_Sema);
+    D.AddTypeInfo(
+        DeclaratorChunk::getFunction(
+            /*hasProto=*/true, /*isAmbiguous=*/false,
+            /*LParenLoc=*/paramListLoc, /*Params=*/ParamInfoLambda.data(),
+            /*NumParams=*/ParamInfoLambda.size(),
+            /*EllipsisLoc=*/SourceLocation(), /*RParenLoc=*/paramListLoc,
+            /*RefQualifierIsLValueRef=*/true,
+            /*RefQualifierLoc=*/SourceLocation(),
+            /*MutableLoc=*/SourceLocation(), /*ESpecType=*/EST_None,
+            /*ESpecRange=*/SourceRange(), /*Exceptions=*/nullptr,
+            /*ExceptionRanges=*/nullptr, /*NumExceptions=*/0,
+            /*NoexceptExpr=*/nullptr, /*ExceptionSpecTokens=*/nullptr,
+            /*DeclsInPrototype=*/{}, /*LocalRangeBegin=*/noLoc,
+            /*LocalRangeEnd=*/noLoc, /*Declarator=*/D,
+            /*TrailingReturnType=*/ParsedType(),
+            /*TrailingReturnTypeLoc=*/SourceLocation()),
+        /*EndLoc=*/SourceLocation());
+    m_Sema.ActOnLambdaClosureParameters(getCurrentScope(), ParamInfoLambda);
+    beginScope(Scope::BlockScope | Scope::FnScope | Scope::DeclScope |
+               Scope::CompoundStmtScope);
+    m_Sema.ActOnStartOfLambdaDefinition(
+        Intro, D,
+        clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
+            getCurrentScope(), DS));
+
+    beginBlock();
+    Stmt* clonedBody = Clone(LE->getCallOperator()->getBody());
+    for (auto* S : cast<CompoundStmt>(clonedBody)->body())
+      addToCurrentBlock(S);
+    CompoundStmt* body = endBlock();
+
+    llvm::SmallVector<Stmt*, 32> WL{body};
+    while (!WL.empty()) {
+      Stmt* s = WL.pop_back_val();
+      if (!s)
+        continue;
+      for (auto it = s->child_begin(), e = s->child_end(); it != e; ++it) {
+        if (auto* dre = dyn_cast_or_null<DeclRefExpr>(*it)) {
+          if (dre->refersToEnclosingVariableOrCapture()) {
+            const IdentifierInfo* nm = dre->getDecl()->getIdentifier();
+            auto pit = nm ? captureParam.find(nm) : captureParam.end();
+            if (pit != captureParam.end())
+              *it = BuildDeclRef(pit->second);
+            else if (auto* vd = dyn_cast<VarDecl>(dre->getDecl()))
+              if (vd->getDeclContext() == m_Derivative)
+                *it = BuildDeclRef(vd);
+          }
+        }
+        WL.push_back(*it);
+      }
+    }
+
+    Expr* lambda =
+        m_Sema
+            .ActOnLambdaExpr(
+                noLoc,
+                body /*,*/
+                    CLAD_COMPAT_CLANG17_ActOnLambdaExpr_getCurrentScope_ExtraParam(
+                        *this))
+            .get();
+    endScope();
+    endScope();
+    endScope();
+    return lambda;
+  }
+#endif // CLANG_VERSION_MAJOR
 } // end namespace clad

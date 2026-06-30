@@ -1762,6 +1762,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     auto* DC =
         const_cast<DeclContext*>(LE->getCallOperator()->getDeclContext());
+    // Parent in the enclosing derivative not the original closure
+    DeclContext* enclosingDC = m_Sema.CurContext;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<FunctionDecl*> SaveDerivative(m_Derivative);
 
@@ -1785,7 +1787,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     m_Sema.PushDeclContext(getCurrentScope(), LSI->CallOperator);
 
-    LSI->Lambda->setDeclContext(DC);
+    LSI->Lambda->setDeclContext(LE->capture_size() ? enclosingDC : DC);
 
     m_Derivative = LSI->CallOperator;
 
@@ -1852,6 +1854,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     CompoundStmt* DerivedBody = endBlock();
 
+    llvm::SmallVector<Stmt*, 32> WL{DerivedBody};
+    while (!WL.empty()) {
+      Stmt* s = WL.pop_back_val();
+      if (!s)
+        continue;
+      for (auto it = s->child_begin(), e = s->child_end(); it != e; ++it) {
+        if (auto* dre = dyn_cast_or_null<DeclRefExpr>(*it))
+          if (dre->refersToEnclosingVariableOrCapture())
+            if (auto* vd = dyn_cast<VarDecl>(dre->getDecl()))
+              if (vd->getDeclContext() == m_Derivative)
+                *it = BuildDeclRef(vd);
+        WL.push_back(*it);
+      }
+    }
+
     if (!m_Globals.empty()) {
       llvm::SmallVector<Stmt*, 32> NewBodyStmts;
       NewBodyStmts.append(m_Globals.begin(), m_Globals.end());
@@ -1881,6 +1898,29 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const LambdaExpr* LE) {
+    // Snapshot by value captures at creation; the reverse sweep
+    // feeds the snapshot adjoint back into the capture
+    for (const LambdaCapture& Capture : LE->captures()) {
+      if (!Capture.capturesVariable() || Capture.getCaptureKind() != LCK_ByCopy)
+        continue;
+      auto* capVD = dyn_cast<VarDecl>(Capture.getCapturedVar());
+      if (!capVD || m_LambdaCaptureSnapshots.count({LE, capVD}))
+        continue;
+      VarDecl* encVD = getEnclosingCaptureClone(capVD);
+      QualType ty = utils::getNonConstType(
+          capVD->getType().getNonReferenceType(), m_Sema);
+      VarDecl* snap = BuildVarDecl(ty, "_t", BuildDeclRef(encVD));
+      addToCurrentBlock(BuildDeclStmt(snap), direction::forward);
+      VarDecl* dsnap = BuildVarDecl(ty, "_d_t", getZeroInit(ty));
+      AddToGlobalBlock(BuildDeclStmt(dsnap));
+      m_Variables[snap] = BuildDeclRef(dsnap);
+      auto it = m_Variables.find(encVD);
+      if (it != m_Variables.end())
+        addToCurrentBlock(
+            BuildOp(BO_AddAssign, Clone(it->second), BuildDeclRef(dsnap)),
+            direction::reverse);
+      m_LambdaCaptureSnapshots[{LE, capVD}] = snap;
+    }
     DiffRequest LambdaReq = m_DiffReq;
     LambdaReq.Function = LE->getCallOperator();
     LambdaReq.Functor = LE->getLambdaClass();
@@ -1888,7 +1928,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     ReverseModeVisitor NestedVisitor(m_Builder, LambdaReq);
     Expr* lambdaE = NestedVisitor.buildDerivedLambda(LE);
 
-    return {cast<Expr>(Clone(LE)), lambdaE};
+    // Synthesize a captureless primal
+    Expr* primalE = nullptr;
+    if (LE->capture_size() == 0) {
+      primalE = cast<Expr>(Clone(LE));
+    } else {
+      ReverseModeVisitor PrimalVisitor(m_Builder, LambdaReq);
+      primalE = PrimalVisitor.buildPrimalLambda(LE);
+    }
+    return {primalE, lambdaE};
   }
 #endif // CLANG_VERSION_MAJOR
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
@@ -1906,6 +1954,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     Expr* LambdaCallOpExpr = nullptr;
+    const LambdaExpr* calledLambda = nullptr;
     if (MD) {
       if (isLambdaCallOperator(MD)) {
         const auto* CallE = CE->getArg(0)->IgnoreParenImpCasts();
@@ -1920,6 +1969,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
         if (const auto* DRE = llvm::dyn_cast<DeclRefExpr>(CallE)) {
           const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+          if (VD && VD->getInit()) {
+            const Expr* init = VD->getInit();
+            if (const auto* EWC = dyn_cast<ExprWithCleanups>(init))
+              init = EWC->getSubExpr();
+            calledLambda = dyn_cast<LambdaExpr>(init->IgnoreImplicit());
+          }
           for (auto* D : m_Derivative->decls())
             if (auto* lookupVD = dyn_cast<VarDecl>(D))
               if (lookupVD->getNameAsString() ==
@@ -2254,6 +2309,41 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         OverloadedDerivedFn = BuildCallExprToFunction(
             pullbackFD, pullbackCallArgs, CUDAExecConfig);
       } else if (MD && isLambdaCallOperator(MD)) {
+        if (calledLambda) {
+          for (const LambdaCapture& Capture : calledLambda->captures()) {
+            if (!Capture.capturesVariable())
+              continue;
+            auto* capVD = dyn_cast<VarDecl>(Capture.getCapturedVar());
+            if (!capVD)
+              continue;
+            if (Capture.getCaptureKind() == LCK_ByCopy) {
+              auto snapIt =
+                  m_LambdaCaptureSnapshots.find({calledLambda, capVD});
+              if (snapIt != m_LambdaCaptureSnapshots.end()) {
+                VarDecl* snap = snapIt->second;
+                pullbackCallArgs.push_back(BuildDeclRef(snap));
+                pullbackCallArgs.push_back(
+                    BuildOp(UO_AddrOf, Clone(m_Variables[snap])));
+                continue;
+              }
+            }
+            VarDecl* encVD = getEnclosingCaptureClone(capVD);
+            pullbackCallArgs.push_back(BuildDeclRef(encVD));
+            auto it = m_Variables.find(encVD);
+            if (it == m_Variables.end())
+              it = m_Variables.find(capVD);
+            if (it != m_Variables.end()) {
+              pullbackCallArgs.push_back(BuildOp(UO_AddrOf, Clone(it->second)));
+            } else {
+              QualType ty = utils::getNonConstType(
+                  capVD->getType().getNonReferenceType(), m_Sema);
+              VarDecl* scratch = BuildVarDecl(ty, "_r", getZeroInit(ty));
+              AddToGlobalBlock(BuildDeclStmt(scratch));
+              pullbackCallArgs.push_back(
+                  BuildOp(UO_AddrOf, BuildDeclRef(scratch)));
+            }
+          }
+        }
         OverloadedDerivedFn =
             m_Sema
                 .ActOnCallExpr(
@@ -4917,6 +5007,34 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
 
       params.push_back(dPVD);
+    }
+
+    if (LE && LE->capture_size()) {
+      for (const LambdaCapture& Capture : LE->captures()) {
+        if (!Capture.capturesVariable())
+          continue;
+        auto* capVD = dyn_cast<VarDecl>(Capture.getCapturedVar());
+        if (!capVD)
+          continue;
+        QualType valTy = utils::getNonConstType(
+            capVD->getType().getNonReferenceType(), m_Sema);
+        auto* valPVD = utils::BuildParmVarDecl(
+            m_Sema, m_Derivative,
+            CreateUniqueIdentifier(capVD->getNameAsString()), valTy);
+        m_Sema.PushOnScopeChains(valPVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+        params.push_back(valPVD);
+        m_DeclReplacements[capVD] = valPVD;
+        auto* adjPVD = utils::BuildParmVarDecl(
+            m_Sema, m_Derivative,
+            CreateUniqueIdentifier("_d_" + capVD->getNameAsString()),
+            m_Context.getPointerType(valTy));
+        m_Sema.PushOnScopeChains(adjPVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+        params.push_back(adjPVD);
+        m_Variables[valPVD] =
+            BuildOp(UO_Deref, BuildDeclRef(adjPVD), capVD->getLocation());
+      }
     }
   }
   void ReverseModeVisitor::MarkDeclThreadPrivate(VarDecl* decl) {

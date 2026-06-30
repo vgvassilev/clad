@@ -76,23 +76,26 @@ double f3(double i, double j) {
 }
 
 // CHECK: void f3_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:     double _d_t = 0.;
 // CHECK-NEXT:     double _d_c = 0.;
 // CHECK-NEXT:     double c = 3.;
-// CHECK-NEXT:     auto _f0 = [c](double t) {
+// CHECK-NEXT:     double _t0 = c;
+// CHECK-NEXT:     auto _f0 = [](double t, double c0) {
 // CHECK-NEXT:         return t * t;
 // CHECK-NEXT:     };
-// CHECK-NEXT:     auto _d__f = [](double t, double _d_y, double *_d_t) {
+// CHECK-NEXT:     auto _d__f = [](double t, double _d_y, double *_d_t0, double c0, double *_d_c0) {
 // CHECK-NEXT:         {
-// CHECK-NEXT:             *_d_t += _d_y * t;
-// CHECK-NEXT:             *_d_t += t * _d_y;
+// CHECK-NEXT:             *_d_t0 += _d_y * t;
+// CHECK-NEXT:             *_d_t0 += t * _d_y;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     };
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1;
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _d__f(j, 1, &_r0);
+// CHECK-NEXT:         _d__f(j, 1, &_r0, _t0, &_d_t);
 // CHECK-NEXT:         *_d_j += _r0;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     _d_c += _d_t;
 // CHECK-NEXT: }
 
 double f4(double i, double j) {
@@ -105,22 +108,25 @@ double f4(double i, double j) {
 }
 
 // CHECK: void f4_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:     double _d_t = 0.;
 // CHECK-NEXT:     double _d_c = 0.;
 // CHECK-NEXT:     double c = 3.;
 // CHECK-NEXT:     double _d_d = 0.;
 // CHECK-NEXT:     double d = 4.;
-// CHECK-NEXT:     auto _f0 = [c, &d](double t) {
+// CHECK-NEXT:     double _t0 = c;
+// CHECK-NEXT:     auto _f0 = [](double t, double c0, double d0) {
 // CHECK-NEXT:         return t * 2.;
 // CHECK-NEXT:     };
-// CHECK-NEXT:     auto _d__f = [](double t, double _d_y, double *_d_t) {
-// CHECK-NEXT:         *_d_t += _d_y * 2.;
+// CHECK-NEXT:     auto _d__f = [](double t, double _d_y, double *_d_t0, double c0, double *_d_c0, double d0, double *_d_d0) {
+// CHECK-NEXT:         *_d_t0 += _d_y * 2.;
 // CHECK-NEXT:     };
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1;
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _d__f(j, 1, &_r0);
+// CHECK-NEXT:         _d__f(j, 1, &_r0, _t0, &_d_t, d, &_d_d);
 // CHECK-NEXT:         *_d_j += _r0;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     _d_c += _d_t;
 // CHECK-NEXT: }
 
 const auto _global_f = [](double t) {
