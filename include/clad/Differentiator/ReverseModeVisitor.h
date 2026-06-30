@@ -754,11 +754,28 @@ namespace clad {
       for (const auto* param : FD->parameters())
         diffParams.push_back(param);
 
-      return utils::GetDerivativeType(m_Sema, FD, DiffMode::pullback,
-                                      diffParams,
-                                      /*forCustomDerv=*/false,
-                                      /*shouldUseRestoreTracker=*/false);
+      clang::QualType baseTy =
+          utils::GetDerivativeType(m_Sema, FD, DiffMode::pullback, diffParams,
+                                   /*forCustomDerv=*/false,
+                                   /*shouldUseRestoreTracker=*/false);
+      if (LE->capture_size() == 0)
+        return baseTy;
+      clang::ASTContext& C = m_Sema.getASTContext();
+      const auto* FPT = baseTy->castAs<clang::FunctionProtoType>();
+      llvm::SmallVector<clang::QualType, 8> paramTypes(
+          FPT->param_types().begin(), FPT->param_types().end());
+      for (const clang::LambdaCapture& Capture : LE->captures()) {
+        const auto* capVD =
+            llvm::cast<clang::VarDecl>(Capture.getCapturedVar());
+        clang::QualType valTy = utils::getNonConstType(
+            capVD->getType().getNonReferenceType(), m_Sema);
+        paramTypes.push_back(valTy);
+        paramTypes.push_back(C.getPointerType(valTy));
+      }
+      return C.getFunctionType(FPT->getReturnType(), paramTypes,
+                               FPT->getExtProtoInfo());
     }
+    /// Builds the pullback lambda for LE
     clang::Expr* buildDerivedLambda(const clang::LambdaExpr* LE);
     /// Builds and returns the sequence of derived function parameters.
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,

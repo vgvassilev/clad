@@ -21,6 +21,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
@@ -1281,6 +1282,19 @@ namespace clad {
       OS << "Last forward statement ";
       m_Blocks.back().back()->printPretty(OS, /*Helper=*/nullptr, P);
     }
+  }
+
+  clang::VarDecl*
+  VisitorBase::getEnclosingCaptureClone(const clang::VarDecl* capVD) {
+    auto it = m_DeclReplacements.find(capVD);
+    if (it != m_DeclReplacements.end() && it->second)
+      return it->second;
+    LookupResult R(m_Sema, capVD->getDeclName(), capVD->getLocation(),
+                   Sema::LookupOrdinaryName);
+    if (m_Sema.LookupName(R, getCurrentScope()) && R.isSingleResult())
+      if (auto* found = dyn_cast<VarDecl>(R.getFoundDecl()))
+        return found;
+    return const_cast<VarDecl*>(capVD);
   }
 
 } // end namespace clad
