@@ -7,7 +7,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 #include <Kokkos_Core.hpp>
-#include <Kokkos_ExecPolicy.hpp>
 #include <cstddef>
 #include <string>
 #include <type_traits>
