@@ -29,6 +29,7 @@
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -50,6 +51,7 @@
 
 namespace clang {
 class NestedNameSpecifier;
+class LambdaExpr;
 } // namespace clang
 
 namespace llvm {
@@ -266,6 +268,12 @@ namespace clad {
     /// See the example inside ForwardModeVisitor::VisitDeclStmt.
     std::unordered_map<const clang::VarDecl*, clang::VarDecl*>
         m_DeclReplacements;
+    /// Maps a (lambda, by value captured variable) to its creation snapshot
+    llvm::DenseMap<std::pair<const clang::LambdaExpr*, const clang::VarDecl*>,
+                   clang::VarDecl*>
+        m_LambdaCaptureSnapshots;
+    /// Maps a primal lambda variable to its generated derivative closure.
+    llvm::DenseMap<const clang::VarDecl*, clang::VarDecl*> m_LambdaDerivatives;
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
@@ -353,7 +361,8 @@ namespace clad {
       /// into it. \p LE only supplies the declaration context to graft the
       /// closure onto, \p BuildParams appends the call operator's parameters.
       void start(const clang::LambdaExpr* LE, clang::QualType CallOpType,
-                 ParamBuilder BuildParams);
+                 ParamBuilder BuildParams,
+                 clang::QualType TrailingReturnType = {});
       /// Closes the scopes start() opened.
       clang::Expr* finish(clang::Stmt* Body);
     };
@@ -464,6 +473,11 @@ namespace clad {
       return BuildVarDecl(AutoTy, II, lambda, /*DirectInit=*/false, TSI);
     }
 
+    /// Resolve a captured variable to its clone in the enclosing derivative.
+    clang::VarDecl* getEnclosingCaptureClone(const clang::VarDecl* capVD);
+    std::pair<clang::Expr*, clang::Expr*>
+    getCaptureValueAndAdjoint(const clang::LambdaExpr* LE,
+                              const clang::VarDecl* capVD, bool isByCopy);
     /// For a qualtype QT returns if it's type is Array or Pointer Type
     static bool isArrayOrPointerType(const clang::QualType QT) {
       return utils::isArrayOrPointerType(QT);
@@ -736,6 +750,8 @@ namespace clad {
            "differentiation of indirect calls is not supported")
           << L;
     }
+
+    bool diagnoseUnsupportedLambda(const clang::LambdaExpr* LE);
 
     /// Shorthand for warning on differentiation of unsupported operators
     void unsupportedOpWarn(clang::SourceLocation loc) {

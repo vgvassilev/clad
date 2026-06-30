@@ -14,6 +14,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/PushForwardModeVisitor.h"
 #include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/ASTContext.h"
@@ -315,6 +316,77 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
     m_Variables[PVD] = {dPVD};
   }
 }
+
+clang::QualType
+BaseForwardModeVisitor::GetLambdaPushforwardType(const LambdaExpr* LE) {
+  FunctionDecl* FD = LE->getCallOperator();
+  llvm::SmallVector<const ValueDecl*, 4> diffParams;
+  for (const auto* param : FD->parameters())
+    diffParams.push_back(param);
+  QualType baseTy =
+      utils::GetDerivativeType(m_Sema, FD, DiffMode::pushforward, diffParams,
+                               /*forCustomDerv=*/false,
+                               /*shouldUseRestoreTracker=*/false);
+  const auto* FPT = baseTy->castAs<FunctionProtoType>();
+  llvm::SmallVector<QualType, 8> paramTypes(FPT->param_types().begin(),
+                                            FPT->param_types().end());
+  for (const LambdaCapture& Capture : LE->captures()) {
+    const auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+    QualType valTy =
+        utils::getNonConstType(capVD->getType().getNonReferenceType(), m_Sema);
+    paramTypes.push_back(valTy);
+    paramTypes.push_back(utils::GetParameterDerivativeType(
+        m_Sema, DiffMode::pushforward, valTy));
+  }
+  return m_Context.getFunctionType(FPT->getReturnType(), paramTypes,
+                                   FPT->getExtProtoInfo());
+}
+
+#if CLANG_VERSION_MAJOR > 16
+clang::Expr*
+BaseForwardModeVisitor::buildPushforwardLambda(const LambdaExpr* LE) {
+  QualType dFnType = GetLambdaPushforwardType(LE);
+  // auto cannot deduce the return type from a braced init list, so we set it.
+  QualType retTy = dFnType->castAs<FunctionProtoType>()->getReturnType();
+
+  LambdaBuilder LBuilder(*this);
+  LBuilder.start(
+      LE, dFnType,
+      [&](llvm::SmallVectorImpl<ParmVarDecl*>& params) {
+        SetupDerivativeParameters(params);
+        for (const LambdaCapture& Capture : LE->captures()) {
+          auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+          QualType valTy = utils::getNonConstType(
+              capVD->getType().getNonReferenceType(), m_Sema);
+          auto* valPVD = utils::BuildParmVarDecl(
+              m_Sema, m_Derivative,
+              CreateUniqueIdentifier(capVD->getNameAsString()), valTy);
+          m_Sema.PushOnScopeChains(valPVD, getCurrentScope(),
+                                   /*AddToContext=*/false);
+          params.push_back(valPVD);
+          m_DeclReplacements[capVD] = valPVD;
+          auto* dPVD = utils::BuildParmVarDecl(
+              m_Sema, m_Derivative,
+              CreateUniqueIdentifier("_d_" + capVD->getNameAsString()),
+              utils::GetParameterDerivativeType(m_Sema, DiffMode::pushforward,
+                                                valTy));
+          m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
+                                   /*AddToContext=*/false);
+          params.push_back(dPVD);
+          m_Variables[valPVD] = {dPVD};
+        }
+      },
+      retTy);
+
+  beginBlock();
+  StmtDiff bodyDiff = Visit(LE->getCallOperator()->getBody());
+  for (auto* S : cast<CompoundStmt>(bodyDiff.getStmt())->body())
+    addToCurrentBlock(S);
+  CompoundStmt* body = endBlock();
+
+  return LBuilder.finish(body);
+}
+#endif // CLANG_VERSION_MAJOR
 
 void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
   // For each function parameter variable, store its derivative value.
@@ -1093,6 +1165,57 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // Calls to lambda functions are processed differently
   bool isLambda = isLambdaCallOperator(FD);
 
+#if CLANG_VERSION_MAJOR > 16
+  // Bind the captured values and derivatives to lambda's extra parameters.
+  if (isLambda) {
+    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+      const Expr* origCallee = OCE->getArg(0)->IgnoreParenImpCasts();
+      const LambdaExpr* calledLambda = nullptr;
+      const VarDecl* lambdaVD = nullptr;
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(origCallee))
+        if ((lambdaVD = dyn_cast<VarDecl>(DRE->getDecl())))
+          if (const Expr* vinit = lambdaVD->getInit()) {
+            if (const auto* EWC = dyn_cast<ExprWithCleanups>(vinit))
+              vinit = EWC->getSubExpr();
+            calledLambda =
+                dyn_cast_or_null<LambdaExpr>(vinit->IgnoreImplicit());
+          }
+      if (calledLambda && calledLambda->capture_size() && lambdaVD) {
+        VarDecl* dgVD = m_LambdaDerivatives.lookup(lambdaVD);
+        if (dgVD) {
+          llvm::SmallVector<Expr*, 8> args;
+          llvm::SmallVector<Expr*, 8> derivs;
+          for (unsigned i = 1, e = CE->getNumArgs(); i < e; ++i) {
+            StmtDiff argDiff = Visit(CE->getArg(i));
+            args.push_back(argDiff.getExpr());
+            derivs.push_back(argDiff.getExpr_dx());
+          }
+          args.append(derivs.begin(), derivs.end());
+          for (const LambdaCapture& Capture : calledLambda->captures()) {
+            if (!Capture.capturesVariable())
+              continue;
+            auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+            auto [val, adjoint] = getCaptureValueAndAdjoint(
+                calledLambda, capVD, Capture.getCaptureKind() == LCK_ByCopy);
+            args.push_back(val);
+            args.push_back(adjoint);
+          }
+          Expr* call = m_Sema
+                           .ActOnCallExpr(getCurrentScope(), BuildDeclRef(dgVD),
+                                          validLoc, args, validLoc)
+                           .get();
+          Expr* vap = StoreAndRef(call, "_t", /*forceDeclCreation=*/true);
+          Expr* value =
+              utils::BuildMemberExpr(m_Sema, getCurrentScope(), vap, "value");
+          Expr* pushforward = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                                     vap, "pushforward");
+          return StmtDiff(value, pushforward);
+        }
+      }
+    }
+  }
+#endif // CLANG_VERSION_MAJOR
+
   Expr* CUDAExecConfig = nullptr;
   if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
     CUDAExecConfig = Clone(KCE->getConfig());
@@ -1820,6 +1943,71 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       // operator() body -- into the derivative. Rebuild it with a fresh closure
       // instead; the call's pushforward is regenerated for that closure in
       // VisitCallExpr, so it still resolves.
+#if CLANG_VERSION_MAJOR > 16
+      // Synthesize a captureless primal and its pushforward.
+      if (typeDecl->isLambda() &&
+          !clad::utils::hasNonDifferentiableAttribute(typeDecl)) {
+        const LambdaExpr* LE = nullptr;
+        if (const Expr* vinit = VD->getInit()) {
+          if (const auto* EWC = dyn_cast<ExprWithCleanups>(vinit))
+            vinit = EWC->getSubExpr();
+          LE = dyn_cast_or_null<LambdaExpr>(vinit->IgnoreImplicit());
+        }
+        if (LE && diagnoseUnsupportedLambda(LE))
+          return {};
+        if (LE && LE->capture_size()) {
+          // Snapshot each by value capture at creation so a later mutation of
+          // the enclosing variable is not observed.
+          llvm::SmallVector<Decl*, 4> lambdaDecls;
+          for (const LambdaCapture& Capture : LE->captures()) {
+            if (!Capture.capturesVariable() ||
+                Capture.getCaptureKind() != LCK_ByCopy)
+              continue;
+            auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+            if (m_LambdaCaptureSnapshots.count({LE, capVD}))
+              continue;
+            VarDecl* encVD = getEnclosingCaptureClone(capVD);
+            QualType valTy = utils::getNonConstType(
+                capVD->getType().getNonReferenceType(), m_Sema);
+            VarDecl* snap = BuildVarDecl(valTy, "_t", BuildDeclRef(encVD));
+            Expr* encDx = nullptr;
+            auto vit = m_Variables.find(encVD);
+            if (vit != m_Variables.end())
+              encDx = buildAdjoint(vit->second);
+            VarDecl* dsnap =
+                BuildVarDecl(valTy, "_d_t", encDx ? encDx : getZeroInit(valTy));
+            m_Variables[snap] = {dsnap};
+            m_LambdaCaptureSnapshots[{LE, capVD}] = snap;
+            lambdaDecls.push_back(snap);
+            lambdaDecls.push_back(dsnap);
+          }
+
+          DiffRequest lambdaReq = m_DiffReq;
+          lambdaReq.Function = LE->getCallOperator();
+          lambdaReq.Functor = LE->getLambdaClass();
+
+          Expr* primalE = buildClonedLambda(LE);
+          QualType AutoTy = m_Context.getAutoDeductType();
+          TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(AutoTy);
+          VarDecl* g = BuildVarDecl(AutoTy, VD->getNameAsString(), primalE,
+                                    VD->isDirectInit(), TSI);
+          m_DeclReplacements[VD] = g;
+
+          DiffRequest pushforwardReq = lambdaReq;
+          pushforwardReq.Mode = GetPushForwardMode();
+          PushForwardModeVisitor PushforwardVisitor(m_Builder, pushforwardReq);
+          Expr* pushforwardE = PushforwardVisitor.buildPushforwardLambda(LE);
+          VarDecl* dg = BuildVarDecl(pushforwardE->getType(),
+                                     "_d_" + VD->getNameAsString(),
+                                     pushforwardE, VD->isDirectInit());
+          m_LambdaDerivatives[VD] = dg;
+
+          lambdaDecls.push_back(g);
+          lambdaDecls.push_back(dg);
+          return StmtDiff(BuildDeclStmt(lambdaDecls), nullptr);
+        }
+      }
+#endif // CLANG_VERSION_MAJOR
       for (auto* D : DS->decls()) {
         assert(isa<VarDecl>(D) && "Mixed decl types in a single decl stmt is "
                                   "not standard c++ syntax");
