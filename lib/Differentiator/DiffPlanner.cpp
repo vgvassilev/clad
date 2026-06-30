@@ -1208,6 +1208,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           request.EnableVariedAnalysis = false;
           return true;
         }
+        // Captured lambda pushforward is built directly
+        if (isLambdaCallOperator(MD) && !MD->getParent()->field_empty() &&
+            (m_TopMostReq->Mode == DiffMode::forward ||
+             m_TopMostReq->Mode == DiffMode::vector_forward_mode))
+          return true;
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD))
           nonDiff = true;

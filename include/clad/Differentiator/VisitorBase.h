@@ -26,6 +26,7 @@
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/PrettyStackTrace.h"
 
@@ -34,9 +35,11 @@
 #include <cstddef>
 #include <stack>
 #include <unordered_map>
+#include <utility>
 
 namespace clang {
 class NestedNameSpecifier;
+class LambdaExpr;
 } // namespace clang
 
 namespace llvm {
@@ -139,6 +142,10 @@ namespace clad {
     /// See the example inside ForwardModeVisitor::VisitDeclStmt.
     std::unordered_map<const clang::VarDecl*, clang::VarDecl*>
         m_DeclReplacements;
+    /// Maps a (lambda, by value captured variable) to its creation snapshot
+    llvm::DenseMap<std::pair<const clang::LambdaExpr*, const clang::VarDecl*>,
+                   clang::VarDecl*>
+        m_LambdaCaptureSnapshots;
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
@@ -210,6 +217,10 @@ namespace clad {
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();
     }
+    /// Resolve a captured variable to its clone in the enclosing derivative.
+    clang::VarDecl* getEnclosingCaptureClone(const clang::VarDecl* capVD);
+    /// Build a captureless lambda equivalent to LE.
+    clang::Expr* buildPrimalLambda(const clang::LambdaExpr* LE);
     /// For a qualtype QT returns if it's type is Array or Pointer Type
     static bool isArrayOrPointerType(const clang::QualType QT) {
       return utils::isArrayOrPointerType(QT);
