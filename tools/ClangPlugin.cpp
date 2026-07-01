@@ -189,7 +189,7 @@ void InitTimers();
           Macros, [](const auto& Macro) { return Macro.first == "__CLING__"; });
       if (IsCling && m_CI.getPreprocessor().isIncrementalProcessingEnabled()) {
         std::swap(RobbedCs.front(), RobbedCs.back());
-        m_Multiplexer.reset(new MultiplexConsumer(std::move(StolenConsumers)));
+        m_Multiplexer = std::make_unique<MultiplexConsumer>(std::move(StolenConsumers));
         return;
       }
 
