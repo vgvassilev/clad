@@ -232,18 +232,38 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
 
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t);
 
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
   template <class T,
             typename std::enable_if<!is_range<T>::value, int>::type = 0>
   CUDA_HOST_DEVICE void zero_impl(volatile T& t) {
     // Fill an array with zeros.
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
     unsigned char tmp[sizeof(T)] = {};
+
+#if __has_builtin(__builtin_memcpy)
+    __builtin_memcpy(const_cast<T*>(&t), tmp, sizeof(T));
+#elif defined(__CUDACC__)
+    static_assert(std::is_trivially_destructible<T>::value,
+                  "Clad device fallback zero_init requires trivially "
+                  "destructible types.");
+    // Fallback for the devices that don't have __builtin_memcpy.
+    // Transfers the zero with a loop. Unlike memcpyt, this does not create the
+    // object in the destination region of storage and language semantics can't
+    // be fully preserved
+    volatile unsigned char* byte_ptr =
+        reinterpret_cast<volatile unsigned char*>(const_cast<T*>(&t));
+    for (std::size_t i = 0; i < sizeof(T); ++i)
+      byte_ptr[i] = 0;
+#else
     // Transfer the zeros with the magic function memcpy which can implicitly
     // create objects in the destination region of storage immediately prior to
     // copying the sequence of characters to the destination [27.5.1(3)].
     // (C++ has deprecated the volatile qualifiers. However, we drop them here
     // to make sure things still work with codebases which still have them)
     std::memcpy(const_cast<T*>(&t), tmp, sizeof(T));
+#endif
   }
 
   template <class T, typename std::enable_if<is_range<T>::value, int>::type = 0>
