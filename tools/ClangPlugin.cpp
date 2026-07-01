@@ -189,7 +189,6 @@ void InitTimers();
           Macros, [](const auto& Macro) { return Macro.first == "__CLING__"; });
       if (IsCling && m_CI.getPreprocessor().isIncrementalProcessingEnabled()) {
         std::swap(RobbedCs.front(), RobbedCs.back());
-        m_Multiplexer = std::make_unique<MultiplexConsumer>(std::move(StolenConsumers));
         return;
       }
 
@@ -479,6 +478,8 @@ void InitTimers();
     }
 
     void CladPlugin::SendToMultiplexer() {
+      if (!m_Multiplexer)
+        return;
       for (unsigned i = m_MultiplexerProcessedDelayedCallsIdx;
            i < m_DelayedCalls.size(); ++i) {
         auto DelayedCall = m_DelayedCalls[i];
@@ -655,7 +656,8 @@ void InitTimers();
         FinalizeTranslationUnit();
         SendToMultiplexer();
       }
-      m_Multiplexer->HandleTranslationUnit(C);
+      if (m_Multiplexer)
+        m_Multiplexer->HandleTranslationUnit(C);
     }
 
     void CladPlugin::PrintStats() {
@@ -714,7 +716,8 @@ void InitTimers();
         llvm::errs() << "\n";
       }
 
-      m_Multiplexer->PrintStats();
+      if (m_Multiplexer)
+        m_Multiplexer->PrintStats();
     }
 
   } // end namespace plugin

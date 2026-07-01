@@ -243,7 +243,8 @@ struct DifferentiationOptions {
     void ForgetSema() override {
       // ForgetSema is called in the destructor of Sema which is much later
       // than where we can process anything. We can't delay this call.
-      m_Multiplexer->ForgetSema();
+      if(m_Multiplexer)
+        m_Multiplexer->ForgetSema();
     }
 
     // FIXME: We should hide ProcessDiffRequest when we implement proper
