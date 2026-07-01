@@ -1302,11 +1302,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           if (!utils::isArrayOrPointerType(paramDecl->getType()) ||
               IsDifferentiableArg)
             request.DVI.push_back(paramDecl);
-          // FIXME: If we cannot deduce whether the argument is
-          // differentiable, we should still add it to CUDAGlobalArgsIndexes.
-          // i.e. remove `&& PVD`.
           // We know we should use atomic ops here
-          if (useCUDA && PVD && IsDifferentiableArg)
+          if (useCUDA && IsDifferentiableArg)
             request.CUDAGlobalArgsIndexes.push_back(i);
         }
       }

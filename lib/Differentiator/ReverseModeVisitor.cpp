@@ -2050,6 +2050,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // take arg by reference, we can request a derivative w.r.t. to this arg
     // using the forward mode.
     bool asGrad = !utils::canUsePushforwardInRevMode(FD);
+    // Method operators have a base like methods do but it's included in the
+    // call arguments so we have to shift the indexing of call arguments.
+    bool isMethodOperatorCall = MD && isa<CXXOperatorCallExpr>(CE);
 
     // Build the DiffRequest
     DiffRequest pullbackRequest{};
@@ -2078,9 +2081,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         size_t i = 0;
         for (const ParmVarDecl* PVD : FD->parameters()) {
           pullbackRequest.DVI.push_back(PVD);
+          // To determine if this callee parameter corresponds to a
+          // CUDA global arg, check the actual call argument (not the
+          // callee's param name) to find the caller's ParmVarDecl.
+          std::size_t argIdx =
+              i + static_cast<std::size_t>(isMethodOperatorCall);
           if (!m_DiffReq.CUDAGlobalArgsIndexes.empty() &&
-              m_DiffReq.HasIndependentParameter(PVD))
-            pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
+              argIdx < CE->getNumArgs()) {
+            const Expr* arg = CE->getArg(argIdx)->IgnoreParenImpCasts();
+            const ParmVarDecl* callerPVD = nullptr;
+            if (const auto* DRE = dyn_cast<DeclRefExpr>(arg))
+              callerPVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
+            // If we can identify the caller's param and it is an
+            // independent parameter (i.e. a CUDA global arg), or if
+            // we cannot identify it, conservatively mark it.
+            if (!callerPVD || m_DiffReq.HasIndependentParameter(callerPVD))
+              pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
+          }
           ++i;
         }
       }
@@ -2094,9 +2111,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
 
-    // Method operators have a base like methods do but it's included in the
-    // call arguments so we have to shift the indexing of call arguments.
-    bool isMethodOperatorCall = MD && isa<CXXOperatorCallExpr>(CE);
     // The set of arguments to be used in a ``reverse_forw`` after the original
     // args.
     llvm::SmallVector<Expr*, 16> revForwAdjointArgs{};
@@ -2222,9 +2236,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           size_t offset =
               (bool)MD && MD->isInstance() && !isLambdaCallOperator(MD);
           if (CallArgDx[i + offset]) {
-            if (!m_DiffReq.CUDAGlobalArgsIndexes.empty() &&
-                m_DiffReq.HasIndependentParameter(PVD))
-              pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
+            if (!m_DiffReq.CUDAGlobalArgsIndexes.empty()) {
+              std::size_t argIdx =
+                  i + static_cast<std::size_t>(isMethodOperatorCall);
+              if (argIdx < CE->getNumArgs()) {
+                const Expr* arg = CE->getArg(argIdx)->IgnoreParenImpCasts();
+                const ParmVarDecl* callerPVD = nullptr;
+                if (const auto* DRE = dyn_cast<DeclRefExpr>(arg))
+                  callerPVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
+                if (!callerPVD || m_DiffReq.HasIndependentParameter(callerPVD))
+                  pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
+              }
+            }
             pullbackRequest.DVI.push_back(PVD);
           } else
             hasDynamicNonDiffParams = true;
