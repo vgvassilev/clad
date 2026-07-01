@@ -61,11 +61,12 @@ jobs:
           - { name: win-msvc-runtime21, os: windows-2022, compiler: msvc, clang-runtime: '21' }
 
           # --- CUSTOM: Debug, coverage, benchmarks, static analysis ---
-          - name: ubu24-clang20-runtime21-debug
+          - name: ubu24-clang20-runtime22-debug
             os: ubuntu-24.04
             compiler: clang-20
-            clang-runtime: '21'
+            clang-runtime: '22'
             debug_build: true
+            flavor: debug
 
           - name: ubu24-gcc13-runtime20-benchmarks
             os: ubuntu-24.04
@@ -156,7 +157,10 @@ jobs:
       run: |
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
         # Cleanup some space: https://github.com/orgs/community/discussions/25678
-        rm -fr /opt/hostedtoolcache
+        # Under nektos/act this path is a bind-mount, so the mountpoint itself
+        # cannot be removed ("Device or resource busy"); tolerate that so the
+        # debug row is reproducible locally.
+        rm -fr /opt/hostedtoolcache || true
     - name: Setup default Build Type on Windows
       if: runner.os == 'windows'
       run: |
@@ -183,7 +187,7 @@ jobs:
         fi
         echo "ncpus=$ncpus" >> $GITHUB_ENV
     - name: Setup LLVM ${{ matrix.clang-runtime }}${{ matrix.flavor && format(' [{0}]', matrix.flavor) || '' }}
-      if: runner.os != 'Windows' && matrix.debug_build != true
+      if: runner.os != 'Windows'
       uses: compiler-research/ci-workflows/actions/setup-llvm@main
       with:
         version: ${{ matrix.clang-runtime }}
@@ -191,10 +195,12 @@ jobs:
         flavor:  ${{ matrix.flavor || 'system' }}
 
     - name: Install extra Linux deps
-      if: runner.os == 'Linux' && matrix.debug_build != true
+      if: runner.os == 'Linux'
       run: |
         # cmake is preinstalled on github-hosted ubuntu-24.04 but absent
         # from catthehacker/ubuntu:act-24.04; install it so bin/repro works.
+        # The debug row needs it too (to build clad), so this step must not
+        # be gated on debug_build.
         sudo apt install -y cmake ${{ matrix.extra_packages }}
         # libomp-N-dev: best-effort. apt-llvm.org lags on the latest
         # major; recipe-flavor rows get libomp from the recipe build,
@@ -272,63 +278,8 @@ jobs:
         sudo cp -r -n $(xcrun --show-sdk-path)/usr/include/ /usr/local/include/
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
 
-    - name: Restore Cache LLVM/Clang runtime build directory (debug_build==true)
-      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
-      uses: actions/cache/restore@v4
-      id: cache
-      with:
-        path: |
-          llvm-project
-        key: ${{ matrix.os }}-clang-${{ matrix.clang-runtime }}.x-${{ env.BUILD_TYPE }}
-    - name: Build LLVM/Cling on Unix if the cache is invalid (debug_build==true)
-      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
-      run: |
-        os="${{ matrix.os }}"
-        git clone --depth=1 -b release/${{ matrix.clang-runtime }}.x https://github.com/llvm/llvm-project.git
-        cd llvm-project
-        # Build
-        mkdir build
-        cd build
-        cmake \
-              -DLLVM_ENABLE_PROJECTS="clang"        \
-              -DLLVM_TARGETS_TO_BUILD="host;NVPTX"  \
-              -DCMAKE_BUILD_TYPE=`[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE` \
-              -DLLVM_ENABLE_ASSERTIONS=ON           \
-              -DCLANG_ENABLE_STATIC_ANALYZER=OFF    \
-              -DCLANG_ENABLE_ARCMT=OFF              \
-              -DCLANG_ENABLE_FORMAT=OFF             \
-              -DCLANG_ENABLE_BOOTSTRAP=OFF          \
-              -DLLVM_ENABLE_TERMINFO=OFF            \
-              -DCLANG_INCLUDE_TESTS=OFF             \
-              -DCLANG_INCLUDE_DOCS=OFF              \
-              -DLLVM_INCLUDE_TESTS=OFF              \
-              -DLLVM_INCLUDE_DOCS=OFF               \
-              ../llvm
-        cmake --build . --target clang FileCheck not llvm-config clang-repl --parallel ${{ env.ncpus }}
-        cd ../../
-    - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
-      uses: actions/cache/save@v4
-      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
-      with:
-        path: |
-          llvm-project
-        key: ${{ steps.cache.outputs.cache-primary-key }}
-    - name: Set LLVM/Cling build path on Unix (debug_build==true)
-      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
-      run: |
-        export PATH_TO_LLVM_BUILD="$PWD/llvm-project/build"
-        echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD"
-        echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
-        pip3 install lit # LLVM lit is not part of the llvm releases...
-        vers="${compiler#*-}"
-        if [[ ! -f "$PATH_TO_LLVM_BUILD/bin/FileCheck" ]]; then
-          ln -s /usr/bin/FileCheck-$vers $PATH_TO_LLVM_BUILD/bin/FileCheck
-        fi
-      env:
-        compiler: ${{ matrix.compiler }}
-
     - name: Setup LLVM/Clang on Linux
-      if: ${{ (runner.os == 'Linux') && (matrix.debug_build != true) }}
+      if: ${{ runner.os == 'Linux' }}
       run: |
         # setup-llvm always lands the install at $GITHUB_WORKSPACE/install
         # (a symlink to /usr/lib/llvm-N for flavor=system, a real install
