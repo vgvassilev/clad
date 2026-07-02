@@ -192,7 +192,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # LLVM 22 sets _GLIBCXX_USE_CXX11_ABI twice (HandleLLVMOptions +
   # LLVMConfig), which trips -Werror=macro-redefined. Suppress that
   # specific warning -- it's an upstream duplication, not a code bug.
-  if (LLVM_VERSION_MAJOR GREATER_EQUAL 22)
+  if (LLVM_VERSION_MAJOR GREATER_EQUAL 22 AND NOT MSVC)
     add_compile_options(-Wno-macro-redefined)
   endif()
 
