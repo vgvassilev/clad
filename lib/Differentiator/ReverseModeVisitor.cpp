@@ -387,6 +387,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
+    // Per-function reset: these accumulate during VisitReturnStmt and must
+    // not leak into the next function this visitor processes (the visitor
+    // instance is reused across Derive() calls within a translation unit).
+    m_EarlyReturnMarkers.clear();
+    m_NaturalReturnSeed = nullptr;
+
     if (m_DiffReq.Mode == DiffMode::reverse && !m_ExternalSource) {
       // create derived variables for parameters which are not part of
       // independent variables (args).
@@ -489,18 +495,189 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Firstly, all "global" Stmts are put into fn's body.
     for (Stmt* S : m_Globals)
       addToCurrentBlock(S, direction::forward);
-    // Forward pass.
-    if (auto* CS = dyn_cast_or_null<CompoundStmt>(Forward))
-      for (Stmt* S : CS->body())
+
+    if (m_EarlyReturnMarkers.empty()) {
+      // Forward pass.
+      if (auto* CS = dyn_cast_or_null<CompoundStmt>(Forward))
+        for (Stmt* S : CS->body())
+          addToCurrentBlock(S, direction::forward);
+      else
+        addToCurrentBlock(Forward, direction::forward);
+      // Reverse pass.
+      if (auto* RCS = dyn_cast_or_null<CompoundStmt>(Reverse))
+        for (Stmt* S : RCS->body())
+          addToCurrentBlock(S, direction::forward);
+      else
+        addToCurrentBlock(Reverse, direction::forward);
+    } else {
+      // Function has early returns. Wrap the master reverse in a [&] lambda
+      // and call it from each early-return path (via marker patching) plus
+      // once at the natural tail. This replaces the previous goto/label
+      // encoding which violated [stmt.dcl]/2 in the presence of locals with
+      // non-trivial initializers/destructors (vgvassilev/clad#367).
+      //
+      // Source-order matters: the lambda's [&] capture-default binds names
+      // looked up at the lambda's definition point, so every captured local
+      // must be declared before the lambda. Split the forward sweep into
+      // its leading run of DeclStmts and the rest; emit those decls, then
+      // the lambda binding, then the computation tail (which may contain
+      // markers that resolve to calls into the now-declared lambda).
+      llvm::SmallVector<Stmt*, 8> ForwardDeclPrefix;
+      llvm::SmallVector<Stmt*, 16> ForwardCompSuffix;
+      auto* FwdCS = dyn_cast_or_null<CompoundStmt>(Forward);
+      bool inDecls = true;
+      auto classify = [&](Stmt* S) {
+        if (inDecls && isa<DeclStmt>(S))
+          ForwardDeclPrefix.push_back(S);
+        else {
+          inDecls = false;
+          ForwardCompSuffix.push_back(S);
+        }
+      };
+      if (FwdCS)
+        for (Stmt* S : FwdCS->body())
+          classify(S);
+      else if (Forward)
+        classify(Forward);
+
+      for (Stmt* S : ForwardDeclPrefix)
         addToCurrentBlock(S, direction::forward);
-    else
-      addToCurrentBlock(Forward, direction::forward);
-    // Reverse pass.
-    if (auto* RCS = dyn_cast_or_null<CompoundStmt>(Reverse))
-      for (Stmt* S : RCS->body())
+
+      // Collect every VarDecl (locals and parameters) referenced in the
+      // master reverse but not declared inside it; these are the captures
+      // the lambda needs. Implicit `[&]` capture-default would not detect
+      // these references, since the DeclRefExprs were constructed during
+      // the original Visit (outside the lambda's scope). We pass them as
+      // explicit captures so Sema synthesizes one closure FieldDecl per
+      // VarDecl up front and codegen translates each body reference into
+      // the corresponding field access ([expr.prim.lambda.capture]/12).
+      llvm::SmallSetVector<VarDecl*, 16> Referenced;
+      llvm::SmallPtrSet<VarDecl*, 16> LocalToBody;
+      class CaptureCollector : public RecursiveASTVisitor<CaptureCollector> {
+      public:
+        llvm::SmallSetVector<VarDecl*, 16>& Ref;
+        llvm::SmallPtrSet<VarDecl*, 16>& Local;
+        CaptureCollector(llvm::SmallSetVector<VarDecl*, 16>& R,
+                         llvm::SmallPtrSet<VarDecl*, 16>& L)
+            : Ref(R), Local(L) {}
+        bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+          if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+            if (VD->isLocalVarDecl() || isa<ParmVarDecl>(VD))
+              Ref.insert(VD);
+          return true;
+        }
+        bool VisitDeclStmt(DeclStmt* DS) {
+          for (Decl* D : DS->decls())
+            if (auto* VD = dyn_cast<VarDecl>(D))
+              Local.insert(VD);
+          return true;
+        }
+      };
+      CaptureCollector CC(Referenced, LocalToBody);
+      if (Reverse)
+        CC.TraverseStmt(Reverse);
+      llvm::SmallVector<VarDecl*, 8> Captures;
+      for (VarDecl* VD : Referenced)
+        if (!LocalToBody.count(VD))
+          Captures.push_back(VD);
+
+      llvm::SmallPtrSet<VarDecl*, 8> CaptureSet(Captures.begin(),
+                                                Captures.end());
+      VarDecl* RevVD = buildAndBindLambda(
+          m_DiffReq.Function->getBody(), "_rev",
+          [&] {
+            if (auto* RCS = dyn_cast_or_null<CompoundStmt>(Reverse))
+              for (Stmt* S : RCS->body())
+                addToCurrentBlock(S, direction::forward);
+            else if (Reverse)
+              addToCurrentBlock(Reverse, direction::forward);
+
+            // Explicit captures synthesized the closure FieldDecls, but the
+            // body's DeclRefExprs were built outside the lambda scope and
+            // therefore lack the RefersToEnclosingVariableOrCapture bit.
+            // Codegen needs that bit to translate each reference into a
+            // closure FieldDecl access (see DeclRefExpr::Create's
+            // `RefersToEnclosingVariableOrCapture` parameter); without it,
+            // the lambda body reads stale outer storage and the gradient is
+            // garbage. Walk the body and rebuild each captured-VarDecl
+            // reference via Sema::BuildDeclRefExpr (clad's BuildDeclRef
+            // wrapper) — that path runs Sema::NeedToCaptureVariable while
+            // we are inside the lambda scope, which sets the bit.
+            //
+            // Body-local VarDecls (e.g. `_r_d0` declared inside the
+            // reverse-loop body) are skipped so Sema does not try to
+            // implicitly capture them under LCD_None.
+            auto rebuild = [this](VarDecl* VD,
+                                  ExprValueKind VK) -> DeclRefExpr* {
+              // Bypass clad's BuildDeclRef — it builds a NestedNameSpecifier
+              // when VD's DeclContext differs from the current Sema context,
+              // which is wrong for captures (the operator() context naturally
+              // differs from the enclosing function's). Use Sema's
+              // BuildDeclRefExpr directly with no scope spec; that runs
+              // NeedToCaptureVariable and sets
+              // RefersToEnclosingVariableOrCapture.
+              QualType T = VD->getType().getNonReferenceType();
+              return m_Sema.BuildDeclRefExpr(VD, T, VK, VD->getLocation());
+            };
+            class CapRefRebuilder
+                : public RecursiveASTVisitor<CapRefRebuilder> {
+            public:
+              const llvm::SmallPtrSetImpl<VarDecl*>& CapSet;
+              llvm::function_ref<DeclRefExpr*(VarDecl*, ExprValueKind)> Rebuild;
+              CapRefRebuilder(
+                  const llvm::SmallPtrSetImpl<VarDecl*>& C,
+                  llvm::function_ref<DeclRefExpr*(VarDecl*, ExprValueKind)> Rb)
+                  : CapSet(C), Rebuild(Rb) {}
+              bool VisitStmt(Stmt* P) {
+                for (Stmt*& Child : P->children()) {
+                  auto* DRE = dyn_cast_or_null<DeclRefExpr>(Child);
+                  if (!DRE)
+                    continue;
+                  auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+                  if (!VD || !CapSet.count(VD))
+                    continue;
+                  if (DRE->refersToEnclosingVariableOrCapture())
+                    continue;
+                  Child = Rebuild(VD, DRE->getValueKind());
+                }
+                return true;
+              }
+            };
+            CapRefRebuilder CR(CaptureSet, rebuild);
+            for (Stmt* S : getCurrentBlock(direction::forward))
+              CR.TraverseStmt(S);
+          },
+          Captures);
+      addToCurrentBlock(BuildDeclStmt(RevVD), direction::forward);
+
+      for (Stmt* S : ForwardCompSuffix)
         addToCurrentBlock(S, direction::forward);
-    else
-      addToCurrentBlock(Reverse, direction::forward);
+
+      // Build `{ _rev(); return; }` and patch each marker with it.
+      Expr* RevCallEarly =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), BuildDeclRef(RevVD), noLoc, {},
+                             noLoc)
+              .get();
+      Stmt* RetStmt =
+          m_Sema
+              .ActOnReturnStmt(noLoc, /*RetValExpr=*/nullptr, getCurrentScope())
+              .get();
+      Stmt* MarkerReplacement = MakeCompoundStmt({RevCallEarly, RetStmt});
+      patchEarlyReturnMarkers(MarkerReplacement);
+
+      // Natural-tail path: emit the saved tail-return seed (if any), then
+      // the lambda call. The function's implicit fall-off-end serves as
+      // the natural return.
+      if (m_NaturalReturnSeed)
+        addToCurrentBlock(m_NaturalReturnSeed, direction::forward);
+      Expr* RevCallTail =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), BuildDeclRef(RevVD), noLoc, {},
+                             noLoc)
+              .get();
+      addToCurrentBlock(RevCallTail, direction::forward);
+    }
     for (auto S = initsDiff.rbegin(), S_end = initsDiff.rend(); S != S_end; ++S)
       addToCurrentBlock(*S, direction::forward);
     // Add delete statements present in m_DeallocExprs to the current block.
@@ -1364,33 +1541,70 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         m_ExternalSource->ActBeforeFinalizingVisitReturnStmt(ExprDiff);
     }
 
-    // If this return stmt is the last stmt in the function's body,
-    // adding goto will only introduce
-    // ```
-    // goto _label0; // the forward sweep ends
-    // _label0:  // the reverse sweep starts immediately
-    // ```
-    // Therefore, in this case, we can omit the goto.
+    // If this return stmt is the last stmt in the function body, the forward
+    // sweep falls through into the reverse sweep without needing any jump or
+    // call. When there are also early returns, however, the master reverse is
+    // wrapped in a [&] lambda that both the natural and early-return paths
+    // invoke; applying this tail seed inside the lambda would double-apply
+    // it on every early-return path. Save the seed for explicit emission on
+    // the natural-tail path only (see DifferentiateWithClad).
     const Stmt* lastFuncStmt = m_DiffReq.Function->getBody();
     if (const auto* CS = dyn_cast<CompoundStmt>(lastFuncStmt))
       lastFuncStmt = *CS->body_rbegin();
-    if (RS == lastFuncStmt)
+    if (RS == lastFuncStmt) {
+      if (!m_EarlyReturnMarkers.empty()) {
+        m_NaturalReturnSeed = Reverse;
+        return {nullptr, nullptr};
+      }
       return {nullptr, Reverse};
+    }
 
-    // If the original function returns at this point, some part of the reverse
-    // pass (corresponding to other branches that do not return here) must be
-    // skipped. We create a label in the reverse pass and jump to it via goto.
-    LabelDecl* LD = LabelDecl::Create(m_Context, m_Sema.CurContext, noLoc,
-                                      CreateUniqueIdentifier("_label"));
-    m_Sema.PushOnScopeChains(LD, m_DerivativeFnScope, true);
-    // Attach label to the last Stmt in the corresponding Reverse Stmt.
+    // Early return.  The previous encoding emitted a label inside the master
+    // reverse and a goto into it from the forward sweep, which violated
+    // [stmt.dcl]/2 (https://eel.is/c++draft/stmt.dcl#2) when any local with a
+    // non-trivial initializer/destructor sat between the goto and its target.
+    //
+    // Instead, emit the adjoint-seed Reverse to the current reverse block
+    // unwrapped — the cond-tape gating in the surrounding reverse loop will
+    // select this seed only on the iteration whose forward-push corresponded
+    // to this return — and emit a NullStmt marker in the forward direction.
+    // Finalization (DifferentiateWithClad) replaces every marker with
+    // `{ _rev(); return; }`, where `_rev` is a [&] lambda wrapping the master
+    // reverse (vgvassilev/clad#367).
     if (!Reverse)
       Reverse = m_Sema.ActOnNullStmt(noLoc).get();
-    Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
-    addToCurrentBlock(LS, direction::reverse);
+    addToCurrentBlock(Reverse, direction::reverse);
 
-    // Create goto to the label.
-    return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
+    Stmt* marker = m_Sema.ActOnNullStmt(noLoc).get();
+    m_EarlyReturnMarkers.insert(marker);
+    return marker;
+  }
+
+  void ReverseModeVisitor::patchEarlyReturnMarkers(Stmt* Replacement) {
+    // Replace each marker with the structured `{ _rev(); return; }` so the
+    // generated body is well-formed without goto. We mutate via the
+    // child-iterator pattern used by PlaceholderReplacer; Stmt::children()
+    // returns a writable range of Stmt*&.
+    class Patcher : public RecursiveASTVisitor<Patcher> {
+    public:
+      const llvm::SmallPtrSetImpl<Stmt*>& Markers;
+      Stmt* R;
+      Patcher(const llvm::SmallPtrSetImpl<Stmt*>& M, Stmt* Repl)
+          : Markers(M), R(Repl) {}
+      bool VisitStmt(Stmt* S) {
+        for (Stmt*& Child : S->children())
+          if (Child && Markers.count(Child))
+            Child = R;
+        return true;
+      }
+    };
+    Patcher P(m_EarlyReturnMarkers, Replacement);
+    Stmts& Block = getCurrentBlock(direction::forward);
+    for (Stmt*& S : Block)
+      if (m_EarlyReturnMarkers.count(S))
+        S = Replacement;
+      else
+        P.TraverseStmt(S);
   }
 
   StmtDiff ReverseModeVisitor::VisitParenExpr(const ParenExpr* PE) {
