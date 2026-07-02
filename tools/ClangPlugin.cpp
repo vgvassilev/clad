@@ -183,7 +183,6 @@ void InitTimers();
       auto& RobbedCs = ACCESS(MultiplexC, Consumers);
       assert(RobbedCs.back().get() == this && "Clad is not the last consumer");
 
-      std::vector<std::unique_ptr<ASTConsumer>> StolenConsumers;
       const auto& Macros = m_CI.getPreprocessorOpts().Macros;
       const bool IsCling = llvm::any_of(
           Macros, [](const auto& Macro) { return Macro.first == "__CLING__"; });
@@ -191,6 +190,7 @@ void InitTimers();
         std::swap(RobbedCs.front(), RobbedCs.back());
         return;
       }
+      std::vector<std::unique_ptr<ASTConsumer>> StolenConsumers;
 
       // The range-based for loop in MultiplexConsumer::Initialize has
       // dispatched this call. Generally, it is unsafe to delete elements while
