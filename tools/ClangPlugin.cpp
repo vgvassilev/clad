@@ -182,6 +182,7 @@ void InitTimers();
       auto& MultiplexC = cast<MultiplexConsumer>(m_CI.getASTConsumer());
       auto& RobbedCs = ACCESS(MultiplexC, Consumers);
       assert(RobbedCs.back().get() == this && "Clad is not the last consumer");
+
       const auto& Macros = m_CI.getPreprocessorOpts().Macros;
       const bool IsCling = llvm::any_of(
           Macros, [](const auto& Macro) { return Macro.first == "__CLING__"; });
@@ -477,6 +478,8 @@ void InitTimers();
     }
 
     void CladPlugin::SendToMultiplexer() {
+      if (!m_Multiplexer)
+        return;
       for (unsigned i = m_MultiplexerProcessedDelayedCallsIdx;
            i < m_DelayedCalls.size(); ++i) {
         auto DelayedCall = m_DelayedCalls[i];
@@ -653,7 +656,8 @@ void InitTimers();
         FinalizeTranslationUnit();
         SendToMultiplexer();
       }
-      m_Multiplexer->HandleTranslationUnit(C);
+      if (m_Multiplexer)
+        m_Multiplexer->HandleTranslationUnit(C);
     }
 
     void CladPlugin::PrintStats() {
@@ -712,7 +716,8 @@ void InitTimers();
         llvm::errs() << "\n";
       }
 
-      m_Multiplexer->PrintStats();
+      if (m_Multiplexer)
+        m_Multiplexer->PrintStats();
     }
 
   } // end namespace plugin
