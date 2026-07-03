@@ -27,8 +27,7 @@ class UsefulAnalyzer : public clang::RecursiveASTVisitor<UsefulAnalyzer> {
   static std::unique_ptr<VarsData> createNewVarsData(VarsData toAssign) {
     return std::unique_ptr<VarsData>(new VarsData(std::move(toAssign)));
   }
-  VarsData m_LoopMem;
-
+  std::vector<VarsData> m_LoopMem;
   clang::CFGBlock* getCFGBlockByID(unsigned ID);
 
   clang::AnalysisDeclContext* m_AnalysisDC;
