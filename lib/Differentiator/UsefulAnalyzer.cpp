@@ -9,6 +9,7 @@ namespace clad {
 void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
   // Build the CFG (control-flow graph) of FD.
   m_BlockData.resize(m_AnalysisDC->getCFG()->size());
+  m_LoopMem.resize(m_AnalysisDC->getCFG()->size());
   // Set current block ID to the ID of entry the block.
   CFGBlock& exit = m_AnalysisDC->getCFG()->getExit();
   m_CurBlockID = exit.getBlockID();
@@ -67,11 +68,9 @@ void UsefulAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
 
     bool shouldPushPred = true;
     if (pred->getBlockID() < block.getBlockID()) {
-      if (m_LoopMem == *m_BlockData[block.getBlockID()])
+      if (m_LoopMem[block.getBlockID()] == *m_BlockData[block.getBlockID()])
         shouldPushPred = false;
-
-      for (const VarDecl* i : *m_BlockData[block.getBlockID()])
-        m_LoopMem.insert(i);
+      m_LoopMem[block.getBlockID()] = *m_BlockData[block.getBlockID()];
     }
 
     if (shouldPushPred)
