@@ -2690,9 +2690,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       auto RDelayed = DelayedGlobalStoreAndRef(R, /*prefix=*/"_t",
                                                /*forceStore=*/true);
       StmtDiff& RResult = RDelayed.Result;
+      Expr* RRev = RResult.getRevSweepAsExpr();
+      if (dfdx())
+        RRev = StoreAndRef(RRev, direction::reverse);
       Expr* dl = nullptr;
       if (dfdx())
-        dl = BuildOp(BO_Div, dfdx(), RResult.getExpr());
+        dl = BuildOp(BO_Div, dfdx(), Clone(RRev));
       Ldiff = Visit(L, dl);
       StmtDiff LStored = Ldiff;
       // Catch the pop statement and emit it after
@@ -2715,8 +2718,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // produced instead of 1 / (R * R).
         Expr* dr = nullptr;
         if (dfdx()) {
-          Expr* RxR = BuildParens(
-              BuildOp(BO_Mul, RResult.getExpr(), RResult.getExpr()));
+          Expr* RxR = BuildParens(BuildOp(BO_Mul, RRev, Clone(RRev)));
           dr = BuildOp(BO_Mul, dfdx(),
                        BuildOp(UO_Minus,
                                BuildParens(BuildOp(
@@ -2882,7 +2884,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                           direction::reverse);
         if (isInsideLoop)
           addToCurrentBlock(LCloned, direction::forward);
-        Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
+        Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, Clone(RStored)));
         Expr* dr = BuildOp(BO_Mul, oldValue,
                            BuildOp(UO_Minus, BuildOp(BO_Div, LCloned, RxR)));
         dr = StoreAndRef(dr, direction::reverse);
