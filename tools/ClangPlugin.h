@@ -229,7 +229,7 @@ struct DifferentiationOptions {
     void PrintStats() override;
 
     bool shouldSkipFunctionBody(clang::Decl* D) override {
-      return m_Multiplexer->shouldSkipFunctionBody(D);
+      return m_Multiplexer ? m_Multiplexer->shouldSkipFunctionBody(D) : true;
     }
 
     // SemaConsumer
