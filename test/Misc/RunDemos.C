@@ -6,6 +6,11 @@
 // RUN: %cladclang %S/../../demos/ComputerGraphics/smallpt/SmallPT.cpp -I%S/../../include 2>&1
 
 //-----------------------------------------------------------------------------/
+// Demo: SmallPT differentiable path tracer
+//-----------------------------------------------------------------------------/
+// RUN: %cladclang %S/../../demos/ComputerGraphics/smallpt/SmallPTDiff.cpp -I%S/../../include -I%S/../../demos/ComputerGraphics/smallpt 2>&1
+
+//-----------------------------------------------------------------------------/
 //  Demo: Gradient.cpp
 //-----------------------------------------------------------------------------/
 
