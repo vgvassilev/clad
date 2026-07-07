@@ -81,15 +81,18 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
       m_ThisExprDerivative = dthisObj.getExpr();
       addToCurrentBlock(dthisObj.getStmt_dx());
       for (CXXCtorInitializer* CI : CD->inits()) {
-        StmtDiff CI_diff = DifferentiateCtorInit(CI, thisObj.getExpr());
+        // _this is reused by every initializer and the return below; clone it
+        // so each occurrence owns its node.
+        StmtDiff CI_diff =
+            DifferentiateCtorInit(CI, CloneNode(thisObj.getExpr()));
         addToCurrentBlock(CI_diff.getStmt(), direction::forward);
         addToCurrentBlock(CI_diff.getStmt_dx(), direction::forward);
       }
       // Build `return {*_this, *_d_this};`
       SourceLocation validLoc{CD->getBeginLoc()};
       llvm::SmallVector<Expr*, 2> returnArgs = {
-          BuildOp(UO_Deref, thisObj.getExpr()),
-          BuildOp(UO_Deref, dthisObj.getExpr())};
+          BuildOp(UO_Deref, CloneNode(thisObj.getExpr())),
+          BuildOp(UO_Deref, CloneNode(dthisObj.getExpr()))};
       Expr* returnInitList =
           m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
       ctorReturnStmt = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();
@@ -224,8 +227,13 @@ StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(clang::Expr* E,
     if (!VD->getType()->isReferenceType())
       return {};
   }
-  Expr* storeCall = BuildCallExprToMemFn(m_RestoreTracker,
-                                         /*MemberFunctionName=*/"store", {E});
+  // Clone both the tracker base (reused across every store call) and the stored
+  // expression E (the caller passes the same node it emits into the primal), so
+  // the store call is a distinct subtree.
+  Expr* storedE = CloneNode(E);
+  Expr* storeCall =
+      BuildCallExprToMemFn(CloneNode(m_RestoreTracker),
+                           /*MemberFunctionName=*/"store", {storedE});
   return {storeCall};
 }
 
@@ -283,8 +291,10 @@ StmtDiff ReverseModeForwPassVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   auto* decl = dyn_cast<VarDecl>(clonedDRE->getDecl());
   auto foundAdjoint = m_Variables.find(decl);
   Expr* adjoint = nullptr;
+  // m_Variables caches a single adjoint reference per variable; hand out a
+  // fresh copy so repeated uses do not share the same node.
   if (foundAdjoint != m_Variables.end())
-    adjoint = foundAdjoint->second;
+    adjoint = CloneNode(foundAdjoint->second);
 
   return StmtDiff(clonedDRE, adjoint);
 }

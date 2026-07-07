@@ -41,6 +41,12 @@ namespace utils {
     clang::Sema& m_Sema;
     clang::ASTContext& Ctx;
     Mapping* m_OriginalToClonedStmts;
+    // While cloning a PseudoObjectExpr, maps each original OpaqueValueExpr to
+    // its clone so the syntactic form and the semantic expressions reference
+    // the same fresh OVE (null outside such a clone). See
+    // VisitPseudoObjectExpr.
+    llvm::DenseMap<clang::OpaqueValueExpr*, clang::OpaqueValueExpr*>*
+        m_OVESubst = nullptr;
 
     clang::Decl* CloneDecl(clang::Decl* Node);
     clang::VarDecl* CloneDeclOrNull(clang::VarDecl* Node);
@@ -124,6 +130,8 @@ namespace utils {
     DECLARE_CLONE_FN(CXXTemporaryObjectExpr)
     DECLARE_CLONE_FN(MaterializeTemporaryExpr)
     DECLARE_CLONE_FN(PseudoObjectExpr)
+    DECLARE_CLONE_FN(OpaqueValueExpr)
+    DECLARE_CLONE_FN(MSPropertyRefExpr)
     DECLARE_CLONE_FN(SubstNonTypeTemplateParmExpr)
     DECLARE_CLONE_FN(CXXScalarValueInitExpr)
     DECLARE_CLONE_FN(ConstantExpr)

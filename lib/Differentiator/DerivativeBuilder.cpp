@@ -6,6 +6,7 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 
+#include "ASTIntegrity.h"
 #include "JacobianModeVisitor.h"
 
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
@@ -643,6 +644,28 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       if (auto* OFD = result.overload)
         registerDerivative(OFD, m_Sema, request);
     }
+
+#if CLANG_VERSION_MAJOR > 16
+    // A generated derivative must be a proper tree in its Stmt child-edge
+    // structure: no node is the child (Stmt::children()) of two parents,
+    // because a later in-place edit of a shared node leaks into its other
+    // users (and a shared aggregate initializer breaks CodeGen). Below
+    // clang-17 buildClonedLambda cannot synthesize a fresh closure, so lambda
+    // derivatives legitimately share and this check is unreachable.
+    if (auto* FD = dyn_cast_or_null<clang::FunctionDecl>(result.derivative))
+      if (clang::Stmt* Body = FD->getBody()) {
+        const clang::Stmt* Shared = findSharedNode(Body);
+        // Debug asserts builds abort here; release builds keep the diagnostic
+        // so a sharing regression is not silently shipped.
+        assert(!Shared && "clad generated a derivative with a shared AST node");
+        if (Shared)
+          diag(DiagnosticsEngine::Warning, FD->getLocation(),
+               "clad internally reused a '%0' AST node while differentiating "
+               "%1; this is a clad bug -- please report it at "
+               "https://github.com/vgvassilev/clad")
+              << Shared->getStmtClassName() << FD;
+      }
+#endif
 
     return result;
   }

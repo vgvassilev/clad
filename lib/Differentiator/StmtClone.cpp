@@ -174,34 +174,46 @@ DEFINE_CREATE_EXPR(CXXConstCastExpr,
                     Clone(Node->getSubExpr()), Node->getTypeInfoAsWritten(),
                     Node->getOperatorLoc(), Node->getRParenLoc(),
                     Node->getAngleBrackets()))
-DEFINE_CREATE_EXPR(
-    CXXConstructExpr,
-    (Ctx, CloneType(Node->getType()), Node->getLocation(),
-     Node->getConstructor(), Node->isElidable(),
-     clad_compat::makeArrayRef(Node->getArgs(), Node->getNumArgs()),
-     Node->hadMultipleCandidates(), Node->isListInitialization(),
-     Node->isStdInitListInitialization(), Node->requiresZeroInitialization(),
-     Node->getConstructionKind(), Node->getParenOrBraceRange()))
+Stmt* StmtClone::VisitCXXConstructExpr(CXXConstructExpr* Node) {
+  // Clone the arguments; passing Node->getArgs() would share them with the
+  // source, defeating the copy.
+  llvm::SmallVector<Expr*, 8> args(Node->getNumArgs());
+  for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
+    args[i] = Clone(Node->getArg(i));
+  auto* result = CXXConstructExpr::Create(
+      Ctx, CloneType(Node->getType()), Node->getLocation(),
+      Node->getConstructor(), Node->isElidable(), args,
+      Node->hadMultipleCandidates(), Node->isListInitialization(),
+      Node->isStdInitListInitialization(), Node->requiresZeroInitialization(),
+      Node->getConstructionKind(), Node->getParenOrBraceRange());
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
 DEFINE_CREATE_EXPR(CXXFunctionalCastExpr,
                    (Ctx, CloneType(Node->getType()), Node->getValueKind(),
                     Node->getTypeInfoAsWritten(), Node->getCastKind(),
                     Clone(Node->getSubExpr()), nullptr, Node->getFPFeatures(),
                     Node->getLParenLoc(), Node->getRParenLoc()))
-DEFINE_CREATE_EXPR(ExprWithCleanups, (Ctx, Node->getSubExpr(),
+DEFINE_CREATE_EXPR(ExprWithCleanups, (Ctx, Clone(Node->getSubExpr()),
                                       Node->cleanupsHaveSideEffects(), {}))
 
 DEFINE_CREATE_EXPR(ConstantExpr, (Ctx, Clone(Node->getSubExpr()),
                                   Node->getResultStorageKind(),
                                   Node->isImmediateInvocation()))
 
-DEFINE_CLONE_EXPR_CO(
-    CXXTemporaryObjectExpr,
-    (Ctx, Node->getConstructor(), CloneType(Node->getType()),
-     Node->getTypeSourceInfo(),
-     clad_compat::makeArrayRef(Node->getArgs(), Node->getNumArgs()),
-     Node->getSourceRange(), Node->hadMultipleCandidates(),
-     Node->isListInitialization(), Node->isStdInitListInitialization(),
-     Node->requiresZeroInitialization()))
+Stmt* StmtClone::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr* Node) {
+  // Clone the arguments so the copy does not share them with the source.
+  llvm::SmallVector<Expr*, 8> args(Node->getNumArgs());
+  for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
+    args[i] = Clone(Node->getArg(i));
+  auto* result = CXXTemporaryObjectExpr::Create(
+      Ctx, Node->getConstructor(), CloneType(Node->getType()),
+      Node->getTypeSourceInfo(), args, Node->getSourceRange(),
+      Node->hadMultipleCandidates(), Node->isListInitialization(),
+      Node->isStdInitListInitialization(), Node->requiresZeroInitialization());
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
 
 DEFINE_CLONE_EXPR(MaterializeTemporaryExpr,
                   (CloneType(Node->getType()),
@@ -252,22 +264,90 @@ DEFINE_CLONE_EXPR(
     SubstNonTypeTemplateParmExpr,
     (CloneType(Node->getType()), Node->getValueKind(), Node->getBeginLoc(),
      Node->getParameter(), Node->isReferenceParameter(),
-     Node->getReplacement()))
+     Clone(Node->getReplacement())))
 #elif CLANG_VERSION_MAJOR < 21
 DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
                   (CloneType(Node->getType()), Node->getValueKind(),
-                   Node->getBeginLoc(), Node->getReplacement(),
+                   Node->getBeginLoc(), Clone(Node->getReplacement()),
                    Node->getAssociatedDecl(), Node->getIndex(),
                    Node->getPackIndex(), Node->isReferenceParameter()))
 #else
 DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
                   (CloneType(Node->getType()), Node->getValueKind(),
-                   Node->getBeginLoc(), Node->getReplacement(),
+                   Node->getBeginLoc(), Clone(Node->getReplacement()),
                    Node->getAssociatedDecl(), Node->getIndex(),
                    Node->getPackIndex(), Node->isReferenceParameter(),
                    Node->getFinal()))
 #endif
-DEFINE_CREATE_EXPR(PseudoObjectExpr, (Ctx, Node->getSyntacticForm(), llvm::SmallVector<Expr*, 4>(Node->semantics_begin(), Node->semantics_end()), Node->getResultExprIndex()))
+// A PseudoObjectExpr (e.g. a `threadIdx.x` __declspec(property) access) binds
+// OpaqueValueExprs in its semantic expressions and references those same OVE
+// objects from its syntactic form and result expression. Deep-clone it:
+// materialize a fresh OVE per bound OVE (with a cloned source) and remap every
+// form to them via m_OVESubst, so the clone shares no node with the original.
+// Passing the original subtrees to Create (as a plain DEFINE_CREATE_EXPR would)
+// splices them, and two such clones (forward + reverse sweep) then share nodes.
+Stmt* StmtClone::VisitPseudoObjectExpr(PseudoObjectExpr* Node) {
+  llvm::DenseMap<OpaqueValueExpr*, OpaqueValueExpr*> LocalSubst;
+  auto* SavedSubst = m_OVESubst;
+  // Nested PseudoObjectExprs accumulate into the outer map so an inner form can
+  // reference an OVE bound by the outer one.
+  if (!m_OVESubst)
+    m_OVESubst = &LocalSubst;
+
+  unsigned N = Node->getNumSemanticExprs();
+  for (unsigned I = 0; I != N; ++I)
+    if (auto* OVE = dyn_cast<OpaqueValueExpr>(Node->getSemanticExpr(I)))
+      (*m_OVESubst)[OVE] = new (Ctx) OpaqueValueExpr(
+          OVE->getLocation(), CloneType(OVE->getType()), OVE->getValueKind(),
+          OVE->getObjectKind(),
+          OVE->getSourceExpr() ? cast<Expr>(Clone(OVE->getSourceExpr()))
+                               : nullptr);
+
+  Expr* Syn = cast<Expr>(Clone(Node->getSyntacticForm()));
+  llvm::SmallVector<Expr*, 4> Sems;
+  Sems.reserve(N);
+  for (unsigned I = 0; I != N; ++I) {
+    Expr* SE = Node->getSemanticExpr(I);
+    if (auto* OVE = dyn_cast<OpaqueValueExpr>(SE))
+      Sems.push_back((*m_OVESubst)[OVE]);
+    else
+      Sems.push_back(cast<Expr>(Clone(SE)));
+  }
+
+  PseudoObjectExpr* result =
+      PseudoObjectExpr::Create(Ctx, Syn, Sems, Node->getResultExprIndex());
+  clad_compat::ExprSetDeps(result, Node);
+  m_OVESubst = SavedSubst;
+  return result;
+}
+
+// An OpaqueValueExpr bound by the PseudoObjectExpr currently being cloned maps
+// to its pre-built clone; any other OVE is cloned directly.
+Stmt* StmtClone::VisitOpaqueValueExpr(OpaqueValueExpr* Node) {
+  if (m_OVESubst) {
+    auto It = m_OVESubst->find(Node);
+    if (It != m_OVESubst->end())
+      return It->second;
+  }
+  OpaqueValueExpr* result = new (Ctx) OpaqueValueExpr(
+      Node->getLocation(), CloneType(Node->getType()), Node->getValueKind(),
+      Node->getObjectKind(),
+      Node->getSourceExpr() ? cast<Expr>(Clone(Node->getSourceExpr()))
+                            : nullptr);
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
+
+// The syntactic form of a property PseudoObjectExpr; clone its base (an OVE
+// that VisitOpaqueValueExpr remaps to the shared clone).
+Stmt* StmtClone::VisitMSPropertyRefExpr(MSPropertyRefExpr* Node) {
+  MSPropertyRefExpr* result = new (Ctx) MSPropertyRefExpr(
+      cast<Expr>(Clone(Node->getBaseExpr())), Node->getPropertyDecl(),
+      Node->isArrow(), CloneType(Node->getType()), Node->getValueKind(),
+      Node->getQualifierLoc(), Node->getMemberLoc());
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
 // NOLINTEND(modernize-use-auto)
 // BlockExpr
 // BlockDeclRefExpr
@@ -294,13 +374,19 @@ Stmt* StmtClone::VisitInitListExpr(InitListExpr* Node) {
   for (unsigned i = 0, e = Node->getNumInits(); i < e; ++i)
     initExprs[i] = Clone(Node->getInit(i));
 
-  SourceLocation lBrace = Node->getLBraceLoc();
-  SourceLocation rBrace = Node->getRBraceLoc();
-
-  InitListExpr* result = llvm::cast<InitListExpr>(m_Sema.ActOnInitList(lBrace, initExprs, rBrace).get());
-
+  // Build the node structurally rather than via Sema::ActOnInitList. The
+  // semantic action re-derives the type and array filler from an
+  // initialization context we do not have here, yielding a type-less
+  // *syntactic* list; once that reaches CodeGen as an aggregate (e.g. a
+  // materialized array temporary) EmitAggExpr asserts. Mirror the fully-built
+  // node: preserve the type, the array filler and the union field so aggregate
+  // emission stays valid.
+  auto* result = new (Ctx)
+      InitListExpr(Ctx, Node->getLBraceLoc(), initExprs, Node->getRBraceLoc());
+  result->setType(CloneType(Node->getType()));
+  if (Expr* filler = Node->getArrayFiller())
+    result->setArrayFiller(Clone(filler));
   result->setInitializedFieldInUnion(Node->getInitializedFieldInUnion());
-  // FIXME: clone the syntactic form, can this become recursive?
   return result;
 }
 

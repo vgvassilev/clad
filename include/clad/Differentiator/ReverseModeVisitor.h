@@ -583,23 +583,27 @@ namespace clad {
 
       /// Returns reference to the last object of the clad tape if clad tape
       /// is used as the counter; otherwise returns reference to the counter
-      /// variable.
-      clang::Expr* getRef() const { return m_Ref; }
+      /// variable. The reference is cloned on every read so the forward
+      /// increment, reverse decrement and loop condition each own their
+      /// counter DeclRefExpr node instead of sharing it.
+      [[nodiscard]] clang::Expr* cloneRef() const {
+        return m_RMV.CloneNode(m_Ref);
+      }
 
       /// Returns counter post-increment expression (`counter++`).
       clang::Expr* getCounterIncrement() {
-        return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostInc, m_Ref);
+        return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostInc, cloneRef());
       }
 
       /// Returns counter post-decrement expression (`counter--`)
       clang::Expr* getCounterDecrement() {
-        return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostDec, m_Ref);
+        return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostDec, cloneRef());
       }
 
       /// Returns `ConditionResult` object for the counter.
       clang::Sema::ConditionResult getCounterConditionResult() {
         return m_RMV.m_Sema.ActOnCondition(m_RMV.getCurrentScope(), noLoc,
-                                           m_Ref,
+                                           cloneRef(),
                                            clang::Sema::ConditionKind::Boolean);
       }
 
