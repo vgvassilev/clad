@@ -39,6 +39,14 @@ DeclRefExpr* ErrorEstimationHandler::BuildFinalErrorExpr() {
   return m_RMV->BuildDeclRef(m_Params->back());
 }
 
+Expr* ErrorEstimationHandler::cloneIdxExpr() {
+  return m_RMV->CloneNode(m_IdxExpr);
+}
+
+Expr* ErrorEstimationHandler::cloneRetErrorExpr() {
+  return m_RMV->CloneNode(m_RetErrorExpr);
+}
+
 void ErrorEstimationHandler::BuildReturnErrorStmt() {
   // If we encountered any arithmetic expression in the return statement,
   // we must add its error to the final estimate.
@@ -46,7 +54,8 @@ void ErrorEstimationHandler::BuildReturnErrorStmt() {
     auto flitr =
         FloatingLiteral::Create(m_RMV->m_Context, llvm::APFloat(1.0), true,
                                 m_RMV->m_Context.DoubleTy, noLoc);
-    Expr* finExpr = AssignError(StmtDiff(m_RetErrorExpr, flitr), "return_expr");
+    Expr* finExpr =
+        AssignError(StmtDiff(cloneRetErrorExpr(), flitr), "return_expr");
     m_RMV->addToCurrentBlock(
         m_RMV->BuildOp(BO_AddAssign, BuildFinalErrorExpr(), finExpr),
         direction::forward);
@@ -88,8 +97,9 @@ void ErrorEstimationHandler::SaveReturnExpr(Expr* retExpr) {
     m_RMV->AddToGlobalBlock(m_RMV->BuildDeclStmt(retVarDecl));
     m_RetErrorExpr = m_RMV->BuildDeclRef(retVarDecl);
   }
-  m_RMV->addToCurrentBlock(m_RMV->BuildOp(BO_Assign, m_RetErrorExpr, retExpr),
-                           direction::forward);
+  m_RMV->addToCurrentBlock(
+      m_RMV->BuildOp(BO_Assign, cloneRetErrorExpr(), retExpr),
+      direction::forward);
 }
 
 void ErrorEstimationHandler::EmitNestedFunctionParamError(
@@ -104,10 +114,12 @@ void ErrorEstimationHandler::EmitNestedFunctionParamError(
     // // estimation.
     // if (utils::IsReferenceOrPointerType(fnDecl->getParamDecl(i)->getType()))
     //   continue;
-    auto* derefExpr = m_RMV->BuildOp(UO_Deref, ArgResult[i]);
-    Expr* errorExpr = AssignError({derivedCallArgs[i], derefExpr},
-                                  fnDecl->getNameInfo().getAsString() +
-                                      "_param_" + std::to_string(i));
+    // derivedCallArgs[i] and ArgResult[i] are also used in the derived call
+    // itself; clone them for the error expression so nodes are not shared.
+    auto* derefExpr = m_RMV->BuildOp(UO_Deref, m_RMV->CloneNode(ArgResult[i]));
+    Expr* errorExpr = AssignError(
+        {m_RMV->CloneNode(derivedCallArgs[i]), derefExpr},
+        fnDecl->getNameInfo().getAsString() + "_param_" + std::to_string(i));
     Expr* FinalError = BuildFinalErrorExpr();
     Expr* errorStmt = m_RMV->BuildOp(BO_AddAssign, FinalError, errorExpr);
     m_ReverseErrorStmts.push_back(errorStmt);
@@ -172,7 +184,10 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
       if (!m_RMV->isArrayOrPointerType(params[i]->getType())) {
         auto* paramClone = m_RMV->BuildDeclRef(decl);
         // Finally emit the error.
-        auto* errorExpr = GetError(paramClone, m_RMV->m_Variables[decl],
+        // Clone the operands: GetError embeds them in the error expression,
+        // which must not share nodes with the derivative statements.
+        auto* errorExpr = GetError(m_RMV->CloneNode(paramClone),
+                                   m_RMV->CloneNode(m_RMV->m_Variables[decl]),
                                    params[i]->getNameAsString());
         m_RMV->addToCurrentBlock(
             m_RMV->BuildOp(BO_AddAssign, BuildFinalErrorExpr(), errorExpr));
@@ -187,16 +202,23 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
                                   m_RMV->getZeroInit(m_RMV->m_Context.IntTy));
           m_IdxExpr = m_RMV->BuildDeclRef(idxExprDecl);
         }
-        Expr* Ldiff = nullptr;
-        Ldiff = m_RMV->BuildArraySubscript(LdiffExpr, m_IdxExpr);
+        // m_IdxExpr is the shared loop counter reused by both subscripts, the
+        // condition, the increment and the reset; clone at each use. Local
+        // lvalues are needed because BuildArraySubscript takes Idx by
+        // reference.
+        Expr* idxLdiff = cloneIdxExpr();
+        Expr* Ldiff = m_RMV->BuildArraySubscript(LdiffExpr, idxLdiff);
         auto* paramClone = m_RMV->BuildDeclRef(decl);
-        auto* LRepl = m_RMV->BuildArraySubscript(paramClone, m_IdxExpr);
+        Expr* idxLRepl = cloneIdxExpr();
+        auto* LRepl = m_RMV->BuildArraySubscript(paramClone, idxLRepl);
         // Build the loop to put in reverse mode.
-        Expr* errorExpr = GetError(LRepl, Ldiff, params[i]->getNameAsString());
+        Expr* errorExpr =
+            GetError(m_RMV->CloneNode(LRepl), m_RMV->CloneNode(Ldiff),
+                     params[i]->getNameAsString());
         Expr* finalAssignExpr =
             m_RMV->BuildOp(BO_AddAssign, BuildFinalErrorExpr(), errorExpr);
-        Expr* conditionExpr = m_RMV->BuildOp(BO_LE, m_IdxExpr, size);
-        Expr* incExpr = m_RMV->BuildOp(UO_PostInc, m_IdxExpr);
+        Expr* conditionExpr = m_RMV->BuildOp(BO_LE, cloneIdxExpr(), size);
+        Expr* incExpr = m_RMV->BuildOp(UO_PostInc, cloneIdxExpr());
         Stmt* ArrayParamLoop = new (m_RMV->m_Context)
             ForStmt(m_RMV->m_Context, nullptr, conditionExpr, nullptr, incExpr,
                     finalAssignExpr, noLoc, noLoc, noLoc);
@@ -205,7 +227,7 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
         // is not out first array.
         if (!idxExprDecl) {
           m_RMV->addToCurrentBlock(
-              m_RMV->BuildOp(BO_Assign, m_IdxExpr,
+              m_RMV->BuildOp(BO_Assign, cloneIdxExpr(),
                              m_RMV->getZeroInit(m_RMV->m_Context.IntTy)));
         } else {
           m_RMV->addToCurrentBlock(m_RMV->BuildDeclStmt(idxExprDecl));
@@ -225,7 +247,8 @@ void ErrorEstimationHandler::EmitUnaryOpErrorStmts(StmtDiff var,
     // If not, we don't care about it.
     if (ShouldEstimateErrorFor(cast<VarDecl>(DRE->getDecl()))) {
       Expr* erroExpr =
-          GetError(DRE, var.getExpr_dx(), DRE->getDecl()->getNameAsString());
+          GetError(m_RMV->CloneNode(DRE), m_RMV->CloneNode(var.getExpr_dx()),
+                   DRE->getDecl()->getNameAsString());
       AddErrorStmtToBlock(erroExpr);
     }
   }
@@ -239,7 +262,9 @@ void ErrorEstimationHandler::EmitBinaryOpErrorStmts(Expr* LExpr,
     return;
   if (m_ErrorFromFunctionCall)
     return;
-  Expr* errorExpr = GetError(LExpr, oldValue, decl->getNameAsString());
+  Expr* errorExpr =
+      GetError(m_RMV->CloneNode(LExpr), m_RMV->CloneNode(oldValue),
+               decl->getNameAsString());
   AddErrorStmtToBlock(errorExpr);
   // If there are assign statements to emit in reverse, do that.
   EmitErrorEstimationStmts(direction::reverse);
@@ -500,8 +525,11 @@ Expr* ErrorEstimationHandler::AssignError(StmtDiff refExpr,
     llvm::SmallVector<clang::Expr*, 3> callParams{
         refExpr.getExpr_dx(), refExpr.getExpr(),
         clad::utils::CreateStringLiteral(C, varName)};
+    // m_CustomErrorFunction is reused as the callee of every getErrorVal call
+    // (one per variable); clone so the calls do not share the reference.
     return S
-        .ActOnCallExpr(m_RMV->getCurrentScope(), m_CustomErrorFunction, noLoc,
+        .ActOnCallExpr(m_RMV->getCurrentScope(),
+                       m_RMV->CloneNode(m_CustomErrorFunction), noLoc,
                        callParams, noLoc)
         .get();
   }

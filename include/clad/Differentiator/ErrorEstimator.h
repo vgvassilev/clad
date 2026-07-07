@@ -52,6 +52,11 @@ class ErrorEstimationHandler : public ExternalRMVSource {
   Stmts m_ReverseErrorStmts;
   /// The index expression for emitting final errors for input param errors.
   clang::Expr* m_IdxExpr = nullptr;
+  /// Clone-on-read accessors for the cached references above: each is reused
+  /// across several generated subscripts/conditions, so every read must own
+  /// its own node rather than share the cached one.
+  clang::Expr* cloneIdxExpr();
+  clang::Expr* cloneRetErrorExpr();
   /// A map from var decls to their size variables (e.g. `var_size`).
   std::unordered_map<const clang::VarDecl*, clang::Expr*> m_ArrSizes;
   // FIXME: Solve this in a more general way.

@@ -357,7 +357,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
             IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
         // Create a assignment expression to store the value of call expression
         // into the diagonalHessianVector with index HessianMatrixStartIndex.
-        Expr* SliceExprLHS = BuildOp(BO_Add, Result, OffsetArg);
+        Expr* SliceExprLHS = BuildOp(BO_Add, CloneNode(Result), OffsetArg);
         Expr* DerefExpr = BuildOp(UO_Deref, BuildParens(SliceExprLHS));
         Expr* AssignExpr = BuildOp(BO_Assign, DerefExpr, call);
         CompStmtSave.push_back(AssignExpr);
@@ -372,7 +372,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
           Expr* OffsetArg =
               IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
           // Create the hessianMatrix + OffsetArg expression.
-          Expr* SliceExpr = BuildOp(BO_Add, Result, OffsetArg);
+          Expr* SliceExpr = BuildOp(BO_Add, CloneNode(Result), OffsetArg);
 
           DeclRefToParams.push_back(SliceExpr);
           columnIndex += indArgSize;

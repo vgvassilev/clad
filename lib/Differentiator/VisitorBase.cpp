@@ -32,7 +32,9 @@
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Ownership.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
@@ -415,6 +417,12 @@ namespace clad {
     const Stmt* S = E;
     return llvm::cast<Expr>(Clone(S));
   }
+  Expr* VisitorBase::CloneNode(const Expr* E) {
+    return E ? m_Builder.m_NodeCloner->Clone(E) : nullptr;
+  }
+  Stmt* VisitorBase::CloneNode(const Stmt* S) {
+    return S ? m_Builder.m_NodeCloner->Clone(S) : nullptr;
+  }
 
   QualType VisitorBase::CloneType(const QualType QT) {
     auto clonedType = m_Builder.m_NodeCloner->CloneType(QT);
@@ -752,7 +760,10 @@ namespace clad {
   }
 
   Expr* VisitorBase::BuildArrayRefSizeExpr(Expr* Base) {
-    return BuildCallExprToMemFn(Base, /*MemberFunctionName=*/"size", {});
+    // Callers pass a cached parameter reference and call this repeatedly for
+    // the same array; clone the base so the `.size()` calls do not share it.
+    return BuildCallExprToMemFn(CloneNode(Base), /*MemberFunctionName=*/"size",
+                                {});
   }
 
   Expr* VisitorBase::BuildArrayRefSliceExpr(Expr* Base,
@@ -778,7 +789,9 @@ namespace clad {
     // Build function args.
     llvm::SmallVector<Expr*, 16U> NumDiffArgs;
     NumDiffArgs.push_back(targetFuncCall);
-    NumDiffArgs.push_back(targetArg);
+    // targetArg is also the value passed through `args` below (and embedded in
+    // targetFuncCall); clone it so the numerical-diff call does not share it.
+    NumDiffArgs.push_back(CloneNode(targetArg));
     NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(m_Context.IntTy,
                                                             m_Context,
                                                             targetPos));
@@ -814,6 +827,165 @@ namespace clad {
                                /*AddToContext=*/false);
     }
     return newPVD;
+  }
+
+  Expr* VisitorBase::buildClonedLambda(const LambdaExpr* LE) {
+    // A primal copy needs a *fresh* closure type; a plain StmtClone reuses
+    // the original closure, so two clones end up sharing the operator() body
+    // -- violating the one-parent-per-node invariant. Captured lambdas would
+    // need capture rebinding we do not model here; fall back to a plain clone
+    // (they are not currently a source of node sharing).
+#if CLANG_VERSION_MAJOR < 17
+    // Lambda differentiation is unsupported below clang-17 (Lambdas.C is
+    // UNSUPPORTED there) and the Sema lambda-introduction entry points used
+    // below do not exist yet. Never reached; keep the source compilable.
+    return cast<Expr>(Clone(LE));
+#else
+    if (LE->capture_size() != 0)
+      return cast<Expr>(Clone(LE));
+
+    const CXXMethodDecl* CallOp = LE->getCallOperator();
+
+    // Mirror the lambda-introduction dance performed while parsing a lambda;
+    // see buildDerivedLambda for the differentiating counterpart.
+    LambdaIntroducer Intro;
+    Intro.Default = LCD_None;
+    Intro.Range.setBegin(LE->getBeginLoc());
+    Intro.Range.setEnd(LE->getEndLoc());
+    AttributeFactory AttrFactory;
+    const DeclSpec DS(AttrFactory);
+    Declarator D(DS, clang::ParsedAttributesView::none(),
+                 clang::DeclaratorContext::LambdaExpr);
+
+    auto* DC = const_cast<DeclContext*>(CallOp->getDeclContext());
+    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<FunctionDecl*> SaveDerivative(m_Derivative);
+    llvm::SaveAndRestore<Scope*> SaveFnScope(m_DerivativeFnScope);
+
+    beginScope(Scope::LambdaScope | Scope::DeclScope |
+               Scope::FunctionDeclarationScope | Scope::FunctionPrototypeScope);
+    m_Sema.PushLambdaScope();
+    m_Sema.ActOnLambdaExpressionAfterIntroducer(Intro, getCurrentScope());
+
+    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
+               Scope::DeclScope);
+
+    llvm::SmallVector<DeclaratorChunk::ParamInfo> ParamInfoLambda;
+    llvm::SmallVector<ParmVarDecl*, 8> params;
+
+    m_Sema.ActOnLambdaClosureQualifiers(Intro, noLoc);
+
+    sema::LambdaScopeInfo* LSI = m_Sema.getCurLambda();
+    // The clone keeps the original call operator's signature (unlike the
+    // derivative, which gets adjoint parameters).
+    LSI->CallOperator->setType(CallOp->getType());
+    m_Sema.PushDeclContext(getCurrentScope(), LSI->CallOperator);
+    LSI->Lambda->setDeclContext(DC);
+    m_Derivative = LSI->CallOperator;
+
+    for (const ParmVarDecl* PVD : CallOp->parameters()) {
+      IdentifierInfo* II = PVD->getIdentifier();
+      if (!PVD->getDeclName())
+        II = CreateUniqueIdentifier("arg");
+      auto* newPVD = CloneParmVarDecl(PVD, II, /*pushOnScopeChains=*/true,
+                                      /*cloneDefaultArg=*/false);
+      // Remap references in the cloned body to the new parameters.
+      m_DeclReplacements[PVD] = newPVD;
+      params.push_back(newPVD);
+    }
+    m_Derivative->setBody(MakeCompoundStmt({}));
+    m_Sema.PopDeclContext();
+
+    for (auto* PVD : params)
+      ParamInfoLambda.emplace_back(PVD->getIdentifier(), PVD->getLocation(),
+                                   PVD, nullptr);
+    SourceLocation paramListLoc = utils::GetValidSLoc(m_Sema);
+    D.AddTypeInfo(DeclaratorChunk::getFunction(
+                      /*hasProto=*/true,
+                      /*isAmbiguous=*/false,
+                      /*LParenLoc=*/paramListLoc,
+                      /*Params=*/ParamInfoLambda.data(),
+                      /*NumParams=*/ParamInfoLambda.size(),
+                      /*EllipsisLoc=*/SourceLocation(),
+                      /*RParenLoc=*/paramListLoc,
+                      /*RefQualifierIsLValueRef=*/true,
+                      /*RefQualifierLoc=*/SourceLocation(),
+                      /*MutableLoc=*/SourceLocation(),
+                      /*ESpecType=*/EST_None,
+                      /*ESpecRange=*/SourceRange(),
+                      /*Exceptions=*/nullptr,
+                      /*ExceptionRanges=*/nullptr,
+                      /*NumExceptions=*/0,
+                      /*NoexceptExpr=*/nullptr,
+                      /*ExceptionSpecTokens=*/nullptr,
+                      /*DeclsInPrototype=*/{},
+                      /*LocalRangeBegin=*/noLoc,
+                      /*LocalRangeEnd=*/noLoc,
+                      /*Declarator=*/D,
+                      /*TrailingReturnType=*/ParsedType(),
+                      /*TrailingReturnTypeLoc=*/SourceLocation()),
+                  /*EndLoc=*/SourceLocation());
+
+    m_Sema.ActOnLambdaClosureParameters(getCurrentScope(), ParamInfoLambda);
+
+    beginScope(Scope::BlockScope | Scope::FnScope | Scope::DeclScope |
+               Scope::CompoundStmtScope);
+    m_Sema.ActOnStartOfLambdaDefinition(
+        Intro, D,
+        clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
+            getCurrentScope(), DS));
+    m_DerivativeFnScope = getCurrentScope();
+
+    beginBlock();
+    const auto* Body = cast<CompoundStmt>(CallOp->getBody());
+    for (Stmt* S : Body->body()) {
+      // A nested lambda declaration must itself get a fresh closure (otherwise
+      // the recursive clone would reuse it). Rebuild it here -- its own body is
+      // remapped inside the recursive call -- and record the new variable so
+      // later references in this body are updated to it.
+      if (auto* InnerDS = dyn_cast<DeclStmt>(S))
+        if (InnerDS->isSingleDecl())
+          if (auto* InnerVD = dyn_cast<VarDecl>(InnerDS->getSingleDecl()))
+            if (const Expr* InnerInit = InnerVD->getInit())
+              if (const auto* InnerLE =
+                      dyn_cast<LambdaExpr>(InnerInit->IgnoreImplicit())) {
+                Expr* ClonedInner = buildClonedLambda(InnerLE);
+                QualType AutoTy = m_Context.getAutoDeductType();
+                TypeSourceInfo* TSI =
+                    m_Context.getTrivialTypeSourceInfo(AutoTy);
+                VarDecl* NewInnerVD =
+                    BuildVarDecl(AutoTy, InnerVD->getNameAsString(),
+                                 ClonedInner, InnerVD->isDirectInit(), TSI);
+                m_DeclReplacements[InnerVD] = NewInnerVD;
+                addToCurrentBlock(BuildDeclStmt(NewInnerVD));
+                continue;
+              }
+      // Clone the statement and remap references to the lambda's own
+      // parameters (and rebuilt inner lambdas). ReferencesUpdater only admits
+      // declarations enclosed by the "function" it is given, so key it on the
+      // lambda's call operator rather than m_DiffReq.Function (the outer
+      // function being differentiated), which would reject the lambda locals.
+      Stmt* clonedS = CloneNode(S);
+      utils::ReferencesUpdater up(m_Sema, getCurrentScope(), CallOp,
+                                  m_DeclReplacements);
+      up.TraverseStmt(clonedS);
+      addToCurrentBlock(clonedS);
+    }
+    CompoundStmt* ClonedBody = endBlock();
+
+    Expr* lambda =
+        m_Sema
+            .ActOnLambdaExpr(
+                noLoc,
+                ClonedBody /*,*/
+                    CLAD_COMPAT_CLANG17_ActOnLambdaExpr_getCurrentScope_ExtraParam(
+                        *this))
+            .get();
+    endScope();
+    endScope();
+    endScope();
+    return lambda;
+#endif // CLANG_VERSION_MAJOR < 17
   }
 
   QualType VisitorBase::DetermineCladArrayValueType(clang::QualType T) {

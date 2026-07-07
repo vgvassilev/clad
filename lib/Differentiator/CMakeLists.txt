@@ -48,6 +48,7 @@ endif(LLVM_EXTERNAL_CLAD_SOURCE_DIR)
 # (Ab)use llvm facilities for adding libraries.
 llvm_add_library(cladDifferentiator
   STATIC
+  ASTIntegrity.cpp
   ActivityAnalyzer.cpp
   AnalysisBase.cpp
   BaseForwardModeVisitor.cpp

@@ -109,8 +109,9 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
     if (m_IndependentVars.size() > independentVarIndex &&
         m_IndependentVars[independentVarIndex] == m_DiffReq->getParamDecl(i)) {
 
-      // Current offset for independent variable.
-      Expr* offsetExpr = arrayIndVarCountExpr;
+      // Current offset for independent variable. arrayIndVarCountExpr keeps
+      // accumulating below, so clone it for this offset use.
+      Expr* offsetExpr = CloneNode(arrayIndVarCountExpr);
       Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
           m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
       if (!offsetExpr)
@@ -127,20 +128,24 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
         // Create an identity matrix for the parameter,
         // with number of rows equal to the size of the array,
         // and number of columns equal to the number of independent variables
-        llvm::SmallVector<Expr*, 3> args = {getSize, m_IndVarCountExpr,
-                                            offsetExpr};
+        llvm::SmallVector<Expr*, 3> args = {
+            getSize, CloneNode(m_IndVarCountExpr), offsetExpr};
         dVectorParam = BuildIdentityMatrixExpr(dParamType, args, loc);
 
-        // Update the array independent expression.
+        // Update the array independent expression. getSize is already used by
+        // the identity matrix above and arrayIndVarCountExpr flows into later
+        // slice/subscript expressions, so clone it here to avoid sharing.
         if (!arrayIndVarCountExpr) {
-          arrayIndVarCountExpr = getSize;
+          arrayIndVarCountExpr = CloneNode(getSize);
         } else {
-          arrayIndVarCountExpr = BuildOp(BinaryOperatorKind::BO_Add,
-                                         arrayIndVarCountExpr, getSize);
+          arrayIndVarCountExpr =
+              BuildOp(BinaryOperatorKind::BO_Add, arrayIndVarCountExpr,
+                      CloneNode(getSize));
         }
       } else {
         // Create a one hot vector for the parameter.
-        llvm::SmallVector<Expr*, 2> args = {m_IndVarCountExpr, offsetExpr};
+        llvm::SmallVector<Expr*, 2> args = {CloneNode(m_IndVarCountExpr),
+                                            offsetExpr};
         dVectorParam = BuildCallExprToCladFunction("one_hot_vector", args,
                                                    {dParamType}, loc);
         ++nonArrayIndVarCount;
@@ -153,8 +158,9 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
         continue;
       // This parameter is not an independent variable.
       // Initialize by all zeros.
-      dVectorParam = BuildCallExprToCladFunction(
-          "zero_vector", {m_IndVarCountExpr}, {dParamType}, loc);
+      Expr* dCount = CloneNode(m_IndVarCountExpr);
+      dVectorParam = BuildCallExprToCladFunction("zero_vector", {dCount},
+                                                 {dParamType}, loc);
     }
 
     // For each function arg to be differentiated, create a variable
@@ -442,10 +448,13 @@ StmtDiff VectorForwardModeVisitor::VisitArraySubscriptExpr(
 
   Expr* target = BaseDiff.getExpr_dx();
   if (target) {
+    // Clone the index: it is already consumed by the primal subscript above,
+    // so the derivative subscript needs its own node. Bind to a local lvalue --
+    // the MultiExprArg param's one-element ctor takes a reference.
+    Expr* dIndex = CloneNode(clonedIndices.front());
     diffExpr = m_Sema
                    .ActOnArraySubscriptExpr(getCurrentScope(), target,
-                                            target->getExprLoc(),
-                                            clonedIndices.front(), noLoc)
+                                            target->getExprLoc(), dIndex, noLoc)
                    .get();
   }
   return StmtDiff(cloned, diffExpr);
@@ -483,7 +492,8 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     Expr* dParamValue = nullptr;
 
     // Current offset for independent variable.
-    Expr* offsetExpr = arrayIndVarCountExpr;
+    // arrayIndVarCountExpr keeps accumulating below; clone it for this offset.
+    Expr* offsetExpr = CloneNode(arrayIndVarCountExpr);
     Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
         m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
     if (!offsetExpr)
@@ -496,22 +506,26 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
       // Get the size of the array.
       Expr* getSize = BuildArrayRefSizeExpr(dParam);
 
-      // Create an expression to fetch slice of the return vector.
+      // Create an expression to fetch slice of the return vector. dVectorRef
+      // is reused for every parameter; clone so the slices/subscripts do not
+      // share the return-vector reference.
       llvm::SmallVector<Expr*, 2> args = {offsetExpr, getSize};
-      dParamValue = BuildArrayRefSliceExpr(dVectorRef, args);
+      dParamValue = BuildArrayRefSliceExpr(CloneNode(dVectorRef), args);
 
-      // Update the array independent expression.
+      // Update the array independent expression. getSize is used by the slice
+      // above; clone so the two do not share.
       if (!arrayIndVarCountExpr) {
-        arrayIndVarCountExpr = getSize;
+        arrayIndVarCountExpr = CloneNode(getSize);
       } else {
         arrayIndVarCountExpr =
-            BuildOp(BinaryOperatorKind::BO_Add, arrayIndVarCountExpr, getSize);
+            BuildOp(BinaryOperatorKind::BO_Add, arrayIndVarCountExpr,
+                    CloneNode(getSize));
       }
     } else {
       dParamValue = m_Sema
-                        .ActOnArraySubscriptExpr(getCurrentScope(), dVectorRef,
-                                                 dVectorRef->getExprLoc(),
-                                                 offsetExpr, noLoc)
+                        .ActOnArraySubscriptExpr(
+                            getCurrentScope(), CloneNode(dVectorRef),
+                            dVectorRef->getExprLoc(), offsetExpr, noLoc)
                         .get();
       ++nonArrayIndVarCount;
     }
@@ -550,16 +564,18 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
 StmtDiff VectorForwardModeVisitor::VisitFloatingLiteral(
     const clang::FloatingLiteral* FL) {
   SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-  auto* zero_vec = BuildCallExprToCladFunction(
-      "zero_vector", {m_IndVarCountExpr}, {FL->getType()}, fakeLoc);
+  Expr* dCount = CloneNode(m_IndVarCountExpr);
+  auto* zero_vec = BuildCallExprToCladFunction("zero_vector", {dCount},
+                                               {FL->getType()}, fakeLoc);
   return StmtDiff(Clone(FL), zero_vec);
 }
 
 StmtDiff
 VectorForwardModeVisitor::VisitIntegerLiteral(const clang::IntegerLiteral* IL) {
   SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-  auto* zero_vec = BuildCallExprToCladFunction(
-      "zero_vector", {m_IndVarCountExpr}, {IL->getType()}, fakeLoc);
+  Expr* dCount = CloneNode(m_IndVarCountExpr);
+  auto* zero_vec = BuildCallExprToCladFunction("zero_vector", {dCount},
+                                               {IL->getType()}, fakeLoc);
   return StmtDiff(Clone(IL), zero_vec);
 }
 

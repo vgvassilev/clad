@@ -643,6 +643,13 @@ namespace clad {
                                          bool pushOnScopeChains = false,
                                          bool cloneDefaultArg = true,
                                          clang::SourceLocation Loc = noLoc);
+    /// Build a primal copy of a lambda expression with a *fresh*
+    /// closure type, rather than reusing the original closure (as a plain
+    /// StmtClone does). Reusing the closure makes two clones share the
+    /// operator() body, violating the one-parent-per-node invariant. Only
+    /// captureless lambdas get a fresh closure; captured lambdas fall back to
+    /// a plain clone. Inner lambda-init declarations are rebuilt recursively.
+    clang::Expr* buildClonedLambda(const clang::LambdaExpr* LE);
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///
@@ -687,6 +694,15 @@ namespace clad {
     clang::Stmt* Clone(const clang::Stmt* S);
     /// A shorthand to simplify cloning of expressions.
     clang::Expr* Clone(const clang::Expr* E);
+    /// Structural copy that does NOT run updateReferencesOf. `Clone` re-points
+    /// references (name lookup, constant folding, type fix-ups), which is
+    /// correct when copying original-function code into the derivative but
+    /// corrupts already-generated derivative expressions (e.g. folds `(x + y)`
+    /// into a garbage literal). Use this to split a reused generated node into
+    /// a distinct-but-identical copy.
+    clang::Expr* CloneNode(const clang::Expr* E);
+    /// Statement overload of the structural copy above.
+    clang::Stmt* CloneNode(const clang::Stmt* S);
     /// Cloning types is necessary since VariableArrayType
     /// store a pointer to their size expression.
     clang::QualType CloneType(clang::QualType T);

@@ -143,10 +143,10 @@ double f6(double i) {
 
 // CHECK: void f6_grad(double i, double *_d_i) {
 // CHECK-NEXT:     auto _outer0 = [](double x) {
-// CHECK-NEXT:         auto _inner = [](double y) {
+// CHECK-NEXT:         auto _inner0 = [](double y) {
 // CHECK-NEXT:             return y * y;
 // CHECK-NEXT:         };
-// CHECK-NEXT:         return _inner(x) + 2. * x;
+// CHECK-NEXT:         return _inner0(x) + 2. * x;
 // CHECK-NEXT:     };
 // CHECK-NEXT:     auto _d__outer = [](double x, double _d_y, double *_d_x) {
 // CHECK-NEXT:         auto _inner0 = [](double y) {
