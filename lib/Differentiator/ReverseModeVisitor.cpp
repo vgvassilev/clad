@@ -2016,6 +2016,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             (utils::GetValueType(lastParamType) == trackerType);
       }
     }
+    if (isInsideLoop && usingRestoreTracker && !m_RestoreTracker) {
+      calleeFnForwPassFD = nullptr;
+      usingRestoreTracker = false;
+    }
 
     // FIXME: consider moving non-diff analysis to DiffPlanner.
     bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
