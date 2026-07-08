@@ -174,14 +174,22 @@ DEFINE_CREATE_EXPR(CXXConstCastExpr,
                     Clone(Node->getSubExpr()), Node->getTypeInfoAsWritten(),
                     Node->getOperatorLoc(), Node->getRParenLoc(),
                     Node->getAngleBrackets()))
-DEFINE_CREATE_EXPR(
-    CXXConstructExpr,
-    (Ctx, CloneType(Node->getType()), Node->getLocation(),
-     Node->getConstructor(), Node->isElidable(),
-     clad_compat::makeArrayRef(Node->getArgs(), Node->getNumArgs()),
-     Node->hadMultipleCandidates(), Node->isListInitialization(),
-     Node->isStdInitListInitialization(), Node->requiresZeroInitialization(),
-     Node->getConstructionKind(), Node->getParenOrBraceRange()))
+Stmt* StmtClone::VisitCXXConstructExpr(CXXConstructExpr* Node) {
+  llvm::SmallVector<Expr*, 4> clonedArgs;
+  clonedArgs.reserve(Node->getNumArgs());
+  for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
+    clonedArgs.push_back(Clone(Node->getArg(i)));
+
+  CXXConstructExpr* result = CXXConstructExpr::Create(
+      Ctx, CloneType(Node->getType()), Node->getLocation(),
+      Node->getConstructor(), Node->isElidable(),
+      clad_compat::makeArrayRef(clonedArgs.data(), clonedArgs.size()),
+      Node->hadMultipleCandidates(), Node->isListInitialization(),
+      Node->isStdInitListInitialization(), Node->requiresZeroInitialization(),
+      Node->getConstructionKind(), Node->getParenOrBraceRange());
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
 DEFINE_CREATE_EXPR(CXXFunctionalCastExpr,
                    (Ctx, CloneType(Node->getType()), Node->getValueKind(),
                     Node->getTypeInfoAsWritten(), Node->getCastKind(),
@@ -194,14 +202,22 @@ DEFINE_CREATE_EXPR(ConstantExpr, (Ctx, Clone(Node->getSubExpr()),
                                   Node->getResultStorageKind(),
                                   Node->isImmediateInvocation()))
 
-DEFINE_CLONE_EXPR_CO(
-    CXXTemporaryObjectExpr,
-    (Ctx, Node->getConstructor(), CloneType(Node->getType()),
-     Node->getTypeSourceInfo(),
-     clad_compat::makeArrayRef(Node->getArgs(), Node->getNumArgs()),
-     Node->getSourceRange(), Node->hadMultipleCandidates(),
-     Node->isListInitialization(), Node->isStdInitListInitialization(),
-     Node->requiresZeroInitialization()))
+Stmt* StmtClone::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr* Node) {
+  llvm::SmallVector<Expr*, 4> clonedArgs;
+  clonedArgs.reserve(Node->getNumArgs());
+  for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
+    clonedArgs.push_back(Clone(Node->getArg(i)));
+
+  CXXTemporaryObjectExpr* result = CXXTemporaryObjectExpr::Create(
+      Ctx, Node->getConstructor(), CloneType(Node->getType()),
+      Node->getTypeSourceInfo(),
+      clad_compat::makeArrayRef(clonedArgs.data(), clonedArgs.size()),
+      Node->getSourceRange(), Node->hadMultipleCandidates(),
+      Node->isListInitialization(), Node->isStdInitListInitialization(),
+      Node->requiresZeroInitialization());
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
 
 DEFINE_CLONE_EXPR(MaterializeTemporaryExpr,
                   (CloneType(Node->getType()),
