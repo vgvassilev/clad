@@ -81,11 +81,17 @@ Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
 DEFINE_CREATE_EXPR(IntegerLiteral,
                    (Ctx, Node->getValue(), CloneType(Node->getType()),
                     Node->getLocation()))
-DEFINE_CLONE_EXPR_CO(PredefinedExpr,
-                     (Ctx, Node->getLocation(), CloneType(Node->getType()),
-                      Node->getIdentKind()
-                          CLAD_COMPAT_CLANG17_IsTransparent(Node),
-                      Node->getFunctionName()))
+Stmt* StmtClone::VisitPredefinedExpr(PredefinedExpr* Node) {
+  // Clone the inner function-name StringLiteral; passing
+  // Node->getFunctionName() would share it with the source.
+  StringLiteral* FN = Node->getFunctionName();
+  PredefinedExpr* result = PredefinedExpr::Create(
+      Ctx, Node->getLocation(), CloneType(Node->getType()),
+      Node->getIdentKind() CLAD_COMPAT_CLANG17_IsTransparent(Node),
+      FN ? cast<StringLiteral>(Clone(FN)) : nullptr);
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
 DEFINE_CLONE_EXPR(CharacterLiteral,
                   (Node->getValue(), Node->getKind(),
                    CloneType(Node->getType()), Node->getLocation()))

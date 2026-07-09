@@ -830,26 +830,37 @@ namespace clad {
   }
 
   Expr* VisitorBase::buildClonedLambda(const LambdaExpr* LE) {
-    // A primal copy needs a *fresh* closure type; a plain StmtClone reuses
-    // the original closure, so two clones end up sharing the operator() body
-    // -- violating the one-parent-per-node invariant. Captured lambdas would
-    // need capture rebinding we do not model here; fall back to a plain clone
-    // (they are not currently a source of node sharing).
+    // A primal copy needs a *fresh* closure type; a plain StmtClone reuses the
+    // original closure, so two clones share the operator() body -- both a
+    // one-parent-per-node violation and a node shared with the primal lambda.
+    //
+    // We reproduce only explicit by-copy/by-ref captures of a named variable
+    // (each re-resolves by name against the derivative's in-scope copy). Fall
+    // back to a plain clone for the kinds we do not model -- this-capture,
+    // init-capture, and packs.
 #if CLANG_VERSION_MAJOR < 17
     // Lambda differentiation is unsupported below clang-17 (Lambdas.C is
     // UNSUPPORTED there) and the Sema lambda-introduction entry points used
     // below do not exist yet. Never reached; keep the source compilable.
     return cast<Expr>(Clone(LE));
 #else
-    if (LE->capture_size() != 0)
-      return cast<Expr>(Clone(LE));
+    for (const clang::LambdaCapture& Cap : LE->explicit_captures())
+      if (!Cap.capturesVariable() ||
+          (Cap.getCaptureKind() != clang::LCK_ByCopy &&
+           Cap.getCaptureKind() != clang::LCK_ByRef))
+        return cast<Expr>(Clone(LE));
 
     const CXXMethodDecl* CallOp = LE->getCallOperator();
 
     // Mirror the lambda-introduction dance performed while parsing a lambda;
     // see buildDerivedLambda for the differentiating counterpart.
     LambdaIntroducer Intro;
-    Intro.Default = LCD_None;
+    Intro.Default = LE->getCaptureDefault();
+    for (const clang::LambdaCapture& Cap : LE->explicit_captures())
+      Intro.addCapture(Cap.getCaptureKind(), Cap.getLocation(),
+                       Cap.getCapturedVar()->getIdentifier(), /*EllipsisLoc=*/
+                       noLoc, clang::LambdaCaptureInitKind::NoInit,
+                       clang::ExprResult(), clang::ParsedType(), SourceRange());
     Intro.Range.setBegin(LE->getBeginLoc());
     Intro.Range.setEnd(LE->getEndLoc());
     AttributeFactory AttrFactory;

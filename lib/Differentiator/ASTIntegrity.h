@@ -27,6 +27,16 @@ namespace clad {
 /// proper tree.
 const clang::Stmt* findSharedNode(const clang::Stmt* Root);
 
+/// Return the first node in \p Derivative that is also reachable from \p Primal
+/// through Stmt::children() edges, or nullptr if the derivative splices no node
+/// from its primal. The original function's AST outlives differentiation, so a
+/// generated derivative sharing one of its nodes would corrupt the user's own
+/// code if a later pass edits it. Child edges only: Clang legitimately shares
+/// type/template-argument constants and default-argument expressions, which
+/// Stmt::children() does not traverse.
+const clang::Stmt* findPrimalSharedNode(const clang::Stmt* Derivative,
+                                        const clang::Stmt* Primal);
+
 } // namespace clad
 
 #endif // CLAD_AST_INTEGRITY_H

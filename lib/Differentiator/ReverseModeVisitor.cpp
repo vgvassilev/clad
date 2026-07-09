@@ -3597,16 +3597,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff ReverseModeVisitor::VisitGNUNullExpr(const clang::GNUNullExpr* E) {
     auto* Constant0 = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
                                                         m_Context, /*val=*/0);
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    return StmtDiff(const_cast<clang::GNUNullExpr*>(E), Constant0);
+    // Clone so the derivative owns its copy rather than the primal's node.
+    return StmtDiff(CloneNode(E), Constant0);
   }
 
   StmtDiff
   ReverseModeVisitor::VisitPredefinedExpr(const clang::PredefinedExpr* E) {
     auto* Constant0 = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
                                                         m_Context, /*val=*/0);
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    return StmtDiff(const_cast<clang::PredefinedExpr*>(E), Constant0);
+    // Clone so the derivative owns its copy rather than the primal's node.
+    return StmtDiff(CloneNode(E), Constant0);
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXFunctionalCastExpr(
