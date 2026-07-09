@@ -51,8 +51,44 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 using namespace clang;
+
+namespace {
+// clad's AST-node-reuse diagnostics belong in the "clad-plugin-node-reuse"
+// warning group -- a subgroup of clad's "clad-plugin" group -- when the host
+// clang supports plugin diagnostic groups, so users can control them with
+// -Wno-clad-plugin-node-reuse (or -Wno-clad-plugin, or -Wno-plugin) like any
+// other warning. Detect the three-argument getCustomDiagID(Level, format,
+// group) overload; older clang has only the two-argument form and the
+// diagnostics stay ungrouped.
+constexpr llvm::StringLiteral CladNodeReuseGroup = "clad-plugin-node-reuse";
+
+template <typename T, typename = void>
+struct HasPluginDiagGroups : std::false_type {};
+template <typename T>
+struct HasPluginDiagGroups<
+    T, std::void_t<decltype(std::declval<T&>().getCustomDiagID(
+           clang::DiagnosticsEngine::Warning, std::declval<const char (&)[2]>(),
+           std::declval<llvm::StringRef>()))>> : std::true_type {};
+
+// Return the ID of a clad node-reuse warning, placing it in the
+// "clad-plugin-node-reuse" group where clang supports it. \p Message's size N
+// is a template parameter so the grouped call is type-dependent; `if constexpr`
+// then discards it (rather than requiring it to compile) on a clang without the
+// group overload.
+template <unsigned N>
+unsigned getIntegrityDiagID(clang::DiagnosticsEngine& Diags,
+                            const char (&Message)[N]) {
+  if constexpr (HasPluginDiagGroups<clang::DiagnosticsEngine>::value)
+    return Diags.getCustomDiagID(clang::DiagnosticsEngine::Warning, Message,
+                                 CladNodeReuseGroup);
+  else
+    return Diags.getCustomDiagID(clang::DiagnosticsEngine::Warning, Message);
+}
+} // namespace
 
 namespace clad {
 
@@ -654,36 +690,57 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     // derivatives legitimately share and this check is unreachable.
     if (auto* FD = dyn_cast_or_null<clang::FunctionDecl>(result.derivative))
       if (clang::Stmt* Body = FD->getBody()) {
-        const clang::Stmt* Shared = findSharedNode(Body);
-        // Debug asserts builds abort here; release builds keep the diagnostic
-        // so a sharing regression is not silently shipped.
-        assert(!Shared && "clad generated a derivative with a shared AST node");
-        if (Shared)
-          diag(DiagnosticsEngine::Warning, FD->getLocation(),
-               "clad internally reused a '%0' AST node while differentiating "
-               "%1; this is a clad bug -- please report it at "
-               "https://github.com/vgvassilev/clad")
-              << Shared->getStmtClassName() << FD;
+        clang::DiagnosticsEngine& Diags = m_Sema.getDiagnostics();
+        // Both checks report through the "clad-plugin-node-reuse" warning group
+        // (where the host clang supports it), so -Wno-clad-plugin-node-reuse
+        // (or -Wno-clad-plugin, or -Wno-plugin) silences them.
+        unsigned SharedDiagID = getIntegrityDiagID(
+            Diags,
+            "clad internally reused a '%0' AST node while differentiating %1; "
+            "this is a clad bug -- please report it at "
+            "https://github.com/vgvassilev/clad");
+        unsigned PrimalDiagID = getIntegrityDiagID(
+            Diags,
+            "clad reused a '%0' AST node from the original function while "
+            "differentiating %1; this is a clad bug -- please report it at "
+            "https://github.com/vgvassilev/clad");
 
-        // A derivative must also not splice a node owned by its primal. The
-        // original function's AST outlives differentiation, so a shared node
-        // exposes the user's own code to any later in-place edit of the
-        // derivative -- the same corruption risk findSharedNode guards against,
-        // across the primal/derivative boundary it cannot see. Enforce it too.
-        if (const clang::FunctionDecl* PrimalFD = request.Function)
-          if (const clang::Stmt* PrimalBody = PrimalFD->getBody()) {
-            const clang::Stmt* FromPrimal =
-                findPrimalSharedNode(Body, PrimalBody);
-            assert(!FromPrimal &&
-                   "clad spliced a primal AST node into a derivative");
-            if (FromPrimal)
-              diag(DiagnosticsEngine::Warning, FD->getLocation(),
-                   "clad reused a '%0' AST node from the original function "
-                   "while "
-                   "differentiating %1; this is a clad bug -- please report it "
-                   "at https://github.com/vgvassilev/clad")
-                  << FromPrimal->getStmtClassName() << FD;
-          }
+        // The checks below walk the derivative (and its primal) once each. A
+        // debug build always runs them so the asserts fire; a release build
+        // skips the walks entirely when the user has silenced the group (e.g.
+        // -Wno-clad-plugin, or -w), since the diagnostic is then all they buy.
+        bool RunChecks = true;
+#ifdef NDEBUG
+        RunChecks = !Diags.isIgnored(SharedDiagID, clang::SourceLocation());
+#endif
+        if (RunChecks) {
+          // A generated derivative must be a proper tree: no node is the child
+          // (Stmt::children()) of two parents, because a later in-place edit of
+          // a shared node leaks into its other users (and a shared aggregate
+          // initializer breaks CodeGen).
+          const clang::Stmt* Shared = findSharedNode(Body);
+          assert(!Shared &&
+                 "clad generated a derivative with a shared AST node");
+          if (Shared)
+            m_Sema.Diag(FD->getLocation(), SharedDiagID)
+                << Shared->getStmtClassName() << FD;
+
+          // A derivative must also not splice a node owned by its primal. The
+          // original function's AST outlives differentiation, so a shared node
+          // exposes the user's own code to any later in-place edit of the
+          // derivative -- the same corruption risk, across the
+          // primal/derivative boundary findSharedNode cannot see.
+          if (const clang::FunctionDecl* PrimalFD = request.Function)
+            if (const clang::Stmt* PrimalBody = PrimalFD->getBody()) {
+              const clang::Stmt* FromPrimal =
+                  findPrimalSharedNode(Body, PrimalBody);
+              assert(!FromPrimal &&
+                     "clad spliced a primal AST node into a derivative");
+              if (FromPrimal)
+                m_Sema.Diag(FD->getLocation(), PrimalDiagID)
+                    << FromPrimal->getStmtClassName() << FD;
+            }
+        }
       }
 #endif
 
