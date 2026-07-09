@@ -13,11 +13,54 @@
 #include "clang/AST/StmtOpenMP.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 
 using namespace clang;
 
 namespace clad {
+
+// Collect the Stmt::children() reachability set of Root. Child edges only, NOT
+// RecursiveASTVisitor: RAV also follows type and template-argument edges, and
+// Clang legitimately shares nodes across those (a template-argument constant,
+// an array bound). children() also never descends into a CXXDefaultArgExpr's
+// stored default or a type, so those Clang-owned shares are excluded for free.
+static void collectChildEdges(const Stmt* Root,
+                              llvm::DenseSet<const Stmt*>& Set) {
+  if (!Root)
+    return;
+  llvm::SmallVector<const Stmt*, 64> Work;
+  Set.insert(Root);
+  Work.push_back(Root);
+  while (!Work.empty()) {
+    const Stmt* Cur = Work.pop_back_val();
+    for (const Stmt* Ch : Cur->children())
+      if (Ch && Set.insert(Ch).second)
+        Work.push_back(Ch);
+  }
+}
+
+const Stmt* findPrimalSharedNode(const Stmt* Derivative, const Stmt* Primal) {
+  if (!Derivative || !Primal)
+    return nullptr;
+  llvm::DenseSet<const Stmt*> PrimalNodes;
+  collectChildEdges(Primal, PrimalNodes);
+  llvm::SmallVector<const Stmt*, 64> Work;
+  llvm::DenseSet<const Stmt*> Seen;
+  Seen.insert(Derivative);
+  Work.push_back(Derivative);
+  while (!Work.empty()) {
+    const Stmt* Cur = Work.pop_back_val();
+    for (const Stmt* Ch : Cur->children())
+      if (Ch && Seen.insert(Ch).second) {
+        if (PrimalNodes.count(Ch))
+          return Ch;
+        Work.push_back(Ch);
+      }
+  }
+  return nullptr;
+}
 
 const Stmt* findSharedNode(const Stmt* Root) {
   if (!Root)

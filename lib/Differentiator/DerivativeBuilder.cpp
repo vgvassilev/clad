@@ -664,6 +664,26 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                "%1; this is a clad bug -- please report it at "
                "https://github.com/vgvassilev/clad")
               << Shared->getStmtClassName() << FD;
+
+        // A derivative must also not splice a node owned by its primal. The
+        // original function's AST outlives differentiation, so a shared node
+        // exposes the user's own code to any later in-place edit of the
+        // derivative -- the same corruption risk findSharedNode guards against,
+        // across the primal/derivative boundary it cannot see. Enforce it too.
+        if (const clang::FunctionDecl* PrimalFD = request.Function)
+          if (const clang::Stmt* PrimalBody = PrimalFD->getBody()) {
+            const clang::Stmt* FromPrimal =
+                findPrimalSharedNode(Body, PrimalBody);
+            assert(!FromPrimal &&
+                   "clad spliced a primal AST node into a derivative");
+            if (FromPrimal)
+              diag(DiagnosticsEngine::Warning, FD->getLocation(),
+                   "clad reused a '%0' AST node from the original function "
+                   "while "
+                   "differentiating %1; this is a clad bug -- please report it "
+                   "at https://github.com/vgvassilev/clad")
+                  << FromPrimal->getStmtClassName() << FD;
+          }
       }
 #endif
 

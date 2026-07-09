@@ -1665,18 +1665,15 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
     // supported.
     if (typeDecl && (clad::utils::hasNonDifferentiableAttribute(typeDecl) ||
                      typeDecl->isLambda())) {
-      // When reconstructing the primal inside a pushforward, a lambda copied
-      // here would share its operator() body with the primal lambda emitted in
-      // the enclosing derivative. Rebuild it with a fresh closure. The
-      // top-level primal (forward mode) must keep the original closure so its
-      // generated pushforward method still resolves, hence the mode guard.
-      const bool inPushforward = m_DiffReq.Mode == DiffMode::pushforward ||
-                                 m_DiffReq.Mode == DiffMode::vector_pushforward;
+      // A lambda copied verbatim would splice the primal's closure -- its
+      // operator() body -- into the derivative. Rebuild it with a fresh closure
+      // instead; the call's pushforward is regenerated for that closure in
+      // VisitCallExpr, so it still resolves.
       for (auto* D : DS->decls()) {
         assert(isa<VarDecl>(D) && "Mixed decl types in a single decl stmt is "
                                   "not standard c++ syntax");
         auto* VDecl = cast<VarDecl>(D);
-        if (inPushforward && typeDecl->isLambda() && VDecl->getInit())
+        if (typeDecl->isLambda() && VDecl->getInit())
           if (const auto* InnerLE =
                   dyn_cast<LambdaExpr>(VDecl->getInit()->IgnoreImplicit())) {
             Expr* ClonedLambda = buildClonedLambda(InnerLE);
@@ -1689,7 +1686,20 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
             decls.push_back(NewVD);
             continue;
           }
-        decls.push_back(VDecl);
+        // A lambda without a direct initializer (or any other
+        // non-differentiable decl) is cloned so the derivative does not splice
+        // the primal's VarDecl and init into itself.
+        if (typeDecl->isLambda()) {
+          decls.push_back(VDecl);
+        } else {
+          Expr* clonedInit =
+              VDecl->getInit() ? Clone(VDecl->getInit()) : nullptr;
+          VarDecl* copyVD =
+              BuildVarDecl(VDecl->getType(), VDecl->getNameAsString(),
+                           clonedInit, VDecl->isDirectInit());
+          m_DeclReplacements[VDecl] = copyVD;
+          decls.push_back(copyVD);
+        }
       }
       Stmt* DSClone = BuildDeclStmt(decls);
       return StmtDiff(DSClone, nullptr);
@@ -1794,16 +1804,16 @@ BaseForwardModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
 StmtDiff BaseForwardModeVisitor::VisitGNUNullExpr(const clang::GNUNullExpr* E) {
   auto* Constant0 =
       ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, /*val=*/0);
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  return StmtDiff(const_cast<clang::GNUNullExpr*>(E), Constant0);
+  // Clone so the derivative owns its copy rather than the primal's node.
+  return StmtDiff(CloneNode(E), Constant0);
 }
 
 StmtDiff
 BaseForwardModeVisitor::VisitPredefinedExpr(const clang::PredefinedExpr* E) {
   auto* Constant0 =
       ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, /*val=*/0);
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  return StmtDiff(const_cast<clang::PredefinedExpr*>(E), Constant0);
+  // Clone so the derivative owns its copy rather than the primal's node.
+  return StmtDiff(CloneNode(E), Constant0);
 }
 
 StmtDiff
@@ -2301,10 +2311,10 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
 
 StmtDiff
 BaseForwardModeVisitor::VisitCXXThisExpr(const clang::CXXThisExpr* CTE) {
-  // m_ThisExprDerivative is a single cached `_d_this` ref; hand out a fresh
-  // clone so distinct uses do not share the same node.
-  return StmtDiff(const_cast<CXXThisExpr*>(CTE),
-                  CloneNode(m_ThisExprDerivative));
+  // Clone CTE so the derivative owns its `this` node rather than splicing the
+  // primal method's; m_ThisExprDerivative is a single cached `_d_this` ref, so
+  // clone it too so distinct uses do not share the same node.
+  return StmtDiff(CloneNode(CTE), CloneNode(m_ThisExprDerivative));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
