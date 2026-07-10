@@ -424,6 +424,17 @@ namespace clad {
     return S ? m_Builder.m_NodeCloner->Clone(S) : nullptr;
   }
 
+  clang::Stmt* StmtDiff::materialize(clang::Stmt*& Slot,
+                                     const clang::Stmt*& Src) {
+    if (!Slot && Src && m_Cloner) {
+      Slot = m_Cloner->Clone(Src);
+      // The representation is now cached; drop the recipe so later reads (and
+      // identity/null checks) return the same node.
+      Src = nullptr;
+    }
+    return Slot;
+  }
+
   QualType VisitorBase::CloneType(const QualType QT) {
     auto clonedType = m_Builder.m_NodeCloner->CloneType(QT);
     utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_DiffReq.Function,
