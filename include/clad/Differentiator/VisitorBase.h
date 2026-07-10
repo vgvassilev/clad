@@ -51,19 +51,76 @@ namespace clad {
   /// other (intermediate) statements, they are output to the current block.
   class StmtDiff {
   private:
-    std::array<clang::Stmt*, 2> data;
+    std::array<clang::Stmt*, 2> m_Data{};
     clang::Stmt* m_ValueForRevSweep;
 
+    // Lazy representations. When a source is set (via LazyClone() in a
+    // constructor argument), the matching slot is produced by cloning the
+    // source on first read and then cached, so a representation no consumer
+    // reads is never cloned (no orphaned "dead clone"), while two
+    // representations off the same source still materialize distinct nodes (no
+    // sharing). An unset source means the slot is eager -- the stored pointer
+    // (possibly null) is the value -- the default for every non-lazy argument.
+    const clang::Stmt* m_StmtSrc = nullptr;
+    const clang::Stmt* m_StmtDxSrc = nullptr;
+    const clang::Stmt* m_RevSweepSrc = nullptr;
+    utils::StmtClone* m_Cloner = nullptr;
+
+    // Clone Src into Slot on first read; a no-op when Src is null (eager slot).
+    clang::Stmt* materialize(clang::Stmt*& Slot, const clang::Stmt*& Src);
+
   public:
-    StmtDiff(clang::Stmt* orig = nullptr, clang::Stmt* diff = nullptr,
-             clang::Stmt* valueForRevSweep = nullptr)
-        : m_ValueForRevSweep(valueForRevSweep) {
-      data[1] = orig;
-      data[0] = diff;
+    /// A deferred clone marker: a representation cloned from Src on first read,
+    /// created by VisitorBase::LazyClone(). No member initializers, so In
+    /// (which embeds it) can be a `= {}` default argument while StmtDiff is
+    /// still being defined.
+    struct Lazy {
+      utils::StmtClone* Cloner;
+      const clang::Stmt* Src;
+    };
+
+    /// A constructor input for one representation: either an already-built node
+    /// (eager -- the node itself is the value) or a Lazy deferred clone. Node
+    /// and Deferred are set in the constructors rather than by default member
+    /// initializers, so In can be used as a `= {}` default argument here.
+    struct In {
+      clang::Stmt* Node;
+      Lazy Deferred;
+      In(clang::Stmt* N = nullptr) : Node(N), Deferred{nullptr, nullptr} {}
+      In(Lazy L) : Node(nullptr), Deferred(L) {}
+    };
+
+    /// Implicit single-representation constructor. Keeps the Expr*/Stmt* ->
+    /// StmtDiff conversion pervasive code relies on (return expr; sd = expr;),
+    /// which needs one user-defined conversion -- reaching the general
+    /// constructor below through In(Stmt*) would need two.
+    StmtDiff(clang::Stmt* orig) : m_ValueForRevSweep(nullptr) {
+      m_Data[1] = orig;
+      m_Data[0] = nullptr;
     }
 
-    clang::Stmt* getStmt() { return data[1]; }
-    clang::Stmt* getStmt_dx() { return data[0]; }
+    /// General constructor: each representation is eager (a node, the default
+    /// for every existing multi-argument call site) or lazy (LazyClone(src)).
+    /// Reads e.g. StmtDiff(fwd, LazyClone(dx)) or StmtDiff(LazyClone(fwd), dx).
+    StmtDiff(In orig = {}, In diff = {}, In valueForRevSweep = {})
+        : m_ValueForRevSweep(valueForRevSweep.Node),
+          m_StmtSrc(orig.Deferred.Src), m_StmtDxSrc(diff.Deferred.Src),
+          m_RevSweepSrc(valueForRevSweep.Deferred.Src),
+          // Every lazy slot shares the one cloner (VisitorBase::m_NodeCloner);
+          // take the first non-null.
+          m_Cloner([&] {
+            if (orig.Deferred.Cloner)
+              return orig.Deferred.Cloner;
+            if (diff.Deferred.Cloner)
+              return diff.Deferred.Cloner;
+            return valueForRevSweep.Deferred.Cloner;
+          }()) {
+      m_Data[1] = orig.Node;
+      m_Data[0] = diff.Node;
+    }
+
+    clang::Stmt* getStmt() { return materialize(m_Data[1], m_StmtSrc); }
+    clang::Stmt* getStmt_dx() { return materialize(m_Data[0], m_StmtDxSrc); }
     clang::Expr* getExpr() {
       return llvm::cast_or_null<clang::Expr>(getStmt());
     }
@@ -71,22 +128,37 @@ namespace clad {
       return llvm::cast_or_null<clang::Expr>(getStmt_dx());
     }
 
-    void updateStmt(clang::Stmt* S) { data[1] = S; }
-    void updateStmtDx(clang::Stmt* S) { data[0] = S; }
-    void updateRevSweep(clang::Stmt* S) { m_ValueForRevSweep = S; }
+    void updateStmt(clang::Stmt* S) {
+      m_Data[1] = S;
+      m_StmtSrc = nullptr;
+    }
+    void updateStmtDx(clang::Stmt* S) {
+      m_Data[0] = S;
+      m_StmtDxSrc = nullptr;
+    }
+    void updateRevSweep(clang::Stmt* S) {
+      m_ValueForRevSweep = S;
+      m_RevSweepSrc = nullptr;
+    }
     // Stmt_dx goes first!
-    std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
+    std::array<clang::Stmt*, 2>& getBothStmts() {
+      // A caller taking the array by reference parents both directions, so
+      // materialize both.
+      getStmt();
+      getStmt_dx();
+      return m_Data;
+    }
 
     clang::Expr* getRevSweepAsExpr() {
       return llvm::cast_or_null<clang::Expr>(getRevSweepStmt());
     }
 
     clang::Stmt* getRevSweepStmt() {
-      /// If there is no specific value for
-      /// the reverse sweep, use Stmt_dx.
-      if (!m_ValueForRevSweep)
-        return data[1];
-      return m_ValueForRevSweep;
+      if (clang::Stmt* R = materialize(m_ValueForRevSweep, m_RevSweepSrc))
+        return R;
+      // If there is no specific value for the reverse sweep, use the forward
+      // statement.
+      return getStmt();
     }
   };
 
@@ -703,6 +775,13 @@ namespace clad {
     clang::Expr* CloneNode(const clang::Expr* E);
     /// Statement overload of the structural copy above.
     clang::Stmt* CloneNode(const clang::Stmt* S);
+    /// A deferred CloneNode(\p N): the clone is produced only if the StmtDiff
+    /// representation it is stored in is actually read, so a representation no
+    /// consumer needs allocates no orphaned clone. Drop-in for CloneNode(N) in
+    /// a StmtDiff argument position.
+    StmtDiff::Lazy LazyClone(const clang::Stmt* N) {
+      return {m_Builder.m_NodeCloner.get(), N};
+    }
     /// Cloning types is necessary since VariableArrayType
     /// store a pointer to their size expression.
     clang::QualType CloneType(clang::QualType T);

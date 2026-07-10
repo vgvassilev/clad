@@ -1589,24 +1589,30 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // dfdx) statement.
       if (Expr* add_assign = BuildDiffIncrement(CloneNode(dExpr)))
         addToCurrentBlock(add_assign, direction::reverse);
-      // getExpr (forward rebuild) and the reverse-sweep value are consumed by
-      // different statements, so hand out distinct clones of the primal ref.
-      return StmtDiff(clonedDRE, CloneNode(dExpr), CloneNode(clonedDRE));
+      // The adjoint (getExpr_dx, e.g. *_d_x) is read only by parents that
+      // propagate a subexpression's derivative -- a conditional, a paren, an
+      // array-subscript base; a terminal product-rule leaf, having already
+      // emitted its own increment above, never reads it. Clone it lazily so
+      // those terminal leaves allocate no orphaned copy, while a consumer still
+      // materializes a distinct node (no sharing). The reverse-sweep value
+      // defaults to the forward node.
+      return StmtDiff(clonedDRE, LazyClone(dExpr));
     }
 
-    return StmtDiff(clonedDRE, /*diff=*/nullptr, CloneNode(clonedDRE));
+    return StmtDiff(clonedDRE);
   }
 
   StmtDiff ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
     auto* Constant0 =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-    // Distinct forward and reverse-sweep copies so a parent consuming both
-    // does not share the literal node.
-    return StmtDiff(Clone(IL), Constant0, Clone(IL));
+    // The forward value (also the reverse-sweep default) is a copy of the
+    // literal, needed only if a parent reads it; clone it lazily so a leaf no
+    // parent reads allocates nothing. The derivative of a constant is 0.
+    return StmtDiff(LazyClone(IL), Constant0);
   }
 
   StmtDiff ReverseModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
-    return StmtDiff(Clone(FL), getZeroInit(FL->getType()), Clone(FL));
+    return StmtDiff(LazyClone(FL), getZeroInit(FL->getType()));
   }
 
   static bool isNAT(QualType T) {
