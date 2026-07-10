@@ -59,6 +59,10 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
   ReverseModeRequest.m_CladLoopCheckpoints =
       IndependentArgRequest.m_CladLoopCheckpoints;
+  // Propagate EnableVariedAnalysis to the internal reverse-mode pass so
+  // HandleNestedDiffRequest can run VariedAnalyzer.
+  ReverseModeRequest.EnableVariedAnalysis =
+      IndependentArgRequest.EnableVariedAnalysis;
 
   FunctionDecl* secondDerivative =
       Builder.HandleNestedDiffRequest(ReverseModeRequest);

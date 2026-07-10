@@ -113,6 +113,7 @@ struct DerivativeAndOverload {
     clang::ASTContext& m_Context;
     DerivedFnCollector& m_DFC;
     clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
+    OwnedAnalysisContexts& m_AllAnalysisDC;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     clang::NamespaceDecl* m_NumericalDiffNSD;
@@ -178,7 +179,8 @@ struct DerivativeAndOverload {
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
                       DerivedFnCollector& DFC,
-                      clad::DynamicGraph<DiffRequest>& DRG);
+                      clad::DynamicGraph<DiffRequest>& DRG,
+                      OwnedAnalysisContexts& ADC);
     ~DerivativeBuilder();
     /// Fuction to set the error diagnostic printing value for numerical
     /// differentiation.

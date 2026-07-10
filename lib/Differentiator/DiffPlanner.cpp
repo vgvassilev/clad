@@ -26,6 +26,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
+#include "clang/Analysis/CFG.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
@@ -690,10 +691,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   bool DiffRequest::shouldHaveAdjointForw(const VarDecl* VD) const {
-    if (!EnableUsefulAnalysis)
-      return true;
-    auto found = m_UsefulRunInfo.UsefulDecls.find(VD);
-    return found != m_UsefulRunInfo.UsefulDecls.end();
+    if (EnableUsefulAnalysis) {
+      auto found = m_UsefulRunInfo.UsefulDecls.find(VD);
+      return found != m_UsefulRunInfo.UsefulDecls.end();
+    }
+    if (EnableVariedAnalysis)
+      return getVariedDecls().find(VD) != getVariedDecls().end();
+    return true;
   }
 
   bool DiffRequest::shouldHaveAdjoint(const Stmt* S) const {
@@ -1130,6 +1134,24 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return false;
   }
 
+  void PrepareRequestAnalysis(DiffRequest& request,
+                              OwnedAnalysisContexts& AllAnalysisDC) {
+    clang::CFG::BuildOptions Options;
+    std::unique_ptr<AnalysisDeclContext> AnalysisDC =
+        std::make_unique<AnalysisDeclContext>(
+            /*AnalysisDeclContextManager=*/nullptr, request.Function, Options);
+
+    if (request.EnableVariedAnalysis && request->isDefined()) {
+      TimedAnalysisRegion R("VA " + request.BaseFunctionName);
+      VariedAnalyzer analyzer(AnalysisDC.get(), request,
+                              request.getVariedStmt());
+      analyzer.Analyze();
+    }
+
+    AllAnalysisDC.push_back(std::move(AnalysisDC));
+    request.m_AnalysisDC = AllAnalysisDC.back().get();
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     DiffRequest request;
@@ -1177,7 +1199,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       request.Args = E->getArg(1);
       request.UpdateDiffParamsInfo(m_Sema);
-      if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis) {
+      if ((request.Mode == DiffMode::forward ||
+           request.Mode == DiffMode::reverse ||
+           request.Mode == DiffMode::hessian ||
+           request.Mode == DiffMode::hessian_diagonal) &&
+          request.EnableVariedAnalysis) {
         if (request.Args)
           for (const auto& dParam : request.DVI)
             request.addVariedDecl(cast<VarDecl>(dParam.param));
@@ -1372,27 +1398,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     bool shouldUseRestoreTracker =
         utils::shouldUseRestoreTracker(request.Function);
     if (!(LookupCustomDerivativeDecl(request) || nonDiff) || requestTBR) {
-      clang::CFG::BuildOptions Options;
-      std::unique_ptr<AnalysisDeclContext> AnalysisDC =
-          std::make_unique<AnalysisDeclContext>(
-              /*AnalysisDeclContextManager=*/nullptr, request.Function,
-              Options);
-
-      if (request.EnableVariedAnalysis && request->isDefined()) {
-        TimedAnalysisRegion R("VA " + request.BaseFunctionName);
-        VariedAnalyzer analyzer(AnalysisDC.get(), request,
-                                request.getVariedStmt());
-        analyzer.Analyze();
-      }
+      PrepareRequestAnalysis(request, m_AllAnalysisDC);
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
         TimedAnalysisRegion R("UA " + request.BaseFunctionName);
-        UsefulAnalyzer analyzer(AnalysisDC.get(), request.getUsefulDecls());
+        UsefulAnalyzer analyzer(request.m_AnalysisDC, request.getUsefulDecls());
         analyzer.Analyze(request.Function);
       }
-
-      m_AllAnalysisDC.push_back(std::move(AnalysisDC));
-      request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
       //  Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
@@ -1563,20 +1575,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
 
     if (!LookupCustomDerivativeDecl(request)) {
-      clang::CFG::BuildOptions Options;
-      std::unique_ptr<AnalysisDeclContext> AnalysisDC =
-          std::make_unique<AnalysisDeclContext>(
-              /*AnalysisDeclContextManager=*/nullptr, request.Function,
-              Options);
-      if (request.EnableVariedAnalysis) {
-        TimedAnalysisRegion R("VA " + request.BaseFunctionName);
-        VariedAnalyzer analyzer(AnalysisDC.get(), request,
-                                request.getVariedStmt());
-        analyzer.Analyze();
-      }
       // FIXME: Add proper support for objects in VA and UA.
-      m_AllAnalysisDC.push_back(std::move(AnalysisDC));
-      request.m_AnalysisDC = m_AllAnalysisDC.back().get();
+      PrepareRequestAnalysis(request, m_AllAnalysisDC);
 
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);

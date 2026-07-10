@@ -25,6 +25,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <vector>
 
 namespace clang {
 class CallExpr;
@@ -243,15 +244,21 @@ public:
   bool HasTbrAnalysisRun() const { return m_TbrRunInfo.HasAnalysisRun; }
 };
 
-  using DiffInterval = std::vector<clang::SourceRange>;
+/// Builds an AnalysisDeclContext for \p request.Function, runs
+/// VariedAnalyzer against it if enabled, and stores the resulting context
+/// in \p AllAnalysisDC and on \p request.m_AnalysisDC.
+void PrepareRequestAnalysis(DiffRequest& request,
+                            OwnedAnalysisContexts& AllAnalysisDC);
 
-  struct RequestOptions {
-    /// This is a flag to indicate the default behaviour to enable/disable
-    /// TBR analysis during reverse-mode differentiation.
-    bool EnableTBRAnalysis = false;
-    bool EnableVariedAnalysis = false;
-    bool EnableUsefulAnalysis = false;
-  };
+using DiffInterval = std::vector<clang::SourceRange>;
+
+struct RequestOptions {
+  /// This is a flag to indicate the default behaviour to enable/disable
+  /// TBR analysis during reverse-mode differentiation.
+  bool EnableTBRAnalysis = false;
+  bool EnableVariedAnalysis = false;
+  bool EnableUsefulAnalysis = false;
+};
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
     /// The source interval where clad was activated.
