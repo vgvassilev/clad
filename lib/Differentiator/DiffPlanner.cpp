@@ -1038,6 +1038,63 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
       return overload;
 
+    // Fallback: custom derivatives for functions returning const T& (e.g.
+    // std::min, std::max) may return ValueAndPushforward<T, T> by value so
+    // that the result is default-constructible and assignable, which is
+    // required when Hessian generation differentiates the pushforward.
+    // Try matching with const-ref stripped from the ValueAndPushforward
+    // template arguments.  The exact-reference match above was tried first,
+    // so STL custom derivatives that genuinely need reference semantics
+    // (operator[], front, back) are unaffected.
+    do {
+      const auto* FPT = dTy->getAs<FunctionProtoType>();
+      if (!FPT)
+        break;
+      QualType retTy = FPT->getReturnType();
+      auto* retRD = retTy->getAsCXXRecordDecl();
+      if (!retRD)
+        break;
+      auto* CTSD = dyn_cast<ClassTemplateSpecializationDecl>(retRD);
+      if (!CTSD ||
+          CTSD->getSpecializedTemplate()->getName() != "ValueAndPushforward")
+        break;
+      const auto& tArgs = CTSD->getTemplateArgs();
+      bool hasConstRef = false;
+      llvm::SmallVector<QualType, 2> relaxedTyArgs;
+      for (unsigned i = 0; i < tArgs.size(); ++i) {
+        if (tArgs[i].getKind() != TemplateArgument::Type) {
+          hasConstRef = false;
+          break;
+        }
+        QualType argTy = tArgs[i].getAsType();
+        if (argTy->isReferenceType() &&
+            argTy.getNonReferenceType().isConstQualified()) {
+          hasConstRef = true;
+          relaxedTyArgs.push_back(
+              argTy.getNonReferenceType().getUnqualifiedType());
+        } else {
+          relaxedTyArgs.push_back(argTy);
+        }
+      }
+      if (!hasConstRef)
+        break;
+      TemplateDecl* VPDecl =
+          utils::LookupTemplateDeclInCladNamespace(S, "ValueAndPushforward");
+      if (!VPDecl)
+        break;
+      QualType relaxedRetTy =
+          utils::InstantiateTemplate(S, VPDecl, relaxedTyArgs);
+      if (relaxedRetTy.isNull())
+        break;
+      QualType relaxedDTy = C.getFunctionType(
+          relaxedRetTy, FPT->getParamTypes(), FPT->getExtProtoInfo());
+      TemplateSpecCandidateSet RelaxedCandidates(R.CallContext->getBeginLoc(),
+                                                 /*ForTakingAddress=*/false);
+      if (Expr* overload =
+              utils::MatchOverloadType(S, relaxedDTy, Found, RelaxedCandidates))
+        return overload;
+    } while (false);
+
     if (!enableDiagnostics)
       return nullptr;
 
