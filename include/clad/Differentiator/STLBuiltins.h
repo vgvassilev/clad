@@ -687,7 +687,21 @@ void constructor_pullback(const ::std::array<T, N>& arr,
   for (size_t i = 0; i < N; ++i)
     (*d_arr)[i] += (*d_this)[i];
 }
+template <typename T>
+void constructor_pullback(typename ::std::vector<T>::size_type count,
+                          ::std::vector<T>* d_this,
+                          typename ::std::vector<T>::size_type* d_count) {
+  d_this->clear();
+}
 
+template <typename T>
+void constructor_pullback(
+    typename ::std::vector<T>::size_type count,
+    const typename ::std::vector<T>::allocator_type& alloc,
+    ::std::vector<T>* d_this, typename ::std::vector<T>::size_type* d_count,
+    typename ::std::vector<T>::allocator_type* d_alloc) {
+  d_this->clear();
+}
 // tuple forward mode
 
 template <typename... Args1, typename... Args2>
