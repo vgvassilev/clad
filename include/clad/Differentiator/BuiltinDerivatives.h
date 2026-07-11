@@ -1012,27 +1012,27 @@ CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y, T1* d_x,
 }
 
 template <typename T, class Compare>
-CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 min_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
                 const T& d_b, Compare /*dcomp*/) {
   return {::std::min(a, b, comp), comp(a, b) ? d_a : d_b};
 }
 
 template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 min_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
   return {::std::min(a, b), a < b ? d_a : d_b};
 }
 
 template <typename T, class Compare>
-CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 max_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
                 const T& d_b, Compare /*dcomp*/) {
   return {::std::max(a, b, comp), comp(a, b) ? d_b : d_a};
 }
 
 template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 max_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
   return {::std::max(a, b), a < b ? d_b : d_a};
 }
