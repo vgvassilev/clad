@@ -1524,16 +1524,53 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-    Expr* clonedDRE = Clone(DRE);
-    // Check if referenced Decl was "replaced" with another identifier inside
-    // the derivative
-    if (auto* VD = dyn_cast<VarDecl>(cast<DeclRefExpr>(clonedDRE)->getDecl())) {
+    // Resolve the remapped primal decl. Every reverse-mode param/local clone is
+    // registered in m_DeclReplacements, so for those leaves the decl is a plain
+    // map probe and the forward value can be built lazily (BuildDeclRef) -- it
+    // is constructed only if a consumer reads it, avoiding an orphaned
+    // Clone(DRE). References the map does not cover (globals, functions, decls
+    // outside the function) fall back to the eager remapping clone.
+    VarDecl* VD = nullptr;
+    StmtDiff::In primal;
+    if (auto* OrigVD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      auto rit = m_DeclReplacements.find(OrigVD);
+      if (rit != m_DeclReplacements.end()) {
+        VD = rit->second;
+        // Ref-type variables that became function-global are pointers; the
+        // forward value dereferences them (their inits cannot be hoisted).
+        bool needDeref = OrigVD->getType()->isReferenceType() &&
+                         VD->getType()->isPointerType();
+        clad_compat::NestedNameSpecifierTy NNS = DRE->getQualifier();
+        SourceLocation Loc = DRE->getLocation();
+        primal = LazyBuild([this, VD, needDeref, NNS, Loc]() -> Stmt* {
+          // Construct the forward value directly (BuildDeclRef, not a
+          // clone+remap), keeping DRE's source location, which diagnostics key
+          // on. Runs only if a consumer reads the forward value.
+          auto* E = BuildDeclRef(VD, clad_compat::hasQualifier(NNS)
+                                         ? NNS
+                                         : clad_compat::nullNNS());
+          E->setLocation(Loc);
+          if (needDeref)
+            return BuildOp(UnaryOperatorKind::UO_Deref, E);
+          return static_cast<Expr*>(E);
+        });
+      }
+    }
+    Expr* clonedDRE = nullptr;
+    if (!VD) {
+      clonedDRE = Clone(DRE);
+      VD = dyn_cast<VarDecl>(cast<DeclRefExpr>(clonedDRE)->getDecl());
       // This case happens when ref-type variables have to become function
       // global. Ref-type declarations cannot be moved to the function global
       // scope because they can't be separated from their inits.
-      if (DRE->getDecl()->getType()->isReferenceType() &&
+      if (VD && DRE->getDecl()->getType()->isReferenceType() &&
           VD->getType()->isPointerType())
         clonedDRE = BuildOp(UO_Deref, clonedDRE);
+      primal = clonedDRE;
+    }
+    // Check if referenced Decl was "replaced" with another identifier inside
+    // the derivative
+    if (VD) {
       // Check DeclRefExpr is a reference to an independent variable.
       auto it = m_Variables.find(VD);
       if (it == std::end(m_Variables)) {
@@ -1549,7 +1586,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           m_Sema.LookupQualifiedName(result, DC);
           // If not found, consider non-differentiable.
           if (result.empty())
-            return StmtDiff(clonedDRE);
+            return StmtDiff(primal);
           // Found, return a reference
           Expr* foundExpr =
               m_Sema
@@ -1566,11 +1603,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           }
         } else
           // Is not an independent variable, ignored.
-          return StmtDiff(clonedDRE);
+          return StmtDiff(primal);
       }
 
       if (!it->second)
-        return StmtDiff(clonedDRE);
+        return StmtDiff(primal);
 
       clang::Expr* dExpr = it->second;
       if (auto* dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
@@ -1602,10 +1639,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // those terminal leaves allocate no orphaned copy, while a consumer still
       // materializes a distinct node (no sharing). The reverse-sweep value
       // defaults to the forward node.
-      return StmtDiff(clonedDRE, LazyClone(dExpr));
+      return StmtDiff(primal, LazyClone(dExpr));
     }
 
-    return StmtDiff(clonedDRE);
+    return StmtDiff(primal);
   }
 
   StmtDiff ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
