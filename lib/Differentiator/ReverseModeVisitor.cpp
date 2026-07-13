@@ -3336,27 +3336,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (valueDx)
       m_Variables.emplace(VDClone, valueDx);
 
-    // Check if decl's name is the same as before. The name may be changed
-    // if decl name collides with something in the derivative body.
-    // This can happen in rare cases, e.g. when the original function
-    // has both y and _d_y (here _d_y collides with the name produced by
-    // the derivation process), e.g.
-    // double f(double x) {
-    //   double y = x;
-    //   double _d_y = x;
-    // }
-    // ->
-    // double f_darg0(double x) {
-    //   double _d_x = 1;
-    //   double _d_y = _d_x; // produced as a derivative for y
-    //   double y = x;
-    //   double _d__d_y = _d_x;
-    //   double _d_y = x; // copied from original function, collides with
-    //   _d_y
-    // }
-    if ((VD->getDeclName() != VDClone->getDeclName() ||
-         VDType != VDClone->getType()))
-      m_DeclReplacements[VD] = VDClone;
+    // Register the primal clone so cloned references to VD rebind by explicit
+    // map lookup instead of the scope-dependent name lookup in
+    // ReferencesUpdater. Recording it even when the clone keeps VD's name (the
+    // common case) makes the map authoritative and lets the fallback retire.
+    // The clone's name may also differ from VD's -- it is renamed when it would
+    // collide with a derivation-produced name, e.g. an original `_d_y` clashing
+    // with the `_d_y` synthesized for `y` -- in which case the map is the only
+    // way to resolve the reference at all.
+    m_DeclReplacements[VD] = VDClone;
 
     return DeclDiff<VarDecl>(VDClone, VDDerived);
   }
@@ -5043,8 +5031,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                       /*pushOnScopeChains=*/true,
                                       /*cloneDefaultArg=*/false);
 
-      if (!PVD->getDeclName()) // We can't use lookup-based replacements
-        m_DeclReplacements[PVD] = newPVD;
+      // Register the primal parameter's replacement so cloned references to it
+      // rebind by explicit map lookup instead of the scope-dependent name
+      // lookup in ReferencesUpdater (a nameless param has no name to look up,
+      // which is why this used to be its only case).
+      m_DeclReplacements[PVD] = newPVD;
 
       params.push_back(newPVD);
     }
