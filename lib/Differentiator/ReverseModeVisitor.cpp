@@ -778,7 +778,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     m_ArrayInitLoopIdx.push(idxDecl);
     Expr* idx = BuildDeclRef(idxDecl);
     // Build `_d_res[i]`
-    Expr* diff = BuildArraySubscript(dfdx(), {idx});
+    Expr* diff = BuildArraySubscript(claimDfdx(), {idx});
     beginBlock(direction::reverse);
     Visit(AILE->getSubExpr(), diff);
     Stmt* block = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
@@ -1365,8 +1365,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
     Expr* dfdf = nullptr;
+    // m_Pullback.back() is a single template node shared by every return in the
+    // function; clone it so each return owns an independent seed subtree. Once
+    // a seed is parented raw (claimSeed), a template shared across returns
+    // would otherwise acquire two parents.
     if (!m_Pullback.empty())
-      dfdf = m_Pullback.back();
+      dfdf = CloneNode(m_Pullback.back());
     if (dfdf && (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf)) &&
         type->isScalarType()) {
       ExprResult tmp = dfdf;
@@ -1473,12 +1477,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (auto* UO = dyn_cast<UnaryOperator>(E))
       base = UO->getSubExpr()->IgnoreImpCasts();
     // dfdx() is the top-of-stack adjoint seed, a node shared by every leaf it
-    // reaches (e.g. `_d_a += dfdx` and `_d_b += dfdx` for `a + b`). Clone it so
-    // each increment owns its subtree, since a shared node corrupts codegen
-    // once edited in place.
+    // reaches (e.g. `_d_a += dfdx` and `_d_b += dfdx` for `a + b`). claimDfdx()
+    // hands the seed out raw the first time and clones it on reuse, so each
+    // increment owns its subtree without orphaning an eager clone of the seed.
     if (shouldUseCudaAtomicOps(base))
-      return BuildCallToCudaAtomicAdd(E, CloneNode(dfdx()));
-    return BuildOp(BO_AddAssign, E, CloneNode(dfdx()));
+      return BuildCallToCudaAtomicAdd(E, claimDfdx());
+    return BuildOp(BO_AddAssign, E, claimDfdx());
   }
 
   StmtDiff
@@ -1586,9 +1590,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // expression so the cached node is never parented twice (the FIXME
       // above). dExpr is a plain DeclRefExpr/deref (not a delayed-store
       // placeholder), so it is safe to clone. Create the (_d_param[idx] +=
-      // dfdx) statement.
-      if (Expr* add_assign = BuildDiffIncrement(CloneNode(dExpr)))
-        addToCurrentBlock(add_assign, direction::reverse);
+      // dfdx) statement -- but only when a seed is present, since without one
+      // BuildDiffIncrement returns null and the clone would be orphaned.
+      if (hasDfdx())
+        if (Expr* add_assign = BuildDiffIncrement(CloneNode(dExpr)))
+          addToCurrentBlock(add_assign, direction::reverse);
       // The adjoint (getExpr_dx, e.g. *_d_x) is read only by parents that
       // propagate a subexpression's derivative -- a conditional, a paren, an
       // array-subscript base; a terminal product-rule leaf, having already
@@ -2276,7 +2282,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         pullbackCallArgs.push_back(CloneNode(arg));
       if (!(utils::isNonConstReferenceType(returnType) ||
             returnType->isPointerType() || returnType->isVoidType())) {
-        if (Expr* pullback = dfdx())
+        if (Expr* pullback = claimDfdx())
           pullbackCallArgs.push_back(pullback);
         else
           pullbackCallArgs.push_back(getZeroInit(returnType));
@@ -2615,7 +2621,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // xi = -xj
       // dxi/dxj = -1.0
       // df/dxj += df/dxi * dxi/dxj = -df/dxi
-      auto* d = BuildOp(UO_Minus, dfdx());
+      auto* d = BuildOp(UO_Minus, claimDfdx());
       diff = Visit(E, d);
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
       diff = Visit(E, dfdx());
@@ -2663,7 +2669,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       ResultRef = BuildOp(opCode, diff.getExpr_dx());
       /// Create and add `__real r += dfdx()` expression.
       if (dfdx()) {
-        Expr* add_assign = BuildOp(BO_AddAssign, ResultRef, dfdx());
+        Expr* add_assign = BuildOp(BO_AddAssign, ResultRef, claimDfdx());
         // Add it to the body statements.
         addToCurrentBlock(add_assign, direction::reverse);
       }
@@ -2724,24 +2730,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         L->getType()->isPointerType() || R->getType()->isPointerType();
 
     if (opCode == BO_Add) {
-      // xi = xl + xr
-      // dxi/xl = 1.0
-      // df/dxl += df/dxi * dxi/xl = df/dxi
-      Ldiff = Visit(L, dfdx());
-      // dxi/xr = 1.0
-      // df/dxr += df/dxi * dxi/xr = df/dxi
-      // Clone the seed: both operands receive dfdx() and may place it directly
-      // (e.g. as a pullback seed), which would share the node.
-      Rdiff = Visit(R, CloneNode(dfdx()));
+      // xi = xl + xr; dxi/dxl = dxi/dxr = 1, so df/dxl and df/dxr each +=
+      // df/dxi. Both operands claim the same seed: visitWithSeed hands it to
+      // whichever leaf pulls first (raw) and clones it for the other, and a
+      // literal operand that never pulls builds nothing.
+      Expr* seed = dfdx();
+      Ldiff = visitWithSeed(L, seed);
+      Rdiff = visitWithSeed(R, seed);
     } else if (opCode == BO_Sub) {
-      // xi = xl - xr
-      // dxi/xl = 1.0
-      // df/dxl += df/dxi * dxi/xl = df/dxi
-      Ldiff = Visit(L, dfdx());
-      // dxi/xr = -1.0
-      // df/dxl += df/dxi * dxi/xr = -df/dxi. Clone the seed (see BO_Add).
-      auto* dr = BuildOp(UO_Minus, CloneNode(dfdx()));
-      Rdiff = Visit(R, dr);
+      // xi = xl - xr; df/dxl += df/dxi, df/dxr += -df/dxi.
+      Expr* seed = dfdx();
+      Ldiff = visitWithSeed(L, seed);
+      Rdiff = visitWithSeed(R, seed,
+                            [this](Expr* s) { return BuildOp(UO_Minus, s); });
     } else if (opCode == BO_Mul) {
       // xi = xl * xr
       // dxi/xl = xr
@@ -2754,11 +2755,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       DelayedStoreResult RDelayed = DelayedGlobalStoreAndRef(R);
       StmtDiff& RResult = RDelayed.Result;
 
-      Expr* dl = nullptr;
-      if (dfdx())
-        dl = BuildOp(BO_Mul, CloneNode(dfdx()),
-                     CloneNode(RResult.getRevSweepAsExpr()));
-      Ldiff = Visit(L, dl);
+      // dl = df/dxi * xr (for L), built lazily so a constant L builds nothing.
+      // visitWithSeed hands the seed to whichever of dl/dr pulls first and
+      // clones it for the other, so it is never orphaned nor doubly parented.
+      Ldiff = visitWithSeed(L, dfdx(),
+                            [this, rp = RResult.getRevSweepAsExpr()](Expr* s) {
+                              return BuildOp(BO_Mul, s, CloneNode(rp));
+                            });
       // dxi/xr = xl
       // df/dxr += df/dxi * dxi/xr = df/dxi * xl
       // Store left multiplier and assign it with L.
@@ -2774,10 +2777,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
                                     /*force=*/true);
       Stmt* LPop = endBlock(direction::reverse);
-      Expr* dr = nullptr;
-      if (dfdx())
-        dr = BuildOp(BO_Mul, CloneNode(LStored.getRevSweepAsExpr()), dfdx());
-      Rdiff = Visit(R, dr);
+      // dr = xl * df/dxi (for R), built lazily; visitWithSeed clones the seed
+      // if dl already took it raw.
+      Rdiff = visitWithSeed(R, dfdx(),
+                            [this, lp = LStored.getRevSweepAsExpr()](Expr* s) {
+                              return BuildOp(BO_Mul, CloneNode(lp), s);
+                            });
       // Assign right multiplier's variable with R.
       RDelayed.Finalize(Rdiff.getExpr());
       addToCurrentBlock(utils::unwrapIfSingleStmt(LPop), direction::reverse);
@@ -2820,7 +2825,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           Expr* RxR =
               BuildParens(BuildOp(BO_Mul, CloneNode(RRev), CloneNode(RRev)));
           dr = BuildOp(
-              BO_Mul, dfdx(),
+              BO_Mul, claimDfdx(),
               BuildOp(
                   UO_Minus,
                   BuildParens(BuildOp(
@@ -4852,7 +4857,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!nonDiff) {
       // Try to create a pullback constructor call
       llvm::SmallVector<Expr*, 4> pullbackArgs;
-      Expr* dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, dfdx(),
+      Expr* dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, claimDfdx(),
                              m_DiffReq->getLocation());
       // primalArgs are also consumed by the reverse-forward and forward
       // constructor calls below; clone so each call owns its argument nodes.

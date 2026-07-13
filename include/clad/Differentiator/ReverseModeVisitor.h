@@ -28,9 +28,11 @@
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <array>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <queue>
@@ -75,9 +77,20 @@ namespace clad {
     std::vector<Stmts> m_Reverse;
     /// Storing expressions to delete/free memory in the reverse pass.
     Stmts m_DeallocExprs;
+    /// A dfdx seed: eager expression, or a deferred builder materialized on
+    /// the first dfdx() pull (so a seed no operand consumes is never built).
+    struct DfdxSeed {
+      clang::Expr* Eager = nullptr;
+      std::function<clang::Expr*()> Build;
+      clang::Expr* Cache = nullptr;
+    };
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
-    std::stack<clang::Expr*> m_Stack;
+    std::stack<DfdxSeed> m_Stack;
+    /// Adjoint seeds already handed out raw (claimSeed): a seed reused across
+    /// operands or frames is cloned on later uses so it never gains a second
+    /// parent, while an unused seed is never cloned.
+    llvm::DenseSet<const clang::Expr*> m_ConsumedSeeds;
     /// A sequence of DeclStmts containing "tape" variable declarations
     /// that will be put immediately in the beginning of derivative function
     /// block.
@@ -125,8 +138,56 @@ namespace clad {
     virtual clang::Expr* dfdx() {
       if (m_Stack.empty())
         return nullptr;
-      return m_Stack.top();
+      if (m_Stack.top().Eager)
+        return m_Stack.top().Eager;
+      if (m_Stack.top().Build && !m_Stack.top().Cache) {
+        auto Build = m_Stack.top().Build;
+        clang::Expr* M = Build();
+        m_Stack.top().Cache = M;
+      }
+      return m_Stack.top().Cache;
     }
+    /// Whether a dfdx seed is present, without materializing a deferred one.
+    bool hasDfdx() {
+      if (m_Stack.empty())
+        return false;
+      return m_Stack.top().Eager || static_cast<bool>(m_Stack.top().Build);
+    }
+    /// A node for one use of the adjoint seed \p S -- \p S itself on the first
+    /// use, a clone afterwards -- so a seed fanned out to several operands is
+    /// never shared, yet an unused seed is never cloned. \p S must be present;
+    /// use claimDfdx() where there may be none.
+    clang::Expr* claimSeed(clang::Expr* S) {
+      assert(S && "seed must be present");
+      if (m_ConsumedSeeds.insert(S).second)
+        return S;
+      return CloneNode(S);
+    }
+    /// A node for one use of the current dfdx() seed, or null if there is none.
+    clang::Expr* claimDfdx() {
+      clang::Expr* S = dfdx();
+      return S ? claimSeed(S) : nullptr;
+    }
+    /// Visit \p E propagating the adjoint \p seed to its leaves: the seed
+    /// materializes into the body only if a leaf consumes it, and \p build
+    /// transforms the claimed seed (raw first, cloned on reuse) on the way. A
+    /// null seed propagates "no seed".
+    StmtDiff visitWithSeed(const clang::Stmt* E, clang::Expr* seed,
+                           std::function<clang::Expr*(clang::Expr*)> build) {
+      if (!seed)
+        return Visit(E, static_cast<clang::Expr*>(nullptr));
+      return Visit(E, [this, seed, build = std::move(build)]() -> clang::Expr* {
+        return build(claimSeed(seed));
+      });
+    }
+    /// visitWithSeed propagating the claimed seed unchanged.
+    StmtDiff visitWithSeed(const clang::Stmt* E, clang::Expr* seed) {
+      if (!seed)
+        return Visit(E, static_cast<clang::Expr*>(nullptr));
+      return Visit(E,
+                   [this, seed]() -> clang::Expr* { return claimSeed(seed); });
+    }
+    /// Visit \p stmt with the eager adjoint seed \p dfdS on top of the stack.
     StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* dfdS = nullptr) {
       m_CurVisitedStmt = stmt;
 #ifndef NDEBUG
@@ -134,15 +195,30 @@ namespace clad {
       if (const char* Env = std::getenv("CLAD_FORCE_CRASH"))
         std::terminate();
 #endif // NDEBUG
-
-      // No need to push the same expr multiple times.
-      bool push = !(!m_Stack.empty() && (dfdS == dfdx()));
-      if (push)
-        m_Stack.push(dfdS);
+      // A seed threaded unchanged through single-child visitors need not be
+      // re-pushed each hop; reuse the top frame when it holds this exact eager
+      // seed. A deferred (Build) top is never reused -- it may yield a distinct
+      // node.
+      bool skip = !m_Stack.empty() && !m_Stack.top().Build &&
+                  m_Stack.top().Eager == dfdS;
+      if (!skip)
+        m_Stack.push(DfdxSeed{dfdS, {}, nullptr});
       auto result =
           clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
-      if (push)
+      if (!skip)
         m_Stack.pop();
+      return result;
+    }
+    /// Visit \p stmt with a deferred seed: \p Build runs, and the seed
+    /// materializes, only if a leaf of \p stmt pulls dfdx() -- so a seed no
+    /// operand consumes is never built (see DfdxSeed).
+    StmtDiff Visit(const clang::Stmt* stmt,
+                   std::function<clang::Expr*()> Build) {
+      m_CurVisitedStmt = stmt;
+      m_Stack.push(DfdxSeed{nullptr, std::move(Build), nullptr});
+      auto result =
+          clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
+      m_Stack.pop();
       return result;
     }
 
