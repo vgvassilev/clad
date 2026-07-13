@@ -336,9 +336,10 @@ ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
       BuildGlobalVarDecl(DerivedType, "_d_" + VD->getNameAsString(),
                          initDiff.getExpr_dx(), VD->isDirectInit());
   m_Variables.emplace(VDCloned, BuildDeclRef(VDDerived));
-  if ((VD->getDeclName() != VDCloned->getDeclName() ||
-       DerivedType != VD->getType()))
-    m_DeclReplacements[VD] = VDCloned;
+  // Register the primal clone unconditionally so references rebind by map
+  // lookup rather than the scope-dependent name-lookup fallback (see the
+  // matching change in ReverseModeVisitor::DifferentiateVarDecl).
+  m_DeclReplacements[VD] = VDCloned;
   return {VDCloned, VDDerived};
 }
 
