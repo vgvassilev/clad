@@ -32,6 +32,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <functional>
 #include <stack>
 #include <unordered_map>
 
@@ -65,6 +66,11 @@ namespace clad {
     const clang::Stmt* m_StmtDxSrc = nullptr;
     const clang::Stmt* m_RevSweepSrc = nullptr;
     utils::StmtClone* m_Cloner = nullptr;
+    // Deferred build for the forward value (data[1]): produces the node on
+    // first read, so a forward value no consumer reads constructs nothing.
+    // Only the forward slot needs it (the primal DeclRef of a reverse-mode
+    // leaf), so it is not carried for the adjoint or reverse-sweep slots.
+    std::function<clang::Stmt*()> m_StmtBuild;
 
     // Clone Src into Slot on first read; a no-op when Src is null (eager slot).
     clang::Stmt* materialize(clang::Stmt*& Slot, const clang::Stmt*& Src);
@@ -79,15 +85,20 @@ namespace clad {
       const clang::Stmt* Src;
     };
 
-    /// A constructor input for one representation: either an already-built node
-    /// (eager -- the node itself is the value) or a Lazy deferred clone. Node
-    /// and Deferred are set in the constructors rather than by default member
-    /// initializers, so In can be used as a `= {}` default argument here.
+    /// A constructor input for one representation: an already-built node (eager
+    /// -- the node itself is the value), a Lazy deferred clone, or a deferred
+    /// build (a thunk producing the node on first read, so a representation no
+    /// consumer reads constructs nothing -- unlike Lazy it clones no template).
+    /// Node and Deferred are set in the constructors rather than by default
+    /// member initializers, so In can be used as a `= {}` default argument.
     struct In {
       clang::Stmt* Node;
       Lazy Deferred;
+      std::function<clang::Stmt*()> Build;
       In(clang::Stmt* N = nullptr) : Node(N), Deferred{nullptr, nullptr} {}
       In(Lazy L) : Node(nullptr), Deferred(L) {}
+      In(std::function<clang::Stmt*()> B)
+          : Node(nullptr), Deferred{nullptr, nullptr}, Build(std::move(B)) {}
     };
 
     /// Implicit single-representation constructor. Keeps the Expr*/Stmt* ->
@@ -114,12 +125,20 @@ namespace clad {
             if (diff.Deferred.Cloner)
               return diff.Deferred.Cloner;
             return valueForRevSweep.Deferred.Cloner;
-          }()) {
+          }()),
+          m_StmtBuild(std::move(orig.Build)) {
       m_Data[1] = orig.Node;
       m_Data[0] = diff.Node;
     }
 
-    clang::Stmt* getStmt() { return materialize(m_Data[1], m_StmtSrc); }
+    clang::Stmt* getStmt() {
+      // Run the deferred build once, on the first read of the forward value.
+      if (!m_Data[1] && m_StmtBuild) {
+        m_Data[1] = m_StmtBuild();
+        m_StmtBuild = nullptr;
+      }
+      return materialize(m_Data[1], m_StmtSrc);
+    }
     clang::Stmt* getStmt_dx() { return materialize(m_Data[0], m_StmtDxSrc); }
     clang::Expr* getExpr() {
       return llvm::cast_or_null<clang::Expr>(getStmt());
@@ -131,6 +150,7 @@ namespace clad {
     void updateStmt(clang::Stmt* S) {
       m_Data[1] = S;
       m_StmtSrc = nullptr;
+      m_StmtBuild = nullptr;
     }
     void updateStmtDx(clang::Stmt* S) {
       m_Data[0] = S;
@@ -781,6 +801,13 @@ namespace clad {
     /// a StmtDiff argument position.
     StmtDiff::Lazy LazyClone(const clang::Stmt* N) {
       return {m_Builder.m_NodeCloner.get(), N};
+    }
+    /// A StmtDiff forward-value input that runs \p B on first read and nothing
+    /// if the value is never read -- for a representation that is freshly
+    /// constructed (e.g. BuildDeclRef of a remapped decl) rather than cloned,
+    /// so LazyClone's template node is not orphaned.
+    StmtDiff::In LazyBuild(std::function<clang::Stmt*()> B) {
+      return StmtDiff::In(std::move(B));
     }
     /// Cloning types is necessary since VariableArrayType
     /// store a pointer to their size expression.
