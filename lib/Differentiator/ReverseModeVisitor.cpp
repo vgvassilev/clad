@@ -778,7 +778,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     m_ArrayInitLoopIdx.push(idxDecl);
     Expr* idx = BuildDeclRef(idxDecl);
     // Build `_d_res[i]`
-    Expr* diff = BuildArraySubscript(claimDfdx(), {idx});
+    Expr* diff = BuildArraySubscript(dfdx(), {idx});
     beginBlock(direction::reverse);
     Visit(AILE->getSubExpr(), diff);
     Stmt* block = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
@@ -967,10 +967,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     auto* ifTrue = CO->getTrueExpr();
     auto* ifFalse = CO->getFalseExpr();
 
-    auto VisitBranch = [&](const Expr* Branch,
-                           Expr* dfdx) -> std::pair<StmtDiff, StmtDiff> {
+    auto VisitBranch =
+        [&](const Expr* Branch,
+            std::function<Expr*()> dfdx) -> std::pair<StmtDiff, StmtDiff> {
       ScopeRAII branchScope(*this, Scope::DeclScope);
-      auto Result = DifferentiateSingleExpr(Branch, dfdx);
+      auto Result = DifferentiateSingleExpr(Branch, std::move(dfdx));
       StmtDiff BranchDiff = Result.first;
       StmtDiff ExprDiff = Result.second;
       Stmt* Forward = utils::unwrapIfSingleStmt(BranchDiff.getStmt());
@@ -983,8 +984,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff ifFalseDiff;
     StmtDiff ifFalseExprDiff;
 
-    std::tie(ifTrueDiff, ifTrueExprDiff) = VisitBranch(ifTrue, dfdx());
-    std::tie(ifFalseDiff, ifFalseExprDiff) = VisitBranch(ifFalse, dfdx());
+    // Both arms claim a shared seed lazily: only an arm whose reverse code
+    // consumes it pulls, so a constant arm builds nothing and the seed is
+    // parented once across the two arms.
+    SeedClaim seed(*this, dfdx());
+    auto seedThunk = [&seed]() -> Expr* {
+      return seed ? seed.claim() : nullptr;
+    };
+    std::tie(ifTrueDiff, ifTrueExprDiff) = VisitBranch(ifTrue, seedThunk);
+    std::tie(ifFalseDiff, ifFalseExprDiff) = VisitBranch(ifFalse, seedThunk);
 
     // Clone the stored condition inside, after the empty-branch check, so an
     // if that is never built (e.g. a conditional operator whose branches have
@@ -1362,10 +1370,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* dfdf = nullptr;
     // m_Pullback.back() is a single template node shared by every return in the
     // function; each return needs its own seed subtree, because once a seed is
-    // parented raw (claimSeed) a template shared across returns would acquire
-    // two parents. The literal seed (df/df = 1) is re-synthesized fresh rather
-    // than cloned, so no intermediate clone is orphaned when the seed is
-    // dropped; other seeds (e.g. a pullback parameter reference) are cloned.
+    // parented raw a template shared across returns would acquire two parents.
+    // The literal seed (df/df = 1) is re-synthesized fresh rather than cloned,
+    // so no intermediate clone is orphaned when the seed is dropped; other
+    // seeds (e.g. a pullback parameter reference) are cloned.
     if (!m_Pullback.empty()) {
       Expr* pullback = m_Pullback.back();
       if (const auto* IL = dyn_cast<IntegerLiteral>(pullback))
@@ -1480,12 +1488,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (auto* UO = dyn_cast<UnaryOperator>(E))
       base = UO->getSubExpr()->IgnoreImpCasts();
     // dfdx() is the top-of-stack adjoint seed, a node shared by every leaf it
-    // reaches (e.g. `_d_a += dfdx` and `_d_b += dfdx` for `a + b`). claimDfdx()
+    // reaches (e.g. `_d_a += dfdx` and `_d_b += dfdx` for `a + b`). dfdx()
     // hands the seed out raw the first time and clones it on reuse, so each
     // increment owns its subtree without orphaning an eager clone of the seed.
     if (shouldUseCudaAtomicOps(base))
-      return BuildCallToCudaAtomicAdd(E, claimDfdx());
-    return BuildOp(BO_AddAssign, E, claimDfdx());
+      return BuildCallToCudaAtomicAdd(E, dfdx());
+    return BuildOp(BO_AddAssign, E, dfdx());
   }
 
   StmtDiff
@@ -2322,7 +2330,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         pullbackCallArgs.push_back(CloneNode(arg));
       if (!(utils::isNonConstReferenceType(returnType) ||
             returnType->isPointerType() || returnType->isVoidType())) {
-        if (Expr* pullback = claimDfdx())
+        if (Expr* pullback = dfdx())
           pullbackCallArgs.push_back(pullback);
         else
           pullbackCallArgs.push_back(getZeroInit(returnType));
@@ -2661,7 +2669,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // xi = -xj
       // dxi/dxj = -1.0
       // df/dxj += df/dxi * dxi/dxj = -df/dxi
-      auto* d = BuildOp(UO_Minus, claimDfdx());
+      auto* d = BuildOp(UO_Minus, dfdx());
       diff = Visit(E, d);
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
       diff = Visit(E, dfdx());
@@ -2709,7 +2717,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       ResultRef = BuildOp(opCode, diff.getExpr_dx());
       /// Create and add `__real r += dfdx()` expression.
       if (dfdx()) {
-        Expr* add_assign = BuildOp(BO_AddAssign, ResultRef, claimDfdx());
+        Expr* add_assign = BuildOp(BO_AddAssign, ResultRef, dfdx());
         // Add it to the body statements.
         addToCurrentBlock(add_assign, direction::reverse);
       }
@@ -2771,18 +2779,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (opCode == BO_Add) {
       // xi = xl + xr; dxi/dxl = dxi/dxr = 1, so df/dxl and df/dxr each +=
-      // df/dxi. Both operands claim the same seed: visitWithSeed hands it to
-      // whichever leaf pulls first (raw) and clones it for the other, and a
-      // literal operand that never pulls builds nothing.
-      Expr* seed = dfdx();
-      Ldiff = visitWithSeed(L, seed);
-      Rdiff = visitWithSeed(R, seed);
+      // df/dxi. Both operands claim the same seed: the first to pull takes it,
+      // the other gets a clone; an operand that never pulls builds nothing.
+      SeedClaim seed(*this, dfdx());
+      Ldiff = seed ? Visit(L, [&seed]() -> Expr* { return seed.claim(); })
+                   : Visit(L, static_cast<Expr*>(nullptr));
+      Rdiff = seed ? Visit(R, [&seed]() -> Expr* { return seed.claim(); })
+                   : Visit(R, static_cast<Expr*>(nullptr));
     } else if (opCode == BO_Sub) {
       // xi = xl - xr; df/dxl += df/dxi, df/dxr += -df/dxi.
-      Expr* seed = dfdx();
-      Ldiff = visitWithSeed(L, seed);
-      Rdiff = visitWithSeed(R, seed,
-                            [this](Expr* s) { return BuildOp(UO_Minus, s); });
+      SeedClaim seed(*this, dfdx());
+      Ldiff = seed ? Visit(L, [&seed]() -> Expr* { return seed.claim(); })
+                   : Visit(L, static_cast<Expr*>(nullptr));
+      Rdiff = seed ? Visit(R,
+                           [this, &seed]() -> Expr* {
+                             return BuildOp(UO_Minus, seed.claim());
+                           })
+                   : Visit(R, static_cast<Expr*>(nullptr));
     } else if (opCode == BO_Mul) {
       // xi = xl * xr
       // dxi/xl = xr
@@ -2796,12 +2809,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       StmtDiff& RResult = RDelayed.Result;
 
       // dl = df/dxi * xr (for L), built lazily so a constant L builds nothing.
-      // visitWithSeed hands the seed to whichever of dl/dr pulls first and
-      // clones it for the other, so it is never orphaned nor doubly parented.
-      Ldiff = visitWithSeed(L, dfdx(),
-                            [this, rp = RResult.getRevSweepAsExpr()](Expr* s) {
-                              return BuildOp(BO_Mul, s, CloneNode(rp));
-                            });
+      // dl and dr claim the shared seed -- one takes it raw, the other clones
+      // -- so it is never orphaned nor doubly parented.
+      SeedClaim seed(*this, dfdx());
+      Ldiff = seed
+                  ? Visit(L,
+                          [this, &seed,
+                           rp = RResult.getRevSweepAsExpr()]() -> Expr* {
+                            return BuildOp(BO_Mul, seed.claim(), CloneNode(rp));
+                          })
+                  : Visit(L, static_cast<Expr*>(nullptr));
       // dxi/xr = xl
       // df/dxr += df/dxi * dxi/xr = df/dxi * xl
       // Store left multiplier and assign it with L.
@@ -2817,12 +2834,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
                                     /*force=*/true);
       Stmt* LPop = endBlock(direction::reverse);
-      // dr = xl * df/dxi (for R), built lazily; visitWithSeed clones the seed
-      // if dl already took it raw.
-      Rdiff = visitWithSeed(R, dfdx(),
-                            [this, lp = LStored.getRevSweepAsExpr()](Expr* s) {
-                              return BuildOp(BO_Mul, CloneNode(lp), s);
-                            });
+      // dr = xl * df/dxi (for R), built lazily; claims the shared seed (a clone
+      // if dl already took it raw).
+      Rdiff = seed
+                  ? Visit(R,
+                          [this, &seed,
+                           lp = LStored.getRevSweepAsExpr()]() -> Expr* {
+                            return BuildOp(BO_Mul, CloneNode(lp), seed.claim());
+                          })
+                  : Visit(R, static_cast<Expr*>(nullptr));
       // Assign right multiplier's variable with R.
       RDelayed.Finalize(Rdiff.getExpr());
       addToCurrentBlock(utils::unwrapIfSingleStmt(LPop), direction::reverse);
@@ -2865,7 +2885,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           Expr* RxR =
               BuildParens(BuildOp(BO_Mul, CloneNode(RRev), CloneNode(RRev)));
           dr = BuildOp(
-              BO_Mul, claimDfdx(),
+              BO_Mul, dfdx(),
               BuildOp(
                   UO_Minus,
                   BuildParens(BuildOp(
@@ -3426,6 +3446,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff EDiff = Visit(E, dfdE);
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeFinalizingDifferentiateSingleExpr(direction::reverse);
+    CompoundStmt* RCS = endBlock(direction::reverse);
+    Stmt* ForwardResult = endBlock(direction::forward);
+    std::reverse(RCS->body_begin(), RCS->body_end());
+    Stmt* ReverseResult = utils::unwrapIfSingleStmt(RCS);
+    return {StmtDiff(ForwardResult, ReverseResult), EDiff};
+  }
+
+  std::pair<StmtDiff, StmtDiff>
+  ReverseModeVisitor::DifferentiateSingleExpr(const Expr* E,
+                                              std::function<Expr*()> dfdE) {
+    beginBlock(direction::forward);
+    beginBlock(direction::reverse);
+    StmtDiff EDiff = Visit(E, std::move(dfdE));
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeFinalizingDifferentiateSingleExpr(
+          direction::reverse);
     CompoundStmt* RCS = endBlock(direction::reverse);
     Stmt* ForwardResult = endBlock(direction::forward);
     std::reverse(RCS->body_begin(), RCS->body_end());
@@ -4885,7 +4921,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!nonDiff) {
       // Try to create a pullback constructor call
       llvm::SmallVector<Expr*, 4> pullbackArgs;
-      Expr* dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, claimDfdx(),
+      Expr* dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, dfdx(),
                              m_DiffReq->getLocation());
       // primalArgs are also consumed by the reverse-forward and forward
       // constructor calls below; clone so each call owns its argument nodes.

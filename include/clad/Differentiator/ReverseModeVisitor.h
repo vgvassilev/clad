@@ -87,10 +87,6 @@ namespace clad {
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<DfdxSeed> m_Stack;
-    /// Adjoint seeds already handed out raw (claimSeed): a seed reused across
-    /// operands or frames is cloned on later uses so it never gains a second
-    /// parent, while an unused seed is never cloned.
-    llvm::DenseSet<const clang::Expr*> m_ConsumedSeeds;
     /// A sequence of DeclStmts containing "tape" variable declarations
     /// that will be put immediately in the beginning of derivative function
     /// block.
@@ -153,40 +149,29 @@ namespace clad {
         return false;
       return m_Stack.top().Eager || static_cast<bool>(m_Stack.top().Build);
     }
-    /// A node for one use of the adjoint seed \p S -- \p S itself on the first
-    /// use, a clone afterwards -- so a seed fanned out to several operands is
-    /// never shared, yet an unused seed is never cloned. \p S must be present;
-    /// use claimDfdx() where there may be none.
-    clang::Expr* claimSeed(clang::Expr* S) {
-      assert(S && "seed must be present");
-      if (m_ConsumedSeeds.insert(S).second)
-        return S;
-      return CloneNode(S);
-    }
-    /// A node for one use of the current dfdx() seed, or null if there is none.
-    clang::Expr* claimDfdx() {
-      clang::Expr* S = dfdx();
-      return S ? claimSeed(S) : nullptr;
-    }
-    /// Visit \p E propagating the adjoint \p seed to its leaves: the seed
-    /// materializes into the body only if a leaf consumes it, and \p build
-    /// transforms the claimed seed (raw first, cloned on reuse) on the way. A
-    /// null seed propagates "no seed".
-    StmtDiff visitWithSeed(const clang::Stmt* E, clang::Expr* seed,
-                           std::function<clang::Expr*(clang::Expr*)> build) {
-      if (!seed)
-        return Visit(E, static_cast<clang::Expr*>(nullptr));
-      return Visit(E, [this, seed, build = std::move(build)]() -> clang::Expr* {
-        return build(claimSeed(seed));
-      });
-    }
-    /// visitWithSeed propagating the claimed seed unchanged.
-    StmtDiff visitWithSeed(const clang::Stmt* E, clang::Expr* seed) {
-      if (!seed)
-        return Visit(E, static_cast<clang::Expr*>(nullptr));
-      return Visit(E,
-                   [this, seed]() -> clang::Expr* { return claimSeed(seed); });
-    }
+    /// Distributes one adjoint seed to several consumers: the first to claim it
+    /// takes the node itself, the rest get clones, so the seed is parented
+    /// exactly once and never shared. Local to a split point (a binary
+    /// operator, a conditional) -- the operands there consume it lazily and in
+    /// an order fixed only at run time, so a shared flag replaces a global
+    /// consumed-set.
+    class SeedClaim {
+      ReverseModeVisitor& m_RMV;
+      clang::Expr* m_Seed;
+      bool m_Taken = false;
+
+    public:
+      SeedClaim(ReverseModeVisitor& RMV, clang::Expr* Seed)
+          : m_RMV(RMV), m_Seed(Seed) {}
+      /// The seed node on the first claim, a clone on every later one.
+      clang::Expr* claim() {
+        if (m_Taken)
+          return m_RMV.CloneNode(m_Seed);
+        m_Taken = true;
+        return m_Seed;
+      }
+      explicit operator bool() const { return m_Seed != nullptr; }
+    };
     /// Visit \p stmt with the eager adjoint seed \p dfdS on top of the stack.
     StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* dfdS = nullptr) {
       m_CurVisitedStmt = stmt;
@@ -611,6 +596,11 @@ namespace clad {
     /// additionally created Stmts, second is a direct result of call to Visit.
     std::pair<StmtDiff, StmtDiff>
     DifferentiateSingleExpr(const clang::Expr* E, clang::Expr* dfdE = nullptr);
+    /// As above, but with a deferred seed materialized only if a leaf of \p E
+    /// consumes it -- lets a conditional's two arms lazily claim a shared seed.
+    std::pair<StmtDiff, StmtDiff>
+    DifferentiateSingleExpr(const clang::Expr* E,
+                            std::function<clang::Expr*()> dfdE);
     /// A helper methods to differentiate an argument of a CallExpr or a
     /// CXXConstructExpr.
     ///
