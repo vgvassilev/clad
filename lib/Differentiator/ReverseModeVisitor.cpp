@@ -986,30 +986,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     std::tie(ifTrueDiff, ifTrueExprDiff) = VisitBranch(ifTrue, dfdx());
     std::tie(ifFalseDiff, ifFalseExprDiff) = VisitBranch(ifFalse, dfdx());
 
+    // Clone the stored condition inside, after the empty-branch check, so an
+    // if that is never built (e.g. a conditional operator whose branches have
+    // no reverse sweep) does not orphan a clone of the condition.
     auto BuildIf = [&](Expr* Cond, Stmt* Then, Stmt* Else) -> Stmt* {
       if (!Then && !Else)
         return nullptr;
       if (!Then)
         Then = m_Sema.ActOnNullStmt(noLoc).get();
-      return clad_compat::IfStmt_Create(m_Context,
-                                        noLoc,
-                                        false,
-                                        nullptr,
-                                        nullptr,
-                                        Cond,
-                                        noLoc,
-                                        noLoc,
-                                        Then,
-                                        noLoc,
-                                        Else);
+      return clad_compat::IfStmt_Create(m_Context, noLoc, false, nullptr,
+                                        nullptr, CloneNode(Cond), noLoc, noLoc,
+                                        Then, noLoc, Else);
     };
 
-    // Fresh clone of the stored condition per consumer (forward if, reverse if,
-    // and each conditional operator) so it is never parented twice.
-    Stmt* Forward = BuildIf(CloneNode(condStored), ifTrueDiff.getStmt(),
-                            ifFalseDiff.getStmt());
-    Stmt* Reverse = BuildIf(CloneNode(condStored), ifTrueDiff.getStmt_dx(),
-                            ifFalseDiff.getStmt_dx());
+    // A fresh clone of the stored condition per consumer (forward if, reverse
+    // if, and each conditional operator) so it is never parented twice.
+    Stmt* Forward =
+        BuildIf(condStored, ifTrueDiff.getStmt(), ifFalseDiff.getStmt());
+    Stmt* Reverse =
+        BuildIf(condStored, ifTrueDiff.getStmt_dx(), ifFalseDiff.getStmt_dx());
     if (Forward)
       addToCurrentBlock(Forward, direction::forward);
     if (Reverse)
@@ -1366,11 +1361,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType type = value->getType();
     Expr* dfdf = nullptr;
     // m_Pullback.back() is a single template node shared by every return in the
-    // function; clone it so each return owns an independent seed subtree. Once
-    // a seed is parented raw (claimSeed), a template shared across returns
-    // would otherwise acquire two parents.
-    if (!m_Pullback.empty())
-      dfdf = CloneNode(m_Pullback.back());
+    // function; each return needs its own seed subtree, because once a seed is
+    // parented raw (claimSeed) a template shared across returns would acquire
+    // two parents. The literal seed (df/df = 1) is re-synthesized fresh rather
+    // than cloned, so no intermediate clone is orphaned when the seed is
+    // dropped; other seeds (e.g. a pullback parameter reference) are cloned.
+    if (!m_Pullback.empty()) {
+      Expr* pullback = m_Pullback.back();
+      if (const auto* IL = dyn_cast<IntegerLiteral>(pullback))
+        dfdf = ConstantFolder::synthesizeLiteral(IL->getType(), m_Context,
+                                                 IL->getValue().getZExtValue());
+      else
+        dfdf = CloneNode(pullback);
+    }
     if (dfdf && (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf)) &&
         type->isScalarType()) {
       ExprResult tmp = dfdf;
