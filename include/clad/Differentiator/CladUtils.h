@@ -397,6 +397,8 @@ namespace clad {
 
     /// Find namespace clad declaration.
     clang::NamespaceDecl* GetCladNamespace(clang::Sema& S);
+    /// Reset AST-owned lookup caches for a new translation unit.
+    void ResetCladUtilsASTCache(clang::ASTContext& C);
     /// Create clad::array<T> type.
     clang::QualType GetCladArrayOfType(clang::Sema& S, clang::QualType T);
     /// Create clad::matrix<T> type.
