@@ -1532,7 +1532,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // outside the function) fall back to the eager remapping clone.
     VarDecl* VD = nullptr;
     StmtDiff::In primal;
-    if (auto* OrigVD = dyn_cast<VarDecl>(DRE->getDecl())) {
+    if (const auto* OrigVD = dyn_cast<VarDecl>(DRE->getDecl())) {
       auto rit = m_DeclReplacements.find(OrigVD);
       if (rit != m_DeclReplacements.end()) {
         VD = rit->second;
