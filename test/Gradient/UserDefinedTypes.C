@@ -961,7 +961,10 @@ double fn26(double x, double y) {
 // CHECK-NEXT:      ptrClass p(&x);
 // CHECK-NEXT:      ptrClass _d_p(_d_x);
 // CHECK-NEXT:      clad::ValueAndAdjoint<double &, double &> _t0 = p.operator_star_reverse_forw(&_d_p);
+// CHECK-NEXT:      {
 // CHECK-NEXT:      _t0.adjoint += 1;
+// CHECK-NEXT:      p.operator_star_pullback(&_d_p);
+// CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
 struct MyStructWrapper {
@@ -1264,6 +1267,7 @@ double fn34(double x, double y) {
 // CHECK-NEXT:    clad::ValueAndAdjoint<double &, double &> _t1 = obj_x.conversion_operator_reverse_forw(clad::Tag<double &>(), &_d_obj_x);
 // CHECK-NEXT:    {
 // CHECK-NEXT:        _t1.adjoint += 1;
+// CHECK-NEXT:        obj_x.conversion_operator_pullback(&_d_obj_x);
 // CHECK-NEXT:        _d_conv.val += 1;
 // CHECK-NEXT:    }
 // CHECK-NEXT:    obj_y.conversion_operator_pullback(_d_conv, &_d_obj_y);

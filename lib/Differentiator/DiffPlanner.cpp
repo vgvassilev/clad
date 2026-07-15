@@ -1139,6 +1139,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
 
     bool nonDiff = false;
+    bool hasNoMemoryInputForPointerOrRefReturn = false;
     // FIXME: We might want to support nested calls to differentiate/gradient
     // inside differentiated functions.
     if (!m_TopMostReq) {
@@ -1221,10 +1222,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (!(MD && MD->isInstance()) && !hasPointerOrRefReturn &&
           allArgumentsAreLiterals(E->arguments(), m_ParentReq))
         nonDiff = true;
-      // In the reverse mode, such functions don't have dfdx()
-      if (!utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
-          m_TopMostReq->Mode == DiffMode::reverse)
-        nonDiff = true;
+      // In reverse mode, calls without memory parameters normally have no
+      // adjoint destination for a pointer or reference return. Defer the final
+      // decision for instance calls until custom derivatives are known because
+      // their implicit object can carry the adjoint.
+      hasNoMemoryInputForPointerOrRefReturn =
+          !utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
+          m_TopMostReq->Mode == DiffMode::reverse;
       // Skip reverse-mode scheduling for integral-return helper calls that
       // cannot accumulate through memory arguments. Keep this narrow to avoid
       // suppressing diagnostics on variadic/non-helper calls.
@@ -1371,7 +1375,33 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         E->getDirectCallee();
     bool shouldUseRestoreTracker =
         utils::shouldUseRestoreTracker(request.Function);
-    if (!(LookupCustomDerivativeDecl(request) || nonDiff) || requestTBR) {
+    bool hasCustomPullback = LookupCustomDerivativeDecl(request);
+    if (hasNoMemoryInputForPointerOrRefReturn) {
+      const auto* calledMethod = dyn_cast<CXXMethodDecl>(FD);
+      bool isRefReturningInstanceCall =
+          request.Mode == DiffMode::pullback && calledMethod &&
+          calledMethod->isInstance() &&
+          utils::isNonConstReferenceType(request->getReturnType());
+      bool hasCustomReverseForw = false;
+      if (isRefReturningInstanceCall) {
+        DiffRequest forwPassRequest;
+        forwPassRequest.Function = request.Function;
+        forwPassRequest.BaseFunctionName = request.BaseFunctionName;
+        forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
+        forwPassRequest.CallContext = request.CallContext;
+        forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
+        hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
+      }
+
+      // A reverse_forw still needs a matching pullback. Preserve the existing
+      // forward-only contract only when a custom reverse_forw has no custom
+      // pullback, as with smart-pointer and reference-wrapper helpers.
+      if (!isRefReturningInstanceCall ||
+          (hasCustomReverseForw && !hasCustomPullback))
+        nonDiff = true;
+    }
+
+    if (!(hasCustomPullback || nonDiff) || requestTBR) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
           std::make_unique<AnalysisDeclContext>(
@@ -1452,7 +1482,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       forwPassRequest.CallContext = request.CallContext;
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
       QualType returnType = request->getReturnType();
-      bool hasCustomPullback = request.CustomDerivative != nullptr;
       bool hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
 
       if (hasCustomReverseForw ||

@@ -2129,7 +2129,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // derivatives even if there is no `dfdx()` and thus we should call the
     // derived function. In the case of member functions, `implicit`
     // this object is always passed by reference.
-    if (!nonDiff && !dfdx() && !utils::hasMemoryTypeParams(FD))
+    bool isRefReturningInstanceCall =
+        MD && MD->isInstance() &&
+        utils::isNonConstReferenceType(FD->getReturnType());
+    bool needsPullbackForRefReturningInstance =
+        isRefReturningInstanceCall && !elideReverseForw;
+    // A non-elidable reverse_forw for a reference-returning member function
+    // leaves the adjoint on the returned reference. Keep the call
+    // differentiable so its statically scheduled pullback can propagate it
+    // through the implicit object.
+    if (!nonDiff && !dfdx() && !utils::hasMemoryTypeParams(FD) &&
+        !needsPullbackForRefReturningInstance)
       nonDiff = true;
 
     // If all arguments are constant literals, then this does not contribute to
@@ -2188,7 +2198,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
       }
       pullbackFD = FindDerivedFunction(pullbackRequest);
-      if (pullbackFD && utils::hasEmptyBody(pullbackFD))
+      if (pullbackFD && utils::hasEmptyBody(pullbackFD) &&
+          !needsPullbackForRefReturningInstance)
+        nonDiff = true;
+      // Custom elidable reverse_forw helpers propagate their adjoint directly
+      // and intentionally have no pullback, for example smart pointers.
+      if (!pullbackFD && isRefReturningInstanceCall && elideReverseForw)
         nonDiff = true;
     }
 
@@ -2348,22 +2363,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           } else
             hasDynamicNonDiffParams = true;
         }
-      // Reference-returning instance calls can have custom reverse_forw helpers
-      // that propagate through an adjoint reference. If the static planner did
-      // not schedule a pullback, retry custom lookup first. Only calls whose
-      // reverse_forw helper is a member function fall back to generated
-      // pullbacks here; custom free-function helpers such as smart pointer
-      // operator* should provide their own pullback or need none.
-      bool missingRefReturnPullback =
-          !pullbackFD && calleeFnForwPassFD && MD && MD->isInstance() &&
-          utils::isNonConstReferenceType(returnType);
-      bool hasMemberForwPass =
-          missingRefReturnPullback && isa<CXXMethodDecl>(calleeFnForwPassFD);
-      bool shouldGenerateMissingPullback =
-          !m_DiffReq.CallContext || hasDynamicNonDiffParams ||
-          FD->getNameAsString() == "cudaMemcpy" || hasMemberForwPass;
-      if (missingRefReturnPullback || !m_DiffReq.CallContext ||
-          hasDynamicNonDiffParams || FD->getNameAsString() == "cudaMemcpy") {
+      if (!m_DiffReq.CallContext || hasDynamicNonDiffParams ||
+          FD->getNameAsString() == "cudaMemcpy") {
         pullbackFD = nullptr;
         // Try to find it in builtin derivatives.
         std::string customPullback = pullbackRequest.ComputeDerivativeName();
@@ -2376,7 +2377,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           pullbackFD = foundCE->getDirectCallee();
 
         // Derivative was not found, request differentiation
-        if (!pullbackFD && shouldGenerateMissingPullback)
+        if (!pullbackFD)
           pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
       }
 
