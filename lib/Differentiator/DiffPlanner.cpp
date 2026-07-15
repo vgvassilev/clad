@@ -1376,6 +1376,16 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     bool shouldUseRestoreTracker =
         utils::shouldUseRestoreTracker(request.Function);
     bool hasCustomPullback = LookupCustomDerivativeDecl(request);
+    // Share one request between early classification and final scheduling.
+    DiffRequest forwPassRequest;
+    if (request.Mode == DiffMode::pullback) {
+      forwPassRequest.Function = request.Function;
+      forwPassRequest.BaseFunctionName = request.BaseFunctionName;
+      forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
+      forwPassRequest.CallContext = request.CallContext;
+      forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
+    }
+
     if (hasNoMemoryInputForPointerOrRefReturn) {
       const auto* calledMethod = dyn_cast<CXXMethodDecl>(FD);
       bool isRefReturningInstanceCall =
@@ -1383,15 +1393,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           calledMethod->isInstance() &&
           utils::isNonConstReferenceType(request->getReturnType());
       bool hasCustomReverseForw = false;
-      if (isRefReturningInstanceCall) {
-        DiffRequest forwPassRequest;
-        forwPassRequest.Function = request.Function;
-        forwPassRequest.BaseFunctionName = request.BaseFunctionName;
-        forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
-        forwPassRequest.CallContext = request.CallContext;
-        forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
+      if (isRefReturningInstanceCall)
         hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
-      }
 
       // A reverse_forw still needs a matching pullback. Preserve the existing
       // forward-only contract only when a custom reverse_forw has no custom
@@ -1475,11 +1478,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     }
 
     if (request.Mode == DiffMode::pullback) {
-      DiffRequest forwPassRequest;
-      forwPassRequest.Function = request.Function;
-      forwPassRequest.BaseFunctionName = request.BaseFunctionName;
-      forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
-      forwPassRequest.CallContext = request.CallContext;
+      // TBR can prove that no state needs restoring, so refresh this before
+      // scheduling the request.
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
       QualType returnType = request->getReturnType();
       bool hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
