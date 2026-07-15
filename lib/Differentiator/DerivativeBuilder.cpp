@@ -58,9 +58,10 @@ namespace clad {
 
 DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
                                      DerivedFnCollector& DFC,
-                                     clad::DynamicGraph<DiffRequest>& G)
+                                     clad::DynamicGraph<DiffRequest>& G,
+                                     OwnedAnalysisContexts& ADC)
     : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()), m_DFC(DFC),
-      m_DiffRequestGraph(G),
+      m_DiffRequestGraph(G), m_AllAnalysisDC(ADC),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
       m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
 
@@ -402,11 +403,17 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     FunctionDecl* derivative = this->FindDerivedFunction(request);
     if (!derivative) {
       alreadyDerived = false;
-      // FIXME: Our analyses are closely tied to the DiffPlanner. Dynamic
-      // derivatives don't have m_AnalysisDC. We should either disable
-      // dynamic scheduling or build m_AnalysisDC here.
-      request.EnableTBRAnalysis = false;
-      request.EnableVariedAnalysis = false;
+
+      if (request.Mode == DiffMode::reverse && request.Function &&
+          request.Function->isDefined() && request.EnableVariedAnalysis) {
+        for (const auto& dParam : request.DVI)
+          if (const auto* PVD = dyn_cast<VarDecl>(dParam.param))
+            request.addVariedDecl(PVD);
+        PrepareRequestAnalysis(request, m_AllAnalysisDC);
+      } else {
+        request.EnableTBRAnalysis = false;
+        request.EnableVariedAnalysis = false;
+      }
       request.EnableUsefulAnalysis = false;
 
       {
