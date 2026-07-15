@@ -62,6 +62,52 @@ const Stmt* findPrimalSharedNode(const Stmt* Derivative, const Stmt* Primal) {
   return nullptr;
 }
 
+const ValueDecl* findOriginalRef(const Stmt* Derivative,
+                                 const FunctionDecl* Original) {
+  if (!Derivative || !Original)
+    return nullptr;
+  // A generated derivative owns fresh clones of every param/local it needs; a
+  // reference still bound to one of Original's own decls means its remap was
+  // forgotten (the primal clone was never registered in m_DeclReplacements).
+  // Walk the finished body and flag the first such reference.
+  struct Finder : RecursiveASTVisitor<Finder> {
+    const FunctionDecl* Original;
+    const ValueDecl* Stray = nullptr;
+    bool shouldVisitImplicitCode() const { return true; }
+    bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+      const ValueDecl* D = DRE->getDecl();
+      // Flag only params/locals declared DIRECTLY in Original -- those are what
+      // BuildParams/VisitDeclStmt clone and must remap. A nested lambda's own
+      // parameter (context is the lambda's CXXMethod, not Original) is
+      // referenced by design when the lambda is preserved, not a forgotten
+      // clone, so exact-context match excludes it.
+      const auto* DC = dyn_cast<FunctionDecl>(D->getDeclContext());
+      if (isa<VarDecl>(D) && DC &&
+          DC->getCanonicalDecl() == Original->getCanonicalDecl()) {
+        Stray = D;
+        return false; // stop at the first offender
+      }
+      return true;
+    }
+  } F;
+  F.Original = Original;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  F.TraverseStmt(const_cast<Stmt*>(Derivative));
+  return F.Stray;
+}
+
+IntegrityReport verifyDerivative(const Stmt* Derivative,
+                                 const FunctionDecl* Original) {
+  IntegrityReport R;
+  R.SharedNode = findSharedNode(Derivative);
+  if (Original) {
+    if (const Stmt* PrimalBody = Original->getBody())
+      R.PrimalNode = findPrimalSharedNode(Derivative, PrimalBody);
+    R.StrayRef = findOriginalRef(Derivative, Original);
+  }
+  return R;
+}
+
 const Stmt* findSharedNode(const Stmt* Root) {
   if (!Root)
     return nullptr;

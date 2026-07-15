@@ -25,6 +25,7 @@
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/VectorForwardModeVisitor.h"
 #include "clad/Differentiator/VectorPushForwardModeVisitor.h"
+#include "clad/Differentiator/Version.h"
 #include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/ASTContext.h"
@@ -586,6 +587,15 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           << VD << L;
     }
 
+#if CLANG_VERSION_MAJOR > 16
+    // Snapshot the diagnostic tally so the integrity check below can tell a
+    // clean differentiation from one that hit an unsupported construct (which
+    // is cloned wholesale and knowingly keeps un-remapped references). Guarded
+    // with the check itself: below clang-17 it is unused (-Werror=unused).
+    DiagnosticsEngine& Diags = m_Sema.getDiagnostics();
+    unsigned DiagsBefore = Diags.getNumWarnings() + Diags.getNumErrors();
+#endif
+
     DerivativeAndOverload result{};
     if (request.Mode == DiffMode::forward) {
       BaseForwardModeVisitor V(*this, request);
@@ -646,44 +656,60 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     }
 
 #if CLANG_VERSION_MAJOR > 16
-    // A generated derivative must be a proper tree in its Stmt child-edge
-    // structure: no node is the child (Stmt::children()) of two parents,
-    // because a later in-place edit of a shared node leaks into its other
-    // users (and a shared aggregate initializer breaks CodeGen). Below
+    // A generated derivative must satisfy several structural invariants; below
     // clang-17 buildClonedLambda cannot synthesize a fresh closure, so lambda
-    // derivatives legitimately share and this check is unreachable.
+    // derivatives legitimately share and these checks are unreachable.
     if (auto* FD = dyn_cast_or_null<clang::FunctionDecl>(result.derivative))
       if (clang::Stmt* Body = FD->getBody()) {
-        const clang::Stmt* Shared = findSharedNode(Body);
-        // Debug asserts builds abort here; release builds keep the diagnostic
-        // so a sharing regression is not silently shipped.
-        assert(!Shared && "clad generated a derivative with a shared AST node");
-        if (Shared)
+        // Compute cleanliness before the diagnostics below inflate the tally.
+        bool CleanDerivation =
+            Diags.getNumWarnings() + Diags.getNumErrors() == DiagsBefore;
+        IntegrityReport Report = verifyDerivative(Body, request.Function);
+
+        // A derivative must be a proper tree in its Stmt child-edge structure:
+        // no node the child of two parents, because a later in-place edit of a
+        // shared node leaks into its other users (and a shared aggregate
+        // initializer breaks CodeGen). Debug builds abort here; release builds
+        // keep the diagnostic so a regression is not silently shipped.
+        assert(!Report.SharedNode &&
+               "clad generated a derivative with a shared AST node");
+        if (Report.SharedNode)
           diag(DiagnosticsEngine::Warning, FD->getLocation(),
                "clad internally reused a '%0' AST node while differentiating "
-               "%1; this is a clad bug -- please report it at "
-               "https://github.com/vgvassilev/clad")
-              << Shared->getStmtClassName() << FD;
+               "%1; this is a clad bug -- please report it at %2")
+              << Report.SharedNode->getStmtClassName() << FD
+              << getCladRepositoryURL();
 
-        // A derivative must also not splice a node owned by its primal. The
-        // original function's AST outlives differentiation, so a shared node
-        // exposes the user's own code to any later in-place edit of the
-        // derivative -- the same corruption risk findSharedNode guards against,
-        // across the primal/derivative boundary it cannot see. Enforce it too.
-        if (const clang::FunctionDecl* PrimalFD = request.Function)
-          if (const clang::Stmt* PrimalBody = PrimalFD->getBody()) {
-            const clang::Stmt* FromPrimal =
-                findPrimalSharedNode(Body, PrimalBody);
-            assert(!FromPrimal &&
-                   "clad spliced a primal AST node into a derivative");
-            if (FromPrimal)
-              diag(DiagnosticsEngine::Warning, FD->getLocation(),
-                   "clad reused a '%0' AST node from the original function "
-                   "while "
-                   "differentiating %1; this is a clad bug -- please report it "
-                   "at https://github.com/vgvassilev/clad")
-                  << FromPrimal->getStmtClassName() << FD;
-          }
+        // It must also not splice a node owned by its primal: the original
+        // function's AST outlives differentiation, so a later in-place edit of
+        // a shared node would corrupt the user's own code.
+        assert(!Report.PrimalNode &&
+               "clad spliced a primal AST node into a derivative");
+        if (Report.PrimalNode)
+          diag(DiagnosticsEngine::Warning, FD->getLocation(),
+               "clad reused a '%0' AST node from the original function while "
+               "differentiating %1; this is a clad bug -- please report it at "
+               "%2")
+              << Report.PrimalNode->getStmtClassName() << FD
+              << getCladRepositoryURL();
+
+        // And it must reference only decls it owns. A DeclRefExpr still bound
+        // to one of the original function's own params/locals is a forgotten
+        // reference-remap. Only meaningful for a clean derivation: an
+        // unsupported construct is cloned wholesale and knowingly keeps such
+        // references in a derivative that is not used.
+        if (CleanDerivation) {
+          assert(!Report.StrayRef &&
+                 "derivative references an un-remapped decl of the original");
+          if (Report.StrayRef)
+            diag(
+                DiagnosticsEngine::Warning, FD->getLocation(),
+                "clad left a reference to '%0' bound to the original function "
+                "while differentiating %1; this is a clad bug -- please report "
+                "it at %2")
+                << Report.StrayRef->getNameAsString() << FD
+                << getCladRepositoryURL();
+        }
       }
 #endif
 
