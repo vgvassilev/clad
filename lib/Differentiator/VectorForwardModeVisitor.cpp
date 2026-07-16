@@ -16,7 +16,7 @@ using namespace clang;
 namespace clad {
 VectorForwardModeVisitor::VectorForwardModeVisitor(DerivativeBuilder& builder,
                                                    const DiffRequest& request)
-    : BaseForwardModeVisitor(builder, request), m_IndVarCountExpr(nullptr) {}
+    : BaseForwardModeVisitor(builder, request) {}
 
 VectorForwardModeVisitor::~VectorForwardModeVisitor() {}
 
@@ -28,8 +28,8 @@ DiffMode VectorForwardModeVisitor::GetPushForwardMode() {
   return DiffMode::vector_pushforward;
 }
 
-void VectorForwardModeVisitor::SetIndependentVarsExpr(Expr* IndVarCountExpr) {
-  m_IndVarCountExpr = IndVarCountExpr;
+void VectorForwardModeVisitor::SetIndependentVarCountDecl(VarDecl* VD) {
+  m_IndVarCountDecl = VD;
 }
 
 DerivativeAndOverload VectorForwardModeVisitor::Derive() {
@@ -70,7 +70,10 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   DiffParams args{};
   for (const auto& dParam : m_DiffReq.DVI)
     args.push_back(dParam.param);
-  auto params = BuildVectorModeParams(args);
+  // Running sum of independent-variable counts, filled in by
+  // BuildVectorModeParams and materialized into m_IndVarCountDecl below.
+  Expr* indVarCountExpr = nullptr;
+  auto params = BuildVectorModeParams(args, indVarCountExpr);
   vectorDiffFD->setParams(
       clad_compat::makeArrayRef(params.data(), params.size()));
   vectorDiffFD->setBody(nullptr);
@@ -82,11 +85,11 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
 
   // Instantiate a variable indepVarCount to store the total number of
   // independent variables requested.
-  // size_t indepVarCount = m_IndVarCountExpr;
-  auto* totalIndVars = BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount",
-                                    m_IndVarCountExpr);
+  // size_t indepVarCount = indVarCountExpr;
+  auto* totalIndVars =
+      BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount", indVarCountExpr);
   addToCurrentBlock(BuildDeclStmt(totalIndVars));
-  m_IndVarCountExpr = BuildDeclRef(totalIndVars);
+  m_IndVarCountDecl = totalIndVars;
 
   // Expression for maintaining the number of independent variables processed
   // till now present as array elements. This will be sum of sizes of all such
@@ -128,8 +131,8 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
         // Create an identity matrix for the parameter,
         // with number of rows equal to the size of the array,
         // and number of columns equal to the number of independent variables
-        llvm::SmallVector<Expr*, 3> args = {
-            getSize, CloneNode(m_IndVarCountExpr), offsetExpr};
+        llvm::SmallVector<Expr*, 3> args = {getSize, buildIndVarCountRef(),
+                                            offsetExpr};
         dVectorParam = BuildIdentityMatrixExpr(dParamType, args, loc);
 
         // Update the array independent expression. getSize is already used by
@@ -144,8 +147,7 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
         }
       } else {
         // Create a one hot vector for the parameter.
-        llvm::SmallVector<Expr*, 2> args = {CloneNode(m_IndVarCountExpr),
-                                            offsetExpr};
+        llvm::SmallVector<Expr*, 2> args = {buildIndVarCountRef(), offsetExpr};
         dVectorParam = BuildCallExprToCladFunction("one_hot_vector", args,
                                                    {dParamType}, loc);
         ++nonArrayIndVarCount;
@@ -158,7 +160,7 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
         continue;
       // This parameter is not an independent variable.
       // Initialize by all zeros.
-      Expr* dCount = CloneNode(m_IndVarCountExpr);
+      Expr* dCount = buildIndVarCountRef();
       dVectorParam = BuildCallExprToCladFunction("zero_vector", {dCount},
                                                  {dParamType}, loc);
     }
@@ -356,7 +358,8 @@ VectorForwardModeVisitor::CreateVectorModeOverload(FunctionDecl* derivative) {
 }
 
 llvm::SmallVector<clang::ParmVarDecl*, 8>
-VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
+VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams,
+                                                Expr*& indVarCountExpr) {
   llvm::SmallVector<clang::ParmVarDecl*, 8> params, paramDerivatives;
   params.reserve(m_DiffReq->getNumParams() + diffParams.size());
   auto derivativeFnType = cast<FunctionProtoType>(m_Derivative->getType());
@@ -395,14 +398,14 @@ VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
     if (utils::isArrayOrPointerType(PVD->getType())) {
       m_ParamVariables[*it] = (Expr*)BuildDeclRef(dPVD);
       // dPVD will be a clad::array or clad::array_ref, both have size() method.
-      // If m_IndVarCountExpr is null, initialize it with dPVD.size().
+      // If indVarCountExpr is null, initialize it with dPVD.size().
       // Otherwise, increment it by dPVD.size().
       Expr* getSize = BuildArrayRefSizeExpr(m_ParamVariables[*it]);
-      if (!m_IndVarCountExpr) {
-        m_IndVarCountExpr = getSize;
+      if (!indVarCountExpr) {
+        indVarCountExpr = getSize;
       } else {
-        m_IndVarCountExpr =
-            BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr, getSize);
+        indVarCountExpr =
+            BuildOp(BinaryOperatorKind::BO_Add, indVarCountExpr, getSize);
       }
     } else {
       m_ParamVariables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD), noLoc);
@@ -415,11 +418,11 @@ VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
   // of non-array parameters.
   Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
       m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
-  if (!m_IndVarCountExpr) {
-    m_IndVarCountExpr = nonArrayIndVarCountExpr;
+  if (!indVarCountExpr) {
+    indVarCountExpr = nonArrayIndVarCountExpr;
   } else if (nonArrayIndVarCount != 0) {
-    m_IndVarCountExpr = BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr,
-                                nonArrayIndVarCountExpr);
+    indVarCountExpr = BuildOp(BinaryOperatorKind::BO_Add, indVarCountExpr,
+                              nonArrayIndVarCountExpr);
   }
 
   // insert the derivative parameters at the end of the parameter list.
@@ -564,7 +567,7 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
 StmtDiff VectorForwardModeVisitor::VisitFloatingLiteral(
     const clang::FloatingLiteral* FL) {
   SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-  Expr* dCount = CloneNode(m_IndVarCountExpr);
+  Expr* dCount = buildIndVarCountRef();
   auto* zero_vec = BuildCallExprToCladFunction("zero_vector", {dCount},
                                                {FL->getType()}, fakeLoc);
   return StmtDiff(Clone(FL), zero_vec);
@@ -573,7 +576,7 @@ StmtDiff VectorForwardModeVisitor::VisitFloatingLiteral(
 StmtDiff
 VectorForwardModeVisitor::VisitIntegerLiteral(const clang::IntegerLiteral* IL) {
   SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-  Expr* dCount = CloneNode(m_IndVarCountExpr);
+  Expr* dCount = buildIndVarCountRef();
   auto* zero_vec = BuildCallExprToCladFunction("zero_vector", {dCount},
                                                {IL->getType()}, fakeLoc);
   return StmtDiff(Clone(IL), zero_vec);
