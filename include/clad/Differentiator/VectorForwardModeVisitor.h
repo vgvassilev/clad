@@ -17,11 +17,13 @@ protected:
   /// m_Variables map because all other intermediate variables will have
   /// derivatives as vectors.
   std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_ParamVariables;
-  /// Expression for total number of independent variables. This also includes
-  /// the size of array independent variables which will be inferred from the
-  /// size of the corresponding clad array they provide at runtime for storing
-  /// the derivatives.
-  clang::Expr* m_IndVarCountExpr;
+  /// The generated `indepVarCount` variable (total number of independent
+  /// variables). Cached as the decl so each read rebuilds a fresh DeclRef
+  /// instead of sharing one node.
+  clang::VarDecl* m_IndVarCountDecl = nullptr;
+
+  /// Build a fresh reference to the independent-variable-count variable.
+  clang::Expr* buildIndVarCountRef() { return BuildDeclRef(m_IndVarCountDecl); }
 
 public:
   VectorForwardModeVisitor(DerivativeBuilder& builder,
@@ -55,7 +57,7 @@ public:
   /// function parameter types and the differentiation mode are implicitly
   /// taken from the data member variables.
   llvm::SmallVector<clang::ParmVarDecl*, 8>
-  BuildVectorModeParams(DiffParams& diffParams);
+  BuildVectorModeParams(DiffParams& diffParams, clang::Expr*& indVarCountExpr);
 
   /// Get an expression used to initialize the one-hot vector for the
   /// given index and size. A one-hot vector is a vector with all elements
@@ -83,8 +85,7 @@ public:
   std::string GetPushForwardFunctionSuffix() override;
   DiffMode GetPushForwardMode() override;
 
-  // Function for setting the independent variables for vector mode.
-  void SetIndependentVarsExpr(clang::Expr* IndVarCountExpr);
+  void SetIndependentVarCountDecl(clang::VarDecl* VD);
 };
 } // end namespace clad
 

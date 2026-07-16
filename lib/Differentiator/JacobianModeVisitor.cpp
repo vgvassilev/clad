@@ -66,6 +66,10 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
   // differentiation.
   size_t nonArrayIndVarCount = 0;
 
+  // Running sum of independent-variable counts, materialized into the
+  // m_IndVarCountDecl variable below.
+  Expr* indVarCountExpr = nullptr;
+
   // Set the parameters for the derivative.
   llvm::SmallVector<ParmVarDecl*, 16> params;
   llvm::SmallVector<ParmVarDecl*, 16> derivedParams;
@@ -100,11 +104,11 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                                            /*MemberFunctionName=*/"rows", {});
       llvm::StringRef PVDName = PVD->getName();
       if (!PVDName.contains("_clad_out_")) {
-        if (!m_IndVarCountExpr)
-          m_IndVarCountExpr = getSize;
+        if (!indVarCountExpr)
+          indVarCountExpr = getSize;
         else
-          m_IndVarCountExpr =
-              BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr, getSize);
+          indVarCountExpr =
+              BuildOp(BinaryOperatorKind::BO_Add, indVarCountExpr, getSize);
       }
     } else if (PVD->getType()->isReferenceType()) {
       ParmVarDecl* derivedPVD =
@@ -136,11 +140,11 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
   // of non-array parameters.
   Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
       m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
-  if (!m_IndVarCountExpr) {
-    m_IndVarCountExpr = nonArrayIndVarCountExpr;
+  if (!indVarCountExpr) {
+    indVarCountExpr = nonArrayIndVarCountExpr;
   } else if (nonArrayIndVarCount != 0) {
-    m_IndVarCountExpr = BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr,
-                                nonArrayIndVarCountExpr);
+    indVarCountExpr = BuildOp(BinaryOperatorKind::BO_Add, indVarCountExpr,
+                              nonArrayIndVarCountExpr);
   }
 
   vectorDiffFD->setParams(
@@ -149,11 +153,11 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
 
   // Instantiate a variable indepVarCount to store the total number of
   // independent variables requested.
-  // size_t indepVarCount = m_IndVarCountExpr;
-  auto* totalIndVars = BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount",
-                                    m_IndVarCountExpr);
+  // size_t indepVarCount = indVarCountExpr;
+  auto* totalIndVars =
+      BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount", indVarCountExpr);
   addToCurrentBlock(BuildDeclStmt(totalIndVars));
-  m_IndVarCountExpr = BuildDeclRef(totalIndVars);
+  m_IndVarCountDecl = totalIndVars;
 
   for (DeclStmt* decl : adjointDecls)
     addToCurrentBlock(decl);
@@ -201,8 +205,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
         // Create an identity matrix for the parameter,
         // with number of rows equal to the size of the array,
         // and number of columns equal to the number of independent variables
-        llvm::SmallVector<Expr*, 3> args = {
-            getSize, CloneNode(m_IndVarCountExpr), offsetExpr};
+        llvm::SmallVector<Expr*, 3> args = {getSize, buildIndVarCountRef(),
+                                            offsetExpr};
         dVectorParam = BuildIdentityMatrixExpr(dParamType, args, loc);
 
         // Update the array independent expression. getSize is already used by
@@ -215,8 +219,7 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                       CloneNode(getSize));
       } else {
         // Create a one hot vector for the parameter.
-        llvm::SmallVector<Expr*, 2> args = {CloneNode(m_IndVarCountExpr),
-                                            offsetExpr};
+        llvm::SmallVector<Expr*, 2> args = {buildIndVarCountRef(), offsetExpr};
         dVectorParam = BuildCallExprToCladFunction("one_hot_vector", args,
                                                    {dParamType}, loc);
         ++nonArrayIndVarCount;
@@ -229,7 +232,7 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
         continue;
       // This parameter is not an independent variable.
       // Initialize by all zeros.
-      Expr* dCount = CloneNode(m_IndVarCountExpr);
+      Expr* dCount = buildIndVarCountRef();
       dVectorParam = BuildCallExprToCladFunction("zero_vector", {dCount},
                                                  {dParamType}, loc);
     }

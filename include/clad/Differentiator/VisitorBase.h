@@ -795,6 +795,11 @@ namespace clad {
     clang::Expr* CloneNode(const clang::Expr* E);
     /// Statement overload of the structural copy above.
     clang::Stmt* CloneNode(const clang::Stmt* S);
+    /// Return a fresh clone of the cached `_d_this` adjoint reference, so each
+    /// consumer owns its copy and never parents the one cached node twice.
+    clang::Expr* cloneThisExprDerivative() {
+      return CloneNode(m_ThisExprDerivative);
+    }
     /// A deferred CloneNode(\p N): the clone is produced only if the StmtDiff
     /// representation it is stored in is actually read, so a representation no
     /// consumer needs allocates no orphaned clone. Drop-in for CloneNode(N) in

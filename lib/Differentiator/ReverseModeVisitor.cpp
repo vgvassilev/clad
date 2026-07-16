@@ -580,7 +580,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // ```
     if (!CI->isMemberInitializer()) {
       beginBlock(direction::reverse);
-      Expr* dthisObj = BuildOp(UO_Deref, CloneNode(m_ThisExprDerivative));
+      Expr* dthisObj = BuildOp(UO_Deref, cloneThisExprDerivative());
       StmtDiff initDiff = Visit(CI->getInit(), dthisObj);
       // Build the placement new.
       Expr* initCall = nullptr;
@@ -618,7 +618,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     llvm::StringRef fieldName = CI->getMember()->getName();
     Expr* memberDiff = utils::BuildMemberExpr(
-        m_Sema, getCurrentScope(), CloneNode(m_ThisExprDerivative), fieldName);
+        m_Sema, getCurrentScope(), cloneThisExprDerivative(), fieldName);
 
     beginBlock(direction::reverse);
     QualType memberTy = CI->getMember()->getType();
@@ -635,9 +635,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* member = utils::BuildMemberExpr(m_Sema, getCurrentScope(), thisExpr,
                                             fieldName);
       init = BuildOp(BO_Assign, member, initDiff.getExpr());
-      Expr* memberDx =
-          utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                 CloneNode(m_ThisExprDerivative), fieldName);
+      Expr* memberDx = utils::BuildMemberExpr(
+          m_Sema, getCurrentScope(), cloneThisExprDerivative(), fieldName);
       if (!memberDx->getType()->isRealType())
         initDx = BuildOp(BO_Assign, memberDx, initDiff.getExpr_dx());
     }
@@ -4778,7 +4777,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     // m_ThisExprDerivative is a single cached `_d_this` ref; hand out a fresh
     // clone so distinct member accesses do not share the same base node.
-    return {clonedCTE, CloneNode(m_ThisExprDerivative)};
+    return {clonedCTE, cloneThisExprDerivative()};
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXTemporaryObjectExpr(
