@@ -4,6 +4,9 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 
+#include "clang/AST/Decl.h"
+#include "clang/AST/OperationKinds.h"
+
 #include "llvm/Support/SaveAndRestore.h"
 
 using namespace clang;
@@ -89,7 +92,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
       continue;
     auto derivedPVDName = "_d_vector_" + std::string(PVDII->getName());
     IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
-    Expr* derivedExpr = nullptr;
+    VarDecl* adjointDecl = nullptr;
+    AdjointInfo::WrapKind wrap = AdjointInfo::Plain;
     if (utils::isArrayOrPointerType(PVD->getType())) {
       ParmVarDecl* derivedPVD =
           utils::BuildParmVarDecl(m_Sema, m_Derivative, derivedPVDII,
@@ -97,9 +101,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                                       m_Sema, m_DiffReq.Mode, PVD->getType()),
                                   PVD->getStorageClass());
       derivedParams.push_back(derivedPVD);
-      derivedExpr =
-          BuildOp(UO_Deref, BuildDeclRef(derivedPVD), PVD->getBeginLoc());
-      derivedExpr = utils::BuildParenExpr(m_Sema, derivedExpr);
+      adjointDecl = derivedPVD;
+      wrap = AdjointInfo::ParenDeref;
       Expr* getSize = BuildCallExprToMemFn(BuildDeclRef(derivedPVD),
                                            /*MemberFunctionName=*/"rows", {});
       llvm::StringRef PVDName = PVD->getName();
@@ -117,8 +120,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                                       m_Sema, m_DiffReq.Mode, PVD->getType()),
                                   PVD->getStorageClass());
       derivedParams.push_back(derivedPVD);
-      derivedExpr =
-          BuildOp(UO_Deref, BuildDeclRef(derivedPVD), PVD->getBeginLoc());
+      adjointDecl = derivedPVD;
+      wrap = AdjointInfo::Deref;
       nonArrayIndVarCount += 1;
     } else {
       VarDecl* derivedPVD =
@@ -127,10 +130,10 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                            ->getPointeeType(),
                        derivedPVDII);
       adjointDecls.push_back(BuildDeclStmt(derivedPVD));
-      derivedExpr = BuildDeclRef(derivedPVD);
+      adjointDecl = derivedPVD;
       nonArrayIndVarCount += 1;
     }
-    m_Variables[newPVD] = derivedExpr;
+    m_Variables[newPVD] = {adjointDecl, wrap};
   }
 
   params.insert(params.end(), derivedParams.begin(), derivedParams.end());
@@ -178,7 +181,6 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
     bool is_array =
         utils::isArrayOrPointerType(m_DiffReq->getParamDecl(i)->getType());
     ParmVarDecl* param = params[i];
-    Expr* paramDiff = m_Variables[param]->IgnoreParens();
     QualType dParamType = clad::utils::GetValueType(param->getType());
     // Desugaring the type is necessary to pass it to other templates
     dParamType = dParamType.getDesugaredType(m_Context);
@@ -198,9 +200,11 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                              nonArrayIndVarCountExpr);
 
       if (is_array) {
-        Expr* base = cast<UnaryOperator>(paramDiff)->getSubExpr();
+        // The adjoint is `(*_d_p)`; the array whose size we need is the bare
+        // `_d_p` reference (m_Variables stores its decl).
+        Expr* base = BuildDeclRef(m_Variables[param].Decl);
         // Get size of the array.
-        Expr* getSize = BuildCallExprToMemFn(Clone(base),
+        Expr* getSize = BuildCallExprToMemFn(base,
                                              /*MemberFunctionName=*/"rows", {});
         // Create an identity matrix for the parameter,
         // with number of rows equal to the size of the array,
@@ -246,12 +250,14 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
     // -> clad::array<double> _d_vector_z = {0, 1};
     if (utils::isArrayOrPointerType(param->getType()) ||
         param->getType()->isReferenceType()) {
+      // The store target is `*_d_p`; strip the parens the ParenDeref adjoint
+      // carries for element access elsewhere.
       Expr* paramAssignment =
-          BuildOp(BO_Assign, Clone(paramDiff), dVectorParam);
+          BuildOp(BO_Assign, buildAdjoint(m_Variables[param])->IgnoreParens(),
+                  dVectorParam);
       addToCurrentBlock(paramAssignment);
     } else {
-      auto* paramDecl = cast<VarDecl>(cast<DeclRefExpr>(paramDiff)->getDecl());
-      SetDeclInit(paramDecl, dVectorParam);
+      SetDeclInit(m_Variables[param].Decl, dVectorParam);
     }
   }
 

@@ -464,7 +464,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         auto* VDDerived = BuildGlobalVarDecl(
             VDDerivedType, "_d_" + param->getName().ltrim('_').str(), initExpr,
             isDirectInit);
-        m_Variables[param] = BuildDeclRef(VDDerived);
+        m_Variables[param] = {VDDerived};
         addToBlock(BuildDeclStmt(VDDerived), m_Globals);
       }
     }
@@ -1068,7 +1068,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     beginBlock(direction::reverse);
     // Create all declarations needed.
     DeclRefExpr* beginDeclRef = BuildDeclRef(VisitBegin.getDecl());
-    Expr* d_beginDeclRef = m_Variables[beginDeclRef->getDecl()];
+    Expr* d_beginDeclRef = buildAdjoint(m_Variables[beginDeclRef->getDecl()]);
     addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl()));
     if (VisitRange.getDecl_dx())
       addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl_dx()));
@@ -1603,7 +1603,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                   .BuildDeclarationNameExpr(CXXScopeSpec{}, result,
                                             /*ADL=*/false)
                   .get();
-          it = m_Variables.emplace(VD, foundExpr).first;
+          it = m_Variables.emplace(VD, adjointInfoFrom(foundExpr)).first;
           // On the start of computing every derivative, we have to reset the
           // global adjoint to zero in case it was used by another gradient.
           if (m_DiffReq.Mode == DiffMode::reverse) {
@@ -1616,40 +1616,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           return StmtDiff(primal);
       }
 
-      if (!it->second)
+      const AdjointInfo& A = it->second;
+      if (!A.Decl)
         return StmtDiff(primal);
 
-      clang::Expr* dExpr = it->second;
-      if (auto* dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
-        // FIXME: We should instead store the decl of the adjoint in m_Variables
-        // and rebuild the declref every time.
-        auto* dVar = cast<VarDecl>(dVarDRE->getDecl());
-        if (dVar->getDeclContext() != m_Sema.CurContext) {
-          clad_compat::NestedNameSpecifierTy NNS = DRE->getQualifier();
-          dExpr = BuildDeclRef(dVar, clad_compat::hasQualifier(NNS)
-                                         ? NNS
-                                         : clad_compat::nullNNS());
-        }
-      }
-
-      // m_Variables caches one adjoint reference per variable; insert a fresh
-      // clone for the increment and another for the returned reverse-sweep
-      // expression so the cached node is never parented twice (the FIXME
-      // above). dExpr is a plain DeclRefExpr/deref (not a delayed-store
-      // placeholder), so it is safe to clone. Create the (_d_param[idx] +=
-      // dfdx) statement -- but only when a seed is present, since without one
-      // BuildDiffIncrement returns null and the clone would be orphaned.
+      // Emit the (_d_param[idx] += dfdx) statement with a freshly rebuilt
+      // adjoint reference -- but only when a seed is present, since without one
+      // BuildDiffIncrement returns null and the node would be orphaned.
       if (hasDfdx())
-        if (Expr* add_assign = BuildDiffIncrement(CloneNode(dExpr)))
+        if (Expr* add_assign = BuildDiffIncrement(buildAdjoint(A, DRE)))
           addToCurrentBlock(add_assign, direction::reverse);
       // The adjoint (getExpr_dx, e.g. *_d_x) is read only by parents that
       // propagate a subexpression's derivative -- a conditional, a paren, an
       // array-subscript base; a terminal product-rule leaf, having already
-      // emitted its own increment above, never reads it. Clone it lazily so
-      // those terminal leaves allocate no orphaned copy, while a consumer still
-      // materializes a distinct node (no sharing). The reverse-sweep value
-      // defaults to the forward node.
-      return StmtDiff(primal, LazyClone(dExpr));
+      // emitted its own increment above, never reads it. Defer the rebuild so
+      // those terminal leaves allocate nothing, while a consumer materializes a
+      // distinct node (no sharing). The reverse-sweep value defaults to it.
+      return StmtDiff(primal, std::function<clang::Stmt*()>([this, A, DRE] {
+                        return buildAdjoint(A, DRE);
+                      }));
     }
 
     return StmtDiff(primal);
@@ -3113,7 +3098,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                  m_Globals);
       Expr* condVarRef = BuildDeclRef(condVar);
       Expr* assignExpr = BuildOp(BO_Assign, condVarRef, Clone(R));
-      m_Variables.emplace(condVar, BuildDeclRef(derivedCondVar));
+      m_Variables.emplace(condVar, AdjointInfo{derivedCondVar});
       auto* IfStmt = clad_compat::IfStmt_Create(
           /*Ctx=*/m_Context, /*IL=*/noLoc, /*IsConstexpr=*/false,
           /*Init=*/nullptr, /*Var=*/nullptr,
@@ -3393,7 +3378,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!valueDx)
       valueDx = derivedVDE;
     if (valueDx)
-      m_Variables.emplace(VDClone, valueDx);
+      m_Variables.emplace(VDClone, adjointInfoFrom(valueDx));
 
     // Register the primal clone so cloned references to VD rebind by explicit
     // map lookup instead of the scope-dependent name lookup in
@@ -5206,14 +5191,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // For example d_x in f(float x, float *d_x) should be used as (*d_x) to
       // matching the type of the input x from the original function.
       if (utils::isArrayOrPointerType(oPVD->getType())) {
-        m_Variables[PVD] = BuildDeclRef(dPVD);
-
+        m_Variables[PVD] = {dPVD};
       } else {
-        Expr* Deref =
-            BuildOp(UO_Deref, BuildDeclRef(dPVD), oPVD->getLocation());
-        if (dPVDTy->getPointeeType()->isRecordType())
-          Deref = utils::BuildParenExpr(m_Sema, Deref);
-        m_Variables[PVD] = Deref;
+        // A record pointee is parenthesized so member accesses bind to `(*d)`.
+        AdjointInfo::WrapKind wrap = dPVDTy->getPointeeType()->isRecordType()
+                                         ? AdjointInfo::ParenDeref
+                                         : AdjointInfo::Deref;
+        m_Variables[PVD] = {dPVD, wrap};
       }
 
       params.push_back(dPVD);

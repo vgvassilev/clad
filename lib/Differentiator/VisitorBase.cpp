@@ -329,6 +329,44 @@ namespace clad {
         m_Sema.BuildDeclRefExpr(D, T, VK, D->getBeginLoc(), &CSS)));
   }
 
+  Expr* VisitorBase::buildAdjoint(const AdjointInfo& A,
+                                  const DeclRefExpr* Ref) {
+    // An absent m_Variables entry (operator[] default-constructs one) has no
+    // decl; return null, as reading the old Expr*-valued map did.
+    if (!A.Decl)
+      return nullptr;
+    // Reuse the visited reference's qualifier when the adjoint decl lives in a
+    // different context (e.g. a lambda captures it), mirroring how a plain
+    // DeclRefExpr is rebuilt across contexts.
+    clad_compat::NestedNameSpecifierTy NNS = clad_compat::nullNNS();
+    if (Ref && A.Decl->getDeclContext() != m_Sema.CurContext)
+      NNS = Ref->getQualifier();
+    Expr* E = BuildDeclRef(
+        A.Decl, clad_compat::hasQualifier(NNS) ? NNS : clad_compat::nullNNS());
+    // A by-value pointer/reference param is stored as `*_d_p` so its use has
+    // the primal's type; a record pointee is parenthesized for member access.
+    if (A.Wrap != AdjointInfo::Plain) {
+      E = BuildOp(UnaryOperatorKind::UO_Deref, E);
+      if (A.Wrap == AdjointInfo::ParenDeref)
+        E = utils::BuildParenExpr(m_Sema, E);
+    }
+    return E;
+  }
+
+  VisitorBase::AdjointInfo VisitorBase::adjointInfoFrom(Expr* E) {
+    // Callers only ever pass a plain DeclRefExpr or `*_d_p`; the parenthesized
+    // `(*_d_p)` form is built at its store sites directly, never decomposed.
+    Expr* Inner = E->IgnoreImplicit();
+    bool Deref = false;
+    if (auto* U = dyn_cast<UnaryOperator>(Inner))
+      if (U->getOpcode() == UO_Deref) {
+        Deref = true;
+        Inner = U->getSubExpr()->IgnoreImplicit();
+      }
+    auto* VD = cast<VarDecl>(cast<DeclRefExpr>(Inner)->getDecl());
+    return {VD, Deref ? AdjointInfo::Deref : AdjointInfo::Plain};
+  }
+
   IdentifierInfo*
   VisitorBase::CreateUniqueIdentifier(llvm::StringRef nameBase) {
     // For intermediate variables, use numbered names (_t0), for everything

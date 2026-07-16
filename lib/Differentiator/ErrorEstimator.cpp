@@ -186,13 +186,14 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
         // Finally emit the error.
         // Clone the operands: GetError embeds them in the error expression,
         // which must not share nodes with the derivative statements.
-        auto* errorExpr = GetError(m_RMV->CloneNode(paramClone),
-                                   m_RMV->CloneNode(m_RMV->m_Variables[decl]),
-                                   params[i]->getNameAsString());
+        auto* errorExpr =
+            GetError(m_RMV->CloneNode(paramClone),
+                     m_RMV->buildAdjoint(m_RMV->m_Variables[decl]),
+                     params[i]->getNameAsString());
         m_RMV->addToCurrentBlock(
             m_RMV->BuildOp(BO_AddAssign, BuildFinalErrorExpr(), errorExpr));
       } else {
-        auto LdiffExpr = m_RMV->m_Variables[decl];
+        Expr* LdiffExpr = m_RMV->buildAdjoint(m_RMV->m_Variables[decl]);
         Expr* size = getSizeExpr(decl);
         VarDecl* idxExprDecl = nullptr;
         // Save our index expression so it can be used later.
@@ -344,7 +345,7 @@ void ErrorEstimationHandler::ActAfterProcessingArraySubscriptExpr(
     if (const auto* DRE =
             dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit())) {
       const auto* VD = cast<VarDecl>(DRE->getDecl());
-      Expr* VDdiff = m_RMV->m_Variables[VD];
+      Expr* VDdiff = m_RMV->buildAdjoint(m_RMV->m_Variables[VD]);
       // We only need to track sizes for arrays and pointers.
       if (!utils::isArrayOrPointerType(VDdiff->getType()))
         return;
