@@ -1076,6 +1076,12 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         baseOriginalE = OCE->getArg(0);
       baseDiff = Visit(baseOriginalE);
       Expr* baseDerivative = baseDiff.getExpr_dx();
+      // A base that does not depend on the differentiation variable has no
+      // tangent, hence no pushforward to call, and contributes nothing to the
+      // directional derivative.
+      if (!baseDerivative || baseDerivative->getType()->isVoidType())
+        return StmtDiff(Clone(CE),
+                        getZeroInit(CE->getType().getNonReferenceType()));
       if (!baseDerivative->getType()->isPointerType())
         baseDerivative = BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
       diffArgs.push_back(baseDerivative);
