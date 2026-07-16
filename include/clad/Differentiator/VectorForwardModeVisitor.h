@@ -84,8 +84,6 @@ public:
 
   std::string GetPushForwardFunctionSuffix() override;
   DiffMode GetPushForwardMode() override;
-
-  void SetIndependentVarCountDecl(clang::VarDecl* VD);
 };
 } // end namespace clad
 

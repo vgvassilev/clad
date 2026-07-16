@@ -43,7 +43,7 @@ void VectorPushForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
   auto* totalIndVars =
       BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount", indVarCountExpr);
   addToCurrentBlock(BuildDeclStmt(totalIndVars));
-  SetIndependentVarCountDecl(totalIndVars);
+  m_IndVarCountDecl = totalIndVars;
 
   BaseForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock();
 }
