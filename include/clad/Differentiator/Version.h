@@ -14,6 +14,7 @@
 namespace clad {
   std::string getCladRevision();
   std::string getCladRepositoryPath();
+  std::string getCladRepositoryURL();
   std::string getCladFullRepositoryVersion();
   std::string getCladFullVersion();
 } // end namespace clad

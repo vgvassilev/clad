@@ -31,6 +31,10 @@ namespace clad {
 #endif // CLAD_REPOSITORY
   }
 
+  std::string getCladRepositoryURL() {
+    return "https://github.com/vgvassilev/clad";
+  }
+
   std::string getCladFullRepositoryVersion() {
     std::string buf;
     llvm::raw_string_ostream OS(buf);
