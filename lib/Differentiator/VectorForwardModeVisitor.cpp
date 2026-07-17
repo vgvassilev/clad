@@ -28,10 +28,6 @@ DiffMode VectorForwardModeVisitor::GetPushForwardMode() {
   return DiffMode::vector_pushforward;
 }
 
-void VectorForwardModeVisitor::SetIndependentVarCountDecl(VarDecl* VD) {
-  m_IndVarCountDecl = VD;
-}
-
 DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == DiffMode::vector_forward_mode);
