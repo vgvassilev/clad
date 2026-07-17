@@ -32,6 +32,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <stack>
 #include <unordered_map>
@@ -66,11 +67,13 @@ namespace clad {
     const clang::Stmt* m_StmtDxSrc = nullptr;
     const clang::Stmt* m_RevSweepSrc = nullptr;
     utils::StmtClone* m_Cloner = nullptr;
-    // Deferred build for the forward value (data[1]): produces the node on
-    // first read, so a forward value no consumer reads constructs nothing.
-    // Only the forward slot needs it (the primal DeclRef of a reverse-mode
-    // leaf), so it is not carried for the adjoint or reverse-sweep slots.
+    // Deferred build for the forward value (data[1]) and the adjoint (data[0]):
+    // produces the node on first read, so a representation no consumer reads
+    // constructs nothing (unlike a Lazy clone, it holds no template node). The
+    // adjoint slot uses it for a reverse-mode leaf's rebuilt m_Variables ref,
+    // which a terminal product-rule leaf never reads.
     std::function<clang::Stmt*()> m_StmtBuild;
+    std::function<clang::Stmt*()> m_StmtDxBuild;
 
     // Clone Src into Slot on first read; a no-op when Src is null (eager slot).
     clang::Stmt* materialize(clang::Stmt*& Slot, const clang::Stmt*& Src);
@@ -126,7 +129,8 @@ namespace clad {
               return diff.Deferred.Cloner;
             return valueForRevSweep.Deferred.Cloner;
           }()),
-          m_StmtBuild(std::move(orig.Build)) {
+          m_StmtBuild(std::move(orig.Build)),
+          m_StmtDxBuild(std::move(diff.Build)) {
       m_Data[1] = orig.Node;
       m_Data[0] = diff.Node;
     }
@@ -139,7 +143,14 @@ namespace clad {
       }
       return materialize(m_Data[1], m_StmtSrc);
     }
-    clang::Stmt* getStmt_dx() { return materialize(m_Data[0], m_StmtDxSrc); }
+    clang::Stmt* getStmt_dx() {
+      // Run the deferred build once, on the first read of the adjoint.
+      if (!m_Data[0] && m_StmtDxBuild) {
+        m_Data[0] = m_StmtDxBuild();
+        m_StmtDxBuild = nullptr;
+      }
+      return materialize(m_Data[0], m_StmtDxSrc);
+    }
     clang::Expr* getExpr() {
       return llvm::cast_or_null<clang::Expr>(getStmt());
     }
@@ -155,6 +166,7 @@ namespace clad {
     void updateStmtDx(clang::Stmt* S) {
       m_Data[0] = S;
       m_StmtDxSrc = nullptr;
+      m_StmtDxBuild = nullptr;
     }
     void updateRevSweep(clang::Stmt* S) {
       m_ValueForRevSweep = S;
@@ -221,9 +233,16 @@ namespace clad {
     clang::FunctionDecl* m_Derivative;
     /// The differentiation request that is being currently processed.
     const DiffRequest& m_DiffReq;
+    /// A cached adjoint reference, stored as its declaration plus how the
+    /// reference wraps it, so every read rebuilds a fresh expression instead of
+    /// caching one node that consumers must clone.
+    struct AdjointInfo {
+      clang::VarDecl* Decl = nullptr;
+      enum WrapKind : std::uint8_t { Plain, Deref, ParenDeref } Wrap = Plain;
+    };
     /// Map used to keep track of variable declarations and match them
     /// with their derivatives.
-    std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_Variables;
+    std::unordered_map<const clang::ValueDecl*, AdjointInfo> m_Variables;
     /// Map contains variable declarations replacements. If the original
     /// function contains a declaration which name collides with something
     /// already created inside derivative's body, the declaration is replaced
@@ -800,6 +819,15 @@ namespace clad {
     clang::Expr* cloneThisExprDerivative() {
       return CloneNode(m_ThisExprDerivative);
     }
+    /// Rebuild the adjoint reference described by \p A: a fresh reference to
+    /// A.Decl, dereferenced/parenthesized per A.Wrap. \p Ref's qualifier is
+    /// reused when the adjoint decl lives in another context (e.g. a lambda).
+    clang::Expr* buildAdjoint(const AdjointInfo& A,
+                              const clang::DeclRefExpr* Ref = nullptr);
+    /// Decompose an already-built adjoint expression (a DeclRefExpr or `*ref`)
+    /// into the AdjointInfo m_Variables stores. Used where the expression is
+    /// also needed elsewhere; otherwise construct AdjointInfo directly.
+    static AdjointInfo adjointInfoFrom(clang::Expr* E);
     /// A deferred CloneNode(\p N): the clone is produced only if the StmtDiff
     /// representation it is stored in is actually read, so a representation no
     /// consumer needs allocates no orphaned clone. Drop-in for CloneNode(N) in

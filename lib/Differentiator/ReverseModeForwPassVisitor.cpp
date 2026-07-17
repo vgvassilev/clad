@@ -200,7 +200,7 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       if (dPVD->getIdentifier())
         m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
                                  /*AddToContext=*/false);
-      m_Variables[*it] = BuildDeclRef(dPVD), m_DiffReq->getLocation();
+      m_Variables[*it] = {dPVD};
     }
   }
   if (m_DiffReq.UseRestoreTracker) {
@@ -291,10 +291,8 @@ StmtDiff ReverseModeForwPassVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   auto* decl = dyn_cast<VarDecl>(clonedDRE->getDecl());
   auto foundAdjoint = m_Variables.find(decl);
   Expr* adjoint = nullptr;
-  // m_Variables caches a single adjoint reference per variable; hand out a
-  // fresh copy so repeated uses do not share the same node.
   if (foundAdjoint != m_Variables.end())
-    adjoint = CloneNode(foundAdjoint->second);
+    adjoint = buildAdjoint(foundAdjoint->second, DRE);
 
   return StmtDiff(clonedDRE, adjoint);
 }
@@ -335,7 +333,7 @@ ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   auto* VDDerived =
       BuildGlobalVarDecl(DerivedType, "_d_" + VD->getNameAsString(),
                          initDiff.getExpr_dx(), VD->isDirectInit());
-  m_Variables.emplace(VDCloned, BuildDeclRef(VDDerived));
+  m_Variables.emplace(VDCloned, AdjointInfo{VDDerived});
   // Register the primal clone unconditionally so references rebind by map
   // lookup rather than the scope-dependent name-lookup fallback (see the
   // matching change in ReverseModeVisitor::DifferentiateVarDecl).

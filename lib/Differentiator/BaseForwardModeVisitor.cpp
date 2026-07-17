@@ -311,7 +311,7 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
     auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, diffTy,
                                          PVD->getStorageClass());
     params.push_back(dPVD);
-    m_Variables[PVD] = BuildDeclRef(dPVD);
+    m_Variables[PVD] = {dPVD};
   }
 }
 
@@ -378,7 +378,7 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
     // Memorize the derivative of param, i.e. whenever the param is visited
     // in the future, it's derivative dParam is found (unless reassigned with
     // something new).
-    m_Variables[param] = dParam;
+    m_Variables[param] = {dParamDecl};
   }
   if (const auto* MD = dyn_cast<CXXMethodDecl>(dFD)) {
     // We cannot create derivative of lambda yet because lambdas default
@@ -454,7 +454,7 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
           BuildVarDecl(fieldType.getNonReferenceType(),
                        "_d_" + fieldDecl->getNameAsString(), dInitializer);
       addToCurrentBlock(BuildDeclStmt(derivedFieldDecl));
-      m_Variables.emplace(fieldDecl, BuildDeclRef(derivedFieldDecl));
+      m_Variables.emplace(fieldDecl, AdjointInfo{derivedFieldDecl});
     }
   }
 }
@@ -809,11 +809,8 @@ StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
       // variable
       auto memberDecl = ME->getMemberDecl();
       auto it = m_Variables.find(memberDecl);
-      if (it != std::end(m_Variables)) {
-        // m_Variables caches one derivative ref per member; clone so repeated
-        // member uses do not share the node.
-        return StmtDiff(clonedME, CloneNode(it->second));
-      }
+      if (it != std::end(m_Variables))
+        return StmtDiff(clonedME, buildAdjoint(it->second));
     }
     // Is not a real variable. Therefore, derivative is 0.
     auto zero =
@@ -892,10 +889,8 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
       // If the original field is of constant array type, then,
       // the derived variable of `arr[i]` is `_d_arr[i]`.
       if (it != m_Variables.end() && decl->getType()->isConstantArrayType()) {
-        // m_Variables caches one adjoint ref per array; clone the base so
-        // repeated element accesses do not share the node.
         auto* result_at_i =
-            BuildArraySubscript(CloneNode(it->second), derivedIndices());
+            BuildArraySubscript(buildAdjoint(it->second), derivedIndices());
         return StmtDiff{cloned, result_at_i};
       }
 
@@ -942,16 +937,12 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     // Is not an independent variable, ignored.
     return StmtDiff(cloned, zero);
 
-  Expr* target = it->second;
-  // FIXME: fix when adding array inputs
-  if (!isArrayOrPointerType(target->getType()))
+  // FIXME: fix when adding array inputs. Forward-mode adjoints are plain refs,
+  // so the decl's type is the adjoint's -- check it before building anything.
+  if (!isArrayOrPointerType(it->second.Decl->getType().getNonReferenceType()))
     return StmtDiff(cloned, zero);
-  // llvm::APSInt IVal;
-  // if (!I->EvaluateAsInt(IVal, m_Context))
-  //  return;
-  // Create the _result[idx] expression. target is the cached adjoint ref;
-  // clone it so repeated element accesses do not share the base node.
-  auto* result_at_is = BuildArraySubscript(CloneNode(target), derivedIndices());
+  auto* result_at_is =
+      BuildArraySubscript(buildAdjoint(it->second), derivedIndices());
   return StmtDiff(cloned, result_at_is);
 }
 
@@ -989,23 +980,8 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     // If DRE references a variable, try to find if we know something about
     // how it is related to the independent variable.
     auto it = m_Variables.find(VD);
-    if (it != std::end(m_Variables)) {
-      clang::Expr* dExpr = it->second;
-      // If a record was found, use the recorded derivative.
-      if (auto dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
-        auto dVar = cast<VarDecl>(dVarDRE->getDecl());
-        if (dVar->getDeclContext() != m_Sema.CurContext) {
-          clad_compat::NestedNameSpecifierTy NNS = DRE->getQualifier();
-          dExpr = BuildDeclRef(dVar, clad_compat::hasQualifier(NNS)
-                                         ? NNS
-                                         : clad_compat::nullNNS());
-        }
-      }
-      // m_Variables caches one derivative reference per variable; hand out a
-      // fresh clone so callers that combine it (product rule) never parent the
-      // cached node twice.
-      return StmtDiff(clonedDRE, CloneNode(dExpr));
-    }
+    if (it != std::end(m_Variables))
+      return StmtDiff(clonedDRE, buildAdjoint(it->second, DRE));
   }
   // Is not a variable or is a reference to something unrelated to independent
   // variable. Derivative is 0.
@@ -1639,7 +1615,7 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
                              initDx, VD->isDirectInit());
 
   if (VDDerived)
-    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+    m_Variables.emplace(VDClone, AdjointInfo{VDDerived});
   return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
 

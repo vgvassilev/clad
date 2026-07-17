@@ -181,9 +181,8 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
         BuildVarDecl(dVectorParamType, "_d_vector_" + param->getNameAsString(),
                      dVectorParam);
     addToCurrentBlock(BuildDeclStmt(dVectorParamDecl));
-    dVectorParam = BuildDeclRef(dVectorParamDecl);
     // Memorize the derivative vector for the parameter.
-    m_Variables[param] = dVectorParam;
+    m_Variables[param] = {dVectorParamDecl};
   }
 
   // Traverse the function body and generate the derivative.
@@ -560,7 +559,7 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
                    "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
                    /*DirectInit=*/true);
 
-  m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+  m_Variables.emplace(VDClone, AdjointInfo{VDDerived});
   return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
 
