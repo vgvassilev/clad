@@ -97,7 +97,7 @@ jobs:
           - name: ubu22-clang16-runtime17-kokkos
             os: ubuntu-22.04
             compiler: clang-16
-            clang-runtime: '17'
+            clang-runtime: '22'
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
