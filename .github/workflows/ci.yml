@@ -94,7 +94,7 @@ jobs:
             extra_cmake_options: '-DBUILD_SHARED_LIBS=On'
             clang-runtime: '17'
 
-          - name: ubu22-clang16-runtime17-kokkos
+          - name: ubu22-clang16-runtime22-kokkos
             os: ubuntu-22.04
             compiler: clang-16
             clang-runtime: '22'
@@ -114,10 +114,10 @@ jobs:
             extra_cmake_options: '-DBUILD_SHARED_LIBS=On'
             clang-runtime: '17'
 
-          - name: ubu24-arm-clang16-runtime17-kokkos
+          - name: ubu24-arm-clang16-runtime22-kokkos
             os: ubuntu-24.04-arm
             compiler: clang-16
-            clang-runtime: '17'
+            clang-runtime: '22'
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
