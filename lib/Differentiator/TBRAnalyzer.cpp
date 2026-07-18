@@ -408,6 +408,16 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   // variables passed by value/reference are used/used and changed. Analysis
   // could proceed to the function to analyse data flow inside it.
   FunctionDecl* FD = CE->getDirectCallee();
+  // An indirect call (e.g. through a function pointer, as reached inside
+  // Kokkos's mdspan View) has no direct callee, so the parameter walk below
+  // would dereference a null FD. Conservatively mark every argument used.
+  if (!FD) {
+    setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
+    for (clang::Expr* arg : CE->arguments())
+      TraverseStmt(arg);
+    resetMode();
+    return false;
+  }
   // Use information about parameters assuming the analysis was performed.
   bool shouldAnalyzeParams = m_ModifiedParams && (m_ModifiedParams->find(FD) !=
                                                   m_ModifiedParams->end());
