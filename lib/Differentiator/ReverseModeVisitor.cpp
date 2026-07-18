@@ -954,8 +954,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     beginBlock(direction::reverse);
     addToCurrentBlock(condDiff.getStmt_dx(), direction::reverse);
     // Condition has to be stored as a "global" variable, to take the correct
-    // branch in the reverse pass.
-    Expr* condStored = GlobalStoreAndRef(condDiff.getExpr(), "_cond");
+    // branch in the reverse pass. Store it as bool -- a conditional operator's
+    // condition is contextually converted to bool ([expr.cond]/1); storing the
+    // raw operand would drop qualifiers, e.g. a `const char*` condition (as in
+    // libstdc++'s basic_string(const char*) constructor) becomes an ill-formed
+    // `char* _cond = <const char*>`.
+    Expr* condStored =
+        GlobalStoreAndRef(condDiff.getExpr(), m_Context.BoolTy, "_cond");
     // Convert cond to boolean condition.
     condStored = m_Sema
                      .ActOnCondition(getCurrentScope(), noLoc, condStored,
