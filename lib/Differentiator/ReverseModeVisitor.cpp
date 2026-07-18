@@ -2129,7 +2129,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // derivatives even if there is no `dfdx()` and thus we should call the
     // derived function. In the case of member functions, `implicit`
     // this object is always passed by reference.
-    if (!nonDiff && !dfdx() && !utils::hasMemoryTypeParams(FD))
+    bool isRefReturningInstanceCall =
+        MD && MD->isInstance() &&
+        utils::isNonConstReferenceType(FD->getReturnType());
+    bool needsPullbackForRefReturningInstance =
+        isRefReturningInstanceCall && !elideReverseForw;
+    // A non-elidable reverse_forw for a reference-returning member function
+    // leaves the adjoint on the returned reference. Keep the call
+    // differentiable so its statically scheduled pullback can propagate it
+    // through the implicit object.
+    if (!nonDiff && !dfdx() && !utils::hasMemoryTypeParams(FD) &&
+        !needsPullbackForRefReturningInstance)
       nonDiff = true;
 
     // If all arguments are constant literals, then this does not contribute to
@@ -2188,7 +2198,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
       }
       pullbackFD = FindDerivedFunction(pullbackRequest);
-      if (pullbackFD && utils::hasEmptyBody(pullbackFD))
+      if (pullbackFD && utils::hasEmptyBody(pullbackFD) &&
+          !needsPullbackForRefReturningInstance)
+        nonDiff = true;
+      // Custom elidable reverse_forw helpers propagate their adjoint directly
+      // and intentionally have no pullback, for example smart pointers.
+      if (!pullbackFD && isRefReturningInstanceCall && elideReverseForw)
         nonDiff = true;
     }
 
