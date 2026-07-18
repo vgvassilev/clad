@@ -102,6 +102,37 @@ if(CUDAToolkit_FOUND)
   )
   
   target_include_directories(LULESH_Benchmark PRIVATE ${lulesh-cuda_SOURCE_DIR}/LULESH) 
+  execute_process(
+    COMMAND git apply --check "${CMAKE_CURRENT_SOURCE_DIR}/XSBench_diff.patch"
+    WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/XSBench"
+    RESULT_VARIABLE xsbench_patch_applied_or_not
+  )
+
+  if(xsbench_patch_applied_or_not EQUAL 0)
+    execute_process(
+      COMMAND git apply "${CMAKE_CURRENT_SOURCE_DIR}/XSBench_diff.patch"
+      WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/XSBench"
+    )
+  endif()  
+
+  set(XSBENCH_SOURCES
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/Main.cu
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/io.cu
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/Simulation.cu
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/GridInit.cu
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/XSutils.cu
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/Materials.cu
+  )
+  
+  set_source_files_properties(${XSBENCH_SOURCES} PROPERTIES LANGUAGE CXX)
+  CB_ADD_CUDA_BENCHMARK(XSBench_Benchmark ${XSBENCH_SOURCES})
+  target_compile_options(XSBench_Benchmark PRIVATE -fno-openmp)
+  target_compile_definitions(XSBench_Benchmark PRIVATE 
+    ALWAYS_INLINE=1
+    USE_CLAD=1
+  )
+  
+  target_include_directories(XSBench_Benchmark PRIVATE ${lulesh-cuda_SOURCE_DIR}/XSBench)
 endif()
 
 
