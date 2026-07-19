@@ -14,6 +14,7 @@
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffScheduler.h"
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/HessianModeVisitor.h"
@@ -58,10 +59,9 @@ using namespace clang;
 namespace clad {
 
 DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
-                                     DerivedFnCollector& DFC,
-                                     clad::DynamicGraph<DiffRequest>& G)
-    : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()), m_DFC(DFC),
-      m_DiffRequestGraph(G),
+                                     DiffScheduler& Scheduler)
+    : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
+      m_Scheduler(Scheduler),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
       m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
 
@@ -390,7 +390,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // differentiation due to unavailable definition.
       if (auto* CE = dyn_cast_or_null<CallExpr>(OverloadedFn))
         if (FunctionDecl* FD = CE->getDirectCallee())
-          m_DFC.AddToCustomDerivativeSet(FD);
+          m_Scheduler.getDerivedFns().AddToCustomDerivativeSet(FD);
     }
     return OverloadedFn;
   }
@@ -425,7 +425,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // derivative function. In that case, we should not derive the definition
       // again.
       if (derivative &&
-          (derivative->isDefined() || m_DFC.IsCustomDerivative(derivative)))
+          (derivative->isDefined() ||
+           m_Scheduler.getDerivedFns().IsCustomDerivative(derivative)))
         alreadyDerived = true;
 
       // Add the request to derive the definition of the forward mode derivative
@@ -535,7 +536,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // If only declaration is requested, allow this for clad-generated
         // functions or custom derivatives.
         if (!request.DeclarationOnly ||
-            !(m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD))) {
+            !(m_Scheduler.getDerivedFns().IsCladDerivative(FD) ||
+              m_Scheduler.getDerivedFns().IsCustomDerivative(FD))) {
           const auto& name = FD->getName();
           // FIXME: Currently, these functions cannot be covered with custom
           // derivatives because templates are not well-supported in custom
@@ -647,7 +649,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     //   derivative is a member function it goes into an infinite loop
     bool isCustomDerivative = false;
     if (auto* FD = dyn_cast_or_null<FunctionDecl>(result.derivative))
-      isCustomDerivative = m_DFC.IsCustomDerivative(FD);
+      isCustomDerivative = m_Scheduler.getDerivedFns().IsCustomDerivative(FD);
     if (!isCustomDerivative) {
       if (auto* FD = result.derivative)
         registerDerivative(FD, m_Sema, request);
@@ -718,7 +720,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
   FunctionDecl*
   DerivativeBuilder::FindDerivedFunction(const DiffRequest& request) {
-    auto DFI = m_DFC.Find(request);
+    auto DFI = m_Scheduler.getDerivedFns().Find(request);
     if (DFI.IsValid())
       return DFI.DerivedFn();
     return nullptr;
@@ -726,6 +728,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
   void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& request,
                                          bool alreadyDerived /*=false*/) {
-    m_DiffRequestGraph.addEdgeToCurrentNode(request, alreadyDerived);
+    m_Scheduler.getGraph().addEdgeToCurrentNode(request, alreadyDerived);
   }
   } // end namespace clad

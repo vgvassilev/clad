@@ -378,7 +378,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       FunctionDecl* FoundFD =
           R.empty() ? nullptr : dyn_cast<FunctionDecl>(R.front());
       if (!RD->isLambda() && !R.empty() &&
-          !m_Builder.m_DFC.IsCladDerivative(FoundFD)) {
+          !m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(FoundFD)) {
         Sema::NestedNameSpecInfo IdInfo(RD->getIdentifier(), noLoc, noLoc,
                                         /*ObjectType=*/nullptr);
         // FIXME: Address nested classes where SS should be set.

@@ -11,6 +11,7 @@
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffScheduler.h"
 #include "clad/Differentiator/Version.h"
 
 #include "clang/AST/Decl.h"
@@ -97,9 +98,9 @@ struct DifferentiationOptions {
     DifferentiationOptions m_DO;
     std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
     bool m_HasRuntime = false;
-    DerivedFnCollector m_DFC;
-    DynamicGraph<DiffRequest> m_DiffRequestGraph;
-    OwnedAnalysisContexts m_AllAnalysisDC;
+    /// Lazily constructed because it needs Sema, which is not available
+    /// until InitializeSema; reach it through getScheduler().
+    std::unique_ptr<DiffScheduler> m_Scheduler;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,
@@ -168,8 +169,9 @@ struct DifferentiationOptions {
           // setup, we exit early to give control to the non-standard setup for
           // code generation.
           // FIXME: This should go away if Cling starts using the clang driver.
-          if (!m_Multiplexer &&
-              (m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD)))
+          if (!m_Multiplexer && m_Scheduler &&
+              (m_Scheduler->getDerivedFns().IsCladDerivative(FD) ||
+               m_Scheduler->getDerivedFns().IsCustomDerivative(FD)))
             return true;
 
       HandleTopLevelDeclForClad(D);
@@ -252,6 +254,7 @@ struct DifferentiationOptions {
     clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
 
   private:
+    DiffScheduler& getScheduler();
     void AppendDelayed(DelayedCallInfo DCI) {
       // Incremental processing handles the translation unit in chunks and it is
       // expected to have multiple calls to this functionality.
