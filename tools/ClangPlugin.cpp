@@ -218,8 +218,9 @@ void InitTimers();
             continue;
           auto* FD = cast<FunctionDecl>(D);
           if (FD->isConstexpr() || !m_Multiplexer) {
-            DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph,
-                                    S, opts, m_AllAnalysisDC);
+            DiffCollector collector(CladEnabledRange, m_DiffRequestGraph, S,
+                                    opts, m_AllAnalysisDC);
+            collector.Walk(DGR);
             break;
           }
         }
@@ -641,9 +642,9 @@ void InitTimers();
             if (const auto* FD = dyn_cast<FunctionDecl>(D))
               if (FD->isConstexpr())
                 continue;
-            DiffCollector collector(DCI.m_DGR, CladEnabledRange,
-                                    m_DiffRequestGraph, S, opts,
-                                    m_AllAnalysisDC);
+            DiffCollector collector(CladEnabledRange, m_DiffRequestGraph, S,
+                                    opts, m_AllAnalysisDC);
+            collector.Walk(DCI.m_DGR);
             break;
           }
 

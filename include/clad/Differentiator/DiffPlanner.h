@@ -280,9 +280,13 @@ public:
     bool m_IsTraversingTopLevelDecl = true;
 
   public:
-    DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
+    DiffCollector(DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
                   RequestOptions& opts, OwnedAnalysisContexts& AllAnalysisDC);
+    /// Run the static planning pass over a group of top-level declarations,
+    /// populating the request graph. A no-op when the clad-enabled interval is
+    /// empty.
+    void Walk(clang::DeclGroupRef DGR);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);

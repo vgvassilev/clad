@@ -317,14 +317,15 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     call->setArg(*codeArgIdx, CodeArg);
   }
 
-  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
+  DiffCollector::DiffCollector(DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
                                clang::Sema& S, RequestOptions& opts,
                                OwnedAnalysisContexts& AllAnalysisDC)
       : m_Interval(Interval), m_DiffRequestGraph(requestGraph),
-        m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {
+        m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {}
 
-    if (Interval.empty())
+  void DiffCollector::Walk(DeclGroupRef DGR) {
+    if (m_Interval.empty())
       return;
 
     assert(!m_TopMostReq && "Traversal already in flight!");
