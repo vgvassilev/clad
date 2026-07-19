@@ -12,6 +12,7 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffScheduler.h"
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -111,8 +112,7 @@ struct DerivativeAndOverload {
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
-    DerivedFnCollector& m_DFC;
-    clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
+    DiffScheduler& m_Scheduler;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     clang::NamespaceDecl* m_NumericalDiffNSD;
@@ -177,8 +177,7 @@ struct DerivativeAndOverload {
 
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
-                      DerivedFnCollector& DFC,
-                      clad::DynamicGraph<DiffRequest>& DRG);
+                      DiffScheduler& Scheduler);
     ~DerivativeBuilder();
     /// Fuction to set the error diagnostic printing value for numerical
     /// differentiation.

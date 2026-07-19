@@ -183,13 +183,13 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
               utils::CreateStringLiteral(m_Context, independentArgString);
           FunctionDecl* DFD = nullptr;
           if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
-            DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,
-                                              m_DiffReq, ForwardModeIASL,
-                                              m_Builder.m_DFC);
+            DFD = DeriveUsingForwardModeTwice(
+                m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
+                m_Builder.m_Scheduler.getDerivedFns());
           else
             DFD = DeriveUsingForwardAndReverseMode(
                 m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
-                m_DiffReq.Args, m_Builder.m_DFC);
+                m_DiffReq.Args, m_Builder.m_Scheduler.getDerivedFns());
           secondDerivativeFuncs.push_back(DFD);
         }
       } else {
@@ -201,13 +201,13 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
             utils::CreateStringLiteral(m_Context, PVD->getNameAsString());
         FunctionDecl* DFD = nullptr;
         if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
-          DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,
-                                            m_DiffReq, ForwardModeIASL,
-                                            m_Builder.m_DFC);
+          DFD = DeriveUsingForwardModeTwice(
+              m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
+              m_Builder.m_Scheduler.getDerivedFns());
         else
           DFD = DeriveUsingForwardAndReverseMode(
               m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
-              m_DiffReq.Args, m_Builder.m_DFC);
+              m_DiffReq.Args, m_Builder.m_Scheduler.getDerivedFns());
         secondDerivativeFuncs.push_back(DFD);
       }
     }

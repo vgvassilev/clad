@@ -245,6 +245,8 @@ public:
 
   using DiffInterval = std::vector<clang::SourceRange>;
 
+  // FIXME: These are translation-unit-wide defaults taken from the compiler
+  // invocation, not the options of a request; rename to InvocationOptions.
   struct RequestOptions {
     /// This is a flag to indicate the default behaviour to enable/disable
     /// TBR analysis during reverse-mode differentiation.

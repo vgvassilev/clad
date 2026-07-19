@@ -206,9 +206,6 @@ void InitTimers();
       if (!CheckBuiltins())
         return;
 #if CLANG_VERSION_MAJOR > 16
-      Sema& S = m_CI.getSema();
-      RequestOptions opts{};
-      SetRequestOptions(opts);
       // Traverse all constexpr FunctionDecls for the static graph only once to
       // differentiate them immeditely.
       {
@@ -218,19 +215,17 @@ void InitTimers();
             continue;
           auto* FD = cast<FunctionDecl>(D);
           if (FD->isConstexpr() || !m_Multiplexer) {
-            DiffCollector collector(CladEnabledRange, m_DiffRequestGraph, S,
-                                    opts, m_AllAnalysisDC);
-            collector.Walk(DGR);
+            getScheduler().Plan(DGR);
             break;
           }
         }
       }
 
-      for (DiffRequest& request : m_DiffRequestGraph.getNodes()) {
+      for (DiffRequest& request : getScheduler().getGraph().getNodes()) {
         if (request.ImmediateMode && request.Function->isConstexpr()) {
-          m_DiffRequestGraph.setCurrentProcessingNode(request);
+          getScheduler().getGraph().setCurrentProcessingNode(request);
           ProcessDiffRequest(request);
-          m_DiffRequestGraph.markCurrentNodeProcessed();
+          getScheduler().getGraph().markCurrentNodeProcessed();
         }
       }
 #endif
@@ -349,8 +344,8 @@ void InitTimers();
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
       if (!m_DerivativeBuilder)
-        m_DerivativeBuilder = std::make_unique<DerivativeBuilder>(
-            S, *this, m_DFC, m_DiffRequestGraph);
+        m_DerivativeBuilder =
+            std::make_unique<DerivativeBuilder>(S, *this, getScheduler());
 
       if (request.Global) {
         auto deriveResult = m_DerivativeBuilder->Derive(request);
@@ -366,7 +361,7 @@ void InitTimers();
       // FIXME: These requests are not fully generated in the diffplanner and we
       // have to update diff params on this stage.
       if (request.CurrentDerivativeOrder > 1 ||
-          m_DFC.IsCladDerivative(request.Function))
+          getScheduler().getDerivedFns().IsCladDerivative(request.Function))
         request.UpdateDiffParamsInfo(m_CI.getSema());
       const FunctionDecl* FD = request.Function;
       ASTContext& C = S.getASTContext();
@@ -397,7 +392,7 @@ void InitTimers();
       {
         llvm::SaveAndRestore<unsigned> Saved(request.RequestedDerivativeOrder,
                                              1);
-        auto DFI = m_DFC.Find(request);
+        auto DFI = getScheduler().getDerivedFns().Find(request);
         if (DFI.IsValid()) {
           DerivativeDecl = DFI.DerivedFn();
           OverloadedDerivativeDecl = DFI.OverloadedDerivedFn();
@@ -413,8 +408,8 @@ void InitTimers();
               utils::hasEmptyBody(DerivativeDecl))
             return nullptr;
           if (DerivativeDecl)
-            m_DFC.Add(DerivedFnInfo(request, DerivativeDecl,
-                                    OverloadedDerivativeDecl));
+            getScheduler().getDerivedFns().Add(DerivedFnInfo(
+                request, DerivativeDecl, OverloadedDerivativeDecl));
         }
       }
 
@@ -595,6 +590,16 @@ void InitTimers();
       SetUsefulAnalysisOptions(m_DO, opts);
     }
 
+    DiffScheduler& CladPlugin::getScheduler() {
+      if (!m_Scheduler) {
+        RequestOptions Opts{};
+        SetRequestOptions(Opts);
+        m_Scheduler = std::make_unique<DiffScheduler>(m_CI.getSema(), Opts,
+                                                      CladEnabledRange);
+      }
+      return *m_Scheduler;
+    }
+
     void CladPlugin::FinalizeTranslationUnit() {
       Sema& S = m_CI.getSema();
       // Restore the TUScope that became a 0 in Sema::ActOnEndOfTranslationUnit.
@@ -606,16 +611,16 @@ void InitTimers();
       Sema::LocalEagerInstantiationScope LocalInstantiations(
           S CLAD_COMPAT_CLANG21_AtEndOfTUParam);
 
-      if (!m_DiffRequestGraph.isProcessingNode()) {
+      if (!getScheduler().getGraph().isProcessingNode()) {
         // This check is to avoid recursive processing of the graph, as
         // HandleTopLevelDecl can be called recursively in non-standard
         // setup for code generation.
-        DiffRequest request = m_DiffRequestGraph.getNextToProcessNode();
+        DiffRequest request = getScheduler().getGraph().getNextToProcessNode();
         while (request.Function || request.Global) {
-          m_DiffRequestGraph.setCurrentProcessingNode(request);
+          getScheduler().getGraph().setCurrentProcessingNode(request);
           ProcessDiffRequest(request);
-          m_DiffRequestGraph.markCurrentNodeProcessed();
-          request = m_DiffRequestGraph.getNextToProcessNode();
+          getScheduler().getGraph().markCurrentNodeProcessed();
+          request = getScheduler().getGraph().getNextToProcessNode();
         }
       }
 
@@ -631,9 +636,6 @@ void InitTimers();
     void CladPlugin::HandleTranslationUnit(ASTContext& C) {
       // In case of diagnostics, don't bother, just let the compiler finish.
       if (!m_CI.getDiagnostics().hasErrorOccurred()) {
-        Sema& S = m_CI.getSema();
-        RequestOptions opts{};
-        SetRequestOptions(opts);
         // Traverse all collected DeclGroupRef only once to create the static
         // graph.
         TimedAnalysisRegion R("Rest of TU");
@@ -642,16 +644,14 @@ void InitTimers();
             if (const auto* FD = dyn_cast<FunctionDecl>(D))
               if (FD->isConstexpr())
                 continue;
-            DiffCollector collector(CladEnabledRange, m_DiffRequestGraph, S,
-                                    opts, m_AllAnalysisDC);
-            collector.Walk(DCI.m_DGR);
+            getScheduler().Plan(DCI.m_DGR);
             break;
           }
 
         if (m_CI.getFrontendOpts().ShowStats) {
           // Print the graph of the diff requests.
           llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
-          m_DiffRequestGraph.dump();
+          getScheduler().getGraph().dump();
         }
 
         FinalizeTranslationUnit();
