@@ -102,9 +102,9 @@
 // DS comp_ellint_1/ f / l      (C++17) complete elliptic integral (1st kind)
 // DS comp_ellint_2/ f / l      (C++17) complete elliptic integral (2nd kind)
 // DS comp_ellint_3/ f / l      (C++17) complete elliptic integral (3rd kind)
-// D cyl_bessel_i/ f / l       (C++17) modified cylindrical Bessel (regular)
-// D cyl_bessel_j/ f / l       (C++17) cylindrical Bessel functions (1st kind)
-// D cyl_bessel_k/ f / l       (C++17) modified cylindrical Bessel (irregular)
+// DS cyl_bessel_i/ f / l       (C++17) modified cylindrical Bessel (regular)
+// DS cyl_bessel_j/ f / l       (C++17) cylindrical Bessel functions (1st kind)
+// DS cyl_bessel_k/ f / l       (C++17) modified cylindrical Bessel (irregular)
 // D cyl_neumann/ f / l        (C++17) cylindrical Neumann functions
 // D ellint_1/ f / l           (C++17) incomplete elliptic integral (1st kind)
 // D ellint_2/ f / l           (C++17) incomplete elliptic integral (2nd kind)
@@ -125,10 +125,23 @@
 #include <iomanip>
 #if !defined(__cpp_lib_math_special_functions)
 namespace std {
+  // std::beta mock for osx systems
   template <typename T>
   inline T beta(T x, T y) {
     return std::tgamma(x) * std::tgamma(y) / std::tgamma(x + y);
   }
+  // std::cyl_bessel mocks for osx systems
+  inline double cyl_bessel_j(double nu, double x) { return 0.0; }
+  inline float cyl_bessel_j(float nu, float x) { return 0.0f; }
+  inline long double cyl_bessel_j(long double nu, long double x) { return 0.0L; }
+
+  inline double cyl_bessel_i(double nu, double x) { return 0.0; }
+  inline float cyl_bessel_i(float nu, float x) { return 0.0f; }
+  inline long double cyl_bessel_i(long double nu, long double x) { return 0.0L; }
+
+  inline double cyl_bessel_k(double nu, double x) { return 0.0; }
+  inline float cyl_bessel_k(float nu, float x) { return 0.0f; }
+  inline long double cyl_bessel_k(long double nu, long double x) { return 0.0L; }
 }
 #endif
 
@@ -313,6 +326,21 @@ template<typename T> T f_beta(T x){ return std::beta(x,(T)2.0); } // x in (0, +i
 inline float f_betaf(float x){ return std::beta(x, 2.0f); }
 inline long double f_betal(long double x){ return std::beta(x, 2.0L); }
 
+//----------------------- Mathematical special functions -----------------------
+#if defined(__cpp_lib_math_special_functions)
+template<typename T> T f_cyl_bessel_j(T x){ return std::cyl_bessel_j((T)1.0, x); }
+inline float f_cyl_bessel_jf(float x){ return std::cyl_bessel_j(1.0f, x); }
+inline long double f_cyl_bessel_jl(long double x){ return std::cyl_bessel_j(1.0L, x); }
+
+template<typename T> T f_cyl_bessel_i(T x){ return std::cyl_bessel_i((T)1.0, x); }
+inline float f_cyl_bessel_if(float x){ return std::cyl_bessel_i(1.0f, x); }
+inline long double f_cyl_bessel_il(long double x){ return std::cyl_bessel_i(1.0L, x); }
+
+template<typename T> T f_cyl_bessel_k(T x){ return std::cyl_bessel_k((T)1.0, x); }
+inline float f_cyl_bessel_kf(float x){ return std::cyl_bessel_k(1.0f, x); }
+inline long double f_cyl_bessel_kl(long double x){ return std::cyl_bessel_k(1.0L, x); }
+#endif
+
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__))
 //------------------------ Elliptic integrals -----------------------------
 //
@@ -391,7 +419,7 @@ int main() {
   //CHECK_RANGE_LD(acoshl, {1.01, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0});
   CHECK_ALL(atanh);
 
-  // Error / Gamma functions
+  // Error / Gamma functions / Special functions
   CHECK_ALL(erf);
   CHECK_ALL_RANGE(beta, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
 
@@ -400,6 +428,12 @@ int main() {
   CHECK_ALL_RANGE(comp_ellint_1, {-0.9, -0.6, -0.3, 0.0, 0.3, 0.6, 0.9});
   CHECK_ALL_RANGE(comp_ellint_2, {-0.9, -0.6, -0.3, 0.0, 0.3, 0.6, 0.9});
   CHECK_ALL_RANGE(comp_ellint_3, {-0.9, -0.6, -0.3, 0.0, 0.3, 0.6, 0.9});
+  #endif
+
+  #if defined(__cpp_lib_math_special_functions)
+  CHECK_ALL_RANGE(cyl_bessel_j, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
+  CHECK_ALL_RANGE(cyl_bessel_i, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
+  CHECK_ALL_RANGE(cyl_bessel_k, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
   #endif
 
   return 0;

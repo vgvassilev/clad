@@ -1211,6 +1211,140 @@ CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   if (d_y)
     *d_y += b * (clad_digamma(y) - psi_xy) * d_z;
 }
+
+#if defined(__cpp_lib_math_special_functions)
+// 1. Regular Bessel Function (1st Kind)
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+cyl_bessel_j_pushforward(T nu, T x, dT d_nu, dT d_x) {
+  T j_nu = ::std::cyl_bessel_j(nu, x);
+  dT pushforward = 0;
+
+  if (d_nu) {
+    // TODO: Analytical derivative w.r.t the order (nu) is highly complex and
+    // currently unsupported. We implicitly add 0 to the pushforward here, but
+    // this is a mathematically incomplete gradient.
+  }
+
+  if (d_x) {
+    if (x == (T)0.0) {
+      // Safe path for zero-domain to avoid division by zero
+      T j_nu_minus_1 = ::std::cyl_bessel_j(nu - (T)1.0, x);
+      T j_nu_plus_1 = ::std::cyl_bessel_j(nu + (T)1.0, x);
+      pushforward += (T)0.5 * (j_nu_minus_1 - j_nu_plus_1) * d_x;
+    } else {
+      // Fast path that reuses the primal evaluation
+      T j_nu_minus_1 = ::std::cyl_bessel_j(nu - (T)1.0, x);
+      pushforward += (j_nu_minus_1 - (nu / x) * j_nu) * d_x;
+    }
+  }
+  return {j_nu, pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void cyl_bessel_j_pullback(T nu, T x, U d_z, T* d_nu, T* d_x) {
+  if (d_nu) {
+    // TODO: Analytical derivative w.r.t the order (nu) is highly complex and
+    // currently unsupported. We implicitly add 0 to the adjoint here, but this
+    // is a mathematically incomplete gradient.
+  }
+
+  if (d_x) {
+    if (x == (T)0.0) {
+      T j_nu_minus_1 = ::std::cyl_bessel_j(nu - (T)1.0, x);
+      T j_nu_plus_1 = ::std::cyl_bessel_j(nu + (T)1.0, x);
+      *d_x += (T)0.5 * (j_nu_minus_1 - j_nu_plus_1) * d_z;
+    } else {
+      T j_nu =
+          ::std::cyl_bessel_j(nu, x); // Re-calculate primal for reverse mode
+      T j_nu_minus_1 = ::std::cyl_bessel_j(nu - (T)1.0, x);
+      *d_x += (j_nu_minus_1 - (nu / x) * j_nu) * d_z;
+    }
+  }
+}
+// 2. Modified Bessel Function (Regular)
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+cyl_bessel_i_pushforward(T nu, T x, dT d_nu, dT d_x) {
+  T i_nu = ::std::cyl_bessel_i(nu, x);
+  dT pushforward = 0;
+
+  if (d_nu) {
+    // TODO: Analytical derivative w.r.t the order (nu) is highly complex and
+    // currently unsupported. We implicitly add 0 to the pushforward here, but
+    // this is a mathematically incomplete gradient.
+  }
+
+  if (d_x) {
+    if (x == (T)0.0) {
+      T i_nu_minus_1 = ::std::cyl_bessel_i(nu - (T)1.0, x);
+      T i_nu_plus_1 = ::std::cyl_bessel_i(nu + (T)1.0, x);
+      pushforward += (T)0.5 * (i_nu_minus_1 + i_nu_plus_1) * d_x;
+    } else {
+      T i_nu_minus_1 = ::std::cyl_bessel_i(nu - (T)1.0, x);
+      pushforward += (i_nu_minus_1 - (nu / x) * i_nu) * d_x;
+    }
+  }
+  return {i_nu, pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void cyl_bessel_i_pullback(T nu, T x, U d_z, T* d_nu, T* d_x) {
+  if (d_nu) {
+    // TODO: Analytical derivative w.r.t the order (nu) is highly complex and
+    // currently unsupported. We implicitly add 0 to the adjoint here, but this
+    // is a mathematically incomplete gradient.
+  }
+
+  if (d_x) {
+    if (x == (T)0.0) {
+      T i_nu_minus_1 = ::std::cyl_bessel_i(nu - (T)1.0, x);
+      T i_nu_plus_1 = ::std::cyl_bessel_i(nu + (T)1.0, x);
+      *d_x += (T)0.5 * (i_nu_minus_1 + i_nu_plus_1) * d_z;
+    } else {
+      T i_nu = ::std::cyl_bessel_i(nu, x);
+      T i_nu_minus_1 = ::std::cyl_bessel_i(nu - (T)1.0, x);
+      *d_x += (i_nu_minus_1 - (nu / x) * i_nu) * d_z;
+    }
+  }
+}
+// 3. Modified Bessel Function (Irregular)
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+cyl_bessel_k_pushforward(T nu, T x, dT d_nu, dT d_x) {
+  T k_nu = ::std::cyl_bessel_k(nu, x);
+  dT pushforward = 0;
+
+  if (d_nu) {
+    // TODO: Analytical derivative w.r.t the order (nu) is highly complex and
+    // currently unsupported. We implicitly add 0 to the pushforward here, but
+    // this is a mathematically incomplete gradient.
+  }
+
+  if (d_x) {
+    T k_nu_minus_1 = ::std::cyl_bessel_k(nu - (T)1.0, x);
+    // optimized formula: -K_{n-1}(x)-(n/x)*K_n(x)
+    pushforward += (-(k_nu_minus_1) - (nu / x) * k_nu) * d_x;
+  }
+  return {k_nu, pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void cyl_bessel_k_pullback(T nu, T x, U d_z, T* d_nu, T* d_x) {
+  if (d_nu) {
+    // TODO: Analytical derivative w.r.t the order (nu) is highly complex and
+    // currently unsupported. We implicitly add 0 to the adjoint here, but this
+    // is a mathematically incomplete gradient.
+  }
+
+  if (d_x) {
+    T k_nu = ::std::cyl_bessel_k(nu, x);
+    T k_nu_minus_1 = ::std::cyl_bessel_k(nu - (T)1.0, x);
+    *d_x += (-(k_nu_minus_1) - (nu / x) * k_nu) * d_z;
+  }
+}
+#endif
+
 #endif
 
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
@@ -1566,6 +1700,16 @@ using std::sqrt_pushforward;
 #if __cplusplus >= 201703L
 using std::beta_pullback;
 using std::beta_pushforward;
+
+#if defined(__cpp_lib_math_special_functions)
+using std::cyl_bessel_i_pullback;
+using std::cyl_bessel_i_pushforward;
+using std::cyl_bessel_j_pullback;
+using std::cyl_bessel_j_pushforward;
+using std::cyl_bessel_k_pullback;
+using std::cyl_bessel_k_pushforward;
+#endif
+
 #endif
 
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
