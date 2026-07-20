@@ -7,6 +7,12 @@
 #include <map>
 #include <utility>
 #include <vector>
+#ifndef Max_Records
+#define Max_Records 64
+#endif
+#ifndef Max_Bytes
+#define Max_Bytes 1024
+#endif
 
 namespace clad {
 
@@ -21,6 +27,41 @@ namespace clad {
 /// clad::tape is not viable.
 class restore_tracker {
   // m_data consists of pairs of memory addresses and bitwise values
+#ifdef __CUDACC__
+  struct MetaData {
+    char* addr;
+    size_t size;
+    size_t off;
+  };
+  MetaData m_meta[Max_Records];
+  uint8_t m_buf[Max_Bytes];
+  size_t m_cnt = 0, m_off = 0;
+
+public:
+  __host__ __device__ restore_tracker() = default;
+
+  template <typename T> __host__ __device__ void store(const T& val) {
+    for (size_t i = 0; i < m_cnt; ++i)
+      if (m_meta[i].addr == (char*)&val)
+        return;
+
+    if (m_cnt >= Max_Records || m_off + sizeof(T) > Max_Bytes) {
+      // Clad restore_tracker GPU capacity exceeded. Try again with larger value
+      return;
+    }
+
+    m_meta[m_cnt] = {(char*)&val, sizeof(T), m_off};
+    std::memcpy(m_buf + m_off, &val, sizeof(T));
+    m_off += sizeof(T);
+    m_cnt++;
+  }
+
+  __host__ __device__ void restore() {
+    for (size_t i = 0; i < m_cnt; ++i)
+      std::memcpy(m_meta[i].addr, m_buf + m_meta[i].off, m_meta[i].size);
+    m_cnt = m_off = 0;
+  }
+#else
   using RawMemory = std::vector<uint8_t>;
   using Address = char*;
   std::map<const Address, RawMemory> m_data;
@@ -47,6 +88,7 @@ public:
     }
     m_data.clear();
   }
+#endif
 };
 } // namespace clad
 
