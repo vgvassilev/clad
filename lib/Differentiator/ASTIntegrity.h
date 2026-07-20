@@ -50,6 +50,16 @@ const clang::Stmt* findPrimalSharedNode(const clang::Stmt* Derivative,
 const clang::ValueDecl* findOriginalRef(const clang::Stmt* Derivative,
                                         const clang::FunctionDecl* Original);
 
+/// Return the first block-scope variable \p Derivative references before its
+/// declaration, or nullptr if every use is preceded by its decl. clad builds
+/// bodies by hand, so nothing enforces the ordering that parsing guarantees for
+/// user code. Also validates lambda bodies against what is visible at the
+/// lambda's definition point, which catches references built outside the
+/// closure's scope that never became captures. \p Derived supplies the
+/// generated function whose parameters are in scope throughout.
+const clang::ValueDecl* findUseBeforeDecl(const clang::Stmt* Derivative,
+                                          const clang::FunctionDecl* Derived);
+
 /// The structural violations a generated derivative body may exhibit, each the
 /// first offending node/decl or null. Purely a function of the AST -- the
 /// caller supplies the differentiation context (whether the derivation was
@@ -62,6 +72,8 @@ struct IntegrityReport {
   /// A reference left bound to one of the original function's own
   /// params/locals.
   const clang::ValueDecl* StrayRef = nullptr;
+  /// A variable referenced before its declaration.
+  const clang::ValueDecl* UseBeforeDecl = nullptr;
 };
 
 /// Run every structural integrity check on a generated \p Derivative body.
@@ -70,7 +82,8 @@ struct IntegrityReport {
 /// the AST; StrayRef in particular is meaningful only for a clean derivation,
 /// which the caller must establish before acting on it.
 IntegrityReport verifyDerivative(const clang::Stmt* Derivative,
-                                 const clang::FunctionDecl* Original);
+                                 const clang::FunctionDecl* Original,
+                                 const clang::FunctionDecl* Derived);
 
 } // namespace clad
 

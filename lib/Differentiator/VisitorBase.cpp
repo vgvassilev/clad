@@ -1029,6 +1029,20 @@ namespace clad {
       utils::ReferencesUpdater up(m_Sema, getCurrentScope(), CallOp,
                                   m_DeclReplacements);
       up.TraverseStmt(clonedS);
+      // Cloning a DeclStmt produces a fresh VarDecl, but StmtClone records that
+      // only in its own decl mapping. Register it here too, or a later
+      // statement's clone keeps referring to the original lambda's variable --
+      // a reference into the user's AST that outlives differentiation.
+      if (const auto* DS = dyn_cast<DeclStmt>(S))
+        if (auto* ClonedDS = dyn_cast<DeclStmt>(clonedS)) {
+          auto O = DS->decl_begin();
+          auto C = ClonedDS->decl_begin();
+          for (; O != DS->decl_end() && C != ClonedDS->decl_end(); ++O, ++C)
+            if (const auto* OVD = dyn_cast<VarDecl>(*O))
+              if (auto* CVD = dyn_cast<VarDecl>(*C))
+                if (OVD != CVD)
+                  m_DeclReplacements[OVD] = CVD;
+        }
       addToCurrentBlock(clonedS);
     }
     CompoundStmt* ClonedBody = endBlock();

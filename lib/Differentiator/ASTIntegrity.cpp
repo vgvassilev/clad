@@ -96,10 +96,82 @@ const ValueDecl* findOriginalRef(const Stmt* Derivative,
   return F.Stray;
 }
 
+/// Visit a block, scoping the declarations it introduces to it.
+static const ValueDecl* walkScope(const Stmt* S,
+                                  llvm::DenseSet<const VarDecl*> Declared);
+
+/// Visit \p S in order, threading \p Declared through so later siblings see
+/// what earlier ones declared. Returns the first offender, or null.
+static const ValueDecl* walkStmt(const Stmt* S,
+                                 llvm::DenseSet<const VarDecl*>& Declared) {
+  if (!S)
+    return nullptr;
+
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(S)) {
+    const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+    // Only block-scope locals can be used before their declaration. Parameters
+    // and globals are live for the whole body.
+    if (VD && VD->isLocalVarDecl() && !Declared.count(VD))
+      return VD;
+    return nullptr;
+  }
+
+  if (const auto* LE = dyn_cast<LambdaExpr>(S)) {
+    llvm::DenseSet<const VarDecl*> Inner = Declared;
+    if (const CXXMethodDecl* Call = LE->getCallOperator())
+      for (const ParmVarDecl* P : Call->parameters())
+        Inner.insert(P);
+    return walkScope(LE->getBody(), std::move(Inner));
+  }
+
+  // A block's declarations do not escape it.
+  if (isa<CompoundStmt>(S))
+    return walkScope(S, Declared);
+
+  if (const auto* DS = dyn_cast<DeclStmt>(S)) {
+    // An initializer is evaluated before its own variable is in scope.
+    for (const Decl* D : DS->decls())
+      if (const auto* VD = dyn_cast<VarDecl>(D)) {
+        if (const ValueDecl* Bad = walkStmt(VD->getInit(), Declared))
+          return Bad;
+        Declared.insert(VD);
+      }
+    return nullptr;
+  }
+
+  for (const Stmt* Child : S->children())
+    if (const ValueDecl* Bad = walkStmt(Child, Declared))
+      return Bad;
+  return nullptr;
+}
+
+static const ValueDecl* walkScope(const Stmt* S,
+                                  llvm::DenseSet<const VarDecl*> Declared) {
+  if (!S)
+    return nullptr;
+  if (!isa<CompoundStmt>(S))
+    return walkStmt(S, Declared);
+  for (const Stmt* Child : cast<CompoundStmt>(S)->body())
+    if (const ValueDecl* Bad = walkStmt(Child, Declared))
+      return Bad;
+  return nullptr;
+}
+
+const ValueDecl* findUseBeforeDecl(const Stmt* Derivative,
+                                   const FunctionDecl* Derived) {
+  llvm::DenseSet<const VarDecl*> Declared;
+  if (Derived)
+    for (const ParmVarDecl* P : Derived->parameters())
+      Declared.insert(P);
+  return walkScope(Derivative, std::move(Declared));
+}
+
 IntegrityReport verifyDerivative(const Stmt* Derivative,
-                                 const FunctionDecl* Original) {
+                                 const FunctionDecl* Original,
+                                 const FunctionDecl* Derived) {
   IntegrityReport R;
   R.SharedNode = findSharedNode(Derivative);
+  R.UseBeforeDecl = findUseBeforeDecl(Derivative, Derived);
   if (Original) {
     if (const Stmt* PrimalBody = Original->getBody())
       R.PrimalNode = findPrimalSharedNode(Derivative, PrimalBody);
