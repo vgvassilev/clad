@@ -614,10 +614,7 @@ Decl* StmtClone::CloneDecl(Decl* Node)  {
     if (VD->getInit())
       m_Sema.AddInitializerToDecl(cloned_Decl, Clone(VD->getInit()), VD->isDirectInit());
     cloned_Decl->setTSCSpec(VD->getTSCSpec());
-    //cloned_Decl->setDeclaredInCondition(VD->isDeclaredInCondition());
-    if (m_OriginalToClonedStmts != 0)
-      m_OriginalToClonedStmts->m_DeclMapping[VD] = cloned_Decl;
-
+    // cloned_Decl->setDeclaredInCondition(VD->isDeclaredInCondition());
     return cloned_Decl;
   }
   assert(0 && "other decl clones aren't supported");
