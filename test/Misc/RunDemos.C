@@ -4,6 +4,15 @@
 // RUN: %cladclang %S/../../demos/DebuggingClad.cpp -I%S/../../include 2>&1
 // RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include 2>&1
 // RUN: %cladclang %S/../../demos/ComputerGraphics/smallpt/SmallPT.cpp -I%S/../../include 2>&1
+// RUN: %cladclang %S/../../demos/ComputerGraphics/smallpt/SmallPT_DiffGeom.cpp -I%S/../../include -oSmallPT_DiffGeom.out 2>&1
+// RUN: ./SmallPT_DiffGeom.out | FileCheck -check-prefix CHECK_SMALLPT_DIFFGEOM %s
+// CHECK_SMALLPT_DIFFGEOM: Converged
+// RUN: %cladclang %S/../../demos/ComputerGraphics/smallpt/SmallPT_DiffSphere.cpp -I%S/../../include -oSmallPT_DiffSphere.out 2>&1
+// RUN: ./SmallPT_DiffSphere.out | FileCheck -check-prefix CHECK_SMALLPT_DIFFSPHERE %s
+// CHECK_SMALLPT_DIFFSPHERE: Converged
+// RUN: %cladclang %S/../../demos/ComputerGraphics/smallpt/SmallPT_DiffLight.cpp -I%S/../../include -oSmallPT_DiffLight.out 2>&1
+// RUN: ./SmallPT_DiffLight.out | FileCheck -check-prefix CHECK_SMALLPT_DIFFLIGHT %s
+// CHECK_SMALLPT_DIFFLIGHT: Converged
 
 //-----------------------------------------------------------------------------/
 //  Demo: Gradient.cpp
