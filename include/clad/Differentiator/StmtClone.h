@@ -28,19 +28,11 @@ namespace clang {
 namespace clad {
 namespace utils {
 
-  struct StmtCloneMapping;
-
   class StmtClone : public clang::StmtVisitor<StmtClone, clang::Stmt*>  {
   public:
-    // first: original stmt, second: appropriate cloned stmt
-    typedef llvm::DenseMap<const clang::Stmt*, clang::Stmt*> StmtMapping;
-    typedef llvm::DenseMap<clang::ValueDecl*, clang::ValueDecl*> DeclMapping;
-    typedef StmtCloneMapping Mapping;
-
   private:
     clang::Sema& m_Sema;
     clang::ASTContext& Ctx;
-    Mapping* m_OriginalToClonedStmts;
     // While cloning a PseudoObjectExpr, maps each original OpaqueValueExpr to
     // its clone so the syntactic form and the semantic expressions reference
     // the same fresh OVE (null outside such a clone). See
@@ -52,8 +44,8 @@ namespace utils {
     clang::VarDecl* CloneDeclOrNull(clang::VarDecl* Node);
 
   public:
-    StmtClone(clang::Sema& sema, clang::ASTContext& ctx, Mapping* originalToClonedStmts = 0)
-      : m_Sema(sema), Ctx(ctx), m_OriginalToClonedStmts(originalToClonedStmts) {}
+    StmtClone(clang::Sema& sema, clang::ASTContext& ctx)
+        : m_Sema(sema), Ctx(ctx) {}
 
     template<class StmtTy>
     StmtTy* Clone(const StmtTy* S);
@@ -141,22 +133,12 @@ namespace utils {
     clang::Stmt* VisitStmt(clang::Stmt*);
   };
 
-  // Not a StmtClone member class to make it forwardable:
-  struct StmtCloneMapping {
-    StmtClone::StmtMapping m_StmtMapping;
-    StmtClone::DeclMapping m_DeclMapping;
-  };
-
   template<class StmtTy>
   StmtTy* StmtClone::Clone(const StmtTy* S) {
     if (!S)
       return 0;
 
     clang::Stmt* clonedStmt = Visit(const_cast<StmtTy*>(S));
-
-    if (m_OriginalToClonedStmts)
-      m_OriginalToClonedStmts->m_StmtMapping[S] = clonedStmt;
-
     return static_cast<StmtTy*>(clonedStmt);
   }
 
