@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -otestUtility.out 2>&1 | %filecheck %s
 // RUN: ./testUtility.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
