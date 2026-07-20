@@ -2,7 +2,7 @@
 // RUN: ./Pointers.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oPointers.out
 // RUN: ./Pointers.out | %filecheck_exec %s
-// XFAIL: target={{i586.*}}, valgrind
+// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
