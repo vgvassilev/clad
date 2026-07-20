@@ -240,12 +240,12 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
   CUDA_HOST_DEVICE void zero_impl(volatile T& t) {
     // Bound once so the assertion and the guard below cannot drift apart: a
     // type the assertion rejects must not go on to be memcpy'd anyway.
-    constexpr bool is_zeroable = std::is_trivially_destructible<T>::value;
+    constexpr bool is_zeroable = std::is_trivially_destructible_v<T>;
     static_assert(is_zeroable, "Clad device fallback zero_init requires "
                                "trivially destructible types.");
     if constexpr (is_zeroable) {
       // Fill an array with zeros.
-      // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+      // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
       unsigned char tmp[sizeof(T)] = {};
 
 #if __has_builtin(__builtin_memcpy)
