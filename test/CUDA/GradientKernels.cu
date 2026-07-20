@@ -262,7 +262,7 @@ __global__ void kernel_with_device_call(double *out, const double *in, double va
   out[index] = device_fn(in[index], val);
 }
 
-// CHECK: __attribute__((device)) void device_fn_pullback_1(const double in, double val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) void device_fn_pullback_0_1(const double in, double val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:                *_d_in += _d_y;
 //CHECK-NEXT:                *_d_val += _d_y;
@@ -280,7 +280,7 @@ __global__ void kernel_with_device_call(double *out, const double *in, double va
 //CHECK-NEXT:        _d_out[index0] = 0.;
 //CHECK-NEXT:        double _r0 = 0.;
 //CHECK-NEXT:        double _r1 = 0.;
-//CHECK-NEXT:        device_fn_pullback_1(in[index0], val, _r_d0, &_r0, &_r1);
+//CHECK-NEXT:        device_fn_pullback_0_1(in[index0], val, _r_d0, &_r0, &_r1);
 //CHECK-NEXT:        atomicAdd(_d_val, _r1);
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -444,7 +444,7 @@ __global__ void fn1(double *out, const double *in, double val) {
 // CHECK-NEXT:         _d_out[index0] = 0.;
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         double _r1 = 0.;
-// CHECK-NEXT:         device_fn_pullback_1(in[index0], temp, _r_d0, &_r0, &_r1);
+// CHECK-NEXT:         device_fn_pullback_0_1(in[index0], temp, _r_d0, &_r0, &_r1);
 // CHECK-NEXT:         _d_temp += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     atomicAdd(_d_val, _d_temp);
@@ -872,6 +872,53 @@ __global__ void injective_reassignment_loop(int *a) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+__device__ void device_int_add(int *a, int *b) { *b += *a; }
+__device__ void device_mul_addr(int *a, int *b) { *b *= *a; }
+
+__global__ void alias_kernel(int *a) { device_int_add(a, a); }
+__global__ void offset_kernel(int *a) { device_int_add(a, a + 1); }
+__global__ void addr_kernel(int *a) { int b = 5; device_mul_addr(a, &b); }
+
+
+// CHECK: __attribute__((device)) void device_int_add_pullback_0_1(int *a, int *b, int *_d_a, int *_d_b) {
+// CHECK-NEXT:     int _t0 = *b;
+// CHECK-NEXT:     *b += *a;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *b = _t0;
+// CHECK-NEXT:         int _r_d0 = *_d_b;
+// CHECK-NEXT:         atomicAdd(_d_a, _r_d0);
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void alias_kernel_grad(int *a, int *_d_a) {
+// CHECK-NEXT:     device_int_add(a, a);
+// CHECK-NEXT:     device_int_add_pullback_0_1(a, a, _d_a, _d_a);
+// CHECK-NEXT: }
+
+// CHECK: void offset_kernel_grad(int *a, int *_d_a) {
+// CHECK-NEXT:     device_int_add(a, a + 1);
+// CHECK-NEXT:     device_int_add_pullback_0_1(a, a + 1, _d_a, _d_a + 1);
+// CHECK-NEXT: }
+
+// CHECK: __attribute__((device)) void device_mul_addr_pullback_0_1(int *a, int *b, int *_d_a, int *_d_b) {
+// CHECK-NEXT:     int _t0 = *b;
+// CHECK-NEXT:     *b *= *a;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *b = _t0;
+// CHECK-NEXT:         int _r_d0 = *_d_b;
+// CHECK-NEXT:         *_d_b = 0;
+// CHECK-NEXT:         *_d_b += _r_d0 * *a;
+// CHECK-NEXT:         atomicAdd(_d_a, *b * _r_d0);
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void addr_kernel_grad(int *a, int *_d_a) {
+// CHECK-NEXT:     int _d_b = 0;
+// CHECK-NEXT:     int b = 5;
+// CHECK-NEXT:     device_mul_addr(a, &b);
+// CHECK-NEXT:     device_mul_addr_pullback_0_1(a, &b, _d_a, &_d_b);
+// CHECK-NEXT: }
+
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \
   {                                                                         \
     int *fives = (int*)malloc(N * sizeof(int));                             \
@@ -1152,6 +1199,10 @@ int main(void) {
   TEST(kernel_device_injective, dim3(1), dim3(1), 0, false, n, d_n, 2); // CHECK-EXEC: 4
   TEST(injective_reassignment, dim3(1), dim3(1), 0, false, n, d_n, 2); // CHECK-EXEC: 1
   TEST(injective_reassignment_loop, dim3(1), dim3(1), 0, false, n, d_n,2); // CHECK-EXEC: 1
+
+  TEST(alias_kernel, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 2
+  TEST(offset_kernel, dim3(1), dim3(1), 0, false, n, d_n, 2); // CHECK-EXEC: 2, 1
+  TEST(addr_kernel, dim3(1), dim3(1), 0, false, n, d_n, 1); // CHECK-EXEC: 1
 
   cudaFree(dummy_in);
   cudaFree(dummy_out);
