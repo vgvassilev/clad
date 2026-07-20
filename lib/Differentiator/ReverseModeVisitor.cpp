@@ -1078,8 +1078,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (VisitRange.getDecl_dx())
       addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl_dx()));
     addToCurrentBlock(BuildDeclStmt(VisitBegin.getDecl()));
-    if (VisitBegin.getDecl_dx())
-      addToCurrentBlock(BuildDeclStmt(VisitBegin.getDecl_dx()));
+    // The reverse sweep decrements the adjoint iterator, but its loop is a
+    // sibling of the forward one -- for a nested loop no block encloses both
+    // short of the function body. Hoist the declaration to function scope so
+    // both sweeps name the same object, and keep the initialization here,
+    // where the adjoint range it reads is in scope.
+    if (VarDecl* DBegin = VisitBegin.getDecl_dx()) {
+      Expr* Init = DBegin->getInit();
+      DBegin->setInit(nullptr);
+      addToBlock(BuildDeclStmt(DBegin), m_Globals);
+      if (Init)
+        addToCurrentBlock(BuildOp(BO_Assign, BuildDeclRef(DBegin), Init));
+    }
 
     const auto* EndDecl = cast<VarDecl>(FRS->getEndStmt()->getSingleDecl());
     QualType endType = CloneType(EndDecl->getType());
@@ -1119,13 +1129,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff storeAdjLoop;
     if (LoopVDDiff.getDecl_dx())
       storeAdjLoop = StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl_dx()));
+    // The reverse sweep restores the loop variable and its adjoint from the
+    // tape, but it does so from a sibling block of the forward loop. Declare
+    // both at function scope so the restore names the same object; each is
+    // zero-initialized, so nothing in the initializer needs the loop's scope.
     if (LoopVDDiff.getDecl_dx())
-      addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl_dx()));
+      addToBlock(BuildDeclStmt(LoopVDDiff.getDecl_dx()), m_Globals);
     Expr* loopInit = LoopVDDiff.getDecl()->getInit();
     SetDeclInit(LoopVDDiff.getDecl(),
                 getZeroInit(LoopVDDiff.getDecl()->getType()));
     if (LoopVDDiff.getDecl())
-      addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl()));
+      addToBlock(BuildDeclStmt(LoopVDDiff.getDecl()), m_Globals);
     Expr* assignLoop =
         BuildOp(BO_Assign, BuildDeclRef(LoopVDDiff.getDecl()), loopInit);
 

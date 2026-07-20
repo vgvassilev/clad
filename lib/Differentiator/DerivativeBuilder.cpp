@@ -666,7 +666,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // Compute cleanliness before the diagnostics below inflate the tally.
         bool CleanDerivation =
             Diags.getNumWarnings() + Diags.getNumErrors() == DiagsBefore;
-        IntegrityReport Report = verifyDerivative(Body, request.Function);
+        IntegrityReport Report = verifyDerivative(Body, request.Function, FD);
 
         // A derivative must be a proper tree in its Stmt child-edge structure:
         // no node the child of two parents, because a later in-place edit of a
@@ -701,6 +701,21 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // unsupported construct is cloned wholesale and knowingly keeps such
         // references in a derivative that is not used.
         if (CleanDerivation) {
+          // Nothing enforces declaration-before-use in a hand-assembled body
+          // the way parsing does for user code, so a reference can name a
+          // variable whose declaration has not been reached -- or one owned by
+          // the original function. Gated with StrayRef: an unsupported
+          // construct is diagnosed and its body is not expected to be
+          // well-formed.
+          assert(!Report.UseBeforeDecl &&
+                 "clad generated a use of a variable before its declaration");
+          if (Report.UseBeforeDecl)
+            diag(DiagnosticsEngine::Warning, FD->getLocation(),
+                 "clad referenced '%0' before its declaration while "
+                 "differentiating %1; this is a clad bug -- please report it "
+                 "at %2")
+                << Report.UseBeforeDecl << FD << getCladRepositoryURL();
+
           assert(!Report.StrayRef &&
                  "derivative references an un-remapped decl of the original");
           if (Report.StrayRef)
