@@ -538,7 +538,11 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         if (!request.DeclarationOnly ||
             !(m_Scheduler.getDerivedFns().IsCladDerivative(FD) ||
               m_Scheduler.getDerivedFns().IsCustomDerivative(FD))) {
-          const auto& name = FD->getName();
+          // getName() asserts on a non-identifier name; an operator FD (e.g. a
+          // lambda's operator()) reaches here with one, and matches none of the
+          // simple-identifier special cases below.
+          StringRef name =
+              FD->getDeclName().isIdentifier() ? FD->getName() : StringRef();
           // FIXME: Currently, these functions cannot be covered with custom
           // derivatives because templates are not well-supported in custom
           // derivatives. We have to use workarounds to support them.
