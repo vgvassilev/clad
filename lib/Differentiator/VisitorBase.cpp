@@ -291,7 +291,15 @@ namespace clad {
     CXXScopeSpec CSS;
     SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
 
-    if (!clad_compat::hasQualifier(NNS)) {
+    // A local variable or parameter is never name-qualified: `NS::local` does
+    // not exist. Building a qualifier for one is not only meaningless printing
+    // -- when the reference crosses into a nested lambda (a capture), the bogus
+    // qualifier stops Sema from resolving it as a capture. So only qualify
+    // decls that can be qualified.
+    const bool IsLocal =
+        isa<ParmVarDecl>(D) ||
+        (isa<VarDecl>(D) && cast<VarDecl>(D)->isLocalVarDecl());
+    if (!clad_compat::hasQualifier(NNS) && !IsLocal) {
       // If no CXXScopeSpec is provided we should try to find the common path
       // between the current scope (in which presumably we will make the call)
       // and where `D` is.
