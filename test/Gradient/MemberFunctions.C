@@ -631,13 +631,17 @@ double fn8(double x, double y) {
 // CHECK:  void fn8_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      S _d_s = {0., false};
 // CHECK-NEXT:      S s = {x, false};
-// CHECK-NEXT:      if (s.Cond(y))
-// CHECK-NEXT:          goto _label0;
+// CHECK-NEXT:      auto _rev0 = [&] {
+// CHECK-NEXT:          if (s.Cond(y))
+// CHECK-NEXT:              ;
+// CHECK-NEXT:          *_d_x += _d_s.val;
+// CHECK-NEXT:      };
+// CHECK-NEXT:      if (s.Cond(y)) {
+// CHECK-NEXT:          _rev0();
+// CHECK-NEXT:          return;
+// CHECK-NEXT:      }
 // CHECK-NEXT:      *_d_y += 1;
-// CHECK-NEXT:      if (s.Cond(y))
-// CHECK-NEXT:        _label0:
-// CHECK-NEXT:          ;
-// CHECK-NEXT:      *_d_x += _d_s.val;
+// CHECK-NEXT:      _rev0();
 // CHECK-NEXT:  }
 
 double fn9(double x, double y) {

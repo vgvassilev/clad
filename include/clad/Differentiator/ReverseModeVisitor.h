@@ -29,6 +29,8 @@
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLExtras.h" // IWYU pragma: keep -- function_ref on LLVM<14
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <array>
@@ -75,6 +77,10 @@ namespace clad {
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
     std::vector<Stmts> m_Reverse;
+    /// Markers emitted at early-return sites in the forward block, patched
+    /// with `{ _rev(); return; }` at finalization, where `_rev` is the lambda
+    /// wrapping the master reverse sweep.
+    llvm::SmallPtrSet<clang::Stmt*, 4> m_EarlyReturnMarkers;
     /// Storing expressions to delete/free memory in the reverse pass.
     Stmts m_DeallocExprs;
     /// A dfdx seed: eager expression, or a deferred builder materialized on
@@ -128,6 +134,15 @@ namespace clad {
 
     // Function to Differentiate with Enzyme as Backend
     void DifferentiateWithEnzyme();
+
+    /// Walk the current forward block and replace every Stmt in
+    /// m_EarlyReturnMarkers with a fresh Stmt built by `MakeReplacement`.
+    /// Each marker gets its own node — sharing one replacement across sites
+    /// would give it multiple parents and break the single-parent AST
+    /// invariant. Called once at function-body finalization, after the
+    /// forward sweep is fully assembled and before the body is handed to Sema.
+    void
+    patchEarlyReturnMarkers(llvm::function_ref<clang::Stmt*()> MakeReplacement);
 
   public:
     using direction = rmv::direction;
@@ -327,10 +342,10 @@ namespace clad {
     /// of the stack (clad::back(S)).
     clang::Expr* GlobalStoreAndRef(clang::Expr* E, clang::QualType Type,
                                    llvm::StringRef prefix = "_t",
-                                   bool force = false);
+                                   bool force = false, bool zeroInit = false);
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
-                                   bool force = false);
+                                   bool force = false, bool zeroInit = false);
     virtual StmtDiff StoreAndRestore(clang::Expr* E,
                                      llvm::StringRef prefix = "_t",
                                      bool moveToTape = false);

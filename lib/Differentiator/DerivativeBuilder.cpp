@@ -397,9 +397,11 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
   clang::FunctionDecl*
   DerivativeBuilder::HandleNestedDiffRequest(DiffRequest& request) {
-    // FIXME: Find a way to do this without accessing plugin namespace functions
     bool alreadyDerived = true;
     request.UpdateDiffParamsInfo(m_Sema);
+    // Plan this lazily-scheduled request statically, so it carries the planning
+    // info (currently the early-return flag) the static TU walk never produced.
+    m_Scheduler.Plan(request);
     FunctionDecl* derivative = this->FindDerivedFunction(request);
     if (!derivative) {
       alreadyDerived = false;

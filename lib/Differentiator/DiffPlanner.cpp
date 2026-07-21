@@ -24,6 +24,7 @@
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/DiagnosticSema.h"
@@ -348,6 +349,23 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return true;
   }
 
+  bool DiffCollector::PlanNestedRequest(DiffRequest& request) {
+    // Lazily-scheduled requests (pushforward/pullback/higher-order, built in
+    // DerivativeBuilder::HandleNestedDiffRequest) never pass through the static
+    // TU walk, so their planning must be done here on demand. For now this only
+    // records the early-return flag: m_TopMostReq is left null, so
+    // VisitCallExpr and VisitDeclRefExpr bail and no sub-requests are spawned
+    // -- only VisitReturnStmt runs over this request's body.
+    // FIXME: This is where a nested request should also get its m_AnalysisDC
+    // and the analyses currently force-disabled in HandleNestedDiffRequest.
+    const FunctionDecl* Def =
+        request.Function ? request.Function->getDefinition() : nullptr;
+    if (!Def || !Def->hasBody())
+      return true;
+    llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
+    return TraverseStmt(Def->getBody());
+  }
+
   bool DiffCollector::isInInterval(SourceLocation Loc) const {
     const SourceManager &SM = m_Sema.getSourceManager();
     for (size_t i = 0, e = m_Interval.size(); i < e; ++i) {
@@ -362,6 +380,43 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
     }
     return false;
+  }
+
+  const ReturnStmt* DiffRequest::getTailReturn() const {
+    const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+    if (!Def || !Def->hasBody())
+      return nullptr;
+    const Stmt* Body = Def->getBody();
+    // The tail return is the body's last statement, when that is a return.
+    if (const auto* CS = dyn_cast<CompoundStmt>(Body))
+      return CS->body_empty() ? nullptr
+                              : dyn_cast<ReturnStmt>(*CS->body_rbegin());
+    return dyn_cast<ReturnStmt>(Body);
+  }
+
+  bool DiffRequest::hasEarlyReturns() const {
+    if (m_EarlyReturnInfo.HasAnalysisRun)
+      return m_EarlyReturnInfo.HasEarlyReturns;
+    const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+    if (!Def || !Def->hasBody() || Def->getReturnType()->isVoidType())
+      return false;
+    // An early-return body has a return that is not the tail return. Returns
+    // inside a nested lambda belong to that lambda's own function, so do not
+    // descend into one.
+    struct Finder : RecursiveASTVisitor<Finder> {
+      const ReturnStmt* Tail = nullptr;
+      bool Found = false;
+      static bool TraverseLambdaExpr(LambdaExpr*) { return true; }
+      bool VisitReturnStmt(ReturnStmt* RS) {
+        if (RS != Tail)
+          Found = true;
+        return !Found; // stop at the first early return
+      }
+    } F;
+    F.Tail = getTailReturn();
+    F.TraverseStmt(Def->getBody());
+    m_EarlyReturnInfo = {F.Found, /*HasAnalysisRun=*/true};
+    return F.Found;
   }
 
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
@@ -1504,7 +1559,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   bool DiffCollector::VisitDeclRefExpr(DeclRefExpr* DRE) {
-    if (!m_ParentReq)
+    // m_TopMostReq is dereferenced below; it is null when PlanNestedRequest
+    // walks a lazy request's body just to record its early-return flag, and no
+    // global-adjoint discovery is wanted there.
+    if (!m_ParentReq || !m_TopMostReq)
       return true;
     // FIXME: Add support for globals in other modes.
     if (m_ParentReq->Mode != DiffMode::reverse &&

@@ -18,6 +18,7 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/Lambda.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Sema/DeclSpec.h"
@@ -26,6 +27,7 @@
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/PrettyStackTrace.h"
 
@@ -266,23 +268,56 @@ namespace clad {
     /// The currently visited statement. Useful for crash pretty-printing.
     const clang::Stmt* m_CurVisitedStmt = nullptr;
 
+    /// Resolves the captures of a lambda synthesized from a body that was
+    /// built outside the closure scope, so Sema never saw the uses. collect()
+    /// finds the body's free variables -- locals and parameters it references
+    /// but does not itself declare. resolve() re-creates those references in
+    /// the current scope, where BuildDeclRef under the `[&]` default registers
+    /// the capture and marks the reference for codegen; it must run with the
+    /// lambda scope active. contains() exposes the set for a caller that must
+    /// place the captured decls before the lambda.
+    class LambdaCaptures {
+      VisitorBase& m_V;
+      llvm::SmallPtrSet<clang::VarDecl*, 8> m_Captures;
+
+    public:
+      explicit LambdaCaptures(VisitorBase& V) : m_V(V) {}
+      void collect(llvm::ArrayRef<clang::Stmt*> Body);
+      /// A `[&]` capture binds a variable at the lambda's definition point, so
+      /// every captured decl must precede the lambda. \p Prefix and \p Suffix
+      /// are the forward block split at the lambda's insertion point; move each
+      /// captured DeclStmt from Suffix to the end of Prefix when its
+      /// initializer references only names already live there -- the function's
+      /// parameters, \p AlreadyLive (decls emitted earlier), and Prefix.
+      void orderCaptureDecls(llvm::SmallVectorImpl<clang::Stmt*>& Prefix,
+                             llvm::SmallVectorImpl<clang::Stmt*>& Suffix,
+                             llvm::ArrayRef<clang::Stmt*> AlreadyLive);
+      void resolve(llvm::ArrayRef<clang::Stmt*> Body);
+      bool contains(clang::VarDecl* VD) const { return m_Captures.count(VD); }
+    };
+
     /// Build a lambda whose body is produced by `func`. Returns the
     /// LambdaExpr without invoking it, so the caller can bind it to a VarDecl
     /// and call it from multiple sites. `func` is invoked inside the lambda's
     /// scope and block; statements are expected to be added via
     /// addToCurrentBlock from func's invocation.
+    ///
+    /// The lambda uses the `[&]` capture-default; Sema resolves captures from
+    /// the body's ODR-uses. A pre-built body whose DeclRefExprs were made
+    /// outside this scope must have those references rebuilt in scope so Sema
+    /// sees the uses (see LambdaCaptures::resolve).
     // FIXME: This will become problematic when we try to support C.
     template <typename F>
     static clang::Expr* buildLambda(VisitorBase& V, clang::Sema& S,
-                                    const clang::Expr* E, F&& func) {
+                                    const clang::Stmt* LocSrc, F&& func) {
       // FIXME: Here we use some of the things that are used from Parser, it
       // seems to be the easiest way to create lambda.
       clang::LambdaIntroducer Intro;
       Intro.Default = clang::LCD_ByRef;
       // FIXME: Using noLoc here results in assert failure. Any other valid
       // SourceLocation seems to work fine.
-      Intro.Range.setBegin(E->getBeginLoc());
-      Intro.Range.setEnd(E->getEndLoc());
+      Intro.Range.setBegin(LocSrc->getBeginLoc());
+      Intro.Range.setEnd(LocSrc->getEndLoc());
       clang::AttributeFactory AttrFactory;
       const clang::DeclSpec DS(AttrFactory);
       clang::Declarator D(
@@ -329,8 +364,8 @@ namespace clad {
     /// added by addToCurrentBlock from func invocation.
     template <typename F>
     static clang::Expr* wrapInLambda(VisitorBase& V, clang::Sema& S,
-                                     const clang::Expr* E, F&& func) {
-      clang::Expr* lambda = buildLambda(V, S, E, std::forward<F>(func));
+                                     const clang::Stmt* LocSrc, F&& func) {
+      clang::Expr* lambda = buildLambda(V, S, LocSrc, std::forward<F>(func));
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();
     }
@@ -341,13 +376,29 @@ namespace clad {
     /// more sites via DeclRefExpr + ActOnCallExpr. Use this when the same
     /// lambda body must be invoked from multiple paths (e.g. a reverse-pass
     /// segment shared between an early-return path and the natural tail).
+    ///
+    /// The binding uses `auto` deduction so the pretty-printer renders it as
+    /// `auto X = [&] {...};` rather than the closure type's unspellable
+    /// `(lambda at ...)` form. Sema deduces the concrete closure type from
+    /// the initializer; the TypeSourceInfo retains the `auto` keyword.
+    ///
+    /// \p func emits the closure body; \p Captures then resolves that body's
+    /// references to enclosing variables (its collect() must have already run),
+    /// so callers hand over a pure body-emission callback.
     template <typename F>
-    clang::VarDecl* buildAndBindLambda(const clang::Expr* LocE,
-                                       llvm::StringRef NameHint, F&& func) {
-      clang::Expr* lambda =
-          buildLambda(*this, m_Sema, LocE, std::forward<F>(func));
+    clang::VarDecl* buildAndBindLambda(const clang::Stmt* LocSrc,
+                                       llvm::StringRef NameHint,
+                                       LambdaCaptures& Captures, F&& func) {
+      clang::Expr* lambda = buildLambda(*this, m_Sema, LocSrc, [&] {
+        std::forward<F>(func)();
+        // Resolve captures while the closure scope is active and its body is
+        // the current block.
+        Captures.resolve(getCurrentBlock());
+      });
       clang::IdentifierInfo* II = CreateUniqueIdentifier(NameHint);
-      return BuildVarDecl(lambda->getType(), II, lambda);
+      clang::QualType AutoTy = m_Context.getAutoDeductType();
+      clang::TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(AutoTy);
+      return BuildVarDecl(AutoTy, II, lambda, /*DirectInit=*/false, TSI);
     }
 
     /// For a qualtype QT returns if it's type is Array or Pointer Type

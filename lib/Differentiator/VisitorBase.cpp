@@ -23,6 +23,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/OperatorKinds.h"
@@ -40,6 +41,8 @@
 #include "clang/Sema/Template.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -47,6 +50,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <numeric>
+#include <utility>
 
 #include "clad/Differentiator/Compatibility.h"
 
@@ -335,6 +339,129 @@ namespace clad {
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
         m_Sema.BuildDeclRefExpr(D, T, VK, D->getBeginLoc(), &CSS)));
+  }
+
+  void VisitorBase::LambdaCaptures::collect(llvm::ArrayRef<Stmt*> Body) {
+    class FreeVarCollector : public RecursiveASTVisitor<FreeVarCollector> {
+    public:
+      llvm::SmallSetVector<VarDecl*, 16> Referenced;
+      llvm::SmallPtrSet<VarDecl*, 16> Declared;
+      bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+        if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+          if (VD->isLocalVarDecl() || isa<ParmVarDecl>(VD))
+            Referenced.insert(VD);
+        return true;
+      }
+      bool VisitDeclStmt(DeclStmt* DS) {
+        for (Decl* D : DS->decls())
+          if (auto* VD = dyn_cast<VarDecl>(D))
+            Declared.insert(VD);
+        return true;
+      }
+    } C;
+    for (Stmt* S : Body)
+      C.TraverseStmt(S);
+    for (VarDecl* VD : C.Referenced)
+      if (!C.Declared.count(VD))
+        m_Captures.insert(VD);
+  }
+
+  void VisitorBase::LambdaCaptures::orderCaptureDecls(
+      llvm::SmallVectorImpl<Stmt*>& Prefix,
+      llvm::SmallVectorImpl<Stmt*>& Suffix, llvm::ArrayRef<Stmt*> AlreadyLive) {
+    llvm::SmallPtrSet<const VarDecl*, 16> Available;
+    auto note = [&](Stmt* S) {
+      if (auto* DS = dyn_cast_or_null<DeclStmt>(S))
+        for (Decl* D : DS->decls())
+          if (auto* VD = dyn_cast<VarDecl>(D))
+            Available.insert(VD);
+    };
+    for (const ParmVarDecl* P : m_V.m_Derivative->parameters())
+      Available.insert(P);
+    for (Stmt* S : AlreadyLive)
+      note(S);
+    for (Stmt* S : Prefix)
+      note(S);
+
+    // Moving a decl earlier preserves its value only if its initializer yields
+    // the same value there: it may reference only names already live before
+    // the lambda. This checks availability, not that those names are unmutated
+    // in between; it is sound for the decls clad moves -- zero-initialized
+    // adjoints and entry-live seeds, whose operands the forward sweep has not
+    // yet reassigned. A decl reading a value the suffix computes fails the test
+    // and stays put (findUseBeforeDecl catches a captured local left behind).
+    auto selfContained = [&](const VarDecl* VD) {
+      const Expr* Init = VD->getInit();
+      if (!Init)
+        return true;
+      bool Ok = true;
+      class RefChecker : public RecursiveASTVisitor<RefChecker> {
+      public:
+        const llvm::SmallPtrSetImpl<const VarDecl*>* Available = nullptr;
+        bool* Ok = nullptr;
+        bool VisitDeclRefExpr(DeclRefExpr* DRE) const {
+          auto* RVD = dyn_cast<VarDecl>(DRE->getDecl());
+          if (RVD && (RVD->isLocalVarDecl() || isa<ParmVarDecl>(RVD)) &&
+              !Available->count(RVD)) {
+            *Ok = false;
+            return false;
+          }
+          return true;
+        }
+      } RC;
+      RC.Available = &Available;
+      RC.Ok = &Ok;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      RC.TraverseStmt(const_cast<Expr*>(Init));
+      return Ok;
+    };
+
+    llvm::SmallVector<Stmt*, 16> Remaining;
+    for (Stmt* S : Suffix) {
+      auto* DS = dyn_cast<DeclStmt>(S);
+      bool Move = DS != nullptr;
+      if (DS)
+        for (Decl* D : DS->decls()) {
+          auto* VD = dyn_cast<VarDecl>(D);
+          if (!VD || !contains(VD) || !selfContained(VD)) {
+            Move = false;
+            break;
+          }
+        }
+      if (Move) {
+        Prefix.push_back(S);
+        note(S);
+      } else
+        Remaining.push_back(S);
+    }
+    Suffix = std::move(Remaining);
+  }
+
+  void VisitorBase::LambdaCaptures::resolve(llvm::ArrayRef<Stmt*> Body) {
+    class CapRefRebuilder : public RecursiveASTVisitor<CapRefRebuilder> {
+    public:
+      LambdaCaptures& Caps;
+      explicit CapRefRebuilder(LambdaCaptures& Caps) : Caps(Caps) {}
+      bool VisitStmt(Stmt* P) {
+        for (Stmt*& Child : P->children()) {
+          auto* DRE = dyn_cast_or_null<DeclRefExpr>(Child);
+          if (!DRE)
+            continue;
+          auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+          if (!VD || !Caps.contains(VD) ||
+              DRE->refersToEnclosingVariableOrCapture())
+            continue;
+          // BuildDeclRef produces a bare reference for a local (it never
+          // name-qualifies one), which is what lets Sema capture it here.
+          Child = Caps.m_V.BuildDeclRef(VD, clad_compat::nullNNS(),
+                                        DRE->getValueKind());
+        }
+        return true;
+      }
+    };
+    CapRefRebuilder CR(*this);
+    for (Stmt* S : Body)
+      CR.TraverseStmt(S);
   }
 
   Expr* VisitorBase::buildAdjoint(const AdjointInfo& A,

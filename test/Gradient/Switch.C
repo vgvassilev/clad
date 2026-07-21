@@ -779,59 +779,76 @@ double switchReturn(double x, double y, int k) {
 
 // CHECK: void switchReturn_grad_0_1(double x, double y, int k, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     int _d_k = 0;
-// CHECK-NEXT:     int _cond0;
+// CHECK-NEXT:     int _cond0 = 0;
+// CHECK-NEXT:     auto _rev0 = [&] {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             switch (_cond0) {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     {
+// CHECK-NEXT:                       default:
+// CHECK-NEXT:                         ;
+// CHECK-NEXT:                         {
+// CHECK-NEXT:                             *_d_y += 1 * y;
+// CHECK-NEXT:                             *_d_y += y * 1;
+// CHECK-NEXT:                         }
+// CHECK-NEXT:                     }
+// CHECK-NEXT:                     if (_cond0 != 0 && _cond0 != 1)
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     {
+// CHECK-NEXT:                       case 1:
+// CHECK-NEXT:                         ;
+// CHECK-NEXT:                         {
+// CHECK-NEXT:                             *_d_x += 1 * y;
+// CHECK-NEXT:                             *_d_y += x * 1;
+// CHECK-NEXT:                         }
+// CHECK-NEXT:                     }
+// CHECK-NEXT:                     if (1 == _cond0)
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     {
+// CHECK-NEXT:                       case 0:
+// CHECK-NEXT:                         ;
+// CHECK-NEXT:                         {
+// CHECK-NEXT:                             *_d_x += 1 * x;
+// CHECK-NEXT:                             *_d_x += x * 1;
+// CHECK-NEXT:                         }
+// CHECK-NEXT:                     }
+// CHECK-NEXT:                     if (0 == _cond0)
+// CHECK-NEXT:                         break;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     };
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _cond0 = k;
 // CHECK-NEXT:         switch (_cond0) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 0:
-// CHECK-NEXT:                 goto _label0;
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     _rev0();
+// CHECK-NEXT:                     return;
+// CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 1:
-// CHECK-NEXT:                 goto _label1;
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     _rev0();
+// CHECK-NEXT:                     return;
+// CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               default:
-// CHECK-NEXT:                 goto _label2;
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     _rev0();
+// CHECK-NEXT:                     return;
+// CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         switch (_cond0) {
-// CHECK-NEXT:           default:
-// CHECK-NEXT:           case 1:
-// CHECK-NEXT:           case 0:
-// CHECK-NEXT:             ;
-// CHECK-NEXT:             {
-// CHECK-NEXT:               _label2:
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     *_d_y += 1 * y;
-// CHECK-NEXT:                     *_d_y += y * 1;
-// CHECK-NEXT:                 }
-// CHECK-NEXT:                 if (_cond0 != 0 && _cond0 != 1)
-// CHECK-NEXT:                     break;
-// CHECK-NEXT:             }
-// CHECK-NEXT:             {
-// CHECK-NEXT:               _label1:
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     *_d_x += 1 * y;
-// CHECK-NEXT:                     *_d_y += x * 1;
-// CHECK-NEXT:                 }
-// CHECK-NEXT:                 if (1 == _cond0)
-// CHECK-NEXT:                     break;
-// CHECK-NEXT:             }
-// CHECK-NEXT:             {
-// CHECK-NEXT:               _label0:
-// CHECK-NEXT:                 {
-// CHECK-NEXT:                     *_d_x += 1 * x;
-// CHECK-NEXT:                     *_d_x += x * 1;
-// CHECK-NEXT:                 }
-// CHECK-NEXT:                 if (0 == _cond0)
-// CHECK-NEXT:                     break;
-// CHECK-NEXT:             }
-// CHECK-NEXT:         }
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _rev0();
 // CHECK-NEXT: }
 
 #define TEST_2(F, x, y)                                                        \
