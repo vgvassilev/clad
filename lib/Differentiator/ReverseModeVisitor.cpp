@@ -4412,6 +4412,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // statement body will be processed in both the forward and the reverse
     // pass. Thus, we do not need to add them in the differentiated function.
     if (!(SSData->cases.empty())) {
+      // The forward sweep is a clone of the original switch: control flow is
+      // recorded implicitly by the stored condition, so no tape is needed.
       Sema::ConditionResult condRes =
           m_Sema.ActOnCondition(getCurrentScope(), noLoc, CloneNode(condExpr),
                                 Sema::ConditionKind::Switch);
@@ -4421,18 +4423,40 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                       /*LParenLoc=*/noLoc, nullptr, condRes,
                                       /*RParenLoc=*/noLoc)
               .getAs<SwitchStmt>();
-      activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
-
-      // Registers all the cases to the switch statement.
       for (auto* SC : SSData->cases)
         forwardSS->addSwitchCase(SC);
-
       forwardSS =
           m_Sema.ActOnFinishSwitchStmt(noLoc, forwardSS, bodyDiff.getStmt())
               .getAs<SwitchStmt>();
 
+      // The reverse sweep re-switches on the stored condition. Each
+      // fall-through group's adjoint replay is entered through the original
+      // case values (the per-case `if (v == _cond) break` guards emitted by
+      // VisitCaseStmt peel off the cases that did not run). The trailing group
+      // is closed by the switch end rather than a break, so label it here; it
+      // is the topmost group in the bottom-up reverse block.
+      Stmt* revBody = bodyDiff.getStmt_dx();
+      if (SSData->groupStart < SSData->cases.size()) {
+        Stmt* finalEntry = CloseReverseSwitchCaseGroup(*SSData);
+        revBody =
+            utils::PrependAndCreateCompoundStmt(m_Context, revBody, finalEntry);
+      }
+      Sema::ConditionResult revCondRes =
+          m_Sema.ActOnCondition(getCurrentScope(), noLoc, CloneNode(condExpr),
+                                Sema::ConditionKind::Switch);
+      SwitchStmt* reverseSS =
+          m_Sema
+              .ActOnStartOfSwitchStmt(/*SwitchLoc=*/noLoc,
+                                      /*LParenLoc=*/noLoc, nullptr, revCondRes,
+                                      /*RParenLoc=*/noLoc)
+              .getAs<SwitchStmt>();
+      for (auto* SC : SSData->reverseEntryCases)
+        reverseSS->addSwitchCase(SC);
+      reverseSS = m_Sema.ActOnFinishSwitchStmt(noLoc, reverseSS, revBody)
+                      .getAs<SwitchStmt>();
+
       addToCurrentBlock(forwardSS, direction::forward);
-      addToCurrentBlock(bodyDiff.getStmt_dx(), direction::reverse);
+      addToCurrentBlock(reverseSS, direction::reverse);
     }
 
     PopBreakContStmtHandler();
@@ -4490,6 +4514,36 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     utils::SetSwitchCaseSubStmt(newDefaultStmt, diff.getStmt());
     addToCurrentBlock(diff.getStmt_dx(), direction::reverse);
     return {endBlock(direction::forward), endBlock(direction::reverse)};
+  }
+
+  Stmt*
+  ReverseModeVisitor::CloseReverseSwitchCaseGroup(SwitchStmtInfo& SSData) {
+    // Build `case v1: case v2: ... [default:] ;` for the still-open group's
+    // original labels, innermost first. The order of the labels is irrelevant
+    // (they all fall into the same reverse replay); the shared null
+    // substatement lets the group's adjoints follow as siblings in the switch
+    // body.
+    Stmt* inner = m_Sema.ActOnNullStmt(noLoc).get();
+    for (std::size_t i = SSData.groupStart, e = SSData.cases.size(); i != e;
+         ++i) {
+      SwitchCase* rev = nullptr;
+      if (isa<DefaultStmt>(SSData.cases[i])) {
+        rev = new (m_Context) DefaultStmt(noLoc, noLoc, inner);
+      } else {
+        auto* fwd = cast<CaseStmt>(SSData.cases[i]);
+        // Clone the range high end too, matching the forward case, so a GNU
+        // `case a ... b:` keeps its extent in the reverse switch.
+        Expr* rhs = fwd->getRHS() ? CloneNode(fwd->getRHS()) : nullptr;
+        auto* caseStmt = CaseStmt::Create(m_Context, CloneNode(fwd->getLHS()),
+                                          rhs, noLoc, noLoc, noLoc);
+        caseStmt->setSubStmt(inner);
+        rev = caseStmt;
+      }
+      SSData.reverseEntryCases.push_back(rev);
+      inner = rev;
+    }
+    SSData.groupStart = SSData.cases.size();
+    return inner;
   }
 
   static bool hasCheckpointingPragma(ASTContext& C, SourceLocation loopLoc,
@@ -4640,10 +4694,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmt* newBS =
         clad_compat::ActOnBreakStmt(m_Sema, noLoc, getCurrentScope()).get();
     auto* activeBreakContHandler = GetActiveBreakContStmtHandler();
+    // A break in a source-level switch only closes the current fall-through
+    // group (VisitSwitchStmt turns each group into a reverse-switch entry).
+    // Unlike the loop path below, it records nothing on a control-flow tape.
+    if (activeBreakContHandler->m_IsInvokedBySwitchStmt) {
+      addToCurrentBlock(newBS);
+      Stmt* revEntry = CloseReverseSwitchCaseGroup(*GetActiveSwitchStmtInfo());
+      return {endBlock(direction::forward), revEntry};
+    }
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
     Stmt* pushExprToCurrentCase = activeBreakContHandler
                                       ->CreateCFTapePushExprToCurrentCase();
-    if (isInsideLoop && !activeBreakContHandler->m_IsInvokedBySwitchStmt) {
+    if (isInsideLoop) {
       Expr* tapeBackExprForCurrentCase =
           activeBreakContHandler->CreateCFTapeBackExprForCurrentCase();
       if (m_CurrentBreakFlagExpr) {
@@ -4733,7 +4795,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   void ReverseModeVisitor::BreakContStmtHandler::UpdateForwAndRevBlocks(
       StmtDiff& bodyDiff) {
-    if (m_SwitchCases.empty() && !m_IsInvokedBySwitchStmt)
+    // Only loops reach here; a loop with no break/continue needs no
+    // control-flow switch in its reverse body.
+    if (m_SwitchCases.empty())
       return;
 
     // Add case statement in the beginning of the reverse block
