@@ -23,10 +23,9 @@ double fn1(double i, double j) {
 // CHECK: void fn1_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t1 = {};
+// CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     double _t3;
-// CHECK-NEXT:     double _t4;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     int _d_count = 0;
@@ -40,37 +39,37 @@ double fn1(double i, double j) {
 // CHECK-NEXT:                 _t0 = res;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 clad::push(_t1, {{1U|1UL|1ULL}});
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 1:
 // CHECK-NEXT:                 res += i * i;
-// CHECK-NEXT:                 _t2 = res;
+// CHECK-NEXT:                 _t1 = res;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                   case 2:
 // CHECK-NEXT:                     res += j * j;
-// CHECK-NEXT:                     _t3 = res;
+// CHECK-NEXT:                     _t2 = res;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               default:
 // CHECK-NEXT:                 res += i * i * j * j;
-// CHECK-NEXT:                 _t4 = res;
+// CHECK-NEXT:                 _t3 = res;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             clad::push(_t1, {{2U|2UL|2ULL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         switch (clad::pop(_t1)) {
-// CHECK-NEXT:           case {{2U|2UL|2ULL}}:
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:           default:
+// CHECK-NEXT:           case 2:
+// CHECK-NEXT:           case 1:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     res = _t4;
+// CHECK-NEXT:                     res = _t3;
 // CHECK-NEXT:                     *_d_i += _d_res * j * j * i;
 // CHECK-NEXT:                     *_d_i += i * _d_res * j * j;
 // CHECK-NEXT:                     *_d_j += i * i * _d_res * j;
@@ -82,7 +81,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     {
-// CHECK-NEXT:                         res = _t3;
+// CHECK-NEXT:                         res = _t2;
 // CHECK-NEXT:                         *_d_j += _d_res * j;
 // CHECK-NEXT:                         *_d_j += j * _d_res;
 // CHECK-NEXT:                     }
@@ -92,14 +91,14 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     res = _t2;
+// CHECK-NEXT:                     res = _t1;
 // CHECK-NEXT:                     *_d_i += _d_res * i;
 // CHECK-NEXT:                     *_d_i += i * _d_res;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 if (1 == _cond0)
 // CHECK-NEXT:                     break;
 // CHECK-NEXT:             }
-// CHECK-NEXT:           case {{1U|1UL|1ULL}}:
+// CHECK-NEXT:           case 0:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
@@ -134,10 +133,9 @@ double fn2(double i, double j) {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t3 = {};
+// CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     double _t4;
 // CHECK-NEXT:     double _t5;
-// CHECK-NEXT:     double _t6;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
@@ -154,50 +152,48 @@ double fn2(double i, double j) {
 // CHECK-NEXT:                 _t2 = res;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 clad::push(_t3, {{1U|1UL|1ULL}});
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 1:
 // CHECK-NEXT:                 res += j;
-// CHECK-NEXT:                 _t4 = res;
+// CHECK-NEXT:                 _t3 = res;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 2:
 // CHECK-NEXT:                 res += i * j;
-// CHECK-NEXT:                 _t5 = res;
+// CHECK-NEXT:                 _t4 = res;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 clad::push(_t3, {{2U|2UL|2ULL}});
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               default:
 // CHECK-NEXT:                 res += i + j;
-// CHECK-NEXT:                 _t6 = res;
+// CHECK-NEXT:                 _t5 = res;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             clad::push(_t3, {{3U|3UL|3ULL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         switch (clad::pop(_t3)) {
-// CHECK-NEXT:           case {{3U|3UL|3ULL}}:
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:           default:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     res = _t6;
+// CHECK-NEXT:                     res = _t5;
 // CHECK-NEXT:                     *_d_i += _d_res;
 // CHECK-NEXT:                     *_d_j += _d_res;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 if (_cond0 != 0 && _cond0 != 1 && _cond0 != 2)
 // CHECK-NEXT:                     break;
 // CHECK-NEXT:             }
-// CHECK-NEXT:           case {{2U|2UL|2ULL}}:
+// CHECK-NEXT:           case 2:
+// CHECK-NEXT:           case 1:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     res = _t5;
+// CHECK-NEXT:                     res = _t4;
 // CHECK-NEXT:                     *_d_i += _d_res * j;
 // CHECK-NEXT:                     *_d_j += i * _d_res;
 // CHECK-NEXT:                 }
@@ -206,13 +202,13 @@ double fn2(double i, double j) {
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     res = _t4;
+// CHECK-NEXT:                     res = _t3;
 // CHECK-NEXT:                     *_d_j += _d_res;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 if (1 == _cond0)
 // CHECK-NEXT:                     break;
 // CHECK-NEXT:             }
-// CHECK-NEXT:           case {{1U|1UL|1ULL}}:
+// CHECK-NEXT:           case 0:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
@@ -257,9 +253,8 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     clad::tape<int> _cond0 = {};
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
-// CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t3 = {};
+// CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     clad::tape<double> _t4 = {};
-// CHECK-NEXT:     clad::tape<double> _t5 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     int _d_counter = 0;
@@ -284,20 +279,18 @@ double fn3(double i, double j) {
 // CHECK-NEXT:                         }
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                     {
-// CHECK-NEXT:                         clad::push(_t3, {{1U|1UL|1ULL}});
 // CHECK-NEXT:                         break;
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                       case 2:
 // CHECK-NEXT:                         res += j * j;
-// CHECK-NEXT:                         clad::push(_t4, res);
+// CHECK-NEXT:                         clad::push(_t3, res);
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                       default:
 // CHECK-NEXT:                         res += i + j;
-// CHECK-NEXT:                         clad::push(_t5, res);
+// CHECK-NEXT:                         clad::push(_t4, res);
 // CHECK-NEXT:                     }
-// CHECK-NEXT:                     clad::push(_t3, {{2U|2UL|2ULL}});
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
@@ -306,12 +299,13 @@ double fn3(double i, double j) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     switch (clad::pop(_t3)) {
-// CHECK-NEXT:                       case {{2U|2UL|2ULL}}:
+// CHECK-NEXT:                     switch (clad::back(_cond0)) {
+// CHECK-NEXT:                       default:
+// CHECK-NEXT:                       case 2:
 // CHECK-NEXT:                         ;
 // CHECK-NEXT:                         {
 // CHECK-NEXT:                             {
-// CHECK-NEXT:                                 res = clad::pop(_t5);
+// CHECK-NEXT:                                 res = clad::pop(_t4);
 // CHECK-NEXT:                                 *_d_i += _d_res;
 // CHECK-NEXT:                                 *_d_j += _d_res;
 // CHECK-NEXT:                             }
@@ -320,14 +314,15 @@ double fn3(double i, double j) {
 // CHECK-NEXT:                         }
 // CHECK-NEXT:                         {
 // CHECK-NEXT:                             {
-// CHECK-NEXT:                                 res = clad::pop(_t4);
+// CHECK-NEXT:                                 res = clad::pop(_t3);
 // CHECK-NEXT:                                 *_d_j += _d_res * j;
 // CHECK-NEXT:                                 *_d_j += j * _d_res;
 // CHECK-NEXT:                             }
 // CHECK-NEXT:                             if (2 == clad::back(_cond0))
 // CHECK-NEXT:                                 break;
 // CHECK-NEXT:                         }
-// CHECK-NEXT:                       case {{1U|1UL|1ULL}}:
+// CHECK-NEXT:                       case 1:
+// CHECK-NEXT:                       case 0:
 // CHECK-NEXT:                         ;
 // CHECK-NEXT:                         {
 // CHECK-NEXT:                             {
@@ -375,11 +370,10 @@ double fn4(double i, double j) {
 
 // CHECK: void fn4_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t1 = {};
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t2;
-// CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t1;
+// CHECK-NEXT:     clad::tape<double> _t2 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
@@ -390,50 +384,45 @@ double fn4(double i, double j) {
 // CHECK-NEXT:                 _t0 = res;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 clad::push(_t1, {{1U|1UL|1ULL}});
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 1:
 // CHECK-NEXT:                 counter = 2;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             _t2 = 0;
+// CHECK-NEXT:             _t1 = 0;
 // CHECK-NEXT:             while (counter--)
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     _t2++;
-// CHECK-NEXT:                     clad::push(_t3, res);
+// CHECK-NEXT:                     _t1++;
+// CHECK-NEXT:                     clad::push(_t2, res);
 // CHECK-NEXT:                     res += i * j;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 clad::push(_t1, {{2U|2UL|2ULL}});
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             clad::push(_t1, {{3U|3UL|3ULL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         switch (clad::pop(_t1)) {
-// CHECK-NEXT:           case {{3U|3UL|3ULL}}:
+// CHECK-NEXT:         switch (1) {
+// CHECK-NEXT:           case 1:
 // CHECK-NEXT:             ;
-// CHECK-NEXT:           case {{2U|2UL|2ULL}}:
-// CHECK-NEXT:             ;
-// CHECK-NEXT:             while (_t2)
+// CHECK-NEXT:             while (_t1)
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                         {
-// CHECK-NEXT:                             res = clad::pop(_t3);
+// CHECK-NEXT:                             res = clad::pop(_t2);
 // CHECK-NEXT:                             *_d_i += _d_res * j;
 // CHECK-NEXT:                             *_d_j += i * _d_res;
 // CHECK-NEXT:                         }
 // CHECK-NEXT:                     }
-// CHECK-NEXT:                     _t2--;
+// CHECK-NEXT:                     _t1--;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 if (1 == 1)
 // CHECK-NEXT:                     break;
 // CHECK-NEXT:             }
-// CHECK-NEXT:           case {{1U|1UL|1ULL}}:
+// CHECK-NEXT:           case 0:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
@@ -463,7 +452,6 @@ double fn5(double i, double j) {
 // CHECK-NEXT:     int count = 0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
@@ -473,13 +461,12 @@ double fn5(double i, double j) {
 // CHECK-NEXT:           case 1:
 // CHECK-NEXT:             res += i * j;
 // CHECK-NEXT:             _t0 = res;
-// CHECK-NEXT:             clad::push(_t1, {{1U|1UL|1ULL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         switch (clad::pop(_t1)) {
-// CHECK-NEXT:           case {{1U|1UL|1ULL}}:
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:           case 1:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 res = _t0;
@@ -506,7 +493,6 @@ double fn6(double u, double v) {
 // CHECK-NEXT:     int _t0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t2 = {};
 // CHECK-NEXT:     int _d_res = 0;
 // CHECK-NEXT:     int res = 0;
 // CHECK-NEXT:     double _d_temp = 0.;
@@ -521,13 +507,12 @@ double fn6(double u, double v) {
 // CHECK-NEXT:                 temp = 1;
 // CHECK-NEXT:                 _t1 = temp;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             clad::push(_t2, {{1U|1UL|1ULL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         switch (clad::pop(_t2)) {
-// CHECK-NEXT:           case {{1U|1UL|1ULL}}:
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:           default:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
@@ -570,15 +555,14 @@ double fn7(double u, double v) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<int> _cond0 = {};
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
-// CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t2 = {};
-// CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     clad::tape<double> _t2 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             clad::push(_cond0, i)
+// CHECK-NEXT:             clad::push(_cond0, i);
 // CHECK-NEXT:             switch (clad::back(_cond0)) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                   case 0:
@@ -592,7 +576,6 @@ double fn7(double u, double v) {
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     clad::push(_t2, {{1U|1UL|1ULL}});
 // CHECK-NEXT:                     break;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 {
@@ -600,14 +583,12 @@ double fn7(double u, double v) {
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                       default:
 // CHECK-NEXT:                         res += v;
-// CHECK-NEXT:                         clad::push(_t3, res);
+// CHECK-NEXT:                         clad::push(_t2, res);
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     clad::push(_t2, {{2U|2UL|2ULL}});
 // CHECK-NEXT:                     break;
 // CHECK-NEXT:                 }
-// CHECK-NEXT:                 clad::push(_t2, {{3U|3UL|3ULL}});
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
@@ -615,15 +596,14 @@ double fn7(double u, double v) {
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             switch (clad::pop(_t2)) {
-// CHECK-NEXT:               case {{3U|3UL|3ULL}}:
-// CHECK-NEXT:                 ;
-// CHECK-NEXT:               case {{2U|2UL|2ULL}}:
+// CHECK-NEXT:             switch (clad::back(_cond0)) {
+// CHECK-NEXT:               default:
+// CHECK-NEXT:               case 3:
 // CHECK-NEXT:                 ;
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                         {
-// CHECK-NEXT:                             res = clad::pop(_t3);
+// CHECK-NEXT:                             res = clad::pop(_t2);
 // CHECK-NEXT:                             *_d_v += _d_res;
 // CHECK-NEXT:                         }
 // CHECK-NEXT:                         if (clad::back(_cond0) != 0 && clad::back(_cond0) != 1 && clad::back(_cond0) != 2 && clad::back(_cond0) != 3)
@@ -632,7 +612,9 @@ double fn7(double u, double v) {
 // CHECK-NEXT:                     if (3 == clad::back(_cond0))
 // CHECK-NEXT:                         break;
 // CHECK-NEXT:                 }
-// CHECK-NEXT:               case {{1U|1UL|1ULL}}:
+// CHECK-NEXT:               case 2:
+// CHECK-NEXT:               case 1:
+// CHECK-NEXT:               case 0:
 // CHECK-NEXT:                 ;
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     {
@@ -683,115 +665,174 @@ double fn24(double x, double y, Op op) {
 }
 
 // CHECK: void fn24_grad_0_1(double x, double y, Op op, double *_d_x, double *_d_y) {
-// CHECK-NEXT:    {{.*}} _d_op = {{.*}};
-// CHECK-NEXT:    Op _cond0;
-// CHECK-NEXT:    double _t0;
-// CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t1 = {};
-// CHECK-NEXT:    double _t2;
-// CHECK-NEXT:    double _t3;
-// CHECK-NEXT:    double _t4;
-// CHECK-NEXT:    double _d_res = 0.;
-// CHECK-NEXT:    double res = 0;
-// CHECK-NEXT:    {
-// CHECK-NEXT:        _cond0 = op;
-// CHECK-NEXT:        switch (_cond0) {
-// CHECK-NEXT:            {
-// CHECK-NEXT:              case Add:
-// CHECK-NEXT:                res = x + y;
-// CHECK-NEXT:                _t0 = res;
-// CHECK-NEXT:            }
-// CHECK-NEXT:            {
-// CHECK-NEXT:                clad::push(_t1, {{1U|1UL}});
-// CHECK-NEXT:               break;
-// CHECK-NEXT:            }
-// CHECK-NEXT:            {
-// CHECK-NEXT:              case Sub:
-// CHECK-NEXT:                res = x - y;
-// CHECK-NEXT:                _t2 = res;
-// CHECK-NEXT:            }
-// CHECK-NEXT:            {
-// CHECK-NEXT:                clad::push(_t1, {{2U|2UL}});
-// CHECK-NEXT:                break;
-// CHECK-NEXT:            }
-// CHECK-NEXT:            {
-// CHECK-NEXT:              case Mul:
-// CHECK-NEXT:                res = x * y;
-// CHECK-NEXT:                _t3 = res;
-// CHECK-NEXT:            }
-// CHECK-NEXT:            {
-// CHECK-NEXT:                clad::push(_t1, {{3U|3UL}});
-// CHECK-NEXT:                break;
-// CHECK-NEXT:            }
-// CHECK-NEXT:            {
-// CHECK-NEXT:              case Div:
-// CHECK-NEXT:                res = x / y;
-// CHECK-NEXT:                _t4 = res;
-// CHECK-NEXT:            }
-// CHECK-NEXT:            {
-// CHECK-NEXT:                clad::push(_t1, {{4U|4UL}});
-// CHECK-NEXT:                break;
-// CHECK-NEXT:            }
-// CHECK-NEXT:            clad::push(_t1, {{5U|5UL}});
-// CHECK-NEXT:        }
-// CHECK-NEXT:    }
-// CHECK-NEXT:    _d_res += 1;
-// CHECK-NEXT:    {
-// CHECK-NEXT:        switch (clad::pop(_t1)) {
-// CHECK-NEXT:          case {{5U|5UL}}:
-// CHECK-NEXT:            ;
-// CHECK-NEXT:          case {{4U|4UL}}:
-// CHECK-NEXT:            ;
-// CHECK-NEXT:            {
-// CHECK-NEXT:                {
-// CHECK-NEXT:                    res = _t4;
-// CHECK-NEXT:                    *_d_x += _d_res / y;
-// CHECK-NEXT:                    double _r0 = _d_res * -(x / (y * y));
-// CHECK-NEXT:                    _d_y += _r0;
-// CHECK-NEXT:                    _d_res = 0.;
-// CHECK-NEXT:                }
-// CHECK-NEXT:                if (Div == _cond0)
-// CHECK-NEXT:                    break;
-// CHECK-NEXT:            }
-// CHECK-NEXT:          case {{3U|3UL}}:
-// CHECK-NEXT:            ;
-// CHECK-NEXT:            {
-// CHECK-NEXT:                {
-// CHECK-NEXT:                    res = _t3;
-// CHECK-NEXT:                    *_d_x += _d_res * y;
-// CHECK-NEXT:                    _d_y += x * _d_res;
-// CHECK-NEXT:                    _d_res = 0.;
-// CHECK-NEXT:                }
-// CHECK-NEXT:                if (Mul == _cond0)
-// CHECK-NEXT:                    break;
-// CHECK-NEXT:            }
-// CHECK-NEXT:          case {{2U|2UL}}:
-// CHECK-NEXT:            ;
-// CHECK-NEXT:            {
-// CHECK-NEXT:                {
-// CHECK-NEXT:                    res = _t2;
-// CHECK-NEXT:                    *_d_x += _d_res;
-// CHECK-NEXT:                    _d_y += -_d_res;
-// CHECK-NEXT:                    _d_res = 0.;
-// CHECK-NEXT:                }
-// CHECK-NEXT:                if (Sub == _cond0)
-// CHECK-NEXT:                    break;
-// CHECK-NEXT:            }
-// CHECK-NEXT:          case {{1U|1UL}}:
-// CHECK-NEXT:            ;
-// CHECK-NEXT:            {
-// CHECK-NEXT:                {
-// CHECK-NEXT:                    res = _t0;
-// CHECK-NEXT:                    *_d_x += _d_res;
-// CHECK-NEXT:                    _d_y += _d_res;
-// CHECK-NEXT:                    _d_res = 0.;
-// CHECK-NEXT:                }
-// CHECK-NEXT:                if (Add == _cond0)
-// CHECK-NEXT:                    break;
-// CHECK-NEXT:            }
-// CHECK-NEXT:        }
-// CHECK-NEXT:    }
-// CHECK-NEXT:}
+// CHECK-NEXT:     {{.*}} _d_op = {{.*}};
+// CHECK-NEXT:     Op _cond0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     double _t3;
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _cond0 = op;
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:             {
+// CHECK-NEXT:               case Add:
+// CHECK-NEXT:                 res = x + y;
+// CHECK-NEXT:                 _t0 = res;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:               case Sub:
+// CHECK-NEXT:                 res = x - y;
+// CHECK-NEXT:                 _t1 = res;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:               case Mul:
+// CHECK-NEXT:                 res = x * y;
+// CHECK-NEXT:                 _t2 = res;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:               case Div:
+// CHECK-NEXT:                 res = x / y;
+// CHECK-NEXT:                 _t3 = res;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:           case Div:
+// CHECK-NEXT:             ;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     res = _t3;
+// CHECK-NEXT:                     *_d_x += _d_res / y;
+// CHECK-NEXT:                     double _r0 = _d_res * -(x / (y * y));
+// CHECK-NEXT:                     *_d_y += _r0;
+// CHECK-NEXT:                     _d_res = 0.;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 if (Div == _cond0)
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:           case Mul:
+// CHECK-NEXT:             ;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     res = _t2;
+// CHECK-NEXT:                     *_d_x += _d_res * y;
+// CHECK-NEXT:                     *_d_y += x * _d_res;
+// CHECK-NEXT:                     _d_res = 0.;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 if (Mul == _cond0)
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:           case Sub:
+// CHECK-NEXT:             ;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     res = _t1;
+// CHECK-NEXT:                     *_d_x += _d_res;
+// CHECK-NEXT:                     *_d_y += -_d_res;
+// CHECK-NEXT:                     _d_res = 0.;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 if (Sub == _cond0)
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:           case Add:
+// CHECK-NEXT:             ;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     res = _t0;
+// CHECK-NEXT:                     *_d_x += _d_res;
+// CHECK-NEXT:                     *_d_y += _d_res;
+// CHECK-NEXT:                     _d_res = 0.;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 if (Add == _cond0)
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
+
+// Each case returns rather than breaking; the reverse sweep still enters only
+// the taken case through the stored condition.
+double switchReturn(double x, double y, int k) {
+  switch (k) {
+    case 0: return x * x;
+    case 1: return x * y;
+    default: return y * y;
+  }
+}
+
+// CHECK: void switchReturn_grad_0_1(double x, double y, int k, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     int _d_k = 0;
+// CHECK-NEXT:     int _cond0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _cond0 = k;
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:             {
+// CHECK-NEXT:               case 0:
+// CHECK-NEXT:                 goto _label0;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:               case 1:
+// CHECK-NEXT:                 goto _label1;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:               default:
+// CHECK-NEXT:                 goto _label2;
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:           default:
+// CHECK-NEXT:           case 1:
+// CHECK-NEXT:           case 0:
+// CHECK-NEXT:             ;
+// CHECK-NEXT:             {
+// CHECK-NEXT:               _label2:
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     *_d_y += 1 * y;
+// CHECK-NEXT:                     *_d_y += y * 1;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 if (_cond0 != 0 && _cond0 != 1)
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:               _label1:
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     *_d_x += 1 * y;
+// CHECK-NEXT:                     *_d_y += x * 1;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 if (1 == _cond0)
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:               _label0:
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     *_d_x += 1 * x;
+// CHECK-NEXT:                     *_d_x += x * 1;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 if (0 == _cond0)
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 #define TEST_2(F, x, y)                                                        \
   {                                                                            \
@@ -828,4 +869,8 @@ int main() {
   TEST_2_Op(fn24, 3, 5, Sub);  // CHECK-EXEC: {1.00, -1.00}
   TEST_2_Op(fn24, 3, 5, Mul);  // CHECK-EXEC: {5.00, 3.00}
   TEST_2_Op(fn24, 3, 5, Div);  // CHECK-EXEC: {0.20, -0.12}
+
+  TEST_2_Op(switchReturn, 3, 5, 0);  // CHECK-EXEC: {6.00, 0.00}
+  TEST_2_Op(switchReturn, 3, 5, 1);  // CHECK-EXEC: {5.00, 3.00}
+  TEST_2_Op(switchReturn, 3, 5, 2);  // CHECK-EXEC: {0.00, 10.00}
 }

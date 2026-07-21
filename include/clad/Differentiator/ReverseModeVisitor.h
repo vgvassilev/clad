@@ -703,17 +703,18 @@ namespace clad {
 
     StmtDiff DifferentiateCanonicalLoop(const clang::ForStmt* S);
 
-    /// This class modifies forward and reverse blocks of the loop/switch
-    /// body so that `break` and `continue` statements are correctly
-    /// handled. `break` and `continue` statements are handled by
-    /// enclosing entire reverse block loop body in a switch statement
-    /// and only executing the statements, with the help of case labels,
-    /// that were executed in the associated forward iteration. This is
-    /// determined by keeping track of which `break`/`continue` statement
-    /// was hit in which iteration and that in turn helps to determine which
-    /// case label should be selected.
+    /// Handles `break`/`continue` inside a differentiated loop. It owns a
+    /// control-flow tape recording which one fired in which iteration, so the
+    /// reverse loop body -- wrapped in a switch over that tape -- replays
+    /// exactly the statements the forward iteration executed. The members below
+    /// serve this tape.
     ///
-    /// Class usage:
+    /// One handler is pushed per enclosing loop or switch, so the top of the
+    /// stack is the innermost construct a `break` binds to. A switch sets
+    /// m_IsInvokedBySwitchStmt and leaves the tape unused -- its reverse is
+    /// rebuilt from the stored condition instead (VisitSwitchStmt).
+    ///
+    /// Loop usage:
     ///
     /// ```cpp
     /// auto activeBreakContStmtHandler = PushBreakContStmtHandler();
@@ -760,6 +761,9 @@ namespace clad {
       clang::Expr* CreateCFTapePushExpr(std::size_t value);
 
     public:
+      /// True when the innermost breakable construct is a source-level switch,
+      /// whose `break`s are handled in VisitSwitchStmt rather than by the
+      /// control-flow tape. Lets VisitBreakStmt pick the right handling.
       bool m_IsInvokedBySwitchStmt = false;
 
       BreakContStmtHandler(ReverseModeVisitor& RMV, bool forSwitchStmt = false)
@@ -835,9 +839,18 @@ namespace clad {
 
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {
+      /// The forward-pass case/default labels, in source order.
       llvm::SmallVector<clang::SwitchCase*, 16> cases;
+      /// The stored switch condition (`_cond`), reused both as the reverse
+      /// switch discriminator and by every case guard.
       clang::Expr* switchStmtCond = nullptr;
       clang::IfStmt* defaultIfBreakExpr = nullptr;
+      /// Index into `cases` of the first label of the fall-through group not
+      /// yet closed by a `break`.
+      std::size_t groupStart = 0;
+      /// The reverse switch's entry labels, built from the original case values
+      /// rather than a control-flow tape counter.
+      llvm::SmallVector<clang::SwitchCase*, 16> reverseEntryCases;
     };
 
     /// Maintains a stack of `SwitchStmtInfo`.
@@ -853,6 +866,12 @@ namespace clad {
     }
 
     void PopSwitchStmtInfo() { m_SwitchStmtsData.pop_back(); }
+
+    /// Closes the currently open fall-through group `cases[groupStart..)`:
+    /// builds its reverse-switch entry from the group's original case labels,
+    /// registers them in `reverseEntryCases`, advances `groupStart`, and
+    /// returns the label chain to prepend before the group's adjoint replay.
+    clang::Stmt* CloseReverseSwitchCaseGroup(SwitchStmtInfo& SSData);
 
   private:
     // When differentiating ArrayInitLoopExpr, we need to replace
