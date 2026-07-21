@@ -11,6 +11,7 @@
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/SourceLocation.h"
 
@@ -42,7 +43,11 @@ using OwnedAnalysisContexts =
     llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
 using ParamSet = std::set<const clang::ParmVarDecl*>;
 using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
-/// A struct containing information about request to differentiate a function.
+/// A read-only, AD-oriented view over the primal being differentiated: it
+/// wraps the primal FunctionDecl and surfaces the AD-relevant facts the
+/// FunctionDecl itself does not. Recording such facts here, rather than
+/// rediscovering them inside a visitor, keeps them available to every visitor
+/// and correct after a request is copied and re-pointed at another Function.
 struct DiffRequest {
 private:
   /// Based on To-Be-Recorded analysis performed before differentiation, tells
@@ -66,7 +71,28 @@ private:
     bool HasAnalysisRun = false;
   } m_UsefulRunInfo;
 
+  /// Cache for hasEarlyReturns(): whether the primal body has a return that is
+  /// not in tail position. A property of the Function, computed once on demand.
+  mutable struct EarlyReturnInfo {
+    bool HasEarlyReturns = false;
+    bool HasAnalysisRun = false;
+  } m_EarlyReturnInfo;
+
 public:
+  /// The primal body's tail-position return -- the one an early-return encoder
+  /// lets control fall through to, as opposed to an early return that needs a
+  /// jump/call. Null when the body does not end in a return. O(1): reads
+  /// Function's body directly, so a copied request re-pointed at a new Function
+  /// (a lambda's operator(), a pullback callee) answers for its own Function.
+  const clang::ReturnStmt* getTailReturn() const;
+
+  /// Whether the primal body has a return that is not the tail return -- one
+  /// the reverse mode must encode with the early-return lambda. A fact about
+  /// the primal, read directly off Function's body (returns inside nested
+  /// lambdas belong to their own function and are skipped). A void function
+  /// seeds no return value, so its returns skip the encoding.
+  bool hasEarlyReturns() const;
+
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
   /// Name of the base function to be differentiated. Can be different from
@@ -243,17 +269,17 @@ public:
   bool HasTbrAnalysisRun() const { return m_TbrRunInfo.HasAnalysisRun; }
 };
 
-  using DiffInterval = std::vector<clang::SourceRange>;
+using DiffInterval = std::vector<clang::SourceRange>;
 
-  // FIXME: These are translation-unit-wide defaults taken from the compiler
-  // invocation, not the options of a request; rename to InvocationOptions.
-  struct RequestOptions {
-    /// This is a flag to indicate the default behaviour to enable/disable
-    /// TBR analysis during reverse-mode differentiation.
-    bool EnableTBRAnalysis = false;
-    bool EnableVariedAnalysis = false;
-    bool EnableUsefulAnalysis = false;
-  };
+// FIXME: These are translation-unit-wide defaults taken from the compiler
+// invocation, not the options of a request; rename to InvocationOptions.
+struct RequestOptions {
+  /// This is a flag to indicate the default behaviour to enable/disable
+  /// TBR analysis during reverse-mode differentiation.
+  bool EnableTBRAnalysis = false;
+  bool EnableVariedAnalysis = false;
+  bool EnableUsefulAnalysis = false;
+};
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
     /// The source interval where clad was activated.
@@ -298,6 +324,10 @@ public:
     /// or constructor initializers. If we use Visit they would be processed
     /// under the parent DiffRequest which is not in the lambda scope.
     bool TraverseLambdaExpr(clang::LambdaExpr* LE);
+    /// Plan a lazily-scheduled nested request the static TU walk never reaches
+    /// (built in DerivativeBuilder::HandleNestedDiffRequest). Currently records
+    /// its early-return flag by walking the request's own body.
+    bool PlanNestedRequest(DiffRequest& request);
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
       llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
       if (m_Traversed.count(FD))

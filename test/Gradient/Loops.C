@@ -99,32 +99,36 @@ double f3(double x) {
 // CHECK-NEXT:     double _d_t = 0.;
 // CHECK-NEXT:     double t = 1;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     auto _rev0 = [&] {
+// CHECK-NEXT:         for (; _t0; _t0--) {
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 if (clad::back(_cond0))
+// CHECK-NEXT:                     _d_t += 1;
+// CHECK-NEXT:                 clad::pop(_cond0);
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 t = clad::pop(_t1);
+// CHECK-NEXT:                 double _r_d0 = _d_t;
+// CHECK-NEXT:                 _d_t = 0.;
+// CHECK-NEXT:                 _d_t += _r_d0 * x;
+// CHECK-NEXT:                 *_d_x += t * _r_d0;
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     };
 // CHECK-NEXT:     for (i = 0; i < 3; i++) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, t);
 // CHECK-NEXT:         t *= x;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             clad::push(_cond0, i == 1);
-// CHECK-NEXT:             if (clad::back(_cond0))
-// CHECK-NEXT:                 goto _label0;
+// CHECK-NEXT:             if (clad::back(_cond0)) {
+// CHECK-NEXT:                 _rev0();
+// CHECK-NEXT:                 return;
+// CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_t += 1;
-// CHECK-NEXT:     for (; _t0; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (clad::back(_cond0))
-// CHECK-NEXT:               _label0:
-// CHECK-NEXT:                 _d_t += 1;
-// CHECK-NEXT:             clad::pop(_cond0);
-// CHECK-NEXT:         }
-// CHECK-NEXT:         {
-// CHECK-NEXT:             t = clad::pop(_t1);
-// CHECK-NEXT:             double _r_d0 = _d_t;
-// CHECK-NEXT:             _d_t = 0.;
-// CHECK-NEXT:             _d_t += _r_d0 * x;
-// CHECK-NEXT:             *_d_x += t * _r_d0;
-// CHECK-NEXT:         }
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _rev0();
 // CHECK-NEXT: }
 
 double f4(double x) {

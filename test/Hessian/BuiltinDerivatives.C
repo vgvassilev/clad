@@ -402,18 +402,61 @@ int main() {
 // CHECK-NEXT:}
 
 // CHECK: void pow_pushforward_pullback(float x, float exponent, float d_x, float d_exponent, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_exponent, float *_d_d_x, float *_d_d_exponent) {
-// CHECK-NEXT:     bool _cond0;
+// CHECK-NEXT:     bool _cond0 = false;
 // CHECK-NEXT:     double _d_cond0;
 // CHECK-NEXT:     _d_cond0 = 0.;
-// CHECK-NEXT:     bool _cond1;
+// CHECK-NEXT:     bool _cond1 = false;
 // CHECK-NEXT:     bool _t0;
-// CHECK-NEXT:     bool _cond2;
-// CHECK-NEXT:     bool _cond3;
+// CHECK-NEXT:     bool _cond2 = false;
+// CHECK-NEXT:     bool _cond3 = false;
 // CHECK-NEXT:     float _t2;
 // CHECK-NEXT:     float _t3;
 // CHECK-NEXT:     float _t4;
 // CHECK-NEXT:     float _d_val = 0.F;
 // CHECK-NEXT:     float val = ::std::pow(x, exponent);
+// CHECK-NEXT:     float _t1 = ::std::pow(x, exponent - 1);
+// CHECK-NEXT:     float _d_derivative = 0.F;
+// CHECK-NEXT:     float derivative = (exponent * _t1) * d_x;
+// CHECK-NEXT:     auto _rev0 = [&] {
+// CHECK-NEXT:         if (_cond3) {
+// CHECK-NEXT:             derivative = _t2;
+// CHECK-NEXT:             float _r4 = 0.F;
+// CHECK-NEXT:             float _r5 = 0.F;
+// CHECK-NEXT:             clad::custom_derivatives::std::pow_pullback(x, exponent, _d_derivative * d_exponent * _t3, &_r4, &_r5);
+// CHECK-NEXT:             *_d_x += _r4;
+// CHECK-NEXT:             *_d_exponent += _r5;
+// CHECK-NEXT:             float _r6 = 0.F;
+// CHECK-NEXT:             _r6 += _t4 * _d_derivative * d_exponent * clad::custom_derivatives::std::log_pushforward(x, 1.F).pushforward;
+// CHECK-NEXT:             *_d_x += _r6;
+// CHECK-NEXT:             *_d_d_exponent += (_t4 * _t3) * _d_derivative;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             *_d_exponent += _d_derivative * d_x * _t1;
+// CHECK-NEXT:             float _r2 = 0.F;
+// CHECK-NEXT:             float _r3 = 0.F;
+// CHECK-NEXT:             clad::custom_derivatives::std::pow_pullback(x, exponent - 1, exponent * _d_derivative * d_x, &_r2, &_r3);
+// CHECK-NEXT:             *_d_x += _r2;
+// CHECK-NEXT:             *_d_exponent += _r3;
+// CHECK-NEXT:             *_d_d_x += (exponent * _t1) * _d_derivative;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (_cond2)
+// CHECK-NEXT:                 _d_val += _d_y.value;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 if (_cond1) {
+// CHECK-NEXT:                     _cond0 = _t0;
+// CHECK-NEXT:                     _d_cond0 = 0.;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             float _r0 = 0.F;
+// CHECK-NEXT:             float _r1 = 0.F;
+// CHECK-NEXT:             clad::custom_derivatives::std::pow_pullback(x, exponent, _d_val, &_r0, &_r1);
+// CHECK-NEXT:             *_d_x += _r0;
+// CHECK-NEXT:             *_d_exponent += _r1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     };
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _cond1 = exponent == static_cast<float>(0);
@@ -423,12 +466,11 @@ int main() {
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _cond2 = _cond1 && _cond0;
-// CHECK-NEXT:         if (_cond2)
-// CHECK-NEXT:             goto _label0;
+// CHECK-NEXT:         if (_cond2) {
+// CHECK-NEXT:             _rev0();
+// CHECK-NEXT:             return;
+// CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     float _t1 = ::std::pow(x, exponent - 1);
-// CHECK-NEXT:     float _d_derivative = 0.F;
-// CHECK-NEXT:     float derivative = (exponent * _t1) * d_x;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _cond3 = d_exponent;
 // CHECK-NEXT:         if (_cond3) {
@@ -442,44 +484,6 @@ int main() {
 // CHECK-NEXT:         _d_val += _d_y.value;
 // CHECK-NEXT:         _d_derivative += _d_y.pushforward;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     if (_cond3) {
-// CHECK-NEXT:         derivative = _t2;
-// CHECK-NEXT:         float _r4 = 0.F;
-// CHECK-NEXT:         float _r5 = 0.F;
-// CHECK-NEXT:         clad::custom_derivatives::std::pow_pullback(x, exponent, _d_derivative * d_exponent * _t3, &_r4, &_r5);
-// CHECK-NEXT:         *_d_x += _r4;
-// CHECK-NEXT:         *_d_exponent += _r5;
-// CHECK-NEXT:         float _r6 = 0.F;
-// CHECK-NEXT:         _r6 += _t4 * _d_derivative * d_exponent * clad::custom_derivatives::std::log_pushforward(x, 1.F).pushforward;
-// CHECK-NEXT:         *_d_x += _r6;
-// CHECK-NEXT:         *_d_d_exponent += (_t4 * _t3) * _d_derivative;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         *_d_exponent += _d_derivative * d_x * _t1;
-// CHECK-NEXT:         float _r2 = 0.F;
-// CHECK-NEXT:         float _r3 = 0.F;
-// CHECK-NEXT:         clad::custom_derivatives::std::pow_pullback(x, exponent - 1, exponent * _d_derivative * d_x, &_r2, &_r3);
-// CHECK-NEXT:         *_d_x += _r2;
-// CHECK-NEXT:         *_d_exponent += _r3;
-// CHECK-NEXT:         *_d_d_x += (exponent * _t1) * _d_derivative;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         if (_cond2)
-// CHECK-NEXT:           _label0:
-// CHECK-NEXT:             _d_val += _d_y.value;
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (_cond1) {
-// CHECK-NEXT:                 _cond0 = _t0;
-// CHECK-NEXT:                 _d_cond0 = 0.;
-// CHECK-NEXT:             }
-// CHECK-NEXT:         }
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         float _r0 = 0.F;
-// CHECK-NEXT:         float _r1 = 0.F;
-// CHECK-NEXT:         clad::custom_derivatives::std::pow_pullback(x, exponent, _d_val, &_r0, &_r1);
-// CHECK-NEXT:         *_d_x += _r0;
-// CHECK-NEXT:         *_d_exponent += _r1;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _rev0();
 // CHECK-NEXT: }
 }

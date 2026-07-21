@@ -94,15 +94,19 @@ double* filter(double* p, State s) {
 //CHECK-NEXT: }
 
 //CHECK: void filter_pullback(double *p, State s, double *_d_p, State *_d_s) {
-//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     bool _cond0 = false;
+//CHECK-NEXT:     auto _rev0 = [&] {
+//CHECK-NEXT:         if (_cond0)
+//CHECK-NEXT:             ;
+//CHECK-NEXT:     };
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _cond0 = s == State::should_return;
-//CHECK-NEXT:         if (_cond0)
-//CHECK-NEXT:             goto _label0;
+//CHECK-NEXT:         if (_cond0) {
+//CHECK-NEXT:             _rev0();
+//CHECK-NEXT:             return;
+//CHECK-NEXT:         }
 //CHECK-NEXT:     }
-//CHECK-NEXT:     if (_cond0)
-//CHECK-NEXT:       _label0:
-//CHECK-NEXT:         ;
+//CHECK-NEXT:     _rev0();
 //CHECK-NEXT: }
 
 double f2(double x) {

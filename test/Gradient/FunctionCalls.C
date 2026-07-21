@@ -377,11 +377,23 @@ double check_and_return(double x, char c, const char* s) {
 }
 
 // CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_c, char *_d_s) {
-// CHECK-NEXT:    bool _cond0;
+// CHECK-NEXT:    bool _cond0 = false;
 // CHECK-NEXT:    double _d_cond0;
 // CHECK-NEXT:    _d_cond0 = 0.;
-// CHECK-NEXT:    bool _cond1;
-// CHECK-NEXT:    bool _cond2;
+// CHECK-NEXT:    bool _cond1 = false;
+// CHECK-NEXT:    bool _cond2 = false;
+// CHECK-NEXT:    auto _rev0 = [&] {
+// CHECK-NEXT:        {
+// CHECK-NEXT:            if (_cond2)
+// CHECK-NEXT:                *_d_x += _d_y;
+// CHECK-NEXT:            {
+// CHECK-NEXT:                if (_cond1) {
+// CHECK-NEXT:                    double _r_d0 = _d_cond0;
+// CHECK-NEXT:                    _d_cond0 = 0.;
+// CHECK-NEXT:                }
+// CHECK-NEXT:            }
+// CHECK-NEXT:        }
+// CHECK-NEXT:    };
 // CHECK-NEXT:    {
 // CHECK-NEXT:        {
 // CHECK-NEXT:            _cond1 = c == 'a';
@@ -389,20 +401,12 @@ double check_and_return(double x, char c, const char* s) {
 // CHECK-NEXT:                _cond0 = s[0] == 'a';
 // CHECK-NEXT:        }
 // CHECK-NEXT:        _cond2 = _cond1 && _cond0;
-// CHECK-NEXT:        if (_cond2)
-// CHECK-NEXT:            goto _label0;
-// CHECK-NEXT:    }
-// CHECK-NEXT:    {
-// CHECK-NEXT:        if (_cond2)
-// CHECK-NEXT:          _label0:
-// CHECK-NEXT:           *_d_x += _d_y;
-// CHECK-NEXT:        {
-// CHECK-NEXT:            if (_cond1) {
-// CHECK-NEXT:                double _r_d0 = _d_cond0;
-// CHECK-NEXT:                _d_cond0 = 0.;
-// CHECK-NEXT:            }
+// CHECK-NEXT:        if (_cond2) {
+// CHECK-NEXT:            _rev0();
+// CHECK-NEXT:            return;
 // CHECK-NEXT:        }
 // CHECK-NEXT:    }
+// CHECK-NEXT:    _rev0();
 // CHECK-NEXT:}
 
 double fn8(double x, double y) {
@@ -615,25 +619,28 @@ double recFun (double x, double y) {
 }
 
 //CHECK: void recFun_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
-//CHECK-NEXT:     bool _cond0;
-//CHECK-NEXT:     {
-//CHECK-NEXT:     _cond0 = x > y;
-//CHECK-NEXT:     if (_cond0)
-//CHECK-NEXT:         goto _label0;
-//CHECK-NEXT:     }
-//CHECK-NEXT:     {
-//CHECK-NEXT:         *_d_x += _d_y0 * y;
-//CHECK-NEXT:         *_d_y += x * _d_y0;
-//CHECK-NEXT:     }
-//CHECK-NEXT:     if (_cond0)
-//CHECK-NEXT:       _label0:
-//CHECK-NEXT:         {
+//CHECK-NEXT:     bool _cond0 = false;
+//CHECK-NEXT:     auto _rev0 = [&] {
+//CHECK-NEXT:         if (_cond0) {
 //CHECK-NEXT:             double _r0 = 0.;
 //CHECK-NEXT:             double _r1 = 0.;
 //CHECK-NEXT:             recFun_pullback(x - 1, y, _d_y0, &_r0, &_r1);
 //CHECK-NEXT:             *_d_x += _r0;
 //CHECK-NEXT:             *_d_y += _r1;
 //CHECK-NEXT:         }
+//CHECK-NEXT:     };
+//CHECK-NEXT:     {
+//CHECK-NEXT:     _cond0 = x > y;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         _rev0();
+//CHECK-NEXT:         return;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += _d_y0 * y;
+//CHECK-NEXT:         *_d_y += x * _d_y0;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _rev0();
 //CHECK-NEXT: }
 
 double fn16(double x, double y) {

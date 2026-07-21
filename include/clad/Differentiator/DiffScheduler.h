@@ -38,6 +38,10 @@ public:
 
   /// Static planning pass over a group of top-level declarations.
   void Plan(clang::DeclGroupRef DGR) { m_Collector.Walk(DGR); }
+
+  /// Plan a single lazily-scheduled request (a nested or higher-order
+  /// derivative) that the static walk never reached.
+  void Plan(DiffRequest& R) { m_Collector.PlanNestedRequest(R); }
 };
 
 } // namespace clad
