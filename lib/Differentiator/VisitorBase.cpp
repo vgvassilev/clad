@@ -1013,6 +1013,30 @@ namespace clad {
     return newPVD;
   }
 
+#if CLANG_VERSION_MAJOR >= 17
+  /// Register every (original, clone) VarDecl pair, at any depth.
+  static void
+  registerClonedDecls(const Stmt* Orig, Stmt* Cloned,
+                      std::unordered_map<const VarDecl*, VarDecl*>& Repls) {
+    if (!Orig || !Cloned)
+      return;
+    if (const auto* DS = dyn_cast<DeclStmt>(Orig))
+      if (auto* ClonedDS = dyn_cast<DeclStmt>(Cloned)) {
+        auto O = DS->decl_begin();
+        auto C = ClonedDS->decl_begin();
+        for (; O != DS->decl_end() && C != ClonedDS->decl_end(); ++O, ++C)
+          if (const auto* OVD = dyn_cast<VarDecl>(*O))
+            if (auto* CVD = dyn_cast<VarDecl>(*C))
+              if (OVD != CVD)
+                Repls[OVD] = CVD;
+      }
+    auto O = Orig->child_begin();
+    auto C = Cloned->child_begin();
+    for (; O != Orig->child_end() && C != Cloned->child_end(); ++O, ++C)
+      registerClonedDecls(*O, *C, Repls);
+  }
+#endif // CLANG_VERSION_MAJOR >= 17
+
   Expr* VisitorBase::buildClonedLambda(const LambdaExpr* LE) {
     // A primal copy needs a *fresh* closure type; a plain StmtClone reuses the
     // original closure, so two clones share the operator() body -- both a
@@ -1161,23 +1185,11 @@ namespace clad {
       // lambda's call operator rather than m_DiffReq.Function (the outer
       // function being differentiated), which would reject the lambda locals.
       Stmt* clonedS = CloneNode(S);
+      // Register before remapping, so references in this statement update too.
+      registerClonedDecls(S, clonedS, m_DeclReplacements);
       utils::ReferencesUpdater up(m_Sema, getCurrentScope(), CallOp,
                                   m_DeclReplacements);
       up.TraverseStmt(clonedS);
-      // Cloning a DeclStmt produces a fresh VarDecl, but StmtClone records that
-      // only in its own decl mapping. Register it here too, or a later
-      // statement's clone keeps referring to the original lambda's variable --
-      // a reference into the user's AST that outlives differentiation.
-      if (const auto* DS = dyn_cast<DeclStmt>(S))
-        if (auto* ClonedDS = dyn_cast<DeclStmt>(clonedS)) {
-          auto O = DS->decl_begin();
-          auto C = ClonedDS->decl_begin();
-          for (; O != DS->decl_end() && C != ClonedDS->decl_end(); ++O, ++C)
-            if (const auto* OVD = dyn_cast<VarDecl>(*O))
-              if (auto* CVD = dyn_cast<VarDecl>(*C))
-                if (OVD != CVD)
-                  m_DeclReplacements[OVD] = CVD;
-        }
       addToCurrentBlock(clonedS);
     }
     CompoundStmt* ClonedBody = endBlock();
