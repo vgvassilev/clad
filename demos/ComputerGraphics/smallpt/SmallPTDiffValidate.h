@@ -1,4 +1,3 @@
-// Shared AD validation helpers for SmallPT differentiable builds.
 #ifndef SMALLPT_DIFF_VALIDATE_H
 #define SMALLPT_DIFF_VALIDATE_H
 
@@ -144,6 +143,89 @@ static inline int smallpt_run_mirror_patch_grad_check() {
                                       x0, y0, patch_w, patch_h, samps));
 
   printf("SMALLPT_MIRROR_PATCH_GRAD_FD_PASS=%d\n", pass ? 1 : 0);
+  return pass ? 0 : 1;
+}
+
+static inline int smallpt_run_light_e_grad_check() {
+  double light_e = kDefaultLightE;
+  double g_e = 0;
+
+  auto grad = clad::gradient(diff_objective_light_e, "light_e");
+  grad.execute(light_e, &g_e);
+
+  bool pass = smallpt_essentially_equal(
+      g_e, smallpt_central_fd1(diff_objective_light_e, light_e));
+  pass &= std::fabs(g_e) > 1e-6;
+
+  printf("SMALLPT_LIGHT_E_GRAD_FD_PASS=%d\n", pass ? 1 : 0);
+  return pass ? 0 : 1;
+}
+
+static inline int smallpt_run_light_e_gd_smoke() {
+  constexpr int patch_w = kLightEmitPatchW;
+  constexpr int patch_h = kLightEmitPatchH;
+  constexpr int samps = 1;
+  constexpr int steps = 10;
+  const int x0 = kLightEmitPatchX0;
+  const int y0 = kLightEmitPatchY0;
+  const double gt = kDefaultLightE;
+  double light_e = 0.4;
+
+  double targets[patch_w * patch_h];
+  for (int py = 0; py < patch_h; ++py) {
+    for (int px = 0; px < patch_w; ++px) {
+      targets[py * patch_w + px] =
+          diff_objective_pixel_aa_samps_light_e(x0 + px, y0 + py, gt, samps);
+    }
+  }
+
+  auto patch_loss = [&](double le) {
+    double loss = 0;
+    for (int py = 0; py < patch_h; ++py) {
+      for (int px = 0; px < patch_w; ++px) {
+        loss += diff_pixel_loss_light_e(le, x0 + px, y0 + py, samps,
+                                        targets[py * patch_w + px]);
+      }
+    }
+    return loss / (patch_w * patch_h);
+  };
+
+  const double loss0 = patch_loss(light_e);
+  const double err0 = std::fabs(light_e - gt);
+
+  auto grad = clad::gradient(diff_pixel_loss_light_e, "light_e");
+  double lr = 0.05;
+  double m = 0.0;
+  double v = 0.0;
+  const double beta1 = 0.9;
+  const double beta2 = 0.999;
+  const double eps = 1e-8;
+
+  for (int step = 1; step <= steps; ++step) {
+    double g = 0.0;
+    for (int py = 0; py < patch_h; ++py) {
+      for (int px = 0; px < patch_w; ++px) {
+        double dg = 0.0;
+        grad.execute(light_e, x0 + px, y0 + py, samps,
+                     targets[py * patch_w + px], &dg);
+        g += dg;
+      }
+    }
+    g /= (patch_w * patch_h);
+    m = beta1 * m + (1 - beta1) * g;
+    v = beta2 * v + (1 - beta2) * g * g;
+    double m_hat = m / (1 - std::pow(beta1, step));
+    double v_hat = v / (1 - std::pow(beta2, step));
+    light_e -= lr * m_hat / (std::sqrt(v_hat) + eps);
+    if (light_e < 0.0)
+      light_e = 0.0;
+    lr *= 0.995;
+  }
+
+  const double loss = patch_loss(light_e);
+  const double err = std::fabs(light_e - gt);
+  bool pass = loss < loss0 && err < err0;
+  printf("SMALLPT_LIGHT_E_GD_SMOKE_PASS=%d\n", pass ? 1 : 0);
   return pass ? 0 : 1;
 }
 
