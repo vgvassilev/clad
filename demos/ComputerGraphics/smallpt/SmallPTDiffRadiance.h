@@ -3,11 +3,10 @@
 
 #include "SmallPTDiffCommon.h"
 
-// smallpt-style path tracer. light_y and mirror_x move the emissive and mirror
-// spheres; omit them (defaults) to use the fixed scene in kDiffScene.
 inline Vec diff_radiance(Ray r, int depth, unsigned short Xi[3],
                          double light_y = kDefaultLightY,
-                         double mirror_x = kDefaultMirrorX) {
+                         double mirror_x = kDefaultMirrorX,
+                         double light_e = kDefaultLightE) {
   Vec cl(0, 0, 0); // accumulated radiance
   Vec cf(1, 1, 1); // path throughput
 
@@ -46,7 +45,10 @@ inline Vec diff_radiance(Ray r, int depth, unsigned short Xi[3],
     if (f.z > p)
       p = f.z;
 
-    Vec emission_term = cf.mult(obj.emission);
+    Vec emission = obj.emission;
+    if (id == kLightSphereId)
+      emission = emission * light_e;
+    Vec emission_term = cf.mult(emission);
     cl = cl + emission_term;
 
     depth = depth + 1;

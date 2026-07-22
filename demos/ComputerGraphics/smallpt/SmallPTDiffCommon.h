@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <stdlib.h>
 
 #define non_differentiable __attribute__((annotate("non_differentiable")))
 
@@ -124,12 +125,15 @@ static constexpr int kLightSphereId = 8;
 static constexpr int kMirrorSphereId = 6;
 static constexpr double kDefaultLightY = 681.6 - .27;
 static constexpr double kDefaultMirrorX = 27.0;
-// Floor patch where mirror-reflected path-traced radiance is non-zero at
-// defaults.
+static constexpr double kDefaultLightE = 1.0;
 static constexpr int kMirrorRadiancePatchX0 = 200;
 static constexpr int kMirrorRadiancePatchY0 = 320;
 static constexpr int kMirrorRadiancePatchW = 4;
 static constexpr int kMirrorRadiancePatchH = 4;
+static constexpr int kLightEmitPatchX0 = 254;
+static constexpr int kLightEmitPatchY0 = 320;
+static constexpr int kLightEmitPatchW = 4;
+static constexpr int kLightEmitPatchH = 4;
 static constexpr double kDefaultCamDirX = 0.0;
 static constexpr double kDefaultCamDirY = -0.042612;
 static constexpr double kDefaultCamDirZ = -1.0;
