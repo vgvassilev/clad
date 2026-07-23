@@ -588,6 +588,7 @@ void InitTimers();
       SetTBRAnalysisOptions(m_DO, opts);
       SetActivityAnalysisOptions(m_DO, opts);
       SetUsefulAnalysisOptions(m_DO, opts);
+      opts.EmitPortingHints = m_DO.EmitPortingHints;
     }
 
     DiffScheduler& CladPlugin::getScheduler() {

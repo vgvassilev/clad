@@ -10,6 +10,7 @@
 // CHECK_HELP-NEXT: -disable-tbr
 // CHECK_HELP-NEXT: -fcustom-estimation-model
 // CHECK_HELP-NEXT: -fprint-num-diff-errors
+// CHECK_HELP-NEXT: -fclad-porting-hints
 // CHECK_HELP-NEXT: -help
 
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad\

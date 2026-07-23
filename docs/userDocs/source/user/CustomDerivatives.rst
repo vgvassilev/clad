@@ -435,3 +435,55 @@ Note that the constructor pullback does not need anything such as
 :code:`clad::ConstructorPushforwardTag<::Coordinates>`. It is because
 the constructor pullback takes :code:`d_coordinates` as an argument, which can be
 used to identify the class for which the constructor pullback is defined.
+
+Porting hints: discovering which custom derivatives to write
+============================================================
+
+When you bring clad to a new library, the hard part is usually finding *which*
+functions need a custom derivative (or a non-differentiable marker) and what
+signature each one must have. If clad has no custom derivative for a function
+and can see its definition, it silently falls back to **differentiating that
+definition** -- recursively descending into the library's internals (reference
+counting, allocation, I/O, ...), which for a library boundary is rarely what
+you want and often produces ill-formed or incorrect derivatives.
+
+The :code:`-fclad-porting-hints` plugin flag surfaces every such boundary. Pass
+it through the compiler driver:
+
+.. code-block:: bash
+
+  clang -fplugin=/path/to/clad.so \
+        -Xclang -plugin-arg-clad -Xclang -fclad-porting-hints \
+        -I/path/to/clad/include yourcode.cpp
+
+For every function that is defined **outside the main source file** (i.e. in an
+included header -- the library boundary) and that clad differentiates by cloning
+its definition, clad emits a remark naming the exact custom-derivative signature
+to provide *and* the marker to declare instead:
+
+.. code-block:: text
+
+  remark: clad has no custom derivative for 'scale' and is differentiating its
+          definition, descending into library internals
+    note: to differentiate it, provide clad::custom_derivatives::scale_pullback
+          with signature 'void (const Widget *, double, double, Widget *, double *)'
+    note: or declare it non-differentiable with
+          clad::custom_derivatives::nondifferentiable(clad::Tag<Widget>{})
+
+Each remark gives you the two ways to resolve the boundary:
+
+- **Differentiate it semantically.** Copy the printed signature and implement
+  the custom derivative (a pushforward, pullback, or reverse-forward -- see the
+  sections above). This is the right choice when the function has a meaningful
+  derivative that is simpler or more correct than clad cloning its
+  implementation (a matrix product's adjoint, a container's element access, ...).
+- **Mark it non-differentiable.** If the type carries no differentiable data
+  (a stream, an allocator, a reference-count handle, ...), declare
+  :code:`clad::custom_derivatives::nondifferentiable(clad::Tag<T>{})` and clad
+  will treat every use of it as opaque. The marker note is emitted for member
+  functions and constructors, where the enclosing type is the thing to mark.
+
+Only functions outside the main file are reported, so differentiating your own
+code stays quiet; the remarks focus on the library edge you are porting. The
+flag is a diagnostic aid only -- it changes no generated code. It is also listed
+in :code:`-plugin-arg-clad -help`.

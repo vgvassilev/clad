@@ -66,6 +66,7 @@ struct DifferentiationOptions {
   bool EnableUsefulAnalysis = false;
   bool DisableUsefulAnalysis = false;
   bool PrintNumDiffErrorInfo = false;
+  bool EmitPortingHints = false;
 };
 
     class CladExternalSource : public clang::ExternalSemaSource {
@@ -330,6 +331,8 @@ struct DifferentiationOptions {
             return false;
           } else if (args[i] == "-fprint-num-diff-errors") {
             m_DO.PrintNumDiffErrorInfo = true;
+          } else if (args[i] == "-fclad-porting-hints") {
+            m_DO.EmitPortingHints = true;
           } else if (args[i] == "-help") {
             // Print some help info.
             // CI.getFrontendOpts().ShowHelp does not give us control.
@@ -357,7 +360,13 @@ struct DifferentiationOptions {
                    "shared object to use as the custom estimation model.\n"
                 << "-fprint-num-diff-errors - allows users to print the "
                    "calculated numerical diff errors, this flag is overriden "
-                   "by -DCLAD_NO_NUM_DIFF.\n";
+                   "by -DCLAD_NO_NUM_DIFF.\n"
+                << "-fclad-porting-hints - When clad has no custom derivative "
+                   "for a function defined outside the main source file and "
+                   "falls back to differentiating its definition, emit a "
+                   "remark naming the expected custom-derivative signature and "
+                   "the non-differentiable marker. Useful when teaching clad "
+                   "about a new library.\n";
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
           } else if (args[i] == "-version" || args[i] == "-v") {

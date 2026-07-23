@@ -201,6 +201,11 @@ struct DerivativeAndOverload {
     /// context.
     ///
     DerivativeAndOverload Derive(const DiffRequest& request);
+    /// Under -fclad-porting-hints, when \p request will differentiate the
+    /// definition of a function defined outside the main source file (a library
+    /// boundary) with no custom derivative, emit a remark naming the expected
+    /// custom-derivative signature and the non-differentiable marker.
+    void EmitPortingHint(const DiffRequest& request);
     /// Find the derived function if present in the DerivedFnCollector.
     ///
     /// \param[in] request The request to find the derived function.
