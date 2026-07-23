@@ -531,7 +531,7 @@ double f_custom_max(double x, double y) { return std::max(x, y, std::greater<dou
 // CHECK:  double f_custom_max_darg0(double x, double y) {
 // CHECK-NEXT:      double _d_x = 1;
 // CHECK-NEXT:      double _d_y = 0;
-// CHECK-NEXT:      ValueAndPushforward<const double &, const double &> _t0 = clad::custom_derivatives::std::max_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
+// CHECK-NEXT:      ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::std::max_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
 // CHECK-NEXT:      return _t0.pushforward;
 // CHECK-NEXT:  }
 
@@ -539,7 +539,7 @@ double f_custom_min(double x, double y) { return std::min(x, y, std::greater<dou
 // CHECK:  double f_custom_min_darg0(double x, double y) {
 // CHECK-NEXT:      double _d_x = 1;
 // CHECK-NEXT:      double _d_y = 0;
-// CHECK-NEXT:      ValueAndPushforward<const double &, const double &> _t0 = clad::custom_derivatives::std::min_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
+// CHECK-NEXT:      ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::std::min_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
 // CHECK-NEXT:      return _t0.pushforward;
 // CHECK-NEXT:  }
 

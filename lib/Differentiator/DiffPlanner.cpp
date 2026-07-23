@@ -1094,6 +1094,37 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
       return overload;
 
+    // Retry ValueAndPushforward<const T&, const T&> as
+    // ValueAndPushforward<T, T> after the exact match fails. This keeps
+    // reference-returning custom derivatives preferred while allowing
+    // assignable min/max results in higher-order differentiation.
+    if (const auto* FPT = dTy->getAs<FunctionProtoType>()) {
+      auto* CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+          FPT->getReturnType()->getAsCXXRecordDecl());
+      TemplateDecl* VPDecl =
+          utils::LookupTemplateDeclInCladNamespace(S, "ValueAndPushforward");
+      if (CTSD && CTSD->getSpecializedTemplate() == VPDecl) {
+        const auto& tArgs = CTSD->getTemplateArgs();
+        QualType valueTy = tArgs[0].getAsType();
+        QualType pushforwardTy = tArgs[1].getAsType();
+        if (valueTy->isLValueReferenceType() &&
+            valueTy.getNonReferenceType().isConstQualified() &&
+            C.hasSameType(valueTy, pushforwardTy)) {
+          QualType relaxedTy =
+              valueTy.getNonReferenceType().getUnqualifiedType();
+          QualType relaxedRetTy =
+              utils::InstantiateTemplate(S, VPDecl, {relaxedTy, relaxedTy});
+          QualType relaxedDTy = C.getFunctionType(
+              relaxedRetTy, FPT->getParamTypes(), FPT->getExtProtoInfo());
+          TemplateSpecCandidateSet RelaxedCandidates(
+              R.CallContext->getBeginLoc(), /*ForTakingAddress=*/false);
+          if (Expr* overload = utils::MatchOverloadType(S, relaxedDTy, Found,
+                                                        RelaxedCandidates))
+            return overload;
+        }
+      }
+    }
+
     if (!enableDiagnostics)
       return nullptr;
 
