@@ -907,6 +907,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.EnableTBRAnalysis = ReqOpts.EnableTBRAnalysis;
     request.EnableVariedAnalysis = ReqOpts.EnableVariedAnalysis;
     request.EnableUsefulAnalysis = ReqOpts.EnableUsefulAnalysis;
+    request.EmitPortingHints = ReqOpts.EmitPortingHints;
 
     const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
     assert(TAL && "Call must have specialization args!");
@@ -1255,6 +1256,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
       request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
+      request.EmitPortingHints = m_TopMostReq->EmitPortingHints;
       request.EnableErrorEstimation = m_TopMostReq->EnableErrorEstimation;
       request.CallContext = E;
 
@@ -1632,6 +1634,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     request.VerboseDiags = false;
     request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
     request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+    request.EmitPortingHints = m_TopMostReq->EmitPortingHints;
 
     for (const auto* paramDecl : CD->parameters())
       request.DVI.push_back(paramDecl);

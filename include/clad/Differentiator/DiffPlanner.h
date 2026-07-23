@@ -122,6 +122,11 @@ public:
   bool EnableVariedAnalysis = false;
   /// A flag to enable useful analysis during reverse-mode differentiation.
   bool EnableUsefulAnalysis = false;
+  /// A flag to emit porting-hint remarks (-fclad-porting-hints) when a function
+  /// defined outside the main source file is differentiated by cloning its
+  /// definition. Diagnostic-only; it does not affect the generated derivative
+  /// and is therefore excluded from request equality.
+  bool EmitPortingHints = false;
   /// A flag to request a clad::restore_tracker parameter in the generated
   /// _reverse_forw function.
   bool UseRestoreTracker = false;
@@ -279,6 +284,7 @@ struct RequestOptions {
   bool EnableTBRAnalysis = false;
   bool EnableVariedAnalysis = false;
   bool EnableUsefulAnalysis = false;
+  bool EmitPortingHints = false;
 };
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {

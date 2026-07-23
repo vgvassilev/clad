@@ -470,9 +470,49 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     }
   }
 
+  void DerivativeBuilder::EmitPortingHint(const DiffRequest& request) {
+    if (!request.EmitPortingHints)
+      return;
+    const FunctionDecl* FD = request.Function;
+    // A custom derivative already covers this call; nothing to port. Only a
+    // function whose *definition* clad is about to clone is a porting gap.
+    if (!FD || request.CustomDerivative || !FD->isDefined() ||
+        !FD->getDeclName().isIdentifier())
+      return;
+    // Hint only at a library boundary: a function defined outside the main
+    // source file (an included header), where the user decides "differentiate
+    // vs. mark opaque" rather than clad silently cloning library internals.
+    if (m_Sema.getSourceManager().isInMainFile(FD->getLocation()))
+      return;
+
+    SourceLocation Loc = request.CallContext
+                             ? request.CallContext->getBeginLoc()
+                             : FD->getLocation();
+    llvm::SmallVector<const ValueDecl*, 4> diffParams;
+    for (const DiffInputVarInfo& VarInfo : request.DVI)
+      diffParams.push_back(VarInfo.param);
+    QualType DerivativeType = utils::GetDerivativeType(
+        m_Sema, FD, request.Mode, diffParams, /*forCustomDerv=*/true);
+
+    diag(DiagnosticsEngine::Remark, Loc,
+         "clad has no custom derivative for %0 and is differentiating its "
+         "definition, descending into library internals")
+        << FD;
+    diag(DiagnosticsEngine::Note, Loc,
+         "to differentiate it, provide clad::custom_derivatives::%0 with "
+         "signature %1")
+        << request.ComputeDerivativeName() << DerivativeType;
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
+      diag(DiagnosticsEngine::Note, Loc,
+           "or declare it non-differentiable with "
+           "clad::custom_derivatives::nondifferentiable(clad::Tag<%0>{})")
+          << MD->getParent()->getQualifiedNameAsString();
+  }
+
   DerivativeAndOverload
   DerivativeBuilder::Derive(const DiffRequest& request) {
     TimedGenerationRegion G([&request]() { return (std::string)request; });
+    EmitPortingHint(request);
     if (const FunctionDecl* FD = request.Function) {
       // Process the custom derivative
       if (request.CustomDerivative) {
