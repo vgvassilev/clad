@@ -1,6 +1,5 @@
 // RUN: %cladnumdiffclang %s %S/NumDiffDefs.C -I%S/../../include -oNumDiff.out -Xclang -verify 2>&1 | FileCheck -check-prefix=CHECK %s
 // RUN: ./NumDiff.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"
@@ -9,7 +8,7 @@ double single_arg(double x);
 
 double f1(double x, double y) {
   return single_arg(x * y); // expected-warning {{attempted differentiation of function 'single_arg' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
-  // expected-note@11 {{falling back to numerical differentiation for 'single_arg'}}
+  // expected-note@10 {{falling back to numerical differentiation for 'single_arg'}}
 }
 
 //CHECK: void f1_grad(double x, double y, double *_d_x, double *_d_y) {
@@ -25,7 +24,7 @@ double multi_arg(double x, double y);
 
 double f2(double x, double y) {
   return multi_arg(x, y); // expected-warning {{attempted differentiation of function 'multi_arg' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
-  // expected-note@27 {{falling back to numerical differentiation for 'multi_arg'}}
+  // expected-note@26 {{falling back to numerical differentiation for 'multi_arg'}}
 }
 
 
@@ -44,7 +43,7 @@ void noNumDiff(double& x);
 
 double f3(double x, double y) {
   noNumDiff(x); // expected-warning {{attempted differentiation of function 'noNumDiff' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
-  // expected-note@46 {{numerical differentiation is not viable for 'noNumDiff'; considering 'noNumDiff' as 0}}
+  // expected-note@45 {{numerical differentiation is not viable for 'noNumDiff'; considering 'noNumDiff' as 0}}
   return x + y;
 }
 

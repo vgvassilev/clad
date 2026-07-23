@@ -1,6 +1,5 @@
 // RUN: %cladclang -std=c++20 -ostl_cmath.o -I%S/../../include %s 2>&1 | %filecheck %s
 // RUN: ./stl_cmath.o | %filecheck_exec %s
-// XFAIL: valgrind
 // CHECK-EXEC-NOT: FAIL
 
 // This test checks if the functions available in <cmath> are supported by clad.
