@@ -98,7 +98,8 @@ jobs:
             os: ubuntu-22.04
             compiler: clang-16
             clang-runtime: '22'
-            extra_packages: 'libtrilinos-kokkos-dev ninja-build'
+            kokkos: '5.1.1'
+            extra_packages: 'ninja-build'
             extra_cmake_options: '-G Ninja'
 
           - name: ubu24-clang19-runtime20-vg
@@ -118,7 +119,8 @@ jobs:
             os: ubuntu-24.04-arm
             compiler: clang-16
             clang-runtime: '22'
-            extra_packages: 'libtrilinos-kokkos-dev ninja-build'
+            kokkos: '5.1.1'
+            extra_packages: 'ninja-build'
             extra_cmake_options: '-G Ninja'
 
           - name: ubu24-arm-clang16-runtime18
@@ -193,6 +195,13 @@ jobs:
         version: ${{ matrix.clang-runtime }}
         os:      ${{ matrix.self-hosted-os || matrix.os }}
         flavor:  ${{ matrix.flavor || 'system' }}
+
+    - name: Setup Kokkos ${{ matrix.kokkos }}
+      if: matrix.kokkos && runner.os != 'Windows'
+      uses: compiler-research/ci-workflows/actions/setup-kokkos@main
+      with:
+        version: ${{ matrix.kokkos }}
+        os:      ${{ matrix.self-hosted-os || matrix.os }}
 
     - name: Install extra Linux deps
       if: runner.os == 'Linux'
