@@ -2195,6 +2195,32 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
 
+  // std::thread(f, args...): pass f's pushforward in the d_f slot.
+  if (!clonedArgs.empty() && !derivedArgs.empty()) {
+    QualType recTy = CE->getType().getNonReferenceType().getCanonicalType();
+    if (const auto* RD = recTy->getAsCXXRecordDecl()) {
+      if (RD->getName() == "thread" && RD->isInStdNamespace() &&
+          CE->getNumArgs() >= 1) {
+        const Expr* callableE = CE->getArg(0)->IgnoreParenImpCasts();
+        const FunctionDecl* callableFD = nullptr;
+        if (const auto* DRE = dyn_cast<DeclRefExpr>(callableE))
+          callableFD = dyn_cast<FunctionDecl>(DRE->getDecl());
+        if (callableFD) {
+          DiffRequest pushforwardFnRequest;
+          pushforwardFnRequest.Function = callableFD;
+          pushforwardFnRequest.Mode = GetPushForwardMode();
+          pushforwardFnRequest.BaseFunctionName =
+              utils::ComputeEffectiveFnName(callableFD);
+          pushforwardFnRequest.VerboseDiags = false;
+          FunctionDecl* pushforwardFD =
+              m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
+          if (pushforwardFD)
+            derivedArgs[0] = BuildDeclRef(pushforwardFD);
+        }
+      }
+    }
+  }
+
   Expr* pushforwardCall =
       BuildCustomDerivativeConstructorPFCall(CE, clonedArgs, derivedArgs);
   if (pushforwardCall) {
@@ -2205,6 +2231,15 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     Expr* pushforwardE =
         utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                CloneNode(valueAndPushforwardE), "pushforward");
+    QualType recTy = CE->getType().getNonReferenceType().getCanonicalType();
+    if (const auto* RD = recTy->getAsCXXRecordDecl()) {
+      if (!utils::isCopyable(RD)) {
+        llvm::SmallVector<Expr*, 1> moveArgs = {valueE};
+        valueE = GetFunctionCall("move", "std", moveArgs);
+        moveArgs[0] = pushforwardE;
+        pushforwardE = GetFunctionCall("move", "std", moveArgs);
+      }
+    }
     return StmtDiff(valueE, pushforwardE);
   }
 
