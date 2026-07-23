@@ -101,12 +101,16 @@ jobs:
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
-          - name: ubu24-clang19-runtime20-vg
+          - name: ubu24-clang20-runtime22-vg
             os: ubuntu-24.04
-            compiler: clang-19
+            compiler: clang-20
             extra_packages: 'valgrind'
             extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
-            clang-runtime: '20'
+            clang-runtime: '22'
+            # Run Valgrind against the from-source llvm-release recipe
+            # (Release+Asserts) rather than apt, to measure whether the
+            # apt binaries' -O2 uninitialised-read noise is present there.
+            use-recipe: 'true'
 
           - name: ubu24-arm-clang16-runtime17-shared-libs
             os: ubuntu-24.04-arm
@@ -186,13 +190,16 @@ jobs:
           fi
         fi
         echo "ncpus=$ncpus" >> $GITHUB_ENV
-    - name: Setup LLVM ${{ matrix.clang-runtime }}${{ matrix.flavor && format(' [{0}]', matrix.flavor) || '' }}
+    - name: Setup LLVM ${{ matrix.clang-runtime }}${{ matrix.use-recipe == 'true' && ' [recipe]' || (matrix.flavor && format(' [{0}]', matrix.flavor) || '') }}
       if: runner.os != 'Windows'
       uses: compiler-research/ci-workflows/actions/setup-llvm@main
       with:
         version: ${{ matrix.clang-runtime }}
         os:      ${{ matrix.self-hosted-os || matrix.os }}
-        flavor:  ${{ matrix.flavor || 'system' }}
+        # use-recipe=true selects setup-llvm's empty flavor (the vanilla
+        # from-source llvm-release recipe); the `|| 'system'` default can't
+        # emit that empty string on its own.
+        flavor:  ${{ matrix.use-recipe != 'true' && (matrix.flavor || 'system') || '' }}
 
     - name: Install extra Linux deps
       if: runner.os == 'Linux'

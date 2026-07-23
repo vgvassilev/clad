@@ -1,5 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -otestUtility.out 2>&1 | %filecheck %s
 // RUN: ./testUtility.out | %filecheck_exec %s
+// FIXME: real clad::array copy-assignment over-read; drop when the fix lands.
 // XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"

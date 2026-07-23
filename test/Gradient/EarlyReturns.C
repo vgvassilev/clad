@@ -8,7 +8,6 @@
 // (EHScopeStack::requiresLandingPad) reads an uninitialized value inside
 // libclang on some runtimes. The read is Clang-internal and does not affect
 // the generated derivative; skip the run under Valgrind like the other tests.
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"

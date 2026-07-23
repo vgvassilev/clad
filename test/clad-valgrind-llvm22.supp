@@ -1,0 +1,34 @@
+# Memcheck suppressions for the clad test suite when run against an
+# LLVM/clang 22 build on x86_64.
+#
+# These target ONE specific defect: Memcheck's cheap shadow rule for
+# unsigned ordered comparisons reports a false "Conditional jump or move
+# depends on uninitialised value(s)" for clang's lowering of a bitfield
+# test (`word >>u k != 0` -> `word >=u (1<<k)`) over a partially-defined
+# storage word.  Every frame is clang-internal; none is a clad frame, and
+# every suppressed error is a Memcheck:Cond in exactly the two functions
+# whose -O2 codegen exhibits the pattern.
+#
+# References:
+#   clang false positive : https://github.com/llvm/llvm-project/issues/194147
+#   Valgrind fix (Memcheck expensiveCmpLTorLEU):
+#                          https://bugs.kde.org/show_bug.cgi?id=523434
+#
+# Remove this file once the running Valgrind carries the CmpLTU/CmpLEU
+# expensive-definedness fix from the bug above.  It is deliberately scoped
+# by top frame so it cannot hide an uninitialised-value error arising
+# anywhere else.
+
+{
+   llvm22-clang-FunctionProtoType-ctor-partial-bitfield-cmp (llvm/llvm-project#194147)
+   Memcheck:Cond
+   fun:_ZN5clang17FunctionProtoTypeC?ENS_8QualTypeEN4llvm8ArrayRefIS1_EES1_RKNS0_12ExtProtoInfoE
+   ...
+}
+
+{
+   llvm22-clang-SetLLVMFunctionAttributesForDefinition-partial-bitfield-cmp (llvm/llvm-project#194147)
+   Memcheck:Cond
+   fun:_ZN5clang7CodeGen13CodeGenModule38SetLLVMFunctionAttributesForDefinitionEPKNS_4DeclEPN4llvm8FunctionE
+   ...
+}

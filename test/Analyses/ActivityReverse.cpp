@@ -2,8 +2,9 @@
 // RUN: ./Activity.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-va -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oActivity.out
 // RUN: ./Activity.out | %filecheck_exec %s
-//CHECK-NOT: {{.*error|warning|note:.*}}
+// FIXME: f3 reads uninitialised locals (test-source UB); drop when addressed.
 // XFAIL: valgrind
+//CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 

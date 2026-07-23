@@ -90,7 +90,16 @@ option(CLAD_CUDA_TEST_USE_SANITIZER "Run Clang cuda tests with compute-sanitizer
 option(CLAD_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
 set(CLAD_TEST_EXTRA_ARGS --verbose --show-skipped --show-unsupported)
 if(CLAD_TEST_USE_VG)
-  set(CLAD_TEST_EXTRA_ARGS ${CLAD_TEST_EXTRA_ARGS} "--vg --vg-arg=-q")
+  # Run under memcheck. The only errors an LLVM 22 x86_64 build produces on
+  # this suite are Memcheck's false "Conditional jump depends on uninitialised
+  # value" for clang's unsigned-compare lowering of a partially-defined
+  # bitfield word (llvm/llvm-project#194147); every one tops out in one of two
+  # clang functions, none in a clad frame. clad-valgrind-llvm22.supp silences
+  # exactly those two frames and nothing else, so a genuine uninitialised-value
+  # error anywhere still fails the row. Drop the file once the running Valgrind
+  # carries the CmpLTU/CmpLEU expensive-definedness fix.
+  set(CLAD_TEST_EXTRA_ARGS ${CLAD_TEST_EXTRA_ARGS}
+      "--vg --vg-arg=-q --vg-arg=--suppressions=${CMAKE_CURRENT_SOURCE_DIR}/clad-valgrind-llvm22.supp")
 endif ()
 if(CLAD_CUDA_TEST_USE_SANITIZER)
   set(CLAD_TEST_EXTRA_ARGS ${CLAD_TEST_EXTRA_ARGS} "--param" "cuda_sanitizer=1")

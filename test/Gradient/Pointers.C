@@ -2,6 +2,7 @@
 // RUN: ./Pointers.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oPointers.out
 // RUN: ./Pointers.out | %filecheck_exec %s
+// FIXME: real realloc use-after-free in reverse mode; drop valgrind when fixed.
 // XFAIL: target={{i586.*}}, valgrind
 
 #include "clad/Differentiator/Differentiator.h"

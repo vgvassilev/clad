@@ -1,5 +1,4 @@
 // RUN: %cladclang -I%S/../../include %s
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
