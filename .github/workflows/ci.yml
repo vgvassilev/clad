@@ -101,12 +101,18 @@ jobs:
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
-          - name: ubu24-clang19-runtime20-vg
+          - name: ubu24-clang20-runtime22-vg
             os: ubuntu-24.04
-            compiler: clang-19
+            compiler: clang-20
             extra_packages: 'valgrind'
             extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
-            clang-runtime: '20'
+            clang-runtime: '22'
+            # Run Valgrind against the from-source llvm-release recipe
+            # (Release+Asserts), not apt: apt's -O2 binaries read uninitialised
+            # bitfield padding in ~399 clang/LLVM sites (llvm/llvm-project#194147)
+            # that no surgical suppression can cover. The recipe build tops out
+            # in two frames, handled by test/clad-valgrind-llvm22.supp.
+            use-recipe: 'true'
 
           - name: ubu24-arm-clang16-runtime17-shared-libs
             os: ubuntu-24.04-arm
@@ -192,7 +198,10 @@ jobs:
       with:
         version: ${{ matrix.clang-runtime }}
         os:      ${{ matrix.self-hosted-os || matrix.os }}
-        flavor:  ${{ matrix.flavor || 'system' }}
+        # use-recipe=true selects setup-llvm's empty flavor (the vanilla
+        # from-source llvm-release recipe); the `|| 'system'` default cannot
+        # emit that empty string on its own.
+        flavor:  ${{ matrix.use-recipe != 'true' && (matrix.flavor || 'system') || '' }}
 
     - name: Install extra Linux deps
       if: runner.os == 'Linux'
