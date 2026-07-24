@@ -734,11 +734,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                             initDiff.getExpr(), baseTSI,
                                             {placementArg});
         } else if (CI->isDelegatingInitializer()) {
-          auto* thisDRE = cast<DeclRefExpr>(thisExpr);
-          auto* thisVD = cast<VarDecl>(thisDRE->getDecl());
-          Expr* newInit = utils::BuildCXXNewExpr(m_Sema, baseTy, nullptr,
-                                                 initDiff.getExpr(), baseTSI);
-          SetDeclInit(thisVD, newInit);
+          // Placement-new into the malloc'd `_this` (paired with free(_this)),
+          // as the base-initializer path above does. An allocating
+          // `new ClassTy(args)` here would be freed with free() -- a mismatch.
+          initCall =
+              utils::BuildCXXNewExpr(m_Sema, baseTy, /*arraySize=*/nullptr,
+                                     initDiff.getExpr(), baseTSI, {thisExpr});
         }
       }
       CompoundStmt* block = endBlock(direction::reverse);

@@ -2,8 +2,6 @@
 // RUN: ./Constructors.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oConstructors.out
 // RUN: ./Constructors.out | %filecheck_exec %s
-// FIXME: real new/free mismatch for delegating constructors; drop when fixed.
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
@@ -368,15 +366,17 @@ double fn6(double x, double y) {
 } // x^2 * y
 
 // CHECK: static clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> constructor_reverse_forw(clad::Tag<argByValWrapper>, double v, double u, double _d_v, double _d_u) {
-// CHECK-NEXT:     argByValWrapper *_this = new argByValWrapper(v);
+// CHECK-NEXT:     argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     argByValWrapper *_d_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(argByValWrapper));
+// CHECK-NEXT:     new (_this) argByValWrapper(v);
 // CHECK-NEXT:     _this->z = _this->y * u;
 // CHECK-NEXT:     return {*_this, *_d_this};
 // CHECK-NEXT: }
 
 // CHECK:  static void constructor_pullback(double v, double u, argByValWrapper *_d_this, double *_d_v, double *_d_u) {
-// CHECK-NEXT:      argByValWrapper *_this = new argByValWrapper(v);
+// CHECK-NEXT:      argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
+// CHECK-NEXT:      new (_this) argByValWrapper(v);
 // CHECK-NEXT:      _this->z = _this->y * u;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r_d0 = _d_this->z;
