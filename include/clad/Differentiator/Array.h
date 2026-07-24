@@ -98,8 +98,11 @@ public:
       delete[] m_arr;
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       m_arr = new T[arr.m_size];
-      m_size = arr.m_size;
     }
+    // Adopt the source size before delegating to operator=(T*): otherwise a
+    // larger destination keeps its old m_size and that overload reads
+    // arr.m_arr past its end (heap over-read on shrinking assignment).
+    m_size = arr.m_size;
     (*this) = arr.m_arr;
     return *this;
   }
