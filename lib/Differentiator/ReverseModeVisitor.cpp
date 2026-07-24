@@ -1996,10 +1996,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (isNonDiff)
       result.updateStmtDx(nullptr);
     QualType paramTy = param->getType();
-    if (Expr* adjointArg = result.getExpr_dx())
-      if (!(isNonDiff || utils::isArrayOrPointerType(paramTy) || isCUDAKernel))
+    if (Expr* adjointArg = result.getExpr_dx()) {
+      // An argument of an opaque (non-differentiable) type carries no adjoint,
+      // so its adjoint expression has void type. Taking its address for the
+      // pullback (`&<void>`) is ill-formed, so drop it rather than thread it
+      // through.
+      if (adjointArg->getType()->isVoidType())
+        result.updateStmtDx(nullptr);
+      else if (!(isNonDiff || utils::isArrayOrPointerType(paramTy) ||
+                 isCUDAKernel))
         result.updateStmtDx(
             BuildOp(UO_AddrOf, adjointArg, m_DiffReq->getLocation()));
+    }
 
     // If a function returns an object by value, there
     // are an implicit move constructor and an implicit
@@ -2318,7 +2326,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     // FIXME: consider moving non-diff analysis to DiffPlanner.
-    bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
+    bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE) ||
+                   clad::utils::callOperatesOnNonDifferentiableType(m_Sema, CE);
     // If the result does not depend on the result of the call, just clone
     // the call and visit arguments (since they may contain side-effects like
     // f(x = y))
@@ -2750,26 +2759,32 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         CallArgs.push_back(CloneNode(trackerExpr));
       call =
           BuildCallExprToFunction(calleeFnForwPassFD, CallArgs, CUDAExecConfig);
-      if (!needsForwPass ||
-          (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE)))
-        return StmtDiff(call);
-      Expr* callRes = nullptr;
-      if (isInsideLoop)
-        callRes = GlobalStoreAndRef(call, /*prefix=*/"_t",
-                                    /*force=*/true);
-      else
-        callRes = StoreAndRef(call);
-      auto* resValue =
-          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
-      // Clone the base so `_t0.value` and `_t0.adjoint` own distinct nodes.
-      auto* resAdjoint = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                                CloneNode(callRes), "adjoint");
-      if (Expr* add_assign = BuildDiffIncrement(resAdjoint)) {
-        Stmts& block = getCurrentBlock(direction::reverse);
-        it = std::begin(block) + insertionPoint;
-        block.insert(it, add_assign);
+      // Sema can reject the reverse-forward call -- e.g. its signature was
+      // synthesized for a function clad cannot actually differentiate (an
+      // operation reached through an opaque type). Fall through to recreating
+      // the original call rather than storing a null expression.
+      if (call) {
+        if (!needsForwPass ||
+            (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE)))
+          return StmtDiff(call);
+        Expr* callRes = nullptr;
+        if (isInsideLoop)
+          callRes = GlobalStoreAndRef(call, /*prefix=*/"_t",
+                                      /*force=*/true);
+        else
+          callRes = StoreAndRef(call);
+        auto* resValue =
+            utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
+        // Clone the base so `_t0.value` and `_t0.adjoint` own distinct nodes.
+        auto* resAdjoint = utils::BuildMemberExpr(
+            m_Sema, getCurrentScope(), CloneNode(callRes), "adjoint");
+        if (Expr* add_assign = BuildDiffIncrement(resAdjoint)) {
+          Stmts& block = getCurrentBlock(direction::reverse);
+          it = std::begin(block) + insertionPoint;
+          block.insert(it, add_assign);
+        }
+        return StmtDiff(resValue, resAdjoint);
       }
-      return StmtDiff(resValue, resAdjoint);
     } // Recreate the original call expression.
 
     if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
@@ -5330,9 +5345,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
       return {val, adjoint};
     }
-    assert((elideReverseForw ||
-            utils::isElidableConstructor(CD, m_Sema.getASTContext())) &&
-           "No reverse_forw for a non-elidable constructor.");
+    // A non-differentiable (marked) library-type constructor is scheduled
+    // without a reverse-forward propagator (see DiffPlanner), so `constrForw`
+    // is legitimately null here even for a non-elidable constructor; fall
+    // through to the plain construction clone.
+    assert(
+        (elideReverseForw ||
+         utils::isNonDifferentiableType(m_Sema, CD->getParent()) ||
+         utils::constructorReverseForwIsElidable(CD, m_Sema.getASTContext())) &&
+        "No reverse_forw for a non-elidable constructor.");
 
     // Aggregate constructors are always element-wise initializers.
     if (RD->isAggregate() && CD->isDefaultConstructor())

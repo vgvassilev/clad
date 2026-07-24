@@ -1252,6 +1252,15 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (clad::utils::hasNonDifferentiableAttribute(E))
         nonDiff = true;
 
+      // A call whose object is a marked non-differentiable type -- a stream
+      // operation (`os << x`) or a std::streambuf method -- is opaque. Do not
+      // schedule a derivative for it or recurse into its body; otherwise clad
+      // descends into the whole non-differentiable I/O machinery
+      // (sentry/streambuf/scope_guard/char_traits). The primal call is emitted
+      // as-is in the derivative.
+      if (clad::utils::callOperatesOnNonDifferentiableType(m_Sema, E))
+        return true;
+
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
@@ -1614,10 +1623,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     forwPassRequest.BaseFunctionName = "constructor";
     forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
     forwPassRequest.CallContext = E;
+    forwPassRequest.EmitPortingHints = m_TopMostReq->EmitPortingHints;
     QualType recordTy = CD->getThisType()->getPointeeType();
     bool elideRevForw =
-        utils::isElidableConstructor(CD, m_Sema.getASTContext());
-    if (LookupCustomDerivativeDecl(forwPassRequest) || !elideRevForw)
+        utils::constructorReverseForwIsElidable(CD, m_Sema.getASTContext());
+    // Cloning the body of a non-differentiable constructor yields an ill-formed
+    // reverse-forward propagator: e.g. std::string's char-pointer constructor
+    // (reached through a Kokkos::View label) delegates to a private member
+    // (this->__init(...)), but the propagator is a static function with no
+    // `this`, so CodeGen crashes. Build a propagator for a marked type only
+    // when the user supplied a custom derivative, never by cloning the library
+    // body.
+    bool cloneBodyUnsafe =
+        utils::isNonDifferentiableType(m_Sema, CD->getParent());
+    if (LookupCustomDerivativeDecl(forwPassRequest) ||
+        (!elideRevForw && !cloneBodyUnsafe))
       m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
 
     // Don't build propagators for calls that do not contribute in

@@ -598,13 +598,12 @@ The ``non_differentiable`` Attribute
 
 Occasionally, you may want to skip differentiating a specific variable or function call. For example, some variables might be used purely for logging, as constants, or as standalone metrics. Clad provides the ``non_differentiable`` annotation attribute to safely omit generating derivatives for these components.
 
-You can apply this attribute using Clang's annotation syntax. The most common approach is to define a macro alias:
+Clad ships the ``CLAD_NONDIFFERENTIABLE`` macro (defined in
+``clad/Differentiator/BuiltinDerivatives.h``, pulled in by ``Differentiator.h``)
+for this; it expands to ``__attribute__((annotate("non_differentiable")))``.
 
-.. code-block:: c++
-
-   #define non_differentiable __attribute__((annotate("non_differentiable")))
-
-If the ``non_differentiable`` attribute is applied to a variable, Clad skips generating a derivative counterpart for it:
+If ``CLAD_NONDIFFERENTIABLE`` is applied to a variable, Clad skips generating a
+derivative counterpart for it:
 
 .. code-block:: c++
 
@@ -612,21 +611,51 @@ If the ``non_differentiable`` attribute is applied to a variable, Clad skips gen
    public:
      double x;
      double y;
-     non_differentiable double weight; // Clad will not compute derivatives with respect to this member
+     CLAD_NONDIFFERENTIABLE double weight; // not differentiated
    };
 
 If the attribute is applied to a function declaration, Clad refrains from producing any derivative expressions for that specific function. Instead, calls to the primal function are injected directly, behaving as if the result has a zero derivative:
 
 .. code-block:: c++
 
-   non_differentiable double get_scaling_factor(double i, double j) { 
-       return i * j; 
+   CLAD_NONDIFFERENTIABLE double get_scaling_factor(double i, double j) {
+       return i * j;
    }
 
-   double compute(double i, double j) { 
-       // get_scaling_factor will skip differentiation completely. 
-       return get_scaling_factor(i, j) + i * j; 
+   double compute(double i, double j) {
+       // get_scaling_factor will skip differentiation completely.
+       return get_scaling_factor(i, j) + i * j;
    }
+
+Marking a type you do not own
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The attribute must sit on the declaration you want to mark, so it cannot be
+attached to a library type declared in a header you do not control (a stream, an
+allocator, a third-party handle). For those, mark the type from the outside with
+``CLAD_NONDIFFERENTIABLE_TYPE`` at global scope; Clad then treats every
+construction of and call on that type as opaque:
+
+.. code-block:: c++
+
+   CLAD_NONDIFFERENTIABLE_TYPE(ThirdParty::Handle);
+   // template arguments (and commas) are fine:
+   CLAD_NONDIFFERENTIABLE_TYPE(std::map<int, double>);
+
+It expands to a ``clad::Tag`` specialization carrying
+``CLAD_NONDIFFERENTIABLE``. A concrete type is marked as written; a *template
+family* (e.g. every ``Boxed<T>``) needs a partial specialization the macro
+cannot express -- write it directly:
+
+.. code-block:: c++
+
+   namespace clad {
+   template <class T> class CLAD_NONDIFFERENTIABLE Tag<Boxed<T>> {};
+   }
+
+The standard-library primitives Clad already knows are non-differentiable
+(``std::string``, ``std::allocator``, the stream family) are marked this way in
+``STLBuiltins.h``.
 
 Specifying Custom Derivatives
 -------------------------------

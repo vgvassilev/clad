@@ -7,8 +7,10 @@
 #include <clad/Differentiator/FunctionTraits.h>
 #include <functional>
 #include <initializer_list>
+#include <iosfwd>
 #include <iterator>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -29,6 +31,30 @@ template <class T1, class T2> void zero_init(std::pair<T1, T2>& p) {
 template <class T> void zero_init(typename std::allocator<T>&) {
   // do nothing, unclear if allocators have differentiable properties.
 }
+
+// Mark a library type non-differentiable (opaque) by specializing clad::Tag for
+// it and annotating the specialization: the `non_differentiable` attribute
+// cannot be attached to a type declared in a header we do not own. clad then
+// treats the type as opaque and never clones its member bodies to synthesize a
+// derivative -- which for these primitives would be ill-formed. A custom
+// derivative, if present, still wins. Add your own non-differentiable library
+// types the same way.
+template <class C, class Tr, class A>
+class CLAD_NONDIFFERENTIABLE Tag<::std::basic_string<C, Tr, A>> {};
+template <class T> class CLAD_NONDIFFERENTIABLE Tag<::std::allocator<T>> {};
+// The stream family is non-differentiable I/O. Marking it lets clad treat a
+// stream operation (`os << x`, a streambuf method) as opaque instead of
+// descending into sentry/streambuf/scope_guard/char_traits machinery. Only
+// forward declarations (<iosfwd>) are needed to name the templates.
+template <class C, class Tr>
+class CLAD_NONDIFFERENTIABLE Tag<::std::basic_ostream<C, Tr>> {};
+template <class C, class Tr>
+class CLAD_NONDIFFERENTIABLE Tag<::std::basic_istream<C, Tr>> {};
+template <class C, class Tr>
+class CLAD_NONDIFFERENTIABLE Tag<::std::basic_streambuf<C, Tr>> {};
+template <class C, class Tr>
+class CLAD_NONDIFFERENTIABLE Tag<::std::basic_ios<C, Tr>> {};
+template <> class CLAD_NONDIFFERENTIABLE Tag<::std::ios_base> {};
 
 namespace custom_derivatives {
 

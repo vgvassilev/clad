@@ -60,6 +60,21 @@ template <typename T, typename U> struct ValueAndAdjoint {
 /// We do the same for constructor_reverse_forw.
 template <class T> class Tag {};
 
+/// Marks an entity non-differentiable: clad treats it as opaque and never
+/// clones its body to synthesize a derivative. Apply at the declaration of a
+/// variable, member, function, or type you own, e.g.
+///   struct CLAD_NONDIFFERENTIABLE Handle { double* data; };
+#define CLAD_NONDIFFERENTIABLE __attribute__((annotate("non_differentiable")))
+
+/// Marks a type you do NOT own -- a library type you cannot annotate at its own
+/// declaration -- non-differentiable, by specializing clad::Tag for it. Use at
+/// global scope. The type may contain commas, e.g.
+///   CLAD_NONDIFFERENTIABLE_TYPE(std::map<int, double>);
+#define CLAD_NONDIFFERENTIABLE_TYPE(...)                                       \
+  namespace clad {                                                             \
+  template <> class CLAD_NONDIFFERENTIABLE Tag<__VA_ARGS__> {};                \
+  }
+
 /// We have aliases with for old tags for backwards compatibility.
 template <class T> using ConstructorPushforwardTag = Tag<T>;
 
