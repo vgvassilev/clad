@@ -2,8 +2,7 @@
 // RUN: ./Pointers.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oPointers.out
 // RUN: ./Pointers.out | %filecheck_exec %s
-// FIXME: real realloc use-after-free in reverse mode; drop valgrind when fixed.
-// XFAIL: target={{i586.*}}, valgrind
+// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -338,30 +337,24 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     *p = x;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = t->x + *p;
-// CHECK-NEXT:     double *_t2 = p;
-// CHECK-NEXT:     double *_t3 = _d_p;
 // CHECK-NEXT:     _d_p = (double *)realloc(_d_p, 2 * sizeof(double));
 // CHECK-NEXT:     memset(_d_p, 0, 2 * sizeof(double));
 // CHECK-NEXT:     p = (double *)realloc(p, 2 * sizeof(double));
-// CHECK-NEXT:     double _t4 = p[1];
+// CHECK-NEXT:     double _t2 = p[1];
 // CHECK-NEXT:     p[1] = 2 * x;
-// CHECK-NEXT:     double _t5 = res;
+// CHECK-NEXT:     double _t3 = res;
 // CHECK-NEXT:     res += p[1];
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         res = _t5;
+// CHECK-NEXT:         res = _t3;
 // CHECK-NEXT:         double _r_d3 = _d_res;
 // CHECK-NEXT:         _d_p[1] += _r_d3;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         p[1] = _t4;
+// CHECK-NEXT:         p[1] = _t2;
 // CHECK-NEXT:         double _r_d2 = _d_p[1];
 // CHECK-NEXT:         _d_p[1] = 0.;
 // CHECK-NEXT:         *_d_x += 2 * _r_d2;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         p = _t2;
-// CHECK-NEXT:         _d_p = _t3;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_t->x += _d_res;
