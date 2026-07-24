@@ -2,7 +2,6 @@
 // RUN: ./BuiltinDerivatives.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -Xclang -verify -oBuiltinDerivatives.out
 // RUN: ./BuiltinDerivatives.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"
