@@ -2,8 +2,6 @@
 // RUN: ./Activity.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-va -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oActivity.out
 // RUN: ./Activity.out | %filecheck_exec %s
-// FIXME: f3 reads uninitialised locals (test-source UB); drop when addressed.
-// XFAIL: valgrind
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -86,7 +84,10 @@ double f2(double x){
 //CHECK-NEXT: }
 
 double f3(double x){
-  double x1, x2, x3, x4, x5 = 0;
+  // x3 is nonzero so the loop does not run: x stays inactive (gradient 0),
+  // which is what this exercises. Leaving x3 uninitialised was undefined
+  // behaviour that only happened to skip the loop.
+  double x1 = 0, x2 = 0, x3 = 1, x4 = 0, x5 = 0;
   while(!x3){
     x5 = x4;
     x4 = x3;
@@ -104,7 +105,7 @@ double f3(double x){
 //CHECK-NEXT:     clad::tape<double> _t4 = {};
 //CHECK-NEXT:     clad::tape<double> _t5 = {};
 //CHECK-NEXT:     double _d_x1 = 0., _d_x2 = 0., _d_x3 = 0., _d_x4 = 0., _d_x5 = 0.;
-//CHECK-NEXT:     double x1, x2, x3, x4, x5 = 0;
+//CHECK-NEXT:     double x1 = 0, x2 = 0, x3 = 1, x4 = 0, x5 = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
 //CHECK-NEXT:     while (!x3) 
 //CHECK-NEXT:      {
