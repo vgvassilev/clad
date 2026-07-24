@@ -476,8 +476,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     const FunctionDecl* FD = request.Function;
     // A custom derivative already covers this call; nothing to port. Only a
     // function whose *definition* clad is about to clone is a porting gap.
+    // Constructors have a non-identifier name (a constructor name) but are a
+    // primary porting case (e.g. std::string's constructor), so let them
+    // through; other non-identifier names (operators) have no clean suggested
+    // custom-derivative spelling, so skip them.
     if (!FD || request.CustomDerivative || !FD->isDefined() ||
-        !FD->getDeclName().isIdentifier())
+        (!FD->getDeclName().isIdentifier() && !isa<CXXConstructorDecl>(FD)))
       return;
     // Hint only at a library boundary: a function defined outside the main
     // source file (an included header), where the user decides "differentiate
@@ -502,11 +506,36 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
          "to differentiate it, provide clad::custom_derivatives::%0 with "
          "signature %1")
         << request.ComputeDerivativeName() << DerivativeType;
-    if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
+      const CXXRecordDecl* RD = MD->getParent();
+      // Print the qualified name WITH template arguments
+      // (getQualifiedNameAsString drops them, yielding an ill-formed Tag<Boxed>
+      // for a Boxed<double>).
+      clang::PrintingPolicy Policy = m_Sema.getPrintingPolicy();
+      Policy.SuppressTagKeyword = true;
+      std::string TypeName =
+          clad_compat::getRecordType(m_Context, RD).getAsString(Policy);
       diag(DiagnosticsEngine::Note, Loc,
-           "or declare it non-differentiable with "
-           "clad::custom_derivatives::nondifferentiable(clad::Tag<%0>{})")
-          << MD->getParent()->getQualifiedNameAsString();
+           "or mark it non-differentiable with CLAD_NONDIFFERENTIABLE_TYPE(%0)")
+          << TypeName;
+      // The value-level macro marks a single type; a template instantiation is
+      // only that specialization. Marking the whole family needs a clad::Tag
+      // partial specialization the macro cannot express.
+      if (isa<clang::ClassTemplateSpecializationDecl>(RD))
+        diag(DiagnosticsEngine::Note, Loc,
+             "this marks only this specialization; to mark the whole template, "
+             "add a clad::Tag partial specialization carrying "
+             "CLAD_NONDIFFERENTIABLE");
+    }
+    // A reverse-forward pass that is a no-op (e.g. a shallow copy that shares
+    // its adjoint) need not be cloned: declare it and mark it elidable so clad
+    // skips the call. Point at the existing mechanism rather than a new one.
+    if (request.Mode == DiffMode::reverse_mode_forward_pass)
+      diag(DiagnosticsEngine::Note, Loc,
+           "or, if its reverse-forward pass is a no-op (e.g. a shallow copy "
+           "that shares its adjoint), declare %0 with signature %1 and mark it "
+           "elidable_reverse_forw")
+          << request.ComputeDerivativeName() << DerivativeType;
   }
 
   DerivativeAndOverload

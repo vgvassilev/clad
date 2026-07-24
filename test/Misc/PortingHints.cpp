@@ -33,7 +33,7 @@ int main() {
 // CHECK-NOT: no custom derivative for 'f'
 // CHECK: remark: clad has no custom derivative for 'scale' and is differentiating its definition, descending into library internals
 // CHECK: note: to differentiate it, provide clad::custom_derivatives::scale_{{.*}} with signature
-// CHECK: note: or declare it non-differentiable with clad::custom_derivatives::nondifferentiable(clad::Tag<Widget>{})
+// CHECK: note: or mark it non-differentiable with CLAD_NONDIFFERENTIABLE_TYPE(Widget)
 
 // CHECK-QUIET-NOT: remark:
 

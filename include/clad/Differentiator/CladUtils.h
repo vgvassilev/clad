@@ -381,6 +381,26 @@ namespace clad {
 
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
 
+    /// Returns true if \p RD is marked non-differentiable (opaque) by a
+    /// clad::custom_derivatives::nondifferentiable(clad::Tag<T>) declaration:
+    /// clad must not clone its member bodies to synthesize a derivative. The
+    /// built-in standard-library markers live in STLBuiltins.h; users extend
+    /// the set by declaring their own.
+    bool isNonDifferentiableType(clang::Sema& S,
+                                 const clang::CXXRecordDecl* RD);
+
+    /// Returns true if the type \p CE fundamentally operates on -- the object
+    /// of a member call, or the first argument of a free operator (`os << x`)
+    /// -- is non-differentiable (Tag-aware, so it honors clad::Tag<T> markers).
+    /// Deliberately narrower than hasNonDifferentiableAttribute(Expr): it looks
+    /// only at the operated-on type, so a differentiable call that merely
+    /// passes a marked value is unaffected. Callers use it to skip the call
+    /// outright (an early return) rather than to set the weaker nonDiff flag,
+    /// which in reverse mode would still schedule a pullback and descend into
+    /// the type's machinery.
+    bool callOperatesOnNonDifferentiableType(clang::Sema& S,
+                                             const clang::CallExpr* CE);
+
     /// Collects every DeclRefExpr, MemberExpr, ArraySubscriptExpr in an
     /// assignment operator or a ternary if operator. This is useful to when we
     /// need to decide what needs to be stored on tape in reverse mode.
@@ -429,8 +449,17 @@ namespace clad {
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
 
-    bool isElidableConstructor(const clang::CXXConstructorDecl* CD,
-                               const clang::ASTContext& C);
+    /// Returns true if the reverse-forward propagator for constructor \p CD is
+    /// structurally elidable -- clad need not synthesize one because the plain
+    /// construction plus the normal member-wise adjoint handling already covers
+    /// it. This holds for a trivial copy/move constructor (a shallow share of
+    /// pointer/handle members), an aggregate, and a memberwise zero-or-copy
+    /// initializer. A non-trivial constructor can additionally opt in with the
+    /// elidable_reverse_forw attribute on its custom reverse_forw (see
+    /// hasElidableReverseForwAttribute) -- both paths are combined where the
+    /// propagator is consumed.
+    bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
+                                          const clang::ASTContext& C);
 
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);

@@ -1316,6 +1316,20 @@ void print(T* arr, int n) {
   F##_grad.execute(__VA_ARGS__, result, &d_n);\
   print(result, 5);
 
+// Calls the reference-returning identity() inside a loop. clad stores each
+// identity_reverse_forw result in a tape -- the in-loop reverse-forward store
+// (GlobalStoreAndRef), as opposed to the straight-line store fn7 exercises.
+double fnIdLoop(double x, double y) {
+  double a = x;
+  double s = 0;
+  for (int c = 0; c < 3; ++c)
+    s += identity(a);
+  return s + y;
+} // 3x + y
+
+// CHECK-LABEL: void fnIdLoop_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: clad::push(_t{{[0-9]+}}, identity_reverse_forw(a, _d_a));
+
 int main() {
   double result[7];
   float fresult[7];
@@ -1438,6 +1452,8 @@ int main() {
 
   INIT(fn35);
   TEST2(fn35, 10, 1);  // CHECK-EXEC: {-3.00, 2.00}
+  INIT(fnIdLoop);
+  TEST2(fnIdLoop, 2, 5);  // CHECK-EXEC: {3.00, 1.00}
 }
 
 double sq_defined_later(double x) {

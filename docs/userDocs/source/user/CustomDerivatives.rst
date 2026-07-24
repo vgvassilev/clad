@@ -467,10 +467,9 @@ to provide *and* the marker to declare instead:
           definition, descending into library internals
     note: to differentiate it, provide clad::custom_derivatives::scale_pullback
           with signature 'void (const Widget *, double, double, Widget *, double *)'
-    note: or declare it non-differentiable with
-          clad::custom_derivatives::nondifferentiable(clad::Tag<Widget>{})
+    note: or mark it non-differentiable with CLAD_NONDIFFERENTIABLE_TYPE(Widget)
 
-Each remark gives you the two ways to resolve the boundary:
+Each remark gives you the ways to resolve the boundary:
 
 - **Differentiate it semantically.** Copy the printed signature and implement
   the custom derivative (a pushforward, pullback, or reverse-forward -- see the
@@ -478,10 +477,15 @@ Each remark gives you the two ways to resolve the boundary:
   derivative that is simpler or more correct than clad cloning its
   implementation (a matrix product's adjoint, a container's element access, ...).
 - **Mark it non-differentiable.** If the type carries no differentiable data
-  (a stream, an allocator, a reference-count handle, ...), declare
-  :code:`clad::custom_derivatives::nondifferentiable(clad::Tag<T>{})` and clad
-  will treat every use of it as opaque. The marker note is emitted for member
-  functions and constructors, where the enclosing type is the thing to mark.
+  (a stream, an allocator, a reference-count handle, ...), mark it with
+  :code:`CLAD_NONDIFFERENTIABLE_TYPE(T)` (see :doc:`UsingClad`) and clad will
+  treat every construction of and call on it as opaque. The marker note is
+  emitted for member functions and constructors, where the enclosing type is
+  the thing to mark.
+- **Elide its reverse-forward pass.** For a reverse-forward-pass boundary whose
+  pass is a no-op (e.g. a shallow copy that shares its adjoint), declare the
+  printed :code:`..._reverse_forw` and mark it :code:`elidable_reverse_forw`;
+  clad then skips the call instead of cloning a body.
 
 Only functions outside the main file are reported, so differentiating your own
 code stays quiet; the remarks focus on the library edge you are porting. The

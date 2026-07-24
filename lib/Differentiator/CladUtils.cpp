@@ -359,8 +359,8 @@ namespace clad {
       return true;
     }
 
-    bool isElidableConstructor(const clang::CXXConstructorDecl* CD,
-                               const clang::ASTContext& C) {
+    bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
+                                          const clang::ASTContext& C) {
       const CXXRecordDecl* RD = CD->getParent();
       if (CD->isCopyOrMoveConstructor() && CD->isTrivial())
         return true;
@@ -684,6 +684,51 @@ namespace clad {
         QualType VDElemTy = utils::GetValueType(VD->getType());
         const CXXRecordDecl* RD = VDElemTy->getAsCXXRecordDecl();
         if (RD && clad::utils::hasNonDifferentiableAttribute(RD))
+          return true;
+      }
+      return false;
+    }
+
+    bool isNonDifferentiableType(clang::Sema& S,
+                                 const clang::CXXRecordDecl* RD) {
+      // A type is non-differentiable (opaque) when it carries the
+      // `non_differentiable` annotation. For a type the user owns the attribute
+      // sits on the type itself; for a foreign type it cannot, so the opt-out
+      // is expressed on a clad::Tag<T> specialization instead (see
+      // STLBuiltins.h). Either way clad never clones the type's member bodies
+      // to synthesize a derivative, which for library internals is ill-formed
+      // (see DiffCollector::VisitCXXConstructExpr). A custom derivative, if
+      // present, still wins: it is looked up first, so the marker only
+      // suppresses the body-clone fallback.
+      if (!RD)
+        return false;
+      if (hasNonDifferentiableAttribute(RD))
+        return true;
+      // Out-of-line opt-out: the attribute lives on clad::Tag<RD>. Completing
+      // the specialization instantiates a matching partial specialization's
+      // attribute onto it (Tag's primary template is an empty class, so
+      // completion never fails); then read the attribute off it.
+      QualType TagTy = GetCladTagOfType(
+          S, clad_compat::getRecordType(S.getASTContext(), RD));
+      S.isCompleteType(GetValidSLoc(S), TagTy);
+      const auto* TagRD = TagTy->getAsCXXRecordDecl();
+      return TagRD && hasNonDifferentiableAttribute(TagRD);
+    }
+
+    bool callOperatesOnNonDifferentiableType(clang::Sema& S,
+                                             const clang::CallExpr* CE) {
+      // Extract the type the call operates on -- the declaring class of a
+      // member call, or the first argument of a free operator (`os << x`) --
+      // and ask whether it is non-differentiable. See the header for why this
+      // is narrower than hasNonDifferentiableAttribute(Expr) and why callers
+      // skip on it rather than set the nonDiff flag.
+      const clang::FunctionDecl* FD = CE->getDirectCallee();
+      if (const auto* MD = dyn_cast_or_null<clang::CXXMethodDecl>(FD))
+        if (isNonDifferentiableType(S, MD->getParent()))
+          return true;
+      if (FD && FD->isOverloadedOperator() && CE->getNumArgs() >= 1) {
+        QualType T = CE->getArg(0)->getType().getNonReferenceType();
+        if (isNonDifferentiableType(S, T->getAsCXXRecordDecl()))
           return true;
       }
       return false;
