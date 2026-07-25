@@ -1,0 +1,109 @@
+name: LibTorch
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/libtorch.yml'
+      - '.clang-tidy'
+      - '**/CMakeLists.txt'
+      - 'cmake/**'
+      - 'benchmark/LibTorch/**'
+      - 'include/clad/Differentiator/**'
+      - 'lib/Differentiator/**'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/libtorch.yml'
+      - '.clang-tidy'
+      - '**/CMakeLists.txt'
+      - 'cmake/**'
+      - 'benchmark/LibTorch/**'
+      - 'include/clad/Differentiator/**'
+      - 'lib/Differentiator/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cpu:
+    name: cpu-clang21
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      LLVM_ROOT: /usr/lib/llvm-21
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM and build dependencies
+        run: |
+          curl --fail --location --silent --show-error \
+            https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor --yes \
+              --output /usr/share/keyrings/apt.llvm.org.gpg
+          echo 'deb [signed-by=/usr/share/keyrings/apt.llvm.org.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main' \
+            | sudo tee /etc/apt/sources.list.d/llvm-21.list
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang-21 clang-tidy-21 libclang-21-dev llvm-21-dev \
+            ninja-build unzip
+
+      - name: Cache LibTorch
+        id: cache-libtorch
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/libtorch
+          key: libtorch-cpu-2.11.0
+
+      - name: Download LibTorch
+        if: steps.cache-libtorch.outputs.cache-hit != 'true'
+        run: |
+          curl --fail --location --retry 3 \
+            --output "$RUNNER_TEMP/libtorch.zip" \
+            'https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.11.0%2Bcpu.zip'
+          echo 'ee3f453f6c3e3d934339875d76a2b04d6a1731554c016fc82be1f4b8d1d4ae62  '"$RUNNER_TEMP/libtorch.zip" \
+            | sha256sum --check
+          unzip -q "$RUNNER_TEMP/libtorch.zip" -d "$RUNNER_TEMP"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/libtorch -G Ninja \
+            -DCLAD_DISABLE_TESTS=ON \
+            -DCLAD_ENABLE_BENCHMARKS=OFF \
+            -DCLAD_ENABLE_LIBTORCH_BENCHMARKS=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER="$LLVM_ROOT/bin/clang" \
+            -DCMAKE_CXX_COMPILER="$LLVM_ROOT/bin/clang++" \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DClang_DIR="$LLVM_ROOT/lib/cmake/clang" \
+            -DLLVM_DIR="$LLVM_ROOT/lib/cmake/llvm" \
+            -DTorch_DIR="$RUNNER_TEMP/libtorch/share/cmake/Torch"
+
+      - name: Build
+        run: >-
+          cmake --build build/libtorch
+          --target LibTorchOpsTest LibTorchOpsBenchmark
+          --parallel 2
+
+      - name: Test
+        run: >-
+          ctest --test-dir build/libtorch
+          --output-on-failure
+          -R '^clad-LibTorchOpsTest$'
+
+      - name: Run clang-tidy
+        run: |
+          # clang-tidy interprets compiler plugins as analyzer checker plugins.
+          sed -E -i 's# -fplugin=[^ ]+# -D__CLAD__=1#g' \
+            build/libtorch/compile_commands.json
+          "$LLVM_ROOT/bin/clang-tidy" \
+            -p=build/libtorch \
+            --checks='-misc-include-cleaner' \
+            --warnings-as-errors='*' \
+            --header-filter='^.*/include/clad/Differentiator/TorchBuiltins.*' \
+            benchmark/LibTorch/TorchOpsBenchmark.cpp \
+            benchmark/LibTorch/TorchOpsTest.cpp
