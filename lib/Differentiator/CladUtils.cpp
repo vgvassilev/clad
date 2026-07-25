@@ -13,6 +13,7 @@
 #include "clang/AST/ParentMapContext.h"
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -1717,6 +1718,10 @@ namespace clad {
         const Stmt* S = parents[0].get<Stmt>();
         // If the parent is a Stmt but not an Expr, then the result is not used.
         if (!S)
+          return false;
+        // A call returned directly is still consumed by the enclosing
+        // function, including its value and adjoint in reverse_forw mode.
+        if (isa<ReturnStmt>(S))
           return false;
         E = dyn_cast<Expr>(S);
         if (!E)
