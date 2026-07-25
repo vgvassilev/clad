@@ -3,7 +3,7 @@
 
 #include "clad/Differentiator/TorchBuiltins/TensorSupport.h" // IWYU pragma: export
 
-// First supported operator set: add, sub, mul, relu, dot, and item<float>.
+// First supported operator set: add, sub, mul, div, relu, dot, and item<float>.
 // Scalar options such as add/sub alpha are treated as non-differentiable.
 namespace clad::custom_derivatives::at {
 
@@ -71,6 +71,29 @@ inline void mul_pullback(const ::at::Tensor& lhs, const ::at::Tensor& rhs,
   ::at::NoGradGuard guard;
   ::clad::torch::detail::accumulate(d_lhs, ::at::mul(d_output, rhs));
   ::clad::torch::detail::accumulate(d_rhs, ::at::mul(d_output, lhs));
+}
+
+inline ::clad::ValueAndAdjoint<::at::Tensor, ::at::Tensor>
+div_reverse_forw(const ::at::Tensor& lhs, const ::at::Tensor& rhs,
+                 [[maybe_unused]] const ::at::Tensor& d_lhs,
+                 [[maybe_unused]] const ::at::Tensor& d_rhs) {
+  ::clad::torch::detail::validate_elementwise_inputs(lhs, rhs);
+  ::at::NoGradGuard guard;
+  return ::clad::torch::detail::make_value_and_zero_adjoint(
+      ::at::div(lhs, rhs));
+}
+
+inline void div_pullback(const ::at::Tensor& lhs, const ::at::Tensor& rhs,
+                         ::at::Tensor d_output, ::at::Tensor* d_lhs,
+                         ::at::Tensor* d_rhs) {
+  ::clad::torch::detail::validate_elementwise_inputs(lhs, rhs);
+  ::clad::torch::detail::validate_tensor(d_output);
+  ::at::NoGradGuard guard;
+  ::clad::torch::detail::accumulate(d_lhs, ::at::div(d_output, rhs));
+  auto numerator = ::at::mul(d_output, lhs);
+  auto denominator = ::at::mul(rhs, rhs);
+  ::clad::torch::detail::accumulate(
+      d_rhs, ::at::neg(::at::div(numerator, denominator)));
 }
 
 inline ::clad::ValueAndAdjoint<::at::Tensor, ::at::Tensor>

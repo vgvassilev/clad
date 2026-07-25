@@ -81,6 +81,35 @@ float namespace_alias_loss(const torch_api::Tensor& input) {
   return scalar.item<float>();
 }
 
+torch::Tensor operator_utility(const torch::Tensor& lhs,
+                               const torch::Tensor& rhs) {
+  auto added = lhs + rhs;
+  auto subtracted = lhs - rhs;
+  auto multiplied = added * subtracted;
+  return multiplied / rhs;
+}
+
+float operator_loss(const torch::Tensor& lhs, const torch::Tensor& rhs) {
+  auto output = operator_utility(lhs, rhs);
+  auto scalar = torch::dot(output, lhs);
+  return scalar.item<float>();
+}
+
+torch::Tensor method_utility(const torch::Tensor& lhs,
+                             const torch::Tensor& rhs) {
+  auto added = lhs.add(rhs, /*alpha=*/0.5);
+  auto subtracted = lhs.sub(rhs, /*alpha=*/0.25);
+  auto multiplied = added.mul(subtracted);
+  auto divided = multiplied.div(rhs);
+  return divided.relu();
+}
+
+float method_loss(const torch::Tensor& lhs, const torch::Tensor& rhs) {
+  auto output = method_utility(lhs, rhs);
+  auto scalar = output.dot(lhs);
+  return scalar.item<float>();
+}
+
 void check_torch_alias_composition() {
   const auto options = torch::TensorOptions().dtype(torch::kFloat32);
   const auto input = torch::linspace(-2.0, 2.0, 17, options);
@@ -151,6 +180,47 @@ void check_namespace_alias_composition() {
                 "namespace-aliased Torch gradient is incorrect");
 }
 
+void check_operator_composition() {
+  const auto options = torch::TensorOptions().dtype(torch::kFloat32);
+  const auto lhs = torch::linspace(0.5, 2.0, 17, options);
+  const auto rhs = torch::linspace(1.0, 3.0, 17, options);
+  auto lhs_gradient = torch::zeros_like(lhs);
+  auto rhs_gradient = torch::zeros_like(rhs);
+  auto clad_gradient = clad::gradient(operator_loss, "lhs, rhs");
+  clad_gradient.execute(lhs, rhs, &lhs_gradient, &rhs_gradient);
+
+  auto native_lhs = lhs.detach().clone().set_requires_grad(true);
+  auto native_rhs = rhs.detach().clone().set_requires_grad(true);
+  auto native_loss =
+      torch::dot(operator_utility(native_lhs, native_rhs), native_lhs);
+  auto native_gradients =
+      torch::autograd::grad({native_loss}, {native_lhs, native_rhs});
+  require_close(lhs_gradient, native_gradients[0],
+                "Tensor operator lhs gradient is incorrect");
+  require_close(rhs_gradient, native_gradients[1],
+                "Tensor operator rhs gradient is incorrect");
+}
+
+void check_method_composition() {
+  const auto options = torch::TensorOptions().dtype(torch::kFloat32);
+  const auto lhs = torch::linspace(0.5, 2.0, 17, options);
+  const auto rhs = torch::linspace(1.0, 3.0, 17, options);
+  auto lhs_gradient = torch::zeros_like(lhs);
+  auto rhs_gradient = torch::zeros_like(rhs);
+  auto clad_gradient = clad::gradient(method_loss, "lhs, rhs");
+  clad_gradient.execute(lhs, rhs, &lhs_gradient, &rhs_gradient);
+
+  auto native_lhs = lhs.detach().clone().set_requires_grad(true);
+  auto native_rhs = rhs.detach().clone().set_requires_grad(true);
+  auto native_loss = method_utility(native_lhs, native_rhs).dot(native_lhs);
+  auto native_gradients =
+      torch::autograd::grad({native_loss}, {native_lhs, native_rhs});
+  require_close(lhs_gradient, native_gradients[0],
+                "Tensor method lhs gradient is incorrect");
+  require_close(rhs_gradient, native_gradients[1],
+                "Tensor method rhs gradient is incorrect");
+}
+
 void check_input_contract() {
   require_c10_error(
       [] {
@@ -193,6 +263,8 @@ int main() {
   check_at_namespace_composition();
   check_direct_return_composition();
   check_namespace_alias_composition();
+  check_operator_composition();
+  check_method_composition();
   check_input_contract();
   std::cout << "Clad Torch operator checks passed\n";
   return 0;

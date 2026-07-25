@@ -11,8 +11,8 @@ namespace {
 
 float squared_error(const torch::Tensor& prediction,
                     const torch::Tensor& target) {
-  auto residual = torch::sub(prediction, target);
-  auto loss = torch::dot(residual, residual);
+  auto residual = prediction - target;
+  auto loss = residual.dot(residual);
   return loss.item<float>();
 }
 
@@ -56,8 +56,8 @@ void BM_LibTorchAutograd(benchmark::State& state) {
   const auto inputs = make_inputs(size, /*requires_grad=*/true);
 
   for ([[maybe_unused]] auto _ : state) {
-    auto residual = torch::sub(inputs.prediction, inputs.target);
-    auto loss = torch::dot(residual, residual);
+    auto residual = inputs.prediction - inputs.target;
+    auto loss = residual.dot(residual);
     auto gradients =
         torch::autograd::grad({loss}, {inputs.prediction, inputs.target});
     benchmark::DoNotOptimize(gradients[0].data_ptr<float>());
