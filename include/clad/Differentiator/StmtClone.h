@@ -120,6 +120,7 @@ namespace utils {
     DECLARE_CLONE_FN(CXXThrowExpr)
     DECLARE_CLONE_FN(CXXConstructExpr)
     DECLARE_CLONE_FN(CXXTemporaryObjectExpr)
+    DECLARE_CLONE_FN(CXXBindTemporaryExpr)
     DECLARE_CLONE_FN(MaterializeTemporaryExpr)
     DECLARE_CLONE_FN(PseudoObjectExpr)
     DECLARE_CLONE_FN(OpaqueValueExpr)
