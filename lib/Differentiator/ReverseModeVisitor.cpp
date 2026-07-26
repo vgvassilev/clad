@@ -3146,9 +3146,30 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         Lblock.erase(Lblock.begin());
       }
 
+      // For an in-place `p = realloc(p, sz)`, realloc frees the old block, so
+      // saving p to restore it in the reverse sweep would dangle (and be
+      // double-freed at cleanup). Keep the reallocated pointer instead, for
+      // both p and its adjoint _d_p. This is sound for a growing or same-size
+      // realloc, where every reverse access stays in bounds. A shrinking
+      // in-place realloc is not handled -- its reverse sweep may read the
+      // freed tail out of bounds, as it did before this change; no test
+      // exercises it.
+      bool isReallocAssignment = false;
+      if (opCode == BO_Assign)
+        if (auto* RCall = dyn_cast<CallExpr>(R->IgnoreParenCasts()))
+          if (const FunctionDecl* RFD = RCall->getDirectCallee())
+            if (RFD->getNameAsString() == "realloc" && RCall->getNumArgs()) {
+              // Only in-place: the LHS must be realloc's own pointer argument.
+              const auto* LDRE = dyn_cast<DeclRefExpr>(L->IgnoreParenCasts());
+              const auto* ArgDRE =
+                  dyn_cast<DeclRefExpr>(RCall->getArg(0)->IgnoreParenCasts());
+              isReallocAssignment =
+                  LDRE && ArgDRE && LDRE->getDecl() == ArgDRE->getDecl();
+            }
+
       // Store the value of the LHS of the assignment in the forward pass
       // and restore it in the reverse pass
-      if (m_DiffReq.shouldBeRecorded(L)) {
+      if (m_DiffReq.shouldBeRecorded(L) && !isReallocAssignment) {
         // Clone: LCloned is also consumed by the forward reconstruction, so the
         // store/restore must not share it.
         StmtDiff pushPop = StoreAndRestore(CloneNode(LCloned));
@@ -3167,8 +3188,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (!ResultRef)
         return Clone(BinOp);
       // We need to store values of derivative pointer variables in forward pass
-      // and restore them in reverse pass.
-      if (isPointerOp) {
+      // and restore them in reverse pass (except across a realloc, see above).
+      if (isPointerOp && !isReallocAssignment) {
         // Ldiff.getExpr_dx() is reused below (ResultRef, the derivative op);
         // clone it for the store/restore so the node is not shared.
         StmtDiff pushPop = StoreAndRestore(CloneNode(Ldiff.getExpr_dx()));
