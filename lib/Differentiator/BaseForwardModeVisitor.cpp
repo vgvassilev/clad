@@ -25,6 +25,7 @@
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
@@ -2186,13 +2187,76 @@ StmtDiff BaseForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
   return StmtDiff(Clone(stmt));
 }
 
+namespace {
+const FunctionDecl* findCallOperator(Sema& SemaRef, CXXRecordDecl* RD) {
+  if (!RD)
+    return nullptr;
+  DeclarationName DN =
+      SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(OO_Call);
+  LookupResult R(SemaRef, DN, noLoc, Sema::LookupMemberName);
+  R.suppressDiagnostics();
+  SemaRef.LookupQualifiedName(R, RD);
+  if (!R.isSingleResult())
+    return nullptr;
+  return dyn_cast<CXXMethodDecl>(R.getFoundDecl());
+}
+
+const FunctionDecl* resolveThreadCallable(Sema& SemaRef, const Expr* E) {
+  E = E->IgnoreParenImpCasts();
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+    if (const auto* FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+      return FD;
+    if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      QualType Ty = VD->getType().getNonReferenceType();
+      if (auto* RD = Ty->getAsCXXRecordDecl())
+        return findCallOperator(SemaRef, RD);
+    }
+  }
+  if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(E))
+    return resolveThreadCallable(SemaRef, MTE->getSubExpr());
+  if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(E))
+    return resolveThreadCallable(SemaRef, BTE->getSubExpr());
+  if (auto* RD = E->getType().getNonReferenceType()->getAsCXXRecordDecl())
+    return findCallOperator(SemaRef, RD);
+  return nullptr;
+}
+
+bool isStdThreadLike(const CXXRecordDecl* RD) {
+  return RD && RD->isInStdNamespace() && RD->getName() == "thread";
+}
+} // namespace
+
 StmtDiff
 BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
+  QualType recTy = CE->getType().getNonReferenceType().getCanonicalType();
+  const auto* RecRD = recTy->getAsCXXRecordDecl();
+  const bool threadLike = isStdThreadLike(RecRD);
+
   llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
   for (auto arg : CE->arguments()) {
     auto argDiff = Visit(arg);
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
+  }
+
+  if (!clonedArgs.empty() && !derivedArgs.empty() && CE->getNumArgs() >= 1) {
+    if (threadLike) {
+      if (const FunctionDecl* callableFD =
+              resolveThreadCallable(m_Sema, CE->getArg(0))) {
+        DiffRequest pushforwardFnRequest;
+        pushforwardFnRequest.Function = callableFD;
+        pushforwardFnRequest.Mode = GetPushForwardMode();
+        pushforwardFnRequest.BaseFunctionName =
+            utils::ComputeEffectiveFnName(callableFD);
+        pushforwardFnRequest.VerboseDiags = false;
+        if (const auto* MD = dyn_cast<CXXMethodDecl>(callableFD))
+          pushforwardFnRequest.Functor = MD->getParent();
+        FunctionDecl* pushforwardFD =
+            m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
+        if (pushforwardFD && !isa<CXXMethodDecl>(callableFD))
+          derivedArgs[0] = BuildDeclRef(pushforwardFD);
+      }
+    }
   }
 
   Expr* pushforwardCall =
@@ -2205,6 +2269,15 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     Expr* pushforwardE =
         utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                CloneNode(valueAndPushforwardE), "pushforward");
+    QualType recTy = CE->getType().getNonReferenceType().getCanonicalType();
+    if (const auto* RD = recTy->getAsCXXRecordDecl()) {
+      if (!utils::isCopyable(RD)) {
+        llvm::SmallVector<Expr*, 1> moveArgs = {valueE};
+        valueE = GetFunctionCall("move", "std", moveArgs);
+        moveArgs[0] = pushforwardE;
+        pushforwardE = GetFunctionCall("move", "std", moveArgs);
+      }
+    }
     return StmtDiff(valueE, pushforwardE);
   }
 
