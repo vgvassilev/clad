@@ -99,6 +99,7 @@ public:
   StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
   StmtDiff VisitDoStmt(const clang::DoStmt* DS);
   StmtDiff VisitContinueStmt(const clang::ContinueStmt* ContStmt);
+  StmtDiff VisitSourceLocExpr(const clang::SourceLocExpr* E);
 
   StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
   StmtDiff VisitBreakStmt(const clang::BreakStmt* BS);

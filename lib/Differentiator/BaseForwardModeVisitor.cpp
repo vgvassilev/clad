@@ -581,7 +581,8 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
           .ActOnConditionalOp(noLoc, noLoc, cond, ifTrueDiff.getExpr(),
                               ifFalseDiff.getExpr())
           .get();
-
+  if (condExpr->getType()->isVoidType())
+    return StmtDiff(condExpr, nullptr);
   // cond is already used by the value conditional above; clone it for the
   // derivative conditional so the two do not share the stored condition.
   Expr* condExprDiff =
@@ -1262,7 +1263,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     if (!isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE) &&
         !needsForwPass) {
       bool allArgsHaveZeroDerivatives = true;
-      for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+      for (unsigned i = 0, e = diffArgs.size(); i < e; ++i) {
         Expr* dArg = diffArgs[i];
         // If argDiff.expr_dx is nullptr or is a constant 0, then the derivative
         // of the function call is 0.
@@ -1321,7 +1322,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // If clad failed to derive it, try finding its derivative using
   // numerical diff.
   if (!callDiff) {
-    Multiplier = diffArgs[0];
+    Multiplier = diffArgs.empty() ? nullptr : diffArgs[0];
     Expr* call =
         m_Sema
             .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), validLoc,
@@ -1533,7 +1534,7 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
   } else if (opCode == BO_Comma) {
     // if expression is (E1, E2) then derivative is (E1', E1, E2')
     // because E1 may change some variables that E2 depends on.
-    if (!isUnusedResult(Ldiff.getExpr_dx())) {
+    if (Ldiff.getExpr_dx() && !isUnusedResult(Ldiff.getExpr_dx())) {
       opDiff = BuildOp(BO_Comma, BuildParens(Ldiff.getExpr_dx()),
                        BuildParens(Ldiff.getExpr()));
       opDiff = BuildOp(BO_Comma, BuildParens(opDiff),
@@ -1872,6 +1873,13 @@ StmtDiff BaseForwardModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
   return StmtDiff(Clone(SL), StringLiteral::Create(
                                  m_Context, "", SL->getKind(), SL->isPascal(),
                                  SL->getType(), utils::GetValidSLoc(m_Sema)));
+}
+
+StmtDiff
+BaseForwardModeVisitor::VisitSourceLocExpr(const clang::SourceLocExpr* E) {
+  auto* Constant0 =
+      ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, /*val=*/0);
+  return StmtDiff(CloneNode(E), Constant0);
 }
 
 StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
