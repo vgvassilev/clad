@@ -92,6 +92,16 @@ Stmt* StmtClone::VisitPredefinedExpr(PredefinedExpr* Node) {
   clad_compat::ExprSetDeps(result, Node);
   return result;
 }
+#if CLANG_VERSION_MAJOR >= 15
+DEFINE_CLONE_EXPR(SourceLocExpr,
+                  (Ctx, Node->getIdentKind(), CloneType(Node->getType()),
+                   Node->getBeginLoc(), Node->getEndLoc(),
+                   Node->getParentContext()))
+#else
+DEFINE_CLONE_EXPR(SourceLocExpr,
+                  (Ctx, Node->getIdentKind(), Node->getBeginLoc(),
+                   Node->getEndLoc(), Node->getParentContext()))
+#endif
 DEFINE_CLONE_EXPR(CharacterLiteral,
                   (Node->getValue(), Node->getKind(),
                    CloneType(Node->getType()), Node->getLocation()))

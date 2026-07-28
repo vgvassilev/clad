@@ -485,6 +485,7 @@ namespace clad {
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
     StmtDiff VisitGNUNullExpr(const clang::GNUNullExpr* E);
     StmtDiff VisitPredefinedExpr(const clang::PredefinedExpr* E);
+    StmtDiff VisitSourceLocExpr(const clang::SourceLocExpr* SLE);
 
 #if CLANG_VERSION_MAJOR > 16
     StmtDiff VisitLambdaExpr(const clang::LambdaExpr* LE);

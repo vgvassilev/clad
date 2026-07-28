@@ -2957,6 +2957,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       for (Stmt* S : revBlock)
         addToCurrentBlock(S, direction::reverse);
       return {cloneE, derivedE};
+    } else if (opCode == UnaryOperatorKind::UO_Extension) {
+      diff = Visit(E);
+      ResultRef = diff.getExpr_dx();
+      valueForRevPass = diff.getRevSweepAsExpr();
     } else {
       if (opCode != UO_LNot)
         // We should only output warnings on visiting boolean conditions
@@ -3916,6 +3920,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     auto* Constant0 = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
                                                         m_Context, /*val=*/0);
     // Clone so the derivative owns its copy rather than the primal's node.
+    return StmtDiff(CloneNode(E), Constant0);
+  }
+
+  StmtDiff
+  ReverseModeVisitor::VisitSourceLocExpr(const clang::SourceLocExpr* E) {
+    auto* Constant0 = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                        m_Context, /*val=*/0);
     return StmtDiff(CloneNode(E), Constant0);
   }
 
