@@ -736,6 +736,11 @@ namespace clad {
 
     clang::Stmt* GetCladZeroInit(llvm::MutableArrayRef<clang::Expr*> args);
 
+    /// Build `clad::zero_like(value)` if a viable overload is available.
+    /// Returns null when the customization point is not implemented for the
+    /// value's type.
+    clang::Expr* GetCladZeroLike(clang::Expr* value);
+
     /// Assigns the Init expression to VD after performing the necessary
     /// implicit conversion. This is required as clang doesn't add implicit
     /// conversions while assigning values to variables which are initialized

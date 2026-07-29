@@ -278,6 +278,34 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
 
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t) { zero_impl(t); }
 
+  /// Create a zero adjoint with the same relevant structure as \p value.
+  ///
+  /// Record and container types should provide an overload when constructing
+  /// their zero adjoint requires preserving runtime structure such as shape,
+  /// size, allocator, or device information. The reverse-mode visitor prefers
+  /// this customization point when it must create an internal adjoint from an
+  /// existing primal value.
+  // Keep this header compatible with C++14; some Clad tests and clients include
+  // it in that language mode.
+  // NOLINTBEGIN(modernize-type-traits)
+  template <class T, std::enable_if_t<std::is_arithmetic<T>::value ||
+                                          std::is_enum<T>::value,
+                                      int> = 0>
+  CUDA_HOST_DEVICE T zero_like(const T&) {
+    return T();
+  }
+
+  /// Default zero_like implementation for copyable ranges.
+  template <class T, std::enable_if_t<is_range<T>::value &&
+                                          std::is_copy_constructible<T>::value,
+                                      int> = 0>
+  T zero_like(const T& value) {
+    T result(value);
+    zero_init(result);
+    return result;
+  }
+  // NOLINTEND(modernize-type-traits)
+
   /// Initialize a const sized array.
   // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
   template <typename T> CUDA_HOST_DEVICE void zero_init(T* x, std::size_t N) {

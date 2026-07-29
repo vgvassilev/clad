@@ -11,11 +11,14 @@
 #include <memory>
 #include <tuple>
 #include <type_traits>
+#include <valarray>
 #include <vector>
 
 #define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
 
 namespace clad {
+
+template <class T> struct is_range;
 
 // zero_init specializations
 
@@ -24,6 +27,11 @@ template <class T1, class T2> void zero_init(std::pair<T1, T2>& p) {
   zero_init(p.first);
   zero_init(p.second);
 }
+
+// Unlike the other standard owning sequences, std::valarray has no member
+// begin()/end(). Its non-member overloads may not be visible when the generic
+// range detector in Differentiator.h is defined, depending on the STL.
+template <class T> struct is_range<std::valarray<T>> : std::true_type {};
 
 //  is almost trivially copyable. Specialize it.
 template <class T> void zero_init(typename std::allocator<T>&) {
