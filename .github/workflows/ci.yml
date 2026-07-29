@@ -210,12 +210,23 @@ jobs:
         # from catthehacker/ubuntu:act-24.04; install it so bin/repro works.
         # The debug row needs it too (to build clad), so this step must not
         # be gated on debug_build.
-        sudo apt install -y cmake ${{ matrix.extra_packages }}
+        #
+        # Install against the image's package lists and refresh them only if
+        # that fails. They go stale just when the archive supersedes a
+        # dependency and drops the old .deb -- valgrind pulls libc6-dbg,
+        # whose 2.39-0ubuntu8.7 build stopped being fetchable -- so an
+        # unconditional update would cost every Linux row on every run to
+        # cover a rare event. Same shape as the clang install below.
+        apt_install() {
+          sudo apt-get install -y "$@" \
+            || { sudo apt-get update && sudo apt-get install -y "$@"; }
+        }
+        apt_install cmake ${{ matrix.extra_packages }}
         # libomp-N-dev: best-effort. apt-llvm.org lags on the latest
         # major; recipe-flavor rows get libomp from the recipe build,
         # not apt. When missing, OpenMP lit tests skip via REQUIRES.
         if apt-cache show "libomp-${{ matrix.clang-runtime }}-dev" >/dev/null 2>&1; then
-          sudo apt install -y "libomp-${{ matrix.clang-runtime }}-dev"
+          apt_install "libomp-${{ matrix.clang-runtime }}-dev"
         fi
 
     - name: Setup compiler on Linux
