@@ -468,6 +468,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             isDirectInit);
         m_Variables[param] = {VDDerived};
         addToBlock(BuildDeclStmt(VDDerived), m_Globals);
+        if (isDirectInit) {
+          Expr* derivedRef = BuildDeclRef(VDDerived);
+          addToBlock(GetCladZeroInit(derivedRef), m_Globals);
+        }
       }
     }
 
