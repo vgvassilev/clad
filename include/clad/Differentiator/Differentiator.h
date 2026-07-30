@@ -210,8 +210,10 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
   return of.back();
 }
 
-  /// The purpose of this function is to initialize adjoints
-  /// (or all of its iteratable elements) with 0.
+  /// Reset values in an already-constructed adjoint (or its iterable elements)
+  /// to zero in place. This is the primitive used by the default zero_like
+  /// implementation. Provide an overload when the default recursive or
+  /// byte-wise zeroing would not preserve a type's required structure.
   namespace zero_init_detail {
   template <class T> struct iterator_traits : std::iterator_traits<T> {};
   template <> struct iterator_traits<void*> {};
@@ -281,13 +283,15 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
 
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t) { zero_impl(t); }
 
-  /// Create a zero adjoint with the same relevant structure as \p value.
+  /// Construct a zero adjoint with the same relevant structure as \p value.
   ///
-  /// Record and container types should provide an overload when constructing
-  /// their zero adjoint requires preserving runtime structure such as shape,
-  /// size, allocator, or device information. The reverse-mode visitor prefers
-  /// this customization point when it must create an internal adjoint from an
-  /// existing primal value.
+  /// Conceptually, zero_like(value) returns a value structurally like value
+  /// with zero_init applied. This is the adjoint-construction extension point;
+  /// provide an overload when copy-then-zero is incorrect, for example for
+  /// owning or reference-counted storage, device memory, or types whose shape,
+  /// allocator, or other runtime metadata needs special handling. The
+  /// reverse-mode visitor prefers this customization point when constructing
+  /// an internal adjoint from an existing primal value.
   // Keep this header compatible with C++14; some Clad tests and clients include
   // it in that language mode.
   // NOLINTBEGIN(modernize-type-traits)

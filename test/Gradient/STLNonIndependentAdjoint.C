@@ -1,5 +1,9 @@
 // RUN: %cladclang %s -I%S/../../include -o %t 2>&1 | %filecheck %s
 // RUN: %t | %filecheck_exec %s
+// RUN: %cladclang -std=c++14 %s -I%S/../../include -o %t14
+// RUN: %t14 | %filecheck_exec %s
+// RUN: %cladclang -std=c++20 %s -I%S/../../include -o %t20
+// RUN: %t20 | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
