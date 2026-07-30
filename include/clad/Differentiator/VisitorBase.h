@@ -706,7 +706,10 @@ namespace clad {
     }
     /// Find declaration of clad::tape templated type.
     clang::TemplateDecl* GetCladTapeDecl();
-    /// Perform a lookup into clad namespace for an entity with given name.
+    /// Look up an entity with the given name in the clad namespace. The result
+    /// may be empty.
+    clang::LookupResult tryLookupCladMethod(llvm::StringRef name);
+    /// Look up a required clad function template with the given name.
     clang::LookupResult LookupCladTapeMethod(llvm::StringRef name);
     /// Perform lookup into clad namespace for push/pop/back. Returns
     /// LookupResult, which is will be resolved later (which is handy since they

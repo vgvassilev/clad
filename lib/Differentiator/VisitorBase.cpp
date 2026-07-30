@@ -21,13 +21,11 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
-#include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
-#include "clang/AST/Type.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
@@ -704,13 +702,18 @@ namespace clad {
     return utils::LookupTemplateDeclInCladNamespace(m_Sema, "tape");
   }
 
-  LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
+  LookupResult VisitorBase::tryLookupCladMethod(llvm::StringRef name) {
     NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, CladNS, noLoc, noLoc);
     DeclarationName Name = &m_Context.Idents.get(name);
     LookupResult R(m_Sema, Name, noLoc, Sema::LookupOrdinaryName);
     m_Sema.LookupQualifiedName(R, CladNS, CSS);
+    return R;
+  }
+
+  LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
+    LookupResult R = tryLookupCladMethod(name);
     assert(!R.empty() && isa<FunctionTemplateDecl>(R.getRepresentativeDecl()) &&
            "cannot find requested name");
     return R;
@@ -1250,10 +1253,7 @@ namespace clad {
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, CladNS, noLoc, noLoc);
 
-    DeclarationName Name = &m_Context.Idents.get("zero_like");
-    LookupResult R(m_Sema, Name, noLoc, Sema::LookupOrdinaryName);
-    R.suppressDiagnostics();
-    m_Sema.LookupQualifiedName(R, CladNS, CSS);
+    LookupResult R = tryLookupCladMethod("zero_like");
     if (R.empty())
       return nullptr;
 
@@ -1266,27 +1266,11 @@ namespace clad {
     llvm::SmallVector<Expr*, 1> args{value};
     auto ARargs = llvm::MutableArrayRef<Expr*>(args);
 
-    // Test overload viability before asking Sema to build the call. A failed
-    // optional customization must quietly fall back to the legacy adjoint
-    // construction path instead of producing a diagnostic.
-    if (UnresolvedLookup->hasPlaceholderType(BuiltinType::Overload)) {
-      OverloadExpr::FindResult Find = OverloadExpr::find(UnresolvedLookup);
-      if (!Find.HasFormOfMemberPointer &&
-          isa<UnresolvedLookupExpr>(Find.Expression)) {
-        ExprResult Result;
-        OverloadCandidateSet CandidateSet(noLoc,
-                                          OverloadCandidateSet::CSK_Normal);
-        Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
-        auto* ULE = cast<UnresolvedLookupExpr>(Find.Expression);
-        m_Sema.buildOverloadedCallSet(S, UnresolvedLookup, ULE, ARargs, noLoc,
-                                      &CandidateSet, &Result);
-        OverloadCandidateSet::iterator Best = nullptr;
-        OverloadingResult OverloadResult =
-            CandidateSet.BestViableFunction(m_Sema, noLoc, Best);
-        if (OverloadResult != 0U)
-          return nullptr;
-      }
-    }
+    // A missing customization is an expected, silent fallback path. Reuse the
+    // same overload probe as custom derivatives instead of asking Sema to
+    // diagnose an invalid call.
+    if (m_Builder.noOverloadExists(UnresolvedLookup, ARargs))
+      return nullptr;
 
     ExprResult Call = m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup,
                                            noLoc, ARargs, noLoc);
