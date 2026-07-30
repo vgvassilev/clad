@@ -33,7 +33,7 @@
 #include <utility>
 // Keep std::valarray's non-member begin/end overloads visible when is_range is
 // defined below.
-#include <valarray>
+#include <valarray> // NOLINT(misc-include-cleaner)
 #ifndef __CUDACC__
 #include <mutex>
 #endif
