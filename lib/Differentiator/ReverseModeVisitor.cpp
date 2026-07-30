@@ -237,22 +237,78 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return atomicAddCall;
   }
 
+  namespace {
+  // Recognises a C heap-memory builtin call and centralises the invariants
+  // reverse mode must preserve for it, so all memory-op reasoning goes through
+  // one place instead of ad-hoc name checks scattered across the visitor.
+  class AllocCallInfo {
+  public:
+    enum class Kind { None, Malloc, Calloc, Realloc, Free };
+
+    AllocCallInfo() = default;
+
+    // Recognise E as a memory builtin; Kind::None if it is not one. Strips the
+    // C-style cast that wraps the call (e.g. `(double*)realloc(...)`), so
+    // IgnoreParenCasts, not IgnoreParenImpCasts, is required here.
+    [[nodiscard]] static AllocCallInfo recognize(clang::Expr* E) {
+      auto* CE = llvm::dyn_cast_or_null<clang::CallExpr>(
+          E ? E->IgnoreParenCasts() : nullptr);
+      if (!CE)
+        return {};
+      const clang::FunctionDecl* FD = CE->getDirectCallee();
+      // getName() asserts on non-identifier names (operators, constructors),
+      // which vector/STL code produces; the builtins are plain identifiers.
+      if (!FD || !FD->getDeclName().isIdentifier())
+        return {};
+      Kind k = llvm::StringSwitch<Kind>(FD->getName())
+                   .Case("malloc", Kind::Malloc)
+                   .Case("calloc", Kind::Calloc)
+                   .Case("realloc", Kind::Realloc)
+                   .Case("free", Kind::Free)
+                   .Default(Kind::None);
+      return AllocCallInfo(k, CE);
+    }
+
+    // The number-of-bytes operand that a following memset must zero:
+    // malloc(n) -> n, realloc(p, n) -> n. calloc self-zeroes and needs no
+    // memset, so it (and free/none) report null here.
+    [[nodiscard]] clang::Expr* memsetByteSize() const {
+      switch (m_Kind) {
+      case Kind::Malloc:
+        return m_Call->getArg(0);
+      case Kind::Realloc:
+        return m_Call->getArg(1);
+      default:
+        return nullptr;
+      }
+    }
+
+    // True for an in-place `p = realloc(p, n)`: the LHS is realloc's own
+    // pointer argument. Only then may the reallocated pointer be kept across
+    // the call (realloc frees the old block, so a saved pointer would dangle).
+    [[nodiscard]] bool isInPlaceRealloc(const clang::Expr* LHS) const {
+      if (m_Kind != Kind::Realloc || m_Call->getNumArgs() == 0)
+        return false;
+      const auto* LDRE =
+          llvm::dyn_cast<clang::DeclRefExpr>(LHS->IgnoreParenCasts());
+      const auto* ArgDRE = llvm::dyn_cast<clang::DeclRefExpr>(
+          m_Call->getArg(0)->IgnoreParenCasts());
+      return LDRE && ArgDRE && LDRE->getDecl() == ArgDRE->getDecl();
+    }
+
+  private:
+    AllocCallInfo(Kind k, clang::CallExpr* c) : m_Kind(k), m_Call(c) {}
+    Kind m_Kind = Kind::None;
+    clang::CallExpr* m_Call = nullptr;
+  };
+  } // namespace
+
   // Both LHS (the memset destination) and the size expression are cloned here:
   // callers pass the derived pointer they also assign to and the malloc/realloc
   // size they also pass to that call, so cloning keeps the memset a distinct
   // subtree.
   Expr* ReverseModeVisitor::CheckAndBuildCallToMemset(Expr* LHS, Expr* RHS) {
-    Expr* size = nullptr;
-    if (auto* callExpr = dyn_cast_or_null<CallExpr>(RHS))
-      if (auto* declRef =
-              dyn_cast<DeclRefExpr>(callExpr->getCallee()->IgnoreImpCasts()))
-        if (auto* FD = dyn_cast<FunctionDecl>(declRef->getDecl())) {
-          if (FD->getNameAsString() == "malloc")
-            size = callExpr->getArg(0);
-          else if (FD->getNameAsString() == "realloc")
-            size = callExpr->getArg(1);
-        }
-
+    Expr* size = AllocCallInfo::recognize(RHS).memsetByteSize();
     if (size) {
       llvm::SmallVector<Expr*, 3> args = {
           CloneNode(LHS), getZeroInit(m_Context.IntTy), CloneNode(size)};
@@ -3174,18 +3230,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // in-place realloc is not handled -- its reverse sweep may read the
       // freed tail out of bounds, as it did before this change; no test
       // exercises it.
-      bool isReallocAssignment = false;
-      if (opCode == BO_Assign)
-        if (auto* RCall = dyn_cast<CallExpr>(R->IgnoreParenCasts()))
-          if (const FunctionDecl* RFD = RCall->getDirectCallee())
-            if (RFD->getNameAsString() == "realloc" && RCall->getNumArgs()) {
-              // Only in-place: the LHS must be realloc's own pointer argument.
-              const auto* LDRE = dyn_cast<DeclRefExpr>(L->IgnoreParenCasts());
-              const auto* ArgDRE =
-                  dyn_cast<DeclRefExpr>(RCall->getArg(0)->IgnoreParenCasts());
-              isReallocAssignment =
-                  LDRE && ArgDRE && LDRE->getDecl() == ArgDRE->getDecl();
-            }
+      bool isReallocAssignment =
+          opCode == BO_Assign &&
+          AllocCallInfo::recognize(R).isInPlaceRealloc(L);
 
       // Store the value of the LHS of the assignment in the forward pass
       // and restore it in the reverse pass
