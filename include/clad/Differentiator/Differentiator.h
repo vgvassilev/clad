@@ -31,6 +31,9 @@
 #endif
 #include <type_traits>
 #include <utility>
+// Keep std::valarray's non-member begin/end overloads visible when is_range is
+// defined below.
+#include <valarray>
 #ifndef __CUDACC__
 #include <mutex>
 #endif
