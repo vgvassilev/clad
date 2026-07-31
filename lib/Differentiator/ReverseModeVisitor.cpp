@@ -80,6 +80,8 @@ using namespace clang;
 
 namespace clad {
 
+using AllocCallInfo = DiffRequest::AllocCallInfo;
+
 Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   if (E)
     if (const auto* CXXILE =
@@ -237,72 +239,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return atomicAddCall;
   }
 
-  namespace {
-  // Recognises a C heap-memory builtin call and centralises the invariants
-  // reverse mode must preserve for it, so all memory-op reasoning goes through
-  // one place instead of ad-hoc name checks scattered across the visitor.
-  class AllocCallInfo {
-  public:
-    enum class Kind { None, Malloc, Calloc, Realloc, Free };
-
-    AllocCallInfo() = default;
-
-    // Recognise E as a memory builtin; Kind::None if it is not one. Strips the
-    // C-style cast that wraps the call (e.g. `(double*)realloc(...)`), so
-    // IgnoreParenCasts, not IgnoreParenImpCasts, is required here.
-    [[nodiscard]] static AllocCallInfo recognize(clang::Expr* E) {
-      auto* CE = llvm::dyn_cast_or_null<clang::CallExpr>(
-          E ? E->IgnoreParenCasts() : nullptr);
-      if (!CE)
-        return {};
-      const clang::FunctionDecl* FD = CE->getDirectCallee();
-      // getName() asserts on non-identifier names (operators, constructors),
-      // which vector/STL code produces; the builtins are plain identifiers.
-      if (!FD || !FD->getDeclName().isIdentifier())
-        return {};
-      Kind k = llvm::StringSwitch<Kind>(FD->getName())
-                   .Case("malloc", Kind::Malloc)
-                   .Case("calloc", Kind::Calloc)
-                   .Case("realloc", Kind::Realloc)
-                   .Case("free", Kind::Free)
-                   .Default(Kind::None);
-      return AllocCallInfo(k, CE);
-    }
-
-    // The number-of-bytes operand that a following memset must zero:
-    // malloc(n) -> n, realloc(p, n) -> n. calloc self-zeroes and needs no
-    // memset, so it (and free/none) report null here.
-    [[nodiscard]] clang::Expr* memsetByteSize() const {
-      switch (m_Kind) {
-      case Kind::Malloc:
-        return m_Call->getArg(0);
-      case Kind::Realloc:
-        return m_Call->getArg(1);
-      default:
-        return nullptr;
-      }
-    }
-
-    // True for an in-place `p = realloc(p, n)`: the LHS is realloc's own
-    // pointer argument. Only then may the reallocated pointer be kept across
-    // the call (realloc frees the old block, so a saved pointer would dangle).
-    [[nodiscard]] bool isInPlaceRealloc(const clang::Expr* LHS) const {
-      if (m_Kind != Kind::Realloc || m_Call->getNumArgs() == 0)
-        return false;
-      const auto* LDRE =
-          llvm::dyn_cast<clang::DeclRefExpr>(LHS->IgnoreParenCasts());
-      const auto* ArgDRE = llvm::dyn_cast<clang::DeclRefExpr>(
-          m_Call->getArg(0)->IgnoreParenCasts());
-      return LDRE && ArgDRE && LDRE->getDecl() == ArgDRE->getDecl();
-    }
-
-  private:
-    AllocCallInfo(Kind k, clang::CallExpr* c) : m_Kind(k), m_Call(c) {}
-    Kind m_Kind = Kind::None;
-    clang::CallExpr* m_Call = nullptr;
-  };
-  } // namespace
-
   // Both LHS (the memset destination) and the size expression are cloned here:
   // callers pass the derived pointer they also assign to and the malloc/realloc
   // size they also pass to that call, so cloning keeps the memset a distinct
@@ -316,6 +252,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     return nullptr;
+  }
+
+  Expr* ReverseModeVisitor::buildAllocByteSize(Expr* allocExpr) {
+    // A pointer's initial allocation is malloc(n) or calloc(k, s); a realloc is
+    // a reassignment handled at the assignment, not a declaration initialiser.
+    // Report the byte size of the former two, null for anything else.
+    AllocCallInfo ac = AllocCallInfo::recognize(allocExpr);
+    CallExpr* call = ac.getCall();
+    switch (ac.getKind()) {
+    case AllocCallInfo::Kind::Malloc:
+      return call->getArg(0);
+    case AllocCallInfo::Kind::Calloc:
+      return BuildOp(BO_Mul, call->getArg(0), call->getArg(1));
+    default:
+      return nullptr;
+    }
   }
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder,
@@ -3225,14 +3177,59 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // For an in-place `p = realloc(p, sz)`, realloc frees the old block, so
       // saving p to restore it in the reverse sweep would dangle (and be
       // double-freed at cleanup). Keep the reallocated pointer instead, for
-      // both p and its adjoint _d_p. This is sound for a growing or same-size
-      // realloc, where every reverse access stays in bounds. A shrinking
-      // in-place realloc is not handled -- its reverse sweep may read the
-      // freed tail out of bounds, as it did before this change; no test
-      // exercises it.
+      // both p and its adjoint _d_p.
       bool isReallocAssignment =
           opCode == BO_Assign &&
           AllocCallInfo::recognize(R).isInPlaceRealloc(L);
+
+      // For an in-place realloc whose buffer size we tracked at allocation,
+      // undo the resize in the reverse sweep: restore p and its adjoint _d_p to
+      // their pre-realloc byte size so statements that ran before the realloc
+      // access valid indices again (clad::reverse_realloc also zeroes the
+      // re-grown adjoint tail). Without a tracked size we fall back to keeping
+      // the reallocated pointer, which is correct only for grow/same-size.
+      if (isReallocAssignment) {
+        const auto* pDRE = cast<DeclRefExpr>(L->IgnoreParenCasts());
+        // Resolve the pointer to its adjoint record via the primal clone (the
+        // key m_Variables uses), then read the allocation-size shadow off it.
+        auto replIt = m_DeclReplacements.find(cast<VarDecl>(pDRE->getDecl()));
+        auto varIt = replIt == m_DeclReplacements.end()
+                         ? m_Variables.end()
+                         : m_Variables.find(replIt->second);
+        if (varIt != m_Variables.end() && varIt->second.AllocSize) {
+          VarDecl* sizeVar = varIt->second.AllocSize;
+          Expr* newBytes = AllocCallInfo::recognize(R).getCall()->getArg(1);
+          // Capture both sizes in the forward pass. The reverse sweep must use
+          // the sizes as they were at the realloc, but the operands may refer
+          // to variables whose values differ by the time the sweep runs, so
+          // neither can be re-evaluated there. oldBytes reads the shadow before
+          // it advances; newBytes is stored once and reused for the update.
+          Expr* oldBytes =
+              StoreAndRef(BuildDeclRef(sizeVar), direction::forward, "_t",
+                          /*forceDeclCreation=*/true);
+          Expr* newBytesRef = StoreAndRef(Clone(newBytes), direction::forward,
+                                          "_t", /*forceDeclCreation=*/true);
+          addToCurrentBlock(
+              BuildOp(BO_Assign, BuildDeclRef(sizeVar), Clone(newBytesRef)),
+              direction::forward);
+          auto buildReverseRealloc = [&](Expr* ptr, bool zeroTail) {
+            Expr* zt = new (m_Context)
+                CXXBoolLiteralExpr(zeroTail, m_Context.BoolTy, noLoc);
+            llvm::SmallVector<Expr*, 4> args = {Clone(ptr), Clone(oldBytes),
+                                                Clone(newBytesRef), zt};
+            Expr* call = GetFunctionCall("reverse_realloc", "clad", args);
+            // reverse_realloc returns void*; cast back to the pointer's type.
+            TypeSourceInfo* TSI =
+                m_Context.getTrivialTypeSourceInfo(ptr->getType(), noLoc);
+            call = m_Sema.BuildCStyleCastExpr(noLoc, TSI, noLoc, call).get();
+            return BuildOp(BO_Assign, Clone(ptr), call);
+          };
+          addToCurrentBlock(buildReverseRealloc(L, /*zeroTail=*/false),
+                            direction::reverse);
+          addToCurrentBlock(buildReverseRealloc(ResultRef, /*zeroTail=*/true),
+                            direction::reverse);
+        }
+      }
 
       // Store the value of the LHS of the assignment in the forward pass
       // and restore it in the reverse pass
@@ -3830,6 +3827,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                     BuildDeclRef(VDDerived),
                     VDDerived->getInit()->IgnoreCasts()))
               memsetCalls.push_back(memsetCall);
+            // Track this pointer's allocation size in bytes so an in-place
+            // realloc of it can be undone in the reverse sweep. The shadow is
+            // recorded on the pointer's adjoint entry, keyed like every other
+            // m_Variables record by the primal clone.
+            if (m_DiffReq.isInPlaceReallocated(VD))
+              if (Expr* bytes = buildAllocByteSize(VDDerived->getInit())) {
+                VarDecl* sizeVar = BuildVarDecl(
+                    m_Context.getSizeType(),
+                    "_" + VD->getNameAsString() + "_size", Clone(bytes));
+                memsetCalls.push_back(BuildDeclStmt(sizeVar));
+                m_Variables[VDDiff.getDecl()].AllocSize = sizeVar;
+              }
           }
         }
       } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {

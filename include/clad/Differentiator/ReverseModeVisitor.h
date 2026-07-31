@@ -591,6 +591,12 @@ namespace clad {
     /// @returns The call to memset if the condition is met, otherwise nullptr.
     clang::Expr* CheckAndBuildCallToMemset(clang::Expr* LHS, clang::Expr* RHS);
 
+    /// The byte-size operand of a malloc/calloc/realloc call, in the primal's
+    /// terms: malloc(n) -> n, calloc(k, s) -> k*s, realloc(p, n) -> n. Returns
+    /// null if `allocExpr` is not one of those. Used to track allocation sizes
+    /// so a realloc can be undone in the reverse sweep.
+    clang::Expr* buildAllocByteSize(clang::Expr* allocExpr);
+
     static DeclDiff<clang::StaticAssertDecl>
     DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 
