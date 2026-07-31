@@ -1569,6 +1569,18 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return true;
   }
 
+  bool DiffCollector::VisitBinaryOperator(BinaryOperator* BO) {
+    // Runs while TraverseFunctionDeclOnce walks a request's body, with
+    // m_ParentReq pointing at that request (still local, added to the graph
+    // only after the walk) -- so this eagerly records into the very request
+    // reverse mode will consume. Outside a request body m_ParentReq is null.
+    if (m_ParentReq && BO->getOpcode() == BO_Assign)
+      if (const VarDecl* p = DiffRequest::AllocCallInfo::recognize(BO->getRHS())
+                                 .getInPlaceReallocPtr(BO->getLHS()))
+        m_ParentReq->InPlaceReallocPtrs.insert(p);
+    return true;
+  }
+
   bool DiffCollector::VisitDeclRefExpr(DeclRefExpr* DRE) {
     // m_TopMostReq is dereferenced below; it is null when PlanNestedRequest
     // walks a lazy request's body just to record its early-return flag, and no

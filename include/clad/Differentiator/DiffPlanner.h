@@ -9,6 +9,7 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
@@ -17,10 +18,13 @@
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <map>
@@ -49,6 +53,84 @@ using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
 /// rediscovering them inside a visitor, keeps them available to every visitor
 /// and correct after a request is copied and re-pointed at another Function.
 struct DiffRequest {
+  /// Recognises a C heap-memory builtin call and centralises the invariants
+  /// reverse mode must preserve for it, so all memory-op reasoning goes through
+  /// one place instead of ad-hoc name checks scattered across the code base.
+  /// The planner uses it to record which pointers are reallocated in place; the
+  /// reverse-mode visitor uses it to emit and undo the resize.
+  class AllocCallInfo {
+  public:
+    enum class Kind : std::uint8_t { None, Malloc, Calloc, Realloc, Free };
+
+    AllocCallInfo() = default;
+
+    // Recognise E as a memory builtin; Kind::None if it is not one. Strips the
+    // C-style cast that wraps the call (e.g. `(double*)realloc(...)`), so
+    // IgnoreParenCasts, not IgnoreParenImpCasts, is required here.
+    [[nodiscard]] static AllocCallInfo recognize(clang::Expr* E) {
+      auto* CE = llvm::dyn_cast_or_null<clang::CallExpr>(
+          E ? E->IgnoreParenCasts() : nullptr);
+      if (!CE)
+        return {};
+      const clang::FunctionDecl* FD = CE->getDirectCallee();
+      // getName() asserts on non-identifier names (operators, constructors),
+      // which vector/STL code produces; the builtins are plain identifiers.
+      if (!FD || !FD->getDeclName().isIdentifier())
+        return {};
+      Kind k = llvm::StringSwitch<Kind>(FD->getName())
+                   .Case("malloc", Kind::Malloc)
+                   .Case("calloc", Kind::Calloc)
+                   .Case("realloc", Kind::Realloc)
+                   .Case("free", Kind::Free)
+                   .Default(Kind::None);
+      return AllocCallInfo(k, CE);
+    }
+
+    [[nodiscard]] Kind getKind() const { return m_Kind; }
+    [[nodiscard]] clang::CallExpr* getCall() const { return m_Call; }
+
+    // The number-of-bytes operand that a following memset must zero:
+    // malloc(n) -> n, realloc(p, n) -> n. calloc self-zeroes and needs no
+    // memset, so it (and free/none) report null here.
+    [[nodiscard]] clang::Expr* memsetByteSize() const {
+      switch (m_Kind) {
+      case Kind::Malloc:
+        return m_Call->getArg(0);
+      case Kind::Realloc:
+        return m_Call->getArg(1);
+      default:
+        return nullptr;
+      }
+    }
+
+    // True for an in-place `p = realloc(p, n)`: the LHS is realloc's own
+    // pointer argument. Only then may the reallocated pointer be kept across
+    // the call (realloc frees the old block, so a saved pointer would dangle).
+    [[nodiscard]] bool isInPlaceRealloc(const clang::Expr* LHS) const {
+      if (m_Kind != Kind::Realloc || m_Call->getNumArgs() == 0)
+        return false;
+      const auto* LDRE =
+          llvm::dyn_cast<clang::DeclRefExpr>(LHS->IgnoreParenCasts());
+      const auto* ArgDRE = llvm::dyn_cast<clang::DeclRefExpr>(
+          m_Call->getArg(0)->IgnoreParenCasts());
+      return LDRE && ArgDRE && LDRE->getDecl() == ArgDRE->getDecl();
+    }
+
+    // The pointer variable of an in-place `p = realloc(p, n)`, or null.
+    [[nodiscard]] const clang::VarDecl*
+    getInPlaceReallocPtr(const clang::Expr* LHS) const {
+      if (!isInPlaceRealloc(LHS))
+        return nullptr;
+      return llvm::dyn_cast<clang::VarDecl>(
+          llvm::cast<clang::DeclRefExpr>(LHS->IgnoreParenCasts())->getDecl());
+    }
+
+  private:
+    AllocCallInfo(Kind k, clang::CallExpr* c) : m_Kind(k), m_Call(c) {}
+    Kind m_Kind = Kind::None;
+    clang::CallExpr* m_Call = nullptr;
+  };
+
 private:
   /// Based on To-Be-Recorded analysis performed before differentiation, tells
   /// UsefulToStoreGlobal whether a variable with a given SourceLocation has to
@@ -109,6 +191,16 @@ public:
   const clang::Expr* Args = nullptr;
   /// Indexes of global GPU args of function as a subset of Args.
   std::vector<size_t> CUDAGlobalArgsIndexes;
+  /// Pointer variables that are the target of an in-place `p = realloc(p, n)`
+  /// in this function, collected by DiffCollector during planning. Reverse
+  /// mode gives exactly these an allocation-size shadow so the realloc can be
+  /// undone; other allocated pointers get none. Empty unless the body
+  /// reallocates in place.
+  std::set<const clang::VarDecl*> InPlaceReallocPtrs;
+  /// Whether VD is reallocated in place somewhere in this function.
+  bool isInPlaceReallocated(const clang::VarDecl* VD) const {
+    return InPlaceReallocPtrs.count(VD) != 0;
+  }
   /// Requested differentiation mode, forward or reverse.
   DiffMode Mode = DiffMode::unknown;
   /// If function appears in the call to clad::gradient/differentiate,
@@ -323,6 +415,10 @@ struct RequestOptions {
     void Walk(clang::DeclGroupRef DGR);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+    /// Record an in-place `p = realloc(p, n)` on the request whose body is
+    /// being traversed, so reverse mode knows p needs an allocation-size
+    /// shadow.
+    bool VisitBinaryOperator(clang::BinaryOperator* BO);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
     bool shouldVisitImplicitCode() const { return true; }
     /// Here we use TraverseLambdaExpr and not VisitLambdaExpr to ensure the

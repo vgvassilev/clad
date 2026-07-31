@@ -12,6 +12,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
 
 #define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
@@ -1600,6 +1602,30 @@ void constructor_pullback(ValueAndPushforward<T, U> rhs,
 }
 } // namespace class_functions
 } // namespace custom_derivatives
+
+// Reverse-mode helper for an in-place realloc: resize `ptr` back to the byte
+// size it had before the forward realloc. When that regrows a buffer the
+// forward pass shrank, zero the re-grown tail for adjoint buffers so fresh
+// derivatives start at 0; primal buffers pass zeroGrownTail=false, their tail
+// being overwritten by value restores. Returns the possibly-moved pointer.
+// NOLINTBEGIN(cppcoreguidelines-no-malloc)
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+inline void* reverse_realloc(void* ptr, size_t oldBytes, size_t newBytes,
+                             bool zeroGrownTail) {
+  void* resized = ::realloc(ptr, oldBytes);
+  // realloc failed: keep the original buffer instead of leaking it.
+  if (!resized)
+    return ptr;
+  ptr = resized;
+  if (zeroGrownTail && oldBytes > newBytes)
+    ::memset(static_cast<char*>(ptr) + newBytes, 0, oldBytes - newBytes);
+  return ptr;
+}
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+// NOLINTEND(cppcoreguidelines-owning-memory)
+// NOLINTEND(cppcoreguidelines-no-malloc)
+
 } // namespace clad
 
   // FIXME: These math functions depend on promote_2 just like pow:

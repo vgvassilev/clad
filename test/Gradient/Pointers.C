@@ -331,29 +331,37 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     double _t0 = t->x;
 // CHECK-NEXT:     t->x = x;
 // CHECK-NEXT:     double *_d_p = (double *)calloc(1, sizeof(double));
+// CHECK-NEXT:     {{__size_t|size_t|unsigned long long|unsigned long|unsigned int}} _p_size0 = 1 * sizeof(double);
 // CHECK-NEXT:     double *p = (double *)calloc(1, sizeof(double));
 // CHECK-NEXT:     double _t1 = *p;
 // CHECK-NEXT:     *p = x;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = t->x + *p;
+// CHECK-NEXT:     {{__size_t|size_t|unsigned long long|unsigned long|unsigned int}} _t2 = _p_size0;
+// CHECK-NEXT:     {{__size_t|size_t|unsigned long long|unsigned long|unsigned int}} _t3 = 2 * sizeof(double);
+// CHECK-NEXT:     _p_size0 = _t3;
 // CHECK-NEXT:     _d_p = (double *)realloc(_d_p, 2 * sizeof(double));
 // CHECK-NEXT:     memset(_d_p, 0, 2 * sizeof(double));
 // CHECK-NEXT:     p = (double *)realloc(p, 2 * sizeof(double));
-// CHECK-NEXT:     double _t2 = p[1];
+// CHECK-NEXT:     double _t4 = p[1];
 // CHECK-NEXT:     p[1] = 2 * x;
-// CHECK-NEXT:     double _t3 = res;
+// CHECK-NEXT:     double _t5 = res;
 // CHECK-NEXT:     res += p[1];
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         res = _t3;
+// CHECK-NEXT:         res = _t5;
 // CHECK-NEXT:         double _r_d3 = _d_res;
 // CHECK-NEXT:         _d_p[1] += _r_d3;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         p[1] = _t2;
+// CHECK-NEXT:         p[1] = _t4;
 // CHECK-NEXT:         double _r_d2 = _d_p[1];
 // CHECK-NEXT:         _d_p[1] = 0.;
 // CHECK-NEXT:         *_d_x += 2 * _r_d2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         p = (double *)clad::reverse_realloc(p, _t2, _t3, false);
+// CHECK-NEXT:         _d_p = (double *)clad::reverse_realloc(_d_p, _t2, _t3, true);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_t->x += _d_res;

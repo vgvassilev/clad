@@ -242,6 +242,11 @@ namespace clad {
     struct AdjointInfo {
       clang::VarDecl* Decl = nullptr;
       enum WrapKind : std::uint8_t { Plain, Deref, ParenDeref } Wrap = Plain;
+      /// For a pointer reallocated in place, the `size_t` variable tracking its
+      /// current allocation size in bytes: set where the pointer is allocated,
+      /// read where it is realloc'd to undo the resize in reverse. Null for
+      /// every other variable.
+      clang::VarDecl* AllocSize = nullptr;
     };
     /// Map used to keep track of variable declarations and match them
     /// with their derivatives.
