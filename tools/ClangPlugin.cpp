@@ -175,6 +175,7 @@ void InitTimers();
                  std::vector<std::unique_ptr<ASTConsumer>>);
 
     void CladPlugin::Initialize(clang::ASTContext& C) {
+      utils::ResetCladUtilsASTCache(C);
       // We know we have a multiplexer. We commit a sin here by stealing it and
       // making the consumer pass-through so that we can delay all operations
       // until clad is happy.
