@@ -3794,12 +3794,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           auto* decl = VDDiff.getDecl();
           if (VD->getInit()) {
             auto* declRef = BuildDeclRef(decl);
+            Expr* init = decl->getInit();
+            const auto* CE = dyn_cast_or_null<CXXConstructExpr>(
+                init ? init->IgnoreImplicit() : nullptr);
+            if (!init ||
+                (CE && !CE->getNumArgs() && !CE->isListInitialization()))
+              init = getZeroInit(VD->getType());
             Expr* assignment = nullptr;
             if (isa<ArrayType>(VD->getType()))
-              assignment = BuildArrayAssignment(declRef, decl->getInit(),
-                                                direction::forward);
+              assignment =
+                  BuildArrayAssignment(declRef, init, direction::forward);
             else
-              assignment = BuildOp(BO_Assign, declRef, decl->getInit());
+              assignment = BuildOp(BO_Assign, declRef, init);
             if (isInsideLoop) {
               if (m_DiffReq.shouldBeRecorded(DS)) {
                 auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
