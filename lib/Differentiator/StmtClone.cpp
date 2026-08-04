@@ -234,6 +234,9 @@ Stmt* StmtClone::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr* Node) {
 DEFINE_CREATE_EXPR(CXXBindTemporaryExpr,
                    (Ctx, Node->getTemporary(), Clone(Node->getSubExpr())))
 
+DEFINE_CLONE_EXPR(CXXStdInitializerListExpr,
+                  (CloneType(Node->getType()), Clone(Node->getSubExpr())))
+
 DEFINE_CLONE_EXPR(MaterializeTemporaryExpr,
                   (CloneType(Node->getType()),
                    Node->getSubExpr() ? Clone(Node->getSubExpr()) : nullptr,
