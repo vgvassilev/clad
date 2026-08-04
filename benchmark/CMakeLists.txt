@@ -136,3 +136,4 @@ if(CUDAToolkit_FOUND)
 endif()
 
 
+CB_ADD_GBENCHMARK(ActivityWaste ActivityWaste.cpp)
