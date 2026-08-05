@@ -10,6 +10,8 @@
 #include "clad/Differentiator/ArrayRef.h"
 #include "clad/Differentiator/CladConfig.h"
 
+#include "clad/Differentiator/SafeBuiltinOverwrites.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -19,18 +21,6 @@
 #define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
 
 namespace clad {
-template <typename T, typename U> struct ValueAndPushforward {
-  T value;
-  U pushforward;
-
-  // Define the cast operator from ValueAndPushforward<T, U> to
-  // ValueAndPushforward<V, w> where V is convertible to T and W is
-  // convertible to U.
-  template <typename V = T, typename W = U>
-  operator ValueAndPushforward<V, W>() const {
-    return {static_cast<V>(value), static_cast<W>(pushforward)};
-  }
-};
 
 template <typename T, typename U>
 ValueAndPushforward<T, U> make_value_and_pushforward(T value, U pushforward) {
@@ -624,8 +614,14 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expintl_pushforward(T x, dT d_x) {
 // 3.1 log, logf, logl
 template <typename T>
 CUDA_HOST_DEVICE ValueAndPushforward<T, T> log_pushforward(T x, T d_x) {
-  T dlog = 1.0 / x;
-  return {::std::log(x), dlog * d_x};
+  
+  #ifdef CLAD_SAFE_MATH
+    return clad::safe_log_pushforward(x, d_x);
+  #else
+    T dlog = 1.0 / x;
+    return {::std::log(x), dlog * d_x};
+  #endif
+
 }
 
 // pushforward for logf, logl
@@ -642,8 +638,14 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, T> logl_pushforward(T x, T d_x) {
 // 3.2 log10, log10f, log10l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10_pushforward(T x, dT d_x) {
+  
+  #ifdef CLAD_SAFE_MATH
+    return clad::safe_log10_pushforward(x, d_x);
+  #else
   T dlog10 = 1.0 / (x * ::std::log(10));
   return {::std::log10(x), dlog10 * d_x};
+  #endif
+
 }
 
 // pushforward for log10f, log10l
@@ -660,8 +662,12 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10l_pushforward(T x, dT d_x) {
 // 3.3 log2, log2f, log2l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2_pushforward(T x, dT d_x) {
-  T dlog2 = 1.0 / (x * ::std::log(2));
-  return {::std::log2(x), dlog2 * d_x};
+  #ifdef CLAD_SAFE_MATH
+    return clad::safe_log2_pushforward(x, d_x);
+  #else
+    T dlog2 = 1.0 / (x * ::std::log(2));
+    return {::std::log2(x), dlog2 * d_x};
+  #endif
 }
 
 // pushforward for log2f, log2l
@@ -678,8 +684,12 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2l_pushforward(T x, dT d_x) {
 // 3.4 log1p, log1pf, log1pl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log1p_pushforward(T x, dT d_x) {
-  T dlog1p = 1.0 / (1 + x);
-  return {::std::log1p(x), dlog1p * d_x};
+  #ifdef CLAD_SAFE_MATH
+    return clad::safe_log1p_pushforward(x, d_x);
+  #else
+    T dlog1p = 1.0 / (1 + x);
+    return {::std::log1p(x), dlog1p * d_x};
+  #endif
 }
 
 // pushforward for log1pf, log1pl
@@ -749,7 +759,11 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanl_pushforward(T x, dT d_x) {
 // 4.4 asin, asinf, asinl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asin_pushforward(T x, dT d_x) {
+  #ifdef CLAD_SAFE_MATH
+    return clad::safe_asin_pushforward(x, d_x);
+  #else
   return {::std::asin(x), d_x / ::std::sqrt(1 - x * x)};
+  #endif
 }
 
 // pushforward for asinf, asinl
@@ -766,7 +780,11 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asinl_pushforward(T x, dT d_x) {
 // 4.5 acos, acosf, acosl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acos_pushforward(T x, dT d_x) {
+  #ifdef CLAD_SAFE_MATH
+    return clad::safe_acos_pushforward(x, d_x);
+  #else
   return {::std::acos(x), ((-1) / (::std::sqrt(1 - x * x))) * d_x};
+  #endif
 }
 
 // pushforward for acosf, acosl
@@ -783,6 +801,7 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acosl_pushforward(T x, dT d_x) {
 // 4.6 atan, atanf, atanl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atan_pushforward(T x, dT d_x) {
+  
   return {::std::atan(x), d_x / (1 + x * x)};
 }
 
@@ -909,7 +928,11 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asinhl_pushforward(T x, dT d_x) {
 // 5.5 acosh, acoshf, acoshl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acosh_pushforward(T x, dT d_x) {
-  return {::std::acosh(x), d_x / ::std::sqrt(x * x - 1)};
+  #ifdef CLAD_SAFE_MATH
+    return clad::safe_acosh_pushforward(x, d_x);
+  #else
+    return {::std::acosh(x), d_x / ::std::sqrt(x * x - 1)};
+  #endif
 }
 
 // pushforward for acoshf, acoshl
@@ -926,7 +949,11 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acoshl_pushforward(T x, dT d_x) {
 // 5.6 atanh, atanhf, atanhl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atanh_pushforward(T x, dT d_x) {
+  #ifdef CLAD_SAFE_MATH
+    return clad::safe_atanh_pushforward(x, d_x);
+  #else
   return {::std::atanh(x), d_x / (1 - x * x)};
+  #endif
 }
 
 // pushforward for atanhf, atanhl
@@ -978,7 +1005,11 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfcl_pushforward(T x, dT d_x) {
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sqrt_pushforward(T x, dT d_x) {
+  #ifdef CLAD_SAFE_MATH
+    return clad::safe_sqrt_pushforward(x, d_x);
+  #else
   return {::std::sqrt(x), (((T)1) / (((T)2) * ::std::sqrt(x))) * d_x};
+  #endif
 }
 
 template <typename T>
