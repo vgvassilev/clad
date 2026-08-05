@@ -944,6 +944,21 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     return StmtDiff(cloned, zero);
   auto* result_at_is =
       BuildArraySubscript(buildAdjoint(it->second), derivedIndices());
+  // Guard nullable tangent for pointer-to-const inputs: the outer
+  // derivative represents inactive const T* parameters as nullptr, so
+  // dereferencing _d_obs[i] without a check would be invalid at runtime.
+  if (it->second.Decl->getType().getNonReferenceType()->isPointerType()) {
+    QualType origBaseTy = base->getType();
+    if (origBaseTy->isPointerType() &&
+        origBaseTy->getPointeeType().isConstQualified()) {
+      // Build: (_d_obs != nullptr ? _d_obs[idx] : 0)
+      Expr* cond = BuildOp(BO_NE, buildAdjoint(it->second),
+                           m_Sema.ActOnCXXNullPtrLiteral(noLoc).get());
+      result_at_is = BuildParens(
+          m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, result_at_is, zero)
+              .get());
+    }
+  }
   return StmtDiff(cloned, result_at_is);
 }
 
