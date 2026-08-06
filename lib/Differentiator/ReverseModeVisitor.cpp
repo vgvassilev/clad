@@ -2751,9 +2751,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         } else {
           // Otherwise, generate the declaration
           // ``clad::restore_tracker _tracker0 = {};``
-          VarDecl* trackerDecl =
-              BuildVarDecl(trackerType, "_tracker", getZeroInit(trackerType));
-          addToCurrentBlock(BuildDeclStmt(trackerDecl));
+          VarDecl* trackerDecl = nullptr;
+          if (isInsideLoop || m_DiffReq.hasEarlyReturns()) {
+            trackerDecl = GlobalStoreImpl(trackerType, "_tracker",
+                                          getZeroInit(trackerType));
+          } else {
+            trackerDecl =
+                BuildVarDecl(trackerType, "_tracker", getZeroInit(trackerType));
+            addToCurrentBlock(BuildDeclStmt(trackerDecl));
+          }
           trackerExpr = BuildDeclRef(trackerDecl);
           Expr* restoreCall = BuildCallExprToMemFn(
               BuildDeclRef(trackerDecl), /*MemberFunctionName=*/"restore",
@@ -2772,28 +2778,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // synthesized for a function clad cannot actually differentiate (an
       // operation reached through an opaque type). Fall through to recreating
       // the original call rather than storing a null expression.
-      if (call) {
-        if (!needsForwPass ||
-            (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE)))
-          return StmtDiff(call);
-        Expr* callRes = nullptr;
-        if (isInsideLoop)
-          callRes = GlobalStoreAndRef(call, /*prefix=*/"_t",
-                                      /*force=*/true);
-        else
-          callRes = StoreAndRef(call);
-        auto* resValue =
-            utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
-        // Clone the base so `_t0.value` and `_t0.adjoint` own distinct nodes.
-        auto* resAdjoint = utils::BuildMemberExpr(
-            m_Sema, getCurrentScope(), CloneNode(callRes), "adjoint");
-        if (Expr* add_assign = BuildDiffIncrement(resAdjoint)) {
-          Stmts& block = getCurrentBlock(direction::reverse);
-          it = std::begin(block) + insertionPoint;
-          block.insert(it, add_assign);
-        }
-        return StmtDiff(resValue, resAdjoint);
+      if (!needsForwPass ||
+          (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE)))
+        return StmtDiff(call);
+      Expr* callRes = nullptr;
+      if (isInsideLoop || m_DiffReq.hasEarlyReturns())
+        callRes = GlobalStoreAndRef(call, /*prefix=*/"_t", /*force=*/true);
+      else
+        callRes = StoreAndRef(call);
+      auto* resValue =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
+      // Clone the base so `_t0.value` and `_t0.adjoint` own distinct nodes.
+      auto* resAdjoint = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                                CloneNode(callRes), "adjoint");
+      if (Expr* add_assign = BuildDiffIncrement(resAdjoint)) {
+        Stmts& block = getCurrentBlock(direction::reverse);
+        it = std::begin(block) + insertionPoint;
+        block.insert(it, add_assign);
       }
+      return StmtDiff(resValue, resAdjoint);
     } // Recreate the original call expression.
 
     if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
@@ -4207,8 +4210,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     assert(!isa<ArrayType>(Type) && "Array types cannot be stored.");
     if (!force && !UsefulToStoreGlobal(E))
       return E;
+    bool isValueAndAdjoint =
+        Type->getAsCXXRecordDecl() &&
+        Type->getAsCXXRecordDecl()->getName() == "ValueAndAdjoint";
 
-    if (isInsideLoop) {
+    bool requiresTape =
+        isInsideLoop ||
+        (m_DiffReq.hasEarlyReturns() &&
+         (isValueAndAdjoint || utils::IsCladValueAndPushforwardType(Type)));
+
+    if (requiresTape) {
       CladTapeResult CladTape = MakeCladTapeFor(E, prefix, Type);
       addToCurrentBlock(CladTape.Push, direction::forward);
       addToCurrentBlock(CladTape.Pop, direction::reverse);
@@ -4233,6 +4244,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // on for adjoints and loop counters.
       if (zeroInit)
         SetDeclInit(VD, getZeroInit(Type));
+
       addToBlock(decl, m_Globals);
       // Use a fresh ref for the store-back LHS; Ref is returned to the caller
       // and reused in the reverse pass, so sharing it here parents it twice.
@@ -4457,8 +4469,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     bool isFnScope = getCurrentScope()->isFunctionScope() ||
                      m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
-    VarDecl* VD = BuildGlobalVarDecl(
-        utils::getNonConstType(E->getType(), m_Sema), prefix);
+    QualType VarType = utils::getNonConstType(E->getType(), m_Sema);
+    VarDecl* VD = BuildGlobalVarDecl(VarType, prefix);
     Expr* Ref = BuildDeclRef(VD);
     if (!isFnScope)
       addToBlock(BuildDeclStmt(VD), m_Globals);
@@ -5407,7 +5419,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         diag(DiagnosticsEngine::Note, NoteL, "%0 is defined here")
             << constrForw << NoteL;
       }
-      Expr* callRes = StoreAndRef(customReverseForwFnCall);
+      Expr* callRes = nullptr;
+      if (isInsideLoop || m_DiffReq.hasEarlyReturns()) {
+        callRes = GlobalStoreAndRef(customReverseForwFnCall, /*prefix=*/"_t",
+                                    /*force=*/true);
+      } else {
+        callRes = StoreAndRef(customReverseForwFnCall);
+      }
       Expr* val =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
       // Clone the base so `_t0.value` and `_t0.adjoint` own distinct nodes.
