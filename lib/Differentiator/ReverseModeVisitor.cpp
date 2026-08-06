@@ -453,22 +453,31 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           return result;
         };
         bool isDirectInit = false;
-        if (isNonAggrClass && utils::isCopyable(RD) &&
-            !hasDangerousFields(RD)) {
-          ParmVarDecl* newFuncParam = nullptr;
-          for (auto* p : m_Derivative->parameters()) {
-            if (p->getName() == param->getName()) {
-              newFuncParam = p;
-              break;
-            }
+        bool needsZeroInit = false;
+        ParmVarDecl* newFuncParam = nullptr;
+        for (auto* p : m_Derivative->parameters()) {
+          if (p->getName() == param->getName()) {
+            newFuncParam = p;
+            break;
           }
-          assert(
-              newFuncParam &&
-              "Could not find corresponding parameter in derivative function");
+        }
+        assert(newFuncParam &&
+               "Could not find corresponding parameter in derivative function");
+
+        Expr* zeroLike = nullptr;
+        if (RD)
+          zeroLike =
+              GetCladZeroLike(BuildDeclRef(newFuncParam->getDefinition()));
+        if (zeroLike) {
+          initExpr = zeroLike;
+          isDirectInit = true;
+        } else if (isNonAggrClass && utils::isCopyable(RD) &&
+                   !hasDangerousFields(RD)) {
           initExpr = BuildDeclRef(newFuncParam->getDefinition());
           isDirectInit = true;
+          needsZeroInit = true;
         } else {
-          // If the type is not a tensor, we can use zero initialization.
+          // Preserve the legacy value-initialization fallback.
           initExpr = getZeroInit(VDDerivedType);
         }
         auto* VDDerived = BuildGlobalVarDecl(
@@ -476,6 +485,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             isDirectInit);
         m_Variables[param] = {VDDerived};
         addToBlock(BuildDeclStmt(VDDerived), m_Globals);
+        if (needsZeroInit) {
+          Expr* derivedRef = BuildDeclRef(VDDerived);
+          addToBlock(GetCladZeroInit(derivedRef), m_Globals);
+        }
       }
     }
 

@@ -31,6 +31,9 @@
 #endif
 #include <type_traits>
 #include <utility>
+// Keep std::valarray's non-member begin/end overloads visible when is_range is
+// defined below.
+#include <valarray> // NOLINT(misc-include-cleaner)
 #ifndef __CUDACC__
 #include <mutex>
 #endif
@@ -207,8 +210,10 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
   return of.back();
 }
 
-  /// The purpose of this function is to initialize adjoints
-  /// (or all of its iteratable elements) with 0.
+  /// Reset values in an already-constructed adjoint (or its iterable elements)
+  /// to zero in place. This is the primitive used by the default zero_like
+  /// implementation. Provide an overload when the default recursive or
+  /// byte-wise zeroing would not preserve a type's required structure.
   namespace zero_init_detail {
   template <class T> struct iterator_traits : std::iterator_traits<T> {};
   template <> struct iterator_traits<void*> {};
@@ -277,6 +282,36 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
   }
 
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t) { zero_impl(t); }
+
+  /// Construct a zero adjoint with the same relevant structure as \p value.
+  ///
+  /// Conceptually, zero_like(value) returns a value structurally like value
+  /// with zero_init applied. This is the adjoint-construction extension point;
+  /// provide an overload when copy-then-zero is incorrect, for example for
+  /// owning or reference-counted storage, device memory, or types whose shape,
+  /// allocator, or other runtime metadata needs special handling. The
+  /// reverse-mode visitor prefers this customization point when constructing
+  /// an internal adjoint from an existing primal value.
+  // Keep this header compatible with C++14; some Clad tests and clients include
+  // it in that language mode.
+  // NOLINTBEGIN(modernize-type-traits)
+  template <class T, std::enable_if_t<std::is_arithmetic<T>::value ||
+                                          std::is_enum<T>::value,
+                                      int> = 0>
+  CUDA_HOST_DEVICE T zero_like(const T&) {
+    return T();
+  }
+
+  /// Default zero_like implementation for copyable ranges.
+  template <class T, std::enable_if_t<is_range<T>::value &&
+                                          std::is_copy_constructible<T>::value,
+                                      int> = 0>
+  T zero_like(const T& value) {
+    T result(value);
+    zero_init(result);
+    return result;
+  }
+  // NOLINTEND(modernize-type-traits)
 
   /// Initialize a const sized array.
   // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)

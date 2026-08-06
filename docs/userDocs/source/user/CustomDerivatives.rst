@@ -79,6 +79,62 @@ directly in :code:`clad::custom_derivatives::class_functions` regardless of the 
   Non-templated free functions defined in a header file need to be marked :code:`inline`
   to avoid issues with symbol duplication just like any other C++ entity defined in a header file.
 
+Adjoint construction and initialization
+========================================
+
+Reverse-mode differentiation sometimes needs to construct an internal adjoint
+from an existing primal value. Clad provides two related customization points
+for this purpose:
+
+- :code:`clad::zero_init(x)` resets values in an already constructed adjoint in
+  place. Use it when the adjoint's required structure and storage already
+  exist. The default implementation recursively clears ranges and uses
+  byte-wise zeroing for supported non-range types; provide an overload when
+  that behavior would not preserve the structure required by the type.
+- :code:`clad::zero_like(x)` constructs and returns a new zero adjoint with the
+  same relevant runtime structure as the primal :code:`x`. Conceptually, it
+  returns a value structurally like :code:`x` with :code:`zero_init` applied.
+  This is the primary extension point for adjoint construction.
+
+The default :code:`zero_like` implementation value-initializes arithmetic and
+enum types. For copyable ranges, it copies the primal to preserve its structure
+and then calls :code:`zero_init` on the copy. Provide a type-specific
+:code:`zero_like` overload when copy-then-zero cannot create an independent,
+structurally correct adjoint. Common examples include owning or
+reference-counted storage, views that alias the primal, device memory, and types
+whose shape, allocator, device, or other runtime metadata requires special
+handling.
+
+For example, a device buffer may require a fresh allocation on the same device
+instead of a shallow copy::
+
+  struct DeviceBuffer {
+    DeviceBuffer(std::size_t size, int device);
+    std::size_t size() const;
+    int device() const;
+    void fill(double value);
+  };
+
+  namespace clad {
+
+  inline void zero_init(DeviceBuffer& buffer) {
+    buffer.fill(0.0);
+  }
+
+  inline DeviceBuffer zero_like(const DeviceBuffer& value) {
+    DeviceBuffer result(value.size(), value.device());
+    zero_init(result);
+    return result;
+  }
+
+  } // namespace clad
+
+Here :code:`zero_init` defines how to reset storage that already exists, while
+:code:`zero_like` defines how to allocate and construct that storage from the
+primal. The returned adjoint must not unintentionally alias mutable primal
+storage. Define these customizations after the differentiated type and before
+requesting its derivative.
+
 Pushforward custom derivatives
 ===============================
 
