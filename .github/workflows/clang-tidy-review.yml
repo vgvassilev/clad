@@ -35,7 +35,7 @@ jobs:
         with:
           build_dir: build
           apt_packages: cmake,libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev,libomp-20-dev,libopenblas-dev
-          exclude: "test/*,unittests/*"
+          exclude: "test/*,unittests/*,benchmark/LibTorch/*,include/clad/Differentiator/TorchBuiltins.h,include/clad/Differentiator/TorchBuiltins/*"
           split_workflow: true
           config_file: .clang-tidy
           cmake_command: >
