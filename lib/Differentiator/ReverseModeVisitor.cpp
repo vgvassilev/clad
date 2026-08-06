@@ -4231,7 +4231,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // this global there (a branch _cond flag) asks for zero-init so the
       // unreached case reads false -- the same zero-state clad already relies
       // on for adjoints and loop counters.
-      if (zeroInit)
+      if (zeroInit || m_DiffReq.hasEarlyReturns())
         SetDeclInit(VD, getZeroInit(Type));
       addToBlock(decl, m_Globals);
       // Use a fresh ref for the store-back LHS; Ref is returned to the caller
@@ -4291,6 +4291,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         Store = decl;
         SetDeclInit(VD, E);
       } else {
+        if (m_DiffReq.hasEarlyReturns())
+          SetDeclInit(VD, getZeroInit(Type));
         addToBlock(decl, m_Globals);
         Store = BuildOp(BO_Assign, Ref, Clone(E));
       }
@@ -4457,8 +4459,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     bool isFnScope = getCurrentScope()->isFunctionScope() ||
                      m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
-    VarDecl* VD = BuildGlobalVarDecl(
-        utils::getNonConstType(E->getType(), m_Sema), prefix);
+    QualType VarType = utils::getNonConstType(E->getType(), m_Sema);
+    VarDecl* VD = BuildGlobalVarDecl(VarType, prefix);
+    if (!isFnScope && m_DiffReq.hasEarlyReturns())
+      SetDeclInit(VD, getZeroInit(VarType));
     Expr* Ref = BuildDeclRef(VD);
     if (!isFnScope)
       addToBlock(BuildDeclStmt(VD), m_Globals);
