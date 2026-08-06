@@ -1420,7 +1420,14 @@ namespace clad {
     // Only definitions are differentiated
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
-    // Look for the derivative
+    // This fresh request is only a lookup key, so it lacks the pullback_state
+    // the scheduler recorded (request equality ignores it). Restore it from the
+    // scheduled node for a reverse_forw, whose visitor reads it off the
+    // request.
+    if (request.Mode == DiffMode::reverse_mode_forward_pass)
+      if (const DiffRequest* scheduled =
+              m_Builder.m_Scheduler.getGraph().getNode(request))
+        request.PullbackStateParam = scheduled->PullbackStateParam;
     return m_Builder.FindDerivedFunction(request);
   }
 

@@ -272,6 +272,12 @@ namespace clad {
 
     bool IsCladValueAndPushforwardType(clang::QualType T);
 
+    /// If `T` is a `clad::pullback_state<Payload>` specialization, returns its
+    /// `Payload` argument; otherwise returns a null `QualType`. Used to thread
+    /// the payload a custom `reverse_forw` returns into its matching
+    /// `pullback`, and to diagnose a mismatched pullback signature.
+    clang::QualType GetPullbackStatePayload(clang::QualType T);
+
     /// Returns a valid `SourceRange` to be used in places where clang
     /// requires a valid `SourceRange`.
     clang::SourceRange GetValidSRange(clang::Sema& semaRef);
