@@ -42,6 +42,26 @@ template <typename T, typename U> struct ValueAndAdjoint {
   U adjoint;
 };
 
+/// Empty payload for a pullback that carries no reverse-pass state.
+struct no_state {};
+
+/// Per-call state a custom `X_reverse_forw` hands to its matching `X_pullback`.
+/// The reverse_forw takes a trailing `pullback_state<Payload>&` out-parameter
+/// and fills it in the forward sweep; the pullback takes a trailing
+/// `pullback_state<Payload>` by value and reads it in the reverse sweep. clad
+/// declares one carrier and threads it into both calls -- the same out-param
+/// mechanism as `clad::restore_tracker`, and it composes with the
+/// `ValueAndAdjoint` a value-returning reverse_forw already returns. Use it to
+/// hand computed-in-forward data (e.g. a sort permutation) to the pullback
+/// without a shared or global stash.
+///
+/// `Payload` is author-owned; extend it by appending fields. An empty
+/// `pullback_state<no_state>` folds away at -O1+. When a reverse_forw also
+/// takes a `restore_tracker&`, the `pullback_state<Payload>&` comes first.
+template <typename Payload = no_state> struct pullback_state {
+  Payload data{};
+};
+
 /// It is used to identify constructor custom pushforwards. For
 /// constructor custom pushforward functions, we cannot use the same
 /// strategy which we use for custom pushforward for member

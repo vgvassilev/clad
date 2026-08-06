@@ -110,6 +110,17 @@ public:
   const std::vector<T>& getNodes() const { return m_nodes; }
   std::vector<T>& getNodes() { return m_nodes; }
 
+  /// Returns the stored node equal to `node`, or nullptr if absent. The stored
+  /// copy may carry fields the lookup key does not, since node equality
+  /// intentionally ignores some annotations -- so this recovers what the
+  /// scheduler recorded on the node from a bare lookup key.
+  const T* getNode(const T& node) const {
+    auto it = m_nodeMap.find(node);
+    if (it == m_nodeMap.end())
+      return nullptr;
+    return &m_nodes[it->second.second];
+  }
+
   /// Dump the nodes and edges.
   void dump() const { print(std::cerr); }
 

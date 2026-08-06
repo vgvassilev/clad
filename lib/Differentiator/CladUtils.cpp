@@ -7,6 +7,7 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
@@ -18,6 +19,7 @@
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
@@ -531,6 +533,21 @@ namespace clad {
     bool IsCladValueAndPushforwardType(clang::QualType T) {
       return T.getAsString().find("ValueAndPushforward") !=
              std::string::npos;
+    }
+
+    clang::QualType GetPullbackStatePayload(clang::QualType T) {
+      const auto* Spec = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+          T.getCanonicalType()->getAsCXXRecordDecl());
+      if (!Spec || Spec->getName() != "pullback_state")
+        return {};
+      // Guard against a same-named type in another namespace.
+      const auto* ND = dyn_cast_or_null<NamespaceDecl>(Spec->getDeclContext());
+      if (!ND || ND->getName() != "clad")
+        return {};
+      const TemplateArgumentList& Args = Spec->getTemplateArgs();
+      if (Args.size() == 0 || Args[0].getKind() != TemplateArgument::Type)
+        return {};
+      return Args[0].getAsType();
     }
 
     clang::SourceRange GetValidSRange(clang::Sema& semaRef) {

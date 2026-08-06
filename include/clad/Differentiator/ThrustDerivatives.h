@@ -1232,18 +1232,16 @@ adjacent_difference_reverse_forw(InputIt first, InputIt last, OutputIt result,
   return {::thrust::adjacent_difference(first, last, result, op), {}};
 }
 
-namespace detail {
-inline ::std::vector<::thrust::device_vector<::std::size_t>>&
-permutation_stack() {
-  static ::std::vector<::thrust::device_vector<::std::size_t>> stack;
-  return stack;
-}
-} // namespace detail
-
+// The sort permutation (sorted position -> original index) is computed in the
+// reverse_forw and needed by the pullback to scatter adjoints back. It is
+// carried per call through clad::pullback_state, which clad threads from the
+// reverse_forw to its pullback -- replacing a static stack that was neither
+// reentrant nor thread-safe (see #1694).
 template <typename KeyIterator, typename ValueIterator>
-void sort_by_key_reverse_forw(KeyIterator keys_first, KeyIterator keys_last,
-                              ValueIterator values_first, KeyIterator,
-                              KeyIterator, ValueIterator) {
+void sort_by_key_reverse_forw(
+    KeyIterator keys_first, KeyIterator keys_last, ValueIterator values_first,
+    KeyIterator, KeyIterator, ValueIterator,
+    clad::pullback_state<::thrust::device_vector<::std::size_t>>& state) {
   const ::std::size_t n = ::thrust::distance(keys_first, keys_last);
   if (n > 0) {
     ::thrust::device_vector<::std::size_t> perm(n);
@@ -1255,16 +1253,16 @@ void sort_by_key_reverse_forw(KeyIterator keys_first, KeyIterator keys_last,
       }
     };
     ::thrust::sort(perm.begin(), perm.end(), index_comp_less{keys_first});
-    detail::permutation_stack().push_back(::std::move(perm));
+    state.data = ::std::move(perm);
   }
   ::thrust::sort_by_key(keys_first, keys_last, values_first);
 }
 
 template <typename KeyIterator, typename ValueIterator, typename Compare>
-void sort_by_key_reverse_forw(KeyIterator keys_first, KeyIterator keys_last,
-                              ValueIterator values_first, Compare comp,
-                              KeyIterator, KeyIterator, ValueIterator,
-                              Compare) {
+void sort_by_key_reverse_forw(
+    KeyIterator keys_first, KeyIterator keys_last, ValueIterator values_first,
+    Compare comp, KeyIterator, KeyIterator, ValueIterator, Compare,
+    clad::pullback_state<::thrust::device_vector<::std::size_t>>& state) {
   const ::std::size_t n = ::thrust::distance(keys_first, keys_last);
   if (n > 0) {
     ::thrust::device_vector<::std::size_t> perm(n);
@@ -1277,17 +1275,18 @@ void sort_by_key_reverse_forw(KeyIterator keys_first, KeyIterator keys_last,
       }
     };
     ::thrust::sort(perm.begin(), perm.end(), index_comp_with{keys_first, comp});
-    detail::permutation_stack().push_back(::std::move(perm));
+    state.data = ::std::move(perm);
   }
   ::thrust::sort_by_key(keys_first, keys_last, values_first, comp);
 }
 
 // pullback without comparator
 template <typename KeyIterator, typename ValueIterator>
-void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
-                          ValueIterator values_first, KeyIterator* d_keys_first,
-                          KeyIterator* d_keys_last,
-                          ValueIterator* d_values_first) {
+void sort_by_key_pullback(
+    KeyIterator keys_first, KeyIterator keys_last, ValueIterator values_first,
+    KeyIterator* d_keys_first, KeyIterator* d_keys_last,
+    ValueIterator* d_values_first,
+    clad::pullback_state<::thrust::device_vector<::std::size_t>> state) {
   using ValueConst = typename ::std::iterator_traits<ValueIterator>::value_type;
   using Value = ::std::remove_const_t<ValueConst>;
   using KeyConst = typename ::std::iterator_traits<KeyIterator>::value_type;
@@ -1297,10 +1296,9 @@ void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
   if (n == 0)
     return;
 
-  // Retrieve permutation mapping sorted position j -> original index i
-  auto& stack = detail::permutation_stack();
-  ::thrust::device_vector<::std::size_t> perm = ::std::move(stack.back());
-  stack.pop_back();
+  // Permutation (sorted position j -> original index i) produced by the
+  // matching reverse_forw and threaded in via pullback_state.
+  ::thrust::device_vector<::std::size_t> perm = ::std::move(state.data);
 
   // Build device pointers to adjoint buffers
   auto d_vals_const_ptr = ::thrust::raw_pointer_cast((*d_values_first).base());
@@ -1331,10 +1329,11 @@ void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
 
 // pullback with comparator
 template <typename KeyIterator, typename ValueIterator, typename Compare>
-void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
-                          ValueIterator values_first, Compare comp,
-                          KeyIterator* d_keys_first, KeyIterator* d_keys_last,
-                          ValueIterator* d_values_first, Compare* /*d_comp*/) {
+void sort_by_key_pullback(
+    KeyIterator keys_first, KeyIterator keys_last, ValueIterator values_first,
+    Compare comp, KeyIterator* d_keys_first, KeyIterator* d_keys_last,
+    ValueIterator* d_values_first, Compare* /*d_comp*/,
+    clad::pullback_state<::thrust::device_vector<::std::size_t>> state) {
   using ValueConst = typename ::std::iterator_traits<ValueIterator>::value_type;
   using Value = ::std::remove_const_t<ValueConst>;
   using KeyConst = typename ::std::iterator_traits<KeyIterator>::value_type;
@@ -1344,9 +1343,9 @@ void sort_by_key_pullback(KeyIterator keys_first, KeyIterator keys_last,
   if (n == 0)
     return;
 
-  auto& stack = detail::permutation_stack();
-  ::thrust::device_vector<::std::size_t> perm = ::std::move(stack.back());
-  stack.pop_back();
+  // Permutation produced by the matching reverse_forw, threaded in via
+  // pullback_state.
+  ::thrust::device_vector<::std::size_t> perm = ::std::move(state.data);
 
   auto d_vals_const_ptr = ::thrust::raw_pointer_cast((*d_values_first).base());
   auto d_vals_ptr = const_cast<Value*>(d_vals_const_ptr);
