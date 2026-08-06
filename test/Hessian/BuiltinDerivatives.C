@@ -406,12 +406,12 @@ int main() {
 // CHECK-NEXT:     double _d_cond0;
 // CHECK-NEXT:     _d_cond0 = 0.;
 // CHECK-NEXT:     bool _cond1 = false;
-// CHECK-NEXT:     bool _t0;
+// CHECK-NEXT:     bool _t0 = false;
 // CHECK-NEXT:     bool _cond2 = false;
 // CHECK-NEXT:     bool _cond3 = false;
-// CHECK-NEXT:     float _t2;
-// CHECK-NEXT:     float _t3;
-// CHECK-NEXT:     float _t4;
+// CHECK-NEXT:     float _t2 = 0.F;
+// CHECK-NEXT:     float _t3 = 0.F;
+// CHECK-NEXT:     float _t4 = 0.F;
 // CHECK-NEXT:     float _d_val = 0.F;
 // CHECK-NEXT:     float val = ::std::pow(x, exponent);
 // CHECK-NEXT:     float _t1 = ::std::pow(x, exponent - 1);
