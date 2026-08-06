@@ -119,6 +119,15 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
 
   ## Find supported Clang
 
+  # Emscripten builds of clangInterpreter link lldWasm/lldCommon
+  # (clang/lib/Interpreter/CMakeLists.txt), so ClangTargets.cmake references
+  # LLD targets and find_package(Clang) fails unless LLD is found first.
+  if (DEFINED LLD_DIR)
+    find_package(LLD QUIET CONFIG PATHS ${LLD_DIR} "${LLD_DIR}/lib/cmake/lld" "${LLD_DIR}/cmake" NO_DEFAULT_PATH)
+  else()
+    find_package(LLD QUIET CONFIG HINTS "${LLVM_DIR}/../lld" "${LLVM_BINARY_DIR}/lib/cmake/lld")
+  endif()
+
   if (DEFINED CLANG_VERSION)
     message(FATAL_ERROR "Clang's configuration is not versioned. Please set LLVM_VERSION instead.")
   endif(DEFINED CLANG_VERSION)
