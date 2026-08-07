@@ -86,6 +86,22 @@ double recEarly(double x, double y) {
 
 double callsRec(double x, double y) { return recEarly(x, y); }
 
+double nested_early_return(double x, double y) {
+  if (x > 0) {
+    x = x * y; 
+  }
+  if (x < 0) {
+    return 0;  
+  }
+  return x;
+}
+
+// CHECK-LABEL: void nested_early_return_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     bool _cond0 = false;
+// CHECK-NEXT:     double _t0 = 0.;
+// CHECK-NEXT:     bool _cond1 = false;
+
+
 int main() {
   double dx = 0, dy = 0;
 
@@ -127,4 +143,12 @@ int main() {
   dx = dy = 0;
   INIT_GRADIENT(callsRec);
   TEST_GRADIENT(callsRec, /*numOfDerivativeArgs=*/2, 3, 1, &dx, &dy); // CHECK-EXEC: {1.00, 1.00}
+
+  dx = dy = 0;
+  INIT_GRADIENT(nested_early_return);
+  // x > 0 triggers x = x * y, falling through to return x. 
+  TEST_GRADIENT(nested_early_return, /*numOfDerivativeArgs=*/2, 5, 3, &dx, &dy); // CHECK-EXEC: {3.00, 5.00}
+  dx = dy = 0;
+  // x < 0 takes the early return 0. 
+  TEST_GRADIENT(nested_early_return, /*numOfDerivativeArgs=*/2, -5, 3, &dx, &dy); // CHECK-EXEC: {0.00, 0.00}
 }
