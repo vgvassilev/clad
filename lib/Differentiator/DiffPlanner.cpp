@@ -1089,6 +1089,51 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (foundAnyDecl)
       *foundAnyDecl = true;
 
+    // A custom reverse_forw / pullback carries a trailing pullback_state<S>
+    // clad does not synthesize. Extend the expected signature with it before
+    // matching, or the declaration is rejected and the diagnostic omits the
+    // state the pullback must accept. S comes from the reverse_forw: the
+    // candidate itself, or -- for a pullback request -- its paired
+    // reverse_forw.
+    auto findStateParam = [](const LookupResult& LR) -> QualType {
+      for (const NamedDecl* ND : LR)
+        // getAsFunction sees through a FunctionTemplateDecl to its templated
+        // FunctionDecl -- a templated reverse_forw (e.g. the thrust
+        // derivatives) declares the state param there. The payload itself must
+        // still be non-dependent for GetPullbackStatePayload to recognize it.
+        if (const FunctionDecl* FD = ND->getUnderlyingDecl()->getAsFunction())
+          for (const ParmVarDecl* PVD : FD->parameters()) {
+            QualType PT = PVD->getType();
+            if (PT->isLValueReferenceType() &&
+                !utils::GetPullbackStatePayload(PT.getNonReferenceType())
+                     .isNull())
+              return PT.getNonReferenceType();
+          }
+      return {};
+    };
+    QualType stateParam;
+    if (R.Mode == DiffMode::reverse_mode_forward_pass)
+      stateParam = findStateParam(Found);
+    else if (R.Mode == DiffMode::pullback)
+      stateParam = findStateParam(
+          LookupPropagator(R.BaseFunctionName + "_reverse_forw"));
+    if (!stateParam.isNull())
+      if (const auto* FPT = dTy->getAs<FunctionProtoType>()) {
+        // The reverse_forw takes the state by reference (out-param); the
+        // pullback takes it by value.
+        QualType stateArg = R.Mode == DiffMode::reverse_mode_forward_pass
+                                ? C.getLValueReferenceType(stateParam)
+                                : stateParam;
+        llvm::SmallVector<QualType, 8> params(FPT->param_types().begin(),
+                                              FPT->param_types().end());
+        params.push_back(stateArg);
+        dTy = C.getFunctionType(FPT->getReturnType(), params,
+                                FPT->getExtProtoInfo());
+        // Remember it so Derive appends a matching argument when it builds the
+        // overload call for this custom derivative.
+        R.PullbackStateParam = stateArg;
+      }
+
     TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
                                               /*ForTakingAddress=*/false);
     if (Expr* overload =

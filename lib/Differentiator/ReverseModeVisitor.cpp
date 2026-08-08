@@ -2334,6 +2334,31 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
+    // A custom reverse_forw may take a trailing clad::pullback_state<S>&
+    // out-param to hand per-call state to its pullback (like restore_tracker,
+    // but consumed by the pullback). The request records it at scheduling; the
+    // value type is the carrier clad threads into both calls.
+    QualType pullbackStateType;
+    if (!calleeFnForwPassReq.PullbackStateParam.isNull())
+      pullbackStateType =
+          calleeFnForwPassReq.PullbackStateParam.getNonReferenceType();
+    // A reverse_forw that fills a carrier cannot be elided in favour of the
+    // primal -- its pullback needs the state -- so force the full path.
+    if (!pullbackStateType.isNull())
+      elideReverseForw = false;
+    // Declared on first use and reused by both calls, so the reverse_forw's
+    // out-argument is present even if the pullback later fails to resolve.
+    Expr* pullbackStateRef = nullptr;
+    auto getPullbackStateRef = [&]() -> Expr* {
+      if (!pullbackStateRef && !pullbackStateType.isNull()) {
+        VarDecl* stateDecl = BuildVarDecl(pullbackStateType, "_state",
+                                          getZeroInit(pullbackStateType));
+        addToCurrentBlock(BuildDeclStmt(stateDecl));
+        pullbackStateRef = BuildDeclRef(stateDecl);
+      }
+      return pullbackStateRef;
+    };
+
     // FIXME: consider moving non-diff analysis to DiffPlanner.
     bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE) ||
                    clad::utils::callOperatesOnNonDifferentiableType(m_Sema, CE);
@@ -2553,6 +2578,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (arg)
           pullbackCallArgs.push_back(arg);
 
+      // Thread the reverse_forw's pullback_state into the pullback as its
+      // trailing by-value argument. The carrier is filled in the forward sweep
+      // (by the reverse_forw) and read here in the reverse sweep.
+      if (asGrad)
+        if (Expr* st = getPullbackStateRef())
+          pullbackCallArgs.push_back(CloneNode(st));
+
       if (!asGrad) {
         pullbackCallArgs.resize(1);
         pullbackCallArgs.push_back(ConstantFolder::synthesizeLiteral(
@@ -2724,13 +2756,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return {call, call_dx};
     }
 
+    // A reverse_forw that carries pullback_state is mandatory even when clad
+    // could otherwise call the primal directly: the pullback consumes state
+    // only the reverse_forw produces, so eliding it would leave the carrier
+    // empty and silently wrong.
     if (calleeFnForwPassFD && !hasDynamicNonDiffParams &&
-        (hasStoredParams || needsForwPass)) {
+        (hasStoredParams || needsForwPass || !pullbackStateType.isNull())) {
       if (const auto* CD = dyn_cast<CXXConversionDecl>(FD))
         CallArgs.push_back(
             utils::GetCladTagExpr(m_Sema, CD->getConversionType()));
       CallArgs.insert(CallArgs.end(), revForwAdjointArgs.begin(),
                       revForwAdjointArgs.end());
+      // Pass the same _state carrier the pullback receives, so the reverse_forw
+      // fills it in the forward sweep. It precedes any restore_tracker, which
+      // remains the trailing argument.
+      if (Expr* st = getPullbackStateRef())
+        CallArgs.push_back(CloneNode(st));
       // Build the restore_tracker parameter
       // ```
       // clad::restore_tracker _tracker0 = {};

@@ -13,6 +13,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/SourceLocation.h"
 
@@ -260,6 +261,18 @@ public:
   /// UnresolvedLookupExpr or DeclRefExpr representing the custom derivative
   /// overload
   clang::Expr* CustomDerivative = nullptr;
+
+  /// The trailing clad::pullback_state<S> parameter a custom reverse_forw /
+  /// pullback carries, already in argument form (by reference for a
+  /// reverse_forw, by value for a pullback), or null when none. clad does not
+  /// synthesize this parameter, so it is appended to the expected derivative
+  /// signature when matching the overload and when building its overload call.
+  clang::QualType PullbackStateParam;
+  // FIXME: First per-request fact communicated across the request graph. The
+  // finer call-site activity that would let a pullback early-exit inactive
+  // branches or narrow toward a directional call wants the same channel: rework
+  // DVI and the varied/useful structs into one composable, finer-grained
+  // activity model on the request (on the AST), propagated down each subgraph.
 
   /// A pointer to keep track of the prototype of the derived functions.
   /// For higher order derivatives, we store the entire sequence of

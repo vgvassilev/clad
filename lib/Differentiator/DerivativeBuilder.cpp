@@ -555,10 +555,18 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         QualType DerivativeType =
             utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
                                      diffParams, /*forCustomDerv=*/true);
-        // Generate dummy inits
+        // Generate dummy inits. A custom reverse_forw / pullback may carry a
+        // trailing clad::pullback_state<S> parameter that clad does not
+        // synthesize into DerivativeType; append it so the overload call has
+        // the right arity (see DiffRequest::PullbackStateParam).
+        llvm::ArrayRef<QualType> protoParamTypes =
+            cast<FunctionProtoType>(DerivativeType)->getParamTypes();
+        llvm::SmallVector<QualType, 8> paramTypes(protoParamTypes.begin(),
+                                                  protoParamTypes.end());
+        if (!request.PullbackStateParam.isNull())
+          paramTypes.push_back(request.PullbackStateParam);
         llvm::SmallVector<Expr*, 4> Inits;
-        for (QualType parTy :
-             cast<FunctionProtoType>(DerivativeType)->getParamTypes()) {
+        for (QualType parTy : paramTypes) {
           // Build dummy exprs of form ``static_cast<DesiredType>(*nullptr)``
           // to trick clang into thinking we use lvalues.
           QualType ptrType = m_Sema.getASTContext().getPointerType(
