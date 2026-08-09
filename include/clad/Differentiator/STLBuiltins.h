@@ -628,6 +628,19 @@ void shrink_to_fit_reverse_forw(::std::vector<T>* v,
   v->shrink_to_fit();
 }
 
+// The element count does not depend on the element values, so these mirror
+// size_pushforward/capacity_pushforward, which report a zero derivative.
+// Without them clad differentiates the standard library implementation of
+// size()/capacity(), which is pointer arithmetic over the internal members and
+// whose pullback is only empty by accident of how the header is written.
+template <typename T, typename P>
+void size_pullback(const ::std::vector<T>* /*v*/, P /*d_y*/,
+                   ::std::vector<T>* /*d_v*/) noexcept;
+
+template <typename T, typename P>
+void capacity_pullback(const ::std::vector<T>* /*v*/, P /*d_y*/,
+                       ::std::vector<T>* /*d_v*/) noexcept;
+
 // array reverse mode
 
 template <typename T, ::std::size_t N>
