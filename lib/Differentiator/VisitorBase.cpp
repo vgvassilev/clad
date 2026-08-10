@@ -26,6 +26,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
@@ -419,20 +420,67 @@ namespace clad {
     llvm::SmallVector<Stmt*, 16> Remaining;
     for (Stmt* S : Suffix) {
       auto* DS = dyn_cast<DeclStmt>(S);
-      bool Move = DS != nullptr;
-      if (DS)
-        for (Decl* D : DS->decls()) {
-          auto* VD = dyn_cast<VarDecl>(D);
-          if (!VD || !contains(VD) || !selfContained(VD)) {
-            Move = false;
-            break;
-          }
-        }
-      if (Move) {
-        Prefix.push_back(S);
-        note(S);
-      } else
+      bool AnyCaptured = DS && llvm::any_of(DS->decls(), [&](Decl* D) {
+                           auto* VD = dyn_cast<VarDecl>(D);
+                           return VD && contains(VD);
+                         });
+      if (!AnyCaptured) {
         Remaining.push_back(S);
+        continue;
+      }
+
+      // At least one decl here is captured; rebuild the DeclStmt decl-by-decl.
+      // A captured decl with a self-contained initializer moves whole; one
+      // that isn't (e.g. `double y = n + x;`, reading a not-yet-hoisted `n`)
+      // is split: a zero-initialized declaration precedes the lambda and a
+      // plain assignment with the real value stays at the original spot.
+      // Referencing a local before any DeclStmt for it has run makes CodeGen
+      // treat it as a block-scope static instead of a real capture
+      // (vgvassilev/clad#1940); splitting avoids that while still computing
+      // the value -- and any side effects -- exactly where the original
+      // control flow put it. Decls that are neither (an uncaptured neighbour
+      // in `double a = n + x, c = 3.;`, or an array, which has no
+      // whole-object assignment to split into) stay behind, regrouped into a
+      // DeclStmt at the point their order requires.
+      llvm::SmallVector<Decl*, 4> KeptHere;
+      auto flushKept = [&]() {
+        if (KeptHere.empty())
+          return;
+        Remaining.push_back(m_V.BuildDeclStmt(KeptHere));
+        KeptHere.clear();
+      };
+      for (Decl* D : DS->decls()) {
+        auto* VD = dyn_cast<VarDecl>(D);
+        bool Hoistable = VD && contains(VD);
+        if (Hoistable && selfContained(VD)) {
+          flushKept();
+          Prefix.push_back(m_V.BuildDeclStmt(VD));
+          note(Prefix.back());
+          continue;
+        }
+        // Splitting needs a whole-object assignment, which an array type has
+        // no spelling for; an element-wise copy would need
+        // ReverseModeVisitor::BuildArrayAssignment, out of this shared
+        // VisitorBase utility's reach. Keep the decl -- findUseBeforeDecl
+        // still reports it if it really was captured.
+        if (!Hoistable || isa<ArrayType>(VD->getType())) {
+          KeptHere.push_back(D);
+          continue;
+        }
+        // selfContained() is true for an initializer-less decl, so reaching
+        // here means there is an initializer to move into the assignment.
+        Expr* Init = VD->getInit();
+        Expr* DeclRef = m_V.BuildDeclRef(VD);
+        m_V.SetDeclInit(VD, m_V.getZeroInit(VD->getType()));
+        flushKept();
+        Prefix.push_back(m_V.BuildDeclStmt(VD));
+        // Not noted: the hoisted decl only holds a placeholder until the
+        // assignment below runs, so a later decl reading VD (e.g. a
+        // `_t0 = y` snapshot of a split `y`) must go through this same split
+        // path rather than treat the placeholder as the real value.
+        Remaining.push_back(m_V.BuildOp(BO_Assign, DeclRef, Init));
+      }
+      flushKept();
     }
     Suffix = std::move(Remaining);
   }

@@ -86,6 +86,30 @@ double recEarly(double x, double y) {
 
 double callsRec(double x, double y) { return recEarly(x, y); }
 
+// The early return is the very first statement, so the forward-sweep split
+// at the lambda's insertion point starts empty: n, a, b, and a's
+// pre-multiplication snapshot are all declared after it, yet the reverse
+// sweep (inside the lambda) reads them for the product rule on `a *= b`.
+// Those decls must still end up visible -- and correctly valued -- before
+// the lambda, not left behind it where CodeGen would mistake a captured-but-
+// not-yet-declared local for a block-scope static (vgvassilev/clad#1940).
+// `b, c` is one DeclStmt with mixed needs -- b is captured and must move, c
+// is not captured at all -- so the hoister has to take that statement apart
+// and leave c where it was.
+double declAfterEarly(double x, double y) {
+  if (y == 0)
+    return 1;
+  double n = y;
+  double a = n + x;
+  double b = n, c = 2 * x;
+  a *= b;
+  return a + c;
+}
+
+// CHECK-LABEL: void declAfterEarly_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: auto _rev0 = [&
+// CHECK-NOT: this is a clad bug
+
 int main() {
   double dx = 0, dy = 0;
 
@@ -127,4 +151,12 @@ int main() {
   dx = dy = 0;
   INIT_GRADIENT(callsRec);
   TEST_GRADIENT(callsRec, /*numOfDerivativeArgs=*/2, 3, 1, &dx, &dy); // CHECK-EXEC: {1.00, 1.00}
+
+  dx = dy = 0;
+  INIT_GRADIENT(declAfterEarly);
+  // y == 0 takes the early return: d(1) = {0, 0}.
+  TEST_GRADIENT(declAfterEarly, /*numOfDerivativeArgs=*/2, 3, 0, &dx, &dy); // CHECK-EXEC: {0.00, 0.00}
+  dx = dy = 0;
+  // y != 0 falls through: (y + x) * y + 2x, so d = {y + 2, x + 2y}.
+  TEST_GRADIENT(declAfterEarly, /*numOfDerivativeArgs=*/2, 3, 5, &dx, &dy); // CHECK-EXEC: {7.00, 13.00}
 }
