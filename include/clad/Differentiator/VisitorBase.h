@@ -290,10 +290,14 @@ namespace clad {
       void collect(llvm::ArrayRef<clang::Stmt*> Body);
       /// A `[&]` capture binds a variable at the lambda's definition point, so
       /// every captured decl must precede the lambda. \p Prefix and \p Suffix
-      /// are the forward block split at the lambda's insertion point; move each
-      /// captured DeclStmt from Suffix to the end of Prefix when its
-      /// initializer references only names already live there -- the function's
-      /// parameters, \p AlreadyLive (decls emitted earlier), and Prefix.
+      /// are the forward block split at the lambda's insertion point. Each
+      /// captured decl in \p Suffix moves to the end of \p Prefix: whole, if
+      /// its initializer references only names already live there (the
+      /// function's parameters, \p AlreadyLive, and \p Prefix); otherwise
+      /// split into a zero-initialized declaration (moved) plus an assignment
+      /// left at the original spot, so the real value is still computed where
+      /// the original control flow put it. Array decls, which have no
+      /// whole-object assignment to split into, stay in \p Suffix.
       void orderCaptureDecls(llvm::SmallVectorImpl<clang::Stmt*>& Prefix,
                              llvm::SmallVectorImpl<clang::Stmt*>& Suffix,
                              llvm::ArrayRef<clang::Stmt*> AlreadyLive);
