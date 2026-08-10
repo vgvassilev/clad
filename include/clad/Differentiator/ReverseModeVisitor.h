@@ -120,6 +120,7 @@ namespace clad {
 
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
+    unsigned m_PlaceholderCount = 0;
     llvm::SmallVector<clang::Expr*, 1> m_Pullback;
     const char* funcPostfix() const {
       if (m_DiffReq.Mode == DiffMode::jacobian)

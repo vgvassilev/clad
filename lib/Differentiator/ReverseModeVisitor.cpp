@@ -4430,11 +4430,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // VISITED forward value at every occurrence -- so a stored condition
       // `_cond0` (not the raw operand) is used, preserving correctness. The
       // placeholder may be cloned by de-sharing callsites; PlaceholderReplacer
-      // matches it structurally (by value) so clones are replaced too.
-      // Its value is arbitrary but distinctive to aid
-      // debugging if one ever leaks.
+      // matches it structurally (by value) so clones are replaced too. Its
+      // value is arbitrary but distinctive to aid debugging if one ever leaks,
+      // but it must not be shared among placeholder: nested multiplications
+      // keep the outer placeholder live while the inner one is finalized. The
+      // base stays below 2^24 so that base + serial is exact in `float` too.
+      constexpr unsigned placeholderBase = 0xBAD000;
       Expr* PH = ConstantFolder::synthesizeLiteral(E->getType(), m_Context,
-                                                   /*val=*/~0U);
+                                                   /*val=*/placeholderBase +
+                                                       m_PlaceholderCount++);
       return DelayedStoreResult{*this,
                                 StmtDiff{PH, /*diff=*/nullptr, PH},
                                 /*Declaration=*/nullptr,
