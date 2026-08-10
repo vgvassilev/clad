@@ -640,14 +640,24 @@ void InitTimers();
         // Traverse all collected DeclGroupRef only once to create the static
         // graph.
         TimedAnalysisRegion R("Rest of TU");
-        for (auto DCI : m_DelayedCalls)
-          for (Decl* D : DCI.m_DGR) {
+        // Plan() appends to m_DelayedCalls: planning instantiates templates,
+        // which re-enters this plugin's HandleTopLevelDecl. Inserting into a
+        // deque invalidates every iterator to it, though not references to its
+        // elements (see [deque.modifiers]/1,
+        // https://eel.is/c++draft/deque.modifiers#1), so a range-for -- whose
+        // end() is computed once, up front -- walks invalidated iterators from
+        // the first such append onwards. Index and re-read size() instead, as
+        // SendToMultiplexer already does.
+        for (size_t i = 0; i < m_DelayedCalls.size(); ++i) {
+          const DeclGroupRef DGR = m_DelayedCalls[i].m_DGR;
+          for (Decl* D : DGR) {
             if (const auto* FD = dyn_cast<FunctionDecl>(D))
               if (FD->isConstexpr())
                 continue;
-            getScheduler().Plan(DCI.m_DGR);
+            getScheduler().Plan(DGR);
             break;
           }
+        }
 
         if (m_CI.getFrontendOpts().ShowStats) {
           // Print the graph of the diff requests.
