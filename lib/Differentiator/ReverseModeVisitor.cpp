@@ -2476,7 +2476,29 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             }
           }
         }
-        if (Expr* baseDerivative = baseDiff.getExpr_dx()) {
+        Expr* baseDerivative = baseDiff.getExpr_dx();
+        // A synthesized zero init (e.g. the `0` a pointer base without an
+        // adjoint differentiates to) is an rvalue whose address cannot be
+        // taken; treat it as an absent adjoint.
+        if (baseDerivative && !baseDerivative->getType()->isPointerType() &&
+            !baseDerivative->isLValue())
+          baseDerivative = nullptr;
+        if (!baseDerivative && !nonDiff) {
+          // The base has no adjoint of its own -- e.g. a read-only global, or
+          // an object reached through a cast address. The `_d_this` slot of
+          // the pullback must stay filled nonetheless: pass a zero-initialized
+          // placeholder whose contribution is discarded.
+          QualType dBaseTy = baseOriginalE->getType();
+          if (dBaseTy->isPointerType())
+            dBaseTy = dBaseTy->getPointeeType();
+          dBaseTy =
+              utils::getNonConstType(dBaseTy.getNonReferenceType(), m_Sema);
+          VarDecl* dBaseDecl =
+              BuildVarDecl(dBaseTy, "_r", getZeroInit(dBaseTy));
+          PreCallStmts.push_back(BuildDeclStmt(dBaseDecl));
+          baseDerivative = BuildDeclRef(dBaseDecl);
+        }
+        if (baseDerivative) {
           if (!baseDerivative->getType()->isPointerType())
             baseDerivative = BuildOp(UO_AddrOf, baseDerivative);
           CallArgDx.push_back(baseDerivative);

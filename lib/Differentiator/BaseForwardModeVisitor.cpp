@@ -1077,15 +1077,44 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         baseOriginalE = OCE->getArg(0);
       baseDiff = Visit(baseOriginalE);
       Expr* baseDerivative = baseDiff.getExpr_dx();
-      // A base that does not depend on the differentiation variable has no
-      // tangent, hence no pushforward to call, and contributes nothing to the
-      // directional derivative.
-      if (!baseDerivative || baseDerivative->getType()->isVoidType())
-        return StmtDiff(Clone(CE),
-                        getZeroInit(CE->getType().getNonReferenceType()));
-      if (!baseDerivative->getType()->isPointerType())
-        baseDerivative = BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
-      diffArgs.push_back(baseDerivative);
+      if (!baseDerivative || baseDerivative->getType()->isVoidType()) {
+        // The base does not depend on the differentiation variable and has no
+        // tangent. The call may still contribute to the directional derivative
+        // through its arguments: consult the activity information of the
+        // DiffRequest to find out. If no argument is varied either, the call
+        // contributes nothing.
+        bool anyVariedArg = false;
+        for (unsigned i = isa<CXXOperatorCallExpr>(CE) ? 1 : 0,
+                      e = CE->getNumArgs();
+             i < e; ++i) {
+          const Expr* arg = CE->getArg(i);
+          if (utils::IsDifferentiableType(arg->getType()) &&
+              m_DiffReq.isVaried(arg)) {
+            anyVariedArg = true;
+            break;
+          }
+        }
+        if (!anyVariedArg)
+          return StmtDiff(Clone(CE),
+                          getZeroInit(CE->getType().getNonReferenceType()));
+        // The arguments drive the derivative through the pushforward, whose
+        // `_d_this` slot must stay filled: pass a zero-initialized
+        // placeholder, mirroring the zero adjoint reverse mode synthesizes
+        // for such a base.
+        QualType baseTy = baseOriginalE->getType();
+        if (baseTy->isPointerType())
+          baseTy = baseTy->getPointeeType();
+        baseTy = baseTy.getNonReferenceType().getUnqualifiedType();
+        VarDecl* dBaseVD = BuildVarDecl(baseTy, "_d_base", getZeroInit(baseTy));
+        addToCurrentBlock(BuildDeclStmt(dBaseVD));
+        diffArgs.push_back(
+            BuildOp(UnaryOperatorKind::UO_AddrOf, BuildDeclRef(dBaseVD)));
+      } else {
+        if (!baseDerivative->getType()->isPointerType())
+          baseDerivative =
+              BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
+        diffArgs.push_back(baseDerivative);
+      }
     }
   }
 
@@ -1390,8 +1419,13 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
         op, ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0));
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
     Expr* derivedOp = diff.getExpr_dx();
-    if (derivedOp)
-      derivedOp = BuildOp(opKind, diff.getExpr_dx());
+    // A subexpression without a tangent of its own (e.g. an object that does
+    // not depend on the differentiation variable) yields a synthesized zero
+    // init, which is an rvalue and has no address.
+    if (derivedOp && !derivedOp->getType()->isVoidType())
+      derivedOp = BuildOp(opKind, derivedOp);
+    else
+      derivedOp = nullptr;
     return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_LNot) {
     Expr* zero = getZeroInit(UnOp->getType());
@@ -1844,11 +1878,14 @@ BaseForwardModeVisitor::VisitCXXNamedCastExpr(const CXXNamedCastExpr* NCE) {
           .BuildCXXNamedCast(Loc, CastKind, TSI, subExprDiff.getExpr(),
                              Brackets, Range)
           .get();
-  Expr* castExprDiff =
-      m_Sema
-          .BuildCXXNamedCast(Loc, CastKind, TSI, subExprDiff.getExpr_dx(),
-                             Brackets, Range)
-          .get();
+  // A subexpression without a tangent (e.g. the address of an object that
+  // does not depend on the differentiation variable) has nothing to cast.
+  Expr* subExprDx = subExprDiff.getExpr_dx();
+  Expr* castExprDiff = nullptr;
+  if (subExprDx && !subExprDx->getType()->isVoidType())
+    castExprDiff =
+        m_Sema.BuildCXXNamedCast(Loc, CastKind, TSI, subExprDx, Brackets, Range)
+            .get();
   return StmtDiff(castExpr, castExprDiff);
 }
 
