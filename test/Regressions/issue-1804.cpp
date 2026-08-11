@@ -32,6 +32,29 @@ double g_outer(double *params, double const *obs) { return g_inner(params, obs);
 // CHECK: clad::ValueAndPushforward<double, double> g_inner_pushforward(double *params, const double *obs, double *_d_params, const double *_d_obs) {
 // CHECK-NEXT:     return {*obs * params[0], (_d_obs ? *_d_obs : 0.) * params[0] + *obs * _d_params[0]};
 
+// A local pointer inherits the null tangent of the one it is derived from. The
+// classification runs over the whole function at once, so that a read that
+// precedes the assignment making the tangent null -- as `p[0]` does here from
+// the second iteration on -- is guarded too.
+double h_inner(double *params, double const *obs) {
+   const double *q = obs;
+   double buf[1] = {params[0]};
+   const double *p = buf;
+   double s = q[0] * params[0];
+   for (int i = 0; i < 2; ++i) {
+      s += p[0] * params[0];
+      p = obs;
+   }
+   return s;
+}
+
+double h_outer(double *params, double const *obs) { return h_inner(params, obs); }
+
+// CHECK: clad::ValueAndPushforward<double, double> h_inner_pushforward(double *params, const double *obs, double *_d_params, const double *_d_obs) {
+// CHECK-NEXT:     const double *_d_q = _d_obs;
+// CHECK: double _d_s = (_d_q ? _d_q[0] : 0.) * params[0] + q[0] * _d_params[0];
+// CHECK: _d_s += (_d_p ? _d_p[0] : 0.) * params[0] + p[0] * _d_params[0];
+
 // Clang prints the type of a compound literal as `double [3]` up to clang 13
 // and as `double[3]` from clang 14 on, so accept either spelling.
 // CHECK: f_inner_pushforward_pullback(params, obs, (double{{ ?}}[3]){1., 0., 0.}, nullptr, _d_t0, _d_params, (double{{ ?}}[3]){0., 0., 0.}, nullptr);
@@ -60,4 +83,9 @@ int main() {
    auto d = clad::differentiate(g_outer, "params[0]");
    printf("%.5g\n", d.execute(params, obs));
    // CHECK-EXEC: -9.9
+
+   // s = obs0 * p0 + p0 * p0 + obs0 * p0, so ds/dp0 = 2 * obs0 + 2 * p0.
+   auto d2 = clad::differentiate(h_outer, "params[0]");
+   printf("%.5g\n", d2.execute(params, obs));
+   // CHECK-EXEC: -18.8
 }

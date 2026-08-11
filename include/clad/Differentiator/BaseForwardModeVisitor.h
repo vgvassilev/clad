@@ -65,20 +65,14 @@ public:
 
   virtual void ExecuteInsidePushforwardFunctionBlock() {}
 
-  /// Whether \p tangent is one clad itself may pass as a null pointer: the
-  /// derivative parameter standing for a const-qualified pointer parameter.
-  /// Clad cannot synthesize a tangent buffer for such a parameter, because its
-  /// size is unknown, so a pushforward call receives a null tangent for it,
-  /// spelling "the derivative of this argument is identically zero". Every
-  /// other tangent is either a local buffer or a pointer the caller has to
-  /// provide, and is therefore never null.
-  bool mayBeNullTangent(const clang::Expr* tangent) const;
-
   /// \returns \p read, the derivative expression dereferencing \p tangent,
   /// wrapped so that it evaluates to \p zero instead of dereferencing a null
-  /// \p tangent. Returns \p read unchanged when \p tangent cannot be null.
-  clang::Expr* GuardNullTangentRead(const clang::Expr* tangent,
-                                    clang::Expr* read, clang::Expr* zero);
+  /// \p tangent. \p ptr is the primal pointer expression \p tangent is the
+  /// tangent of; the request tells whether its tangent may be null, and \p read
+  /// is returned unchanged when it cannot be.
+  clang::Expr* GuardNullTangentRead(const clang::Expr* ptr,
+                                    clang::Expr* tangent, clang::Expr* read,
+                                    clang::Expr* zero);
 
   virtual StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
