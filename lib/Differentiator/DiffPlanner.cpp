@@ -1095,10 +1095,16 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
       return overload;
 
-    // Retry ValueAndPushforward<const T&, const T&> as
-    // ValueAndPushforward<T, T> after the exact match fails. This keeps
-    // reference-returning custom derivatives preferred while allowing
-    // assignable min/max results in higher-order differentiation.
+    // For an original that returns `const T&`, the expected pushforward
+    // returns ValueAndPushforward<const T&, const T&>. With two reference
+    // members that struct is neither default-constructible nor assignable,
+    // which breaks differentiating the generated code again at higher
+    // orders (issue #1872), so the min/max builtins return
+    // ValueAndPushforward<T, T> instead. Accept them by retrying the lookup
+    // with the expectation relaxed the same way. Retrying only after the
+    // exact match fails keeps genuinely reference-returning pushforwards
+    // (e.g. the STL builtins for operator[], at, front, back) matching as
+    // before.
     if (const auto* FPT = dTy->getAs<FunctionProtoType>()) {
       auto* CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
           FPT->getReturnType()->getAsCXXRecordDecl());

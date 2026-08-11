@@ -1028,6 +1028,12 @@ CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y, T1* d_x,
   *d_exponent += t.pushforward * d_y;
 }
 
+// The min/max pushforwards return ValueAndPushforward<T, T> by value even
+// though std::min/max return `const T&`: with reference members the struct
+// is neither default-constructible nor assignable, which breaks
+// differentiating the generated code again at higher orders (issue #1872).
+// GetDerivedFunctionType in DiffPlanner relaxes the expected overload type
+// to match.
 template <typename T, class Compare>
 CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 min_pushforward(const T& a, const T& b, Compare comp, const T& d_a,

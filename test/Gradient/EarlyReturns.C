@@ -1,13 +1,12 @@
 // RUN: %cladclang %s -I%S/../../include -oEarlyReturns.out 2>&1 | %filecheck %s
 // RUN: ./EarlyReturns.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oEarlyReturns.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oEarlyReturns.out 2>&1 | %filecheck --check-prefix=CHECK-NOTBR %s
 // RUN: ./EarlyReturns.out | %filecheck_exec %s
 //
-// The synthesized reverse lambda makes Clang's CodeGen emit a closure
-// constructor/destructor, whose exception landing-pad path
-// (EHScopeStack::requiresLandingPad) reads an uninitialized value inside
-// libclang on some runtimes. The read is Clang-internal and does not affect
-// the generated derivative; skip the run under Valgrind like the other tests.
+// The gradients must stay Memcheck-clean on every return path: the valgrind CI
+// row runs both executables, and the early path reads hoisted locals the
+// forward sweep never assigned, so their declarations may not leave
+// indeterminate bits behind.
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"
@@ -126,6 +125,94 @@ double declAfterEarly(double x, double y) {
 // CHECK: auto _rev0 = [&
 // CHECK-NOT: this is a clad bug
 
+// `r` and `c` are read by the reverse sweep, so the hoister splits them:
+// declaration before the lambda, initializer left behind as an assignment.
+// Neither survives that as spelled -- a reference cannot be declared unbound
+// and re-seated, a const cannot be assigned -- so the clone of `r` is a
+// pointer (as for a reference promoted to the function global scope) and `c`
+// loses its const (vgvassilev/clad#1954).
+double refAfterEarly(double x, double y) {
+  if (y == 0)
+    return 1;
+  double a = x * y;
+  double& r = a;
+  const double c = r * r;
+  double d = c * c;
+  return d;
+}
+
+// CHECK-LABEL: void refAfterEarly_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: double *_d_r = &_d_a;
+// CHECK-NEXT: double _dummy0 = 0.;
+// CHECK-NEXT: double *r = &_dummy0;
+// CHECK-NEXT: double _d_c = 0.;
+// CHECK-NEXT: double c = 0.;
+// CHECK: auto _rev0 = [&
+// CHECK: r = &a;
+// CHECK-NEXT: c = *r * *r;
+// CHECK-NOT: this is a clad bug
+
+// The same split with a record referent: the hoisted pointer clone must still
+// point somewhere on the early path, so the placeholder is a fresh
+// zero-initialized dummy -- possible because zero init of Pair, whose default
+// constructor is trivial, cannot run into a user-provided one.
+struct Pair {
+  double a;
+  double b;
+};
+
+double structRefAfterEarly(double x, double y) {
+  if (y == 0)
+    return 1;
+  Pair p;
+  p.a = x * y;
+  p.b = x + y;
+  Pair& r = p;
+  double d = r.a * r.b;
+  return d;
+}
+
+// CHECK-LABEL: void structRefAfterEarly_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: Pair _dummy0 = {0., 0.};
+// CHECK-NEXT: Pair *r = &_dummy0;
+// CHECK: auto _rev0 = [&
+// CHECK: r = &p;
+// CHECK-NOT: this is a clad bug
+
+// Without TBR the sweep also restores p's members from snapshots, so `p`
+// itself is captured and hoisted -- moved wholesale, its default init would
+// leave indeterminate members for the early path's sweep (and for the
+// snapshots, taken right after the hoisted declaration) to read. The hoist
+// must add a zero initializer.
+// CHECK-NOTBR-LABEL: void structRefAfterEarly_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NOTBR: Pair p = {0., 0.};
+// CHECK-NOTBR: double _t0 = p.a;
+
+// A record whose member initializers make the default constructor non-trivial
+// is not one clad will conjure: the placeholder stays null, and only the
+// fall-through path is defined.
+struct Seeded {
+  double a = 1.;
+  double b = 0.;
+};
+
+double nontrivialRefAfterEarly(double x, double y) {
+  if (y == 0)
+    return 1;
+  Seeded s;
+  s.a = x * y;
+  s.b = x + y;
+  Seeded& r = s;
+  double d = r.a * r.b;
+  return d;
+}
+
+// CHECK-LABEL: void nontrivialRefAfterEarly_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: Seeded *r = nullptr;
+// CHECK: auto _rev0 = [&
+// CHECK: r = &s;
+// CHECK-NOT: this is a clad bug
+
 int main() {
   double dx = 0, dy = 0;
 
@@ -183,4 +270,28 @@ int main() {
   dx = dy = 0;
   // y != 0 falls through: (y + x) * y + 2x, so d = {y + 2, x + 2y}.
   TEST_GRADIENT(declAfterEarly, /*numOfDerivativeArgs=*/2, 3, 5, &dx, &dy); // CHECK-EXEC: {7.00, 13.00}
+
+  dx = dy = 0;
+  INIT_GRADIENT(refAfterEarly);
+  // y != 0 falls through: (x * y)^4, so d = {4(xy)^3 y, 4(xy)^3 x}.
+  TEST_GRADIENT(refAfterEarly, /*numOfDerivativeArgs=*/2, 1, 2, &dx, &dy); // CHECK-EXEC: {64.00, 32.00}
+  dx = dy = 0;
+  // y == 0 takes the early return: d(1) = {0, 0}. The sweep still dereferences
+  // `r`, which this path never bound, so its placeholder must point somewhere.
+  TEST_GRADIENT(refAfterEarly, /*numOfDerivativeArgs=*/2, 1, 0, &dx, &dy); // CHECK-EXEC: {0.00, 0.00}
+
+  dx = dy = 0;
+  INIT_GRADIENT(structRefAfterEarly);
+  // y != 0 falls through: (x * y) * (x + y), so d = {y * (2x + y), x * (x + 2y)}.
+  TEST_GRADIENT(structRefAfterEarly, /*numOfDerivativeArgs=*/2, 1, 2, &dx, &dy); // CHECK-EXEC: {8.00, 5.00}
+  dx = dy = 0;
+  // y == 0 takes the early return; the sweep dereferences the never-bound `r`,
+  // which is defined only because the placeholder points at the Pair dummy.
+  TEST_GRADIENT(structRefAfterEarly, /*numOfDerivativeArgs=*/2, 1, 0, &dx, &dy); // CHECK-EXEC: {0.00, 0.00}
+
+  dx = dy = 0;
+  INIT_GRADIENT(nontrivialRefAfterEarly);
+  // Fall-through path only: with the null placeholder, the early path's sweep
+  // would dereference the never-bound `r`.
+  TEST_GRADIENT(nontrivialRefAfterEarly, /*numOfDerivativeArgs=*/2, 1, 2, &dx, &dy); // CHECK-EXEC: {8.00, 5.00}
 }
