@@ -161,6 +161,14 @@ private:
     bool HasAnalysisRun = false;
   } m_EarlyReturnInfo;
 
+  /// Cache for mayHaveNullTangent(): the primal's pointer variables that may
+  /// be given a null tangent. A property of the Function, computed once on
+  /// demand.
+  mutable struct NullTangentInfo {
+    std::set<const clang::VarDecl*> MaybeNullPtrs;
+    bool HasAnalysisRun = false;
+  } m_NullTangentInfo;
+
 public:
   /// The primal body's tail-position return -- the one an early-return encoder
   /// lets control fall through to, as opposed to an early return that needs a
@@ -175,6 +183,18 @@ public:
   /// lambdas belong to their own function and are skipped). A void function
   /// seeds no return value, so its returns skip the encoding.
   bool hasEarlyReturns() const;
+
+  /// Whether the tangent of the primal's pointer variable \p VD may be null at
+  /// run time. Clad cannot synthesize a tangent buffer for a const-qualified
+  /// pointer parameter, because its size is unknown, so a pushforward call
+  /// receives a null tangent for it, spelling "the derivative of this argument
+  /// is identically zero". A pointer of the body derived from such a parameter
+  /// -- and one clad has no tangent to give at all -- inherits that, so forward
+  /// mode has to guard the reads through their tangents. Every other tangent is
+  /// either a buffer clad allocated or a pointer the caller has to provide, and
+  /// is therefore never null. Answers false for a non-pointer, and for a
+  /// variable belonging to a function other than this request's.
+  bool mayHaveNullTangent(const clang::VarDecl* VD) const;
 
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;

@@ -944,23 +944,15 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     return StmtDiff(cloned, zero);
   Expr* adjoint = buildAdjoint(it->second);
   auto* result_at_is = BuildArraySubscript(adjoint, derivedIndices());
-  return StmtDiff(cloned, GuardNullTangentRead(adjoint, result_at_is, zero));
+  return StmtDiff(cloned,
+                  GuardNullTangentRead(base, adjoint, result_at_is, zero));
 }
 
-bool BaseForwardModeVisitor::mayBeNullTangent(const Expr* tangent) const {
-  const auto* DRE = dyn_cast<DeclRefExpr>(tangent->IgnoreParenImpCasts());
-  if (!DRE)
-    return false;
-  const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
-  if (!PVD || PVD->getDeclContext() != m_Derivative)
-    return false;
-  QualType T = PVD->getType();
-  return T->isPointerType() && T->getPointeeType().isConstQualified();
-}
-
-Expr* BaseForwardModeVisitor::GuardNullTangentRead(const Expr* tangent,
-                                                   Expr* read, Expr* zero) {
-  if (!mayBeNullTangent(tangent))
+Expr* BaseForwardModeVisitor::GuardNullTangentRead(const Expr* ptr,
+                                                   Expr* tangent, Expr* read,
+                                                   Expr* zero) {
+  const auto* DRE = dyn_cast<DeclRefExpr>(ptr->IgnoreParenImpCasts());
+  if (!DRE || !m_DiffReq.mayHaveNullTangent(dyn_cast<VarDecl>(DRE->getDecl())))
     return read;
   Expr* cond = CloneNode(tangent);
   return BuildParens(
@@ -1436,7 +1428,8 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     Expr* zero =
         ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0);
     if (Expr* dx = diff.getExpr_dx())
-      return StmtDiff(op, GuardNullTangentRead(dx, BuildOp(opKind, dx), zero));
+      return StmtDiff(op, GuardNullTangentRead(UnOp->getSubExpr(), dx,
+                                               BuildOp(opKind, dx), zero));
     return StmtDiff(op, zero);
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
     Expr* derivedOp = diff.getExpr_dx();

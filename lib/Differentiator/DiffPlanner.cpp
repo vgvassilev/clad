@@ -49,6 +49,7 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -441,6 +442,94 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     F.TraverseStmt(Def->getBody());
     m_EarlyReturnInfo = {F.Found, /*HasAnalysisRun=*/true};
     return F.Found;
+  }
+
+  namespace {
+  /// Propagates "the tangent of this pointer may be null" along the pointer
+  /// initializations and assignments of a function body, to a fixpoint. Runs on
+  /// the primal, so that the classification does not depend on the order in
+  /// which the derivative code is generated: a read may precede the assignment
+  /// that makes the tangent null, as it does across loop iterations.
+  class MaybeNullPointerPropagator
+      : public RecursiveASTVisitor<MaybeNullPointerPropagator> {
+    std::set<const VarDecl*>* m_MaybeNull;
+    bool m_Changed = false;
+
+    /// Whether \p E reads a pointer whose tangent may be null. Pointer
+    /// arithmetic and casts keep such a tangent null, so the whole expression
+    /// is searched.
+    bool readsMaybeNull(const Expr* E) const {
+      if (!E)
+        return false;
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts()))
+        if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+          if (m_MaybeNull->count(VD) != 0)
+            return true;
+      for (const Stmt* child : E->children())
+        if (const auto* childExpr = dyn_cast_or_null<Expr>(child))
+          if (readsMaybeNull(childExpr))
+            return true;
+      return false;
+    }
+
+    void taint(const VarDecl* VD) {
+      if (VD && VD->getType()->isPointerType() &&
+          m_MaybeNull->insert(VD).second)
+        m_Changed = true;
+    }
+
+  public:
+    explicit MaybeNullPointerPropagator(std::set<const VarDecl*>& maybeNull)
+        : m_MaybeNull(&maybeNull) {}
+
+    bool VisitVarDecl(VarDecl* VD) {
+      // A pointer clad has no tangent for is given a null one.
+      if (VD->getType()->isPointerType() &&
+          (!VD->getInit() || readsMaybeNull(VD->getInit())))
+        taint(VD);
+      return true;
+    }
+
+    bool VisitBinaryOperator(BinaryOperator* BO) {
+      if (BO->getOpcode() != BO_Assign || !BO->getType()->isPointerType() ||
+          !readsMaybeNull(BO->getRHS()))
+        return true;
+      const auto* DRE =
+          dyn_cast<DeclRefExpr>(BO->getLHS()->IgnoreParenImpCasts());
+      if (DRE)
+        taint(dyn_cast<VarDecl>(DRE->getDecl()));
+      return true;
+    }
+
+    void runToFixpoint(Stmt* Body) {
+      m_Changed = true;
+      while (m_Changed) {
+        m_Changed = false;
+        TraverseStmt(Body);
+      }
+    }
+  };
+  } // namespace
+
+  bool DiffRequest::mayHaveNullTangent(const VarDecl* VD) const {
+    if (!VD || !VD->getType()->isPointerType())
+      return false;
+    if (!m_NullTangentInfo.HasAnalysisRun) {
+      m_NullTangentInfo.HasAnalysisRun = true;
+      const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+      if (Def && Def->hasBody()) {
+        std::set<const VarDecl*>& MaybeNull = m_NullTangentInfo.MaybeNullPtrs;
+        // Clad has no tangent buffer to pass for a const-qualified pointer
+        // parameter; the pointers of the body derived from one inherit that.
+        for (const ParmVarDecl* PVD : Def->parameters()) {
+          QualType T = PVD->getType();
+          if (T->isPointerType() && T->getPointeeType().isConstQualified())
+            MaybeNull.insert(PVD);
+        }
+        MaybeNullPointerPropagator(MaybeNull).runToFixpoint(Def->getBody());
+      }
+    }
+    return m_NullTangentInfo.MaybeNullPtrs.count(VD) != 0;
   }
 
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
