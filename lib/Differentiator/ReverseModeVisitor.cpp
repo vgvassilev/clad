@@ -3498,15 +3498,31 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         !getCurrentScope()->isFunctionScope() &&
         m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass && !keepLocal;
     QualType VDType = VD->getType();
+    // A function-scope declaration is not promoted, but with early returns
+    // LambdaCaptures::orderCaptureDecls may still split it -- declaration
+    // hoisted before the reverse-sweep lambda, initializer left behind as an
+    // assignment -- so it needs the same reassignable type. Except when it is
+    // a reference binding a temporary: the pointer that makes a reference
+    // reassignable has no lvalue to point at (clad supports neither encoding
+    // of one anyway).
+    bool bindsTemporary =
+        VDType->isLValueReferenceType() &&
+        (!VD->getInit() || !VD->getInit()->IgnoreImplicit()->isLValue());
+    bool mayBeSplitForLambda =
+        !promoteToFnScope && m_DiffReq.hasEarlyReturns() &&
+        getCurrentScope()->isFunctionScope() &&
+        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass && !keepLocal &&
+        !bindsTemporary;
     QualType VDCloneType = CloneType(VDType);
-    // If the cloned declaration is moved to the function global scope,
-    // change its type to make it reassignable.
-    if (promoteToFnScope) {
-      if (VDCloneType->isReferenceType())
-        VDCloneType =
-            m_Context.getPointerType(VDCloneType.getNonReferenceType());
+    // If the cloned declaration is moved to the function global scope, or may
+    // be split for the early-return lambda, change its type to make it
+    // reassignable. The split drops its own const, once it knows it happens;
+    // the pointer has to be decided here, as it changes how uses are spelled.
+    if ((promoteToFnScope || mayBeSplitForLambda) &&
+        VDCloneType->isReferenceType())
+      VDCloneType = m_Context.getPointerType(VDCloneType.getNonReferenceType());
+    if (promoteToFnScope)
       VDCloneType.removeLocalConst();
-    }
     // A variable-array type carries its size in a stored expression, so the
     // primal and adjoint declarations would otherwise share it. Re-clone the
     // type for such adjoints; other types keep the (possibly promoted)
@@ -3648,14 +3664,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (VDDerived)
       derivedVDE = BuildDeclRef(VDDerived);
 
-    // If a ref-type declaration is promoted to function global scope,
-    // it's replaced with a pointer and should be initialized with the
-    // address of the cloned init. e.g.
+    // If a ref-type declaration is promoted to function global scope (or may
+    // be split for the early-return lambda), it's replaced with a pointer and
+    // should be initialized with the address of the cloned init. e.g.
     // double& ref = x;
     // ->
     // double* ref;
     // ref = &x;
-    if (isRefType && promoteToFnScope) {
+    if (isRefType && (promoteToFnScope || mayBeSplitForLambda)) {
       // FIXME: Add extra parantheses if derived variable pointer is pointing to
       // a class type object.
       initDiff = {BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),
@@ -3698,7 +3714,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
                                         derivedVDE, initDiff.getExpr_dx());
       addToCurrentBlock(assignDerivativeE, direction::forward);
-      SetDeclInit(VDDerived, getZeroInit(VDDerivedType));
+      // An early return between this declaration and the assignment above
+      // leaves the reverse sweep writing through the placeholder.
+      Expr* placeholder =
+          BuildDereferenceablePlaceholder(VDDerivedType, m_Globals);
+      SetDeclInit(VDDerived,
+                  placeholder ? placeholder : getZeroInit(VDDerivedType));
       if (isInsideLoop) {
         StmtDiff pushPop = StoreAndRestore(derivedVDE);
         if (!keepLocal)
@@ -3848,7 +3869,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               }
             }
             inits.push_back(assignment);
-            SetDeclInit(decl, getZeroInit(VD->getType()));
+            // Same care as for the adjoint in DifferentiateVarDecl: the
+            // reverse sweep reads this clone (a promoted reference is spelled
+            // as a pointer too) on a path taken before the assignment above.
+            Expr* placeholder =
+                BuildDereferenceablePlaceholder(decl->getType(), m_Globals);
+            SetDeclInit(decl,
+                        placeholder ? placeholder : getZeroInit(VD->getType()));
           }
         }
 

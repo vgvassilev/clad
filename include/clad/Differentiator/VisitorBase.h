@@ -696,6 +696,19 @@ namespace clad {
     /// Returns 0 for scalar types, otherwise {}.
     clang::Expr* getZeroInit(clang::QualType T);
 
+    /// The placeholder a moved pointer declaration of type \p PtrTy holds
+    /// until the forward sweep assigns it. Null would do, except with early
+    /// returns: the reverse sweep runs on every return path, so it reads and
+    /// writes through pointers the taken path never assigned. Those accesses
+    /// carry zero adjoints and cannot change the gradient, but they do have to
+    /// be defined -- so point the declaration at a fresh dummy of the pointee
+    /// type, declared into \p Block. Returns null when unneeded (no early
+    /// returns, not a pointer, or a pointee clad cannot zero-initialize),
+    /// leaving the placeholder to the caller.
+    clang::Expr*
+    BuildDereferenceablePlaceholder(clang::QualType PtrTy,
+                                    llvm::SmallVectorImpl<clang::Stmt*>& Block);
+
     /// Split an array subscript expression into a pair of base expr and
     /// a vector of all indices.
     std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>

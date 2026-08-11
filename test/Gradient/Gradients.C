@@ -1098,12 +1098,20 @@ double f_ref_in_rhs(double x, double y) {
   return 1;
 }
 
+// On the `x == 55` path the lambda dereferences the reference clones before
+// the branch binding them ran, so their placeholders point at a dummy each
+// instead of at null. One dummy per clone: sharing would let a dead
+// statement's write reach a later dead read, and from there a real adjoint.
 //CHECK: void f_ref_in_rhs_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:     bool _cond0 = false;
-//CHECK-NEXT:     double *_d_ref_x = nullptr;
-//CHECK-NEXT:     double *ref_x = {};
-//CHECK-NEXT:     double *_d_ref_y = nullptr;
-//CHECK-NEXT:     double *ref_y = {};
+//CHECK-NEXT:     double _dummy0 = 0.;
+//CHECK-NEXT:     double _dummy1 = 0.;
+//CHECK-NEXT:     double *_d_ref_x = &_dummy0;
+//CHECK-NEXT:     double *ref_x = &_dummy1;
+//CHECK-NEXT:     double _dummy2 = 0.;
+//CHECK-NEXT:     double _dummy3 = 0.;
+//CHECK-NEXT:     double *_d_ref_y = &_dummy2;
+//CHECK-NEXT:     double *ref_y = &_dummy3;
 //CHECK-NEXT:     auto _rev0 = [&] {
 //CHECK-NEXT:         if (_cond0) {
 //CHECK-NEXT:             {
@@ -1316,6 +1324,8 @@ int main() {
 
   INIT_GRADIENT(f_ref_in_rhs);
   TEST_GRADIENT(f_ref_in_rhs, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {5.00, 13.00}
+  // The tail return, where the sweep runs over clones this path never bound.
+  TEST_GRADIENT(f_ref_in_rhs, /*numOfDerivativeArgs=*/2, 55, 5, &d_i, &d_j);  // CHECK-EXEC: {0.00, 0.00}
 
   INIT_GRADIENT(f_reuse_global);
   TEST_GRADIENT(f_reuse_global, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {-4.00, 3.00}

@@ -21,6 +21,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -454,6 +455,21 @@ namespace clad {
         bool Hoistable = VD && contains(VD);
         if (Hoistable && selfContained(VD)) {
           flushKept();
+          // Moved wholesale, the decl may still carry no real initial value:
+          // default init of a scalar or of a trivially-default-constructible
+          // record leaves indeterminate bits. In place that was fine -- the
+          // original program wrote them before any read -- but hoisted above
+          // the lambda they become readable by the reverse sweep on a path
+          // that returns before those writes. The adjoints there are zero, so
+          // only definedness is at stake; a zero initializer settles it.
+          const Expr* Init = VD->getInit();
+          bool Indeterminate = !Init;
+          if (const auto* CE = dyn_cast_or_null<CXXConstructExpr>(Init))
+            Indeterminate = CE->getConstructor()->isDefaultConstructor() &&
+                            CE->getConstructor()->isTrivial();
+          if (Indeterminate)
+            if (Expr* Zero = m_V.getZeroInit(VD->getType()))
+              m_V.SetDeclInit(VD, Zero);
           Prefix.push_back(m_V.BuildDeclStmt(VD));
           note(Prefix.back());
           continue;
@@ -470,8 +486,27 @@ namespace clad {
         // selfContained() is true for an initializer-less decl, so reaching
         // here means there is an initializer to move into the assignment.
         Expr* Init = VD->getInit();
+        // A const clone cannot take that assignment. Placeholder plus one
+        // assignment still leave the clone a single value for the rest of its
+        // lifetime, so dropping the qualifier costs nothing. (A decl promoted
+        // to the function global scope is split the same way and loses its
+        // const up front, in ReverseModeVisitor::DifferentiateVarDecl.)
+        QualType VDTy = VD->getType();
+        if (VDTy.isLocalConstQualified()) {
+          VDTy.removeLocalConst();
+          VD->setType(VDTy);
+          VD->setTypeSourceInfo(
+              m_V.m_Context.getTrivialTypeSourceInfo(VDTy, noLoc));
+        }
         Expr* DeclRef = m_V.BuildDeclRef(VD);
-        m_V.SetDeclInit(VD, m_V.getZeroInit(VD->getType()));
+        // The lambda reads the placeholder on a path that returns before the
+        // assignment below, so a pointer needs a dereferenceable one; its
+        // dummy declaration goes into Prefix ahead of VD's.
+        Expr* Placeholder =
+            m_V.BuildDereferenceablePlaceholder(VD->getType(), Prefix);
+        if (!Placeholder)
+          Placeholder = m_V.getZeroInit(VD->getType());
+        m_V.SetDeclInit(VD, Placeholder);
         flushKept();
         Prefix.push_back(m_V.BuildDeclStmt(VD));
         // Not noted: the hoisted decl only holds a placeholder until the
@@ -710,6 +745,26 @@ namespace clad {
 
   Expr* VisitorBase::getZeroInit(QualType T) {
     return utils::getZeroInit(T, m_Sema);
+  }
+
+  Expr* VisitorBase::BuildDereferenceablePlaceholder(
+      QualType PtrTy, llvm::SmallVectorImpl<Stmt*>& Block) {
+    const auto* PT = PtrTy->getAs<PointerType>();
+    if (!PT || !m_DiffReq.hasEarlyReturns())
+      return nullptr;
+    // Only for a pointee clad can bring into existence by itself: a scalar,
+    // or a record whose zero init cannot run into a user-provided or deleted
+    // default constructor.
+    QualType Pointee = PT->getPointeeType().getUnqualifiedType();
+    const CXXRecordDecl* RD = Pointee->getAsCXXRecordDecl();
+    bool conjurable =
+        Pointee->isScalarType() ||
+        (RD && RD->hasDefinition() && RD->hasTrivialDefaultConstructor());
+    if (!conjurable)
+      return nullptr;
+    VarDecl* Dummy = BuildVarDecl(Pointee, "_dummy", getZeroInit(Pointee));
+    Block.push_back(BuildDeclStmt(Dummy));
+    return BuildOp(UO_AddrOf, BuildDeclRef(Dummy));
   }
 
   std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>
