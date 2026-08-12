@@ -582,9 +582,11 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                        .ActOnCallExpr(m_Sema.TUScope, request.CustomDerivative,
                                       {}, Inits, {})
                        .get();
+        auto* Call = CE ? dyn_cast<CallExpr>(CE->IgnoreImplicit()) : nullptr;
+        if (!Call)
+          return {};
         DerivativeAndOverload result{};
-        result.derivative =
-            cast<CallExpr>(CE->IgnoreImplicit())->getDirectCallee();
+        result.derivative = Call->getDirectCallee();
 
         // reverse and jacobian modes require overloads, even if the derivatives
         // are custom

@@ -1031,6 +1031,37 @@ namespace clad {
       return cast<TemplateDecl>(TapeR.getFoundDecl());
     }
 
+    static bool MatchFunctionTypeWithQualifiedParams(Sema& S,
+                                                     QualType ExpectedFnTy,
+                                                     QualType CandidateFnTy) {
+      ASTContext& C = S.getASTContext();
+      if (C.hasSameFunctionTypeIgnoringExceptionSpec(ExpectedFnTy,
+                                                     CandidateFnTy))
+        return true;
+
+      const auto* Expected = ExpectedFnTy->getAs<FunctionProtoType>();
+      const auto* Candidate = CandidateFnTy->getAs<FunctionProtoType>();
+      if (!Expected || !Candidate ||
+          Expected->getNumParams() != Candidate->getNumParams())
+        return false;
+
+      for (unsigned I = 0; I < Expected->getNumParams(); ++I) {
+        QualType From = Expected->getParamType(I);
+        QualType To = Candidate->getParamType(I);
+        bool ObjCLifetimeConversion = false;
+        if (!C.hasSameType(From, To) &&
+            !S.IsQualificationConversion(From, To, /*CStyle=*/false,
+                                         ObjCLifetimeConversion))
+          return false;
+      }
+
+      QualType CandidateWithExpectedParams = C.getFunctionType(
+          Candidate->getReturnType(), Expected->getParamTypes(),
+          Candidate->getExtProtoInfo());
+      return C.hasSameFunctionTypeIgnoringExceptionSpec(
+          ExpectedFnTy, CandidateWithExpectedParams);
+    }
+
     Expr* MatchOverloadType(Sema& S, QualType FnTy, LookupResult& Overloads,
                             TemplateSpecCandidateSet& FailedCandidates) {
       CXXScopeSpec SS;
@@ -1072,7 +1103,7 @@ namespace clad {
         if (!FD)
           continue;
         // Overload is just a FunctionDecl, check if the signature matches.
-        if (C.hasSameFunctionTypeIgnoringExceptionSpec(FD->getType(), FnTy))
+        if (MatchFunctionTypeWithQualifiedParams(S, FnTy, FD->getType()))
           return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false).get();
       }
       return nullptr;
