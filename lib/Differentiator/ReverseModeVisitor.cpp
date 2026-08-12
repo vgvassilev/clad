@@ -3601,6 +3601,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         addToCurrentBlock(assignToZero, direction::reverse);
     }
 
+    // A reference adjoint aliases the referent's adjoint storage, so it needs
+    // an lvalue to bind to; the literal 0 that e.g. `const double& r = 5.;`
+    // derives to is not one. Drop the derivative to fall into the case below.
+    if (isRefType && initDiff.getExpr_dx() &&
+        !initDiff.getExpr_dx()->isLValue())
+      initDiff.updateStmtDx(nullptr);
+
     // If adjoint is a reference or a const pointer and derived expression is
     // not available, then we should not create a derived variable for it.
     bool constPointer =

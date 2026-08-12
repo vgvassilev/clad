@@ -1609,17 +1609,28 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
                                   initDiff.getExpr(), VD->isDirectInit());
   // FIXME: Create unique identifier for derivative.
   Expr* initDx = initDiff.getExpr_dx();
-  if (VD->getType()->isPointerType() && !initDx) {
+  QualType VDType = VD->getType();
+  // A reference tangent needs an lvalue to bind to; the literal 0 that e.g.
+  // `const double& r = 5.;` derives to is not one.
+  if (VDType->isLValueReferenceType() && initDx && !initDx->isLValue())
+    initDx = nullptr;
+  // References and pointers-to-const only alias storage they do not own, so
+  // without an initializer tangent there is nothing to alias. Fabricating one
+  // yields a null tangent that later gets dereferenced, or a reference bound
+  // to a temporary; leave them without a tangent and let uses derive to zero,
+  // as reverse mode does in ReverseModeVisitor::DifferentiateVarDecl.
+  bool isAlias =
+      VDType->isLValueReferenceType() ||
+      (VDType->isPointerType() && VDType->getPointeeType().isConstQualified());
+  if (VDType->isPointerType() && !initDx && !isAlias) {
     // initialize with nullptr.
-    // NOLINTBEGIN(cppcoreguidelines-owned-memory)
-    initDx =
-        new (m_Context) CXXNullPtrLiteralExpr(VD->getType(), VD->getBeginLoc());
-    // NOLINTEND(cppcoreguidelines-owned-memory)
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    initDx = new (m_Context) CXXNullPtrLiteralExpr(VDType, VD->getBeginLoc());
   }
   VarDecl* VDDerived = nullptr;
-  if (m_DiffReq.shouldHaveAdjointForw(VD))
-    VDDerived = BuildVarDecl(VD->getType(), "_d_" + VD->getNameAsString(),
-                             initDx, VD->isDirectInit());
+  if (m_DiffReq.shouldHaveAdjointForw(VD) && (initDx || !isAlias))
+    VDDerived = BuildVarDecl(VDType, "_d_" + VD->getNameAsString(), initDx,
+                             VD->isDirectInit());
 
   if (VDDerived)
     m_Variables.emplace(VDClone, AdjointInfo{VDDerived});
