@@ -1018,9 +1018,12 @@ namespace clad {
     bool isSupported = argType->isArithmeticType();
     if (!isSupported)
       return nullptr;
-    // Build function args.
+    // Build function args. The callee and argument expressions the caller
+    // hands in may still be parented by the rebuilt primal call (the forward
+    // mode passes them straight out of it), so clone every expression that is
+    // embedded in the numerical-diff call.
     llvm::SmallVector<Expr*, 16U> NumDiffArgs;
-    NumDiffArgs.push_back(targetFuncCall);
+    NumDiffArgs.push_back(CloneNode(targetFuncCall));
     // targetArg is also the value passed through `args` below (and embedded in
     // targetFuncCall); clone it so the numerical-diff call does not share it.
     NumDiffArgs.push_back(CloneNode(targetArg));
@@ -1030,7 +1033,8 @@ namespace clad {
     NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(m_Context.IntTy,
                                                             m_Context,
                                                             printErrorInf));
-    NumDiffArgs.insert(NumDiffArgs.end(), args.begin(), args.begin() + numArgs);
+    for (unsigned i = 0; i < numArgs; ++i)
+      NumDiffArgs.push_back(CloneNode(args[i]));
     // Return the found overload.
     std::string Name = "forward_central_difference";
     return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
