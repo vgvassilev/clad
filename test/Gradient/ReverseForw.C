@@ -17,10 +17,11 @@ double* nested(double* p, int n) {
 }
 
 //CHECK: clad::ValueAndAdjoint<double *, double *> nested_reverse_forw(double *p, int n, double *_d_p, int _d_n, clad::restore_tracker &_tracker0) {
+//CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         bool _cond0 = n > 0;
+//CHECK-NEXT:         _cond0 = n > 0;
 //CHECK-NEXT:         if (_cond0)
 //CHECK-NEXT:             i = 1;
 //CHECK-NEXT:         else
@@ -84,8 +85,9 @@ double* filter(double* p, State s) {
 }
 
 //CHECK: clad::ValueAndAdjoint<double *, double *> filter_reverse_forw(double *p, State s, double *_d_p, State _d_s) {
+//CHECK-NEXT:     bool _cond0 = false;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         bool _cond0 = s == State::should_return;
+//CHECK-NEXT:         _cond0 = s == State::should_return;
 //CHECK-NEXT:         if (_cond0)
 //CHECK-NEXT:             return {p, _d_p};
 //CHECK-NEXT:     }
@@ -121,6 +123,41 @@ double f2(double x) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+// A short-circuit condition builds an `if (L) _cond = R` scaffold whose blocks
+// nest; the condition rebuilt from the stored flags is placed in the enclosing
+// block, so the flag stores must be hoisted instead of being declared inside
+// the scaffold block.
+void scale(double* C, double alpha, double beta) {
+  if (alpha != 0. || (beta != 0. && C != nullptr))
+    C[0] *= alpha * beta;
+}
+
+//CHECK: void scale_reverse_forw(double *C, double alpha, double beta, double *_d_C, double _d_alpha, double _d_beta, clad::restore_tracker &_tracker0) {
+//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     double _d_cond0;
+//CHECK-NEXT:     _d_cond0 = 0.;
+//CHECK-NEXT:     bool _cond1;
+//CHECK-NEXT:     bool _cond2;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             _cond1 = beta != 0.;
+//CHECK-NEXT:             if (_cond1)
+//CHECK-NEXT:                 _cond0 = C != nullptr;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         _cond2 = alpha != 0. || (_cond1 && _cond0);
+//CHECK-NEXT:         if (_cond2) {
+//CHECK-NEXT:             _tracker0.store(C[0]);
+//CHECK-NEXT:             C[0] *= alpha * beta;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+double f3(double x) {
+  double arr[1] = {x};
+  scale(arr, 2., 3.);
+  return arr[0];
+}
+
 int main() {
   double dx = 0;
   INIT_GRADIENT(f1);
@@ -129,4 +166,8 @@ int main() {
   dx = 0;
   INIT_GRADIENT(f2);
   TEST_GRADIENT(f2, /*numOfDerivativeArgs=*/1, 3, &dx); // CHECK-EXEC: 1.00
+
+  dx = 0;
+  INIT_GRADIENT(f3);
+  TEST_GRADIENT(f3, /*numOfDerivativeArgs=*/1, 1, &dx); // CHECK-EXEC: 6.00
 }

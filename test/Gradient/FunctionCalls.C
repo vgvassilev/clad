@@ -146,9 +146,10 @@ float sum(double* arr, int n) {
 }
 
 // CHECK: float sum_reverse_forw(double *arr, int n, double *_d_arr, int _d_n, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     float _d_res = 0;
 // CHECK-NEXT:     float res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     _t0 = 0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     for (int i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -891,7 +892,8 @@ void mult(double* x, double y) {
 }
 
 // CHECK: void mult_reverse_forw(double *x, double y, double *_d_x, double _d_y, clad::restore_tracker &_tracker0) {
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     _t0 = 0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     for (int i = 0; i < 3; ++i) {
 // CHECK-NEXT:         _t0++;
