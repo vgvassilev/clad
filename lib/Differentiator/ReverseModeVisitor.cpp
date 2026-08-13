@@ -4297,8 +4297,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     VarDecl* VD = BuildGlobalVarDecl(Type, prefix);
     DeclStmt* decl = BuildDeclStmt(VD);
     Expr* Ref = BuildDeclRef(VD);
+    // The merged decl+init form is only valid when the decl lands in the
+    // function-body block: the returned Ref may be used from sibling or outer
+    // blocks (e.g. a short-circuit condition rebuilt outside the scaffolding
+    // block that evaluated it). In reverse_mode_forward_pass the Sema scope is
+    // not a reliable proxy -- an `if` scaffold opens a control scope while the
+    // store may still be requested for an outer-block consumer -- so require
+    // the forward block stack to actually be at the function body.
     bool isFnScope = getCurrentScope()->isFunctionScope() ||
-                     m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
+                     (m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass &&
+                      m_Blocks.size() == 1);
     if (isFnScope) {
       addToCurrentBlock(decl, direction::forward);
       SetDeclInit(VD, E);
