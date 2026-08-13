@@ -410,9 +410,10 @@ double nestedPtrFn (double x, double y) {
 }
 
 // CHECK: void nestedPtrFn_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     double _d_arr[2] = {0};
 // CHECK-NEXT:     double arr[2] = {x, y};
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {}; 
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0 = ptrValFn_reverse_forw(arr, 1, _d_arr, 0, _tracker0);
 // CHECK-NEXT:     double *_d_z = _t0.adjoint;
 // CHECK-NEXT:     double *z = _t0.value;

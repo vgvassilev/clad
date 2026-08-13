@@ -460,6 +460,7 @@ double fn2(SimpleFunctions& sf, double i) {
 
 // CHECK: void fn2_grad(SimpleFunctions &sf, double i, SimpleFunctions *_d_sf, double *_d_i) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = sf.ref_mem_fn_reverse_forw(i, _d_sf, 0., _tracker0);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _t0.adjoint += 1;
@@ -498,6 +499,7 @@ double fn5(SimpleFunctions& v, double value) {
 
 // CHECK: void fn5_grad(SimpleFunctions &v, double value, SimpleFunctions *_d_v, double *_d_value) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     v.operator_plus_equal_reverse_forw(value, _d_v, 0., _tracker0);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
@@ -530,6 +532,7 @@ double fn4(SimpleFunctions& v) {
 
 // CHECK: void fn4_grad(SimpleFunctions &v, SimpleFunctions *_d_v) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     v.operator_plus_plus_reverse_forw(_d_v, _tracker0);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
@@ -722,13 +725,14 @@ double fn11(double u, double v) {
 }
 
 // CHECK:  void fn11_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:      double _d_res = 0.;
 // CHECK-NEXT:      double res = 0;
 // CHECK-NEXT:      A _d_a = {0.};
 // CHECK-NEXT:      A a;
 // CHECK-NEXT:      a.setData(u);
 // CHECK-NEXT:      res += a.data * v;
-// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:      _tracker0.clear();
 // CHECK-NEXT:      a.increment_reverse_forw(&_d_a, _tracker0);
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      {

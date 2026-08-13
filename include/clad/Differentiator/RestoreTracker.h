@@ -1,6 +1,10 @@
 #ifndef CLAD_DIFFERENTIATOR_RESTORETRACKER_H
 #define CLAD_DIFFERENTIATOR_RESTORETRACKER_H
 
+// CUDA_HOST_DEVICE is only used under __CUDACC__, so include-cleaner cannot
+// see the use in a non-CUDA parse.
+#include "clad/Differentiator/CladConfig.h" // IWYU pragma: keep
+
 #include <cassert>
 #include <cstdint>
 #include <cstring>
@@ -38,9 +42,9 @@ class restore_tracker {
   size_t m_cnt = 0, m_off = 0;
 
 public:
-  __host__ __device__ restore_tracker() = default;
+  CUDA_HOST_DEVICE restore_tracker() = default;
 
-  template <typename T> __host__ __device__ void store(const T& val) {
+  template <typename T> CUDA_HOST_DEVICE void store(const T& val) {
     for (size_t i = 0; i < m_cnt; ++i)
       if (m_meta[i].addr == (char*)&val)
         return;
@@ -56,11 +60,15 @@ public:
     m_cnt++;
   }
 
-  __host__ __device__ void restore() {
+  CUDA_HOST_DEVICE void restore() {
     for (size_t i = 0; i < m_cnt; ++i)
       std::memcpy(m_meta[i].addr, m_buf + m_meta[i].off, m_meta[i].size);
     m_cnt = m_off = 0;
   }
+
+  // Drop all records without writing anything back. Emitted where a
+  // block-local tracker declaration used to (re-)initialize the tracker.
+  CUDA_HOST_DEVICE void clear() { m_cnt = m_off = 0; }
 #else
   using RawMemory = std::vector<uint8_t>;
   using Address = char*;
@@ -88,6 +96,10 @@ public:
     }
     m_data.clear();
   }
+
+  // Drop all records without writing anything back. Emitted where a
+  // block-local tracker declaration used to (re-)initialize the tracker.
+  void clear() { m_data.clear(); }
 #endif
 };
 } // namespace clad
