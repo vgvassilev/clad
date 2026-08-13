@@ -620,10 +620,13 @@ namespace clad {
       return nullptr;
     Expr* ENoCasts = E->IgnoreCasts();
     // In our case, there is no reason to build parentheses around something
-    // that is not a binary or ternary operator.
+    // that is not a binary or ternary operator. An overloaded operator call
+    // with two arguments prints in binary form, except subscript and call,
+    // which are postfix and never need parentheses.
+    const auto* OCE = dyn_cast<CXXOperatorCallExpr>(ENoCasts);
     if (isa<BinaryOperator>(ENoCasts) ||
-        (isa<CXXOperatorCallExpr>(ENoCasts) &&
-         cast<CXXOperatorCallExpr>(ENoCasts)->getNumArgs() == 2) ||
+        (OCE && OCE->getNumArgs() == 2 && OCE->getOperator() != OO_Subscript &&
+         OCE->getOperator() != OO_Call) ||
         isa<ConditionalOperator>(ENoCasts) ||
         isa<CXXBindTemporaryExpr>(ENoCasts)) {
       return m_Sema.ActOnParenExpr(E->getBeginLoc(), E->getEndLoc(), E).get();

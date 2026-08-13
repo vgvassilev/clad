@@ -548,7 +548,7 @@ double f15(double i, double j) {
 // CHECK-NEXT:         d = _t2;
 // CHECK-NEXT:         double _r_d2 = _d_d;
 // CHECK-NEXT:         _d_d = 0.;
-// CHECK-NEXT:         _d_d += _r_d2 * 3 * j;
+// CHECK-NEXT:         _d_d += _r_d2 * (3 * j);
 // CHECK-NEXT:         *_d_j += 3 * d * _r_d2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -592,7 +592,7 @@ double f16(double i, double j) {
 // CHECK-NEXT:         c = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_c;
 // CHECK-NEXT:         _d_c = 0.;
-// CHECK-NEXT:         _d_c += _r_d0 * 4 * j;
+// CHECK-NEXT:         _d_c += _r_d0 * (4 * j);
 // CHECK-NEXT:         *_d_j += 4 * c * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -855,6 +855,27 @@ double f26(double x, double y) {
 //CHECK-NEXT:    *_d_x += _d_l;
 //CHECK-NEXT:}
 
+// *= with a compound right-hand side, which reaches the pullback un-stored
+// and must be parenthesized in the `_r_d0 * (y + 1.)` product so the printed
+// derivative keeps the association of the built AST.
+double f27(double x, double y) {
+  x *= y + 1.;
+  return x;
+}
+
+//CHECK: void f27_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:    double _t0 = x;
+//CHECK-NEXT:    x *= y + 1.;
+//CHECK-NEXT:    *_d_x += 1;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        x = _t0;
+//CHECK-NEXT:        double _r_d0 = *_d_x;
+//CHECK-NEXT:        *_d_x = 0.;
+//CHECK-NEXT:        *_d_x += _r_d0 * (y + 1.);
+//CHECK-NEXT:        *_d_y += x * _r_d0;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -945,4 +966,5 @@ int main() {
   printf("{%d, %d}\n", grad_x, grad_y); // CHECK-EXEC: {4, 0}
 
   TEST(f26, 8, 2); // CHECK-EXEC: {0.50, -2.00}
+  TEST(f27, 3, 4); // CHECK-EXEC: {5.00, 3.00}
 }
