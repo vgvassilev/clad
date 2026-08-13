@@ -221,18 +221,27 @@ void InitTimers();
         }
       }
 
-      for (DiffRequest& request : getScheduler().getGraph().getNodes()) {
-        if (request.ImmediateMode && request.Function->isConstexpr()) {
-          getScheduler().getGraph().setCurrentProcessingNode(request);
-          ProcessDiffRequest(request);
-          getScheduler().getGraph().markCurrentNodeProcessed();
+      // This handler can be re-entered while a planning traversal is on the
+      // stack: a lookup issued by the traversal makes the ASTReader
+      // deserialize pending module decls and pass them to the consumers. The
+      // Plan call above then defers the group; processing requests here would
+      // interleave with the outer traversal (and clobber its current
+      // processing node), so leave them to the outer caller.
+      if (!getScheduler().isTraversalInFlight())
+        for (DiffRequest& request : getScheduler().getGraph().getNodes()) {
+          if (request.ImmediateMode && request.Function->isConstexpr()) {
+            getScheduler().getGraph().setCurrentProcessingNode(request);
+            ProcessDiffRequest(request);
+            getScheduler().getGraph().markCurrentNodeProcessed();
+          }
         }
-      }
 #endif
 
       // We could not delay the processing of derivatives, act as if each
       // call is final. That would still have vgvassilev/clad#248 unresolved.
-      if (!m_Multiplexer && !m_CI.getDiagnostics().hasErrorOccurred())
+      // Not on re-entry (see above): the outer traversal finalizes.
+      if (!m_CI.getDiagnostics().hasErrorOccurred() &&
+          !getScheduler().isTraversalInFlight() && !m_Multiplexer)
         FinalizeTranslationUnit();
     }
 
