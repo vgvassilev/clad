@@ -2814,15 +2814,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         } else {
           // Otherwise, generate the declaration
           // ``clad::restore_tracker _tracker0 = {};``
-          VarDecl* trackerDecl = nullptr;
-          if (isInsideLoop || m_DiffReq.hasEarlyReturns()) {
-            trackerDecl = GlobalStoreImpl(trackerType, "_tracker",
-                                          getZeroInit(trackerType));
-          } else {
-            trackerDecl =
-                BuildVarDecl(trackerType, "_tracker", getZeroInit(trackerType));
-            addToCurrentBlock(BuildDeclStmt(trackerDecl));
-          }
+          // The declaration must live at function scope: the matching
+          // restore() below goes into the reverse sweep, which for a call
+          // inside a loop or branch is a different block than the forward
+          // one, so a block-local declaration would leave the reverse-sweep
+          // reference out of scope. A clear() at the former declaration
+          // point keeps the old per-visit semantics (only state recorded
+          // since the last forward visit is restored).
+          // FIXME: a single tracker serving all iterations of a reversed
+          // loop only restores the last iteration's state; full generality
+          // needs per-iteration taping of the tracker.
+          VarDecl* trackerDecl = GlobalStoreImpl(trackerType, "_tracker",
+                                                 getZeroInit(trackerType));
+          Expr* clearCall = BuildCallExprToMemFn(BuildDeclRef(trackerDecl),
+                                                 /*MemberFunctionName=*/"clear",
+                                                 /*ArgExprs=*/{}, Loc);
+          addToCurrentBlock(clearCall);
           trackerExpr = BuildDeclRef(trackerDecl);
           Expr* restoreCall = BuildCallExprToMemFn(
               BuildDeclRef(trackerDecl), /*MemberFunctionName=*/"restore",

@@ -64,6 +64,7 @@ double f1(double x) {
 
 //CHECK: void f1_grad(double x, double *_d_x) {
 //CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+//CHECK-NEXT:     _tracker0.clear();
 //CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0 = nested_reverse_forw(&x, -6, _d_x, 0, _tracker0);
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_t0.adjoint += 1;
@@ -158,6 +159,45 @@ double f3(double x) {
   return arr[0];
 }
 
+// For a reverse_forw call inside a loop the tracker declaration must sit at
+// function scope: the matching restore() goes into the reverse sweep, which is
+// a different block. A clear() at the former declaration point keeps the
+// per-visit semantics.
+double* mul2(double* p) {
+  *p *= 2;
+  return p;
+}
+
+double f4(double x) {
+  double r = 0;
+  for (int i = 0; i < 2; ++i)
+    r += *mul2(&x);
+  return r;
+}
+
+//CHECK: void f4_grad(double x, double *_d_x) {
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
+//CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+//CHECK-NEXT:     clad::tape<clad::ValueAndAdjoint<double *, double *> > _t1 = {};
+//CHECK-NEXT:     double _d_r = 0.;
+//CHECK-NEXT:     double r = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+//CHECK-NEXT:     for (i = 0; i < 2; ++i) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         _tracker0.clear();
+//CHECK-NEXT:         clad::push(_t1, mul2_reverse_forw(&x, _d_x, _tracker0));
+//CHECK-NEXT:         r += *clad::back(_t1).value;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_r += 1;
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         *clad::back(_t1).adjoint += _d_r;
+//CHECK-NEXT:         _tracker0.restore();
+//CHECK-NEXT:         mul2_pullback(&x, _d_x);
+//CHECK-NEXT:         clad::pop(_t1);
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 int main() {
   double dx = 0;
   INIT_GRADIENT(f1);
@@ -170,4 +210,8 @@ int main() {
   dx = 0;
   INIT_GRADIENT(f3);
   TEST_GRADIENT(f3, /*numOfDerivativeArgs=*/1, 1, &dx); // CHECK-EXEC: 6.00
+
+  dx = 0;
+  INIT_GRADIENT(f4);
+  TEST_GRADIENT(f4, /*numOfDerivativeArgs=*/1, 1, &dx); // CHECK-EXEC: 6.00
 }

@@ -207,12 +207,13 @@ double fn4(double* arr, int n) {
 }
 
 // CHECK: void fn4_grad(double *arr, int n, double *_d_arr, int *_d_n) {
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     res += sum_reverse_forw(arr, n, _d_arr, 0, _tracker0);
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
@@ -270,6 +271,7 @@ double fn5(double* arr, int n) {
 
 // CHECK: void fn5_grad(double *arr, int n, double *_d_arr, int *_d_n) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     double _d_temp = 0.;
 // CHECK-NEXT:     double temp = modify2_reverse_forw(arr, _d_arr, _tracker0);
 // CHECK-NEXT:     _d_arr[0] += 1;
@@ -932,11 +934,12 @@ double fn27(double u, double v) {
 } // u * v + u
 
 // CHECK-NEXT: void fn27_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     double _d_arr[3] = {0};
 // CHECK-NEXT:     double arr[3] = {u, v, 1};
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum0 = arr[0] * arr[1] * arr[2];
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     mult_reverse_forw(arr, u, _d_arr, 0., _tracker0);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_sum += 1;
@@ -973,8 +976,10 @@ double& nested(double* x, double y) {
 
 // CHECK-NEXT: void nested_pullback(double *x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, 0., _tracker0);
 // CHECK-NEXT:     clad::restore_tracker _tracker1 = {};
+// CHECK-NEXT:     _tracker0.clear();
+// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, 0., _tracker0);
+// CHECK-NEXT:     _tracker1.clear();
 // CHECK-NEXT:     mult_reverse_forw(x, 3, _d_x, 0, _tracker1);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker1.restore();
@@ -997,9 +1002,10 @@ double fn28(double u, double v) {
 } // 3 * u * v + 2
 
 // CHECK-NEXT: void fn28_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     double _d_arr[3] = {0};
 // CHECK-NEXT:     double arr[3] = {u, v, 1};
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = nested_reverse_forw(arr, u, _d_arr, 0., _tracker0);
 // CHECK-NEXT:     double &_d_ref = _t0.adjoint;
 // CHECK-NEXT:     double &ref = _t0.value;
@@ -1046,6 +1052,7 @@ double fn29(double *x) {
 
 // CHECK: void fn29_grad(double *x, double *_d_x) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     foo_reverse_forw(x, _d_x, _tracker0);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_x[0] += 1 * x[1];
