@@ -829,6 +829,32 @@ short int f25(short int x, short int y) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+// /= with a plain-variable divisor, which reaches the pullback un-stored and
+// must be cloned into the `(y * y)` denominator instead of being shared with
+// the rebuilt primal compound assignment.
+double f26(double x, double y) {
+  double l = x;
+  l /= y;
+  return l;
+}
+
+//CHECK: void f26_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:    double _d_l = 0.;
+//CHECK-NEXT:    double l = x;
+//CHECK-NEXT:    double _t0 = l;
+//CHECK-NEXT:    l /= y;
+//CHECK-NEXT:    _d_l += 1;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        l = _t0;
+//CHECK-NEXT:        double _r_d0 = _d_l;
+//CHECK-NEXT:        _d_l = 0.;
+//CHECK-NEXT:        _d_l += _r_d0 / y;
+//CHECK-NEXT:        double _r0 = _r_d0 * -l / (y * y);
+//CHECK-NEXT:        *_d_y += _r0;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    *_d_x += _d_l;
+//CHECK-NEXT:}
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -917,4 +943,6 @@ int main() {
   short int grad_x = 0, grad_y = 0;
   f25_grad.execute(x, y, &grad_x, &grad_y);
   printf("{%d, %d}\n", grad_x, grad_y); // CHECK-EXEC: {4, 0}
+
+  TEST(f26, 8, 2); // CHECK-EXEC: {0.50, -2.00}
 }

@@ -3383,7 +3383,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (isInsideLoop)
           // Clone: LCloned is reused as the primal compound-assignment LHS.
           addToCurrentBlock(CloneNode(LCloned), direction::forward);
-        Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, CloneNode(RStored)));
+        // RStored may be the un-stored reverse-sweep expr itself (StoreAndRef
+        // passes simple refs through), which is reused as the primal RHS via
+        // RResult below; clone both factors so RxR shares nothing with it.
+        Expr* RxR = BuildParens(
+            BuildOp(BO_Mul, CloneNode(RStored), CloneNode(RStored)));
         // Clone LCloned (reused as the primal compound-assignment LHS below).
         Expr* dr = BuildOp(
             BO_Mul, CloneNode(oldValue),
