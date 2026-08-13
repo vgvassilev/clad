@@ -139,11 +139,11 @@ void f_6(double a[2], double b, double _clad_out_output[]) {
 // CHECK-NEXT:     *_d_vector_a = clad::identity_matrix(_d_vector_a->rows(), indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount, _d_vector_a->rows() + {{1U|1UL|1ULL}});
 // CHECK-NEXT:     double _t0 = a[0] * a[0];
-// CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = (((*_d_vector_a)[0]) * a[0] + a[0] * ((*_d_vector_a)[0])) * a[0] + _t0 * ((*_d_vector_a)[0]);
+// CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((*_d_vector_a)[0] * a[0] + a[0] * (*_d_vector_a)[0]) * a[0] + _t0 * (*_d_vector_a)[0];
 // CHECK-NEXT:     _clad_out_output[0] = _t0 * a[0];
 // CHECK-NEXT:     double _t1 = a[0] * a[0];
 // CHECK-NEXT:     double _t2 = b * b;
-// CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = (((*_d_vector_a)[0]) * a[0] + a[0] * ((*_d_vector_a)[0])) * a[0] + _t1 * ((*_d_vector_a)[0]) + (_d_vector_b * b + b * _d_vector_b) * b + _t2 * _d_vector_b;
+// CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((*_d_vector_a)[0] * a[0] + a[0] * (*_d_vector_a)[0]) * a[0] + _t1 * (*_d_vector_a)[0] + (_d_vector_b * b + b * _d_vector_b) * b + _t2 * _d_vector_b;
 // CHECK-NEXT:     _clad_out_output[1] = _t1 * a[0] + _t2 * b;
 // CHECK-NEXT:     double _t3 = (a[0] + b);
 // CHECK-NEXT:     (*_d_vector__clad_out_output)[2] = (clad::zero_vector(indepVarCount)) * _t3 + 2 * ((*_d_vector_a)[0] + _d_vector_b);
@@ -202,7 +202,7 @@ void f_9(float a, double _clad_out_output[]){
 // CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount,  {{1U|1UL|1ULL}});
 // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = _d_vector_a * a + a * _d_vector_a;
 // CHECK-NEXT:     _clad_out_output[0] = a * a;
-// CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((*_d_vector__clad_out_output)[0]) * 3 + _clad_out_output[0] * (clad::zero_vector(indepVarCount));
+// CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = (*_d_vector__clad_out_output)[0] * 3 + _clad_out_output[0] * (clad::zero_vector(indepVarCount));
 // CHECK-NEXT:     _clad_out_output[1] = _clad_out_output[0] * 3;
 // CHECK-NEXT: }
 
@@ -232,9 +232,9 @@ void f_11(double a[2], double b[1], double _clad_out_output[]) {
 // CHECK-NEXT:    *_d_vector_a = clad::identity_matrix(_d_vector_a->rows(), indepVarCount, 0UL);
 // CHECK-NEXT:    *_d_vector_b = clad::identity_matrix(_d_vector_b->rows(), indepVarCount, _d_vector_a->rows());
 // CHECK-NEXT:    *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount, _d_vector_a->rows() + _d_vector_b->rows());
-// CHECK-NEXT:    (*_d_vector__clad_out_output)[0] = ((*_d_vector_a)[0]) * a[1] + a[0] * ((*_d_vector_a)[1]);
+// CHECK-NEXT:    (*_d_vector__clad_out_output)[0] = (*_d_vector_a)[0] * a[1] + a[0] * (*_d_vector_a)[1];
 // CHECK-NEXT:    _clad_out_output[0] = a[0] * a[1];
-// CHECK-NEXT:    (*_d_vector__clad_out_output)[1] = ((*_d_vector_a)[0]) * a[0] + a[0] * ((*_d_vector_a)[0]) + (*_d_vector_b)[0];
+// CHECK-NEXT:    (*_d_vector__clad_out_output)[1] = (*_d_vector_a)[0] * a[0] + a[0] * (*_d_vector_a)[0] + (*_d_vector_b)[0];
 // CHECK-NEXT:    _clad_out_output[1] = a[0] * a[0] + b[0];
 // CHECK-NEXT:    double _t0 = (a[0] + b[0]);
 // CHECK-NEXT:    (*_d_vector__clad_out_output)[2] = (clad::zero_vector(indepVarCount)) * _t0 + 2 * ((*_d_vector_a)[0] + (*_d_vector_b)[0]);

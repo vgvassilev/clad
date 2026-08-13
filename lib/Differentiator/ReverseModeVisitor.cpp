@@ -3355,16 +3355,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         Rdiff = Visit(R, dr);
         Stmts RBlock = EndBlockWithoutCreatingCS(direction::reverse);
         // Rdiff.getRevSweepAsExpr() aliases the forward expr returned below;
-        // clone at each reverse-sweep use so they own distinct nodes.
+        // clone at each reverse-sweep use so they own distinct nodes. It can
+        // also be an un-stored compound expr (`l *= a + b`), so parenthesize
+        // it wherever it is embedded under a higher-precedence operator or
+        // the printed derivative mis-associates.
         addToCurrentBlock(
             BuildOp(BO_AddAssign, CloneNode(ResultRef),
                     BuildOp(BO_Mul, CloneNode(oldValue),
-                            CloneNode(Rdiff.getRevSweepAsExpr()))),
+                            BuildParens(CloneNode(Rdiff.getRevSweepAsExpr())))),
             direction::reverse);
         for (auto& S : RBlock)
           addToCurrentBlock(S, direction::reverse);
-        valueForRevPass = BuildOp(BO_Mul, CloneNode(Rdiff.getRevSweepAsExpr()),
-                                  CloneNode(Ldiff.getRevSweepAsExpr()));
+        valueForRevPass =
+            BuildOp(BO_Mul, BuildParens(CloneNode(Rdiff.getRevSweepAsExpr())),
+                    BuildParens(CloneNode(Ldiff.getRevSweepAsExpr())));
         std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, Rdiff.getExpr());
       } else if (opCode == BO_DivAssign) {
         // Add the statement `dl = 0;`
@@ -3395,8 +3399,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         dr = StoreAndRef(dr, direction::reverse);
         Rdiff = Visit(R, dr);
         RDelayed.Finalize(Rdiff.getExpr());
-        valueForRevPass = BuildOp(BO_Div, Rdiff.getRevSweepAsExpr(),
-                                  Ldiff.getRevSweepAsExpr());
+        // Parenthesize: either side can be a compound expr, which would
+        // mis-associate under the division when the derivative is printed.
+        valueForRevPass =
+            BuildOp(BO_Div, BuildParens(Rdiff.getRevSweepAsExpr()),
+                    BuildParens(Ldiff.getRevSweepAsExpr()));
         std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, RResult);
       } else
         llvm_unreachable("unknown assignment opCode");

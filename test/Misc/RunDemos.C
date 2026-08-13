@@ -272,7 +272,7 @@
 // CHECK_VECTOR_FORWARD_MODE-NEXT    {
 // CHECK_VECTOR_FORWARD_MODE-NEXT        clad::array<int> _d_vector_i(clad::array<int>(indepVarCount, 0));
 // CHECK_VECTOR_FORWARD_MODE-NEXT        for (int i = 0; i < n; ++i) {
-// CHECK_VECTOR_FORWARD_MODE-NEXT            _d_vector_res += (_d_vector_weights[i]) * arr[i] + weights[i] * (_d_vector_arr[i]);
+// CHECK_VECTOR_FORWARD_MODE-NEXT            _d_vector_res += _d_vector_weights[i] * arr[i] + weights[i] * _d_vector_arr[i];
 // CHECK_VECTOR_FORWARD_MODE-NEXT            res += weights[i] * arr[i];
 // CHECK_VECTOR_FORWARD_MODE-NEXT        }
 // CHECK_VECTOR_FORWARD_MODE-NEXT    }
