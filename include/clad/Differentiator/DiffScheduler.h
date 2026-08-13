@@ -39,6 +39,13 @@ public:
   /// Static planning pass over a group of top-level declarations.
   void Plan(clang::DeclGroupRef DGR) { m_Collector.Walk(DGR); }
 
+  /// True while a static planning traversal is on the stack; work that would
+  /// process requests (e.g. immediate constexpr differentiation) must not run
+  /// re-entrantly while this holds.
+  [[nodiscard]] bool isTraversalInFlight() const {
+    return m_Collector.isTraversalInFlight();
+  }
+
   /// Plan a single lazily-scheduled request (a nested or higher-order
   /// derivative) that the static walk never reached.
   void Plan(DiffRequest& R) { m_Collector.PlanNestedRequest(R); }

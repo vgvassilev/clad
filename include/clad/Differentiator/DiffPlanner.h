@@ -405,14 +405,30 @@ struct RequestOptions {
 
     bool m_IsTraversingTopLevelDecl = true;
 
+    /// True while Walk is traversing a DeclGroupRef. A traversal can trigger
+    /// name lookups that make the ASTReader deserialize pending module decls
+    /// and hand them to the consumers, re-entering Walk; such groups are
+    /// parked in m_DeferredDGRs and traversed once the active walk finishes.
+    bool m_TraversalInFlight = false;
+
+    /// Decl groups delivered while a traversal was in flight (see
+    /// m_TraversalInFlight); drained at the end of the outermost Walk.
+    llvm::SmallVector<clang::DeclGroupRef, 4> m_DeferredDGRs;
+
   public:
     DiffCollector(DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
                   RequestOptions& opts, OwnedAnalysisContexts& AllAnalysisDC);
     /// Run the static planning pass over a group of top-level declarations,
     /// populating the request graph. A no-op when the clad-enabled interval is
-    /// empty.
+    /// empty. Re-entrant calls (e.g. module decls deserialized during a
+    /// lookup issued by an active traversal) defer their group until the
+    /// active traversal finishes.
     void Walk(clang::DeclGroupRef DGR);
+    /// True while Walk is traversing; see m_TraversalInFlight.
+    [[nodiscard]] bool isTraversalInFlight() const {
+      return m_TraversalInFlight;
+    }
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     /// Record an in-place `p = realloc(p, n)` on the request whose body is

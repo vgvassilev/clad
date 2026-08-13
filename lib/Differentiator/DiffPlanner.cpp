@@ -46,6 +46,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -329,10 +330,33 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (m_Interval.empty())
       return;
 
+    // A lookup issued mid-traversal (LookupCustomDerivativeDecl, analyses)
+    // can make the ASTReader deserialize pending module decls and hand them
+    // to the consumers, re-entering Walk while the active traversal -- and
+    // possibly a top-most request -- is still on the stack. Traversing them
+    // now would interleave collector state; park them until the active walk
+    // is done. (Deserialized decls lie outside the clad-activation interval,
+    // so the deferred traversal is a no-op for them beyond bookkeeping.)
+    if (m_TraversalInFlight) {
+      m_DeferredDGRs.push_back(DGR);
+      return;
+    }
+    llvm::SaveAndRestore<bool> InFlight(m_TraversalInFlight, true);
+
     assert(!m_TopMostReq && "Traversal already in flight!");
 
     for (Decl* D : DGR)
       TraverseDecl(D);
+
+    // Drain groups delivered during this walk (which may itself deliver
+    // more, growing the vector mid-loop -- hence indexed, not range-based).
+    // NOLINTNEXTLINE(modernize-loop-convert)
+    for (size_t i = 0; i < m_DeferredDGRs.size(); ++i) {
+      DeclGroupRef Deferred = m_DeferredDGRs[i];
+      for (Decl* D : Deferred)
+        TraverseDecl(D);
+    }
+    m_DeferredDGRs.clear();
   }
 
   bool DiffCollector::TraverseLambdaExpr(LambdaExpr* LE) {
