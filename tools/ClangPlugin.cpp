@@ -638,9 +638,14 @@ void InitTimers();
       // In case of diagnostics, don't bother, just let the compiler finish.
       if (!m_CI.getDiagnostics().hasErrorOccurred()) {
         // Traverse all collected DeclGroupRef only once to create the static
-        // graph.
-        TimedAnalysisRegion R("Rest of TU");
-        for (auto DCI : m_DelayedCalls)
+        // graph. Planning can trigger implicit instantiations (e.g. clad::Tag
+        // when parsing the differentiate-call arguments) whose consumer
+        // notifications append to m_DelayedCalls mid-loop; deque::push_back
+        // keeps element references valid but invalidates iterators, so index
+        // instead of iterating (the appended groups are then planned too).
+        // NOLINTNEXTLINE(modernize-loop-convert)
+        for (size_t i = 0; i < m_DelayedCalls.size(); ++i) {
+          const DelayedCallInfo DCI = m_DelayedCalls[i];
           for (Decl* D : DCI.m_DGR) {
             if (const auto* FD = dyn_cast<FunctionDecl>(D))
               if (FD->isConstexpr())
@@ -648,6 +653,7 @@ void InitTimers();
             getScheduler().Plan(DCI.m_DGR);
             break;
           }
+        }
 
         if (m_CI.getFrontendOpts().ShowStats) {
           // Print the graph of the diff requests.
