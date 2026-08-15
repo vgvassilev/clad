@@ -4500,9 +4500,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)
       : m_RMV(RMV) {
     ASTContext& C = m_RMV.m_Context;
-    m_Ref = m_RMV.GlobalStoreAndRef(m_RMV.getZeroInit(C.IntTy),
-                                    clad_compat::getSizeType(C), "_t",
-                                    /*force=*/true);
+    // The counter's reset lives in the forward sweep, which an early return
+    // taken before the loop never reaches -- while the master reverse sweep
+    // still runs. Zero-init makes the reverse loop a no-op there.
+    m_Ref = m_RMV.GlobalStoreAndRef(
+        m_RMV.getZeroInit(C.IntTy), clad_compat::getSizeType(C), "_t",
+        /*force=*/true,
+        /*zeroInit=*/m_RMV.m_DiffReq.hasEarlyReturns());
   }
 
   StmtDiff ReverseModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
