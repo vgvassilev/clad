@@ -3527,8 +3527,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
       Rdiff = Visit(R, dfdx());
       Ldiff = Visit(L, zero);
-      valueForRevPass = Ldiff.getRevSweepAsExpr();
-      ResultRef = Ldiff.getExpr();
+      valueForRevPass = Rdiff.getRevSweepAsExpr();
+      ResultRef = Rdiff.getExpr_dx();
     } else if (opCode == BO_LAnd) {
       VarDecl* condVar = GlobalStoreImpl(m_Context.BoolTy, "_cond",
                                          m_DiffReq.hasEarlyReturns()
