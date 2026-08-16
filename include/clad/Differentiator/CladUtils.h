@@ -476,6 +476,14 @@ namespace clad {
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
     bool shouldUseRestoreTracker(const clang::FunctionDecl* FD);
+    /// Returns true when E designates storage with automatic storage
+    /// duration in the current function, reached through subscripts,
+    /// members, dereferences or accessor calls. Such storage dies with the
+    /// function, so a caller must not try to restore it.
+    /// \param asPointerValue E is a pointer rvalue passed to a callee, so
+    /// the pointee is judged rather than the pointer variable's own slot.
+    bool designatesLocallyOwnedStorage(const clang::Expr* E,
+                                       bool asPointerValue = false);
 
     bool IsDifferentiableType(clang::QualType T);
 

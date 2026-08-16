@@ -117,6 +117,9 @@ namespace clad {
     clang::Expr* m_CurrentBreakFlagExpr;
 
     clang::Expr* m_RestoreTracker = nullptr;
+    /// A never-restored tracker handed to nested reverse_forw calls that only
+    /// mutate this reverse_forw's own locals; see VisitCallExpr.
+    clang::Expr* m_UnusedRestoreTracker = nullptr;
 
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;

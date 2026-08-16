@@ -1203,6 +1203,56 @@ namespace clad {
       return false;
     }
 
+    bool designatesLocallyOwnedStorage(const clang::Expr* E,
+                                       bool asPointerValue) {
+      bool peeled = asPointerValue;
+      if (asPointerValue) {
+        // `&lvalue` passed as a pointer designates that lvalue directly.
+        const auto* UO =
+            dyn_cast<clang::UnaryOperator>(E->IgnoreParenImpCasts());
+        if (UO && UO->getOpcode() == clang::UO_AddrOf)
+          return designatesLocallyOwnedStorage(UO->getSubExpr());
+      }
+      while (true) {
+        E = E->IgnoreParenImpCasts();
+        if (const auto* UO = dyn_cast<clang::UnaryOperator>(E)) {
+          peeled |= UO->getOpcode() == clang::UO_Deref;
+          E = UO->getSubExpr();
+        } else if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
+          peeled = true;
+          E = ASE->getBase();
+        } else if (const auto* OCE = dyn_cast<clang::CXXOperatorCallExpr>(E)) {
+          if (OCE->getNumArgs() == 0)
+            return false;
+          peeled = true;
+          E = OCE->getArg(0);
+        } else if (const auto* MCE = dyn_cast<clang::CXXMemberCallExpr>(E)) {
+          peeled = true;
+          E = MCE->getImplicitObjectArgument();
+        } else if (const auto* ME = dyn_cast<clang::MemberExpr>(E)) {
+          peeled |= ME->isArrow();
+          E = ME->getBase();
+        } else {
+          break;
+        }
+      }
+      const auto* DRE = dyn_cast<clang::DeclRefExpr>(E);
+      const auto* VD = DRE ? dyn_cast<clang::VarDecl>(DRE->getDecl()) : nullptr;
+      if (!VD || !VD->hasLocalStorage() || VD->getType()->isReferenceType())
+        return false;
+      // The variable's own slot (no indirection peeled) always has automatic
+      // storage duration, even for a pointer variable. Storage reached
+      // through the variable is only owned when the variable is not a
+      // pointer or reference into memory owned elsewhere.
+      // FIXME: a local pointer that provably holds the address of a local
+      // (`T* p = &t;`) reaches storage that does die with the function, but
+      // proving it needs points-to information, so such storage is still
+      // reported as caller-visible.
+      if (!peeled)
+        return true;
+      return !VD->getType()->isPointerType();
+    }
+
     bool hasMemoryTypeParams(const FunctionDecl* FD) {
       if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
         if (MD->isInstance() && !MD->isConst())
