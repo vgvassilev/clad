@@ -942,24 +942,29 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
   // so the decl's type is the adjoint's -- check it before building anything.
   if (!isArrayOrPointerType(it->second.Decl->getType().getNonReferenceType()))
     return StmtDiff(cloned, zero);
-  auto* result_at_is =
-      BuildArraySubscript(buildAdjoint(it->second), derivedIndices());
-  // Guard nullable tangent for pointer-to-const inputs: the outer
-  // derivative represents inactive const T* parameters as nullptr, so
-  // dereferencing _d_obs[i] without a check would be invalid at runtime.
-  if (it->second.Decl->getType().getNonReferenceType()->isPointerType()) {
-    QualType origBaseTy = base->getType();
-    if (origBaseTy->isPointerType() &&
-        origBaseTy->getPointeeType().isConstQualified()) {
-      // Build: (_d_obs != nullptr ? _d_obs[idx] : 0)
-      Expr* cond = BuildOp(BO_NE, buildAdjoint(it->second),
-                           m_Sema.ActOnCXXNullPtrLiteral(noLoc).get());
-      result_at_is = BuildParens(
-          m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, result_at_is, zero)
-              .get());
-    }
-  }
-  return StmtDiff(cloned, result_at_is);
+  Expr* adjoint = buildAdjoint(it->second);
+  auto* result_at_is = BuildArraySubscript(adjoint, derivedIndices());
+  return StmtDiff(cloned, GuardNullTangentRead(adjoint, result_at_is, zero));
+}
+
+bool BaseForwardModeVisitor::mayBeNullTangent(const Expr* tangent) const {
+  const auto* DRE = dyn_cast<DeclRefExpr>(tangent->IgnoreParenImpCasts());
+  if (!DRE)
+    return false;
+  const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
+  if (!PVD || PVD->getDeclContext() != m_Derivative)
+    return false;
+  QualType T = PVD->getType();
+  return T->isPointerType() && T->getPointeeType().isConstQualified();
+}
+
+Expr* BaseForwardModeVisitor::GuardNullTangentRead(const Expr* tangent,
+                                                   Expr* read, Expr* zero) {
+  if (!mayBeNullTangent(tangent))
+    return read;
+  Expr* cond = CloneNode(tangent);
+  return BuildParens(
+      m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, read, zero).get());
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
@@ -1426,12 +1431,13 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
       derivedOp = BuildOp(opKind, diff.getExpr_dx());
     return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_Deref) {
-    if (Expr* dx = diff.getExpr_dx())
-      return StmtDiff(op, BuildOp(opKind, dx));
     QualType literalTy =
         utils::GetValueType(UnOp->getSubExpr()->getType()->getPointeeType());
-    return StmtDiff(
-        op, ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0));
+    Expr* zero =
+        ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0);
+    if (Expr* dx = diff.getExpr_dx())
+      return StmtDiff(op, GuardNullTangentRead(dx, BuildOp(opKind, dx), zero));
+    return StmtDiff(op, zero);
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
     Expr* derivedOp = diff.getExpr_dx();
     // A subexpression without a tangent of its own (e.g. an object that does
