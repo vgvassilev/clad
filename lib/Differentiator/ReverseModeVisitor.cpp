@@ -2733,7 +2733,40 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // f_reverse_forw(..., clad::restore_tracker& _tracker0) {
           //   g_reverse_forw(..., _tracker0); // do not generate a new tracker
           // ```
-          trackerExpr = m_RestoreTracker;
+          // Do not propagate when every mutable argument is storage owned by
+          // one of this reverse_forw's locals: those addresses are dead by
+          // the time the caller restores, so a record of them would write
+          // into freed memory. Such state is caller-invisible, so a
+          // throwaway tracker is enough.
+          bool mutatesOnlyOwnLocals = true;
+          for (std::size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
+            QualType parTy = FD->getParamDecl(i)->getType();
+            bool mayWrite = (parTy->isPointerType() &&
+                             !parTy->getPointeeType().isConstQualified()) ||
+                            (parTy->isLValueReferenceType() &&
+                             !parTy.getNonReferenceType().isConstQualified());
+            if (!mayWrite)
+              continue;
+            std::size_t argIdx =
+                i + static_cast<std::size_t>(isMethodOperatorCall);
+            if (argIdx >= CE->getNumArgs() ||
+                !utils::designatesLocallyOwnedStorage(
+                    CE->getArg(argIdx),
+                    /*asPointerValue=*/parTy->isPointerType())) {
+              mutatesOnlyOwnLocals = false;
+              break;
+            }
+          }
+          if (mutatesOnlyOwnLocals) {
+            if (!m_UnusedRestoreTracker) {
+              VarDecl* unusedDecl = GlobalStoreImpl(
+                  trackerType, "_tracker_unused", getZeroInit(trackerType));
+              m_UnusedRestoreTracker = BuildDeclRef(unusedDecl);
+            }
+            trackerExpr = m_UnusedRestoreTracker;
+          } else {
+            trackerExpr = m_RestoreTracker;
+          }
         } else {
           Expr* trackerPop = nullptr;
           if (isInsideLoop) {

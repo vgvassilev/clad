@@ -222,11 +222,10 @@ StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(clang::Expr* E,
                                                      bool moveToTape) {
   if (!m_RestoreTracker)
     return {};
-  if (const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreCasts())) {
-    const auto* VD = cast<VarDecl>(DRE->getDecl());
-    if (!VD->getType()->isReferenceType())
-      return {};
-  }
+  // Storage owned by this function's locals is gone by the time the caller
+  // restores the tracker; recording it would replay bytes into freed memory.
+  if (utils::designatesLocallyOwnedStorage(E))
+    return {};
   // Clone both the tracker base (reused across every store call) and the stored
   // expression E (the caller passes the same node it emits into the primal), so
   // the store call is a distinct subtree.

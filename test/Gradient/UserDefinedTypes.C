@@ -975,7 +975,8 @@ struct MyStructWrapper {
 };
 
 // CHECK:  inline constexpr clad::ValueAndAdjoint<MyStructWrapper &, MyStructWrapper &> operator_equal_reverse_forw(MyStructWrapper &&arg, MyStructWrapper *_d_this, MyStructWrapper &&_d_arg, clad::restore_tracker &_tracker0) noexcept {
-// CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, std::move(_d_arg.val), _tracker0);
+// CHECK-NEXT:      clad::restore_tracker _tracker_unused0 = {};
+// CHECK-NEXT:      this->val.operator_equal_reverse_forw(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, std::move(_d_arg.val), _tracker_unused0);
 // CHECK-NEXT:      return {*this, *_d_this};
 // CHECK-NEXT:  }
 
