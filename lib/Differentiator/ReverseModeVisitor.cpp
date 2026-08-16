@@ -4497,8 +4497,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* moveCall = BuildArrayAssignment(Clone(E), Ref, direction::reverse);
       addToCurrentBlock(moveCall, direction::reverse);
       Restore = Pop;
-    } else if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid)
-      Restore = BuildOp(BO_Assign, Clone(E), Pop);
+    } else if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid) {
+      if (isInsideLoop && Type->isRecordType() && !moveToTape) {
+        // The restore must pair with the push: clad::pop moves the element
+        // out of its slot, and a move-assign replaces a record's heap buffer,
+        // dangling references handed out into it. Restore copy-pushed state
+        // by copy from clad::back so E keeps its buffer; move-pushed state
+        // must keep the move-assigning pop -- its buffer travels through the
+        // tape and back, which keeps that iteration's cached pointers valid.
+        Expr* assign = BuildOp(BO_Assign, Clone(E), Ref);
+        Restore = MakeCompoundStmt({assign, Pop});
+      } else
+        Restore = BuildOp(BO_Assign, Clone(E), Pop);
+    }
 
     return {Store, Restore};
   }
