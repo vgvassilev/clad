@@ -198,6 +198,83 @@ double f4(double x) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+// For a reverse_forw call inside a branch the ValueAndAdjoint store must also
+// be hoisted to function scope: the `.adjoint` use goes into the reverse
+// sweep, which is a different block than the forward `if`.
+double f5(double x, int flag) {
+  double r = x;
+  if (flag)
+    r += *mul2(&x);
+  return r;
+}
+
+//CHECK: void f5_grad_0(double x, int flag, double *_d_x) {
+//CHECK-NEXT:     int _d_flag = 0;
+//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+//CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0;
+//CHECK-NEXT:     double _d_r = 0.;
+//CHECK-NEXT:     double r = x;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         _cond0 = flag;
+//CHECK-NEXT:         if (_cond0) {
+//CHECK-NEXT:             _tracker0.clear();
+//CHECK-NEXT:             _t0 = mul2_reverse_forw(&x, _d_x, _tracker0);
+//CHECK-NEXT:             r += *_t0.value;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_r += 1;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         *_t0.adjoint += _d_r;
+//CHECK-NEXT:         _tracker0.restore();
+//CHECK-NEXT:         mul2_pullback(&x, _d_x);
+//CHECK-NEXT:     }
+//CHECK-NEXT:     *_d_x += _d_r;
+//CHECK-NEXT: }
+
+// A reference-typed ValueAndAdjoint cannot be hoisted whole (a reference
+// member cannot be declared unset and assigned afterwards); the store stays
+// block-local and pointers to the referents are hoisted instead, so the
+// reverse sweep stays in scope.
+double& amplify(double& x) {
+  x *= 2;
+  return x;
+}
+
+double f6(double x, int flag) {
+  double r = x;
+  if (flag)
+    r += amplify(x);
+  return r;
+}
+
+//CHECK: void f6_grad_0(double x, int flag, double *_d_x) {
+//CHECK-NEXT:     int _d_flag = 0;
+//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     double _t0;
+//CHECK-NEXT:     double *_t2;
+//CHECK-NEXT:     double *_t3;
+//CHECK-NEXT:     double _d_r = 0.;
+//CHECK-NEXT:     double r = x;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         _cond0 = flag;
+//CHECK-NEXT:         if (_cond0) {
+//CHECK-NEXT:             _t0 = x;
+//CHECK-NEXT:             clad::ValueAndAdjoint<double &, double &> _t1 = amplify_reverse_forw(x, *_d_x);
+//CHECK-NEXT:             _t2 = &_t1.value;
+//CHECK-NEXT:             _t3 = &_t1.adjoint;
+//CHECK-NEXT:             r += *_t2;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_r += 1;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         *_t3 += _d_r;
+//CHECK-NEXT:         x = _t0;
+//CHECK-NEXT:         amplify_pullback(x, _d_x);
+//CHECK-NEXT:     }
+//CHECK-NEXT:     *_d_x += _d_r;
+//CHECK-NEXT: }
+
 int main() {
   double dx = 0;
   INIT_GRADIENT(f1);
@@ -214,4 +291,14 @@ int main() {
   dx = 0;
   INIT_GRADIENT(f4);
   TEST_GRADIENT(f4, /*numOfDerivativeArgs=*/1, 1, &dx); // CHECK-EXEC: 6.00
+
+  dx = 0;
+  INIT_GRADIENT(f5, "x");
+  TEST_GRADIENT(f5, /*numOfDerivativeArgs=*/1, 1, 1, &dx); // CHECK-EXEC: 3.00
+
+  dx = 0;
+  INIT_GRADIENT(f6, "x");
+  TEST_GRADIENT(f6, /*numOfDerivativeArgs=*/1, 1, 1, &dx); // CHECK-EXEC: 3.00
+  dx = 0;
+  TEST_GRADIENT(f6, /*numOfDerivativeArgs=*/1, 1, 0, &dx); // CHECK-EXEC: 1.00
 }
