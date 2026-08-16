@@ -2699,7 +2699,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // could otherwise call the primal directly: the pullback consumes state
     // only the reverse_forw produces, so eliding it would leave the carrier
     // empty and silently wrong.
-    if (calleeFnForwPassFD && !hasDynamicNonDiffParams &&
+    // A missing adjoint for a non-differentiated argument (a data pointer)
+    // must not suppress a reverse_forw that is only needed for its stores:
+    // suppressing it silently drops the pre-call state the reverse sweep
+    // relies on. The missing slot is filled with a null-pointer or zero
+    // literal, which is why this is restricted to calls whose returned
+    // ValueAndAdjoint is unused: those bodies only replay the primal.
+    if (calleeFnForwPassFD && (!hasDynamicNonDiffParams || !needsForwPass) &&
         (hasStoredParams || needsForwPass || !pullbackStateType.isNull())) {
       if (const auto* CD = dyn_cast<CXXConversionDecl>(FD))
         CallArgs.push_back(
