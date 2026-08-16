@@ -2848,25 +2848,72 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // synthesized for a function clad cannot actually differentiate (an
       // operation reached through an opaque type). Fall through to recreating
       // the original call rather than storing a null expression.
-      if (!needsForwPass ||
-          (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE)))
-        return StmtDiff(call);
-      Expr* callRes = nullptr;
-      if (isInsideLoop || m_DiffReq.hasEarlyReturns())
-        callRes = GlobalStoreAndRef(call, /*prefix=*/"_t", /*force=*/true);
-      else
-        callRes = StoreAndRef(call);
-      auto* resValue =
-          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
-      // Clone the base so `_t0.value` and `_t0.adjoint` own distinct nodes.
-      auto* resAdjoint = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                                CloneNode(callRes), "adjoint");
-      if (Expr* add_assign = BuildDiffIncrement(resAdjoint)) {
-        Stmts& block = getCurrentBlock(direction::reverse);
-        it = std::begin(block) + insertionPoint;
-        block.insert(it, add_assign);
+      if (call) {
+        if (!needsForwPass ||
+            (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE)))
+          return StmtDiff(call);
+        Expr* callRes = nullptr;
+        Expr* resValue = nullptr;
+        Expr* resAdjoint = nullptr;
+        // The adjoint increment built below goes into the reverse sweep.
+        // For a call inside a sub-block that is a different block than the
+        // forward one, so a block-local store would be out of scope there.
+        // Early returns wrap the reverse sweep in lambdas, which must not
+        // capture block-locals either. In both cases hoist the store to
+        // function scope. A result with reference members cannot be hoisted
+        // whole: a reference cannot be declared unset and assigned later.
+        // Store it block-locally instead and hoist pointers to the
+        // referents, which outlive the block; both sweeps then go through
+        // the pointers. (With early returns GlobalStoreAndRef tapes the
+        // ValueAndAdjoint store, which also handles reference members.)
+        // FIXME: a result mixing reference and non-reference members (only
+        // producible by a custom reverse_forw) still emits the block-local
+        // form and trips the use-before-declaration integrity check: a
+        // pointer into the block-local struct would dangle.
+        bool anyRef = false;
+        bool allRefs = true;
+        if (const auto* RD = call->getType()->getAsCXXRecordDecl())
+          for (const FieldDecl* FD : RD->fields()) {
+            anyRef |= FD->getType()->isReferenceType();
+            allRefs &= FD->getType()->isReferenceType();
+          }
+        bool tapeStore = isInsideLoop || m_DiffReq.hasEarlyReturns();
+        if (!tapeStore &&
+            (getCurrentScope()->isFunctionScope() || (anyRef && !allRefs)))
+          callRes = StoreAndRef(call);
+        else if (tapeStore || !anyRef)
+          callRes = GlobalStoreAndRef(call, /*prefix=*/"_t",
+                                      /*force=*/true);
+        else {
+          callRes = StoreAndRef(call);
+          Expr* valueAddr = BuildOp(
+              UO_AddrOf, utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                                callRes, "value"));
+          Expr* adjointAddr = BuildOp(
+              UO_AddrOf, utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                                CloneNode(callRes), "adjoint"));
+          resValue = BuildOp(UO_Deref, GlobalStoreAndRef(valueAddr,
+                                                         /*prefix=*/"_t",
+                                                         /*force=*/true));
+          resAdjoint = BuildOp(UO_Deref, GlobalStoreAndRef(adjointAddr,
+                                                           /*prefix=*/"_t",
+                                                           /*force=*/true));
+        }
+        if (!resValue) {
+          resValue = utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes,
+                                            "value");
+          // Clone the base so `_t0.value` and `_t0.adjoint` own distinct
+          // nodes.
+          resAdjoint = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                              CloneNode(callRes), "adjoint");
+        }
+        if (Expr* add_assign = BuildDiffIncrement(resAdjoint)) {
+          Stmts& block = getCurrentBlock(direction::reverse);
+          it = std::begin(block) + insertionPoint;
+          block.insert(it, add_assign);
+        }
+        return StmtDiff(resValue, resAdjoint);
       }
-      return StmtDiff(resValue, resAdjoint);
     } // Recreate the original call expression.
 
     if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
