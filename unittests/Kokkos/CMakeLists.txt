@@ -4,6 +4,7 @@ add_clad_unittest(KokkosTests
   ViewBasics.cpp
   ParallelReduce.cpp
   ParallelFor.cpp
+  MathFunctions.cpp
   )
 
 # If llvm does not require rtti, kokkos does.
