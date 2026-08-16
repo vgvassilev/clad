@@ -1254,6 +1254,25 @@ CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   if (d_y)
     *d_y += b * (clad_digamma(y) - psi_xy) * d_z;
 }
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+lgamma_pushforward(T x, dT d_x) noexcept {
+  return {::std::lgamma(x), clad_digamma(x) * d_x};
+}
+
+// pushforward for lgammaf
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+lgammaf_pushforward(T x, dT d_x) noexcept {
+  return lgamma_pushforward(x, d_x);
+}
+
+// pushforward for lgammal
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+lgammal_pushforward(T x, dT d_x) noexcept {
+  return lgamma_pushforward(x, d_x);
+}
 #endif
 
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
@@ -1609,6 +1628,9 @@ using std::sqrt_pushforward;
 #if __cplusplus >= 201703L
 using std::beta_pullback;
 using std::beta_pushforward;
+using std::lgamma_pushforward;
+using std::lgammaf_pushforward;
+using std::lgammal_pushforward;
 #endif
 
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
