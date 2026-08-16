@@ -3269,11 +3269,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
 
       // Store the value of the LHS of the assignment in the forward pass
-      // and restore it in the reverse pass
+      // and restore it in the reverse pass.
       if (m_DiffReq.shouldBeRecorded(L) && !isReallocAssignment) {
-        // Clone: LCloned is also consumed by the forward reconstruction, so the
-        // store/restore must not share it.
-        StmtDiff pushPop = StoreAndRestore(CloneNode(LCloned));
+        // In a loop a call-shaped LHS (`v[i]` through a user-defined
+        // operator[] or at()) is restored by re-evaluating the lvalue rather
+        // than through the call's cached result pointer, whose per-iteration
+        // target the reverse sweep may already have destroyed. The accessor
+        // therefore runs once more per stored assignment.
+        bool callLValue = isa<CallExpr>(L->IgnoreParenImpCasts());
+        // Clone: LCloned is also consumed by the forward reconstruction, so
+        // the store/restore must not share it.
+        Expr* storeE =
+            (isInsideLoop && callLValue) ? Clone(L) : CloneNode(LCloned);
+        StmtDiff pushPop = StoreAndRestore(storeE);
         addToCurrentBlock(pushPop.getStmt(), direction::forward);
         addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
         if (isInsideOMPBlock) {

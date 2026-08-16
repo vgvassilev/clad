@@ -353,7 +353,9 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t2 = {{.*}}custom_derivatives::custom_identity_reverse_forw(i, *_d_i);
 // CHECK-NEXT:     double &_d_temp = _t2.adjoint;
 // CHECK-NEXT:     double &temp = _t2.value;
+// CHECK-NEXT:     double _t3 = k;
 // CHECK-NEXT:     k += 7 * j;
+// CHECK-NEXT:     double _t4 = l;
 // CHECK-NEXT:     l += 9 * i;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1;
@@ -361,10 +363,12 @@ double fn7(double i, double j) {
 // CHECK-NEXT:         _d_temp += 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
+// CHECK-NEXT:         l = _t4;
 // CHECK-NEXT:         double _r_d1 = _d_l;
 // CHECK-NEXT:         *_d_i += 9 * _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
+// CHECK-NEXT:         k = _t3;
 // CHECK-NEXT:         double _r_d0 = _d_k;
 // CHECK-NEXT:         *_d_j += 7 * _r_d0;
 // CHECK-NEXT:     }
@@ -1009,9 +1013,13 @@ double fn28(double u, double v) {
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = nested_reverse_forw(arr, u, _d_arr, 0., _tracker0);
 // CHECK-NEXT:     double &_d_ref = _t0.adjoint;
 // CHECK-NEXT:     double &ref = _t0.value;
+// CHECK-NEXT:     double _t1 = ref;
 // CHECK-NEXT:     ref += 2;
 // CHECK-NEXT:     _d_ref += 1;
-// CHECK-NEXT:     double _r_d0 = _d_ref; 
+// CHECK-NEXT:     {
+// CHECK-NEXT:         ref = _t1;
+// CHECK-NEXT:         double _r_d0 = _d_ref;
+// CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;

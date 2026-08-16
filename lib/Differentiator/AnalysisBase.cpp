@@ -123,18 +123,23 @@ void AnalysisBase::getDependencySet(const clang::Expr* E,
   public:
     std::set<const clang::VarDecl*>& vars;
     DeclFinder(std::set<const clang::VarDecl*>& pvars) : vars(pvars) {}
+    // A Traverse* override returning false aborts the entire traversal, not
+    // just this subtree (see clang/AST/RecursiveASTVisitor.h); returning true
+    // without calling the base skips only this node's children.
     bool TraverseDeclRefExpr(DeclRefExpr* DRE) {
       if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
         vars.insert(VD);
-      return false;
+      return true;
     }
     bool TraverseArraySubscriptExpr(ArraySubscriptExpr* ASE) {
+      // The index is deliberately not visited: only the base contributes a
+      // storage dependency.
       TraverseStmt(ASE->getBase());
-      return false;
+      return true;
     }
     bool TraverseCXXThisExpr(CXXThisExpr* TE) {
       vars.insert(nullptr);
-      return false;
+      return true;
     }
   };
   DeclFinder finder(vars);
