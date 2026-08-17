@@ -948,15 +948,63 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
                   GuardNullTangentRead(base, adjoint, result_at_is, zero));
 }
 
+const DeclRefExpr*
+BaseForwardModeVisitor::getPointerArithmeticRoot(const Expr* E) {
+  while (E) {
+    E = E->IgnoreParenImpCasts();
+    if (const auto* BO = dyn_cast<BinaryOperator>(E)) {
+      BinaryOperatorKind opCode = BO->getOpcode();
+      bool isStep = opCode == BO_Add || opCode == BO_Sub ||
+                    opCode == BO_AddAssign || opCode == BO_SubAssign;
+      // Only a step that yields a pointer keeps the walk going; `ptr - ptr` is
+      // not one. Plain `ptr = q` is not one either, being rooted in `q`.
+      if (!isStep || !BO->getType()->isPointerType())
+        break;
+      // `ptr + n`, `ptr - n` and `ptr += n` step the pointer on the left,
+      // `n + ptr` the one on the right; a pointer result leaves no third case.
+      const Expr* LHS = BO->getLHS();
+      E = LHS->getType()->isPointerType() ? LHS : BO->getRHS();
+      continue;
+    }
+    const auto* UO = dyn_cast<UnaryOperator>(E);
+    if (!UO || !UO->isIncrementDecrementOp() || !UO->getType()->isPointerType())
+      break;
+    E = UO->getSubExpr();
+  }
+  return dyn_cast_or_null<DeclRefExpr>(E);
+}
+
 Expr* BaseForwardModeVisitor::GuardNullTangentRead(const Expr* ptr,
                                                    Expr* tangent, Expr* read,
                                                    Expr* zero) {
-  const auto* DRE = dyn_cast<DeclRefExpr>(ptr->IgnoreParenImpCasts());
+  // Test the root, not the expression being dereferenced: the two are null
+  // together, and the root repeats no pointer arithmetic. When the walk reaches
+  // no root the whole tangent becomes the condition, so callers have to hand
+  // over one that is safe to evaluate twice.
+  const DeclRefExpr* DRE = getPointerArithmeticRoot(ptr);
   if (!DRE || !m_DiffReq.mayHaveNullTangent(dyn_cast<VarDecl>(DRE->getDecl())))
     return read;
-  Expr* cond = CloneNode(tangent);
+  const DeclRefExpr* tangentRoot = getPointerArithmeticRoot(tangent);
+  Expr* cond = CloneNode(tangentRoot ? tangentRoot : tangent);
   return BuildParens(
       m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, read, zero).get());
+}
+
+Expr* BaseForwardModeVisitor::KeepTangentNullness(const Expr* ptr,
+                                                  Expr* tangent) {
+  if (!tangent || !tangent->getType()->isPointerType())
+    return tangent;
+  // A bare root has no arithmetic to undo.
+  const DeclRefExpr* tangentRoot = getPointerArithmeticRoot(tangent);
+  if (!tangentRoot || tangentRoot == tangent->IgnoreParenImpCasts())
+    return tangent;
+  const DeclRefExpr* DRE = getPointerArithmeticRoot(ptr);
+  if (!DRE || !m_DiffReq.mayHaveNullTangent(dyn_cast<VarDecl>(DRE->getDecl())))
+    return tangent;
+  Expr* cond = CloneNode(tangentRoot);
+  Expr* null = getZeroInit(tangent->getType());
+  return BuildParens(
+      m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, tangent, null).get());
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
@@ -1279,6 +1327,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         }
         dArg = getZeroInit(zeroTy);
       }
+      // The callee null checks the tangent it is handed.
+      dArg = KeepTangentNullness(arg, dArg);
       // pointer/array arguments are dynamically synthesized above
       diffArgs.push_back(dArg);
     }
@@ -1412,8 +1462,12 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
   else if (opKind == UO_PostInc || opKind == UO_PostDec ||
            opKind == UO_PreInc || opKind == UO_PreDec) {
     Expr* derivedOp = diff.getExpr_dx();
-    if (derivedOp && diff.getExpr_dx()->getType()->isPointerType())
+    if (derivedOp && diff.getExpr_dx()->getType()->isPointerType()) {
       derivedOp = BuildOp(opKind, diff.getExpr_dx());
+      // The stepped tangent outlives this expression, so skip the step while
+      // it is null.
+      derivedOp = KeepTangentNullness(UnOp->getSubExpr(), derivedOp);
+    }
     return StmtDiff(op, derivedOp);
   } /* For supporting complex types */
   else if (opKind == UnaryOperatorKind::UO_Real ||
@@ -1427,9 +1481,15 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
         utils::GetValueType(UnOp->getSubExpr()->getType()->getPointeeType());
     Expr* zero =
         ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0);
-    if (Expr* dx = diff.getExpr_dx())
+    if (Expr* dx = diff.getExpr_dx()) {
+      // The guard tests the tangent and reads through it. A tangent that steps
+      // a pointer (`_d_q++`) would take that step once per occurrence, so give
+      // the two occurrences a single evaluation to share.
+      if (dx->HasSideEffects(m_Context))
+        dx = StoreAndRef(dx);
       return StmtDiff(op, GuardNullTangentRead(UnOp->getSubExpr(), dx,
                                                BuildOp(opKind, dx), zero));
+    }
     return StmtDiff(op, zero);
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
     Expr* derivedOp = diff.getExpr_dx();
@@ -1544,7 +1604,13 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
         derivedL = CloneNode(derivedL);
       if (derivedR == Rdiff.getExpr())
         derivedR = CloneNode(derivedR);
+      // `q = xlArr + 1` carries the arithmetic on the right; `q += 1` performs
+      // it on the tangent itself, so there the whole update is guarded.
+      if (opCode == BO_Assign)
+        derivedR = KeepTangentNullness(BinOp->getRHS(), derivedR);
       opDiff = BuildOp(opCode, derivedL, derivedR);
+      if (opCode != BO_Assign)
+        opDiff = KeepTangentNullness(BinOp->getLHS(), opDiff);
     } else if (opCode == BO_MulAssign || opCode == BO_DivAssign) {
       // if both original expression and derived expression and evaluatable,
       // then derived expression reference needs to be stored before
@@ -1662,6 +1728,9 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
   // `const double& r = 5.;` derives to is not one.
   if (VDType->isLValueReferenceType() && initDx && !initDx->isLValue())
     initDx = nullptr;
+  // The tangent outlives the initializer that built it.
+  if (init && initDx)
+    initDx = KeepTangentNullness(init, initDx);
   // References and pointers-to-const only alias storage they do not own, so
   // without an initializer tangent there is nothing to alias. Fabricating one
   // yields a null tangent that later gets dereferenced, or a reference bound
