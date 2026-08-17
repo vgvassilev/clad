@@ -1498,19 +1498,16 @@ double fn25_defined_later(double x) {
 // CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params) {
 // CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
 // CHECK-NEXT:     std::size_t i = {{0U|0UL}};
-// CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_total = 0.;
 // CHECK-NEXT:     double total = 1.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 1; ++i) {
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, total);
 // CHECK-NEXT:         total += params[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_total += _d_y;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
-// CHECK-NEXT:         total = clad::pop(_t1);
 // CHECK-NEXT:         double _r_d0 = _d_total;
 // CHECK-NEXT:         _d_params[i] += _r_d0;
 // CHECK-NEXT:     }

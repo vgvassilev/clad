@@ -17,6 +17,7 @@
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/SourceLocation.h"
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -424,6 +425,11 @@ struct RequestOptions {
     /// Essentially needed for prolonging the lifetime of
     /// unique_ptr<clang::AnalysisDeclContext>.
     OwnedAnalysisContexts& m_AllAnalysisDC;
+    /// The contexts PlanNestedRequest built, keyed by the function they
+    /// describe, so that repeated planning of the same lazily-scheduled
+    /// request reuses one context (and one CFG) instead of building another.
+    llvm::DenseMap<const clang::FunctionDecl*, clang::AnalysisDeclContext*>
+        m_NestedAnalysisDC;
     /// If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///

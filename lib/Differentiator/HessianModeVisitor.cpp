@@ -59,6 +59,11 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
   ReverseModeRequest.m_CladLoopCheckpoints =
       IndependentArgRequest.m_CladLoopCheckpoints;
+  // This reverse pass is the bulk of a hessian: it runs once per direction
+  // over a function the size of the first-order derivative. Let it use TBR so
+  // it only tapes what the reverse sweep reads back.
+  ReverseModeRequest.EnableTBRAnalysis =
+      IndependentArgRequest.EnableTBRAnalysis;
 
   FunctionDecl* secondDerivative =
       Builder.HandleNestedDiffRequest(ReverseModeRequest);
