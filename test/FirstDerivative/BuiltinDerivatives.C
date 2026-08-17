@@ -550,6 +550,13 @@ double f_beta(double x, double y) { return std::beta(x, y); }
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
+double f_lgamma(double x) { return std::lgamma(x); }
+// CHECK: double f_lgamma_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}lgamma_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -735,6 +742,9 @@ int main () { //expected-no-diagnostics
 
   auto d_beta = clad::differentiate(f_beta, 0);
   printf("Result is = %.6f\n", d_beta.execute(2.0, 3.0)); // CHECK-EXEC: Result is = -0.090278
+
+  auto d_lgamma = clad::differentiate(f_lgamma, 0);
+  printf("Result is = %.6f\n", d_lgamma.execute(0.5)); // CHECK-EXEC: Result is = -1.963510
 
   return 0;
 }

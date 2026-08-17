@@ -307,6 +307,7 @@ DEFINE_FUNCTIONS(atanh) // x in [-1,1]
 //------------------------ Error / Gamma functions -----------------------------
 //
 DEFINE_FUNCTIONS(erf)  // x in (-inf,+inf)
+DEFINE_FUNCTIONS(lgamma) // x not a negative integer or 0
 
 template<typename T> T f_beta(T x){ return std::beta(x,(T)2.0); } // x in (0, +inf)
 inline float f_betaf(float x){ return std::beta(x, 2.0f); }
@@ -393,6 +394,7 @@ int main() {
   // Error / Gamma functions
   CHECK_ALL(erf);
   CHECK_ALL_RANGE(beta, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
+  CHECK_ALL_RANGE(lgamma, {0.1, 0.5, 1.2, 1.5, 2.0, 3.0, 4.0});
 
   #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__))
   // Elliptic Integrals
