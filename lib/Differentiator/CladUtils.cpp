@@ -3,6 +3,7 @@
 
 #include "ConstantFolder.h"
 
+#include "clang/AST/APValue.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -26,6 +27,8 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
@@ -923,6 +926,26 @@ namespace clad {
         return IL->getValue() == 0;
       if (const auto* SL = dyn_cast<StringLiteral>(E))
         return SL->getLength() == 0;
+      return false;
+    }
+
+    bool IsZeroOrNullValue(const clang::Expr* E, const clang::ASTContext& C) {
+      // Handles a null E too, so the dereference below is safe.
+      if (IsZeroOrNullValue(E))
+        return true;
+      QualType T = E->getType();
+      // Evaluation is a whole-expression constant fold, so it is only correct
+      // to read the result as "this is zero" when the expression cannot
+      // observe or change anything on the way; EvaluateAs* refuse side
+      // effects by default.
+      if (T->isRealFloatingType()) {
+        llvm::APFloat F(0.);
+        return E->EvaluateAsFloat(F, C) && F.isZero();
+      }
+      if (T->isIntegralOrEnumerationType()) {
+        Expr::EvalResult R;
+        return E->EvaluateAsInt(R, C) && R.Val.getInt() == 0;
+      }
       return false;
     }
 

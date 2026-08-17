@@ -1357,8 +1357,12 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       for (unsigned i = 0, e = diffArgs.size(); i < e; ++i) {
         Expr* dArg = diffArgs[i];
         // If argDiff.expr_dx is nullptr or is a constant 0, then the derivative
-        // of the function call is 0.
-        if (!clad::utils::IsZeroOrNullValue(dArg)) {
+        // of the function call is 0. Constant-fold rather than pattern-match a
+        // literal: by the time a tangent reaches a call it has usually been
+        // bound to a `const` variable, and seeding one direction of a
+        // multi-directional request leaves every other tangent exactly that --
+        // a zero-initialized constant.
+        if (!clad::utils::IsZeroOrNullValue(dArg, m_Context)) {
           allArgsHaveZeroDerivatives = false;
           break;
         }

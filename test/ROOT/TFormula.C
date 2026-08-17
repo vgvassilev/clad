@@ -58,17 +58,17 @@ void TFormula_example_grad_1(const Double_t* x, Double_t* p, Double_t* _d_p);
 //CHECK-NEXT:       return 0. * _t0 + x[0] * (1. + 0. + 0.) + _t1.pushforward + 0.;
 //CHECK-NEXT:   }
 
+// Exp is called with a -0. tangent in the directions that do not seed p[0], so
+// it folds to zero and no pushforward is emitted for it.
 //CHECK:   Double_t TFormula_example_darg1_1(const Double_t *x, Double_t *p) {
 //CHECK-NEXT:       {{double|Double_t}} _t0 = (p[0] + p[1] + p[2]);
-//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t1 = clad::custom_derivatives::TMath::Exp_pushforward(-p[0], -0.);
-//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t2 = clad::custom_derivatives::TMath::Abs_pushforward(p[1], 1.);
-//CHECK-NEXT:       return 0. * _t0 + x[0] * (0. + 1. + 0.) + _t1.pushforward + _t2.pushforward;
+//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t1 = clad::custom_derivatives::TMath::Abs_pushforward(p[1], 1.);
+//CHECK-NEXT:       return 0. * _t0 + x[0] * (0. + 1. + 0.) + 0. + _t1.pushforward;
 //CHECK-NEXT:   }
 
 //CHECK:   Double_t TFormula_example_darg1_2(const Double_t *x, Double_t *p) {
 //CHECK-NEXT:       {{double|Double_t}} _t0 = (p[0] + p[1] + p[2]);
-//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t1 = clad::custom_derivatives::TMath::Exp_pushforward(-p[0], -0.);
-//CHECK-NEXT:       return 0. * _t0 + x[0] * (0. + 0. + 1.) + _t1.pushforward + 0.;
+//CHECK-NEXT:       return 0. * _t0 + x[0] * (0. + 0. + 1.) + 0. + 0.;
 //CHECK-NEXT:   }
 
 Double_t TFormula_hess1(const Double_t *x, Double_t *p) {
