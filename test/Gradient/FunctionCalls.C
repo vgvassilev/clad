@@ -239,6 +239,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         int _r0 = 0;
 // CHECK-NEXT:         sum_pullback(arr, n, _r_d0, _d_arr, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_n += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -278,6 +279,7 @@ double fn5(double* arr, int n) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:       _tracker0.restore();
 // CHECK-NEXT:       modify2_pullback(arr, _d_temp, _d_arr);
+// CHECK-NEXT:       _tracker0.restore();
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -953,6 +955,7 @@ double fn27(double u, double v) {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         mult_pullback(arr, u, _d_arr, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_u += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -989,11 +992,13 @@ double& nested(double* x, double y) {
 // CHECK-NEXT:         _tracker1.restore();
 // CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         mult_pullback(x, 3, _d_x, &_r1);
+// CHECK-NEXT:         _tracker1.restore();
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         mult_pullback(x, y, _d_x, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_y += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -1024,6 +1029,7 @@ double fn28(double u, double v) {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         nested_pullback(arr, u, _d_arr, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_u += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -1069,6 +1075,7 @@ double fn29(double *x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         foo_pullback(x, _d_x);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

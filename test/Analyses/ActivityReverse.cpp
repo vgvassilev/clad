@@ -333,6 +333,7 @@ double f10(double x){
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         f10_1_pullback(x, t, &_r0, _d_t);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

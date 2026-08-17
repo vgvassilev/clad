@@ -1491,15 +1491,18 @@ namespace clad {
       return utils::InstantiateTemplate(S, CladTag, {T});
     }
 
-    Expr* GetCladTagExpr(Sema& S, QualType T) {
-      QualType CladTagTy = utils::GetCladTagOfType(S, T);
+    Expr* BuildDefaultConstructExpr(Sema& S, QualType T) {
+      SourceLocation Loc = utils::GetValidSLoc(S);
       return S
-          .BuildCXXTypeConstructExpr(S.getASTContext().getTrivialTypeSourceInfo(
-                                         CladTagTy, utils::GetValidSLoc(S)),
-                                     utils::GetValidSLoc(S), MultiExprArg{},
-                                     utils::GetValidSLoc(S),
-                                     /*ListInitialization=*/false)
+          .BuildCXXTypeConstructExpr(
+              S.getASTContext().getTrivialTypeSourceInfo(T, Loc), Loc,
+              MultiExprArg{}, Loc,
+              /*ListInitialization=*/false)
           .get();
+    }
+
+    Expr* GetCladTagExpr(Sema& S, QualType T) {
+      return BuildDefaultConstructExpr(S, utils::GetCladTagOfType(S, T));
     }
 
     bool canUsePushforwardInRevMode(const FunctionDecl* FD) {

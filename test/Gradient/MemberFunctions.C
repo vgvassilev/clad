@@ -467,6 +467,7 @@ double fn2(SimpleFunctions& sf, double i) {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         sf.ref_mem_fn_pullback(i, _d_sf, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -506,6 +507,7 @@ double fn5(SimpleFunctions& v, double value) {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         v.operator_plus_equal_pullback(value, _d_v, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_value += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -538,6 +540,7 @@ double fn4(SimpleFunctions& v) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         v.operator_plus_plus_pullback(_d_v);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -738,6 +741,7 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:          a.increment_pullback(&_d_a);
+// CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r_d0 = _d_res;

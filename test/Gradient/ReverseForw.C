@@ -71,6 +71,7 @@ double f1(double x) {
 //CHECK-NEXT:         _tracker0.restore();
 //CHECK-NEXT:         int _r0 = 0;
 //CHECK-NEXT:         nested_pullback(&x, -6, _d_x, &_r0);
+//CHECK-NEXT:         _tracker0.restore();
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
@@ -178,22 +179,24 @@ double f4(double x) {
 //CHECK: void f4_grad(double x, double *_d_x) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+//CHECK-NEXT:     clad::tape<clad::restore_tracker> _tracker0 = {};
 //CHECK-NEXT:     clad::tape<clad::ValueAndAdjoint<double *, double *> > _t1 = {};
 //CHECK-NEXT:     double _d_r = 0.;
 //CHECK-NEXT:     double r = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < 2; ++i) {
 //CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         _tracker0.clear();
-//CHECK-NEXT:         clad::push(_t1, mul2_reverse_forw(&x, _d_x, _tracker0));
+//CHECK-NEXT:         clad::push(_tracker0, clad::restore_tracker());
+//CHECK-NEXT:         clad::push(_t1, mul2_reverse_forw(&x, _d_x, clad::back(_tracker0)));
 //CHECK-NEXT:         r += *clad::back(_t1).value;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_r += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         *clad::back(_t1).adjoint += _d_r;
-//CHECK-NEXT:         _tracker0.restore();
+//CHECK-NEXT:         clad::back(_tracker0).restore();
 //CHECK-NEXT:         mul2_pullback(&x, _d_x);
+//CHECK-NEXT:         clad::back(_tracker0).restore();
+//CHECK-NEXT:         clad::pop(_tracker0);
 //CHECK-NEXT:         clad::pop(_t1);
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
@@ -228,6 +231,7 @@ double f5(double x, int flag) {
 //CHECK-NEXT:         *_t0.adjoint += _d_r;
 //CHECK-NEXT:         _tracker0.restore();
 //CHECK-NEXT:         mul2_pullback(&x, _d_x);
+//CHECK-NEXT:         _tracker0.restore();
 //CHECK-NEXT:     }
 //CHECK-NEXT:     *_d_x += _d_r;
 //CHECK-NEXT: }

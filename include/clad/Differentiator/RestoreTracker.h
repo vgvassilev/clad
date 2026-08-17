@@ -22,11 +22,14 @@ namespace clad {
 
 /// This class is used for bitwise storing/restoring variables.
 /// It is passed to reverse_forw to store the state of the program before the
-/// function call, for example,
+/// function call. restore() is non-destructive so it can re-establish the
+/// pre-call state both before the pullback (whose forward replay must start
+/// from it) and after it (the replay re-mutates the restored state):
 /// f_reverse_forw(..., _tracker0);
 /// ...
 /// _tracker0.restore();
 /// f_pullback(...);
+/// _tracker0.restore();
 /// We use it when we have to pass information between nested calls and
 /// clad::tape is not viable.
 class restore_tracker {
@@ -63,7 +66,6 @@ public:
   CUDA_HOST_DEVICE void restore() {
     for (size_t i = 0; i < m_cnt; ++i)
       std::memcpy(m_meta[i].addr, m_buf + m_meta[i].off, m_meta[i].size);
-    m_cnt = m_off = 0;
   }
 
   // Drop all records without writing anything back. Emitted where a
@@ -88,13 +90,14 @@ public:
     std::memcpy(buffer.data(), &val, sizeof(T));
     m_data.emplace((char*)&val, std::move(buffer));
   }
-  // Set all stored addresses to the corresponsing values bitwise.
+  // Set all stored addresses to the corresponding values bitwise. Keeps the
+  // stored values: the reverse sweep restores the same state again after the
+  // pullback's forward replay re-mutates it.
   void restore() {
     for (std::pair<const Address, RawMemory>& pair : m_data) {
       std::vector<uint8_t>& buffer = pair.second;
       std::memcpy(pair.first, buffer.data(), buffer.size());
     }
-    m_data.clear();
   }
 
   // Drop all records without writing anything back. Emitted where a

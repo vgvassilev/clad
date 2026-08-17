@@ -2717,7 +2717,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // f_reverse_forw(..., _tracker0);
       // ...
       // _tracker0.restore();
+      // f_pullback(...);
+      // _tracker0.restore();
       // ```
+      // The tracker restores the pre-call state twice: once so the pullback's
+      // forward replay starts from it, and once after the pullback, whose
+      // replay re-mutates the very state the first restore put back, so that
+      // earlier reverse-sweep consumers see pre-call values again.
       Expr* trackerExpr = nullptr;
       if (usingRestoreTracker) {
         if (m_RestoreTracker) {
@@ -2729,30 +2735,55 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // ```
           trackerExpr = m_RestoreTracker;
         } else {
-          // Otherwise, generate the declaration
-          // ``clad::restore_tracker _tracker0 = {};``
-          // The declaration must live at function scope: the matching
-          // restore() below goes into the reverse sweep, which for a call
-          // inside a loop or branch is a different block than the forward
-          // one, so a block-local declaration would leave the reverse-sweep
-          // reference out of scope. A clear() at the former declaration
-          // point keeps the old per-visit semantics (only state recorded
-          // since the last forward visit is restored).
-          // FIXME: a single tracker serving all iterations of a reversed
-          // loop only restores the last iteration's state; full generality
-          // needs per-iteration taping of the tracker.
-          VarDecl* trackerDecl = GlobalStoreImpl(trackerType, "_tracker",
-                                                 getZeroInit(trackerType));
-          Expr* clearCall = BuildCallExprToMemFn(BuildDeclRef(trackerDecl),
-                                                 /*MemberFunctionName=*/"clear",
-                                                 /*ArgExprs=*/{}, Loc);
-          addToCurrentBlock(clearCall);
-          trackerExpr = BuildDeclRef(trackerDecl);
+          Expr* trackerPop = nullptr;
+          if (isInsideLoop) {
+            // Every iteration needs its own snapshot: one tracker shared by
+            // the whole loop keeps only the first iteration's values, since
+            // storing an address twice keeps the first store. Tape a fresh
+            // tracker per iteration and pop it once its reverse iteration is
+            // done.
+            Expr* freshTracker =
+                utils::BuildDefaultConstructExpr(m_Sema, trackerType);
+            auto CladTape =
+                MakeCladTapeFor(freshTracker, "_tracker", trackerType);
+            addToCurrentBlock(CladTape.Push, direction::forward);
+            trackerExpr = CladTape.Last();
+            trackerPop = CladTape.Pop;
+          } else {
+            // Otherwise, generate the declaration
+            // ``clad::restore_tracker _tracker0 = {};``
+            // The declaration must live at function scope: the matching
+            // restore() below goes into the reverse sweep, which for a call
+            // inside a branch is a different block than the forward one, so a
+            // block-local declaration would leave the reverse-sweep reference
+            // out of scope. A clear() at the former declaration point keeps
+            // the per-visit semantics (only state recorded since the last
+            // forward visit is restored).
+            VarDecl* trackerDecl = GlobalStoreImpl(trackerType, "_tracker",
+                                                   getZeroInit(trackerType));
+            Expr* clearCall =
+                BuildCallExprToMemFn(BuildDeclRef(trackerDecl),
+                                     /*MemberFunctionName=*/"clear",
+                                     /*ArgExprs=*/{}, Loc);
+            addToCurrentBlock(clearCall);
+            trackerExpr = BuildDeclRef(trackerDecl);
+          }
           Expr* restoreCall = BuildCallExprToMemFn(
-              BuildDeclRef(trackerDecl), /*MemberFunctionName=*/"restore",
+              CloneNode(trackerExpr), /*MemberFunctionName=*/"restore",
               /*ArgExprs=*/{}, Loc);
           it = std::begin(block) + insertionPoint;
           block.insert(it, restoreCall);
+          // Re-restore after the pullback's replay; then the loop tape can
+          // drop this iteration's tracker.
+          Expr* restoreCall2 = BuildCallExprToMemFn(
+              CloneNode(trackerExpr), /*MemberFunctionName=*/"restore",
+              /*ArgExprs=*/{}, Loc);
+          std::size_t postPullback = insertionPoint + 1 + PreCallStmts.size() +
+                                     (OverloadedDerivedFn ? 1 : 0);
+          it = std::begin(block) + postPullback;
+          it = block.insert(it, restoreCall2);
+          if (trackerPop)
+            block.insert(std::next(it), trackerPop);
         }
       }
       // Add the tracker as the last argument of the reverse_forw. A propagated

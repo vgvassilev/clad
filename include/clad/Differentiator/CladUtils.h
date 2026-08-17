@@ -431,6 +431,9 @@ namespace clad {
     clang::QualType GetCladArrayRefOfType(clang::Sema& S, clang::QualType T);
     /// Returns type clad::Tag<T>
     clang::QualType GetCladTagOfType(clang::Sema& S, clang::QualType T);
+    /// Builds a value-initialized temporary of type `T`, i.e. `T()`.
+    clang::Expr* BuildDefaultConstructExpr(clang::Sema& S, clang::QualType T);
+
     /// Returns type clad::Tag<T>()
     clang::Expr* GetCladTagExpr(clang::Sema& S, clang::QualType T);
 

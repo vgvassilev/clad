@@ -436,6 +436,7 @@ MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports 
 // CHECK-NEXT:        _tracker0.restore();
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
 // CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, _d_s, &_r0);
+// CHECK-NEXT:        _tracker0.restore();
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
 // CHECK-NEXT:    }
@@ -718,6 +719,7 @@ void fn20(MyStruct s) {
 // CHECK-NEXT:        _tracker0.restore();
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
 // CHECK-NEXT:        s.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, _d_s, &_r0);
+// CHECK-NEXT:        _tracker0.restore();
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
 // CHECK-NEXT:    }
@@ -984,6 +986,7 @@ struct MyStructWrapper {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:          this->val.operator_equal_pullback(static_cast<MyStructWrapper &&>(arg).val, &_d_this->val, &(*_d_arg).val);
+// CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
@@ -1007,6 +1010,7 @@ double fn27(double x, double y) {
 // CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:          MyStructWrapper _r0 = {{.*0., 0..*}};
 // CHECK-NEXT:          s.operator_equal_pullback({{.*2 \* y, 3 \* x \+ 2.*}}, &_d_s, &_r0);
+// CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:          *_d_y += 2 * _r0.val.a;
 // CHECK-NEXT:          *_d_x += 3 * _r0.val.b;
 // CHECK-NEXT:      }
