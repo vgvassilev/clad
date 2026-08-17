@@ -1,4 +1,4 @@
-if (CLAD_ENABLE_BENCHMARKS)
+if (CLAD_ENABLE_BENCHMARKS OR CLAD_ENABLE_LIBTORCH_BENCHMARKS)
   # Find the current branch.
   execute_process(WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                   COMMAND git rev-parse HEAD
@@ -11,7 +11,7 @@ if (CLAD_ENABLE_BENCHMARKS)
 set_property(DIRECTORY APPEND PROPERTY
              CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/HEAD")
 
-endif(CLAD_ENABLE_BENCHMARKS)
+endif()
 
 #-------------------------------------------------------------------------------
 # function ENABLE_CLAD_FOR_TARGET(<executable>

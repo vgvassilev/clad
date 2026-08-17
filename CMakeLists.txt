@@ -309,6 +309,8 @@ add_definitions( -D_GNU_SOURCE
   -DCLAD_INSTDIR_INCL="${CLAD_BINARY_DIR}/include" )
 
 option(CLAD_BUILD_STATIC_ONLY "Does not build shared libraries. Useful when we have LLVM_ENABLE_PLUGINS=OFF (eg. Win or CYGWIN)" OFF)
+option(CLAD_ENABLE_LIBTORCH_BENCHMARKS
+  "Build benchmarks for the Clad-backed LibTorch integration." OFF)
 if (NOT CLAD_BUILD_STATIC_ONLY AND NOT LLVM_ENABLE_PLUGINS)
   message(FATAL_ERROR "LLVM_ENABLE_PLUGINS is set to OFF. Please build clad with -DCLAD_BUILD_STATIC_ONLY=ON.")
 endif()
@@ -336,11 +338,12 @@ endif()
 
 
 if (NOT CLAD_BUILD_STATIC_ONLY)
-  if (CLAD_ENABLE_BENCHMARKS)
+  if (CLAD_ENABLE_BENCHMARKS OR CLAD_ENABLE_LIBTORCH_BENCHMARKS)
     include(GoogleBenchmark)
-  endif(CLAD_ENABLE_BENCHMARKS)
+  endif()
 
-  if (NOT CLAD_DISABLE_TESTS OR CLAD_ENABLE_BENCHMARKS)
+  if (NOT CLAD_DISABLE_TESTS OR CLAD_ENABLE_BENCHMARKS OR
+      CLAD_ENABLE_LIBTORCH_BENCHMARKS)
     # Change the default compiler to the clang which we run clad upon. Our unittests
     # need to use a supported by clad compiler. Note that's a huge hack and it is
     # not guaranteed to work with cmake.
@@ -370,6 +373,10 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
   if (CLAD_ENABLE_BENCHMARKS)
     add_subdirectory(benchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
+  if (CLAD_ENABLE_LIBTORCH_BENCHMARKS)
+    enable_testing()
+    add_subdirectory(benchmark/LibTorch)
+  endif()
 
   if (stored_cxx_compiler)
     # Restore the default compilers.
