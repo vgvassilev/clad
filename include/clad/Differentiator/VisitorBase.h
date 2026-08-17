@@ -13,6 +13,7 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtVisitor.h"
@@ -21,6 +22,7 @@
 #include "clang/Basic/Lambda.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
@@ -30,6 +32,12 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/PrettyStackTrace.h"
+
+// For the LambdaBuilder
+#if CLANG_VERSION_MAJOR > 16
+#include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/Support/SaveAndRestore.h"
+#endif // CLANG_VERSION_MAJOR > 16
 
 #include <array>
 #include <cassert>
@@ -304,6 +312,52 @@ namespace clad {
       void resolve(llvm::ArrayRef<clang::Stmt*> Body);
       bool contains(clang::VarDecl* VD) const { return m_Captures.count(VD); }
     };
+
+#if CLANG_VERSION_MAJOR > 16
+    /// Builds a new lambda closure with an explicit parameter list, following
+    /// the order Sema relies on while parsing one -- deviating from it leaves
+    /// Sema in a state that only crashes much later. Used by
+    /// `buildClonedLambda` and `ReverseModeVisitor::buildDerivedLambda`.
+    class LambdaBuilder {
+      VisitorBase& m_V;
+      // Sema keeps referring to the introducer and the declarator until
+      // ActOnLambdaExpr, so they outlive start(). m_DS is built from
+      // m_AttrFactory and m_D from m_DS, so declaration order matters.
+      clang::AttributeFactory m_AttrFactory;
+      const clang::DeclSpec m_DS;
+      clang::Declarator m_D;
+      clang::LambdaIntroducer m_Intro;
+      llvm::SaveAndRestore<clang::DeclContext*> m_SaveContext;
+      llvm::SaveAndRestore<clang::FunctionDecl*> m_SaveDerivative;
+      llvm::SaveAndRestore<clang::Scope*> m_SaveFnScope;
+      bool m_Started = false;
+      bool m_Finished = false;
+
+    public:
+      using ParamBuilder =
+          llvm::function_ref<void(llvm::SmallVectorImpl<clang::ParmVarDecl*>&)>;
+
+      explicit LambdaBuilder(VisitorBase& V);
+      LambdaBuilder(const LambdaBuilder&) = delete;
+      LambdaBuilder& operator=(const LambdaBuilder&) = delete;
+      LambdaBuilder(LambdaBuilder&&) = delete;
+      LambdaBuilder& operator=(LambdaBuilder&&) = delete;
+      /// Asserts that a started builder was also finished. The scopes and the
+      /// declaration context start() opens are only closed by finish(), so an
+      /// early return in between leaves Sema inside a half-built closure and
+      /// only crashes much later.
+      ~LambdaBuilder();
+      /// Without this the new closure is capture-less.
+      void cloneCaptures(const clang::LambdaExpr* LE);
+      /// Opens the body scope; on return the caller may begin a block and emit
+      /// into it. \p LE only supplies the declaration context to graft the
+      /// closure onto, \p BuildParams appends the call operator's parameters.
+      void start(const clang::LambdaExpr* LE, clang::QualType CallOpType,
+                 ParamBuilder BuildParams);
+      /// Closes the scopes start() opened.
+      clang::Expr* finish(clang::Stmt* Body);
+    };
+#endif // CLANG_VERSION_MAJOR > 16
 
     /// Build a lambda whose body is produced by `func`. Returns the
     /// LambdaExpr without invoking it, so the caller can bind it to a VarDecl

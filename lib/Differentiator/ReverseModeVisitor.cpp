@@ -2076,96 +2076,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
 #if CLANG_VERSION_MAJOR > 16
   clang::Expr* ReverseModeVisitor::buildDerivedLambda(const LambdaExpr* LE) {
-    LambdaIntroducer Intro;
-    Intro.Default = LCD_None;
-    Intro.Range.setBegin(noLoc);
-    Intro.Range.setEnd(noLoc);
-    AttributeFactory AttrFactory;
-    const DeclSpec DS(AttrFactory);
-    Declarator D(DS, clang::ParsedAttributesView::none(),
-                 clang::DeclaratorContext::LambdaExpr);
+    LambdaBuilder LBuilder(*this);
+    LBuilder.start(LE, GetLambdaDerivativeType(LE),
+                   [&](llvm::SmallVectorImpl<ParmVarDecl*>& params) {
+                     BuildParams(params, LE);
+                   });
 
-    QualType dFnType = GetLambdaDerivativeType(LE);
-
-    auto* DC =
-        const_cast<DeclContext*>(LE->getCallOperator()->getDeclContext());
-    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-    llvm::SaveAndRestore<FunctionDecl*> SaveDerivative(m_Derivative);
-
-    llvm::SaveAndRestore<Scope*> SaveFunctionScope(m_DerivativeFnScope);
-    beginScope(Scope::LambdaScope | Scope::DeclScope |
-               Scope::FunctionDeclarationScope | Scope::FunctionPrototypeScope);
-
-    m_Sema.PushLambdaScope();
-    m_Sema.ActOnLambdaExpressionAfterIntroducer(Intro, getCurrentScope());
-
-    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
-               Scope::DeclScope);
-
-    llvm::SmallVector<DeclaratorChunk::ParamInfo> ParamInfoLambda;
-    llvm::SmallVector<ParmVarDecl*, 8> params;
-
-    m_Sema.ActOnLambdaClosureQualifiers(Intro, noLoc);
-
-    sema::LambdaScopeInfo* LSI = m_Sema.getCurLambda();
-    LSI->CallOperator->setType(dFnType);
-
-    m_Sema.PushDeclContext(getCurrentScope(), LSI->CallOperator);
-
-    LSI->Lambda->setDeclContext(DC);
-
-    m_Derivative = LSI->CallOperator;
-
-    BuildParams(params, LE);
-    m_Derivative->setBody(MakeCompoundStmt({}));
-
-    m_Sema.PopDeclContext();
-
-    for (auto* PVD : params)
-      ParamInfoLambda.emplace_back(PVD->getIdentifier(), PVD->getLocation(),
-                                   PVD, nullptr);
-    // ActOnStartOfLambdaDefinition uses LParenLoc.isValid() to flip
-    // LSI->ExplicitParams; an invalid LParen makes the lambda print
-    // without its parameter list (`[]{...}` instead of `[](T x){...}`).
-    // Use a real SourceLocation so the printer sees explicit params.
-    SourceLocation paramListLoc = utils::GetValidSLoc(m_Sema);
-    D.AddTypeInfo(DeclaratorChunk::getFunction(
-                      /*hasProto=*/true,
-                      /*isAmbiguous=*/false,
-                      /*LParenLoc=*/paramListLoc,
-                      /*Params=*/ParamInfoLambda.data(),
-                      /*NumParams=*/ParamInfoLambda.size(),
-                      /*EllipsisLoc=*/SourceLocation(),
-                      /*RParenLoc=*/paramListLoc,
-                      /*RefQualifierIsLValueRef=*/true,
-                      /*RefQualifierLoc=*/SourceLocation(),
-                      /*MutableLoc=*/SourceLocation(),
-                      /*ESpecType=*/EST_None,
-                      /*ESpecRange=*/SourceRange(),
-                      /*Exceptions=*/nullptr,
-                      /*ExceptionRanges=*/nullptr,
-                      /*NumExceptions=*/0,
-                      /*NoexceptExpr=*/nullptr,
-                      /*ExceptionSpecTokens=*/nullptr,
-                      /*DeclsInPrototype=*/{},
-                      /*LocalRangeBegin=*/noLoc,
-                      /*LocalRangeEnd=*/noLoc,
-                      /*Declarator=*/D,
-                      /*TrailingReturnType=*/ParsedType(),
-                      /*TrailingReturnTypeLoc=*/SourceLocation()),
-                  /*EndLoc=*/SourceLocation());
-
-    m_Sema.ActOnLambdaClosureParameters(getCurrentScope(), ParamInfoLambda);
-
-    beginScope(Scope::BlockScope | Scope::FnScope | Scope::DeclScope |
-               Scope::CompoundStmtScope);
-
-    m_Sema.ActOnStartOfLambdaDefinition(
-        Intro, D,
-        clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
-            getCurrentScope(), DS));
-
-    m_DerivativeFnScope = getCurrentScope();
     Stmts OuterGlobals;
     std::swap(m_Globals, OuterGlobals);
 
@@ -2192,19 +2108,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     m_Globals.clear();
     std::swap(m_Globals, OuterGlobals);
 
-    Expr* lambda =
-        m_Sema
-            .ActOnLambdaExpr(
-                noLoc,
-                DerivedBody /*,*/
-                    CLAD_COMPAT_CLANG17_ActOnLambdaExpr_getCurrentScope_ExtraParam(
-                        *this))
-            .get();
-
-    endScope();
-    endScope();
-    endScope();
-    return lambda;
+    return LBuilder.finish(DerivedBody);
   }
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const LambdaExpr* LE) {
