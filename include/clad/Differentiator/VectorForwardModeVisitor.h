@@ -4,6 +4,9 @@
 #include "BaseForwardModeVisitor.h"
 #include "DerivativeBuilder.h"
 
+#include "clang/AST/Expr.h"
+
+#include <cstddef>
 #include <unordered_map>
 
 namespace clad {
@@ -11,6 +14,33 @@ namespace clad {
 /// Used to compute derivatives by clad::vector_forward_differentiate.
 class VectorForwardModeVisitor : public BaseForwardModeVisitor {
 protected:
+  /// Tracks where the next independent variable starts in the flat vector of
+  /// all of them: the sizes of the array parameters seen so far plus the
+  /// number of scalar ones. Array sizes are only known at run time, so that
+  /// half is an accumulated expression; the scalar half is a counter folded
+  /// into a literal on demand.
+  ///
+  /// The tracker clones every expression it takes in and hands out. The sum
+  /// keeps growing after an offset is taken, and each offset goes into a
+  /// different part of the derivative; every AST node has exactly one parent.
+  class IndVarOffsetTracker {
+    VectorForwardModeVisitor* m_V;
+    /// Sum of the sizes of the array parameters seen so far, null until the
+    /// first one.
+    clang::Expr* m_ArrayCount = nullptr;
+    /// Number of scalar parameters seen so far.
+    std::size_t m_ScalarCount = 0;
+
+  public:
+    explicit IndVarOffsetTracker(VectorForwardModeVisitor& V) : m_V(&V) {}
+    /// Build a fresh expression for the offset of the current parameter.
+    [[nodiscard]] clang::Expr* buildOffset() const;
+    /// Account for an array parameter of the given size.
+    void advanceByArray(const clang::Expr* size);
+    /// Account for a scalar parameter.
+    void advanceByScalar() { ++m_ScalarCount; }
+  };
+
   llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
   /// Map used to keep track of parameter variables w.r.t which the
   /// the derivative is being computed. This is separate from the
