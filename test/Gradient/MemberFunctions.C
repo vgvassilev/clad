@@ -367,7 +367,7 @@ public:
 
   static double static_mem_fn(double u, double v) { return u + v; }
   
-  // CHECK: static void static_mem_fn_grad(double u, double v, double *_d_u, double *_d_v) {
+  // CHECK: static inline void static_mem_fn_grad(double u, double v, double *_d_u, double *_d_v) {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         *_d_u += 1;
   // CHECK-NEXT:         *_d_v += 1;
@@ -577,7 +577,7 @@ double fn6(double u, double v) {
     return v;
 }
 
-// CHECK: static void constructor_pullback(double x, double *y, SafeTestClass *_d_this, double *_d_x, double *_d_y) {
+// CHECK: static inline void constructor_pullback(double x, double *y, SafeTestClass *_d_this, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     SafeTestClass *_this = (SafeTestClass *)malloc(sizeof(SafeTestClass));
 // CHECK-NEXT:     *y = x;
 // CHECK-NEXT:     {
@@ -910,7 +910,7 @@ int main() {
   d_fn3.execute(2, 3, 4, 5, &result[0], &result[1]);
   printf("%.2f %.2f", result[0], result[1]); // CHECK-EXEC: 10.00 4.00
 
-// CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {
+// CHECK: static inline void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_p_y += _d_this->y;
 // CHECK-NEXT:         _d_this->y = 0.;

@@ -177,7 +177,7 @@ double test_9(double x) {
   return A::static_method(x);
 }
 
-// CHECK: static clad::ValueAndPushforward<double, double> static_method_pushforward(double x, double _d_x) {
+// CHECK: static inline clad::ValueAndPushforward<double, double> static_method_pushforward(double x, double _d_x) {
 // CHECK-NEXT: return {x, _d_x};
 // CHECK-NEXT: }
 
