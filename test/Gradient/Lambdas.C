@@ -173,6 +173,33 @@ double f6(double i) {
 // CHECK-NEXT: }
 
 
+double f7(double i, double j) {
+  // The unnamed parameter needs a synthesized name in the cloned primal.
+  auto _f = [](double t, double) {
+    return t * t;
+  };
+  return _f(i, j);
+}
+
+// CHECK: void f7_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:     auto _f0 = [](double t, double arg) {
+// CHECK-NEXT:         return t * t;
+// CHECK-NEXT:     };
+// CHECK-NEXT:     auto _d__f = [](double t, double arg, double _d_y, double *_d_t, double *_d_arg) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             *_d_t += _d_y * t;
+// CHECK-NEXT:             *_d_t += t * _d_y;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     };
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         _d__f(i, j, 1, &_r0, &_r1);
+// CHECK-NEXT:         *_d_i += _r0;
+// CHECK-NEXT:         *_d_j += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main() {
   auto df1 = clad::gradient(f1);
   double di = 0, dj = 0;
@@ -203,4 +230,9 @@ int main() {
   di = 0;
   df6.execute(3, &di);
   printf("%.2f\n", di);                       // CHECK-EXEC: 8.00
+
+  auto df7 = clad::gradient(f7);
+  di = 0, dj = 0;
+  df7.execute(3, 4, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 6.00 0.00
 }

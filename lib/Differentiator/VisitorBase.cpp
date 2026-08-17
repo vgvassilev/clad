@@ -28,6 +28,8 @@
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/ExceptionSpecificationType.h"
+#include "clang/Basic/Lambda.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
@@ -50,6 +52,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <numeric>
 #include <utility>
@@ -1152,6 +1155,131 @@ namespace clad {
   }
 #endif // CLANG_VERSION_MAJOR >= 17
 
+#if CLANG_VERSION_MAJOR > 16
+  VisitorBase::LambdaBuilder::LambdaBuilder(VisitorBase& V)
+      : m_V(V), m_DS(m_AttrFactory),
+        m_D(m_DS, clang::ParsedAttributesView::none(),
+            clang::DeclaratorContext::LambdaExpr),
+        m_SaveContext(V.m_Sema.CurContext), m_SaveDerivative(V.m_Derivative),
+        m_SaveFnScope(V.m_DerivativeFnScope) {
+    m_Intro.Default = LCD_None;
+    m_Intro.Range.setBegin(noLoc);
+    m_Intro.Range.setEnd(noLoc);
+  }
+
+  void VisitorBase::LambdaBuilder::cloneCaptures(const LambdaExpr* LE) {
+    m_Intro.Default = LE->getCaptureDefault();
+    for (const clang::LambdaCapture& Cap : LE->explicit_captures())
+      m_Intro.addCapture(Cap.getCaptureKind(), Cap.getLocation(),
+                         Cap.getCapturedVar()->getIdentifier(), /*EllipsisLoc=*/
+                         noLoc, clang::LambdaCaptureInitKind::NoInit,
+                         clang::ExprResult(), clang::ParsedType(),
+                         SourceRange());
+    m_Intro.Range.setBegin(LE->getBeginLoc());
+    m_Intro.Range.setEnd(LE->getEndLoc());
+  }
+
+  void VisitorBase::LambdaBuilder::start(const LambdaExpr* LE,
+                                         QualType CallOpType,
+                                         ParamBuilder BuildParams) {
+    DeclContext* DC = LE->getCallOperator()->getDeclContext();
+
+    m_Started = true;
+    m_V.beginScope(Scope::LambdaScope | Scope::DeclScope |
+                   Scope::FunctionDeclarationScope |
+                   Scope::FunctionPrototypeScope);
+    m_V.m_Sema.PushLambdaScope();
+    m_V.m_Sema.ActOnLambdaExpressionAfterIntroducer(m_Intro,
+                                                    m_V.getCurrentScope());
+
+    m_V.beginScope(Scope::FunctionPrototypeScope |
+                   Scope::FunctionDeclarationScope | Scope::DeclScope);
+
+    m_V.m_Sema.ActOnLambdaClosureQualifiers(m_Intro, noLoc);
+
+    sema::LambdaScopeInfo* LSI = m_V.m_Sema.getCurLambda();
+    LSI->CallOperator->setType(CallOpType);
+    m_V.m_Sema.PushDeclContext(m_V.getCurrentScope(), LSI->CallOperator);
+    LSI->Lambda->setDeclContext(DC);
+    m_V.m_Derivative = LSI->CallOperator;
+
+    llvm::SmallVector<ParmVarDecl*, 8> params;
+    BuildParams(params);
+    m_V.m_Derivative->setBody(m_V.MakeCompoundStmt({}));
+
+    m_V.m_Sema.PopDeclContext();
+
+    llvm::SmallVector<DeclaratorChunk::ParamInfo> ParamInfoLambda;
+    for (auto* PVD : params)
+      ParamInfoLambda.emplace_back(PVD->getIdentifier(), PVD->getLocation(),
+                                   PVD, nullptr);
+    // ActOnStartOfLambdaDefinition uses LParenLoc.isValid() to flip
+    // LSI->ExplicitParams; an invalid LParen makes the lambda print without
+    // its parameter list (`[]{...}` instead of `[](T x){...}`).
+    SourceLocation paramListLoc = utils::GetValidSLoc(m_V.m_Sema);
+    m_D.AddTypeInfo(DeclaratorChunk::getFunction(
+                        /*hasProto=*/true,
+                        /*isAmbiguous=*/false,
+                        /*LParenLoc=*/paramListLoc,
+                        /*Params=*/ParamInfoLambda.data(),
+                        /*NumParams=*/ParamInfoLambda.size(),
+                        /*EllipsisLoc=*/SourceLocation(),
+                        /*RParenLoc=*/paramListLoc,
+                        /*RefQualifierIsLValueRef=*/true,
+                        /*RefQualifierLoc=*/SourceLocation(),
+                        /*MutableLoc=*/SourceLocation(),
+                        /*ESpecType=*/EST_None,
+                        /*ESpecRange=*/SourceRange(),
+                        /*Exceptions=*/nullptr,
+                        /*ExceptionRanges=*/nullptr,
+                        /*NumExceptions=*/0,
+                        /*NoexceptExpr=*/nullptr,
+                        /*ExceptionSpecTokens=*/nullptr,
+                        /*DeclsInPrototype=*/{},
+                        /*LocalRangeBegin=*/noLoc,
+                        /*LocalRangeEnd=*/noLoc,
+                        /*Declarator=*/m_D,
+                        /*TrailingReturnType=*/ParsedType(),
+                        /*TrailingReturnTypeLoc=*/SourceLocation()),
+                    /*EndLoc=*/SourceLocation());
+
+    m_V.m_Sema.ActOnLambdaClosureParameters(m_V.getCurrentScope(),
+                                            ParamInfoLambda);
+
+    m_V.beginScope(Scope::BlockScope | Scope::FnScope | Scope::DeclScope |
+                   Scope::CompoundStmtScope);
+
+    m_V.m_Sema.ActOnStartOfLambdaDefinition(
+        m_Intro, m_D,
+        clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
+            m_V.getCurrentScope(), m_DS));
+
+    m_V.m_DerivativeFnScope = m_V.getCurrentScope();
+  }
+
+  Expr* VisitorBase::LambdaBuilder::finish(Stmt* Body) {
+    Expr* lambda =
+        m_V.m_Sema
+            .ActOnLambdaExpr(
+                noLoc,
+                Body /*,*/
+                    CLAD_COMPAT_CLANG17_ActOnLambdaExpr_getCurrentScope_ExtraParam(
+                        m_V))
+            .get();
+    m_V.endScope();
+    m_V.endScope();
+    m_V.endScope();
+    m_Finished = true;
+    return lambda;
+  }
+
+  VisitorBase::LambdaBuilder::~LambdaBuilder() {
+    assert((!m_Started || m_Finished) &&
+           "a started LambdaBuilder must be finished: bailing out in between "
+           "leaves Sema inside a half-built closure");
+  }
+#endif // CLANG_VERSION_MAJOR > 16
+
   Expr* VisitorBase::buildClonedLambda(const LambdaExpr* LE) {
     // A primal copy needs a *fresh* closure type; a plain StmtClone reuses the
     // original closure, so two clones share the operator() body -- both a
@@ -1175,100 +1303,23 @@ namespace clad {
 
     const CXXMethodDecl* CallOp = LE->getCallOperator();
 
-    // Mirror the lambda-introduction dance performed while parsing a lambda;
-    // see buildDerivedLambda for the differentiating counterpart.
-    LambdaIntroducer Intro;
-    Intro.Default = LE->getCaptureDefault();
-    for (const clang::LambdaCapture& Cap : LE->explicit_captures())
-      Intro.addCapture(Cap.getCaptureKind(), Cap.getLocation(),
-                       Cap.getCapturedVar()->getIdentifier(), /*EllipsisLoc=*/
-                       noLoc, clang::LambdaCaptureInitKind::NoInit,
-                       clang::ExprResult(), clang::ParsedType(), SourceRange());
-    Intro.Range.setBegin(LE->getBeginLoc());
-    Intro.Range.setEnd(LE->getEndLoc());
-    AttributeFactory AttrFactory;
-    const DeclSpec DS(AttrFactory);
-    Declarator D(DS, clang::ParsedAttributesView::none(),
-                 clang::DeclaratorContext::LambdaExpr);
-
-    auto* DC = const_cast<DeclContext*>(CallOp->getDeclContext());
-    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-    llvm::SaveAndRestore<FunctionDecl*> SaveDerivative(m_Derivative);
-    llvm::SaveAndRestore<Scope*> SaveFnScope(m_DerivativeFnScope);
-
-    beginScope(Scope::LambdaScope | Scope::DeclScope |
-               Scope::FunctionDeclarationScope | Scope::FunctionPrototypeScope);
-    m_Sema.PushLambdaScope();
-    m_Sema.ActOnLambdaExpressionAfterIntroducer(Intro, getCurrentScope());
-
-    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
-               Scope::DeclScope);
-
-    llvm::SmallVector<DeclaratorChunk::ParamInfo> ParamInfoLambda;
-    llvm::SmallVector<ParmVarDecl*, 8> params;
-
-    m_Sema.ActOnLambdaClosureQualifiers(Intro, noLoc);
-
-    sema::LambdaScopeInfo* LSI = m_Sema.getCurLambda();
-    // The clone keeps the original call operator's signature (unlike the
-    // derivative, which gets adjoint parameters).
-    LSI->CallOperator->setType(CallOp->getType());
-    m_Sema.PushDeclContext(getCurrentScope(), LSI->CallOperator);
-    LSI->Lambda->setDeclContext(DC);
-    m_Derivative = LSI->CallOperator;
-
-    for (const ParmVarDecl* PVD : CallOp->parameters()) {
-      IdentifierInfo* II = PVD->getIdentifier();
-      if (!PVD->getDeclName())
-        II = CreateUniqueIdentifier("arg");
-      auto* newPVD = CloneParmVarDecl(PVD, II, /*pushOnScopeChains=*/true,
-                                      /*cloneDefaultArg=*/false);
-      // Remap references in the cloned body to the new parameters.
-      m_DeclReplacements[PVD] = newPVD;
-      params.push_back(newPVD);
-    }
-    m_Derivative->setBody(MakeCompoundStmt({}));
-    m_Sema.PopDeclContext();
-
-    for (auto* PVD : params)
-      ParamInfoLambda.emplace_back(PVD->getIdentifier(), PVD->getLocation(),
-                                   PVD, nullptr);
-    SourceLocation paramListLoc = utils::GetValidSLoc(m_Sema);
-    D.AddTypeInfo(DeclaratorChunk::getFunction(
-                      /*hasProto=*/true,
-                      /*isAmbiguous=*/false,
-                      /*LParenLoc=*/paramListLoc,
-                      /*Params=*/ParamInfoLambda.data(),
-                      /*NumParams=*/ParamInfoLambda.size(),
-                      /*EllipsisLoc=*/SourceLocation(),
-                      /*RParenLoc=*/paramListLoc,
-                      /*RefQualifierIsLValueRef=*/true,
-                      /*RefQualifierLoc=*/SourceLocation(),
-                      /*MutableLoc=*/SourceLocation(),
-                      /*ESpecType=*/EST_None,
-                      /*ESpecRange=*/SourceRange(),
-                      /*Exceptions=*/nullptr,
-                      /*ExceptionRanges=*/nullptr,
-                      /*NumExceptions=*/0,
-                      /*NoexceptExpr=*/nullptr,
-                      /*ExceptionSpecTokens=*/nullptr,
-                      /*DeclsInPrototype=*/{},
-                      /*LocalRangeBegin=*/noLoc,
-                      /*LocalRangeEnd=*/noLoc,
-                      /*Declarator=*/D,
-                      /*TrailingReturnType=*/ParsedType(),
-                      /*TrailingReturnTypeLoc=*/SourceLocation()),
-                  /*EndLoc=*/SourceLocation());
-
-    m_Sema.ActOnLambdaClosureParameters(getCurrentScope(), ParamInfoLambda);
-
-    beginScope(Scope::BlockScope | Scope::FnScope | Scope::DeclScope |
-               Scope::CompoundStmtScope);
-    m_Sema.ActOnStartOfLambdaDefinition(
-        Intro, D,
-        clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
-            getCurrentScope(), DS));
-    m_DerivativeFnScope = getCurrentScope();
+    LambdaBuilder LBuilder(*this);
+    LBuilder.cloneCaptures(LE);
+    LBuilder.start(LE, CallOp->getType(),
+                   [&](llvm::SmallVectorImpl<ParmVarDecl*>& params) {
+                     for (const ParmVarDecl* PVD : CallOp->parameters()) {
+                       IdentifierInfo* II = PVD->getIdentifier();
+                       if (!PVD->getDeclName())
+                         II = CreateUniqueIdentifier("arg");
+                       auto* newPVD =
+                           CloneParmVarDecl(PVD, II, /*pushOnScopeChains=*/true,
+                                            /*cloneDefaultArg=*/false);
+                       // Remap references in the cloned body to the new
+                       // parameters.
+                       m_DeclReplacements[PVD] = newPVD;
+                       params.push_back(newPVD);
+                     }
+                   });
 
     beginBlock();
     const auto* Body = cast<CompoundStmt>(CallOp->getBody());
@@ -1307,20 +1358,7 @@ namespace clad {
       up.TraverseStmt(clonedS);
       addToCurrentBlock(clonedS);
     }
-    CompoundStmt* ClonedBody = endBlock();
-
-    Expr* lambda =
-        m_Sema
-            .ActOnLambdaExpr(
-                noLoc,
-                ClonedBody /*,*/
-                    CLAD_COMPAT_CLANG17_ActOnLambdaExpr_getCurrentScope_ExtraParam(
-                        *this))
-            .get();
-    endScope();
-    endScope();
-    endScope();
-    return lambda;
+    return LBuilder.finish(endBlock());
 #endif // CLANG_VERSION_MAJOR < 17
   }
 
