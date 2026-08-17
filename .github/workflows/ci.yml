@@ -607,3 +607,40 @@ jobs:
         name: observes-change-summary
         path: observes-change-summary.json
         if-no-files-found: ignore
+
+  build-wasm:
+    timeout-minutes: 30
+    name: ubu24-emscr-runtime22
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Setup emsdk
+      uses: emscripten-core/setup-emsdk@v16
+      with:
+        # The emsdk pin must match the llvm-wasm cell.
+        version: '4.0.9'
+
+    - name: Setup LLVM/Clang/LLD built for wasm
+      uses: compiler-research/ci-workflows/actions/setup-recipe@main
+      with:
+        recipe: llvm-wasm
+        version: '22'
+        os: ubuntu-24.04
+        arch: x86_64
+
+    - name: Build Clad for wasm
+      run: |
+        LLVM_BUILD_DIR="$(pwd)/install/build"
+        mkdir obj && cd obj
+        emcmake cmake -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_DIR=$LLVM_BUILD_DIR/lib/cmake/llvm \
+          -DClang_DIR=$LLVM_BUILD_DIR/lib/cmake/clang \
+          -DLLD_DIR=$LLVM_BUILD_DIR/lib/cmake/lld \
+          -DCLAD_BUILD_STATIC_ONLY=ON \
+          -DLLVM_ENABLE_WERROR=On \
+          $GITHUB_WORKSPACE
+        emmake make -j$(nproc)
+
+    - name: Run the unittests under node
+      run: emmake make -j$(nproc) -C obj check-clad
