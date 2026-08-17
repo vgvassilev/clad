@@ -899,6 +899,7 @@ namespace clad {
 
     /// Checks if the type is of clad::array<T> or clad::array_ref<T> type
     bool isCladArrayType(clang::QualType QT);
+
     /// Creates the expression clad::matrix<T>::identity(Args) for the given
     /// type and args.
     clang::Expr*
@@ -949,12 +950,6 @@ namespace clad {
     clang::FunctionDecl* FindDerivedFunction(DiffRequest& request);
 
   public:
-    /// Builds an overload for the derivative function that has derived params
-    /// for all the arguments of the requested function and it calls the
-    /// original derivative function internally. Used in gradient and jacobian
-    /// modes.
-    clang::FunctionDecl*
-    CreateDerivativeOverload(clang::FunctionDecl derivative);
     /// Rebuild a sequence of nested namespaces ending with DC and return
     /// how many were opened. Each opens a Scope that the caller (via
     /// ClonedFunction's RAII handle) must balance with the same count
@@ -1018,12 +1013,26 @@ namespace clad {
     ///
     clang::QualType GetDerivativeType();
 
+    /// Which flavour of overload CreateDerivativeOverload should build.
+    ///
+    /// The derivative parameters of an overload all share one type, because
+    /// the exact derivative type cannot be spelled at compile time without the
+    /// plugin's help. Vector forward mode spells that type
+    /// clad::array_ref<void>; every other mode spells it void*.
+    ///
+    /// This is an explicit argument rather than a set of virtual hooks because
+    /// the visitor hierarchy does not follow the mode split:
+    /// JacobianModeVisitor derives from VectorForwardModeVisitor but builds a
+    /// default overload, so it would silently inherit vector mode's flavour.
+    enum class OverloadKind { Default, VectorMode };
+
     /// Builds an overload for the derivative function that has derived params
     /// for all the arguments of the requested function and it calls the
-    /// original derivative function internally. Used in gradient and jacobian
-    /// modes.
+    /// original derivative function internally. Used in gradient, jacobian and
+    /// vector forward modes.
     clang::FunctionDecl*
-    CreateDerivativeOverload(clang::FunctionDecl* derivative = nullptr);
+    CreateDerivativeOverload(clang::FunctionDecl* derivative = nullptr,
+                             OverloadKind kind = OverloadKind::Default);
 
     /// Computes effective derivative operands. It should be used when operands
     /// might be of pointer types.

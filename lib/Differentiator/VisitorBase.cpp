@@ -1425,8 +1425,9 @@ namespace clad {
     return Call.isInvalid() ? nullptr : Call.get();
   }
 
-  FunctionDecl*
-  VisitorBase::CreateDerivativeOverload(FunctionDecl* derivative) {
+  FunctionDecl* VisitorBase::CreateDerivativeOverload(FunctionDecl* derivative,
+                                                      OverloadKind kind) {
+    const bool vectorMode = kind == OverloadKind::VectorMode;
     if (!derivative)
       derivative = m_Derivative;
     auto diffParams = derivative->parameters();
@@ -1439,18 +1440,20 @@ namespace clad {
     std::size_t totalDerivedParamsSize = m_DiffReq->getNumParams() * 2;
     std::size_t numOfDerivativeParams = m_DiffReq->getNumParams();
 
-    // Account for the this pointer.
-    if (isa<CXXMethodDecl>(m_DiffReq.Function) &&
+    // Account for the this pointer. Vector mode takes exactly one derivative
+    // parameter per original parameter.
+    if (!vectorMode && isa<CXXMethodDecl>(m_DiffReq.Function) &&
         !utils::IsStaticMethod(m_DiffReq.Function) &&
         (!m_DiffReq.Functor || m_DiffReq.Mode != DiffMode::jacobian))
       ++numOfDerivativeParams;
-    // All output parameters will be of type `void*`. These
-    // parameters will be casted to correct type before the call to the actual
-    // derived function.
+    // All output parameters have the same type. They are cast back to the
+    // correct type before the call to the actual derived function.
     // We require each output parameter to be of same type in the overloaded
     // derived function due to limitations of generating the exact derived
     // function type at the compile-time (without clad plugin help).
-    QualType outputParamType = m_Context.getPointerType(m_Context.VoidTy);
+    QualType outputParamType =
+        vectorMode ? utils::GetCladArrayRefOfType(m_Sema, m_Context.VoidTy)
+                   : m_Context.getPointerType(m_Context.VoidTy);
 
     llvm::SmallVector<QualType, 16> paramTypes;
 
@@ -1544,16 +1547,27 @@ namespace clad {
          ++i) {
       auto* overloadParam = overloadParams[i];
       auto* diffParam = diffParams[i];
+      QualType diffParamType = diffParam->getType();
       TypeSourceInfo* typeInfo =
-          m_Context.getTrivialTypeSourceInfo(diffParam->getType());
-      SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-      auto* init = m_Sema
-                       .BuildCStyleCastExpr(fakeLoc, typeInfo, fakeLoc,
-                                            BuildDeclRef(overloadParam))
-                       .get();
+          m_Context.getTrivialTypeSourceInfo(diffParamType);
+      Expr* init = BuildDeclRef(overloadParam);
+      if (vectorMode) {
+        // A clad::array_ref<void> reaches a non-array_ref parameter through
+        // its underlying pointer.
+        if (!isCladArrayType(diffParamType))
+          init = BuildCallExprToMemFn(init, /*MemberFunctionName=*/"ptr", {});
+        init = m_Sema
+                   .BuildCXXNamedCast(noLoc, tok::TokenKind::kw_static_cast,
+                                      typeInfo, init, noLoc, noLoc)
+                   .get();
+      } else {
+        SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
+        init =
+            m_Sema.BuildCStyleCastExpr(fakeLoc, typeInfo, fakeLoc, init).get();
+      }
 
       auto* diffVD =
-          BuildGlobalVarDecl(diffParam->getType(), diffParam->getName(), init);
+          BuildGlobalVarDecl(diffParamType, diffParam->getName(), init);
       callArgs.push_back(BuildDeclRef(diffVD));
       addToCurrentBlock(BuildDeclStmt(diffVD));
     }
