@@ -413,10 +413,13 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     FunctionDecl* derivative = this->FindDerivedFunction(request);
     if (!derivative) {
       alreadyDerived = false;
-      // FIXME: Our analyses are closely tied to the DiffPlanner. Dynamic
-      // derivatives don't have m_AnalysisDC. We should either disable
-      // dynamic scheduling or build m_AnalysisDC here.
-      request.EnableTBRAnalysis = false;
+      // FIXME: Our analyses are closely tied to the DiffPlanner. The varied
+      // and useful analyses have to be run eagerly by the planner and it does
+      // not do so for dynamically scheduled requests, so they stay off. TBR
+      // runs lazily and only needs an m_AnalysisDC, which PlanNestedRequest
+      // above builds; keep it whenever we got one.
+      request.EnableTBRAnalysis =
+          request.EnableTBRAnalysis && request.m_AnalysisDC != nullptr;
       request.EnableVariedAnalysis = false;
       request.EnableUsefulAnalysis = false;
 

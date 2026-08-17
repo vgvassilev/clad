@@ -125,10 +125,12 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
 
   clang::SourceManager& SM = m_AnalysisDC->getASTContext().getSourceManager();
   for (const Stmt* S : m_TBRLocs) {
-    SourceLocation Loc = S->getBeginLoc();
-    unsigned line = SM.getPresumedLoc(Loc).getLine();
-    unsigned column = SM.getPresumedLoc(Loc).getColumn();
-    LLVM_DEBUG(llvm::dbgs() << line << ":" << column << "\n");
+    // Statements clad synthesized have no location to print. TBR runs on
+    // generated functions too, e.g. on a hessian's inner reverse pass.
+    PresumedLoc PL = SM.getPresumedLoc(S->getBeginLoc());
+    if (PL.isInvalid())
+      continue;
+    LLVM_DEBUG(llvm::dbgs() << PL.getLine() << ":" << PL.getColumn() << "\n");
   }
 #endif // NDEBUG
 }

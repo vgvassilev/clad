@@ -27,6 +27,7 @@
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
+#include "clang/Analysis/CFG.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
@@ -381,12 +382,44 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // records the early-return flag: m_TopMostReq is left null, so
     // VisitCallExpr and VisitDeclRefExpr bail and no sub-requests are spawned
     // -- only VisitReturnStmt runs over this request's body.
-    // FIXME: This is where a nested request should also get its m_AnalysisDC
-    // and the analyses currently force-disabled in HandleNestedDiffRequest.
+    // FIXME: The varied and useful analyses are still force-disabled in
+    // HandleNestedDiffRequest; only TBR is served here.
     const FunctionDecl* Def =
         request.Function ? request.Function->getDefinition() : nullptr;
     if (!Def || !Def->hasBody())
       return true;
+
+    // Give the request the analysis context TBR needs. DiffRequest runs TBR
+    // lazily out of shouldBeRecorded(), so building the context is all that is
+    // required for a dynamically scheduled reverse-mode request to drop the
+    // stores its reverse sweep never reads back. Hessian mode benefits most:
+    // its reverse pass runs once per direction over a first-order derivative.
+    //
+    // Only the reverse-mode family consults shouldBeRecorded(); a context built
+    // for, say, a pushforward would never be looked at. TBRAnalyzer::Analyze
+    // seeds its state from request.Function's parameters and matches them
+    // against the decls the CFG refers to, so the two must be the same
+    // FunctionDecl -- a redeclaration has its own ParmVarDecls, which would
+    // silently match nothing. shouldBeRecorded() refuses to analyze a lambda
+    // call operator for the same kind of reason, so do not arm TBR for one.
+    bool usesTBR = request.Mode == DiffMode::reverse ||
+                   request.Mode == DiffMode::pullback ||
+                   request.Mode == DiffMode::jacobian ||
+                   request.Mode == DiffMode::reverse_mode_forward_pass;
+    if (usesTBR && request.EnableTBRAnalysis && !request.m_AnalysisDC &&
+        request.Function == Def && !isLambdaCallOperator(Def)) {
+      // One context per function: the same nested request is planned again
+      // whenever another call site asks for its derivative.
+      AnalysisDeclContext*& ADC = m_NestedAnalysisDC[Def];
+      if (!ADC) {
+        clang::CFG::BuildOptions Options;
+        m_AllAnalysisDC.push_back(std::make_unique<AnalysisDeclContext>(
+            /*AnalysisDeclContextManager=*/nullptr, Def, Options));
+        ADC = m_AllAnalysisDC.back().get();
+      }
+      request.m_AnalysisDC = ADC;
+    }
+
     llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
     return TraverseStmt(Def->getBody());
   }
