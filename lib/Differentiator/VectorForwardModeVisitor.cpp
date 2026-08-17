@@ -6,6 +6,7 @@
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/Sema/Lookup.h"
 
@@ -19,6 +20,29 @@ VectorForwardModeVisitor::VectorForwardModeVisitor(DerivativeBuilder& builder,
     : BaseForwardModeVisitor(builder, request) {}
 
 VectorForwardModeVisitor::~VectorForwardModeVisitor() {}
+
+Expr* VectorForwardModeVisitor::IndVarOffsetTracker::buildOffset() const {
+  // The running sum keeps growing after this call, so hand out a clone.
+  Expr* offset = m_V->CloneNode(m_ArrayCount);
+  if (offset && m_ScalarCount == 0)
+    return offset;
+  Expr* scalars = ConstantFolder::synthesizeLiteral(
+      m_V->m_Context.UnsignedLongTy, m_V->m_Context, m_ScalarCount);
+  if (!offset)
+    return scalars;
+  return m_V->BuildOp(BinaryOperatorKind::BO_Add, offset, scalars);
+}
+
+void VectorForwardModeVisitor::IndVarOffsetTracker::advanceByArray(
+    const Expr* size) {
+  // The caller splices `size` itself into the derivative, so keep a clone.
+  Expr* clonedSize = m_V->CloneNode(size);
+  if (!m_ArrayCount)
+    m_ArrayCount = clonedSize;
+  else
+    m_ArrayCount =
+        m_V->BuildOp(BinaryOperatorKind::BO_Add, m_ArrayCount, clonedSize);
+}
 
 std::string VectorForwardModeVisitor::GetPushForwardFunctionSuffix() {
   return "_vector_pushforward";
@@ -87,13 +111,8 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   addToCurrentBlock(BuildDeclStmt(totalIndVars));
   m_IndVarCountDecl = totalIndVars;
 
-  // Expression for maintaining the number of independent variables processed
-  // till now present as array elements. This will be sum of sizes of all such
-  // arrays.
-  Expr* arrayIndVarCountExpr = nullptr;
-
-  // Number of non-array independent variables processed till now.
-  size_t nonArrayIndVarCount = 0;
+  // Offset of the next independent variable into the vector of all of them.
+  IndVarOffsetTracker offsetTracker(*this);
 
   // Current Index of independent variable in the param list of the function.
   size_t independentVarIndex = 0;
@@ -108,16 +127,7 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
     if (m_IndependentVars.size() > independentVarIndex &&
         m_IndependentVars[independentVarIndex] == m_DiffReq->getParamDecl(i)) {
 
-      // Current offset for independent variable. arrayIndVarCountExpr keeps
-      // accumulating below, so clone it for this offset use.
-      Expr* offsetExpr = CloneNode(arrayIndVarCountExpr);
-      Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
-          m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
-      if (!offsetExpr)
-        offsetExpr = nonArrayIndVarCountExpr;
-      else if (nonArrayIndVarCount != 0)
-        offsetExpr = BuildOp(BinaryOperatorKind::BO_Add, offsetExpr,
-                             nonArrayIndVarCountExpr);
+      Expr* offsetExpr = offsetTracker.buildOffset();
 
       if (is_array) {
         // Get size of the array.
@@ -131,22 +141,13 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
                                             offsetExpr};
         dVectorParam = BuildIdentityMatrixExpr(dParamType, args, loc);
 
-        // Update the array independent expression. getSize is already used by
-        // the identity matrix above and arrayIndVarCountExpr flows into later
-        // slice/subscript expressions, so clone it here to avoid sharing.
-        if (!arrayIndVarCountExpr) {
-          arrayIndVarCountExpr = CloneNode(getSize);
-        } else {
-          arrayIndVarCountExpr =
-              BuildOp(BinaryOperatorKind::BO_Add, arrayIndVarCountExpr,
-                      CloneNode(getSize));
-        }
+        offsetTracker.advanceByArray(getSize);
       } else {
         // Create a one hot vector for the parameter.
         llvm::SmallVector<Expr*, 2> args = {buildIndVarCountRef(), offsetExpr};
         dVectorParam = BuildCallExprToCladFunction("one_hot_vector", args,
                                                    {dParamType}, loc);
-        ++nonArrayIndVarCount;
+        offsetTracker.advanceByScalar();
       }
       ++independentVarIndex;
     } else {
@@ -477,28 +478,15 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // parameters.
   auto dVectorRef = BuildDeclRef(dVectorParamDecl);
 
-  // Expression for maintaining the number of independent variables processed
-  // till now present as array elements. This will be sum of sizes of all such
-  // arrays.
-  Expr* arrayIndVarCountExpr = nullptr;
-  // Number of non-array independent variables processed till now.
-  size_t nonArrayIndVarCount = 0;
+  // Offset of the next independent variable into the vector of all of them.
+  IndVarOffsetTracker offsetTracker(*this);
 
   for (size_t i = 0; i < m_IndependentVars.size(); ++i) {
     // Get the derivative of the ith parameter.
     auto dParam = m_ParamVariables[m_IndependentVars[i]];
     Expr* dParamValue = nullptr;
 
-    // Current offset for independent variable.
-    // arrayIndVarCountExpr keeps accumulating below; clone it for this offset.
-    Expr* offsetExpr = CloneNode(arrayIndVarCountExpr);
-    Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
-        m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
-    if (!offsetExpr)
-      offsetExpr = nonArrayIndVarCountExpr;
-    else if (nonArrayIndVarCount != 0)
-      offsetExpr = BuildOp(BinaryOperatorKind::BO_Add, offsetExpr,
-                           nonArrayIndVarCountExpr);
+    Expr* offsetExpr = offsetTracker.buildOffset();
 
     if (isCladArrayType(dParam->getType())) {
       // Get the size of the array.
@@ -510,22 +498,14 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
       llvm::SmallVector<Expr*, 2> args = {offsetExpr, getSize};
       dParamValue = BuildArrayRefSliceExpr(CloneNode(dVectorRef), args);
 
-      // Update the array independent expression. getSize is used by the slice
-      // above; clone so the two do not share.
-      if (!arrayIndVarCountExpr) {
-        arrayIndVarCountExpr = CloneNode(getSize);
-      } else {
-        arrayIndVarCountExpr =
-            BuildOp(BinaryOperatorKind::BO_Add, arrayIndVarCountExpr,
-                    CloneNode(getSize));
-      }
+      offsetTracker.advanceByArray(getSize);
     } else {
       dParamValue = m_Sema
                         .ActOnArraySubscriptExpr(
                             getCurrentScope(), CloneNode(dVectorRef),
                             dVectorRef->getExprLoc(), offsetExpr, noLoc)
                         .get();
-      ++nonArrayIndVarCount;
+      offsetTracker.advanceByScalar();
     }
     // Create an assignment expression to assign the ith element of the
     // return vector to the derivative of the ith parameter.

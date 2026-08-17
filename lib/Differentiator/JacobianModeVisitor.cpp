@@ -165,13 +165,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
   for (DeclStmt* decl : adjointDecls)
     addToCurrentBlock(decl);
 
-  // Expression for maintaining the number of independent variables processed
-  // till now present as array elements. This will be sum of sizes of all such
-  // arrays.
-  Expr* arrayIndVarCountExpr = nullptr;
-
-  // Number of non-array independent variables processed till now.
-  nonArrayIndVarCount = 0;
+  // Offset of the next independent variable into the vector of all of them.
+  IndVarOffsetTracker offsetTracker(*this);
 
   // Current Index of independent variable in the param list of the function.
   size_t independentVarIndex = 0;
@@ -188,16 +183,7 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
     if (m_DiffReq.DVI.size() > independentVarIndex &&
         m_DiffReq.DVI[independentVarIndex].param ==
             m_DiffReq->getParamDecl(i)) {
-      // Current offset for independent variable. arrayIndVarCountExpr keeps
-      // accumulating below, so clone it for this offset use.
-      Expr* offsetExpr = CloneNode(arrayIndVarCountExpr);
-      Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
-          m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
-      if (!offsetExpr)
-        offsetExpr = nonArrayIndVarCountExpr;
-      else if (nonArrayIndVarCount != 0)
-        offsetExpr = BuildOp(BinaryOperatorKind::BO_Add, offsetExpr,
-                             nonArrayIndVarCountExpr);
+      Expr* offsetExpr = offsetTracker.buildOffset();
 
       if (is_array) {
         // The adjoint is `(*_d_p)`; the array whose size we need is the bare
@@ -213,20 +199,13 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                                             offsetExpr};
         dVectorParam = BuildIdentityMatrixExpr(dParamType, args, loc);
 
-        // Update the array independent expression. getSize is already used by
-        // the identity matrix above; clone it so the two do not share.
-        if (!arrayIndVarCountExpr)
-          arrayIndVarCountExpr = CloneNode(getSize);
-        else
-          arrayIndVarCountExpr =
-              BuildOp(BinaryOperatorKind::BO_Add, arrayIndVarCountExpr,
-                      CloneNode(getSize));
+        offsetTracker.advanceByArray(getSize);
       } else {
         // Create a one hot vector for the parameter.
         llvm::SmallVector<Expr*, 2> args = {buildIndVarCountRef(), offsetExpr};
         dVectorParam = BuildCallExprToCladFunction("one_hot_vector", args,
                                                    {dParamType}, loc);
-        ++nonArrayIndVarCount;
+        offsetTracker.advanceByScalar();
       }
       ++independentVarIndex;
     } else {
