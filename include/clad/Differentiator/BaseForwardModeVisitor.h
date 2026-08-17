@@ -74,6 +74,27 @@ public:
                                     clang::Expr* tangent, clang::Expr* read,
                                     clang::Expr* zero);
 
+  /// \returns the declaration \p E is derived from by pointer arithmetic, or
+  /// null when \p E is not rooted in one. `xlArr + 1`, `xlArr += 1` and
+  /// `xlArr++` all yield `xlArr`; plain `q = xlArr + 1` does not, being rooted
+  /// in its right-hand side. A tangent pointer is null at its root, so the
+  /// root is what a null check has to test.
+  [[nodiscard]] static const clang::DeclRefExpr*
+  getPointerArithmeticRoot(const clang::Expr* E);
+
+  /// \returns \p tangent, the tangent of the primal pointer expression \p ptr,
+  /// rewritten to evaluate to a null pointer whenever the tangent it is derived
+  /// from is null. Returned unchanged unless \p ptr is rooted in a pointer
+  /// whose tangent may be null.
+  ///
+  /// A null tangent spells "the derivative of this argument is identically
+  /// zero" and readers null check it, but `nullptr + 1` is not null, so
+  /// arithmetic makes a reader sail past the check and dereference a small
+  /// integer. Callers apply this wherever a derived tangent outlives the
+  /// expression that built it.
+  clang::Expr* KeepTangentNullness(const clang::Expr* ptr,
+                                   clang::Expr* tangent);
+
   virtual StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
