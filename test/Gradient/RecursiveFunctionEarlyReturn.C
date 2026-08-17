@@ -35,9 +35,9 @@ double func(double* A, int n, std::vector<double>& v) {
 }
 
 // CHECK: void func_grad_0_2(
-// CHECK: clad::restore_tracker _tracker0 = {};
+// CHECK: clad::tape<clad::restore_tracker> _tracker0 = {};
 // CHECK: auto _rev0 = [&] {
-// CHECK: _tracker0.restore();
+// CHECK: clad::back(_tracker0).restore();
 
 int main() {
   double A[] = {1.0, 2.0, 3.0};

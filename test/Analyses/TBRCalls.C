@@ -106,6 +106,42 @@ double t8(const double* x) {
   return total;
 }
 
+double sqnorm(int d, const double* v) {
+  double t = 0;
+  for (int i = 0; i < d; i++)
+    t += v[i] * v[i];
+  return t;
+}
+
+void diffem(int d, const double* x, const double* y, double* out) {
+  for (int i = 0; i < d; i++)
+    out[i] = x[i] - y[i];
+}
+
+// The GradBench GMM loop: buf is overwritten through &buf[0] on every
+// iteration, and each iteration's values feed that iteration's nonlinear
+// read, so every iteration needs its own restore in the reverse sweep.
+double t9(const double* x, const double* m) {
+  Vec2 buf;
+  double total = 0;
+  for (int k = 0; k < 2; k++) {
+    diffem(2, x, m + 2 * k, &buf[0]);
+    total += sqnorm(2, &buf[0]);
+  }
+  return total;
+}
+
+// A value live across two mutating calls: squarer overwrites what the first
+// sqnorm's pullback still needs after squarer's own pullback replays.
+double t10(const double* x) {
+  double buf[2];
+  fillfrom(2, x, buf);
+  double t1 = sqnorm(2, buf);
+  squarer(2, buf);
+  double t2 = sqnorm(2, buf);
+  return t1 + t2;
+}
+
 // Nothing is read nonlinearly, so no pre-call state may be stored.
 double t7(const double* x) {
   double buf[2];
@@ -122,6 +158,15 @@ double t7(const double* x) {
 // CHECK-NOT: _tracker
 // CHECK-NOT: clad::push
 // CHECK: fillfrom_pullback(2, x, &buf[0]
+
+// In a loop each iteration gets its own tracker snapshot through a tape.
+// CHECK: void t9_grad(const double *x, const double *m, double *_d_x, double *_d_m) {
+// CHECK: clad::tape<clad::restore_tracker> _tracker0 = {};
+// CHECK: clad::push(_tracker0, clad::restore_tracker());
+// CHECK: clad::back(_tracker0).restore();
+// CHECK: diffem_pullback(2, x, m + 2 * k, &
+// CHECK-NEXT: clad::back(_tracker0).restore();
+// CHECK-NEXT: clad::pop(_tracker0);
 
 int main() {
   double x[2] = {1, 2};
@@ -145,4 +190,17 @@ int main() {
   TEST(t8); // CHECK-EXEC: t8: dx={10.00, 20.00}
   // f = x0 + x1
   TEST(t7); // CHECK-EXEC: t7: dx={1.00, 1.00}
+  {
+    double m[4] = {0.5, 1, 3, -1};
+    double dm[4] = {0, 0, 0, 0};
+    dx[0] = dx[1] = 0;
+    auto grad = clad::gradient(t9, "x, m");
+    grad.execute(x, m, dx, dm);
+    // f = sum_k sum_i (x_i - m_ki)^2
+    printf("t9: dx={%.2f, %.2f} dm={%.2f, %.2f, %.2f, %.2f}\n", dx[0], dx[1],
+           dm[0], dm[1], dm[2], dm[3]);
+    // CHECK-EXEC: t9: dx={-3.00, 8.00} dm={-1.00, -2.00, 4.00, -6.00}
+  }
+  // f = |x|^2 + |x^2|^2 => df/dx_i = 2 x_i + 4 x_i^3
+  TEST(t10); // CHECK-EXEC: t10: dx={6.00, 36.00}
 }

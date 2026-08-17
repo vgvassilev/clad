@@ -422,6 +422,7 @@ double nestedPtrFn (double x, double y) {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         int _r0 = 0;
 // CHECK-NEXT:         ptrValFn_pullback(arr, 1, _d_arr, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_x += _d_arr[0];

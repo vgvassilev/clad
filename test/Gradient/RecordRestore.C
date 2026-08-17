@@ -36,13 +36,16 @@ double f(double x) {
 
 // CHECK: void f_grad(double x, double *_d_x) {
 // CHECK: clad::push(_t1, s);
-// CHECK: scale_reverse_forw(s, _d_s, _tracker0);
-// CHECK: _tracker0.restore();
+// CHECK-NEXT: clad::push(_tracker0, clad::restore_tracker());
+// CHECK-NEXT: scale_reverse_forw(s, _d_s, clad::back(_tracker0));
+// CHECK: clad::back(_tracker0).restore();
 // CHECK-NEXT: {
 // CHECK-NEXT:     s = clad::back(_t1);
 // CHECK-NEXT:     clad::pop(_t1);
 // CHECK-NEXT: }
 // CHECK-NEXT: scale_pullback(s, &_d_s);
+// CHECK-NEXT: clad::back(_tracker0).restore();
+// CHECK-NEXT: clad::pop(_tracker0);
 
 int main() {
   auto g = clad::gradient(f);
