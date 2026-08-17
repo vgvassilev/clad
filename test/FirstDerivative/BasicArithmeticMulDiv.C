@@ -21,7 +21,7 @@ int m_2(int x) {
 }
 // CHECK: int m_2_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: return 0 * 1 + 1 * 0;
+// CHECK-NEXT: return 0;
 // CHECK-NEXT: }
 
 int m_3(int x) {
@@ -41,9 +41,8 @@ int m_4(int x) {
 // CHECK-NEXT: int _d_y = 0;
 // CHECK-NEXT: int y = 4;
 // CHECK-NEXT: int _t0 = x * y;
-// CHECK-NEXT: int _t1 = _t0 * x;
-// CHECK-NEXT: int _t2 = _t1 * 3;
-// CHECK-NEXT: return (((_d_x * y + x * _d_y) * x + _t0 * _d_x) * 3 + _t1 * 0) * x + _t2 * _d_x;
+// CHECK-NEXT: int _t1 = _t0 * x * 3;
+// CHECK-NEXT: return (((_d_x * y + x * _d_y) * x + _t0 * _d_x) * 3) * x + _t1 * _d_x;
 // CHECK-NEXT: }
 
 double m_5(int x) {
@@ -51,7 +50,7 @@ double m_5(int x) {
 }
 // CHECK: double m_5_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: return 0. * x + 3.1400000000000001 * _d_x;
+// CHECK-NEXT: return 3.1400000000000001 * _d_x;
 // CHECK-NEXT: }
 
 float m_6(int x) {
@@ -59,7 +58,7 @@ float m_6(int x) {
 }
 // CHECK: float m_6_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: return 0.F * x + 3.F * _d_x;
+// CHECK-NEXT: return 3.F * _d_x;
 // CHECK-NEXT: }
 
 double m_7(double x) {
@@ -89,7 +88,7 @@ double m_9(double x) {
 }
 // CHECK: double m_9_darg0(double x) {
 // CHECK-NEXT:   double _d_x = 1;
-// CHECK-NEXT:   return (((_d_x = _d_x * 2 + x * 0) , (x *= 2)) , (_d_x * x + x * _d_x));
+// CHECK-NEXT:   return (((_d_x = _d_x * 2) , (x *= 2)) , (_d_x * x + x * _d_x));
 // CHECK-NEXT: }
 
 double m_10(double x, bool flag) {
@@ -99,7 +98,7 @@ double m_10(double x, bool flag) {
 // CHECK: double m_10_darg0(double x, bool flag) {
 // CHECK-NEXT:   double _d_x = 1;
 // CHECK-NEXT:   bool _d_flag = 0;
-// CHECK-NEXT:   return flag ? (((_d_x = _d_x * 2 + x * 0) , (x *= 2)) , (_d_x * x + x * _d_x)) : (((_d_x += 0) , (x += 1)) , (_d_x * x + x * _d_x));
+// CHECK-NEXT:   return flag ? (((_d_x = _d_x * 2) , (x *= 2)) , (_d_x * x + x * _d_x)) : (((_d_x += 0) , (x += 1)) , (_d_x * x + x * _d_x));
 // CHECK-NEXT: }
 
 template<size_t N>
@@ -135,7 +134,7 @@ int d_2(int x) {
 }
 // CHECK: int d_2_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: return (0 * 1 - 1 * 0) / (1 * 1);
+// CHECK-NEXT: return 0;
 // CHECK-NEXT: }
 
 int d_3(int x) {
@@ -155,9 +154,8 @@ int d_4(int x) {
 // CHECK-NEXT: int _d_y = 0;
 // CHECK-NEXT: int y = 4;
 // CHECK-NEXT: int _t0 = x / y;
-// CHECK-NEXT: int _t1 = _t0 / x;
-// CHECK-NEXT: int _t2 = _t1 / 3;
-// CHECK-NEXT: return (((((((_d_x * y - x * _d_y) / (y * y)) * x - _t0 * _d_x) / (x * x)) * 3 - _t1 * 0) / (3 * 3)) * x - _t2 * _d_x) / (x * x);
+// CHECK-NEXT: int _t1 = _t0 / x / 3;
+// CHECK-NEXT: return (((((((_d_x * y - x * _d_y) / (y * y)) * x - _t0 * _d_x) / (x * x)) * 3) / 9) * x - _t1 * _d_x) / (x * x);
 // CHECK-NEXT: }
 
 double issue25(double x, double y) {
@@ -189,9 +187,7 @@ int md_1(int x) {
 // CHECK-NEXT: int _t0 = x * x;
 // CHECK-NEXT: int _t1 = _t0 / x;
 // CHECK-NEXT: int _t2 = _t1 * y;
-// CHECK-NEXT: int _t3 = _t2 / y;
-// CHECK-NEXT: int _t4 = _t3 * 3;
-// CHECK-NEXT: return ((((((((_d_x * x + x * _d_x) * x - _t0 * _d_x) / (x * x)) * y + _t1 * _d_y) * y - _t2 * _d_y) / (y * y)) * 3 + _t3 * 0) * 3 - _t4 * 0) / (3 * 3);
+// CHECK-NEXT: return ((((((((_d_x * x + x * _d_x) * x - _t0 * _d_x) / (x * x)) * y + _t1 * _d_y) * y - _t2 * _d_y) / (y * y)) * 3) * 3) / 9;
 // CHECK-NEXT: }
 
 

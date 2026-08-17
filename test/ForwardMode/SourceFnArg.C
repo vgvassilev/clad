@@ -25,7 +25,7 @@ double nonMemFn(double i) {
 
 // CHECK: double nonMemFn_darg0(double i) {
 // CHECK-NEXT:     double _d_i = 1;
-// CHECK-NEXT:     return 0 * i + 5 * _d_i;
+// CHECK-NEXT:     return 5 * _d_i;
 // CHECK-NEXT: }
 
 #define MEM_FN_TEST(var)\

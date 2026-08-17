@@ -22,7 +22,7 @@ double f1_darg0(double x, int y);
 // CHECK-NEXT:   double r = 1.;
 // CHECK-NEXT:   {
 // CHECK-NEXT:     int _d_i = 0;
-// CHECK-NEXT:     for (int i = 0; i < y; (_d_i = _d_i + 0) , (i = i + 1)) {
+// CHECK-NEXT:       for (int i = 0; i < y; (_d_i = _d_i) , (i = i + 1)) {
 // CHECK-NEXT:       _d_r = _d_r * x + r * _d_x;
 // CHECK-NEXT:       r = r * x;
 // CHECK-NEXT:     }
@@ -71,7 +71,7 @@ double f2_darg0(double x, int y);
 // CHECK-NEXT:   int _d_y = 0;
 // CHECK-NEXT:   {
 // CHECK-NEXT:     int _d_i = 0;
-// CHECK-NEXT:     for (int i = 0; i < y; (_d_i = _d_i + 0) , (i = i + 1)) {
+// CHECK-NEXT:       for (int i = 0; i < y; (_d_i = _d_i) , (i = i + 1)) {
 // CHECK-NEXT:       _d_x = _d_x * x + x * _d_x;
 // CHECK-NEXT:       x = x * x;
 // CHECK-NEXT:     } 
@@ -122,7 +122,7 @@ double f3_darg0(double x, int y);
 // CHECK-NEXT:   {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     for (int i = 0; i < y; (_d_r = _d_r * x + r * _d_x) , (r = r * x)) {
-// CHECK-NEXT:       _d_i = _d_i + 0;
+// CHECK-NEXT:           _d_i = _d_i;
 // CHECK-NEXT:       i = i + 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:   }
@@ -177,7 +177,7 @@ double f4_darg0(double x, int y);
 // CHECK-NEXT:       r = r * _t3;
 // CHECK:        }
 // CHECK:        ()) {
-// CHECK-NEXT:          _d_i = _d_i + 0;
+// CHECK-NEXT:          _d_i = _d_i;
 // CHECK-NEXT:          i = i + 1;
 // CHECK-NEXT:        }
 // CHECK-NEXT:     }
@@ -517,7 +517,7 @@ double fn15_darg0(double u, double v);
 // CHECK-NEXT:      double res = 0;
 // CHECK-NEXT:      for (; (_d_res = _d_u * v + u * _d_v) , !(res = u * v);) {
 // CHECK-NEXT:      }
-// CHECK-NEXT:      return 0 * res + 2 * _d_res;
+// CHECK-NEXT:      return 2 * _d_res;
 // CHECK-NEXT:  }
 
 double fn16(double x) {
@@ -599,7 +599,7 @@ double fn19_darg0(double x, double y);
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     double _t0 = 2 * x;
-// CHECK-NEXT:     double _d_f[5] = {_d_x * x + x * _d_x, (0 * x + 2 * _d_x) * y + _t0 * _d_y, _d_y * y + y * _d_y, _d_x, _d_y};
+// CHECK-NEXT:     double _d_f[5] = {_d_x * x + x * _d_x, (2 * _d_x) * y + _t0 * _d_y, _d_y * y + y * _d_y, _d_x, _d_y};
 // CHECK-NEXT:     double f[5] = {x * x, _t0 * y, y * y, x, y};
 // CHECK-NEXT:     double (&_d___range1)[5] = _d_f;
 // CHECK-NEXT:     double (&__range1)[5] = f;

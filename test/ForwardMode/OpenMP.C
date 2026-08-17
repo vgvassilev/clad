@@ -43,7 +43,7 @@ double sum_scaled_parallel_for(const double* x, int n, double scale) {
 // CHECK-NEXT:                 last = tmp;
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
-// CHECK-NEXT:     _d_total += 0 * last + 0 * _d_last;
+// CHECK-NEXT:     _d_total += 0;
 // CHECK-NEXT:     total += 0 * last;
 // CHECK-NEXT:     return _d_total;
 // CHECK-NEXT: }
@@ -100,7 +100,7 @@ double accumulate_critical(const double *x, int n) {
 // CHECK-NEXT:         for (int i = 0; i < n; i++) {
 // CHECK-NEXT:             #pragma omp critical
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     _d_result += 1. * x[0] + x[0] * 1.;
+// CHECK-NEXT:                     _d_result += x[0] + x[0];
 // CHECK-NEXT:                     result += x[0] * x[0];
 // CHECK-NEXT:                 }
 // CHECK-NEXT:         }

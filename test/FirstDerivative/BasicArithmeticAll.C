@@ -19,10 +19,9 @@ float basic_1(int x) {
 // CHECK-NEXT: int _t0 = (y + x);
 // CHECK-NEXT: int _t1 = (x - z);
 // CHECK-NEXT: int _t2 = x * y;
-// CHECK-NEXT: int _t3 = (_t2 * z);
-// CHECK-NEXT: int _t4 = _t0 / _t1;
-// CHECK-NEXT: int _t5 = (_t3 / 5);
-// CHECK-NEXT: return (((_d_y + _d_x) * _t1 - _t0 * (_d_x - _d_z)) / (_t1 * _t1)) * _t5 + _t4 * ((((_d_x * y + x * _d_y) * z + _t2 * _d_z) * 5 - _t3 * 0) / (5 * 5));
+// CHECK-NEXT: int _t3 = _t0 / _t1;
+// CHECK-NEXT: int _t4 = ((_t2 * z) / 5);
+// CHECK-NEXT: return (((_d_y + _d_x) * _t1 - _t0 * (_d_x - _d_z)) / (_t1 * _t1)) * _t4 + _t3 * ((((_d_x * y + x * _d_y) * z + _t2 * _d_z) * 5) / 25);
 // CHECK-NEXT: }
 
 float basic_1_darg0(int x);

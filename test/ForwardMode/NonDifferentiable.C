@@ -127,13 +127,13 @@ int main() {
   // CHECK-NEXT:     SimpleFunctions1 *_d_this = &_d_this_obj;
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     double _t1 = i * j;
-  // CHECK-NEXT:     return (_d_this->x + 0.) * i + _t0 * _d_i + (_d_i * j + i * _d_j) * j + _t1 * _d_j;
+  // CHECK-NEXT:     return _d_this->x * i + _t0 * _d_i + (_d_i * j + i * _d_j) * j + _t1 * _d_j;
   // CHECK-NEXT: }
 
   // CHECK: clad::ValueAndPushforward<double, double> mem_fn_1_pushforward(double i, double j, SimpleFunctions1 *_d_this, double _d_i, double _d_j) {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     double _t1 = i * j;
-  // CHECK-NEXT:     return {_t0 * i + _t1 * j, (_d_this->x + 0.) * i + _t0 * _d_i + (_d_i * j + i * _d_j) * j + _t1 * _d_j};
+  // CHECK-NEXT:     return {_t0 * i + _t1 * j, _d_this->x * i + _t0 * _d_i + (_d_i * j + i * _d_j) * j + _t1 * _d_j};
   // CHECK-NEXT: }
 
   // CHECK: double mem_fn_3_darg0(double i, double j) {
@@ -150,7 +150,7 @@ int main() {
   // CHECK-NEXT:     double _d_j = 0;
   // CHECK-NEXT:     SimpleFunctions1 _d_this_obj;
   // CHECK-NEXT:     SimpleFunctions1 *_d_this = &_d_this_obj;
-  // CHECK-NEXT:     return 0 + _d_i * j + i * _d_j;
+  // CHECK-NEXT:     return _d_i * j + i * _d_j;
   // CHECK-NEXT: }
 
   // CHECK: double mem_fn_5_darg0(double i, double j) {
@@ -160,9 +160,8 @@ int main() {
   // CHECK-NEXT:     SimpleFunctions1 *_d_this = &_d_this_obj;
   // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = this->mem_fn_1_pushforward(i, j, _d_this, _d_i, _d_j);
   // CHECK-NEXT:     double _t1 = this->mem_fn_2(i, j);
-  // CHECK-NEXT:     double &_t2 = _t0.value;
-  // CHECK-NEXT:     double _t3 = _t1 * _t2;
-  // CHECK-NEXT:     return (0 * _t2 + _t1 * _t0.pushforward) * i + _t3 * _d_i;
+  // CHECK-NEXT:     double _t2 = _t1 * _t0.value;
+  // CHECK-NEXT:     return (_t1 * _t0.pushforward) * i + _t2 * _d_i;
   // CHECK-NEXT: }
 
   // CHECK: double fn_s1_mem_fn_darg0(double i, double j) {
@@ -179,13 +178,12 @@ int main() {
   // CHECK-NEXT:     double _d_j = 0;
   // CHECK-NEXT:     SimpleFunctions1 _d_obj{0, 0};
   // CHECK-NEXT:     SimpleFunctions1 obj{2, 3};
-  // CHECK-NEXT:     double &_t0 = obj.x;
-  // CHECK-NEXT:     double &_t1 = obj.y;
-  // CHECK-NEXT:     return _d_obj.x * _t1 + _t0 * 0. + _d_i * j + i * _d_j;
+  // CHECK-NEXT:     double &_t0 = obj.y;
+  // CHECK-NEXT:     return _d_obj.x * _t0 + _d_i * j + i * _d_j;
   // CHECK-NEXT: }
 
   // CHECK: clad::ValueAndPushforward<SimpleFunctions1, SimpleFunctions1> operator_plus_pushforward(const SimpleFunctions1 &other, const SimpleFunctions1 *_d_this, const SimpleFunctions1 &_d_other) const {
-  // CHECK-NEXT:     return {SimpleFunctions1(this->x + other.x, this->y + other.y), SimpleFunctions1(_d_this->x + _d_other.x, 0. + 0.)};
+  // CHECK-NEXT:     return {SimpleFunctions1(this->x + other.x, this->y + other.y), SimpleFunctions1(_d_this->x + _d_other.x, 0.)};
   // CHECK-NEXT: }
 
   // CHECK: double fn_s1_operator_darg0(double i, double j) {
@@ -204,16 +202,14 @@ int main() {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_j = 0;
   // CHECK-NEXT:     SimpleFunctions2 obj(2, 3);
-  // CHECK-NEXT:     return 0 + _d_i * j + i * _d_j;
+  // CHECK-NEXT:     return _d_i * j + i * _d_j;
   // CHECK-NEXT: }
 
   // CHECK: double fn_s2_field_darg0(double i, double j) {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_j = 0;
   // CHECK-NEXT:     SimpleFunctions2 *obj0, obj(2, 3);
-  // CHECK-NEXT:     double &_t0 = obj.x;
-  // CHECK-NEXT:     double &_t1 = obj.y;
-  // CHECK-NEXT:     return 0. * _t1 + _t0 * 0. + _d_i * j + i * _d_j;
+  // CHECK-NEXT:     return _d_i * j + i * _d_j;
   // CHECK-NEXT: }
 
   // CHECK: double fn_s2_operator_darg0(double i, double j) {
@@ -227,6 +223,6 @@ int main() {
   // CHECK: double fn_non_diff_call_darg0(double i, double j) {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_j = 0;
-  // CHECK-NEXT:     return 0 + _d_i * j + i * _d_j;
+  // CHECK-NEXT:     return _d_i * j + i * _d_j;
   // CHECK-NEXT: }
 }

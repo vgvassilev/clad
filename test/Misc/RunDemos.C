@@ -74,20 +74,18 @@
 // CHECK_ROSENBROCK: double _d_y = 0;
 // CHECK_ROSENBROCK: double _t0 = (x - 1);
 // CHECK_ROSENBROCK: double _t1 = (x - 1);
-// CHECK_ROSENBROCK: double _t2 = (y - x * x);
-// CHECK_ROSENBROCK: double _t3 = 100 * _t2;
-// CHECK_ROSENBROCK: double _t4 = (y - x * x);
-// CHECK_ROSENBROCK: return (_d_x - 0) * _t1 + _t0 * (_d_x - 0) + (0 * _t2 + 100 * (_d_y - (_d_x * x + x * _d_x))) * _t4 + _t3 * (_d_y - (_d_x * x + x * _d_x));
+// CHECK_ROSENBROCK: double _t2 = 100 * (y - x * x);
+// CHECK_ROSENBROCK: double _t3 = (y - x * x);
+// CHECK_ROSENBROCK: return _d_x * _t1 + _t0 * _d_x + (100 * (_d_y - (_d_x * x + x * _d_x))) * _t3 + _t2 * (_d_y - (_d_x * x + x * _d_x));
 // CHECK_ROSENBROCK:}
 // CHECK_ROSENBROCK:double rosenbrock_func_darg1(double x, double y) {
 // CHECK_ROSENBROCK: double _d_x = 0;
 // CHECK_ROSENBROCK: double _d_y = 1;
 // CHECK_ROSENBROCK: double _t0 = (x - 1);
 // CHECK_ROSENBROCK: double _t1 = (x - 1);
-// CHECK_ROSENBROCK: double _t2 = (y - x * x);
-// CHECK_ROSENBROCK: double _t3 = 100 * _t2;
-// CHECK_ROSENBROCK: double _t4 = (y - x * x);
-// CHECK_ROSENBROCK: return (_d_x - 0) * _t1 + _t0 * (_d_x - 0) + (0 * _t2 + 100 * (_d_y - (_d_x * x + x * _d_x))) * _t4 + _t3 * (_d_y - (_d_x * x + x * _d_x));
+// CHECK_ROSENBROCK: double _t2 = 100 * (y - x * x);
+// CHECK_ROSENBROCK: double _t3 = (y - x * x);
+// CHECK_ROSENBROCK: return _d_x * _t1 + _t0 * _d_x + (100 * (_d_y - (_d_x * x + x * _d_x))) * _t3 + _t2 * (_d_y - (_d_x * x + x * _d_x));
 // CHECK_ROSENBROCK:}
 // RUN: ./RosenbrockFunction.out | FileCheck -check-prefix CHECK_ROSENBROCK_EXEC %s
 // CHECK_ROSENBROCK_EXEC: The result is -899.000000.

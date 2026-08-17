@@ -53,7 +53,7 @@ int main() {
 
 //CHECK:     double fn_darg0(double x) {
 //CHECK-NEXT:         double _d_x = 1;
-//CHECK-NEXT:         return _d_x * TN::coefficient + x * 0;
+//CHECK-NEXT:         return _d_x * TN::coefficient;
 //CHECK-NEXT:     }
 
 //CHECK:  int _d_coefficient = 0;

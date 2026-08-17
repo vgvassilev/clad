@@ -66,9 +66,9 @@ double fn4(double i, double j) {
 // CHECK: double fn4_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     double *_d_p = new double(0 * i + 7 * _d_i + _d_j);
+// CHECK-NEXT:     double *_d_p = new double(7 * _d_i + _d_j);
 // CHECK-NEXT:     double *p = new double(7 * i + j);
-// CHECK-NEXT:     double _d_q = *_d_p + 0 * i + 9 * _d_i;
+// CHECK-NEXT:     double _d_q = *_d_p + 9 * _d_i;
 // CHECK-NEXT:     double q = *p + 9 * i;
 // CHECK-NEXT:     delete _d_p;
 // CHECK-NEXT:     delete p;
@@ -90,9 +90,9 @@ double fn5(double i, double j) {
 // CHECK: double fn5_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     double _d_arr[2] = {0 * i + 7 * _d_i, 0 * i + 9 * _d_i};
+// CHECK-NEXT:     double _d_arr[2] = {7 * _d_i, 9 * _d_i};
 // CHECK-NEXT:     double arr[2] = {7 * i, 9 * i};
-// CHECK-NEXT:     *(_d_arr + 1) += 0 * i + 11 * _d_i;
+// CHECK-NEXT:     *(_d_arr + 1) += 11 * _d_i;
 // CHECK-NEXT:     *(arr + 1) += 11 * i;
 // CHECK-NEXT:     int _d_idx1 = 0, _d_idx2 = 0;
 // CHECK-NEXT:     int idx1 = 0, idx2 = 1;
@@ -100,11 +100,11 @@ double fn5(double i, double j) {
 // CHECK-NEXT:     double *p = arr;
 // CHECK-NEXT:     _d_p += 1;
 // CHECK-NEXT:     p += 1;
-// CHECK-NEXT:     _d_p = 0 + _d_p;
+// CHECK-NEXT:     _d_p = _d_p;
 // CHECK-NEXT:     p = 0 + p;
-// CHECK-NEXT:     *_d_p += 0 * i + 13 * _d_i;
+// CHECK-NEXT:     *_d_p += 13 * _d_i;
 // CHECK-NEXT:     *p += 13 * i;
-// CHECK-NEXT:     *(_d_p - 1) += 0 * i + 17 * _d_i;
+// CHECK-NEXT:     *(_d_p - 1) += 17 * _d_i;
 // CHECK-NEXT:     *(p - 1) += 17 * i;
 // CHECK-NEXT:     return *(_d_arr + idx1) + *(_d_arr + idx2);
 // CHECK-NEXT: }
@@ -160,11 +160,10 @@ double fn7(double i) {
 // CHECK-NEXT:     t->i = i;
 // CHECK-NEXT:     double _d_res = *_d_p + _d_t->i;
 // CHECK-NEXT:     double res = *p + t->i;
-// CHECK-NEXT:     unsigned {{(int|long)}} _t2 = sizeof(double);
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t3 = clad::custom_derivatives::realloc_pushforward(p, 2 * _t2, _d_p, 0 * _t2 + 2 * sizeof(double));
-// CHECK-NEXT:     _d_p = (double *)_t3.pushforward;
-// CHECK-NEXT:     p = (double *)_t3.value;
-// CHECK-NEXT:     _d_p[1] = 0 * i + 2 * _d_i;
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t2 = clad::custom_derivatives::realloc_pushforward(p, 2 * sizeof(double), _d_p, 2 * sizeof(double));
+// CHECK-NEXT:     _d_p = (double *)_t2.pushforward;
+// CHECK-NEXT:     p = (double *)_t2.value;
+// CHECK-NEXT:     _d_p[1] = 2 * _d_i;
 // CHECK-NEXT:     p[1] = 2 * i;
 // CHECK-NEXT:     _d_res += _d_p[1];
 // CHECK-NEXT:     res += p[1];
@@ -190,7 +189,7 @@ double fn8(double* params) {
 // CHECK-NEXT:     double _d_arr[1] = {0.};
 // CHECK-NEXT:     double arr[1] = {3.};
 // CHECK-NEXT:     clad::ValueAndPushforward<void *, void *> _t0 = cling_runtime_internal_throwIfInvalidPointer_pushforward((void *)0UL, (void *)0UL, arr, (void *)0UL, (void *)0UL, _d_arr);
-// CHECK-NEXT:     return 1. * params[0] + params[0] * 1. + *(double *)_t0.pushforward;
+// CHECK-NEXT:     return params[0] + params[0] + *(double *)_t0.pushforward;
 // CHECK-NEXT: }
 
 double fn9(double* params, const double *constants) {
@@ -201,7 +200,7 @@ double fn9(double* params, const double *constants) {
 // CHECK: double fn9_darg0_0(double *params, const double *constants) {
 // CHECK-NEXT:     double _d_c0 = 0.;
 // CHECK-NEXT:     double c0 = *constants;
-// CHECK-NEXT:     return 1. * c0 + params[0] * _d_c0;
+// CHECK-NEXT:     return c0 + params[0] * _d_c0;
 // CHECK-NEXT: }
 
 double fn10(double *params, const double *constants) {
@@ -212,7 +211,7 @@ double fn10(double *params, const double *constants) {
 // CHECK: double fn10_darg0_0(double *params, const double *constants) {
 // CHECK-NEXT:     double _d_c0 = 0.;
 // CHECK-NEXT:     double c0 = *(constants + 0);
-// CHECK-NEXT:     return 1. * c0 + params[0] * _d_c0;
+// CHECK-NEXT:     return c0 + params[0] * _d_c0;
 // CHECK-NEXT: }
 
 int main() {

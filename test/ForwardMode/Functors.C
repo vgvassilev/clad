@@ -330,17 +330,14 @@ struct WidgetPointer {
   // CHECK-NEXT:       double &_t0 = this->arr[3];
   // CHECK-NEXT:       double &_t1 = this->arr[3];
   // CHECK-NEXT:       double &_t2 = this->i;
-  // CHECK-NEXT:       double _t3 = 1. * _t1 + _t0 * 1.;
+  // CHECK-NEXT:       double _t3 = _t1 + _t0;
   // CHECK-NEXT:       double _t4 = _t0 * _t1;
   // CHECK-NEXT:       _d_i = _d_i * _t4 + _t2 * _t3;
   // CHECK-NEXT:       _t2 *= _t4;
-  // CHECK-NEXT:       double &_t5 = this->arr[5];
-  // CHECK-NEXT:       double &_t6 = this->arr[5];
-  // CHECK-NEXT:       double &_t7 = this->j;
-  // CHECK-NEXT:       double _t8 = 0. * _t6 + _t5 * 0.;
-  // CHECK-NEXT:       double _t9 = _t5 * _t6;
-  // CHECK-NEXT:       _d_j = _d_j * _t9 + _t7 * _t8;
-  // CHECK-NEXT:       _t7 *= _t9;
+  // CHECK-NEXT:       double &_t5 = this->j;
+  // CHECK-NEXT:       double _t6 = this->arr[5] * this->arr[5];
+  // CHECK-NEXT:       _d_j = _d_j * _t6;
+  // CHECK-NEXT:       _t5 *= _t6;
   // CHECK-NEXT:       return _d_i + _d_j + _d_temp;
   // CHECK-NEXT:   }
 
@@ -359,20 +356,17 @@ struct WidgetPointer {
   // CHECK-NEXT:               temp += this->arr[k];
   // CHECK-NEXT:           }
   // CHECK-NEXT:       }
-  // CHECK-NEXT:       double &_t0 = this->arr[3];
-  // CHECK-NEXT:       double &_t1 = this->arr[3];
-  // CHECK-NEXT:       double &_t2 = this->i;
-  // CHECK-NEXT:       double _t3 = 0. * _t1 + _t0 * 0.;
-  // CHECK-NEXT:       double _t4 = _t0 * _t1;
-  // CHECK-NEXT:       _d_i = _d_i * _t4 + _t2 * _t3;
-  // CHECK-NEXT:       _t2 *= _t4;
-  // CHECK-NEXT:       double &_t5 = this->arr[5];
-  // CHECK-NEXT:       double &_t6 = this->arr[5];
-  // CHECK-NEXT:       double &_t7 = this->j;
-  // CHECK-NEXT:       double _t8 = 1. * _t6 + _t5 * 1.;
-  // CHECK-NEXT:       double _t9 = _t5 * _t6;
-  // CHECK-NEXT:       _d_j = _d_j * _t9 + _t7 * _t8;
-  // CHECK-NEXT:       _t7 *= _t9;
+  // CHECK-NEXT:       double &_t0 = this->i;
+  // CHECK-NEXT:       double _t1 = this->arr[3] * this->arr[3];
+  // CHECK-NEXT:       _d_i = _d_i * _t1;
+  // CHECK-NEXT:       _t0 *= _t1;
+  // CHECK-NEXT:       double &_t2 = this->arr[5];
+  // CHECK-NEXT:       double &_t3 = this->arr[5];
+  // CHECK-NEXT:       double &_t4 = this->j;
+  // CHECK-NEXT:       double _t5 = _t3 + _t2;
+  // CHECK-NEXT:       double _t6 = _t2 * _t3;
+  // CHECK-NEXT:       _d_j = _d_j * _t6 + _t4 * _t5;
+  // CHECK-NEXT:       _t4 *= _t6;
   // CHECK-NEXT:       return _d_i + _d_j + _d_temp;
   // CHECK-NEXT:   }
 
@@ -433,7 +427,7 @@ int main() {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_jj = 0;
   // CHECK-NEXT:     double _t0 = x * i;
-  // CHECK-NEXT:     return (0. * i + x * _d_i) * jj + _t0 * _d_jj;
+  // CHECK-NEXT:     return (x * _d_i) * jj + _t0 * _d_jj;
   // CHECK-NEXT: }
 
   auto lambdaNNS = outer::inner::lambdaNNS;
