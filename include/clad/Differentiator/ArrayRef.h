@@ -8,6 +8,61 @@
 #include <type_traits>
 
 namespace clad {
+
+// As in clad::array, the element-wise assignments of clad::array_ref come in
+// families that differ only in the operator token, passed to these generators
+// as `op`: one of `+=`, `-=`, `*=`, `/=`, or `=` where plain assignment has the
+// same shape.
+//
+// The generators below suppress the same three checks as the ones in Array.h;
+// see the comment there for why none of them can be followed.
+// NOLINTBEGIN(cppcoreguidelines-macro-usage, bugprone-macro-parentheses,
+// modernize-type-traits)
+
+/// Applies `op` between every element and a scalar.
+#define CLAD_ARRAY_REF_OP_SCALAR(op)                                           \
+  template <typename U,                                                        \
+            std::enable_if_t<std::is_arithmetic<U>::value, int> = 0>           \
+  CUDA_HOST_DEVICE array_ref<T>& operator op(U a) {                            \
+    for (std::size_t i = 0; i < m_size; i++)                                   \
+      m_arr[i] op a;                                                           \
+    return *this;                                                              \
+  }
+
+/// Applies `op` element-wise with another array_ref.
+#define CLAD_ARRAY_REF_OP_ARRAY_REF(op)                                        \
+  template <typename U>                                                        \
+  CUDA_HOST_DEVICE array_ref<T>& operator op(const array_ref<U>& Ar) {         \
+    assert(m_size == Ar.size() && "Size of both the array_refs must be equal " \
+                                  "for carrying out compound assignment");     \
+    for (std::size_t i = 0; i < m_size; i++)                                   \
+      m_arr[i] op Ar[i];                                                       \
+    return *this;                                                              \
+  }
+
+/// Applies `op` element-wise with a clad::array.
+#define CLAD_ARRAY_REF_OP_ARRAY(op)                                            \
+  template <typename U>                                                        \
+  CUDA_HOST_DEVICE array_ref<T>& operator op(const array<U>& A) {              \
+    assert(m_size == A.size() && "Size of arrays must be equal");              \
+    for (std::size_t i = 0; i < m_size; i++)                                   \
+      m_arr[i] op A[i];                                                        \
+    return *this;                                                              \
+  }
+
+/// Applies `op` element-wise with an unevaluated array expression.
+#define CLAD_ARRAY_REF_OP_EXPR(op)                                             \
+  template <typename L, typename BinaryOp, typename R>                         \
+  CUDA_HOST_DEVICE array_ref<T>& operator op(                                  \
+      const array_expression<L, BinaryOp, R>& arr_exp) {                       \
+    assert(arr_exp.size() == m_size);                                          \
+    for (std::size_t i = 0; i < m_size; i++)                                   \
+      m_arr[i] op arr_exp[i];                                                  \
+    return *this;                                                              \
+  }
+// NOLINTEND(cppcoreguidelines-macro-usage, bugprone-macro-parentheses,
+// modernize-type-traits)
+
 /// Stores the pointer to and the size of an array and provides some helper
 /// functions for it. The array is supplied should have a life greater than
 /// that of the array_ref
@@ -39,14 +94,6 @@ public:
   /// Operator for conversion from array_ref<T> to const T*.
   constexpr CUDA_HOST_DEVICE operator const T*() const { return m_arr; }
 
-  template <typename U>
-  CUDA_HOST_DEVICE array_ref<T>& operator=(const array<U>& a) {
-    assert(m_size == a.size());
-    for (std::size_t i = 0; i < m_size; ++i)
-      m_arr[i] = a[i];
-    return *this;
-  }
-
   CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE array_ref<T>&
   operator=(const array_ref<T>& a) {
     if (this == &a)
@@ -57,14 +104,6 @@ public:
     return *this;
   }
 
-  template <typename L, typename BinaryOp, typename R>
-  CUDA_HOST_DEVICE array_ref<T>&
-  operator=(const array_expression<L, BinaryOp, R>& arr_exp) {
-    assert(arr_exp.size() == m_size);
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] = arr_exp[i];
-    return *this;
-  }
   /// Returns the size of the underlying array
   constexpr CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
   constexpr CUDA_HOST_DEVICE PUREFUNC T* ptr() const { return m_arr; }
@@ -84,143 +123,29 @@ public:
   }
 
   // Arithmetic overloads
-  /// Divides the arrays element wise
-  template <typename U>
-  CUDA_HOST_DEVICE array_ref<T>& operator/=(const array_ref<U>& Ar) {
-    assert(m_size == Ar.size() && "Size of both the array_refs must be equal "
-                                  "for carrying out addition assignment");
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] /= Ar[i];
-    return *this;
-  }
-  /// Multiplies the arrays element wise
-  template <typename U>
-  CUDA_HOST_DEVICE array_ref<T>& operator*=(const array_ref<U>& Ar) {
-    assert(m_size == Ar.size() && "Size of both the array_refs must be equal "
-                                  "for carrying out addition assignment");
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] *= Ar[i];
-    return *this;
-  }
-  /// Adds the arrays element wise
-  template <typename U>
-  CUDA_HOST_DEVICE array_ref<T>& operator+=(const array_ref<U>& Ar) {
-    assert(m_size == Ar.size() && "Size of both the array_refs must be equal "
-                                  "for carrying out addition assignment");
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] += Ar[i];
-    return *this;
-  }
-  /// Subtracts the arrays element wise
-  template <typename U>
-  CUDA_HOST_DEVICE array_ref<T>& operator-=(const array_ref<U>& Ar) {
-    assert(m_size == Ar.size() && "Size of both the array_refs must be equal "
-                                  "for carrying out addition assignment");
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] -= Ar[i];
-    return *this;
-  }
-  /// Divides the elements of the array_ref by elements of the array
-  template <typename U>
-  CUDA_HOST_DEVICE array_ref<T>& operator/=(const array<U>& A) {
-    assert(m_size == A.size() && "Size of arrays must be equal");
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] /= A[i];
-    return *this;
-  }
-  /// Multiplies the elements of the array_ref by elements of the array
-  template <typename L, typename BinaryOp, typename R>
-  CUDA_HOST_DEVICE array_ref<T>&
-  operator*=(const array_expression<L, BinaryOp, R>& arr_exp) {
-    assert(arr_exp.size() == m_size);
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] *= arr_exp[i];
-    return *this;
-  }
-  /// Adds the elements of the array_ref by elements of the array
-  template <typename L, typename BinaryOp, typename R>
-  CUDA_HOST_DEVICE array_ref<T>&
-  operator+=(const array_expression<L, BinaryOp, R>& arr_exp) {
-    assert(arr_exp.size() == m_size);
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] += arr_exp[i];
-    return *this;
-  }
-  /// Subtracts the elements of the array_ref by elements of the array
-  template <typename L, typename BinaryOp, typename R>
-  CUDA_HOST_DEVICE array_ref<T>&
-  operator-=(const array_expression<L, BinaryOp, R>& arr_exp) {
-    assert(arr_exp.size() == m_size);
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] -= arr_exp[i];
-    return *this;
-  }
-  /// Divides the elements of the array_ref by elements of the array
-  template <typename L, typename BinaryOp, typename R>
-  CUDA_HOST_DEVICE array_ref<T>&
-  operator/=(const array_expression<L, BinaryOp, R>& arr_exp) {
-    assert(arr_exp.size() == m_size);
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] /= arr_exp[i];
-    return *this;
-  }
-  /// Multiplies the elements of the array_ref by elements of the array
-  template <typename U>
-  CUDA_HOST_DEVICE array_ref<T>& operator*=(const array<U>& A) {
-    assert(m_size == A.size() && "Size of arrays must be equal");
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] *= A[i];
-    return *this;
-  }
-  /// Adds the elements of the array_ref by elements of the array
-  template <typename U>
-  CUDA_HOST_DEVICE array_ref<T>& operator+=(const array<U>& A) {
-    assert(m_size == A.size() && "Size of arrays must be equal");
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] += A[i];
-    return *this;
-  }
-  /// Subtracts the elements of the array_ref by elements of the array
-  template <typename U>
-  CUDA_HOST_DEVICE array_ref<T>& operator-=(const array<U>& A) {
-    assert(m_size == A.size() && "Size of arrays must be equal");
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] -= A[i];
-    return *this;
-  }
-  /// Divides the array by a scalar
-  template <typename U, typename std::enable_if<std::is_arithmetic<U>::value,
-                                                int>::type = 0>
-  CUDA_HOST_DEVICE array_ref<T>& operator/=(U a) {
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] /= a;
-    return *this;
-  }
-  /// Multiplies the array by a scalar
-  template <typename U, typename std::enable_if<std::is_arithmetic<U>::value,
-                                                int>::type = 0>
-  CUDA_HOST_DEVICE array_ref<T>& operator*=(U a) {
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] *= a;
-    return *this;
-  }
-  /// Adds the array by a scalar
-  template <typename U, typename std::enable_if<std::is_arithmetic<U>::value,
-                                                int>::type = 0>
-  CUDA_HOST_DEVICE array_ref<T>& operator+=(U a) {
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] += a;
-    return *this;
-  }
+  CLAD_ARRAY_REF_OP_SCALAR(+=)
+  CLAD_ARRAY_REF_OP_SCALAR(-=)
+  CLAD_ARRAY_REF_OP_SCALAR(*=)
+  CLAD_ARRAY_REF_OP_SCALAR(/=)
 
-  /// Subtracts the array by a scalar
-  template <typename U, typename std::enable_if<std::is_arithmetic<U>::value,
-                                                int>::type = 0>
-  CUDA_HOST_DEVICE array_ref<T>& operator-=(U a) {
-    for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] -= a;
-    return *this;
-  }
+  /// Assignment from an array_ref is not generated here: the array_ref<T>
+  /// overload above has to stay non-templated to catch self-assignment.
+  CLAD_ARRAY_REF_OP_ARRAY_REF(+=)
+  CLAD_ARRAY_REF_OP_ARRAY_REF(-=)
+  CLAD_ARRAY_REF_OP_ARRAY_REF(*=)
+  CLAD_ARRAY_REF_OP_ARRAY_REF(/=)
+
+  CLAD_ARRAY_REF_OP_ARRAY(=)
+  CLAD_ARRAY_REF_OP_ARRAY(+=)
+  CLAD_ARRAY_REF_OP_ARRAY(-=)
+  CLAD_ARRAY_REF_OP_ARRAY(*=)
+  CLAD_ARRAY_REF_OP_ARRAY(/=)
+
+  CLAD_ARRAY_REF_OP_EXPR(=)
+  CLAD_ARRAY_REF_OP_EXPR(+=)
+  CLAD_ARRAY_REF_OP_EXPR(-=)
+  CLAD_ARRAY_REF_OP_EXPR(*=)
+  CLAD_ARRAY_REF_OP_EXPR(/=)
 };
 
   /// `array_ref<void>` specialisation is created to be used as a placeholder
@@ -268,5 +193,10 @@ public:
   };
   // NOLINTEND(*-pointer-arithmetic)
 } // namespace clad
+
+#undef CLAD_ARRAY_REF_OP_SCALAR
+#undef CLAD_ARRAY_REF_OP_ARRAY_REF
+#undef CLAD_ARRAY_REF_OP_ARRAY
+#undef CLAD_ARRAY_REF_OP_EXPR
 
 #endif // CLAD_ARRAY_REF_H
