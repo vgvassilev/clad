@@ -446,6 +446,12 @@ namespace clad {
 
     bool IsZeroOrNullValue(const clang::Expr* E);
 
+    /// Like IsZeroOrNullValue(E), but also folds \p E as a constant
+    /// expression, so that a reference to a `const` variable initialized to
+    /// zero -- the shape a tangent takes once it has been bound to a
+    /// declaration -- is recognized as zero too.
+    bool IsZeroOrNullValue(const clang::Expr* E, const clang::ASTContext& C);
+
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);
 
     /// Returns true if QT is a non-const reference type.
