@@ -80,6 +80,16 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     if (R.Function && !R.Function->getPrimaryTemplate())
       S.LookupQualifiedName(Previous, dFD->getParent());
 
+    // Derivatives are declared inline, but a hand-written custom derivative may
+    // already define this name, and [dcl.inline]p6 forbids an inline
+    // declaration that follows a definition. Drop the specifier in that case.
+    auto definedNotInline = [](const NamedDecl* ND) {
+      const auto* PrevFD = dyn_cast<FunctionDecl>(ND);
+      return PrevFD && PrevFD->isDefined() && !PrevFD->isInlined();
+    };
+    if (std::any_of(Previous.begin(), Previous.end(), definedNotInline))
+      dFD->setInlineSpecified(false);
+
     // Check if we created a top-level decl with the same name for another
     // class.
     // FIXME: This case should be addressed by providing proper names and
@@ -134,7 +144,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       returnedFD = CXXMethodDecl::Create(
           m_Context, CXXRD, noLoc, name, functionType, TSI,
           SC CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
-          FD->isInlineSpecified(), FD->getConstexprKind(), noLoc);
+          /*isInlineSpecified=*/true, FD->getConstexprKind(), noLoc);
       // Generated member function should be called outside of class definitions
       // even if their original function had different access specifier.
       returnedFD->setAccess(AS_public);
@@ -153,13 +163,11 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           m_Context, m_Sema.CurContext, noLoc, name, functionType, TSI,
           FD->getCanonicalDecl()->getStorageClass()
               CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
-          FD->isInlineSpecified(), FD->hasWrittenPrototype(),
+          /*isInlineSpecified=*/true, FD->hasWrittenPrototype(),
           FD->getConstexprKind(), TrailingRequiresClause);
 
       returnedFD->setAccess(FD->getAccess());
     }
-
-    returnedFD->setImplicitlyInline(FD->isInlined());
 
     for (const FunctionDecl* NFD : FD->redecls()) {
       for (const auto* Attr : NFD->attrs()) {

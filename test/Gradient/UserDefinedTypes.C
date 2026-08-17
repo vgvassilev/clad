@@ -555,7 +555,7 @@ public:
   }
 };
 
-// CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions1 *_d_this, double *_d_p_x, double *_d_p_y) noexcept {
+// CHECK: static inline void constructor_pullback(double p_x, double p_y, SimpleFunctions1 *_d_this, double *_d_p_x, double *_d_p_y) noexcept {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        *_d_p_y += _d_this->y;
 // CHECK-NEXT:        _d_this->y = 0.;
@@ -833,7 +833,7 @@ struct Vector3 {
     }
 };
 
-// CHECK: static void constructor_pullback(double px, double py, double pz, Vector3 *_d_this, double *_d_px, double *_d_py, double *_d_pz) {
+// CHECK: static inline void constructor_pullback(double px, double py, double pz, Vector3 *_d_this, double *_d_px, double *_d_py, double *_d_pz) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_pz += _d_this->z;
 // CHECK-NEXT:          _d_this->z = 0.;
@@ -1300,7 +1300,7 @@ public:
   }
 };
 
-// CHECK:  static void constructor_pullback(size_t n, PrivClass *_d_this, size_t *_d_n) {
+// CHECK:  static inline void constructor_pullback(size_t n, PrivClass *_d_this, size_t *_d_n) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_n += _d_this->n_;
 // CHECK-NEXT:          _d_this->n_ = {{0U|0UL|0ULL}};
