@@ -1,6 +1,13 @@
 add_custom_target(CladUnitTests)
 set_target_properties(CladUnitTests PROPERTIES FOLDER "Clad tests")
 
+if (EMSCRIPTEN)
+  enable_testing()
+  add_custom_target(check-clad COMMAND ${CMAKE_CTEST_COMMAND} -V
+    DEPENDS CladUnitTests WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+  set_target_properties(check-clad PROPERTIES FOLDER "Clad tests")
+endif()
+
 # LLVM builds (not installed llvm) provides gtest.
 if (NOT TARGET gtest)
   include(CladGoogleTest)
@@ -39,15 +46,25 @@ function(add_clad_unittest test_dirname)
   endif()
 
   target_link_libraries(${test_dirname} PUBLIC ${gtest_libs})
+
+  if (EMSCRIPTEN)
+    target_compile_options(${test_dirname} PUBLIC "SHELL:${CLAD_EXTRA_WASM_FLAGS}")
+    target_link_options(${test_dirname} PUBLIC "SHELL:${CLAD_EXTRA_WASM_FLAGS}")
+    add_test(NAME clad-${test_dirname} COMMAND $ENV{EMSDK_NODE} ${test_dirname}.js)
+    set_tests_properties(clad-${test_dirname} PROPERTIES TIMEOUT 240)
+  endif()
 endfunction()
 
 add_subdirectory(Basic)
 
-find_package(Kokkos)
-if (Kokkos_FOUND)
-  set(CMAKE_CXX_STANDARD 17)
-  set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
-  add_subdirectory(Kokkos)
-endif(Kokkos_FOUND)
+# Misc and Kokkos compile with -fplugin=clad.so; only Basic is header-only.
+if (NOT EMSCRIPTEN)
+  find_package(Kokkos)
+  if (Kokkos_FOUND)
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+    add_subdirectory(Kokkos)
+  endif(Kokkos_FOUND)
 
-add_subdirectory(Misc)
+  add_subdirectory(Misc)
+endif()
