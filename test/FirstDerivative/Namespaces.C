@@ -10,7 +10,7 @@ namespace A {
   double f_darg0(double x);
   //CHECK:   double f_darg0(double x) {
   //CHECK-NEXT:       double _d_x = 1;
-  //CHECK-NEXT:       return 0 * x + 1 * _d_x;
+  //CHECK-NEXT:       return 1 * _d_x;
   //CHECK-NEXT:   }
 }
 
@@ -20,7 +20,7 @@ namespace B {
   double f_darg0(double x);
   //CHECK:   double f_darg0(double x) {
   //CHECK-NEXT:       double _d_x = 1;
-  //CHECK-NEXT:       return 0 * x + 2 * _d_x;
+  //CHECK-NEXT:       return 2 * _d_x;
   //CHECK-NEXT:   }
 }
 
@@ -31,7 +31,7 @@ namespace C {
     double f_darg0(double x);
     //CHECK:   double f_darg0(double x) {
     //CHECK-NEXT:       double _d_x = 1;
-    //CHECK-NEXT:       return 0 * x + 3 * _d_x;
+    //CHECK-NEXT:       return 3 * _d_x;
     //CHECK-NEXT:   }
   }
   inline namespace E {
@@ -40,7 +40,7 @@ namespace C {
     double f_darg0(double x);
     //CHECK:   double f_darg0(double x) {
     //CHECK-NEXT:       double _d_x = 1;
-    //CHECK-NEXT:       return 0 * x + 4 * _d_x;
+    //CHECK-NEXT:       return 4 * _d_x;
     //CHECK-NEXT:   }
   }
 }
@@ -51,7 +51,7 @@ namespace {
   double f_darg0(double x);
   //CHECK:   double f_darg0(double x) {
   //CHECK-NEXT:       double _d_x = 1;
-  //CHECK-NEXT:       return 0 * x + 5 * _d_x;
+  //CHECK-NEXT:       return 5 * _d_x;
   //CHECK-NEXT:   }
 }
 

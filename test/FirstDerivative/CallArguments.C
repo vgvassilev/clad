@@ -43,7 +43,7 @@ float f_const_args_func_1(const float x, const float y) {
 // CHECK: float f_const_args_func_1_darg0(const float x, const float y) {
 // CHECK-NEXT: const float _d_x = 1;
 // CHECK-NEXT: const float _d_y = 0;
-// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - 0.F;
+// CHECK-NEXT: return x + x;
 // CHECK-NEXT: }
 
 float f_const_args_func_2(float x, const float y) {
@@ -53,7 +53,7 @@ float f_const_args_func_2(float x, const float y) {
 // CHECK: float f_const_args_func_2_darg0(float x, const float y) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: const float _d_y = 0;
-// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - 0.F;
+// CHECK-NEXT: return _d_x * x + x * _d_x;
 // CHECK-NEXT: }
 
 float f_const_args_func_3(const float x, float y) {
@@ -63,7 +63,7 @@ float f_const_args_func_3(const float x, float y) {
 // CHECK: float f_const_args_func_3_darg0(const float x, float y) {
 // CHECK-NEXT: const float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - 0.F;
+// CHECK-NEXT: return x + x + _d_y * y + y * _d_y;
 // CHECK-NEXT: }
 
 struct Vec { float x=0, y=0, z=0; };
@@ -75,7 +75,7 @@ float f_const_args_func_4(float x, float y, const Vec v) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
 // CHECK-NEXT: const Vec _d_v;
-// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
 // CHECK-NEXT: }
 
 float f_const_args_func_5(float x, float y, const Vec &v) {
@@ -86,7 +86,7 @@ float f_const_args_func_5(float x, float y, const Vec &v) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
 // CHECK-NEXT: const Vec _d_v;
-// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
 // CHECK-NEXT: }
 
 float f_const_args_func_6(const float x, const float y, const Vec &v) {
@@ -97,7 +97,7 @@ float f_const_args_func_6(const float x, const float y, const Vec &v) {
 // CHECK-NEXT: const float _d_x = 1;
 // CHECK-NEXT: const float _d_y = 0;
 // CHECK-NEXT: const Vec _d_v;
-// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
+// CHECK-NEXT: return x + x;
 // CHECK-NEXT: }
 
 float f_const_helper(const float x) {
@@ -185,7 +185,7 @@ float f_call_inline_fxn(float *params, float const *obs, float const *xlArr) {
 // CHECK-NEXT:     clad::ValueAndPushforward<unsigned int, unsigned int> _t0 = getBin_pushforward(0., 1., params[0], 1, 0., 0., 1.F, 0);
 // CHECK-NEXT:     const float _d_t116 = 0.F;
 // CHECK-NEXT:     const float t116 = *(xlArr + _t0.value);
-// CHECK-NEXT:     return _d_t116 * params[0] + t116 * 1.F;
+// CHECK-NEXT:     return t116 * 1.F;
 // CHECK-NEXT: }
 
 extern "C" int printf(const char* fmt, ...);

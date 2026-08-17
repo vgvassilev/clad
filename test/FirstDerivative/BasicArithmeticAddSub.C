@@ -21,7 +21,7 @@ int a_2(int x) {
 }
 // CHECK: int a_2_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: return 0 + 0;
+// CHECK-NEXT: return 0;
 // CHECK-NEXT: }
 
 int a_3(int x) {
@@ -40,7 +40,7 @@ int a_4(int x) {
 // CHECK-NEXT: int _d_x = 1;
 // CHECK-NEXT: int _d_y = 0;
 // CHECK-NEXT: int y = 4;
-// CHECK-NEXT: return _d_x + _d_y + _d_x + 0 + _d_x;
+// CHECK-NEXT: return _d_x + _d_y + _d_x + _d_x;
 // CHECK-NEXT: }
 
 int s_1(int x) {
@@ -59,7 +59,7 @@ int s_2(int x) {
 }
 // CHECK: int s_2_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: return 0 - 0;
+// CHECK-NEXT: return 0;
 // CHECK-NEXT: }
 
 int s_3(int x) {
@@ -78,7 +78,7 @@ int s_4(int x) {
 // CHECK-NEXT: int _d_x = 1;
 // CHECK-NEXT: int _d_y = 0;
 // CHECK-NEXT: int y = 4;
-// CHECK-NEXT: return _d_x - _d_y - _d_x - 0 - _d_x;
+// CHECK-NEXT: return _d_x - _d_y - _d_x - _d_x;
 // CHECK-NEXT: }
 
 int as_1(int x) {
@@ -89,7 +89,7 @@ int as_1(int x) {
 // CHECK-NEXT: int _d_x = 1;
 // CHECK-NEXT: int _d_y = 0;
 // CHECK-NEXT: int y = 4;
-// CHECK-NEXT: return _d_x + _d_x - _d_x + _d_y - _d_y + 0 - 0;
+// CHECK-NEXT: return _d_x + _d_x - _d_x + _d_y - _d_y;
 // CHECK-NEXT: }
 
 float IntegerLiteralToFloatLiteral(float x, float y) {

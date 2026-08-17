@@ -233,7 +233,7 @@ double fnVec6(double x, double y) {
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t23 = {{.*}}operator_subscript_pushforward(&w, 0, &_d_w, 0);
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t24 = {{.*}}operator_subscript_pushforward(&w, 1, &_d_w, 0);
 // CHECK-NEXT:          bool _t25 = ((_t23.value == y) && (_t24.value == y));
-// CHECK-NEXT:          _d_res += false * x + _t25 * _d_x;
+// CHECK-NEXT:          _d_res += _t25 * _d_x;
 // CHECK-NEXT:          res += _t25 * x;
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t26 = {{.*}}operator_subscript_pushforward(&v, 0, &_d_v, 0);
 // CHECK-NEXT:          _t26.pushforward = _d_x;
@@ -244,7 +244,7 @@ double fnVec6(double x, double y) {
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t29 = {{.*}}operator_subscript_pushforward(&w, 0, &_d_w, 0);
 // CHECK-NEXT:          _d_res += _t29.pushforward;
 // CHECK-NEXT:          res += _t29.value;
-// CHECK-NEXT:          {{.*}}assign_pushforward(&w, {3 * x, 2 * x, 4 * x}, &_d_w, {0 * x + 3 * _d_x, 0 * x + 2 * _d_x, 0 * x + 4 * _d_x});
+// CHECK-NEXT:          {{.*}}assign_pushforward(&w, {3 * x, 2 * x, 4 * x}, &_d_w, {3 * _d_x, 2 * _d_x, 4 * _d_x});
 // CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t30 = {{.*}}operator_subscript_pushforward(&w, 1, &_d_w, 0);
 // CHECK-NEXT:          _d_res += _t30.pushforward;
 // CHECK-NEXT:          res += _t30.value;
@@ -390,14 +390,14 @@ double fnTuple1(double x, double y) {
 } // = 2x + 2y
 
 //CHECK:      clad::ValueAndPushforward<{{.*}}> pack_pushforward({{.*}}) {
-//CHECK-NEXT:          {{(clad::)?}}ValueAndPushforward<{{.*}}> _t0 = clad::custom_derivatives::std::make_tuple_pushforward(x, 2 * x, 3 * x, _d_x, 0 * x + 2 * _d_x, 0 * x + 3 * _d_x);
+//CHECK-NEXT:          {{(clad::)?}}ValueAndPushforward<{{.*}}> _t0 = clad::custom_derivatives::std::make_tuple_pushforward(x, 2 * x, 3 * x, _d_x, 2 * _d_x, 3 * _d_x);
 //CHECK-NEXT:          return {_t0.value, _t0.pushforward};
 //CHECK-NEXT:      }
 
 //CHECK:      double fnTuple1_darg0(double x, double y) {
 //CHECK-NEXT:          double _d_x = 1;
 //CHECK-NEXT:          double _d_y = 0;
-//CHECK-NEXT:          double _d_u, _d_v = 0 * x + 288 * _d_x, _d_w;
+//CHECK-NEXT:          double _d_u, _d_v = 288 * _d_x, _d_w;
 //CHECK-NEXT:          double u, v = 288 * x, w;
 //CHECK-NEXT:          {{(clad::)?}}ValueAndPushforward<{{.*}}> _t0 = clad::custom_derivatives::std::tie_pushforward(u, v, w, _d_u, _d_v, _d_w);
 //CHECK-NEXT:          {{(clad::)?}}ValueAndPushforward<{{.*}}> _t1 = pack_pushforward(x + y, _d_x + _d_y);

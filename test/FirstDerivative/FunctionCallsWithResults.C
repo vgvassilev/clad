@@ -253,7 +253,7 @@ double fn7(double i, double j) {
 // CHECK: double fn7_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = helperFn_pushforward(7 * i, 9 * j, 0 * i + 7 * _d_i, 0 * j + 9 * _d_j);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = helperFn_pushforward(7 * i, 9 * j, 7 * _d_i, 9 * _d_j);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = helperFn_pushforward(static_cast<double &&>(_t0.value), i + j, static_cast<double &&>(_t0.pushforward), _d_i + _d_j);
 // CHECK-NEXT:     return _t1.pushforward;
 // CHECK-NEXT: }
@@ -319,9 +319,8 @@ double fn8(double i, double j) {
 // CHECK-NEXT:     modifyArr_pushforward(arr, 5, i * j, _d_arr, 0, _d_i * j + i * _d_j);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sum_pushforward(arr, 5, _d_arr, 0);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = check_and_return_pushforward(_t0.value, 'a', _t0.pushforward, 0);
-// CHECK-NEXT:     double &_t2 = _t1.value;
-// CHECK-NEXT:     double _t3 = std::tanh(1.);
-// CHECK-NEXT:     return _t1.pushforward * _t3 + _t2 * 0.;
+// CHECK-NEXT:     double _t2 = std::tanh(1.);
+// CHECK-NEXT:     return _t1.pushforward * _t2;
 // CHECK-NEXT: }
 
 double g (double x) { return x; }

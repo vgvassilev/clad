@@ -114,7 +114,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     double _t14 = 2 * sum;
-// CHECK-NEXT:     return _d_sum * i + sum * _d_i + (0 * sum + 2 * _d_sum) * j + _t14 * _d_j;
+// CHECK-NEXT:     return _d_sum * i + sum * _d_i + (2 * _d_sum) * j + _t14 * _d_j;
 // CHECK-NEXT: }
 
 int main() {

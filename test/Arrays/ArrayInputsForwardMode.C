@@ -8,7 +8,7 @@ double multiply(const double *arr) {
 }
 
 //CHECK:   double multiply_darg0_1(const double *arr) {
-//CHECK-NEXT:       return 0. * arr[1] + arr[0] * 1.;
+//CHECK-NEXT:       return arr[0] * 1.;
 //CHECK-NEXT:   }
 
 double divide(const double *arr) {
@@ -16,7 +16,7 @@ double divide(const double *arr) {
 }
 
 //CHECK:   double divide_darg0_1(const double *arr) {
-//CHECK-NEXT:       return (0. * arr[1] - arr[0] * 1.) / (arr[1] * arr[1]);
+//CHECK-NEXT:       return (0. - arr[0]) / (arr[1] * arr[1]);
 //CHECK-NEXT:   }
 
 double addArr(const double *arr, int n) {

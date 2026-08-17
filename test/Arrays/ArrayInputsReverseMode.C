@@ -88,7 +88,7 @@ float helper(float x) {
 }
 
 // CHECK: clad::ValueAndPushforward<float, float> helper_pushforward(float x, float _d_x) {
-// CHECK-NEXT:     return {2 * x, 0 * x + 2 * _d_x};
+// CHECK-NEXT:     return {2 * x, 2 * _d_x};
 // CHECK-NEXT: }
 
 float func2(float* a) {

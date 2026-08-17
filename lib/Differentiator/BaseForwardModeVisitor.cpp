@@ -1528,50 +1528,88 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
   StmtDiff Ldiff = Visit(BinOp->getLHS());
   StmtDiff Rdiff = Visit(BinOp->getRHS());
 
+  // Fold the derivative expression algebraically. Forward mode carries one
+  // seeded direction, so most tangents reaching an operator are a constant
+  // zero and the product/quotient rules expand into `0 * b + a * 0` chains
+  // that keep the whole primal subtree alive. Folding them away is what stops
+  // an n-direction request (a hessian) from generating n copies of the parts
+  // of the function that the direction does not reach.
   ConstantFolder folder(m_Context);
   auto opCode = BinOp->getOpcode();
   Expr* opDiff = nullptr;
 
   // The operand primals are also parented by the forward value; clone each so
-  // the derivative expression owns a distinct subtree.
-  auto deriveMul = [this](StmtDiff& Ldiff, StmtDiff& Rdiff) {
-    Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
-                        BuildParens(CloneNode(Rdiff.getExpr())));
+  // the derivative expression owns a distinct subtree. A term whose tangent
+  // factor is a constant zero is not built at all rather than left for the
+  // folder to drop: the caller then skips storing the primal that term reads,
+  // and fold() may hand back its whole input unfolded, so the expression given
+  // to it must never contain a primal that is unsafe to re-evaluate.
+  auto mulTerm = [this](Expr* LHS, Expr* RHS) {
+    return BuildOp(BO_Mul, BuildParens(LHS), BuildParens(RHS));
+  };
 
-    Expr* RHS = BuildOp(BO_Mul, BuildParens(CloneNode(Ldiff.getExpr())),
-                        BuildParens(Rdiff.getExpr_dx()));
-
+  auto deriveMul = [this, &mulTerm](StmtDiff& Ldiff, StmtDiff& Rdiff,
+                                    bool dropsLTerm = false,
+                                    bool dropsRTerm = false) {
+    Expr* LHS = dropsLTerm
+                    ? nullptr
+                    : mulTerm(Ldiff.getExpr_dx(), CloneNode(Rdiff.getExpr()));
+    Expr* RHS = dropsRTerm
+                    ? nullptr
+                    : mulTerm(CloneNode(Ldiff.getExpr()), Rdiff.getExpr_dx());
+    if (!LHS)
+      return RHS;
+    if (!RHS)
+      return LHS;
     return BuildOp(BO_Add, LHS, RHS);
   };
 
-  auto deriveDiv = [this](StmtDiff& Ldiff, StmtDiff& Rdiff) {
-    Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
-                        BuildParens(CloneNode(Rdiff.getExpr())));
+  auto deriveDiv = [this, &mulTerm](StmtDiff& Ldiff, StmtDiff& Rdiff,
+                                    bool dropsRTerm = false) {
+    // The `dL * R` term is always built: when both tangents are zero the
+    // caller emits a plain zero instead of calling here, so the denominator
+    // survives and R is stored -- a zero dL term is then safe to keep for the
+    // folder.
+    Expr* nominator = mulTerm(Ldiff.getExpr_dx(), CloneNode(Rdiff.getExpr()));
+    if (!dropsRTerm)
+      nominator =
+          BuildOp(BO_Sub, nominator,
+                  mulTerm(CloneNode(Ldiff.getExpr()), Rdiff.getExpr_dx()));
 
-    Expr* RHS = BuildOp(BO_Mul, BuildParens(CloneNode(Ldiff.getExpr())),
-                        BuildParens(Rdiff.getExpr_dx()));
-
-    Expr* nominator = BuildOp(BO_Sub, LHS, RHS);
-
-    Expr* RParens = BuildParens(CloneNode(Rdiff.getExpr()));
     Expr* denominator =
-        BuildOp(BO_Mul, RParens, BuildParens(CloneNode(Rdiff.getExpr())));
-
+        mulTerm(CloneNode(Rdiff.getExpr()), CloneNode(Rdiff.getExpr()));
     return BuildOp(BO_Div, BuildParens(nominator), BuildParens(denominator));
   };
 
-  if (opCode == BO_Mul) {
-    // If Ldiff.getExpr() and Rdiff.getExpr() require evaluation, store the
-    // expressions in variables to avoid reevaluation.
-    Ldiff = {StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx()};
-    Rdiff = {StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx()};
+  if (opCode == BO_Mul || opCode == BO_Div) {
+    // A term of the product/quotient rule guarded by a constant-zero tangent
+    // is dead. Use the folder's own zero predicate to decide which terms to
+    // build, so this choice and the fold's identities cannot drift apart.
+    bool dropsLTerm =
+        ConstantFolder::evaluatesToZero(Ldiff.getExpr_dx(), m_Context);
+    bool dropsRTerm =
+        ConstantFolder::evaluatesToZero(Rdiff.getExpr_dx(), m_Context);
+    if (dropsLTerm && dropsRTerm) {
+      // Both tangents are zero: the numerator collapses to zero, and for
+      // division `0 / (R * R)` folds away the denominator with it, so no
+      // primal needs storing at all.
+      opDiff = getZeroInit(BinOp->getType());
+    } else {
+      // If Ldiff.getExpr() and Rdiff.getExpr() require evaluation, store the
+      // expressions in variables to avoid reevaluation. Only store an operand
+      // the derivative below will actually read -- storing it anyway would
+      // leave the primal alive as a dead temporary, the very thing the fold
+      // exists to remove. The left primal is only read by the `L * dR` term;
+      // the right primal by `dL * R` and, for division, by the denominator.
+      if (!dropsRTerm)
+        Ldiff = {StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx()};
+      if (!dropsLTerm || opCode == BO_Div)
+        Rdiff = {StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx()};
 
-    opDiff = deriveMul(Ldiff, Rdiff);
-  } else if (opCode == BO_Div) {
-    Ldiff = {StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx()};
-    Rdiff = {StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx()};
-
-    opDiff = deriveDiv(Ldiff, Rdiff);
+      opDiff = (opCode == BO_Mul)
+                   ? deriveMul(Ldiff, Rdiff, dropsLTerm, dropsRTerm)
+                   : deriveDiv(Ldiff, Rdiff, dropsRTerm);
+    }
   } else if (opCode == BO_Add || opCode == BO_Sub) {
     Expr* derivedL = nullptr;
     Expr* derivedR = nullptr;
@@ -1635,6 +1673,8 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       // _t1 *= 1;
       // ```
       //
+      // (The constant folder may collapse the derivative expression further;
+      // the ordering of the stored references is the point here.)
       auto LdiffExprDx = StoreAndRef(Ldiff.getExpr_dx());
       Ldiff = {StoreAndRef(Ldiff.getExpr()), LdiffExprDx};
       auto RdiffExprDx = StoreAndRef(Rdiff.getExpr_dx());

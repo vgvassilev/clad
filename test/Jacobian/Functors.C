@@ -22,12 +22,12 @@ struct Experiment {
   // CHECK-NEXT:     double &_t0 = this->x;
   // CHECK-NEXT:     double _t1 = _t0 * i;
   // CHECK-NEXT:     double _t2 = _t1 * i;
-  // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((0 * i + _t0 * _d_vector_i) * i + _t1 * _d_vector_i) * j + _t2 * _d_vector_j;
+  // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((_t0 * _d_vector_i) * i + _t1 * _d_vector_i) * j + _t2 * _d_vector_j;
   // CHECK-NEXT:     _clad_out_output[0] = _t2 * j;
   // CHECK-NEXT:     double &_t3 = this->y;
   // CHECK-NEXT:     double _t4 = _t3 * i;
   // CHECK-NEXT:     double _t5 = _t4 * j;
-  // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((0 * i + _t3 * _d_vector_i) * j + _t4 * _d_vector_j) * j + _t5 * _d_vector_j;
+  // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((_t3 * _d_vector_i) * j + _t4 * _d_vector_j) * j + _t5 * _d_vector_j;
   // CHECK-NEXT:     _clad_out_output[1] = _t5 * j;
   // CHECK-NEXT: }
 
@@ -52,12 +52,12 @@ struct ExperimentConst {
   // CHECK-NEXT:     double &_t0 = this->x;
   // CHECK-NEXT:     double _t1 = _t0 * i;
   // CHECK-NEXT:     double _t2 = _t1 * i;
-  // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((0 * i + _t0 * _d_vector_i) * i + _t1 * _d_vector_i) * j + _t2 * _d_vector_j;
+  // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((_t0 * _d_vector_i) * i + _t1 * _d_vector_i) * j + _t2 * _d_vector_j;
   // CHECK-NEXT:     _clad_out_output[0] = _t2 * j;
   // CHECK-NEXT:     double &_t3 = this->y;
   // CHECK-NEXT:     double _t4 = _t3 * i;
   // CHECK-NEXT:     double _t5 = _t4 * j;
-  // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((0 * i + _t3 * _d_vector_i) * j + _t4 * _d_vector_j) * j + _t5 * _d_vector_j;
+  // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((_t3 * _d_vector_i) * j + _t4 * _d_vector_j) * j + _t5 * _d_vector_j;
   // CHECK-NEXT:     _clad_out_output[1] = _t5 * j;
   // CHECK-NEXT: }
 
@@ -82,12 +82,12 @@ struct ExperimentVolatile {
   // CHECK-NEXT:     volatile double &_t0 = this->x;
   // CHECK-NEXT:     double _t1 = _t0 * i;
   // CHECK-NEXT:     double _t2 = _t1 * i;
-  // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((0 * i + _t0 * _d_vector_i) * i + _t1 * _d_vector_i) * j + _t2 * _d_vector_j;
+  // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((_t0 * _d_vector_i) * i + _t1 * _d_vector_i) * j + _t2 * _d_vector_j;
   // CHECK-NEXT:     _clad_out_output[0] = _t2 * j;
   // CHECK-NEXT:     volatile double &_t3 = this->y;
   // CHECK-NEXT:     double _t4 = _t3 * i;
   // CHECK-NEXT:     double _t5 = _t4 * j;
-  // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((0 * i + _t3 * _d_vector_i) * j + _t4 * _d_vector_j) * j + _t5 * _d_vector_j;
+  // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((_t3 * _d_vector_i) * j + _t4 * _d_vector_j) * j + _t5 * _d_vector_j;
   // CHECK-NEXT:     _clad_out_output[1] = _t5 * j;
   // CHECK-NEXT: }
 
@@ -112,12 +112,12 @@ struct ExperimentConstVolatile {
   // CHECK-NEXT:     volatile double &_t0 = this->x;
   // CHECK-NEXT:     double _t1 = _t0 * i;
   // CHECK-NEXT:     double _t2 = _t1 * i;
-  // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((0 * i + _t0 * _d_vector_i) * i + _t1 * _d_vector_i) * j + _t2 * _d_vector_j;
+  // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((_t0 * _d_vector_i) * i + _t1 * _d_vector_i) * j + _t2 * _d_vector_j;
   // CHECK-NEXT:     _clad_out_output[0] = _t2 * j;
   // CHECK-NEXT:     volatile double &_t3 = this->y;
   // CHECK-NEXT:     double _t4 = _t3 * i;
   // CHECK-NEXT:     double _t5 = _t4 * j;
-  // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((0 * i + _t3 * _d_vector_i) * j + _t4 * _d_vector_j) * j + _t5 * _d_vector_j;
+  // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((_t3 * _d_vector_i) * j + _t4 * _d_vector_j) * j + _t5 * _d_vector_j;
   // CHECK-NEXT:     _clad_out_output[1] = _t5 * j;
   // CHECK-NEXT: }
 
@@ -144,12 +144,12 @@ namespace outer {
   // CHECK-NEXT:     double &_t0 = this->x;
   // CHECK-NEXT:     double _t1 = _t0 * i;
   // CHECK-NEXT:     double _t2 = _t1 * i;
-  // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((0 * i + _t0 * _d_vector_i) * i + _t1 * _d_vector_i) * j + _t2 * _d_vector_j;
+  // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((_t0 * _d_vector_i) * i + _t1 * _d_vector_i) * j + _t2 * _d_vector_j;
   // CHECK-NEXT:     _clad_out_output[0] = _t2 * j;
   // CHECK-NEXT:     double &_t3 = this->y;
   // CHECK-NEXT:     double _t4 = _t3 * i;
   // CHECK-NEXT:     double _t5 = _t4 * j;
-  // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((0 * i + _t3 * _d_vector_i) * j + _t4 * _d_vector_j) * j + _t5 * _d_vector_j;
+  // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((_t3 * _d_vector_i) * j + _t4 * _d_vector_j) * j + _t5 * _d_vector_j;
   // CHECK-NEXT:     _clad_out_output[1] = _t5 * j;
   // CHECK-NEXT: }
 
@@ -232,11 +232,11 @@ int main() {
 // CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
 // CHECK-NEXT:     double _t0 = x * i;
 // CHECK-NEXT:     double _t1 = _t0 * i;
-// CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((0. * i + x * _d_vector_i) * i + _t0 * _d_vector_i) * jj + _t1 * _d_vector_jj;
+// CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = ((x * _d_vector_i) * i + _t0 * _d_vector_i) * jj + _t1 * _d_vector_jj;
 // CHECK-NEXT:     _clad_out_output[0] = _t1 * jj;
 // CHECK-NEXT:     double _t2 = y * i;
 // CHECK-NEXT:     double _t3 = _t2 * jj;
-// CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((0. * i + y * _d_vector_i) * jj + _t2 * _d_vector_jj) * jj + _t3 * _d_vector_jj;
+// CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((y * _d_vector_i) * jj + _t2 * _d_vector_jj) * jj + _t3 * _d_vector_jj;
 // CHECK-NEXT:     _clad_out_output[1] = _t3 * jj;
 // CHECK-NEXT: }
 
