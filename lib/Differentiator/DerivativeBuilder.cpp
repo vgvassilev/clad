@@ -606,7 +606,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         } else if (request.Mode == DiffMode::vector_forward_mode) {
           VectorForwardModeVisitor V(*this, request);
           result.overload =
-              V.CreateVectorModeOverload(cast<FunctionDecl>(result.derivative));
+              V.CreateDerivativeOverload(cast<FunctionDecl>(result.derivative),
+                                         VisitorBase::OverloadKind::VectorMode);
         }
         return result;
       }

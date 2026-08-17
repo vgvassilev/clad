@@ -38,18 +38,6 @@ public:
   ///
   DerivativeAndOverload Derive() override;
 
-  /// Builds an overload for the vector mode function that has derived params
-  /// for all the arguments of the requested function and it calls the original
-  /// gradient function internally.
-  /// For ex.: if the original function is: double foo(double x, double y)
-  /// , then the generated vector mode overload will be:
-  /// double foo(double x, double y, void*, void*), irrespective of the
-  /// what parameters are requested to be differentiated w.r.t.
-  /// Inside it, we will call the original vector mode function with the
-  /// original parameters and the derived parameters.
-  clang::FunctionDecl*
-  CreateVectorModeOverload(clang::FunctionDecl* derivative = nullptr);
-
   /// Builds and returns the sequence of derived function parameters for
   //  vectorized forward mode.
   ///
