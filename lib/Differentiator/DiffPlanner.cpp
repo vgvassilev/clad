@@ -921,6 +921,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
     return getVariedDecls().find(VD) != getVariedDecls().end();
   }
+  bool DiffRequest::shouldHavePushforward(const CallExpr* CE) const {
+    auto found = m_ActivityRunInfo.VariedCalls.find(CE);
+    return found == m_ActivityRunInfo.VariedCalls.end() || found->second;
+  }
+
   bool DiffRequest::isVaried(const Expr* E) const {
     // FIXME: We should consider removing pullback requests from the
     // diff graph.
@@ -930,8 +935,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     public:
       VariedChecker(const DiffRequest& DR) : m_Request(DR) {}
       bool isVariedE(const clang::Expr* E) {
-        auto j = m_Request.getVariedStmt().find(E);
-        if (j != m_Request.getVariedStmt().end())
+        // The call-activity pre-pass also fills the varied set, and its
+        // conservative markings (an argument handed to a non-const pointer
+        // parameter is varied no matter what it is) must only feed
+        // shouldHavePushforward. Without the opt-in analysis, keep answering
+        // from the expression alone, as before the pre-pass existed.
+        if (m_Request.EnableVariedAnalysis &&
+            m_Request.getVariedStmt().find(E) !=
+                m_Request.getVariedStmt().end())
           return true;
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
         return !TraverseStmt(const_cast<clang::Expr*>(E));
@@ -1184,6 +1195,65 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     }
 
     return false;
+  }
+
+  /// Whether \p S contains a call forward mode may skip differentiating: a
+  /// plain call that is not an operator or member call (see
+  /// BaseForwardModeVisitor::VisitCallExpr). Missing one is safe -- the
+  /// visitor then differentiates through everything.
+  static bool hasPushforwardCandidate(const Stmt* S) {
+    llvm::SmallVector<const Stmt*, 32> workList{S};
+    while (!workList.empty()) {
+      const Stmt* cur = workList.pop_back_val();
+      if (!cur)
+        continue;
+      if (isa<CallExpr>(cur) && !isa<CXXOperatorCallExpr>(cur) &&
+          !isa<CXXMemberCallExpr>(cur))
+        return true;
+      for (const Stmt* child : cur->children())
+        workList.push_back(child);
+    }
+    return false;
+  }
+
+  /// Whether the planner has to work out which calls of \p request contribute
+  /// to its derivative: only a forward-mode request differentiates along a
+  /// single known direction, and a body without a candidate call has nothing
+  /// to decide.
+  static bool needsCallActivity(const DiffRequest& request) {
+    return request.Mode == DiffMode::forward && request->isDefined() &&
+           hasPushforwardCandidate(request->getBody());
+  }
+
+  /// Seeds the varied set with the parameters \p request differentiates with
+  /// respect to. A FieldDecl (a functor differentiated w.r.t. a field) cannot
+  /// be seeded; the analyzer covers it by treating everything reached through
+  /// `this` as varied.
+  static void seedVariedDirection(DiffRequest& request) {
+    for (const DiffInputVarInfo& dParam : request.DVI)
+      if (const auto* VD = dyn_cast_or_null<VarDecl>(dParam.param))
+        request.addVariedDecl(VD);
+  }
+
+  /// Runs varied analysis for \p request over \p AnalysisDC, which has to
+  /// describe request.Function.
+  static void runVariedAnalysis(DiffRequest& request,
+                                AnalysisDeclContext* AnalysisDC) {
+    TimedAnalysisRegion R("VA " + request.BaseFunctionName);
+    VariedAnalyzer analyzer(AnalysisDC, request, request.getVariedStmt());
+    analyzer.Analyze();
+  }
+
+  /// Runs varied analysis for one direction of \p request over \p AnalysisDC.
+  /// A hessian reuses one forward request for row after row, so what the
+  /// previous direction concluded is dropped first.
+  static void analyzeDirection(DiffRequest& request,
+                               AnalysisDeclContext* AnalysisDC) {
+    request.resetActivityInfo();
+    if (!AnalysisDC || !needsCallActivity(request))
+      return;
+    seedVariedDirection(request);
+    runVariedAnalysis(request, AnalysisDC);
   }
 
   static bool allArgumentsAreLiterals(const CallExpr::arg_range& args,
@@ -1495,11 +1565,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       request.Args = E->getArg(1);
       request.UpdateDiffParamsInfo(m_Sema);
-      if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis) {
-        if (request.Args)
-          for (const auto& dParam : request.DVI)
-            request.addVariedDecl(cast<VarDecl>(dParam.param));
-      }
+      if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis &&
+          request.Args)
+        seedVariedDirection(request);
 
       if (request.Function->hasAttr<CUDAGlobalAttr>())
         for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i)
@@ -1744,11 +1812,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               /*AnalysisDeclContextManager=*/nullptr, request.Function,
               Options);
 
-      if (request.EnableVariedAnalysis && request->isDefined()) {
-        TimedAnalysisRegion R("VA " + request.BaseFunctionName);
-        VariedAnalyzer analyzer(AnalysisDC.get(), request,
-                                request.getVariedStmt());
-        analyzer.Analyze();
+      if (needsCallActivity(request)) {
+        seedVariedDirection(request);
+        runVariedAnalysis(request, AnalysisDC.get());
+      } else if (request.EnableVariedAnalysis && request->isDefined()) {
+        // The opt-in analysis; requests it seeds are seeded by the collector.
+        runVariedAnalysis(request, AnalysisDC.get());
       }
 
       if (m_TopMostReq->EnableUsefulAnalysis) {
@@ -1825,28 +1894,26 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         for (const auto& dParam : request.DVI) {
           const auto* PVD = cast<ParmVarDecl>(dParam.param);
           auto indexInterval = dParam.paramIndexInterval;
-          if (utils::isArrayOrPointerType(PVD->getType())) {
+          bool perIndex = utils::isArrayOrPointerType(PVD->getType());
+          std::size_t start = perIndex ? indexInterval.Start : 0;
+          std::size_t finish = perIndex ? indexInterval.Finish : 1;
+          for (std::size_t i = start; i < finish; ++i) {
             // FIXME: We shouldn't synthesize Args strings.
-            for (auto i = indexInterval.Start; i < indexInterval.Finish; ++i) {
-              auto independentArgString =
-                  PVD->getNameAsString() + "[" + std::to_string(i) + "]";
-              forwRequest.Args = utils::CreateStringLiteral(
-                  m_Sema.getASTContext(), independentArgString);
-              forwRequest.UpdateDiffParamsInfo(m_Sema);
-              if (!forwRequest.DVI.empty())
-                forwRequest.DVI.back().TotalCapacity = indexInterval.Finish;
-              // The request is reused across directions and the lookup only
-              // writes on success; without this reset a direction with a
-              // custom derivative leaks it into every direction after it.
-              forwRequest.CustomDerivative = nullptr;
-              hasCustomForwardDerivative |=
-                  LookupCustomDerivativeDecl(forwRequest);
-              forwRequests.push_back(forwRequest);
-            }
-          } else {
+            std::string independentArgString = PVD->getNameAsString();
+            if (perIndex)
+              independentArgString += "[" + std::to_string(i) + "]";
             forwRequest.Args = utils::CreateStringLiteral(
-                m_Sema.getASTContext(), PVD->getNameAsString());
+                m_Sema.getASTContext(), independentArgString);
             forwRequest.UpdateDiffParamsInfo(m_Sema);
+            if (perIndex && !forwRequest.DVI.empty())
+              forwRequest.DVI.back().TotalCapacity = indexInterval.Finish;
+            // Every row of an array parameter seeds the same VarDecl, so the
+            // first row's analysis holds for all of them.
+            if (i == start)
+              analyzeDirection(forwRequest, request.m_AnalysisDC);
+            // The request is reused across directions and the lookup only
+            // writes on success; without this reset a direction with a
+            // custom derivative leaks it into every direction after it.
             forwRequest.CustomDerivative = nullptr;
             hasCustomForwardDerivative |=
                 LookupCustomDerivativeDecl(forwRequest);

@@ -7,11 +7,9 @@
 
 double cube(double u) { return u * u * u; }
 
-// Deriving in one direction makes all tangents but the seeded one
-// zero-initialized constants. A call handed such a tangent contributes
-// nothing, so no pushforward is requested for it: each direction calls
-// cube_pushforward once instead of twice. The parameters have to be const
-// for this -- a tangent that can still be assigned to is not folded.
+// Deriving in one direction, the planner sees only the seeded parameter as
+// varied: the call handed the other one cannot contribute and gets no
+// pushforward. Each direction calls cube_pushforward once instead of twice.
 double sumOfCubes(const double x, const double y) {
   return cube(x) + cube(y);
 }
@@ -26,6 +24,27 @@ double sumOfCubes(const double x, const double y) {
 // CHECK: double sumOfCubes_darg1(const double x, const double y) {
 // CHECK-NEXT:     const double _d_x = 0;
 // CHECK-NEXT:     const double _d_y = 1;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = cube_pushforward(y, _d_y);
+// CHECK-NEXT:     return 0. + _t0.pushforward;
+// CHECK-NEXT: }
+
+// The same function without const parameters. What decides is the direction
+// the request seeds, not the shape of the tangent clad built for it, so the
+// derivatives come out the same.
+double sumOfCubesNonConst(double x, double y) {
+  return cube(x) + cube(y);
+}
+
+// CHECK: double sumOfCubesNonConst_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = cube_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward + 0.;
+// CHECK-NEXT: }
+
+// CHECK: double sumOfCubesNonConst_darg1(double x, double y) {
+// CHECK-NEXT:     double _d_x = 0;
+// CHECK-NEXT:     double _d_y = 1;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = cube_pushforward(y, _d_y);
 // CHECK-NEXT:     return 0. + _t0.pushforward;
 // CHECK-NEXT: }
@@ -54,6 +73,28 @@ struct SumOfCubes {
     return cube(x) + cube(y);
   }
 };
+
+// One varied analysis serves every row of an array parameter -- each row
+// seeds the same VarDecl. A row still keeps only the pushforward of the
+// element it seeds: the tangents are folded with the seeded index in hand.
+// An instance method, so the hessian derives per direction.
+struct SumOfCubesArr {
+  double operator()(const double* p) const { return cube(p[0]) + cube(p[1]); }
+};
+
+// CHECK: double operator_call_darg0_0(const double *p) const {
+// CHECK-NEXT:     const SumOfCubesArr _d_this_obj;
+// CHECK-NEXT:     const SumOfCubesArr *_d_this = &_d_this_obj;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = cube_pushforward(p[0], 1.);
+// CHECK-NEXT:     return _t0.pushforward + 0.;
+// CHECK-NEXT: }
+
+// CHECK: double operator_call_darg0_1(const double *p) const {
+// CHECK-NEXT:     const SumOfCubesArr _d_this_obj;
+// CHECK-NEXT:     const SumOfCubesArr *_d_this = &_d_this_obj;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = cube_pushforward(p[1], 1.);
+// CHECK-NEXT:     return 0. + _t0.pushforward;
+// CHECK-NEXT: }
 
 // CHECK: void operator_call_darg0_grad(const double x, const double y, SumOfCubes *_d_this, double *_d_x, double *_d_y) const {
 // CHECK-NEXT:     double _d_d_x = 0.;
@@ -84,6 +125,11 @@ int main() {
   printf("[%.2f, %.2f]\n", dx.execute(2, 3), dy.execute(2, 3));
   // CHECK-EXEC: [12.00, 27.00]
 
+  auto dxNonConst = clad::differentiate(sumOfCubesNonConst, "x");
+  auto dyNonConst = clad::differentiate(sumOfCubesNonConst, "y");
+  printf("[%.2f, %.2f]\n", dxNonConst.execute(2, 3), dyNonConst.execute(2, 3));
+  // CHECK-EXEC: [12.00, 27.00]
+
   auto methodHess = clad::hessian(&SumOfCubes::operator());
   double methodMatrix[4] = {0};
   SumOfCubes f;
@@ -97,4 +143,12 @@ int main() {
   hess.execute(2, 3, matrix);
   printf("[%.2f, %.2f, %.2f, %.2f]\n", matrix[0], matrix[1], matrix[2],
          matrix[3]); // CHECK-EXEC: [12.00, 0.00, 0.00, 18.00]
+
+  auto hessArr = clad::hessian(&SumOfCubesArr::operator(), "p[0:1]");
+  SumOfCubesArr g;
+  double p[2] = {2, 3};
+  double matrixArr[4] = {0};
+  hessArr.execute(g, p, matrixArr);
+  printf("[%.2f, %.2f, %.2f, %.2f]\n", matrixArr[0], matrixArr[1], matrixArr[2],
+         matrixArr[3]); // CHECK-EXEC: [12.00, 0.00, 0.00, 18.00]
 }

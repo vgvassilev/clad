@@ -1341,10 +1341,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                            diffArgs.end());
 
   Expr* callDiff = nullptr;
-  // FIXME: Move non-differentiable function handling to the DiffPlanner.
-  // If all arguments are constant literals, then this does not contribute to
-  // the gradient.
-  // FIXME: revert this when this is integrated in the activity analysis pass.
 
   QualType returnType = FD->getReturnType();
   // FIXME: Decide this in the diff planner
@@ -1353,29 +1349,29 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   if (!callDiff) {
     if (!isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE) &&
         !needsForwPass) {
-      bool allArgsHaveZeroDerivatives = true;
-      for (unsigned i = 0, e = diffArgs.size(); i < e; ++i) {
-        Expr* dArg = diffArgs[i];
-        // If argDiff.expr_dx is nullptr or is a constant 0, then the derivative
-        // of the function call is 0. Constant-fold rather than pattern-match a
-        // literal: by the time a tangent reaches a call it has usually been
-        // bound to a `const` variable, and seeding one direction of a
-        // multi-directional request leaves every other tangent exactly that --
-        // a zero-initialized constant.
-        if (!clad::utils::IsZeroOrNullValue(dArg, m_Context)) {
-          allArgsHaveZeroDerivatives = false;
-          break;
-        }
+      // The planner's varied analysis already knows whether any argument of
+      // the call depends on the direction being differentiated.
+      bool contributes = m_DiffReq.shouldHavePushforward(CE);
+      // Activity is tracked per variable: seeding p[1] leaves the whole of p
+      // varied, but the tangents are built with the seeded index in hand and
+      // still recognize `f(p[0])` as inactive.
+      // FIXME: Drop this once varied analysis resolves array elements.
+      if (contributes) {
+        contributes = false;
+        for (const Expr* dArg : diffArgs)
+          if (!clad::utils::IsZeroOrNullValue(dArg, m_Context)) {
+            contributes = true;
+            break;
+          }
       }
-      if (allArgsHaveZeroDerivatives) {
+      if (!contributes) {
         Expr* call =
             m_Sema
                 .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
                                validLoc, llvm::MutableArrayRef<Expr*>(CallArgs),
                                validLoc, CUDAExecConfig)
                 .get();
-        auto* zero = getZeroInit(CE->getType());
-        return StmtDiff(call, zero);
+        return StmtDiff(call, getZeroInit(CE->getType()));
       }
     }
   }
