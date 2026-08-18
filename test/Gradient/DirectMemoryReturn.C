@@ -10,17 +10,24 @@ struct MemoryValue {
   double* storage;
 };
 
+int primalCalls = 0;
+int zeroLikeCalls = 0;
+
 MemoryValue make_memory_value(double input) {
+  ++primalCalls;
   return {input * input, nullptr};
 }
 
-namespace clad::custom_derivatives {
+namespace clad {
 
-clad::ValueAndAdjoint<MemoryValue, MemoryValue>
-make_memory_value_reverse_forw(double input,
-                               [[maybe_unused]] double d_input) {
-  return {make_memory_value(input), {0.0, nullptr}};
+MemoryValue zero_like(const MemoryValue& /*value*/) {
+  ++zeroLikeCalls;
+  return {0.0, nullptr};
 }
+
+} // namespace clad
+
+namespace clad::custom_derivatives {
 
 void make_memory_value_pullback(double input, MemoryValue d_output,
                                 double* d_input) {
@@ -39,8 +46,9 @@ double memory_loss(double input) {
 }
 
 // CHECK: clad::ValueAndAdjoint<MemoryValue, MemoryValue> direct_memory_value_reverse_forw(double input, double _d_input) {
-// CHECK:     clad::ValueAndAdjoint<MemoryValue, MemoryValue> _t0 = clad::custom_derivatives::make_memory_value_reverse_forw(input, 0.);
-// CHECK:     return {_t0.value, _t0.adjoint};
+// CHECK-NEXT:     MemoryValue _t0 = make_memory_value(input);
+// CHECK-NEXT:     MemoryValue _r0 = clad::zero_like(_t0);
+// CHECK-NEXT:     return {{.*}}_t0{{.*}}_r0{{.*}};
 // CHECK: }
 
 int main() {
@@ -48,4 +56,6 @@ int main() {
   double d_input = 0.0;
   gradient.execute(3.0, &d_input);
   std::printf("%.1f\n", d_input); // CHECK-EXEC: 6.0
+  std::printf("%d %d\n", primalCalls,
+              zeroLikeCalls); // CHECK-EXEC-NEXT: 2 2
 }
