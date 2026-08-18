@@ -147,6 +147,9 @@ private:
   mutable struct ActivityRunInfo {
     std::set<const clang::VarDecl*> VariedDecls;
     std::set<const clang::Stmt*> VariedS;
+    /// Whether a call of the primal has a varied argument. Only filled for
+    /// requests varied analysis has run on; see shouldHavePushforward().
+    llvm::DenseMap<const clang::CallExpr*, bool> VariedCalls;
     bool HasAnalysisRun = false;
   } m_ActivityRunInfo;
 
@@ -376,6 +379,11 @@ public:
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
   bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
   bool isVaried(const clang::Expr* E) const;
+  /// Whether forward mode has to differentiate through the call \p CE. False
+  /// only when varied analysis proved that no argument of the call depends on
+  /// the direction this request differentiates along. A call the analysis
+  /// never saw answers true.
+  [[nodiscard]] bool shouldHavePushforward(const clang::CallExpr* CE) const;
   std::string ComputeDerivativeName() const;
   bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
 
@@ -396,6 +404,22 @@ public:
   void addVariedDecl(const clang::VarDecl* init) {
     m_ActivityRunInfo.VariedDecls.insert(init);
   }
+
+  /// Records whether varied analysis found a varied argument of the call
+  /// \p CE. Only a forward-mode request is analyzed along exactly the
+  /// direction it differentiates; other -enable-va runs are unseeded or
+  /// seeded for a caller, and their verdicts must not drop pushforwards.
+  /// Monotone, because a loop body is passed over more than once and a later
+  /// pass may find an argument varied.
+  void recordCallActivity(const clang::CallExpr* CE, bool isVaried) const {
+    if (Mode == DiffMode::forward)
+      m_ActivityRunInfo.VariedCalls[CE] |= isVaried;
+  }
+
+  /// Drops the result of a previous varied-analysis run. A request reused for
+  /// another direction -- as the hessian reuses one forward request per row --
+  /// has to be analyzed from scratch.
+  void resetActivityInfo() const { m_ActivityRunInfo = ActivityRunInfo(); }
   std::set<const clang::VarDecl*>& getVariedDecls() const {
     return m_ActivityRunInfo.VariedDecls;
   }

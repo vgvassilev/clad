@@ -107,8 +107,7 @@ float test_6(float x, float y) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
 // CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::std::sin_pushforward(x, _d_x);
-// CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<float, float> _t1 = clad::custom_derivatives::std::cos_pushforward(y, _d_y);
-// CHECK-NEXT: return _t0.pushforward + _t1.pushforward;
+// CHECK-NEXT: return _t0.pushforward + 0.F;
 // CHECK-NEXT: }
 
 void increment(int &i) {
@@ -202,6 +201,27 @@ double test_10(double x) {
 // CHECK-NEXT:     return _d_x;
 // CHECK-NEXT: }
 
+// The analysis marks an argument handed to a non-const pointer parameter as
+// varied no matter what it is -- the callee may write through it. That
+// verdict feeds shouldHavePushforward only; it must not make the planner
+// schedule a derivative for a call whose arguments are all literals. (The
+// shape of a CUDA kernel launch's config call, whose stream argument is a
+// null pointer.)
+void opaque_config(int a, void* p) {}
+
+double test_11(double x) {
+  opaque_config(1, nullptr);
+  return x * x;
+}
+
+// CHECK-NOT: opaque_config_pushforward
+// CHECK:      double test_11_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     opaque_config(1, nullptr);
+// CHECK-NEXT:     return _d_x * x + x * _d_x;
+// CHECK-NEXT: }
+// CHECK-NOT: opaque_config_pushforward
+
 int main () {
   clad::differentiate(test_1, 0);
   clad::differentiate(test_2, 0);
@@ -219,5 +239,6 @@ int main () {
   clad::differentiate<clad::opts::diagonal_only>(test_8); // expected-error {{diagonal only option is only valid for hessian mode}}
   clad::differentiate(test_9);
   clad::differentiate(test_10);
+  clad::differentiate(test_11);
   return 0;
 }
