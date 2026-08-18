@@ -373,6 +373,15 @@ jobs:
         echo "Use Clang/LLVM in $env:PATH_TO_LLVM_BUILD"
         echo "Building clad in $env:BUILD_TYPE"
         python3 --version
+    # Build the baseline first, so the touched tests can be run against a
+    # clad that does not have the change. Restoring the hunks afterwards
+    # rebuilds only what they touch, so this costs one incremental build
+    # rather than a second full one.
+    - name: Revert functional hunks for the baseline
+      if: ${{ runner.os != 'windows' && matrix.cuda != true && github.event_name == 'pull_request' }}
+      uses: ./.github/actions/observes-change
+      with:
+        mode: revert
     - name: Build Clad on *nix
       if: ${{ runner.os != 'windows' }}
       run: |
@@ -387,6 +396,20 @@ jobs:
           ${{ matrix.extra_cmake_options }}
 
         cmake --build . -- -j${{ env.ncpus }}
+    - name: Check the touched tests against the baseline
+      if: ${{ always() && runner.os != 'windows' && matrix.cuda != true && env.observes_check == '1' }}
+      uses: ./.github/actions/observes-change
+      with:
+        mode: check
+        platform: ${{ matrix.name }}
+        build-dir: obj
+        rebuild-command: cmake --build obj -- -j${{ env.ncpus }}
+    - name: Upload the baseline verdict
+      if: ${{ runner.os != 'windows' && env.observes_check == '1' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: observes-change-${{ matrix.name }}
+        path: observes/
     - name: Build Clad on Windows
       if: ${{ runner.os == 'windows' }}
       run: |
@@ -549,3 +572,35 @@ jobs:
             cuda: true
 
     steps: *build_steps
+
+  observes-change:
+    name: Tests observe the change
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    needs: [build]
+    runs-on: ubuntu-24.04
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: observes-change-*
+        path: verdicts
+        merge-multiple: false
+      continue-on-error: true
+    - name: Decide
+      uses: ./.github/actions/observes-change
+      with:
+        mode: verdict
+        verdict-dir: verdicts
+    # Keep the per-platform matrix even when the check passes: a test that
+    # is never the only one to fail across many changes is a candidate for
+    # merging, which is a claim about defects caught rather than lines run.
+    - name: Upload the summary record
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: observes-change-summary
+        path: observes-change-summary.json
+        if-no-files-found: ignore
