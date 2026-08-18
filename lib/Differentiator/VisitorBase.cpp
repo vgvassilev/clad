@@ -702,13 +702,18 @@ namespace clad {
     return utils::LookupTemplateDeclInCladNamespace(m_Sema, "tape");
   }
 
-  LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
+  LookupResult VisitorBase::tryLookupCladMethod(llvm::StringRef name) {
     NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, CladNS, noLoc, noLoc);
     DeclarationName Name = &m_Context.Idents.get(name);
     LookupResult R(m_Sema, Name, noLoc, Sema::LookupOrdinaryName);
     m_Sema.LookupQualifiedName(R, CladNS, CSS);
+    return R;
+  }
+
+  LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
+    LookupResult R = tryLookupCladMethod(name);
     assert(!R.empty() && isa<FunctionTemplateDecl>(R.getRepresentativeDecl()) &&
            "cannot find requested name");
     return R;
@@ -1243,6 +1248,35 @@ namespace clad {
         .get();
   }
 
+  Expr* VisitorBase::GetCladZeroLike(Expr* value) {
+    NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, CladNS, noLoc, noLoc);
+
+    LookupResult R = tryLookupCladMethod("zero_like");
+    if (R.empty())
+      return nullptr; // LCOV_EXCL_LINE: version-mismatched runtime header
+
+    ExprResult NameExpr =
+        m_Sema.BuildDeclarationNameExpr(CSS, R, /*NeedsADL=*/false);
+    if (NameExpr.isInvalid())
+      return nullptr; // LCOV_EXCL_LINE: defensive Sema failure
+
+    Expr* UnresolvedLookup = NameExpr.get();
+    llvm::SmallVector<Expr*, 1> args{value};
+    auto ARargs = llvm::MutableArrayRef<Expr*>(args);
+
+    // A missing customization is an expected, silent fallback path. Reuse the
+    // same overload probe as custom derivatives instead of asking Sema to
+    // diagnose an invalid call.
+    if (m_Builder.noOverloadExists(UnresolvedLookup, ARargs))
+      return nullptr;
+
+    ExprResult Call = m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup,
+                                           noLoc, ARargs, noLoc);
+    return Call.isInvalid() ? nullptr : Call.get();
+  }
+
   FunctionDecl*
   VisitorBase::CreateDerivativeOverload(FunctionDecl* derivative) {
     if (!derivative)
@@ -1427,6 +1461,10 @@ namespace clad {
   Expr* VisitorBase::BuildOperatorCall(OverloadedOperatorKind OOK,
                                        MutableArrayRef<Expr*> ArgExprs,
                                        SourceLocation OpLoc) {
+    // Sema requires a valid location for rebuilt operator calls.
+    if (!OpLoc.isValid())
+      OpLoc = utils::GetValidSLoc(m_Sema);
+
     // First check operator kinds that are not considered binary/unary.
 
     // FIXME: Currently, Clad never uses arrow operators, all of them

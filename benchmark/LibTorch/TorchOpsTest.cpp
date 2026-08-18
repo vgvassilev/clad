@@ -110,6 +110,11 @@ float method_loss(const torch::Tensor& lhs, const torch::Tensor& rhs) {
   return scalar.item<float>();
 }
 
+float partial_gradient_loss(const at::Tensor& lhs, const at::Tensor& rhs) {
+  auto product = at::mul(lhs, rhs);
+  return at::dot(product, lhs).item<float>();
+}
+
 void check_torch_alias_composition() {
   const auto options = torch::TensorOptions().dtype(torch::kFloat32);
   const auto input = torch::linspace(-2.0, 2.0, 17, options);
@@ -221,6 +226,34 @@ void check_method_composition() {
                 "Tensor method rhs gradient is incorrect");
 }
 
+void check_partial_gradients_do_not_alias_inputs() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  const auto lhs = at::linspace(0.5, 2.0, 17, options);
+  const auto rhs = at::linspace(1.0, 3.0, 17, options);
+  const auto original_lhs = lhs.clone();
+  const auto original_rhs = rhs.clone();
+
+  auto lhs_gradient = at::zeros_like(lhs);
+  auto lhs_only = clad::gradient(partial_gradient_loss, "lhs");
+  lhs_only.execute(lhs, rhs, &lhs_gradient);
+  require_close(lhs_gradient, 2 * original_lhs * original_rhs,
+                "partial lhs gradient is incorrect");
+  require_close(lhs, original_lhs,
+                "partial lhs gradient modified the lhs input");
+  require_close(rhs, original_rhs,
+                "partial lhs gradient modified the rhs input");
+
+  auto rhs_gradient = at::zeros_like(rhs);
+  auto rhs_only = clad::gradient(partial_gradient_loss, "rhs");
+  rhs_only.execute(lhs, rhs, &rhs_gradient);
+  require_close(rhs_gradient, original_lhs * original_lhs,
+                "partial rhs gradient is incorrect");
+  require_close(lhs, original_lhs,
+                "partial rhs gradient modified the lhs input");
+  require_close(rhs, original_rhs,
+                "partial rhs gradient modified the rhs input");
+}
+
 void check_input_contract() {
   require_c10_error(
       [] {
@@ -265,6 +298,7 @@ int main() {
   check_namespace_alias_composition();
   check_operator_composition();
   check_method_composition();
+  check_partial_gradients_do_not_alias_inputs();
   check_input_contract();
   std::cout << "Clad Torch operator checks passed\n";
   return 0;

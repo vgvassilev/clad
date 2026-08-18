@@ -706,7 +706,10 @@ namespace clad {
     }
     /// Find declaration of clad::tape templated type.
     clang::TemplateDecl* GetCladTapeDecl();
-    /// Perform a lookup into clad namespace for an entity with given name.
+    /// Look up an entity with the given name in the clad namespace. The result
+    /// may be empty.
+    clang::LookupResult tryLookupCladMethod(llvm::StringRef name);
+    /// Look up a required clad function template with the given name.
     clang::LookupResult LookupCladTapeMethod(llvm::StringRef name);
     /// Perform lookup into clad namespace for push/pop/back. Returns
     /// LookupResult, which is will be resolved later (which is handy since they
@@ -735,6 +738,11 @@ namespace clad {
     clang::DeclRefExpr* GetCladTapePushDRE();
 
     clang::Stmt* GetCladZeroInit(llvm::MutableArrayRef<clang::Expr*> args);
+
+    /// Build `clad::zero_like(value)` if a viable overload is available.
+    /// Returns null when the customization point is not implemented for the
+    /// value's type.
+    clang::Expr* GetCladZeroLike(clang::Expr* value);
 
     /// Assigns the Init expression to VD after performing the necessary
     /// implicit conversion. This is required as clang doesn't add implicit

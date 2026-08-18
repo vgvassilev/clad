@@ -7,6 +7,12 @@
 
 namespace clad {
 
+inline ::at::Tensor zero_like(const ::at::Tensor& tensor) {
+  if (!tensor.defined())
+    return {};
+  return ::clad::torch::detail::zero_adjoint_like(tensor);
+}
+
 inline void zero_init(::at::Tensor& tensor) {
   if (tensor.defined()) {
     ::at::NoGradGuard guard;
