@@ -8,11 +8,10 @@
 
 namespace clad {
 
-inline ::at::Tensor zero_like(const ::at::Tensor& tensor) {
-  if (!tensor.defined())
-    return {};
-  return ::clad::torch::detail::zero_adjoint_like(tensor);
-}
+// ATen uses an undefined Tensor as a lazy zero adjoint. Pullbacks materialize
+// its shape and storage from the first contribution. Copy and move lifecycle
+// hooks below still use zero_adjoint_like when independent storage is required.
+inline ::at::Tensor zero_like(const ::at::Tensor& /*tensor*/) { return {}; }
 
 // OptionalIntArrayRef is a non-owning reduction configuration, so its adjoint
 // carries neither dimension values nor borrowed storage.

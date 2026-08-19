@@ -26,6 +26,20 @@ inline void validate_tensor(const ::at::Tensor& tensor) {
               "Clad Torch derivatives currently require contiguous tensors");
 }
 
+inline bool should_propagate(const ::at::Tensor& adjoint) {
+  if (!adjoint.defined())
+    return false;
+  validate_tensor(adjoint);
+  return true;
+}
+
+inline bool can_combine_adjoint_contributions(const ::at::Tensor& lhs,
+                                              const ::at::Tensor& rhs,
+                                              const ::at::Tensor* d_lhs,
+                                              const ::at::Tensor* d_rhs) {
+  return d_lhs && d_lhs == d_rhs && lhs.sizes() == rhs.sizes();
+}
+
 inline void validate_elementwise_inputs(const ::at::Tensor& lhs,
                                         const ::at::Tensor& rhs) {
   validate_tensor(lhs);
@@ -84,8 +98,27 @@ inline ::at::Tensor zero_adjoint_like(const ::at::Tensor& primal) {
 inline void accumulate(::at::Tensor* destination,
                        const ::at::Tensor& contribution) {
   ::at::NoGradGuard guard;
-  if (!destination->defined())
-    *destination = ::at::zeros_like(contribution);
+  if (!destination->defined()) {
+    // A borrowed contribution can be an expanded or strided view. Clone it so
+    // later accumulation cannot mutate the upstream adjoint through an alias.
+    *destination = contribution.clone();
+    return;
+  }
+  destination->add_(contribution);
+}
+
+inline void accumulate(::at::Tensor* destination, ::at::Tensor&& contribution) {
+  ::at::NoGradGuard guard;
+  if (!destination->defined()) {
+    // A unique, non-view temporary can become the adjoint directly. Clone
+    // views and shared handles so later accumulation cannot mutate an alias.
+    if (!contribution.is_view() && contribution.use_count() == 1 &&
+        contribution.storage().unique())
+      *destination = ::std::move(contribution);
+    else
+      *destination = contribution.clone();
+    return;
+  }
   destination->add_(contribution);
 }
 
@@ -99,16 +132,25 @@ inline void accumulate_to_shape(::at::Tensor* destination,
   accumulate(destination, contribution.sum_to_size(primal.sizes()));
 }
 
+inline void accumulate_to_shape(::at::Tensor* destination,
+                                ::at::Tensor&& contribution,
+                                const ::at::Tensor& primal) {
+  if (contribution.sizes() == primal.sizes()) {
+    accumulate(destination, ::std::move(contribution));
+    return;
+  }
+  accumulate(destination, contribution.sum_to_size(primal.sizes()));
+}
+
 inline void propagate_adjoint(::at::Tensor* source, ::at::Tensor* destination) {
-  if (!source->defined())
+  if (!source || !source->defined() || !destination)
     return;
   if (destination->defined() && source->is_alias_of(*destination))
     return;
 
   // Tensor copies share storage, while local adjoints must remain independent.
   ::at::NoGradGuard guard;
-  auto contribution = source->clone();
-  accumulate(destination, contribution);
+  accumulate(destination, source->clone());
   source->zero_();
 }
 

@@ -5,11 +5,17 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace {
 
 namespace torch_api = torch;
+
+void require_true(bool condition, const char* message) {
+  if (!condition)
+    throw std::runtime_error(message);
+}
 
 void require_close(const at::Tensor& actual, const at::Tensor& expected,
                    const char* message) {
@@ -254,7 +260,210 @@ void check_direct_return_composition() {
                 "direct Tensor return gradient is incorrect");
 }
 
-void check_native_relu_vjp() {
+void check_tensor_adjoint_lifecycle() {
+  const auto input =
+      at::linspace(-2.0, 2.0, 17, at::TensorOptions().dtype(at::kFloat));
+
+  auto lazy_adjoint = clad::zero_like(input);
+  require_true(!lazy_adjoint.defined(),
+               "Tensor zero_like did not create a lazy zero adjoint");
+
+  const at::Tensor d_input;
+  auto copied =
+      clad::custom_derivatives::class_functions::constructor_reverse_forw(
+          clad::Tag<at::Tensor>{}, input, d_input);
+  require_true(copied.adjoint.defined(),
+               "Tensor copy adjoint storage was not materialized");
+  require_true(copied.adjoint.sizes() == input.sizes(),
+               "Tensor copy adjoint has the wrong shape");
+  require_close(copied.adjoint, at::zeros_like(input),
+                "Tensor copy adjoint is not zero");
+  require_true(!copied.adjoint.is_alias_of(input),
+               "Tensor copy adjoint aliases the primal input");
+}
+
+void check_lazy_accumulation() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  auto seed = at::scalar_tensor(2.0, options);
+  auto expanded = seed.expand({2, 3});
+  at::Tensor borrowed_destination;
+
+  clad::torch::detail::accumulate(&borrowed_destination, expanded);
+  require_true(borrowed_destination.defined(),
+               "borrowed contribution did not materialize its destination");
+  require_close(borrowed_destination, at::full({2, 3}, 2.0, options),
+                "borrowed contribution was accumulated incorrectly");
+  require_true(!borrowed_destination.is_alias_of(seed),
+               "borrowed contribution aliases its upstream adjoint");
+  borrowed_destination.add_(1.0);
+  require_close(seed, at::scalar_tensor(2.0, options),
+                "mutating a materialized adjoint changed its source view");
+
+  at::Tensor temporary_view_destination;
+  clad::torch::detail::accumulate(&temporary_view_destination,
+                                  seed.expand({2, 3}));
+  require_true(temporary_view_destination.is_contiguous(),
+               "temporary view contribution was not materialized");
+  require_true(!temporary_view_destination.is_alias_of(seed),
+               "temporary view contribution aliases its upstream adjoint");
+  temporary_view_destination.add_(1.0);
+  require_close(seed, at::scalar_tensor(2.0, options),
+                "mutating a temporary view contribution changed its source");
+
+  auto shared_contribution = at::linspace(1.0, 4.0, 4, options);
+  auto shared_alias = shared_contribution;
+  at::Tensor shared_destination;
+  clad::torch::detail::accumulate(&shared_destination,
+                                  ::std::move(shared_contribution));
+  require_true(!shared_destination.is_alias_of(shared_alias),
+               "shared Tensor handle was reused as an adjoint");
+
+  auto detached_source = at::linspace(1.0, 4.0, 4, options);
+  auto detached_contribution = detached_source.detach();
+  at::Tensor detached_destination;
+  clad::torch::detail::accumulate(&detached_destination,
+                                  ::std::move(detached_contribution));
+  require_true(!detached_destination.is_alias_of(detached_source),
+               "shared Tensor storage was reused as an adjoint");
+
+  auto owned_contribution = at::linspace(1.0, 4.0, 4, options);
+  const auto* owned_storage = owned_contribution.data_ptr<float>();
+  at::Tensor owned_destination;
+  clad::torch::detail::accumulate(&owned_destination,
+                                  ::std::move(owned_contribution));
+  require_true(owned_destination.data_ptr<float>() == owned_storage,
+               "unique Tensor contribution storage was not reused");
+
+  auto accumulated = at::full({4}, 3.0, options);
+  clad::torch::detail::accumulate(&accumulated, at::ones({4}, options));
+  require_close(accumulated, at::full({4}, 4.0, options),
+                "defined destination accumulation is incorrect");
+}
+
+void check_undefined_output_adjoint() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  const auto lhs = at::linspace(1.0, 4.0, 4, options);
+  const auto rhs = at::linspace(2.0, 5.0, 4, options);
+  const at::Tensor d_output;
+  auto d_lhs = at::full_like(lhs, 3.0);
+  auto d_rhs = at::full_like(rhs, 4.0);
+  const auto expected_lhs = d_lhs.clone();
+  const auto expected_rhs = d_rhs.clone();
+  at::Scalar d_alpha = 0;
+
+  clad::custom_derivatives::at::add_pullback(lhs, rhs, /*alpha=*/1, d_output,
+                                             &d_lhs, &d_rhs, &d_alpha);
+  clad::custom_derivatives::at::sub_pullback(lhs, rhs, /*alpha=*/1, d_output,
+                                             &d_lhs, &d_rhs, &d_alpha);
+  clad::custom_derivatives::at::mul_pullback(lhs, rhs, d_output, &d_lhs,
+                                             &d_rhs);
+  clad::custom_derivatives::at::div_pullback(lhs, rhs, d_output, &d_lhs,
+                                             &d_rhs);
+  clad::custom_derivatives::at::relu_pullback(lhs, d_output, &d_lhs);
+  clad::custom_derivatives::at::dot_pullback(lhs, rhs, d_output, &d_lhs,
+                                             &d_rhs);
+
+  ::std::optional<at::ScalarType> dtype;
+  ::std::optional<at::ScalarType> d_dtype;
+  clad::custom_derivatives::at::sum_pullback(lhs, dtype, d_output, &d_lhs,
+                                             &d_dtype);
+
+  const ::std::vector<int64_t> dims{0};
+  at::OptionalIntArrayRef d_dims;
+  bool d_keepdim = false;
+  clad::custom_derivatives::at::sum_pullback(lhs, dims, /*keepdim=*/false,
+                                             dtype, d_output, &d_lhs, &d_dims,
+                                             &d_keepdim, &d_dtype);
+
+  require_close(d_lhs, expected_lhs,
+                "undefined output adjoint changed the lhs destination");
+  require_close(d_rhs, expected_rhs,
+                "undefined output adjoint changed the rhs destination");
+}
+
+void check_shared_pullback_destination() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  const auto lhs = at::linspace(1.0, 4.0, 4, options);
+  const auto rhs = at::linspace(2.0, 5.0, 4, options);
+  const auto d_output = at::linspace(0.5, 2.0, 4, options);
+  const auto initial = at::full({4}, 0.25, options);
+  at::Scalar d_alpha = 0;
+
+  auto actual = initial.clone();
+  clad::custom_derivatives::at::add_pullback(lhs, rhs, /*alpha=*/2, d_output,
+                                             &actual, &actual, &d_alpha);
+  require_close(actual, initial + 3 * d_output,
+                "shared add destination was accumulated incorrectly");
+
+  actual = initial.clone();
+  clad::custom_derivatives::at::sub_pullback(lhs, rhs, /*alpha=*/2, d_output,
+                                             &actual, &actual, &d_alpha);
+  require_close(actual, initial - d_output,
+                "shared sub destination was accumulated incorrectly");
+
+  actual = initial.clone();
+  clad::custom_derivatives::at::mul_pullback(lhs, rhs, d_output, &actual,
+                                             &actual);
+  require_close(actual, initial + d_output * (lhs + rhs),
+                "shared mul destination was accumulated incorrectly");
+
+  actual = initial.clone();
+  clad::custom_derivatives::at::div_pullback(lhs, rhs, d_output, &actual,
+                                             &actual);
+  require_close(actual, initial + d_output / rhs - d_output * lhs / (rhs * rhs),
+                "shared div destination was accumulated incorrectly");
+
+  const auto d_dot = at::scalar_tensor(1.5, options);
+  actual = initial.clone();
+  clad::custom_derivatives::at::dot_pullback(lhs, rhs, d_dot, &actual, &actual);
+  require_close(actual, initial + 1.5 * (lhs + rhs),
+                "shared dot destination was accumulated incorrectly");
+
+  at::Tensor lazy_actual;
+  clad::custom_derivatives::at::dot_pullback(lhs, lhs, d_dot, &lazy_actual,
+                                             &lazy_actual);
+  require_close(lazy_actual, 3 * lhs,
+                "shared dot destination was not materialized correctly");
+}
+
+void check_lazy_generated_gradient() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  const auto input = at::linspace(0.5, 6.0, 6, options).reshape({2, 3});
+  const auto original = input.clone();
+  at::Tensor actual;
+
+  auto gradient = clad::gradient(tensor_sum_loss, "input");
+  gradient.execute(input, &actual);
+
+  require_true(actual.defined(),
+               "generated gradient did not materialize its output");
+  require_true(actual.is_contiguous(),
+               "generated gradient did not materialize an expanded view");
+  require_true(!actual.is_alias_of(input),
+               "generated gradient aliases its primal input");
+  require_close(actual, at::ones_like(input),
+                "lazy generated Tensor gradient is incorrect");
+  actual.add_(1.0);
+  require_close(input, original,
+                "mutating a lazy generated gradient changed its input");
+
+  const auto lhs = at::linspace(0.5, 2.0, 8, options).reshape({2, 1, 4});
+  const auto rhs = at::linspace(1.0, 3.0, 3, options).reshape({1, 3, 1});
+  at::Tensor d_lhs;
+  at::Tensor d_rhs;
+  auto broadcast_gradient = clad::gradient(broadcast_mul_loss, "lhs, rhs");
+  broadcast_gradient.execute(lhs, rhs, &d_lhs, &d_rhs);
+
+  const auto output_sizes = ::std::vector<int64_t>{2, 3, 4};
+  require_close(d_lhs, rhs.expand(output_sizes).sum_to_size(lhs.sizes()),
+                "lazy broadcast lhs gradient is incorrect");
+  require_close(d_rhs, lhs.expand(output_sizes).sum_to_size(rhs.sizes()),
+                "lazy broadcast rhs gradient is incorrect");
+  require_true(!d_lhs.is_alias_of(rhs) && !d_rhs.is_alias_of(lhs),
+               "lazy broadcast gradients alias their primal inputs");
+}
+
+void check_native_relu_backward() {
   const auto options = at::TensorOptions().dtype(at::kFloat);
   const auto input = at::tensor({-2.0, -0.0, 0.0, 1.5}, options);
   const auto d_output = at::tensor({0.5, 1.0, 1.5, 2.0}, options);
@@ -263,10 +472,11 @@ void check_native_relu_vjp() {
       actual + at::threshold_backward(d_output, input, /*threshold=*/0);
 
   clad::custom_derivatives::at::relu_pullback(input, d_output, &actual);
-  require_close(actual, expected, "native ReLU VJP accumulation is incorrect");
+  require_close(actual, expected,
+                "native ReLU backward accumulation is incorrect");
 }
 
-void check_partial_vjp_inputs() {
+void check_partial_pullback_inputs() {
   const auto options = at::TensorOptions().dtype(at::kFloat);
   const auto lhs = at::linspace(0.5, 2.0, 8, options).reshape({2, 1, 4});
   const auto rhs = at::linspace(1.0, 3.0, 3, options).reshape({1, 3, 1});
@@ -276,13 +486,13 @@ void check_partial_vjp_inputs() {
   clad::custom_derivatives::at::mul_pullback(lhs, rhs, d_output, &lhs_gradient,
                                              /*d_rhs=*/nullptr);
   require_close(lhs_gradient, rhs.expand({2, 3, 4}).sum_to_size(lhs.sizes()),
-                "masked lhs VJP gradient is incorrect");
+                "masked lhs pullback gradient is incorrect");
 
   auto rhs_gradient = at::zeros_like(rhs);
   clad::custom_derivatives::at::mul_pullback(lhs, rhs, d_output,
                                              /*d_lhs=*/nullptr, &rhs_gradient);
   require_close(rhs_gradient, lhs.expand({2, 3, 4}).sum_to_size(rhs.sizes()),
-                "masked rhs VJP gradient is incorrect");
+                "masked rhs pullback gradient is incorrect");
 }
 
 void check_namespace_alias_composition() {
@@ -758,8 +968,13 @@ int main() {
   check_torch_alias_composition();
   check_at_namespace_composition();
   check_direct_return_composition();
-  check_native_relu_vjp();
-  check_partial_vjp_inputs();
+  check_tensor_adjoint_lifecycle();
+  check_lazy_accumulation();
+  check_undefined_output_adjoint();
+  check_shared_pullback_destination();
+  check_lazy_generated_gradient();
+  check_native_relu_backward();
+  check_partial_pullback_inputs();
   check_namespace_alias_composition();
   check_operator_composition();
   check_method_composition();

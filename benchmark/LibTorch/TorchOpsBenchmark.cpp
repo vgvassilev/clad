@@ -239,8 +239,9 @@ float materialized_gradient_checksum(const torch::Tensor& gradient) {
   return gradient.contiguous().sum().item<float>();
 }
 
-void composite_relu_vjp(const torch::Tensor& input,
-                        const torch::Tensor& d_output, torch::Tensor* d_input) {
+void composite_relu_backward(const torch::Tensor& input,
+                             const torch::Tensor& d_output,
+                             torch::Tensor* d_input) {
   clad::torch::detail::validate_tensor(input);
   clad::torch::detail::validate_tensor(d_output);
   torch::NoGradGuard guard;
@@ -248,29 +249,70 @@ void composite_relu_vjp(const torch::Tensor& input,
   clad::torch::detail::accumulate(d_input, torch::mul(d_output, mask));
 }
 
-void BM_ReluVJPComposite(benchmark::State& state) {
+void BM_ReluBackwardComposite(benchmark::State& state) {
   const auto size = state.range(0);
   const auto inputs = make_vector_inputs(size, /*requires_grad=*/false);
-  auto input_gradient = torch::zeros_like(inputs.lhs);
+  torch::Tensor input_gradient;
 
   for (auto _ : state) {
-    input_gradient.zero_();
-    composite_relu_vjp(inputs.lhs, inputs.rhs, &input_gradient);
+    input_gradient = torch::Tensor();
+    composite_relu_backward(inputs.lhs, inputs.rhs, &input_gradient);
     auto checksum = materialized_gradient_checksum(input_gradient);
     benchmark::DoNotOptimize(checksum);
   }
   report_work(state, size, 3 * size * sizeof(float));
 }
 
-void BM_ReluVJPNative(benchmark::State& state) {
+void BM_ReluBackwardNative(benchmark::State& state) {
   const auto size = state.range(0);
   const auto inputs = make_vector_inputs(size, /*requires_grad=*/false);
-  auto input_gradient = torch::zeros_like(inputs.lhs);
+  torch::Tensor input_gradient;
 
   for (auto _ : state) {
-    input_gradient.zero_();
+    input_gradient = torch::Tensor();
     clad::custom_derivatives::at::relu_pullback(inputs.lhs, inputs.rhs,
                                                 &input_gradient);
+    auto checksum = materialized_gradient_checksum(input_gradient);
+    benchmark::DoNotOptimize(checksum);
+  }
+  report_work(state, size, 3 * size * sizeof(float));
+}
+
+void separate_dot_backward(const torch::Tensor& input,
+                           const torch::Tensor& d_output,
+                           torch::Tensor* d_input) {
+  clad::torch::detail::validate_dot_inputs(input, input);
+  clad::torch::detail::validate_tensor(d_output);
+  torch::NoGradGuard guard;
+  clad::torch::detail::accumulate(d_input, torch::mul(input, d_output));
+  clad::torch::detail::accumulate(d_input, torch::mul(input, d_output));
+}
+
+void BM_DotBackwardSeparate(benchmark::State& state) {
+  const auto size = state.range(0);
+  const auto inputs = make_vector_inputs(size, /*requires_grad=*/false);
+  const auto d_output = torch::scalar_tensor(1.25, options(false));
+  torch::Tensor input_gradient;
+
+  for (auto _ : state) {
+    input_gradient = torch::Tensor();
+    separate_dot_backward(inputs.lhs, d_output, &input_gradient);
+    auto checksum = materialized_gradient_checksum(input_gradient);
+    benchmark::DoNotOptimize(checksum);
+  }
+  report_work(state, size, 3 * size * sizeof(float));
+}
+
+void BM_DotBackwardCombined(benchmark::State& state) {
+  const auto size = state.range(0);
+  const auto inputs = make_vector_inputs(size, /*requires_grad=*/false);
+  const auto d_output = torch::scalar_tensor(1.25, options(false));
+  torch::Tensor input_gradient;
+
+  for (auto _ : state) {
+    input_gradient = torch::Tensor();
+    clad::custom_derivatives::at::dot_pullback(
+        inputs.lhs, inputs.lhs, d_output, &input_gradient, &input_gradient);
     auto checksum = materialized_gradient_checksum(input_gradient);
     benchmark::DoNotOptimize(checksum);
   }
@@ -292,13 +334,13 @@ void BM_SquaredErrorForward(benchmark::State& state) {
 void BM_SquaredErrorClad(benchmark::State& state) {
   const auto size = state.range(0);
   const auto inputs = make_vector_inputs(size, /*requires_grad=*/false);
-  auto lhs_gradient = torch::zeros_like(inputs.lhs);
-  auto rhs_gradient = torch::zeros_like(inputs.rhs);
+  torch::Tensor lhs_gradient;
+  torch::Tensor rhs_gradient;
   auto gradient = clad::gradient(squared_error, "prediction, target");
 
   for (auto _ : state) {
-    lhs_gradient.zero_();
-    rhs_gradient.zero_();
+    lhs_gradient = torch::Tensor();
+    rhs_gradient = torch::Tensor();
     gradient.execute(inputs.lhs, inputs.rhs, &lhs_gradient, &rhs_gradient);
     auto checksum = materialized_gradient_checksum(lhs_gradient, rhs_gradient);
     benchmark::DoNotOptimize(checksum);
@@ -341,13 +383,13 @@ void BM_BroadcastReluClad(benchmark::State& state) {
   const auto inputs =
       make_broadcast_inputs(state.range(0), state.range(1), state.range(2),
                             /*requires_grad=*/false);
-  auto lhs_gradient = torch::zeros_like(inputs.lhs);
-  auto rhs_gradient = torch::zeros_like(inputs.rhs);
+  torch::Tensor lhs_gradient;
+  torch::Tensor rhs_gradient;
   auto gradient = clad::gradient(broadcast_relu_loss, "lhs, rhs");
 
   for (auto _ : state) {
-    lhs_gradient.zero_();
-    rhs_gradient.zero_();
+    lhs_gradient = torch::Tensor();
+    rhs_gradient = torch::Tensor();
     gradient.execute(inputs.lhs, inputs.rhs, &lhs_gradient, &rhs_gradient);
     auto checksum = materialized_gradient_checksum(lhs_gradient, rhs_gradient);
     benchmark::DoNotOptimize(checksum);
@@ -397,13 +439,13 @@ void BM_SumDimsClad(benchmark::State& state) {
       make_reduction_inputs(state.range(0), state.range(1), state.range(2),
                             /*requires_grad=*/false);
   const std::vector<std::int64_t> dims{0, -1};
-  auto input_gradient = torch::zeros_like(inputs.input);
-  auto weights_gradient = torch::zeros_like(inputs.weights);
+  torch::Tensor input_gradient;
+  torch::Tensor weights_gradient;
   auto gradient = clad::gradient(sum_dims_loss, "input, weights");
 
   for (auto _ : state) {
-    input_gradient.zero_();
-    weights_gradient.zero_();
+    input_gradient = torch::Tensor();
+    weights_gradient = torch::Tensor();
     gradient.execute(inputs.input, inputs.weights, dims, &input_gradient,
                      &weights_gradient);
     auto checksum =
@@ -462,10 +504,19 @@ BENCHMARK(BM_SquaredErrorAutograd)
     ->Name("BM_SquaredError/Autograd")
     ->Apply(configure_vector);
 
-BENCHMARK(BM_ReluVJPComposite)
-    ->Name("BM_ReluVJP/Composite")
+BENCHMARK(BM_ReluBackwardComposite)
+    ->Name("BM_ReluBackward/Composite")
     ->Apply(configure_vector);
-BENCHMARK(BM_ReluVJPNative)->Name("BM_ReluVJP/Native")->Apply(configure_vector);
+BENCHMARK(BM_ReluBackwardNative)
+    ->Name("BM_ReluBackward/Native")
+    ->Apply(configure_vector);
+
+BENCHMARK(BM_DotBackwardSeparate)
+    ->Name("BM_DotBackward/Separate")
+    ->Apply(configure_vector);
+BENCHMARK(BM_DotBackwardCombined)
+    ->Name("BM_DotBackward/Combined")
+    ->Apply(configure_vector);
 
 BENCHMARK(BM_BroadcastReluForward)
     ->Name("BM_BroadcastRelu/Forward")
