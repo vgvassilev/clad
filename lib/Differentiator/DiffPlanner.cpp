@@ -1699,7 +1699,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         nonDiff = true;
     }
 
-    if (!(hasCustomPullback || nonDiff) || requestTBR) {
+    // Enzyme differentiates the emitted IR, so the only thing clad produces
+    // for such a request is the __enzyme_autodiff call. Analysing the body and
+    // recursing into the call graph would schedule pullbacks nothing consumes,
+    // and would fail on callees clad cannot differentiate but Enzyme can. The
+    // request itself is still scheduled below.
+    if (!request.use_enzyme &&
+        (!(hasCustomPullback || nonDiff) || requestTBR)) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
           std::make_unique<AnalysisDeclContext>(
