@@ -17,7 +17,7 @@ __global__ void add(double *a, double *b, double *c, int n) {
     c[idx] = a[idx] + b[idx];
 }
 
-// CHECK:  __attribute__((global)) void add_pushforward(double *a, double *b, double *c, int n, double *_d_a, double *_d_b, double *_d_c, int _d_n) {
+// CHECK:  __attribute__((global)) inline void add_pushforward(double *a, double *b, double *c, int n, double *_d_a, double *_d_b, double *_d_c, int _d_n) {
 // CHECK-NEXT:     int _d_idx = 0;
 // CHECK-NEXT:     int idx = threadIdx.x;
 // CHECK-NEXT:     if (idx < n) {

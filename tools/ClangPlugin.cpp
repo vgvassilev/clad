@@ -21,11 +21,28 @@
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
+
+#ifdef _WIN32
+// <windows.h> defines function-like min/max macros that mangle
+// std::numeric_limits<>::max() in llvm/ADT/Sequence.h (included below);
+// NOMINMAX suppresses them. WIN32_LEAN_AND_MEAN trims unrelated Win32 surface.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
 #include "clang/Basic/Version.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Lex/LexDiagnostic.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 
@@ -122,18 +139,28 @@ void InitTimers();
       if (WantTiming || getenv("CLAD_ENABLE_TIMING"))
         InitTimers();
 
-      FrontendOptions& Opts = CI.getFrontendOpts();
-      // Find the path to clad.
-      llvm::StringRef CladSoPath;
-      for (llvm::StringRef P : Opts.Plugins)
-        if (llvm::sys::path::stem(P).ends_with("clad")) {
-          CladSoPath = P;
-          break;
-        }
-
-      // Register clad as a backend pass.
-      if (!CladSoPath.empty())
-        CGOpts.PassPlugins.push_back(CladSoPath.str());
+        // Register clad as a backend pass via the path of clad.so itself,
+        // resolved from any symbol we own. Cleaner than iterating
+        // CI.getFrontendOpts().Plugins (which depends on how clang was
+        // invoked) and keeps the lookup inside this DSO.
+#ifdef CLAD_BUILD_STATIC_ONLY
+        // Skip registration entirely if clad is statically linked
+#elif _WIN32
+      HMODULE hm = nullptr;
+      if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                 GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                             reinterpret_cast<LPCSTR>(&InitTimers), &hm) &&
+          hm) {
+        char buf[MAX_PATH];
+        if (DWORD n = GetModuleFileNameA(hm, buf, MAX_PATH);
+            n > 0 && n < MAX_PATH)
+          CGOpts.PassPlugins.emplace_back(buf);
+      }
+#else
+      if (Dl_info info;
+          dladdr(reinterpret_cast<void*>(&InitTimers), &info) && info.dli_fname)
+        CGOpts.PassPlugins.emplace_back(info.dli_fname);
+#endif
 
       // Add define for __CLAD__, so that CladFunction::CladFunction()
       // doesn't throw an error.
@@ -155,6 +182,14 @@ void InitTimers();
       auto& MultiplexC = cast<MultiplexConsumer>(m_CI.getASTConsumer());
       auto& RobbedCs = ACCESS(MultiplexC, Consumers);
       assert(RobbedCs.back().get() == this && "Clad is not the last consumer");
+
+      const auto& Macros = m_CI.getPreprocessorOpts().Macros;
+      const bool IsCling = llvm::any_of(
+          Macros, [](const auto& Macro) { return Macro.first == "__CLING__"; });
+      if (IsCling && m_CI.getPreprocessor().isIncrementalProcessingEnabled()) {
+        std::swap(RobbedCs.front(), RobbedCs.back());
+        return;
+      }
       std::vector<std::unique_ptr<ASTConsumer>> StolenConsumers;
 
       // The range-based for loop in MultiplexConsumer::Initialize has
@@ -171,9 +206,6 @@ void InitTimers();
       if (!CheckBuiltins())
         return;
 #if CLANG_VERSION_MAJOR > 16
-      Sema& S = m_CI.getSema();
-      RequestOptions opts{};
-      SetRequestOptions(opts);
       // Traverse all constexpr FunctionDecls for the static graph only once to
       // differentiate them immeditely.
       {
@@ -183,25 +215,33 @@ void InitTimers();
             continue;
           auto* FD = cast<FunctionDecl>(D);
           if (FD->isConstexpr() || !m_Multiplexer) {
-            DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph,
-                                    S, opts, m_AllAnalysisDC);
+            getScheduler().Plan(DGR);
             break;
           }
         }
       }
 
-      for (DiffRequest& request : m_DiffRequestGraph.getNodes()) {
-        if (request.ImmediateMode && request.Function->isConstexpr()) {
-          m_DiffRequestGraph.setCurrentProcessingNode(request);
-          ProcessDiffRequest(request);
-          m_DiffRequestGraph.markCurrentNodeProcessed();
+      // This handler can be re-entered while a planning traversal is on the
+      // stack: a lookup issued by the traversal makes the ASTReader
+      // deserialize pending module decls and pass them to the consumers. The
+      // Plan call above then defers the group; processing requests here would
+      // interleave with the outer traversal (and clobber its current
+      // processing node), so leave them to the outer caller.
+      if (!getScheduler().isTraversalInFlight())
+        for (DiffRequest& request : getScheduler().getGraph().getNodes()) {
+          if (request.ImmediateMode && request.Function->isConstexpr()) {
+            getScheduler().getGraph().setCurrentProcessingNode(request);
+            ProcessDiffRequest(request);
+            getScheduler().getGraph().markCurrentNodeProcessed();
+          }
         }
-      }
 #endif
 
       // We could not delay the processing of derivatives, act as if each
       // call is final. That would still have vgvassilev/clad#248 unresolved.
-      if (!m_Multiplexer && !m_CI.getDiagnostics().hasErrorOccurred())
+      // Not on re-entry (see above): the outer traversal finalizes.
+      if (!m_CI.getDiagnostics().hasErrorOccurred() &&
+          !getScheduler().isTraversalInFlight() && !m_Multiplexer)
         FinalizeTranslationUnit();
     }
 
@@ -313,8 +353,8 @@ void InitTimers();
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
       if (!m_DerivativeBuilder)
-        m_DerivativeBuilder = std::make_unique<DerivativeBuilder>(
-            S, *this, m_DFC, m_DiffRequestGraph);
+        m_DerivativeBuilder =
+            std::make_unique<DerivativeBuilder>(S, *this, getScheduler());
 
       if (request.Global) {
         auto deriveResult = m_DerivativeBuilder->Derive(request);
@@ -330,7 +370,7 @@ void InitTimers();
       // FIXME: These requests are not fully generated in the diffplanner and we
       // have to update diff params on this stage.
       if (request.CurrentDerivativeOrder > 1 ||
-          m_DFC.IsCladDerivative(request.Function))
+          getScheduler().getDerivedFns().IsCladDerivative(request.Function))
         request.UpdateDiffParamsInfo(m_CI.getSema());
       const FunctionDecl* FD = request.Function;
       ASTContext& C = S.getASTContext();
@@ -361,7 +401,7 @@ void InitTimers();
       {
         llvm::SaveAndRestore<unsigned> Saved(request.RequestedDerivativeOrder,
                                              1);
-        auto DFI = m_DFC.Find(request);
+        auto DFI = getScheduler().getDerivedFns().Find(request);
         if (DFI.IsValid()) {
           DerivativeDecl = DFI.DerivedFn();
           OverloadedDerivativeDecl = DFI.OverloadedDerivedFn();
@@ -377,8 +417,8 @@ void InitTimers();
               utils::hasEmptyBody(DerivativeDecl))
             return nullptr;
           if (DerivativeDecl)
-            m_DFC.Add(DerivedFnInfo(request, DerivativeDecl,
-                                    OverloadedDerivativeDecl));
+            getScheduler().getDerivedFns().Add(DerivedFnInfo(
+                request, DerivativeDecl, OverloadedDerivativeDecl));
         }
       }
 
@@ -443,6 +483,8 @@ void InitTimers();
     }
 
     void CladPlugin::SendToMultiplexer() {
+      if (!m_Multiplexer)
+        return;
       for (unsigned i = m_MultiplexerProcessedDelayedCallsIdx;
            i < m_DelayedCalls.size(); ++i) {
         auto DelayedCall = m_DelayedCalls[i];
@@ -555,6 +597,17 @@ void InitTimers();
       SetTBRAnalysisOptions(m_DO, opts);
       SetActivityAnalysisOptions(m_DO, opts);
       SetUsefulAnalysisOptions(m_DO, opts);
+      opts.EmitPortingHints = m_DO.EmitPortingHints;
+    }
+
+    DiffScheduler& CladPlugin::getScheduler() {
+      if (!m_Scheduler) {
+        RequestOptions Opts{};
+        SetRequestOptions(Opts);
+        m_Scheduler = std::make_unique<DiffScheduler>(m_CI.getSema(), Opts,
+                                                      CladEnabledRange);
+      }
+      return *m_Scheduler;
     }
 
     void CladPlugin::FinalizeTranslationUnit() {
@@ -568,16 +621,16 @@ void InitTimers();
       Sema::LocalEagerInstantiationScope LocalInstantiations(
           S CLAD_COMPAT_CLANG21_AtEndOfTUParam);
 
-      if (!m_DiffRequestGraph.isProcessingNode()) {
+      if (!getScheduler().getGraph().isProcessingNode()) {
         // This check is to avoid recursive processing of the graph, as
         // HandleTopLevelDecl can be called recursively in non-standard
         // setup for code generation.
-        DiffRequest request = m_DiffRequestGraph.getNextToProcessNode();
+        DiffRequest request = getScheduler().getGraph().getNextToProcessNode();
         while (request.Function || request.Global) {
-          m_DiffRequestGraph.setCurrentProcessingNode(request);
+          getScheduler().getGraph().setCurrentProcessingNode(request);
           ProcessDiffRequest(request);
-          m_DiffRequestGraph.markCurrentNodeProcessed();
-          request = m_DiffRequestGraph.getNextToProcessNode();
+          getScheduler().getGraph().markCurrentNodeProcessed();
+          request = getScheduler().getGraph().getNextToProcessNode();
         }
       }
 
@@ -593,33 +646,35 @@ void InitTimers();
     void CladPlugin::HandleTranslationUnit(ASTContext& C) {
       // In case of diagnostics, don't bother, just let the compiler finish.
       if (!m_CI.getDiagnostics().hasErrorOccurred()) {
-        Sema& S = m_CI.getSema();
-        RequestOptions opts{};
-        SetRequestOptions(opts);
         // Traverse all collected DeclGroupRef only once to create the static
-        // graph.
-        TimedAnalysisRegion R("Rest of TU");
-        for (auto DCI : m_DelayedCalls)
+        // graph. Planning can trigger implicit instantiations (e.g. clad::Tag
+        // when parsing the differentiate-call arguments) whose consumer
+        // notifications append to m_DelayedCalls mid-loop; deque::push_back
+        // keeps element references valid but invalidates iterators, so index
+        // instead of iterating (the appended groups are then planned too).
+        // NOLINTNEXTLINE(modernize-loop-convert)
+        for (size_t i = 0; i < m_DelayedCalls.size(); ++i) {
+          const DelayedCallInfo DCI = m_DelayedCalls[i];
           for (Decl* D : DCI.m_DGR) {
             if (const auto* FD = dyn_cast<FunctionDecl>(D))
               if (FD->isConstexpr())
                 continue;
-            DiffCollector collector(DCI.m_DGR, CladEnabledRange,
-                                    m_DiffRequestGraph, S, opts,
-                                    m_AllAnalysisDC);
+            getScheduler().Plan(DCI.m_DGR);
             break;
           }
+        }
 
         if (m_CI.getFrontendOpts().ShowStats) {
           // Print the graph of the diff requests.
           llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
-          m_DiffRequestGraph.dump();
+          getScheduler().getGraph().dump();
         }
 
         FinalizeTranslationUnit();
         SendToMultiplexer();
       }
-      m_Multiplexer->HandleTranslationUnit(C);
+      if (m_Multiplexer)
+        m_Multiplexer->HandleTranslationUnit(C);
     }
 
     void CladPlugin::PrintStats() {
@@ -678,7 +733,8 @@ void InitTimers();
         llvm::errs() << "\n";
       }
 
-      m_Multiplexer->PrintStats();
+      if (m_Multiplexer)
+        m_Multiplexer->PrintStats();
     }
 
   } // end namespace plugin

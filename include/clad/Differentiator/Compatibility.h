@@ -251,7 +251,9 @@ inline bool hasNNSPrefix(clang::NestedNameSpecifier NS) {
 inline clang::NestedNameSpecifier getNNSPrefix(clang::NestedNameSpecifier NS) {
   if (NS.getKind() == clang::NestedNameSpecifier::Kind::Namespace)
     return NS.getAsNamespaceAndPrefix().Prefix;
-  return clang::NestedNameSpecifier();
+  // Null (std::nullopt), not the default ctor's FlagKind::Invalid, which
+  // would later UNREACHABLE in getKind() if anyone inspected it.
+  return std::nullopt;
 }
 
 // Clang 22 (llvm/llvm-project#147835): keyword + qualifier ride inline
@@ -290,8 +292,8 @@ inline clang::QualType getElaboratedType(clang::ASTContext& C,
 // Clang 22: getRecordType -> getTagType with default keyword/qualifier.
 inline clang::QualType getRecordType(clang::ASTContext& C,
                                      const clang::RecordDecl* RD) {
-  return C.getTagType(clang::ElaboratedTypeKeyword::None,
-                      clang::NestedNameSpecifier(), RD, /*OwnsTag=*/false);
+  return C.getTagType(clang::ElaboratedTypeKeyword::None, std::nullopt, RD,
+                      /*OwnsTag=*/false);
 }
 
 // Clang 22: TagDecl::getTypeForDecl() was deleted; use
@@ -351,8 +353,8 @@ inline clang::QualType getTypeDeclType(clang::ASTContext& C,
 #if CLANG_VERSION_MAJOR < 22
   return C.getTypeDeclType(TD);
 #else
-  return C.getTypeDeclType(clang::ElaboratedTypeKeyword::None,
-                           clang::NestedNameSpecifier(), TD);
+  return C.getTypeDeclType(clang::ElaboratedTypeKeyword::None, std::nullopt,
+                           TD);
 #endif
 }
 

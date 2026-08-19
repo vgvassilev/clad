@@ -1,6 +1,5 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oSwitchInit.out 2>&1 | %filecheck %s
 // RUN: ./SwitchInit.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -21,10 +20,9 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     int count = 0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t1 = {};
+// CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     double _t3;
-// CHECK-NEXT:     double _t4;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
@@ -37,37 +35,37 @@ double fn1(double i, double j) {
 // CHECK-NEXT:                 _t0 = res;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 clad::push(_t1, {{1U|1UL|1ULL}});
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 1:
 // CHECK-NEXT:                 res += i * i;
-// CHECK-NEXT:                 _t2 = res;
+// CHECK-NEXT:                 _t1 = res;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                   case 2:
 // CHECK-NEXT:                     res += j * j;
-// CHECK-NEXT:                     _t3 = res;
+// CHECK-NEXT:                     _t2 = res;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               default:
 // CHECK-NEXT:                 res += i * i * j * j;
-// CHECK-NEXT:                 _t4 = res;
+// CHECK-NEXT:                 _t3 = res;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             clad::push(_t1, {{2U|2UL|2ULL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         switch (clad::pop(_t1)) {
-// CHECK-NEXT:           case {{2U|2UL|2ULL}}:
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:           default:
+// CHECK-NEXT:           case 2:
+// CHECK-NEXT:           case 1:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     res = _t4;
+// CHECK-NEXT:                     res = _t3;
 // CHECK-NEXT:                     *_d_i += _d_res * j * j * i;
 // CHECK-NEXT:                     *_d_i += i * _d_res * j * j;
 // CHECK-NEXT:                     *_d_j += i * i * _d_res * j;
@@ -79,7 +77,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     {
-// CHECK-NEXT:                         res = _t3;
+// CHECK-NEXT:                         res = _t2;
 // CHECK-NEXT:                         *_d_j += _d_res * j;
 // CHECK-NEXT:                         *_d_j += j * _d_res;
 // CHECK-NEXT:                     }
@@ -89,14 +87,14 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     res = _t2;
+// CHECK-NEXT:                     res = _t1;
 // CHECK-NEXT:                     *_d_i += _d_res * i;
 // CHECK-NEXT:                     *_d_i += i * _d_res;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 if (1 == _cond0)
 // CHECK-NEXT:                     break;
 // CHECK-NEXT:             }
-// CHECK-NEXT:           case {{1U|1UL|1ULL}}:
+// CHECK-NEXT:           case 0:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {

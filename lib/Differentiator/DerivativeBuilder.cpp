@@ -6,6 +6,7 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 
+#include "ASTIntegrity.h"
 #include "JacobianModeVisitor.h"
 
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
@@ -13,6 +14,7 @@
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffScheduler.h"
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/HessianModeVisitor.h"
@@ -24,6 +26,8 @@
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/VectorForwardModeVisitor.h"
 #include "clad/Differentiator/VectorPushForwardModeVisitor.h"
+#include "clad/Differentiator/Version.h"
+#include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
@@ -49,17 +53,15 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <utility>
 
 using namespace clang;
 
 namespace clad {
 
 DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
-                                     DerivedFnCollector& DFC,
-                                     clad::DynamicGraph<DiffRequest>& G)
-    : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()), m_DFC(DFC),
-      m_DiffRequestGraph(G),
+                                     DiffScheduler& Scheduler)
+    : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
+      m_Scheduler(Scheduler),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
       m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
 
@@ -77,6 +79,16 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     // particular template parameters.
     if (R.Function && !R.Function->getPrimaryTemplate())
       S.LookupQualifiedName(Previous, dFD->getParent());
+
+    // Derivatives are declared inline, but a hand-written custom derivative may
+    // already define this name, and [dcl.inline]p6 forbids an inline
+    // declaration that follows a definition. Drop the specifier in that case.
+    auto definedNotInline = [](const NamedDecl* ND) {
+      const auto* PrevFD = dyn_cast<FunctionDecl>(ND);
+      return PrevFD && PrevFD->isDefined() && !PrevFD->isInlined();
+    };
+    if (std::any_of(Previous.begin(), Previous.end(), definedNotInline))
+      dFD->setInlineSpecified(false);
 
     // Check if we created a top-level decl with the same name for another
     // class.
@@ -113,12 +125,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return false;
   }
 
-  DeclWithContext DerivativeBuilder::cloneFunction(
+  ClonedFunction DerivativeBuilder::cloneFunction(
       const clang::FunctionDecl* FD, clad::VisitorBase& VB,
       clang::DeclContext* DC, clang::SourceLocation& noLoc,
       clang::DeclarationNameInfo name, clang::QualType functionType) {
     FunctionDecl* returnedFD = nullptr;
-    NamespaceDecl* enclosingNS = nullptr;
+    // Count of namespace Scopes RebuildEnclosingNamespaces opens for
+    // this clone -- the returned handle pops exactly that many.
+    unsigned NamespaceCount = 0;
     TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(functionType);
     if (isa<CXXMethodDecl>(FD)) {
       CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
@@ -130,13 +144,13 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       returnedFD = CXXMethodDecl::Create(
           m_Context, CXXRD, noLoc, name, functionType, TSI,
           SC CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
-          FD->isInlineSpecified(), FD->getConstexprKind(), noLoc);
+          /*isInlineSpecified=*/true, FD->getConstexprKind(), noLoc);
       // Generated member function should be called outside of class definitions
       // even if their original function had different access specifier.
       returnedFD->setAccess(AS_public);
     } else {
       assert (isa<FunctionDecl>(FD) && "Unexpected!");
-      enclosingNS = VB.RebuildEnclosingNamespaces(DC);
+      NamespaceCount = VB.RebuildEnclosingNamespaces(DC);
 
       auto TrailingRequiresClause =
           CLAD_COMPAT_CLANG21_getTrailingRequiresClause(FD);
@@ -149,13 +163,11 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           m_Context, m_Sema.CurContext, noLoc, name, functionType, TSI,
           FD->getCanonicalDecl()->getStorageClass()
               CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
-          FD->isInlineSpecified(), FD->hasWrittenPrototype(),
+          /*isInlineSpecified=*/true, FD->hasWrittenPrototype(),
           FD->getConstexprKind(), TrailingRequiresClause);
 
       returnedFD->setAccess(FD->getAccess());
     }
-
-    returnedFD->setImplicitlyInline(FD->isInlined());
 
     for (const FunctionDecl* NFD : FD->redecls()) {
       for (const auto* Attr : NFD->attrs()) {
@@ -167,7 +179,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       }
     }
 
-    return { returnedFD, enclosingNS };
+    return ClonedFunction{VB, NamespaceCount, returnedFD};
+  }
+
+  // The destructor is defined here so the header can hold just a forward
+  // declaration of VisitorBase.
+  ClonedFunction::~ClonedFunction() {
+    if (m_Owner)
+      m_Owner->popEnclosingNamespaceScopes(m_NamespaceCount);
   }
 
   // This method is derived from the source code of both
@@ -379,23 +398,28 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // differentiation due to unavailable definition.
       if (auto* CE = dyn_cast_or_null<CallExpr>(OverloadedFn))
         if (FunctionDecl* FD = CE->getDirectCallee())
-          m_DFC.AddToCustomDerivativeSet(FD);
+          m_Scheduler.getDerivedFns().AddToCustomDerivativeSet(FD);
     }
     return OverloadedFn;
   }
 
   clang::FunctionDecl*
   DerivativeBuilder::HandleNestedDiffRequest(DiffRequest& request) {
-    // FIXME: Find a way to do this without accessing plugin namespace functions
     bool alreadyDerived = true;
     request.UpdateDiffParamsInfo(m_Sema);
+    // Plan this lazily-scheduled request statically, so it carries the planning
+    // info (currently the early-return flag) the static TU walk never produced.
+    m_Scheduler.Plan(request);
     FunctionDecl* derivative = this->FindDerivedFunction(request);
     if (!derivative) {
       alreadyDerived = false;
-      // FIXME: Our analyses are closely tied to the DiffPlanner. Dynamic
-      // derivatives don't have m_AnalysisDC. We should either disable
-      // dynamic scheduling or build m_AnalysisDC here.
-      request.EnableTBRAnalysis = false;
+      // FIXME: Our analyses are closely tied to the DiffPlanner. The varied
+      // and useful analyses have to be run eagerly by the planner and it does
+      // not do so for dynamically scheduled requests, so they stay off. TBR
+      // runs lazily and only needs an m_AnalysisDC, which PlanNestedRequest
+      // above builds; keep it whenever we got one.
+      request.EnableTBRAnalysis =
+          request.EnableTBRAnalysis && request.m_AnalysisDC != nullptr;
       request.EnableVariedAnalysis = false;
       request.EnableUsefulAnalysis = false;
 
@@ -414,7 +438,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // derivative function. In that case, we should not derive the definition
       // again.
       if (derivative &&
-          (derivative->isDefined() || m_DFC.IsCustomDerivative(derivative)))
+          (derivative->isDefined() ||
+           m_Scheduler.getDerivedFns().IsCustomDerivative(derivative)))
         alreadyDerived = true;
 
       // Add the request to derive the definition of the forward mode derivative
@@ -456,9 +481,78 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     }
   }
 
+  void DerivativeBuilder::EmitPortingHint(const DiffRequest& request) {
+    if (!request.EmitPortingHints)
+      return;
+    const FunctionDecl* FD = request.Function;
+    // A custom derivative already covers this call; nothing to port. Only a
+    // function whose *definition* clad is about to clone is a porting gap.
+    // Constructors have a non-identifier name (a constructor name) but are a
+    // primary porting case (e.g. std::string's constructor), so let them
+    // through; other non-identifier names (operators) have no clean suggested
+    // custom-derivative spelling, so skip them.
+    if (!FD || request.CustomDerivative || !FD->isDefined() ||
+        (!FD->getDeclName().isIdentifier() && !isa<CXXConstructorDecl>(FD)))
+      return;
+    // Hint only at a library boundary: a function defined outside the main
+    // source file (an included header), where the user decides "differentiate
+    // vs. mark opaque" rather than clad silently cloning library internals.
+    if (m_Sema.getSourceManager().isInMainFile(FD->getLocation()))
+      return;
+
+    SourceLocation Loc = request.CallContext
+                             ? request.CallContext->getBeginLoc()
+                             : FD->getLocation();
+    llvm::SmallVector<const ValueDecl*, 4> diffParams;
+    for (const DiffInputVarInfo& VarInfo : request.DVI)
+      diffParams.push_back(VarInfo.param);
+    QualType DerivativeType = utils::GetDerivativeType(
+        m_Sema, FD, request.Mode, diffParams, /*forCustomDerv=*/true);
+
+    diag(DiagnosticsEngine::Remark, Loc,
+         "clad has no custom derivative for %0 and is differentiating its "
+         "definition, descending into library internals")
+        << FD;
+    diag(DiagnosticsEngine::Note, Loc,
+         "to differentiate it, provide clad::custom_derivatives::%0 with "
+         "signature %1")
+        << request.ComputeDerivativeName() << DerivativeType;
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
+      const CXXRecordDecl* RD = MD->getParent();
+      // Print the qualified name WITH template arguments
+      // (getQualifiedNameAsString drops them, yielding an ill-formed Tag<Boxed>
+      // for a Boxed<double>).
+      clang::PrintingPolicy Policy = m_Sema.getPrintingPolicy();
+      Policy.SuppressTagKeyword = true;
+      std::string TypeName =
+          clad_compat::getRecordType(m_Context, RD).getAsString(Policy);
+      diag(DiagnosticsEngine::Note, Loc,
+           "or mark it non-differentiable with CLAD_NONDIFFERENTIABLE_TYPE(%0)")
+          << TypeName;
+      // The value-level macro marks a single type; a template instantiation is
+      // only that specialization. Marking the whole family needs a clad::Tag
+      // partial specialization the macro cannot express.
+      if (isa<clang::ClassTemplateSpecializationDecl>(RD))
+        diag(DiagnosticsEngine::Note, Loc,
+             "this marks only this specialization; to mark the whole template, "
+             "add a clad::Tag partial specialization carrying "
+             "CLAD_NONDIFFERENTIABLE");
+    }
+    // A reverse-forward pass that is a no-op (e.g. a shallow copy that shares
+    // its adjoint) need not be cloned: declare it and mark it elidable so clad
+    // skips the call. Point at the existing mechanism rather than a new one.
+    if (request.Mode == DiffMode::reverse_mode_forward_pass)
+      diag(DiagnosticsEngine::Note, Loc,
+           "or, if its reverse-forward pass is a no-op (e.g. a shallow copy "
+           "that shares its adjoint), declare %0 with signature %1 and mark it "
+           "elidable_reverse_forw")
+          << request.ComputeDerivativeName() << DerivativeType;
+  }
+
   DerivativeAndOverload
   DerivativeBuilder::Derive(const DiffRequest& request) {
     TimedGenerationRegion G([&request]() { return (std::string)request; });
+    EmitPortingHint(request);
     if (const FunctionDecl* FD = request.Function) {
       // Process the custom derivative
       if (request.CustomDerivative) {
@@ -472,10 +566,18 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         QualType DerivativeType =
             utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
                                      diffParams, /*forCustomDerv=*/true);
-        // Generate dummy inits
+        // Generate dummy inits. A custom reverse_forw / pullback may carry a
+        // trailing clad::pullback_state<S> parameter that clad does not
+        // synthesize into DerivativeType; append it so the overload call has
+        // the right arity (see DiffRequest::PullbackStateParam).
+        llvm::ArrayRef<QualType> protoParamTypes =
+            cast<FunctionProtoType>(DerivativeType)->getParamTypes();
+        llvm::SmallVector<QualType, 8> paramTypes(protoParamTypes.begin(),
+                                                  protoParamTypes.end());
+        if (!request.PullbackStateParam.isNull())
+          paramTypes.push_back(request.PullbackStateParam);
         llvm::SmallVector<Expr*, 4> Inits;
-        for (QualType parTy :
-             cast<FunctionProtoType>(DerivativeType)->getParamTypes()) {
+        for (QualType parTy : paramTypes) {
           // Build dummy exprs of form ``static_cast<DesiredType>(*nullptr)``
           // to trick clang into thinking we use lvalues.
           QualType ptrType = m_Sema.getASTContext().getPointerType(
@@ -499,9 +601,11 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                        .ActOnCallExpr(m_Sema.TUScope, request.CustomDerivative,
                                       {}, Inits, {})
                        .get();
+        auto* Call = CE ? dyn_cast<CallExpr>(CE->IgnoreImplicit()) : nullptr;
+        if (!Call)
+          return {};
         DerivativeAndOverload result{};
-        result.derivative =
-            cast<CallExpr>(CE->IgnoreImplicit())->getDirectCallee();
+        result.derivative = Call->getDirectCallee();
 
         // reverse and jacobian modes require overloads, even if the derivatives
         // are custom
@@ -513,7 +617,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         } else if (request.Mode == DiffMode::vector_forward_mode) {
           VectorForwardModeVisitor V(*this, request);
           result.overload =
-              V.CreateVectorModeOverload(cast<FunctionDecl>(result.derivative));
+              V.CreateDerivativeOverload(cast<FunctionDecl>(result.derivative),
+                                         VisitorBase::OverloadKind::VectorMode);
         }
         return result;
       }
@@ -524,7 +629,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // If only declaration is requested, allow this for clad-generated
         // functions or custom derivatives.
         if (!request.DeclarationOnly ||
-            !(m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD))) {
+            !(m_Scheduler.getDerivedFns().IsCladDerivative(FD) ||
+              m_Scheduler.getDerivedFns().IsCustomDerivative(FD))) {
           const auto& name = FD->getName();
           // FIXME: Currently, these functions cannot be covered with custom
           // derivatives because templates are not well-supported in custom
@@ -575,6 +681,15 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
            "rerunning the gradient requires %0 to be reset")
           << VD << L;
     }
+
+#if CLANG_VERSION_MAJOR > 16
+    // Snapshot the diagnostic tally so the integrity check below can tell a
+    // clean differentiation from one that hit an unsupported construct (which
+    // is cloned wholesale and knowingly keeps un-remapped references). Guarded
+    // with the check itself: below clang-17 it is unused (-Werror=unused).
+    DiagnosticsEngine& Diags = m_Sema.getDiagnostics();
+    unsigned DiagsBefore = Diags.getNumWarnings() + Diags.getNumErrors();
+#endif
 
     DerivativeAndOverload result{};
     if (request.Mode == DiffMode::forward) {
@@ -627,7 +742,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     //   derivative is a member function it goes into an infinite loop
     bool isCustomDerivative = false;
     if (auto* FD = dyn_cast_or_null<FunctionDecl>(result.derivative))
-      isCustomDerivative = m_DFC.IsCustomDerivative(FD);
+      isCustomDerivative = m_Scheduler.getDerivedFns().IsCustomDerivative(FD);
     if (!isCustomDerivative) {
       if (auto* FD = result.derivative)
         registerDerivative(FD, m_Sema, request);
@@ -635,12 +750,85 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         registerDerivative(OFD, m_Sema, request);
     }
 
+#if CLANG_VERSION_MAJOR > 16
+    // A generated derivative must satisfy several structural invariants; below
+    // clang-17 buildClonedLambda cannot synthesize a fresh closure, so lambda
+    // derivatives legitimately share and these checks are unreachable.
+    if (auto* FD = dyn_cast_or_null<clang::FunctionDecl>(result.derivative))
+      if (clang::Stmt* Body = FD->getBody()) {
+        // Compute cleanliness before the diagnostics below inflate the tally.
+        bool CleanDerivation =
+            Diags.getNumWarnings() + Diags.getNumErrors() == DiagsBefore;
+        IntegrityReport Report = verifyDerivative(Body, request.Function, FD);
+
+        // A derivative must be a proper tree in its Stmt child-edge structure:
+        // no node the child of two parents, because a later in-place edit of a
+        // shared node leaks into its other users (and a shared aggregate
+        // initializer breaks CodeGen). Debug builds abort here; release builds
+        // keep the diagnostic so a regression is not silently shipped.
+        assert(!Report.SharedNode &&
+               "clad generated a derivative with a shared AST node");
+        if (Report.SharedNode)
+          diag(DiagnosticsEngine::Warning, FD->getLocation(),
+               "clad internally reused a '%0' AST node while differentiating "
+               "%1; this is a clad bug -- please report it at %2")
+              << Report.SharedNode->getStmtClassName() << FD
+              << getCladRepositoryURL();
+
+        // It must also not splice a node owned by its primal: the original
+        // function's AST outlives differentiation, so a later in-place edit of
+        // a shared node would corrupt the user's own code.
+        assert(!Report.PrimalNode &&
+               "clad spliced a primal AST node into a derivative");
+        if (Report.PrimalNode)
+          diag(DiagnosticsEngine::Warning, FD->getLocation(),
+               "clad reused a '%0' AST node from the original function while "
+               "differentiating %1; this is a clad bug -- please report it at "
+               "%2")
+              << Report.PrimalNode->getStmtClassName() << FD
+              << getCladRepositoryURL();
+
+        // And it must reference only decls it owns. A DeclRefExpr still bound
+        // to one of the original function's own params/locals is a forgotten
+        // reference-remap. Only meaningful for a clean derivation: an
+        // unsupported construct is cloned wholesale and knowingly keeps such
+        // references in a derivative that is not used.
+        if (CleanDerivation) {
+          // Nothing enforces declaration-before-use in a hand-assembled body
+          // the way parsing does for user code, so a reference can name a
+          // variable whose declaration has not been reached -- or one owned by
+          // the original function. Gated with StrayRef: an unsupported
+          // construct is diagnosed and its body is not expected to be
+          // well-formed.
+          assert(!Report.UseBeforeDecl &&
+                 "clad generated a use of a variable before its declaration");
+          if (Report.UseBeforeDecl)
+            diag(DiagnosticsEngine::Warning, FD->getLocation(),
+                 "clad referenced '%0' before its declaration while "
+                 "differentiating %1; this is a clad bug -- please report it "
+                 "at %2")
+                << Report.UseBeforeDecl << FD << getCladRepositoryURL();
+
+          assert(!Report.StrayRef &&
+                 "derivative references an un-remapped decl of the original");
+          if (Report.StrayRef)
+            diag(
+                DiagnosticsEngine::Warning, FD->getLocation(),
+                "clad left a reference to '%0' bound to the original function "
+                "while differentiating %1; this is a clad bug -- please report "
+                "it at %2")
+                << Report.StrayRef->getNameAsString() << FD
+                << getCladRepositoryURL();
+        }
+      }
+#endif
+
     return result;
   }
 
   FunctionDecl*
   DerivativeBuilder::FindDerivedFunction(const DiffRequest& request) {
-    auto DFI = m_DFC.Find(request);
+    auto DFI = m_Scheduler.getDerivedFns().Find(request);
     if (DFI.IsValid())
       return DFI.DerivedFn();
     return nullptr;
@@ -648,6 +836,6 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
   void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& request,
                                          bool alreadyDerived /*=false*/) {
-    m_DiffRequestGraph.addEdgeToCurrentNode(request, alreadyDerived);
+    m_Scheduler.getGraph().addEdgeToCurrentNode(request, alreadyDerived);
   }
   } // end namespace clad

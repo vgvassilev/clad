@@ -1,5 +1,7 @@
 #include "UsefulAnalyzer.h"
 
+#include "clang/AST/Stmt.h"
+
 using namespace clang;
 
 namespace clad {
@@ -7,6 +9,7 @@ namespace clad {
 void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
   // Build the CFG (control-flow graph) of FD.
   m_BlockData.resize(m_AnalysisDC->getCFG()->size());
+  m_LoopMem.resize(m_AnalysisDC->getCFG()->size());
   // Set current block ID to the ID of entry the block.
   CFGBlock& exit = m_AnalysisDC->getCFG()->getExit();
   m_CurBlockID = exit.getBlockID();
@@ -46,12 +49,11 @@ static void mergeVarsData(std::set<const clang::VarDecl*>* targetData,
 }
 
 void UsefulAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
-  for (auto ib = block.end(); ib != block.begin() - 1; ib--) {
-    if (ib->getKind() == clang::CFGElement::Statement) {
-
-      const clang::Stmt* S = ib->castAs<clang::CFGStmt>().getStmt();
+  for (const auto* it = block.rbegin(); it != block.rend(); ++it) {
+    if (it->getKind() == clang::CFGElement::Statement) {
+      const clang::Stmt* S = it->castAs<clang::CFGStmt>().getStmt();
       // The const_cast is inevitable, since there is no
-      // ConstRecusiveASTVisitor.
+      // ConstRecursiveASTVisitor.
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       TraverseStmt(const_cast<clang::Stmt*>(S));
     }
@@ -66,11 +68,9 @@ void UsefulAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
 
     bool shouldPushPred = true;
     if (pred->getBlockID() < block.getBlockID()) {
-      if (m_LoopMem == *m_BlockData[block.getBlockID()])
+      if (m_LoopMem[block.getBlockID()] == *m_BlockData[block.getBlockID()])
         shouldPushPred = false;
-
-      for (const VarDecl* i : *m_BlockData[block.getBlockID()])
-        m_LoopMem.insert(i);
+      m_LoopMem[block.getBlockID()] = *m_BlockData[block.getBlockID()];
     }
 
     if (shouldPushPred)

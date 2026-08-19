@@ -123,18 +123,23 @@ void AnalysisBase::getDependencySet(const clang::Expr* E,
   public:
     std::set<const clang::VarDecl*>& vars;
     DeclFinder(std::set<const clang::VarDecl*>& pvars) : vars(pvars) {}
+    // A Traverse* override returning false aborts the entire traversal, not
+    // just this subtree (see clang/AST/RecursiveASTVisitor.h); returning true
+    // without calling the base skips only this node's children.
     bool TraverseDeclRefExpr(DeclRefExpr* DRE) {
       if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
         vars.insert(VD);
-      return false;
+      return true;
     }
     bool TraverseArraySubscriptExpr(ArraySubscriptExpr* ASE) {
+      // The index is deliberately not visited: only the base contributes a
+      // storage dependency.
       TraverseStmt(ASE->getBase());
-      return false;
+      return true;
     }
     bool TraverseCXXThisExpr(CXXThisExpr* TE) {
       vars.insert(nullptr);
-      return false;
+      return true;
     }
   };
   DeclFinder finder(vars);
@@ -169,6 +174,12 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
       QualType VDType = VD->getType();
       if (VDType->isLValueReferenceType() || VDType->isPointerType()) {
         VarData* refData = getVarDataFromDecl(VD);
+        // Globals and other untracked declarations have no VarData.
+        if (!refData) {
+          IDSequence.clear();
+          VD = nullptr;
+          return false;
+        }
         if (refData->m_Type == VarData::REF_TYPE) {
           std::set<const VarDecl*>& vars = *refData->m_Val.m_RefData;
           if (vars.size() == 1) {

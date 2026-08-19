@@ -88,19 +88,16 @@ struct VarData {
 
   VarData() = default;
   VarData(const VarData& other) = delete;
-  VarData(VarData&& other) noexcept : m_Type(other.m_Type) {
-    *this = std::move(other);
-  }
+  VarData(VarData&& other) noexcept { moveValue(std::move(other)); }
   VarData& operator=(const VarData& other) = delete;
   VarData& operator=(VarData&& other) noexcept {
-    m_Type = other.m_Type;
-    if (m_Type == FUND_TYPE)
-      m_Val.m_FundData = other.m_Val.m_FundData;
-    else if (m_Type == OBJ_TYPE || m_Type == ARR_TYPE)
-      m_Val.m_ArrData = std::move(other.m_Val.m_ArrData);
-    else if (m_Type == REF_TYPE)
-      m_Val.m_RefData = std::move(other.m_Val.m_RefData);
-    other.m_Type = UNDEFINED;
+    if (this != &other) {
+      // Release the active union member before overwriting it: assigning
+      // straight into the member for the new m_Type would drop the old owning
+      // member on a type switch, and writes through an inactive union member.
+      destroyValue();
+      moveValue(std::move(other));
+    }
     return *this;
   }
 
@@ -112,12 +109,7 @@ struct VarData {
   VarData(clang::QualType QT, bool forceInit = false);
 
   /// Erases all children VarData's of this VarData.
-  ~VarData() {
-    if (m_Type == OBJ_TYPE || m_Type == ARR_TYPE)
-      m_Val.m_ArrData.reset();
-    else if (m_Type == REF_TYPE)
-      m_Val.m_RefData.reset();
-  }
+  ~VarData() { destroyValue(); }
 
   /// Used to recursively copy VarData when separating into different branches
   /// (e.g. when entering an if-else statements). Look at the Control Flow
@@ -127,6 +119,48 @@ struct VarData {
   /// Provides access to the nested VarData if the given VarData represents
   /// an array or a structure. Generates new array elements if necessary.
   VarData* operator[](const ProfileID& id) const;
+
+  /// (Re)initialize as a REF_TYPE holding a fresh empty set, freeing whatever
+  /// value was held before. A reference/pointer declaration rebinds a VarData
+  /// that addVar already populated; without releasing the old member first the
+  /// previously-held set leaks.
+  void resetAsRef() {
+    destroyValue();
+    m_Type = REF_TYPE;
+    ::new (static_cast<void*>(std::addressof(m_Val.m_RefData)))
+        std::unique_ptr<std::set<const clang::VarDecl*>>(
+            std::make_unique<std::set<const clang::VarDecl*>>());
+  }
+
+private:
+  /// Destroys the active owning member (m_Val's union has a no-op destructor,
+  /// so it must be done here) and resets to UNDEFINED.
+  void destroyValue() noexcept {
+    if (m_Type == OBJ_TYPE || m_Type == ARR_TYPE)
+      std::destroy_at(std::addressof(m_Val.m_ArrData));
+    else if (m_Type == REF_TYPE)
+      std::destroy_at(std::addressof(m_Val.m_RefData));
+    m_Type = UNDEFINED;
+  }
+  /// Placement-constructs the union member for other.m_Type (it is otherwise
+  /// inactive, so assignment would be UB) and clears `other`. *this must be
+  /// UNDEFINED on entry (fresh, or after destroyValue()).
+  // `other` is consumed member-wise (its active union member is moved out) and
+  // left UNDEFINED, rather than std::move'd as a whole.
+  // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
+  void moveValue(VarData&& other) noexcept {
+    m_Type = other.m_Type;
+    if (m_Type == FUND_TYPE)
+      m_Val.m_FundData = other.m_Val.m_FundData;
+    else if (m_Type == OBJ_TYPE || m_Type == ARR_TYPE)
+      ::new (static_cast<void*>(std::addressof(m_Val.m_ArrData)))
+          std::unique_ptr<ArrMap>(std::move(other.m_Val.m_ArrData));
+    else if (m_Type == REF_TYPE)
+      ::new (static_cast<void*>(std::addressof(m_Val.m_RefData)))
+          std::unique_ptr<std::set<const clang::VarDecl*>>(
+              std::move(other.m_Val.m_RefData));
+    other.m_Type = UNDEFINED;
+  }
 };
 /// Used to store all the necessary information about variables at a
 /// particular moment.

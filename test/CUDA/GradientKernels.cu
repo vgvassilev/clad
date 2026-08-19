@@ -262,7 +262,7 @@ __global__ void kernel_with_device_call(double *out, const double *in, double va
   out[index] = device_fn(in[index], val);
 }
 
-// CHECK: __attribute__((device)) void device_fn_pullback_1(const double in, double val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) inline void device_fn_pullback_1(const double in, double val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:                *_d_in += _d_y;
 //CHECK-NEXT:                *_d_val += _d_y;
@@ -300,7 +300,7 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
   out[index] = device_fn_2(in, val);
 } 
 
-//CHECK: __attribute__((device)) void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) {
+//CHECK: __attribute__((device)) inline void device_fn_2_pullback_1(const double *in, double val, double _d_y, double *_d_val) {
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    *_d_val += _d_y;
@@ -321,7 +321,7 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
-// CHECK: __attribute__((device)) void device_fn_2_pullback_0(const double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) inline void device_fn_2_pullback_0(const double *in, double val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
@@ -356,7 +356,7 @@ __global__ void kernel_with_device_call_3(double *out, double *in, double *val) 
   out[index] = device_fn_3(in, val);
 } 
 
-// CHECK: __attribute__((device)) void device_fn_3_pullback_0_1(double *in, double *val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) inline void device_fn_3_pullback_0_1(double *in, double *val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
@@ -392,7 +392,7 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
   out[index] = device_with_device_call(in, val);
 }
 
-// CHECK: __attribute__((device)) void device_fn_4_pullback_0_1(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) inline void device_fn_4_pullback_0_1(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    int _d_index = 0;
 //CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
 //CHECK-NEXT:    {
@@ -401,7 +401,7 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
-// CHECK: __attribute__((device)) void device_with_device_call_pullback_0(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) inline void device_with_device_call_pullback_0(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r0 = 0.;
 //CHECK-NEXT:        device_fn_4_pullback_0_1(in, val, _d_y, _d_in, &_r0);
@@ -551,7 +551,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
   cudaFree(out_dev);
 }
 
-// CHECK: __attribute__((global)) void add_kernel_4_pullback(int *out, int *in, int N, int *_d_out, int *_d_in, int *_d_N) {
+// CHECK: __attribute__((global)) inline void add_kernel_4_pullback(int *out, int *in, int N, int *_d_out, int *_d_in, int *_d_N) {
 // CHECK-NEXT:     bool _cond0;
 // CHECK-NEXT:     int _d_sum = 0;
 // CHECK-NEXT:     int sum = 0;
@@ -770,7 +770,7 @@ __global__ void kernel_device_injective(int *a) {
   device_injective_index(a);
 }
 
-// CHECK: __attribute__((device)) void device_injective_index_pullback_0(int *a, int *_d_a) {
+// CHECK: __attribute__((device)) inline void device_injective_index_pullback_0(int *a, int *_d_a) {
 // CHECK-NEXT:     int _d_index1 = 0;
 // CHECK-NEXT:     int index1 = threadIdx.x + blockIdx.x * blockDim.x;
 // CHECK-NEXT:     int _d_index2 = 0;

@@ -367,7 +367,7 @@ public:
 
   static double static_mem_fn(double u, double v) { return u + v; }
   
-  // CHECK: static void static_mem_fn_grad(double u, double v, double *_d_u, double *_d_v) {
+  // CHECK: static inline void static_mem_fn_grad(double u, double v, double *_d_u, double *_d_v) {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         *_d_u += 1;
   // CHECK-NEXT:         *_d_v += 1;
@@ -460,12 +460,14 @@ double fn2(SimpleFunctions& sf, double i) {
 
 // CHECK: void fn2_grad(SimpleFunctions &sf, double i, SimpleFunctions *_d_sf, double *_d_i) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = sf.ref_mem_fn_reverse_forw(i, _d_sf, 0., _tracker0);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _t0.adjoint += 1;
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         sf.ref_mem_fn_pullback(i, _d_sf, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -498,12 +500,14 @@ double fn5(SimpleFunctions& v, double value) {
 
 // CHECK: void fn5_grad(SimpleFunctions &v, double value, SimpleFunctions *_d_v, double *_d_value) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     v.operator_plus_equal_reverse_forw(value, _d_v, 0., _tracker0);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         v.operator_plus_equal_pullback(value, _d_v, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_value += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -530,11 +534,13 @@ double fn4(SimpleFunctions& v) {
 
 // CHECK: void fn4_grad(SimpleFunctions &v, SimpleFunctions *_d_v) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     v.operator_plus_plus_reverse_forw(_d_v, _tracker0);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         v.operator_plus_plus_pullback(_d_v);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -571,7 +577,7 @@ double fn6(double u, double v) {
     return v;
 }
 
-// CHECK: static void constructor_pullback(double x, double *y, SafeTestClass *_d_this, double *_d_x, double *_d_y) {
+// CHECK: static inline void constructor_pullback(double x, double *y, SafeTestClass *_d_this, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     SafeTestClass *_this = (SafeTestClass *)malloc(sizeof(SafeTestClass));
 // CHECK-NEXT:     *y = x;
 // CHECK-NEXT:     {
@@ -631,13 +637,17 @@ double fn8(double x, double y) {
 // CHECK:  void fn8_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      S _d_s = {0., false};
 // CHECK-NEXT:      S s = {x, false};
-// CHECK-NEXT:      if (s.Cond(y))
-// CHECK-NEXT:          goto _label0;
+// CHECK-NEXT:      auto _rev0 = [&] {
+// CHECK-NEXT:          if (s.Cond(y))
+// CHECK-NEXT:              ;
+// CHECK-NEXT:          *_d_x += _d_s.val;
+// CHECK-NEXT:      };
+// CHECK-NEXT:      if (s.Cond(y)) {
+// CHECK-NEXT:          _rev0();
+// CHECK-NEXT:          return;
+// CHECK-NEXT:      }
 // CHECK-NEXT:      *_d_y += 1;
-// CHECK-NEXT:      if (s.Cond(y))
-// CHECK-NEXT:        _label0:
-// CHECK-NEXT:          ;
-// CHECK-NEXT:      *_d_x += _d_s.val;
+// CHECK-NEXT:      _rev0();
 // CHECK-NEXT:  }
 
 double fn9(double x, double y) {
@@ -718,18 +728,20 @@ double fn11(double u, double v) {
 }
 
 // CHECK:  void fn11_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:      double _d_res = 0.;
 // CHECK-NEXT:      double res = 0;
 // CHECK-NEXT:      A _d_a = {0.};
 // CHECK-NEXT:      A a;
 // CHECK-NEXT:      a.setData(u);
 // CHECK-NEXT:      res += a.data * v;
-// CHECK-NEXT:      clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:      _tracker0.clear();
 // CHECK-NEXT:      a.increment_reverse_forw(&_d_a, _tracker0);
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:          a.increment_pullback(&_d_a);
+// CHECK-NEXT:          _tracker0.restore();
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r_d0 = _d_res;
@@ -898,7 +910,7 @@ int main() {
   d_fn3.execute(2, 3, 4, 5, &result[0], &result[1]);
   printf("%.2f %.2f", result[0], result[1]); // CHECK-EXEC: 10.00 4.00
 
-// CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {
+// CHECK: static inline void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_p_y += _d_this->y;
 // CHECK-NEXT:         _d_this->y = 0.;

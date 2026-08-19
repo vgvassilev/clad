@@ -1,0 +1,284 @@
+//--------------------------------------------------------------------*- C++ -//
+// clad - the C++ Clang-based Automatic Differentiator
+//
+// See ASTIntegrity.h for the rationale.
+//----------------------------------------------------------------------------//
+
+#include "ASTIntegrity.h"
+
+#include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
+#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
+#include "clang/AST/StmtOpenMP.h"
+
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
+
+using namespace clang;
+
+namespace clad {
+
+// Collect the Stmt::children() reachability set of Root. Child edges only, NOT
+// RecursiveASTVisitor: RAV also follows type and template-argument edges, and
+// Clang legitimately shares nodes across those (a template-argument constant,
+// an array bound). children() also never descends into a CXXDefaultArgExpr's
+// stored default or a type, so those Clang-owned shares are excluded for free.
+static void collectChildEdges(const Stmt* Root,
+                              llvm::DenseSet<const Stmt*>& Set) {
+  if (!Root)
+    return;
+  llvm::SmallVector<const Stmt*, 64> Work;
+  Set.insert(Root);
+  Work.push_back(Root);
+  while (!Work.empty()) {
+    const Stmt* Cur = Work.pop_back_val();
+    for (const Stmt* Ch : Cur->children())
+      if (Ch && Set.insert(Ch).second)
+        Work.push_back(Ch);
+  }
+}
+
+const Stmt* findPrimalSharedNode(const Stmt* Derivative, const Stmt* Primal) {
+  if (!Derivative || !Primal)
+    return nullptr;
+  llvm::DenseSet<const Stmt*> PrimalNodes;
+  collectChildEdges(Primal, PrimalNodes);
+  llvm::SmallVector<const Stmt*, 64> Work;
+  llvm::DenseSet<const Stmt*> Seen;
+  Seen.insert(Derivative);
+  Work.push_back(Derivative);
+  while (!Work.empty()) {
+    const Stmt* Cur = Work.pop_back_val();
+    for (const Stmt* Ch : Cur->children())
+      if (Ch && Seen.insert(Ch).second) {
+        if (PrimalNodes.count(Ch))
+          return Ch;
+        Work.push_back(Ch);
+      }
+  }
+  return nullptr;
+}
+
+const ValueDecl* findOriginalRef(const Stmt* Derivative,
+                                 const FunctionDecl* Original) {
+  if (!Derivative || !Original)
+    return nullptr;
+  // A generated derivative owns fresh clones of every param/local it needs; a
+  // reference still bound to one of Original's own decls means its remap was
+  // forgotten (the primal clone was never registered in m_DeclReplacements).
+  // Walk the finished body and flag the first such reference.
+  struct Finder : RecursiveASTVisitor<Finder> {
+    const FunctionDecl* Original;
+    const ValueDecl* Stray = nullptr;
+    bool shouldVisitImplicitCode() const { return true; }
+    bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+      const ValueDecl* D = DRE->getDecl();
+      // Flag only params/locals declared DIRECTLY in Original -- those are what
+      // BuildParams/VisitDeclStmt clone and must remap. A nested lambda's own
+      // parameter (context is the lambda's CXXMethod, not Original) is
+      // referenced by design when the lambda is preserved, not a forgotten
+      // clone, so exact-context match excludes it.
+      const auto* DC = dyn_cast<FunctionDecl>(D->getDeclContext());
+      if (isa<VarDecl>(D) && DC &&
+          DC->getCanonicalDecl() == Original->getCanonicalDecl()) {
+        Stray = D;
+        return false; // stop at the first offender
+      }
+      return true;
+    }
+  } F;
+  F.Original = Original;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  F.TraverseStmt(const_cast<Stmt*>(Derivative));
+  return F.Stray;
+}
+
+/// Visit a block, scoping the declarations it introduces to it.
+static const ValueDecl* walkScope(const Stmt* S,
+                                  llvm::DenseSet<const VarDecl*> Declared);
+
+/// Visit \p S in order, threading \p Declared through so later siblings see
+/// what earlier ones declared. Returns the first offender, or null.
+static const ValueDecl* walkStmt(const Stmt* S,
+                                 llvm::DenseSet<const VarDecl*>& Declared) {
+  if (!S)
+    return nullptr;
+
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(S)) {
+    const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+    // Only block-scope locals can be used before their declaration. Parameters
+    // and globals are live for the whole body.
+    if (VD && VD->isLocalVarDecl() && !Declared.count(VD))
+      return VD;
+    return nullptr;
+  }
+
+  if (const auto* LE = dyn_cast<LambdaExpr>(S)) {
+    llvm::DenseSet<const VarDecl*> Inner = Declared;
+    if (const CXXMethodDecl* Call = LE->getCallOperator())
+      for (const ParmVarDecl* P : Call->parameters())
+        Inner.insert(P);
+    return walkScope(LE->getBody(), std::move(Inner));
+  }
+
+  // A block's declarations do not escape it.
+  if (isa<CompoundStmt>(S))
+    return walkScope(S, Declared);
+
+  if (const auto* DS = dyn_cast<DeclStmt>(S)) {
+    // An initializer is evaluated before its own variable is in scope.
+    for (const Decl* D : DS->decls())
+      if (const auto* VD = dyn_cast<VarDecl>(D)) {
+        if (const ValueDecl* Bad = walkStmt(VD->getInit(), Declared))
+          return Bad;
+        Declared.insert(VD);
+      }
+    return nullptr;
+  }
+
+  for (const Stmt* Child : S->children())
+    if (const ValueDecl* Bad = walkStmt(Child, Declared))
+      return Bad;
+  return nullptr;
+}
+
+static const ValueDecl* walkScope(const Stmt* S,
+                                  llvm::DenseSet<const VarDecl*> Declared) {
+  if (!S)
+    return nullptr;
+  if (!isa<CompoundStmt>(S))
+    return walkStmt(S, Declared);
+  for (const Stmt* Child : cast<CompoundStmt>(S)->body())
+    if (const ValueDecl* Bad = walkStmt(Child, Declared))
+      return Bad;
+  return nullptr;
+}
+
+const ValueDecl* findUseBeforeDecl(const Stmt* Derivative,
+                                   const FunctionDecl* Derived) {
+  llvm::DenseSet<const VarDecl*> Declared;
+  if (Derived)
+    for (const ParmVarDecl* P : Derived->parameters())
+      Declared.insert(P);
+  return walkScope(Derivative, std::move(Declared));
+}
+
+IntegrityReport verifyDerivative(const Stmt* Derivative,
+                                 const FunctionDecl* Original,
+                                 const FunctionDecl* Derived) {
+  IntegrityReport R;
+  R.SharedNode = findSharedNode(Derivative);
+  R.UseBeforeDecl = findUseBeforeDecl(Derivative, Derived);
+  if (Original) {
+    if (const Stmt* PrimalBody = Original->getBody())
+      R.PrimalNode = findPrimalSharedNode(Derivative, PrimalBody);
+    R.StrayRef = findOriginalRef(Derivative, Original);
+  }
+  return R;
+}
+
+const Stmt* findSharedNode(const Stmt* Root) {
+  if (!Root)
+    return nullptr;
+  // clad's hand-built body must be a tree in its Stmt CHILD-edge structure: no
+  // node is a child (Stmt::children()) of two parents. Count child edges, NOT
+  // RAV visits -- RecursiveASTVisitor also follows type and template-argument
+  // edges, and Clang legitimately shares nodes across those (e.g. the
+  // substituted `N` in a `Foo<5>` instantiation is one ConstantExpr reachable
+  // from both the type and the body). Counting visits would flag those valid
+  // shares; counting child edges flags only genuine multiple-parent reuse,
+  // which is what clad must not produce.
+  struct Counter : RecursiveASTVisitor<Counter> {
+    llvm::DenseMap<const Stmt*, unsigned> ParentEdges;
+    llvm::SmallPtrSet<const Stmt*, 32> SeenParents;
+    // Visit implicit code: some genuine reuses have a second parent reachable
+    // only through implicit nodes.
+    bool shouldVisitImplicitCode() const { return true; }
+    // But visit only the semantic form of an InitListExpr: with implicit code
+    // on, RAV visits both the syntactic and semantic forms, which legitimately
+    // share their element nodes (Clang's representation, not a reuse).
+    bool TraverseInitListExpr(InitListExpr* ILE,
+                              DataRecursionQueue* = nullptr) {
+      InitListExpr* Sem = ILE->isSemanticForm() ? ILE : ILE->getSemanticForm();
+      if (!Sem)
+        Sem = ILE;
+      WalkUpFromInitListExpr(Sem);
+      for (Stmt* Ch : Sem->children())
+        if (Ch)
+          TraverseStmt(Ch);
+      return true;
+    }
+    // Skip OpenMP clauses. Lowering `reduction(+:x)` makes Sema synthesize a
+    // combiner (`.reduction.lhs = .reduction.lhs + .reduction.rhs`) that
+    // references one helper DeclRefExpr from two parents -- Clang's own AST,
+    // not clad reuse. TraverseOMPExecutableDirective walks only the clauses;
+    // the associated loop body clad generates is still traversed by the
+    // DEF_TRAVERSE_STMT children walk.
+    bool TraverseOMPExecutableDirective(OMPExecutableDirective* /*D*/) {
+      return true;
+    }
+    // An OpaqueValueExpr is Clang's mechanism for sharing a common
+    // subexpression -- e.g. the `threadIdx` base of a `threadIdx.x`
+    // __declspec(property) access, which Clang models as a PseudoObjectExpr
+    // that references one OpaqueValueExpr from both its syntactic form and its
+    // semantic expressions. It is shared by design, not clad reuse, so do not
+    // descend into its source (which the OVE also shares); VisitStmt likewise
+    // does not count edges to it.
+    bool TraverseOpaqueValueExpr(OpaqueValueExpr* /*OVE*/,
+                                 DataRecursionQueue* = nullptr) {
+      return true;
+    }
+    // Skip default-argument expressions. Clang stores a call's default argument
+    // once on the ParmVarDecl and every call site references that one
+    // expression through a CXXDefaultArgExpr (e.g. the `0` in
+    // thrust::reduce_by_key's default operators, shared across clad's cloned
+    // calls). That is Clang's representation, not clad reuse.
+    bool TraverseCXXDefaultArgExpr(CXXDefaultArgExpr* /*E*/,
+                                   DataRecursionQueue* = nullptr) {
+      return true;
+    }
+    bool TraverseCXXDefaultInitExpr(CXXDefaultInitExpr* /*E*/,
+                                    DataRecursionQueue* = nullptr) {
+      return true;
+    }
+    // Do not descend into type locations. A generated VarDecl's type can embed
+    // expressions (a template argument, an array bound, a `std::enable_if<N <
+    // _Dt>` SFINAE condition) that Clang shares across same-typed decls -- e.g.
+    // the mersenne engine's `_Dt` word-size constant across the pushforward's
+    // ValueAndPushforward<> temporaries. Those are Clang's shared AST, not a
+    // clad reuse; only the statement tree is clad's hand-built output.
+    // clang-22 added a trailing bool (TraverseQualifier) to these; a defaulted
+    // parameter matches both the older one-argument call and the new one.
+    bool TraverseTypeLoc(TypeLoc /*TL*/, bool = false) { return true; }
+    bool TraverseType(QualType /*T*/, bool = false) { return true; }
+    bool TraverseTemplateArgumentLoc(const TemplateArgumentLoc& /*ArgLoc*/) {
+      return true;
+    }
+    bool TraverseTemplateArgument(const TemplateArgument& /*Arg*/) {
+      return true;
+    }
+    bool VisitStmt(Stmt* S) {
+      // RAV can visit one node twice when it is embedded in two type locs
+      // (e.g. a template-argument ConstantExpr shared by several same-typed
+      // VarDecls). Count each parent's children once, so a single parent seen
+      // twice is not mistaken for two parents.
+      if (!SeenParents.insert(S).second)
+        return true;
+      for (const Stmt* Ch : S->children())
+        if (Ch && !isa<OpaqueValueExpr>(Ch))
+          ++ParentEdges[Ch];
+      return true;
+    }
+  } C;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  C.TraverseStmt(const_cast<Stmt*>(Root));
+  for (const auto& Entry : C.ParentEdges)
+    if (Entry.second >= 2)
+      return Entry.first;
+  return nullptr;
+}
+
+} // namespace clad

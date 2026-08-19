@@ -1,0 +1,130 @@
+name: 'Tests observe the change'
+description: >
+  Check that the tests a change adds can actually fail without it, by
+  running only the touched test files against a build of the same tree with
+  the functional hunks reverted.
+
+# The work happens at two points in a job -- before the build, to revert,
+# and after it, to run the touched tests and restore -- so a single
+# composite action cannot wrap it. `mode` selects which half runs.
+# `verdict` is the third, for the job that aggregates across platforms.
+inputs:
+  mode:
+    description: 'revert | check | verdict'
+    required: true
+  base-sha:
+    description: >
+      Revision the change is measured against. Defaults to the merge-base
+      with the pull request's base, resolved once in revert mode and reused
+      by the later modes through the environment.
+    default: ''
+  build-dir:
+    description: 'configured build directory (check)'
+    default: 'obj'
+  rebuild-command:
+    description: >
+      Command that rebuilds after the hunks are restored (check). Required:
+      omitting it would leave every later step testing the baseline.
+    default: ''
+  platform:
+    description: 'name of the CI row this verdict comes from (check)'
+    default: ''
+  verdict-dir:
+    description: 'where per-platform verdicts are written or read'
+    default: 'observes'
+  summary-out:
+    description: 'path for the aggregated summary record (verdict)'
+    default: 'observes-change-summary.json'
+  test-dirs:
+    description: 'directories holding tests'
+    default: 'test'
+  test-suffixes:
+    description: 'suffixes of test sources'
+    default: '.C .cpp .cu'
+  functional-dirs:
+    description: 'directories holding the code tests exercise'
+    default: 'lib include tools'
+  functional-suffixes:
+    description: 'suffixes of functional sources'
+    default: '.h .cpp .inc'
+
+runs:
+  using: composite
+  steps:
+  - name: Revert the functional hunks
+    if: ${{ inputs.mode == 'revert' }}
+    shell: bash
+    run: |
+      cd "$GITHUB_WORKSPACE"
+      action=${{ github.action_path }}
+      base="${{ inputs.base-sha }}"
+      if [[ -z "$base" ]]; then
+        base=$(git merge-base HEAD "${{ github.event.pull_request.base.sha }}")
+      fi
+      echo "observes_base_sha=$base" >> $GITHUB_ENV
+      # Nothing to measure unless the change touches both tests and the
+      # code they would exercise.
+      touched=$("$action/test-observes-change.py" --list \
+        --base-rev "$base" \
+        --test-dirs ${{ inputs.test-dirs }} \
+        --test-suffixes ${{ inputs.test-suffixes }} \
+        --functional-dirs ${{ inputs.functional-dirs }} \
+        --functional-suffixes ${{ inputs.functional-suffixes }})
+      if [[ -z "$touched" ]]; then
+        echo "No touched tests -- skipping the baseline pass."
+        exit 0
+      fi
+      dirs="${{ inputs.functional-dirs }}"
+      echo "observes_dirs=$dirs" >> $GITHUB_ENV
+      # A reverse patch handles files the change adds or deletes, which
+      # `git checkout <base> -- <dirs>` would leave behind.
+      git diff "$base" HEAD -- $dirs > $RUNNER_TEMP/observes.diff
+      if [[ -s $RUNNER_TEMP/observes.diff ]] && git apply -R $RUNNER_TEMP/observes.diff; then
+        echo "observes_check=1" >> $GITHUB_ENV
+        echo "Reverted $(git diff --name-only "$base" HEAD -- $dirs | wc -l) file(s)."
+      else
+        echo "Could not revert cleanly -- skipping the baseline pass."
+      fi
+
+  - name: Run the touched tests against the baseline
+    if: ${{ inputs.mode == 'check' && env.observes_check == '1' }}
+    shell: bash
+    run: |
+      cd "$GITHUB_WORKSPACE"
+      mkdir -p "${{ inputs.verdict-dir }}"
+      "${{ github.action_path }}/test-observes-change.py" \
+        --build "${{ inputs.build-dir }}" \
+        --base-rev "$observes_base_sha" \
+        --platform "${{ inputs.platform }}" \
+        --test-dirs ${{ inputs.test-dirs }} \
+        --test-suffixes ${{ inputs.test-suffixes }} \
+        --functional-dirs ${{ inputs.functional-dirs }} \
+        --functional-suffixes ${{ inputs.functional-suffixes }} \
+        --verdict "${{ inputs.verdict-dir }}/${{ inputs.platform }}.json"
+
+  # Must run even if the baseline pass failed: leaving the tree reverted
+  # would make every later step test the baseline and report it as this
+  # change.
+  - name: Restore the change and rebuild
+    if: ${{ always() && inputs.mode == 'check' && env.observes_check == '1' }}
+    shell: bash
+    run: |
+      cd "$GITHUB_WORKSPACE"
+      if [[ -z "${{ inputs.rebuild-command }}" ]]; then
+        echo "::error::rebuild-command is required in check mode"
+        exit 1
+      fi
+      git apply $RUNNER_TEMP/observes.diff
+      git diff --quiet "$observes_base_sha" -- $observes_dirs && {
+        echo "::error::the tree still matches the baseline after restoring"
+        exit 1
+      }
+      ${{ inputs.rebuild-command }}
+
+  - name: Decide across platforms
+    if: ${{ inputs.mode == 'verdict' }}
+    shell: bash
+    run: |
+      cd "$GITHUB_WORKSPACE"
+      "${{ github.action_path }}/observes-change-verdict.py" \
+        "${{ inputs.verdict-dir }}" --out="${{ inputs.summary-out }}"

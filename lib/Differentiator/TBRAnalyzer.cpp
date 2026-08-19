@@ -125,10 +125,12 @@ void TBRAnalyzer::Analyze(const DiffRequest& request) {
 
   clang::SourceManager& SM = m_AnalysisDC->getASTContext().getSourceManager();
   for (const Stmt* S : m_TBRLocs) {
-    SourceLocation Loc = S->getBeginLoc();
-    unsigned line = SM.getPresumedLoc(Loc).getLine();
-    unsigned column = SM.getPresumedLoc(Loc).getColumn();
-    LLVM_DEBUG(llvm::dbgs() << line << ":" << column << "\n");
+    // Statements clad synthesized have no location to print. TBR runs on
+    // generated functions too, e.g. on a hessian's inner reverse pass.
+    PresumedLoc PL = SM.getPresumedLoc(S->getBeginLoc());
+    if (PL.isInvalid())
+      continue;
+    LLVM_DEBUG(llvm::dbgs() << PL.getLine() << ":" << PL.getColumn() << "\n");
   }
 #endif // NDEBUG
 }
@@ -216,16 +218,14 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         // VarData of the RHS variable.
         if (VDExpr->m_Type == VarData::REF_TYPE || VDType->isPointerType()) {
           init = init->IgnoreParenCasts();
-          if (VDType->isPointerType()) {
-            if (isa<CXXNewExpr>(init)) {
-              VDExpr->initializeAsArray(VDType);
-              return false;
-            }
-            VDExpr->m_Type = VarData::REF_TYPE;
+          if (VDType->isPointerType() && isa<CXXNewExpr>(init)) {
+            VDExpr->initializeAsArray(VDType);
+            return false;
           }
-          new (&VDExpr->m_Val.m_RefData)
-              std::unique_ptr<std::set<const VarDecl*>>(
-                  std::make_unique<std::set<const VarDecl*>>());
+          // addVar already gave a reference-typed VDExpr an (empty) REF set;
+          // resetAsRef frees it before installing a fresh one rather than
+          // placement-new'ing over the live member and leaking it.
+          VDExpr->resetAsRef();
           getDependencySet(init, *VDExpr->m_Val.m_RefData);
         }
       }
@@ -247,7 +247,7 @@ bool TBRAnalyzer::TraverseConditionalOperator(clang::ConditionalOperator* CO) {
 
   auto thenBranch = std::move(m_BlockData[m_CurBlockID]);
   m_BlockData[m_CurBlockID] = std::move(elseBranch);
-  TraverseStmt(CO->getTrueExpr());
+  TraverseStmt(CO->getFalseExpr());
 
   merge(m_BlockData[m_CurBlockID].get(), thenBranch.get());
   return false;
@@ -410,6 +410,16 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   // variables passed by value/reference are used/used and changed. Analysis
   // could proceed to the function to analyse data flow inside it.
   FunctionDecl* FD = CE->getDirectCallee();
+  // An indirect call (e.g. through a function pointer, as reached inside
+  // Kokkos's mdspan View) has no direct callee, so the parameter walk below
+  // would dereference a null FD. Conservatively mark every argument used.
+  if (!FD) {
+    setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
+    for (clang::Expr* arg : CE->arguments())
+      TraverseStmt(arg);
+    resetMode();
+    return false;
+  }
   // Use information about parameters assuming the analysis was performed.
   bool shouldAnalyzeParams = m_ModifiedParams && (m_ModifiedParams->find(FD) !=
                                                   m_ModifiedParams->end());

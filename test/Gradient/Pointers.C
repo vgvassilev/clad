@@ -2,7 +2,6 @@
 // RUN: ./Pointers.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oPointers.out
 // RUN: ./Pointers.out | %filecheck_exec %s
-// XFAIL: target={{i586.*}}, valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -332,13 +331,15 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     double _t0 = t->x;
 // CHECK-NEXT:     t->x = x;
 // CHECK-NEXT:     double *_d_p = (double *)calloc(1, sizeof(double));
+// CHECK-NEXT:     {{__size_t|size_t|unsigned long long|unsigned long|unsigned int}} _p_size0 = 1 * sizeof(double);
 // CHECK-NEXT:     double *p = (double *)calloc(1, sizeof(double));
 // CHECK-NEXT:     double _t1 = *p;
 // CHECK-NEXT:     *p = x;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = t->x + *p;
-// CHECK-NEXT:     double *_t2 = p;
-// CHECK-NEXT:     double *_t3 = _d_p;
+// CHECK-NEXT:     {{__size_t|size_t|unsigned long long|unsigned long|unsigned int}} _t2 = _p_size0;
+// CHECK-NEXT:     {{__size_t|size_t|unsigned long long|unsigned long|unsigned int}} _t3 = 2 * sizeof(double);
+// CHECK-NEXT:     _p_size0 = _t3;
 // CHECK-NEXT:     _d_p = (double *)realloc(_d_p, 2 * sizeof(double));
 // CHECK-NEXT:     memset(_d_p, 0, 2 * sizeof(double));
 // CHECK-NEXT:     p = (double *)realloc(p, 2 * sizeof(double));
@@ -359,8 +360,8 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:         *_d_x += 2 * _r_d2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         p = _t2;
-// CHECK-NEXT:         _d_p = _t3;
+// CHECK-NEXT:         p = (double *)clad::reverse_realloc(p, _t2, _t3, false);
+// CHECK-NEXT:         _d_p = (double *)clad::reverse_realloc(_d_p, _t2, _t3, true);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_t->x += _d_res;
@@ -409,9 +410,10 @@ double nestedPtrFn (double x, double y) {
 }
 
 // CHECK: void nestedPtrFn_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     double _d_arr[2] = {0};
 // CHECK-NEXT:     double arr[2] = {x, y};
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {}; 
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0 = ptrValFn_reverse_forw(arr, 1, _d_arr, 0, _tracker0);
 // CHECK-NEXT:     double *_d_z = _t0.adjoint;
 // CHECK-NEXT:     double *z = _t0.value;
@@ -420,6 +422,7 @@ double nestedPtrFn (double x, double y) {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         int _r0 = 0;
 // CHECK-NEXT:         ptrValFn_pullback(arr, 1, _d_arr, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_x += _d_arr[0];

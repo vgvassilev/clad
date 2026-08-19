@@ -7,8 +7,10 @@
 #include <clad/Differentiator/FunctionTraits.h>
 #include <functional>
 #include <initializer_list>
+#include <iosfwd>
 #include <iterator>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -29,6 +31,30 @@ template <class T1, class T2> void zero_init(std::pair<T1, T2>& p) {
 template <class T> void zero_init(typename std::allocator<T>&) {
   // do nothing, unclear if allocators have differentiable properties.
 }
+
+// Mark a library type non-differentiable (opaque) by specializing clad::Tag for
+// it and annotating the specialization: the `non_differentiable` attribute
+// cannot be attached to a type declared in a header we do not own. clad then
+// treats the type as opaque and never clones its member bodies to synthesize a
+// derivative -- which for these primitives would be ill-formed. A custom
+// derivative, if present, still wins. Add your own non-differentiable library
+// types the same way.
+template <class C, class Tr, class A>
+class CLAD_NONDIFFERENTIABLE Tag<::std::basic_string<C, Tr, A>> {};
+template <class T> class CLAD_NONDIFFERENTIABLE Tag<::std::allocator<T>> {};
+// The stream family is non-differentiable I/O. Marking it lets clad treat a
+// stream operation (`os << x`, a streambuf method) as opaque instead of
+// descending into sentry/streambuf/scope_guard/char_traits machinery. Only
+// forward declarations (<iosfwd>) are needed to name the templates.
+template <class C, class Tr>
+class CLAD_NONDIFFERENTIABLE Tag<::std::basic_ostream<C, Tr>> {};
+template <class C, class Tr>
+class CLAD_NONDIFFERENTIABLE Tag<::std::basic_istream<C, Tr>> {};
+template <class C, class Tr>
+class CLAD_NONDIFFERENTIABLE Tag<::std::basic_streambuf<C, Tr>> {};
+template <class C, class Tr>
+class CLAD_NONDIFFERENTIABLE Tag<::std::basic_ios<C, Tr>> {};
+template <> class CLAD_NONDIFFERENTIABLE Tag<::std::ios_base> {};
 
 namespace custom_derivatives {
 
@@ -602,6 +628,19 @@ void shrink_to_fit_reverse_forw(::std::vector<T>* v,
   v->shrink_to_fit();
 }
 
+// The element count does not depend on the element values, so these mirror
+// size_pushforward/capacity_pushforward, which report a zero derivative.
+// Without them clad differentiates the standard library implementation of
+// size()/capacity(), which is pointer arithmetic over the internal members and
+// whose pullback is only empty by accident of how the header is written.
+template <typename T, typename P>
+void size_pullback(const ::std::vector<T>* /*v*/, P /*d_y*/,
+                   ::std::vector<T>* /*d_v*/) noexcept;
+
+template <typename T, typename P>
+void capacity_pullback(const ::std::vector<T>* /*v*/, P /*d_y*/,
+                       ::std::vector<T>* /*d_v*/) noexcept;
+
 // array reverse mode
 
 template <typename T, ::std::size_t N>
@@ -687,7 +726,21 @@ void constructor_pullback(const ::std::array<T, N>& arr,
   for (size_t i = 0; i < N; ++i)
     (*d_arr)[i] += (*d_this)[i];
 }
+template <typename T>
+void constructor_pullback(typename ::std::vector<T>::size_type count,
+                          ::std::vector<T>* d_this,
+                          typename ::std::vector<T>::size_type* d_count) {
+  d_this->clear();
+}
 
+template <typename T>
+void constructor_pullback(
+    typename ::std::vector<T>::size_type count,
+    const typename ::std::vector<T>::allocator_type& alloc,
+    ::std::vector<T>* d_this, typename ::std::vector<T>::size_type* d_count,
+    typename ::std::vector<T>::allocator_type* d_alloc) {
+  d_this->clear();
+}
 // tuple forward mode
 
 template <typename... Args1, typename... Args2>

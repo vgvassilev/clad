@@ -2,7 +2,6 @@
 // RUN: ./Cladtorch.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oCladtorch.out
 // RUN: ./Cladtorch.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
@@ -67,6 +66,7 @@ float fn1(
 
 // CHECK: void fn1_grad_0(const cladtorch::Tensor &t, const cladtorch::Tensor &u, no_namespace o, decltype(anon) a, {{.*}}anon_namespace z, not_found::Tensor w, cladtorch::Tensor *_d_t) {
 // CHECK-NEXT:     {{.*}}cladtorch::Tensor _d_u(u);
+// CHECK-NEXT:     clad::zero_init(_d_u);
 // CHECK-NEXT:     no_namespace _d_o = {0.F};
 // CHECK-NEXT:     {{.*}} _d_a = {0.F};
 // CHECK-NEXT:     anon_namespace _d_z = {0.F};

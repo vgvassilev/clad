@@ -11,7 +11,7 @@ double multiply(const double *arr) {
 // CHECK-NEXT:   unsigned {{int|long|long long}} indepVarCount = _d_arr.size();
 // CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:   {
-// CHECK-NEXT:     clad::array<double> _d_vector_return((_d_vector_arr[0]) * arr[1] + arr[0] * (_d_vector_arr[1])); 
+// CHECK-NEXT:     clad::array<double> _d_vector_return(_d_vector_arr[0] * arr[1] + arr[0] * _d_vector_arr[1]); 
 // CHECK-NEXT:     _d_arr = _d_vector_return.slice({{0U|0UL|0ULL}}, _d_arr.size());
 // CHECK-NEXT:     return;
 // CHECK-NEXT:   }
@@ -25,7 +25,7 @@ double divide(double *arr) {
 // CHECK-NEXT:   unsigned {{int|long|long long}} indepVarCount = _d_arr.size();
 // CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:   {
-// CHECK-NEXT:     _d_vector_return(((_d_vector_arr[0]) * arr[1] - arr[0] * (_d_vector_arr[1])) / (arr[1] * arr[1]));
+// CHECK-NEXT:     _d_vector_return((_d_vector_arr[0] * arr[1] - arr[0] * _d_vector_arr[1]) / (arr[1] * arr[1]));
 // CHECK-NEXT:     _d_arr = _d_vector_return.slice({{0U|0UL|0ULL}}, _d_arr.size());
 // CHECK-NEXT:     return;
 // CHECK-NEXT:   }
@@ -83,10 +83,10 @@ double maskedSum(const double *arr, int n, int *signedMask, double alpha, double
 // CHECK-NEXT:     clad::array<int> _d_vector_i(clad::zero_vector(indepVarCount));
 // CHECK-NEXT:     for (int i = 0; i < n; i++) {
 // CHECK-NEXT:       if (signedMask[i] > 0) {
-// CHECK-NEXT:         _d_vector_ret += _d_vector_alpha * arr[i] + alpha * (_d_vector_arr[i]);
+// CHECK-NEXT:         _d_vector_ret += _d_vector_alpha * arr[i] + alpha * _d_vector_arr[i];
 // CHECK-NEXT:         ret += alpha * arr[i];
 // CHECK-NEXT:       } else {
-// CHECK-NEXT:         _d_vector_ret -= _d_vector_beta * arr[i] + beta * (_d_vector_arr[i]);
+// CHECK-NEXT:         _d_vector_ret -= _d_vector_beta * arr[i] + beta * _d_vector_arr[i];
 // CHECK-NEXT:         ret -= beta * arr[i];
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }

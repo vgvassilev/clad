@@ -59,6 +59,11 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
   ReverseModeRequest.m_CladLoopCheckpoints =
       IndependentArgRequest.m_CladLoopCheckpoints;
+  // This reverse pass is the bulk of a hessian: it runs once per direction
+  // over a function the size of the first-order derivative. Let it use TBR so
+  // it only tapes what the reverse sweep reads back.
+  ReverseModeRequest.EnableTBRAnalysis =
+      IndependentArgRequest.EnableTBRAnalysis;
 
   FunctionDecl* secondDerivative =
       Builder.HandleNestedDiffRequest(ReverseModeRequest);
@@ -183,13 +188,13 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
               utils::CreateStringLiteral(m_Context, independentArgString);
           FunctionDecl* DFD = nullptr;
           if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
-            DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,
-                                              m_DiffReq, ForwardModeIASL,
-                                              m_Builder.m_DFC);
+            DFD = DeriveUsingForwardModeTwice(
+                m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
+                m_Builder.m_Scheduler.getDerivedFns());
           else
             DFD = DeriveUsingForwardAndReverseMode(
                 m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
-                m_DiffReq.Args, m_Builder.m_DFC);
+                m_DiffReq.Args, m_Builder.m_Scheduler.getDerivedFns());
           secondDerivativeFuncs.push_back(DFD);
         }
       } else {
@@ -201,13 +206,13 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
             utils::CreateStringLiteral(m_Context, PVD->getNameAsString());
         FunctionDecl* DFD = nullptr;
         if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
-          DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,
-                                            m_DiffReq, ForwardModeIASL,
-                                            m_Builder.m_DFC);
+          DFD = DeriveUsingForwardModeTwice(
+              m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
+              m_Builder.m_Scheduler.getDerivedFns());
         else
           DFD = DeriveUsingForwardAndReverseMode(
               m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
-              m_DiffReq.Args, m_Builder.m_DFC);
+              m_DiffReq.Args, m_Builder.m_Scheduler.getDerivedFns());
         secondDerivativeFuncs.push_back(DFD);
       }
     }
@@ -239,9 +244,11 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
                                            getEnclosingNamespaceOrTUScope());
     m_Sema.CurContext = DC;
 
-    DeclWithContext result = m_Builder.cloneFunction(
+    // `result` owns the namespace Scopes cloneFunction opens; its
+    // destructor pops them before SaveScope restores.
+    ClonedFunction result = m_Builder.cloneFunction(
         m_DiffReq.Function, *this, DC, noLoc, name, hessianFunctionType);
-    FunctionDecl* hessianFD = result.first;
+    FunctionDecl* hessianFD = result.fd;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
@@ -355,7 +362,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
             IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
         // Create a assignment expression to store the value of call expression
         // into the diagonalHessianVector with index HessianMatrixStartIndex.
-        Expr* SliceExprLHS = BuildOp(BO_Add, Result, OffsetArg);
+        Expr* SliceExprLHS = BuildOp(BO_Add, CloneNode(Result), OffsetArg);
         Expr* DerefExpr = BuildOp(UO_Deref, BuildParens(SliceExprLHS));
         Expr* AssignExpr = BuildOp(BO_Assign, DerefExpr, call);
         CompStmtSave.push_back(AssignExpr);
@@ -370,7 +377,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
           Expr* OffsetArg =
               IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
           // Create the hessianMatrix + OffsetArg expression.
-          Expr* SliceExpr = BuildOp(BO_Add, Result, OffsetArg);
+          Expr* SliceExpr = BuildOp(BO_Add, CloneNode(Result), OffsetArg);
 
           DeclRefToParams.push_back(SliceExpr);
           columnIndex += indArgSize;
@@ -392,7 +399,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return DerivativeAndOverload{result.first,
+    return DerivativeAndOverload{result.fd,
                                  /*OverloadFunctionDecl=*/nullptr};
   }
 } // end namespace clad

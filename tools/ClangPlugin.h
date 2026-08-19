@@ -11,6 +11,7 @@
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffScheduler.h"
 #include "clad/Differentiator/Version.h"
 
 #include "clang/AST/Decl.h"
@@ -27,6 +28,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cassert>
 #include <deque>
 #include <map>
 #include <set>
@@ -47,27 +49,25 @@ namespace clad {
 bool checkClangVersion();
 namespace plugin {
 struct DifferentiationOptions {
-  DifferentiationOptions()
-      : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
-        DumpDerivedAST(false), GenerateSourceFile(false),
-        ValidateClangVersion(true), EnableTBRAnalysis(false),
-        DisableTBRAnalysis(false), EnableVariedAnalysis(false),
-        DisableVariedAnalysis(false), EnableUsefulAnalysis(false),
-        DisableUsefulAnalysis(false), PrintNumDiffErrorInfo(false) {}
-
-  bool DumpSourceFn : 1;
-  bool DumpSourceFnAST : 1;
-  bool DumpDerivedFn : 1;
-  bool DumpDerivedAST : 1;
-  bool GenerateSourceFile : 1;
-  bool ValidateClangVersion : 1;
-  bool EnableTBRAnalysis : 1;
-  bool DisableTBRAnalysis : 1;
-  bool EnableVariedAnalysis : 1;
-  bool DisableVariedAnalysis : 1;
-  bool EnableUsefulAnalysis : 1;
-  bool DisableUsefulAnalysis : 1;
-  bool PrintNumDiffErrorInfo : 1;
+  // Plain bool, not `: 1` bit-fields: with 13 single-bit bools packed
+  // into shared bytes, the compiler emits each ctor-init-list write as
+  // a read-modify-write of the storage byte. The first RMW reads the
+  // byte while it is still uninitialised, which MSan reports as a SEGV
+  // on uninitialised memory under -fsanitize=memory.
+  bool DumpSourceFn = false;
+  bool DumpSourceFnAST = false;
+  bool DumpDerivedFn = false;
+  bool DumpDerivedAST = false;
+  bool GenerateSourceFile = false;
+  bool ValidateClangVersion = true;
+  bool EnableTBRAnalysis = false;
+  bool DisableTBRAnalysis = false;
+  bool EnableVariedAnalysis = false;
+  bool DisableVariedAnalysis = false;
+  bool EnableUsefulAnalysis = false;
+  bool DisableUsefulAnalysis = false;
+  bool PrintNumDiffErrorInfo = false;
+  bool EmitPortingHints = false;
 };
 
     class CladExternalSource : public clang::ExternalSemaSource {
@@ -100,9 +100,9 @@ struct DifferentiationOptions {
     DifferentiationOptions m_DO;
     std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
     bool m_HasRuntime = false;
-    DerivedFnCollector m_DFC;
-    DynamicGraph<DiffRequest> m_DiffRequestGraph;
-    OwnedAnalysisContexts m_AllAnalysisDC;
+    /// Lazily constructed because it needs Sema, which is not available
+    /// until InitializeSema; reach it through getScheduler().
+    std::unique_ptr<DiffScheduler> m_Scheduler;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,
@@ -171,8 +171,9 @@ struct DifferentiationOptions {
           // setup, we exit early to give control to the non-standard setup for
           // code generation.
           // FIXME: This should go away if Cling starts using the clang driver.
-          if (!m_Multiplexer &&
-              (m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD)))
+          if (!m_Multiplexer && m_Scheduler &&
+              (m_Scheduler->getDerivedFns().IsCladDerivative(FD) ||
+               m_Scheduler->getDerivedFns().IsCustomDerivative(FD)))
             return true;
 
       HandleTopLevelDeclForClad(D);
@@ -232,7 +233,7 @@ struct DifferentiationOptions {
     void PrintStats() override;
 
     bool shouldSkipFunctionBody(clang::Decl* D) override {
-      return m_Multiplexer->shouldSkipFunctionBody(D);
+      return m_Multiplexer ? m_Multiplexer->shouldSkipFunctionBody(D) : true;
     }
 
     // SemaConsumer
@@ -246,7 +247,8 @@ struct DifferentiationOptions {
     void ForgetSema() override {
       // ForgetSema is called in the destructor of Sema which is much later
       // than where we can process anything. We can't delay this call.
-      m_Multiplexer->ForgetSema();
+      if (m_Multiplexer)
+        m_Multiplexer->ForgetSema();
     }
 
     // FIXME: We should hide ProcessDiffRequest when we implement proper
@@ -254,6 +256,7 @@ struct DifferentiationOptions {
     clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
 
   private:
+    DiffScheduler& getScheduler();
     void AppendDelayed(DelayedCallInfo DCI) {
       // Incremental processing handles the translation unit in chunks and it is
       // expected to have multiple calls to this functionality.
@@ -261,6 +264,16 @@ struct DifferentiationOptions {
               m_CI.getPreprocessor().isIncrementalProcessingEnabled()) &&
              "Must start from index 0!");
       m_DelayedCalls.push_back(DCI);
+#if CLANG_VERSION_MAJOR < 22
+      // If we are in repl mode we might have an error or an undo operation
+      // which discards the set of declarations that were collected already.
+      // Clad should discard them, too, or it would replay them to the
+      // multiplexer over a broken AST. Clang >= 22 is not affected
+      // (llvm/llvm-project#182044).
+      if (m_CI.getPreprocessor().isIncrementalProcessingEnabled() &&
+          m_CI.getDiagnostics().hasErrorOccurred())
+        m_MultiplexerProcessedDelayedCallsIdx = m_DelayedCalls.size();
+#endif
     }
     void FinalizeTranslationUnit();
     void SendToMultiplexer();
@@ -329,6 +342,8 @@ struct DifferentiationOptions {
             return false;
           } else if (args[i] == "-fprint-num-diff-errors") {
             m_DO.PrintNumDiffErrorInfo = true;
+          } else if (args[i] == "-fclad-porting-hints") {
+            m_DO.EmitPortingHints = true;
           } else if (args[i] == "-help") {
             // Print some help info.
             // CI.getFrontendOpts().ShowHelp does not give us control.
@@ -356,7 +371,13 @@ struct DifferentiationOptions {
                    "shared object to use as the custom estimation model.\n"
                 << "-fprint-num-diff-errors - allows users to print the "
                    "calculated numerical diff errors, this flag is overriden "
-                   "by -DCLAD_NO_NUM_DIFF.\n";
+                   "by -DCLAD_NO_NUM_DIFF.\n"
+                << "-fclad-porting-hints - When clad has no custom derivative "
+                   "for a function defined outside the main source file and "
+                   "falls back to differentiating its definition, emit a "
+                   "remark naming the expected custom-derivative signature and "
+                   "the non-differentiable marker. Useful when teaching clad "
+                   "about a new library.\n";
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
           } else if (args[i] == "-version" || args[i] == "-v") {

@@ -13,27 +13,40 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/Lambda.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/PrettyStackTrace.h"
+
+// For the LambdaBuilder
+#if CLANG_VERSION_MAJOR > 16
+#include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/Support/SaveAndRestore.h"
+#endif // CLANG_VERSION_MAJOR > 16
 
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <stack>
 #include <unordered_map>
+#include <utility>
 
 namespace clang {
 class NestedNameSpecifier;
@@ -51,19 +64,104 @@ namespace clad {
   /// other (intermediate) statements, they are output to the current block.
   class StmtDiff {
   private:
-    std::array<clang::Stmt*, 2> data;
+    std::array<clang::Stmt*, 2> m_Data{};
     clang::Stmt* m_ValueForRevSweep;
 
+    // Lazy representations. When a source is set (via LazyClone() in a
+    // constructor argument), the matching slot is produced by cloning the
+    // source on first read and then cached, so a representation no consumer
+    // reads is never cloned (no orphaned "dead clone"), while two
+    // representations off the same source still materialize distinct nodes (no
+    // sharing). An unset source means the slot is eager -- the stored pointer
+    // (possibly null) is the value -- the default for every non-lazy argument.
+    const clang::Stmt* m_StmtSrc = nullptr;
+    const clang::Stmt* m_StmtDxSrc = nullptr;
+    const clang::Stmt* m_RevSweepSrc = nullptr;
+    utils::StmtClone* m_Cloner = nullptr;
+    // Deferred build for the forward value (data[1]) and the adjoint (data[0]):
+    // produces the node on first read, so a representation no consumer reads
+    // constructs nothing (unlike a Lazy clone, it holds no template node). The
+    // adjoint slot uses it for a reverse-mode leaf's rebuilt m_Variables ref,
+    // which a terminal product-rule leaf never reads.
+    std::function<clang::Stmt*()> m_StmtBuild;
+    std::function<clang::Stmt*()> m_StmtDxBuild;
+
+    // Clone Src into Slot on first read; a no-op when Src is null (eager slot).
+    clang::Stmt* materialize(clang::Stmt*& Slot, const clang::Stmt*& Src);
+
   public:
-    StmtDiff(clang::Stmt* orig = nullptr, clang::Stmt* diff = nullptr,
-             clang::Stmt* valueForRevSweep = nullptr)
-        : m_ValueForRevSweep(valueForRevSweep) {
-      data[1] = orig;
-      data[0] = diff;
+    /// A deferred clone marker: a representation cloned from Src on first read,
+    /// created by VisitorBase::LazyClone(). No member initializers, so In
+    /// (which embeds it) can be a `= {}` default argument while StmtDiff is
+    /// still being defined.
+    struct Lazy {
+      utils::StmtClone* Cloner;
+      const clang::Stmt* Src;
+    };
+
+    /// A constructor input for one representation: an already-built node (eager
+    /// -- the node itself is the value), a Lazy deferred clone, or a deferred
+    /// build (a thunk producing the node on first read, so a representation no
+    /// consumer reads constructs nothing -- unlike Lazy it clones no template).
+    /// Node and Deferred are set in the constructors rather than by default
+    /// member initializers, so In can be used as a `= {}` default argument.
+    struct In {
+      clang::Stmt* Node;
+      Lazy Deferred;
+      std::function<clang::Stmt*()> Build;
+      In(clang::Stmt* N = nullptr) : Node(N), Deferred{nullptr, nullptr} {}
+      In(Lazy L) : Node(nullptr), Deferred(L) {}
+      In(std::function<clang::Stmt*()> B)
+          : Node(nullptr), Deferred{nullptr, nullptr}, Build(std::move(B)) {}
+    };
+
+    /// Implicit single-representation constructor. Keeps the Expr*/Stmt* ->
+    /// StmtDiff conversion pervasive code relies on (return expr; sd = expr;),
+    /// which needs one user-defined conversion -- reaching the general
+    /// constructor below through In(Stmt*) would need two.
+    StmtDiff(clang::Stmt* orig) : m_ValueForRevSweep(nullptr) {
+      m_Data[1] = orig;
+      m_Data[0] = nullptr;
     }
 
-    clang::Stmt* getStmt() { return data[1]; }
-    clang::Stmt* getStmt_dx() { return data[0]; }
+    /// General constructor: each representation is eager (a node, the default
+    /// for every existing multi-argument call site) or lazy (LazyClone(src)).
+    /// Reads e.g. StmtDiff(fwd, LazyClone(dx)) or StmtDiff(LazyClone(fwd), dx).
+    StmtDiff(In orig = {}, In diff = {}, In valueForRevSweep = {})
+        : m_ValueForRevSweep(valueForRevSweep.Node),
+          m_StmtSrc(orig.Deferred.Src), m_StmtDxSrc(diff.Deferred.Src),
+          m_RevSweepSrc(valueForRevSweep.Deferred.Src),
+          // Every lazy slot shares the one cloner (VisitorBase::m_NodeCloner);
+          // take the first non-null.
+          m_Cloner([&] {
+            if (orig.Deferred.Cloner)
+              return orig.Deferred.Cloner;
+            if (diff.Deferred.Cloner)
+              return diff.Deferred.Cloner;
+            return valueForRevSweep.Deferred.Cloner;
+          }()),
+          m_StmtBuild(std::move(orig.Build)),
+          m_StmtDxBuild(std::move(diff.Build)) {
+      m_Data[1] = orig.Node;
+      m_Data[0] = diff.Node;
+    }
+
+    clang::Stmt* getStmt() {
+      // Run the deferred build once, on the first read of the forward value.
+      if (!m_Data[1] && m_StmtBuild) {
+        m_Data[1] = m_StmtBuild();
+        m_StmtBuild = nullptr;
+      }
+      return materialize(m_Data[1], m_StmtSrc);
+    }
+    clang::Stmt* getStmt_dx() {
+      // Run the deferred build once, on the first read of the adjoint.
+      if (!m_Data[0] && m_StmtDxBuild) {
+        m_Data[0] = m_StmtDxBuild();
+        m_StmtDxBuild = nullptr;
+      }
+      return materialize(m_Data[0], m_StmtDxSrc);
+    }
     clang::Expr* getExpr() {
       return llvm::cast_or_null<clang::Expr>(getStmt());
     }
@@ -71,22 +169,39 @@ namespace clad {
       return llvm::cast_or_null<clang::Expr>(getStmt_dx());
     }
 
-    void updateStmt(clang::Stmt* S) { data[1] = S; }
-    void updateStmtDx(clang::Stmt* S) { data[0] = S; }
-    void updateRevSweep(clang::Stmt* S) { m_ValueForRevSweep = S; }
+    void updateStmt(clang::Stmt* S) {
+      m_Data[1] = S;
+      m_StmtSrc = nullptr;
+      m_StmtBuild = nullptr;
+    }
+    void updateStmtDx(clang::Stmt* S) {
+      m_Data[0] = S;
+      m_StmtDxSrc = nullptr;
+      m_StmtDxBuild = nullptr;
+    }
+    void updateRevSweep(clang::Stmt* S) {
+      m_ValueForRevSweep = S;
+      m_RevSweepSrc = nullptr;
+    }
     // Stmt_dx goes first!
-    std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
+    std::array<clang::Stmt*, 2>& getBothStmts() {
+      // A caller taking the array by reference parents both directions, so
+      // materialize both.
+      getStmt();
+      getStmt_dx();
+      return m_Data;
+    }
 
     clang::Expr* getRevSweepAsExpr() {
       return llvm::cast_or_null<clang::Expr>(getRevSweepStmt());
     }
 
     clang::Stmt* getRevSweepStmt() {
-      /// If there is no specific value for
-      /// the reverse sweep, use Stmt_dx.
-      if (!m_ValueForRevSweep)
-        return data[1];
-      return m_ValueForRevSweep;
+      if (clang::Stmt* R = materialize(m_ValueForRevSweep, m_RevSweepSrc))
+        return R;
+      // If there is no specific value for the reverse sweep, use the forward
+      // statement.
+      return getStmt();
     }
   };
 
@@ -129,9 +244,21 @@ namespace clad {
     clang::FunctionDecl* m_Derivative;
     /// The differentiation request that is being currently processed.
     const DiffRequest& m_DiffReq;
+    /// A cached adjoint reference, stored as its declaration plus how the
+    /// reference wraps it, so every read rebuilds a fresh expression instead of
+    /// caching one node that consumers must clone.
+    struct AdjointInfo {
+      clang::VarDecl* Decl = nullptr;
+      enum WrapKind : std::uint8_t { Plain, Deref, ParenDeref } Wrap = Plain;
+      /// For a pointer reallocated in place, the `size_t` variable tracking its
+      /// current allocation size in bytes: set where the pointer is allocated,
+      /// read where it is realloc'd to undo the resize in reverse. Null for
+      /// every other variable.
+      clang::VarDecl* AllocSize = nullptr;
+    };
     /// Map used to keep track of variable declarations and match them
     /// with their derivatives.
-    std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_Variables;
+    std::unordered_map<const clang::ValueDecl*, AdjointInfo> m_Variables;
     /// Map contains variable declarations replacements. If the original
     /// function contains a declaration which name collides with something
     /// already created inside derivative's body, the declaration is replaced
@@ -154,22 +281,106 @@ namespace clad {
     /// The currently visited statement. Useful for crash pretty-printing.
     const clang::Stmt* m_CurVisitedStmt = nullptr;
 
-    /// A function used to wrap result of visiting E in a lambda. Returns a call
-    /// to the built lambda. Func is a functor that will be invoked inside
-    /// lambda scope and block. Statements inside lambda are expected to be
-    /// added by addToCurrentBlock from func invocation.
+    /// Resolves the captures of a lambda synthesized from a body that was
+    /// built outside the closure scope, so Sema never saw the uses. collect()
+    /// finds the body's free variables -- locals and parameters it references
+    /// but does not itself declare. resolve() re-creates those references in
+    /// the current scope, where BuildDeclRef under the `[&]` default registers
+    /// the capture and marks the reference for codegen; it must run with the
+    /// lambda scope active. contains() exposes the set for a caller that must
+    /// place the captured decls before the lambda.
+    class LambdaCaptures {
+      VisitorBase& m_V;
+      llvm::SmallPtrSet<clang::VarDecl*, 8> m_Captures;
+
+    public:
+      explicit LambdaCaptures(VisitorBase& V) : m_V(V) {}
+      void collect(llvm::ArrayRef<clang::Stmt*> Body);
+      /// A `[&]` capture binds a variable at the lambda's definition point, so
+      /// every captured decl must precede the lambda. \p Prefix and \p Suffix
+      /// are the forward block split at the lambda's insertion point. Each
+      /// captured decl in \p Suffix moves to the end of \p Prefix: whole, if
+      /// its initializer references only names already live there (the
+      /// function's parameters, \p AlreadyLive, and \p Prefix); otherwise
+      /// split into a zero-initialized declaration (moved) plus an assignment
+      /// left at the original spot, so the real value is still computed where
+      /// the original control flow put it. Array decls, which have no
+      /// whole-object assignment to split into, stay in \p Suffix.
+      void orderCaptureDecls(llvm::SmallVectorImpl<clang::Stmt*>& Prefix,
+                             llvm::SmallVectorImpl<clang::Stmt*>& Suffix,
+                             llvm::ArrayRef<clang::Stmt*> AlreadyLive);
+      void resolve(llvm::ArrayRef<clang::Stmt*> Body);
+      bool contains(clang::VarDecl* VD) const { return m_Captures.count(VD); }
+    };
+
+#if CLANG_VERSION_MAJOR > 16
+    /// Builds a new lambda closure with an explicit parameter list, following
+    /// the order Sema relies on while parsing one -- deviating from it leaves
+    /// Sema in a state that only crashes much later. Used by
+    /// `buildClonedLambda` and `ReverseModeVisitor::buildDerivedLambda`.
+    class LambdaBuilder {
+      VisitorBase& m_V;
+      // Sema keeps referring to the introducer and the declarator until
+      // ActOnLambdaExpr, so they outlive start(). m_DS is built from
+      // m_AttrFactory and m_D from m_DS, so declaration order matters.
+      clang::AttributeFactory m_AttrFactory;
+      const clang::DeclSpec m_DS;
+      clang::Declarator m_D;
+      clang::LambdaIntroducer m_Intro;
+      llvm::SaveAndRestore<clang::DeclContext*> m_SaveContext;
+      llvm::SaveAndRestore<clang::FunctionDecl*> m_SaveDerivative;
+      llvm::SaveAndRestore<clang::Scope*> m_SaveFnScope;
+      bool m_Started = false;
+      bool m_Finished = false;
+
+    public:
+      using ParamBuilder =
+          llvm::function_ref<void(llvm::SmallVectorImpl<clang::ParmVarDecl*>&)>;
+
+      explicit LambdaBuilder(VisitorBase& V);
+      LambdaBuilder(const LambdaBuilder&) = delete;
+      LambdaBuilder& operator=(const LambdaBuilder&) = delete;
+      LambdaBuilder(LambdaBuilder&&) = delete;
+      LambdaBuilder& operator=(LambdaBuilder&&) = delete;
+      /// Asserts that a started builder was also finished. The scopes and the
+      /// declaration context start() opens are only closed by finish(), so an
+      /// early return in between leaves Sema inside a half-built closure and
+      /// only crashes much later.
+      ~LambdaBuilder();
+      /// Without this the new closure is capture-less.
+      void cloneCaptures(const clang::LambdaExpr* LE);
+      /// Opens the body scope; on return the caller may begin a block and emit
+      /// into it. \p LE only supplies the declaration context to graft the
+      /// closure onto, \p BuildParams appends the call operator's parameters.
+      void start(const clang::LambdaExpr* LE, clang::QualType CallOpType,
+                 ParamBuilder BuildParams);
+      /// Closes the scopes start() opened.
+      clang::Expr* finish(clang::Stmt* Body);
+    };
+#endif // CLANG_VERSION_MAJOR > 16
+
+    /// Build a lambda whose body is produced by `func`. Returns the
+    /// LambdaExpr without invoking it, so the caller can bind it to a VarDecl
+    /// and call it from multiple sites. `func` is invoked inside the lambda's
+    /// scope and block; statements are expected to be added via
+    /// addToCurrentBlock from func's invocation.
+    ///
+    /// The lambda uses the `[&]` capture-default; Sema resolves captures from
+    /// the body's ODR-uses. A pre-built body whose DeclRefExprs were made
+    /// outside this scope must have those references rebuilt in scope so Sema
+    /// sees the uses (see LambdaCaptures::resolve).
     // FIXME: This will become problematic when we try to support C.
     template <typename F>
-    static clang::Expr* wrapInLambda(VisitorBase& V, clang::Sema& S,
-                                     const clang::Expr* E, F&& func) {
+    static clang::Expr* buildLambda(VisitorBase& V, clang::Sema& S,
+                                    const clang::Stmt* LocSrc, F&& func) {
       // FIXME: Here we use some of the things that are used from Parser, it
       // seems to be the easiest way to create lambda.
       clang::LambdaIntroducer Intro;
       Intro.Default = clang::LCD_ByRef;
       // FIXME: Using noLoc here results in assert failure. Any other valid
       // SourceLocation seems to work fine.
-      Intro.Range.setBegin(E->getBeginLoc());
-      Intro.Range.setEnd(E->getEndLoc());
+      Intro.Range.setBegin(LocSrc->getBeginLoc());
+      Intro.Range.setEnd(LocSrc->getEndLoc());
       clang::AttributeFactory AttrFactory;
       const clang::DeclSpec DS(AttrFactory);
       clang::Declarator D(
@@ -197,7 +408,7 @@ namespace clad {
 #endif // CLANG_VERSION_MAJOR
 
       V.beginBlock();
-      func();
+      std::forward<F>(func)();
       clang::CompoundStmt* body = V.endBlock();
       clang::Expr* lambda =
           S.ActOnLambdaExpr(
@@ -207,9 +418,52 @@ namespace clad {
                        V))
               .get();
       V.endScope();
+      return lambda;
+    }
+
+    /// A function used to wrap result of visiting E in a lambda. Returns a call
+    /// to the built lambda. Func is a functor that will be invoked inside
+    /// lambda scope and block. Statements inside lambda are expected to be
+    /// added by addToCurrentBlock from func invocation.
+    template <typename F>
+    static clang::Expr* wrapInLambda(VisitorBase& V, clang::Sema& S,
+                                     const clang::Stmt* LocSrc, F&& func) {
+      clang::Expr* lambda = buildLambda(V, S, LocSrc, std::forward<F>(func));
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();
     }
+
+    /// Build a [&]-capture lambda whose body is produced by `func` and bind
+    /// it to a fresh VarDecl. Returns the VarDecl so the caller can wrap it
+    /// in a DeclStmt (placed at function-body scope) and call it from one or
+    /// more sites via DeclRefExpr + ActOnCallExpr. Use this when the same
+    /// lambda body must be invoked from multiple paths (e.g. a reverse-pass
+    /// segment shared between an early-return path and the natural tail).
+    ///
+    /// The binding uses `auto` deduction so the pretty-printer renders it as
+    /// `auto X = [&] {...};` rather than the closure type's unspellable
+    /// `(lambda at ...)` form. Sema deduces the concrete closure type from
+    /// the initializer; the TypeSourceInfo retains the `auto` keyword.
+    ///
+    /// \p func emits the closure body; \p Captures then resolves that body's
+    /// references to enclosing variables (its collect() must have already run),
+    /// so callers hand over a pure body-emission callback.
+    template <typename F>
+    clang::VarDecl* buildAndBindLambda(const clang::Stmt* LocSrc,
+                                       llvm::StringRef NameHint,
+                                       LambdaCaptures& Captures, F&& func) {
+      clang::Expr* lambda = buildLambda(*this, m_Sema, LocSrc, [&] {
+        std::forward<F>(func)();
+        // Resolve captures while the closure scope is active and its body is
+        // the current block.
+        Captures.resolve(getCurrentBlock());
+      });
+      clang::IdentifierInfo* II = CreateUniqueIdentifier(NameHint);
+      clang::QualType AutoTy = m_Context.getAutoDeductType();
+      clang::TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(AutoTy);
+      return BuildVarDecl(AutoTy, II, lambda, /*DirectInit=*/false, TSI);
+    }
+
     /// For a qualtype QT returns if it's type is Array or Pointer Type
     static bool isArrayOrPointerType(const clang::QualType QT) {
       return utils::isArrayOrPointerType(QT);
@@ -250,6 +504,25 @@ namespace clad {
     /// Enters a new scope.
     void beginScope(unsigned ScopeFlags);
     void endScope();
+
+    /// RAII guard that opens a scope on construction and closes it on
+    /// destruction, so a beginScope is always balanced by an endScope even
+    /// when a statement handler returns early. Use it for statement scopes
+    /// that nest within a single function; Derive()'s function-spanning scope
+    /// stays explicit because it is captured into m_DerivativeFnScope and
+    /// interleaves with Push/PopDeclContext.
+    class [[nodiscard]] ScopeRAII {
+      VisitorBase& m_Visitor;
+
+    public:
+      ScopeRAII(VisitorBase& Visitor, unsigned ScopeFlags)
+          : m_Visitor(Visitor) {
+        m_Visitor.beginScope(ScopeFlags);
+      }
+      ~ScopeRAII() { m_Visitor.endScope(); }
+      ScopeRAII(const ScopeRAII&) = delete;
+      ScopeRAII& operator=(const ScopeRAII&) = delete;
+    };
 
     /// A shorthand to simplify syntax for creation of new expressions.
     /// This function uses m_Sema.BuildUnOp internally to build unary
@@ -478,6 +751,19 @@ namespace clad {
     /// Returns 0 for scalar types, otherwise {}.
     clang::Expr* getZeroInit(clang::QualType T);
 
+    /// The placeholder a moved pointer declaration of type \p PtrTy holds
+    /// until the forward sweep assigns it. Null would do, except with early
+    /// returns: the reverse sweep runs on every return path, so it reads and
+    /// writes through pointers the taken path never assigned. Those accesses
+    /// carry zero adjoints and cannot change the gradient, but they do have to
+    /// be defined -- so point the declaration at a fresh dummy of the pointee
+    /// type, declared into \p Block. Returns null when unneeded (no early
+    /// returns, not a pointer, or a pointee clad cannot zero-initialize),
+    /// leaving the placeholder to the caller.
+    clang::Expr*
+    BuildDereferenceablePlaceholder(clang::QualType PtrTy,
+                                    llvm::SmallVectorImpl<clang::Stmt*>& Block);
+
     /// Split an array subscript expression into a pair of base expr and
     /// a vector of all indices.
     std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>
@@ -497,7 +783,10 @@ namespace clad {
     }
     /// Find declaration of clad::tape templated type.
     clang::TemplateDecl* GetCladTapeDecl();
-    /// Perform a lookup into clad namespace for an entity with given name.
+    /// Look up an entity with the given name in the clad namespace. The result
+    /// may be empty.
+    clang::LookupResult tryLookupCladMethod(llvm::StringRef name);
+    /// Look up a required clad function template with the given name.
     clang::LookupResult LookupCladTapeMethod(llvm::StringRef name);
     /// Perform lookup into clad namespace for push/pop/back. Returns
     /// LookupResult, which is will be resolved later (which is handy since they
@@ -526,6 +815,11 @@ namespace clad {
     clang::DeclRefExpr* GetCladTapePushDRE();
 
     clang::Stmt* GetCladZeroInit(llvm::MutableArrayRef<clang::Expr*> args);
+
+    /// Build `clad::zero_like(value)` if a viable overload is available.
+    /// Returns null when the customization point is not implemented for the
+    /// value's type.
+    clang::Expr* GetCladZeroLike(clang::Expr* value);
 
     /// Assigns the Init expression to VD after performing the necessary
     /// implicit conversion. This is required as clang doesn't add implicit
@@ -606,6 +900,7 @@ namespace clad {
 
     /// Checks if the type is of clad::array<T> or clad::array_ref<T> type
     bool isCladArrayType(clang::QualType QT);
+
     /// Creates the expression clad::matrix<T>::identity(Args) for the given
     /// type and args.
     clang::Expr*
@@ -625,6 +920,13 @@ namespace clad {
                                          bool pushOnScopeChains = false,
                                          bool cloneDefaultArg = true,
                                          clang::SourceLocation Loc = noLoc);
+    /// Build a primal copy of a lambda expression with a *fresh*
+    /// closure type, rather than reusing the original closure (as a plain
+    /// StmtClone does). Reusing the closure makes two clones share the
+    /// operator() body, violating the one-parent-per-node invariant. Only
+    /// captureless lambdas get a fresh closure; captured lambdas fall back to
+    /// a plain clone. Inner lambda-init declarations are rebuilt recursively.
+    clang::Expr* buildClonedLambda(const clang::LambdaExpr* LE);
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///
@@ -649,18 +951,57 @@ namespace clad {
     clang::FunctionDecl* FindDerivedFunction(DiffRequest& request);
 
   public:
-    /// Builds an overload for the derivative function that has derived params
-    /// for all the arguments of the requested function and it calls the
-    /// original derivative function internally. Used in gradient and jacobian
-    /// modes.
-    clang::FunctionDecl*
-    CreateDerivativeOverload(clang::FunctionDecl derivative);
-    /// Rebuild a sequence of nested namespaces ending with DC.
-    clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);
+    /// Rebuild a sequence of nested namespaces ending with DC and return
+    /// how many were opened. Each opens a Scope that the caller (via
+    /// ClonedFunction's RAII handle) must balance with the same count
+    /// passed to popEnclosingNamespaceScopes -- otherwise the Scope
+    /// objects leak when SaveAndRestore restores the outer Scope*.
+    unsigned RebuildEnclosingNamespaces(clang::DeclContext* DC);
+
+    /// Pop N namespace Scopes (and their matching DeclContext pushes).
+    /// Used only by ClonedFunction's destructor.
+    void popEnclosingNamespaceScopes(unsigned N);
     /// Clones a statement
     clang::Stmt* Clone(const clang::Stmt* S);
     /// A shorthand to simplify cloning of expressions.
     clang::Expr* Clone(const clang::Expr* E);
+    /// Structural copy that does NOT run updateReferencesOf. `Clone` re-points
+    /// references (name lookup, constant folding, type fix-ups), which is
+    /// correct when copying original-function code into the derivative but
+    /// corrupts already-generated derivative expressions (e.g. folds `(x + y)`
+    /// into a garbage literal). Use this to split a reused generated node into
+    /// a distinct-but-identical copy.
+    clang::Expr* CloneNode(const clang::Expr* E);
+    /// Statement overload of the structural copy above.
+    clang::Stmt* CloneNode(const clang::Stmt* S);
+    /// Return a fresh clone of the cached `_d_this` adjoint reference, so each
+    /// consumer owns its copy and never parents the one cached node twice.
+    clang::Expr* cloneThisExprDerivative() {
+      return CloneNode(m_ThisExprDerivative);
+    }
+    /// Rebuild the adjoint reference described by \p A: a fresh reference to
+    /// A.Decl, dereferenced/parenthesized per A.Wrap. \p Ref's qualifier is
+    /// reused when the adjoint decl lives in another context (e.g. a lambda).
+    clang::Expr* buildAdjoint(const AdjointInfo& A,
+                              const clang::DeclRefExpr* Ref = nullptr);
+    /// Decompose an already-built adjoint expression (a DeclRefExpr or `*ref`)
+    /// into the AdjointInfo m_Variables stores. Used where the expression is
+    /// also needed elsewhere; otherwise construct AdjointInfo directly.
+    static AdjointInfo adjointInfoFrom(clang::Expr* E);
+    /// A deferred CloneNode(\p N): the clone is produced only if the StmtDiff
+    /// representation it is stored in is actually read, so a representation no
+    /// consumer needs allocates no orphaned clone. Drop-in for CloneNode(N) in
+    /// a StmtDiff argument position.
+    StmtDiff::Lazy LazyClone(const clang::Stmt* N) {
+      return {m_Builder.m_NodeCloner.get(), N};
+    }
+    /// A StmtDiff forward-value input that runs \p B on first read and nothing
+    /// if the value is never read -- for a representation that is freshly
+    /// constructed (e.g. BuildDeclRef of a remapped decl) rather than cloned,
+    /// so LazyClone's template node is not orphaned.
+    StmtDiff::In LazyBuild(std::function<clang::Stmt*()> B) {
+      return StmtDiff::In(std::move(B));
+    }
     /// Cloning types is necessary since VariableArrayType
     /// store a pointer to their size expression.
     clang::QualType CloneType(clang::QualType T);
@@ -673,12 +1014,26 @@ namespace clad {
     ///
     clang::QualType GetDerivativeType();
 
+    /// Which flavour of overload CreateDerivativeOverload should build.
+    ///
+    /// The derivative parameters of an overload all share one type, because
+    /// the exact derivative type cannot be spelled at compile time without the
+    /// plugin's help. Vector forward mode spells that type
+    /// clad::array_ref<void>; every other mode spells it void*.
+    ///
+    /// This is an explicit argument rather than a set of virtual hooks because
+    /// the visitor hierarchy does not follow the mode split:
+    /// JacobianModeVisitor derives from VectorForwardModeVisitor but builds a
+    /// default overload, so it would silently inherit vector mode's flavour.
+    enum class OverloadKind { Default, VectorMode };
+
     /// Builds an overload for the derivative function that has derived params
     /// for all the arguments of the requested function and it calls the
-    /// original derivative function internally. Used in gradient and jacobian
-    /// modes.
+    /// original derivative function internally. Used in gradient, jacobian and
+    /// vector forward modes.
     clang::FunctionDecl*
-    CreateDerivativeOverload(clang::FunctionDecl* derivative = nullptr);
+    CreateDerivativeOverload(clang::FunctionDecl* derivative = nullptr,
+                             OverloadKind kind = OverloadKind::Default);
 
     /// Computes effective derivative operands. It should be used when operands
     /// might be of pointer types.

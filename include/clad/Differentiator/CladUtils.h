@@ -272,6 +272,12 @@ namespace clad {
 
     bool IsCladValueAndPushforwardType(clang::QualType T);
 
+    /// If `T` is a `clad::pullback_state<Payload>` specialization, returns its
+    /// `Payload` argument; otherwise returns a null `QualType`. Used to thread
+    /// the payload a custom `reverse_forw` returns into its matching
+    /// `pullback`, and to diagnose a mismatched pullback signature.
+    clang::QualType GetPullbackStatePayload(clang::QualType T);
+
     /// Returns a valid `SourceRange` to be used in places where clang
     /// requires a valid `SourceRange`.
     clang::SourceRange GetValidSRange(clang::Sema& semaRef);
@@ -381,6 +387,26 @@ namespace clad {
 
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
 
+    /// Returns true if \p RD is marked non-differentiable (opaque) by a
+    /// clad::custom_derivatives::nondifferentiable(clad::Tag<T>) declaration:
+    /// clad must not clone its member bodies to synthesize a derivative. The
+    /// built-in standard-library markers live in STLBuiltins.h; users extend
+    /// the set by declaring their own.
+    bool isNonDifferentiableType(clang::Sema& S,
+                                 const clang::CXXRecordDecl* RD);
+
+    /// Returns true if the type \p CE fundamentally operates on -- the object
+    /// of a member call, or the first argument of a free operator (`os << x`)
+    /// -- is non-differentiable (Tag-aware, so it honors clad::Tag<T> markers).
+    /// Deliberately narrower than hasNonDifferentiableAttribute(Expr): it looks
+    /// only at the operated-on type, so a differentiable call that merely
+    /// passes a marked value is unaffected. Callers use it to skip the call
+    /// outright (an early return) rather than to set the weaker nonDiff flag,
+    /// which in reverse mode would still schedule a pullback and descend into
+    /// the type's machinery.
+    bool callOperatesOnNonDifferentiableType(clang::Sema& S,
+                                             const clang::CallExpr* CE);
+
     /// Collects every DeclRefExpr, MemberExpr, ArraySubscriptExpr in an
     /// assignment operator or a ternary if operator. This is useful to when we
     /// need to decide what needs to be stored on tape in reverse mode.
@@ -405,6 +431,9 @@ namespace clad {
     clang::QualType GetCladArrayRefOfType(clang::Sema& S, clang::QualType T);
     /// Returns type clad::Tag<T>
     clang::QualType GetCladTagOfType(clang::Sema& S, clang::QualType T);
+    /// Builds a value-initialized temporary of type `T`, i.e. `T()`.
+    clang::Expr* BuildDefaultConstructExpr(clang::Sema& S, clang::QualType T);
+
     /// Returns type clad::Tag<T>()
     clang::Expr* GetCladTagExpr(clang::Sema& S, clang::QualType T);
 
@@ -416,6 +445,12 @@ namespace clad {
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
     bool IsZeroOrNullValue(const clang::Expr* E);
+
+    /// Like IsZeroOrNullValue(E), but also folds \p E as a constant
+    /// expression, so that a reference to a `const` variable initialized to
+    /// zero -- the shape a tangent takes once it has been bound to a
+    /// declaration -- is recognized as zero too.
+    bool IsZeroOrNullValue(const clang::Expr* E, const clang::ASTContext& C);
 
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);
 
@@ -429,8 +464,17 @@ namespace clad {
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
 
-    bool isElidableConstructor(const clang::CXXConstructorDecl* CD,
-                               const clang::ASTContext& C);
+    /// Returns true if the reverse-forward propagator for constructor \p CD is
+    /// structurally elidable -- clad need not synthesize one because the plain
+    /// construction plus the normal member-wise adjoint handling already covers
+    /// it. This holds for a trivial copy/move constructor (a shallow share of
+    /// pointer/handle members), an aggregate, and a memberwise zero-or-copy
+    /// initializer. A non-trivial constructor can additionally opt in with the
+    /// elidable_reverse_forw attribute on its custom reverse_forw (see
+    /// hasElidableReverseForwAttribute) -- both paths are combined where the
+    /// propagator is consumed.
+    bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
+                                          const clang::ASTContext& C);
 
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
@@ -438,6 +482,14 @@ namespace clad {
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
     bool shouldUseRestoreTracker(const clang::FunctionDecl* FD);
+    /// Returns true when E designates storage with automatic storage
+    /// duration in the current function, reached through subscripts,
+    /// members, dereferences or accessor calls. Such storage dies with the
+    /// function, so a caller must not try to restore it.
+    /// \param asPointerValue E is a pointer rvalue passed to a callee, so
+    /// the pointee is judged rather than the pointer variable's own slot.
+    bool designatesLocallyOwnedStorage(const clang::Expr* E,
+                                       bool asPointerValue = false);
 
     bool IsDifferentiableType(clang::QualType T);
 

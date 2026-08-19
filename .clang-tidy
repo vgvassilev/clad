@@ -17,6 +17,7 @@ Checks: >
   -misc-const-correctness,
   -misc-unused-parameters,
   -misc-non-private-member-variables-in-classes,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
   -misc-no-recursion,
   -misc-use-anonymous-namespace,
   -modernize-return-braced-init-list,

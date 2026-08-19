@@ -12,6 +12,7 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffScheduler.h"
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -53,12 +54,36 @@ namespace clad {
 namespace clad {
 class ErrorEstimationHandler;
 
-/// A pair of FunctionDecl and potential enclosing context, e.g. a function
-/// in nested namespaces.
-// This is the type returned by cloneFunction. Using OverloadedDeclWithContext
-// instead would lead to unnecessarily returning a nullptr in the overloaded
-// FD
-using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
+class VisitorBase;
+
+/// RAII handle for a cloned derivative function. cloneFunction opens one
+/// clang::Scope and pushes one DeclContext per enclosing namespace of the
+/// original function; ClonedFunction owns those and pops them on
+/// destruction. The contained FunctionDecl* is independently AST-owned,
+/// so callers may keep using it after the handle goes away.
+///
+/// The handle is neither copyable nor movable: cloneFunction returns it by
+/// value, but under C++17 guaranteed copy elision the prvalue constructs the
+/// caller's object directly (ClonedFunction r = cloneFunction(...)), so no
+/// move is ever performed and none needs to exist.
+class ClonedFunction {
+  VisitorBase* m_Owner = nullptr;
+  unsigned m_NamespaceCount = 0;
+
+public:
+  clang::FunctionDecl* fd = nullptr;
+
+  ClonedFunction(VisitorBase& VB, unsigned NamespaceCount,
+                 clang::FunctionDecl* FD)
+      : m_Owner(&VB), m_NamespaceCount(NamespaceCount), fd(FD) {}
+
+  ClonedFunction(const ClonedFunction&) = delete;
+  ClonedFunction& operator=(const ClonedFunction&) = delete;
+  ClonedFunction(ClonedFunction&&) = delete;
+  ClonedFunction& operator=(ClonedFunction&&) = delete;
+  ~ClonedFunction();
+};
+
 /// Stores derivative and the corresponding overload. If no overload exist
 /// then `second` data member should be `nullptr`.
 struct DerivativeAndOverload {
@@ -87,19 +112,18 @@ struct DerivativeAndOverload {
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
-    DerivedFnCollector& m_DFC;
-    clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
+    DiffScheduler& m_Scheduler;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     clang::NamespaceDecl* m_NumericalDiffNSD;
     /// A flag to keep track of whether error diagnostics are requested by user
     /// for numerical differentiation.
     bool m_PrintNumericalDiffErrorDiag = false;
-    DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
-                                  clad::VisitorBase& VB, clang::DeclContext* DC,
-                                  clang::SourceLocation& noLoc,
-                                  clang::DeclarationNameInfo name,
-                                  clang::QualType functionType);
+    ClonedFunction cloneFunction(const clang::FunctionDecl* FD,
+                                 clad::VisitorBase& VB, clang::DeclContext* DC,
+                                 clang::SourceLocation& noLoc,
+                                 clang::DeclarationNameInfo name,
+                                 clang::QualType functionType);
     /// Looks for a suitable overload for a given function.
     ///
     /// \param[in] Name The identification information of the function
@@ -153,8 +177,7 @@ struct DerivativeAndOverload {
 
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
-                      DerivedFnCollector& DFC,
-                      clad::DynamicGraph<DiffRequest>& DRG);
+                      DiffScheduler& Scheduler);
     ~DerivativeBuilder();
     /// Fuction to set the error diagnostic printing value for numerical
     /// differentiation.
@@ -178,6 +201,11 @@ struct DerivativeAndOverload {
     /// context.
     ///
     DerivativeAndOverload Derive(const DiffRequest& request);
+    /// Under -fclad-porting-hints, when \p request will differentiate the
+    /// definition of a function defined outside the main source file (a library
+    /// boundary) with no custom derivative, emit a remark naming the expected
+    /// custom-derivative signature and the non-differentiable marker.
+    void EmitPortingHint(const DiffRequest& request);
     /// Find the derived function if present in the DerivedFnCollector.
     ///
     /// \param[in] request The request to find the derived function.

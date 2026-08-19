@@ -4,6 +4,9 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 
+#include "clang/AST/Decl.h"
+#include "clang/AST/OperationKinds.h"
+
 #include "llvm/Support/SaveAndRestore.h"
 
 using namespace clang;
@@ -36,19 +39,22 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
 
   QualType vectorDiffFunctionType = GetDerivativeType();
 
+  // Save Sema state before cloneFunction mutates it.
+  llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
   // Create the function declaration for the derivative.
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
-  DeclWithContext result = m_Builder.cloneFunction(
+  // `result` owns the namespace Scopes cloneFunction opens; its
+  // destructor pops them before SaveScope restores.
+  ClonedFunction result = m_Builder.cloneFunction(
       m_DiffReq.Function, *this, DC, loc, name, vectorDiffFunctionType);
-  FunctionDecl* vectorDiffFD = result.first;
+  FunctionDecl* vectorDiffFD = result.fd;
   m_Derivative = vectorDiffFD;
 
   // Function declaration scope
-  llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
   beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
              Scope::DeclScope);
   m_Sema.PushFunctionScope();
@@ -62,6 +68,10 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
   // Count the number of non-array independent variables requested for
   // differentiation.
   size_t nonArrayIndVarCount = 0;
+
+  // Running sum of independent-variable counts, materialized into the
+  // m_IndVarCountDecl variable below.
+  Expr* indVarCountExpr = nullptr;
 
   // Set the parameters for the derivative.
   llvm::SmallVector<ParmVarDecl*, 16> params;
@@ -82,7 +92,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
       continue;
     auto derivedPVDName = "_d_vector_" + std::string(PVDII->getName());
     IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
-    Expr* derivedExpr = nullptr;
+    VarDecl* adjointDecl = nullptr;
+    AdjointInfo::WrapKind wrap = AdjointInfo::Plain;
     if (utils::isArrayOrPointerType(PVD->getType())) {
       ParmVarDecl* derivedPVD =
           utils::BuildParmVarDecl(m_Sema, m_Derivative, derivedPVDII,
@@ -90,18 +101,17 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                                       m_Sema, m_DiffReq.Mode, PVD->getType()),
                                   PVD->getStorageClass());
       derivedParams.push_back(derivedPVD);
-      derivedExpr =
-          BuildOp(UO_Deref, BuildDeclRef(derivedPVD), PVD->getBeginLoc());
-      derivedExpr = utils::BuildParenExpr(m_Sema, derivedExpr);
+      adjointDecl = derivedPVD;
+      wrap = AdjointInfo::ParenDeref;
       Expr* getSize = BuildCallExprToMemFn(BuildDeclRef(derivedPVD),
                                            /*MemberFunctionName=*/"rows", {});
       llvm::StringRef PVDName = PVD->getName();
       if (!PVDName.contains("_clad_out_")) {
-        if (!m_IndVarCountExpr)
-          m_IndVarCountExpr = getSize;
+        if (!indVarCountExpr)
+          indVarCountExpr = getSize;
         else
-          m_IndVarCountExpr =
-              BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr, getSize);
+          indVarCountExpr =
+              BuildOp(BinaryOperatorKind::BO_Add, indVarCountExpr, getSize);
       }
     } else if (PVD->getType()->isReferenceType()) {
       ParmVarDecl* derivedPVD =
@@ -110,8 +120,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                                       m_Sema, m_DiffReq.Mode, PVD->getType()),
                                   PVD->getStorageClass());
       derivedParams.push_back(derivedPVD);
-      derivedExpr =
-          BuildOp(UO_Deref, BuildDeclRef(derivedPVD), PVD->getBeginLoc());
+      adjointDecl = derivedPVD;
+      wrap = AdjointInfo::Deref;
       nonArrayIndVarCount += 1;
     } else {
       VarDecl* derivedPVD =
@@ -120,10 +130,10 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                            ->getPointeeType(),
                        derivedPVDII);
       adjointDecls.push_back(BuildDeclStmt(derivedPVD));
-      derivedExpr = BuildDeclRef(derivedPVD);
+      adjointDecl = derivedPVD;
       nonArrayIndVarCount += 1;
     }
-    m_Variables[newPVD] = derivedExpr;
+    m_Variables[newPVD] = {adjointDecl, wrap};
   }
 
   params.insert(params.end(), derivedParams.begin(), derivedParams.end());
@@ -133,11 +143,11 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
   // of non-array parameters.
   Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
       m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
-  if (!m_IndVarCountExpr) {
-    m_IndVarCountExpr = nonArrayIndVarCountExpr;
+  if (!indVarCountExpr) {
+    indVarCountExpr = nonArrayIndVarCountExpr;
   } else if (nonArrayIndVarCount != 0) {
-    m_IndVarCountExpr = BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr,
-                                nonArrayIndVarCountExpr);
+    indVarCountExpr = BuildOp(BinaryOperatorKind::BO_Add, indVarCountExpr,
+                              nonArrayIndVarCountExpr);
   }
 
   vectorDiffFD->setParams(
@@ -146,22 +156,17 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
 
   // Instantiate a variable indepVarCount to store the total number of
   // independent variables requested.
-  // size_t indepVarCount = m_IndVarCountExpr;
-  auto* totalIndVars = BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount",
-                                    m_IndVarCountExpr);
+  // size_t indepVarCount = indVarCountExpr;
+  auto* totalIndVars =
+      BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount", indVarCountExpr);
   addToCurrentBlock(BuildDeclStmt(totalIndVars));
-  m_IndVarCountExpr = BuildDeclRef(totalIndVars);
+  m_IndVarCountDecl = totalIndVars;
 
   for (DeclStmt* decl : adjointDecls)
     addToCurrentBlock(decl);
 
-  // Expression for maintaining the number of independent variables processed
-  // till now present as array elements. This will be sum of sizes of all such
-  // arrays.
-  Expr* arrayIndVarCountExpr = nullptr;
-
-  // Number of non-array independent variables processed till now.
-  nonArrayIndVarCount = 0;
+  // Offset of the next independent variable into the vector of all of them.
+  IndVarOffsetTracker offsetTracker(*this);
 
   // Current Index of independent variable in the param list of the function.
   size_t independentVarIndex = 0;
@@ -171,7 +176,6 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
     bool is_array =
         utils::isArrayOrPointerType(m_DiffReq->getParamDecl(i)->getType());
     ParmVarDecl* param = params[i];
-    Expr* paramDiff = m_Variables[param]->IgnoreParens();
     QualType dParamType = clad::utils::GetValueType(param->getType());
     // Desugaring the type is necessary to pass it to other templates
     dParamType = dParamType.getDesugaredType(m_Context);
@@ -179,40 +183,29 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
     if (m_DiffReq.DVI.size() > independentVarIndex &&
         m_DiffReq.DVI[independentVarIndex].param ==
             m_DiffReq->getParamDecl(i)) {
-      // Current offset for independent variable.
-      Expr* offsetExpr = arrayIndVarCountExpr;
-      Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
-          m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
-      if (!offsetExpr)
-        offsetExpr = nonArrayIndVarCountExpr;
-      else if (nonArrayIndVarCount != 0)
-        offsetExpr = BuildOp(BinaryOperatorKind::BO_Add, offsetExpr,
-                             nonArrayIndVarCountExpr);
+      Expr* offsetExpr = offsetTracker.buildOffset();
 
       if (is_array) {
-        Expr* base = cast<UnaryOperator>(paramDiff)->getSubExpr();
+        // The adjoint is `(*_d_p)`; the array whose size we need is the bare
+        // `_d_p` reference (m_Variables stores its decl).
+        Expr* base = BuildDeclRef(m_Variables[param].Decl);
         // Get size of the array.
-        Expr* getSize = BuildCallExprToMemFn(Clone(base),
+        Expr* getSize = BuildCallExprToMemFn(base,
                                              /*MemberFunctionName=*/"rows", {});
         // Create an identity matrix for the parameter,
         // with number of rows equal to the size of the array,
         // and number of columns equal to the number of independent variables
-        llvm::SmallVector<Expr*, 3> args = {getSize, m_IndVarCountExpr,
+        llvm::SmallVector<Expr*, 3> args = {getSize, buildIndVarCountRef(),
                                             offsetExpr};
         dVectorParam = BuildIdentityMatrixExpr(dParamType, args, loc);
 
-        // Update the array independent expression.
-        if (!arrayIndVarCountExpr)
-          arrayIndVarCountExpr = getSize;
-        else
-          arrayIndVarCountExpr = BuildOp(BinaryOperatorKind::BO_Add,
-                                         arrayIndVarCountExpr, getSize);
+        offsetTracker.advanceByArray(getSize);
       } else {
         // Create a one hot vector for the parameter.
-        llvm::SmallVector<Expr*, 2> args = {m_IndVarCountExpr, offsetExpr};
+        llvm::SmallVector<Expr*, 2> args = {buildIndVarCountRef(), offsetExpr};
         dVectorParam = BuildCallExprToCladFunction("one_hot_vector", args,
                                                    {dParamType}, loc);
-        ++nonArrayIndVarCount;
+        offsetTracker.advanceByScalar();
       }
       ++independentVarIndex;
     } else {
@@ -222,8 +215,9 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
         continue;
       // This parameter is not an independent variable.
       // Initialize by all zeros.
-      dVectorParam = BuildCallExprToCladFunction(
-          "zero_vector", {m_IndVarCountExpr}, {dParamType}, loc);
+      Expr* dCount = buildIndVarCountRef();
+      dVectorParam = BuildCallExprToCladFunction("zero_vector", {dCount},
+                                                 {dParamType}, loc);
     }
 
     // For each function arg to be differentiated, create a variable
@@ -235,12 +229,14 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
     // -> clad::array<double> _d_vector_z = {0, 1};
     if (utils::isArrayOrPointerType(param->getType()) ||
         param->getType()->isReferenceType()) {
+      // The store target is `*_d_p`; strip the parens the ParenDeref adjoint
+      // carries for element access elsewhere.
       Expr* paramAssignment =
-          BuildOp(BO_Assign, Clone(paramDiff), dVectorParam);
+          BuildOp(BO_Assign, buildAdjoint(m_Variables[param])->IgnoreParens(),
+                  dVectorParam);
       addToCurrentBlock(paramAssignment);
     } else {
-      auto* paramDecl = cast<VarDecl>(cast<DeclRefExpr>(paramDiff)->getDecl());
-      SetDeclInit(paramDecl, dVectorParam);
+      SetDeclInit(m_Variables[param].Decl, dVectorParam);
     }
   }
 

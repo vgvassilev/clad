@@ -2,7 +2,6 @@
 // RUN: ./Constructors.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oConstructors.out
 // RUN: ./Constructors.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
@@ -29,7 +28,7 @@ double fn1(double x, double y) {
     return y + g.y;
 } // x + x^2
 
-// CHECK: static clad::ValueAndAdjoint<argByVal, argByVal> constructor_reverse_forw(clad::Tag<argByVal>, double val, double _d_val) {
+// CHECK: static inline clad::ValueAndAdjoint<argByVal, argByVal> constructor_reverse_forw(clad::Tag<argByVal>, double val, double _d_val) {
 // CHECK-NEXT:     argByVal *_this = (argByVal *)malloc(sizeof(argByVal));
 // CHECK-NEXT:     argByVal *_d_this = (argByVal *)malloc(sizeof(argByVal));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(argByVal));
@@ -39,7 +38,7 @@ double fn1(double x, double y) {
 // CHECK-NEXT:     return {*_this, *_d_this};
 // CHECK-NEXT: }
 
-// CHECK:  static void constructor_pullback(double val, argByVal *_d_this, double *_d_val) {
+// CHECK:  static inline void constructor_pullback(double val, argByVal *_d_this, double *_d_val) {
 // CHECK-NEXT:      argByVal *_this = (argByVal *)malloc(sizeof(argByVal));
 // CHECK-NEXT:      _this->x = val;
 // CHECK-NEXT:      double _t0 = val;
@@ -129,7 +128,7 @@ double fn2(double u, double v) {
   return 1;
 }
 
-// CHECK:  static clad::ValueAndAdjoint<S1, S1> constructor_reverse_forw(clad::Tag<S1>, double x, double _d_x) {
+// CHECK:  static inline clad::ValueAndAdjoint<S1, S1> constructor_reverse_forw(clad::Tag<S1>, double x, double _d_x) {
 // CHECK-NEXT:      S1 *_this = (S1 *)malloc(sizeof(S1));
 // CHECK-NEXT:      S1 *_d_this = (S1 *)malloc(sizeof(S1));
 // CHECK-NEXT:      memset(_d_this, 0, sizeof(S1));
@@ -138,7 +137,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      return {*_this, *_d_this};
 // CHECK-NEXT:  }
 
-// CHECK:  static void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
+// CHECK:  static inline void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
 // CHECK-NEXT:      _d_this->d = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_this->p;
@@ -146,7 +145,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
-// CHECK: static clad::ValueAndAdjoint<S2, S2> constructor_reverse_forw(clad::Tag<S2>, double x, double _d_x) {
+// CHECK: static inline clad::ValueAndAdjoint<S2, S2> constructor_reverse_forw(clad::Tag<S2>, double x, double _d_x) {
 // CHECK-NEXT:     S2 *_this = (S2 *)malloc(sizeof(S2));
 // CHECK-NEXT:     S2 *_d_this = (S2 *)malloc(sizeof(S2));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(S2));
@@ -156,7 +155,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:     return {*_this, *_d_this};
 // CHECK-NEXT: }
 
-// CHECK:  static void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
+// CHECK:  static inline void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
 // CHECK-NEXT:      S2 *_this = (S2 *)malloc(sizeof(S2));
 // CHECK-NEXT:      _this->p = x;
 // CHECK-NEXT:      _this->i = 1.;
@@ -170,7 +169,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
-// CHECK: static clad::ValueAndAdjoint<S3, S3> constructor_reverse_forw(clad::Tag<S3>, double x, double _d_x) {
+// CHECK: static inline clad::ValueAndAdjoint<S3, S3> constructor_reverse_forw(clad::Tag<S3>, double x, double _d_x) {
 // CHECK-NEXT:     S3 *_this = (S3 *)malloc(sizeof(S3));
 // CHECK-NEXT:     S3 *_d_this = (S3 *)malloc(sizeof(S3));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(S3));
@@ -178,7 +177,7 @@ double fn2(double u, double v) {
 // CHECK-NEXT:     return {*_this, *_d_this};
 // CHECK-NEXT: }
 
-// CHECK:  static void constructor_pullback(double x, S3 *_d_this, double *_d_x) {
+// CHECK:  static inline void constructor_pullback(double x, S3 *_d_this, double *_d_x) {
 // CHECK-NEXT:      S3 *_this = (S3 *)malloc(sizeof(S3));
 // CHECK-NEXT:      _this->p = x * x;
 // CHECK-NEXT:      {
@@ -190,14 +189,14 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
-// CHECK: static clad::ValueAndAdjoint<S5, S5> constructor_reverse_forw(clad::Tag<S5>, double x, double _d_x) {
+// CHECK: static inline clad::ValueAndAdjoint<S5, S5> constructor_reverse_forw(clad::Tag<S5>, double x, double _d_x) {
 // CHECK-NEXT:     S5 *_this = (S5 *)malloc(sizeof(S5));
 // CHECK-NEXT:     S5 *_d_this = (S5 *)malloc(sizeof(S5));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(S5));
 // CHECK-NEXT:     return {*_this, *_d_this};
 // CHECK-NEXT: }
 
-// CHECK:  static void constructor_pullback(double x, S5 *_d_this, double *_d_x) {
+// CHECK:  static inline void constructor_pullback(double x, S5 *_d_this, double *_d_x) {
 // CHECK-NEXT:      S5 *_this = (S5 *)malloc(sizeof(S5));
 // CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
@@ -242,7 +241,7 @@ double fn3(double u, double v) {
   return s.i * s.p;
 }
 
-// CHECK: static clad::ValueAndAdjoint<S4, S4> constructor_reverse_forw(clad::Tag<S4>, double x, double _d_x) {
+// CHECK: static inline clad::ValueAndAdjoint<S4, S4> constructor_reverse_forw(clad::Tag<S4>, double x, double _d_x) {
 // CHECK-NEXT:    S4 *_this = (S4 *)malloc(sizeof(S4));
 // CHECK-NEXT:    S4 *_d_this = (S4 *)malloc(sizeof(S4));
 // CHECK-NEXT:    memset(_d_this, 0, sizeof(S4));
@@ -251,7 +250,7 @@ double fn3(double u, double v) {
 // CHECK-NEXT:    return {*_this, *_d_this};
 // CHECK-NEXT:}
 
-// CHECK: static void constructor_pullback(double x, S4 *_d_this, double *_d_x) {
+// CHECK: static inline void constructor_pullback(double x, S4 *_d_this, double *_d_x) {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        *_d_x += _d_this->p;
 // CHECK-NEXT:        _d_this->p = 0.;
@@ -297,7 +296,7 @@ double fn4(double i, double j) {
   return 2 + SimpleFunctions1(i);
 }
 
-// CHECK: static void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
+// CHECK: static inline void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
 // CHECK-NEXT:      _d_this->y = 0.;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_px += _d_this->x;
@@ -333,7 +332,7 @@ double fn5(double x, double y) {
     return y + g.y;
 } // x + x^2
 
-// CHECK:  static void constructor_pullback(double v, argByValWrapper *_d_this, double *_d_v) {
+// CHECK:  static inline void constructor_pullback(double v, argByValWrapper *_d_this, double *_d_v) {
 // CHECK-NEXT:      clad::ValueAndAdjoint<argByVal, argByVal> _t0 = argByVal::constructor_reverse_forw(clad::Tag<argByVal>(), v, 0.);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
@@ -366,16 +365,18 @@ double fn6(double x, double y) {
     return g.z;
 } // x^2 * y
 
-// CHECK: static clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> constructor_reverse_forw(clad::Tag<argByValWrapper>, double v, double u, double _d_v, double _d_u) {
-// CHECK-NEXT:     argByValWrapper *_this = new argByValWrapper(v);
+// CHECK: static inline clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> constructor_reverse_forw(clad::Tag<argByValWrapper>, double v, double u, double _d_v, double _d_u) {
+// CHECK-NEXT:     argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     argByValWrapper *_d_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(argByValWrapper));
+// CHECK-NEXT:     new (_this) argByValWrapper(v);
 // CHECK-NEXT:     _this->z = _this->y * u;
 // CHECK-NEXT:     return {*_this, *_d_this};
 // CHECK-NEXT: }
 
-// CHECK:  static void constructor_pullback(double v, double u, argByValWrapper *_d_this, double *_d_v, double *_d_u) {
-// CHECK-NEXT:      argByValWrapper *_this = new argByValWrapper(v);
+// CHECK:  static inline void constructor_pullback(double v, double u, argByValWrapper *_d_this, double *_d_v, double *_d_u) {
+// CHECK-NEXT:      argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
+// CHECK-NEXT:      new (_this) argByValWrapper(v);
 // CHECK-NEXT:      _this->z = _this->y * u;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r_d0 = _d_this->z;
@@ -410,7 +411,7 @@ double fn7(double x, double y) {
     return g.z;
 } // x^3
 
-// CHECK: static clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> constructor_reverse_forw(clad::Tag<argByValWrapper>, double v, bool arg, double _d_v, bool _d_arg) {
+// CHECK: static inline clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> constructor_reverse_forw(clad::Tag<argByValWrapper>, double v, bool arg, double _d_v, bool _d_arg) {
 // CHECK-NEXT:     argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     argByValWrapper *_d_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(argByValWrapper));
@@ -420,7 +421,7 @@ double fn7(double x, double y) {
 // CHECK-NEXT:     return {*_this, *_d_this};
 // CHECK-NEXT: }
 
-// CHECK:  static void constructor_pullback(double v, bool arg, argByValWrapper *_d_this, double *_d_v, bool *_d_arg) {
+// CHECK:  static inline void constructor_pullback(double v, bool arg, argByValWrapper *_d_this, double *_d_v, bool *_d_arg) {
 // CHECK-NEXT:      argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:      clad::ValueAndAdjoint<argByVal, argByVal> _t0 = argByVal::constructor_reverse_forw(clad::Tag<argByVal>(), v, 0.);
 // CHECK-NEXT:      new (static_cast<argByVal *>(_this)) argByVal(_t0.value);
@@ -585,7 +586,7 @@ struct cust_double {
     double val;
 };
 
-// CHECK:  static void constructor_pullback(double x, cust_double *_d_this, double *_d_x) {
+// CHECK:  static inline void constructor_pullback(double x, cust_double *_d_this, double *_d_x) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_x += _d_this->val;
 // CHECK-NEXT:          _d_this->val = 0.;
@@ -645,7 +646,7 @@ class ptrConstr {
   }
 };
 
-// CHECK:  static clad::ValueAndAdjoint<ptrConstr, ptrConstr> constructor_reverse_forw(clad::Tag<ptrConstr>, double &x, const double &y, double &_d_x, const double &_d_y) {
+// CHECK:  static inline clad::ValueAndAdjoint<ptrConstr, ptrConstr> constructor_reverse_forw(clad::Tag<ptrConstr>, double &x, const double &y, double &_d_x, const double &_d_y) {
 // CHECK-NEXT:      ptrConstr *_this = (ptrConstr *)malloc(sizeof(ptrConstr));
 // CHECK-NEXT:      ptrConstr *_d_this = (ptrConstr *)malloc(sizeof(ptrConstr));
 // CHECK-NEXT:      memset(_d_this, 0, sizeof(ptrConstr));
@@ -655,7 +656,7 @@ class ptrConstr {
 // CHECK-NEXT:      return {*_this, *_d_this};
 // CHECK-NEXT:  }
 
-// CHECK:  static void constructor_pullback(double &x, const double &y, ptrConstr *_d_this, double *_d_x, double *_d_y) {
+// CHECK:  static inline void constructor_pullback(double &x, const double &y, ptrConstr *_d_this, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      ptrConstr *_this = (ptrConstr *)malloc(sizeof(ptrConstr));
 // CHECK-NEXT:      _this->ptr = &x;
 // CHECK-NEXT:      _this->val = y * y;

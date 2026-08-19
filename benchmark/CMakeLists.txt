@@ -2,6 +2,7 @@ set(CTEST_BUILD_NAME ${ROOT_ARCHITECTURE}-${CMAKE_BUILD_TYPE})
 enable_testing()
 
 CB_ADD_GBENCHMARK(Simple Simple.cpp)
+CB_ADD_GBENCHMARK(PullbackState PullbackState.cpp)
 CB_ADD_GBENCHMARK(AlgorithmicComplexity AlgorithmicComplexity.cpp)
 CB_ADD_GBENCHMARK(ArrayExpressionTemplates ArrayExpressionTemplates.cpp)
 if (CLAD_ENABLE_ENZYME_BACKEND)
@@ -18,7 +19,15 @@ FetchContent_Declare(
   GIT_TAG        6f8cb04a4168cac5f6242cdeb65f6816c413f4ee 
   GIT_PROGRESS   TRUE      
 )
-FetchContent_MakeAvailable(tapenade_kit)
+FetchContent_Declare(
+    LULESH-CUDA
+    GIT_REPOSITORY https://github.com/wsmoses/Enzyme-GPU-Tests.git
+    GIT_TAG        9be62d07ad09ee22d03e1b8f8be28c6852eb7f70
+  )
+FetchContent_MakeAvailable(
+  tapenade_kit
+  LULESH-CUDA
+)
 
 # Build the support library for the stack from the fetched source
 add_library(tapenade_support STATIC ${tapenade_kit_SOURCE_DIR}/ADFirstAidKit/adStack.c)
@@ -59,6 +68,72 @@ endif()
 target_link_libraries(MemoryComplexity_tapenade PRIVATE tapenade_support)
 
 add_custom_target(benchmark-clad COMMAND ${CMAKE_CTEST_COMMAND} -V
-  DEPENDS ${CLAD_BENCHMARK_DEPS} WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    DEPENDS ${CLAD_BENCHMARK_DEPS} WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set_target_properties(benchmark-clad PROPERTIES FOLDER "Clad benchmarks")  
 
-set_target_properties(benchmark-clad PROPERTIES FOLDER "Clad benchmarks")
+find_package(CUDAToolkit QUIET)
+if(CUDAToolkit_FOUND)
+  execute_process(
+  COMMAND git apply --check "${CMAKE_CURRENT_SOURCE_DIR}/LULESH_diff.patch"
+  WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/LULESH"
+  RESULT_VARIABLE patch_applied_or_not
+  )
+
+  if(patch_applied_or_not EQUAL 0)
+    execute_process(
+      COMMAND git apply "${CMAKE_CURRENT_SOURCE_DIR}/LULESH_diff.patch"
+      WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/LULESH"
+    )
+  endif()  
+
+  set(LULESH_SOURCES
+    ${lulesh-cuda_SOURCE_DIR}/LULESH/allocator.cu
+    ${lulesh-cuda_SOURCE_DIR}/LULESH/lulesh.cu
+    ${lulesh-cuda_SOURCE_DIR}/LULESH/lulesh-comms.cu
+    ${lulesh-cuda_SOURCE_DIR}/LULESH/lulesh-comms-gpu.cu
+  )
+  
+  set_source_files_properties(${LULESH_SOURCES} PROPERTIES LANGUAGE CXX)
+  CB_ADD_CUDA_BENCHMARK(LULESH_Benchmark ${LULESH_SOURCES})
+  target_compile_options(LULESH_Benchmark PRIVATE -fno-openmp)
+  target_compile_definitions(LULESH_Benchmark PRIVATE 
+  VERIFY=1 
+  Normal_forward=0
+  USE_CLAD=1
+  )
+  
+  target_include_directories(LULESH_Benchmark PRIVATE ${lulesh-cuda_SOURCE_DIR}/LULESH) 
+  execute_process(
+    COMMAND git apply --check "${CMAKE_CURRENT_SOURCE_DIR}/XSBench_diff.patch"
+    WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/XSBench"
+    RESULT_VARIABLE xsbench_patch_applied_or_not
+  )
+
+  if(xsbench_patch_applied_or_not EQUAL 0)
+    execute_process(
+      COMMAND git apply "${CMAKE_CURRENT_SOURCE_DIR}/XSBench_diff.patch"
+      WORKING_DIRECTORY "${lulesh-cuda_SOURCE_DIR}/XSBench"
+    )
+  endif()  
+
+  set(XSBENCH_SOURCES
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/Main.cu
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/io.cu
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/Simulation.cu
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/GridInit.cu
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/XSutils.cu
+    ${lulesh-cuda_SOURCE_DIR}/XSBench/Materials.cu
+  )
+  
+  set_source_files_properties(${XSBENCH_SOURCES} PROPERTIES LANGUAGE CXX)
+  CB_ADD_CUDA_BENCHMARK(XSBench_Benchmark ${XSBENCH_SOURCES})
+  target_compile_options(XSBench_Benchmark PRIVATE -fno-openmp)
+  target_compile_definitions(XSBench_Benchmark PRIVATE 
+    ALWAYS_INLINE=1
+    USE_CLAD=1
+  )
+  
+  target_include_directories(XSBench_Benchmark PRIVATE ${lulesh-cuda_SOURCE_DIR}/XSBench)
+endif()
+
+

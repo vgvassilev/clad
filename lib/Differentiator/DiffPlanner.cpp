@@ -24,8 +24,10 @@
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
+#include "clang/Analysis/CFG.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
@@ -45,8 +47,10 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -317,20 +321,44 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     call->setArg(*codeArgIdx, CodeArg);
   }
 
-  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
+  DiffCollector::DiffCollector(DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
                                clang::Sema& S, RequestOptions& opts,
                                OwnedAnalysisContexts& AllAnalysisDC)
       : m_Interval(Interval), m_DiffRequestGraph(requestGraph),
-        m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {
+        m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {}
 
-    if (Interval.empty())
+  void DiffCollector::Walk(DeclGroupRef DGR) {
+    if (m_Interval.empty())
       return;
+
+    // A lookup issued mid-traversal (LookupCustomDerivativeDecl, analyses)
+    // can make the ASTReader deserialize pending module decls and hand them
+    // to the consumers, re-entering Walk while the active traversal -- and
+    // possibly a top-most request -- is still on the stack. Traversing them
+    // now would interleave collector state; park them until the active walk
+    // is done. (Deserialized decls lie outside the clad-activation interval,
+    // so the deferred traversal is a no-op for them beyond bookkeeping.)
+    if (m_TraversalInFlight) {
+      m_DeferredDGRs.push_back(DGR);
+      return;
+    }
+    llvm::SaveAndRestore<bool> InFlight(m_TraversalInFlight, true);
 
     assert(!m_TopMostReq && "Traversal already in flight!");
 
     for (Decl* D : DGR)
       TraverseDecl(D);
+
+    // Drain groups delivered during this walk (which may itself deliver
+    // more, growing the vector mid-loop -- hence indexed, not range-based).
+    // NOLINTNEXTLINE(modernize-loop-convert)
+    for (size_t i = 0; i < m_DeferredDGRs.size(); ++i) {
+      DeclGroupRef Deferred = m_DeferredDGRs[i];
+      for (Decl* D : Deferred)
+        TraverseDecl(D);
+    }
+    m_DeferredDGRs.clear();
   }
 
   bool DiffCollector::TraverseLambdaExpr(LambdaExpr* LE) {
@@ -347,6 +375,55 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return true;
   }
 
+  bool DiffCollector::PlanNestedRequest(DiffRequest& request) {
+    // Lazily-scheduled requests (pushforward/pullback/higher-order, built in
+    // DerivativeBuilder::HandleNestedDiffRequest) never pass through the static
+    // TU walk, so their planning must be done here on demand. For now this only
+    // records the early-return flag: m_TopMostReq is left null, so
+    // VisitCallExpr and VisitDeclRefExpr bail and no sub-requests are spawned
+    // -- only VisitReturnStmt runs over this request's body.
+    // FIXME: The varied and useful analyses are still force-disabled in
+    // HandleNestedDiffRequest; only TBR is served here.
+    const FunctionDecl* Def =
+        request.Function ? request.Function->getDefinition() : nullptr;
+    if (!Def || !Def->hasBody())
+      return true;
+
+    // Give the request the analysis context TBR needs. DiffRequest runs TBR
+    // lazily out of shouldBeRecorded(), so building the context is all that is
+    // required for a dynamically scheduled reverse-mode request to drop the
+    // stores its reverse sweep never reads back. Hessian mode benefits most:
+    // its reverse pass runs once per direction over a first-order derivative.
+    //
+    // Only the reverse-mode family consults shouldBeRecorded(); a context built
+    // for, say, a pushforward would never be looked at. TBRAnalyzer::Analyze
+    // seeds its state from request.Function's parameters and matches them
+    // against the decls the CFG refers to, so the two must be the same
+    // FunctionDecl -- a redeclaration has its own ParmVarDecls, which would
+    // silently match nothing. shouldBeRecorded() refuses to analyze a lambda
+    // call operator for the same kind of reason, so do not arm TBR for one.
+    bool usesTBR = request.Mode == DiffMode::reverse ||
+                   request.Mode == DiffMode::pullback ||
+                   request.Mode == DiffMode::jacobian ||
+                   request.Mode == DiffMode::reverse_mode_forward_pass;
+    if (usesTBR && request.EnableTBRAnalysis && !request.m_AnalysisDC &&
+        request.Function == Def && !isLambdaCallOperator(Def)) {
+      // One context per function: the same nested request is planned again
+      // whenever another call site asks for its derivative.
+      AnalysisDeclContext*& ADC = m_NestedAnalysisDC[Def];
+      if (!ADC) {
+        clang::CFG::BuildOptions Options;
+        m_AllAnalysisDC.push_back(std::make_unique<AnalysisDeclContext>(
+            /*AnalysisDeclContextManager=*/nullptr, Def, Options));
+        ADC = m_AllAnalysisDC.back().get();
+      }
+      request.m_AnalysisDC = ADC;
+    }
+
+    llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
+    return TraverseStmt(Def->getBody());
+  }
+
   bool DiffCollector::isInInterval(SourceLocation Loc) const {
     const SourceManager &SM = m_Sema.getSourceManager();
     for (size_t i = 0, e = m_Interval.size(); i < e; ++i) {
@@ -361,6 +438,131 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
     }
     return false;
+  }
+
+  const ReturnStmt* DiffRequest::getTailReturn() const {
+    const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+    if (!Def || !Def->hasBody())
+      return nullptr;
+    const Stmt* Body = Def->getBody();
+    // The tail return is the body's last statement, when that is a return.
+    if (const auto* CS = dyn_cast<CompoundStmt>(Body))
+      return CS->body_empty() ? nullptr
+                              : dyn_cast<ReturnStmt>(*CS->body_rbegin());
+    return dyn_cast<ReturnStmt>(Body);
+  }
+
+  bool DiffRequest::hasEarlyReturns() const {
+    if (m_EarlyReturnInfo.HasAnalysisRun)
+      return m_EarlyReturnInfo.HasEarlyReturns;
+    const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+    if (!Def || !Def->hasBody() || Def->getReturnType()->isVoidType())
+      return false;
+    // An early-return body has a return that is not the tail return. Returns
+    // inside a nested lambda belong to that lambda's own function, so do not
+    // descend into one.
+    struct Finder : RecursiveASTVisitor<Finder> {
+      const ReturnStmt* Tail = nullptr;
+      bool Found = false;
+      static bool TraverseLambdaExpr(LambdaExpr*) { return true; }
+      bool VisitReturnStmt(ReturnStmt* RS) {
+        if (RS != Tail)
+          Found = true;
+        return !Found; // stop at the first early return
+      }
+    } F;
+    F.Tail = getTailReturn();
+    F.TraverseStmt(Def->getBody());
+    m_EarlyReturnInfo = {F.Found, /*HasAnalysisRun=*/true};
+    return F.Found;
+  }
+
+  namespace {
+  /// Propagates "the tangent of this pointer may be null" along the pointer
+  /// initializations and assignments of a function body, to a fixpoint. Runs on
+  /// the primal, so that the classification does not depend on the order in
+  /// which the derivative code is generated: a read may precede the assignment
+  /// that makes the tangent null, as it does across loop iterations.
+  class MaybeNullPointerPropagator
+      : public RecursiveASTVisitor<MaybeNullPointerPropagator> {
+    std::set<const VarDecl*>* m_MaybeNull;
+    bool m_Changed = false;
+
+    /// Whether \p E reads a pointer whose tangent may be null. Pointer
+    /// arithmetic and casts keep such a tangent null, so the whole expression
+    /// is searched.
+    bool readsMaybeNull(const Expr* E) const {
+      if (!E)
+        return false;
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts()))
+        if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+          if (m_MaybeNull->count(VD) != 0)
+            return true;
+      for (const Stmt* child : E->children())
+        if (const auto* childExpr = dyn_cast_or_null<Expr>(child))
+          if (readsMaybeNull(childExpr))
+            return true;
+      return false;
+    }
+
+    void taint(const VarDecl* VD) {
+      if (VD && VD->getType()->isPointerType() &&
+          m_MaybeNull->insert(VD).second)
+        m_Changed = true;
+    }
+
+  public:
+    explicit MaybeNullPointerPropagator(std::set<const VarDecl*>& maybeNull)
+        : m_MaybeNull(&maybeNull) {}
+
+    bool VisitVarDecl(VarDecl* VD) {
+      // A pointer clad has no tangent for is given a null one.
+      if (VD->getType()->isPointerType() &&
+          (!VD->getInit() || readsMaybeNull(VD->getInit())))
+        taint(VD);
+      return true;
+    }
+
+    bool VisitBinaryOperator(BinaryOperator* BO) {
+      if (BO->getOpcode() != BO_Assign || !BO->getType()->isPointerType() ||
+          !readsMaybeNull(BO->getRHS()))
+        return true;
+      const auto* DRE =
+          dyn_cast<DeclRefExpr>(BO->getLHS()->IgnoreParenImpCasts());
+      if (DRE)
+        taint(dyn_cast<VarDecl>(DRE->getDecl()));
+      return true;
+    }
+
+    void runToFixpoint(Stmt* Body) {
+      m_Changed = true;
+      while (m_Changed) {
+        m_Changed = false;
+        TraverseStmt(Body);
+      }
+    }
+  };
+  } // namespace
+
+  bool DiffRequest::mayHaveNullTangent(const VarDecl* VD) const {
+    if (!VD || !VD->getType()->isPointerType())
+      return false;
+    if (!m_NullTangentInfo.HasAnalysisRun) {
+      m_NullTangentInfo.HasAnalysisRun = true;
+      const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+      if (Def && Def->hasBody()) {
+        std::set<const VarDecl*>& MaybeNull = m_NullTangentInfo.MaybeNullPtrs;
+        // Clad has no tangent buffer to pass for a const-qualified pointer
+        // parameter; the pointers of the body derived from one inherit that.
+        for (const ParmVarDecl* PVD : Def->parameters()) {
+          QualType T = PVD->getType();
+          if (T->isPointerType() && T->getPointeeType().isConstQualified())
+            MaybeNull.insert(PVD);
+        }
+        MaybeNullPointerPropagator(MaybeNull).runToFixpoint(Def->getBody());
+      }
+    }
+    return m_NullTangentInfo.MaybeNullPtrs.count(VD) != 0;
   }
 
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
@@ -851,6 +1053,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.EnableTBRAnalysis = ReqOpts.EnableTBRAnalysis;
     request.EnableVariedAnalysis = ReqOpts.EnableVariedAnalysis;
     request.EnableUsefulAnalysis = ReqOpts.EnableUsefulAnalysis;
+    request.EmitPortingHints = ReqOpts.EmitPortingHints;
 
     const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
     assert(TAL && "Call must have specialization args!");
@@ -978,7 +1181,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     });
   }
 
-  static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R) {
+  static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R,
+                               bool* foundAnyDecl = nullptr) {
+    if (foundAnyDecl)
+      *foundAnyDecl = false;
     // Error estimation only uses forward mode derivatives if they are
     // user-prodived to handle builtin derivatives. If found, we have to change
     // the mode of the request.
@@ -986,7 +1192,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         utils::canUsePushforwardInRevMode(R.Function)) {
       R.Mode = DiffMode::pushforward;
       R.EnableErrorEstimation = false;
-      if (Expr* overload = getOverloadExpr(S, DC, R)) {
+      if (Expr* overload = getOverloadExpr(S, DC, R, foundAnyDecl)) {
         R.DVI.clear();
         return overload;
       }
@@ -1026,11 +1232,96 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (Found.empty())
       return nullptr; // Nothing found.
 
+    if (foundAnyDecl)
+      *foundAnyDecl = true;
+
+    // A custom reverse_forw / pullback carries a trailing pullback_state<S>
+    // clad does not synthesize. Extend the expected signature with it before
+    // matching, or the declaration is rejected and the diagnostic omits the
+    // state the pullback must accept. S comes from the reverse_forw: the
+    // candidate itself, or -- for a pullback request -- its paired
+    // reverse_forw.
+    auto findStateParam = [](const LookupResult& LR) -> QualType {
+      for (const NamedDecl* ND : LR)
+        // getAsFunction sees through a FunctionTemplateDecl to its templated
+        // FunctionDecl -- a templated reverse_forw (e.g. the thrust
+        // derivatives) declares the state param there. The payload itself must
+        // still be non-dependent for GetPullbackStatePayload to recognize it.
+        if (const FunctionDecl* FD = ND->getUnderlyingDecl()->getAsFunction())
+          for (const ParmVarDecl* PVD : FD->parameters()) {
+            QualType PT = PVD->getType();
+            if (PT->isLValueReferenceType() &&
+                !utils::GetPullbackStatePayload(PT.getNonReferenceType())
+                     .isNull())
+              return PT.getNonReferenceType();
+          }
+      return {};
+    };
+    QualType stateParam;
+    if (R.Mode == DiffMode::reverse_mode_forward_pass)
+      stateParam = findStateParam(Found);
+    else if (R.Mode == DiffMode::pullback)
+      stateParam = findStateParam(
+          LookupPropagator(R.BaseFunctionName + "_reverse_forw"));
+    if (!stateParam.isNull())
+      if (const auto* FPT = dTy->getAs<FunctionProtoType>()) {
+        // The reverse_forw takes the state by reference (out-param); the
+        // pullback takes it by value.
+        QualType stateArg = R.Mode == DiffMode::reverse_mode_forward_pass
+                                ? C.getLValueReferenceType(stateParam)
+                                : stateParam;
+        llvm::SmallVector<QualType, 8> params(FPT->param_types().begin(),
+                                              FPT->param_types().end());
+        params.push_back(stateArg);
+        dTy = C.getFunctionType(FPT->getReturnType(), params,
+                                FPT->getExtProtoInfo());
+        // Remember it so Derive appends a matching argument when it builds the
+        // overload call for this custom derivative.
+        R.PullbackStateParam = stateArg;
+      }
+
     TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
                                               /*ForTakingAddress=*/false);
     if (Expr* overload =
             utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
       return overload;
+
+    // For an original that returns `const T&`, the expected pushforward
+    // returns ValueAndPushforward<const T&, const T&>. With two reference
+    // members that struct is neither default-constructible nor assignable,
+    // which breaks differentiating the generated code again at higher
+    // orders (issue #1872), so the min/max builtins return
+    // ValueAndPushforward<T, T> instead. Accept them by retrying the lookup
+    // with the expectation relaxed the same way. Retrying only after the
+    // exact match fails keeps genuinely reference-returning pushforwards
+    // (e.g. the STL builtins for operator[], at, front, back) matching as
+    // before.
+    if (const auto* FPT = dTy->getAs<FunctionProtoType>()) {
+      auto* CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+          FPT->getReturnType()->getAsCXXRecordDecl());
+      TemplateDecl* VPDecl =
+          utils::LookupTemplateDeclInCladNamespace(S, "ValueAndPushforward");
+      if (CTSD && CTSD->getSpecializedTemplate() == VPDecl) {
+        const auto& tArgs = CTSD->getTemplateArgs();
+        QualType valueTy = tArgs[0].getAsType();
+        QualType pushforwardTy = tArgs[1].getAsType();
+        if (valueTy->isLValueReferenceType() &&
+            valueTy.getNonReferenceType().isConstQualified() &&
+            C.hasSameType(valueTy, pushforwardTy)) {
+          QualType relaxedTy =
+              valueTy.getNonReferenceType().getUnqualifiedType();
+          QualType relaxedRetTy =
+              utils::InstantiateTemplate(S, VPDecl, {relaxedTy, relaxedTy});
+          QualType relaxedDTy = C.getFunctionType(
+              relaxedRetTy, FPT->getParamTypes(), FPT->getExtProtoInfo());
+          TemplateSpecCandidateSet RelaxedCandidates(
+              R.CallContext->getBeginLoc(), /*ForTakingAddress=*/false);
+          if (Expr* overload = utils::MatchOverloadType(S, relaxedDTy, Found,
+                                                        RelaxedCandidates))
+            return overload;
+        }
+      }
+    }
 
     if (!enableDiagnostics)
       return nullptr;
@@ -1078,21 +1369,43 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
     } else
       fnDecl = request.Function;
-    DeclContext* DC = customDerNS;
-
-    if (isa<CXXMethodDecl>(fnDecl))
-      DC = utils::LookupNSD(m_Sema, "class_functions", /*shouldExist=*/false,
-                            DC);
-    else
-      DC = utils::FindDeclContext(m_Sema, DC, fnDecl->getDeclContext());
-
-    if (!DC)
-      return false;
-
     assert(request.Mode != DiffMode::unknown &&
            "Called lookup without specified DiffMode");
 
-    if (Expr* overload = getOverloadExpr(m_Sema, DC, request)) {
+    auto LookupOverload = [this, fnDecl, &request](NamespaceDecl* NSD,
+                                                   bool* foundAnyDecl) {
+      DeclContext* DC = NSD;
+      if (isa<CXXMethodDecl>(fnDecl))
+        DC = utils::LookupNSD(m_Sema, "class_functions",
+                              /*shouldExist=*/false, DC);
+      else
+        DC = utils::FindDeclContext(m_Sema, DC, fnDecl->getDeclContext());
+      if (!DC)
+        return static_cast<Expr*>(nullptr);
+      return getOverloadExpr(m_Sema, DC, request, foundAnyDecl);
+    };
+
+    // Look for the user overrides namespace nested inside custom_derivatives
+    NamespaceDecl* overridesNS = utils::LookupNSD(
+        m_Sema, "overrides", /*shouldExist=*/false, customDerNS);
+
+    // clad::custom_derivatives::overrides (user overrides, higher priority).
+    bool foundOverridesDecl = false;
+    if (overridesNS) {
+      if (Expr* overload = LookupOverload(overridesNS, &foundOverridesDecl)) {
+        // Overload found. Mark the request as custom derivative overrides and
+        // save the set of overloads to process later.
+        request.CustomDerivative = overload;
+        return true;
+      }
+      // Overrides declaration found but signature mismatch; do not fall back to
+      // builtin.
+      if (foundOverridesDecl)
+        return false;
+    }
+
+    // clad::custom_derivatives (builtins, fallback).
+    if (Expr* overload = LookupOverload(customDerNS, nullptr)) {
       // Overload found. Mark the request as custom derivative and save
       // the set of overloads to process later.
       request.CustomDerivative = overload;
@@ -1111,6 +1424,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
 
     bool nonDiff = false;
+    bool hasNoMemoryInputForPointerOrRefReturn = false;
     // FIXME: We might want to support nested calls to differentiate/gradient
     // inside differentiated functions.
     if (!m_TopMostReq) {
@@ -1166,10 +1480,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (clad::utils::hasNonDifferentiableAttribute(E))
         nonDiff = true;
 
+      // A call whose object is a marked non-differentiable type -- a stream
+      // operation (`os << x`) or a std::streambuf method -- is opaque. Do not
+      // schedule a derivative for it or recurse into its body; otherwise clad
+      // descends into the whole non-differentiable I/O machinery
+      // (sentry/streambuf/scope_guard/char_traits). The primal call is emitted
+      // as-is in the derivative.
+      if (clad::utils::callOperatesOnNonDifferentiableType(m_Sema, E))
+        return true;
+
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
       request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
+      request.EmitPortingHints = m_TopMostReq->EmitPortingHints;
       request.EnableErrorEstimation = m_TopMostReq->EnableErrorEstimation;
       request.CallContext = E;
 
@@ -1193,10 +1517,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (!(MD && MD->isInstance()) && !hasPointerOrRefReturn &&
           allArgumentsAreLiterals(E->arguments(), m_ParentReq))
         nonDiff = true;
-      // In the reverse mode, such functions don't have dfdx()
-      if (!utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
-          m_TopMostReq->Mode == DiffMode::reverse)
-        nonDiff = true;
+      // In reverse mode, calls without memory parameters normally have no
+      // adjoint destination for a pointer or reference return. Defer the final
+      // decision for instance calls until custom derivatives are known because
+      // their implicit object can carry the adjoint.
+      hasNoMemoryInputForPointerOrRefReturn =
+          !utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
+          m_TopMostReq->Mode == DiffMode::reverse;
       // Skip reverse-mode scheduling for integral-return helper calls that
       // cannot accumulate through memory arguments. Keep this narrow to avoid
       // suppressing diagnostics on variadic/non-helper calls.
@@ -1343,7 +1670,36 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         E->getDirectCallee();
     bool shouldUseRestoreTracker =
         utils::shouldUseRestoreTracker(request.Function);
-    if (!(LookupCustomDerivativeDecl(request) || nonDiff) || requestTBR) {
+    bool hasCustomPullback = LookupCustomDerivativeDecl(request);
+    // Share one request between early classification and final scheduling.
+    DiffRequest forwPassRequest;
+    if (request.Mode == DiffMode::pullback) {
+      forwPassRequest.Function = request.Function;
+      forwPassRequest.BaseFunctionName = request.BaseFunctionName;
+      forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
+      forwPassRequest.CallContext = request.CallContext;
+      forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
+    }
+
+    if (hasNoMemoryInputForPointerOrRefReturn) {
+      const auto* calledMethod = dyn_cast<CXXMethodDecl>(FD);
+      bool isRefReturningInstanceCall =
+          request.Mode == DiffMode::pullback && calledMethod &&
+          calledMethod->isInstance() &&
+          utils::isNonConstReferenceType(request->getReturnType());
+      bool hasCustomReverseForw = false;
+      if (isRefReturningInstanceCall)
+        hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
+
+      // A reverse_forw still needs a matching pullback. Preserve the existing
+      // forward-only contract only when a custom reverse_forw has no custom
+      // pullback, as with smart-pointer and reference-wrapper helpers.
+      if (!isRefReturningInstanceCall ||
+          (hasCustomReverseForw && !hasCustomPullback))
+        nonDiff = true;
+    }
+
+    if (!(hasCustomPullback || nonDiff) || requestTBR) {
       clang::CFG::BuildOptions Options;
       std::unique_ptr<AnalysisDeclContext> AnalysisDC =
           std::make_unique<AnalysisDeclContext>(
@@ -1417,14 +1773,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     }
 
     if (request.Mode == DiffMode::pullback) {
-      DiffRequest forwPassRequest;
-      forwPassRequest.Function = request.Function;
-      forwPassRequest.BaseFunctionName = request.BaseFunctionName;
-      forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
-      forwPassRequest.CallContext = request.CallContext;
+      // TBR can prove that no state needs restoring, so refresh this before
+      // scheduling the request.
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
       QualType returnType = request->getReturnType();
-      bool hasCustomPullback = request.CustomDerivative != nullptr;
       bool hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
 
       if (hasCustomReverseForw ||
@@ -1445,8 +1797,23 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return true;
   }
 
+  bool DiffCollector::VisitBinaryOperator(BinaryOperator* BO) {
+    // Runs while TraverseFunctionDeclOnce walks a request's body, with
+    // m_ParentReq pointing at that request (still local, added to the graph
+    // only after the walk) -- so this eagerly records into the very request
+    // reverse mode will consume. Outside a request body m_ParentReq is null.
+    if (m_ParentReq && BO->getOpcode() == BO_Assign)
+      if (const VarDecl* p = DiffRequest::AllocCallInfo::recognize(BO->getRHS())
+                                 .getInPlaceReallocPtr(BO->getLHS()))
+        m_ParentReq->InPlaceReallocPtrs.insert(p);
+    return true;
+  }
+
   bool DiffCollector::VisitDeclRefExpr(DeclRefExpr* DRE) {
-    if (!m_ParentReq)
+    // m_TopMostReq is dereferenced below; it is null when PlanNestedRequest
+    // walks a lazy request's body just to record its early-return flag, and no
+    // global-adjoint discovery is wanted there.
+    if (!m_ParentReq || !m_TopMostReq)
       return true;
     // FIXME: Add support for globals in other modes.
     if (m_ParentReq->Mode != DiffMode::reverse &&
@@ -1496,10 +1863,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     forwPassRequest.BaseFunctionName = "constructor";
     forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
     forwPassRequest.CallContext = E;
+    forwPassRequest.EmitPortingHints = m_TopMostReq->EmitPortingHints;
     QualType recordTy = CD->getThisType()->getPointeeType();
     bool elideRevForw =
-        utils::isElidableConstructor(CD, m_Sema.getASTContext());
-    if (LookupCustomDerivativeDecl(forwPassRequest) || !elideRevForw)
+        utils::constructorReverseForwIsElidable(CD, m_Sema.getASTContext());
+    // Cloning the body of a non-differentiable constructor yields an ill-formed
+    // reverse-forward propagator: e.g. std::string's char-pointer constructor
+    // (reached through a Kokkos::View label) delegates to a private member
+    // (this->__init(...)), but the propagator is a static function with no
+    // `this`, so CodeGen crashes. Build a propagator for a marked type only
+    // when the user supplied a custom derivative, never by cloning the library
+    // body.
+    bool cloneBodyUnsafe =
+        utils::isNonDifferentiableType(m_Sema, CD->getParent());
+    if (LookupCustomDerivativeDecl(forwPassRequest) ||
+        (!elideRevForw && !cloneBodyUnsafe))
       m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
 
     // Don't build propagators for calls that do not contribute in
@@ -1516,6 +1894,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     request.VerboseDiags = false;
     request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
     request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+    request.EmitPortingHints = m_TopMostReq->EmitPortingHints;
 
     for (const auto* paramDecl : CD->parameters())
       request.DVI.push_back(paramDecl);

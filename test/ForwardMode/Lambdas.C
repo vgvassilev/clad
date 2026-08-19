@@ -42,6 +42,16 @@ double fn4(double x) {
     return _f(x);
 }
 
+double fn5(double x) {
+    auto _f = [](double _x) {
+        double s = 0;
+        for (int k = 0; k < 3; ++k)
+            s += _x * _x;
+        return s;
+    };
+    return _f(x);
+}
+
 int main() {
     auto fn0_dx = clad::differentiate(fn0, 0);
     printf("Result is = %.2f\n", fn0_dx.execute(7)); // CHECK-EXEC: Result is = 14.00
@@ -62,4 +72,8 @@ int main() {
     auto fn4_dx = clad::differentiate(fn4, 0);
     printf("Result is = %.2f\n", fn4_dx.execute(7)); // CHECK-EXEC: Result is = 28.00
     printf("Result is = %.2f\n", fn4_dx.execute(-1)); // CHECK-EXEC: Result is = -4.00
+
+    auto fn5_dx = clad::differentiate(fn5, 0);
+    printf("Result is = %.2f\n", fn5_dx.execute(7)); // CHECK-EXEC: Result is = 42.00
+    printf("Result is = %.2f\n", fn5_dx.execute(-1)); // CHECK-EXEC: Result is = -6.00
 }

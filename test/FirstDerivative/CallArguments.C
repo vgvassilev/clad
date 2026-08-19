@@ -112,12 +112,15 @@ float f_const_args_func_7(const float x, const float y) {
   return f_const_helper(x) + f_const_helper(y) - y;
 }
 
+// The tangent of y is a zero-initialized constant, so the call contributes
+// nothing and no pushforward is requested for it. f_const_args_func_8 below is
+// the same function with a non-const y, whose tangent can still be assigned to,
+// so there the pushforward stays.
 // CHECK: float f_const_args_func_7_darg0(const float x, const float y) {
 // CHECK-NEXT: const float _d_x = 1;
 // CHECK-NEXT: const float _d_y = 0;
 // CHECK-NEXT: clad::ValueAndPushforward<float, float> _t0 = f_const_helper_pushforward(x, _d_x);
-// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t1 = f_const_helper_pushforward(y, _d_y);
-// CHECK-NEXT: return _t0.pushforward + _t1.pushforward - _d_y;
+// CHECK-NEXT: return _t0.pushforward + 0.F - _d_y;
 // CHECK-NEXT: }
 
 float f_const_args_func_8(const float x, float y) {

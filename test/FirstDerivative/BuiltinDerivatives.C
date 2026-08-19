@@ -2,7 +2,6 @@
 // RUN: ./BuiltinDerivatives.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -Xclang -verify -oBuiltinDerivatives.out
 // RUN: ./BuiltinDerivatives.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"
@@ -531,7 +530,7 @@ double f_custom_max(double x, double y) { return std::max(x, y, std::greater<dou
 // CHECK:  double f_custom_max_darg0(double x, double y) {
 // CHECK-NEXT:      double _d_x = 1;
 // CHECK-NEXT:      double _d_y = 0;
-// CHECK-NEXT:      ValueAndPushforward<const double &, const double &> _t0 = clad::custom_derivatives::std::max_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
+// CHECK-NEXT:      ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::std::max_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
 // CHECK-NEXT:      return _t0.pushforward;
 // CHECK-NEXT:  }
 
@@ -539,7 +538,7 @@ double f_custom_min(double x, double y) { return std::min(x, y, std::greater<dou
 // CHECK:  double f_custom_min_darg0(double x, double y) {
 // CHECK-NEXT:      double _d_x = 1;
 // CHECK-NEXT:      double _d_y = 0;
-// CHECK-NEXT:      ValueAndPushforward<const double &, const double &> _t0 = clad::custom_derivatives::std::min_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
+// CHECK-NEXT:      ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::std::min_pushforward(x, y, std::greater<double>(), _d_x, _d_y, std::greater<double>());
 // CHECK-NEXT:      return _t0.pushforward;
 // CHECK-NEXT:  }
 
@@ -548,6 +547,13 @@ double f_beta(double x, double y) { return std::beta(x, y); }
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     double _d_y = 0;
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}beta_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_lgamma(double x) { return std::lgamma(x); }
+// CHECK: double f_lgamma_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}lgamma_pushforward(x, _d_x);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -736,6 +742,9 @@ int main () { //expected-no-diagnostics
 
   auto d_beta = clad::differentiate(f_beta, 0);
   printf("Result is = %.6f\n", d_beta.execute(2.0, 3.0)); // CHECK-EXEC: Result is = -0.090278
+
+  auto d_lgamma = clad::differentiate(f_lgamma, 0);
+  printf("Result is = %.6f\n", d_lgamma.execute(0.5)); // CHECK-EXEC: Result is = -1.963510
 
   return 0;
 }

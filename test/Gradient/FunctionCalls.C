@@ -2,7 +2,6 @@
 // RUN: ./FunctionCalls.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr -Wno-writable-strings -Xclang -plugin-arg-clad -Xclang -enable-va %s  -I%S/../../include -oFunctionCalls.out
 // RUN: ./FunctionCalls.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -147,9 +146,10 @@ float sum(double* arr, int n) {
 }
 
 // CHECK: float sum_reverse_forw(double *arr, int n, double *_d_arr, int _d_n, clad::restore_tracker &_tracker0) {
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     float _d_res = 0;
 // CHECK-NEXT:     float res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     _t0 = 0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     for (int i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -207,12 +207,13 @@ double fn4(double* arr, int n) {
 }
 
 // CHECK: void fn4_grad(double *arr, int n, double *_d_arr, int *_d_n) {
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     res += sum_reverse_forw(arr, n, _d_arr, 0, _tracker0);
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
@@ -238,6 +239,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         int _r0 = 0;
 // CHECK-NEXT:         sum_pullback(arr, n, _r_d0, _d_arr, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_n += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -270,12 +272,14 @@ double fn5(double* arr, int n) {
 
 // CHECK: void fn5_grad(double *arr, int n, double *_d_arr, int *_d_n) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     double _d_temp = 0.;
 // CHECK-NEXT:     double temp = modify2_reverse_forw(arr, _d_arr, _tracker0);
 // CHECK-NEXT:     _d_arr[0] += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:       _tracker0.restore();
 // CHECK-NEXT:       modify2_pullback(arr, _d_temp, _d_arr);
+// CHECK-NEXT:       _tracker0.restore();
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -351,7 +355,9 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t2 = {{.*}}custom_derivatives::custom_identity_reverse_forw(i, *_d_i);
 // CHECK-NEXT:     double &_d_temp = _t2.adjoint;
 // CHECK-NEXT:     double &temp = _t2.value;
+// CHECK-NEXT:     double _t3 = k;
 // CHECK-NEXT:     k += 7 * j;
+// CHECK-NEXT:     double _t4 = l;
 // CHECK-NEXT:     l += 9 * i;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1;
@@ -359,10 +365,12 @@ double fn7(double i, double j) {
 // CHECK-NEXT:         _d_temp += 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
+// CHECK-NEXT:         l = _t4;
 // CHECK-NEXT:         double _r_d1 = _d_l;
 // CHECK-NEXT:         *_d_i += 9 * _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
+// CHECK-NEXT:         k = _t3;
 // CHECK-NEXT:         double _r_d0 = _d_k;
 // CHECK-NEXT:         *_d_j += 7 * _r_d0;
 // CHECK-NEXT:     }
@@ -377,11 +385,23 @@ double check_and_return(double x, char c, const char* s) {
 }
 
 // CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_c, char *_d_s) {
-// CHECK-NEXT:    bool _cond0;
+// CHECK-NEXT:    bool _cond0 = false;
 // CHECK-NEXT:    double _d_cond0;
 // CHECK-NEXT:    _d_cond0 = 0.;
-// CHECK-NEXT:    bool _cond1;
-// CHECK-NEXT:    bool _cond2;
+// CHECK-NEXT:    bool _cond1 = false;
+// CHECK-NEXT:    bool _cond2 = false;
+// CHECK-NEXT:    auto _rev0 = [&] {
+// CHECK-NEXT:        {
+// CHECK-NEXT:            if (_cond2)
+// CHECK-NEXT:                *_d_x += _d_y;
+// CHECK-NEXT:            {
+// CHECK-NEXT:                if (_cond1) {
+// CHECK-NEXT:                    double _r_d0 = _d_cond0;
+// CHECK-NEXT:                    _d_cond0 = 0.;
+// CHECK-NEXT:                }
+// CHECK-NEXT:            }
+// CHECK-NEXT:        }
+// CHECK-NEXT:    };
 // CHECK-NEXT:    {
 // CHECK-NEXT:        {
 // CHECK-NEXT:            _cond1 = c == 'a';
@@ -389,20 +409,12 @@ double check_and_return(double x, char c, const char* s) {
 // CHECK-NEXT:                _cond0 = s[0] == 'a';
 // CHECK-NEXT:        }
 // CHECK-NEXT:        _cond2 = _cond1 && _cond0;
-// CHECK-NEXT:        if (_cond2)
-// CHECK-NEXT:            goto _label0;
-// CHECK-NEXT:    }
-// CHECK-NEXT:    {
-// CHECK-NEXT:        if (_cond2)
-// CHECK-NEXT:          _label0:
-// CHECK-NEXT:           *_d_x += _d_y;
-// CHECK-NEXT:        {
-// CHECK-NEXT:            if (_cond1) {
-// CHECK-NEXT:                double _r_d0 = _d_cond0;
-// CHECK-NEXT:                _d_cond0 = 0.;
-// CHECK-NEXT:            }
+// CHECK-NEXT:        if (_cond2) {
+// CHECK-NEXT:            _rev0();
+// CHECK-NEXT:            return;
 // CHECK-NEXT:        }
 // CHECK-NEXT:    }
+// CHECK-NEXT:    _rev0();
 // CHECK-NEXT:}
 
 double fn8(double x, double y) {
@@ -615,25 +627,28 @@ double recFun (double x, double y) {
 }
 
 //CHECK: void recFun_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
-//CHECK-NEXT:     bool _cond0;
-//CHECK-NEXT:     {
-//CHECK-NEXT:     _cond0 = x > y;
-//CHECK-NEXT:     if (_cond0)
-//CHECK-NEXT:         goto _label0;
-//CHECK-NEXT:     }
-//CHECK-NEXT:     {
-//CHECK-NEXT:         *_d_x += _d_y0 * y;
-//CHECK-NEXT:         *_d_y += x * _d_y0;
-//CHECK-NEXT:     }
-//CHECK-NEXT:     if (_cond0)
-//CHECK-NEXT:       _label0:
-//CHECK-NEXT:         {
+//CHECK-NEXT:     bool _cond0 = false;
+//CHECK-NEXT:     auto _rev0 = [&] {
+//CHECK-NEXT:         if (_cond0) {
 //CHECK-NEXT:             double _r0 = 0.;
 //CHECK-NEXT:             double _r1 = 0.;
 //CHECK-NEXT:             recFun_pullback(x - 1, y, _d_y0, &_r0, &_r1);
 //CHECK-NEXT:             *_d_x += _r0;
 //CHECK-NEXT:             *_d_y += _r1;
 //CHECK-NEXT:         }
+//CHECK-NEXT:     };
+//CHECK-NEXT:     {
+//CHECK-NEXT:     _cond0 = x > y;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         _rev0();
+//CHECK-NEXT:         return;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += _d_y0 * y;
+//CHECK-NEXT:         *_d_y += x * _d_y0;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _rev0();
 //CHECK-NEXT: }
 
 double fn16(double x, double y) {
@@ -885,7 +900,8 @@ void mult(double* x, double y) {
 }
 
 // CHECK: void mult_reverse_forw(double *x, double y, double *_d_x, double _d_y, clad::restore_tracker &_tracker0) {
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     _t0 = 0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     for (int i = 0; i < 3; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -924,11 +940,12 @@ double fn27(double u, double v) {
 } // u * v + u
 
 // CHECK-NEXT: void fn27_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     double _d_arr[3] = {0};
 // CHECK-NEXT:     double arr[3] = {u, v, 1};
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum0 = arr[0] * arr[1] * arr[2];
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     mult_reverse_forw(arr, u, _d_arr, 0., _tracker0);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_sum += 1;
@@ -938,6 +955,7 @@ double fn27(double u, double v) {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         mult_pullback(arr, u, _d_arr, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_u += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -965,18 +983,22 @@ double& nested(double* x, double y) {
 
 // CHECK-NEXT: void nested_pullback(double *x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, 0., _tracker0);
 // CHECK-NEXT:     clad::restore_tracker _tracker1 = {};
+// CHECK-NEXT:     _tracker0.clear();
+// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, 0., _tracker0);
+// CHECK-NEXT:     _tracker1.clear();
 // CHECK-NEXT:     mult_reverse_forw(x, 3, _d_x, 0, _tracker1);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker1.restore();
 // CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         mult_pullback(x, 3, _d_x, &_r1);
+// CHECK-NEXT:         _tracker1.restore();
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         mult_pullback(x, y, _d_x, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_y += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -989,19 +1011,25 @@ double fn28(double u, double v) {
 } // 3 * u * v + 2
 
 // CHECK-NEXT: void fn28_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     double _d_arr[3] = {0};
 // CHECK-NEXT:     double arr[3] = {u, v, 1};
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t0 = nested_reverse_forw(arr, u, _d_arr, 0., _tracker0);
 // CHECK-NEXT:     double &_d_ref = _t0.adjoint;
 // CHECK-NEXT:     double &ref = _t0.value;
+// CHECK-NEXT:     double _t1 = ref;
 // CHECK-NEXT:     ref += 2;
 // CHECK-NEXT:     _d_ref += 1;
-// CHECK-NEXT:     double _r_d0 = _d_ref; 
+// CHECK-NEXT:     {
+// CHECK-NEXT:         ref = _t1;
+// CHECK-NEXT:         double _r_d0 = _d_ref;
+// CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         nested_pullback(arr, u, _d_arr, &_r0);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         *_d_u += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -1038,6 +1066,7 @@ double fn29(double *x) {
 
 // CHECK: void fn29_grad(double *x, double *_d_x) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     _tracker0.clear();
 // CHECK-NEXT:     foo_reverse_forw(x, _d_x, _tracker0);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_x[0] += 1 * x[1];
@@ -1046,6 +1075,7 @@ double fn29(double *x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:         foo_pullback(x, _d_x);
+// CHECK-NEXT:         _tracker0.restore();
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1310,6 +1340,20 @@ void print(T* arr, int n) {
   F##_grad.execute(__VA_ARGS__, result, &d_n);\
   print(result, 5);
 
+// Calls the reference-returning identity() inside a loop. clad stores each
+// identity_reverse_forw result in a tape -- the in-loop reverse-forward store
+// (GlobalStoreAndRef), as opposed to the straight-line store fn7 exercises.
+double fnIdLoop(double x, double y) {
+  double a = x;
+  double s = 0;
+  for (int c = 0; c < 3; ++c)
+    s += identity(a);
+  return s + y;
+} // 3x + y
+
+// CHECK-LABEL: void fnIdLoop_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: clad::push(_t{{[0-9]+}}, identity_reverse_forw(a, _d_a));
+
 int main() {
   double result[7];
   float fresult[7];
@@ -1432,6 +1476,8 @@ int main() {
 
   INIT(fn35);
   TEST2(fn35, 10, 1);  // CHECK-EXEC: {-3.00, 2.00}
+  INIT(fnIdLoop);
+  TEST2(fnIdLoop, 2, 5);  // CHECK-EXEC: {3.00, 1.00}
 }
 
 double sq_defined_later(double x) {
@@ -1452,19 +1498,16 @@ double fn25_defined_later(double x) {
 // CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params) {
 // CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
 // CHECK-NEXT:     std::size_t i = {{0U|0UL}};
-// CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_total = 0.;
 // CHECK-NEXT:     double total = 1.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 1; ++i) {
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, total);
 // CHECK-NEXT:         total += params[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_total += _d_y;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
-// CHECK-NEXT:         total = clad::pop(_t1);
 // CHECK-NEXT:         double _r_d0 = _d_total;
 // CHECK-NEXT:         _d_params[i] += _r_d0;
 // CHECK-NEXT:     }

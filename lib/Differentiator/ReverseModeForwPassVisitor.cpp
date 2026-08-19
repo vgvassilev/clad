@@ -47,9 +47,11 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
 
   m_Sema.CurContext = DC;
   SourceLocation validLoc{m_DiffReq->getLocation()};
-  DeclWithContext fnBuildRes = m_Builder.cloneFunction(
+  // `fnBuildRes` owns the namespace Scopes cloneFunction opens; its
+  // destructor pops them before saveScope restores.
+  ClonedFunction fnBuildRes = m_Builder.cloneFunction(
       m_DiffReq.Function, *this, m_Sema.CurContext, validLoc, fnDNI, fnType);
-  m_Derivative = fnBuildRes.first;
+  m_Derivative = fnBuildRes.fd;
 
   beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
              Scope::DeclScope);
@@ -79,15 +81,18 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
       m_ThisExprDerivative = dthisObj.getExpr();
       addToCurrentBlock(dthisObj.getStmt_dx());
       for (CXXCtorInitializer* CI : CD->inits()) {
-        StmtDiff CI_diff = DifferentiateCtorInit(CI, thisObj.getExpr());
+        // _this is reused by every initializer and the return below; clone it
+        // so each occurrence owns its node.
+        StmtDiff CI_diff =
+            DifferentiateCtorInit(CI, CloneNode(thisObj.getExpr()));
         addToCurrentBlock(CI_diff.getStmt(), direction::forward);
         addToCurrentBlock(CI_diff.getStmt_dx(), direction::forward);
       }
       // Build `return {*_this, *_d_this};`
       SourceLocation validLoc{CD->getBeginLoc()};
       llvm::SmallVector<Expr*, 2> returnArgs = {
-          BuildOp(UO_Deref, thisObj.getExpr()),
-          BuildOp(UO_Deref, dthisObj.getExpr())};
+          BuildOp(UO_Deref, CloneNode(thisObj.getExpr())),
+          BuildOp(UO_Deref, CloneNode(dthisObj.getExpr()))};
       Expr* returnInitList =
           m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
       ctorReturnStmt = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();
@@ -195,7 +200,7 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       if (dPVD->getIdentifier())
         m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
                                  /*AddToContext=*/false);
-      m_Variables[*it] = BuildDeclRef(dPVD), m_DiffReq->getLocation();
+      m_Variables[*it] = {dPVD};
     }
   }
   if (m_DiffReq.UseRestoreTracker) {
@@ -217,13 +222,17 @@ StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(clang::Expr* E,
                                                      bool moveToTape) {
   if (!m_RestoreTracker)
     return {};
-  if (const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreCasts())) {
-    const auto* VD = cast<VarDecl>(DRE->getDecl());
-    if (!VD->getType()->isReferenceType())
-      return {};
-  }
-  Expr* storeCall = BuildCallExprToMemFn(m_RestoreTracker,
-                                         /*MemberFunctionName=*/"store", {E});
+  // Storage owned by this function's locals is gone by the time the caller
+  // restores the tracker; recording it would replay bytes into freed memory.
+  if (utils::designatesLocallyOwnedStorage(E))
+    return {};
+  // Clone both the tracker base (reused across every store call) and the stored
+  // expression E (the caller passes the same node it emits into the primal), so
+  // the store call is a distinct subtree.
+  Expr* storedE = CloneNode(E);
+  Expr* storeCall =
+      BuildCallExprToMemFn(CloneNode(m_RestoreTracker),
+                           /*MemberFunctionName=*/"store", {storedE});
   return {storeCall};
 }
 
@@ -234,14 +243,13 @@ StmtDiff ReverseModeForwPassVisitor::ProcessSingleStmt(const clang::Stmt* S) {
 
 StmtDiff
 ReverseModeForwPassVisitor::VisitCompoundStmt(const clang::CompoundStmt* CS) {
-  beginScope(Scope::DeclScope);
+  ScopeRAII compoundScope(*this, Scope::DeclScope);
   beginBlock();
   for (Stmt* S : CS->body()) {
     StmtDiff SDiff = ProcessSingleStmt(S);
     addToCurrentBlock(SDiff.getStmt());
   }
   CompoundStmt* forward = endBlock();
-  endScope();
   return {forward};
 }
 
@@ -283,7 +291,7 @@ StmtDiff ReverseModeForwPassVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   auto foundAdjoint = m_Variables.find(decl);
   Expr* adjoint = nullptr;
   if (foundAdjoint != m_Variables.end())
-    adjoint = foundAdjoint->second;
+    adjoint = buildAdjoint(foundAdjoint->second, DRE);
 
   return StmtDiff(clonedDRE, adjoint);
 }
@@ -299,6 +307,8 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
     return m_Sema.BuildReturnStmt(validLoc, returnDiff.getExpr()).get();
   llvm::SmallVector<Expr*, 2> returnArgs = {returnDiff.getExpr(),
                                             returnDiff.getExpr_dx()};
+  if (!returnArgs[1])
+    return {nullptr, nullptr};
   Expr* returnInitList =
       m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
   Stmt* newRS = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();
@@ -322,10 +332,11 @@ ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   auto* VDDerived =
       BuildGlobalVarDecl(DerivedType, "_d_" + VD->getNameAsString(),
                          initDiff.getExpr_dx(), VD->isDirectInit());
-  m_Variables.emplace(VDCloned, BuildDeclRef(VDDerived));
-  if ((VD->getDeclName() != VDCloned->getDeclName() ||
-       DerivedType != VD->getType()))
-    m_DeclReplacements[VD] = VDCloned;
+  m_Variables.emplace(VDCloned, AdjointInfo{VDDerived});
+  // Register the primal clone unconditionally so references rebind by map
+  // lookup rather than the scope-dependent name-lookup fallback (see the
+  // matching change in ReverseModeVisitor::DifferentiateVarDecl).
+  m_DeclReplacements[VD] = VDCloned;
   return {VDCloned, VDDerived};
 }
 

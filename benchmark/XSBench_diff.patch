@@ -1,0 +1,105 @@
+diff --git a/XSBench/Simulation.cu b/XSBench/Simulation.cu
+index 59ffad6..3f7099d 100644
+--- a/XSBench/Simulation.cu
++++ b/XSBench/Simulation.cu
+@@ -1,5 +1,7 @@
+ #include "XSbench_header.cuh"
+-
++#ifdef USE_CLAD
++#include "clad/Differentiator/Differentiator.h"
++#endif
+ ////////////////////////////////////////////////////////////////////////////////////
+ // BASELINE FUNCTIONS
+ ////////////////////////////////////////////////////////////////////////////////////
+@@ -54,7 +56,7 @@ unsigned long long run_event_based_simulation_baseline(Inputs in, SimulationData
+ 
+ 	return verification_scalar;
+ }
+-
++#ifndef USE_CLAD
+ template<typename... Args>
+ __device__ 
+ void __enzyme_autodiff(void*, Args...);
+@@ -64,6 +66,7 @@ __device__ int enzyme_dup, enzyme_const, enzyme_active;
+ // In this kernel, we perform a single lookup with each thread. Threads within a warp
+ // do not really have any relation to each other, and divergence due to high nuclide count fuel
+ // material lookups are costly. This kernel constitutes baseline performance.
++#endif
+ __global__ void xs_lookup_kernel_baseline(Inputs in, SimulationData GSD )
+ {
+ 	// The lookup ID. Used to set the seed, and to store the verification value
+@@ -133,6 +136,16 @@ __global__ void xs_lookup_kernel_baseline(Inputs in, SimulationData GSD )
+ 			//	printf("i=%d dd=%f, out2=%f out1=%f | in2=%f in1=%f\n", i, (macro_xs_vector2[0] - macro_xs_vector[0]) / DELTA, macro_xs_vector2[0], macro_xs_vector[0], GSD.d_nuclide_grid[0].energy, GSD.nuclide_grid[0].energy); 
+ 			atomicAdd(GSD.dout, (macro_xs_vector2[0] - macro_xs_vector[0]) / DELTA );
+ 			#endif
++    #else
++      #ifdef USE_CLAD
++		  clad::gradient(calculate_macro_xs, "nuclide_grids, macro_xs_vector")
++				.execute(
++					p_energy, mat, in.n_isotopes, in.n_gridpoints, 
++					GSD.num_nucs, GSD.concs, GSD.unionized_energy_array, 
++					GSD.index_grid, GSD.nuclide_grid, GSD.mats, 
++					macro_xs_vector, in.grid_type, in.hash_bins, GSD.max_num_nucs,
++					GSD.d_nuclide_grid, d_macro_xs_vector
++				); 
+     #else
+ 	__enzyme_autodiff((void*)calculate_macro_xs,
+ 			enzyme_const, p_energy,        // Sampled neutron energy (in lethargy)
+@@ -156,6 +169,7 @@ __global__ void xs_lookup_kernel_baseline(Inputs in, SimulationData GSD )
+ 			enzyme_const, in.hash_bins,    // Number of hash bins used (if using hash lookup type)
+ 			enzyme_const, GSD.max_num_nucs  // Maximum number of nuclides present in any material
+ 			);
++    #endif
+     #endif
+ 	
+ 	// For verification, and to prevent the compiler from optimizing
+diff --git a/XSBench/XSbench_header.cuh b/XSBench/XSbench_header.cuh
+index f0d8639..75afd2c 100644
+--- a/XSBench/XSbench_header.cuh
++++ b/XSBench/XSbench_header.cuh
+@@ -8,8 +8,19 @@
+ #include<assert.h>
+ #include<cuda.h>
+ #include <thrust/reduce.h>
++#include <thrust/count.h>
++#include <thrust/sort.h>
++#include <thrust/partition.h>
+ #include<stdint.h>
+ #include <chrono> 
++#ifdef USE_CLAD
++// Marks mutable pointer and array parameters that are not differentiation
++// targets as non-differentiable to avoid Clad's "dependent non-const pointer"
++// error without changing XSBench's function signatures.
++#define CLAD_NON_DIFF __attribute__((annotate("non_differentiable")))
++#else
++#define CLAD_NON_DIFF
++#endif
+ 
+ // Grid types
+ #define UNIONIZED 0
+@@ -107,18 +118,18 @@ unsigned long long run_event_based_simulation_baseline(Inputs in, SimulationData
+ __global__ void xs_lookup_kernel_baseline(Inputs in, SimulationData GSD );
+ __device__ void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
+                            long n_gridpoints,
+-                           double * __restrict__ egrid, int * __restrict__ index_data,
++                           CLAD_NON_DIFF double * __restrict__ egrid, CLAD_NON_DIFF int * __restrict__ index_data,
+                            NuclideGridPoint * __restrict__ nuclide_grids,
+                            long idx, double * __restrict__ xs_vector, int grid_type, int hash_bins );
+ __device__ void calculate_macro_xs( double p_energy, int mat, long n_isotopes,
+-                         long n_gridpoints, int * __restrict__ num_nucs,
+-                         double * __restrict__ concs,
+-                         double * __restrict__ egrid, int * __restrict__ index_data,
++                         long n_gridpoints, CLAD_NON_DIFF int * __restrict__ num_nucs,
++                         CLAD_NON_DIFF double * __restrict__ concs,
++                         CLAD_NON_DIFF double * __restrict__ egrid, CLAD_NON_DIFF int * __restrict__ index_data,
+                          NuclideGridPoint * __restrict__ nuclide_grids,
+-                         int * __restrict__ mats,
++                         CLAD_NON_DIFF int * __restrict__ mats,
+                          double * __restrict__ macro_xs_vector, int grid_type, int hash_bins, int max_num_nucs );
+-__host__ __device__ long grid_search( long n, double quarry, double * __restrict__ A);
+-__host__ __device__ long grid_search_nuclide( long n, double quarry, NuclideGridPoint * A, long low, long high);
++CLAD_NON_DIFF __host__ __device__ long grid_search( long n, double quarry, double * __restrict__ A);
++CLAD_NON_DIFF __host__ __device__ long grid_search_nuclide( long n, double quarry, NuclideGridPoint * A, long low, long high);
+ __device__ int pick_mat( uint64_t * seed );
+ __host__ __device__ double LCG_random_double(uint64_t * seed);
+ __device__ uint64_t fast_forward_LCG(uint64_t seed, uint64_t n);

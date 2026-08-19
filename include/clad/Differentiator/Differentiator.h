@@ -31,6 +31,9 @@
 #endif
 #include <type_traits>
 #include <utility>
+// Keep std::valarray's non-member begin/end overloads visible when is_range is
+// defined below.
+#include <valarray> // NOLINT(misc-include-cleaner)
 #ifndef __CUDACC__
 #include <mutex>
 #endif
@@ -207,43 +210,69 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
   return of.back();
 }
 
-  /// The purpose of this function is to initialize adjoints
-  /// (or all of its iteratable elements) with 0.
-  namespace zero_init_detail {
-  template <class T> struct iterator_traits : std::iterator_traits<T> {};
-  template <> struct iterator_traits<void*> {};
-  template <> struct iterator_traits<const void*> {};
+/// Reset values in an already-constructed adjoint (or its iterable elements)
+/// to zero in place. This is the primitive used by the default zero_like
+/// implementation. Provide an overload when the default recursive or
+/// byte-wise zeroing would not preserve a type's required structure.
+namespace zero_init_detail {
+template <class T> struct iterator_traits : std::iterator_traits<T> {};
+template <> struct iterator_traits<void*> {};
+template <> struct iterator_traits<const void*> {};
 
-  template <class T, class It>
-  std::integral_constant<
-      bool, !std::is_same<typename std::remove_cv<T>::type,
-                          typename iterator_traits<It>::value_type>::value>
-  is_range_check(It first, It last);
+template <class T, class It>
+std::integral_constant<
+    bool, !std::is_same<typename std::remove_cv<T>::type,
+                        typename iterator_traits<It>::value_type>::value>
+is_range_check(It first, It last);
 
-  template <class T>
-  decltype(is_range_check<T>(std::begin(std::declval<const T&>()),
-                             std::end(std::declval<const T&>())))
-  is_range(int);
-  template <class T> std::false_type is_range(...);
-  } // namespace zero_init_detail
+template <class T>
+decltype(is_range_check<T>(std::begin(std::declval<const T&>()),
+                           std::end(std::declval<const T&>())))
+is_range(int);
+template <class T> std::false_type is_range(...);
+} // namespace zero_init_detail
 
   template <class T>
   struct is_range : decltype(zero_init_detail::is_range<T>(0)) {};
 
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t);
 
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
   template <class T,
             typename std::enable_if<!is_range<T>::value, int>::type = 0>
   CUDA_HOST_DEVICE void zero_impl(volatile T& t) {
-    // Fill an array with zeros.
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
-    unsigned char tmp[sizeof(T)] = {};
-    // Transfer the zeros with the magic function memcpy which can implicitly
-    // create objects in the destination region of storage immediately prior to
-    // copying the sequence of characters to the destination [27.5.1(3)].
-    // (C++ has deprecated the volatile qualifiers. However, we drop them here
-    // to make sure things still work with codebases which still have them)
-    std::memcpy(const_cast<T*>(&t), tmp, sizeof(T));
+    // Bound once so the assertion and the guard below cannot drift apart: a
+    // type the assertion rejects must not go on to be memcpy'd anyway.
+    constexpr bool is_zeroable = std::is_trivially_destructible<T>::value;
+    static_assert(is_zeroable, "Clad device fallback zero_init requires "
+                               "trivially destructible types.");
+    if constexpr (is_zeroable) {
+      // Fill an array with zeros.
+      // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+      unsigned char tmp[sizeof(T)] = {};
+
+#if __has_builtin(__builtin_memcpy)
+      __builtin_memcpy(const_cast<T*>(&t), tmp, sizeof(T));
+#elif defined(__CUDACC__)
+      // Fallback for the devices that don't have __builtin_memcpy.
+      // Transfers the zero with a loop. Unlike memcpyt, this does not create
+      // the object in the destination region of storage and language semantics
+      // can't be fully preserved
+      volatile unsigned char* byte_ptr =
+          reinterpret_cast<volatile unsigned char*>(const_cast<T*>(&t));
+      for (std::size_t i = 0; i < sizeof(T); ++i)
+        byte_ptr[i] = 0;
+#else
+      // Transfer the zeros with the magic function memcpy which can implicitly
+      // create objects in the destination region of storage immediately prior
+      // to copying the sequence of characters to the destination [27.5.1(3)].
+      // (C++ has deprecated the volatile qualifiers. However, we drop them here
+      // to make sure things still work with codebases which still have them)
+      std::memcpy(const_cast<T*>(&t), tmp, sizeof(T));
+#endif
+    }
   }
 
   template <class T, typename std::enable_if<is_range<T>::value, int>::type = 0>
@@ -253,6 +282,124 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
   }
 
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t) { zero_impl(t); }
+
+  /// Construct a zero adjoint with the same relevant structure as \p value.
+  ///
+  /// Conceptually, zero_like(value) returns a value structurally like value
+  /// with zero_init applied. This is the adjoint-construction extension point;
+  /// provide an overload when copy-then-zero is incorrect, for example for
+  /// owning or reference-counted storage, device memory, or types whose shape,
+  /// allocator, or other runtime metadata needs special handling. The
+  /// reverse-mode visitor prefers this customization point when constructing
+  /// an internal adjoint from an existing primal value.
+  // Keep this header compatible with C++14; some Clad tests and clients include
+  // it in that language mode.
+  // NOLINTBEGIN(modernize-type-traits)
+  template <class T, std::enable_if_t<std::is_arithmetic<T>::value ||
+                                          std::is_enum<T>::value,
+                                      int> = 0>
+  CUDA_HOST_DEVICE T zero_like(const T&) {
+    return T();
+  }
+
+  namespace zero_like_detail {
+  template <class T>
+  auto has_resize_impl(int)
+      -> decltype(static_cast<void>(std::declval<const T&>().size()),
+                  static_cast<void>(T()),
+                  static_cast<void>(std::declval<T&>().resize(
+                      std::declval<typename T::size_type>())),
+                  std::true_type{});
+  template <class T> std::false_type has_resize_impl(...);
+
+  template <class T> struct has_resize : decltype(has_resize_impl<T>(0)) {};
+
+  // Implement these helpers after both range zero_like overloads so recursive
+  // fallback calls see the complete overload set.
+  template <class ResultRange, class PrimalRange>
+  void resize_and_zero(ResultRange& result, const PrimalRange& value);
+  template <class ResultElement, class PrimalElement>
+  void reconstruct_nested_range(ResultElement&& result,
+                                const PrimalElement& value, std::true_type);
+  template <class ResultElement, class PrimalElement>
+  void reconstruct_nested_range(ResultElement&& result,
+                                const PrimalElement& value, std::false_type);
+  template <class ResultRange, class PrimalRange>
+  void reconstruct_resizable_range(ResultRange&& result,
+                                   const PrimalRange& value, std::true_type);
+  template <class ResultRange, class PrimalRange>
+  void reconstruct_resizable_range(ResultRange&& result,
+                                   const PrimalRange& value, std::false_type);
+  } // namespace zero_like_detail
+
+  /// Default zero_like for a resizable range. Resize an empty result to the
+  /// primal size and recursively resize nested ranges directly in their result
+  /// positions, preserving rectangular and ragged shapes without copying
+  /// primal values or creating temporary nested containers.
+  template <class T,
+            std::enable_if_t<is_range<T>::value &&
+                                 std::is_copy_constructible<T>::value &&
+                                 zero_like_detail::has_resize<T>::value,
+                             int> = 0>
+  T zero_like(const T& value) {
+    T result;
+    zero_like_detail::resize_and_zero(result, value);
+    return result;
+  }
+
+  /// Fallback zero_like for copyable, non-resizable ranges: copy the primal
+  /// structure, then zero it.
+  template <class T,
+            std::enable_if_t<is_range<T>::value &&
+                                 std::is_copy_constructible<T>::value &&
+                                 !zero_like_detail::has_resize<T>::value,
+                             int> = 0>
+  T zero_like(const T& value) {
+    T result(value);
+    zero_init(result);
+    return result;
+  }
+
+  namespace zero_like_detail {
+  template <class ResultRange, class PrimalRange>
+  void resize_and_zero(ResultRange& result, const PrimalRange& value) {
+    result.resize(value.size());
+    auto resultIt = std::begin(result);
+    for (const auto& element : value) {
+      using Element = typename std::remove_cv<
+          typename std::remove_reference<decltype(element)>::type>::type;
+      reconstruct_nested_range(*resultIt, element, is_range<Element>{});
+      ++resultIt;
+    }
+  }
+
+  template <class ResultElement, class PrimalElement>
+  void reconstruct_nested_range(ResultElement&& result,
+                                const PrimalElement& value, std::true_type) {
+    reconstruct_resizable_range(
+        result, value,
+        has_resize<typename std::remove_cv<PrimalElement>::type>{});
+  }
+
+  template <class ResultElement, class PrimalElement>
+  void reconstruct_nested_range(ResultElement&& result, const PrimalElement&,
+                                std::false_type) {
+    zero_init(result);
+  }
+
+  template <class ResultRange, class PrimalRange>
+  void reconstruct_resizable_range(ResultRange&& result,
+                                   const PrimalRange& value, std::true_type) {
+    resize_and_zero(result, value);
+  }
+
+  template <class ResultRange, class PrimalRange>
+  void reconstruct_resizable_range(ResultRange&& result,
+                                   const PrimalRange& value, std::false_type) {
+    result = zero_like(value);
+  }
+  } // namespace zero_like_detail
+  // NOLINTEND(modernize-type-traits)
 
   /// Initialize a const sized array.
   // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
@@ -389,22 +536,29 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
     bool m_CUDAkernel = false;
 
   public:
+    /// Wraps the derivative function \p f. \p code is the derivative's textual
+    /// source, used only by dump(); clad's plugin injects it as a string
+    /// literal.
+    ///
+    /// \warning \p code must have static storage duration: it is stored by
+    /// pointer and never copied, so a non-static buffer would dangle. Every
+    /// clad entry point defaults it to "" and the plugin rewrites that to a
+    /// StringLiteral, so the precondition holds for all generated code.
 #ifdef __cpp_concepts
     CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
                                   FunctorType* functor = nullptr,
                                   bool CUDAkernel = false)
       requires(!ImmediateMode)
-        : m_Function(f), m_Functor(functor), m_CUDAkernel(CUDAkernel) {
+        : m_Function(f), m_Code(code), m_Functor(functor),
+          m_CUDAkernel(CUDAkernel) {
 #ifndef __CLAD__
       static_assert(false, "clad doesn't appear to be loaded; make sure that "
                            "you pass clad.so to clang.");
 #endif
-      size_t length = GetLength(code);
-      m_Code = (char*)malloc(length + 1);
-      if (m_Code)
-        memcpy((void*)m_Code, code, length + 1);
-      else
-        fprintf(stderr, "Error: Failed to allocate memory for m_Code\n");
+      // `code` is a clad-emitted string literal (static storage duration), so
+      // point at it directly instead of malloc'ing a copy that was never freed
+      // (LeakSanitizer flagged it). This keeps CladFunction trivially
+      // destructible, which constexpr/immediate mode and CUDA require.
     }
 
     constexpr CUDA_HOST_DEVICE CladFunction(CladFunctionType f,
@@ -423,21 +577,14 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
     CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
                                   FunctorType* functor = nullptr,
                                   bool CUDAkernel = false)
-        : m_Function(f), m_Functor(functor), m_CUDAkernel(CUDAkernel) {
+        : m_Function(f), m_Code(code), m_Functor(functor),
+          m_CUDAkernel(CUDAkernel) {
 #ifndef __CLAD__
       static_assert(false, "clad doesn't appear to be loaded; make sure that "
                            "you pass clad.so to clang.");
 #endif
-      size_t length = GetLength(code);
-      m_Code = (char*)malloc(length + 1);
-      if (m_Code)
-        memcpy((void*)m_Code, code, length + 1);
-      else
-#ifdef __CUDACC__
-        printf("stderr: Error: Failed to allocate memory for m_Code\n");
-#else
-        fprintf(stderr, "Error: Failed to allocate memory for m_Code\n");
-#endif
+      // Point at the static-duration literal directly; see the constructor
+      // above.
     }
 #endif
 
@@ -451,9 +598,8 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
                                             FunctorType& functor)
         : CladFunction(f, &functor) {};
 
-    // Intentionally leak m_Code, otherwise we have to link against c++ runtime,
-    // i.e -lstdc++.
-    //~CladFunction() { /*free(m_Code);*/ }
+    // No destructor: m_Code is a static-duration literal, not heap, so there is
+    // nothing to free and CladFunction stays trivially destructible.
 
     constexpr CladFunctionType getFunctionPtr() const { return m_Function; }
 

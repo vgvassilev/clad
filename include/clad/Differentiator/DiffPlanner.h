@@ -9,17 +9,24 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
+#include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/SourceLocation.h"
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <map>
@@ -42,8 +49,90 @@ using OwnedAnalysisContexts =
     llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
 using ParamSet = std::set<const clang::ParmVarDecl*>;
 using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
-/// A struct containing information about request to differentiate a function.
+/// A read-only, AD-oriented view over the primal being differentiated: it
+/// wraps the primal FunctionDecl and surfaces the AD-relevant facts the
+/// FunctionDecl itself does not. Recording such facts here, rather than
+/// rediscovering them inside a visitor, keeps them available to every visitor
+/// and correct after a request is copied and re-pointed at another Function.
 struct DiffRequest {
+  /// Recognises a C heap-memory builtin call and centralises the invariants
+  /// reverse mode must preserve for it, so all memory-op reasoning goes through
+  /// one place instead of ad-hoc name checks scattered across the code base.
+  /// The planner uses it to record which pointers are reallocated in place; the
+  /// reverse-mode visitor uses it to emit and undo the resize.
+  class AllocCallInfo {
+  public:
+    enum class Kind : std::uint8_t { None, Malloc, Calloc, Realloc, Free };
+
+    AllocCallInfo() = default;
+
+    // Recognise E as a memory builtin; Kind::None if it is not one. Strips the
+    // C-style cast that wraps the call (e.g. `(double*)realloc(...)`), so
+    // IgnoreParenCasts, not IgnoreParenImpCasts, is required here.
+    [[nodiscard]] static AllocCallInfo recognize(clang::Expr* E) {
+      auto* CE = llvm::dyn_cast_or_null<clang::CallExpr>(
+          E ? E->IgnoreParenCasts() : nullptr);
+      if (!CE)
+        return {};
+      const clang::FunctionDecl* FD = CE->getDirectCallee();
+      // getName() asserts on non-identifier names (operators, constructors),
+      // which vector/STL code produces; the builtins are plain identifiers.
+      if (!FD || !FD->getDeclName().isIdentifier())
+        return {};
+      Kind k = llvm::StringSwitch<Kind>(FD->getName())
+                   .Case("malloc", Kind::Malloc)
+                   .Case("calloc", Kind::Calloc)
+                   .Case("realloc", Kind::Realloc)
+                   .Case("free", Kind::Free)
+                   .Default(Kind::None);
+      return AllocCallInfo(k, CE);
+    }
+
+    [[nodiscard]] Kind getKind() const { return m_Kind; }
+    [[nodiscard]] clang::CallExpr* getCall() const { return m_Call; }
+
+    // The number-of-bytes operand that a following memset must zero:
+    // malloc(n) -> n, realloc(p, n) -> n. calloc self-zeroes and needs no
+    // memset, so it (and free/none) report null here.
+    [[nodiscard]] clang::Expr* memsetByteSize() const {
+      switch (m_Kind) {
+      case Kind::Malloc:
+        return m_Call->getArg(0);
+      case Kind::Realloc:
+        return m_Call->getArg(1);
+      default:
+        return nullptr;
+      }
+    }
+
+    // True for an in-place `p = realloc(p, n)`: the LHS is realloc's own
+    // pointer argument. Only then may the reallocated pointer be kept across
+    // the call (realloc frees the old block, so a saved pointer would dangle).
+    [[nodiscard]] bool isInPlaceRealloc(const clang::Expr* LHS) const {
+      if (m_Kind != Kind::Realloc || m_Call->getNumArgs() == 0)
+        return false;
+      const auto* LDRE =
+          llvm::dyn_cast<clang::DeclRefExpr>(LHS->IgnoreParenCasts());
+      const auto* ArgDRE = llvm::dyn_cast<clang::DeclRefExpr>(
+          m_Call->getArg(0)->IgnoreParenCasts());
+      return LDRE && ArgDRE && LDRE->getDecl() == ArgDRE->getDecl();
+    }
+
+    // The pointer variable of an in-place `p = realloc(p, n)`, or null.
+    [[nodiscard]] const clang::VarDecl*
+    getInPlaceReallocPtr(const clang::Expr* LHS) const {
+      if (!isInPlaceRealloc(LHS))
+        return nullptr;
+      return llvm::dyn_cast<clang::VarDecl>(
+          llvm::cast<clang::DeclRefExpr>(LHS->IgnoreParenCasts())->getDecl());
+    }
+
+  private:
+    AllocCallInfo(Kind k, clang::CallExpr* c) : m_Kind(k), m_Call(c) {}
+    Kind m_Kind = Kind::None;
+    clang::CallExpr* m_Call = nullptr;
+  };
+
 private:
   /// Based on To-Be-Recorded analysis performed before differentiation, tells
   /// UsefulToStoreGlobal whether a variable with a given SourceLocation has to
@@ -66,7 +155,48 @@ private:
     bool HasAnalysisRun = false;
   } m_UsefulRunInfo;
 
+  /// Cache for hasEarlyReturns(): whether the primal body has a return that is
+  /// not in tail position. A property of the Function, computed once on demand.
+  mutable struct EarlyReturnInfo {
+    bool HasEarlyReturns = false;
+    bool HasAnalysisRun = false;
+  } m_EarlyReturnInfo;
+
+  /// Cache for mayHaveNullTangent(): the primal's pointer variables that may
+  /// be given a null tangent. A property of the Function, computed once on
+  /// demand.
+  mutable struct NullTangentInfo {
+    std::set<const clang::VarDecl*> MaybeNullPtrs;
+    bool HasAnalysisRun = false;
+  } m_NullTangentInfo;
+
 public:
+  /// The primal body's tail-position return -- the one an early-return encoder
+  /// lets control fall through to, as opposed to an early return that needs a
+  /// jump/call. Null when the body does not end in a return. O(1): reads
+  /// Function's body directly, so a copied request re-pointed at a new Function
+  /// (a lambda's operator(), a pullback callee) answers for its own Function.
+  const clang::ReturnStmt* getTailReturn() const;
+
+  /// Whether the primal body has a return that is not the tail return -- one
+  /// the reverse mode must encode with the early-return lambda. A fact about
+  /// the primal, read directly off Function's body (returns inside nested
+  /// lambdas belong to their own function and are skipped). A void function
+  /// seeds no return value, so its returns skip the encoding.
+  bool hasEarlyReturns() const;
+
+  /// Whether the tangent of the primal's pointer variable \p VD may be null at
+  /// run time. Clad cannot synthesize a tangent buffer for a const-qualified
+  /// pointer parameter, because its size is unknown, so a pushforward call
+  /// receives a null tangent for it, spelling "the derivative of this argument
+  /// is identically zero". A pointer of the body derived from such a parameter
+  /// -- and one clad has no tangent to give at all -- inherits that, so forward
+  /// mode has to guard the reads through their tangents. Every other tangent is
+  /// either a buffer clad allocated or a pointer the caller has to provide, and
+  /// is therefore never null. Answers false for a non-pointer, and for a
+  /// variable belonging to a function other than this request's.
+  bool mayHaveNullTangent(const clang::VarDecl* VD) const;
+
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
   /// Name of the base function to be differentiated. Can be different from
@@ -83,6 +213,16 @@ public:
   const clang::Expr* Args = nullptr;
   /// Indexes of global GPU args of function as a subset of Args.
   std::vector<size_t> CUDAGlobalArgsIndexes;
+  /// Pointer variables that are the target of an in-place `p = realloc(p, n)`
+  /// in this function, collected by DiffCollector during planning. Reverse
+  /// mode gives exactly these an allocation-size shadow so the realloc can be
+  /// undone; other allocated pointers get none. Empty unless the body
+  /// reallocates in place.
+  std::set<const clang::VarDecl*> InPlaceReallocPtrs;
+  /// Whether VD is reallocated in place somewhere in this function.
+  bool isInPlaceReallocated(const clang::VarDecl* VD) const {
+    return InPlaceReallocPtrs.count(VD) != 0;
+  }
   /// Requested differentiation mode, forward or reverse.
   DiffMode Mode = DiffMode::unknown;
   /// If function appears in the call to clad::gradient/differentiate,
@@ -96,6 +236,11 @@ public:
   bool EnableVariedAnalysis = false;
   /// A flag to enable useful analysis during reverse-mode differentiation.
   bool EnableUsefulAnalysis = false;
+  /// A flag to emit porting-hint remarks (-fclad-porting-hints) when a function
+  /// defined outside the main source file is differentiated by cloning its
+  /// definition. Diagnostic-only; it does not affect the generated derivative
+  /// and is therefore excluded from request equality.
+  bool EmitPortingHints = false;
   /// A flag to request a clad::restore_tracker parameter in the generated
   /// _reverse_forw function.
   bool UseRestoreTracker = false;
@@ -137,6 +282,18 @@ public:
   /// UnresolvedLookupExpr or DeclRefExpr representing the custom derivative
   /// overload
   clang::Expr* CustomDerivative = nullptr;
+
+  /// The trailing clad::pullback_state<S> parameter a custom reverse_forw /
+  /// pullback carries, already in argument form (by reference for a
+  /// reverse_forw, by value for a pullback), or null when none. clad does not
+  /// synthesize this parameter, so it is appended to the expected derivative
+  /// signature when matching the overload and when building its overload call.
+  clang::QualType PullbackStateParam;
+  // FIXME: First per-request fact communicated across the request graph. The
+  // finer call-site activity that would let a pullback early-exit inactive
+  // branches or narrow toward a directional call wants the same channel: rework
+  // DVI and the varied/useful structs into one composable, finer-grained
+  // activity model on the request (on the AST), propagated down each subgraph.
 
   /// A pointer to keep track of the prototype of the derived functions.
   /// For higher order derivatives, we store the entire sequence of
@@ -243,15 +400,18 @@ public:
   bool HasTbrAnalysisRun() const { return m_TbrRunInfo.HasAnalysisRun; }
 };
 
-  using DiffInterval = std::vector<clang::SourceRange>;
+using DiffInterval = std::vector<clang::SourceRange>;
 
-  struct RequestOptions {
-    /// This is a flag to indicate the default behaviour to enable/disable
-    /// TBR analysis during reverse-mode differentiation.
-    bool EnableTBRAnalysis = false;
-    bool EnableVariedAnalysis = false;
-    bool EnableUsefulAnalysis = false;
-  };
+// FIXME: These are translation-unit-wide defaults taken from the compiler
+// invocation, not the options of a request; rename to InvocationOptions.
+struct RequestOptions {
+  /// This is a flag to indicate the default behaviour to enable/disable
+  /// TBR analysis during reverse-mode differentiation.
+  bool EnableTBRAnalysis = false;
+  bool EnableVariedAnalysis = false;
+  bool EnableUsefulAnalysis = false;
+  bool EmitPortingHints = false;
+};
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
     /// The source interval where clad was activated.
@@ -265,6 +425,11 @@ public:
     /// Essentially needed for prolonging the lifetime of
     /// unique_ptr<clang::AnalysisDeclContext>.
     OwnedAnalysisContexts& m_AllAnalysisDC;
+    /// The contexts PlanNestedRequest built, keyed by the function they
+    /// describe, so that repeated planning of the same lazily-scheduled
+    /// request reuses one context (and one CFG) instead of building another.
+    llvm::DenseMap<const clang::FunctionDecl*, clang::AnalysisDeclContext*>
+        m_NestedAnalysisDC;
     /// If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///
@@ -279,12 +444,36 @@ public:
 
     bool m_IsTraversingTopLevelDecl = true;
 
+    /// True while Walk is traversing a DeclGroupRef. A traversal can trigger
+    /// name lookups that make the ASTReader deserialize pending module decls
+    /// and hand them to the consumers, re-entering Walk; such groups are
+    /// parked in m_DeferredDGRs and traversed once the active walk finishes.
+    bool m_TraversalInFlight = false;
+
+    /// Decl groups delivered while a traversal was in flight (see
+    /// m_TraversalInFlight); drained at the end of the outermost Walk.
+    llvm::SmallVector<clang::DeclGroupRef, 4> m_DeferredDGRs;
+
   public:
-    DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
+    DiffCollector(DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
                   RequestOptions& opts, OwnedAnalysisContexts& AllAnalysisDC);
+    /// Run the static planning pass over a group of top-level declarations,
+    /// populating the request graph. A no-op when the clad-enabled interval is
+    /// empty. Re-entrant calls (e.g. module decls deserialized during a
+    /// lookup issued by an active traversal) defer their group until the
+    /// active traversal finishes.
+    void Walk(clang::DeclGroupRef DGR);
+    /// True while Walk is traversing; see m_TraversalInFlight.
+    [[nodiscard]] bool isTraversalInFlight() const {
+      return m_TraversalInFlight;
+    }
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+    /// Record an in-place `p = realloc(p, n)` on the request whose body is
+    /// being traversed, so reverse mode knows p needs an allocation-size
+    /// shadow.
+    bool VisitBinaryOperator(clang::BinaryOperator* BO);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
     bool shouldVisitImplicitCode() const { return true; }
     /// Here we use TraverseLambdaExpr and not VisitLambdaExpr to ensure the
@@ -292,6 +481,10 @@ public:
     /// or constructor initializers. If we use Visit they would be processed
     /// under the parent DiffRequest which is not in the lambda scope.
     bool TraverseLambdaExpr(clang::LambdaExpr* LE);
+    /// Plan a lazily-scheduled nested request the static TU walk never reaches
+    /// (built in DerivativeBuilder::HandleNestedDiffRequest). Currently records
+    /// its early-return flag by walking the request's own body.
+    bool PlanNestedRequest(DiffRequest& request);
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
       llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
       if (m_Traversed.count(FD))

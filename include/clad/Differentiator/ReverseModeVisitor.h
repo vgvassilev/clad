@@ -28,9 +28,13 @@
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLExtras.h" // IWYU pragma: keep -- function_ref on LLVM<14
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <array>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <queue>
@@ -64,20 +68,31 @@ namespace clad {
     // a separate namespace, as well as add getters/setters function of
     // several private/protected members of the visitor classes.
     friend class ErrorEstimationHandler;
-    // FIXME: Should we make this an object instead of a pointer?
-    // Downside of making it an object: We will need to include
-    // 'MultiplexExternalRMVSource.h' file
-    MultiplexExternalRMVSource* m_ExternalSource = nullptr;
+    // External sources are owned by the visitor and tied to the current
+    // derivative generation run. Keep them in a unique_ptr to avoid manual
+    // delete paths and stale ownership.
+    std::unique_ptr<MultiplexExternalRMVSource> m_ExternalSource;
     llvm::SmallVector<const clang::ParmVarDecl*, 16> m_NonIndepParams;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
     std::vector<Stmts> m_Reverse;
+    /// Markers emitted at early-return sites in the forward block, patched
+    /// with `{ _rev(); return; }` at finalization, where `_rev` is the lambda
+    /// wrapping the master reverse sweep.
+    llvm::SmallPtrSet<clang::Stmt*, 4> m_EarlyReturnMarkers;
     /// Storing expressions to delete/free memory in the reverse pass.
     Stmts m_DeallocExprs;
+    /// A dfdx seed: eager expression, or a deferred builder materialized on
+    /// the first dfdx() pull (so a seed no operand consumes is never built).
+    struct DfdxSeed {
+      clang::Expr* Eager = nullptr;
+      std::function<clang::Expr*()> Build;
+      clang::Expr* Cache = nullptr;
+    };
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
-    std::stack<clang::Expr*> m_Stack;
+    std::stack<DfdxSeed> m_Stack;
     /// A sequence of DeclStmts containing "tape" variable declarations
     /// that will be put immediately in the beginning of derivative function
     /// block.
@@ -102,9 +117,13 @@ namespace clad {
     clang::Expr* m_CurrentBreakFlagExpr;
 
     clang::Expr* m_RestoreTracker = nullptr;
+    /// A never-restored tracker handed to nested reverse_forw calls that only
+    /// mutate this reverse_forw's own locals; see VisitCallExpr.
+    clang::Expr* m_UnusedRestoreTracker = nullptr;
 
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
+    unsigned m_PlaceholderCount = 0;
     llvm::SmallVector<clang::Expr*, 1> m_Pullback;
     const char* funcPostfix() const {
       if (m_DiffReq.Mode == DiffMode::jacobian)
@@ -120,13 +139,59 @@ namespace clad {
     // Function to Differentiate with Enzyme as Backend
     void DifferentiateWithEnzyme();
 
+    /// Walk the current forward block and replace every Stmt in
+    /// m_EarlyReturnMarkers with a fresh Stmt built by `MakeReplacement`.
+    /// Each marker gets its own node — sharing one replacement across sites
+    /// would give it multiple parents and break the single-parent AST
+    /// invariant. Called once at function-body finalization, after the
+    /// forward sweep is fully assembled and before the body is handed to Sema.
+    void
+    patchEarlyReturnMarkers(llvm::function_ref<clang::Stmt*()> MakeReplacement);
+
   public:
     using direction = rmv::direction;
     virtual clang::Expr* dfdx() {
       if (m_Stack.empty())
         return nullptr;
-      return m_Stack.top();
+      if (m_Stack.top().Eager)
+        return m_Stack.top().Eager;
+      if (m_Stack.top().Build && !m_Stack.top().Cache) {
+        auto Build = m_Stack.top().Build;
+        clang::Expr* M = Build();
+        m_Stack.top().Cache = M;
+      }
+      return m_Stack.top().Cache;
     }
+    /// Whether a dfdx seed is present, without materializing a deferred one.
+    bool hasDfdx() {
+      if (m_Stack.empty())
+        return false;
+      return m_Stack.top().Eager || static_cast<bool>(m_Stack.top().Build);
+    }
+    /// Distributes one adjoint seed to several consumers: the first to claim it
+    /// takes the node itself, the rest get clones, so the seed is parented
+    /// exactly once and never shared. Local to a split point (a binary
+    /// operator, a conditional) -- the operands there consume it lazily and in
+    /// an order fixed only at run time, so a shared flag replaces a global
+    /// consumed-set.
+    class SeedClaim {
+      ReverseModeVisitor& m_RMV;
+      clang::Expr* m_Seed;
+      bool m_Taken = false;
+
+    public:
+      SeedClaim(ReverseModeVisitor& RMV, clang::Expr* Seed)
+          : m_RMV(RMV), m_Seed(Seed) {}
+      /// The seed node on the first claim, a clone on every later one.
+      clang::Expr* claim() {
+        if (m_Taken)
+          return m_RMV.CloneNode(m_Seed);
+        m_Taken = true;
+        return m_Seed;
+      }
+      explicit operator bool() const { return m_Seed != nullptr; }
+    };
+    /// Visit \p stmt with the eager adjoint seed \p dfdS on top of the stack.
     StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* dfdS = nullptr) {
       m_CurVisitedStmt = stmt;
 #ifndef NDEBUG
@@ -134,15 +199,30 @@ namespace clad {
       if (const char* Env = std::getenv("CLAD_FORCE_CRASH"))
         std::terminate();
 #endif // NDEBUG
-
-      // No need to push the same expr multiple times.
-      bool push = !(!m_Stack.empty() && (dfdS == dfdx()));
-      if (push)
-        m_Stack.push(dfdS);
+      // A seed threaded unchanged through single-child visitors need not be
+      // re-pushed each hop; reuse the top frame when it holds this exact eager
+      // seed. A deferred (Build) top is never reused -- it may yield a distinct
+      // node.
+      bool skip = !m_Stack.empty() && !m_Stack.top().Build &&
+                  m_Stack.top().Eager == dfdS;
+      if (!skip)
+        m_Stack.push(DfdxSeed{dfdS, {}, nullptr});
       auto result =
           clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
-      if (push)
+      if (!skip)
         m_Stack.pop();
+      return result;
+    }
+    /// Visit \p stmt with a deferred seed: \p Build runs, and the seed
+    /// materializes, only if a leaf of \p stmt pulls dfdx() -- so a seed no
+    /// operand consumes is never built (see DfdxSeed).
+    StmtDiff Visit(const clang::Stmt* stmt,
+                   std::function<clang::Expr*()> Build) {
+      m_CurVisitedStmt = stmt;
+      m_Stack.push(DfdxSeed{nullptr, std::move(Build), nullptr});
+      auto result =
+          clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
+      m_Stack.pop();
       return result;
     }
 
@@ -266,10 +346,10 @@ namespace clad {
     /// of the stack (clad::back(S)).
     clang::Expr* GlobalStoreAndRef(clang::Expr* E, clang::QualType Type,
                                    llvm::StringRef prefix = "_t",
-                                   bool force = false);
+                                   bool force = false, bool zeroInit = false);
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
-                                   bool force = false);
+                                   bool force = false, bool zeroInit = false);
     virtual StmtDiff StoreAndRestore(clang::Expr* E,
                                      llvm::StringRef prefix = "_t",
                                      bool moveToTape = false);
@@ -409,6 +489,7 @@ namespace clad {
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
     StmtDiff VisitGNUNullExpr(const clang::GNUNullExpr* E);
     StmtDiff VisitPredefinedExpr(const clang::PredefinedExpr* E);
+    StmtDiff VisitSourceLocExpr(const clang::SourceLocExpr* SLE);
 
 #if CLANG_VERSION_MAJOR > 16
     StmtDiff VisitLambdaExpr(const clang::LambdaExpr* LE);
@@ -481,6 +562,7 @@ namespace clad {
     StmtDiff
     VisitOMPParallelForDirective(const clang::OMPParallelForDirective* D);
     StmtDiff VisitOMPCriticalDirective(const clang::OMPCriticalDirective* D);
+    StmtDiff VisitOMPParallelDirective(const clang::OMPParallelDirective* D);
 
     /// Helper function that builds `T* _this = malloc(sifeof(T));`
     /// and `free(_this)`.
@@ -513,6 +595,12 @@ namespace clad {
     /// @returns The call to memset if the condition is met, otherwise nullptr.
     clang::Expr* CheckAndBuildCallToMemset(clang::Expr* LHS, clang::Expr* RHS);
 
+    /// The byte-size operand of a malloc/calloc/realloc call, in the primal's
+    /// terms: malloc(n) -> n, calloc(k, s) -> k*s, realloc(p, n) -> n. Returns
+    /// null if `allocExpr` is not one of those. Used to track allocation sizes
+    /// so a realloc can be undone in the reverse sweep.
+    clang::Expr* buildAllocByteSize(clang::Expr* allocExpr);
+
     static DeclDiff<clang::StaticAssertDecl>
     DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 
@@ -534,6 +622,11 @@ namespace clad {
     /// additionally created Stmts, second is a direct result of call to Visit.
     std::pair<StmtDiff, StmtDiff>
     DifferentiateSingleExpr(const clang::Expr* E, clang::Expr* dfdE = nullptr);
+    /// As above, but with a deferred seed materialized only if a leaf of \p E
+    /// consumes it -- lets a conditional's two arms lazily claim a shared seed.
+    std::pair<StmtDiff, StmtDiff>
+    DifferentiateSingleExpr(const clang::Expr* E,
+                            std::function<clang::Expr*()> dfdE);
     /// A helper methods to differentiate an argument of a CallExpr or a
     /// CXXConstructExpr.
     ///
@@ -583,23 +676,27 @@ namespace clad {
 
       /// Returns reference to the last object of the clad tape if clad tape
       /// is used as the counter; otherwise returns reference to the counter
-      /// variable.
-      clang::Expr* getRef() const { return m_Ref; }
+      /// variable. The reference is cloned on every read so the forward
+      /// increment, reverse decrement and loop condition each own their
+      /// counter DeclRefExpr node instead of sharing it.
+      [[nodiscard]] clang::Expr* cloneRef() const {
+        return m_RMV.CloneNode(m_Ref);
+      }
 
       /// Returns counter post-increment expression (`counter++`).
       clang::Expr* getCounterIncrement() {
-        return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostInc, m_Ref);
+        return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostInc, cloneRef());
       }
 
       /// Returns counter post-decrement expression (`counter--`)
       clang::Expr* getCounterDecrement() {
-        return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostDec, m_Ref);
+        return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostDec, cloneRef());
       }
 
       /// Returns `ConditionResult` object for the counter.
       clang::Sema::ConditionResult getCounterConditionResult() {
         return m_RMV.m_Sema.ActOnCondition(m_RMV.getCurrentScope(), noLoc,
-                                           m_Ref,
+                                           cloneRef(),
                                            clang::Sema::ConditionKind::Boolean);
       }
 
@@ -632,17 +729,18 @@ namespace clad {
 
     StmtDiff DifferentiateCanonicalLoop(const clang::ForStmt* S);
 
-    /// This class modifies forward and reverse blocks of the loop/switch
-    /// body so that `break` and `continue` statements are correctly
-    /// handled. `break` and `continue` statements are handled by
-    /// enclosing entire reverse block loop body in a switch statement
-    /// and only executing the statements, with the help of case labels,
-    /// that were executed in the associated forward iteration. This is
-    /// determined by keeping track of which `break`/`continue` statement
-    /// was hit in which iteration and that in turn helps to determine which
-    /// case label should be selected.
+    /// Handles `break`/`continue` inside a differentiated loop. It owns a
+    /// control-flow tape recording which one fired in which iteration, so the
+    /// reverse loop body -- wrapped in a switch over that tape -- replays
+    /// exactly the statements the forward iteration executed. The members below
+    /// serve this tape.
     ///
-    /// Class usage:
+    /// One handler is pushed per enclosing loop or switch, so the top of the
+    /// stack is the innermost construct a `break` binds to. A switch sets
+    /// m_IsInvokedBySwitchStmt and leaves the tape unused -- its reverse is
+    /// rebuilt from the stored condition instead (VisitSwitchStmt).
+    ///
+    /// Loop usage:
     ///
     /// ```cpp
     /// auto activeBreakContStmtHandler = PushBreakContStmtHandler();
@@ -689,6 +787,9 @@ namespace clad {
       clang::Expr* CreateCFTapePushExpr(std::size_t value);
 
     public:
+      /// True when the innermost breakable construct is a source-level switch,
+      /// whose `break`s are handled in VisitSwitchStmt rather than by the
+      /// control-flow tape. Lets VisitBreakStmt pick the right handling.
       bool m_IsInvokedBySwitchStmt = false;
 
       BreakContStmtHandler(ReverseModeVisitor& RMV, bool forSwitchStmt = false)
@@ -764,9 +865,18 @@ namespace clad {
 
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {
+      /// The forward-pass case/default labels, in source order.
       llvm::SmallVector<clang::SwitchCase*, 16> cases;
+      /// The stored switch condition (`_cond`), reused both as the reverse
+      /// switch discriminator and by every case guard.
       clang::Expr* switchStmtCond = nullptr;
       clang::IfStmt* defaultIfBreakExpr = nullptr;
+      /// Index into `cases` of the first label of the fall-through group not
+      /// yet closed by a `break`.
+      std::size_t groupStart = 0;
+      /// The reverse switch's entry labels, built from the original case values
+      /// rather than a control-flow tape counter.
+      llvm::SmallVector<clang::SwitchCase*, 16> reverseEntryCases;
     };
 
     /// Maintains a stack of `SwitchStmtInfo`.
@@ -782,6 +892,12 @@ namespace clad {
     }
 
     void PopSwitchStmtInfo() { m_SwitchStmtsData.pop_back(); }
+
+    /// Closes the currently open fall-through group `cases[groupStart..)`:
+    /// builds its reverse-switch entry from the group's original case labels,
+    /// registers them in `reverseEntryCases`, advances `groupStart`, and
+    /// returns the label chain to prepend before the group's adjoint replay.
+    clang::Stmt* CloseReverseSwitchCaseGroup(SwitchStmtInfo& SSData);
 
   private:
     // When differentiating ArrayInitLoopExpr, we need to replace

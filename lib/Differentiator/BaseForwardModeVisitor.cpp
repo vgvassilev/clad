@@ -157,9 +157,11 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
 
   m_Sema.CurContext = DC;
   QualType derivedFnType = GetDerivativeType();
-  DeclWithContext result =
+  // `result` owns the namespace Scopes cloneFunction opens; its
+  // destructor pops them before SaveScope restores.
+  ClonedFunction result =
       m_Builder.cloneFunction(FD, *this, DC, validLoc, name, derivedFnType);
-  FunctionDecl* derivedFD = result.first;
+  FunctionDecl* derivedFD = result.fd;
   m_Derivative = derivedFD;
 
   // Function declaration scope
@@ -216,7 +218,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
     FunctionDecl* FoundFD =
         R.empty() ? nullptr : dyn_cast<FunctionDecl>(R.front());
     if (!RD->isLambda() && !R.empty() &&
-        !m_Builder.m_DFC.IsCladDerivative(FoundFD)) {
+        !m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(FoundFD)) {
       Sema::NestedNameSpecInfo IdInfo(RD->getIdentifier(), noLoc, noLoc,
                                       /*ObjectType=*/nullptr);
       // FIXME: Address nested classes where SS should be set.
@@ -232,7 +234,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
 
   endScope(); // Function decl scope
 
-  return DerivativeAndOverload{result.first,
+  return DerivativeAndOverload{result.fd,
                                /*OverloadFunctionDecl=*/nullptr};
 }
 
@@ -309,7 +311,7 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
     auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, diffTy,
                                          PVD->getStorageClass());
     params.push_back(dPVD);
-    m_Variables[PVD] = BuildDeclRef(dPVD);
+    m_Variables[PVD] = {dPVD};
   }
 }
 
@@ -376,7 +378,7 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
     // Memorize the derivative of param, i.e. whenever the param is visited
     // in the future, it's derivative dParam is found (unless reassigned with
     // something new).
-    m_Variables[param] = dParam;
+    m_Variables[param] = {dParamDecl};
   }
   if (const auto* MD = dyn_cast<CXXMethodDecl>(dFD)) {
     // We cannot create derivative of lambda yet because lambdas default
@@ -452,7 +454,7 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
           BuildVarDecl(fieldType.getNonReferenceType(),
                        "_d_" + fieldDecl->getNameAsString(), dInitializer);
       addToCurrentBlock(BuildDeclStmt(derivedFieldDecl));
-      m_Variables.emplace(fieldDecl, BuildDeclRef(derivedFieldDecl));
+      m_Variables.emplace(fieldDecl, AdjointInfo{derivedFieldDecl});
     }
   }
 }
@@ -464,7 +466,7 @@ StmtDiff BaseForwardModeVisitor::VisitStmt(const Stmt* S) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
-  beginScope(Scope::DeclScope);
+  ScopeRAII compoundScope(*this, Scope::DeclScope);
   beginBlock();
   for (Stmt* S : CS->body()) {
     StmtDiff SDiff = Visit(S);
@@ -472,7 +474,6 @@ StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     addToCurrentBlock(SDiff.getStmt());
   }
   CompoundStmt* Result = endBlock();
-  endScope();
   // Differentation of CompundStmt produces another CompoundStmt with both
   // original and derived statements, i.e. Stmt() is Result and Stmt_dx() is
   // null.
@@ -482,7 +483,7 @@ StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
 StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
   // Control scope of the IfStmt. E.g., in if (double x = ...) {...}, x goes
   // to this scope.
-  beginScope(Scope::DeclScope | Scope::ControlScope);
+  ScopeRAII ifScope(*this, Scope::DeclScope | Scope::ControlScope);
   // Create a block "around" if statement, e.g:
   // {
   //   ...
@@ -530,12 +531,11 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
       return BranchDiff.getStmt();
     } else {
       beginBlock();
-      beginScope(Scope::DeclScope);
+      ScopeRAII branchScope(*this, Scope::DeclScope);
       StmtDiff BranchDiff = Visit(Branch);
       for (Stmt* S : BranchDiff.getBothStmts())
         addToCurrentBlock(S);
       CompoundStmt* Block = endBlock();
-      endScope();
       if (Block->size() == 1)
         return Block->body_front();
       else
@@ -552,7 +552,6 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
   addToCurrentBlock(ifDiff);
   CompoundStmt* Block = endBlock();
   // If IfStmt is the only statement in the block, remove the block:
-  endScope();
   // {
   //   if (...) {...}
   // }
@@ -582,11 +581,14 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
           .ActOnConditionalOp(noLoc, noLoc, cond, ifTrueDiff.getExpr(),
                               ifFalseDiff.getExpr())
           .get();
-
+  if (condExpr->getType()->isVoidType())
+    return StmtDiff(condExpr, nullptr);
+  // cond is already used by the value conditional above; clone it for the
+  // derivative conditional so the two do not share the stored condition.
   Expr* condExprDiff =
       m_Sema
-          .ActOnConditionalOp(noLoc, noLoc, cond, ifTrueDiff.getExpr_dx(),
-                              ifFalseDiff.getExpr_dx())
+          .ActOnConditionalOp(noLoc, noLoc, CloneNode(cond),
+                              ifTrueDiff.getExpr_dx(), ifFalseDiff.getExpr_dx())
           .get();
 
   return StmtDiff(condExpr, condExprDiff);
@@ -594,8 +596,8 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
 
 StmtDiff
 BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
-  beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
-             Scope::ContinueScope);
+  ScopeRAII rangeScope(*this, Scope::DeclScope | Scope::ControlScope |
+                                  Scope::BreakScope | Scope::ContinueScope);
   // Visiting for range-based ststement produces __range1, __begin1 and __end1
   // variables, so for(auto i: a){
   //      ...
@@ -637,8 +639,9 @@ BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
 
   auto* EndExpr = BuildDeclRef(
       cast<VarDecl>(cast<DeclStmt>(VisitEnd.getStmt())->getSingleDecl()));
-  // Build begin != end condition.
-  Expr* cond = BuildOp(BO_NE, BeginExpr, EndExpr);
+  // Build begin != end condition. BeginExpr is already used by the increment
+  // above, so build a fresh reference to the begin iterator here.
+  Expr* cond = BuildOp(BO_NE, BuildDeclRef(BeginVarDecl), EndExpr);
 
   const VarDecl* VD = FRS->getLoopVariable();
   DeclDiff<VarDecl> VDDiff = DifferentiateVarDecl(VD);
@@ -658,8 +661,8 @@ BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
-  beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
-             Scope::ContinueScope);
+  ScopeRAII forScope(*this, Scope::DeclScope | Scope::ControlScope |
+                                Scope::BreakScope | Scope::ContinueScope);
   beginBlock();
   const Stmt* init = FS->getInit();
   StmtDiff initDiff = init ? Visit(init) : StmtDiff{};
@@ -757,14 +760,15 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
 
   // Build the derived for loop body.
   const Stmt* body = FS->getBody();
-  beginScope(Scope::DeclScope);
   Stmt* bodyResult = nullptr;
-  beginBlock();
-  StmtDiff bodyVisited = Visit(body);
-  for (Stmt* S : bodyVisited.getBothStmts())
-    addToCurrentBlock(S);
-  bodyResult = utils::unwrapIfSingleStmt(endBlock());
-  endScope();
+  {
+    ScopeRAII bodyScope(*this, Scope::DeclScope);
+    beginBlock();
+    StmtDiff bodyVisited = Visit(body);
+    for (Stmt* S : bodyVisited.getBothStmts())
+      addToCurrentBlock(S);
+    bodyResult = utils::unwrapIfSingleStmt(endBlock());
+  }
 
   Stmt* forStmtDiff = new (m_Context)
       ForStmt(m_Context, initDiff.getStmt(), cond, /*condVar=*/nullptr,
@@ -772,7 +776,6 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
 
   addToCurrentBlock(forStmtDiff);
   CompoundStmt* Block = endBlock();
-  endScope();
 
   StmtDiff Result =
       (Block->size() == 1) ? StmtDiff(forStmtDiff) : StmtDiff(Block);
@@ -806,9 +809,9 @@ StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
       // Try to find the derivative of the member variable wrt independent
       // variable
       auto memberDecl = ME->getMemberDecl();
-      if (m_Variables.find(memberDecl) != std::end(m_Variables)) {
-        return StmtDiff(clonedME, m_Variables[memberDecl]);
-      }
+      auto it = m_Variables.find(memberDecl);
+      if (it != std::end(m_Variables))
+        return StmtDiff(clonedME, buildAdjoint(it->second));
     }
     // Is not a real variable. Therefore, derivative is 0.
     auto zero =
@@ -867,6 +870,14 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
                  std::begin(clonedIndices),
                  [this](const Expr* E) { return Clone(E); });
   Expr* cloned = BuildArraySubscript(clonedBase, clonedIndices);
+  // The index exprs are consumed by the primal subscript above; the derivative
+  // subscript below needs its own copies so the two do not share index nodes.
+  auto derivedIndices = [&]() {
+    llvm::SmallVector<Expr*, 4> V(clonedIndices.size());
+    std::transform(clonedIndices.begin(), clonedIndices.end(), V.begin(),
+                   [this](Expr* E) { return CloneNode(E); });
+    return V;
+  };
 
   Expr* zero = getZeroInit(ExprTy);
   ValueDecl* VD = nullptr;
@@ -879,7 +890,8 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
       // If the original field is of constant array type, then,
       // the derived variable of `arr[i]` is `_d_arr[i]`.
       if (it != m_Variables.end() && decl->getType()->isConstantArrayType()) {
-        auto result_at_i = BuildArraySubscript(it->second, clonedIndices);
+        auto* result_at_i =
+            BuildArraySubscript(buildAdjoint(it->second), derivedIndices());
         return StmtDiff{cloned, result_at_i};
       }
 
@@ -890,7 +902,7 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     if (!isa<MemberExpr>(derivedME->IgnoreParenImpCasts())) {
       return {cloned, zero};
     }
-    auto derivedAS = BuildArraySubscript(derivedME, clonedIndices);
+    auto* derivedAS = BuildArraySubscript(derivedME, derivedIndices());
     return {cloned, derivedAS};
   } else {
     if (!isa<DeclRefExpr>(clonedBase->IgnoreParenImpCasts()))
@@ -910,7 +922,7 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     if (!clonedIndices.back()->EvaluateAsInt(res, m_Context,
                                              AllowSideEffects)) {
       diffExpr =
-          BuildParens(BuildOp(BO_EQ, clonedIndices.back(),
+          BuildParens(BuildOp(BO_EQ, CloneNode(clonedIndices.back()),
                               ConstantFolder::synthesizeLiteral(
                                   ExprTy, m_Context, m_IndependentVarIndex)));
     } else if (res.Val.getInt().getExtValue() == m_IndependentVarIndex) {
@@ -926,16 +938,73 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     // Is not an independent variable, ignored.
     return StmtDiff(cloned, zero);
 
-  Expr* target = it->second;
-  // FIXME: fix when adding array inputs
-  if (!isArrayOrPointerType(target->getType()))
+  // FIXME: fix when adding array inputs. Forward-mode adjoints are plain refs,
+  // so the decl's type is the adjoint's -- check it before building anything.
+  if (!isArrayOrPointerType(it->second.Decl->getType().getNonReferenceType()))
     return StmtDiff(cloned, zero);
-  // llvm::APSInt IVal;
-  // if (!I->EvaluateAsInt(IVal, m_Context))
-  //  return;
-  // Create the _result[idx] expression.
-  auto result_at_is = BuildArraySubscript(target, clonedIndices);
-  return StmtDiff(cloned, result_at_is);
+  Expr* adjoint = buildAdjoint(it->second);
+  auto* result_at_is = BuildArraySubscript(adjoint, derivedIndices());
+  return StmtDiff(cloned,
+                  GuardNullTangentRead(base, adjoint, result_at_is, zero));
+}
+
+const DeclRefExpr*
+BaseForwardModeVisitor::getPointerArithmeticRoot(const Expr* E) {
+  while (E) {
+    E = E->IgnoreParenImpCasts();
+    if (const auto* BO = dyn_cast<BinaryOperator>(E)) {
+      BinaryOperatorKind opCode = BO->getOpcode();
+      bool isStep = opCode == BO_Add || opCode == BO_Sub ||
+                    opCode == BO_AddAssign || opCode == BO_SubAssign;
+      // Only a step that yields a pointer keeps the walk going; `ptr - ptr` is
+      // not one. Plain `ptr = q` is not one either, being rooted in `q`.
+      if (!isStep || !BO->getType()->isPointerType())
+        break;
+      // `ptr + n`, `ptr - n` and `ptr += n` step the pointer on the left,
+      // `n + ptr` the one on the right; a pointer result leaves no third case.
+      const Expr* LHS = BO->getLHS();
+      E = LHS->getType()->isPointerType() ? LHS : BO->getRHS();
+      continue;
+    }
+    const auto* UO = dyn_cast<UnaryOperator>(E);
+    if (!UO || !UO->isIncrementDecrementOp() || !UO->getType()->isPointerType())
+      break;
+    E = UO->getSubExpr();
+  }
+  return dyn_cast_or_null<DeclRefExpr>(E);
+}
+
+Expr* BaseForwardModeVisitor::GuardNullTangentRead(const Expr* ptr,
+                                                   Expr* tangent, Expr* read,
+                                                   Expr* zero) {
+  // Test the root, not the expression being dereferenced: the two are null
+  // together, and the root repeats no pointer arithmetic. When the walk reaches
+  // no root the whole tangent becomes the condition, so callers have to hand
+  // over one that is safe to evaluate twice.
+  const DeclRefExpr* DRE = getPointerArithmeticRoot(ptr);
+  if (!DRE || !m_DiffReq.mayHaveNullTangent(dyn_cast<VarDecl>(DRE->getDecl())))
+    return read;
+  const DeclRefExpr* tangentRoot = getPointerArithmeticRoot(tangent);
+  Expr* cond = CloneNode(tangentRoot ? tangentRoot : tangent);
+  return BuildParens(
+      m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, read, zero).get());
+}
+
+Expr* BaseForwardModeVisitor::KeepTangentNullness(const Expr* ptr,
+                                                  Expr* tangent) {
+  if (!tangent || !tangent->getType()->isPointerType())
+    return tangent;
+  // A bare root has no arithmetic to undo.
+  const DeclRefExpr* tangentRoot = getPointerArithmeticRoot(tangent);
+  if (!tangentRoot || tangentRoot == tangent->IgnoreParenImpCasts())
+    return tangent;
+  const DeclRefExpr* DRE = getPointerArithmeticRoot(ptr);
+  if (!DRE || !m_DiffReq.mayHaveNullTangent(dyn_cast<VarDecl>(DRE->getDecl())))
+    return tangent;
+  Expr* cond = CloneNode(tangentRoot);
+  Expr* null = getZeroInit(tangent->getType());
+  return BuildParens(
+      m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, tangent, null).get());
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
@@ -972,20 +1041,8 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     // If DRE references a variable, try to find if we know something about
     // how it is related to the independent variable.
     auto it = m_Variables.find(VD);
-    if (it != std::end(m_Variables)) {
-      clang::Expr* dExpr = it->second;
-      // If a record was found, use the recorded derivative.
-      if (auto dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
-        auto dVar = cast<VarDecl>(dVarDRE->getDecl());
-        if (dVar->getDeclContext() != m_Sema.CurContext) {
-          clad_compat::NestedNameSpecifierTy NNS = DRE->getQualifier();
-          dExpr = BuildDeclRef(dVar, clad_compat::hasQualifier(NNS)
-                                         ? NNS
-                                         : clad_compat::nullNNS());
-        }
-      }
-      return StmtDiff(clonedDRE, dExpr);
-    }
+    if (it != std::end(m_Variables))
+      return StmtDiff(clonedDRE, buildAdjoint(it->second, DRE));
   }
   // Is not a variable or is a reference to something unrelated to independent
   // variable. Derivative is 0.
@@ -1080,9 +1137,44 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         baseOriginalE = OCE->getArg(0);
       baseDiff = Visit(baseOriginalE);
       Expr* baseDerivative = baseDiff.getExpr_dx();
-      if (!baseDerivative->getType()->isPointerType())
-        baseDerivative = BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
-      diffArgs.push_back(baseDerivative);
+      if (!baseDerivative || baseDerivative->getType()->isVoidType()) {
+        // The base does not depend on the differentiation variable and has no
+        // tangent. The call may still contribute to the directional derivative
+        // through its arguments: consult the activity information of the
+        // DiffRequest to find out. If no argument is varied either, the call
+        // contributes nothing.
+        bool anyVariedArg = false;
+        for (unsigned i = isa<CXXOperatorCallExpr>(CE) ? 1 : 0,
+                      e = CE->getNumArgs();
+             i < e; ++i) {
+          const Expr* arg = CE->getArg(i);
+          if (utils::IsDifferentiableType(arg->getType()) &&
+              m_DiffReq.isVaried(arg)) {
+            anyVariedArg = true;
+            break;
+          }
+        }
+        if (!anyVariedArg)
+          return StmtDiff(Clone(CE),
+                          getZeroInit(CE->getType().getNonReferenceType()));
+        // The arguments drive the derivative through the pushforward, whose
+        // `_d_this` slot must stay filled: pass a zero-initialized
+        // placeholder, mirroring the zero adjoint reverse mode synthesizes
+        // for such a base.
+        QualType baseTy = baseOriginalE->getType();
+        if (baseTy->isPointerType())
+          baseTy = baseTy->getPointeeType();
+        baseTy = baseTy.getNonReferenceType().getUnqualifiedType();
+        VarDecl* dBaseVD = BuildVarDecl(baseTy, "_d_base", getZeroInit(baseTy));
+        addToCurrentBlock(BuildDeclStmt(dBaseVD));
+        diffArgs.push_back(
+            BuildOp(UnaryOperatorKind::UO_AddrOf, BuildDeclRef(dBaseVD)));
+      } else {
+        if (!baseDerivative->getType()->isPointerType())
+          baseDerivative =
+              BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
+        diffArgs.push_back(baseDerivative);
+      }
     }
   }
 
@@ -1235,6 +1327,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         }
         dArg = getZeroInit(zeroTy);
       }
+      // The callee null checks the tangent it is handed.
+      dArg = KeepTangentNullness(arg, dArg);
       // pointer/array arguments are dynamically synthesized above
       diffArgs.push_back(dArg);
     }
@@ -1260,11 +1354,15 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     if (!isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE) &&
         !needsForwPass) {
       bool allArgsHaveZeroDerivatives = true;
-      for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+      for (unsigned i = 0, e = diffArgs.size(); i < e; ++i) {
         Expr* dArg = diffArgs[i];
         // If argDiff.expr_dx is nullptr or is a constant 0, then the derivative
-        // of the function call is 0.
-        if (!clad::utils::IsZeroOrNullValue(dArg)) {
+        // of the function call is 0. Constant-fold rather than pattern-match a
+        // literal: by the time a tangent reaches a call it has usually been
+        // bound to a `const` variable, and seeding one direction of a
+        // multi-directional request leaves every other tangent exactly that --
+        // a zero-initialized constant.
+        if (!clad::utils::IsZeroOrNullValue(dArg, m_Context)) {
           allArgsHaveZeroDerivatives = false;
           break;
         }
@@ -1319,7 +1417,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // If clad failed to derive it, try finding its derivative using
   // numerical diff.
   if (!callDiff) {
-    Multiplier = diffArgs[0];
+    Multiplier = diffArgs.empty() ? nullptr : diffArgs[0];
     Expr* call =
         m_Sema
             .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), validLoc,
@@ -1350,8 +1448,9 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       StoreAndRef(callDiff, "_t", /*forceDeclCreation=*/true);
   Expr* returnValue = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                              valueAndPushforward, "value");
+  // Clone the base so `.value` and `.pushforward` own distinct nodes.
   Expr* pushforward = utils::BuildMemberExpr(
-      m_Sema, getCurrentScope(), valueAndPushforward, "pushforward");
+      m_Sema, getCurrentScope(), CloneNode(valueAndPushforward), "pushforward");
   return StmtDiff(returnValue, pushforward);
 }
 
@@ -1367,8 +1466,12 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
   else if (opKind == UO_PostInc || opKind == UO_PostDec ||
            opKind == UO_PreInc || opKind == UO_PreDec) {
     Expr* derivedOp = diff.getExpr_dx();
-    if (derivedOp && diff.getExpr_dx()->getType()->isPointerType())
+    if (derivedOp && diff.getExpr_dx()->getType()->isPointerType()) {
       derivedOp = BuildOp(opKind, diff.getExpr_dx());
+      // The stepped tangent outlives this expression, so skip the step while
+      // it is null.
+      derivedOp = KeepTangentNullness(UnOp->getSubExpr(), derivedOp);
+    }
     return StmtDiff(op, derivedOp);
   } /* For supporting complex types */
   else if (opKind == UnaryOperatorKind::UO_Real ||
@@ -1378,16 +1481,29 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
       derivedOp = BuildOp(opKind, diff.getExpr_dx());
     return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_Deref) {
-    if (Expr* dx = diff.getExpr_dx())
-      return StmtDiff(op, BuildOp(opKind, dx));
     QualType literalTy =
         utils::GetValueType(UnOp->getSubExpr()->getType()->getPointeeType());
-    return StmtDiff(
-        op, ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0));
+    Expr* zero =
+        ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0);
+    if (Expr* dx = diff.getExpr_dx()) {
+      // The guard tests the tangent and reads through it. A tangent that steps
+      // a pointer (`_d_q++`) would take that step once per occurrence, so give
+      // the two occurrences a single evaluation to share.
+      if (dx->HasSideEffects(m_Context))
+        dx = StoreAndRef(dx);
+      return StmtDiff(op, GuardNullTangentRead(UnOp->getSubExpr(), dx,
+                                               BuildOp(opKind, dx), zero));
+    }
+    return StmtDiff(op, zero);
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
     Expr* derivedOp = diff.getExpr_dx();
-    if (derivedOp)
-      derivedOp = BuildOp(opKind, diff.getExpr_dx());
+    // A subexpression without a tangent of its own (e.g. an object that does
+    // not depend on the differentiation variable) yields a synthesized zero
+    // init, which is an rvalue and has no address.
+    if (derivedOp && !derivedOp->getType()->isVoidType())
+      derivedOp = BuildOp(opKind, derivedOp);
+    else
+      derivedOp = nullptr;
     return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_LNot) {
     Expr* zero = getZeroInit(UnOp->getType());
@@ -1416,11 +1532,13 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
   auto opCode = BinOp->getOpcode();
   Expr* opDiff = nullptr;
 
+  // The operand primals are also parented by the forward value; clone each so
+  // the derivative expression owns a distinct subtree.
   auto deriveMul = [this](StmtDiff& Ldiff, StmtDiff& Rdiff) {
     Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
-                        BuildParens(Rdiff.getExpr()));
+                        BuildParens(CloneNode(Rdiff.getExpr())));
 
-    Expr* RHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr()),
+    Expr* RHS = BuildOp(BO_Mul, BuildParens(CloneNode(Ldiff.getExpr())),
                         BuildParens(Rdiff.getExpr_dx()));
 
     return BuildOp(BO_Add, LHS, RHS);
@@ -1428,15 +1546,16 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
 
   auto deriveDiv = [this](StmtDiff& Ldiff, StmtDiff& Rdiff) {
     Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
-                        BuildParens(Rdiff.getExpr()));
+                        BuildParens(CloneNode(Rdiff.getExpr())));
 
-    Expr* RHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr()),
+    Expr* RHS = BuildOp(BO_Mul, BuildParens(CloneNode(Ldiff.getExpr())),
                         BuildParens(Rdiff.getExpr_dx()));
 
     Expr* nominator = BuildOp(BO_Sub, LHS, RHS);
 
-    Expr* RParens = BuildParens(Rdiff.getExpr());
-    Expr* denominator = BuildOp(BO_Mul, RParens, RParens);
+    Expr* RParens = BuildParens(CloneNode(Rdiff.getExpr()));
+    Expr* denominator =
+        BuildOp(BO_Mul, RParens, BuildParens(CloneNode(Rdiff.getExpr())));
 
     return BuildOp(BO_Div, BuildParens(nominator), BuildParens(denominator));
   };
@@ -1457,6 +1576,13 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     Expr* derivedL = nullptr;
     Expr* derivedR = nullptr;
     ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
+    // In pointer arithmetic ComputeEffectiveDOperands feeds the primal scalar
+    // operand (getExpr()) through as the derived operand; clone it so the
+    // derivative op does not share the node with the primal `op` built below.
+    if (derivedL == Ldiff.getExpr())
+      derivedL = CloneNode(derivedL);
+    if (derivedR == Rdiff.getExpr())
+      derivedR = CloneNode(derivedR);
     if (opCode == BO_Sub)
       derivedR = BuildParens(derivedR);
     opDiff = BuildOp(opCode, derivedL, derivedR);
@@ -1476,7 +1602,19 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       Expr* derivedL = nullptr;
       Expr* derivedR = nullptr;
       ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
+      // See the BO_Add/BO_Sub note: clone the reused primal scalar operand so
+      // the derived assignment does not share it with the primal `op`.
+      if (derivedL == Ldiff.getExpr())
+        derivedL = CloneNode(derivedL);
+      if (derivedR == Rdiff.getExpr())
+        derivedR = CloneNode(derivedR);
+      // `q = xlArr + 1` carries the arithmetic on the right; `q += 1` performs
+      // it on the tangent itself, so there the whole update is guarded.
+      if (opCode == BO_Assign)
+        derivedR = KeepTangentNullness(BinOp->getRHS(), derivedR);
       opDiff = BuildOp(opCode, derivedL, derivedR);
+      if (opCode != BO_Assign)
+        opDiff = KeepTangentNullness(BinOp->getLHS(), opDiff);
     } else if (opCode == BO_MulAssign || opCode == BO_DivAssign) {
       // if both original expression and derived expression and evaluatable,
       // then derived expression reference needs to be stored before
@@ -1501,17 +1639,20 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       Ldiff = {StoreAndRef(Ldiff.getExpr()), LdiffExprDx};
       auto RdiffExprDx = StoreAndRef(Rdiff.getExpr_dx());
       Rdiff = {StoreAndRef(Rdiff.getExpr()), RdiffExprDx};
+      // deriveMul/deriveDiv reuse Ldiff.getExpr_dx() (the stored derivative
+      // ref) on the right-hand side; clone it for the assignment target so the
+      // two occurrences do not share.
       if (opCode == BO_MulAssign)
-        opDiff =
-            BuildOp(BO_Assign, Ldiff.getExpr_dx(), deriveMul(Ldiff, Rdiff));
+        opDiff = BuildOp(BO_Assign, CloneNode(Ldiff.getExpr_dx()),
+                         deriveMul(Ldiff, Rdiff));
       else if (opCode == BO_DivAssign)
-        opDiff =
-            BuildOp(BO_Assign, Ldiff.getExpr_dx(), deriveDiv(Ldiff, Rdiff));
+        opDiff = BuildOp(BO_Assign, CloneNode(Ldiff.getExpr_dx()),
+                         deriveDiv(Ldiff, Rdiff));
     }
   } else if (opCode == BO_Comma) {
     // if expression is (E1, E2) then derivative is (E1', E1, E2')
     // because E1 may change some variables that E2 depends on.
-    if (!isUnusedResult(Ldiff.getExpr_dx())) {
+    if (Ldiff.getExpr_dx() && !isUnusedResult(Ldiff.getExpr_dx())) {
       opDiff = BuildOp(BO_Comma, BuildParens(Ldiff.getExpr_dx()),
                        BuildParens(Ldiff.getExpr()));
       opDiff = BuildOp(BO_Comma, BuildParens(opDiff),
@@ -1542,7 +1683,9 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
   } else if (BinOp->isShiftOp()) {
     // Shifting is essentially multiplicating the LHS by 2^RHS (or 2^-RHS).
     // We should do the same to the derivarive.
-    opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), Rdiff.getExpr());
+    // Rdiff.getExpr() (the shift count) is also used by the primal op built
+    // below; clone it so the derivative does not share the node.
+    opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), CloneNode(Rdiff.getExpr()));
   } else {
     // FIXME: add support for other binary operators
     unsupportedOpWarn(BinOp->getOperatorLoc());
@@ -1584,20 +1727,34 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
                                   initDiff.getExpr(), VD->isDirectInit());
   // FIXME: Create unique identifier for derivative.
   Expr* initDx = initDiff.getExpr_dx();
-  if (VD->getType()->isPointerType() && !initDx) {
+  QualType VDType = VD->getType();
+  // A reference tangent needs an lvalue to bind to; the literal 0 that e.g.
+  // `const double& r = 5.;` derives to is not one.
+  if (VDType->isLValueReferenceType() && initDx && !initDx->isLValue())
+    initDx = nullptr;
+  // The tangent outlives the initializer that built it.
+  if (init && initDx)
+    initDx = KeepTangentNullness(init, initDx);
+  // References and pointers-to-const only alias storage they do not own, so
+  // without an initializer tangent there is nothing to alias. Fabricating one
+  // yields a null tangent that later gets dereferenced, or a reference bound
+  // to a temporary; leave them without a tangent and let uses derive to zero,
+  // as reverse mode does in ReverseModeVisitor::DifferentiateVarDecl.
+  bool isAlias =
+      VDType->isLValueReferenceType() ||
+      (VDType->isPointerType() && VDType->getPointeeType().isConstQualified());
+  if (VDType->isPointerType() && !initDx && !isAlias) {
     // initialize with nullptr.
-    // NOLINTBEGIN(cppcoreguidelines-owned-memory)
-    initDx =
-        new (m_Context) CXXNullPtrLiteralExpr(VD->getType(), VD->getBeginLoc());
-    // NOLINTEND(cppcoreguidelines-owned-memory)
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    initDx = new (m_Context) CXXNullPtrLiteralExpr(VDType, VD->getBeginLoc());
   }
   VarDecl* VDDerived = nullptr;
-  if (m_DiffReq.shouldHaveAdjointForw(VD))
-    VDDerived = BuildVarDecl(VD->getType(), "_d_" + VD->getNameAsString(),
-                             initDx, VD->isDirectInit());
+  if (m_DiffReq.shouldHaveAdjointForw(VD) && (initDx || !isAlias))
+    VDDerived = BuildVarDecl(VDType, "_d_" + VD->getNameAsString(), initDx,
+                             VD->isDirectInit());
 
   if (VDDerived)
-    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+    m_Variables.emplace(VDClone, AdjointInfo{VDDerived});
   return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
 
@@ -1623,10 +1780,41 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
     // supported.
     if (typeDecl && (clad::utils::hasNonDifferentiableAttribute(typeDecl) ||
                      typeDecl->isLambda())) {
+      // A lambda copied verbatim would splice the primal's closure -- its
+      // operator() body -- into the derivative. Rebuild it with a fresh closure
+      // instead; the call's pushforward is regenerated for that closure in
+      // VisitCallExpr, so it still resolves.
       for (auto* D : DS->decls()) {
         assert(isa<VarDecl>(D) && "Mixed decl types in a single decl stmt is "
                                   "not standard c++ syntax");
-        decls.push_back(cast<VarDecl>(D));
+        auto* VDecl = cast<VarDecl>(D);
+        if (typeDecl->isLambda() && VDecl->getInit())
+          if (const auto* InnerLE =
+                  dyn_cast<LambdaExpr>(VDecl->getInit()->IgnoreImplicit())) {
+            Expr* ClonedLambda = buildClonedLambda(InnerLE);
+            QualType AutoTy = m_Context.getAutoDeductType();
+            TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(AutoTy);
+            VarDecl* NewVD =
+                BuildVarDecl(AutoTy, VDecl->getNameAsString(), ClonedLambda,
+                             VDecl->isDirectInit(), TSI);
+            m_DeclReplacements[VDecl] = NewVD;
+            decls.push_back(NewVD);
+            continue;
+          }
+        // A lambda without a direct initializer (or any other
+        // non-differentiable decl) is cloned so the derivative does not splice
+        // the primal's VarDecl and init into itself.
+        if (typeDecl->isLambda()) {
+          decls.push_back(VDecl);
+        } else {
+          Expr* clonedInit =
+              VDecl->getInit() ? Clone(VDecl->getInit()) : nullptr;
+          VarDecl* copyVD =
+              BuildVarDecl(VDecl->getType(), VDecl->getNameAsString(),
+                           clonedInit, VDecl->isDirectInit());
+          m_DeclReplacements[VDecl] = copyVD;
+          decls.push_back(copyVD);
+        }
       }
       Stmt* DSClone = BuildDeclStmt(decls);
       return StmtDiff(DSClone, nullptr);
@@ -1731,16 +1919,16 @@ BaseForwardModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
 StmtDiff BaseForwardModeVisitor::VisitGNUNullExpr(const clang::GNUNullExpr* E) {
   auto* Constant0 =
       ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, /*val=*/0);
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  return StmtDiff(const_cast<clang::GNUNullExpr*>(E), Constant0);
+  // Clone so the derivative owns its copy rather than the primal's node.
+  return StmtDiff(CloneNode(E), Constant0);
 }
 
 StmtDiff
 BaseForwardModeVisitor::VisitPredefinedExpr(const clang::PredefinedExpr* E) {
   auto* Constant0 =
       ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, /*val=*/0);
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  return StmtDiff(const_cast<clang::PredefinedExpr*>(E), Constant0);
+  // Clone so the derivative owns its copy rather than the primal's node.
+  return StmtDiff(CloneNode(E), Constant0);
 }
 
 StmtDiff
@@ -1777,11 +1965,14 @@ BaseForwardModeVisitor::VisitCXXNamedCastExpr(const CXXNamedCastExpr* NCE) {
           .BuildCXXNamedCast(Loc, CastKind, TSI, subExprDiff.getExpr(),
                              Brackets, Range)
           .get();
-  Expr* castExprDiff =
-      m_Sema
-          .BuildCXXNamedCast(Loc, CastKind, TSI, subExprDiff.getExpr_dx(),
-                             Brackets, Range)
-          .get();
+  // A subexpression without a tangent (e.g. the address of an object that
+  // does not depend on the differentiation variable) has nothing to cast.
+  Expr* subExprDx = subExprDiff.getExpr_dx();
+  Expr* castExprDiff = nullptr;
+  if (subExprDx && !subExprDx->getType()->isVoidType())
+    castExprDiff =
+        m_Sema.BuildCXXNamedCast(Loc, CastKind, TSI, subExprDx, Brackets, Range)
+            .get();
   return StmtDiff(castExpr, castExprDiff);
 }
 
@@ -1819,10 +2010,17 @@ StmtDiff BaseForwardModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
                                  SL->getType(), utils::GetValidSLoc(m_Sema)));
 }
 
+StmtDiff
+BaseForwardModeVisitor::VisitSourceLocExpr(const clang::SourceLocExpr* E) {
+  auto* Constant0 =
+      ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, /*val=*/0);
+  return StmtDiff(CloneNode(E), Constant0);
+}
+
 StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
-  // begin scope for while loop
-  beginScope(Scope::ContinueScope | Scope::BreakScope | Scope::DeclScope |
-             Scope::ControlScope);
+  // Scope for the whole while loop.
+  ScopeRAII whileScope(*this, Scope::ContinueScope | Scope::BreakScope |
+                                  Scope::DeclScope | Scope::ControlScope);
 
   const VarDecl* condVar = WS->getConditionVariable();
   VarDecl* condVarClone = nullptr;
@@ -1879,13 +2077,12 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
   if (isa<CompoundStmt>(body)) {
     bodyResult = Visit(body).getStmt();
   } else {
-    beginScope(Scope::DeclScope);
+    ScopeRAII bodyScope(*this, Scope::DeclScope);
     beginBlock();
     StmtDiff Result = Visit(body);
     for (Stmt* S : Result.getBothStmts())
       addToCurrentBlock(S);
     CompoundStmt* Block = endBlock();
-    endScope();
     bodyResult = Block;
   }
 
@@ -1894,8 +2091,6 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
           .ActOnWhileStmt(/*WhileLoc=*/noLoc, /*LParenLoc=*/noLoc, condRes,
                           /*RParenLoc=*/noLoc, bodyResult)
           .get();
-  // end scope for while loop
-  endScope();
   return StmtDiff(WSDiff);
 }
 
@@ -1905,8 +2100,8 @@ BaseForwardModeVisitor::VisitContinueStmt(const ContinueStmt* ContStmt) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
-  // begin scope for do-while statement
-  beginScope(Scope::ContinueScope | Scope::BreakScope);
+  // Scope for the whole do-while statement.
+  ScopeRAII doScope(*this, Scope::ContinueScope | Scope::BreakScope);
   Expr* clonedCond = DS->getCond() ? Clone(DS->getCond()) : nullptr;
   const Stmt* body = DS->getBody();
 
@@ -1914,13 +2109,12 @@ StmtDiff BaseForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
   if (isa<CompoundStmt>(body)) {
     bodyResult = Visit(body).getStmt();
   } else {
-    beginScope(Scope::DeclScope);
+    ScopeRAII bodyScope(*this, Scope::DeclScope);
     beginBlock();
     StmtDiff Result = Visit(body);
     for (Stmt* S : Result.getBothStmts())
       addToCurrentBlock(S);
     CompoundStmt* Block = endBlock();
-    endScope();
     bodyResult = Block;
   }
 
@@ -1930,8 +2124,6 @@ StmtDiff BaseForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
                              /*CondRParen=*/noLoc)
                 .get();
 
-  // end scope for do-while statement
-  endScope();
   return StmtDiff(S);
 }
 
@@ -2152,8 +2344,10 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     auto valueAndPushforwardE = StoreAndRef(pushforwardCall);
     Expr* valueE = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                           valueAndPushforwardE, "value");
-    Expr* pushforwardE = utils::BuildMemberExpr(
-        m_Sema, getCurrentScope(), valueAndPushforwardE, "pushforward");
+    // Clone the base so `.value` and `.pushforward` own distinct nodes.
+    Expr* pushforwardE =
+        utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                               CloneNode(valueAndPushforwardE), "pushforward");
     return StmtDiff(valueE, pushforwardE);
   }
 
@@ -2242,7 +2436,10 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
 
 StmtDiff
 BaseForwardModeVisitor::VisitCXXThisExpr(const clang::CXXThisExpr* CTE) {
-  return StmtDiff(const_cast<CXXThisExpr*>(CTE), m_ThisExprDerivative);
+  // Clone CTE so the derivative owns its `this` node rather than splicing the
+  // primal method's; m_ThisExprDerivative is a single cached `_d_this` ref, so
+  // clone it too so distinct uses do not share the same node.
+  return StmtDiff(CloneNode(CTE), CloneNode(m_ThisExprDerivative));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {

@@ -1,18 +1,16 @@
-# The VC revision include that we want to generate.
-if (LLVM_EXTERNAL_CLAD_SOURCE_DIR)
-  set(version_file ${LLVM_EXTERNAL_CLAD_SOURCE_DIR}/VERSION)
-else()
-  set(version_file ${CMAKE_SOURCE_DIR}/VERSION)
-endif(LLVM_EXTERNAL_CLAD_SOURCE_DIR)
+# The VC revision include that we want to generate. Note that CLAD_SOURCE_DIR
+# and CLAD_BINARY_DIR are ours also when clad is only a part of a bigger build,
+# whereas CMAKE_SOURCE_DIR and CMAKE_BINARY_DIR belong to whoever is on top.
+set(version_file ${CLAD_SOURCE_DIR}/VERSION)
 set(version_inc ${CMAKE_CURRENT_BINARY_DIR}/VCSVersion.inc)
 set(generate_vcs_version_script ${LLVM_CMAKE_DIR}/GenerateVersionFromVCS.cmake)
-find_first_existing_vc_file(${CMAKE_SOURCE_DIR} clad_vc)
+find_first_existing_vc_file(${CLAD_SOURCE_DIR} clad_vc)
 
 # Create the VCSVersion.inc
 add_custom_command(OUTPUT "${version_inc}"
   DEPENDS ${clad_vc} ${generate_vcs_version_script}
   COMMAND ${CMAKE_COMMAND} "-DNAMES=\"CLAD\""
-                           "-DCLAD_SOURCE_DIR=${CMAKE_SOURCE_DIR}"
+                           "-DCLAD_SOURCE_DIR=${CLAD_SOURCE_DIR}"
                            "-DLLVM_DIR=${LLVM_CMAKE_DIR}"
                            "-DCMAKE_MODULE_PATH=${LLVM_CMAKE_DIR}"
                            "-DHEADER_FILE=${version_inc}"
@@ -34,20 +32,15 @@ list(GET VERSION_LIST 0 CLAD_VERSION_MAJOR)
 list(GET VERSION_LIST 1 CLAD_VERSION_MINOR)
 list(GET VERSION_LIST 2 CLAD_VERSION_PATCH)
 
-if (LLVM_EXTERNAL_CLAD_SOURCE_DIR)
-  configure_file(
-    ${LLVM_EXTERNAL_CLAD_SOURCE_DIR}/include/clad/Differentiator/Version.inc.in
-    ${CMAKE_BINARY_DIR}/include/clad/Differentiator/Version.inc)
-else()
-  configure_file(
-    ${CMAKE_SOURCE_DIR}/include/clad/Differentiator/Version.inc.in
-    ${CMAKE_BINARY_DIR}/include/clad/Differentiator/Version.inc)
-endif(LLVM_EXTERNAL_CLAD_SOURCE_DIR)
+configure_file(
+  ${CLAD_SOURCE_DIR}/include/clad/Differentiator/Version.inc.in
+  ${CLAD_BINARY_DIR}/include/clad/Differentiator/Version.inc)
 
 
 # (Ab)use llvm facilities for adding libraries.
 llvm_add_library(cladDifferentiator
   STATIC
+  ASTIntegrity.cpp
   ActivityAnalyzer.cpp
   AnalysisBase.cpp
   BaseForwardModeVisitor.cpp
@@ -77,3 +70,9 @@ llvm_add_library(cladDifferentiator
   VisitorBase.cpp
   ${version_inc}
   )
+
+# Version.cpp includes the generated VCSVersion.inc by its bare name, so the
+# directory it is generated into has to be on the include path. Do not rely on
+# CMAKE_INCLUDE_CURRENT_DIR here: a host project that adds us with
+# add_subdirectory() need not have it set.
+target_include_directories(cladDifferentiator PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

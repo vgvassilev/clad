@@ -147,6 +147,35 @@ function(CB_ADD_GBENCHMARK benchmark)
                        DEPENDS ${benchmark})
 endfunction(CB_ADD_GBENCHMARK)
 
+set(CLAD_CUDA_GPU_ARCH "sm_61" CACHE STRING "Enter architecure explicitly. (By default it is: sm_61)")
+function(CB_ADD_CUDA_BENCHMARK TARGET_NAME)
+  ADD_CLAD_EXECUTABLE(${TARGET_NAME} ${ARGN})
+
+  target_compile_options(${TARGET_NAME} PRIVATE 
+      $<$<COMPILE_LANGUAGE:CXX>:
+          -x cuda
+          -std=c++17
+          -O3
+          -Xclang -new-struct-path-tbaa 
+          --cuda-gpu-arch=${CLAD_CUDA_GPU_ARCH} 
+      >
+  )
+
+  target_link_libraries(${TARGET_NAME} PRIVATE CUDA::cudart_static dl rt pthread m stdc++)
+
+  if(TARGET clad)
+    add_dependencies(${TARGET_NAME} clad)
+    target_compile_options(${TARGET_NAME} PRIVATE 
+        $<$<COMPILE_LANGUAGE:CXX>:-fplugin=$<TARGET_FILE:clad>>
+    )
+  endif()
+
+  add_test(NAME clad-${TARGET_NAME} COMMAND ${TARGET_NAME})
+  set_tests_properties(clad-${TARGET_NAME} PROPERTIES LABELS "benchmark")
+endfunction()
+
+
+
 #-------------------------------------------------------------------------------
 # function remove_coverage_flags(C_FLAGS_VAR CXX_FLAGS_VAR
 #                                SHARED_CREATE_CXX_FLAGS_VAR
@@ -233,6 +262,15 @@ function(clad_externalproject_add NAME)
 
   remove_coverage_flags(C_FLAGS_EXT CXX_FLAGS_EXT SHARED_CREATE_CXX_FLAGS_EXT EXE_LINKER_FLAGS_EXT SHARED_LINKER_FLAGS_EXT)
   disable_werror(C_FLAGS_EXT CXX_FLAGS_EXT)
+
+
+  # Strip sanitizer flags: 3rd-party externals build with cmake
+  # defaults; the parent keeps its -fsanitize=* from LLVM_USE_SANITIZER.
+  foreach(_flags C_FLAGS_EXT CXX_FLAGS_EXT)
+    foreach(_san "-fsanitize=address" "-fsanitize=undefined" "-fsanitize=memory")
+      string(REPLACE "${_san}" "" ${_flags} "${${_flags}}")
+    endforeach()
+  endforeach()
 
   # Everything EXCEPT EXTRA_CMAKE_ARGS gets forwarded unchanged
   set(FORWARDED_ARGS ${ARG_UNPARSED_ARGUMENTS})

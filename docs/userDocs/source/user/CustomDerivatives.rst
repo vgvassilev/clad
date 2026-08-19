@@ -79,6 +79,63 @@ directly in :code:`clad::custom_derivatives::class_functions` regardless of the 
   Non-templated free functions defined in a header file need to be marked :code:`inline`
   to avoid issues with symbol duplication just like any other C++ entity defined in a header file.
 
+Adjoint construction and initialization
+========================================
+
+Reverse-mode differentiation sometimes needs to construct an internal adjoint
+from an existing primal value. Clad provides two related customization points
+for this purpose:
+
+- :code:`clad::zero_init(x)` resets values in an already constructed adjoint in
+  place. Use it when the adjoint's required structure and storage already
+  exist. The default implementation recursively clears ranges and uses
+  byte-wise zeroing for supported non-range types; provide an overload when
+  that behavior would not preserve the structure required by the type.
+- :code:`clad::zero_like(x)` constructs and returns a new zero adjoint with the
+  same relevant runtime structure as the primal :code:`x`. Conceptually, it
+  returns a value structurally like :code:`x` with :code:`zero_init` applied.
+  This is the primary extension point for adjoint construction.
+
+The default :code:`zero_like` implementation value-initializes arithmetic and
+enum types. For resizable ranges, it resizes an empty result to the primal size
+and recursively resizes nested ranges directly in their corresponding result
+elements. Other copyable ranges use copy-then-zero to preserve their structure.
+Provide a type-specific :code:`zero_like` overload when neither strategy can
+create an independent, structurally correct adjoint. Common examples include
+owning or reference-counted storage, views that alias the primal, device memory,
+and types whose shape, allocator, device, or other runtime metadata requires
+special handling.
+
+For example, a device buffer may require a fresh allocation on the same device
+instead of a shallow copy::
+
+  struct DeviceBuffer {
+    DeviceBuffer(std::size_t size, int device);
+    std::size_t size() const;
+    int device() const;
+    void fill(double value);
+  };
+
+  namespace clad {
+
+  inline void zero_init(DeviceBuffer& buffer) {
+    buffer.fill(0.0);
+  }
+
+  inline DeviceBuffer zero_like(const DeviceBuffer& value) {
+    DeviceBuffer result(value.size(), value.device());
+    zero_init(result);
+    return result;
+  }
+
+  } // namespace clad
+
+Here :code:`zero_init` defines how to reset storage that already exists, while
+:code:`zero_like` defines how to allocate and construct that storage from the
+primal. The returned adjoint must not unintentionally alias mutable primal
+storage. Define these customizations after the differentiated type and before
+requesting its derivative.
+
 Pushforward custom derivatives
 ===============================
 
@@ -435,3 +492,59 @@ Note that the constructor pullback does not need anything such as
 :code:`clad::ConstructorPushforwardTag<::Coordinates>`. It is because
 the constructor pullback takes :code:`d_coordinates` as an argument, which can be
 used to identify the class for which the constructor pullback is defined.
+
+Porting hints: discovering which custom derivatives to write
+============================================================
+
+When you bring clad to a new library, the hard part is usually finding *which*
+functions need a custom derivative (or a non-differentiable marker) and what
+signature each one must have. If clad has no custom derivative for a function
+and can see its definition, it silently falls back to **differentiating that
+definition** -- recursively descending into the library's internals (reference
+counting, allocation, I/O, ...), which for a library boundary is rarely what
+you want and often produces ill-formed or incorrect derivatives.
+
+The :code:`-fclad-porting-hints` plugin flag surfaces every such boundary. Pass
+it through the compiler driver:
+
+.. code-block:: bash
+
+  clang -fplugin=/path/to/clad.so \
+        -Xclang -plugin-arg-clad -Xclang -fclad-porting-hints \
+        -I/path/to/clad/include yourcode.cpp
+
+For every function that is defined **outside the main source file** (i.e. in an
+included header -- the library boundary) and that clad differentiates by cloning
+its definition, clad emits a remark naming the exact custom-derivative signature
+to provide *and* the marker to declare instead:
+
+.. code-block:: text
+
+  remark: clad has no custom derivative for 'scale' and is differentiating its
+          definition, descending into library internals
+    note: to differentiate it, provide clad::custom_derivatives::scale_pullback
+          with signature 'void (const Widget *, double, double, Widget *, double *)'
+    note: or mark it non-differentiable with CLAD_NONDIFFERENTIABLE_TYPE(Widget)
+
+Each remark gives you the ways to resolve the boundary:
+
+- **Differentiate it semantically.** Copy the printed signature and implement
+  the custom derivative (a pushforward, pullback, or reverse-forward -- see the
+  sections above). This is the right choice when the function has a meaningful
+  derivative that is simpler or more correct than clad cloning its
+  implementation (a matrix product's adjoint, a container's element access, ...).
+- **Mark it non-differentiable.** If the type carries no differentiable data
+  (a stream, an allocator, a reference-count handle, ...), mark it with
+  :code:`CLAD_NONDIFFERENTIABLE_TYPE(T)` (see :doc:`UsingClad`) and clad will
+  treat every construction of and call on it as opaque. The marker note is
+  emitted for member functions and constructors, where the enclosing type is
+  the thing to mark.
+- **Elide its reverse-forward pass.** For a reverse-forward-pass boundary whose
+  pass is a no-op (e.g. a shallow copy that shares its adjoint), declare the
+  printed :code:`..._reverse_forw` and mark it :code:`elidable_reverse_forw`;
+  clad then skips the call instead of cloning a body.
+
+Only functions outside the main file are reported, so differentiating your own
+code stays quiet; the remarks focus on the library edge you are porting. The
+flag is a diagnostic aid only -- it changes no generated code. It is also listed
+in :code:`-plugin-arg-clad -help`.

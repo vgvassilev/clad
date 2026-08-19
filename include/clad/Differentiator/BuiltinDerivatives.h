@@ -12,6 +12,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
 
 #define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
@@ -40,6 +42,26 @@ template <typename T, typename U> struct ValueAndAdjoint {
   U adjoint;
 };
 
+/// Empty payload for a pullback that carries no reverse-pass state.
+struct no_state {};
+
+/// Per-call state a custom `X_reverse_forw` hands to its matching `X_pullback`.
+/// The reverse_forw takes a trailing `pullback_state<Payload>&` out-parameter
+/// and fills it in the forward sweep; the pullback takes a trailing
+/// `pullback_state<Payload>` by value and reads it in the reverse sweep. clad
+/// declares one carrier and threads it into both calls -- the same out-param
+/// mechanism as `clad::restore_tracker`, and it composes with the
+/// `ValueAndAdjoint` a value-returning reverse_forw already returns. Use it to
+/// hand computed-in-forward data (e.g. a sort permutation) to the pullback
+/// without a shared or global stash.
+///
+/// `Payload` is author-owned; extend it by appending fields. An empty
+/// `pullback_state<no_state>` folds away at -O1+. When a reverse_forw also
+/// takes a `restore_tracker&`, the `pullback_state<Payload>&` comes first.
+template <typename Payload = no_state> struct pullback_state {
+  Payload data{};
+};
+
 /// It is used to identify constructor custom pushforwards. For
 /// constructor custom pushforward functions, we cannot use the same
 /// strategy which we use for custom pushforward for member
@@ -59,6 +81,21 @@ template <typename T, typename U> struct ValueAndAdjoint {
 /// class for which constructor pushforward is defined.
 /// We do the same for constructor_reverse_forw.
 template <class T> class Tag {};
+
+/// Marks an entity non-differentiable: clad treats it as opaque and never
+/// clones its body to synthesize a derivative. Apply at the declaration of a
+/// variable, member, function, or type you own, e.g.
+///   struct CLAD_NONDIFFERENTIABLE Handle { double* data; };
+#define CLAD_NONDIFFERENTIABLE __attribute__((annotate("non_differentiable")))
+
+/// Marks a type you do NOT own -- a library type you cannot annotate at its own
+/// declaration -- non-differentiable, by specializing clad::Tag for it. Use at
+/// global scope. The type may contain commas, e.g.
+///   CLAD_NONDIFFERENTIABLE_TYPE(std::map<int, double>);
+#define CLAD_NONDIFFERENTIABLE_TYPE(...)                                       \
+  namespace clad {                                                             \
+  template <> class CLAD_NONDIFFERENTIABLE Tag<__VA_ARGS__> {};                \
+  }
 
 /// We have aliases with for old tags for backwards compatibility.
 template <class T> using ConstructorPushforwardTag = Tag<T>;
@@ -1011,28 +1048,34 @@ CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y, T1* d_x,
   *d_exponent += t.pushforward * d_y;
 }
 
+// The min/max pushforwards return ValueAndPushforward<T, T> by value even
+// though std::min/max return `const T&`: with reference members the struct
+// is neither default-constructible nor assignable, which breaks
+// differentiating the generated code again at higher orders (issue #1872).
+// GetDerivedFunctionType in DiffPlanner relaxes the expected overload type
+// to match.
 template <typename T, class Compare>
-CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 min_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
                 const T& d_b, Compare /*dcomp*/) {
   return {::std::min(a, b, comp), comp(a, b) ? d_a : d_b};
 }
 
 template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 min_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
   return {::std::min(a, b), a < b ? d_a : d_b};
 }
 
 template <typename T, class Compare>
-CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 max_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
                 const T& d_b, Compare /*dcomp*/) {
   return {::std::max(a, b, comp), comp(a, b) ? d_b : d_a};
 }
 
 template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<const T&, const T&>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
 max_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
   return {::std::max(a, b), a < b ? d_b : d_a};
 }
@@ -1210,6 +1253,25 @@ CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
     *d_x += b * (clad_digamma(x) - psi_xy) * d_z;
   if (d_y)
     *d_y += b * (clad_digamma(y) - psi_xy) * d_z;
+}
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+lgamma_pushforward(T x, dT d_x) noexcept {
+  return {::std::lgamma(x), clad_digamma(x) * d_x};
+}
+
+// pushforward for lgammaf
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+lgammaf_pushforward(T x, dT d_x) noexcept {
+  return lgamma_pushforward(x, d_x);
+}
+
+// pushforward for lgammal
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+lgammal_pushforward(T x, dT d_x) noexcept {
+  return lgamma_pushforward(x, d_x);
 }
 #endif
 
@@ -1566,6 +1628,9 @@ using std::sqrt_pushforward;
 #if __cplusplus >= 201703L
 using std::beta_pullback;
 using std::beta_pushforward;
+using std::lgamma_pushforward;
+using std::lgammaf_pushforward;
+using std::lgammal_pushforward;
 #endif
 
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
@@ -1585,6 +1650,30 @@ void constructor_pullback(ValueAndPushforward<T, U> rhs,
 }
 } // namespace class_functions
 } // namespace custom_derivatives
+
+// Reverse-mode helper for an in-place realloc: resize `ptr` back to the byte
+// size it had before the forward realloc. When that regrows a buffer the
+// forward pass shrank, zero the re-grown tail for adjoint buffers so fresh
+// derivatives start at 0; primal buffers pass zeroGrownTail=false, their tail
+// being overwritten by value restores. Returns the possibly-moved pointer.
+// NOLINTBEGIN(cppcoreguidelines-no-malloc)
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+inline void* reverse_realloc(void* ptr, size_t oldBytes, size_t newBytes,
+                             bool zeroGrownTail) {
+  void* resized = ::realloc(ptr, oldBytes);
+  // realloc failed: keep the original buffer instead of leaking it.
+  if (!resized)
+    return ptr;
+  ptr = resized;
+  if (zeroGrownTail && oldBytes > newBytes)
+    ::memset(static_cast<char*>(ptr) + newBytes, 0, oldBytes - newBytes);
+  return ptr;
+}
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+// NOLINTEND(cppcoreguidelines-owning-memory)
+// NOLINTEND(cppcoreguidelines-no-malloc)
+
 } // namespace clad
 
   // FIXME: These math functions depend on promote_2 just like pow:

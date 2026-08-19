@@ -3,10 +3,12 @@
 
 #include "ConstantFolder.h"
 
+#include "clang/AST/APValue.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
@@ -18,12 +20,15 @@
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
@@ -359,8 +364,8 @@ namespace clad {
       return true;
     }
 
-    bool isElidableConstructor(const clang::CXXConstructorDecl* CD,
-                               const clang::ASTContext& C) {
+    bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
+                                          const clang::ASTContext& C) {
       const CXXRecordDecl* RD = CD->getParent();
       if (CD->isCopyOrMoveConstructor() && CD->isTrivial())
         return true;
@@ -533,6 +538,21 @@ namespace clad {
              std::string::npos;
     }
 
+    clang::QualType GetPullbackStatePayload(clang::QualType T) {
+      const auto* Spec = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+          T.getCanonicalType()->getAsCXXRecordDecl());
+      if (!Spec || Spec->getName() != "pullback_state")
+        return {};
+      // Guard against a same-named type in another namespace.
+      const auto* ND = dyn_cast_or_null<NamespaceDecl>(Spec->getDeclContext());
+      if (!ND || ND->getName() != "clad")
+        return {};
+      const TemplateArgumentList& Args = Spec->getTemplateArgs();
+      if (Args.size() == 0 || Args[0].getKind() != TemplateArgument::Type)
+        return {};
+      return Args[0].getAsType();
+    }
+
     clang::SourceRange GetValidSRange(clang::Sema& semaRef) {
       SourceLocation validSL = GetValidSLoc(semaRef);
       return SourceRange(validSL, validSL);
@@ -684,6 +704,51 @@ namespace clad {
         QualType VDElemTy = utils::GetValueType(VD->getType());
         const CXXRecordDecl* RD = VDElemTy->getAsCXXRecordDecl();
         if (RD && clad::utils::hasNonDifferentiableAttribute(RD))
+          return true;
+      }
+      return false;
+    }
+
+    bool isNonDifferentiableType(clang::Sema& S,
+                                 const clang::CXXRecordDecl* RD) {
+      // A type is non-differentiable (opaque) when it carries the
+      // `non_differentiable` annotation. For a type the user owns the attribute
+      // sits on the type itself; for a foreign type it cannot, so the opt-out
+      // is expressed on a clad::Tag<T> specialization instead (see
+      // STLBuiltins.h). Either way clad never clones the type's member bodies
+      // to synthesize a derivative, which for library internals is ill-formed
+      // (see DiffCollector::VisitCXXConstructExpr). A custom derivative, if
+      // present, still wins: it is looked up first, so the marker only
+      // suppresses the body-clone fallback.
+      if (!RD)
+        return false;
+      if (hasNonDifferentiableAttribute(RD))
+        return true;
+      // Out-of-line opt-out: the attribute lives on clad::Tag<RD>. Completing
+      // the specialization instantiates a matching partial specialization's
+      // attribute onto it (Tag's primary template is an empty class, so
+      // completion never fails); then read the attribute off it.
+      QualType TagTy = GetCladTagOfType(
+          S, clad_compat::getRecordType(S.getASTContext(), RD));
+      S.isCompleteType(GetValidSLoc(S), TagTy);
+      const auto* TagRD = TagTy->getAsCXXRecordDecl();
+      return TagRD && hasNonDifferentiableAttribute(TagRD);
+    }
+
+    bool callOperatesOnNonDifferentiableType(clang::Sema& S,
+                                             const clang::CallExpr* CE) {
+      // Extract the type the call operates on -- the declaring class of a
+      // member call, or the first argument of a free operator (`os << x`) --
+      // and ask whether it is non-differentiable. See the header for why this
+      // is narrower than hasNonDifferentiableAttribute(Expr) and why callers
+      // skip on it rather than set the nonDiff flag.
+      const clang::FunctionDecl* FD = CE->getDirectCallee();
+      if (const auto* MD = dyn_cast_or_null<clang::CXXMethodDecl>(FD))
+        if (isNonDifferentiableType(S, MD->getParent()))
+          return true;
+      if (FD && FD->isOverloadedOperator() && CE->getNumArgs() >= 1) {
+        QualType T = CE->getArg(0)->getType().getNonReferenceType();
+        if (isNonDifferentiableType(S, T->getAsCXXRecordDecl()))
           return true;
       }
       return false;
@@ -864,6 +929,26 @@ namespace clad {
       return false;
     }
 
+    bool IsZeroOrNullValue(const clang::Expr* E, const clang::ASTContext& C) {
+      // Handles a null E too, so the dereference below is safe.
+      if (IsZeroOrNullValue(E))
+        return true;
+      QualType T = E->getType();
+      // Evaluation is a whole-expression constant fold, so it is only correct
+      // to read the result as "this is zero" when the expression cannot
+      // observe or change anything on the way; EvaluateAs* refuse side
+      // effects by default.
+      if (T->isRealFloatingType()) {
+        llvm::APFloat F(0.);
+        return E->EvaluateAsFloat(F, C) && F.isZero();
+      }
+      if (T->isIntegralOrEnumerationType()) {
+        Expr::EvalResult R;
+        return E->EvaluateAsInt(R, C) && R.Val.getInt() == 0;
+      }
+      return false;
+    }
+
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD) {
       if (FD->getNameAsString() == "cudaFree")
         return true;
@@ -986,6 +1071,37 @@ namespace clad {
       return cast<TemplateDecl>(TapeR.getFoundDecl());
     }
 
+    static bool MatchFunctionTypeWithQualifiedParams(Sema& S,
+                                                     QualType ExpectedFnTy,
+                                                     QualType CandidateFnTy) {
+      ASTContext& C = S.getASTContext();
+      if (C.hasSameFunctionTypeIgnoringExceptionSpec(ExpectedFnTy,
+                                                     CandidateFnTy))
+        return true;
+
+      const auto* Expected = ExpectedFnTy->getAs<FunctionProtoType>();
+      const auto* Candidate = CandidateFnTy->getAs<FunctionProtoType>();
+      if (!Expected || !Candidate ||
+          Expected->getNumParams() != Candidate->getNumParams())
+        return false;
+
+      for (unsigned I = 0; I < Expected->getNumParams(); ++I) {
+        QualType From = Expected->getParamType(I);
+        QualType To = Candidate->getParamType(I);
+        bool ObjCLifetimeConversion = false;
+        if (!C.hasSameType(From, To) &&
+            !S.IsQualificationConversion(From, To, /*CStyle=*/false,
+                                         ObjCLifetimeConversion))
+          return false;
+      }
+
+      QualType CandidateWithExpectedParams = C.getFunctionType(
+          Candidate->getReturnType(), Expected->getParamTypes(),
+          Candidate->getExtProtoInfo());
+      return C.hasSameFunctionTypeIgnoringExceptionSpec(
+          ExpectedFnTy, CandidateWithExpectedParams);
+    }
+
     Expr* MatchOverloadType(Sema& S, QualType FnTy, LookupResult& Overloads,
                             TemplateSpecCandidateSet& FailedCandidates) {
       CXXScopeSpec SS;
@@ -1027,7 +1143,7 @@ namespace clad {
         if (!FD)
           continue;
         // Overload is just a FunctionDecl, check if the signature matches.
-        if (C.hasSameFunctionTypeIgnoringExceptionSpec(FD->getType(), FnTy))
+        if (MatchFunctionTypeWithQualifiedParams(S, FnTy, FD->getType()))
           return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false).get();
       }
       return nullptr;
@@ -1108,6 +1224,56 @@ namespace clad {
           return true;
       }
       return false;
+    }
+
+    bool designatesLocallyOwnedStorage(const clang::Expr* E,
+                                       bool asPointerValue) {
+      bool peeled = asPointerValue;
+      if (asPointerValue) {
+        // `&lvalue` passed as a pointer designates that lvalue directly.
+        const auto* UO =
+            dyn_cast<clang::UnaryOperator>(E->IgnoreParenImpCasts());
+        if (UO && UO->getOpcode() == clang::UO_AddrOf)
+          return designatesLocallyOwnedStorage(UO->getSubExpr());
+      }
+      while (true) {
+        E = E->IgnoreParenImpCasts();
+        if (const auto* UO = dyn_cast<clang::UnaryOperator>(E)) {
+          peeled |= UO->getOpcode() == clang::UO_Deref;
+          E = UO->getSubExpr();
+        } else if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
+          peeled = true;
+          E = ASE->getBase();
+        } else if (const auto* OCE = dyn_cast<clang::CXXOperatorCallExpr>(E)) {
+          if (OCE->getNumArgs() == 0)
+            return false;
+          peeled = true;
+          E = OCE->getArg(0);
+        } else if (const auto* MCE = dyn_cast<clang::CXXMemberCallExpr>(E)) {
+          peeled = true;
+          E = MCE->getImplicitObjectArgument();
+        } else if (const auto* ME = dyn_cast<clang::MemberExpr>(E)) {
+          peeled |= ME->isArrow();
+          E = ME->getBase();
+        } else {
+          break;
+        }
+      }
+      const auto* DRE = dyn_cast<clang::DeclRefExpr>(E);
+      const auto* VD = DRE ? dyn_cast<clang::VarDecl>(DRE->getDecl()) : nullptr;
+      if (!VD || !VD->hasLocalStorage() || VD->getType()->isReferenceType())
+        return false;
+      // The variable's own slot (no indirection peeled) always has automatic
+      // storage duration, even for a pointer variable. Storage reached
+      // through the variable is only owned when the variable is not a
+      // pointer or reference into memory owned elsewhere.
+      // FIXME: a local pointer that provably holds the address of a local
+      // (`T* p = &t;`) reaches storage that does die with the function, but
+      // proving it needs points-to information, so such storage is still
+      // reported as caller-visible.
+      if (!peeled)
+        return true;
+      return !VD->getType()->isPointerType();
     }
 
     bool hasMemoryTypeParams(const FunctionDecl* FD) {
@@ -1398,15 +1564,18 @@ namespace clad {
       return utils::InstantiateTemplate(S, CladTag, {T});
     }
 
-    Expr* GetCladTagExpr(Sema& S, QualType T) {
-      QualType CladTagTy = utils::GetCladTagOfType(S, T);
+    Expr* BuildDefaultConstructExpr(Sema& S, QualType T) {
+      SourceLocation Loc = utils::GetValidSLoc(S);
       return S
-          .BuildCXXTypeConstructExpr(S.getASTContext().getTrivialTypeSourceInfo(
-                                         CladTagTy, utils::GetValidSLoc(S)),
-                                     utils::GetValidSLoc(S), MultiExprArg{},
-                                     utils::GetValidSLoc(S),
-                                     /*ListInitialization=*/false)
+          .BuildCXXTypeConstructExpr(
+              S.getASTContext().getTrivialTypeSourceInfo(T, Loc), Loc,
+              MultiExprArg{}, Loc,
+              /*ListInitialization=*/false)
           .get();
+    }
+
+    Expr* GetCladTagExpr(Sema& S, QualType T) {
+      return BuildDefaultConstructExpr(S, utils::GetCladTagOfType(S, T));
     }
 
     bool canUsePushforwardInRevMode(const FunctionDecl* FD) {

@@ -4,6 +4,9 @@
 #include "BaseForwardModeVisitor.h"
 #include "DerivativeBuilder.h"
 
+#include "clang/AST/Expr.h"
+
+#include <cstddef>
 #include <unordered_map>
 
 namespace clad {
@@ -11,17 +14,46 @@ namespace clad {
 /// Used to compute derivatives by clad::vector_forward_differentiate.
 class VectorForwardModeVisitor : public BaseForwardModeVisitor {
 protected:
+  /// Tracks where the next independent variable starts in the flat vector of
+  /// all of them: the sizes of the array parameters seen so far plus the
+  /// number of scalar ones. Array sizes are only known at run time, so that
+  /// half is an accumulated expression; the scalar half is a counter folded
+  /// into a literal on demand.
+  ///
+  /// The tracker clones every expression it takes in and hands out. The sum
+  /// keeps growing after an offset is taken, and each offset goes into a
+  /// different part of the derivative; every AST node has exactly one parent.
+  class IndVarOffsetTracker {
+    VectorForwardModeVisitor* m_V;
+    /// Sum of the sizes of the array parameters seen so far, null until the
+    /// first one.
+    clang::Expr* m_ArrayCount = nullptr;
+    /// Number of scalar parameters seen so far.
+    std::size_t m_ScalarCount = 0;
+
+  public:
+    explicit IndVarOffsetTracker(VectorForwardModeVisitor& V) : m_V(&V) {}
+    /// Build a fresh expression for the offset of the current parameter.
+    [[nodiscard]] clang::Expr* buildOffset() const;
+    /// Account for an array parameter of the given size.
+    void advanceByArray(const clang::Expr* size);
+    /// Account for a scalar parameter.
+    void advanceByScalar() { ++m_ScalarCount; }
+  };
+
   llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
   /// Map used to keep track of parameter variables w.r.t which the
   /// the derivative is being computed. This is separate from the
   /// m_Variables map because all other intermediate variables will have
   /// derivatives as vectors.
   std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_ParamVariables;
-  /// Expression for total number of independent variables. This also includes
-  /// the size of array independent variables which will be inferred from the
-  /// size of the corresponding clad array they provide at runtime for storing
-  /// the derivatives.
-  clang::Expr* m_IndVarCountExpr;
+  /// The generated `indepVarCount` variable (total number of independent
+  /// variables). Cached as the decl so each read rebuilds a fresh DeclRef
+  /// instead of sharing one node.
+  clang::VarDecl* m_IndVarCountDecl = nullptr;
+
+  /// Build a fresh reference to the independent-variable-count variable.
+  clang::Expr* buildIndVarCountRef() { return BuildDeclRef(m_IndVarCountDecl); }
 
 public:
   VectorForwardModeVisitor(DerivativeBuilder& builder,
@@ -36,18 +68,6 @@ public:
   ///
   DerivativeAndOverload Derive() override;
 
-  /// Builds an overload for the vector mode function that has derived params
-  /// for all the arguments of the requested function and it calls the original
-  /// gradient function internally.
-  /// For ex.: if the original function is: double foo(double x, double y)
-  /// , then the generated vector mode overload will be:
-  /// double foo(double x, double y, void*, void*), irrespective of the
-  /// what parameters are requested to be differentiated w.r.t.
-  /// Inside it, we will call the original vector mode function with the
-  /// original parameters and the derived parameters.
-  clang::FunctionDecl*
-  CreateVectorModeOverload(clang::FunctionDecl* derivative = nullptr);
-
   /// Builds and returns the sequence of derived function parameters for
   //  vectorized forward mode.
   ///
@@ -55,7 +75,7 @@ public:
   /// function parameter types and the differentiation mode are implicitly
   /// taken from the data member variables.
   llvm::SmallVector<clang::ParmVarDecl*, 8>
-  BuildVectorModeParams(DiffParams& diffParams);
+  BuildVectorModeParams(DiffParams& diffParams, clang::Expr*& indVarCountExpr);
 
   /// Get an expression used to initialize the one-hot vector for the
   /// given index and size. A one-hot vector is a vector with all elements
@@ -82,9 +102,6 @@ public:
 
   std::string GetPushForwardFunctionSuffix() override;
   DiffMode GetPushForwardMode() override;
-
-  // Function for setting the independent variables for vector mode.
-  void SetIndependentVarsExpr(clang::Expr* IndVarCountExpr);
 };
 } // end namespace clad
 
