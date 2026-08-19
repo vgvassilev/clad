@@ -14,6 +14,10 @@
 #include "BuiltinDerivativesCUDA.cuh"
 #endif
 #include "CladConfig.h"
+// Declares the Enzyme activity markers and gradient carrier that clad
+// refers to from the code it generates, so every user of the Enzyme
+// backend has them in scope. Not used by this header itself.
+// NOLINTNEXTLINE(misc-include-cleaner)
 #include "EnzymeBuiltins.h"
 #include "FunctionTraits.h"
 #include "Matrix.h"

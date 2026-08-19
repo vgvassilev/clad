@@ -23,6 +23,7 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/TemplateDeduction.h"
@@ -1911,6 +1912,18 @@ namespace clad {
         }
       }
       return false;
+    }
+
+    Expr* BuildEnzymeActivityMarkerRef(Sema& semaRef, llvm::StringRef name) {
+      ASTContext& C = semaRef.getASTContext();
+      DeclarationName DN = &C.Idents.get(name);
+      LookupResult R(semaRef, DN, noLoc, Sema::LookupOrdinaryName);
+      semaRef.LookupName(R, semaRef.TUScope, /*AllowBuiltinCreation=*/false);
+      auto* VD = R.getAsSingle<VarDecl>();
+      // EnzymeBuiltins.h declares the markers and Differentiator.h includes
+      // it, so a request that reached here has them in scope.
+      assert(VD && "Enzyme activity marker is not declared");
+      return semaRef.BuildDeclRefExpr(VD, VD->getType(), VK_LValue, noLoc);
     }
 
     bool ShouldRecompute(const Expr* E, const ASTContext& C) {
