@@ -465,8 +465,12 @@ double f13(double x, const double* obs){
 // CHECK-NEXT:    double g = f13_1(1, obs);
 // CHECK-NEXT:}
 
+// a and b are initialised because the loop below reads b before
+// assigning it. That read is undefined behaviour, and with TBR
+// disabled clad stores b unconditionally, which makes the
+// uninitialised value live and lets an optimising build trap on it.
 double f14(double x){
-  double a, b;
+  double a = 0, b = 0;
   double x1 = 0, x2 = 0, x3 = 0, x4 = 0;
   int i = 10;
   while(i){
@@ -493,7 +497,7 @@ double f14(double x){
 // CHECK-NEXT:     clad::tape<double> _t6 = {};
 // CHECK-NEXT:     clad::tape<double> _t7 = {};
 // CHECK-NEXT:     double _d_a = 0., _d_b = 0.;
-// CHECK-NEXT:     double a, b;
+// CHECK-NEXT:     double a = 0, b = 0;
 // CHECK-NEXT:     double _d_x1 = 0., _d_x2 = 0., _d_x3 = 0.;
 // CHECK-NEXT:     double x1 = 0, x2 = 0, x3 = 0, x4 = 0;
 // CHECK-NEXT:     int i = 10;
