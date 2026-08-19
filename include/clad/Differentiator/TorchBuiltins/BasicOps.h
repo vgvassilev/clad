@@ -5,8 +5,8 @@
 
 #include <ATen/ops/threshold_backward.h>
 
-// First supported operator set: add, sub, mul, div, relu, sum, dot, and
-// item<float>. Scalar options such as add/sub alpha are non-differentiable.
+// Basic operator set: add, sub, mul, div, relu, sum, dot, and item<float>.
+// Scalar options such as add/sub alpha are non-differentiable.
 namespace clad::custom_derivatives::at {
 
 inline void add_pullback(const ::at::Tensor& lhs, const ::at::Tensor& rhs,

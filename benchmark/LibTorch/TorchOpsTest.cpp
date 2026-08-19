@@ -206,6 +206,45 @@ float broadcast_div_loss(const at::Tensor& lhs, const at::Tensor& rhs) {
   return scalar.item<float>();
 }
 
+float strided_input_loss(const at::Tensor& input, const at::Tensor& weights) {
+  auto scaled = input.mul(weights);
+  auto shifted = scaled.add(input);
+  return shifted.relu().sum().item<float>();
+}
+
+float transpose_method_loss(const at::Tensor& input, const at::Tensor& weights,
+                            int64_t dim0, int64_t dim1) {
+  auto transposed = input.transpose(dim0, dim1);
+  return transposed.mul(weights).sum().item<float>();
+}
+
+float transpose_function_loss(const at::Tensor& input,
+                              const at::Tensor& weights, int64_t dim0,
+                              int64_t dim1) {
+  auto transposed = at::transpose(input, dim0, dim1);
+  return at::sum(at::mul(transposed, weights)).item<float>();
+}
+
+float permute_method_loss(const at::Tensor& input, const at::Tensor& weights,
+                          at::IntArrayRef dims) {
+  auto permuted = input.permute(dims);
+  return permuted.mul(weights).sum().item<float>();
+}
+
+float permute_function_loss(const at::Tensor& input, const at::Tensor& weights,
+                            at::IntArrayRef dims) {
+  auto permuted = at::permute(input, dims);
+  return at::sum(at::mul(permuted, weights)).item<float>();
+}
+
+float chained_view_loss(const at::Tensor& input, const at::Tensor& weights,
+                        at::IntArrayRef dims, int64_t dim0, int64_t dim1) {
+  auto permuted = input.permute(dims);
+  auto transposed = at::transpose(permuted, dim0, dim1);
+  auto activated = transposed.mul(weights).relu();
+  return activated.sum().item<float>();
+}
+
 void check_torch_alias_composition() {
   const auto options = torch::TensorOptions().dtype(torch::kFloat32);
   const auto input = torch::linspace(-2.0, 2.0, 17, options);
@@ -928,6 +967,244 @@ void check_partial_broadcast_gradients() {
                 "partial broadcasting modified the rhs input");
 }
 
+template <typename Gradient, typename NativeLoss, typename... Args>
+void check_view_gradient(Gradient& gradient, NativeLoss native_loss,
+                         const at::Tensor& input, const char* message,
+                         const Args&... args) {
+  const auto original = input.clone();
+  at::Tensor actual;
+  gradient.execute(input, args..., &actual);
+
+  auto native_input = input.detach().set_requires_grad(true);
+  auto expected =
+      torch::autograd::grad({native_loss(native_input)}, {native_input})[0];
+  require_close(actual, expected, message);
+  require_close(input, original, "view differentiation modified its input");
+  require_true(!actual.is_alias_of(input),
+               "view gradient aliases its primal input");
+}
+
+void check_strided_inputs() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  const auto base = at::linspace(-2.0, 3.0, 24, options).reshape({2, 3, 4});
+  const auto input = base.permute({2, 0, 1});
+  const auto weights = at::linspace(0.5, 1.5, 6, options).reshape({1, 2, 3});
+  require_true(!input.is_contiguous(),
+               "strided input test unexpectedly became contiguous");
+
+  auto gradient = clad::gradient(strided_input_loss, "input");
+  check_view_gradient(
+      gradient,
+      [&](const at::Tensor& native_input) {
+        return native_input.mul(weights).add(native_input).relu().sum();
+      },
+      input, "strided input gradient is incorrect", weights);
+
+  auto strided_destination = at::zeros_like(input);
+  require_true(!strided_destination.is_contiguous(),
+               "strided gradient destination unexpectedly became contiguous");
+  const auto destination_strides = strided_destination.strides().vec();
+  gradient.execute(input, weights, &strided_destination);
+  auto native_input = input.detach().set_requires_grad(true);
+  auto native_loss = native_input.mul(weights).add(native_input).relu().sum();
+  auto expected = torch::autograd::grad({native_loss}, {native_input})[0];
+  require_close(strided_destination, expected,
+                "preallocated strided gradient is incorrect");
+  require_true(strided_destination.strides().vec() == destination_strides,
+               "gradient accumulation changed destination strides");
+
+  const auto vector =
+      at::linspace(0.5, 8.0, 16, options).reshape({8, 2}).select(1, 0);
+  require_true(!vector.is_contiguous(),
+               "strided vector test unexpectedly became contiguous");
+  auto actual = at::zeros_like(vector);
+  auto dot_gradient = clad::gradient(at_loss, "input");
+  dot_gradient.execute(vector, &actual);
+
+  auto native_vector = vector.detach().set_requires_grad(true);
+  native_loss = at::dot(at_utility(native_vector), native_vector);
+  expected = torch::autograd::grad({native_loss}, {native_vector})[0];
+  require_close(actual, expected, "strided dot input gradient is incorrect");
+}
+
+void check_view_pullbacks() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  const auto input = at::zeros({2, 3, 4}, options);
+
+  const auto transpose_output_adjoint =
+      at::linspace(0.5, 12.0, 24, options).reshape({2, 3, 4}).transpose(0, 2);
+  require_true(!transpose_output_adjoint.is_contiguous(),
+               "transpose pullback seed unexpectedly became contiguous");
+  int64_t d_dim0 = 0;
+  int64_t d_dim1 = 0;
+  at::Tensor transpose_input_adjoint;
+  clad::custom_derivatives::at::transpose_pullback(
+      input, /*dim0=*/0, /*dim1=*/2, transpose_output_adjoint,
+      &transpose_input_adjoint, &d_dim0, &d_dim1);
+  require_close(transpose_input_adjoint,
+                transpose_output_adjoint.transpose(0, 2),
+                "transpose pullback did not invert the view");
+  require_true(!transpose_input_adjoint.is_alias_of(transpose_output_adjoint),
+               "transpose pullback gradient aliases its output adjoint");
+
+  const std::vector<int64_t> dims{-1, 0, 1};
+  const auto permute_output_adjoint =
+      at::linspace(0.5, 12.0, 24, options).reshape({2, 3, 4}).permute(dims);
+  require_true(!permute_output_adjoint.is_contiguous(),
+               "permute pullback seed unexpectedly became contiguous");
+  at::IntArrayRef d_dims;
+  at::Tensor permute_input_adjoint;
+  clad::custom_derivatives::at::permute_pullback(
+      input, dims, permute_output_adjoint, &permute_input_adjoint, &d_dims);
+  require_close(permute_input_adjoint,
+                permute_output_adjoint.permute({1, 2, 0}),
+                "permute pullback did not apply the inverse permutation");
+  require_true(!permute_input_adjoint.is_alias_of(permute_output_adjoint),
+               "permute pullback gradient aliases its output adjoint");
+
+  const at::Tensor zero_output_adjoint;
+  const auto initial = at::full_like(input, 2.0);
+  transpose_input_adjoint = initial.clone();
+  permute_input_adjoint = initial.clone();
+  clad::custom_derivatives::at::transpose_pullback(
+      input, /*dim0=*/0, /*dim1=*/2, zero_output_adjoint,
+      &transpose_input_adjoint, &d_dim0, &d_dim1);
+  clad::custom_derivatives::at::permute_pullback(
+      input, dims, zero_output_adjoint, &permute_input_adjoint, &d_dims);
+  require_close(transpose_input_adjoint, initial,
+                "undefined transpose adjoint was propagated");
+  require_close(permute_input_adjoint, initial,
+                "undefined permute adjoint was propagated");
+}
+
+void check_transpose_gradients() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  const auto input = at::linspace(-2.0, 3.0, 24, options).reshape({2, 3, 4});
+  const auto weights = at::linspace(0.5, 1.5, 24, options).reshape({4, 3, 2});
+  constexpr int64_t dim0 = -3;
+  constexpr int64_t dim1 = -1;
+
+  auto method_gradient = clad::gradient(transpose_method_loss, "input");
+  check_view_gradient(
+      method_gradient,
+      [&](const at::Tensor& native_input) {
+        return native_input.transpose(dim0, dim1).mul(weights).sum();
+      },
+      input, "Tensor method transpose gradient is incorrect", weights, dim0,
+      dim1);
+
+  auto function_gradient = clad::gradient(transpose_function_loss, "input");
+  check_view_gradient(
+      function_gradient,
+      [&](const at::Tensor& native_input) {
+        return at::transpose(native_input, dim0, dim1).mul(weights).sum();
+      },
+      input, "at::transpose gradient is incorrect", weights, dim0, dim1);
+}
+
+void check_permute_gradients() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  const auto input = at::linspace(-2.0, 3.0, 24, options).reshape({2, 3, 4});
+  const auto weights = at::linspace(0.5, 1.5, 24, options).reshape({4, 2, 3});
+  const std::vector<int64_t> dims{-1, 0, 1};
+
+  auto method_gradient = clad::gradient(permute_method_loss, "input");
+  check_view_gradient(
+      method_gradient,
+      [&](const at::Tensor& native_input) {
+        return native_input.permute(dims).mul(weights).sum();
+      },
+      input, "Tensor method permute gradient is incorrect", weights,
+      at::IntArrayRef(dims));
+
+  auto function_gradient = clad::gradient(permute_function_loss, "input");
+  check_view_gradient(
+      function_gradient,
+      [&](const at::Tensor& native_input) {
+        return at::permute(native_input, dims).mul(weights).sum();
+      },
+      input, "at::permute gradient is incorrect", weights,
+      at::IntArrayRef(dims));
+}
+
+void check_chained_view_gradients() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  const auto input =
+      at::linspace(-2.0, 3.0, 120, options).reshape({2, 3, 4, 5});
+  const std::vector<int64_t> dims{2, 0, 3, 1};
+  constexpr int64_t dim0 = 1;
+  constexpr int64_t dim1 = -1;
+  const auto weights =
+      at::linspace(0.25, 1.25, 120, options).reshape({4, 3, 5, 2});
+
+  auto gradient = clad::gradient(chained_view_loss, "input");
+  check_view_gradient(
+      gradient,
+      [&](const at::Tensor& native_input) {
+        return native_input.permute(dims)
+            .transpose(dim0, dim1)
+            .mul(weights)
+            .relu()
+            .sum();
+      },
+      input, "chained permute/transpose gradient is incorrect", weights,
+      at::IntArrayRef(dims), dim0, dim1);
+
+  const auto empty = at::empty({2, 0, 3}, options);
+  const std::vector<int64_t> empty_dims{2, 0, 1};
+  const auto empty_weights = at::empty({3, 2, 0}, options);
+  auto permute_gradient = clad::gradient(permute_method_loss, "input");
+  check_view_gradient(
+      permute_gradient,
+      [&](const at::Tensor& native_input) {
+        return native_input.permute(empty_dims).mul(empty_weights).sum();
+      },
+      empty, "empty permute gradient is incorrect", empty_weights,
+      at::IntArrayRef(empty_dims));
+
+  const auto scalar = at::scalar_tensor(2.0, options);
+  const std::vector<int64_t> scalar_dims;
+  check_view_gradient(
+      permute_gradient,
+      [&](const at::Tensor& native_input) {
+        return native_input.permute(scalar_dims).mul(3.0).sum();
+      },
+      scalar, "scalar permute gradient is incorrect",
+      at::scalar_tensor(3.0, options), at::IntArrayRef(scalar_dims));
+}
+
+void check_view_contract() {
+  const auto options = at::TensorOptions().dtype(at::kFloat);
+  const auto input = at::ones({2, 3, 4}, options);
+  const auto weights = at::ones({2, 3, 4}, options);
+  auto transpose_gradient = clad::gradient(transpose_method_loss, "input");
+
+  require_c10_error(
+      [&] {
+        at::Tensor actual;
+        transpose_gradient.execute(input, weights, /*dim0=*/0, /*dim1=*/3,
+                                   &actual);
+      },
+      "out-of-range transpose dimension was not rejected");
+
+  auto permute_gradient = clad::gradient(permute_method_loss, "input");
+  require_c10_error(
+      [&] {
+        const std::vector<int64_t> dims{0, 1};
+        at::Tensor actual;
+        permute_gradient.execute(input, weights, dims, &actual);
+      },
+      "short permutation was not rejected");
+
+  require_c10_error(
+      [&] {
+        const std::vector<int64_t> dims{0, 1, 1};
+        at::Tensor actual;
+        permute_gradient.execute(input, weights, dims, &actual);
+      },
+      "duplicate permutation dimensions were not rejected");
+}
+
 void check_input_contract() {
   require_c10_error(
       [] {
@@ -951,13 +1228,10 @@ void check_input_contract() {
 
   require_c10_error(
       [] {
-        const auto input =
-            torch::ones({4, 2}, torch::kFloat).select(/*dim=*/1, /*index=*/0);
-        auto gradient = torch::zeros_like(input);
-        auto clad_gradient = clad::gradient(at_loss, "input");
-        clad_gradient.execute(input, &gradient);
+        const auto input = at::ones({2, 3}, at::kFloat).to_sparse();
+        clad::torch::detail::validate_tensor(input);
       },
-      "noncontiguous input was not rejected");
+      "non-strided Tensor layout was not rejected");
 }
 
 } // namespace
@@ -988,6 +1262,12 @@ int main() {
   check_explicit_sum_options();
   check_broadcasting();
   check_partial_broadcast_gradients();
+  check_strided_inputs();
+  check_view_pullbacks();
+  check_transpose_gradients();
+  check_permute_gradients();
+  check_chained_view_gradients();
+  check_view_contract();
   check_input_contract();
   std::cout << "Clad Torch operator checks passed\n";
   return 0;

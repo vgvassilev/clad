@@ -14,7 +14,8 @@
 namespace clad::torch::detail {
 
 // The first operator set deliberately has a narrow, checked contract for
-// device, dtype, and layout. Elementwise operations follow ATen broadcasting.
+// device and dtype. Elementwise operations follow ATen broadcasting, while
+// ATen kernels preserve the logical semantics of strided Tensor views.
 inline void validate_tensor(const ::at::Tensor& tensor) {
   TORCH_CHECK(tensor.defined(),
               "Clad Torch derivatives require a defined tensor");
@@ -22,8 +23,8 @@ inline void validate_tensor(const ::at::Tensor& tensor) {
               "Clad Torch derivatives currently support CPU tensors only");
   TORCH_CHECK(tensor.scalar_type() == ::at::kFloat,
               "Clad Torch derivatives currently support float32 tensors only");
-  TORCH_CHECK(tensor.is_contiguous(),
-              "Clad Torch derivatives currently require contiguous tensors");
+  TORCH_CHECK(tensor.layout() == ::at::kStrided,
+              "Clad Torch derivatives currently support strided tensors only");
 }
 
 inline bool should_propagate(const ::at::Tensor& adjoint) {
@@ -75,6 +76,23 @@ canonicalize_reduction_dims(::at::IntArrayRef dims, int64_t input_rank) {
           canonical_dims.end(),
       "Clad Torch reduction dimensions must be unique");
   return canonical_dims;
+}
+
+inline ::std::vector<int64_t> inverse_permutation(::at::IntArrayRef dims,
+                                                  int64_t input_rank) {
+  TORCH_CHECK(static_cast<int64_t>(dims.size()) == input_rank,
+              "Clad Torch permute derivatives require one dimension per input "
+              "dimension");
+
+  ::std::vector<int64_t> inverse(input_rank, -1);
+  for (int64_t output_dim = 0; output_dim < input_rank; ++output_dim) {
+    const int64_t input_dim =
+        ::c10::maybe_wrap_dim(dims[output_dim], input_rank);
+    TORCH_CHECK(inverse[input_dim] == -1,
+                "Clad Torch permutation dimensions must be unique");
+    inverse[input_dim] = output_dim;
+  }
+  return inverse;
 }
 
 inline ::at::Tensor restore_reduced_adjoint(const ::at::Tensor& adjoint,

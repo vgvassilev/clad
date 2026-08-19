@@ -2,8 +2,9 @@
 #define CLAD_DIFFERENTIATOR_TORCHBUILTINS_TENSORSYNTAX_H
 
 #include "clad/Differentiator/TorchBuiltins/BasicOps.h" // IWYU pragma: export
+#include "clad/Differentiator/TorchBuiltins/ViewOps.h"  // IWYU pragma: export
 
-// Keep the derivative formulas in BasicOps.h. These adapters only map the
+// Keep derivative formulas in the operator headers. These adapters only map
 // operator and Tensor method spellings onto the corresponding ATen functions.
 namespace clad::custom_derivatives::at {
 
@@ -103,6 +104,21 @@ inline void dot_pullback(const ::at::Tensor* self, const ::at::Tensor& other,
                          ::at::Tensor* d_other) {
   ::clad::custom_derivatives::at::dot_pullback(
       *self, other, ::std::move(d_output), d_self, d_other);
+}
+
+inline void transpose_pullback(const ::at::Tensor* self, int64_t dim0,
+                               int64_t dim1, ::at::Tensor d_output,
+                               ::at::Tensor* d_self, int64_t* d_dim0,
+                               int64_t* d_dim1) {
+  ::clad::custom_derivatives::at::transpose_pullback(
+      *self, dim0, dim1, ::std::move(d_output), d_self, d_dim0, d_dim1);
+}
+
+inline void permute_pullback(const ::at::Tensor* self, ::at::IntArrayRef dims,
+                             ::at::Tensor d_output, ::at::Tensor* d_self,
+                             ::at::IntArrayRef* d_dims) {
+  ::clad::custom_derivatives::at::permute_pullback(
+      *self, dims, ::std::move(d_output), d_self, d_dims);
 }
 
 } // namespace clad::custom_derivatives::class_functions

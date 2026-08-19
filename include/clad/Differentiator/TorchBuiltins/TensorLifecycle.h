@@ -13,8 +13,10 @@ namespace clad {
 // hooks below still use zero_adjoint_like when independent storage is required.
 inline ::at::Tensor zero_like(const ::at::Tensor& /*tensor*/) { return {}; }
 
-// OptionalIntArrayRef is a non-owning reduction configuration, so its adjoint
-// carries neither dimension values nor borrowed storage.
+// ArrayRef configurations are non-owning, so their adjoints carry neither
+// dimension values nor borrowed storage.
+inline ::at::IntArrayRef zero_like(const ::at::IntArrayRef&) { return {}; }
+
 inline ::at::OptionalIntArrayRef zero_like(const ::at::OptionalIntArrayRef&) {
   return {};
 }
@@ -26,9 +28,15 @@ inline void zero_init(::at::Tensor& tensor) {
   }
 }
 
+inline void zero_init(::at::IntArrayRef& dims) { dims = {}; }
+
 inline void zero_init(::at::OptionalIntArrayRef& dims) { dims.reset(); }
 
 namespace custom_derivatives::class_functions {
+
+inline void constructor_pullback(const ::at::IntArrayRef& /*dims*/,
+                                 ::at::IntArrayRef* /*d_this*/,
+                                 ::at::IntArrayRef* /*d_dims*/) {}
 
 inline void constructor_pullback(const ::at::OptionalIntArrayRef& /*dims*/,
                                  ::at::OptionalIntArrayRef* /*d_this*/,
