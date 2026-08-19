@@ -14,6 +14,7 @@
 #include "BuiltinDerivativesCUDA.cuh"
 #endif
 #include "CladConfig.h"
+#include "EnzymeBuiltins.h"
 #include "FunctionTraits.h"
 #include "Matrix.h"
 #include "NumericalDiff.h"
@@ -1004,9 +1005,6 @@ template <class T> std::false_type is_range(...);
         DerivedFnType>(derivedFn /* will be replaced by estimation code*/,
                        code);
   }
-
-  // Gradient Structure for Reverse Mode Enzyme
-  template <unsigned N> struct EnzymeGradient { double d_arr[N]; };
 
 #ifdef _OPENMP
   inline void GetStaticSchedule(int lo, int hi, int stride, int* threadlo,
