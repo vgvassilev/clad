@@ -2,6 +2,11 @@
 
 namespace clad {
 
+__device__ inline unsigned int get_dynamic_smem_size() {
+  unsigned int smem_size;
+  asm volatile("mov.u32 %0, %%dynamic_smem_size;" : "=r"(smem_size));
+  return smem_size;
+}
 namespace custom_derivatives {
 
 __device__ inline void __expf_pullback(float a, float d_y, float* d_a) {
