@@ -3,7 +3,9 @@
 
 A test counts as observing the change if it failed at baseline on any row,
 since a defect can be invisible everywhere but under valgrind. The check
-fails only for a touched test that failed nowhere.
+fails only for a touched test that ran somewhere and failed nowhere: a row
+that skipped it (an unmet REQUIRES:) reports no evidence, and a test no row
+ran leaves the question open rather than answered in the negative.
 
 How many rows saw it is reported rather than collapsed: failing everywhere
 is an ordinary regression test, while failing on exactly one is either the
@@ -42,25 +44,36 @@ def main(vdir, out=None):
         return 0
 
     total = len(applicable)
-    # test -> [(platform, kind)] for the rows where it failed at baseline
-    seen, every = {}, set()
+    # test -> [(platform, kind)] where it failed at baseline, and
+    # test -> [platform] for the rows that ran it at all.
+    seen, ran, every = {}, {}, set()
     for v in applicable:
         for name, r in v.get("tests", {}).items():
             every.add(name)
+            # A row that skipped the test learned nothing about it. Older
+            # verdicts predate the field and always ran what they report.
+            if not r.get("ran", True):
+                continue
+            ran.setdefault(name, []).append(v["platform"])
             if not r.get("passed"):
                 seen.setdefault(name, []).append((v["platform"], r.get("kind")))
 
-    rows, narrow, blind = [], [], []
+    rows, narrow, blind, unrun = [], [], [], []
     for name in sorted(every):
         where = seen.get(name, [])
-        n = len(where)
-        if n == 0:
-            rows.append((name, f"passes at baseline on all {total}"))
+        # Judge each test against the rows that ran it, not the rows that
+        # reported: 5/5 among those that ran it is not 5/20 of the matrix.
+        n, m = len(where), len(ran.get(name, []))
+        if m == 0:
+            rows.append((name, f"not run on any of the {total}"))
+            unrun.append(name)
+        elif n == 0:
+            rows.append((name, f"passes at baseline on all {m}"))
             blind.append(name)
         else:
-            rows.append((name, f"observes the change on {n}/{total}"))
+            rows.append((name, f"observes the change on {n}/{m}"))
             # One row out of many is the interesting end of the range.
-            if n == 1 and total > 1:
+            if n == 1 and m > 1:
                 narrow.append((name, where[0]))
 
     width = max(len(r[0]) for r in rows)
@@ -76,6 +89,15 @@ def main(vdir, out=None):
                   "manifests under one", "row's checking, such as valgrind or "
                   "a sanitizer. If this test is not", "about such a defect, "
                   "the result is more likely flaky than meaningful."]
+
+    if unrun:
+        lines += ["", "No platform running this check executes these tests, "
+                  "so it has no evidence", "about them either way:", ""]
+        lines += [f"  {u}" for u in unrun]
+        lines += ["", "The features their REQUIRES: names are absent from "
+                  "every row that reports", "here. Either a row that has "
+                  "them should run this check, or the change", "needs a test "
+                  "the matrix can execute."]
 
     if blind:
         lines += ["", "No platform saw these fail with the change reverted, "
@@ -97,6 +119,9 @@ def main(vdir, out=None):
         if narrow:
             md += ["", "**Evidence from a single platform**", ""]
             md += [f"- `{n}` -- only `{p}` ({k})" for n, (p, k) in narrow]
+        if unrun:
+            md += ["", "**Not run by any platform reporting here**", ""]
+            md += [f"- `{u}`" for u in unrun]
         if blind:
             md += ["", "**No platform saw these fail with the change "
                    "reverted**", ""]
@@ -117,11 +142,13 @@ def main(vdir, out=None):
                     "observed_on": sorted(p for p, _ in seen.get(name, [])),
                     "kinds": sorted({k for _, k in seen.get(name, []) if k}),
                     "observed": len(seen.get(name, [])),
-                    "of": total,
+                    "ran_on": sorted(ran.get(name, [])),
+                    "of": len(ran.get(name, [])),
                 }
                 for name in sorted(every)
             },
             "blind": blind,
+            "unrun": unrun,
             "single_platform": [n for n, _ in narrow],
             "verdict": "blind" if blind else "observed",
         }
