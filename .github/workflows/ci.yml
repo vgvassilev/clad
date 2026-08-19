@@ -378,7 +378,7 @@ jobs:
     # rebuilds only what they touch, so this costs one incremental build
     # rather than a second full one.
     - name: Revert functional hunks for the baseline
-      if: ${{ runner.os != 'windows' && matrix.cuda != true && github.event_name == 'pull_request' }}
+      if: ${{ runner.os != 'windows' && github.event_name == 'pull_request' }}
       uses: ./.github/actions/observes-change
       with:
         mode: revert
@@ -397,7 +397,7 @@ jobs:
 
         cmake --build . -- -j${{ env.ncpus }}
     - name: Check the touched tests against the baseline
-      if: ${{ always() && runner.os != 'windows' && matrix.cuda != true && env.observes_check == '1' }}
+      if: ${{ always() && runner.os != 'windows' && env.observes_check == '1' }}
       uses: ./.github/actions/observes-change
       with:
         mode: check
@@ -576,7 +576,10 @@ jobs:
   observes-change:
     name: Tests observe the change
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-    needs: [build]
+    # The self-hosted rows are the only ones with a GPU, so a CUDA test is
+    # measured nowhere else. Waiting for them costs the dell's wake-up time;
+    # when it never comes they simply report nothing.
+    needs: [build, build-selfhost]
     runs-on: ubuntu-24.04
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
