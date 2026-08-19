@@ -522,6 +522,12 @@ namespace clad {
     /// variable and replace E's further usage by a reference to that variable
     /// to avoid recomputation.
     bool UsefulToStore(const clang::Expr* E);
+    /// Builds a reference to one of Enzyme's activity markers, the globals it
+    /// matches by name to decide which arguments are differentiated.
+    /// They are declared in EnzymeBuiltins.h, which Differentiator.h
+    /// includes.
+    clang::Expr* BuildEnzymeActivityMarkerRef(clang::Sema& semaRef,
+                                              llvm::StringRef name);
     } // namespace utils
     } // namespace clad
 

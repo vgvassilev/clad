@@ -15,8 +15,8 @@
 // those that do not.
 //----------------------------------------------------------------------------//
 
-#ifndef CLAD_DIFFERENTIATOR_ENZYME_BUILTINS_H
-#define CLAD_DIFFERENTIATOR_ENZYME_BUILTINS_H
+#ifndef CLAD_DIFFERENTIATOR_ENZYMEBUILTINS_H
+#define CLAD_DIFFERENTIATOR_ENZYMEBUILTINS_H
 
 // The markers are non-const with external linkage because that is the
 // interface Enzyme matches; a namespace-scope `const int` would have internal
@@ -40,8 +40,11 @@ namespace clad {
 /// __enzyme_autodiff, which returns them as a struct rather than through
 /// shadow pointers.
 template <unsigned N> struct EnzymeGradient {
+  // Matches the struct Enzyme returns; std::array would change the layout it
+  // writes through.
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
   double d_arr[N];
 };
 } // namespace clad
 
-#endif // CLAD_DIFFERENTIATOR_ENZYME_BUILTINS_H
+#endif // CLAD_DIFFERENTIATOR_ENZYMEBUILTINS_H
