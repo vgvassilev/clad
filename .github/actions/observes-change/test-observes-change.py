@@ -7,9 +7,12 @@ test drags the whole pipeline through: on a sample batch seven of eight
 tests executed a one-line patch only two of them could observe.
 
 The caller reverts and rebuilds; this runs the touched test files against
-the result and records, per test, whether each still passes. A failure to
-build is reported apart from a FileCheck mismatch, since it usually means
-the test needs a new API rather than that it pins a behavior.
+the result and records, per test, whether it ran at all and whether it
+still passes. A test this platform does not support is recorded as not
+run, since a row that never executed one learned nothing about it. A
+failure to build is reported apart from a FileCheck mismatch, since it
+usually means the test needs a new API rather than that it pins a
+behavior.
 
 Exits 0 either way. One platform cannot decide the question -- a defect can
 be invisible everywhere but under valgrind -- so it writes a verdict and
@@ -28,6 +31,11 @@ from pathlib import Path
 # A clang diagnostic and a FileCheck diagnostic share this shape; only the
 # message tells them apart.
 DIAG = re.compile(r"^[^\s].*?:\d+:\d+: error: (.*)$", re.M)
+# lit exits 0 for a test it never ran: an unmet REQUIRES: is UNSUPPORTED,
+# not a failure. Only --show-unsupported puts that in the output, and
+# without it a test nothing executed is indistinguishable from one that
+# ran and passed.
+UNSUPPORTED = re.compile(r"^UNSUPPORTED: ", re.M)
 # Project convention, not anything intrinsic; each is overridable so a
 # project laid out differently configures rather than forks.
 TEST_DIRS = ("test",)
@@ -138,10 +146,19 @@ def main():
         for t in tests:
             # lit discovers tests through the build tree, so address them there.
             p = subprocess.run([a.lit, "-v", "--no-progress-bar",
-                                str(obj_root / t)],
+                                "--show-unsupported", str(obj_root / t)],
                                capture_output=True, text=True)
             if p.returncode == 0:
-                verdict["tests"][t] = {"passed": True, "kind": None}
+                if UNSUPPORTED.search(p.stdout):
+                    verdict["tests"][t] = {"ran": False, "passed": None,
+                                           "kind": None}
+                    print(f"{t:<{width + 2}}{'SKIP':<13}not run here -- "
+                          f"REQUIRES not met")
+                    annotate("notice", t, f"Not run on {a.platform}, so this "
+                             "row has no evidence about it either way.")
+                    continue
+                verdict["tests"][t] = {"ran": True, "passed": True,
+                                       "kind": None}
                 print(f"{t:<{width + 2}}{'PASS':<13}none -- cannot fail for "
                       f"this change")
                 annotate("warning", t, f"Passes on {a.platform} with this "
@@ -149,7 +166,7 @@ def main():
                          "test. Another platform may still observe it.")
                 continue
             kind, note = classify(p.stdout + p.stderr)
-            verdict["tests"][t] = {"passed": False, "kind": kind}
+            verdict["tests"][t] = {"ran": True, "passed": False, "kind": kind}
             print(f"{t:<{width + 2}}{'FAIL':<13}{kind} -- {note}")
             annotate("notice", t, f"Observes this change on {a.platform} "
                      f"({kind}).")
