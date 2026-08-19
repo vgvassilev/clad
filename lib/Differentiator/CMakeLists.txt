@@ -58,6 +58,7 @@ llvm_add_library(cladDifferentiator
   PushForwardModeVisitor.cpp
   ReverseModeForwPassVisitor.cpp
   ReverseModeVisitor.cpp
+  ReverseModeVisitorEnzyme.cpp
   ReverseModeVisitorOpenMP.cpp
   TBRAnalyzer.cpp
   Timers.cpp
