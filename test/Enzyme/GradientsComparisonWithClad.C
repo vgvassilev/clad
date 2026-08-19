@@ -1,6 +1,10 @@
-// RUN: %cladclang %s  -I%S/../../include -oEnzymeGradients.out 2>&1 | %filecheck %s
+// RUN: %cladclang -O1 %s  -I%S/../../include -oEnzymeGradients.out 2>&1 | %filecheck %s
 // RUN: ./EnzymeGradients.out | %filecheck_exec %s
 // REQUIRES: Enzyme
+
+// Built at -O1: Enzyme does not run correctly at -O0. See
+// LoopsReverseModeComparisonWithClad.C for the details; at -O0 this file also
+// prints a negative zero where the expectations say 0.00.
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>

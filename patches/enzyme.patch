@@ -1,0 +1,42 @@
+Make Enzyme's module passes skippable.
+
+A pass reporting isRequired() cannot be declined: LLVM consults
+PassInstrumentationCallbacks::ShouldRunOptionalPassCallbacks only for
+optional passes. Marking them required is right for a standalone plugin,
+where every module the plugin sees is one the user asked it to handle.
+
+clad is in the other position. Its pass pipeline is built long after the
+point where it could have refused to register anything, and a session-based
+host such as clang-repl compiles many modules through a single plugin.
+Making these two optional lets clad decline them for a module that holds no
+__enzyme_autodiff call, so ordinary code is not routed through them.
+
+Nothing else declines them: clad registers the only such callback, and it
+answers yes for any module that does contain a request.
+
+diff --git a/enzyme/Enzyme/Enzyme.cpp b/enzyme/Enzyme/Enzyme.cpp
+index 1748a74f..10ffd933 100644
+--- a/enzyme/Enzyme/Enzyme.cpp
++++ b/enzyme/Enzyme/Enzyme.cpp
+@@ -3372,7 +3372,7 @@ public:
+                               : PreservedAnalyses::all();
+   }
+ 
+-  static bool isRequired() { return true; }
++  static bool isRequired() { return false; }
+ };
+ 
+ #undef DEBUG_TYPE
+diff --git a/enzyme/Enzyme/PreserveNVVM.h b/enzyme/Enzyme/PreserveNVVM.h
+index 46b5282d..ae3a85e5 100644
+--- a/enzyme/Enzyme/PreserveNVVM.h
++++ b/enzyme/Enzyme/PreserveNVVM.h
+@@ -51,7 +51,7 @@ public:
+ 
+   Result run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
+ 
+-  static bool isRequired() { return true; }
++  static bool isRequired() { return false; }
+ };
+ 
+ #endif // ENZYME_PRESERVE_NVVM_H

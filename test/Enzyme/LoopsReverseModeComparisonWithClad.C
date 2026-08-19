@@ -1,6 +1,13 @@
-// RUN: %cladclang %s -I%S/../../include -oEnzymeLoops.out 2>&1 | %filecheck %s
+// RUN: %cladclang -O1 %s -I%S/../../include -oEnzymeLoops.out 2>&1 | %filecheck %s
 // RUN: ./EnzymeLoops.out | %filecheck_exec %s
 // REQUIRES: Enzyme
+
+// Built at -O1: Enzyme does not run correctly at -O0. It expects to see IR
+// that has been through its pre-simplification and the early optimizer, and
+// on unoptimized IR it silently returns a zero gradient for some control flow
+// -- fn13 below is one such case, and it reproduces with the standalone
+// ClangEnzyme plugin with no clad involved. -O0 is also the least
+// representative setting for a backend whose purpose is optimized code.
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
