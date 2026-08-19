@@ -77,12 +77,6 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
 
     set(_enzyme_build_type ${CMAKE_CFG_INTDIR})
 
-    set(_enzyme_patch_command
-      ${CMAKE_COMMAND} -E copy_if_different
-      ${CMAKE_SOURCE_DIR}/patches/enzyme.patch <SOURCE_DIR> &&
-      git checkout <SOURCE_DIR> && git apply <SOURCE_DIR>/enzyme.patch
-      )
-
     # Set build byproducts only needed by Ninja.
     set(_enzyme_static_target EnzymeStatic-${LLVM_VERSION_MAJOR})
     set(_enzyme_static_archive_name ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}${CMAKE_STATIC_LIBRARY_PREFIX}${_enzyme_static_target}${CMAKE_STATIC_LIBRARY_SUFFIX})
@@ -99,11 +93,22 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
       Enzyme
       GIT_REPOSITORY https://github.com/EnzymeAD/Enzyme
       GIT_TAG v0.0.224
-      PATCH_COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_BINARY_DIR}/tools/Enzyme-prefix/src/Enzyme/enzyme/benchmarks
-      #PATCH_COMMAND #${_enzyme_patch_command}
       UPDATE_COMMAND ""
+      # The tag is pinned, so there is nothing to update, and leaving the step
+      # connected costs a great deal: an empty UPDATE_COMMAND never creates
+      # its stamp, so ninja finds it dirty and re-runs patch, configure, build
+      # and install on every single build -- 23s where there is no work to do.
+      # Disconnecting it also disconnects the patch step, so after editing
+      # patches/enzyme.patch run `ninja Enzyme-patch` to re-apply it.
+      UPDATE_DISCONNECTED 1
       EXTRA_CMAKE_ARGS ${EXTRA_CMAKE_ARGS}
       SOURCE_SUBDIR enzyme
+      # Let Enzyme's own build decide what needs rebuilding, so editing its
+      # sources is picked up. A stamp cannot do that: it has no idea what the
+      # sub-project depends on. This is only affordable because the update
+      # step is disconnected -- left connected it drags patch, configure and
+      # install along with it on every build.
+      BUILD_ALWAYS 1
       BUILD_COMMAND ${CMAKE_COMMAND} --build . --config ${_enzyme_build_type} --target ${_enzyme_static_target} -- -j8
       #TEST_COMMAND ${CMAKE_COMMAND} --build . --config ${_enzyme_build_type} --target check-enzyme
       #TEST_BEFORE_INSTALL 1
@@ -111,6 +116,25 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
       BUILD_BYPRODUCTS ${ENZYME_BYPRODUCTS}
       DEPENDS LLVMSupport
     )
+
+    # Apply the patch from a step of our own rather than PATCH_COMMAND. The
+    # built-in patch step hangs off update, which CMake declares ALWAYS, so it
+    # is disconnected along with it and stops tracking anything. Hung off
+    # download instead it stays in the graph, and DEPENDS on the patch file
+    # rebuilds Enzyme whenever the patch changes.
+    ExternalProject_Add_Step(Enzyme clad-patch
+      COMMAND ${CMAKE_COMMAND} -E rm -rf <SOURCE_DIR>/enzyme/benchmarks
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${CMAKE_SOURCE_DIR}/patches/enzyme.patch <SOURCE_DIR>
+      # Reset first, so re-running the step is safe and editing the patch is
+      # all it takes to change what gets built.
+      COMMAND git -C <SOURCE_DIR> checkout -- enzyme
+      COMMAND git -C <SOURCE_DIR> apply enzyme.patch
+      DEPENDEES download
+      DEPENDERS configure
+      DEPENDS ${CMAKE_SOURCE_DIR}/patches/enzyme.patch
+      COMMENT "Applying clad's patch to Enzyme"
+      LOG 1)
 
     # Register LLVMEnzyme for our build system.
     add_library(LLVMEnzyme IMPORTED STATIC GLOBAL)
