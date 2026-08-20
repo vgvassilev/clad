@@ -18,9 +18,13 @@
 
 #include <cstdio>
 
-// The nested call may not record into the tracker the caller passed in.
+// Nothing records that storage: with the records dead, the nested call has no
+// reason to go through a reverse_forw at all, so it is emitted as the primal.
+// Storage the caller can still see -- `*err` -- is recorded as before.
 // CHECK: void innerAddrOf_reverse_forw(
-// CHECK: clad::restore_tracker _tracker_unused0 = {};
+// CHECK-NOT: twice_reverse_forw
+// CHECK: twice(2, x, {{.*}});
+// CHECK: _tracker0.store(*err);
 
 void twice(int n, const double* x, double* out) {
   for (int i = 0; i < n; i++)
