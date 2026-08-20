@@ -121,6 +121,21 @@ runs:
       }
       ${{ inputs.rebuild-command }}
 
+  # The mirror of the baseline pass, here rather than with it because it
+  # needs the build that has the change: only a test's pre-change form tells
+  # an edit the change forced from one that wandered in.
+  - name: Ask whether the unexplained tests are adaptations
+    if: ${{ inputs.mode == 'check' && env.observes_check == '1' }}
+    shell: bash
+    run: |
+      cd "$GITHUB_WORKSPACE"
+      "${{ github.action_path }}/test-observes-change.py" \
+        --adapt \
+        --build "${{ inputs.build-dir }}" \
+        --base-rev "$observes_base_sha" \
+        --platform "${{ inputs.platform }}" \
+        --verdict "${{ inputs.verdict-dir }}/${{ inputs.platform }}.json"
+
   - name: Decide across platforms
     if: ${{ inputs.mode == 'verdict' }}
     shell: bash

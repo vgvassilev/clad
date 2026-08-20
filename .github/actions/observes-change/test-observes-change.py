@@ -14,6 +14,11 @@ failure to build is reported apart from a FileCheck mismatch, since it
 usually means the test needs a new API rather than that it pins a
 behavior.
 
+A test the baseline pass does not explain gets the mirror question, once the
+change is restored and rebuilt: does its pre-change form fail against the
+change? If it does, the edit is one the change forced, which the baseline
+side cannot tell from one that wandered in.
+
 Exits 0 either way. One platform cannot decide the question -- a defect can
 be invisible everywhere but under valgrind -- so it writes a verdict and
 observes-change-verdict.py combines them.
@@ -74,6 +79,58 @@ def clad_obj_root(build: Path):
     return Path(m.group(1))
 
 
+def run_lit(lit, obj_root, test):
+    """Run one test file and reduce lit's answer to PASS, FAIL or SKIP.
+
+    lit discovers tests through the build tree, so the test is addressed
+    there. SKIP needs --show-unsupported: lit exits 0 for a test it never ran
+    just as it does for one that passed.
+    """
+    p = subprocess.run([lit, "-v", "--no-progress-bar", "--show-unsupported",
+                        str(obj_root / test)], capture_output=True, text=True)
+    if p.returncode != 0:
+        return "FAIL", p.stdout + p.stderr
+    return ("SKIP" if UNSUPPORTED.search(p.stdout) else "PASS"), p.stdout
+
+
+def probe_adaptation(a, obj_root, verdict, width):
+    """Ask the mirror question of the tests the baseline pass left unexplained.
+
+    A test that passes at baseline can still be an edit the change forced.
+    From the baseline side that is indistinguishable from an edit with
+    nothing to do with the change, though the two call for opposite things:
+    keep it here, or move it to its own commit.
+    """
+    for t, r in verdict["tests"].items():
+        if not (r.get("ran") and r.get("passed")):
+            continue
+        # A file the change adds has no pre-change form to put in front of it.
+        if subprocess.run(["git", "cat-file", "-e", f"{a.base_rev}:{t}"],
+                          capture_output=True).returncode:
+            print(f"{t:<{width + 2}}{'NEW':<13}added by this change -- "
+                  f"nothing to compare")
+            continue
+        subprocess.run(["git", "checkout", a.base_rev, "--", t], check=True)
+        try:
+            state, _ = run_lit(a.lit, obj_root, t)
+        finally:
+            # HEAD is the change, restored above. Leaving the pre-change
+            # file behind would hand it to the rest of the job.
+            subprocess.run(["git", "checkout", "HEAD", "--", t], check=True)
+        if state == "SKIP":
+            continue
+        r["adapts"] = state == "FAIL"
+        if state == "FAIL":
+            print(f"{t:<{width + 2}}{'ADAPTS':<13}its pre-change form fails "
+                  f"with the change")
+            annotate("notice", t, f"The pre-change form of this test fails on "
+                     f"{a.platform} with the change, so the edit is one the "
+                     "change forced rather than an unrelated one.")
+        else:
+            print(f"{t:<{width + 2}}{'UNRELATED':<13}its pre-change form "
+                  f"passes too")
+
+
 def annotate(level, test, message):
     """Report this row's own result while the rest of the suite still runs.
 
@@ -105,6 +162,10 @@ def main():
     ap.add_argument("--lit", default=shutil.which("lit"))
     ap.add_argument("--list", action="store_true",
                     help="print the touched test files and exit")
+    ap.add_argument("--adapt", action="store_true",
+                    help="probe the tests the baseline pass did not explain, "
+                         "against a build that has the change (run after the "
+                         "hunks are restored and rebuilt)")
     ap.add_argument("--test-dirs", nargs="+", default=list(TEST_DIRS))
     ap.add_argument("--test-suffixes", nargs="+", default=list(TEST_SUFFIXES))
     ap.add_argument("--functional-dirs", nargs="+",
@@ -114,6 +175,26 @@ def main():
     ap.add_argument("tests", nargs="*",
                     help="test files to check (default: those the change touches)")
     a = ap.parse_args()
+
+    if a.adapt:
+        if not a.verdict or not Path(a.verdict).exists():
+            sys.exit("--adapt needs the verdict the baseline pass wrote")
+        if not a.build or not a.lit:
+            sys.exit("--adapt needs --build and lit")
+        verdict = json.loads(Path(a.verdict).read_text())
+        left = [t for t, r in verdict.get("tests", {}).items()
+                if r.get("ran") and r.get("passed")]
+        if not left:
+            print("The baseline pass explained every touched test.")
+            return 0
+        print(f"Putting the pre-change form of {len(left)} test file(s) in "
+              f"front of the change:\n")
+        width = max(len(t) for t in left)
+        print(f"{'test':<{width + 2}}{'verdict':<13}evidence")
+        print("-" * (width + 55))
+        probe_adaptation(a, clad_obj_root(Path(a.build)), verdict, width)
+        Path(a.verdict).write_text(json.dumps(verdict, indent=2))
+        return 0
 
     tests, functional = ((a.tests, ["(explicit)"]) if a.tests
                          else changed(a.base_rev, a.test_dirs, a.test_suffixes,
@@ -144,19 +225,15 @@ def main():
         print(f"{'test':<{width + 2}}{'at baseline':<13}evidence")
         print("-" * (width + 55))
         for t in tests:
-            # lit discovers tests through the build tree, so address them there.
-            p = subprocess.run([a.lit, "-v", "--no-progress-bar",
-                                "--show-unsupported", str(obj_root / t)],
-                               capture_output=True, text=True)
-            if p.returncode == 0:
-                if UNSUPPORTED.search(p.stdout):
-                    verdict["tests"][t] = {"ran": False, "passed": None,
-                                           "kind": None}
-                    print(f"{t:<{width + 2}}{'SKIP':<13}not run here -- "
-                          f"REQUIRES not met")
-                    annotate("notice", t, f"Not run on {a.platform}, so this "
-                             "row has no evidence about it either way.")
-                    continue
+            state, out = run_lit(a.lit, obj_root, t)
+            if state == "SKIP":
+                verdict["tests"][t] = {"ran": False, "passed": None,
+                                       "kind": None}
+                print(f"{t:<{width + 2}}{'SKIP':<13}not run here -- "
+                      f"REQUIRES not met")
+                annotate("notice", t, f"Not run on {a.platform}, so this "
+                         "row has no evidence about it either way.")
+            elif state == "PASS":
                 verdict["tests"][t] = {"ran": True, "passed": True,
                                        "kind": None}
                 print(f"{t:<{width + 2}}{'PASS':<13}none -- cannot fail for "
@@ -164,12 +241,13 @@ def main():
                 annotate("warning", t, f"Passes on {a.platform} with this "
                          "change reverted, so it cannot be its regression "
                          "test. Another platform may still observe it.")
-                continue
-            kind, note = classify(p.stdout + p.stderr)
-            verdict["tests"][t] = {"ran": True, "passed": False, "kind": kind}
-            print(f"{t:<{width + 2}}{'FAIL':<13}{kind} -- {note}")
-            annotate("notice", t, f"Observes this change on {a.platform} "
-                     f"({kind}).")
+            else:
+                kind, note = classify(out)
+                verdict["tests"][t] = {"ran": True, "passed": False,
+                                       "kind": kind}
+                print(f"{t:<{width + 2}}{'FAIL':<13}{kind} -- {note}")
+                annotate("notice", t, f"Observes this change on {a.platform} "
+                         f"({kind}).")
 
     if a.verdict:
         Path(a.verdict).write_text(json.dumps(verdict, indent=2))
