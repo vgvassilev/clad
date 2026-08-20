@@ -1257,6 +1257,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           }
       return {};
     };
+    // A pullback may take the carrier by value or by reference. By value was
+    // the original convention and stays valid; a payload that owns a tape has
+    // no copy constructor, so such a pullback must take it by reference.
+    // Whichever this candidate declares decides the expected signature.
+    auto pullbackTakesStateByRef = [](const LookupResult& LR) {
+      for (const NamedDecl* ND : LR)
+        if (const FunctionDecl* FD = ND->getUnderlyingDecl()->getAsFunction())
+          for (const ParmVarDecl* PVD : FD->parameters()) {
+            QualType PT = PVD->getType();
+            if (!utils::GetPullbackStatePayload(PT.getNonReferenceType())
+                     .isNull())
+              return PT->isLValueReferenceType();
+          }
+      return false;
+    };
     QualType stateParam;
     if (R.Mode == DiffMode::reverse_mode_forward_pass)
       stateParam = findStateParam(Found);
@@ -1265,9 +1280,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           LookupPropagator(R.BaseFunctionName + "_reverse_forw"));
     if (!stateParam.isNull())
       if (const auto* FPT = dTy->getAs<FunctionProtoType>()) {
-        // The reverse_forw takes the state by reference (out-param); the
-        // pullback takes it by value.
-        QualType stateArg = R.Mode == DiffMode::reverse_mode_forward_pass
+        // The reverse_forw always takes the state by reference: it is an
+        // out-param it fills during the forward sweep.
+        QualType stateArg = (R.Mode == DiffMode::reverse_mode_forward_pass ||
+                             pullbackTakesStateByRef(Found))
                                 ? C.getLValueReferenceType(stateParam)
                                 : stateParam;
         llvm::SmallVector<QualType, 8> params(FPT->param_types().begin(),
