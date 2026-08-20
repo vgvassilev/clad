@@ -68,6 +68,7 @@ llvm_add_library(cladDifferentiator
   VectorPushForwardModeVisitor.cpp
   Version.cpp
   VisitorBase.cpp
+  WrittenExtentAnalyzer.cpp
   ${version_inc}
   )
 

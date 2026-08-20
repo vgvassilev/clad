@@ -4,6 +4,7 @@
 // CHECK_HELP-NEXT: -fdump-source-fn-ast
 // CHECK_HELP-NEXT: -fdump-derived-fn
 // CHECK_HELP-NEXT: -fdump-derived-fn-ast
+// CHECK_HELP-NEXT: -fdump-written-extents
 // CHECK_HELP-NEXT: -fgenerate-source-file
 // CHECK_HELP-NEXT: -fno-validate-clang-version
 // CHECK_HELP-NEXT: -enable-tbr

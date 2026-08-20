@@ -58,6 +58,7 @@ struct DifferentiationOptions {
   bool DumpSourceFnAST = false;
   bool DumpDerivedFn = false;
   bool DumpDerivedAST = false;
+  bool DumpWrittenExtents = false;
   bool GenerateSourceFile = false;
   bool ValidateClangVersion = true;
   bool EnableTBRAnalysis = false;
@@ -320,6 +321,8 @@ struct DifferentiationOptions {
             m_DO.DumpDerivedFn = true;
           } else if (args[i] == "-fdump-derived-fn-ast") {
             m_DO.DumpDerivedAST = true;
+          } else if (args[i] == "-fdump-written-extents") {
+            m_DO.DumpWrittenExtents = true;
           } else if (args[i] == "-fgenerate-source-file") {
             m_DO.GenerateSourceFile = true;
           } else if (args[i] == "-fno-validate-clang-version") {
@@ -357,6 +360,9 @@ struct DifferentiationOptions {
                    "derivative.\n"
                 << "-fdump-derived-fn-ast - Prints out the AST of the "
                    "derivative.\n"
+                << "-fdump-written-extents - Prints, per parameter of each "
+                   "differentiated function, the range of that parameter the "
+                   "function writes.\n"
                 << "-fgenerate-source-file - Produces a file containing the "
                    "derivatives.\n"
                 << "-fno-validate-clang-version - Disables the validation of "

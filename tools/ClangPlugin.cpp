@@ -12,6 +12,7 @@
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
 #include "../lib/Differentiator/TBRAnalyzer.h"
+#include "../lib/Differentiator/WrittenExtentAnalyzer.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -245,6 +246,39 @@ void InitTimers();
         FinalizeTranslationUnit();
     }
 
+    /// Reports, per parameter, the range of it the function was proven to
+    /// write. A parameter that prints `unknown` is one a caller cannot record
+    /// from, so it is the interesting half of the report.
+    static void printWrittenExtents(const clang::FunctionDecl* FD) {
+      llvm::SmallVector<WrittenExtent, 8> Extents = computeWrittenExtents(FD);
+      for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
+        llvm::outs() << "written-extent: " << FD->getNameAsString() << ": "
+                     << FD->getParamDecl(i)->getNameAsString() << " = ";
+        const WrittenExtent& W = Extents[i];
+        switch (W.K) {
+        case WrittenExtent::Kind::None:
+          llvm::outs() << "none";
+          break;
+        case WrittenExtent::Kind::Element:
+          llvm::outs() << "[" << W.Offset << ", " << (W.Offset + 1) << ")";
+          break;
+        case WrittenExtent::Kind::Range:
+          llvm::outs() << "[0, ";
+          if (W.BoundIsParam)
+            llvm::outs()
+                << FD->getParamDecl(W.BoundParamIdx)->getNameAsString();
+          else
+            llvm::outs() << W.BoundConst;
+          llvm::outs() << ")";
+          break;
+        case WrittenExtent::Kind::Unknown:
+          llvm::outs() << "unknown";
+          break;
+        }
+        llvm::outs() << "\n";
+      }
+    }
+
     static void printDerivative(clang::Decl* D, bool DeclarationOnly,
                                 const DifferentiationOptions& DO) {
       clang::LangOptions LangOpts;
@@ -386,6 +420,10 @@ void InitTimers();
       // if enabled, print ASTs of the original functions
       if (m_DO.DumpSourceFnAST)
         FD->dumpColor();
+
+      // if enabled, report what each parameter's writes were proven to cover
+      if (m_DO.DumpWrittenExtents)
+        printWrittenExtents(FD);
 
       // If enabled, set the proper fields in derivative builder.
       if (m_DO.PrintNumDiffErrorInfo) {
