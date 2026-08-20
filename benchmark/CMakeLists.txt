@@ -3,6 +3,7 @@ enable_testing()
 
 CB_ADD_GBENCHMARK(Simple Simple.cpp)
 CB_ADD_GBENCHMARK(PullbackState PullbackState.cpp)
+CB_ADD_GBENCHMARK(ReplayFreePullbacks ReplayFreePullbacks.cpp)
 CB_ADD_GBENCHMARK(AlgorithmicComplexity AlgorithmicComplexity.cpp)
 CB_ADD_GBENCHMARK(ArrayExpressionTemplates ArrayExpressionTemplates.cpp)
 if (CLAD_ENABLE_ENZYME_BACKEND)
