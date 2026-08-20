@@ -171,6 +171,18 @@ namespace clad {
     /// Returns true if `QT` is Array or Pointer Type, otherwise returns false.
     bool isArrayOrPointerType(clang::QualType QT);
 
+    /// \returns whether a hessian of \p FD can be assembled from
+    /// hessian-vector products rather than derived once per direction.
+    ///
+    /// The vector-product wrapper hands the pushforward its tangents and the
+    /// pullback its adjoints by position, so it needs the generated shape of
+    /// one tangent per parameter and nothing else in between. An instance
+    /// method also carries `this` and its adjoint, which the hessian matrix
+    /// has no place for. Both the planner and the hessian visitor ask this,
+    /// so that the derivatives the planner schedules are the ones the visitor
+    /// goes looking for.
+    bool canUseHessianVectorProducts(const clang::FunctionDecl* FD);
+
     /// Returns true if `T` is auto or auto* type, otherwise returns false.
     bool IsAutoOrAutoPtrType(clang::QualType T);
 
