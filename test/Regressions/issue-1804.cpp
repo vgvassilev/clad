@@ -24,6 +24,11 @@ double f_outer(double *params, double const *obs) {
 // CHECK-NEXT:     double _t0 = (obs[0] - params[1]);
 // CHECK-NEXT:     double _d_arg = (((_d_obs ? _d_obs[0] : 0.) - _d_params[1]) * params[2] - _t0 * _d_params[2]) / (params[2] * params[2]);
 
+// The hessian wrapper hands the pullback the same null tangent in every
+// direction.
+// CHECK: void f_outer_hessian_0(double *params, const double *obs, double *hessianMatrix) {
+// CHECK: f_outer_pushforward_0_pullback(params, obs, _d_params, nullptr, _d_y, hessianMatrix + {{0U|0UL|0ULL}});
+
 // The same holds for a dereference spelled without a subscript.
 double g_inner(double *params, double const *obs) { return *obs * params[0]; }
 
@@ -31,6 +36,11 @@ double g_outer(double *params, double const *obs) { return g_inner(params, obs);
 
 // CHECK: clad::ValueAndPushforward<double, double> g_inner_pushforward(double *params, const double *obs, double *_d_params, const double *_d_obs) {
 // CHECK-NEXT:     return {*obs * params[0], (_d_obs ? *_d_obs : 0.) * params[0] + *obs * _d_params[0]};
+
+// Clang prints the type of a compound literal as `double [1]` up to clang 13
+// and as `double[1]` from clang 14 on, so accept either spelling.
+// CHECK: double g_outer_darg0_0(double *params, const double *obs) {
+// CHECK-NEXT: clad::ValueAndPushforward<double, double> _t0 = g_inner_pushforward(params, obs, (double{{ ?}}[1]){1.}, nullptr);
 
 // A local pointer inherits the null tangent of the one it is derived from. The
 // classification runs over the whole function at once, so that a read that
@@ -55,16 +65,16 @@ double h_outer(double *params, double const *obs) { return h_inner(params, obs);
 // CHECK: double _d_s = (_d_q ? _d_q[0] : 0.) * params[0] + q[0] * _d_params[0];
 // CHECK: _d_s += (_d_p ? _d_p[0] : 0.) * params[0] + p[0] * _d_params[0];
 
-// Clang prints the type of a compound literal as `double [3]` up to clang 13
-// and as `double[3]` from clang 14 on, so accept either spelling.
-// CHECK: f_inner_pushforward_pullback(params, obs, (double{{ ?}}[3]){1., 0., 0.}, nullptr, _d_t0, _d_params, (double{{ ?}}[3]){0., 0., 0.}, nullptr);
+// The null tangent flows through the pullback chain unchanged.
+// CHECK: void f_outer_pushforward_0_pullback(double *params, const double *obs, double *_d_params, const double *_d_obs, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0) {
+// CHECK: f_inner_pushforward_pullback(params, obs, _d_params, _d_obs, _d_t0, _d_params0);
 
-// The pullback of the guarded read is guarded by the same condition, so the
-// null adjoint of the null tangent is never written to either.
-// CHECK: void f_inner_pushforward_pullback(double *params, const double *obs, double *_d_params, const double *_d_obs, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0, double *_d_d_params, double *_d_d_obs) {
+// The pullback takes no adjoint for the tangents -- only for the requested
+// parameters -- so the null tangent has no adjoint that could be written to,
+// and its reads are guarded by the same hoisted condition.
+// CHECK: void f_inner_pushforward_pullback(double *params, const double *obs, double *_d_params, const double *_d_obs, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0) {
 // CHECK: bool _cond0 = _d_obs;
-// CHECK: if (_cond0)
-// CHECK-NEXT: _d_d_obs[0] += _d_d_arg / _t0 * params[2];
+// CHECK: double _d_arg = (((_cond0 ? _d_obs[0] : 0.) - _d_params[1]) * params[2] - _t00 * _d_params[2]) / _t0;
 
 int main() {
    double params[3] = {0.5, -1, 2};

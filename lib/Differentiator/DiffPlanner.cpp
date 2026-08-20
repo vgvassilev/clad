@@ -11,6 +11,7 @@
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
+#include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/Timers.h"
 
 #include "clang/AST/ASTContext.h"
@@ -42,6 +43,7 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -563,6 +565,16 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
     }
     return m_NullTangentInfo.MaybeNullPtrs.count(VD) != 0;
+  }
+
+  DiffRequest DiffRequest::pushforwardRequestForHessian(Sema& semaRef) const {
+    DiffRequest pushforwardRequest = *this;
+    pushforwardRequest.Mode = DiffMode::pushforward;
+    pushforwardRequest.Args = nullptr;
+    pushforwardRequest.CallUpdateRequired = false;
+    pushforwardRequest.UseHessianVectorProducts = false;
+    pushforwardRequest.UpdateDiffParamsInfo(semaRef);
+    return pushforwardRequest;
   }
 
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
@@ -1367,6 +1379,26 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       } else if (const auto* CtorExpr = dyn_cast<CXXConstructExpr>(callSite)) {
         fnDecl = CtorExpr->getConstructor();
       }
+      // A synthesized request -- the pushforward of a hessian assembled from
+      // vector products -- carries the clad::hessian call as its context. Its
+      // callee is clad's own template, not the function being differentiated,
+      // and must not anchor the namespace lookup.
+      bool anchorsRequestFn = false;
+      if (const auto* ND = dyn_cast_or_null<NamedDecl>(fnDecl)) {
+        const Decl* underlying = ND->getUnderlyingDecl();
+        if (const auto* FTD = dyn_cast<FunctionTemplateDecl>(underlying))
+          underlying = FTD->getTemplatedDecl();
+        if (const auto* UFD = dyn_cast<FunctionDecl>(underlying)) {
+          const FunctionDecl* pattern =
+              request.Function->getTemplateInstantiationPattern();
+          anchorsRequestFn =
+              UFD->getCanonicalDecl() == request.Function->getCanonicalDecl() ||
+              (pattern &&
+               UFD->getCanonicalDecl() == pattern->getCanonicalDecl());
+        }
+      }
+      if (!anchorsRequestFn)
+        fnDecl = request.Function;
     } else
       fnDecl = request.Function;
     assert(request.Mode != DiffMode::unknown &&
@@ -1746,6 +1778,45 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       if (request.Mode == DiffMode::hessian ||
           request.Mode == DiffMode::hessian_diagonal) {
+        // A hessian assembled from hessian-vector products needs one
+        // pushforward of the function, whose direction is a run-time
+        // argument. Schedule it here so that it is derived, and not merely
+        // declared, by the time HessianModeVisitor asks for its pullback: a
+        // pullback of a function whose body does not exist yet comes out
+        // empty. The decision is recorded on the request: the visitor
+        // consumes it and does not decide again, so the two sides cannot
+        // disagree.
+        request.UseHessianVectorProducts =
+            request.Mode == DiffMode::hessian &&
+            utils::canUseHessianVectorProducts(request.Function);
+
+        // A pointer parameter outside the requested set would get a null
+        // tangent, which forward mode only reads as zero through a const
+        // pointee. Derive per direction instead, which diagnoses the
+        // dependent non-const pointer rather than dereferencing null at run
+        // time.
+        if (request.UseHessianVectorProducts && request.Args)
+          for (const ParmVarDecl* PVD : request.Function->parameters()) {
+            QualType T = PVD->getType();
+            if (!utils::isArrayOrPointerType(T) ||
+                utils::GetValueType(T).isConstQualified())
+              continue;
+            bool requested = std::any_of(request.DVI.begin(), request.DVI.end(),
+                                         [PVD](const DiffInputVarInfo& dVar) {
+                                           return dVar.param == PVD;
+                                         });
+            if (!requested) {
+              request.UseHessianVectorProducts = false;
+              break;
+            }
+          }
+
+        // Build the per-direction forward requests up front: deriving per
+        // direction consumes them, and the vector-product scheme must first
+        // know that none of them resolves to a custom forward derivative,
+        // which only the per-direction scheme honors.
+        llvm::SmallVector<DiffRequest, 8> forwRequests;
+        bool hasCustomForwardDerivative = false;
         DiffRequest forwRequest = request;
         forwRequest.Mode = DiffMode::forward;
         forwRequest.CallUpdateRequired = false;
@@ -1768,18 +1839,37 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               // writes on success; without this reset a direction with a
               // custom derivative leaks it into every direction after it.
               forwRequest.CustomDerivative = nullptr;
-              LookupCustomDerivativeDecl(forwRequest);
-              m_DiffRequestGraph.addNode(forwRequest, /*isSource=*/true);
+              hasCustomForwardDerivative |=
+                  LookupCustomDerivativeDecl(forwRequest);
+              forwRequests.push_back(forwRequest);
             }
           } else {
             forwRequest.Args = utils::CreateStringLiteral(
                 m_Sema.getASTContext(), PVD->getNameAsString());
             forwRequest.UpdateDiffParamsInfo(m_Sema);
             forwRequest.CustomDerivative = nullptr;
-            LookupCustomDerivativeDecl(forwRequest);
-            m_DiffRequestGraph.addNode(forwRequest, /*isSource=*/true);
+            hasCustomForwardDerivative |=
+                LookupCustomDerivativeDecl(forwRequest);
+            forwRequests.push_back(forwRequest);
           }
         }
+        if (hasCustomForwardDerivative)
+          request.UseHessianVectorProducts = false;
+
+        if (request.UseHessianVectorProducts) {
+          DiffRequest pushforwardRequest =
+              request.pushforwardRequestForHessian(m_Sema);
+          // A custom pushforward is free to take any shape, and the wrapper
+          // builds its calls by position; derive per direction instead.
+          if (LookupCustomDerivativeDecl(pushforwardRequest))
+            request.UseHessianVectorProducts = false;
+          else
+            m_DiffRequestGraph.addNode(pushforwardRequest, /*isSource=*/true);
+        }
+
+        if (!request.UseHessianVectorProducts)
+          for (DiffRequest& fr : forwRequests)
+            m_DiffRequestGraph.addNode(fr, /*isSource=*/true);
       }
     }
 

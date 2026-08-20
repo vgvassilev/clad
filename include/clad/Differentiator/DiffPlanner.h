@@ -250,6 +250,12 @@ public:
   /// A flag specifying whether this differentiation is to be used
   /// for error estimation.
   bool EnableErrorEstimation = false;
+  /// Assemble the hessian from hessian-vector products -- one pushforward of
+  /// the function and one pullback of it -- instead of one second-order
+  /// function per direction. The planner decides this (and schedules the
+  /// pushforward); HessianModeVisitor only consumes the decision. Derived
+  /// from Function, Mode and Args, so excluded from request equality.
+  bool UseHessianVectorProducts = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                   clang::Sema& SemaRef);
@@ -325,6 +331,13 @@ public:
   ///   3) If no argument is provided, a default argument is used. The
   ///      function will be differentiated w.r.t. to its every parameter.
   void UpdateDiffParamsInfo(clang::Sema& semaRef);
+
+  /// The pushforward request a hessian assembled from hessian-vector products
+  /// consumes. One factory serves both sides: the planner schedules the
+  /// request this builds, and HessianModeVisitor builds it again to find that
+  /// scheduled derivative, so the two must stay structurally identical.
+  [[nodiscard]] DiffRequest
+  pushforwardRequestForHessian(clang::Sema& semaRef) const;
 
   /// Allow comparing DiffRequests.
   bool operator==(const DiffRequest& other) const {
