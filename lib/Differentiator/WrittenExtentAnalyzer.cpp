@@ -1,5 +1,7 @@
 #include "WrittenExtentAnalyzer.h"
 
+#include "clad/Differentiator/CladUtils.h"
+
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
@@ -29,6 +31,7 @@ class ExtentVisitor : public RecursiveASTVisitor<ExtentVisitor> {
   llvm::SmallVector<WrittenExtent, 8>& m_Extents;
   llvm::DenseMap<const ParmVarDecl*, unsigned> m_ParamIdx;
   llvm::SmallVector<CountedLoop, 4> m_Loops;
+  bool m_Opaque = false;
 
 public:
   ExtentVisitor(const FunctionDecl* FD,
@@ -60,6 +63,28 @@ public:
       recordWrite(UO->getSubExpr());
     return true;
   }
+
+  /// A callee can write through anything it is handed by pointer or by
+  /// non-const reference, and its body is not examined here. Such an argument
+  /// therefore defeats the analysis -- unless it demonstrably designates this
+  /// function's own local storage, which no parameter can alias.
+  bool VisitCallExpr(CallExpr* CE) {
+    for (const Expr* arg : CE->arguments()) {
+      QualType argTy = arg->getType();
+      bool mayWrite = (argTy->isPointerType() &&
+                       !argTy->getPointeeType().isConstQualified()) ||
+                      (argTy->isLValueReferenceType() &&
+                       !argTy.getNonReferenceType().isConstQualified());
+      if (mayWrite && !utils::designatesLocallyOwnedStorage(
+                          arg, /*asPointerValue=*/argTy->isPointerType())) {
+        m_Opaque = true;
+        return true;
+      }
+    }
+    return true;
+  }
+
+  bool sawOpaqueWrite() const { return m_Opaque; }
 
 private:
   /// Matches `for (v = <init>; v < <bound>; v++)` and nothing else.
@@ -211,21 +236,21 @@ private:
       E.K = WrittenExtent::Kind::Element;
       E.Offset = 0;
     } else {
-      // Writes clad cannot attribute to a parameter -- through a member, a
-      // local, or an opaque lvalue -- are handled by whoever owns that
-      // storage; they say nothing about a parameter's extent.
+      // A write to something that is not reached through a pointer -- a local
+      // scalar, a member -- cannot land in a parameter's buffer.
       return;
     }
 
+    // Reached through a pointer, but not one of this function's parameters:
+    // it may alias any of them, and nothing here rules that out.
     const auto* DRE = dyn_cast<DeclRefExpr>(Base->IgnoreParenImpCasts());
-    if (!DRE)
+    const auto* PVD = DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
+    auto it = PVD ? m_ParamIdx.find(PVD) : m_ParamIdx.end();
+    if (it == m_ParamIdx.end()) {
+      if (Base->getType()->isPointerType())
+        m_Opaque = true;
       return;
-    const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
-    if (!PVD)
-      return;
-    auto it = m_ParamIdx.find(PVD);
-    if (it == m_ParamIdx.end())
-      return;
+    }
     widen(it->second, E);
   }
 };
@@ -240,6 +265,20 @@ computeWrittenExtents(const FunctionDecl* FD) {
     return Extents;
   ExtentVisitor V(FD, Extents);
   V.TraverseStmt(FD->getBody());
+  // Something in the body could write through a parameter without this
+  // analysis seeing which one. Report every parameter it could have been as
+  // unbounded rather than as untouched, so a caller that gates on isProven()
+  // does not mistake silence for proof.
+  if (V.sawOpaqueWrite())
+    for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
+      QualType parTy = FD->getParamDecl(i)->getType();
+      bool mayWrite = (parTy->isPointerType() &&
+                       !parTy->getPointeeType().isConstQualified()) ||
+                      (parTy->isLValueReferenceType() &&
+                       !parTy.getNonReferenceType().isConstQualified());
+      if (mayWrite)
+        Extents[i].K = WrittenExtent::Kind::Unknown;
+    }
   return Extents;
 }
 
