@@ -18,8 +18,12 @@
 
 #include <cstdio>
 
+// The first call's buffer must be captured per iteration. clad proves how
+// much of it `sub` writes, so it records that range rather than routing
+// through sub_reverse_forw for a tracker snapshot; either way the values are
+// there, which is what the executed gradients below check.
 // CHECK: void chained_grad_0_1(
-// CHECK: sub_reverse_forw(
+// CHECK: clad::record_range(
 
 void sub(int d, const double* x, const double* y, double* out) {
   for (int i = 0; i < d; i++)

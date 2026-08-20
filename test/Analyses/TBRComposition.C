@@ -18,10 +18,16 @@
 #include <cstdio>
 
 // Both mutating calls must record their pre-call state, including the one
-// whose data pointer carries no adjoint.
+// whose data pointer carries no adjoint. clad proves how much of each buffer
+// they overwrite, so each records that range instead of routing through a
+// reverse_forw for a tracker snapshot.
+// The extent `d` is read once and taped, so each iteration replays its own --
+// spelling it out at each of the four sites would re-evaluate the argument.
 // CHECK: void objective_pullback(
-// CHECK: center_reverse_forw(
-// CHECK: scale_reverse_forw(
+// CHECK: clad::push(_recn0, d);
+// CHECK-NEXT: clad::record_range(_rec0, &centered[0], clad::back(_recn0));
+// CHECK: clad::push(_recn1, d);
+// CHECK-NEXT: clad::record_range(_rec1, &scaled[0], clad::back(_recn1));
 
 // out[i] = x[i] - m[i]: overwrites caller storage through a pointer, with a
 // non-differentiated data pointer as one input.

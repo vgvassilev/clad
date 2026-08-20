@@ -322,18 +322,20 @@ double f10(double x){
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// f10_1 writes one element of t, so the range recorded is one element wide.
 // CHECK-NEXT: void f10_grad(double x, double *_d_x) {
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     clad::tape<double> _rec0 = {};
 // CHECK-NEXT:     double _d_t[3] = {0};
 // CHECK-NEXT:     double t[3];
-// CHECK-NEXT:     _tracker0.clear();
-// CHECK-NEXT:     f10_1_reverse_forw(x, t, 0., _d_t, _tracker0);
+// CHECK-NEXT:     clad::record_range(_rec0, t, 1UL);
+// CHECK-NEXT:     f10_1(x, t);
 // CHECK-NEXT:     _d_t[0] += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, t, 1UL);
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         f10_1_pullback(x, t, &_r0, _d_t);
-// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, t, 1UL);
+// CHECK-NEXT:         clad::drop_range(_rec0, 1UL);
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

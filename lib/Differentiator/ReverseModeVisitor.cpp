@@ -9,6 +9,7 @@
 #include "ConstantFolder.h"
 
 #include "TBRAnalyzer.h"
+#include "WrittenExtentAnalyzer.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
@@ -2612,6 +2613,70 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool recordsAreDead =
         usingRestoreTracker && m_RestoreTracker && mutatesOnlyOwnLocals;
 
+    // Where the extent of every buffer the callee writes is known, recording
+    // those ranges replaces the tracker: one copy per buffer instead of an
+    // address and a scan per element. Only where the tracker's records are the
+    // sole reason to route through the reverse_forw, since the primal is then
+    // equivalent.
+    struct RecordedRange {
+      Expr* Buffer;  // the argument whose range is recorded
+      Expr* Bound;   // how many elements, evaluated at this call site
+      QualType Elem; // what the tape holds
+    };
+    llvm::SmallVector<RecordedRange, 4> recordedRanges;
+    bool useRangeRecords = false;
+    if (usingRestoreTracker && !m_RestoreTracker && hasStoredParams &&
+        !needsForwPass && pullbackStateType.isNull() && !isMethodOperatorCall) {
+      llvm::SmallVector<WrittenExtent, 8> extents = computeWrittenExtents(FD);
+      useRangeRecords = true;
+      for (std::size_t i = 0, e = FD->getNumParams(); i != e && useRangeRecords;
+           ++i) {
+        const WrittenExtent& W = extents[i];
+        if (W.K == WrittenExtent::Kind::None)
+          continue;
+        QualType parTy = FD->getParamDecl(i)->getType();
+        if (i >= CE->getNumArgs() || !parTy->isPointerType() ||
+            parTy->getPointeeType().isConstQualified()) {
+          useRangeRecords = false;
+          break;
+        }
+        Expr* bound = nullptr;
+        if (W.K == WrittenExtent::Kind::Element && W.Offset == 0) {
+          bound = ConstantFolder::synthesizeLiteral(m_Context.UnsignedLongTy,
+                                                    m_Context, /*val=*/1);
+        } else if (W.K == WrittenExtent::Kind::Range) {
+          if (W.BoundIsParam && W.BoundParamIdx < CE->getNumArgs()) {
+            const Expr* arg = CE->getArg(W.BoundParamIdx);
+            // The extent is spelled out four times below. An argument spelled
+            // as a call would run at each of them, and one whose value changed
+            // in between would leave the record and its replays disagreeing
+            // about how many elements there are. Read it once instead; inside
+            // a loop that tapes it, so each iteration replays its own extent.
+            // A constant needs none of this.
+            if (auto val = arg->getIntegerConstantExpr(m_Context))
+              bound = ConstantFolder::synthesizeLiteral(
+                  m_Context.UnsignedLongTy, m_Context, val->getZExtValue());
+            else
+              bound = GlobalStoreAndRef(Clone(arg), m_Context.UnsignedLongTy,
+                                        "_recn", /*force=*/true);
+          } else if (!W.BoundIsParam)
+            bound = ConstantFolder::synthesizeLiteral(m_Context.UnsignedLongTy,
+                                                      m_Context, W.BoundConst);
+        }
+        if (!bound) {
+          useRangeRecords = false;
+          break;
+        }
+        recordedRanges.push_back(
+            {Clone(CE->getArg(i)), bound,
+             parTy->getPointeeType().getUnqualifiedType()});
+      }
+      // Nothing to record means the tracker was not carrying anything either;
+      // leave that case to the existing paths rather than growing a third.
+      if (recordedRanges.empty())
+        useRangeRecords = false;
+    }
+
     // A reverse_forw that carries pullback_state is mandatory even when clad
     // could otherwise call the primal directly: the pullback consumes state
     // only the reverse_forw produces, so eliding it would leave the carrier
@@ -2622,7 +2687,46 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // relies on. The missing slot is filled with a null-pointer or zero
     // literal, which is why this is restricted to calls whose returned
     // ValueAndAdjoint is unused: those bodies only replay the primal.
-    if (calleeFnForwPassFD && (!hasDynamicNonDiffParams || !needsForwPass) &&
+    // Recording the ranges replaces what the reverse_forw was carrying, so the
+    // primal is enough here too.
+    if (useRangeRecords) {
+      llvm::SmallVector<Stmt*, 4> peeksBefore;
+      llvm::SmallVector<Stmt*, 8> peeksAfter;
+      for (const RecordedRange& R : recordedRanges) {
+        QualType tapeTy = GetCladTapeOfType(R.Elem);
+        Expr* tape =
+            BuildDeclRef(GlobalStoreImpl(tapeTy, "_rec", getZeroInit(tapeTy)));
+        auto call = [&](const char* name, llvm::SmallVector<Expr*, 3> args) {
+          return GetFunctionCall(name, "clad", args);
+        };
+        addToCurrentBlock(
+            call("record_range",
+                 {CloneNode(tape), CloneNode(R.Buffer), CloneNode(R.Bound)}),
+            direction::forward);
+        peeksBefore.push_back(
+            call("peek_range",
+                 {CloneNode(tape), CloneNode(R.Buffer), CloneNode(R.Bound)}));
+        // The pullback's own replay mutates what the first peek put back, so
+        // the pre-call state has to be replayed again before the sweep moves
+        // on to statements that precede this call.
+        peeksAfter.push_back(
+            call("peek_range",
+                 {CloneNode(tape), CloneNode(R.Buffer), CloneNode(R.Bound)}));
+        peeksAfter.push_back(
+            call("drop_range", {CloneNode(tape), CloneNode(R.Bound)}));
+      }
+      Stmts& block = getCurrentBlock(direction::reverse);
+      auto it = std::begin(block) + insertionPoint;
+      block.insert(it, peeksBefore.begin(), peeksBefore.end());
+      std::size_t postPullback = insertionPoint + peeksBefore.size() +
+                                 PreCallStmts.size() +
+                                 (OverloadedDerivedFn ? 1 : 0);
+      it = std::begin(block) + postPullback;
+      block.insert(it, peeksAfter.begin(), peeksAfter.end());
+    }
+
+    if (!useRangeRecords && calleeFnForwPassFD &&
+        (!hasDynamicNonDiffParams || !needsForwPass) &&
         ((hasStoredParams && !recordsAreDead) || needsForwPass ||
          !pullbackStateType.isNull())) {
       if (const auto* CD = dyn_cast<CXXConversionDecl>(FD))
