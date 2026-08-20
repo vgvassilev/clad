@@ -1764,6 +1764,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               forwRequest.UpdateDiffParamsInfo(m_Sema);
               if (!forwRequest.DVI.empty())
                 forwRequest.DVI.back().TotalCapacity = indexInterval.Finish;
+              // The request is reused across directions and the lookup only
+              // writes on success; without this reset a direction with a
+              // custom derivative leaks it into every direction after it.
+              forwRequest.CustomDerivative = nullptr;
               LookupCustomDerivativeDecl(forwRequest);
               m_DiffRequestGraph.addNode(forwRequest, /*isSource=*/true);
             }
@@ -1771,6 +1775,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             forwRequest.Args = utils::CreateStringLiteral(
                 m_Sema.getASTContext(), PVD->getNameAsString());
             forwRequest.UpdateDiffParamsInfo(m_Sema);
+            forwRequest.CustomDerivative = nullptr;
             LookupCustomDerivativeDecl(forwRequest);
             m_DiffRequestGraph.addNode(forwRequest, /*isSource=*/true);
           }
