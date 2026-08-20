@@ -3,9 +3,11 @@
 
 A test counts as observing the change if it failed at baseline on any row,
 since a defect can be invisible everywhere but under valgrind. The check
-fails only for a touched test that ran somewhere and failed nowhere: a row
-that skipped it (an unmet REQUIRES:) reports no evidence, and a test no row
-ran leaves the question open rather than answered in the negative.
+fails only for a touched test that ran somewhere, failed nowhere, and whose
+pre-change form passes with the change too. A row that skipped it (an unmet
+REQUIRES:) reports no evidence; a test no row ran leaves the question open
+rather than answered in the negative; and one whose pre-change form fails is
+an edit this change forced, which belongs with it.
 
 How many rows saw it is reported rather than collapsed: failing everywhere
 is an ordinary regression test, while failing on exactly one is either the
@@ -46,7 +48,7 @@ def main(vdir, out=None):
     total = len(applicable)
     # test -> [(platform, kind)] where it failed at baseline, and
     # test -> [platform] for the rows that ran it at all.
-    seen, ran, every = {}, {}, set()
+    seen, ran, adapts, every = {}, {}, {}, set()
     for v in applicable:
         for name, r in v.get("tests", {}).items():
             every.add(name)
@@ -57,16 +59,21 @@ def main(vdir, out=None):
             ran.setdefault(name, []).append(v["platform"])
             if not r.get("passed"):
                 seen.setdefault(name, []).append((v["platform"], r.get("kind")))
+            elif r.get("adapts"):
+                adapts.setdefault(name, []).append(v["platform"])
 
-    rows, narrow, blind, unrun = [], [], [], []
+    rows, narrow, blind, unrun, forced = [], [], [], [], []
     for name in sorted(every):
         where = seen.get(name, [])
         # Judge each test against the rows that ran it, not the rows that
         # reported: 5/5 among those that ran it is not 5/20 of the matrix.
-        n, m = len(where), len(ran.get(name, []))
+        n, m, k = len(where), len(ran.get(name, [])), len(adapts.get(name, []))
         if m == 0:
             rows.append((name, f"not run on any of the {total}"))
             unrun.append(name)
+        elif n == 0 and k:
+            rows.append((name, f"adapts to the change on {k}/{m}"))
+            forced.append(name)
         elif n == 0:
             rows.append((name, f"passes at baseline on all {m}"))
             blind.append(name)
@@ -89,6 +96,15 @@ def main(vdir, out=None):
                   "manifests under one", "row's checking, such as valgrind or "
                   "a sanitizer. If this test is not", "about such a defect, "
                   "the result is more likely flaky than meaningful."]
+
+    if forced:
+        lines += ["", "These cannot fail without the change, but their "
+                  "pre-change form fails with", "it -- edits the change "
+                  "forced, which belong with it:", ""]
+        lines += [f"  {f}" for f in forced]
+        lines += ["", "Whether each adaptation is the right one is a "
+                  "reviewer's call; that it is not", "an unrelated edit is "
+                  "not."]
 
     if unrun:
         lines += ["", "No platform running this check executes these tests, "
@@ -119,6 +135,9 @@ def main(vdir, out=None):
         if narrow:
             md += ["", "**Evidence from a single platform**", ""]
             md += [f"- `{n}` -- only `{p}` ({k})" for n, (p, k) in narrow]
+        if forced:
+            md += ["", "**Adaptations the change forced**", ""]
+            md += [f"- `{f}`" for f in forced]
         if unrun:
             md += ["", "**Not run by any platform reporting here**", ""]
             md += [f"- `{u}`" for u in unrun]
@@ -143,12 +162,14 @@ def main(vdir, out=None):
                     "kinds": sorted({k for _, k in seen.get(name, []) if k}),
                     "observed": len(seen.get(name, [])),
                     "ran_on": sorted(ran.get(name, [])),
+                    "adapts_on": sorted(adapts.get(name, [])),
                     "of": len(ran.get(name, [])),
                 }
                 for name in sorted(every)
             },
             "blind": blind,
             "unrun": unrun,
+            "forced": forced,
             "single_platform": [n for n, _ in narrow],
             "verdict": "blind" if blind else "observed",
         }
