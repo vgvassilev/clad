@@ -215,6 +215,35 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
   return of.back();
 }
 
+/// Record `n` elements starting at `p`, so the reverse sweep can put them back
+/// with restore_range. Used where clad can prove how much of a buffer a call
+/// overwrites: recording the range once is cheaper than snapshotting each
+/// element into a restore_tracker, and the pair needs no addresses.
+template <typename TapeType, typename T>
+CUDA_HOST_DEVICE void record_range(TapeType& to, const T* p, std::size_t n) {
+  for (std::size_t i = 0; i < n; ++i)
+    to.emplace_back(p[i]);
+}
+
+/// Write the most recently recorded run back to `p` without consuming it. A
+/// call's reverse sweep replays it twice -- once so the pullback starts from
+/// pre-call state, and once after, because the pullback's own replay mutates
+/// what the first replay put back.
+template <typename TapeType, typename T>
+CUDA_HOST_DEVICE void peek_range(TapeType& from, T* p, std::size_t n) {
+  for (std::size_t i = 0; i < n; ++i)
+    p[n - 1 - i] = from.peek_back(i);
+}
+
+/// Drop the most recently recorded run, once its call has been swept. Keeps
+/// the tape's LIFO order in step with the sweep, which is what lets one tape
+/// serve every instance of a call inside a loop.
+template <typename TapeType>
+CUDA_HOST_DEVICE void drop_range(TapeType& from, std::size_t n) {
+  for (std::size_t i = 0; i < n; ++i)
+    from.pop_back();
+}
+
 /// Reset values in an already-constructed adjoint (or its iterable elements)
 /// to zero in place. This is the primitive used by the default zero_like
 /// implementation. Provide an overload when the default recursive or

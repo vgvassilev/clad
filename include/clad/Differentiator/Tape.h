@@ -724,6 +724,27 @@ public:
     return *(m_tail->elements() + index);
   }
 
+  /// Access the value `i` positions from the end (0 being the last) without
+  /// removing it, so a recorded run can be read more than once. Walks back
+  /// from the tail rather than forward from the head, which keeps a read near
+  /// the end cheap however long the tape has grown.
+  CUDA_HOST_DEVICE reference peek_back(std::size_t i) {
+    assert(i < m_size);
+    std::size_t index = m_size - 1 - i;
+    if (index < SBO_SIZE)
+      return *(sbo_elements() + index);
+    std::size_t base =
+        SBO_SIZE + ((m_size - 1 - SBO_SIZE) / SLAB_SIZE) * SLAB_SIZE;
+    Slab* slab = m_tail;
+    while (index < base) {
+      slab = slab->prev;
+      base -= SLAB_SIZE;
+    }
+    if (DiskOffload || GpuOffload)
+      ensure_loaded(slab);
+    return *(slab->elements() + (index - base));
+  }
+
   CUDA_HOST_DEVICE const_reference back() const {
     assert(m_size);
     std::size_t index = m_size - 1;
