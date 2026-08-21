@@ -1,6 +1,9 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fdump-written-extents %s \
 // RUN:   -I%S/../../include -oWrittenExtents.out 2>&1 | %filecheck %s
-// RUN: ./WrittenExtents.out
+// RUN: ./WrittenExtents.out | %filecheck_exec %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s \
+// RUN:   -I%S/../../include -oWrittenExtents.out
+// RUN: ./WrittenExtents.out | %filecheck_exec %s
 
 // What a callee writes through each pointer parameter, proven from its body
 // and expressed in its own parameters so a call site can evaluate it. The
@@ -10,6 +13,9 @@
 // must never turn a range into a different range.
 
 #include "clad/Differentiator/Differentiator.h"
+
+#include <cmath>
+#include <cstdio>
 
 // The canonical shape: a counted loop over a parameter bound.
 void subtract(int d, const double* x, const double* y, double* out) {
@@ -75,11 +81,13 @@ void scalarOut(double a, double* err) { *err = a * a; }
 // CHECK: written-extent: scalarOut: a = none
 // CHECK-NEXT: written-extent: scalarOut: err = [0, 1)
 
+// Reaches every shape above. Buffers are 8 wide because fixedLoop writes five
+// elements and dataDependent indexes by a value read from x.
 double f(double a) {
-  double x[4] = {a, a, a, a};
-  double y[4] = {a, a, a, a};
-  double o[4] = {0, 0, 0, 0};
-  double o2[4] = {0, 0, 0, 0};
+  double x[8] = {a, a, a, a, a, a, a, a};
+  double y[8] = {a, a, a, a, a, a, a, a};
+  double o[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  double o2[8] = {0, 0, 0, 0, 0, 0, 0, 0};
   subtract(4, x, y, o);
   qtimesx(4, x, y, o2);
   constIdx(o);
@@ -94,6 +102,15 @@ double f(double a) {
 int main() {
   auto g = clad::gradient(f);
   double da = 0;
-  g.execute(1.0, &da);
+  g.execute(2.0, &da);
+
+  // Classifications are only worth pinning if the gradient they gate is
+  // right, so check it against a central difference.
+  const double h = 1e-5;
+  double fd = (f(2.0 + h) - f(2.0 - h)) / (2 * h);
+  printf("%s\n", std::abs(da - fd) <= 1e-5 * std::max(1.0, std::abs(fd))
+                      ? "gradient agrees with finite differences"
+                      : "MISMATCH");
+  // CHECK-EXEC: gradient agrees with finite differences
   return 0;
 }
