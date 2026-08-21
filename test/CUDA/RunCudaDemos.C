@@ -13,7 +13,7 @@
 // CHECK_PARTICLE_SIMULATION: void run_simulation_grad(thrust::device_vector<double> &x, thrust::device_vector<double> &y, const thrust::device_vector<double> &vx, const thrust::device_vector<double> &vy, const thrust::device_vector<double> &dts, thrust::device_vector<double> *_d_x, thrust::device_vector<double> *_d_y, thrust::device_vector<double> *_d_vx, thrust::device_vector<double> *_d_vy, thrust::device_vector<double> *_d_dts)
 // CHECK_PARTICLE_SIMULATION: for (i = 0; i < n_steps; ++i)
 // CHECK_PARTICLE_SIMULATION: clad::custom_derivatives::thrust::reduce_pullback
-// CHECK_PARTICLE_SIMULATION: for (; _t0; _t0--)
+// CHECK_PARTICLE_SIMULATION: for (_t0 = 5UL; _t0; _t0--)
 // CHECK_PARTICLE_SIMULATION: clad::custom_derivatives::thrust::copy_pullback
 // CHECK_PARTICLE_SIMULATION: clad::custom_derivatives::thrust::transform_pullback
 

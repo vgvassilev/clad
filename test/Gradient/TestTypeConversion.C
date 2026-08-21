@@ -20,14 +20,13 @@ void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 1; i < a; i++) {
-// CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, z);
 // CHECK-NEXT:         z = z * a;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_z += 1;
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (_t0 = a > 1 ? ((unsigned {{int|long|long long}})a - 1{{U|UL|ULL}}) : 0{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             z = clad::pop(_t1);
 // CHECK-NEXT:             float _r_d0 = *_d_z;

@@ -59,13 +59,12 @@ double sum(Tangent& t) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
-// CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         res += t.data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += _d_y;
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (_t0 = 5{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         double _r_d0 = _d_res;
 // CHECK-NEXT:         (*_d_t).data[i] += _r_d0;
@@ -84,13 +83,12 @@ double sum(double *data) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
-// CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         res += data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += _d_y;
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (_t0 = 5{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         double _r_d0 = _d_res;
 // CHECK-NEXT:         _d_data[i] += _r_d0;
@@ -283,13 +281,12 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
-// CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, this->data[i]);
 // CHECK-NEXT:         this->data[i] = d;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (_t0 = 5{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         this->data[i] = clad::pop(_t1);
 // CHECK-NEXT:         double _r_d0 = _d_this->data[i];
@@ -323,9 +320,8 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
-// CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         res += c.real() + 2 * clad::push(_t1, c.imag());
 // CHECK-NEXT:     }
 // CHECK-NEXT:     res += sum(t);
@@ -334,7 +330,7 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         double _r_d1 = _d_res;
 // CHECK-NEXT:         sum_pullback(t, _r_d1, _d_t);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (_t0 = 5{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_res;
 // CHECK-NEXT:             c.real_pullback(_r_d0, _d_c);
@@ -1079,27 +1075,25 @@ float fn29(float *input, Session const *session) {
 // CHECK-NEXT:      float buffer[5]{0., 0., 0., 0., 0};
 // CHECK-NEXT:      size_t _d_n = {{0U|0UL|0ULL}};
 // CHECK-NEXT:      const size_t n = 5;
-// CHECK-NEXT:      unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:      unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:      for (id = 0; id < n; id++) {
-// CHECK-NEXT:          _t0++;
 // CHECK-NEXT:          buffer[id] = sess.factors[id] * input[id];
 // CHECK-NEXT:      }
 // CHECK-NEXT:      float _d_out = 0.F;
 // CHECK-NEXT:      float out = 0.;
-// CHECK-NEXT:      unsigned {{int|long|long long}} _t1 = 0;
+// CHECK-NEXT:      unsigned {{int|long|long long}} _t1;
 // CHECK-NEXT:      for (id0 = 0; id0 < n; id0++) {
-// CHECK-NEXT:          _t1++;
 // CHECK-NEXT:          out += input[id0];
 // CHECK-NEXT:      }
 // CHECK-NEXT:      _d_out += 1;
-// CHECK-NEXT:      for (; _t1; _t1--) {
+// CHECK-NEXT:      for (_t1 = 5{{U|UL|ULL}}; _t1; _t1--) {
 // CHECK-NEXT:          id0--;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              float _r_d1 = _d_out;
 // CHECK-NEXT:              _d_input[id0] += _r_d1;
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
-// CHECK-NEXT:      for (; _t0; _t0--) {
+// CHECK-NEXT:      for (_t0 = 5{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:          id--;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              float _r_d0 = _d_buffer[id];

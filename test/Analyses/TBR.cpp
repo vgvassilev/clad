@@ -18,14 +18,13 @@ double f1(double x) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _d_t = 0.;
 //CHECK-NEXT:     double t = 1;
-//CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
-//CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, t);
 //CHECK-NEXT:         t *= x;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_t += 1;
-//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
 //CHECK-NEXT:         t = clad::pop(_t1);
 //CHECK-NEXT:         double _r_d0 = _d_t;
 //CHECK-NEXT:         _d_t = 0.;

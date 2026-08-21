@@ -1235,9 +1235,184 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             utils::unwrapIfSingleStmt(Reverse)};
   }
 
+  bool ReverseModeVisitor::IsStableAcrossSweeps(const Expr* E) const {
+    if (!E)
+      return false;
+    E = E->IgnoreParenImpCasts();
+    // A constant is stable however it is spelled -- a literal, a constexpr
+    // variable, an enumerator or a template argument all bound a loop, and
+    // the last three are the usual way a dimension is written.
+    if (E->getIntegerConstantExpr(m_Context))
+      return true;
+    if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+      UnaryOperatorKind op = UO->getOpcode();
+      return (op == UO_Plus || op == UO_Minus) &&
+             IsStableAcrossSweeps(UO->getSubExpr());
+    }
+    if (const auto* BO = dyn_cast<BinaryOperator>(E)) {
+      BinaryOperatorKind op = BO->getOpcode();
+      if (op != BO_Add && op != BO_Sub && op != BO_Mul)
+        return false;
+      return IsStableAcrossSweeps(BO->getLHS()) &&
+             IsStableAcrossSweeps(BO->getRHS());
+    }
+    const auto* DRE = dyn_cast<DeclRefExpr>(E);
+    if (!DRE)
+      return false;
+    const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+    // Integer only: the arithmetic below counts iterations, and a floating
+    // bound would make the count depend on rounding.
+    if (!VD || !VD->getType()->isIntegerType() ||
+        VD->getType().isVolatileQualified())
+      return false;
+    return !m_DiffReq.writesVariable(VD);
+  }
+
+  /// Whether \p E steps \p VD by exactly one, allowing the increment to carry
+  /// unrelated work alongside as `for (...; ...; ++i, ++p)` does.
+  static bool stepsByOne(const Expr* E, const VarDecl* VD) {
+    if (!E)
+      return false;
+    E = E->IgnoreParenImpCasts();
+    if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+      if (UO->getOpcode() != UO_PostInc && UO->getOpcode() != UO_PreInc)
+        return false;
+      const auto* DRE =
+          dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreParenImpCasts());
+      return DRE && DRE->getDecl() == VD;
+    }
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      if (BO->getOpcode() == BO_Comma)
+        return stepsByOne(BO->getLHS(), VD) || stepsByOne(BO->getRHS(), VD);
+    return false;
+  }
+
+  /// Whether \p S can leave the loop it belongs to before its condition says
+  /// so. Nested loops and switches are searched too -- a `break` of their own
+  /// is theirs to keep, but rejecting the outer loop as well is cheaper than
+  /// tracking which construct each one binds to, and costs only coverage.
+  static bool mayExitEarly(const Stmt* S) {
+    if (!S)
+      return false;
+    if (isa<BreakStmt>(S) || isa<ContinueStmt>(S) || isa<ReturnStmt>(S) ||
+        isa<GotoStmt>(S) || isa<IndirectGotoStmt>(S) || isa<LabelStmt>(S))
+      return true;
+    return llvm::any_of(S->children(), mayExitEarly);
+  }
+
+  Expr* ReverseModeVisitor::ComputeReDerivableTripCount(const ForStmt* FS) {
+    // Recomputing is only sound when the reverse loop runs exactly when the
+    // forward one ran to completion. An early return breaks that: it can skip
+    // the forward loop while the master reverse sweep still runs, which is
+    // the case a zero-initialised counter covers.
+    if (m_DiffReq.hasEarlyReturns())
+      return nullptr;
+
+    // `v < bound` or `v <= bound`.
+    const auto* cond = dyn_cast_or_null<BinaryOperator>(FS->getCond());
+    if (!cond)
+      return nullptr;
+    bool inclusive = cond->getOpcode() == BO_LE;
+    if (!inclusive && cond->getOpcode() != BO_LT)
+      return nullptr;
+    const auto* condLHS =
+        dyn_cast<DeclRefExpr>(cond->getLHS()->IgnoreParenImpCasts());
+    if (!condLHS)
+      return nullptr;
+    const auto* indVar = dyn_cast<VarDecl>(condLHS->getDecl());
+    if (!indVar || !indVar->getType()->isIntegerType())
+      return nullptr;
+
+    // `v = init` or `T v = init`, naming that same variable.
+    const Expr* init = nullptr;
+    if (const auto* DS = dyn_cast_or_null<DeclStmt>(FS->getInit())) {
+      if (DS->isSingleDecl() && DS->getSingleDecl() == indVar)
+        init = indVar->getInit();
+    } else if (const auto* BO =
+                   dyn_cast_or_null<BinaryOperator>(FS->getInit())) {
+      const auto* lhs =
+          dyn_cast<DeclRefExpr>(BO->getLHS()->IgnoreParenImpCasts());
+      if (BO->getOpcode() == BO_Assign && lhs && lhs->getDecl() == indVar)
+        init = BO->getRHS();
+    }
+    if (!init)
+      return nullptr;
+
+    if (!stepsByOne(FS->getInc(), indVar))
+      return nullptr;
+    if (mayExitEarly(FS->getBody()))
+      return nullptr;
+    // The increment is the only thing allowed to move the induction variable;
+    // a body that also writes it -- directly, or by handing it to a callee as
+    // a non-const reference -- runs a number of times the bounds do not say.
+    std::set<const VarDecl*> writtenInBody;
+    utils::collectWrittenVars(FS->getBody(), writtenInBody);
+    if (writtenInBody.count(indVar))
+      return nullptr;
+
+    const Expr* bound = cond->getRHS();
+    if (!IsStableAcrossSweeps(init) || !IsStableAcrossSweeps(bound))
+      return nullptr;
+
+    // The count is `bound - init`, one more when the bound is inclusive, and
+    // zero when the loop body never runs. Guarding on the same comparison the
+    // loop itself uses keeps the two in step; without it an empty loop would
+    // wrap the subtraction around and iterate the reverse sweep forever.
+    QualType sizeTy = clad_compat::getSizeType(m_Context);
+    std::optional<llvm::APSInt> initVal =
+        init->getIntegerConstantExpr(m_Context);
+    std::optional<llvm::APSInt> boundVal =
+        bound->getIntegerConstantExpr(m_Context);
+
+    // A loop written with constant bounds -- the common `i < 3` -- has a count
+    // known here, and spelling it out beats emitting arithmetic over literals.
+    if (initVal && boundVal && initVal->isNonNegative() &&
+        boundVal->isNonNegative() && initVal->getActiveBits() < 63 &&
+        boundVal->getActiveBits() < 63) {
+      int64_t count = static_cast<int64_t>(boundVal->getZExtValue()) -
+                      static_cast<int64_t>(initVal->getZExtValue()) +
+                      (inclusive ? 1 : 0);
+      return ConstantFolder::synthesizeLiteral(sizeTy, m_Context,
+                                               count > 0 ? count : 0);
+    }
+
+    auto toSize = [&](const Expr* E) {
+      return m_Sema
+          .BuildCStyleCastExpr(noLoc,
+                               m_Context.getTrivialTypeSourceInfo(sizeTy),
+                               noLoc, Clone(E))
+          .get();
+    };
+    // Casting both sides before subtracting keeps a negative init exact: the
+    // wrapped values differ by the same amount the originals do.
+    Expr* count = toSize(bound);
+    if (initVal && initVal->isNonNegative() && initVal->getActiveBits() < 63) {
+      // A constant start folds into the inclusive bound's extra iteration,
+      // rather than emitting the two of them as `- 1 + 1`.
+      int64_t offset =
+          static_cast<int64_t>(initVal->getZExtValue()) - (inclusive ? 1 : 0);
+      if (offset)
+        count = BuildOp(offset > 0 ? BO_Sub : BO_Add, count,
+                        ConstantFolder::synthesizeLiteral(
+                            sizeTy, m_Context, offset > 0 ? offset : -offset));
+    } else {
+      count = BuildOp(BO_Sub, count, toSize(init));
+      if (inclusive)
+        count =
+            BuildOp(BO_Add, count,
+                    ConstantFolder::synthesizeLiteral(sizeTy, m_Context, 1));
+    }
+    Expr* runs = BuildOp(inclusive ? BO_GE : BO_GT, Clone(bound), Clone(init));
+    return m_Sema
+        .ActOnConditionalOp(
+            noLoc, noLoc, runs, BuildParens(count),
+            ConstantFolder::synthesizeLiteral(sizeTy, m_Context, 0))
+        .get();
+  }
+
   StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
     beginBlock(direction::reverse);
-    LoopCounter loopCounter(*this);
+    LoopCounter loopCounter(*this, ComputeReDerivableTripCount(FS));
     ScopeRAII forScope(*this, Scope::DeclScope | Scope::ControlScope |
                                   Scope::BreakScope | Scope::ContinueScope);
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
@@ -1377,9 +1552,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           m_Context, BodyDiff.getStmt_dx(), revPassCondStmts));
     }
 
-    Stmt* revInit = loopCounter.getNumRevIterations()
-                        ? BuildDeclStmt(loopCounter.getNumRevIterations())
-                        : nullptr;
+    Stmt* revInit = nullptr;
+    if (loopCounter.getNumRevIterations())
+      revInit = BuildDeclStmt(loopCounter.getNumRevIterations());
+    else if (loopCounter.isReDerived())
+      revInit = loopCounter.getCounterInit();
     Stmt* Reverse = nullptr;
     if (BodyDiff.getStmt_dx())
       Reverse = new (m_Context)
@@ -4676,9 +4853,26 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                               /*pNeedsUpdate=*/true};
   }
 
-  ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)
-      : m_RMV(RMV) {
+  ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV,
+                                               Expr* tripCount)
+      : m_RMV(RMV), m_TripCount(tripCount) {
     ASTContext& C = m_RMV.m_Context;
+    if (tripCount) {
+      // The forward sweep never touches this counter, so it needs no reset
+      // and -- unlike a counted one -- no tape when the loop is nested: the
+      // reverse loop assigns it on entry, once per enclosing iteration.
+      VarDecl* VD = m_RMV.BuildGlobalVarDecl(clad_compat::getSizeType(C), "_t");
+      DeclStmt* decl = m_RMV.BuildDeclStmt(VD);
+      // Declare it beside its loop, where a counted one sits. A loop below
+      // function-body level is the exception: the reverse sweep runs in a
+      // sibling block and could not name a declaration left in that one.
+      if (m_RMV.getCurrentScope()->isFunctionScope())
+        m_RMV.addToCurrentBlock(decl, direction::forward);
+      else
+        m_RMV.addToBlock(decl, m_RMV.m_Globals);
+      m_Ref = m_RMV.BuildDeclRef(VD);
+      return;
+    }
     // The counter's reset lives in the forward sweep, which an early return
     // taken before the loop never reaches -- while the master reverse sweep
     // still runs. Zero-init makes the reverse loop a no-op there.
@@ -5178,8 +5372,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     addToCurrentBlock(bodyDiff.getStmt_dx(), direction::reverse);
     bodyDiff = {bodyDiff.getStmt(),
                 utils::unwrapIfSingleStmt(endBlock(direction::reverse))};
-    bodyDiff.updateStmt(utils::PrependAndCreateCompoundStmt(
-        m_Context, bodyDiff.getStmt(), counterIncrement));
+    // Null when the reverse sweep recomputes the iteration count instead of
+    // reading one the forward sweep kept.
+    if (counterIncrement)
+      bodyDiff.updateStmt(utils::PrependAndCreateCompoundStmt(
+          m_Context, bodyDiff.getStmt(), counterIncrement));
     return bodyDiff;
   }
 

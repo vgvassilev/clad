@@ -657,15 +657,33 @@ namespace clad {
     /// If we are currently inside a loop, then a clad tape object is created
     /// to be used as the counter; otherwise, a temporary global variable (in
     /// function scope) is created to be used as the counter.
+    ///
+    /// When the caller can prove the iteration count from the loop's own
+    /// bounds (see ComputeReDerivableTripCount), it passes that count here and
+    /// the forward sweep stops counting altogether: no reset, no per-iteration
+    /// increment, and -- for a nested loop -- no tape. The reverse loop then
+    /// assigns the count to a plain function-scope variable on entry.
     class LoopCounter {
       clang::Expr *m_Ref = nullptr;
       clang::Expr *m_Pop = nullptr;
       clang::Expr *m_Push = nullptr;
       ReverseModeVisitor& m_RMV;
       clang::VarDecl* m_numRevIterations = nullptr;
+      clang::Expr* m_TripCount = nullptr;
 
     public:
-      LoopCounter(ReverseModeVisitor& RMV);
+      LoopCounter(ReverseModeVisitor& RMV, clang::Expr* tripCount = nullptr);
+
+      /// Returns true if the reverse sweep computes the iteration count from
+      /// the loop bounds instead of reading a count the forward sweep kept.
+      bool isReDerived() const { return m_TripCount; }
+
+      /// Returns `counter = <trip count>`, the init of the reverse loop.
+      /// Only valid when isReDerived().
+      clang::Expr* getCounterInit() const {
+        return m_RMV.BuildOp(clang::BinaryOperatorKind::BO_Assign, cloneRef(),
+                             m_TripCount);
+      }
       /// Returns `clad::push(_t, 0UL)` expression if clad tape is used
       /// for counter; otherwise, returns nullptr.
       clang::Expr* getPush() const { return m_Push; }
@@ -683,8 +701,11 @@ namespace clad {
         return m_RMV.CloneNode(m_Ref);
       }
 
-      /// Returns counter post-increment expression (`counter++`).
+      /// Returns counter post-increment expression (`counter++`), or nullptr
+      /// when the count is re-derived and the forward sweep must not count.
       clang::Expr* getCounterIncrement() {
+        if (isReDerived())
+          return nullptr;
         return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostInc, cloneRef());
       }
 
@@ -918,6 +939,18 @@ namespace clad {
 
     /// A flag indicating if the Stmt is contained in a checkpointed loop.
     bool m_IsInsideCheckpointedLoop = false;
+
+    /// Returns true if \p E evaluates in the reverse sweep to the value it had
+    /// in the forward sweep, i.e. it combines arithmetically only constants
+    /// and variables the primal never writes.
+    bool IsStableAcrossSweeps(const clang::Expr* E) const;
+
+    /// Returns the number of iterations `FS` performs, as an expression the
+    /// reverse sweep can evaluate on entry, or nullptr when that cannot be
+    /// proven. Recognises the counted loop -- an integer variable stepped by
+    /// one from a stable initial value while it stays below a stable bound,
+    /// with no early exit -- and nothing else.
+    clang::Expr* ComputeReDerivableTripCount(const clang::ForStmt* FS);
   };
 } // end namespace clad
 

@@ -35,9 +35,8 @@ __device__ __host__ double gauss(const double* x, double* p, double sigma, int d
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     double _d_t = 0.;
 //CHECK-NEXT:     double t = 0;
-//CHECK-NEXT:     unsigned long _t0 = 0;
+//CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     for (i = 0; i < dim; i++) {
-//CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         t += (x[i] - p[i]) * (x[i] - p[i]);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _t1 = t;
@@ -68,7 +67,7 @@ __device__ __host__ double gauss(const double* x, double* p, double sigma, int d
 //CHECK-NEXT:         _d_sigma += 2 * _r0 * sigma;
 //CHECK-NEXT:         _d_sigma += 2 * sigma * _r0;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:     for (_t0 = dim > 0 ? (unsigned long)dim : 0UL; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         double _r_d0 = _d_t;
 //CHECK-NEXT:         _d_p[i] += -_r_d0 * (x[i] - p[i]);

@@ -31,7 +31,6 @@ double linearAndNonlinear(double x, double y) {
 // CHECK-NEXT: clad::tape<double> _t2 = {};
 // CHECK-NOT: clad::tape<double> _t3 = {};
 // CHECK: for (i = 0; i < 3; ++i) {
-// CHECK-NEXT: _t0++;
 // CHECK-NEXT: _d_s = _d_s + _d_a;
 // CHECK-NEXT: s = s + a;
 // CHECK-NEXT: clad::push(_t1, _d_a);

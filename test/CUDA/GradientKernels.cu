@@ -502,15 +502,14 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
 //CHECK-NEXT:    double _d_res = 0.;
 //CHECK-NEXT:    double res = 0;
-//CHECK-NEXT:    unsigned long _t0 = 0;
+//CHECK-NEXT:    unsigned long _t0;
 //CHECK-NEXT:    for (i = 0; i < 10; ++i) {
-//CHECK-NEXT:        _t0++;
 //CHECK-NEXT:        printf("Writing result of out[%d]\n", i);
 //CHECK-NEXT:        clad::push(_t1, res);
 //CHECK-NEXT:        res += out_host[i];
 //CHECK-NEXT:    }
 //CHECK-NEXT:    _d_res += 1;
-//CHECK-NEXT:    for (; _t0; _t0--) {
+//CHECK-NEXT:    for (_t0 = 10UL; _t0; _t0--) {
 //CHECK-NEXT:        --i;
 //CHECK-NEXT:        {
 //CHECK-NEXT:            res = clad::pop(_t1);
