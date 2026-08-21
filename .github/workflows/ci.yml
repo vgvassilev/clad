@@ -101,18 +101,6 @@ jobs:
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
-          - name: ubu24-clang20-runtime22-vg
-            os: ubuntu-24.04
-            compiler: clang-20
-            extra_packages: 'valgrind'
-            extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
-            clang-runtime: '22'
-            # Run Valgrind against the from-source llvm-release recipe
-            # (Release+Asserts), not apt: apt's -O2 binaries read uninitialised
-            # bitfield padding in ~399 clang/LLVM sites (llvm/llvm-project#194147)
-            # that no surgical suppression can cover. The recipe build tops out
-            # in two frames, handled by test/clad-valgrind-llvm22.supp.
-            use-recipe: 'true'
 
           - name: ubu24-arm-clang16-runtime17-shared-libs
             os: ubuntu-24.04-arm
@@ -572,6 +560,84 @@ jobs:
             cuda: true
 
     steps: *build_steps
+
+  # Valgrind is the row a pull request would otherwise wait on -- two hours
+  # against 8 for an ordinary row -- and it answers a question about master
+  # rather than about the change under review. Step list shared via the
+  # &build_steps anchor.
+  build-valgrind:
+    if: ${{ github.event_name == 'push' }}
+    timeout-minutes: 360 # Valgrind takes about two hours.
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubu24-clang20-runtime22-vg
+            os: ubuntu-24.04
+            compiler: clang-20
+            extra_packages: 'valgrind'
+            extra_cmake_options: '-DCLAD_TEST_USE_VG=On'
+            clang-runtime: '22'
+            # Run Valgrind against the from-source llvm-release recipe
+            # (Release+Asserts), not apt: apt's -O2 binaries read uninitialised
+            # bitfield padding in ~399 clang/LLVM sites (llvm/llvm-project#194147)
+            # that no surgical suppression can cover. The recipe build tops out
+            # in two frames, handled by test/clad-valgrind-llvm22.supp.
+            use-recipe: 'true'
+    steps: *build_steps
+
+  # A post-merge gate nobody watches is not a gate: the run ends long after
+  # its author has moved on. Consecutive failures comment on the open report
+  # rather than file another, so a week of red master is one thread.
+  valgrind-report:
+    needs: build-valgrind
+    if: ${{ failure() }}
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+    - name: File the failure against the commit that caused it
+      uses: actions/github-script@v7.0.1
+      with:
+        script: |
+          const repo = { owner: context.repo.owner, repo: context.repo.repo };
+          const commit = context.payload.head_commit || {};
+          const author = (commit.author || {});
+          // GitHub resolves the commit email to an account when it can; fall
+          // back to the name so the report still says whose commit it was.
+          const who = author.username ? `@${author.username}`
+                                      : (author.name || 'unknown author');
+          const run = `${context.serverUrl}/${context.repo.owner}/`
+                    + `${context.repo.repo}/actions/runs/${context.runId}`;
+          const body = [
+            'Valgrind failed on master. It runs after the merge, so the pull',
+            'request that introduced this never saw it.',
+            '',
+            `- commit: ${context.sha} -- ${(commit.message || '').split('\n')[0]}`,
+            `- author: ${who}`,
+            `- run: ${run}`,
+          ].join('\n');
+          const LABEL = 'valgrind';
+          // The label is what carries the thread from one failure to the
+          // next, so it has to exist before anything is filed under it.
+          await github.rest.issues.getLabel({ ...repo, name: LABEL }).catch(() =>
+            github.rest.issues.createLabel({ ...repo, name: LABEL,
+              color: 'b60205', description: 'Post-merge Valgrind failure' }));
+          // listForRepo answers with pull requests too; only an issue is a
+          // report, and a labelled pull request must not swallow one.
+          const open = await github.rest.issues.listForRepo(
+            { ...repo, state: 'open', labels: LABEL });
+          const report = open.data.find(i => !i.pull_request);
+          if (report)
+            await github.rest.issues.createComment(
+              { ...repo, issue_number: report.number, body });
+          else
+            await github.rest.issues.create({
+              ...repo, body, labels: [LABEL],
+              title: `[valgrind] master fails at ${context.sha.slice(0, 8)}`,
+            });
 
   observes-change:
     name: Tests observe the change
