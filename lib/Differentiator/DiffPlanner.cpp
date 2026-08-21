@@ -477,6 +477,28 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return F.Found;
   }
 
+  bool DiffRequest::writesVariable(const VarDecl* VD) const {
+    if (!VD)
+      return true;
+    // A reference names storage this walk does not follow, and static or
+    // external storage is reachable from inside a callee. Neither can be
+    // ruled out by looking at the body alone.
+    if (VD->getType()->isReferenceType() || !VD->hasLocalStorage())
+      return true;
+    const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+    if (!Def || !Def->hasBody())
+      return true;
+    // A variable belonging to a nested lambda -- or to another function
+    // entirely -- is not this body's to answer for.
+    if (VD->getDeclContext() != Def)
+      return true;
+    if (!m_WrittenVarInfo.HasAnalysisRun) {
+      utils::collectWrittenVars(Def->getBody(), m_WrittenVarInfo.Written);
+      m_WrittenVarInfo.HasAnalysisRun = true;
+    }
+    return m_WrittenVarInfo.Written.count(VD) != 0;
+  }
+
   namespace {
   /// Propagates "the tangent of this pointer may be null" along the pointer
   /// initializations and assignments of a function body, to a fixpoint. Runs on

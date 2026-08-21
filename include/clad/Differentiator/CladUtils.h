@@ -19,6 +19,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <cassert>
+#include <set>
 #include <string>
 
 namespace clang {
@@ -528,6 +529,15 @@ namespace clad {
     /// includes.
     clang::Expr* BuildEnzymeActivityMarkerRef(clang::Sema& semaRef,
                                               llvm::StringRef name);
+
+    /// Adds to \p Written every variable \p S may write. "Write" is meant
+    /// broadly, as anything that can change a value: an assignment, an
+    /// increment, a taken address, a bind to a non-const reference, an asm
+    /// operand, or a lambda capture. Over-approximates on purpose -- callers
+    /// ask whether a variable is provably left alone, and a name that only
+    /// might be written is no use to them.
+    void collectWrittenVars(const clang::Stmt* S,
+                            std::set<const clang::VarDecl*>& Written);
     } // namespace utils
     } // namespace clad
 

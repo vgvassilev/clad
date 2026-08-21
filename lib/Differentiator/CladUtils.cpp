@@ -1930,5 +1930,93 @@ namespace clad {
       return !(utils::ContainsFunctionCalls(E) || E->HasSideEffects(C)) ||
              isCUDABuiltInIndex(E);
     }
+
+    namespace {
+    class WrittenVarCollector
+        : public RecursiveASTVisitor<WrittenVarCollector> {
+      std::set<const VarDecl*>* m_Written;
+
+      void mark(const Expr* E) {
+        if (!E)
+          return;
+        if (const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts()))
+          if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+            m_Written->insert(VD);
+      }
+
+      /// Marks the arguments \p Callee may write. A parameter type is what
+      /// says so, and where there is none to consult -- an indirect call --
+      /// every argument counts as written.
+      void markByRefArgs(const FunctionDecl* Callee, const Expr* const* Args,
+                         unsigned NumArgs, unsigned ArgOffset) {
+        for (unsigned i = ArgOffset; i != NumArgs; ++i) {
+          if (Callee && i - ArgOffset < Callee->getNumParams()) {
+            QualType T = Callee->getParamDecl(i - ArgOffset)->getType();
+            if (!T->isLValueReferenceType() ||
+                T.getNonReferenceType().isConstQualified())
+              continue;
+          }
+          mark(Args[i]);
+        }
+      }
+
+    public:
+      explicit WrittenVarCollector(std::set<const VarDecl*>& Written)
+          : m_Written(&Written) {}
+
+      bool VisitBinaryOperator(BinaryOperator* BO) {
+        if (BO->isAssignmentOp())
+          mark(BO->getLHS());
+        return true;
+      }
+
+      bool VisitUnaryOperator(UnaryOperator* UO) {
+        // A taken address is a write that can happen anywhere later.
+        if (UO->isIncrementDecrementOp() || UO->getOpcode() == UO_AddrOf)
+          mark(UO->getSubExpr());
+        return true;
+      }
+
+      bool VisitCallExpr(CallExpr* CE) {
+        const FunctionDecl* FD = CE->getDirectCallee();
+        // An overloaded operator passes its object as argument zero, so the
+        // arguments sit one ahead of the parameters when it is a member.
+        unsigned offset =
+            isa<CXXOperatorCallExpr>(CE) && isa_and_nonnull<CXXMethodDecl>(FD);
+        markByRefArgs(FD, CE->getArgs(), CE->getNumArgs(), offset);
+        return true;
+      }
+
+      bool VisitCXXConstructExpr(CXXConstructExpr* CE) {
+        markByRefArgs(CE->getConstructor(), CE->getArgs(), CE->getNumArgs(),
+                      /*ArgOffset=*/0);
+        return true;
+      }
+
+      /// A capture hands the variable to a body this walk does not enter.
+      bool VisitLambdaExpr(LambdaExpr* LE) {
+        for (const LambdaCapture& C : LE->captures())
+          if (C.capturesVariable())
+            if (const auto* VD = dyn_cast<VarDecl>(C.getCapturedVar()))
+              m_Written->insert(VD);
+        return true;
+      }
+
+      /// Inline assembly is opaque; assume it writes whatever it names.
+      bool VisitAsmStmt(AsmStmt* AS) {
+        for (const Stmt* child : AS->children())
+          if (const auto* E = dyn_cast_or_null<Expr>(child))
+            mark(E);
+        return true;
+      }
+    };
+    } // namespace
+
+    void collectWrittenVars(const Stmt* S, std::set<const VarDecl*>& Written) {
+      if (!S)
+        return;
+      WrittenVarCollector Collector(Written);
+      Collector.TraverseStmt(const_cast<Stmt*>(S));
+    }
   } // namespace utils
 } // namespace clad

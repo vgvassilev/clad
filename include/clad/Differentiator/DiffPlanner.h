@@ -170,6 +170,13 @@ private:
     bool HasAnalysisRun = false;
   } m_NullTangentInfo;
 
+  /// Cache for writesVariable(): the primal's local variables and parameters
+  /// that it may write. A property of the Function, computed once on demand.
+  mutable struct WrittenVarInfo {
+    std::set<const clang::VarDecl*> Written;
+    bool HasAnalysisRun = false;
+  } m_WrittenVarInfo;
+
 public:
   /// The primal body's tail-position return -- the one an early-return encoder
   /// lets control fall through to, as opposed to an early return that needs a
@@ -196,6 +203,19 @@ public:
   /// is therefore never null. Answers false for a non-pointer, and for a
   /// variable belonging to a function other than this request's.
   bool mayHaveNullTangent(const clang::VarDecl* VD) const;
+
+  /// Whether the primal may write the local variable or parameter \p VD.
+  /// "Write" is meant broadly, as anything that can change the value between
+  /// two points of the body: an assignment, an increment, a taken address, or
+  /// a bind to a non-const reference. A variable this answers false for holds
+  /// the same value throughout the call, so the reverse sweep may read it and
+  /// see what the forward sweep saw -- which is what lets a loop's iteration
+  /// count be recomputed from its bounds rather than counted.
+  ///
+  /// Answers true, conservatively, for anything it cannot see through: a
+  /// variable with static or external storage (a callee may write it), and one
+  /// belonging to a function other than this request's.
+  bool writesVariable(const clang::VarDecl* VD) const;
 
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
