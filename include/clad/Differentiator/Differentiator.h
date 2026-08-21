@@ -215,10 +215,10 @@ CUDA_HOST_DEVICE auto back(TapeType& of) -> decltype(of.back()) {
   return of.back();
 }
 
-/// Record `n` elements starting at `p`, so the reverse sweep can put them back
-/// with restore_range. Used where clad can prove how much of a buffer a call
-/// overwrites: recording the range once is cheaper than snapshotting each
-/// element into a restore_tracker, and the pair needs no addresses.
+/// Record `n` elements starting at `p`, for peek_range to put back. Used where
+/// clad can prove how much of a buffer a call overwrites: recording the range
+/// once is cheaper than snapshotting each element into a restore_tracker, and
+/// it needs no addresses.
 template <typename TapeType, typename T>
 CUDA_HOST_DEVICE void record_range(TapeType& to, const T* p, std::size_t n) {
   for (std::size_t i = 0; i < n; ++i)
