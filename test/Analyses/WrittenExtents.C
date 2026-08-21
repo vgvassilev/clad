@@ -76,6 +76,28 @@ void whileLoop(int n, double* out) {
 // CHECK: written-extent: whileLoop: n = none
 // CHECK-NEXT: written-extent: whileLoop: out = unknown
 
+// A bound does not have to be spelled as a literal to be constant: a constexpr
+// variable, an enumerator or a template argument bound a loop just as well,
+// and are the usual way a dimension is written.
+constexpr int Dim = 6;
+void constexprBound(double* v) {
+  for (int i = 0; i < Dim; i++)
+    v[i] = v[i] * 2;
+}
+// CHECK: written-extent: constexprBound: v = [0, 6)
+
+// A second index walked alongside the induction variable joins the increment
+// with a comma. That still steps the induction variable by one.
+void commaStep(int d, const double* w, double* out) {
+  int p = 0;
+  for (int i = 0; i < d; i++)
+    for (int j = i + 1; j < d; j++, p++)
+      out[j] = out[j] + w[p];
+}
+// CHECK: written-extent: commaStep: d = none
+// CHECK-NEXT: written-extent: commaStep: w = none
+// CHECK-NEXT: written-extent: commaStep: out = [0, d)
+
 // A scalar written through a dereference is a single element.
 void scalarOut(double a, double* err) { *err = a * a; }
 // CHECK: written-extent: scalarOut: a = none
@@ -94,6 +116,8 @@ double f(double a) {
   fixedLoop(o);
   dataDependent(4, x, o);
   whileLoop(4, o);
+  constexprBound(o);
+  commaStep(4, y, o2);
   double e = 0;
   scalarOut(a, &e);
   return o[0] + o2[0] + e;

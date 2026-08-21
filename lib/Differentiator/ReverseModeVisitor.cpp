@@ -2627,7 +2627,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool useRangeRecords = false;
     if (usingRestoreTracker && !m_RestoreTracker && hasStoredParams &&
         !needsForwPass && pullbackStateType.isNull() && !isMethodOperatorCall) {
-      llvm::SmallVector<WrittenExtent, 8> extents = computeWrittenExtents(FD);
+      llvm::SmallVector<WrittenExtent, 8> extents =
+          computeWrittenExtents(FD, m_Context);
       useRangeRecords = true;
       for (std::size_t i = 0, e = FD->getNumParams(); i != e && useRangeRecords;
            ++i) {

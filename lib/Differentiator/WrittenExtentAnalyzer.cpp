@@ -28,15 +28,16 @@ struct CountedLoop {
 };
 
 class ExtentVisitor : public RecursiveASTVisitor<ExtentVisitor> {
+  ASTContext& m_Context;
   llvm::SmallVector<WrittenExtent, 8>& m_Extents;
   llvm::DenseMap<const ParmVarDecl*, unsigned> m_ParamIdx;
   llvm::SmallVector<CountedLoop, 4> m_Loops;
   bool m_Opaque = false;
 
 public:
-  ExtentVisitor(const FunctionDecl* FD,
+  ExtentVisitor(const FunctionDecl* FD, ASTContext& C,
                 llvm::SmallVector<WrittenExtent, 8>& Extents)
-      : m_Extents(Extents) {
+      : m_Context(C), m_Extents(Extents) {
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i)
       m_ParamIdx[FD->getParamDecl(i)] = i;
   }
@@ -112,11 +113,10 @@ private:
     if (!L.IV || !InitVal)
       return false;
 
-    // `v++` or `++v`, and nothing that could step by anything else.
-    const auto* Inc = dyn_cast_or_null<UnaryOperator>(FS->getInc());
-    if (!Inc || (Inc->getOpcode() != UO_PostInc &&
-                 Inc->getOpcode() != UO_PreInc) ||
-        !refersTo(Inc->getSubExpr(), L.IV))
+    // The induction variable must step by one. A comma-joined increment --
+    // `j++, p++`, which walks a second index alongside -- still does, as long
+    // as one arm steps the variable this loop is indexed by.
+    if (!stepsByOne(FS->getInc(), L.IV))
       return false;
 
     // `v < bound`.
@@ -132,11 +132,16 @@ private:
   }
 
   /// The bound must be readable at a call site: a parameter, or a constant.
+  /// Constant covers more than a literal -- a constexpr variable, an enumerator
+  /// or a template argument all bound a loop just as well and are common as
+  /// dimensions.
   bool bound(const Expr* E, CountedLoop& L) const {
     E = E->IgnoreParenImpCasts();
-    if (const auto* IL = dyn_cast<IntegerLiteral>(E)) {
+    if (auto val = E->getIntegerConstantExpr(m_Context)) {
+      if (val->isNegative())
+        return false;
       L.BoundIsParam = false;
-      L.BoundConst = IL->getValue().getZExtValue();
+      L.BoundConst = val->getZExtValue();
       return true;
     }
     if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
@@ -168,6 +173,21 @@ private:
     if (const auto* BO = dyn_cast<BinaryOperator>(E))
       if (BO->getOpcode() == BO_Add)
         return isNonNegative(BO->getLHS()) && isNonNegative(BO->getRHS());
+    return false;
+  }
+
+  /// True when `E` increments `VD` by one, whether on its own or as one arm of
+  /// a comma-joined increment.
+  static bool stepsByOne(const Expr* E, const VarDecl* VD) {
+    if (!E)
+      return false;
+    E = E->IgnoreParenImpCasts();
+    if (const auto* UO = dyn_cast<UnaryOperator>(E))
+      return (UO->getOpcode() == UO_PostInc || UO->getOpcode() == UO_PreInc) &&
+             refersTo(UO->getSubExpr(), VD);
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      if (BO->getOpcode() == BO_Comma)
+        return stepsByOne(BO->getLHS(), VD) || stepsByOne(BO->getRHS(), VD);
     return false;
   }
 
@@ -258,12 +278,12 @@ private:
 } // namespace
 
 llvm::SmallVector<WrittenExtent, 8>
-computeWrittenExtents(const FunctionDecl* FD) {
+computeWrittenExtents(const FunctionDecl* FD, ASTContext& C) {
   llvm::SmallVector<WrittenExtent, 8> Extents;
   Extents.resize(FD->getNumParams());
   if (!FD->doesThisDeclarationHaveABody())
     return Extents;
-  ExtentVisitor V(FD, Extents);
+  ExtentVisitor V(FD, C, Extents);
   V.TraverseStmt(FD->getBody());
   // Something in the body could write through a parameter without this
   // analysis seeing which one. Report every parameter it could have been as

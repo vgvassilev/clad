@@ -1,6 +1,7 @@
 #ifndef CLAD_DIFFERENTIATOR_WRITTENEXTENTANALYZER_H
 #define CLAD_DIFFERENTIATOR_WRITTENEXTENTANALYZER_H
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -53,7 +54,7 @@ struct WrittenExtent {
 /// a caller that gates on isProven() stays conservative as the whitelist
 /// grows.
 llvm::SmallVector<WrittenExtent, 8>
-computeWrittenExtents(const clang::FunctionDecl* FD);
+computeWrittenExtents(const clang::FunctionDecl* FD, clang::ASTContext& C);
 
 } // namespace clad
 

@@ -250,7 +250,8 @@ void InitTimers();
     /// write. A parameter that prints `unknown` is one a caller cannot record
     /// from, so it is the interesting half of the report.
     static void printWrittenExtents(const clang::FunctionDecl* FD) {
-      llvm::SmallVector<WrittenExtent, 8> Extents = computeWrittenExtents(FD);
+      llvm::SmallVector<WrittenExtent, 8> Extents =
+          computeWrittenExtents(FD, FD->getASTContext());
       for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
         llvm::outs() << "written-extent: " << FD->getNameAsString() << ": "
                      << FD->getParamDecl(i)->getNameAsString() << " = ";
