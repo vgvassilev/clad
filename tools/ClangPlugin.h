@@ -49,26 +49,43 @@ namespace clad {
 bool checkClangVersion();
 namespace plugin {
 struct DifferentiationOptions {
-  // Plain bool, not `: 1` bit-fields: with 13 single-bit bools packed
-  // into shared bytes, the compiler emits each ctor-init-list write as
-  // a read-modify-write of the storage byte. The first RMW reads the
-  // byte while it is still uninitialised, which MSan reports as a SEGV
-  // on uninitialised memory under -fsanitize=memory.
+  // Plain bool, not `: 1` bit-fields: packing single-bit bools into shared
+  // bytes makes the compiler emit each ctor-init-list write as a
+  // read-modify-write of the storage byte. The first RMW reads the byte while
+  // it is still uninitialised, which MSan reports as a SEGV on uninitialised
+  // memory under -fsanitize=memory.
   bool DumpSourceFn = false;
   bool DumpSourceFnAST = false;
   bool DumpDerivedFn = false;
   bool DumpDerivedAST = false;
   bool GenerateSourceFile = false;
   bool ValidateClangVersion = true;
-  bool EnableTBRAnalysis = false;
-  bool DisableTBRAnalysis = false;
-  bool EnableVariedAnalysis = false;
-  bool DisableVariedAnalysis = false;
-  bool EnableUsefulAnalysis = false;
-  bool DisableUsefulAnalysis = false;
+  /// What the command line asked of each analysis. Neither bit set means the
+  /// analysis is left at its default; see Analyses.def.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  bool Enable##Id##Analysis = false;                                           \
+  bool Disable##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
   bool PrintNumDiffErrorInfo = false;
   bool EmitPortingHints = false;
 };
+
+/// Match one of the per-analysis switches, -enable-<x> or -disable-<x>, and
+/// record what it asked for. Returns false if \p Arg is not such a switch.
+inline bool setAnalysisFromFlag(DifferentiationOptions& DO,
+                                llvm::StringRef Arg) {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  if (Arg == "-enable-" Legacy) {                                              \
+    DO.Enable##Id##Analysis = true;                                            \
+    return true;                                                               \
+  }                                                                            \
+  if (Arg == "-disable-" Legacy) {                                             \
+    DO.Disable##Id##Analysis = true;                                           \
+    return true;                                                               \
+  }
+#include "clad/Differentiator/Analyses.def"
+  return false;
+}
 
     class CladExternalSource : public clang::ExternalSemaSource {
     // ExternalSemaSource
@@ -324,18 +341,8 @@ struct DifferentiationOptions {
             m_DO.GenerateSourceFile = true;
           } else if (args[i] == "-fno-validate-clang-version") {
             m_DO.ValidateClangVersion = false;
-          } else if (args[i] == "-enable-tbr") {
-            m_DO.EnableTBRAnalysis = true;
-          } else if (args[i] == "-disable-tbr") {
-            m_DO.DisableTBRAnalysis = true;
-          } else if (args[i] == "-enable-va") {
-            m_DO.EnableVariedAnalysis = true;
-          } else if (args[i] == "-disable-va") {
-            m_DO.DisableVariedAnalysis = true;
-          } else if (args[i] == "-enable-ua") {
-            m_DO.EnableUsefulAnalysis = true;
-          } else if (args[i] == "-disable-ua") {
-            m_DO.DisableUsefulAnalysis = true;
+          } else if (setAnalysisFromFlag(m_DO, args[i])) {
+            // -enable-tbr, -disable-va, and the rest of Analyses.def.
           } else if (args[i] == "-fcustom-estimation-model") {
             llvm::errs() << "`-fcustom-estimation-model` is deprecated.";
             ++i;
@@ -361,12 +368,6 @@ struct DifferentiationOptions {
                    "derivatives.\n"
                 << "-fno-validate-clang-version - Disables the validation of "
                    "the clang version.\n"
-                << "-enable-tbr - Ensures that TBR analysis is enabled during "
-                   "reverse-mode differentiation unless explicitly specified "
-                   "in an individual request.\n"
-                << "-disable-tbr - Ensures that TBR analysis is disabled "
-                   "during reverse-mode differentiation unless explicitly "
-                   "specified in an individual request.\n"
                 << "-fcustom-estimation-model - allows user to send in a "
                    "shared object to use as the custom estimation model.\n"
                 << "-fprint-num-diff-errors - allows users to print the "
@@ -378,6 +379,19 @@ struct DifferentiationOptions {
                    "remark naming the expected custom-derivative signature and "
                    "the non-differentiable marker. Useful when teaching clad "
                    "about a new library.\n";
+
+            llvm::errs() << "Each analysis below is optional: it changes the "
+                            "code clad generates, never the values that code "
+                            "computes. Enabling one asks clad to prove more "
+                            "and store less; disabling one falls back to the "
+                            "conservative derivative.\n";
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
+      llvm::errs()                                                             \
+          << "-enable-" Legacy " / -disable-" Legacy " - Turns the " Name      \
+             " analysis on or off for the whole translation unit, unless an "  \
+             "individual request specifies otherwise. It " Desc ". Default: "  \
+          << ((Default) ? "on" : "off") << ".\n";
+#include "clad/Differentiator/Analyses.def"
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
           } else if (args[i] == "-version" || args[i] == "-v") {
@@ -392,21 +406,13 @@ struct DifferentiationOptions {
           if (!checkClangVersion())
             return false;
         }
-        if (m_DO.EnableTBRAnalysis && m_DO.DisableTBRAnalysis) {
-          llvm::errs() << "clad: Error: -enable-tbr and -disable-tbr cannot "
-                          "be used together.\n";
-          return false;
-        }
-        if (m_DO.EnableVariedAnalysis && m_DO.DisableVariedAnalysis) {
-          llvm::errs() << "clad: Error: -enable-va and -disable-va cannot "
-                          "be used together.\n";
-          return false;
-        }
-        if (m_DO.EnableUsefulAnalysis && m_DO.DisableUsefulAnalysis) {
-          llvm::errs() << "clad: Error: -enable-ua and -disable-ua cannot "
-                          "be used together.\n";
-          return false;
-        }
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
+      if (m_DO.Enable##Id##Analysis && m_DO.Disable##Id##Analysis) {           \
+        llvm::errs() << "clad: Error: -enable-" Legacy " and -disable-" Legacy \
+                        " cannot be used together.\n";                         \
+        return false;                                                          \
+      }
+#include "clad/Differentiator/Analyses.def"
         return true;
       }
 

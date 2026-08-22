@@ -1385,8 +1385,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     pushforwardFnRequest.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
     // Silence diag outputs in nested derivation process.
     pushforwardFnRequest.VerboseDiags = false;
-    pushforwardFnRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-    pushforwardFnRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+    pushforwardFnRequest.inheritAnalysesFrom(m_DiffReq);
 
     FunctionDecl* pushforwardFD = nullptr;
     if (m_DiffReq.CurrentDerivativeOrder != 1 || !m_DiffReq.CallContext) {
