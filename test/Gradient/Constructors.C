@@ -35,7 +35,10 @@ double fn1(double x, double y) {
 // CHECK-NEXT:     _this->x = val;
 // CHECK-NEXT:     val *= val;
 // CHECK-NEXT:     _this->y = val;
-// CHECK-NEXT:     return {*_this, *_d_this};
+// CHECK-NEXT:     clad::ValueAndAdjoint<argByVal, argByVal> _ret0 = {*_this, *_d_this};
+// CHECK-NEXT:     free(_this);
+// CHECK-NEXT:     free(_d_this);
+// CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
 // CHECK:  static inline void constructor_pullback(double val, argByVal *_d_this, double *_d_val) {
@@ -134,7 +137,10 @@ double fn2(double u, double v) {
 // CHECK-NEXT:      memset(_d_this, 0, sizeof(S1));
 // CHECK-NEXT:      _this->p = x;
 // CHECK-NEXT:      _this->d = 0.;
-// CHECK-NEXT:      return {*_this, *_d_this};
+// CHECK-NEXT:      clad::ValueAndAdjoint<S1, S1> _ret0 = {*_this, *_d_this};
+// CHECK-NEXT:      free(_this);
+// CHECK-NEXT:      free(_d_this);
+// CHECK-NEXT:      return _ret0;
 // CHECK-NEXT:  }
 
 // CHECK:  static inline void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
@@ -152,7 +158,10 @@ double fn2(double u, double v) {
 // CHECK-NEXT:     _this->p = x;
 // CHECK-NEXT:     _this->i = 1.;
 // CHECK-NEXT:     _this->d = 0.;
-// CHECK-NEXT:     return {*_this, *_d_this};
+// CHECK-NEXT:     clad::ValueAndAdjoint<S2, S2> _ret0 = {*_this, *_d_this};
+// CHECK-NEXT:     free(_this);
+// CHECK-NEXT:     free(_d_this);
+// CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
 // CHECK:  static inline void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
@@ -174,7 +183,10 @@ double fn2(double u, double v) {
 // CHECK-NEXT:     S3 *_d_this = (S3 *)malloc(sizeof(S3));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(S3));
 // CHECK-NEXT:     _this->p = x * x;
-// CHECK-NEXT:     return {*_this, *_d_this};
+// CHECK-NEXT:     clad::ValueAndAdjoint<S3, S3> _ret0 = {*_this, *_d_this};
+// CHECK-NEXT:     free(_this);
+// CHECK-NEXT:     free(_d_this);
+// CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
 // CHECK:  static inline void constructor_pullback(double x, S3 *_d_this, double *_d_x) {
@@ -193,7 +205,10 @@ double fn2(double u, double v) {
 // CHECK-NEXT:     S5 *_this = (S5 *)malloc(sizeof(S5));
 // CHECK-NEXT:     S5 *_d_this = (S5 *)malloc(sizeof(S5));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(S5));
-// CHECK-NEXT:     return {*_this, *_d_this};
+// CHECK-NEXT:     clad::ValueAndAdjoint<S5, S5> _ret0 = {*_this, *_d_this};
+// CHECK-NEXT:     free(_this);
+// CHECK-NEXT:     free(_d_this);
+// CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
 // CHECK:  static inline void constructor_pullback(double x, S5 *_d_this, double *_d_x) {
@@ -247,7 +262,10 @@ double fn3(double u, double v) {
 // CHECK-NEXT:    memset(_d_this, 0, sizeof(S4));
 // CHECK-NEXT:    _this->i = 9;
 // CHECK-NEXT:    _this->p = x;
-// CHECK-NEXT:    return {*_this, *_d_this};
+// CHECK-NEXT:    clad::ValueAndAdjoint<S4, S4> _ret0 = {*_this, *_d_this};
+// CHECK-NEXT:    free(_this);
+// CHECK-NEXT:    free(_d_this);
+// CHECK-NEXT:    return _ret0;
 // CHECK-NEXT:}
 
 // CHECK: static inline void constructor_pullback(double x, S4 *_d_this, double *_d_x) {
@@ -371,7 +389,10 @@ double fn6(double x, double y) {
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(argByValWrapper));
 // CHECK-NEXT:     new (_this) argByValWrapper(v);
 // CHECK-NEXT:     _this->z = _this->y * u;
-// CHECK-NEXT:     return {*_this, *_d_this};
+// CHECK-NEXT:     clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _ret0 = {*_this, *_d_this};
+// CHECK-NEXT:     free(_this);
+// CHECK-NEXT:     free(_d_this);
+// CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
 // CHECK:  static inline void constructor_pullback(double v, double u, argByValWrapper *_d_this, double *_d_v, double *_d_u) {
@@ -418,7 +439,10 @@ double fn7(double x, double y) {
 // CHECK-NEXT:     clad::ValueAndAdjoint<argByVal, argByVal> _t0 = argByVal::constructor_reverse_forw(clad::Tag<argByVal>(), v, 0.);
 // CHECK-NEXT:     new (static_cast<argByVal *>(_this)) argByVal(_t0.value);
 // CHECK-NEXT:     _this->z = _this->x * _this->y;
-// CHECK-NEXT:     return {*_this, *_d_this};
+// CHECK-NEXT:     clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _ret0 = {*_this, *_d_this};
+// CHECK-NEXT:     free(_this);
+// CHECK-NEXT:     free(_d_this);
+// CHECK-NEXT:     return _ret0;
 // CHECK-NEXT: }
 
 // CHECK:  static inline void constructor_pullback(double v, bool arg, argByValWrapper *_d_this, double *_d_v, bool *_d_arg) {
@@ -653,7 +677,10 @@ class ptrConstr {
 // CHECK-NEXT:      _this->ptr = &x;
 // CHECK-NEXT:      _d_this->ptr = &_d_x;
 // CHECK-NEXT:      _this->val = y * y;
-// CHECK-NEXT:      return {*_this, *_d_this};
+// CHECK-NEXT:      clad::ValueAndAdjoint<ptrConstr, ptrConstr> _ret0 = {*_this, *_d_this};
+// CHECK-NEXT:      free(_this);
+// CHECK-NEXT:      free(_d_this);
+// CHECK-NEXT:      return _ret0;
 // CHECK-NEXT:  }
 
 // CHECK:  static inline void constructor_pullback(double &x, const double &y, ptrConstr *_d_this, double *_d_x, double *_d_y) {
@@ -721,7 +748,9 @@ int main() {
     S s{new double[3]{5, 6, 7}}, _d_s{new double[3]{0}};
     auto dfn9 = clad::gradient(fn9);
     dfn9.execute(s, &_d_s);
-    printf("{%.2f, %.2f, %.2f}\n", _d_s.a[0], _d_s.a[1], _d_s.a[2]);   // CHECK-EXEC: {0.00, 0.00, 1.00}
+    printf("{%.2f, %.2f, %.2f}\n", _d_s.a[0], _d_s.a[1], _d_s.a[2]);
+    delete[] s.a;
+    delete[] _d_s.a;   // CHECK-EXEC: {0.00, 0.00, 1.00}
 
     INIT_GRADIENT(fn10);
     TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 7, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}

@@ -16,17 +16,35 @@ clad::array_ref<double>mat_ref_f1(mat_ref1, 9);
 
 constexpr double fn(double x, double y) { return x * y; }
 
-//CHECK: constexpr void fn_hessian(double x, double y, double *hessianMatrix) {
-//CHECK-NEXT:    fn_darg0_grad(x, y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
-//CHECK-NEXT:    fn_darg1_grad(x, y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+//CHECK:inline constexpr void fn_hessian(double x, double y, double *hessianMatrix) {
+//CHECK-NEXT:    clad::ValueAndPushforward<double, double> _d_y{0., 0.};
+//CHECK-NEXT:    _d_y.pushforward = 1.;
+//CHECK-NEXT:    double _d_x(0.);
+//CHECK-NEXT:    double _d_y0(0.);
+//CHECK-NEXT:    _d_x = 1.;
+//CHECK-NEXT:    fn_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+//CHECK-NEXT:    _d_x = 0.;
+//CHECK-NEXT:    _d_y0 = 1.;
+//CHECK-NEXT:    fn_pushforward_pullback(x, y, _d_x, _d_y0, _d_y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+//CHECK-NEXT:    _d_y0 = 0.;
 //CHECK-NEXT:}
 
 constexpr double g(double i, double j[2]) { return i * (j[0] + j[1]); }
 
-//CHECK: constexpr void g_hessian(double i, double j[2], double *hessianMatrix) {
-//CHECK-NEXT:    g_darg0_grad(i, j, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
-//CHECK-NEXT:    g_darg1_0_grad(i, j, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
-//CHECK-NEXT:    g_darg1_1_grad(i, j, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}});
+//CHECK:inline constexpr void g_hessian(double i, double j[2], double *hessianMatrix) {
+//CHECK-NEXT:    clad::ValueAndPushforward<double, double> _d_y{0., 0.};
+//CHECK-NEXT:    _d_y.pushforward = 1.;
+//CHECK-NEXT:    double _d_i(0.);
+//CHECK-NEXT:    double _d_j[2]{0};
+//CHECK-NEXT:    _d_i = 1.;
+//CHECK-NEXT:    g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+//CHECK-NEXT:    _d_i = 0.;
+//CHECK-NEXT:    _d_j[{{0U|0UL|0ULL}}] = 1.;
+//CHECK-NEXT:    g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
+//CHECK-NEXT:    _d_j[{{0U|0UL|0ULL}}] = 0.;
+//CHECK-NEXT:    _d_j[{{1U|1UL|1ULL}}] = 1.;
+//CHECK-NEXT:    g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}});
+//CHECK-NEXT:    _d_j[{{1U|1UL|1ULL}}] = 0.;
 //CHECK-NEXT:}
 
 int main() {

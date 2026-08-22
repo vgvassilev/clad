@@ -309,6 +309,12 @@ add_definitions( -D_GNU_SOURCE
   -DCLAD_INSTDIR_INCL="${CLAD_BINARY_DIR}/include" )
 
 option(CLAD_BUILD_STATIC_ONLY "Does not build shared libraries. Useful when we have LLVM_ENABLE_PLUGINS=OFF (eg. Win or CYGWIN)" OFF)
+
+if (EMSCRIPTEN)
+  # For the test executables and googletest only; the LLVM-style archive
+  # targets append -fno-exceptions, which emcc >= 4 rejects alongside wasm-EH.
+  set(CLAD_EXTRA_WASM_FLAGS "-fwasm-exceptions" CACHE STRING "Extra flags for wasm")
+endif()
 if (NOT CLAD_BUILD_STATIC_ONLY AND NOT LLVM_ENABLE_PLUGINS)
   message(FATAL_ERROR "LLVM_ENABLE_PLUGINS is set to OFF. Please build clad with -DCLAD_BUILD_STATIC_ONLY=ON.")
 endif()
@@ -378,6 +384,8 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     set(CMAKE_CXX_FLAGS ${stored_cxx_flags})
     set(CMAKE_C_FLAGS ${stored_c_flags})
   endif()
+elseif (EMSCRIPTEN AND NOT CLAD_DISABLE_TESTS)
+  add_subdirectory(unittests)
 endif()
 
 # Workaround for MSVS10 to avoid the Dialog Hell

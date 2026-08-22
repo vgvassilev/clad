@@ -48,7 +48,9 @@ struct no_state {};
 /// Per-call state a custom `X_reverse_forw` hands to its matching `X_pullback`.
 /// The reverse_forw takes a trailing `pullback_state<Payload>&` out-parameter
 /// and fills it in the forward sweep; the pullback takes a trailing
-/// `pullback_state<Payload>` by value and reads it in the reverse sweep. clad
+/// `pullback_state<Payload>`, by value or by reference, and reads it in the
+/// reverse sweep. Take it by reference when the payload owns storage that
+/// cannot be copied, such as a `clad::tape<T>` the pullback pops from. clad
 /// declares one carrier and threads it into both calls -- the same out-param
 /// mechanism as `clad::restore_tracker`, and it composes with the
 /// `ValueAndAdjoint` a value-returning reverse_forw already returns. Use it to

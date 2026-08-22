@@ -77,9 +77,8 @@ double f_sin(double x, double y) {
 // CHECK-NEXT:     ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::std::sin_pushforward(x, _d_x);
 // CHECK-NEXT:     double _d_xsin = _t0.pushforward;
 // CHECK-NEXT:     double xsin = _t0.value;
-// CHECK-NEXT:     ValueAndPushforward<double, double> _t1 = clad::custom_derivatives::std::sin_pushforward(y, _d_y);
-// CHECK-NEXT:     double _d_ysin = _t1.pushforward;
-// CHECK-NEXT:     double ysin = _t1.value;
+// CHECK-NEXT:     double _d_ysin = 0.;
+// CHECK-NEXT:     double ysin = std::sin(y);
 // CHECK-NEXT:     double _d_xt = _d_xsin * xsin + xsin * _d_xsin;
 // CHECK-NEXT:     double xt = xsin * xsin;
 // CHECK-NEXT:     double _d_yt = _d_ysin * ysin + ysin * _d_ysin;

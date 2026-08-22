@@ -652,14 +652,21 @@ double fn8(double x, double y) {
 
 double fn9(double x, double y) {
   S* s = new S{x, false};
-  return s->getVal();
+  double res = s->getVal();
+  delete s;
+  return res;
 }
 
 // CHECK:  void fn9_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:      S *_d_s = new S({0., false});
 // CHECK-NEXT:      S *s = new S({x, false});
-// CHECK-NEXT:      s->getVal_pullback(1, _d_s);
+// CHECK-NEXT:      double _d_res = 0.;
+// CHECK-NEXT:      double res = s->getVal();
+// CHECK-NEXT:      _d_res += 1;
+// CHECK-NEXT:      s->getVal_pullback(_d_res, _d_s);
 // CHECK-NEXT:      *_d_x += *_d_s.val;
+// CHECK-NEXT:      delete s;
+// CHECK-NEXT:      delete _d_s;
 // CHECK-NEXT:  }
 
 // CHECK:  void operator_minus_pullback(const double &x, S _d_y, S *_d_this, double *_d_x) const {

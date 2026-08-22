@@ -342,6 +342,27 @@ namespace clad {
       return QT->isArrayType() || QT->isPointerType();
     }
 
+    bool canUseHessianVectorProducts(const clang::FunctionDecl* FD) {
+      // The wrapper passes tangents and adjoints by position and the hessian
+      // matrix has no place for `this`.
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
+        if (MD->isInstance())
+          return false;
+      for (const ParmVarDecl* PVD : FD->parameters()) {
+        QualType T = PVD->getType();
+        // The wrapper needs one tangent per parameter: a parameter the
+        // pushforward's signature filter skips leaves the wrapper and the
+        // pushforward disagreeing on positions.
+        if (!IsDifferentiableType(T))
+          return false;
+        // A reference tangent can be neither reseeded between directions nor
+        // zero-initialized for a parameter no direction runs through.
+        if (T->isReferenceType())
+          return false;
+      }
+      return true;
+    }
+
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C) {
       // Trivial constructors are linear

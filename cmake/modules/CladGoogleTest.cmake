@@ -17,14 +17,24 @@ if(MSVC)
 elseif(APPLE)
   set(EXTRA_GTEST_OPTS -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}
                        -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES})
+elseif(EMSCRIPTEN)
+  set(EXTRA_GTEST_OPTS -Dgtest_disable_pthreads=ON)
 endif()
 
 set(EXTRA_CMAKE_ARGS "-DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} ${EXTRA_GTEST_OPTS}")
+
+set(_gtest_build_command ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release -- -j6)
+if(EMSCRIPTEN)
+  # gtest appends -fexceptions, which resolves the EH scheme to emscripten JS
+  # exceptions; EMCC_CFLAGS lands after it, as in the llvm-wasm build.
+  set(_gtest_build_command ${CMAKE_COMMAND} -E env "EMCC_CFLAGS=${CLAD_EXTRA_WASM_FLAGS}"
+      ${_gtest_build_command})
+endif()
 clad_externalproject_add(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
   GIT_TAG v1.17.0
-  BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release -- -j6
+  BUILD_COMMAND ${_gtest_build_command}
   # Disable install step
   INSTALL_COMMAND cmake -E echo "Skipping install step."
   BUILD_BYPRODUCTS ${_gtest_byproducts}

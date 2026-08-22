@@ -17,8 +17,10 @@ double ptr_alias(double* params, double const* xlArr) {
   return params[0] * params[0] * t[0] + params[0] * params[1] * t[1];
 }
 
-// The alias gets no tangent of its own; uses of it derive to a plain 0.
-// CHECK: double ptr_alias_darg0_0(double *params, const double *xlArr) {
+// In the hessian's pushforward the const pointer parameter has a run-time
+// tangent, so the alias inherits it -- nullable, with every read guarded.
+// CHECK: clad::ValueAndPushforward<double, double> ptr_alias_pushforward(double *params, const double *xlArr, double *_d_params, const double *_d_xlArr) {
+// CHECK-NEXT: const double *_d_t = _d_xlArr;
 // CHECK-NEXT: const double *t = xlArr;
 
 double ref_alias(double* params, double const* xlArr) {
@@ -27,7 +29,9 @@ double ref_alias(double* params, double const* xlArr) {
   return params[0] * params[0] * a * b;
 }
 
-// CHECK: double ref_alias_darg0_0(double *params, const double *xlArr) {
+// A reference alias cannot be reseated to a run-time tangent, so it gets
+// none; uses of it derive to a plain 0.
+// CHECK: clad::ValueAndPushforward<double, double> ref_alias_pushforward(double *params, const double *xlArr, double *_d_params, const double *_d_xlArr) {
 // CHECK-NEXT: const double &a = xlArr[0];
 // CHECK-NEXT: const double &b = 3.;
 
@@ -44,8 +48,9 @@ double loop_alias(double* params, double const* xlArr) {
   return sum;
 }
 
-// CHECK: double loop_alias_darg0_0(double *params, const double *xlArr) {
+// CHECK: clad::ValueAndPushforward<double, double> loop_alias_pushforward(double *params, const double *xlArr, double *_d_params, const double *_d_xlArr) {
 // CHECK: unsigned int idx = i;
+// CHECK-NEXT: const double *_d_t = (_d_xlArr ? _d_xlArr + idx : nullptr);
 // CHECK-NEXT: const double *t = xlArr + 1 * idx;
 
 // A `const double&` bound to a literal broke plain reverse mode as well.
@@ -58,7 +63,15 @@ double ref_to_literal(double* params) {
 // CHECK-NEXT: const double &r = 5.;
 // CHECK-NEXT: _d_params[0] += 1 * r;
 
-// CHECK: void ptr_alias_darg0_0_grad_0_0(double *params, const double *xlArr, double *_d_params) {
+// Outside the hessian there is no tangent to inherit: the alias gets none,
+// and uses of it derive to a plain 0.
+// CHECK: double ptr_alias_darg0_0(double *params, const double *xlArr) {
+// CHECK-NEXT: const double *t = xlArr;
+
+// The reverse pass keeps the alias and its tangent `const double*` and never
+// builds an adjoint out of them.
+// CHECK: void ptr_alias_pushforward_0_pullback(double *params, const double *xlArr, double *_d_params, const double *_d_xlArr, clad::ValueAndPushforward<double, double> _d_y, double *_d_params0) {
+// CHECK-NEXT: const double *_d_t = _d_xlArr;
 // CHECK-NEXT: const double *t = xlArr;
 
 int main() {

@@ -10,7 +10,10 @@ double fn1(double i, double j) {
   double **q = new double *;
   *q = new double;
   **q = j;
-  return *p * **q;
+  double res = *p * **q;
+  delete *q;
+  delete q;
+  return res;
 }
 
 // CHECK: double fn1_darg0(double i, double j) {
@@ -24,7 +27,13 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     *q = new double;
 // CHECK-NEXT:     **_d_q = _d_j;
 // CHECK-NEXT:     **q = j;
-// CHECK-NEXT:     return *_d_p * **q + *p * **_d_q;
+// CHECK-NEXT:     double _d_res = *_d_p * **q + *p * **_d_q;
+// CHECK-NEXT:     double res = *p * **q;
+// CHECK-NEXT:     delete *_d_q;
+// CHECK-NEXT:     delete *q;
+// CHECK-NEXT:     delete _d_q;
+// CHECK-NEXT:     delete q;
+// CHECK-NEXT:     return _d_res;
 // CHECK-NEXT: }
 
 double fn2(double i, double j) {
@@ -41,7 +50,9 @@ double fn3(double i, double j) {
   double *p = new double[2];
   p[0] = i + j;
   p[1] = i*j;
-  return p[0] + p[1];
+  double res = p[0] + p[1];
+  delete[] p;
+  return res;
 }
 
 // CHECK: double fn3_darg0(double i, double j) {
@@ -53,7 +64,11 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     p[0] = i + j;
 // CHECK-NEXT:     _d_p[1] = _d_i * j + i * _d_j;
 // CHECK-NEXT:     p[1] = i * j;
-// CHECK-NEXT:     return _d_p[0] + _d_p[1];
+// CHECK-NEXT:     double _d_res = _d_p[0] + _d_p[1];
+// CHECK-NEXT:     double res = p[0] + p[1];
+// CHECK-NEXT:     delete [] _d_p;
+// CHECK-NEXT:     delete [] p;
+// CHECK-NEXT:     return _d_res;
 // CHECK-NEXT: }
 
 double fn4(double i, double j) {
