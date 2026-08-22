@@ -29,6 +29,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
+#include <cstdint>
 #include <deque>
 #include <map>
 #include <set>
@@ -48,6 +49,12 @@ namespace clad {
 
 bool checkClangVersion();
 namespace plugin {
+/// What the command line last said about one analysis. Unset means no switch
+/// named it, so it runs at the default Analyses.def gives it. Not spelled
+/// 'Default', which is a CLAD_ANALYSIS parameter and would be substituted
+/// inside the macro bodies naming this enum.
+enum class AnalysisSwitch : std::uint8_t { Unset, On, Off };
+
 struct DifferentiationOptions {
   // Plain bool, not `: 1` bit-fields: packing single-bit bools into shared
   // bytes makes the compiler emit each ctor-init-list write as a
@@ -60,9 +67,11 @@ struct DifferentiationOptions {
   bool DumpDerivedAST = false;
   bool GenerateSourceFile = false;
   bool ValidateClangVersion = true;
-  /// What the command line asked of each analysis. Neither bit set means the
-  /// analysis is left at its default; see Analyses.def.
+  /// What the command line asked of each analysis. The two bools record which
+  /// of the original -enable-<x>/-disable-<x> pair were seen, so that giving
+  /// both is still diagnosed rather than resolved by order. See Analyses.def.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  AnalysisSwitch Id##Switch = AnalysisSwitch::Unset;                           \
   bool Enable##Id##Analysis = false;                                           \
   bool Disable##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
@@ -70,21 +79,63 @@ struct DifferentiationOptions {
   bool EmitPortingHints = false;
 };
 
-/// Match one of the per-analysis switches, -enable-<x> or -disable-<x>, and
-/// record what it asked for. Returns false if \p Arg is not such a switch.
+/// Match one of the original per-analysis switches, -enable-<x> or
+/// -disable-<x>. Returns false if \p Arg is not such a switch.
 inline bool setAnalysisFromFlag(DifferentiationOptions& DO,
                                 llvm::StringRef Arg) {
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   if (Arg == "-enable-" Legacy) {                                              \
     DO.Enable##Id##Analysis = true;                                            \
+    DO.Id##Switch = AnalysisSwitch::On;                                        \
     return true;                                                               \
   }                                                                            \
   if (Arg == "-disable-" Legacy) {                                             \
     DO.Disable##Id##Analysis = true;                                           \
+    DO.Id##Switch = AnalysisSwitch::Off;                                       \
     return true;                                                               \
   }
 #include "clad/Differentiator/Analyses.def"
   return false;
+}
+
+enum class AnalysisFlagResult : std::uint8_t { NotMine, Ok, Error };
+
+/// Match -fenable-analysis=<name> or -fdisable-analysis=<name>. The last such
+/// switch on the command line decides, so a build that turns everything off by
+/// default can be overridden one analysis at a time.
+inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
+                                            llvm::StringRef Arg) {
+  AnalysisSwitch To = AnalysisSwitch::On;
+  if (!Arg.consume_front("-fenable-analysis=")) {
+    if (!Arg.consume_front("-fdisable-analysis="))
+      return AnalysisFlagResult::NotMine;
+    To = AnalysisSwitch::Off;
+  }
+
+  // 'all' asks for the conservative derivative rather than for a particular
+  // list, so it covers analyses added after the command line was written.
+  // Only disabling has that meaning: falling back is safe for every analysis
+  // by construction, while whether one is sound to run is what its default
+  // encodes, so there is no configuration 'enable all' would name.
+  if (Arg == "all" && To == AnalysisSwitch::Off) {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  DO.Id##Switch = AnalysisSwitch::Off;
+#include "clad/Differentiator/Analyses.def"
+    return AnalysisFlagResult::Ok;
+  }
+
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  if (Arg == Name) {                                                           \
+    DO.Id##Switch = To;                                                        \
+    return AnalysisFlagResult::Ok;                                             \
+  }
+#include "clad/Differentiator/Analyses.def"
+
+  llvm::errs() << "clad: Error: unknown analysis '" << Arg << "'; known:";
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) llvm::errs() << " " Name;
+#include "clad/Differentiator/Analyses.def"
+  llvm::errs() << "; -fdisable-analysis also takes 'all'.\n";
+  return AnalysisFlagResult::Error;
 }
 
     class CladExternalSource : public clang::ExternalSemaSource {
@@ -343,6 +394,10 @@ inline bool setAnalysisFromFlag(DifferentiationOptions& DO,
             m_DO.ValidateClangVersion = false;
           } else if (setAnalysisFromFlag(m_DO, args[i])) {
             // -enable-tbr, -disable-va, and the rest of Analyses.def.
+          } else if (AnalysisFlagResult R = setAnalysisByName(m_DO, args[i]);
+                     R != AnalysisFlagResult::NotMine) {
+            if (R == AnalysisFlagResult::Error)
+              return false;
           } else if (args[i] == "-fcustom-estimation-model") {
             llvm::errs() << "`-fcustom-estimation-model` is deprecated.";
             ++i;
@@ -380,11 +435,16 @@ inline bool setAnalysisFromFlag(DifferentiationOptions& DO,
                    "the non-differentiable marker. Useful when teaching clad "
                    "about a new library.\n";
 
-            llvm::errs() << "Each analysis below is optional: it changes the "
-                            "code clad generates, never the values that code "
-                            "computes. Enabling one asks clad to prove more "
-                            "and store less; disabling one falls back to the "
-                            "conservative derivative.\n";
+            llvm::errs()
+                << "Each analysis below is optional: it changes the code clad "
+                   "generates, never the values that code computes. Enabling "
+                   "one asks clad to prove more and store less; disabling one "
+                   "falls back to the conservative derivative.\n"
+                << "-fenable-analysis=<name> / -fdisable-analysis=<name> - "
+                   "Turns one analysis on or off; the last such option on the "
+                   "command line decides. -fdisable-analysis=all turns off "
+                   "every analysis clad has, asking for the most conservative "
+                   "derivative it can produce.\n";
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
       llvm::errs()                                                             \
           << "-enable-" Legacy " / -disable-" Legacy " - Turns the " Name      \
