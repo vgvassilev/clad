@@ -748,7 +748,9 @@ int main() {
     S s{new double[3]{5, 6, 7}}, _d_s{new double[3]{0}};
     auto dfn9 = clad::gradient(fn9);
     dfn9.execute(s, &_d_s);
-    printf("{%.2f, %.2f, %.2f}\n", _d_s.a[0], _d_s.a[1], _d_s.a[2]);   // CHECK-EXEC: {0.00, 0.00, 1.00}
+    printf("{%.2f, %.2f, %.2f}\n", _d_s.a[0], _d_s.a[1], _d_s.a[2]);
+    delete[] s.a;
+    delete[] _d_s.a;   // CHECK-EXEC: {0.00, 0.00, 1.00}
 
     INIT_GRADIENT(fn10);
     TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 7, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}

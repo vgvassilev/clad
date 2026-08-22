@@ -1260,18 +1260,27 @@ void destroy(T* p) {
 double fn34(double x, double y) {
   int* a = new int(x + y);
   destroy(a);
-  return *a;
+  double res = *a;
+  // int has a trivial destructor, so destroy() above only ran a no-op and the
+  // storage is still ours to release.
+  delete a;
+  return res;
 }
 
 // CHECK: void fn34_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     int *_d_a = new int(0.);
 // CHECK-NEXT:     int *a = new int(x + y);
 // CHECK-NEXT:     destroy(a);
-// CHECK-NEXT:     *_d_a += 1;
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = *a;
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     *_d_a += _d_res;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_x += *_d_a;
 // CHECK-NEXT:         *_d_y += *_d_a;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     delete a;
+// CHECK-NEXT:     delete _d_a;
 // CHECK-NEXT: }
 
 double fn35(double x, double y) {
