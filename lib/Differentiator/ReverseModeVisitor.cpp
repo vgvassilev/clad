@@ -2584,6 +2584,34 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return {call, call_dx};
     }
 
+    // Every mutable argument is storage owned by one of this function's own
+    // locals. Their addresses die with this frame, so nothing outlives it to
+    // restore them and the callee's records are never read.
+    bool mutatesOnlyOwnLocals = true;
+    for (std::size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
+      QualType parTy = FD->getParamDecl(i)->getType();
+      bool mayWrite = (parTy->isPointerType() &&
+                       !parTy->getPointeeType().isConstQualified()) ||
+                      (parTy->isLValueReferenceType() &&
+                       !parTy.getNonReferenceType().isConstQualified());
+      if (!mayWrite)
+        continue;
+      std::size_t argIdx = i + static_cast<std::size_t>(isMethodOperatorCall);
+      if (argIdx >= CE->getNumArgs() ||
+          !utils::designatesLocallyOwnedStorage(
+              CE->getArg(argIdx),
+              /*asPointerValue=*/parTy->isPointerType())) {
+        mutatesOnlyOwnLocals = false;
+        break;
+      }
+    }
+    // When those records are the only reason to take the reverse_forw, the
+    // primal does the same work without them. This is the forward sweep of a
+    // reverse_forw, so there is no reverse sweep here to consume anything else
+    // the reverse_forw would produce.
+    bool recordsAreDead =
+        usingRestoreTracker && m_RestoreTracker && mutatesOnlyOwnLocals;
+
     // A reverse_forw that carries pullback_state is mandatory even when clad
     // could otherwise call the primal directly: the pullback consumes state
     // only the reverse_forw produces, so eliding it would leave the carrier
@@ -2595,7 +2623,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // literal, which is why this is restricted to calls whose returned
     // ValueAndAdjoint is unused: those bodies only replay the primal.
     if (calleeFnForwPassFD && (!hasDynamicNonDiffParams || !needsForwPass) &&
-        (hasStoredParams || needsForwPass || !pullbackStateType.isNull())) {
+        ((hasStoredParams && !recordsAreDead) || needsForwPass ||
+         !pullbackStateType.isNull())) {
       if (const auto* CD = dyn_cast<CXXConversionDecl>(FD))
         CallArgs.push_back(
             utils::GetCladTagExpr(m_Sema, CD->getConversionType()));
@@ -2632,26 +2661,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // one of this reverse_forw's locals: those addresses are dead by
           // the time the caller restores, so a record of them would write
           // into freed memory. Such state is caller-invisible, so a
-          // throwaway tracker is enough.
-          bool mutatesOnlyOwnLocals = true;
-          for (std::size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
-            QualType parTy = FD->getParamDecl(i)->getType();
-            bool mayWrite = (parTy->isPointerType() &&
-                             !parTy->getPointeeType().isConstQualified()) ||
-                            (parTy->isLValueReferenceType() &&
-                             !parTy.getNonReferenceType().isConstQualified());
-            if (!mayWrite)
-              continue;
-            std::size_t argIdx =
-                i + static_cast<std::size_t>(isMethodOperatorCall);
-            if (argIdx >= CE->getNumArgs() ||
-                !utils::designatesLocallyOwnedStorage(
-                    CE->getArg(argIdx),
-                    /*asPointerValue=*/parTy->isPointerType())) {
-              mutatesOnlyOwnLocals = false;
-              break;
-            }
-          }
+          // throwaway tracker is enough. (Reaching here with
+          // mutatesOnlyOwnLocals means the reverse_forw was taken for a
+          // reason other than its records -- see recordsAreDead above.)
           if (mutatesOnlyOwnLocals) {
             if (!m_UnusedRestoreTracker) {
               VarDecl* unusedDecl = GlobalStoreImpl(
