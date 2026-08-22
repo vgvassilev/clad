@@ -102,6 +102,20 @@ jobs:
             extra_cmake_options: '-G Ninja'
 
 
+          # Valgrind over the binaries, not over clang. check-clad-execonly
+          # is where the execution tests are collected -- it re-runs the
+          # suite checking what the programs print rather than what the
+          # compiler did -- so it is what this row runs. Nothing here needs
+          # the from-source LLVM recipe, since clang is not the process being
+          # watched; the full run is build-valgrind, on push.
+          - name: ubu24-clang20-runtime22-vg-exec
+            os: ubuntu-24.04
+            compiler: clang-20
+            extra_packages: 'valgrind'
+            extra_cmake_options: '-DCLAD_TEST_VG_EXEC_ONLY=On'
+            test_target: check-clad-execonly
+            clang-runtime: '22'
+
           - name: ubu24-arm-clang16-runtime17-shared-libs
             os: ubuntu-24.04-arm
             compiler: clang-16
@@ -429,7 +443,7 @@ jobs:
         if [[ "runner.os" == "macOS" ]]; then
           export SDKROOT=`xcrun --show-sdk-path`
         fi
-        cmake --build . --target check-clad -- -j${{ env.ncpus }}
+        cmake --build . --target ${{ matrix.test_target || 'check-clad' }} -- -j${{ env.ncpus }}
     - name: Test Clad on Windows
       if: ${{ runner.os == 'windows' }}
       run: |
