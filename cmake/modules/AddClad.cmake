@@ -26,36 +26,40 @@ function(ENABLE_CLAD_FOR_TARGET executable)
     message(FATAL_ERROR "'${executable}' is not a valid target.")
   endif()
 
-  # Add the clad plugin
-  target_compile_options(${executable} PUBLIC -fplugin=$<TARGET_FILE:clad>)
+  if (TARGET clad)
+    # Add the clad plugin
+    target_compile_options(${executable} PUBLIC -fplugin=$<TARGET_FILE:clad>)
 
-  # Debugging. Emitting the derivatives' source code.
-  #target_compile_options(${executable} PUBLIC "SHELL:-Xclang -plugin-arg-clad"
-  #  "SHELL: -Xclang -fdump-derived-fn")
+    # Debugging. Emitting the derivatives' source code.
+    #target_compile_options(${executable} PUBLIC "SHELL:-Xclang -plugin-arg-clad"
+    #  "SHELL: -Xclang -fdump-derived-fn")
 
-  # Debugging. Emit llvm IR.
-  #target_compile_options(${executable} PUBLIC -S -emit-llvm)
+    # Debugging. Emit llvm IR.
+    #target_compile_options(${executable} PUBLIC -S -emit-llvm)
 
-  # Debugging. Optimization misses.
-  #target_compile_options(${executable} PUBLIC "SHELL:-Xclang -Rpass-missed=.*inline.*")
+    # Debugging. Optimization misses.
+    #target_compile_options(${executable} PUBLIC "SHELL:-Xclang -Rpass-missed=.*inline.*")
+
+    add_dependencies(${executable} clad)
+
+    # If clad.so changes we don't need to relink but to rebuild the source files.
+    # $<TARGET_FILE:clad> does not work for OBJECT_DEPENDS.
+    set (CLAD_SO_PATH "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/clad${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    set_source_files_properties(${source_files} PROPERTY OBJECT_DEPENDS ${CLAD_SO_PATH})
+  endif()
 
   # Clad requires us to link against these libraries.
-  target_link_libraries(${executable} PUBLIC stdc++ pthread m)
+  if (NOT EMSCRIPTEN)
+    target_link_libraries(${executable} PUBLIC stdc++ pthread m)
+  endif()
 
   target_include_directories(${executable} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
   set_property(TARGET ${executable} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-
-  add_dependencies(${executable} clad)
 
   if (NOT CLAD_BUILT_STANDALONE)
     # We are probably building clad with clang. Make sure we've built clang.
     add_dependencies(${executable} clang)
   endif()
-
-  # If clad.so changes we don't need to relink but to rebuild the source files.
-  # $<TARGET_FILE:clad> does not work for OBJECT_DEPENDS.
-  set (CLAD_SO_PATH "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/clad${CMAKE_SHARED_LIBRARY_SUFFIX}")
-  set_source_files_properties(${source_files} PROPERTY OBJECT_DEPENDS ${CLAD_SO_PATH})
 
   # Add dependencies to executable
   if(ARG_DEPENDS)
@@ -274,6 +278,10 @@ function(clad_externalproject_add NAME)
 
   # Everything EXCEPT EXTRA_CMAKE_ARGS gets forwarded unchanged
   set(FORWARDED_ARGS ${ARG_UNPARSED_ARGUMENTS})
+
+  if (DEFINED CMAKE_TOOLCHAIN_FILE)
+    list(APPEND ARG_EXTRA_CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+  endif()
 
   ExternalProject_Add(${NAME}
     GIT_SHALLOW ON # Do not clone the history

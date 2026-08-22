@@ -13,6 +13,7 @@ long double fn1(double i, double j) {
   const S * s_const = new S();
   S * s = const_cast<S*>(s_const);
   long double x = reinterpret_cast<S*>(s)->get() + dynamic_cast<S*>(s)->get();
+  delete s;
   return res + x;
 }
 

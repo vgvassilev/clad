@@ -216,6 +216,19 @@ bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
   bool variedBefore = m_Varied;
   bool hasVariedArg = false;
   FunctionDecl* FD = CE->getDirectCallee();
+  // A call through a function pointer has no declaration to inspect: assume
+  // its arguments and result are varied, and record nothing.
+  if (!FD) {
+    for (Expr* arg : CE->arguments()) {
+      m_Varied = true;
+      m_Marking = true;
+      TraverseStmt(arg);
+      markExpr(arg);
+    }
+    m_Marking = false;
+    m_Varied = true;
+    return false;
+  }
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
   if (noHiddenParam) {
     MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
@@ -247,6 +260,8 @@ bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
       m_Marking = false;
       m_Varied = false;
     }
+    // Forward mode asks this to decide whether the call needs a pushforward.
+    m_DiffReq.recordCallActivity(CE, hasVariedArg);
     m_Varied = hasVariedArg || variedBefore;
   }
   return false;
@@ -319,6 +334,12 @@ bool VariedAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
 bool VariedAnalyzer::TraverseCXXThisExpr(clang::CXXThisExpr* TE) {
   markExpr(TE);
   setVaried(TE);
+  // Report the stored `this` data the way TraverseDeclRefExpr reports a
+  // variable: a member can carry the derivative (`c = x; return sq(c);`)
+  // and must not read as constant.
+  if (VarData* data = getVarDataFromDecl(/*VD=*/nullptr))
+    if (findReq(*data))
+      m_Varied = true;
   return false;
 }
 
@@ -398,7 +419,11 @@ bool VariedAnalyzer::TraverseUnaryOperator(UnaryOperator* UnOp) {
 }
 
 bool VariedAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
-  auto* VD = cast<VarDecl>(DRE->getDecl());
+  // A reference to something that is not a variable -- a function passed as an
+  // argument, an enumerator -- carries no varied state of its own.
+  auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+  if (!VD)
+    return false;
 
   if (m_Varied && m_Marking) {
     setVaried(DRE);

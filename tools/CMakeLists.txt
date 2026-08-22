@@ -92,7 +92,7 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     clad_externalProject_add(
       Enzyme
       GIT_REPOSITORY https://github.com/EnzymeAD/Enzyme
-      GIT_TAG v0.0.224
+      GIT_TAG v0.0.290
       UPDATE_COMMAND ""
       # The tag is pinned, so there is nothing to update, and leaving the step
       # connected costs a great deal: an empty UPDATE_COMMAND never creates

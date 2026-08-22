@@ -73,7 +73,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
 
     // If we the differentiated function is a constructor, generate `this`
     // object and differentiate its inits.
-    Stmt* ctorReturnStmt = nullptr;
+    llvm::SmallVector<Stmt*, 4> ctorEpilogue;
     if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function)) {
       QualType thisTy = CD->getThisType();
       StmtDiff thisObj = BuildThisExpr(thisTy);
@@ -88,14 +88,27 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
         addToCurrentBlock(CI_diff.getStmt(), direction::forward);
         addToCurrentBlock(CI_diff.getStmt_dx(), direction::forward);
       }
-      // Build `return {*_this, *_d_this};`
+      // Build `_ret = {*_this, *_d_this}; free(_this); free(_d_this);
+      // return _ret;`. Both objects are malloc'd above, so the result has to
+      // be copied out of them before they are released; returning the list
+      // directly leaves nowhere for the free()s to go, and both blocks leak
+      // for the lifetime of the program.
       SourceLocation validLoc{CD->getBeginLoc()};
       llvm::SmallVector<Expr*, 2> returnArgs = {
           BuildOp(UO_Deref, CloneNode(thisObj.getExpr())),
           BuildOp(UO_Deref, CloneNode(dthisObj.getExpr()))};
       Expr* returnInitList =
           m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
-      ctorReturnStmt = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();
+      VarDecl* resultDecl =
+          BuildVarDecl(m_Derivative->getReturnType(), "_ret", returnInitList);
+      ctorEpilogue.push_back(BuildDeclStmt(resultDecl));
+      // BuildThisExpr pairs the object's malloc with a free and hands it back;
+      // the derived object is allocated the same way and needs its own.
+      ctorEpilogue.push_back(thisObj.getStmt_dx());
+      llvm::SmallVector<Expr*, 1> dThisArg{CloneNode(dthisObj.getExpr())};
+      ctorEpilogue.push_back(GetFunctionCall("free", "", dThisArg));
+      ctorEpilogue.push_back(
+          m_Sema.BuildReturnStmt(validLoc, BuildDeclRef(resultDecl)).get());
     }
 
     StmtDiff bodyDiff = Visit(m_DiffReq->getBody());
@@ -110,7 +123,8 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
     else
       addToCurrentBlock(forward);
 
-    addToCurrentBlock(ctorReturnStmt);
+    for (Stmt* S : ctorEpilogue)
+      addToCurrentBlock(S);
 
     Stmt* fnBody = endBlock();
     m_Derivative->setBody(fnBody);

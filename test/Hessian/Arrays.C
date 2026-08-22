@@ -6,17 +6,37 @@
 #include "clad/Differentiator/Differentiator.h"
 
 double f(double i, double j[2]) { return i * j[0] * j[1]; }
-// CHECK: void f_hessian(double i, double j[2], double *hessianMatrix) {
-// CHECK-NEXT:     f_darg0_grad(i, j, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
-// CHECK-NEXT:     f_darg1_0_grad(i, j, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
-// CHECK-NEXT:     f_darg1_1_grad(i, j, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}});
+// CHECK: inline void f_hessian(double i, double j[2], double *hessianMatrix) {
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
+// CHECK-NEXT:     _d_y.pushforward = 1.;
+// CHECK-NEXT:     double _d_i(0.);
+// CHECK-NEXT:     double _d_j[2]{0};
+// CHECK-NEXT:     _d_i = 1.;
+// CHECK-NEXT:     f_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     _d_i = 0.;
+// CHECK-NEXT:     _d_j[{{0U|0UL|0ULL}}] = 1.;
+// CHECK-NEXT:     f_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
+// CHECK-NEXT:     _d_j[{{0U|0UL|0ULL}}] = 0.;
+// CHECK-NEXT:     _d_j[{{1U|1UL|1ULL}}] = 1.;
+// CHECK-NEXT:     f_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}});
+// CHECK-NEXT:     _d_j[{{1U|1UL|1ULL}}] = 0.;
 // CHECK-NEXT: }
 
 double g(double i, double j[2]) { return i * (j[0] + j[1]); }
-// CHECK: void g_hessian(double i, double j[2], double *hessianMatrix) {
-// CHECK-NEXT:   g_darg0_grad(i, j, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
-// CHECK-NEXT:   g_darg1_0_grad(i, j, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
-// CHECK-NEXT:   g_darg1_1_grad(i, j, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}});
+// CHECK: inline void g_hessian(double i, double j[2], double *hessianMatrix) {
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
+// CHECK-NEXT:     _d_y.pushforward = 1.;
+// CHECK-NEXT:     double _d_i(0.);
+// CHECK-NEXT:     double _d_j[2]{0};
+// CHECK-NEXT:     _d_i = 1.;
+// CHECK-NEXT:     g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     _d_i = 0.;
+// CHECK-NEXT:     _d_j[{{0U|0UL|0ULL}}] = 1.;
+// CHECK-NEXT:     g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
+// CHECK-NEXT:     _d_j[{{0U|0UL|0ULL}}] = 0.;
+// CHECK-NEXT:     _d_j[{{1U|1UL|1ULL}}] = 1.;
+// CHECK-NEXT:     g_pushforward_pullback(i, j, _d_i, _d_j, _d_y, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}});
+// CHECK-NEXT:     _d_j[{{1U|1UL|1ULL}}] = 0.;
 // CHECK-NEXT: }
 
 double h(double arr[3], double weights[3], double multiplier) {
@@ -27,14 +47,14 @@ double h(double arr[3], double weights[3], double multiplier) {
   weightedSum *= multiplier;
   return weightedSum * weightedSum;
 }
-// CHECK: void h_hessian_diagonal(double arr[3], double weights[3], double multiplier, double *diagonalHessianVector) {
-// CHECK-NEXT:   *(diagonalHessianVector + 0{{U|UL}}) = h_d2arg0_0(arr, weights, multiplier);
-// CHECK-NEXT:   *(diagonalHessianVector + 1{{U|UL}}) = h_d2arg0_1(arr, weights, multiplier);
-// CHECK-NEXT:   *(diagonalHessianVector + 2{{U|UL}}) = h_d2arg0_2(arr, weights, multiplier);
-// CHECK-NEXT:   *(diagonalHessianVector + 3{{U|UL}}) = h_d2arg1_0(arr, weights, multiplier);
-// CHECK-NEXT:   *(diagonalHessianVector + 4{{U|UL}}) = h_d2arg1_1(arr, weights, multiplier);
-// CHECK-NEXT:   *(diagonalHessianVector + 5{{U|UL}}) = h_d2arg1_2(arr, weights, multiplier);
-// CHECK-NEXT:   *(diagonalHessianVector + 6{{U|UL}}) = h_d2arg2(arr, weights, multiplier);
+// CHECK: inline void h_hessian_diagonal(double arr[3], double weights[3], double multiplier, double *diagonalHessianVector) {
+// CHECK-NEXT:     *(diagonalHessianVector + {{0U|0UL|0ULL}}) = h_d2arg0_0(arr, weights, multiplier);
+// CHECK-NEXT:     *(diagonalHessianVector + {{1U|1UL|1ULL}}) = h_d2arg0_1(arr, weights, multiplier);
+// CHECK-NEXT:     *(diagonalHessianVector + {{2U|2UL|2ULL}}) = h_d2arg0_2(arr, weights, multiplier);
+// CHECK-NEXT:     *(diagonalHessianVector + {{3U|3UL|3ULL}}) = h_d2arg1_0(arr, weights, multiplier);
+// CHECK-NEXT:     *(diagonalHessianVector + {{4U|4UL|4ULL}}) = h_d2arg1_1(arr, weights, multiplier);
+// CHECK-NEXT:     *(diagonalHessianVector + {{5U|5UL|5ULL}}) = h_d2arg1_2(arr, weights, multiplier);
+// CHECK-NEXT:     *(diagonalHessianVector + {{6U|6UL|6ULL}}) = h_d2arg2(arr, weights, multiplier);
 // CHECK-NEXT: }
 
 #define TEST(var, i, j)                                                        \

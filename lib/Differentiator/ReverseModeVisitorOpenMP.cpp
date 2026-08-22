@@ -13,12 +13,14 @@
 #include <clang/AST/Stmt.h>
 #include <clang/AST/StmtOpenMP.h>
 #include <clang/AST/Type.h>
+#include <clang/Basic/Diagnostic.h>
 #include <clang/Basic/LLVM.h>
 #include <clang/Basic/OpenMPKinds.h>
 #include <clang/Basic/OperatorKinds.h>
 #include <clang/Basic/Specifiers.h>
 #include <clang/Sema/DeclSpec.h>
 #include <clang/Sema/Scope.h>
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/Frontend/OpenMP/OMP.h.inc>
 #include <llvm/Support/ErrorHandling.h>
 
@@ -399,6 +401,23 @@ OMPClause* ReverseModeVisitor::BuildOMPPrivateClause(ArrayRef<Expr*> VarList,
                                   PrivateCopies);
 }
 
+/// Build `reduction(+: Vars)`, which is how a clause gives its adjoint a copy
+/// per thread that starts at the identity and is summed back at the end.
+static OMPClause* buildSumReduction(Sema& S, ASTContext& Ctx,
+                                    ArrayRef<Expr*> Vars,
+                                    SourceLocation StartLoc,
+                                    SourceLocation LParenLoc,
+                                    SourceLocation EndLoc) {
+  CXXScopeSpec ReductionIdScopeSpec;
+  DeclarationName Plus =
+      Ctx.DeclarationNames.getCXXOperatorName(clang::OO_Plus);
+  DeclarationNameInfo ReductionId(Plus, StartLoc);
+  return CLAD_COMPAT_CLANG19_SemaOpenMP(S).ActOnOpenMPReductionClause(
+      Vars, CLAD_COMPAT_CLANG21_createModifier(OMPC_REDUCTION_unknown),
+      StartLoc, LParenLoc, noLoc, noLoc, EndLoc, ReductionIdScopeSpec,
+      ReductionId);
+}
+
 std::array<OMPClause*, 3>
 ReverseModeVisitor::VisitOMPPrivateClause(const OMPPrivateClause* C) {
   llvm::SmallVector<Expr*, 16> Vars;
@@ -409,12 +428,36 @@ ReverseModeVisitor::VisitOMPPrivateClause(const OMPPrivateClause* C) {
     DiffVars.push_back(Visit(Var).getExpr_dx());
     Vars.push_back(Clone(Var));
   }
+  // The primal's copy is private because each thread writes it before reading
+  // it; the adjoint is the other way round, since the reverse sweep only ever
+  // accumulates into it, and a private copy leaves every thread adding to
+  // whatever was on the stack. A reduction starts each copy at the identity,
+  // as the clauses below already arrange for theirs. Summing the copies back
+  // adds nothing as long as the region writes the variable before reading it,
+  // which is what private asks of it.
+  //
+  // A reduction needs a type '+' accepts. For anything else the adjoint stays
+  // private, uninitialised as before, and says so rather than letting the
+  // generated clause fail to compile inside the user's pragma.
+  bool Reducible = llvm::all_of(DiffVars, [](const Expr* E) {
+    return E && E->getType().getNonReferenceType()->isArithmeticType();
+  });
+  if (!Reducible)
+    diag(DiagnosticsEngine::Warning, C->getBeginLoc(),
+         "adjoints of private variables are accumulated per thread, which "
+         "needs a type '+' accepts; this one is left uninitialised")
+        << C->getBeginLoc();
+  OMPClause* AdjointClause =
+      Reducible
+          ? buildSumReduction(m_Sema, m_Context, DiffVars, C->getBeginLoc(),
+                              C->getLParenLoc(), C->getEndLoc())
+          : CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPPrivateClause(
+                DiffVars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc());
   return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPPrivateClause(
               Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
           CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPPrivateClause(
               Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
-          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPPrivateClause(
-              DiffVars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc())};
+          AdjointClause};
 }
 
 std::array<OMPClause*, 3>
@@ -427,19 +470,12 @@ ReverseModeVisitor::VisitOMPFirstprivateClause(const OMPFirstprivateClause* C) {
     DiffVars.push_back(Visit(Var).getExpr_dx());
     Vars.push_back(Clone(Var));
   }
-  CXXScopeSpec ReductionIdScopeSpec;
-  DeclarationName ReductionOpName =
-      m_Context.DeclarationNames.getCXXOperatorName(clang::OO_Plus);
-  DeclarationNameInfo ReductonId(ReductionOpName, C->getBeginLoc());
   return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
               Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
           CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPFirstprivateClause(
               Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
-          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
-              DiffVars,
-              CLAD_COMPAT_CLANG21_createModifier(OMPC_REDUCTION_unknown),
-              C->getBeginLoc(), C->getLParenLoc(), noLoc, noLoc, C->getEndLoc(),
-              ReductionIdScopeSpec, ReductonId)};
+          buildSumReduction(m_Sema, m_Context, DiffVars, C->getBeginLoc(),
+                            C->getLParenLoc(), C->getEndLoc())};
 }
 
 std::array<OMPClause*, 3>
@@ -452,19 +488,12 @@ ReverseModeVisitor::VisitOMPSharedClause(const OMPSharedClause* C) {
     DiffVars.push_back(Visit(Var).getExpr_dx());
     Vars.push_back(Clone(Var));
   }
-  CXXScopeSpec ReductionIdScopeSpec;
-  DeclarationName ReductionOpName =
-      m_Context.DeclarationNames.getCXXOperatorName(clang::OO_Plus);
-  DeclarationNameInfo ReductonId(ReductionOpName, C->getBeginLoc());
   return {CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPSharedClause(
               Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
           CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPSharedClause(
               Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc()),
-          CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPReductionClause(
-              DiffVars,
-              CLAD_COMPAT_CLANG21_createModifier(OMPC_REDUCTION_unknown),
-              C->getBeginLoc(), C->getLParenLoc(), noLoc, noLoc, C->getEndLoc(),
-              ReductionIdScopeSpec, ReductonId)};
+          buildSumReduction(m_Sema, m_Context, DiffVars, C->getBeginLoc(),
+                            C->getLParenLoc(), C->getEndLoc())};
 }
 
 std::array<OMPClause*, 3>

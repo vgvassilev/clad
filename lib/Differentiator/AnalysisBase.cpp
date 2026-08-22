@@ -65,7 +65,17 @@ VarData::VarData(QualType QT, bool forceInit) {
     utils::getRecordDeclFields(recordDecl, Fields);
     for (const auto* field : Fields) {
       const auto varType = field->getType();
-      (*newArrMap)[getProfileID(field)] = VarData(varType);
+      if (varType->isLValueReferenceType()) {
+        // A reference field is never rebound by the analysis -- constructor
+        // bodies are not modeled -- so a REF_TYPE's dependency set would stay
+        // empty and drop every bit setIsRequired stores. Keep one bit on the
+        // field itself: whether what it refers to is required.
+        VarData& fieldData = (*newArrMap)[getProfileID(field)];
+        fieldData.m_Type = VarData::FUND_TYPE;
+        fieldData.m_Val.m_FundData = false;
+      } else {
+        (*newArrMap)[getProfileID(field)] = VarData(varType);
+      }
     }
   }
 }

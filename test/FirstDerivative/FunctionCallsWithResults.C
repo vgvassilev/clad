@@ -340,10 +340,8 @@ double fn9 (double i, double j) {
 // CHECK-NEXT:     const int _d_k = 0;
 // CHECK-NEXT:     const int k = 1;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = g_pushforward(i, _d_i);
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = g_pushforward(j, _d_j);
-// CHECK-NEXT:     double &_t2 = _t0.value;
-// CHECK-NEXT:     double &_t3 = _t1.value;
-// CHECK-NEXT:     return _t0.pushforward * _t3 + _t2 * _t1.pushforward;
+// CHECK-NEXT:     double _t1 = g(j);
+// CHECK-NEXT:     return _t0.pushforward * _t1;
 // CHECK-NEXT: }
 
 double fn10(double x) {
