@@ -2220,8 +2220,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       pullbackRequest.Mode =
           asGrad ? DiffMode::pullback : DiffMode::pushforward;
       // Silence diag outputs in nested derivation process.
-      pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-      pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+      pullbackRequest.inheritAnalysesFrom(m_DiffReq);
       pullbackRequest.EnableErrorEstimation = m_DiffReq.EnableErrorEstimation;
       // Error estimation only uses forward mode derivatives if they are
       // user-prodived to handle builtin derivatives. We cannot determine which

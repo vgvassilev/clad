@@ -565,38 +565,15 @@ void InitTimers();
       return m_HasRuntime;
     }
 
-    static void SetTBRAnalysisOptions(const DifferentiationOptions& DO,
-                                      RequestOptions& opts) {
-      // If user has explicitly specified the mode for TBR analysis, use it.
-      if (DO.EnableTBRAnalysis || DO.DisableTBRAnalysis)
-        opts.EnableTBRAnalysis = DO.EnableTBRAnalysis && !DO.DisableTBRAnalysis;
-      else
-        opts.EnableTBRAnalysis = true; // Default mode.
-    }
-
-    static void SetActivityAnalysisOptions(const DifferentiationOptions& DO,
-                                           RequestOptions& opts) {
-      // If user has explicitly specified the mode for AA, use it.
-      if (DO.EnableVariedAnalysis || DO.DisableVariedAnalysis)
-        opts.EnableVariedAnalysis =
-            DO.EnableVariedAnalysis && !DO.DisableVariedAnalysis;
-      else
-        opts.EnableVariedAnalysis = false; // Default mode.
-    }
-
-    static void SetUsefulAnalysisOptions(const DifferentiationOptions& DO,
-                                         RequestOptions& opts) {
-      // If user has explicitly specified the mode for TBR analysis, use it.
-      if (DO.EnableUsefulAnalysis || DO.DisableUsefulAnalysis)
-        opts.EnableUsefulAnalysis =
-            DO.EnableUsefulAnalysis && !DO.DisableUsefulAnalysis;
-      else
-        opts.EnableUsefulAnalysis = false; // Default mode.
-    }
     void CladPlugin::SetRequestOptions(RequestOptions& opts) const {
-      SetTBRAnalysisOptions(m_DO, opts);
-      SetActivityAnalysisOptions(m_DO, opts);
-      SetUsefulAnalysisOptions(m_DO, opts);
+      // A switch on the command line decides; otherwise the analysis runs at
+      // the default Analyses.def gives it.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
+      opts.Enable##Id##Analysis =                                              \
+          (m_DO.Enable##Id##Analysis || m_DO.Disable##Id##Analysis)            \
+              ? (m_DO.Enable##Id##Analysis && !m_DO.Disable##Id##Analysis)     \
+              : (Default);
+#include "clad/Differentiator/Analyses.def"
       opts.EmitPortingHints = m_DO.EmitPortingHints;
     }
 

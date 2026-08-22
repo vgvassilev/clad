@@ -230,12 +230,21 @@ public:
   bool CallUpdateRequired = false;
   /// A flag to enable/disable diag warnings/errors during differentiation.
   bool VerboseDiags = false;
-  /// A flag to enable TBR analysis during reverse-mode differentiation.
-  bool EnableTBRAnalysis = false;
-  /// A flag to enable varied analysis during reverse-mode differentiation.
-  bool EnableVariedAnalysis = false;
-  /// A flag to enable useful analysis during reverse-mode differentiation.
-  bool EnableUsefulAnalysis = false;
+  /// Whether each analysis runs for this request. One member per entry in
+  /// Analyses.def, spelled Enable<Id>Analysis.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  bool Enable##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
+
+  /// Run the same analyses \p Other runs. A derived request -- the pullback of
+  /// a callee, the pushforward of a nested call -- covers a different
+  /// function, but the user asked for the analyses once, for the whole
+  /// differentiation.
+  void inheritAnalysesFrom(const DiffRequest& Other) {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  Enable##Id##Analysis = Other.Enable##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+  }
   /// A flag to emit porting-hint remarks (-fclad-porting-hints) when a function
   /// defined outside the main source file is differentiated by cloning its
   /// definition. Diagnostic-only; it does not affect the generated derivative
@@ -405,11 +414,11 @@ using DiffInterval = std::vector<clang::SourceRange>;
 // FIXME: These are translation-unit-wide defaults taken from the compiler
 // invocation, not the options of a request; rename to InvocationOptions.
 struct RequestOptions {
-  /// This is a flag to indicate the default behaviour to enable/disable
-  /// TBR analysis during reverse-mode differentiation.
-  bool EnableTBRAnalysis = false;
-  bool EnableVariedAnalysis = false;
-  bool EnableUsefulAnalysis = false;
+  /// Whether each analysis runs, once the switches on the command line have
+  /// been resolved against the defaults in Analyses.def.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  bool Enable##Id##Analysis = Default;
+#include "clad/Differentiator/Analyses.def"
   bool EmitPortingHints = false;
 };
 

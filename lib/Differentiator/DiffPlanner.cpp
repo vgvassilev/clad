@@ -1490,9 +1490,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
 
       request.VerboseDiags = false;
-      request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
-      request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
-      request.EnableUsefulAnalysis = m_TopMostReq->EnableUsefulAnalysis;
+      request.inheritAnalysesFrom(*m_TopMostReq);
       request.EmitPortingHints = m_TopMostReq->EmitPortingHints;
       request.EnableErrorEstimation = m_TopMostReq->EnableErrorEstimation;
       request.CallContext = E;
@@ -1903,8 +1901,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     request.Function = CD;
     request.Mode = DiffMode::pullback;
     request.VerboseDiags = false;
-    request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
-    request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+    request.inheritAnalysesFrom(*m_TopMostReq);
     request.EmitPortingHints = m_TopMostReq->EmitPortingHints;
 
     for (const auto* paramDecl : CD->parameters())
