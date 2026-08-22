@@ -9,6 +9,25 @@ if (CLAD_ENABLE_ENZYME_BACKEND)
   CB_ADD_GBENCHMARK(EnzymeCladComparison EnzymeCladComparison.cpp)
 endif(CLAD_ENABLE_ENZYME_BACKEND)
 
+# The HistFactory-style likelihood benchmark is driven by histfactory.py: it
+# generates the model source, compiles it with the clad plugin, runs it, and
+# fails on numerical validation errors. One of its metrics is the compilation
+# time of the generated code, so it compiles at test time rather than going
+# through CB_ADD_GBENCHMARK.
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if (Python3_FOUND)
+  add_test(NAME clad-HistFactory
+    COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/histfactory.py
+            --clad-build ${CMAKE_BINARY_DIR}
+            --compiler ${LLVM_TOOLS_BINARY_DIR}/clang++)
+  set_tests_properties(clad-HistFactory PROPERTIES
+                       TIMEOUT 1200
+                       LABELS "benchmark;short"
+                       RUN_SERIAL TRUE)
+else()
+  message(STATUS "Python3 not found; skipping the clad-HistFactory benchmark")
+endif()
+
 include(FetchContent)
 FetchContent_Declare(
   tapenade_kit
