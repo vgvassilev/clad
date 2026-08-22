@@ -60,6 +60,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -2988,6 +2989,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff Rdiff{};
     StmtDiff Lstored{};
     Expr* valueForRevPass = nullptr;
+    Expr* primalResult = nullptr;
     auto* L = BinOp->getLHS();
     auto* R = BinOp->getRHS();
     // If it is an assignment operator, its result is a reference to LHS and
@@ -3268,19 +3270,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (m_ExternalSource)
         m_ExternalSource->ActAfterCloningLHSOfAssignOp(LCloned, R, opCode);
 
-      // Save old value for the derivative of LHS, to avoid problems with cases
-      // like x = x.
       clang::Expr* oldValue = nullptr;
 
-      // For pointer types, no need to store old derivatives.
+      bool isDiscreteAssign =
+          (opCode == BO_RemAssign || opCode == BO_AndAssign ||
+           opCode == BO_OrAssign || opCode == BO_XorAssign ||
+           opCode == BO_ShlAssign || opCode == BO_ShrAssign);
+
+      // For pointer types or discrete ops, no need to store old derivatives.
       // ResultRef is returned as the adjoint and, for nested compound
       // assignments, reused as the next level's ResultRef; clone it for the
       // old-value store so the stores do not share the node.
-      if (indepSides)
-        oldValue = CloneNode(ResultRef);
-      else if (!isPointerOp)
-        oldValue = StoreAndRef(CloneNode(ResultRef), direction::reverse, "_r_d",
-                               /*forceDeclCreation=*/true);
+      if (!isDiscreteAssign) {
+        if (indepSides)
+          oldValue = CloneNode(ResultRef);
+        else if (!isPointerOp)
+          oldValue =
+              StoreAndRef(CloneNode(ResultRef), direction::reverse, "_r_d",
+                          /*forceDeclCreation=*/true);
+      }
       if (opCode == BO_Assign) {
         // Add the statement `dl = 0;`
         Expr* zero = getZeroInit(ResultRef->getType());
@@ -3384,6 +3392,26 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             BuildOp(BO_Div, BuildParens(Rdiff.getRevSweepAsExpr()),
                     BuildParens(Ldiff.getRevSweepAsExpr()));
         std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, RResult);
+      } else if (opCode == BO_RemAssign || opCode == BO_AndAssign ||
+                 opCode == BO_OrAssign || opCode == BO_XorAssign ||
+                 opCode == BO_ShlAssign || opCode == BO_ShrAssign) {
+        if (ResultRef && !isPointerOp) {
+          Expr* zero = getZeroInit(ResultRef->getType());
+          Expr* assign_zero = BuildOp(BO_Assign, CloneNode(ResultRef), zero);
+          addToCurrentBlock(assign_zero, direction::reverse);
+        }
+        Rdiff = Visit(R, static_cast<Expr*>(nullptr));
+        Expr* assignExpr = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
+        QualType valueType =
+            utils::getNonConstType(Ldiff.getExpr()->getType(), m_Sema);
+        QualType referenceType = m_Context.getLValueReferenceType(valueType);
+        Expr* forwardResult =
+            StoreAndRef(assignExpr, referenceType, direction::forward, "_ref",
+                        /*forceDeclCreation=*/true);
+        valueForRevPass =
+            GlobalStoreAndRef(CloneNode(forwardResult), valueType, "_t",
+                              /*force=*/true);
+        primalResult = forwardResult;
       } else
         llvm_unreachable("unknown assignment opCode");
       if (m_ExternalSource)
@@ -3439,7 +3467,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       return BuildOp(opCode, Visit(L).getExpr(), Visit(R).getExpr());
     }
-    Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
+    Expr* op = primalResult ? primalResult
+                            : BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
 
     // For pointer types.
     if (isPointerOp) {
