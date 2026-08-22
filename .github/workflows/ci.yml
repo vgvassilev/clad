@@ -108,13 +108,19 @@ jobs:
           # compiler did -- so it is what this row runs. Nothing here needs
           # the from-source LLVM recipe, since clang is not the process being
           # watched; the full run is build-valgrind, on push.
-          - name: ubu24-clang20-runtime22-vg-exec
+          #
+          # The runtime matches the compiler so that libomp-20-dev, which the
+          # Linux setup installs for the runtime major, serves both: the
+          # OpenMP tests are the ones this row is most worth running, since
+          # what a parallel region does to memory is what nothing else here
+          # checks. Which LLVM builds the plugin does not matter to that.
+          - name: ubu24-clang20-runtime20-vg-exec
             os: ubuntu-24.04
             compiler: clang-20
             extra_packages: 'valgrind'
             extra_cmake_options: '-DCLAD_TEST_VG_EXEC_ONLY=On'
             test_target: check-clad-execonly
-            clang-runtime: '22'
+            clang-runtime: '20'
 
           - name: ubu24-arm-clang16-runtime17-shared-libs
             os: ubuntu-24.04-arm
