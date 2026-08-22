@@ -10,7 +10,8 @@
 // CHECK_HELP-NEXT: -fprint-num-diff-errors
 // CHECK_HELP-NEXT: -fclad-porting-hints
 // Every analysis clad knows about is listed, with the default it runs at.
-// CHECK_HELP: -enable-tbr / -disable-tbr {{.*}} Default: on.
+// CHECK_HELP: -fenable-analysis=<name> / -fdisable-analysis=<name>
+// CHECK_HELP-NEXT: -enable-tbr / -disable-tbr {{.*}} Default: on.
 // CHECK_HELP-NEXT: -enable-va / -disable-va {{.*}} Default: off.
 // CHECK_HELP-NEXT: -enable-ua / -disable-ua {{.*}} Default: off.
 // CHECK_HELP-NEXT: -help
@@ -45,3 +46,14 @@
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad -Xclang -enable-ua \
 // RUN:  -Xclang -plugin-arg-clad -Xclang -disable-ua %s 2>&1 | FileCheck --check-prefix=CHECK_UA %s
 // CHECK_UA: -enable-ua and -disable-ua cannot be used together
+
+// An analysis has to be one clad has; the message names the ones it does.
+// RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
+// RUN:  -Xclang -fdisable-analysis=nosuch %s 2>&1 | FileCheck --check-prefix=CHECK_NO_SUCH %s
+// CHECK_NO_SUCH: unknown analysis 'nosuch'; known: tbr activity useful
+
+// 'all' asks for the conservative derivative, so it only makes sense as
+// something to turn off.
+// RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
+// RUN:  -Xclang -fenable-analysis=all %s 2>&1 | FileCheck --check-prefix=CHECK_ENABLE_ALL %s
+// CHECK_ENABLE_ALL: unknown analysis 'all'

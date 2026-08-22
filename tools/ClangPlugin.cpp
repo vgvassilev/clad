@@ -566,13 +566,13 @@ void InitTimers();
     }
 
     void CladPlugin::SetRequestOptions(RequestOptions& opts) const {
-      // A switch on the command line decides; otherwise the analysis runs at
+      // The last switch that named the analysis decides; otherwise it runs at
       // the default Analyses.def gives it.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
       opts.Enable##Id##Analysis =                                              \
-          (m_DO.Enable##Id##Analysis || m_DO.Disable##Id##Analysis)            \
-              ? (m_DO.Enable##Id##Analysis && !m_DO.Disable##Id##Analysis)     \
-              : (Default);
+          (m_DO.Id##Switch == AnalysisSwitch::Unset)                           \
+              ? (Default)                                                      \
+              : (m_DO.Id##Switch == AnalysisSwitch::On);
 #include "clad/Differentiator/Analyses.def"
       opts.EmitPortingHints = m_DO.EmitPortingHints;
     }
