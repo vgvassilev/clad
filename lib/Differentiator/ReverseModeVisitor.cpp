@@ -107,11 +107,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // call owns its tape reference. A local lvalue is required: the single
     // element is passed as a MultiExprArg, which stores a pointer to it.
     Expr* RefClone = V.CloneNode(Ref);
-    Expr* Call =
-        V.m_Sema
-            .ActOnCallExpr(V.getCurrentScope(), BackDRE, noLoc, RefClone, noLoc)
-            .get();
-    return Call;
+    return V.BuildCallExpr(BackDRE, RefClone);
   }
 
   ReverseModeVisitor::CladTapeResult
@@ -144,15 +140,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                         .BuildDeclarationNameExpr(CSS, Push,
                                                   /*AcceptInvalidDecl=*/false)
                         .get();
-    Expr* PopExpr =
-        m_Sema.ActOnCallExpr(getCurrentScope(), PopDRE, noLoc, TapeRef, noLoc)
-            .get();
+    Expr* PopExpr = BuildCallExpr(PopDRE, TapeRef);
     // pop, push and the returned last-ref each get their own tape DeclRef so
     // the same node is not parented by both the push and pop CallExprs.
     Expr* CallArgs[] = {CloneNode(TapeRef), E};
-    Expr* PushExpr =
-        m_Sema.ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, CallArgs, noLoc)
-            .get();
+    Expr* PushExpr = BuildCallExpr(PushDRE, CallArgs);
 
     if (isInsideOMPBlock)
       MarkDeclThreadPrivate(VD);
@@ -231,7 +223,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             .ActOnCallExpr(
                 getCurrentScope(),
                 /*Fn=*/UnresolvedLookup,
-                /*LParenLoc=*/noLoc,
+                /*LParenLoc=*/GenLoc(),
                 /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(atomicArgs),
                 /*RParenLoc=*/m_DiffReq->getLocation())
             .get();
@@ -638,11 +630,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // shared replacement would land under several parents and violate the
       // single-parent AST invariant, so build one per marker site.
       patchEarlyReturnMarkers([&]() -> Stmt* {
-        Expr* RevCallEarly =
-            m_Sema
-                .ActOnCallExpr(getCurrentScope(), BuildDeclRef(RevVD), noLoc,
-                               {}, noLoc)
-                .get();
+        Expr* RevCallEarly = BuildCallExpr(BuildDeclRef(RevVD), {});
         Stmt* RetStmt = m_Sema
                             .ActOnReturnStmt(noLoc, /*RetValExpr=*/nullptr,
                                              getCurrentScope())
@@ -655,11 +643,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // (VisitReturnStmt), so it runs only on fall-through. Follow it with the
       // lambda call; the function's implicit fall-off-end serves as the natural
       // return.
-      Expr* RevCallTail =
-          m_Sema
-              .ActOnCallExpr(getCurrentScope(), BuildDeclRef(RevVD), noLoc, {},
-                             noLoc)
-              .get();
+      Expr* RevCallTail = BuildCallExpr(BuildDeclRef(RevVD), {});
       addToCurrentBlock(RevCallTail, direction::forward);
     }
     for (auto S = initsDiff.rbegin(), S_end = initsDiff.rend(); S != S_end; ++S)
@@ -1583,8 +1567,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         exprsDiff[i] = getZeroInit(ILE->getInit(i)->getType());
     }
 
-    Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-    Expr* ILEDiff = m_Sema.ActOnInitList(noLoc, exprsDiff, noLoc).get();
+    Expr* clonedILE = BuildInitList(clonedExprs);
+    Expr* ILEDiff = BuildInitList(exprsDiff);
     return StmtDiff(clonedILE, ILEDiff);
   }
 
@@ -2467,7 +2451,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                 .ActOnCallExpr(
                     getCurrentScope(),
                     /*Fn=*/LambdaCallOpExpr,
-                    /*LParenLoc=*/noLoc,
+                    /*LParenLoc=*/GenLoc(),
                     /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(pullbackCallArgs),
                     /*RParenLoc=*/m_DiffReq->getLocation(), CUDAExecConfig)
                 .get();
@@ -2837,7 +2821,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         /*IndexTypeQuals*/ 0);
     Expr* zero =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-    Expr* init = m_Sema.ActOnInitList(noLoc, {zero}, noLoc).get();
+    Expr* init = BuildInitList({zero});
     auto* VD = BuildVarDecl(GradType, "_grad", init);
 
     NumDiffArgs.push_back(BuildDeclRef(VD));
@@ -3573,7 +3557,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (CAT) {
         llvm::SmallVector<Expr*, 2> args(CAT->getSize().getZExtValue(),
                                          dummyInit);
-        dummyInit = m_Sema.ActOnInitList(noLoc, args, noLoc).get();
+        dummyInit = BuildInitList(args);
       }
     }
 
@@ -5144,11 +5128,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* pushDRE = m_RMV.GetCladTapePushDRE();
     Expr* callArgs[] = {m_RMV.CloneNode(m_ControlFlowTape->Ref),
                         CreateSizeTLiteralExpr(value)};
-    Expr* pushExpr = m_RMV.m_Sema
-                         .ActOnCallExpr(m_RMV.getCurrentScope(), pushDRE, noLoc,
-                                        callArgs, noLoc)
-                         .get();
-    return pushExpr;
+    return m_RMV.BuildCallExpr(pushDRE, callArgs);
   }
 
   void

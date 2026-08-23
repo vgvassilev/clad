@@ -833,6 +833,25 @@ namespace clad {
     return clad_compat::llvm_Optional_GetValue(Result);
   }
 
+  Expr* VisitorBase::BuildInitList(llvm::MutableArrayRef<Expr*> Elements) {
+    // A location each, not one for both: the two braces are distinct positions
+    // in the printed derivative, and one location for both would make a range
+    // whose ends coincide.
+    SourceLocation LBrace = GenLoc();
+    SourceLocation RBrace = GenLoc();
+    return m_Sema.ActOnInitList(LBrace, Elements, RBrace).get();
+  }
+
+  Expr* VisitorBase::BuildCallExpr(Expr* Callee,
+                                   llvm::MutableArrayRef<Expr*> Args) {
+    // A location each, for the same reason as the braces above.
+    SourceLocation LParen = GenLoc();
+    SourceLocation RParen = GenLoc();
+    ExprResult Call =
+        m_Sema.ActOnCallExpr(getCurrentScope(), Callee, LParen, Args, RParen);
+    return Call.isInvalid() ? nullptr : Call.get();
+  }
+
   Expr* VisitorBase::GetFunctionCall(const std::string& funcName,
                                      const std::string& nmspace,
                                      llvm::SmallVectorImpl<Expr*>& callArgs) {
@@ -1012,7 +1031,7 @@ namespace clad {
                  .ActOnCallExpr(
                      getCurrentScope(),
                      /*Fn=*/exprFunc,
-                     /*LParenLoc=*/noLoc,
+                     /*LParenLoc=*/GenLoc(),
                      /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(argExprs),
                      /*RParenLoc=*/m_DiffReq->getLocation(), CUDAExecConfig)
                  .get();
@@ -1405,8 +1424,7 @@ namespace clad {
     CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
     auto* pushDRE =
         m_Sema.BuildDeclarationNameExpr(CSS, init, false).getAs<DeclRefExpr>();
-    return m_Sema.ActOnCallExpr(getCurrentScope(), pushDRE, noLoc, args, noLoc)
-        .get();
+    return BuildCallExpr(pushDRE, args);
   }
 
   Expr* VisitorBase::GetCladZeroLike(Expr* value) {
@@ -1433,9 +1451,7 @@ namespace clad {
     if (m_Builder.noOverloadExists(UnresolvedLookup, ARargs))
       return nullptr;
 
-    ExprResult Call = m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup,
-                                           noLoc, ARargs, noLoc);
-    return Call.isInvalid() ? nullptr : Call.get();
+    return BuildCallExpr(UnresolvedLookup, ARargs);
   }
 
   FunctionDecl* VisitorBase::CreateDerivativeOverload(FunctionDecl* derivative,

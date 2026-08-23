@@ -811,6 +811,20 @@ namespace clad {
                                  const std::string& nmspace,
                                  llvm::SmallVectorImpl<clang::Expr*>& callArgs);
 
+    /// Builds a call to \p Callee, giving its parentheses locations of their
+    /// own.
+    ///
+    /// A generated call has no parentheses anyone wrote, so the caller of
+    /// Sema::ActOnCallExpr has to say where they are. Deciding that here
+    /// rather than at each site is what makes one generated call tell apart
+    /// from another. Returns null if Sema rejects the call.
+    clang::Expr* BuildCallExpr(clang::Expr* Callee,
+                               llvm::MutableArrayRef<clang::Expr*> Args);
+
+    /// Builds a braced initializer over \p Elements, giving its braces
+    /// locations of their own. Same reason as BuildCallExpr.
+    clang::Expr* BuildInitList(llvm::MutableArrayRef<clang::Expr*> Elements);
+
     clang::DeclRefExpr* GetCladTapePushDRE();
 
     clang::Stmt* GetCladZeroInit(llvm::MutableArrayRef<clang::Expr*> args);

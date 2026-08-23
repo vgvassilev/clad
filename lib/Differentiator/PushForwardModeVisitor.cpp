@@ -48,7 +48,7 @@ StmtDiff PushForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
             .get();
   }
   llvm::SmallVector<Expr*, 2> returnValues = {retVal, retVal_dx};
-  Expr* initList = m_Sema.ActOnInitList(GenLoc(), returnValues, noLoc).get();
+  Expr* initList = BuildInitList(returnValues);
   Stmt* returnStmt = BuildReturnStmt(initList);
   return StmtDiff(returnStmt);
 }
