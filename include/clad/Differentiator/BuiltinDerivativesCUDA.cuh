@@ -1,3 +1,6 @@
+#ifndef CLAD_DIFFERENTIATOR_BUILTINDERIVATIVESCUDA_CUH
+#define CLAD_DIFFERENTIATOR_BUILTINDERIVATIVESCUDA_CUH
+
 #include "clad/Differentiator/CladConfig.h"
 
 namespace clad {
@@ -30,3 +33,5 @@ __device__ inline void make_float2_pullback(float a, float b, float2 d_y,
 }
 } // namespace custom_derivatives
 } // namespace clad
+
+#endif // CLAD_DIFFERENTIATOR_BUILTINDERIVATIVESCUDA_CUH
