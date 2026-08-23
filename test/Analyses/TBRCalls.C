@@ -149,24 +149,33 @@ double t7(const double* x) {
   return buf[0] + buf[1];
 }
 
+// clad proves how much of `buf` squarer overwrites, so the pre-call state is
+// captured as a range rather than through a tracker, and the primal is called
+// directly. The range is replayed twice, as the tracker was: once before the
+// pullback, once after its own replay re-mutates the buffer.
 // CHECK: void t1_grad(const double *x, double *_d_x) {
-// CHECK: squarer_reverse_forw(2, &{{.*}}, 0, &{{.*}}, _tracker0);
-// CHECK: _tracker0.restore();
+// CHECK: clad::record_range(_rec1, &buf[0], 2UL);
+// CHECK: squarer(2, &{{.*}});
+// CHECK: clad::peek_range(_rec1, &buf[0], 2UL);
 // CHECK: squarer_pullback(2, &{{.*}});
+// CHECK: clad::peek_range(_rec1, &buf[0], 2UL);
+// CHECK-NEXT: clad::drop_range(_rec1, 2UL);
 
 // CHECK: void t7_grad(const double *x, double *_d_x) {
 // CHECK-NOT: _tracker
 // CHECK-NOT: clad::push
 // CHECK: fillfrom_pullback(2, x, &buf[0]
 
-// In a loop each iteration gets its own tracker snapshot through a tape.
+// In a loop each iteration still gets its own snapshot, but one tape of values
+// serves them all -- where a tape of trackers had to hold an address as well
+// as a value for every element, and a whole tracker object per iteration.
 // CHECK: void t9_grad(const double *x, const double *m, double *_d_x, double *_d_m) {
-// CHECK: clad::tape<clad::restore_tracker> _tracker0 = {};
-// CHECK: clad::push(_tracker0, clad::restore_tracker());
-// CHECK: clad::back(_tracker0).restore();
+// CHECK: clad::tape<double> _rec0 = {};
+// CHECK: clad::record_range(_rec0, &buf[0], 2UL);
+// CHECK: clad::peek_range(_rec0, &buf[0], 2UL);
 // CHECK: diffem_pullback(2, x, m + 2 * k, &
-// CHECK-NEXT: clad::back(_tracker0).restore();
-// CHECK-NEXT: clad::pop(_tracker0);
+// CHECK-NEXT: clad::peek_range(_rec0, &buf[0], 2UL);
+// CHECK-NEXT: clad::drop_range(_rec0, 2UL);
 
 int main() {
   double x[2] = {1, 2};
