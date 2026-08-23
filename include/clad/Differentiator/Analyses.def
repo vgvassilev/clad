@@ -25,5 +25,8 @@ CLAD_ANALYSIS(Varied, "activity", "va", false,
               "skips the adjoint of a value no input can vary")
 CLAD_ANALYSIS(Useful, "useful", "ua", false,
               "skips the adjoint of a value no output depends on")
+CLAD_ANALYSIS(Loop, "loop", "loop", true,
+              "reads a function's counted loops to bound the range of a "
+              "pointer parameter it writes")
 
 #undef CLAD_ANALYSIS

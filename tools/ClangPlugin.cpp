@@ -13,6 +13,7 @@
 #include "clad/Differentiator/Version.h"
 #include "../lib/Differentiator/DerivativePrinter.h"
 #include "../lib/Differentiator/GeneratedCode.h"
+#include "../lib/Differentiator/LoopAnalyzer.h"
 #include "../lib/Differentiator/TBRAnalyzer.h"
 
 #include "clang/AST/ASTConsumer.h"
@@ -563,6 +564,75 @@ void InitTimers();
       }
     }
 
+    /// Reports, per parameter, the range of it the function was proven to
+    /// write. A parameter that prints `unknown` is one a caller cannot record
+    /// from, so it is the interesting half of the report.
+    static void printWrittenExtents(const clang::FunctionDecl* FD) {
+      llvm::SmallVector<WrittenExtent, 8> Extents;
+      computeWrittenExtents(FD, Extents);
+      for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
+        llvm::outs() << "written-extent: " << FD->getNameAsString() << ": "
+                     << FD->getParamDecl(i)->getNameAsString() << " = ";
+        const WrittenExtent& W = Extents[i];
+        switch (W.K) {
+        case WrittenExtent::Kind::None:
+          llvm::outs() << "none";
+          break;
+        case WrittenExtent::Kind::Element:
+          llvm::outs() << "[" << W.Offset << ", " << (W.Offset + 1) << ")";
+          break;
+        case WrittenExtent::Kind::Range:
+          llvm::outs() << "[0, ";
+          if (W.BoundIsParam)
+            llvm::outs()
+                << FD->getParamDecl(W.BoundParamIdx)->getNameAsString();
+          else
+            llvm::outs() << W.BoundConst;
+          llvm::outs() << ")";
+          break;
+        case WrittenExtent::Kind::Unknown:
+          // Report why, not just that: which refusal it was is what tells a
+          // reader whether the code or the analysis is the thing to change.
+          llvm::outs() << "unknown (";
+          switch (W.Why) {
+          case WrittenExtent::Refusal::None:
+            llvm::outs() << "no reason recorded";
+            break;
+          case WrittenExtent::Refusal::IndexNotCounted:
+            llvm::outs() << "index not stepped by a counted loop";
+            break;
+          case WrittenExtent::Refusal::IndexNotUnderstood:
+            llvm::outs() << "index is neither a constant nor a variable";
+            break;
+          case WrittenExtent::Refusal::WritesDisagree:
+            llvm::outs() << "writes do not describe one range";
+            break;
+          case WrittenExtent::Refusal::BoundNotUsable:
+            llvm::outs() << "the loop's bound is not one a call site can use";
+            break;
+          case WrittenExtent::Refusal::OpaqueWrite:
+            llvm::outs() << "a write could not be attributed to a parameter";
+            break;
+          case WrittenExtent::Refusal::NoDefinition:
+            llvm::outs() << "the function has no definition here";
+            break;
+          }
+          // The line the refusal is about, so a reader can go look at it
+          // rather than re-find it. Printing it also keeps the recorded
+          // location honest -- nothing else reads it yet.
+          if (W.RefusedAt.isValid()) {
+            const clang::SourceManager& SM =
+                FD->getASTContext().getSourceManager();
+            llvm::outs() << " at line "
+                         << SM.getPresumedLoc(W.RefusedAt).getLine();
+          }
+          llvm::outs() << ")";
+          break;
+        }
+        llvm::outs() << "\n";
+      }
+    }
+
     static void printDerivative(clang::Decl* D, bool DeclarationOnly,
                                 const DifferentiationOptions& DO) {
       clang::LangOptions LangOpts;
@@ -710,6 +780,10 @@ void InitTimers();
       // if enabled, print ASTs of the original functions
       if (m_DO.DumpSourceFnAST)
         FD->dumpColor();
+
+      // if enabled, report what each parameter's writes were proven to cover
+      if (m_DO.DumpLoopAnalysis)
+        printWrittenExtents(FD);
 
       // If enabled, set the proper fields in derivative builder.
       if (m_DO.PrintNumDiffErrorInfo) {

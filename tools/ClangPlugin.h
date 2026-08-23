@@ -69,6 +69,10 @@ struct DifferentiationOptions {
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   bool Remark##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
+  /// Whether -fdump-analysis named each analysis; see Analyses.def.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  bool Dump##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
   bool GenerateSourceFile = false;
   bool DumpGeneratedSource = false;
   /// Where to write the generated code so a debugger can open it, and
@@ -160,6 +164,26 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   if (Arg == (Name)) {                                                         \
     DO.Remark##Id##Analysis = true;                                            \
+    return AnalysisFlagResult::Ok;                                             \
+  }
+#include "clad/Differentiator/Analyses.def"
+  llvm::errs() << "clad: Error: unknown analysis '" << Arg << "'; known:";
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) llvm::errs() << " " Name;
+#include "clad/Differentiator/Analyses.def"
+  llvm::errs() << ".\n";
+  return AnalysisFlagResult::Error;
+}
+
+/// Match -fdump-analysis=<name>, asking the named analysis to report what it
+/// concluded. One flag naming an analysis rather than a flag per analysis:
+/// clad has several and will grow more.
+inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
+                                             llvm::StringRef Arg) {
+  if (!Arg.consume_front("-fdump-analysis="))
+    return AnalysisFlagResult::NotMine;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  if (Arg == (Name)) {                                                         \
+    DO.Dump##Id##Analysis = true;                                              \
     return AnalysisFlagResult::Ok;                                             \
   }
 #include "clad/Differentiator/Analyses.def"
@@ -468,6 +492,10 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
                      R != AnalysisFlagResult::NotMine) {
             if (R == AnalysisFlagResult::Error)
               return false;
+          } else if (AnalysisFlagResult R = dumpAnalysisByName(m_DO, args[i]);
+                     R != AnalysisFlagResult::NotMine) {
+            if (R == AnalysisFlagResult::Error)
+              return false;
           } else if (args[i] == "-fgenerate-source-file") {
             m_DO.GenerateSourceFile = true;
           } else if (args[i] == "-fno-validate-clang-version") {
@@ -514,6 +542,9 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
                    "that file instead. Given with no directory, nothing is "
                    "written and clad stops advising that nothing can be "
                    "read.\n"
+                << "-fdump-analysis=<name> - Prints what the named analysis "
+                   "concluded, for each function differentiated. The names are "
+                   "those listed below.\n"
                 << "-fgenerate-source-file - Produces a file containing the "
                    "derivatives.\n"
                 << "-fno-validate-clang-version - Disables the validation of "

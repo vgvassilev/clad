@@ -7,6 +7,7 @@
 // CHECK_HELP-NEXT: -fdump-generated-source
 // CHECK_HELP-NEXT: -Rclad-analysis=<name>
 // CHECK_HELP-NEXT: -fgenerated-source-dir=<dir>
+// CHECK_HELP-NEXT: -fdump-analysis=<name>
 // CHECK_HELP-NEXT: -fgenerate-source-file
 // CHECK_HELP-NEXT: -fno-validate-clang-version
 // CHECK_HELP-NEXT: -fcustom-estimation-model
@@ -17,6 +18,7 @@
 // CHECK_HELP-NEXT: -enable-tbr / -disable-tbr {{.*}} Default: on.
 // CHECK_HELP-NEXT: -enable-va / -disable-va {{.*}} Default: off.
 // CHECK_HELP-NEXT: -enable-ua / -disable-ua {{.*}} Default: off.
+// CHECK_HELP-NEXT: -enable-loop / -disable-loop {{.*}} Default: on.
 // CHECK_HELP-NEXT: -help
 
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad\
@@ -47,6 +49,11 @@
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
 // RUN:  -Xclang -fdisable-analysis=nosuch %s 2>&1 | FileCheck --check-prefix=CHECK_NO_SUCH %s
 // CHECK_NO_SUCH: unknown analysis 'nosuch'; known: tbr activity useful
+
+// The same holds for the flag that asks an analysis to report itself.
+// RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
+// RUN:  -Xclang -fdump-analysis=nosuch %s 2>&1 | FileCheck --check-prefix=CHECK_NO_DUMP %s
+// CHECK_NO_DUMP: unknown analysis 'nosuch'
 
 // 'all' asks for the conservative derivative, so it only makes sense as
 // something to turn off.

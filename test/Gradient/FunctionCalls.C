@@ -206,15 +206,16 @@ double fn4(double* arr, int n) {
   return res;
 }
 
+// sum writes only arr[0], so one element is recorded and the primal is called.
 // CHECK: void fn4_grad(double *arr, int n, double *_d_arr, int *_d_n) {
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// CHECK-NEXT:     clad::tape<double> _rec0 = {};
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     _tracker0.clear();
-// CHECK-NEXT:     res += sum_reverse_forw(arr, n, _d_arr, 0, _tracker0);
+// CHECK-NEXT:     clad::record_range(_rec0, arr, 1UL);
+// CHECK-NEXT:     res += sum(arr, n);
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
@@ -236,10 +237,11 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 = _d_res;
-// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, arr, 1UL);
 // CHECK-NEXT:         int _r0 = 0;
 // CHECK-NEXT:         sum_pullback(arr, n, _r_d0, _d_arr, &_r0);
-// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, arr, 1UL);
+// CHECK-NEXT:         clad::drop_range(_rec0, 1UL);
 // CHECK-NEXT:         *_d_n += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -270,16 +272,18 @@ double fn5(double* arr, int n) {
     return arr[0];
 }
 
+// modify2 writes arr[0] and reads arr[1]; only the written element is recorded.
 // CHECK: void fn5_grad(double *arr, int n, double *_d_arr, int *_d_n) {
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:     _tracker0.clear();
+// CHECK-NEXT:     clad::tape<double> _rec0 = {};
+// CHECK-NEXT:     clad::record_range(_rec0, arr, 1UL);
 // CHECK-NEXT:     double _d_temp = 0.;
-// CHECK-NEXT:     double temp = modify2_reverse_forw(arr, _d_arr, _tracker0);
+// CHECK-NEXT:     double temp = modify2(arr);
 // CHECK-NEXT:     _d_arr[0] += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:       _tracker0.restore();
-// CHECK-NEXT:       modify2_pullback(arr, _d_temp, _d_arr);
-// CHECK-NEXT:       _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, arr, 1UL);
+// CHECK-NEXT:         modify2_pullback(arr, _d_temp, _d_arr);
+// CHECK-NEXT:         clad::peek_range(_rec0, arr, 1UL);
+// CHECK-NEXT:         clad::drop_range(_rec0, 1UL);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -940,22 +944,24 @@ double fn27(double u, double v) {
 } // u * v + u
 
 // CHECK-NEXT: void fn27_grad(double u, double v, double *_d_u, double *_d_v) {
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
+// mult writes x[0..3), so the whole buffer is recorded once.
+// CHECK-NEXT:     clad::tape<double> _rec0 = {};
 // CHECK-NEXT:     double _d_arr[3] = {0};
 // CHECK-NEXT:     double arr[3] = {u, v, 1};
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum0 = arr[0] * arr[1] * arr[2];
-// CHECK-NEXT:     _tracker0.clear();
-// CHECK-NEXT:     mult_reverse_forw(arr, u, _d_arr, 0., _tracker0);
+// CHECK-NEXT:     clad::record_range(_rec0, arr, 3UL);
+// CHECK-NEXT:     mult(arr, u);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_sum += 1;
 // CHECK-NEXT:         _d_arr[2] += 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, arr, 3UL);
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         mult_pullback(arr, u, _d_arr, &_r0);
-// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, arr, 3UL);
+// CHECK-NEXT:         clad::drop_range(_rec0, 3UL);
 // CHECK-NEXT:         *_d_u += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -981,24 +987,29 @@ double& nested(double* x, double y) {
 // CHECK-NEXT:     return {x[1], _d_x[1]};
 // CHECK-NEXT: }
 
+// Two calls to the same provable callee get a record each; nested itself is
+// not provable -- it writes x only through those calls -- so its own callers
+// keep the tracker.
 // CHECK-NEXT: void nested_pullback(double *x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:     clad::restore_tracker _tracker1 = {};
-// CHECK-NEXT:     _tracker0.clear();
-// CHECK-NEXT:     mult_reverse_forw(x, y, _d_x, 0., _tracker0);
-// CHECK-NEXT:     _tracker1.clear();
-// CHECK-NEXT:     mult_reverse_forw(x, 3, _d_x, 0, _tracker1);
+// CHECK-NEXT:     clad::tape<double> _rec0 = {};
+// CHECK-NEXT:     clad::tape<double> _rec1 = {};
+// CHECK-NEXT:     clad::record_range(_rec0, x, 3UL);
+// CHECK-NEXT:     mult(x, y);
+// CHECK-NEXT:     clad::record_range(_rec1, x, 3UL);
+// CHECK-NEXT:     mult(x, 3);
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _tracker1.restore();
+// CHECK-NEXT:         clad::peek_range(_rec1, x, 3UL);
 // CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         mult_pullback(x, 3, _d_x, &_r1);
-// CHECK-NEXT:         _tracker1.restore();
+// CHECK-NEXT:         clad::peek_range(_rec1, x, 3UL);
+// CHECK-NEXT:         clad::drop_range(_rec1, 3UL);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, x, 3UL);
 // CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         mult_pullback(x, y, _d_x, &_r0);
-// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, x, 3UL);
+// CHECK-NEXT:         clad::drop_range(_rec0, 3UL);
 // CHECK-NEXT:         *_d_y += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -1065,17 +1076,18 @@ double fn29(double *x) {
 }
 
 // CHECK: void fn29_grad(double *x, double *_d_x) {
-// CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
-// CHECK-NEXT:     _tracker0.clear();
-// CHECK-NEXT:     foo_reverse_forw(x, _d_x, _tracker0);
+// CHECK-NEXT:     clad::tape<double> _rec0 = {};
+// CHECK-NEXT:     clad::record_range(_rec0, x, 1UL);
+// CHECK-NEXT:     foo(x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_x[0] += 1 * x[1];
 // CHECK-NEXT:         _d_x[1] += x[0] * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, x, 1UL);
 // CHECK-NEXT:         foo_pullback(x, _d_x);
-// CHECK-NEXT:         _tracker0.restore();
+// CHECK-NEXT:         clad::peek_range(_rec0, x, 1UL);
+// CHECK-NEXT:         clad::drop_range(_rec0, 1UL);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
