@@ -139,14 +139,14 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
         // and number of columns equal to the number of independent variables
         llvm::SmallVector<Expr*, 3> args = {getSize, buildIndVarCountRef(),
                                             offsetExpr};
-        dVectorParam = BuildIdentityMatrixExpr(dParamType, args, loc);
+        dVectorParam = BuildIdentityMatrixExpr(dParamType, args);
 
         offsetTracker.advanceByArray(getSize);
       } else {
         // Create a one hot vector for the parameter.
         llvm::SmallVector<Expr*, 2> args = {buildIndVarCountRef(), offsetExpr};
-        dVectorParam = BuildCallExprToCladFunction("one_hot_vector", args,
-                                                   {dParamType}, loc);
+        dVectorParam =
+            BuildCallExprToCladFunction("one_hot_vector", args, {dParamType});
         offsetTracker.advanceByScalar();
       }
       ++independentVarIndex;
@@ -158,8 +158,8 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
       // This parameter is not an independent variable.
       // Initialize by all zeros.
       Expr* dCount = buildIndVarCountRef();
-      dVectorParam = BuildCallExprToCladFunction("zero_vector", {dCount},
-                                                 {dParamType}, loc);
+      dVectorParam =
+          BuildCallExprToCladFunction("zero_vector", {dCount}, {dParamType});
     }
 
     // For each function arg to be differentiated, create a variable
@@ -391,19 +391,17 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
 
 StmtDiff VectorForwardModeVisitor::VisitFloatingLiteral(
     const clang::FloatingLiteral* FL) {
-  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
   Expr* dCount = buildIndVarCountRef();
-  auto* zero_vec = BuildCallExprToCladFunction("zero_vector", {dCount},
-                                               {FL->getType()}, fakeLoc);
+  auto* zero_vec =
+      BuildCallExprToCladFunction("zero_vector", {dCount}, {FL->getType()});
   return StmtDiff(Clone(FL), zero_vec);
 }
 
 StmtDiff
 VectorForwardModeVisitor::VisitIntegerLiteral(const clang::IntegerLiteral* IL) {
-  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
   Expr* dCount = buildIndVarCountRef();
-  auto* zero_vec = BuildCallExprToCladFunction("zero_vector", {dCount},
-                                               {IL->getType()}, fakeLoc);
+  auto* zero_vec =
+      BuildCallExprToCladFunction("zero_vector", {dCount}, {IL->getType()});
   return StmtDiff(Clone(IL), zero_vec);
 }
 

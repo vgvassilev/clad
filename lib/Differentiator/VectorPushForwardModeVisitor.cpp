@@ -61,12 +61,8 @@ VectorPushForwardModeVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   StmtDiff retValDiff = Visit(RS->getRetValue());
   llvm::SmallVector<Expr*, 2> returnValues = {retValDiff.getExpr(),
                                               retValDiff.getExpr_dx()};
-  // This can instantiate as part of the move or copy initialization and
-  // needs a fake source location.
-  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-  Expr* initList = m_Sema.ActOnInitList(fakeLoc, returnValues, noLoc).get();
-  Stmt* returnStmt =
-      m_Sema.ActOnReturnStmt(fakeLoc, initList, getCurrentScope()).get();
+  Expr* initList = m_Sema.ActOnInitList(GenLoc(), returnValues, noLoc).get();
+  Stmt* returnStmt = BuildReturnStmt(initList);
   return StmtDiff(returnStmt);
 }
 

@@ -68,7 +68,7 @@ namespace clad {
         m_Context,
         Stmts_ref /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(
             FPOptionsOverride()),
-        utils::GetValidSLoc(m_Sema), utils::GetValidSLoc(m_Sema));
+        GenLoc(), GenLoc());
   }
 
   bool VisitorBase::isUnusedResult(const Expr* E) {
@@ -298,7 +298,6 @@ namespace clad {
                                          clad_compat::NestedNameSpecifierTy NNS,
                                          ExprValueKind VK /*=VK_LValue*/) {
     CXXScopeSpec CSS;
-    SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
 
     // A local variable or parameter is never name-qualified: `NS::local` does
     // not exist. Building a qualifier for one is not only meaningless printing
@@ -339,7 +338,7 @@ namespace clad {
     // (the trivial-scope wraps it as Global); skip when there's no
     // qualifier so local-variable refs print bare.
     if (clad_compat::hasQualifier(NNS))
-      CSS.MakeTrivial(m_Context, NNS, fakeLoc);
+      CSS.MakeTrivial(m_Context, NNS, GenLoc());
     QualType T = D->getType();
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
@@ -718,7 +717,7 @@ namespace clad {
     }
     // Debug clang requires the location to be valid
     if (!OpLoc.isValid())
-      OpLoc = utils::GetValidSLoc(m_Sema);
+      OpLoc = GenLoc();
     // Call function for UnaryMinus
     if (OpCode == UO_Minus)
       return ResolveUnaryMinus(E->IgnoreCasts(), OpLoc);
@@ -745,7 +744,7 @@ namespace clad {
       return nullptr;
     // Debug clang requires the location to be valid
     if (!OpLoc.isValid())
-      OpLoc = utils::GetValidSLoc(m_Sema);
+      OpLoc = GenLoc();
     return m_Sema.BuildBinOp(nullptr, OpLoc, OpCode, L, R).get();
   }
 
@@ -788,10 +787,9 @@ namespace clad {
   Expr* VisitorBase::BuildArraySubscript(
       Expr* Base, const llvm::SmallVectorImpl<clang::Expr*>& Indices) {
     Expr* result = Base;
-    SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
     for (Expr* I : Indices)
       result =
-          m_Sema.CreateBuiltinArraySubscriptExpr(result, fakeLoc, I, fakeLoc)
+          m_Sema.CreateBuiltinArraySubscriptExpr(result, GenLoc(), I, GenLoc())
               .get();
     return result;
   }
@@ -1022,10 +1020,27 @@ namespace clad {
     return call;
   }
 
+  SourceLocation VisitorBase::GenLoc() { return m_Builder.GenLoc(); }
+
+  Stmt* VisitorBase::BuildReturnStmt(Expr* E) {
+    return m_Sema.ActOnReturnStmt(GenLoc(), E, getCurrentScope()).get();
+  }
+
+  Expr* VisitorBase::BuildFunctionalCast(TypeSourceInfo* TSI, QualType T,
+                                         Expr* E) {
+    // One location per parenthesis: they are separate tokens.
+    return m_Sema.BuildCXXFunctionalCastExpr(TSI, T, GenLoc(), E, GenLoc())
+        .get();
+  }
+
+  Expr* VisitorBase::BuildCStyleCast(TypeSourceInfo* TSI, Expr* E) {
+    return m_Sema.BuildCStyleCastExpr(GenLoc(), TSI, GenLoc(), E).get();
+  }
+
   Expr* VisitorBase::BuildCallExprToCladFunction(
       llvm::StringRef name, llvm::MutableArrayRef<clang::Expr*> argExprs,
-      llvm::ArrayRef<clang::TemplateArgument> templateArgs,
-      SourceLocation loc) {
+      llvm::ArrayRef<clang::TemplateArgument> templateArgs) {
+    const SourceLocation loc = GenLoc();
     DeclarationName declName = &m_Context.Idents.get(name);
     clang::LookupResult R(m_Sema, declName, noLoc, Sema::LookupOrdinaryName);
 
@@ -1051,10 +1066,8 @@ namespace clad {
   }
 
   Expr* VisitorBase::BuildIdentityMatrixExpr(clang::QualType T,
-                                             MutableArrayRef<Expr*> Args,
-                                             clang::SourceLocation Loc) {
-    return BuildCallExprToCladFunction(/*name=*/"identity_matrix", Args, {T},
-                                       Loc);
+                                             MutableArrayRef<Expr*> Args) {
+    return BuildCallExprToCladFunction(/*name=*/"identity_matrix", Args, {T});
   }
 
   Expr* VisitorBase::BuildArrayRefSizeExpr(Expr* Base) {
@@ -1561,9 +1574,7 @@ namespace clad {
                                       typeInfo, init, noLoc, noLoc)
                    .get();
       } else {
-        SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-        init =
-            m_Sema.BuildCStyleCastExpr(fakeLoc, typeInfo, fakeLoc, init).get();
+        init = BuildCStyleCast(typeInfo, init);
       }
 
       auto* diffVD =
@@ -1632,7 +1643,7 @@ namespace clad {
                                        SourceLocation OpLoc) {
     // Sema requires a valid location for rebuilt operator calls.
     if (!OpLoc.isValid())
-      OpLoc = utils::GetValidSLoc(m_Sema);
+      OpLoc = GenLoc();
 
     // First check operator kinds that are not considered binary/unary.
 

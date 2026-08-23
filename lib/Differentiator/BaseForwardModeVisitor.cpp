@@ -1918,17 +1918,10 @@ BaseForwardModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
 StmtDiff BaseForwardModeVisitor::VisitCXXFunctionalCastExpr(
     const clang::CXXFunctionalCastExpr* FCE) {
   StmtDiff castExprDiff = Visit(FCE->getSubExpr());
-  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-  Expr* clonedFCE = m_Sema
-                        .BuildCXXFunctionalCastExpr(
-                            FCE->getTypeInfoAsWritten(), FCE->getType(),
-                            fakeLoc, castExprDiff.getExpr(), fakeLoc)
-                        .get();
-  Expr* derivedFCE = m_Sema
-                         .BuildCXXFunctionalCastExpr(
-                             FCE->getTypeInfoAsWritten(), FCE->getType(),
-                             fakeLoc, castExprDiff.getExpr_dx(), fakeLoc)
-                         .get();
+  Expr* clonedFCE = BuildFunctionalCast(FCE->getTypeInfoAsWritten(),
+                                        FCE->getType(), castExprDiff.getExpr());
+  Expr* derivedFCE = BuildFunctionalCast(
+      FCE->getTypeInfoAsWritten(), FCE->getType(), castExprDiff.getExpr_dx());
   return {clonedFCE, derivedFCE};
 }
 
@@ -2040,9 +2033,9 @@ BaseForwardModeVisitor::VisitCharacterLiteral(const CharacterLiteral* CL) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
-  return StmtDiff(Clone(SL), StringLiteral::Create(
-                                 m_Context, "", SL->getKind(), SL->isPascal(),
-                                 SL->getType(), utils::GetValidSLoc(m_Sema)));
+  return StmtDiff(Clone(SL), StringLiteral::Create(m_Context, "", SL->getKind(),
+                                                   SL->isPascal(),
+                                                   SL->getType(), GenLoc()));
 }
 
 StmtDiff
@@ -2452,18 +2445,15 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
 
-  Expr* clonedTOE =
-      m_Sema
-          .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
-                                     utils::GetValidSLoc(m_Sema), clonedArgs,
-                                     utils::GetValidSLoc(m_Sema),
-                                     TOE->isListInitialization())
-          .get();
+  Expr* clonedTOE = m_Sema
+                        .ActOnCXXTypeConstructExpr(
+                            OpaquePtr<QualType>::make(TOE->getType()), GenLoc(),
+                            clonedArgs, GenLoc(), TOE->isListInitialization())
+                        .get();
   Expr* derivedTOE =
       m_Sema
           .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
-                                     utils::GetValidSLoc(m_Sema), derivedArgs,
-                                     utils::GetValidSLoc(m_Sema),
+                                     GenLoc(), derivedArgs, GenLoc(),
                                      TOE->isListInitialization())
           .get();
   return {clonedTOE, derivedTOE};

@@ -885,17 +885,31 @@ namespace clad {
                             clang::Expr* CUDAExecConfig = nullptr,
                             bool useRefQualifiedThisObj = false);
 
+    /// A location for a node about to be built, distinct from every other one
+    /// handed out.
+    clang::SourceLocation GenLoc();
+
+    /// Build a return statement. The `return` keyword is not one the user
+    /// wrote, so the location comes from here rather than from the caller.
+    clang::Stmt* BuildReturnStmt(clang::Expr* E);
+
+    /// Build `T(E)`. The parentheses are not ones the user wrote, so their
+    /// locations come from here rather than from the caller.
+    clang::Expr* BuildFunctionalCast(clang::TypeSourceInfo* TSI,
+                                     clang::QualType T, clang::Expr* E);
+
+    /// Build `(T)E`, likewise.
+    clang::Expr* BuildCStyleCast(clang::TypeSourceInfo* TSI, clang::Expr* E);
+
     /// Build a call to templated free function inside the clad namespace.
     ///
     /// \param[in] name name of the function
     /// \param[in] argExprs function arguments expressions
     /// \param[in] templateArgs template arguments
-    /// \param[in] loc location of the call
     /// \returns Built call expression
     clang::Expr* BuildCallExprToCladFunction(
         llvm::StringRef name, llvm::MutableArrayRef<clang::Expr*> argExprs,
-        llvm::ArrayRef<clang::TemplateArgument> templateArgs,
-        clang::SourceLocation loc);
+        llvm::ArrayRef<clang::TemplateArgument> templateArgs);
 
     /// Checks if the type is of clad::array<T> or clad::array_ref<T> type
     bool isCladArrayType(clang::QualType QT);
@@ -904,8 +918,7 @@ namespace clad {
     /// type and args.
     clang::Expr*
     BuildIdentityMatrixExpr(clang::QualType T,
-                            llvm::MutableArrayRef<clang::Expr*> Args,
-                            clang::SourceLocation Loc);
+                            llvm::MutableArrayRef<clang::Expr*> Args);
     /// Creates the expression Base.size() for the given Base expr. The Base
     /// expr must be of clad::array_ref<T> type
     clang::Expr* BuildArrayRefSizeExpr(clang::Expr* Base);
