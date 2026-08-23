@@ -439,7 +439,7 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
               m_Context.IntTy, m_Context, dValue);
           dArrVal.push_back(dValueLiteral);
         }
-        dInitializer = m_Sema.ActOnInitList(validLoc, dArrVal, validLoc).get();
+        dInitializer = BuildInitList(dArrVal);
       } else if (const auto* ptrType =
                      dyn_cast<PointerType>(fieldType.getTypePtr())) {
         if (!ptrType->getPointeeType()->isRealType())
@@ -850,8 +850,8 @@ StmtDiff BaseForwardModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
     derivedExprs[i] = ResultI.getExpr_dx();
   }
 
-  Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-  Expr* derivedILE = m_Sema.ActOnInitList(noLoc, derivedExprs, noLoc).get();
+  Expr* clonedILE = BuildInitList(clonedExprs);
+  Expr* derivedILE = BuildInitList(derivedExprs);
   return StmtDiff(clonedILE, derivedILE);
 }
 
@@ -2405,8 +2405,8 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
       // Rely on the initializer list expressions as they seem to be more
       // flexible in terms of conversions and other similar scenarios where a
       // constructor is called implicitly.
-      clonedArgsE = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
-      derivedArgsE = m_Sema.ActOnInitList(noLoc, derivedArgs, noLoc).get();
+      clonedArgsE = BuildInitList(clonedArgs);
+      derivedArgsE = BuildInitList(derivedArgs);
     }
   } else {
     clonedArgsE = clonedArgs[0];
