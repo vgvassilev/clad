@@ -125,7 +125,7 @@ inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
   }
 
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
-  if (Arg == Name) {                                                           \
+  if (Arg == (Name)) {                                                         \
     DO.Id##Switch = To;                                                        \
     return AnalysisFlagResult::Ok;                                             \
   }
