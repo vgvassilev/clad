@@ -1413,7 +1413,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         Clone(SL),
         StringLiteral::Create(m_Context, "", SL->getKind(), SL->isPascal(),
                               utils::getNonConstType(SL->getType(), m_Sema),
-                              utils::GetValidSLoc(m_Sema)));
+                              GenLoc()));
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXNullPtrLiteralExpr(

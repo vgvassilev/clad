@@ -8,6 +8,9 @@
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
 
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
+
+#include "clang/AST/Stmt.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 
@@ -45,12 +48,8 @@ StmtDiff PushForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
             .get();
   }
   llvm::SmallVector<Expr*, 2> returnValues = {retVal, retVal_dx};
-  // This can instantiate as part of the move or copy initialization and
-  // needs a fake source location.
-  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-  Expr* initList = m_Sema.ActOnInitList(fakeLoc, returnValues, noLoc).get();
-  Stmt* returnStmt =
-      m_Sema.ActOnReturnStmt(fakeLoc, initList, getCurrentScope()).get();
+  Expr* initList = m_Sema.ActOnInitList(GenLoc(), returnValues, noLoc).get();
+  Stmt* returnStmt = BuildReturnStmt(initList);
   return StmtDiff(returnStmt);
 }
 } // end namespace clad
