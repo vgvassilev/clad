@@ -22,14 +22,12 @@ template <typename T> class array_ref;
 // only in the operator token, passed to these generators as `op`: one of `+=`,
 // `-=`, `*=`, `/=`, or `=` where plain assignment has the same shape.
 //
-// Three checks fire on the generators below and cannot be followed here:
-// cppcoreguidelines-macro-usage, because `op` is an operator token and each
-// expansion declares a different operator overload; bugprone-macro-parentheses,
-// because neither an operator token nor a function definition can be wrapped in
-// parentheses; and modernize-type-traits, because `std::is_arithmetic_v` is
-// C++17 while these headers are also included from C++14 code.
-// NOLINTBEGIN(cppcoreguidelines-macro-usage, bugprone-macro-parentheses,
-// modernize-type-traits)
+// Two checks fire on the generators below and cannot be followed here:
+// bugprone-macro-parentheses, because neither an operator token nor a function
+// definition can be wrapped in parentheses; and modernize-type-traits, because
+// `std::is_arithmetic_v` is C++17 while these headers are also included from
+// C++14 code.
+// NOLINTBEGIN(bugprone-macro-parentheses, modernize-type-traits)
 
 /// Applies `op` between every element and a scalar.
 #define CLAD_ARRAY_OP_SCALAR(op)                                               \
@@ -79,8 +77,7 @@ template <typename T> class array_ref;
       m_arr[i] op arr_exp[i];                                                  \
     return *this;                                                              \
   }
-// NOLINTEND(cppcoreguidelines-macro-usage, bugprone-macro-parentheses,
-// modernize-type-traits)
+// NOLINTEND(bugprone-macro-parentheses, modernize-type-traits)
 
 /// This class is not meant to be used by user. It is used by clad internally
 /// only

@@ -19,6 +19,7 @@ Checks: >
   -misc-non-private-member-variables-in-classes,
   -cppcoreguidelines-non-private-member-variables-in-classes,
   -misc-no-recursion,
+  -cppcoreguidelines-macro-usage,
   -misc-use-anonymous-namespace,
   -modernize-return-braced-init-list,
   -modernize-use-trailing-return-type,
