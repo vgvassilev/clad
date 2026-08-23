@@ -4,6 +4,7 @@
 // CHECK_HELP-NEXT: -fdump-source-fn-ast
 // CHECK_HELP-NEXT: -fdump-derived-fn
 // CHECK_HELP-NEXT: -fdump-derived-fn-ast
+// CHECK_HELP-NEXT: -fdump-analysis=<name>
 // CHECK_HELP-NEXT: -fgenerate-source-file
 // CHECK_HELP-NEXT: -fno-validate-clang-version
 // CHECK_HELP-NEXT: -fcustom-estimation-model
@@ -14,6 +15,7 @@
 // CHECK_HELP-NEXT: -enable-tbr / -disable-tbr {{.*}} Default: on.
 // CHECK_HELP-NEXT: -enable-va / -disable-va {{.*}} Default: off.
 // CHECK_HELP-NEXT: -enable-ua / -disable-ua {{.*}} Default: off.
+// CHECK_HELP-NEXT: -enable-loop / -disable-loop {{.*}} Default: on.
 // CHECK_HELP-NEXT: -help
 
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad\
