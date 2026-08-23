@@ -30,10 +30,16 @@ jobs:
           git config --global --add safe.directory /github/workspace
 
       - name: Run clang-tidy
-        uses: ZedThree/clang-tidy-review@v0.20.1
+        uses: ZedThree/clang-tidy-review@v0.23.1
         id: review
         with:
           build_dir: build
+          # The action defaults this to whatever clang-tidy its container
+          # was built around, which moved 18 -> 19 -> 21 across the releases
+          # being skipped here. Pin what we already analyse with so the
+          # version bump changes no diagnostics; moving the analyser is a
+          # separate decision.
+          clang_tidy_version: '18'
           apt_packages: cmake,libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev,libomp-20-dev,libopenblas-dev
           exclude: "test/*,unittests/*"
           split_workflow: true
@@ -48,4 +54,4 @@ jobs:
             -DCMAKE_CXX_FLAGS="-fexceptions" # Clad demos can have exceptions
 
       - name: Upload artifacts
-        uses: ZedThree/clang-tidy-review/upload@v0.20.1
+        uses: ZedThree/clang-tidy-review/upload@v0.23.1
