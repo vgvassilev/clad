@@ -148,18 +148,6 @@ jobs:
       uses: actions/setup-python@v7
       with:
         python-version: 3.11
-    - name: Save PR Info
-      if: ${{ matrix.coverage == true }}
-      run: |
-        mkdir -p ./pr
-        echo ${{ github.event.number }} > ./pr/NR
-        echo ${{ github.repository }} > ./pr/REPO
-    - uses: actions/upload-artifact@v7
-      if: ${{ matrix.coverage == true }}
-      with:
-        name: pr
-        path: pr/
-        overwrite: true
     - name: Setup default Build Type on *nux
       if: ${{ (matrix.debug_build != true) && (runner.os != 'windows') }}
       run: |
