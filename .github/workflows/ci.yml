@@ -141,11 +141,11 @@ jobs:
             clang-runtime: '18'
 
     steps: &build_steps
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: 3.11
     - name: Save PR Info
@@ -154,13 +154,12 @@ jobs:
         mkdir -p ./pr
         echo ${{ github.event.number }} > ./pr/NR
         echo ${{ github.repository }} > ./pr/REPO
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       if: ${{ matrix.coverage == true }}
       with:
         name: pr
         path: pr/
         overwrite: true
-    - uses: nelonoel/branch-name@v1.0.1
     - name: Setup default Build Type on *nux
       if: ${{ (matrix.debug_build != true) && (runner.os != 'windows') }}
       run: |
@@ -414,7 +413,7 @@ jobs:
         rebuild-command: cmake --build obj -- -j${{ env.ncpus }}
     - name: Upload the baseline verdict
       if: ${{ runner.os != 'windows' && env.observes_check == '1' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: observes-change-${{ matrix.name }}
         path: observes/
@@ -619,7 +618,7 @@ jobs:
       issues: write
     steps:
     - name: File the failure against the commit that caused it
-      uses: actions/github-script@v7.0.1
+      uses: actions/github-script@v9
       with:
         script: |
           const repo = { owner: context.repo.owner, repo: context.repo.repo };
@@ -671,8 +670,8 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/download-artifact@v4
+    - uses: actions/checkout@v7
+    - uses: actions/download-artifact@v8
       with:
         pattern: observes-change-*
         path: verdicts
@@ -688,7 +687,7 @@ jobs:
     # merging, which is a claim about defects caught rather than lines run.
     - name: Upload the summary record
       if: ${{ always() }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: observes-change-summary
         path: observes-change-summary.json
