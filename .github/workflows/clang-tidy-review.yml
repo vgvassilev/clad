@@ -31,6 +31,9 @@ jobs:
           os: ubuntu-24.04
           arch: x86_64
           cuda-version: '12.8.1'
+          # Differentiator.h and CladtorchBuiltins.h keep code behind
+          # _OPENMP that is otherwise never parsed.
+          openmp: 'true'
           # ThrustDerivatives.h and ThrustBuiltins.h include nothing of
           # clad's own; they are written to follow this header.
           force-include: clad/Differentiator/Differentiator.h
@@ -52,7 +55,7 @@ jobs:
           # headers the sources reach. No plain libxml2: the review
           # container is ubuntu 25.10, where that name has no installation
           # candidate and libxml2-dev brings the runtime anyway.
-          apt_packages: libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev,libomp-20-dev,libopenblas-dev
+          apt_packages: libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev,libomp-21-dev,libopenblas-dev
           exclude: "test/*,unittests/*"
           split_workflow: true
           config_file: .clang-tidy
