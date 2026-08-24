@@ -41,9 +41,9 @@ jobs:
           - { name: ubu24-clang16-runtime17, os: ubuntu-24.04, compiler: clang-16, clang-runtime: '17' }
           - { name: ubu24-gcc14-runtime18, os: ubuntu-24.04, compiler: gcc-14, clang-runtime: '18' }
           - { name: ubu24-clang17-runtime19, os: ubuntu-24.04, compiler: clang-17, clang-runtime: '19' }
-          - { name: ubu24-clang19-runtime20, os: ubuntu-24.04, compiler: clang-19, clang-runtime: '20' }
-          - { name: ubu24-clang20-runtime21, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '21' }
-          - { name: ubu24-clang20-runtime22, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '22' }
+          - { name: ubu24-clang19-runtime20, os: ubuntu-24.04, compiler: clang-19, clang-runtime: '20', cuda: '12.6.3' }
+          - { name: ubu24-clang20-runtime21, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '21', cuda: '12.8.1' }
+          - { name: ubu24-clang20-runtime22, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '22', cuda: '13.0.3' }
           - { name: ubu24-clang22-runtime22-asan, os: ubuntu-24.04, compiler: clang-22, clang-runtime: '22', flavor: asan, extra_cmake_options: '-DLLVM_USE_SANITIZER=Address' }
           # --- MACOS: Last 5 Runtimes (17-21) ---
           # Using macOS ARM (standard) for all; Runtime 17 on Intel for x86 sanity
@@ -80,7 +80,6 @@ jobs:
             os: ubuntu-22.04
             compiler: clang-13
             clang-runtime: '13'
-            cuda: true
 
           - name: ubuntu-clang15-runtime16-doc
             os: ubuntu-latest
@@ -313,20 +312,16 @@ jobs:
         echo "Runtime LLVM/Clang: $env:PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
-    - name: Setup CUDA 8 on Linux
-      if: ${{ matrix.cuda == true && !matrix.os == 'self-hosted'}}
-      run: |
-        wget --no-verbose https://developer.nvidia.com/compute/cuda/8.0/Prod2/local_installers/cuda_8.0.61_375.26_linux-run
-        wget --no-verbose https://developer.nvidia.com/compute/cuda/8.0/Prod2/patches/2/cuda_8.0.61.2_linux-run
-        sh ./cuda_8.0.61_375.26_linux-run --tar mxvf
-        sudo cp InstallUtils.pm /usr/lib/x86_64-linux-gnu/perl-base
-        export $PERL5LIB
-        sudo sh cuda_8.0.61_375.26_linux-run --override --no-opengl-lib --silent --toolkit --kernel-source-path=/lib/modules/4.15.0-1113-azure/build
-        sudo sh cuda_8.0.61.2_linux-run --silent --accept-eula
-        export PATH=/usr/local/cuda-8.0/bin:${PATH}
-        export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda-8.0/lib64
-        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
-        echo "PATH=$PATH" >> $GITHUB_ENV
+    # Headers only: enough to compile a .cu, which is all a runner with no
+    # GPU can do. The self-hosted rows bring their own toolkit and run the
+    # tests for real, so they are left alone.
+    - name: Setup CUDA headers
+      if: ${{ matrix.cuda && !contains(matrix.os, 'self-hosted') }}
+      uses: compiler-research/ci-workflows/actions/setup-cuda@main
+      with:
+        version: ${{ matrix.cuda }}
+        os: ${{ matrix.os }}
+        arch: x86_64
     - name: Setup code coverage
       if: ${{ (matrix.coverage == true) }}
       run: |

@@ -1,7 +1,7 @@
 // RUN: %cladclang_cuda -fsyntax-only -I%S/../../include --cuda-path=%cudapath \
 // RUN:     --cuda-gpu-arch=%cudaarch -Xclang -verify %s
 //
-// REQUIRES: cuda-runtime
+// REQUIRES: cuda-compile
 // expected-no-diagnostics
 
 #include "clad/Differentiator/Tape.h"
