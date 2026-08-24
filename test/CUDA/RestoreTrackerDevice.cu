@@ -1,9 +1,9 @@
 // RUN: %cladclang_cuda -I%S/../../include --cuda-path=%cudapath \
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -o RestoreTrackerDevice.out %s
 //
-// RUN: %cudarun ./RestoreTrackerDevice.out | %filecheck_exec %s
+// RUN: %if cuda-runtime %{ %cudarun ./RestoreTrackerDevice.out | %filecheck_exec %s %}
 //
-// REQUIRES: cuda-runtime
+// REQUIRES: cuda-compile
 #include "clad/Differentiator/Differentiator.h"
 #include <iostream>
 

@@ -2,9 +2,9 @@
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oThrustSortByKey.out \
 // RUN:     -Xclang -verify %s 2>&1 | %filecheck %s
 //
-// RUN: %cudarun ./ThrustSortByKey.out | %filecheck_exec %s
+// RUN: %if cuda-runtime %{ %cudarun ./ThrustSortByKey.out | %filecheck_exec %s %}
 //
-// REQUIRES: cuda-runtime
+// REQUIRES: cuda-compile
 //
 // expected-no-diagnostics
 
