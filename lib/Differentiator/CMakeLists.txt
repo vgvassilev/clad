@@ -52,6 +52,7 @@ llvm_add_library(cladDifferentiator
   DerivedFnInfo.cpp
   DiffPlanner.cpp
   ErrorEstimator.cpp
+  DerivativePrinter.cpp
   JacobianModeVisitor.cpp
   HessianModeVisitor.cpp
   MultiplexExternalRMVSource.cpp
