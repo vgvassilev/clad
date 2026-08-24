@@ -11,11 +11,13 @@
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
+#include "../lib/Differentiator/DerivativePrinter.h"
 #include "../lib/Differentiator/TBRAnalyzer.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/CodeGenOptions.h"
@@ -47,6 +49,7 @@
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -60,6 +63,7 @@
 #include <iostream> // for std::cerr
 #include <memory>
 #include <set>
+#include <utility>
 
 using namespace clang;
 
@@ -243,6 +247,194 @@ void InitTimers();
       if (!m_CI.getDiagnostics().hasErrorOccurred() &&
           !getScheduler().isTraversalInFlight() && !m_Multiplexer)
         FinalizeTranslationUnit();
+    }
+
+    /// The statements of \p S that the printer gave an offset, paired with it.
+    static void collectStmts(const clang::Stmt* S, DerivativePrinter& Printer,
+                             const clang::FunctionDecl* FD,
+                             llvm::SmallVectorImpl<const clang::Stmt*>& Out) {
+      if (!S)
+        return;
+      if (Printer.locationOf(FD, S).isValid())
+        Out.push_back(S);
+      for (const clang::Stmt* Child : S->children())
+        collectStmts(Child, Printer, FD, Out);
+    }
+
+    /// Shows what a generated function looks like as text, and where inside
+    /// that text each of its statements sits. A statement's reported line and
+    /// column is the one a diagnostic pointing at it would carry, so this is
+    /// how the mapping is checked without a diagnostic to hang it on.
+    void CladPlugin::dumpGeneratedSource(clang::Decl* D) {
+      const auto* FD = llvm::dyn_cast<clang::FunctionDecl>(D);
+      if (!FD || !FD->getBody())
+        return;
+      if (!m_DerivativePrinter)
+        m_DerivativePrinter =
+            std::make_unique<DerivativePrinter>(m_CI.getSema());
+
+      llvm::outs() << "generated-source: " << FD->getNameAsString() << "\n";
+      // Every statement the printer announced, in the order its text appears.
+      llvm::SmallVector<const clang::Stmt*, 32> Ordered;
+      collectStmts(FD->getBody(), *m_DerivativePrinter, FD, Ordered);
+      clang::SourceManager& SM = m_CI.getSourceManager();
+      auto offsetOf = [&](const clang::Stmt* S) {
+        return SM.getFileOffset(m_DerivativePrinter->locationOf(FD, S));
+      };
+      llvm::stable_sort(Ordered,
+                        [&](const clang::Stmt* A, const clang::Stmt* B) {
+                          return offsetOf(A) < offsetOf(B);
+                        });
+      llvm::StringRef Text = m_DerivativePrinter->textOf(FD);
+      unsigned Last = ~0U;
+      for (const clang::Stmt* S : Ordered) {
+        // One line per position: the innermost and outermost node starting at
+        // the same character would otherwise repeat it.
+        unsigned Offset = offsetOf(S);
+        if (Offset == Last)
+          continue;
+        Last = Offset;
+        clang::SourceRange R = m_DerivativePrinter->rangeOf(FD, S);
+        clang::PresumedLoc B = SM.getPresumedLoc(R.getBegin());
+        clang::PresumedLoc E = SM.getPresumedLoc(R.getEnd());
+        // Begin and end columns, so a test can pin how wide a node is and not
+        // just where it starts.
+        // A node measured to one line reports its span; one that could not be
+        // measured reports just where it starts.
+        llvm::outs() << "  " << B.getLine() << ":" << B.getColumn();
+        if (R.getEnd().isValid() && E.getLine() == B.getLine() &&
+            E.getColumn() >= B.getColumn())
+          llvm::outs() << "-" << E.getColumn();
+        llvm::outs() << ": " << Text.drop_front(Offset).take_until([](char C) {
+          return C == '\n';
+        }) << "\n";
+      }
+    }
+
+    /// Whether \p VD holds a value clad kept for the reverse sweep.
+    ///
+    /// Clad names its temporaries `_t<N>`, but not all of them are kept
+    /// values: a tape is the container for values kept in a loop, and a loop
+    /// counter is bookkeeping. Reporting either as a cost the analysis failed
+    /// to remove would be wrong, not merely noisy.
+    // FIXME: This reads clad's naming convention from the outside. The
+    // durable answer is for the visitor to mark a store as it emits one.
+    static bool isKeptValue(const clang::VarDecl* VD) {
+      if (!VD->hasInit() || !VD->getName().starts_with("_t"))
+        return false;
+      if (VD->getType().getAsString().find("tape") != std::string::npos)
+        return false;
+      return !llvm::isa<clang::IntegerLiteral>(
+          VD->getInit()->IgnoreParenImpCasts());
+    }
+
+    /// The values a derivative keeps for its reverse sweep, in the order they
+    /// appear. Clad names them `_t<N>`; a value kept in a loop goes onto a
+    /// tape instead, so both shapes count.
+    static void collectKeptValues(
+        const clang::Stmt* S,
+        llvm::SmallVectorImpl<
+            std::pair<const clang::Stmt*, const clang::VarDecl*>>& Out) {
+      if (!S)
+        return;
+      if (const auto* DS = llvm::dyn_cast<clang::DeclStmt>(S))
+        for (const clang::Decl* D : DS->decls())
+          if (const auto* VD = llvm::dyn_cast<clang::VarDecl>(D))
+            if (isKeptValue(VD))
+              Out.emplace_back(S, VD);
+      // A value kept once per iteration goes onto a tape rather than into its
+      // own variable. The push is the thing that costs, not the tape.
+      if (const auto* CE = llvm::dyn_cast<clang::CallExpr>(S))
+        if (const clang::FunctionDecl* Callee = CE->getDirectCallee())
+          if (Callee->getName() == "push" && CE->getNumArgs() == 2)
+            Out.emplace_back(S, nullptr);
+      for (const clang::Stmt* Child : S->children())
+        collectKeptValues(Child, Out);
+    }
+
+    /// The primal expression itself, so the note underlines all of it. The
+    /// clone kept its original range, so this is the user's own code.
+    static clang::SourceRange primalRangeOf(const clang::Stmt* K,
+                                            const clang::VarDecl* VD) {
+      const clang::Expr* Init =
+          VD ? VD->getInit() : llvm::cast<clang::CallExpr>(K)->getArg(1);
+      return Init ? Init->getSourceRange() : clang::SourceRange();
+    }
+
+    /// Where in the user's code the kept value came from.
+    ///
+    /// The stored initializer is a clone of a primal expression and carries
+    /// that expression's location, so a note can point at code the user can
+    /// actually change -- which the remark itself cannot, since it points at
+    /// code clad wrote. Nodes clad invented outright carry GetValidSLoc, the
+    /// start of the main file; a caret on line one would be worse than saying
+    /// nothing, so those report no location at all.
+    static clang::SourceLocation
+    primalLocationOf(const clang::Stmt* K, const clang::VarDecl* VD,
+                     const clang::SourceManager& SM) {
+      const clang::Expr* Init = nullptr;
+      if (VD)
+        Init = VD->getInit();
+      else if (const auto* CE = llvm::dyn_cast<clang::CallExpr>(K))
+        Init = CE->getArg(1); // what the push saves
+      if (!Init)
+        return {};
+      clang::SourceLocation Loc = Init->getBeginLoc();
+      if (Loc.isInvalid() || !Loc.isFileID())
+        return {};
+      if (Loc == SM.getLocForStartOfFile(SM.getMainFileID()))
+        return {};
+      return Loc;
+    }
+
+    void CladPlugin::emitAnalysisRemarks(clang::Decl* D,
+                                         const DiffRequest& request) {
+      if (!m_DO.RemarkTBRAnalysis)
+        return;
+      const auto* FD = llvm::dyn_cast<clang::FunctionDecl>(D);
+      if (!FD || !FD->getBody())
+        return;
+
+      llvm::SmallVector<std::pair<const clang::Stmt*, const clang::VarDecl*>,
+                        16>
+          Kept;
+      collectKeptValues(FD->getBody(), Kept);
+      if (Kept.empty())
+        return; // Nothing to say, so nothing gets rendered.
+
+      if (!m_DerivativePrinter)
+        m_DerivativePrinter =
+            std::make_unique<DerivativePrinter>(m_CI.getSema());
+      // The differentiation this derivative came from, so a reader is pointed
+      // at the line they would edit rather than at the top of their file.
+      if (request.CallContext)
+        m_DerivativePrinter->noteRequestedAt(
+            FD, request.CallContext->getBeginLoc());
+      clang::Sema& S = m_CI.getSema();
+      // Why the value is still here is a different sentence depending on
+      // whether the analysis ran at all; saying "could not prove" when it was
+      // switched off would be false.
+      const char* Because =
+          request.EnableTBRAnalysis
+              ? "to-be-recorded analysis could not show it unused"
+              : "to-be-recorded analysis is disabled";
+      const clang::SourceManager& SM = m_CI.getSourceManager();
+      for (const auto& [K, VD] : Kept) {
+        clang::SourceLocation Loc = m_DerivativePrinter->locationOf(FD, K);
+        if (Loc.isInvalid())
+          continue;
+        utils::diag(S, clang::DiagnosticsEngine::Remark, Loc,
+                    "clad keeps this value for the reverse sweep")
+            << m_DerivativePrinter->rangeOf(FD, K);
+        utils::diag(S, clang::DiagnosticsEngine::Note, Loc, "%0") << Because;
+        // The half the user can act on: the expression in their own code
+        // whose value this is.
+        if (clang::SourceLocation Primal = primalLocationOf(K, VD, SM);
+            Primal.isValid())
+          utils::diag(S, clang::DiagnosticsEngine::Note, Primal,
+                      "the value kept is the one this expression had")
+              << primalRangeOf(K, VD);
+      }
     }
 
     static void printDerivative(clang::Decl* D, bool DeclarationOnly,
@@ -436,6 +628,9 @@ void InitTimers();
         if (!alreadyDerived &&
             (!request.CustomDerivative || request.CallUpdateRequired)) {
           printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
+          if (m_DO.DumpGeneratedSource)
+            dumpGeneratedSource(DerivativeDecl);
+          emitAnalysisRemarks(DerivativeDecl, request);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
           // We ideally should not call `HandleTopLevelDecl` for declarations

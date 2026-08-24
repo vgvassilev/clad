@@ -13,6 +13,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/DiffScheduler.h"
 #include "clad/Differentiator/Version.h"
+#include "../lib/Differentiator/DerivativePrinter.h"
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
@@ -65,7 +66,11 @@ struct DifferentiationOptions {
   bool DumpSourceFnAST = false;
   bool DumpDerivedFn = false;
   bool DumpDerivedAST = false;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  bool Remark##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
   bool GenerateSourceFile = false;
+  bool DumpGeneratedSource = false;
   bool ValidateClangVersion = true;
   /// What the command line asked of each analysis. The two bools record which
   /// of the original -enable-<x>/-disable-<x> pair were seen, so that giving
@@ -138,6 +143,27 @@ inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
   return AnalysisFlagResult::Error;
 }
 
+/// Match -Rclad-analysis=<name>, asking for remarks about what that analysis
+/// left in the generated code. Named after -Rpass-missed, which it is the
+/// analogue of: clang's own remark machinery runs in the backend over LLVM IR
+/// and cannot see an AST-level plugin, so clad carries its own switch.
+inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
+                                               llvm::StringRef Arg) {
+  if (!Arg.consume_front("-Rclad-analysis="))
+    return AnalysisFlagResult::NotMine;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  if (Arg == (Name)) {                                                         \
+    DO.Remark##Id##Analysis = true;                                            \
+    return AnalysisFlagResult::Ok;                                             \
+  }
+#include "clad/Differentiator/Analyses.def"
+  llvm::errs() << "clad: Error: unknown analysis '" << Arg << "'; known:";
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) llvm::errs() << " " Name;
+#include "clad/Differentiator/Analyses.def"
+  llvm::errs() << ".\n";
+  return AnalysisFlagResult::Error;
+}
+
     class CladExternalSource : public clang::ExternalSemaSource {
     // ExternalSemaSource
     void ReadUndefinedButUsed(
@@ -171,6 +197,8 @@ inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
     /// Lazily constructed because it needs Sema, which is not available
     /// until InitializeSema; reach it through getScheduler().
     std::unique_ptr<DiffScheduler> m_Scheduler;
+    /// Built on first use; a run that reports nothing never renders anything.
+    std::unique_ptr<DerivativePrinter> m_DerivativePrinter;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,
@@ -347,6 +375,12 @@ inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
     void SendToMultiplexer();
     bool CheckBuiltins();
     void SetRequestOptions(RequestOptions& opts) const;
+    /// Shows what a generated function looks like as text, and where inside
+    /// that text each of its statements sits.
+    void dumpGeneratedSource(clang::Decl* D);
+    /// Reports what an analysis left behind, at the generated code it left it
+    /// in. Renders that code only if there is something to report.
+    void emitAnalysisRemarks(clang::Decl* D, const DiffRequest& request);
 
     void ProcessTopLevelDecl(clang::Decl* D) {
       DelayedCallInfo DCI{CallKind::HandleTopLevelDecl, D};
@@ -388,6 +422,12 @@ inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
             m_DO.DumpDerivedFn = true;
           } else if (args[i] == "-fdump-derived-fn-ast") {
             m_DO.DumpDerivedAST = true;
+          } else if (args[i] == "-fdump-generated-source") {
+            m_DO.DumpGeneratedSource = true;
+          } else if (AnalysisFlagResult R = remarkAnalysisByName(m_DO, args[i]);
+                     R != AnalysisFlagResult::NotMine) {
+            if (R == AnalysisFlagResult::Error)
+              return false;
           } else if (args[i] == "-fgenerate-source-file") {
             m_DO.GenerateSourceFile = true;
           } else if (args[i] == "-fno-validate-clang-version") {
@@ -419,6 +459,14 @@ inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
                    "derivative.\n"
                 << "-fdump-derived-fn-ast - Prints out the AST of the "
                    "derivative.\n"
+                << "-fdump-generated-source - For each derivative, prints "
+                   "the text clad renders it as and, for every statement in "
+                   "it, the line and column that text occupies. Diagnostics "
+                   "about generated code point into that rendering.\n"
+                << "-Rclad-analysis=<name> - Reports what the named analysis "
+                   "left in the derivative, as remarks pointed at the "
+                   "generated code itself. The analogue of -Rpass-missed, "
+                   "which cannot reach an AST-level plugin.\n"
                 << "-fgenerate-source-file - Produces a file containing the "
                    "derivatives.\n"
                 << "-fno-validate-clang-version - Disables the validation of "
