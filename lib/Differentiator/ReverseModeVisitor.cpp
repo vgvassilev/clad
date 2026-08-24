@@ -237,6 +237,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!m_Context.getLangOpts().CUDA)
       return false;
     if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+      if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+        if (VD->hasAttr<clang::CUDASharedAttr>())
+          return true;
+      }
       if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
         if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
           // Check whether this param is in the global memory of the GPU
@@ -254,6 +258,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
       const auto* base =
           dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImpCasts());
+      if (const auto* VD = dyn_cast<VarDecl>(base->getDecl())) {
+        if (VD->hasAttr<clang::CUDASharedAttr>()) {
+          const auto* idx = ASE->getIdx();
+          return !clad::utils::isInjective(idx, m_DiffReq.m_AnalysisDC);
+        }
+      }
       if (const auto* PVD = dyn_cast<ParmVarDecl>(base->getDecl())) {
         const auto* idx = ASE->getIdx();
         if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
@@ -406,6 +416,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                                     DC, loc, DNI, dFnType);
     m_Derivative = result.fd;
 
+    if (m_DiffReq.Function->hasAttr<clang::CUDAGlobalAttr>()) {
+      auto* GlobalAtt = clang::CUDAGlobalAttr::CreateImplicit(m_Context);
+      GlobalAtt->setImplicit(false);
+      m_Derivative->addAttr(GlobalAtt);
+    }
     // Function declaration scope
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
@@ -2331,6 +2346,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // simplest way to support begin/end functions of the former and not deal
     // with the type mismatch.
     std::string FDName = FD->getNameAsString();
+    if (FDName == "__syncthreads") {
+      addToCurrentBlock(Clone(CE), direction::reverse);
+      return StmtDiff(Clone(CE), nullptr);
+    }
     if (FDName == "begin" || FDName == "end") {
       const Expr* arg = nullptr;
       if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
@@ -4007,9 +4026,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         dummyInit = BuildInitList(args);
       }
     }
+    bool isDynamicSharedMem =
+        VD->hasAttr<CUDASharedAttr>() && VD->getType()->isIncompleteArrayType();
+
+    if (isDynamicSharedMem) {
+      QualType ElemTy = cast<IncompleteArrayType>(VD->getType().getTypePtr())
+                            ->getElementType();
+      VDDerivedType = m_Context.getPointerType(ElemTy);
+      dummyInit = nullptr; // Now perfectly in scope!
+    }
 
     StorageClass SC = isInsideOMPBlock ? SC_Static : SC_None;
 
+    if (VD->getStorageClass() == clang::SC_Extern)
+      SC = clang::SC_Extern;
     // Build the adjoint VarDecl
     VarDecl* VDDerived = nullptr;
     if (m_DiffReq.shouldHaveAdjoint(VD) &&
@@ -4017,8 +4047,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (!isLambdaDS) {
         llvm::StringRef Name = VD->getName();
         std::string CleanName = Name.ltrim('_').str();
-        VDDerived = BuildGlobalVarDecl(VDDerivedType, "_d_" + CleanName,
-                                       dummyInit, false, nullptr, SC);
+        if (isDynamicSharedMem) {
+          QualType ElemTy =
+              cast<IncompleteArrayType>(VD->getType().getTypePtr())
+                  ->getElementType();
+          QualType PointerTy = m_Context.getPointerType(ElemTy);
+          VDDerived = BuildGlobalVarDecl(PointerTy, "_d_" + CleanName,
+                                         /* dummyInit = */ nullptr, false,
+                                         nullptr, SC_None);
+        } else {
+          VDDerived = BuildGlobalVarDecl(VDDerivedType, "_d_" + CleanName,
+                                         dummyInit, false, nullptr, SC);
+        }
+        if (!isDynamicSharedMem && VD->hasAttr<clang::CUDASharedAttr>())
+          VDDerived->setInit(nullptr);
       }
     }
 
@@ -4124,13 +4166,47 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
                                  initDiff.getExpr(), VD->isDirectInit(),
                                  VDCloneTSI, SC);
+    if (isDynamicSharedMem && VDDerived) {
+
+      llvm::SmallVector<Expr*, 0> args;
+      Expr* sizeCall = GetFunctionCall("get_dynamic_smem_size", "clad", args);
+
+      // For dynamic shared memory (extern __shared__ T arr[]), the size is not
+      // known at compile time. The caller must allocate 2x the normal shared
+      // memory size during the kernel launch. The lower half of this memory
+      // is used by the primal array, and the upper half is used by the adjoint.
+      Expr* two = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                                    /*val=*/2);
+      Expr* halfSize = BuildOp(BO_Div, sizeCall, two);
+
+      Expr* primalRef = BuildDeclRef(VDClone);
+      QualType charPtrTy = m_Context.getPointerType(m_Context.CharTy);
+      Expr* castPrimal =
+          m_Sema
+              .BuildCStyleCastExpr(
+                  noLoc, m_Context.getTrivialTypeSourceInfo(charPtrTy), noLoc,
+                  primalRef)
+              .get();
+
+      Expr* byteOffsetPtr = BuildOp(BO_Add, castPrimal, halfSize);
+      Expr* parenOffsetPtr = BuildParens(byteOffsetPtr);
+      Expr* finalInit =
+          m_Sema
+              .BuildCStyleCastExpr(
+                  noLoc, m_Context.getTrivialTypeSourceInfo(VDDerivedType),
+                  noLoc, parenOffsetPtr)
+              .get();
+
+      initDiff.updateStmtDx(finalInit);
+    }
 
     // The choice of isDirectInit is mostly stylistic.
     bool isRealConstArray = false;
     if (const auto* arrType = dyn_cast<ConstantArrayType>(VDType))
       isRealConstArray = arrType->getElementType()->isRealType();
     bool isDirectInit = VD->isDirectInit() && (!RD || isNonAggrClass);
-    if (VDDerivedType->isBuiltinType() || !VD->getInit() || isRealConstArray) {
+    if (!isDynamicSharedMem && (VDDerivedType->isBuiltinType() ||
+                                !VD->getInit() || isRealConstArray)) {
       initDiff.updateStmtDx(getZeroInit(VDType));
       isDirectInit = false;
     } else if (Expr* size = getStdInitListSizeExpr(VD->getInit())) {
@@ -4138,6 +4214,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       isConstructInit = true;
     }
 
+    if (!isDynamicSharedMem && VD->hasAttr<clang::CUDASharedAttr>())
+      initDiff.updateStmtDx(nullptr);
     // Update the initializer
     if (VDDerived)
       SetDeclInit(VDDerived, initDiff.getExpr_dx(), isDirectInit);
@@ -4324,10 +4402,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           else {
             VarDecl* VDDerived = VDDiff.getDecl_dx();
             declsDiff.push_back(VDDerived);
+            if (VD->hasAttr<clang::CUDASharedAttr>() &&
+                (!VDDerived->getInit() ||
+                 VD->getType()->isIncompleteArrayType()))
+              HandleCUDASharedMemoryDecl(VD, cast<VarDecl>(decls.back()),
+                                         VDDerived, memsetCalls);
             // Without an initializer the adjoint is left for the reverse
             // sweep to read uninitialized, which is a wrong gradient rather
             // than a missing one. Refuse instead of answering.
-            if (!VDDerived->getInit())
+            else if (!VDDerived->getInit())
               diag(DiagnosticsEngine::Error, VD->getLocation(),
                    "derivative of the initializer of '%0' is not available; "
                    "the computed gradient would be incorrect")
@@ -4371,6 +4454,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmt* DSClone = nullptr;
     if (!decls.empty())
       DSClone = BuildDeclStmt(decls);
+
+    // For dynamic CUDA shared memory, the adjoint pointer's initialization
+    // relies on the primal array's address (e.g., `_d_sharedMem = sharedMem +
+    // offset`). Therefore, the primal variable must be emitted into the AST
+    // before the adjoint. Reordering them here prevents a
+    // use-before-declaration violation in the ASTIntegrity pass.
+    bool hasCUDAShared = false;
+    for (Decl* decl : decls)
+      if (decl->hasAttr<clang::CUDASharedAttr>())
+        hasCUDAShared = true;
+    if (hasCUDAShared && DSClone && !declsDiff.empty()) {
+      addToCurrentBlock(DSClone, direction::forward);
+      DSClone = nullptr;
+    }
+
     if (!declsDiff.empty()) {
       Stmt* DSDiff = BuildDeclStmt(declsDiff);
       Stmts& block =
