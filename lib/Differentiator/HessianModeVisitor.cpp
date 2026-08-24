@@ -613,7 +613,8 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
       auto size_type = clad_compat::getSizeType(m_Context);
       auto size_type_bits = m_Context.getIntWidth(size_type);
 
-      // Transforms ParmVarDecls into Expr paramters for insertion into function
+      // Transforms ParmVarDecls into Expr parameters for insertion into
+      // function
       std::vector<Expr*> DeclRefToParams;
       DeclRefToParams.resize(params.size());
       std::transform(params.begin(),

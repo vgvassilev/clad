@@ -31,7 +31,7 @@ API reference
    For now it is enough to know that forward mode automatic differentiation (AD)
    is more efficient than the reverse mode automatic differentiation when the
    number of output parameters of the function are greater than the number of
-   input paramters of the function.
+   input parameters of the function.
 
    ::
 
@@ -64,7 +64,7 @@ API reference
 
    Please refer this to know more about the reverse mode automatic differentiation.
    For now it is enough to know that generally reverse mode AD is more efficient
-   than the forward mode AD when there are multiple input paramters.
+   than the forward mode AD when there are multiple input parameters.
 
    ::
 

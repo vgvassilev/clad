@@ -173,7 +173,7 @@ An example that demonstrates the usage of ``clad::hessian``::
 
   int main() {
     // Tells clad to generate a function that computes hessian matrix of the function 
-    // 'kinetic_energy' with respect to all the input paramters.
+    // 'kinetic_energy' with respect to all the input parameters.
     auto hessian_one = clad::hessian(kinetic_energy);
 
     // Can manually specify independent arguments
@@ -209,7 +209,7 @@ Few important things to note about ``clad::hessian``:
     // 'product' function with respect to the input parameters 'i' and 'j'.
     auto d_fn = clad::hessian(product, "i, j");
 
-- ``clad::hessian`` also supports differentiating w.r.t multiple paramters.
+- ``clad::hessian`` also supports differentiating w.r.t multiple parameters.
 
 ::
   
@@ -290,7 +290,7 @@ Clad can compute the
 
  Few important things to note through this example:
 
- - ``clad::jacobian`` supports differentiating w.r.t multiple paramters.
+ - ``clad::jacobian`` supports differentiating w.r.t multiple parameters.
 
  - The clad::matrix args are generated for all array/pointer parameters. They need to be passed
    after the original parameters to ``CladFunction::execute`` call. The size of every matrix
