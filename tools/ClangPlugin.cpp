@@ -269,23 +269,20 @@ void InitTimers();
       const auto* FD = llvm::dyn_cast<clang::FunctionDecl>(D);
       if (!FD || !FD->getBody())
         return;
-      if (!m_DerivativePrinter)
-        m_DerivativePrinter =
-            std::make_unique<DerivativePrinter>(m_CI.getSema());
 
       llvm::outs() << "generated-source: " << FD->getNameAsString() << "\n";
       // Every statement the printer announced, in the order its text appears.
       llvm::SmallVector<const clang::Stmt*, 32> Ordered;
-      collectStmts(FD->getBody(), *m_DerivativePrinter, FD, Ordered);
+      collectStmts(FD->getBody(), getDerivativePrinter(), FD, Ordered);
       clang::SourceManager& SM = m_CI.getSourceManager();
       auto offsetOf = [&](const clang::Stmt* S) {
-        return SM.getFileOffset(m_DerivativePrinter->locationOf(FD, S));
+        return SM.getFileOffset(getDerivativePrinter().locationOf(FD, S));
       };
       llvm::stable_sort(Ordered,
                         [&](const clang::Stmt* A, const clang::Stmt* B) {
                           return offsetOf(A) < offsetOf(B);
                         });
-      llvm::StringRef Text = m_DerivativePrinter->textOf(FD);
+      llvm::StringRef Text = getDerivativePrinter().textOf(FD);
       unsigned Last = ~0U;
       for (const clang::Stmt* S : Ordered) {
         // One line per position: the innermost and outermost node starting at
@@ -294,7 +291,7 @@ void InitTimers();
         if (Offset == Last)
           continue;
         Last = Offset;
-        clang::SourceRange R = m_DerivativePrinter->rangeOf(FD, S);
+        clang::SourceRange R = getDerivativePrinter().rangeOf(FD, S);
         clang::PresumedLoc B = SM.getPresumedLoc(R.getBegin());
         clang::PresumedLoc E = SM.getPresumedLoc(R.getEnd());
         // Begin and end columns, so a test can pin how wide a node is and not
@@ -402,13 +399,10 @@ void InitTimers();
       if (Kept.empty())
         return; // Nothing to say, so nothing gets rendered.
 
-      if (!m_DerivativePrinter)
-        m_DerivativePrinter =
-            std::make_unique<DerivativePrinter>(m_CI.getSema());
       // The differentiation this derivative came from, so a reader is pointed
       // at the line they would edit rather than at the top of their file.
       if (request.CallContext)
-        m_DerivativePrinter->noteRequestedAt(
+        getDerivativePrinter().noteRequestedAt(
             FD, request.CallContext->getBeginLoc());
       clang::Sema& S = m_CI.getSema();
       // Why the value is still here is a different sentence depending on
@@ -420,12 +414,12 @@ void InitTimers();
               : "to-be-recorded analysis is disabled";
       const clang::SourceManager& SM = m_CI.getSourceManager();
       for (const auto& [K, VD] : Kept) {
-        clang::SourceLocation Loc = m_DerivativePrinter->locationOf(FD, K);
+        clang::SourceLocation Loc = getDerivativePrinter().locationOf(FD, K);
         if (Loc.isInvalid())
           continue;
         utils::diag(S, clang::DiagnosticsEngine::Remark, Loc,
                     "clad keeps this value for the reverse sweep")
-            << m_DerivativePrinter->rangeOf(FD, K);
+            << getDerivativePrinter().rangeOf(FD, K);
         utils::diag(S, clang::DiagnosticsEngine::Note, Loc, "%0") << Because;
         // The half the user can act on: the expression in their own code
         // whose value this is.
@@ -770,6 +764,13 @@ void InitTimers();
               : (m_DO.Id##Switch == AnalysisSwitch::On);
 #include "clad/Differentiator/Analyses.def"
       opts.EmitPortingHints = m_DO.EmitPortingHints;
+    }
+
+    DerivativePrinter& CladPlugin::getDerivativePrinter() {
+      if (!m_DerivativePrinter)
+        m_DerivativePrinter =
+            std::make_unique<DerivativePrinter>(m_CI.getSema());
+      return *m_DerivativePrinter;
     }
 
     DiffScheduler& CladPlugin::getScheduler() {

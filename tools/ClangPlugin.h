@@ -198,6 +198,7 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
     /// until InitializeSema; reach it through getScheduler().
     std::unique_ptr<DiffScheduler> m_Scheduler;
     /// Built on first use; a run that reports nothing never renders anything.
+    /// Reach it through getDerivativePrinter().
     std::unique_ptr<DerivativePrinter> m_DerivativePrinter;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
@@ -353,6 +354,7 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
 
   private:
     DiffScheduler& getScheduler();
+    DerivativePrinter& getDerivativePrinter();
     void AppendDelayed(DelayedCallInfo DCI) {
       // Incremental processing handles the translation unit in chunks and it is
       // expected to have multiple calls to this functionality.
