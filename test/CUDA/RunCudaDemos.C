@@ -1,11 +1,11 @@
 // RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath %cudaldflags -o VectorAddition.out %S/../../demos/CUDA/VectorAddition.cu 2>&1 | FileCheck -check-prefix CHECK_VECTOR_ADDITION %s
-// REQUIRES: cuda-runtime
+// REQUIRES: cuda-compile
 // CHECK_VECTOR_ADDITION: void vector_addition_grad(const thrust::device_vector<double> &x, const thrust::device_vector<double> &y, thrust::device_vector<double> *_d_x, thrust::device_vector<double> *_d_y)
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::transform_reverse_forw
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::reduce_pullback
 // CHECK_VECTOR_ADDITION: clad::custom_derivatives::thrust::transform_pullback
 
-// RUN: %cudarun ./VectorAddition.out | FileCheck -check-prefix CHECK_VECTOR_ADDITION_EXEC %s
+// RUN: %if cuda-runtime %{ %cudarun ./VectorAddition.out | FileCheck -check-prefix CHECK_VECTOR_ADDITION_EXEC %s %}
 // CHECK_VECTOR_ADDITION_EXEC: Running vector addition demo.
 // CHECK_VECTOR_ADDITION_EXEC: Gradients of sum wrt initial x: 1 1 1 1 1 1 1 1 1 1 
 
@@ -17,7 +17,7 @@
 // CHECK_PARTICLE_SIMULATION: clad::custom_derivatives::thrust::copy_pullback
 // CHECK_PARTICLE_SIMULATION: clad::custom_derivatives::thrust::transform_pullback
 
-// RUN: %cudarun ./ParticleSimulation.out | FileCheck -check-prefix CHECK_PARTICLE_SIMULATION_EXEC %s
+// RUN: %if cuda-runtime %{ %cudarun ./ParticleSimulation.out | FileCheck -check-prefix CHECK_PARTICLE_SIMULATION_EXEC %s %}
 // CHECK_PARTICLE_SIMULATION_EXEC: Running particle simulation demo.
 // CHECK_PARTICLE_SIMULATION_EXEC: Gradients of final x-pos sum wrt initial vx: 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5
 
@@ -44,7 +44,7 @@
 // CHECK_LINEAR_REGRESSION-NEXT:     }
 // CHECK_LINEAR_REGRESSION-NEXT: }
 
-// RUN: %cudarun ./LinearRegression.out | FileCheck -check-prefix CHECK_LINEAR_REGRESSION_EXEC %s
+// RUN: %if cuda-runtime %{ %cudarun ./LinearRegression.out | FileCheck -check-prefix CHECK_LINEAR_REGRESSION_EXEC %s %}
 // CHECK_LINEAR_REGRESSION_EXEC: Running linear regression demo.
 // CHECK_LINEAR_REGRESSION_EXEC: Gradients of loss wrt weights (w): -9 -18 -27 -36 -45 -54 -63 -72 -81 -90
 
@@ -53,7 +53,7 @@
 // CHECK_BOW_LOGREG: void logistic_loss_batch2_prepared_l2_grad(
 // CHECK_BOW_LOGREG: clad::custom_derivatives::thrust::inner_product_pullback
 
-// RUN: %cudarun ./BoWLogisticRegression.out | FileCheck -check-prefix CHECK_BOW_LOGREG_EXEC %s
+// RUN: %if cuda-runtime %{ %cudarun ./BoWLogisticRegression.out | FileCheck -check-prefix CHECK_BOW_LOGREG_EXEC %s %}
 // CHECK_BOW_LOGREG_EXEC: Running minimal logistic regression demo.
 // CHECK_BOW_LOGREG_EXEC: Loss:
 // CHECK_BOW_LOGREG_EXEC: Gradient wrt w:
