@@ -97,10 +97,13 @@ def main(vdir, out=None):
         lines += ["", f"Evidence from a single platform:", ""]
         for name, (plat, kind) in narrow:
             lines.append(f"  {name} -- only {plat} ({kind})")
-        lines += ["", "That is the expected shape for a defect that only "
-                  "manifests under one", "row's checking, such as valgrind or "
-                  "a sanitizer. If this test is not", "about such a defect, "
-                  "the result is more likely flaky than meaningful."]
+        lines += ["", "One row and no other is what a defect confined to "
+                  "that row's configuration", "looks like: a sanitizer or "
+                  "valgrind row, but equally the only row with a", "given "
+                  "toolkit, compiler or standard-library version. It is also "
+                  "what a", "flake looks like. Which one this is depends on "
+                  "whether that row is singular", "in a way the change is "
+                  "about."]
 
     if moved:
         lines += ["", "This change edits where these run rather than what "
@@ -108,6 +111,7 @@ def main(vdir, out=None):
                   "gating against the old sources and is", "not evidence "
                   "either way:", ""]
         lines += [f"  {t}" for t in moved]
+
     if forced:
         lines += ["", "These cannot fail without the change, but their "
                   "pre-change form fails with", "it -- edits the change "
