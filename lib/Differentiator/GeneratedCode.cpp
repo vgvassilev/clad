@@ -6,42 +6,170 @@
 
 #include "llvm/Support/MemoryBuffer.h"
 
+#include <algorithm>
+#include <cstring>
 #include <string>
+#include <utility>
 
 using namespace clang;
 
 namespace clad {
 
+namespace {
+
+/// Whether the SourceManager has already worked out where \p File's lines
+/// are. It does that once and keeps the answer, so anything printed after
+/// that would sit on lines it does not know about.
+bool lineBoundariesTaken(SourceManager& SM, FileID File) {
+  return bool(
+      SM.getSLocEntry(File).getFile().getContentCache().SourceLineCache);
+}
+
+} // namespace
+
 SourceLocation GeneratedCode::nextLoc() {
   SourceManager& SM = m_Sema.getSourceManager();
   if (m_Used == kSlotsPerChunk) {
-    // One newline per slot: a slot is a line, so its presumed line is already
-    // its index and a note only has to say where that line really is.
-    std::string Slots(kSlotsPerChunk, '\n');
-    // Named apart from the chunks before it. A chunk restarts line numbering
-    // at 1 and the line table keys a file by its name, so same-named chunks
-    // fold into one entry and two generated statements report the same
-    // position.
-    std::string Name = "<clad generated code>";
-    if (m_Chunks)
-      Name = "<clad generated code #" + std::to_string(m_Chunks + 1) + ">";
-    ++m_Chunks;
-    // Entered from the main file. A chunk outside the translation unit's
-    // include tree cannot be ordered against anything inside it:
-    // isBeforeInTranslationUnit walks up to a file the two share, runs out of
-    // parents, and reports "Unsortable locations found" -- which clad reaches
-    // whenever it sorts a derivative against a pragma. clang-repl enters its
-    // input buffers the same way.
-    m_Chunk = SM.createFileID(llvm::MemoryBuffer::getMemBufferCopy(Slots, Name),
-                              SrcMgr::C_User,
-                              /*LoadedID=*/0, /*LoadedOffset=*/0,
-                              SM.getLocForStartOfFile(SM.getMainFileID()));
+    const std::string Name = nextName();
+    constexpr unsigned TextBytes = kSlotsPerChunk * kTextBytesPerSlot;
+    auto Owned = llvm::WritableMemoryBuffer::getNewUninitMemBuffer(
+        TextBytes + kSlotsPerChunk, Name);
+    char* Start = Owned->getBufferStart();
+    // A blank line everywhere until code is printed over it: every slot has
+    // to be a line of its own, and uninitialised bytes would otherwise reach
+    // whoever reads this.
+    std::memset(Start, '\n', TextBytes + kSlotsPerChunk);
+
+    // Entered from the main file, the way clang-repl enters its input. A
+    // chunk outside the include tree cannot be ordered against anything
+    // inside it: isBeforeInTranslationUnit runs out of shared parents and
+    // reports "Unsortable locations found", which clad hits whenever it sorts
+    // a derivative against a pragma.
+    FileID File = SM.createFileID(std::move(Owned), SrcMgr::C_User,
+                                  /*LoadedID=*/0, /*LoadedOffset=*/0,
+                                  SM.getLocForStartOfFile(SM.getMainFileID()));
+    Chunk C;
+    C.File = File;
+    C.Name = Name;
+    C.Text = Start;
+    C.Capacity = TextBytes;
+    m_ChunkList.push_back(std::move(C));
     m_Used = 0;
   }
-  // Signed, because that is what getLocWithOffset takes; a slot index is
-  // bounded by kSlotsPerChunk, so it always fits.
-  return SM.getLocForStartOfFile(m_Chunk).getLocWithOffset(
-      static_cast<int>(m_Used++));
+  ++m_ChunkList.back().Slots;
+  // Slots sit behind the code. Signed because that is what getLocWithOffset
+  // takes; a chunk is small enough that the offset always fits.
+  return SM.getLocForStartOfFile(m_ChunkList.back().File)
+      .getLocWithOffset(
+          static_cast<int>(m_ChunkList.back().Capacity + m_Used++));
+}
+
+std::string GeneratedCode::nextName() const {
+  // Named apart from the chunks before it. Every chunk numbers its lines
+  // from 1 and the line table keys a file by name, so two chunks sharing a
+  // name would put two statements at the same position.
+  if (m_ChunkList.empty())
+    return "<clad generated code>";
+  return "<clad generated code #" + std::to_string(m_ChunkList.size() + 1) +
+         ">";
+}
+
+GeneratedCode::Chunk* GeneratedCode::chunkFor(SourceLocation Loc) {
+  return const_cast<Chunk*>(
+      static_cast<const GeneratedCode*>(this)->chunkFor(Loc));
+}
+
+const GeneratedCode::Chunk* GeneratedCode::chunkFor(SourceLocation Loc) const {
+  if (Loc.isInvalid())
+    return nullptr;
+  FileID File = m_Sema.getSourceManager().getFileID(Loc);
+  for (const Chunk& C : m_ChunkList)
+    if (C.File == File)
+      return &C;
+  return nullptr;
+}
+
+GeneratedCode::Placement GeneratedCode::addText(SourceLocation Anchor,
+                                                llvm::StringRef Text) {
+  Chunk* C = chunkFor(Anchor);
+  if (!C || Text.empty())
+    return {};
+  SourceManager& SM = m_Sema.getSourceManager();
+  // Printing now would move lines the SourceManager has already committed to,
+  // and every position it reports here afterwards would be off. Say nothing
+  // rather than something untrue.
+  if (lineBoundariesTaken(SM, C->File))
+    return {};
+  // A trailing newline so the next derivative starts on a line of its own
+  // rather than continuing this one.
+  const size_t Need = Text.size() + 1;
+  if (Need > C->Capacity - C->Used)
+    return {}; // Code that does not fit stays a blank line.
+  const unsigned At = C->Used;
+  const unsigned First = C->NextLine;
+  std::memcpy(C->Text + At, Text.data(), Text.size());
+  C->Text[At + Text.size()] = '\n';
+  C->Used += static_cast<unsigned>(Need);
+  // Printing over blank lines removes newlines, so the lines after this one
+  // move up. Only lines nothing has been printed on yet, so nothing already
+  // placed moves.
+  C->NextLine += static_cast<unsigned>(Text.count('\n')) + 1;
+  return {SM.getLocForStartOfFile(C->File).getLocWithOffset(At), First};
+}
+
+llvm::StringRef GeneratedCode::textAt(Placement P, unsigned Size) const {
+  const Chunk* C = chunkFor(P.Loc);
+  if (!C)
+    return {};
+  const unsigned At = m_Sema.getSourceManager().getFileOffset(P.Loc);
+  return llvm::StringRef(C->Text + At, std::min(Size, C->Capacity - At));
+}
+
+void GeneratedCode::assign(SourceLocation Begin, SourceLocation End,
+                           unsigned Line) {
+  Chunk* C = chunkFor(Begin);
+  if (!C || !Line)
+    return;
+  SourceManager& SM = m_Sema.getSourceManager();
+  const unsigned First = SM.getFileOffset(Begin);
+  // An end in another chunk says nothing about this one; keep to the slot
+  // the range started at.
+  unsigned Last = First;
+  if (End.isValid() && chunkFor(End) == C)
+    Last = std::max(First, SM.getFileOffset(End));
+
+  C->SlotLine.resize(C->Slots, 0);
+  for (unsigned O = First; O <= Last; ++O) {
+    if (O < C->Capacity)
+      continue; // Before the slots: part of the code, not a slot.
+    const unsigned I = O - C->Capacity;
+    if (I < C->SlotLine.size())
+      C->SlotLine[I] = Line;
+  }
+}
+
+void GeneratedCode::present() {
+  SourceManager& SM = m_Sema.getSourceManager();
+  for (Chunk& C : m_ChunkList) {
+    if (C.Presented)
+      continue; // Its notes are in, and a second pass would go backwards.
+    C.Presented = true;
+    C.SlotLine.resize(C.Slots, 0);
+    const SourceLocation Base = SM.getLocForStartOfFile(C.File);
+    // Line 1 until told otherwise, so a slot nobody described points at the
+    // start of the code rather than past its end.
+    unsigned Line = 1;
+    for (unsigned I = 0; I != C.Slots; ++I) {
+      if (C.SlotLine[I])
+        Line = C.SlotLine[I];
+      // Line + 1 because a note reads as #line does: it gives the number of
+      // the line after it, and each slot is a line.
+      SM.AddLineNote(Base.getLocWithOffset(static_cast<int>(C.Capacity + I)),
+                     Line + 1,
+                     /*FilenameID=*/-1, /*IsFileEntry=*/false,
+                     /*IsFileExit=*/false, SrcMgr::C_User);
+    }
+  }
 }
 
 } // namespace clad

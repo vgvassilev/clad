@@ -186,6 +186,9 @@ struct DerivativeAndOverload {
     /// A location for a node about to be built. Distinct per node, so that a
     /// line note can later say where that node really ended up.
     clang::SourceLocation GenLoc();
+    /// Where those locations point, for a caller with generated code to print
+    /// into it.
+    GeneratedCode& getGeneratedCode();
     /// Fuction to set the error diagnostic printing value for numerical
     /// differentiation.
     ///

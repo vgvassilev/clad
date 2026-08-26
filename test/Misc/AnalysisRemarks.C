@@ -10,15 +10,11 @@
 // RUN:   -fsyntax-only %s -I%S/../../include 2>&1 \
 // RUN:   | %filecheck --check-prefixes=CHECK,CHECK-NOKEEP %s
 //
-// A rendering has to be entered from somewhere in the translation unit, and
-// clang prints that place above the diagnostic. It is the differentiation
-// that asked for this derivative, which is the line a reader would edit --
-// not the top of their file, which would say nothing.
-// CHECK: In file included from {{.*}}AnalysisRemarks.C:[[@LINE+113]]:
-//
-// The caret lands inside the rendered derivative, on the statement itself --
-// the whole point, since none of this text exists in any file.
-// CHECK: <clad derivative of f_grad>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// The caret lands inside the generated code, on the statement itself -- the
+// whole point, since none of this text exists in a file the user wrote. One
+// buffer holds every derivative in the unit, so which one this is comes from
+// the note below rather than from the buffer's name.
+// CHECK: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK: double _t0 = t;
 // The whole statement is underlined, not just its first character: a range
 // reads as one thing where a caret reads as a position.
@@ -28,23 +24,28 @@
 // Which derivative this is, said in the diagnostic rather than left to the
 // include stack: a caret on the differentiation, and the name of what is
 // being differentiated.
-// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+99]]:12: note: in the derivative of 'f' requested here
+// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+105]]:12: note: in the derivative of 'f' requested here
 // CHECK-NEXT: clad::gradient(f)
 //
 // And the half the user can act on -- their own code, with the expression
 // whose value is being kept.
-// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+75]]:3: note: the value kept is the one this expression had
+// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+81]]:3: note: the value kept is the one this expression had
 // CHECK-NEXT: t = t * t;
 //
 // A value the reverse sweep needs once per iteration cannot go into a
 // variable of its own, so clad pushes it onto a tape. The push is what
 // costs, and it is what the remark has to point at -- not the tape, which
 // is only the container.
-// CHECK: <clad derivative of loopy_grad_0>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK: clad::push(
+// Directly under it the underline, and nothing else. Clang reads the line to
+// show out of the buffer, at the number the remark gives, so a derivative
+// printed somewhere other than where it says it is shows up right here: the
+// next line of the buffer instead of the underline.
+// CHECK-NEXT: {{\^~+$}}
 // CHECK: note: to-be-recorded analysis could not show it unused
 // CHECK: note: in the derivative of 'loopy' requested here
-// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+74]]:5: note: the value kept is the one this expression had
+// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+75]]:5: note: the value kept is the one this expression had
 // CHECK-NEXT: t = t * t;
 //
 // Not every derivative has a differentiation to name. The second derivative a
@@ -52,10 +53,10 @@
 // note is left out rather than aimed at something arbitrary -- and the run's
 // exhaustive note matching is what holds it to that. The rest of the remark is
 // unchanged.
-// CHECK: <clad derivative of f_pushforward_pullback>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK: note: to-be-recorded analysis could not show it unused
 // CHECK: note: the value kept is the one this expression had
-// CHECK: <clad derivative of f_pushforward_pullback>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK: note: to-be-recorded analysis could not show it unused
 // CHECK: note: the value kept is the one this expression had
 //
@@ -66,7 +67,7 @@
 // RUN:   -Xclang -plugin-arg-clad -Xclang -fdisable-analysis=tbr \
 // RUN:   -fsyntax-only %s -I%S/../../include 2>&1 \
 // RUN:   | %filecheck --check-prefix=CHECK-OFF %s
-// CHECK-OFF: <clad derivative of f_grad>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK-OFF: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK-OFF: note: to-be-recorded analysis is disabled
 // Neither pointer back into the user's code depends on the analysis: which
 // derivative this is, and the expression whose value is kept.
@@ -74,21 +75,22 @@
 // CHECK-OFF: note: the value kept is the one this expression had
 // Nor does the tape: what changes with the switch is the reason, not which
 // values are reported or where they came from.
-// CHECK-OFF: <clad derivative of loopy_grad_0>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK-OFF: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK-OFF: note: to-be-recorded analysis is disabled
 // CHECK-OFF: note: in the derivative of 'loopy' requested here
 // CHECK-OFF: note: the value kept is the one this expression had
 // Nor does the switch put an attribution back where there never was one.
-// CHECK-OFF: <clad derivative of f_pushforward_pullback>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK-OFF: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK-OFF: note: to-be-recorded analysis is disabled
 // CHECK-OFF: note: the value kept is the one this expression had
-// CHECK-OFF: <clad derivative of f_pushforward_pullback>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK-OFF: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK-OFF: note: to-be-recorded analysis is disabled
 // CHECK-OFF: note: the value kept is the one this expression had
 //
 // A derivative with nothing to keep is not something to report: asking about
-// it says nothing rather than saying there is nothing.
-// CHECK-NOKEEP-NOT: <clad derivative of lin_grad>
+// it says nothing rather than saying there is nothing. By the note, since one
+// buffer holds every derivative and its name says nothing about which.
+// CHECK-NOKEEP-NOT: in the derivative of 'lin' requested here
 //
 // A name no analysis answers to is refused, and the refusal says which names
 // there are. Plain FileCheck here: the run fails, so its output carries an
@@ -102,7 +104,7 @@
 // RUN: %cladclang -fsyntax-only %s -I%S/../../include 2>&1 \
 // RUN:   | %filecheck --check-prefix=CHECK-QUIET --allow-empty %s
 // CHECK-QUIET-NOT: remark:
-// CHECK-QUIET-NOT: clad derivative of
+// CHECK-QUIET-NOT: clad generated code
 
 #include "clad/Differentiator/Differentiator.h"
 

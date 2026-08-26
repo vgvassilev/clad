@@ -253,6 +253,22 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
     /// The Sema::TUScope to restore in CladPlugin::HandleTranslationUnit.
     clang::Scope* m_StoredTUScope = nullptr;
 
+    /// A derivative, and what a report about it would say.
+    struct Generated {
+      clang::FunctionDecl* Derivative = nullptr;
+      /// What was differentiated to get it, and where that was written.
+      /// Both or neither: clad asks for some derivatives itself, and those
+      /// were written on no line at all.
+      const clang::FunctionDecl* Original = nullptr;
+      clang::SourceLocation RequestedAt;
+      /// Whether the to-be-recorded analysis ran, which decides the reason a
+      /// remark gives for a value being kept.
+      bool AnalysisRan = false;
+    };
+
+    /// The derivatives produced here, in the order they were produced.
+    llvm::SmallVector<Generated, 8> m_Generated;
+
   public:
     CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
     ~CladPlugin() override;
@@ -355,6 +371,10 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
   private:
     DiffScheduler& getScheduler();
     DerivativePrinter& getDerivativePrinter();
+    /// Prints every derivative into the buffer its nodes point into, then
+    /// reports on it: the line notes, the remarks, the source dump. Runs once
+    /// the whole unit is derived and before code generation.
+    void materializeGeneratedCode();
     void AppendDelayed(DelayedCallInfo DCI) {
       // Incremental processing handles the translation unit in chunks and it is
       // expected to have multiple calls to this functionality.
@@ -381,8 +401,8 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
     /// that text each of its statements sits.
     void dumpGeneratedSource(clang::Decl* D);
     /// Reports what an analysis left behind, at the generated code it left it
-    /// in. Renders that code only if there is something to report.
-    void emitAnalysisRemarks(clang::Decl* D, const DiffRequest& request);
+    /// in.
+    void emitAnalysisRemarks(const Generated& G);
 
     void ProcessTopLevelDecl(clang::Decl* D) {
       DelayedCallInfo DCI{CallKind::HandleTopLevelDecl, D};

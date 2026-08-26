@@ -12,10 +12,14 @@
 //
 // Two generated statements do not report one position. Counted rather than
 // pinned to particular lines: which line a statement lands on depends on how
-// many nodes clad built before it, and asserting that would test the
+// much code clad wrote before it, and asserting that would test the
 // generator's output instead of the property. Every row the buffer owns,
 // deduplicated by line -- one would mean every statement shares a position,
 // which is the state this replaces.
+//
+// A handful rather than thousands: a slot is presented as the line of
+// generated code it stands for, so this counts lines of a derivative, not
+// slots handed out.
 // RUN: %llvm-dwarfdump --debug-line %t.o | awk '\
 // RUN:   BEGIN { want = -1 } \
 // RUN:   /file_names\[/ { idx++ } \
@@ -23,7 +27,7 @@
 // RUN:   /^0x[0-9a-f]+ / && $4 == want { line[$2] = 1 } \
 // RUN:   END { n = 0; for (l in line) n++; print "distinct-lines", n }' \
 // RUN:   | %filecheck --check-prefix=DISTINCT %s
-// DISTINCT: distinct-lines {{[0-9][0-9]+}}
+// DISTINCT: distinct-lines {{([2-9]|[1-9][0-9]+)}}
 
 #include "clad/Differentiator/Differentiator.h"
 

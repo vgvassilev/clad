@@ -3,42 +3,149 @@
 
 #include "clang/Basic/SourceLocation.h"
 
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+
+#include <string>
+#include <vector>
+
 namespace clang {
 class Sema;
 } // namespace clang
 
 namespace clad {
 
-/// The code clad generates, and the source locations that point into it.
+/// Somewhere for clad's generated code to be, and for its nodes to point at.
 ///
-/// A location has to be supplied when a node is built, long before the text
-/// that node will be printed as exists, so it cannot be the node's real
-/// position. What it can be is *distinct*, which is enough to tell two
-/// generated nodes apart in a diagnostic or in DWARF, and enough for a line
-/// note to say later where each one really ended up.
+/// Nothing clad builds comes from a file, so a diagnostic about it has
+/// nothing to underline and a debugger nothing to show. So clad prints each
+/// derivative into a buffer the SourceManager knows about, and the nodes it
+/// built point into that same buffer.
 ///
-/// Slots come from buffers of newlines, one per line, so a slot's presumed
-/// line is its index. They are allocated in chunks as slots run out. One large
-/// buffer instead would not do: a buffer handed to the SourceManager is fixed,
-/// and reserving generously is not free either, because every slot is written
-/// and the SourceManager scans a buffer end to end to build its line table the
-/// first time anyone asks for a line number in it.
+/// A node needs its location the moment it is built, long before the
+/// derivative is printed, so it cannot be told where it will end up. It gets
+/// a *slot* instead: one byte of the buffer, reserved for it alone. Once the
+/// code is printed, a line note in front of each slot says which line that
+/// node landed on, the way `#line` does.
+///
+/// The buffer -- a *chunk* -- is the printed code followed by the slots:
+///
+/// \code
+///   inline void f_grad(double x, double *_d_x) {   line 1
+///       double _t0 = t;                            line 2
+///       t = t * t;                                 line 3
+///   }                                              line 4
+///                                                  a slot, presented as the
+///                                                  line its node was printed
+///                                                  on
+/// \endcode
+///
+/// Code and slots share a file because a diagnostic and a debugger have to
+/// agree on where a statement is. Slots come after the code, so one that
+/// nobody described lands past the end of it rather than in the middle, and
+/// take a byte each, since a slot needs a distinct offset and not a line.
+///
+/// Chunks are a fixed size, and a new one is made when the slots run out: the
+/// SourceManager owns a buffer once it is handed over, so none of them can
+/// grow. That brings the one rule here -- a chunk has to be finished before
+/// it is read. The SourceManager works out where a buffer's lines are on the
+/// first question about it and keeps the answer, so code printed later would
+/// sit on lines it has never heard of. Printing into a chunk that has been
+/// read is refused.
 class GeneratedCode {
-  /// Slots per buffer. A chunk is paid for in full once allocated, so this
-  /// trades memory against how many files a derivative is split across -- the
-  /// first is not allocated until the first slot is asked for.
+  /// Slots in a chunk. A chunk is paid for in full as soon as it is made, so
+  /// this trades memory against how many buffers a derivative is spread over.
   static constexpr unsigned kSlotsPerChunk = 8192;
 
+  /// Room for printed code, per slot. Reserved up front because a buffer
+  /// cannot grow, and paid for whether it is used or not. Clad's own test
+  /// suite averages ten bytes of code per slot; a derivative that runs over
+  /// what is left of a chunk does not get printed at all.
+  static constexpr unsigned kTextBytesPerSlot = 12;
+
+  /// One buffer: the printed code at the front, then one byte per slot.
+  struct Chunk {
+    clang::FileID File;
+    std::string Name;       ///< what the line table calls it
+    char* Text = nullptr;   ///< the writable region, at the front
+    unsigned Capacity = 0;  ///< how many bytes of it there are
+    unsigned Used = 0;      ///< how many of them are written
+    unsigned Slots = 0;     ///< how many slots have been handed out
+    unsigned NextLine = 1;  ///< the line the next code written here starts on
+    bool Presented = false; ///< whether its line notes are already in
+    /// The line of printed code each slot stands for, by slot; zero for a slot
+    /// nobody described.
+    std::vector<unsigned> SlotLine;
+  };
+
+  /// The chunk \p Loc is in, or null if it is not one of ours.
+  Chunk* chunkFor(clang::SourceLocation Loc);
+  const Chunk* chunkFor(clang::SourceLocation Loc) const;
+
+  /// What to call the chunk about to be made.
+  std::string nextName() const;
+
   clang::Sema& m_Sema;
-  clang::FileID m_Chunk;
+  llvm::SmallVector<Chunk, 2> m_ChunkList;
   unsigned m_Used = kSlotsPerChunk; // forces the first nextLoc() to allocate
-  unsigned m_Chunks = 0; // names the next chunk apart from the ones before it
 
 public:
   explicit GeneratedCode(clang::Sema& S) : m_Sema(S) {}
 
   /// A location no other generated node has been given.
   clang::SourceLocation nextLoc();
+
+  /// Where a piece of code was printed, and the line it starts on.
+  struct Placement {
+    clang::SourceLocation Loc; ///< the first character of the code
+    unsigned Line = 0;         ///< the line it begins on; 0 if it went nowhere
+    explicit operator bool() const { return Line != 0; }
+  };
+
+  /// Prints \p Text into the chunk \p Anchor is in, after whatever is there.
+  ///
+  /// \p Anchor is a slot of the code being printed: a note on a slot can only
+  /// name a line of its own file, so the two have to share a chunk. Comes
+  /// back empty if the code does not fit or the chunk has been read.
+  Placement addText(clang::SourceLocation Anchor, llvm::StringRef Text);
+
+  /// The bytes printed at \p P, \p Size of them.
+  llvm::StringRef textAt(Placement P, unsigned Size) const;
+
+  /// Says that the slots from \p Begin through \p End belong to code on line
+  /// \p Line of the chunk they are in.
+  ///
+  /// By range, because a statement is built out of many nodes and the one an
+  /// instruction is attributed to is rarely the first. Assign the outer
+  /// statements before the inner ones, so the innermost -- the most specific
+  /// answer -- is the one that stays.
+  void assign(clang::SourceLocation Begin, clang::SourceLocation End,
+              unsigned Line);
+
+  /// Puts a line note in front of every slot, so each presents as the line of
+  /// code it stands for.
+  ///
+  /// Every slot, not only the described ones: without a note of its own a
+  /// slot reports one line further on than the slot before it, which walks
+  /// off the end of the code.
+  void present();
+
+  /// Stops anything more being printed into the chunks made so far, because
+  /// they have been read. Incremental compilation comes back for another
+  /// round of derivatives; those get chunks of their own.
+  void seal() { m_Used = kSlotsPerChunk; }
+
+  /// Whether \p A and \p B are in the same chunk, which is what it takes for
+  /// a note on one to name a line of the other.
+  bool sameChunk(clang::SourceLocation A, clang::SourceLocation B) const {
+    const Chunk* C = chunkFor(A);
+    return C && C == chunkFor(B);
+  }
+
+  /// Whether \p Loc is one of the slots handed out here.
+  bool owns(clang::SourceLocation Loc) const {
+    return chunkFor(Loc) != nullptr;
+  }
 };
 
 } // namespace clad

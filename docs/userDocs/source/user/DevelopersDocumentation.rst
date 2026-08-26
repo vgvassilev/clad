@@ -162,10 +162,13 @@ Inspecting the generated code
 =============================
 
 Clad builds the derivative as an AST, so its statements belong to no file and
-have nothing a diagnostic can point at. Clad renders a derivative into a
+have nothing a diagnostic can point at. Clad renders its derivatives into a
 buffer it registers with the ``SourceManager``, which gives every generated
-statement a line and a column, and two switches report through it. Both are
-plugin arguments, so each needs ``-Xclang -plugin-arg-clad -Xclang`` in front.
+statement a line and a column, and two switches report through it. One buffer
+holds every derivative in the translation unit, so a diagnostic names the
+buffer rather than the derivative -- which derivative it is comes from a note.
+Both are plugin arguments, so each needs ``-Xclang -plugin-arg-clad -Xclang``
+in front.
 
 ``-Rclad-analysis=<name>``
 --------------------------------
@@ -177,11 +180,10 @@ plugin working on the AST.
 
 .. code-block:: none
 
-   In file included from doc.cpp:8:
-   <clad derivative of f_grad>:4:5: remark: clad keeps this value for the reverse sweep
+   <clad generated code>:4:5: remark: clad keeps this value for the reverse sweep
        4 |     double _t0 = t;
          |     ^~~~~~~~~~~~~~
-   <clad derivative of f_grad>:4:5: note: to-be-recorded analysis could not show it unused
+   <clad generated code>:4:5: note: to-be-recorded analysis could not show it unused
    doc.cpp:8:12: note: in the derivative of 'f' requested here
        8 |   auto g = clad::gradient(f);
          |            ^
