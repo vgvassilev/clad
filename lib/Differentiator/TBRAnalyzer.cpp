@@ -194,6 +194,8 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
 }
 
 bool TBRAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
+  if (utils::isCUDABuiltinVariable(DRE, m_AnalysisDC->getASTContext()))
+    return false;
   setIsRequired(DRE);
   return false;
 }
@@ -547,6 +549,8 @@ bool TBRAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
 }
 
 bool TBRAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
+  if (utils::isCUDABuiltinVariable(ME, m_AnalysisDC->getASTContext()))
+    return false;
   setIsRequired(ME);
   return false;
 }

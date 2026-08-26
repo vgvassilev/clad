@@ -389,6 +389,8 @@ bool VariedAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
 }
 
 bool VariedAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
+  if (utils::isCUDABuiltinVariable(ME, m_AnalysisDC->getASTContext()))
+    return false;
   TraverseStmt(ME->getBase());
   if (m_Varied) {
     markExpr(ME);
@@ -419,6 +421,8 @@ bool VariedAnalyzer::TraverseUnaryOperator(UnaryOperator* UnOp) {
 }
 
 bool VariedAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
+  if (utils::isCUDABuiltinVariable(DRE, m_AnalysisDC->getASTContext()))
+    return false;
   // A reference to something that is not a variable -- a function passed as an
   // argument, an enumerator -- carries no varied state of its own.
   auto* VD = dyn_cast<VarDecl>(DRE->getDecl());

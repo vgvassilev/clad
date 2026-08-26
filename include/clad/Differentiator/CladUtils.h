@@ -538,6 +538,10 @@ namespace clad {
     /// matches by name to decide which arguments are differentiated.
     /// They are declared in EnzymeBuiltins.h, which Differentiator.h
     /// includes.
+    bool isCUDABuiltinVariable(const clang::Expr* E,
+                               const clang::ASTContext& Context);
+    /// Returns true if the expression represents a CUDA built-in variable
+    /// like threadIdx, blockIdx, blockDim, or gridDim.
     clang::Expr* BuildEnzymeActivityMarkerRef(clang::Sema& semaRef,
                                               llvm::StringRef name);
     } // namespace utils
