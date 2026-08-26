@@ -1930,6 +1930,23 @@ namespace clad {
       } while (E->IgnoreImplicit() != E);
       return false;
     }
+    bool isCUDABuiltinVariable(const clang::Expr* E,
+                               const clang::ASTContext& Context) {
+      if (const auto* DRE = clang::dyn_cast<clang::DeclRefExpr>(E)) {
+        const clang::ValueDecl* VD = DRE->getDecl();
+        const clang::IdentifierInfo* II = VD->getIdentifier();
+        if (!II)
+          return false;
+        llvm::StringRef Name = II->getName();
+
+        if (Name == "threadIdx" || Name == "blockIdx" || Name == "blockDim" ||
+            Name == "gridDim") {
+          const clang::SourceManager& SM = Context.getSourceManager();
+          return SM.isInSystemHeader(VD->getLocation());
+        }
+      }
+      return false;
+    }
 
     /// Called in ShouldRecompute. In CUDA, to access a current thread/block id
     /// we use functions that do not change the state of any variable, since no

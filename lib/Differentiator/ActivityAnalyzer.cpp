@@ -1,6 +1,8 @@
 #include "ActivityAnalyzer.h"
 #include "AnalysisBase.h"
 
+#include "clad/Differentiator/CladUtils.h"
+
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
@@ -344,6 +346,13 @@ bool VariedAnalyzer::TraverseCXXThisExpr(clang::CXXThisExpr* TE) {
 }
 
 bool VariedAnalyzer::TraverseCXXMemberCallExpr(clang::CXXMemberCallExpr* CE) {
+  if (utils::isCUDABuiltinVariable(
+          CE->getImplicitObjectArgument()->IgnoreParenImpCasts(),
+          m_AnalysisDC->getASTContext())) {
+    m_Varied = false;
+    return false;
+  }
+
   const CXXMethodDecl* Method = CE->getMethodDecl();
   auto params = Method->parameters();
 
@@ -419,6 +428,8 @@ bool VariedAnalyzer::TraverseUnaryOperator(UnaryOperator* UnOp) {
 }
 
 bool VariedAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
+  if (utils::isCUDABuiltinVariable(DRE, m_AnalysisDC->getASTContext()))
+    return false;
   // A reference to something that is not a variable -- a function passed as an
   // argument, an enumerator -- carries no varied state of its own.
   auto* VD = dyn_cast<VarDecl>(DRE->getDecl());

@@ -540,6 +540,10 @@ namespace clad {
     /// includes.
     clang::Expr* BuildEnzymeActivityMarkerRef(clang::Sema& semaRef,
                                               llvm::StringRef name);
+    /// Returns true if the expression represents a CUDA built-in variable
+    /// like threadIdx, blockIdx, blockDim, or gridDim.
+    bool isCUDABuiltinVariable(const clang::Expr* E,
+                               const clang::ASTContext& Context);
     } // namespace utils
     } // namespace clad
 
