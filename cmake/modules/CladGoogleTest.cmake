@@ -33,7 +33,7 @@ endif()
 clad_externalproject_add(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.17.0
+  GIT_TAG v1.18.0
   BUILD_COMMAND ${_gtest_build_command}
   # Disable install step
   INSTALL_COMMAND cmake -E echo "Skipping install step."
