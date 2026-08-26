@@ -10,6 +10,8 @@
 #include "GeneratedCode.h"
 #include "JacobianModeVisitor.h"
 
+#include "clang/Basic/SourceLocation.h"
+
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
