@@ -14,7 +14,7 @@
 // clang prints that place above the diagnostic. It is the differentiation
 // that asked for this derivative, which is the line a reader would edit --
 // not the top of their file, which would say nothing.
-// CHECK: In file included from {{.*}}AnalysisRemarks.C:[[@LINE+84]]:
+// CHECK: In file included from {{.*}}AnalysisRemarks.C:[[@LINE+113]]:
 //
 // The caret lands inside the rendered derivative, on the statement itself --
 // the whole point, since none of this text exists in any file.
@@ -25,9 +25,15 @@
 // CHECK-NEXT: ^~~~~~~~~~~~~~
 // CHECK: note: to-be-recorded analysis could not show it unused
 //
+// Which derivative this is, said in the diagnostic rather than left to the
+// include stack: a caret on the differentiation, and the name of what is
+// being differentiated.
+// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+99]]:12: note: in the derivative of 'f' requested here
+// CHECK-NEXT: clad::gradient(f)
+//
 // And the half the user can act on -- their own code, with the expression
 // whose value is being kept.
-// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+52]]:3: note: the value kept is the one this expression had
+// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+75]]:3: note: the value kept is the one this expression had
 // CHECK-NEXT: t = t * t;
 //
 // A value the reverse sweep needs once per iteration cannot go into a
@@ -37,8 +43,21 @@
 // CHECK: <clad derivative of loopy_grad_0>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK: clad::push(
 // CHECK: note: to-be-recorded analysis could not show it unused
-// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+52]]:5: note: the value kept is the one this expression had
+// CHECK: note: in the derivative of 'loopy' requested here
+// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+74]]:5: note: the value kept is the one this expression had
 // CHECK-NEXT: t = t * t;
+//
+// Not every derivative has a differentiation to name. The second derivative a
+// hessian needs is one clad asks itself for, at no line the user wrote, so the
+// note is left out rather than aimed at something arbitrary -- and the run's
+// exhaustive note matching is what holds it to that. The rest of the remark is
+// unchanged.
+// CHECK: <clad derivative of f_pushforward_pullback>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK: note: to-be-recorded analysis could not show it unused
+// CHECK: note: the value kept is the one this expression had
+// CHECK: <clad derivative of f_pushforward_pullback>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK: note: to-be-recorded analysis could not show it unused
+// CHECK: note: the value kept is the one this expression had
 //
 // With the analysis switched off the value is kept for a different reason, and
 // the note says which. Claiming it "could not prove" something it never ran
@@ -49,11 +68,21 @@
 // RUN:   | %filecheck --check-prefix=CHECK-OFF %s
 // CHECK-OFF: <clad derivative of f_grad>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK-OFF: note: to-be-recorded analysis is disabled
-// The pointer back into the user's code does not depend on the analysis.
+// Neither pointer back into the user's code depends on the analysis: which
+// derivative this is, and the expression whose value is kept.
+// CHECK-OFF: note: in the derivative of 'f' requested here
 // CHECK-OFF: note: the value kept is the one this expression had
 // Nor does the tape: what changes with the switch is the reason, not which
 // values are reported or where they came from.
 // CHECK-OFF: <clad derivative of loopy_grad_0>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK-OFF: note: to-be-recorded analysis is disabled
+// CHECK-OFF: note: in the derivative of 'loopy' requested here
+// CHECK-OFF: note: the value kept is the one this expression had
+// Nor does the switch put an attribution back where there never was one.
+// CHECK-OFF: <clad derivative of f_pushforward_pullback>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
+// CHECK-OFF: note: to-be-recorded analysis is disabled
+// CHECK-OFF: note: the value kept is the one this expression had
+// CHECK-OFF: <clad derivative of f_pushforward_pullback>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK-OFF: note: to-be-recorded analysis is disabled
 // CHECK-OFF: note: the value kept is the one this expression had
 //
@@ -105,5 +134,9 @@ int main() {
   g.execute(2, &d);
   auto gl = clad::gradient(loopy, "x");
   gl.execute(2, 3, &d);
+  // A hessian differentiates a derivative, and asks for that one itself.
+  double h = 0;
+  auto hf = clad::hessian(f);
+  hf.execute(2, &h);
   return 0;
 }

@@ -182,16 +182,19 @@ plugin working on the AST.
        4 |     double _t0 = t;
          |     ^~~~~~~~~~~~~~
    <clad derivative of f_grad>:4:5: note: to-be-recorded analysis could not show it unused
+   doc.cpp:8:12: note: in the derivative of 'f' requested here
+       8 |   auto g = clad::gradient(f);
+         |            ^
    doc.cpp:4:3: note: the value kept is the one this expression had
        4 |   t = t * t;
          |   ^
 
-Expect three positions: the differentiation that asked for the derivative
-(the ``In file included from`` line), the generated statement that costs, and
-the expression in your own code whose value is being kept -- the half you can
-act on. The note giving the reason distinguishes an analysis that ran and
-could not prove the value dead from one that was switched off, so a remark
-never claims to have proved something it never ran.
+Expect three positions: the generated statement that costs, the differentiation
+that asked for the derivative, and the expression in your own code whose value
+is being kept -- the half you can act on. The note giving the reason
+distinguishes an analysis that ran and could not prove the value dead from one
+that was switched off, so a remark never claims to have proved something it
+never ran.
 
 Run ``-plugin-arg-clad -help`` for the analysis names this accepts.
 
