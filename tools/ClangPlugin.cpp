@@ -413,6 +413,11 @@ void InitTimers();
               ? "to-be-recorded analysis could not show it unused"
               : "to-be-recorded analysis is disabled";
       const clang::SourceManager& SM = m_CI.getSourceManager();
+      const clang::SourceLocation Requested =
+          request.CallContext ? request.CallContext->getBeginLoc()
+                              : clang::SourceLocation();
+      const std::string Original =
+          request.Function ? request.Function->getNameAsString() : "";
       for (const auto& [K, VD] : Kept) {
         clang::SourceLocation Loc = getDerivativePrinter().locationOf(FD, K);
         if (Loc.isInvalid())
@@ -421,6 +426,14 @@ void InitTimers();
                     "clad keeps this value for the reverse sweep")
             << getDerivativePrinter().rangeOf(FD, K);
         utils::diag(S, clang::DiagnosticsEngine::Note, Loc, "%0") << Because;
+        // Which derivative this is, said outright. The include stack carries
+        // it today, but only as a bare "In file included from" line with no
+        // caret and no wording, and only for as long as a derivative has a
+        // file to itself.
+        if (Requested.isValid())
+          utils::diag(S, clang::DiagnosticsEngine::Note, Requested,
+                      "in the derivative of '%0' requested here")
+              << Original;
         // The half the user can act on: the expression in their own code
         // whose value this is.
         if (clang::SourceLocation Primal = primalLocationOf(K, VD, SM);
