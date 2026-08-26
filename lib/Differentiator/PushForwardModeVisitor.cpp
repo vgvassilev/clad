@@ -8,6 +8,9 @@
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
 
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
+
+#include "clang/AST/Stmt.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 

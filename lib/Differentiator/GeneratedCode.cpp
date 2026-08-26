@@ -1,5 +1,6 @@
 #include "GeneratedCode.h"
 
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
 
@@ -37,7 +38,10 @@ SourceLocation GeneratedCode::nextLoc() {
                               SM.getLocForStartOfFile(SM.getMainFileID()));
     m_Used = 0;
   }
-  return SM.getLocForStartOfFile(m_Chunk).getLocWithOffset(m_Used++);
+  // Signed, because that is what getLocWithOffset takes; a slot index is
+  // bounded by kSlotsPerChunk, so it always fits.
+  return SM.getLocForStartOfFile(m_Chunk).getLocWithOffset(
+      static_cast<int>(m_Used++));
 }
 
 } // namespace clad
