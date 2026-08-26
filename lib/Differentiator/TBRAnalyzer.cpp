@@ -194,6 +194,8 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
 }
 
 bool TBRAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
+  if (utils::isCUDABuiltinVariable(DRE, m_AnalysisDC->getASTContext()))
+    return false;
   setIsRequired(DRE);
   return false;
 }
