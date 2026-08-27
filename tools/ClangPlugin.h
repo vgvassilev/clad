@@ -439,7 +439,7 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
             if (R == AnalysisFlagResult::Error)
               return false;
           } else if (args[i] == "-fcustom-estimation-model") {
-            llvm::errs() << "`-fcustom-estimation-model` is deprecated.";
+            llvm::errs() << "`-fcustom-estimation-model` is deprecated.\n";
             ++i;
             return false;
           } else if (args[i] == "-fprint-num-diff-errors") {

@@ -30,13 +30,6 @@
 // RUN:  -Xclang -fcustom-estimation-model %s 2>&1 | FileCheck --check-prefix=CHECK_EST_INVALID %s
 // CHECK_EST_INVALID: `-fcustom-estimation-model` is deprecated
 
-// RUN: touch %t.so
-// RUN: ! %cladclang -fsyntax-only  -Xclang -plugin-arg-clad \
-// RUN:  -Xclang -fcustom-estimation-model -Xclang -plugin-arg-clad \
-// RUN: -Xclang %t.so %S/../../demos/ErrorEstimation/CustomModel/test.cpp \
-// RUN: -I%S/../../include 2>&1 | FileCheck --check-prefix=CHECK_SO_INVALID %s
-// CHECK_SO_INVALID: Failed to load '{{.*.so}}', {{.*}}. Aborting.
-
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad -Xclang -enable-tbr \
 // RUN:  -Xclang -plugin-arg-clad -Xclang -disable-tbr %s 2>&1 | FileCheck --check-prefix=CHECK_TBR %s
 // CHECK_TBR: -enable-tbr and -disable-tbr cannot be used together
