@@ -777,7 +777,7 @@ function `double f(double, double)` example usage is described below::
   }
 
 The above example generates the floating point error estimation code using an in-built taylor approximation model. 
-However, Clad is capable of using any user defined custom model, for information on how to use you own custom model, 
+However, Clad is capable of using any user defined custom model, for information on how to use your own custom model, 
 please visit this `demo <https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation/CustomModel>`__.
 This `tutorial <https://compiler-research.org/tutorials/fp_error_estimation_clad_tutorial/>`_
 provides a comprehensive guide on building your own custom models and understanding the working behind the error 
