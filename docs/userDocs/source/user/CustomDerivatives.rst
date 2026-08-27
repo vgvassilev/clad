@@ -261,7 +261,7 @@ Some important things to note here:
 Reverse-forward custom derivatives
 ====================================
 
-This is an advance section. Please feel free to skip it if it is your first read of this document.
+This is an advanced section. Please feel free to skip it if it is your first read of this document.
 
 The reverse-forward custom derivative is used by the Clad reverse mode AD to determine
 the adjoint of a function's return value for functions which returns a reference or a
@@ -373,7 +373,7 @@ An example will make things clear::
 
 .. note::
 
-   If :code:`fn` is a :code:`const` member function, then the the primal
+   If :code:`fn` is a :code:`const` member function, then the primal
    object is taken as a :code:`const` parameter. For example, the signature
    of pushforward and pullback will be as follows for :code:`fn(...) const`::
 
