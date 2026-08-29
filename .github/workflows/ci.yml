@@ -372,6 +372,42 @@ jobs:
       uses: ./.github/actions/observes-change
       with:
         mode: revert
+    # Clad is built twice on a pull request -- once with the functional hunks
+    # reverted, to show the touched tests failing, and once as written. What
+    # the second build reuses from the first depends on what the change
+    # touches: a .cpp leaves the other translation units alone, a header most
+    # of them include leaves almost nothing. So this pays on some pull
+    # requests and not on others, and the stats below are how to tell which.
+    #
+    # Not on Windows: ccache drives MSVC only with debug information inlined
+    # into the objects, which is not how that job is configured.
+    - name: Restore the compiler cache
+      if: ${{ runner.os != 'windows' }}
+      uses: actions/cache@v4
+      with:
+        path: ~/.ccache
+        key: ccache-${{ matrix.name }}-${{ github.run_id }}
+        restore-keys: |
+          ccache-${{ matrix.name }}-
+
+    - name: Set up ccache
+      if: ${{ runner.os != 'windows' }}
+      run: |
+        command -v ccache >/dev/null || {
+          if [ "$RUNNER_OS" = "macOS" ]; then brew install -q ccache
+          else sudo apt-get install -y -qq ccache; fi
+        }
+        # Exported here as well as written to the environment file: the file
+        # only reaches later steps, and the two commands below are now.
+        export CCACHE_DIR="$HOME/.ccache"
+        echo "CCACHE_DIR=$CCACHE_DIR" >> $GITHUB_ENV
+        # Bounded, because every job keeps one and they share a ten gigabyte
+        # allowance with each other and with the 32-bit job's packages. Past
+        # the bound ccache evicts its own oldest rather than letting the cache
+        # grow until GitHub evicts something that matters.
+        ccache --max-size=250M
+        ccache --zero-stats
+
     - name: Build Clad on *nix
       if: ${{ runner.os != 'windows' }}
       run: |
@@ -381,6 +417,8 @@ jobs:
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
           -DCLAD_CODE_COVERAGE=${{ env.CLAD_CODE_COVERAGE }}   \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache   \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DLLVM_ENABLE_WERROR=On           \
           $GITHUB_WORKSPACE                 \
           ${{ matrix.extra_cmake_options }}
@@ -394,6 +432,16 @@ jobs:
         platform: ${{ matrix.name }}
         build-dir: obj
         rebuild-command: cmake --build obj -- -j${{ env.ncpus }}
+    - name: Report the compiler cache
+      if: ${{ !cancelled() && runner.os != 'windows' }}
+      # Reports whether the build succeeded or failed, so a job that broke
+      # before ccache was installed says that rather than adding an unrelated
+      # "command not found" on top of it. Not always(): a cancelled run has
+      # nothing to say and should stop.
+      run: |
+        command -v ccache >/dev/null || { echo "ccache was never installed"; exit 0; }
+        ccache --show-stats --verbose || ccache --show-stats
+
     - name: Upload the baseline verdict
       if: ${{ runner.os != 'windows' && env.observes_check == '1' }}
       uses: actions/upload-artifact@v7
