@@ -17,6 +17,12 @@ on:
 jobs:
   architecture:
     runs-on: ubuntu-latest
+    env:
+      # An Alpine release carries one recent llvm and no newer: 3.22 has 20,
+      # and 22 arrives only on the rolling edge branch, whose packages move
+      # without notice. Bumping the pair here is the whole of an update.
+      ALPINE_TAG: '3.22'
+      LLVM_VERSION: '20'
     steps:
       - name: Checkout branch
         uses: actions/checkout@v7
@@ -30,7 +36,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .apk-cache
-          key: apk-i386-alpine3.20-llvm17
+          key: apk-i386-alpine${{ env.ALPINE_TAG }}-llvm${{ env.LLVM_VERSION }}
 
       # The build runs in a 32-bit userspace, which the 64-bit runner executes
       # natively. The checkout above does not, and cannot: a container: job
@@ -48,12 +54,13 @@ jobs:
           mkdir -p .apk-cache
           docker run --rm --platform linux/386 -v "$PWD":/clad \
             -v "$PWD/.apk-cache":/etc/apk/cache -w /clad \
-            i386/alpine:3.20 sh -euxc '
-              apk add llvm17-dev clang17-dev clang17-static \
-                      clang17-extra-tools llvm17-static \
-                      llvm17-gtest cmake make git py3-pip
+            i386/alpine:${{ env.ALPINE_TAG }} sh -euxc '
+              V=${{ env.LLVM_VERSION }}
+              apk add llvm$V-dev clang$V-dev clang$V-static \
+                      clang$V-extra-tools llvm$V-static llvm$V-gtest \
+                      cmake make git py3-pip
               python3 -m pip install --break-system-packages lit
-              export CC=/usr/bin/clang-17 CXX=/usr/bin/clang++-17
+              export CC=/usr/bin/clang-$V CXX=/usr/bin/clang++-$V
               cmake -S . -B build -DLLVM_EXTERNAL_LIT="$(which lit)"
               make -C build -j $(nproc) check-clad
             '
