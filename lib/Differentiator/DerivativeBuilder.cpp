@@ -97,6 +97,17 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     if (std::any_of(Previous.begin(), Previous.end(), definedNotInline))
       dFD->setInlineSpecified(false);
 
+    // Inline fits a derivative clad calls but never names outside: a unit that
+    // does not call one should not emit it. The root of the request graph is
+    // the one name that leaves clad, and an interpreter reaches it from a
+    // later translation unit, where a discardable definition is emitted again
+    // along with every derivative it calls. Let the root follow the primal,
+    // which is what decides whether naming it twice is a redefinition at all.
+    if (R.CallUpdateRequired && R.Function) {
+      dFD->setInlineSpecified(R.Function->isInlineSpecified());
+      dFD->setImplicitlyInline(R.Function->isInlined());
+    }
+
     // Check if we created a top-level decl with the same name for another
     // class.
     // FIXME: This case should be addressed by providing proper names and

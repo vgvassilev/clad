@@ -16,7 +16,7 @@ double nonMemFn(double i, double j) {
 
 // CHECK: inline void nonMemFn_pushforward_pullback(double i, double j, double _d_i, double _d_j, clad::ValueAndPushforward<double, double> _d_y, double *_d_i0, double *_d_j0);
 
-// CHECK: inline void nonMemFn_hessian(double i, double j, double *hessianMatrix) {
+// CHECK: void nonMemFn_hessian(double i, double j, double *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     double _d_i(0.);

@@ -17,7 +17,7 @@ __attribute__((always_inline)) double f_cubed_add1(double a, double b) {
 //CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_pushforward_pullback(double a, double b, double _d_a, double _d_b, clad::ValueAndPushforward<double, double> _d_y, double *_d_a0, double *_d_b0){{[ __attribute__((always_inline))]*}};
 
 void f_cubed_add1_hessian(double a, double b, double *hessianMatrix);
-//CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_hessian(double a, double b, double *hessianMatrix){{[ __attribute__((always_inline))]*}} {
+//CHECK:{{[__attribute__((always_inline)) ]*}}void f_cubed_add1_hessian(double a, double b, double *hessianMatrix){{[ __attribute__((always_inline))]*}} {
 //CHECK-NEXT:    clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 //CHECK-NEXT:    _d_y.pushforward = 1.;
 //CHECK-NEXT:    double _d_a(0.);
@@ -35,7 +35,7 @@ double f_suvat1(double u, double t) {
 }
 
 void f_suvat1_hessian(double u, double t, double *hessianMatrix);
-//CHECK:inline void f_suvat1_hessian(double u, double t, double *hessianMatrix) {
+//CHECK:void f_suvat1_hessian(double u, double t, double *hessianMatrix) {
 //CHECK-NEXT:    clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 //CHECK-NEXT:    _d_y.pushforward = 1.;
 //CHECK-NEXT:    double _d_u(0.);
@@ -58,7 +58,7 @@ double f_cond3(double x, double c) {
 }
 
 void f_cond3_hessian(double x, double c, double *hessianMatrix);
-//CHECK:inline void f_cond3_hessian(double x, double c, double *hessianMatrix) {
+//CHECK:void f_cond3_hessian(double x, double c, double *hessianMatrix) {
 //CHECK-NEXT:    clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 //CHECK-NEXT:    _d_y.pushforward = 1.;
 //CHECK-NEXT:    double _d_x(0.);
@@ -76,7 +76,7 @@ double f_power10(double x) {
 }
 
 void f_power10_hessian(double x, double *hessianMatrix);
-//CHECK:inline void f_power10_hessian(double x, double *hessianMatrix) {
+//CHECK:void f_power10_hessian(double x, double *hessianMatrix) {
 //CHECK-NEXT:    clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 //CHECK-NEXT:    _d_y.pushforward = 1.;
 //CHECK-NEXT:    double _d_x(0.);
@@ -102,7 +102,7 @@ struct Experiment {
                              double *_d_j);
 
   void someMethod_hessian(double x, double *hessianMatrix);
-  //CHECK:inline void someMethod_hessian(double i, double j, double *hessianMatrix) {
+  //CHECK:void someMethod_hessian(double i, double j, double *hessianMatrix) {
   //CHECK-NEXT:    Experiment _d_this;
   //CHECK-NEXT:    this->someMethod_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
   //CHECK-NEXT:    Experiment _d_this0;
@@ -129,7 +129,7 @@ struct Widget {
   void memFn_1_hessian(double i,
                        double j,
                        double *hessianMatrix);
-  //CHECK:inline void memFn_1_hessian(double i, double j, double *hessianMatrix) {
+  //CHECK:void memFn_1_hessian(double i, double j, double *hessianMatrix) {
   //CHECK-NEXT:    Widget _d_this;
   //CHECK-NEXT:    this->memFn_1_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
   //CHECK-NEXT:    Widget _d_this0;
@@ -154,7 +154,7 @@ struct Widget {
   void memFn_2_hessian(double i,
                        double j,
                        double *hessianMatrix);
-  //CHECK:inline void memFn_2_hessian(double i, double j, double *hessianMatrix) {
+  //CHECK:void memFn_2_hessian(double i, double j, double *hessianMatrix) {
   //CHECK-NEXT:    Widget _d_this;
   //CHECK-NEXT:    this->memFn_2_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
   //CHECK-NEXT:    Widget _d_this0;

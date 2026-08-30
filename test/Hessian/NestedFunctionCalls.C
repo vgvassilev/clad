@@ -29,7 +29,7 @@ double f2(double x, double y){
 
 // CHECK: inline void f2_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x0, double *_d_y1);
 
-// CHECK: inline void f2_hessian(double x, double y, double *hessianMatrix) {
+// CHECK: void f2_hessian(double x, double y, double *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     double _d_x(0.);
