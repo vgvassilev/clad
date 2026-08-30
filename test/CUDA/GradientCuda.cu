@@ -28,7 +28,7 @@ __device__ __host__ double gauss(const double* x, double* p, double sigma, int d
 }
 
 
-// CHECK: __attribute__((device)) __attribute__((host)) inline void gauss_grad_1(const double *x, double *p, double sigma, int dim, double *_d_p) {
+// CHECK: __attribute__((device)) __attribute__((host)) void gauss_grad_1(const double *x, double *p, double sigma, int dim, double *_d_p) {
 //CHECK-NEXT:     double _d_sigma = 0.;
 //CHECK-NEXT:     int _d_dim = 0;
 //CHECK-NEXT:     int _d_i = 0;
