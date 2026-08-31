@@ -74,6 +74,10 @@ SourceLocation DerivativeBuilder::GenLoc() {
   return m_GeneratedCode->nextLoc();
 }
 
+GeneratedCode& DerivativeBuilder::getGeneratedCode() {
+  return *m_GeneratedCode;
+}
+
 static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DeclContext* DC = D->getLexicalDeclContext();
   if (auto* dFD = dyn_cast<FunctionDecl>(D)) {

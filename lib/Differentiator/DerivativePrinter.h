@@ -1,10 +1,14 @@
 #ifndef CLAD_DIFFERENTIATOR_DERIVATIVEPRINTER_H
 #define CLAD_DIFFERENTIATOR_DERIVATIVEPRINTER_H
 
+#include "GeneratedCode.h"
+
 #include "clang/Basic/SourceLocation.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
+
+#include <vector>
 
 namespace clang {
 class FunctionDecl;
@@ -14,63 +18,60 @@ class Stmt;
 
 namespace clad {
 
-/// Gives clad-generated code somewhere to be pointed at.
+/// Prints clad's generated code where its nodes already point.
 ///
-/// A generated node has no source location of its own -- clad builds it, so
-/// there is no file it came from -- and the placeholder every visitor reaches
-/// for is the start of the main file, which puts a caret on the user's first
-/// line. That is not a diagnostic anyone can act on.
+/// A generated node has no text of its own, but it does have a slot in one of
+/// GeneratedCode's buffers. Printing the derivative into that same buffer
+/// gives the node text at the position it already claims: a diagnostic gets a
+/// caret and a source line, and a line note can send a debugger to the same
+/// bytes.
 ///
-/// Rendering the derivative into a buffer and registering it with the
-/// SourceManager gives the node a real location: one inside text that reads
-/// like the code clad produced. Diagnostics then render with a caret and
-/// context, exactly as they do for code the user wrote. The same mechanism
-/// backs interactive input in cling and clang-repl, and macro expansions in
-/// Swift.
-///
-/// The rendering is built on first use and cached per function: a compilation
-/// that reports nothing never pays for one.
+/// A function is printed once, the first time anything is asked about it, and
+/// the answer kept. A compilation that asks nothing prints nothing.
 class DerivativePrinter {
 public:
-  explicit DerivativePrinter(clang::Sema& S) : m_Sema(S) {}
+  DerivativePrinter(clang::Sema& S, GeneratedCode& Locs)
+      : m_Sema(S), m_Locs(Locs) {}
 
-  /// Where \p S appears within the rendering of \p FD, or an invalid location
-  /// if \p FD has no body or the printer never announced \p S.
+  /// Where \p S appears in the printout of \p FD, or an invalid location if
+  /// there is no printout or \p S is not in it.
   clang::SourceLocation locationOf(const clang::FunctionDecl* FD,
                                    const clang::Stmt* S);
 
-  /// The span \p S occupies in the rendering, so a diagnostic can underline
-  /// the whole expression rather than mark its first character. A loop's
-  /// condition or increment is several nodes wide and reads as one thing.
+  /// The span \p S occupies in the printout, so a diagnostic can underline
+  /// the whole expression rather than mark its first character.
   clang::SourceRange rangeOf(const clang::FunctionDecl* FD,
                              const clang::Stmt* S);
 
-  /// The rendered text of \p FD, for a caller that wants to show it rather
-  /// than point into it.
+  /// The line of the chunk \p S was printed on, or zero if it was not. This is
+  /// what a slot standing for \p S has to be presented as.
+  unsigned lineOf(const clang::FunctionDecl* FD, const clang::Stmt* S);
+
+  /// The line the printout of \p FD begins on, which is its signature.
+  unsigned lineOf(const clang::FunctionDecl* FD);
+
+  /// Where the printout of \p FD begins, so a caller can tell which chunk it
+  /// went into.
+  clang::SourceLocation startOf(const clang::FunctionDecl* FD);
+
+  /// The printed text of \p FD, for a caller that wants to show it rather than
+  /// point into it.
   llvm::StringRef textOf(const clang::FunctionDecl* FD);
 
-  /// Records that \p FD exists because of the differentiation at \p Loc.
-  ///
-  /// A rendering has to be entered from somewhere in the translation unit, and
-  /// a diagnostic prints that place above itself. The request is the useful
-  /// answer -- it is the line a reader would edit -- so a caller that knows it
-  /// should say so before the first diagnostic about \p FD. Without this the
-  /// rendering is entered from the start of the main file, which is sortable
-  /// but tells a reader nothing.
-  void noteRequestedAt(const clang::FunctionDecl* FD,
-                       clang::SourceLocation Loc);
-
 private:
-  struct Rendering {
-    clang::FileID File;
+  struct Printout {
+    GeneratedCode::Placement At;
+    unsigned Size = 0;
     llvm::DenseMap<const clang::Stmt*, unsigned> Offsets;
+    /// Offset of each line's first character, so an offset can be turned into
+    /// a line without rescanning the text for every statement.
+    std::vector<unsigned> LineStarts;
   };
-  const Rendering& render(const clang::FunctionDecl* FD);
+  const Printout& print(const clang::FunctionDecl* FD);
 
   clang::Sema& m_Sema;
-  llvm::DenseMap<const clang::FunctionDecl*, Rendering> m_Rendered;
-  llvm::DenseMap<const clang::FunctionDecl*, clang::SourceLocation>
-      m_RequestedAt;
+  GeneratedCode& m_Locs;
+  llvm::DenseMap<const clang::FunctionDecl*, Printout> m_Printed;
 };
 
 } // namespace clad

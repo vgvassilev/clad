@@ -4,13 +4,12 @@
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/SourceLocation.h"
-#include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
@@ -22,9 +21,9 @@ namespace {
 
 /// Notes where each statement's text begins as the printer reaches it.
 ///
-/// PrinterHelper is a substitution hook: returning true means "I printed this,
-/// skip it". Returning false leaves the output byte for byte what it would
-/// have been, which is what makes the offsets describe the text a reader sees.
+/// PrinterHelper is a substitution hook: returning true means "I printed
+/// this, skip it". Returning false leaves the output exactly as it would have
+/// been, so the offsets describe the text a reader sees.
 class OffsetRecorder : public PrinterHelper {
   llvm::DenseMap<const Stmt*, unsigned>& m_Offsets;
 
@@ -41,16 +40,13 @@ public:
 
 } // namespace
 
-const DerivativePrinter::Rendering&
-DerivativePrinter::render(const FunctionDecl* FD) {
-  auto Found = m_Rendered.find(FD);
-  if (Found != m_Rendered.end())
+const DerivativePrinter::Printout&
+DerivativePrinter::print(const FunctionDecl* FD) {
+  auto Found = m_Printed.find(FD);
+  if (Found != m_Printed.end())
     return Found->second;
 
-  Rendering R;
-  // Not retained: the SourceManager keeps a copy for the life of the
-  // compilation, and in a long-running session nothing is reclaimed until it
-  // ends, so a second copy would double what this costs.
+  Printout R;
   std::string Text;
   llvm::raw_string_ostream OS(Text);
   PrintingPolicy Policy = m_Sema.getASTContext().getPrintingPolicy();
@@ -69,74 +65,97 @@ DerivativePrinter::render(const FunctionDecl* FD) {
   }
   OS.flush();
 
-  SourceManager& SM = m_Sema.getSourceManager();
-  std::string Name = "<clad derivative of " + FD->getNameAsString() + ">";
-  // Entered from the differentiation that asked for it, falling back to the
-  // main file. Somewhere inside the translation unit is required either way:
-  // isBeforeInTranslationUnit orders two locations by walking up to a file
-  // they share, and reports "Unsortable locations found" when there is none.
-  SourceLocation IncludeLoc = m_RequestedAt.lookup(FD);
-  if (IncludeLoc.isInvalid())
-    IncludeLoc = SM.getLocForStartOfFile(SM.getMainFileID());
-  R.File = SM.createFileID(llvm::MemoryBuffer::getMemBufferCopy(Text, Name),
-                           SrcMgr::C_User, /*LoadedID=*/0, /*LoadedOffset=*/0,
-                           IncludeLoc);
-  return m_Rendered.insert({FD, std::move(R)}).first->second;
-}
+  // Into the chunk this function's own slots came from: a note on a slot can
+  // only name a line of its own file. The body's opening brace is among the
+  // first slots the function was given, so it names the chunk the function
+  // started in. A derivative with no slot of its own takes a fresh one, which
+  // at least guarantees there is a chunk to print into.
+  SourceLocation Anchor;
+  if (const Stmt* Body = FD->getBody())
+    Anchor = Body->getBeginLoc();
+  if (!m_Locs.owns(Anchor))
+    Anchor = FD->getEndLoc();
+  if (!m_Locs.owns(Anchor))
+    Anchor = m_Locs.nextLoc();
 
-void DerivativePrinter::noteRequestedAt(const FunctionDecl* FD,
-                                        SourceLocation Loc) {
-  // The first request wins, and a later one is ignored rather than asserted
-  // on: which request a shared derivative is attributed to is presentational,
-  // and not worth ending a compilation over.
-  if (Loc.isValid() && Loc.isFileID())
-    m_RequestedAt.try_emplace(FD, Loc);
+  R.Size = static_cast<unsigned>(Text.size());
+  R.At = m_Locs.addText(Anchor, Text);
+  if (R.At) {
+    R.LineStarts.push_back(0);
+    for (unsigned I = 0; I != R.Size; ++I)
+      if (Text[I] == '\n')
+        R.LineStarts.push_back(I + 1);
+  }
+  return m_Printed.insert({FD, std::move(R)}).first->second;
 }
 
 SourceLocation DerivativePrinter::locationOf(const FunctionDecl* FD,
                                              const Stmt* S) {
-  const Rendering& R = render(FD);
+  const Printout& R = print(FD);
+  if (!R.At)
+    return {};
   auto Found = R.Offsets.find(S);
   if (Found == R.Offsets.end())
     return {};
-  // The printer announces a statement before emitting the indentation in
-  // front of it, so the recorded offset can sit at the start of the line.
-  // Point at the first character of the statement itself, which is where a
-  // caret belongs.
-  llvm::StringRef Text = m_Sema.getSourceManager().getBufferData(R.File);
+  // The printer announces a statement before the indentation in front of it,
+  // so the recorded offset can sit at the start of the line. A caret belongs
+  // on the first character of the statement itself.
+  llvm::StringRef Text = m_Locs.textAt(R.At, R.Size);
   unsigned Offset = Found->second;
   while (Offset < Text.size() && (Text[Offset] == ' ' || Text[Offset] == '\t'))
     ++Offset;
-  return m_Sema.getSourceManager()
-      .getLocForStartOfFile(R.File)
-      .getLocWithOffset(Offset);
+  return R.At.Loc.getLocWithOffset(static_cast<int>(Offset));
+}
+
+unsigned DerivativePrinter::lineOf(const FunctionDecl* FD, const Stmt* S) {
+  const Printout& R = print(FD);
+  if (!R.At)
+    return 0;
+  auto Found = R.Offsets.find(S);
+  if (Found == R.Offsets.end())
+    return 0;
+  // Counted from the line the printout starts at. Asking the SourceManager
+  // instead is not an option: it settles a chunk's lines on the first
+  // question, and more code may still be printed into the chunk after that.
+  const auto It =
+      std::upper_bound(R.LineStarts.begin(), R.LineStarts.end(), Found->second);
+  return R.At.Line + static_cast<unsigned>(It - R.LineStarts.begin()) - 1;
+}
+
+unsigned DerivativePrinter::lineOf(const FunctionDecl* FD) {
+  return print(FD).At.Line;
 }
 
 SourceRange DerivativePrinter::rangeOf(const FunctionDecl* FD, const Stmt* S) {
   SourceLocation Begin = locationOf(FD, S);
   if (Begin.isInvalid())
     return {};
-  // How wide the node is, measured by rendering it alone under the same
-  // policy. A statement is printed with a trailing separator it does not own,
-  // so that comes back off.
+  // How wide the node is, measured by printing it alone under the same
+  // policy. A statement carries a trailing separator it does not own, so that
+  // comes back off.
   std::string Own;
   llvm::raw_string_ostream OS(Own);
   S->printPretty(OS, /*Helper=*/nullptr,
                  m_Sema.getASTContext().getPrintingPolicy());
   OS.flush();
   llvm::StringRef Text = llvm::StringRef(Own).rtrim(" \t\n;");
-  // Only a node that renders on one line can be measured this way: a compound
-  // statement printed alone carries its own line breaks, and a range built
-  // from that would end before it began. Those report a bare location, which
-  // is right for them anyway -- underlining a whole loop body says nothing.
+  // Only a node that prints on one line can be measured this way: one with
+  // line breaks would give a range that ends before it begins. Those report a
+  // bare location, which is right anyway -- underlining a loop body says
+  // nothing.
   if (Text.empty() || Text.contains(/*C=*/'\n'))
     return Begin;
   // A range's end names the last character, not one past it.
-  return {Begin, Begin.getLocWithOffset(Text.size() - 1)};
+  return {Begin, Begin.getLocWithOffset(static_cast<int>(Text.size()) - 1)};
+}
+
+SourceLocation DerivativePrinter::startOf(const FunctionDecl* FD) {
+  return print(FD).At.Loc;
 }
 
 llvm::StringRef DerivativePrinter::textOf(const FunctionDecl* FD) {
-  return m_Sema.getSourceManager().getBufferData(render(FD).File);
+  const Printout& R = print(FD);
+  return m_Locs.textAt(R.At, R.Size);
 }
 
 } // namespace clad
