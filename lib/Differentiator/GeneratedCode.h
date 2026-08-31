@@ -47,11 +47,14 @@ namespace clad {
 ///
 /// Chunks are a fixed size, and a new one is made when the slots run out: the
 /// SourceManager owns a buffer once it is handed over, so none of them can
-/// grow. That brings the one rule here -- a chunk has to be finished before
-/// it is read. The SourceManager works out where a buffer's lines are on the
-/// first question about it and keeps the answer, so code printed later would
-/// sit on lines it has never heard of. Printing into a chunk that has been
-/// read is refused.
+/// grow.
+///
+/// The SourceManager also works out where a buffer's lines are on the first
+/// question about it and keeps the answer, so code printed after that would
+/// sit on lines it has never heard of. Clad cannot stop the question being
+/// asked -- building a derivative puts generated locations in front of Sema,
+/// and on some builds that is enough for something to ask. So the answer is
+/// dropped instead: print everything, call forgetLineTables, then read.
 class GeneratedCode {
   /// Slots in a chunk. A chunk is paid for in full as soon as it is made, so
   /// this trades memory against how many buffers a derivative is spread over.
@@ -106,7 +109,7 @@ public:
   ///
   /// \p Anchor is a slot of the code being printed: a note on a slot can only
   /// name a line of its own file, so the two have to share a chunk. Comes
-  /// back empty if the code does not fit or the chunk has been read.
+  /// back empty if the code does not fit.
   Placement addText(clang::SourceLocation Anchor, llvm::StringRef Text);
 
   /// The bytes printed at \p P, \p Size of them.
@@ -129,6 +132,11 @@ public:
   /// slot reports one line further on than the slot before it, which walks
   /// off the end of the code.
   void present();
+
+  /// Throws away what the SourceManager worked out about these buffers, so
+  /// that the next question about a line is answered from what they hold now.
+  /// Call it once everything is printed and before anything reads.
+  void forgetLineTables();
 
   /// Stops anything more being printed into the chunks made so far, because
   /// they have been read. Incremental compilation comes back for another
