@@ -200,6 +200,25 @@ never ran.
 
 Run ``-plugin-arg-clad -help`` for the analysis names this accepts.
 
+``-fgenerated-source-dir=<dir>``
+--------------------------------
+
+Writes the code clad generates into ``<dir>``, one file per translation unit
+named after it, and names that file in the debug line table. A debugger then
+has something to open when it stops inside a derivative.
+
+.. code-block:: bash
+
+   clang++ -g -fplugin=clad.so -Xclang -plugin-arg-clad \
+       -Xclang -fgenerated-source-dir=build/ doc.cpp
+
+Without it, the only way to reach the code is ``-gembed-source``, which puts
+it in the object; lldb reads that and gdb does not support it at all. When
+debug information is asked for and neither is in place, clad says so once and
+names the flag that fits the debugger being tuned for. Giving the flag with no
+directory writes nothing and turns that advice off, which is the only way to:
+a plugin's diagnostic belongs to no ``-W`` group.
+
 ``-fdump-generated-source``
 --------------------------------
 

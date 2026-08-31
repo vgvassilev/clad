@@ -1,15 +1,21 @@
 #include "GeneratedCode.h"
 
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <system_error>
 #include <utility>
 
 using namespace clang;
@@ -53,14 +59,47 @@ SourceLocation GeneratedCode::nextLoc() {
           static_cast<int>(m_ChunkList.back().Capacity + m_Used++));
 }
 
+void GeneratedCode::setFileBase(llvm::StringRef Dir, llvm::StringRef Unit) {
+  if (Unit.empty())
+    return; // Nothing to name them after; leave them anonymous.
+  // Left exactly as it was given. A relative name is written relative to the
+  // working directory and read back against the compilation directory the
+  // line table records, which is the same place; making it absolute here
+  // would only put this machine's paths in the debug information.
+  llvm::SmallString<128> Path(Dir);
+  llvm::sys::path::append(Path, llvm::sys::path::filename(Unit));
+  m_FileBase = std::string(Path);
+}
+
 std::string GeneratedCode::nextName() const {
   // Named apart from the chunks before it. Every chunk numbers its lines
   // from 1 and the line table keys a file by name, so two chunks sharing a
   // name would put two statements at the same position.
-  if (m_ChunkList.empty())
-    return "<clad generated code>";
-  return "<clad generated code #" + std::to_string(m_ChunkList.size() + 1) +
-         ">";
+  const size_t N = m_ChunkList.size() + 1;
+  if (m_FileBase.empty())
+    return N == 1 ? "<clad generated code>"
+                  : "<clad generated code #" + std::to_string(N) + ">";
+  return N == 1 ? m_FileBase + ".clad.cpp"
+                : m_FileBase + ".clad." + std::to_string(N) + ".cpp";
+}
+
+void GeneratedCode::writeChunksToFiles(DiagnosticsEngine& Diags) const {
+  if (m_FileBase.empty())
+    return;
+  for (const Chunk& C : m_ChunkList) {
+    if (!C.Used)
+      continue;
+    std::error_code EC;
+    llvm::raw_fd_ostream Out(C.Name, EC, llvm::sys::fs::OF_Text);
+    if (EC) {
+      unsigned ID = Diags.getCustomDiagID(
+          DiagnosticsEngine::Warning,
+          "could not write the generated source to '%0': %1");
+      Diags.Report(ID) << C.Name << EC.message();
+      continue;
+    }
+    Out << llvm::StringRef(C.Text, C.Used);
+  }
 }
 
 GeneratedCode::Chunk* GeneratedCode::chunkFor(SourceLocation Loc) {

@@ -10,6 +10,7 @@
 #include <vector>
 
 namespace clang {
+class DiagnosticsEngine;
 class Sema;
 } // namespace clang
 
@@ -89,11 +90,26 @@ class GeneratedCode {
   [[nodiscard]] std::string nextName() const;
 
   clang::Sema& m_Sema;
+  /// What the chunks are named after, without the number and the suffix.
+  /// Empty while they are anonymous, which is until someone asks for the code
+  /// on disk.
+  std::string m_FileBase;
   llvm::SmallVector<Chunk, 2> m_ChunkList;
   unsigned m_Used = kSlotsPerChunk; // forces the first nextLoc() to allocate
 
 public:
   explicit GeneratedCode(clang::Sema& S) : m_Sema(S) {}
+
+  /// Sets what the chunks, and so the files they are written to, are named
+  /// after: \p Unit's file name under \p Dir. A debugger handed one of those
+  /// names then has something to open. Call it before the first location is
+  /// handed out, since a chunk keeps the name it was made with.
+  void setFileBase(llvm::StringRef Dir, llvm::StringRef Unit);
+
+  /// Writes each chunk to the file it is named after. Says so and carries on
+  /// if one cannot be written: without the file a debugger still has the
+  /// right file and line, and only the text is missing.
+  void writeChunksToFiles(clang::DiagnosticsEngine& Diags) const;
 
   /// A location no other generated node has been given.
   clang::SourceLocation nextLoc();

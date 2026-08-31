@@ -71,6 +71,12 @@ struct DifferentiationOptions {
 #include "clad/Differentiator/Analyses.def"
   bool GenerateSourceFile = false;
   bool DumpGeneratedSource = false;
+  /// Where to write the generated code so a debugger can open it, and
+  /// whether that was asked at all. Asking with no directory writes nothing
+  /// and says nothing, which is how a build that knows it does not want this
+  /// turns the advice off.
+  std::string GeneratedSourceDir;
+  bool GeneratedSourceDirGiven = false;
   bool ValidateClangVersion = true;
   /// What the command line asked of each analysis. The two bools record which
   /// of the original -enable-<x>/-disable-<x> pair were seen, so that giving
@@ -371,6 +377,11 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
   private:
     DiffScheduler& getScheduler();
     DerivativePrinter& getDerivativePrinter();
+    /// Says, once, that nothing will be able to show the generated code, and
+    /// what to add. Only when debug information was asked for and neither way
+    /// of reaching the code is in place.
+    void adviseOnGeneratedSource() const;
+
     /// Prints every derivative into the buffer its nodes point into, then
     /// reports on it: the line notes, the remarks, the source dump. Runs once
     /// the whole unit is derived and before code generation.
@@ -446,6 +457,13 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
             m_DO.DumpDerivedAST = true;
           } else if (args[i] == "-fdump-generated-source") {
             m_DO.DumpGeneratedSource = true;
+          } else if (llvm::StringRef(args[i]).starts_with(
+                         "-fgenerated-source-dir=")) {
+            m_DO.GeneratedSourceDirGiven = true;
+            m_DO.GeneratedSourceDir =
+                llvm::StringRef(args[i])
+                    .drop_front(sizeof("-fgenerated-source-dir=") - 1)
+                    .str();
           } else if (AnalysisFlagResult R = remarkAnalysisByName(m_DO, args[i]);
                      R != AnalysisFlagResult::NotMine) {
             if (R == AnalysisFlagResult::Error)
@@ -489,6 +507,13 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
                    "left in the derivative, as remarks pointed at the "
                    "generated code itself. The analogue of -Rpass-missed, "
                    "which cannot reach an AST-level plugin.\n"
+                << "-fgenerated-source-dir=<dir> - Writes the code clad "
+                   "generates into <dir>, one file per translation unit, and "
+                   "names it in the debug line table. A debugger that cannot "
+                   "read source embedded in the object -- gdb cannot -- opens "
+                   "that file instead. Given with no directory, nothing is "
+                   "written and clad stops advising that nothing can be "
+                   "read.\n"
                 << "-fgenerate-source-file - Produces a file containing the "
                    "derivatives.\n"
                 << "-fno-validate-clang-version - Disables the validation of "

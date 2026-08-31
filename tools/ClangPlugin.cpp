@@ -348,8 +348,11 @@ void InitTimers();
       // version of them, so drop it before anything asks.
       Code.forgetLineTables();
 
-      if (WantLineNotes)
+      if (WantLineNotes) {
         Code.present();
+        Code.writeChunksToFiles(m_CI.getDiagnostics());
+        adviseOnGeneratedSource();
+      }
 
       for (const Generated& G : m_Generated) {
         if (m_DO.DumpGeneratedSource)
@@ -361,6 +364,32 @@ void InitTimers();
       // back with more derivatives to print somewhere else.
       Code.seal();
       m_Generated.clear();
+    }
+
+    void CladPlugin::adviseOnGeneratedSource() const {
+      // Only when there is nothing to read. A debugger reaches the code clad
+      // generated either through the object, which needs -gembed-source and a
+      // debugger that understands it, or through a file on disk.
+      // Naming the flag at all is an answer, even with no directory after it:
+      // it says the generated code being unreadable is known and meant.
+      if (m_DO.GeneratedSourceDirGiven)
+        return;
+      const clang::CodeGenOptions& CGO = m_CI.getCodeGenOpts();
+      // Through the enum's own type rather than by name: which header spells
+      // it, and in which namespace, has moved between releases.
+      const auto Tuning = CGO.getDebuggerTuning();
+      const bool ReadsEmbedded = Tuning == decltype(Tuning)::LLDB;
+      if (CGO.EmbedSource && ReadsEmbedded)
+        return;
+      const char* Advice =
+          ReadsEmbedded ? "add -gembed-source, or -plugin-arg-clad "
+                          "-fgenerated-source-dir=<dir>"
+                        : "add -plugin-arg-clad -fgenerated-source-dir=<dir>";
+      unsigned ID = m_CI.getDiagnostics().getCustomDiagID(
+          clang::DiagnosticsEngine::Warning,
+          "debug information for the code clad generated points at no source a "
+          "debugger can open; %0");
+      m_CI.getDiagnostics().Report(ID) << Advice;
     }
 
     void CladPlugin::dumpGeneratedSource(clang::Decl* D) {
@@ -635,9 +664,15 @@ void InitTimers();
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
-      if (!m_DerivativeBuilder)
+      if (!m_DerivativeBuilder) {
         m_DerivativeBuilder =
             std::make_unique<DerivativeBuilder>(S, *this, getScheduler());
+        // Before the first chunk is made: a chunk keeps the name it was made
+        // with, and that name is what the line table records.
+        if (!m_DO.GeneratedSourceDir.empty())
+          m_DerivativeBuilder->getGeneratedCode().setFileBase(
+              m_DO.GeneratedSourceDir, m_CI.getCodeGenOpts().MainFileName);
+      }
 
       if (request.Global) {
         auto deriveResult = m_DerivativeBuilder->Derive(request);
