@@ -4,7 +4,6 @@
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/SourceLocation.h"
-#include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -105,7 +104,7 @@ SourceLocation DerivativePrinter::locationOf(const FunctionDecl* FD,
   unsigned Offset = Found->second;
   while (Offset < Text.size() && (Text[Offset] == ' ' || Text[Offset] == '\t'))
     ++Offset;
-  return R.At.Loc.getLocWithOffset(Offset);
+  return R.At.Loc.getLocWithOffset(static_cast<int>(Offset));
 }
 
 unsigned DerivativePrinter::lineOf(const FunctionDecl* FD, const Stmt* S) {
@@ -147,7 +146,7 @@ SourceRange DerivativePrinter::rangeOf(const FunctionDecl* FD, const Stmt* S) {
   if (Text.empty() || Text.contains(/*C=*/'\n'))
     return Begin;
   // A range's end names the last character, not one past it.
-  return {Begin, Begin.getLocWithOffset(Text.size() - 1)};
+  return {Begin, Begin.getLocWithOffset(static_cast<int>(Text.size()) - 1)};
 }
 
 SourceLocation DerivativePrinter::startOf(const FunctionDecl* FD) {

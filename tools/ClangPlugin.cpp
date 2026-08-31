@@ -24,6 +24,13 @@
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
+// Clang 17 moved the debug info kinds out of clang::codegenoptions and into
+// llvm::codegenoptions.
+#if CLANG_VERSION_MAJOR < 17
+#include "clang/Basic/DebugInfoOptions.h"
+#else
+#include "llvm/Frontend/Debug/Options.h"
+#endif
 
 #ifdef _WIN32
 // <windows.h> defines function-like min/max macros that mangle
@@ -262,6 +269,12 @@ void InitTimers();
         collectStmts(Child, Printer, FD, Out);
     }
 
+#if CLANG_VERSION_MAJOR < 17
+    namespace codegenoptions = clang::codegenoptions;
+#else
+    namespace codegenoptions = llvm::codegenoptions;
+#endif
+
     /// Every statement under \p S standing at a slot, outermost first.
     static void collectSlotted(const clang::Stmt* S, GeneratedCode& Locs,
                                llvm::SmallVectorImpl<const clang::Stmt*>& Out) {
@@ -279,8 +292,8 @@ void InitTimers();
       // The line notes are for debug information alone: they decide what
       // CodeGen writes into the line table. A diagnostic reads the printed
       // code directly.
-      const bool WantLineNotes = m_CI.getCodeGenOpts().getDebugInfo() !=
-                                 llvm::codegenoptions::NoDebugInfo;
+      const bool WantLineNotes =
+          m_CI.getCodeGenOpts().getDebugInfo() != codegenoptions::NoDebugInfo;
       if (!WantLineNotes && !m_DO.RemarkTBRAnalysis &&
           !m_DO.DumpGeneratedSource)
         return; // Nobody will read the code, so nobody has to print it.
@@ -321,11 +334,11 @@ void InitTimers();
         // The brace clad built the body with stands for the signature, so
         // stopping at the function by name lands on its first line.
         const clang::SourceLocation Brace = FD->getBody()->getBeginLoc();
-        if (Code.sameChunk(Brace, Printed))
+        if (Code.isSameChunk(Brace, Printed))
           Code.assign(Brace, FD->getEndLoc(), Signature);
 
         for (const clang::Stmt* S : Nodes)
-          if (Code.sameChunk(S->getBeginLoc(), Printed))
+          if (Code.isSameChunk(S->getBeginLoc(), Printed))
             Code.assign(S->getBeginLoc(), S->getEndLoc(),
                         Printer.lineOf(FD, S));
       }

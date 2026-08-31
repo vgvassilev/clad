@@ -4,6 +4,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <algorithm>
@@ -15,17 +16,13 @@ using namespace clang;
 
 namespace clad {
 
-namespace {
-
 /// Whether the SourceManager has already worked out where \p File's lines
 /// are. It does that once and keeps the answer, so anything printed after
 /// that would sit on lines it does not know about.
-bool lineBoundariesTaken(SourceManager& SM, FileID File) {
+static bool hasLineTable(SourceManager& SM, FileID File) {
   return bool(
       SM.getSLocEntry(File).getFile().getContentCache().SourceLineCache);
 }
-
-} // namespace
 
 SourceLocation GeneratedCode::nextLoc() {
   SourceManager& SM = m_Sema.getSourceManager();
@@ -75,6 +72,7 @@ std::string GeneratedCode::nextName() const {
 }
 
 GeneratedCode::Chunk* GeneratedCode::chunkFor(SourceLocation Loc) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   return const_cast<Chunk*>(
       static_cast<const GeneratedCode*>(this)->chunkFor(Loc));
 }
@@ -98,7 +96,7 @@ GeneratedCode::Placement GeneratedCode::addText(SourceLocation Anchor,
   // Printing now would move lines the SourceManager has already committed to,
   // and every position it reports here afterwards would be off. Say nothing
   // rather than something untrue.
-  if (lineBoundariesTaken(SM, C->File))
+  if (hasLineTable(SM, C->File))
     return {};
   // A trailing newline so the next derivative starts on a line of its own
   // rather than continuing this one.
@@ -107,14 +105,18 @@ GeneratedCode::Placement GeneratedCode::addText(SourceLocation Anchor,
     return {}; // Code that does not fit stays a blank line.
   const unsigned At = C->Used;
   const unsigned First = C->NextLine;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   std::memcpy(C->Text + At, Text.data(), Text.size());
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   C->Text[At + Text.size()] = '\n';
   C->Used += static_cast<unsigned>(Need);
   // Printing over blank lines removes newlines, so the lines after this one
   // move up. Only lines nothing has been printed on yet, so nothing already
   // placed moves.
   C->NextLine += static_cast<unsigned>(Text.count('\n')) + 1;
-  return {SM.getLocForStartOfFile(C->File).getLocWithOffset(At), First};
+  return {
+      SM.getLocForStartOfFile(C->File).getLocWithOffset(static_cast<int>(At)),
+      First};
 }
 
 llvm::StringRef GeneratedCode::textAt(Placement P, unsigned Size) const {
@@ -122,6 +124,7 @@ llvm::StringRef GeneratedCode::textAt(Placement P, unsigned Size) const {
   if (!C)
     return {};
   const unsigned At = m_Sema.getSourceManager().getFileOffset(P.Loc);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   return llvm::StringRef(C->Text + At, std::min(Size, C->Capacity - At));
 }
 
@@ -138,10 +141,9 @@ void GeneratedCode::assign(SourceLocation Begin, SourceLocation End,
   if (End.isValid() && chunkFor(End) == C)
     Last = std::max(First, SM.getFileOffset(End));
 
+  // Slots only: the range comes from nodes, which never sit in the code.
   C->SlotLine.resize(C->Slots, 0);
   for (unsigned O = First; O <= Last; ++O) {
-    if (O < C->Capacity)
-      continue; // Before the slots: part of the code, not a slot.
     const unsigned I = O - C->Capacity;
     if (I < C->SlotLine.size())
       C->SlotLine[I] = Line;

@@ -79,11 +79,11 @@ class GeneratedCode {
   };
 
   /// The chunk \p Loc is in, or null if it is not one of ours.
-  Chunk* chunkFor(clang::SourceLocation Loc);
-  const Chunk* chunkFor(clang::SourceLocation Loc) const;
+  [[nodiscard]] Chunk* chunkFor(clang::SourceLocation Loc);
+  [[nodiscard]] const Chunk* chunkFor(clang::SourceLocation Loc) const;
 
   /// What to call the chunk about to be made.
-  std::string nextName() const;
+  [[nodiscard]] std::string nextName() const;
 
   clang::Sema& m_Sema;
   llvm::SmallVector<Chunk, 2> m_ChunkList;
@@ -110,7 +110,7 @@ public:
   Placement addText(clang::SourceLocation Anchor, llvm::StringRef Text);
 
   /// The bytes printed at \p P, \p Size of them.
-  llvm::StringRef textAt(Placement P, unsigned Size) const;
+  [[nodiscard]] llvm::StringRef textAt(Placement P, unsigned Size) const;
 
   /// Says that the slots from \p Begin through \p End belong to code on line
   /// \p Line of the chunk they are in.
@@ -137,13 +137,14 @@ public:
 
   /// Whether \p A and \p B are in the same chunk, which is what it takes for
   /// a note on one to name a line of the other.
-  bool sameChunk(clang::SourceLocation A, clang::SourceLocation B) const {
+  [[nodiscard]] bool isSameChunk(clang::SourceLocation A,
+                                 clang::SourceLocation B) const {
     const Chunk* C = chunkFor(A);
     return C && C == chunkFor(B);
   }
 
   /// Whether \p Loc is one of the slots handed out here.
-  bool owns(clang::SourceLocation Loc) const {
+  [[nodiscard]] bool owns(clang::SourceLocation Loc) const {
     return chunkFor(Loc) != nullptr;
   }
 };
