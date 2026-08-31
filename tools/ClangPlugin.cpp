@@ -343,6 +343,11 @@ void InitTimers();
                         Printer.lineOf(FD, S));
       }
 
+      // Everything is printed. What the SourceManager worked out about these
+      // buffers while the derivatives were being built describes an emptier
+      // version of them, so drop it before anything asks.
+      Code.forgetLineTables();
+
       if (WantLineNotes)
         Code.present();
 

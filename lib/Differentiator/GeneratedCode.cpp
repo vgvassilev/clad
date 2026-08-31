@@ -16,14 +16,6 @@ using namespace clang;
 
 namespace clad {
 
-/// Whether the SourceManager has already worked out where \p File's lines
-/// are. It does that once and keeps the answer, so anything printed after
-/// that would sit on lines it does not know about.
-static bool hasLineTable(SourceManager& SM, FileID File) {
-  return bool(
-      SM.getSLocEntry(File).getFile().getContentCache().SourceLineCache);
-}
-
 SourceLocation GeneratedCode::nextLoc() {
   SourceManager& SM = m_Sema.getSourceManager();
   if (m_Used == kSlotsPerChunk) {
@@ -93,11 +85,6 @@ GeneratedCode::Placement GeneratedCode::addText(SourceLocation Anchor,
   if (!C || Text.empty())
     return {};
   SourceManager& SM = m_Sema.getSourceManager();
-  // Printing now would move lines the SourceManager has already committed to,
-  // and every position it reports here afterwards would be off. Say nothing
-  // rather than something untrue.
-  if (hasLineTable(SM, C->File))
-    return {};
   // A trailing newline so the next derivative starts on a line of its own
   // rather than continuing this one.
   const size_t Need = Text.size() + 1;
@@ -148,6 +135,19 @@ void GeneratedCode::assign(SourceLocation Begin, SourceLocation End,
     if (I < C->SlotLine.size())
       C->SlotLine[I] = Line;
   }
+}
+
+void GeneratedCode::forgetLineTables() {
+  SourceManager& SM = m_Sema.getSourceManager();
+  // The line table is a cache the SourceManager fills on demand, so dropping
+  // it only means the next question is answered by reading the buffer again.
+  for (const Chunk& C : m_ChunkList)
+    SM.getSLocEntry(C.File).getFile().getContentCache().SourceLineCache =
+        SrcMgr::LineOffsetMapping();
+  // It also remembers the answer it last gave, to start the next search near
+  // it. That answer came from a table just dropped, so ask about another file
+  // to make the next question about these start over.
+  SM.getLineNumber(SM.getMainFileID(), 0);
 }
 
 void GeneratedCode::present() {

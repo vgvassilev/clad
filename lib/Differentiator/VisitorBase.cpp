@@ -165,9 +165,9 @@ namespace clad {
                                      TypeSourceInfo* TSI, StorageClass SC) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
-    auto* VD =
-        VarDecl::Create(m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
-                        m_DiffReq->getLocation(), Identifier, Type, TSI, SC);
+    SourceLocation Loc = GenLoc();
+    auto* VD = VarDecl::Create(m_Context, m_Sema.CurContext, Loc, Loc,
+                               Identifier, Type, TSI, SC);
 
     SetDeclInit(VD, Init, DirectInit);
     m_Sema.FinalizeDeclaration(VD);
@@ -342,7 +342,7 @@ namespace clad {
     QualType T = D->getType();
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
-        m_Sema.BuildDeclRefExpr(D, T, VK, D->getBeginLoc(), &CSS)));
+        m_Sema.BuildDeclRefExpr(D, T, VK, GenLoc(), &CSS)));
   }
 
   void VisitorBase::LambdaCaptures::collect(llvm::ArrayRef<Stmt*> Body) {
