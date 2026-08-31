@@ -28,6 +28,17 @@
 // RUN:   END { n = 0; for (l in line) n++; print "distinct-lines", n }' \
 // RUN:   | %filecheck --check-prefix=DISTINCT %s
 // DISTINCT: distinct-lines {{([2-9]|[1-9][0-9]+)}}
+//
+// Given somewhere to put it, the buffer is named after a file that is there,
+// which is what a debugger with no support for source embedded in the object
+// resolves and opens.
+// RUN: rm -rf %t.dir && mkdir -p %t.dir
+// RUN: %cladclang -g -gdwarf-5 -O0 -Xclang -plugin-arg-clad \
+// RUN:   -Xclang -fgenerated-source-dir=%t.dir -c %s -I%S/../../include \
+// RUN:   -o %t.named.o
+// RUN: %llvm-dwarfdump --debug-line %t.named.o \
+// RUN:   | %filecheck --check-prefix=CHECK-NAMED %s
+// CHECK-NAMED: name: "{{.*}}.clad.cpp"
 
 #include "clad/Differentiator/Differentiator.h"
 

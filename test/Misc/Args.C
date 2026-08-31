@@ -6,6 +6,7 @@
 // CHECK_HELP-NEXT: -fdump-derived-fn-ast
 // CHECK_HELP-NEXT: -fdump-generated-source
 // CHECK_HELP-NEXT: -Rclad-analysis=<name>
+// CHECK_HELP-NEXT: -fgenerated-source-dir=<dir>
 // CHECK_HELP-NEXT: -fgenerate-source-file
 // CHECK_HELP-NEXT: -fno-validate-clang-version
 // CHECK_HELP-NEXT: -fcustom-estimation-model
