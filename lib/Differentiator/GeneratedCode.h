@@ -82,6 +82,9 @@ class GeneratedCode {
     std::vector<unsigned> SlotLine;
   };
 
+  /// Makes a chunk with \p TextBytes of room for code, and returns it.
+  Chunk& makeChunk(unsigned TextBytes);
+
   /// The chunk \p Loc is in, or null if it is not one of ours.
   [[nodiscard]] Chunk* chunkFor(clang::SourceLocation Loc);
   [[nodiscard]] const Chunk* chunkFor(clang::SourceLocation Loc) const;

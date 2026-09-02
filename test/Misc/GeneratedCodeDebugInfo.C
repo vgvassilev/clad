@@ -39,6 +39,16 @@
 // RUN: %llvm-dwarfdump --debug-line %t.named.o \
 // RUN:   | %filecheck --check-prefix=CHECK-NAMED %s
 // CHECK-NAMED: name: "{{.*}}.clad.cpp"
+//
+// A derivative whose code outgrows a chunk gets a chunk of its own rather
+// than being left with nothing to show. `big` below is that derivative: its
+// nodes run on across chunks, and what clad prints for it does not fit in the
+// room any one of them reserves. Its statements come out all the same.
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fdump-generated-source \
+// RUN:   -fsyntax-only %s -I%S/../../include \
+// RUN:   | %filecheck --check-prefix=CHECK-BIG %s
+// CHECK-BIG: generated-source: big_grad
+// CHECK-BIG-NEXT: {{[0-9]+}}:{{[0-9]+}}{{.*}}{
 
 #include "clad/Differentiator/Differentiator.h"
 

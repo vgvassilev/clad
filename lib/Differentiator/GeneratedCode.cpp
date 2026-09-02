@@ -22,41 +22,45 @@ using namespace clang;
 
 namespace clad {
 
-SourceLocation GeneratedCode::nextLoc() {
+GeneratedCode::Chunk& GeneratedCode::makeChunk(unsigned TextBytes) {
   SourceManager& SM = m_Sema.getSourceManager();
-  if (m_Used == kSlotsPerChunk) {
-    const std::string Name = nextName();
-    constexpr unsigned TextBytes = kSlotsPerChunk * kTextBytesPerSlot;
-    auto Owned = llvm::WritableMemoryBuffer::getNewUninitMemBuffer(
-        TextBytes + kSlotsPerChunk, Name);
-    char* Start = Owned->getBufferStart();
-    // A blank line everywhere until code is printed over it: every slot has
-    // to be a line of its own, and uninitialised bytes would otherwise reach
-    // whoever reads this.
-    std::memset(Start, '\n', TextBytes + kSlotsPerChunk);
+  const std::string Name = nextName();
+  auto Owned = llvm::WritableMemoryBuffer::getNewUninitMemBuffer(
+      TextBytes + kSlotsPerChunk, Name);
+  char* Start = Owned->getBufferStart();
+  // A blank line everywhere until code is printed over it: every slot has to
+  // be a line of its own, and uninitialised bytes would otherwise reach
+  // whoever reads this.
+  std::memset(Start, '\n', TextBytes + kSlotsPerChunk);
 
-    // Entered from the main file, the way clang-repl enters its input. A
-    // chunk outside the include tree cannot be ordered against anything
-    // inside it: isBeforeInTranslationUnit runs out of shared parents and
-    // reports "Unsortable locations found", which clad hits whenever it sorts
-    // a derivative against a pragma.
-    FileID File = SM.createFileID(std::move(Owned), SrcMgr::C_User,
-                                  /*LoadedID=*/0, /*LoadedOffset=*/0,
-                                  SM.getLocForStartOfFile(SM.getMainFileID()));
-    Chunk C;
-    C.File = File;
-    C.Name = Name;
-    C.Text = Start;
-    C.Capacity = TextBytes;
-    m_ChunkList.push_back(std::move(C));
+  // Entered from the main file, the way clang-repl enters its input. A chunk
+  // outside the include tree cannot be ordered against anything inside it:
+  // isBeforeInTranslationUnit runs out of shared parents and reports
+  // "Unsortable locations found", which clad hits whenever it sorts a
+  // derivative against a pragma.
+  Chunk C;
+  C.File = SM.createFileID(std::move(Owned), SrcMgr::C_User,
+                           /*LoadedID=*/0, /*LoadedOffset=*/0,
+                           SM.getLocForStartOfFile(SM.getMainFileID()));
+  C.Name = Name;
+  C.Text = Start;
+  C.Capacity = TextBytes;
+  m_ChunkList.push_back(std::move(C));
+  return m_ChunkList.back();
+}
+
+SourceLocation GeneratedCode::nextLoc() {
+  if (m_Used == kSlotsPerChunk) {
+    makeChunk(kSlotsPerChunk * kTextBytesPerSlot);
     m_Used = 0;
   }
-  ++m_ChunkList.back().Slots;
+  Chunk& C = m_ChunkList.back();
+  ++C.Slots;
   // Slots sit behind the code. Signed because that is what getLocWithOffset
   // takes; a chunk is small enough that the offset always fits.
-  return SM.getLocForStartOfFile(m_ChunkList.back().File)
-      .getLocWithOffset(
-          static_cast<int>(m_ChunkList.back().Capacity + m_Used++));
+  return m_Sema.getSourceManager()
+      .getLocForStartOfFile(C.File)
+      .getLocWithOffset(static_cast<int>(C.Capacity + m_Used++));
 }
 
 void GeneratedCode::setFileBase(llvm::StringRef Dir, llvm::StringRef Unit) {
@@ -127,8 +131,17 @@ GeneratedCode::Placement GeneratedCode::addText(SourceLocation Anchor,
   // A trailing newline so the next derivative starts on a line of its own
   // rather than continuing this one.
   const size_t Need = Text.size() + 1;
-  if (Need > C->Capacity - C->Used)
-    return {}; // Code that does not fit stays a blank line.
+  if (Need > C->Capacity - C->Used) {
+    // A derivative with more nodes than a chunk holds runs its slots on into
+    // the next chunks, and its code can outgrow the room in any one of them.
+    // Give it a chunk of its own, big enough. Its slots stay where they were,
+    // so a note cannot name a line of this one and only the diagnostics get
+    // the code; that is still better than a derivative nothing can show.
+    C = &makeChunk(static_cast<unsigned>(Need));
+    // The next slot starts a chunk again, so nothing is handed out of this
+    // one and it stays what it is: somewhere to put code.
+    m_Used = kSlotsPerChunk;
+  }
   const unsigned At = C->Used;
   const unsigned First = C->NextLine;
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
