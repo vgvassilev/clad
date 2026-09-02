@@ -989,6 +989,19 @@ namespace clad {
     bool isCopyable(const clang::CXXRecordDecl* RD) {
       if (RD->defaultedCopyConstructorIsDeleted())
         return false;
+      // Not copyable if every declared copy ctor is deleted or non-public.
+      // (A type may still be copyable if it has another public copy ctor.)
+      bool sawCopyCtor = false;
+      bool hasUsableCopyCtor = false;
+      for (const clang::CXXConstructorDecl* Ctor : RD->ctors()) {
+        if (!Ctor->isCopyConstructor())
+          continue;
+        sawCopyCtor = true;
+        if (!Ctor->isDeleted() && Ctor->getAccess() == clang::AS_public)
+          hasUsableCopyCtor = true;
+      }
+      if (sawCopyCtor && !hasUsableCopyCtor)
+        return false;
       if (RD->hasUserDeclaredCopyConstructor()) {
         std::string qualifiedName = RD->getQualifiedNameAsString();
         // FIXME: I don't know why Clang things that unique_ptr has
