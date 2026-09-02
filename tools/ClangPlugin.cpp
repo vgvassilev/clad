@@ -551,9 +551,12 @@ void InitTimers();
                       "in the derivative of '%0' requested here")
               << G.Original->getNameAsString();
         // The half the user can act on: the expression in their own code
-        // whose value this is.
-        if (clang::SourceLocation Primal = primalLocationOf(K, VD, SM);
-            Primal.isValid())
+        // whose value this is. Only if it is theirs -- a kept value can be one
+        // clad introduced, and the expression behind that one was built, not
+        // written, so there is nothing of theirs to underline.
+        const clang::SourceLocation Primal = primalLocationOf(K, VD, SM);
+        if (Primal.isValid() &&
+            !m_DerivativeBuilder->getGeneratedCode().owns(Primal))
           utils::diag(S, clang::DiagnosticsEngine::Note, Primal,
                       "the value kept is the one this expression had")
               << primalRangeOf(K, VD);
