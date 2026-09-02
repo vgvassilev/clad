@@ -24,12 +24,12 @@
 // Which derivative this is, said in the diagnostic rather than left to the
 // include stack: a caret on the differentiation, and the name of what is
 // being differentiated.
-// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+105]]:12: note: in the derivative of 'f' requested here
+// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+110]]:12: note: in the derivative of 'f' requested here
 // CHECK-NEXT: clad::gradient(f)
 //
 // And the half the user can act on -- their own code, with the expression
 // whose value is being kept.
-// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+81]]:3: note: the value kept is the one this expression had
+// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+86]]:3: note: the value kept is the one this expression had
 // CHECK-NEXT: t = t * t;
 //
 // A value the reverse sweep needs once per iteration cannot go into a
@@ -45,20 +45,26 @@
 // CHECK-NEXT: {{\^~+$}}
 // CHECK: note: to-be-recorded analysis could not show it unused
 // CHECK: note: in the derivative of 'loopy' requested here
-// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+75]]:5: note: the value kept is the one this expression had
+// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+80]]:5: note: the value kept is the one this expression had
 // CHECK-NEXT: t = t * t;
 //
 // Not every derivative has a differentiation to name. The second derivative a
 // hessian needs is one clad asks itself for, at no line the user wrote, so the
 // note is left out rather than aimed at something arbitrary -- and the run's
-// exhaustive note matching is what holds it to that. The rest of the remark is
-// unchanged.
+// exhaustive note matching is what holds it to that.
+//
+// Nor does every kept value have an expression the user wrote. The first of
+// these is clad's own derivative variable, so there is nothing of theirs to
+// point at and the third note is left out too.
 // CHECK: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK: note: to-be-recorded analysis could not show it unused
-// CHECK: note: the value kept is the one this expression had
+//
+// The second is the user's own `t`, so that one is named, and by where they
+// wrote it rather than by where clad rebuilt it.
 // CHECK: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK: note: to-be-recorded analysis could not show it unused
-// CHECK: note: the value kept is the one this expression had
+// CHECK: {{.*}}AnalysisRemarks.C:[[@LINE+52]]:3: note: the value kept is the one this expression had
+// CHECK-NEXT: t = t * t;
 //
 // With the analysis switched off the value is kept for a different reason, and
 // the note says which. Claiming it "could not prove" something it never ran
@@ -79,10 +85,9 @@
 // CHECK-OFF: note: to-be-recorded analysis is disabled
 // CHECK-OFF: note: in the derivative of 'loopy' requested here
 // CHECK-OFF: note: the value kept is the one this expression had
-// Nor does the switch put an attribution back where there never was one.
+// Nor does the switch put back either note that was left out.
 // CHECK-OFF: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK-OFF: note: to-be-recorded analysis is disabled
-// CHECK-OFF: note: the value kept is the one this expression had
 // CHECK-OFF: <clad generated code>:{{[0-9]+}}:{{[0-9]+}}: remark: clad keeps this value for the reverse sweep
 // CHECK-OFF: note: to-be-recorded analysis is disabled
 // CHECK-OFF: note: the value kept is the one this expression had
