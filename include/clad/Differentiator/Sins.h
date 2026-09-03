@@ -5,7 +5,6 @@
 
 /// Standard-protected facility allowing access into private members in C++.
 /// Use with caution!
-// NOLINTBEGIN(cppcoreguidelines-macro-usage)
 #define CONCATE_(X, Y) X##Y
 #define CONCATE(X, Y) CONCATE_(X, Y)
 #define ALLOW_ACCESS(CLASS, MEMBER, ...)                                       \
@@ -23,7 +22,5 @@
 #define ACCESS(OBJECT, MEMBER)                                                 \
   (OBJECT).*Access((Only_##MEMBER<                                             \
                     std::remove_reference<decltype(OBJECT)>::type>*)nullptr)
-
-// NOLINTEND(cppcoreguidelines-macro-usage)
 
 #endif // CLAD_DIFFERENTIATOR_SINS_H

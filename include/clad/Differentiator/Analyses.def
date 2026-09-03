@@ -1,0 +1,29 @@
+//--------------------------------------------------------*- C++ -*----------//
+// The analyses clad can run, and the switches that select each one.
+//
+// Every analysis here is optional: it may change the code clad generates,
+// never the values that code computes. With all of them off clad must still
+// produce a correct derivative, only a more conservative one.
+//
+// CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)
+//
+//   Id       Spells the generated members, as in Enable<Id>Analysis.
+//   Name     How the analysis is named to users.
+//   Legacy   Suffix of the original -enable-<legacy>/-disable-<legacy> pair.
+//   Default  Whether the analysis runs when no switch selects it.
+//   Desc     One line for -help.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef CLAD_ANALYSIS
+#error "define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) before including"
+#endif
+
+CLAD_ANALYSIS(TBR, "tbr", "tbr", true,
+              "skips storing a value whose reverse sweep can recover it")
+CLAD_ANALYSIS(Varied, "activity", "va", false,
+              "skips the adjoint of a value no input can vary")
+CLAD_ANALYSIS(Useful, "useful", "ua", false,
+              "skips the adjoint of a value no output depends on")
+
+#undef CLAD_ANALYSIS

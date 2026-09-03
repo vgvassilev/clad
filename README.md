@@ -231,7 +231,7 @@ double x, y, d_x, d_y, final_error = 0;
 df.execute(x, y, &d_x, &d_y, final_error);
 // After this, 'final_error' contains the floating point error in function 'f'.
 ```
-The above example generates the the error code using an in-built taylor approximation model. However, clad is capable of using any user defined custom model, for information on how to use you own custom model, please visit [this demo](https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation/CustomModel).
+The above example generates the error code using an in-built taylor approximation model. However, clad is capable of using any user defined custom model, for information on how to use your own custom model, please visit [this demo](https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation/CustomModel).
 
 More detail on the APIs can be found under clad's [user documentation](https://clad.readthedocs.io/en/latest/index.html).
 ### Compiling and executing your code with clad
@@ -272,7 +272,7 @@ Clad also provides certain flags to save and print the generated derivative code
   - `-Xclang -plugin-arg-clad -Xclang -fdump-derived-fn` (Clang <14)
 
 ## How to install
-At the moment, LLVM/Clang 11.0.x - 21.1.x are supported.
+At the moment, LLVM/Clang 12.0.x - 22.2.x are supported.
 
 ### Conda Installation
 
@@ -351,7 +351,7 @@ make check-clad
 ```
 pip3 install lit
 ```
-Clone the LLVM project and checkout the required LLVM version (Currently supported versions 8.x - 18.x)
+Clone the LLVM project and checkout the required LLVM version (Currently supported versions 12.0.x - 22.2.x)
 
 ```
 git clone https://github.com/llvm/llvm-project.git

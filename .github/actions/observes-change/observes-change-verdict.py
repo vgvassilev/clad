@@ -48,7 +48,7 @@ def main(vdir, out=None):
     total = len(applicable)
     # test -> [(platform, kind)] where it failed at baseline, and
     # test -> [platform] for the rows that ran it at all.
-    seen, ran, adapts, every = {}, {}, {}, set()
+    seen, ran, adapts, every, regated = {}, {}, {}, set(), set()
     for v in applicable:
         for name, r in v.get("tests", {}).items():
             every.add(name)
@@ -57,12 +57,14 @@ def main(vdir, out=None):
             if not r.get("ran", True):
                 continue
             ran.setdefault(name, []).append(v["platform"])
+            if r.get("regated"):
+                regated.add(name)
             if not r.get("passed"):
                 seen.setdefault(name, []).append((v["platform"], r.get("kind")))
             elif r.get("adapts"):
                 adapts.setdefault(name, []).append(v["platform"])
 
-    rows, narrow, blind, unrun, forced = [], [], [], [], []
+    rows, narrow, blind, unrun, forced, moved = [], [], [], [], [], []
     for name in sorted(every):
         where = seen.get(name, [])
         # Judge each test against the rows that ran it, not the rows that
@@ -74,6 +76,9 @@ def main(vdir, out=None):
         elif n == 0 and k:
             rows.append((name, f"adapts to the change on {k}/{m}"))
             forced.append(name)
+        elif n == 0 and name in regated:
+            rows.append((name, f"gating edited, passes at baseline on {m}"))
+            moved.append(name)
         elif n == 0:
             rows.append((name, f"passes at baseline on all {m}"))
             blind.append(name)
@@ -92,10 +97,20 @@ def main(vdir, out=None):
         lines += ["", f"Evidence from a single platform:", ""]
         for name, (plat, kind) in narrow:
             lines.append(f"  {name} -- only {plat} ({kind})")
-        lines += ["", "That is the expected shape for a defect that only "
-                  "manifests under one", "row's checking, such as valgrind or "
-                  "a sanitizer. If this test is not", "about such a defect, "
-                  "the result is more likely flaky than meaningful."]
+        lines += ["", "One row and no other is what a defect confined to "
+                  "that row's configuration", "looks like: a sanitizer or "
+                  "valgrind row, but equally the only row with a", "given "
+                  "toolkit, compiler or standard-library version. It is also "
+                  "what a", "flake looks like. Which one this is depends on "
+                  "whether that row is singular", "in a way the change is "
+                  "about."]
+
+    if moved:
+        lines += ["", "This change edits where these run rather than what "
+                  "they assert, so the", "baseline pass measures the new "
+                  "gating against the old sources and is", "not evidence "
+                  "either way:", ""]
+        lines += [f"  {t}" for t in moved]
 
     if forced:
         lines += ["", "These cannot fail without the change, but their "
@@ -135,6 +150,10 @@ def main(vdir, out=None):
         if narrow:
             md += ["", "**Evidence from a single platform**", ""]
             md += [f"- `{n}` -- only `{p}` ({k})" for n, (p, k) in narrow]
+        if moved:
+            md += ["", "**Gating edited, so the baseline pass proves "
+                   "nothing**", ""]
+            md += [f"- `{t}`" for t in moved]
         if forced:
             md += ["", "**Adaptations the change forced**", ""]
             md += [f"- `{f}`" for f in forced]

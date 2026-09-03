@@ -1,13 +1,20 @@
+// A CUDA compile runs the frontend once per side, and each run dumps every
+// derivative, so without --cuda-device-only the input below is two copies
+// of the same list and a check can match one copy while the check before it
+// matched the other. The order the two agree on is the order the gradients
+// are requested in main(), which is what the blocks below follow -- not the
+// order the kernels are declared in.
+//
 // RUN: %cladclang_cuda -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include -fsyntax-only \
-// RUN:     --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath  -Xclang -verify \
-// RUN:     %s 2>&1 | %filecheck %s
+// RUN:     --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath --cuda-device-only \
+// RUN:     -Xclang -verify %s 2>&1 | %filecheck %s
 //
 // RUN: %cladclang_cuda -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include --cuda-path=%cudapath \
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oGradientKernels.out %s
 //
-// RUN: %cudarun ./GradientKernels.out | %filecheck_exec %s
+// RUN: %if cuda-runtime %{ %cudarun ./GradientKernels.out | %filecheck_exec %s %}
 //
-// REQUIRES: cuda-runtime
+// REQUIRES: cuda-compile
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -392,39 +399,6 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
   out[index] = device_with_device_call(in, val);
 }
 
-// CHECK: __attribute__((device)) inline void device_fn_4_pullback_0_1(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        _d_in[index0] += _d_y;
-//CHECK-NEXT:        *_d_val += _d_y;
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
-
-// CHECK: __attribute__((device)) inline void device_with_device_call_pullback_0(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    {
-//CHECK-NEXT:        double _r0 = 0.;
-//CHECK-NEXT:        device_fn_4_pullback_0_1(in, val, _d_y, _d_in, &_r0);
-//CHECK-NEXT:        *_d_val += _r0;
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
-
-// CHECK: void kernel_with_nested_device_call_grad_0_1(double *out, double *in, double val, double *_d_out, double *_d_in) {
-//CHECK-NEXT:    double _d_val = 0.;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x;
-//CHECK-NEXT:    double _t0 = out[index0];
-//CHECK-NEXT:    out[index0] = device_with_device_call(in, val);
-//CHECK-NEXT:    {
-//CHECK-NEXT:       out[index0] = _t0;
-//CHECK-NEXT:       double _r_d0 = _d_out[index0];
-//CHECK-NEXT:        _d_out[index0] = 0.;
-//CHECK-NEXT:        double _r0 = 0.;
-//CHECK-NEXT:        device_with_device_call_pullback_0(in, val, _r_d0, _d_in, &_r0);
-//CHECK-NEXT:        _d_val += _r0;
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
-
 __global__ void fn1(double *out, const double *in, double val) {
   int index = threadIdx.x + blockIdx.x * blockDim.x;
   double temp = val;
@@ -464,6 +438,39 @@ void fn(double *out, double *in) {
 //CHECK-NEXT:     kernel_call_pullback<<<1, 10>>>(out, in, _d_out, _d_in);
 //CHECK-NEXT: }
 
+// CHECK: __attribute__((device)) inline void device_fn_4_pullback_0_1(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + blockIdx.x * blockDim.x;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        _d_in[index0] += _d_y;
+//CHECK-NEXT:        *_d_val += _d_y;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: __attribute__((device)) inline void device_with_device_call_pullback_0(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    {
+//CHECK-NEXT:        double _r0 = 0.;
+//CHECK-NEXT:        device_fn_4_pullback_0_1(in, val, _d_y, _d_in, &_r0);
+//CHECK-NEXT:        *_d_val += _r0;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: void kernel_with_nested_device_call_grad_0_1(double *out, double *in, double val, double *_d_out, double *_d_in) {
+//CHECK-NEXT:    double _d_val = 0.;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x;
+//CHECK-NEXT:    double _t0 = out[index0];
+//CHECK-NEXT:    out[index0] = device_with_device_call(in, val);
+//CHECK-NEXT:    {
+//CHECK-NEXT:       out[index0] = _t0;
+//CHECK-NEXT:       double _r_d0 = _d_out[index0];
+//CHECK-NEXT:        _d_out[index0] = 0.;
+//CHECK-NEXT:        double _r0 = 0.;
+//CHECK-NEXT:        device_with_device_call_pullback_0(in, val, _r_d0, _d_in, &_r0);
+//CHECK-NEXT:        _d_val += _r0;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 double fn_memory(double *out, double *in) {
   double *in_dev = nullptr;
   cudaMalloc(&in_dev, 10 * sizeof(double));
@@ -475,7 +482,7 @@ double fn_memory(double *out, double *in) {
   double res = 0;
   for (int i=0; i < 10; ++i) {
     printf("Writing result of out[%d]\n", i); // expected-warning {{attempted differentiation of function 'printf' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
-                                    // expected-note@477 {{numerical differentiation is not viable for 'printf'; considering 'printf' as 0}}
+                                    // expected-note@-1 {{numerical differentiation is not viable for 'printf'; considering 'printf' as 0}}
     res += out_host[i];
   }
   free(out_host);
@@ -519,13 +526,13 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:        }
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
-//CHECK-NEXT:        unsigned long _r2 = 0UL;
+//CHECK-NEXT:        {{(unsigned long|[_a-zA-Z]*size_t)}} _r2 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r3 = static_cast<cudaMemcpyKind>(0U);
 //CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost, static_cast<cudaError>(0U), _d_out_host, _d_out, &_r2, &_r3);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    kernel_call_pullback<<<1, 10>>>(out, in_dev, _d_out, _d_in_dev);
 //CHECK-NEXT:    {
-//CHECK-NEXT:        unsigned long _r0 = 0UL;
+//CHECK-NEXT:        {{(unsigned long|[_a-zA-Z]*size_t)}} _r0 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r1 = static_cast<cudaMemcpyKind>(0U);
 //CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(in_dev, in, 10 * sizeof(double), cudaMemcpyHostToDevice, static_cast<cudaError>(0U), _d_in_dev, _d_in, &_r0, &_r1);
 //CHECK-NEXT:    }
@@ -616,7 +623,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    add_kernel_4<<<1, 5>>>(out_dev, in_dev, N);
 //CHECK-NEXT:    cudaMemcpy(out, out_dev, N * sizeof(int), cudaMemcpyDeviceToHost);
 //CHECK-NEXT:    {
-//CHECK-NEXT:        unsigned long _r6 = 0UL;
+//CHECK-NEXT:        {{(unsigned long|[_a-zA-Z]*size_t)}} _r6 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r7 = static_cast<cudaMemcpyKind>(0U);
 //CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out, out_dev, N * sizeof(int), cudaMemcpyDeviceToHost, static_cast<cudaError>(0U), _d_out, _d_out_dev, &_r6, &_r7);
 //CHECK-NEXT:        _d_N += _r6 * sizeof(int);
@@ -632,13 +639,13 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:        _d_N += _r4;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
-//CHECK-NEXT:        unsigned long _r2 = 0UL;
+//CHECK-NEXT:        {{(unsigned long|[_a-zA-Z]*size_t)}} _r2 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r3 = static_cast<cudaMemcpyKind>(0U);
 //CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out_dev, out, N * sizeof(int), cudaMemcpyHostToDevice, static_cast<cudaError>(0U), _d_out_dev, _d_out, &_r2, &_r3);
 //CHECK-NEXT:        _d_N += _r2 * sizeof(int);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
-//CHECK-NEXT:        unsigned long _r0 = 0UL;
+//CHECK-NEXT:        {{(unsigned long|[_a-zA-Z]*size_t)}} _r0 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r1 = static_cast<cudaMemcpyKind>(0U);
 //CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(in_dev, in, N * sizeof(int), cudaMemcpyHostToDevice, static_cast<cudaError>(0U), _d_in_dev, _d_in, &_r0, &_r1);
 //CHECK-NEXT:        _d_N += _r0 * sizeof(int);

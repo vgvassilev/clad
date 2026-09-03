@@ -41,6 +41,19 @@ DIAG = re.compile(r"^[^\s].*?:\d+:\d+: error: (.*)$", re.M)
 # without it a test nothing executed is indistinguishable from one that
 # ran and passed.
 UNSUPPORTED = re.compile(r"^UNSUPPORTED: ", re.M)
+
+# What decides where a test runs, as opposed to what it asserts. A change
+# that edits these moves the test to new rows, and "passes at baseline"
+# then measures the new gating against the old sources -- which says
+# nothing about whether the test can observe the change.
+GATING = re.compile(r"^//\s*(?:REQUIRES|UNSUPPORTED|XFAIL):.*$", re.M)
+
+
+def gating(rev, path):
+    """The gating directives this test carries at rev, None if absent there."""
+    p = subprocess.run(["git", "show", f"{rev}:{path}"],
+                       capture_output=True, text=True, check=False)
+    return GATING.findall(p.stdout) if p.returncode == 0 else None
 # Project convention, not anything intrinsic; each is overridable so a
 # project laid out differently configures rather than forks.
 TEST_DIRS = ("test",)
@@ -234,13 +247,25 @@ def main():
                 annotate("notice", t, f"Not run on {a.platform}, so this "
                          "row has no evidence about it either way.")
             elif state == "PASS":
+                # A file the change adds has no pre-change gating to
+                # differ from, so it is not one the change re-gated.
+                was = gating(a.base_rev, t)
+                regated = was is not None and was != gating("HEAD", t)
                 verdict["tests"][t] = {"ran": True, "passed": True,
-                                       "kind": None}
-                print(f"{t:<{width + 2}}{'PASS':<13}none -- cannot fail for "
-                      f"this change")
-                annotate("warning", t, f"Passes on {a.platform} with this "
-                         "change reverted, so it cannot be its regression "
-                         "test. Another platform may still observe it.")
+                                       "kind": None, "regated": regated}
+                if regated:
+                    print(f"{t:<{width + 2}}{'PASS':<13}gating edited -- "
+                          f"runs where it did not")
+                    annotate("notice", t, f"This change edits where this test "
+                             "runs, not what it asserts, so passing with the "
+                             "change reverted is the expected result and not "
+                             "evidence either way.")
+                else:
+                    print(f"{t:<{width + 2}}{'PASS':<13}none -- cannot fail "
+                          f"for this change")
+                    annotate("warning", t, f"Passes on {a.platform} with this "
+                             "change reverted, so it cannot be its regression "
+                             "test. Another platform may still observe it.")
             else:
                 kind, note = classify(out)
                 verdict["tests"][t] = {"ran": True, "passed": False,

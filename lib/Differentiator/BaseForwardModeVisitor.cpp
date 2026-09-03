@@ -31,6 +31,7 @@
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
@@ -438,7 +439,7 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
               m_Context.IntTy, m_Context, dValue);
           dArrVal.push_back(dValueLiteral);
         }
-        dInitializer = m_Sema.ActOnInitList(validLoc, dArrVal, validLoc).get();
+        dInitializer = BuildInitList(dArrVal);
       } else if (const auto* ptrType =
                      dyn_cast<PointerType>(fieldType.getTypePtr())) {
         if (!ptrType->getPointeeType()->isRealType())
@@ -849,8 +850,8 @@ StmtDiff BaseForwardModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
     derivedExprs[i] = ResultI.getExpr_dx();
   }
 
-  Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-  Expr* derivedILE = m_Sema.ActOnInitList(noLoc, derivedExprs, noLoc).get();
+  Expr* clonedILE = BuildInitList(clonedExprs);
+  Expr* derivedILE = BuildInitList(derivedExprs);
   return StmtDiff(clonedILE, derivedILE);
 }
 
@@ -1385,8 +1386,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     pushforwardFnRequest.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
     // Silence diag outputs in nested derivation process.
     pushforwardFnRequest.VerboseDiags = false;
-    pushforwardFnRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-    pushforwardFnRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+    pushforwardFnRequest.inheritAnalysesFrom(m_DiffReq);
 
     FunctionDecl* pushforwardFD = nullptr;
     if (m_DiffReq.CurrentDerivativeOrder != 1 || !m_DiffReq.CallContext) {
@@ -1919,17 +1919,10 @@ BaseForwardModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
 StmtDiff BaseForwardModeVisitor::VisitCXXFunctionalCastExpr(
     const clang::CXXFunctionalCastExpr* FCE) {
   StmtDiff castExprDiff = Visit(FCE->getSubExpr());
-  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-  Expr* clonedFCE = m_Sema
-                        .BuildCXXFunctionalCastExpr(
-                            FCE->getTypeInfoAsWritten(), FCE->getType(),
-                            fakeLoc, castExprDiff.getExpr(), fakeLoc)
-                        .get();
-  Expr* derivedFCE = m_Sema
-                         .BuildCXXFunctionalCastExpr(
-                             FCE->getTypeInfoAsWritten(), FCE->getType(),
-                             fakeLoc, castExprDiff.getExpr_dx(), fakeLoc)
-                         .get();
+  Expr* clonedFCE = BuildFunctionalCast(FCE->getTypeInfoAsWritten(),
+                                        FCE->getType(), castExprDiff.getExpr());
+  Expr* derivedFCE = BuildFunctionalCast(
+      FCE->getTypeInfoAsWritten(), FCE->getType(), castExprDiff.getExpr_dx());
   return {clonedFCE, derivedFCE};
 }
 
@@ -2041,9 +2034,9 @@ BaseForwardModeVisitor::VisitCharacterLiteral(const CharacterLiteral* CL) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
-  return StmtDiff(Clone(SL), StringLiteral::Create(
-                                 m_Context, "", SL->getKind(), SL->isPascal(),
-                                 SL->getType(), utils::GetValidSLoc(m_Sema)));
+  return StmtDiff(Clone(SL), StringLiteral::Create(m_Context, "", SL->getKind(),
+                                                   SL->isPascal(),
+                                                   SL->getType(), GenLoc()));
 }
 
 StmtDiff
@@ -2412,8 +2405,8 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
       // Rely on the initializer list expressions as they seem to be more
       // flexible in terms of conversions and other similar scenarios where a
       // constructor is called implicitly.
-      clonedArgsE = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
-      derivedArgsE = m_Sema.ActOnInitList(noLoc, derivedArgs, noLoc).get();
+      clonedArgsE = BuildInitList(clonedArgs);
+      derivedArgsE = BuildInitList(derivedArgs);
     }
   } else {
     clonedArgsE = clonedArgs[0];
@@ -2453,18 +2446,15 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
 
-  Expr* clonedTOE =
-      m_Sema
-          .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
-                                     utils::GetValidSLoc(m_Sema), clonedArgs,
-                                     utils::GetValidSLoc(m_Sema),
-                                     TOE->isListInitialization())
-          .get();
+  Expr* clonedTOE = m_Sema
+                        .ActOnCXXTypeConstructExpr(
+                            OpaquePtr<QualType>::make(TOE->getType()), GenLoc(),
+                            clonedArgs, GenLoc(), TOE->isListInitialization())
+                        .get();
   Expr* derivedTOE =
       m_Sema
           .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
-                                     utils::GetValidSLoc(m_Sema), derivedArgs,
-                                     utils::GetValidSLoc(m_Sema),
+                                     GenLoc(), derivedArgs, GenLoc(),
                                      TOE->isListInitialization())
           .get();
   return {clonedTOE, derivedTOE};

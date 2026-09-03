@@ -20,6 +20,7 @@
 #include <thrust/sort.h>
 #include <thrust/transform.h>
 #include <thrust/tuple.h>
+#include <thrust/version.h>
 #include <type_traits>
 
 namespace clad::custom_derivatives::thrust {
@@ -53,6 +54,16 @@ struct has_binary_operator_call_pullback<
         (::std::add_pointer_t<T>)(nullptr),    // d_x1
         (::std::add_pointer_t<T>)(nullptr)))>> // d_x2
     : ::std::true_type {};
+
+// CCCL 3.0, which ships with CUDA 13, removed the public thrust::identity
+// functor. No caller on such a release can name it, so the pullback branch
+// that recognises it is unreachable there and must not be compiled.
+template <typename Op, typename T> struct is_identity : ::std::false_type {};
+
+#if THRUST_VERSION < 300000
+template <typename T>
+struct is_identity<::thrust::identity<T>, T> : ::std::true_type {};
+#endif
 } // namespace detail
 
 template <typename Iterator, typename OutputIterator>
@@ -670,7 +681,7 @@ void transform_pullback(InputIt first, InputIt last, OutputIt result,
     auto iter = ::thrust::make_zip_iterator(
         ::thrust::make_tuple(d_src_dev_ptr, d_dst_dev_ptr));
     ::thrust::for_each(iter, iter + n, grad_functor());
-  } else if constexpr (::std::is_same_v<UnaryOp, ::thrust::identity<Value>>) {
+  } else if constexpr (detail::is_identity<UnaryOp, Value>::value) {
     struct grad_functor {
       CUDA_HOST_DEVICE void
       operator()(::thrust::tuple<Value&, Value&> t) const {

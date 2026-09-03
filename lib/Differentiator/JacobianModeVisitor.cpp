@@ -197,14 +197,14 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
         // and number of columns equal to the number of independent variables
         llvm::SmallVector<Expr*, 3> args = {getSize, buildIndVarCountRef(),
                                             offsetExpr};
-        dVectorParam = BuildIdentityMatrixExpr(dParamType, args, loc);
+        dVectorParam = BuildIdentityMatrixExpr(dParamType, args);
 
         offsetTracker.advanceByArray(getSize);
       } else {
         // Create a one hot vector for the parameter.
         llvm::SmallVector<Expr*, 2> args = {buildIndVarCountRef(), offsetExpr};
-        dVectorParam = BuildCallExprToCladFunction("one_hot_vector", args,
-                                                   {dParamType}, loc);
+        dVectorParam =
+            BuildCallExprToCladFunction("one_hot_vector", args, {dParamType});
         offsetTracker.advanceByScalar();
       }
       ++independentVarIndex;
@@ -216,8 +216,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
       // This parameter is not an independent variable.
       // Initialize by all zeros.
       Expr* dCount = buildIndVarCountRef();
-      dVectorParam = BuildCallExprToCladFunction("zero_vector", {dCount},
-                                                 {dParamType}, loc);
+      dVectorParam =
+          BuildCallExprToCladFunction("zero_vector", {dCount}, {dParamType});
     }
 
     // For each function arg to be differentiated, create a variable
@@ -262,13 +262,7 @@ StmtDiff JacobianModeVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
     return nullptr;
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
-  // This can instantiate as part of the move or copy initialization and
-  // needs a fake source location.
-  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-  Stmt* returnStmt =
-      m_Sema
-          .ActOnReturnStmt(fakeLoc, retValDiff.getExpr_dx(), getCurrentScope())
-          .get();
+  Stmt* returnStmt = BuildReturnStmt(retValDiff.getExpr_dx());
   return StmtDiff(returnStmt);
 }
 } // end namespace clad

@@ -1,0 +1,14 @@
+# Memcheck suppressions for the programs the tests produce, used by the
+# exec-only Valgrind mode (CLAD_TEST_VG_EXEC_ONLY).
+#
+# The OpenMP runtime allocates its thread pool on first use and holds it
+# until the process exits, so Memcheck reports the blocks as possibly lost.
+# The frame directly below malloc is libomp's own, so nothing allocated by
+# clad or by a test can match this.
+{
+   libomp keeps its thread pool until the process exits
+   Memcheck:Leak
+   match-leak-kinds: possible,definite
+   fun:malloc
+   obj:*libomp.so*
+}

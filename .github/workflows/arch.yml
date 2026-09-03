@@ -1,5 +1,8 @@
 ---
 name: 'Arch'
+# 32-bit x86: clad built as a 32-bit binary, running the whole suite for a
+# 32-bit target. Nightly as well as per pull request, so that drift in the
+# image is found on its own rather than in someone's review.
 on:
   push:
     branches:
@@ -7,44 +10,60 @@ on:
   pull_request:
     branches:
       - master
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
 
 jobs:
   architecture:
-    strategy:
-      matrix:
-        target: [x86]
     runs-on: ubuntu-latest
+    env:
+      # An Alpine release carries one recent llvm and no newer: 3.22 has 20,
+      # and 22 arrives only on the rolling edge branch, whose packages move
+      # without notice. Bumping the pair here is the whole of an update.
+      ALPINE_TAG: '3.22'
+      LLVM_VERSION: '20'
     steps:
       - name: Checkout branch
-        uses: actions/checkout@v4
-      - name: "Setup latest Alpine Linux"
-        uses: jirutka/setup-alpine@v1
-        with:
-          arch:  ${{ matrix.target }}
-          branch: v3.20
-          packages: >
-            llvm17-dev
-            clang17-dev
-            clang17-static
-            clang17-extra-tools
-            llvm17-static
-            llvm17-gtest
-            cmake
-            make
-            git
-      - name: "Setup"
-        run: |
-          make --version
-        shell: alpine.sh {0}
+        uses: actions/checkout@v7
 
-      - name: "Compile library"
+      # 622MB of .apk every run otherwise, fetched from dl-cdn as ninety
+      # separate requests. Alpine ships llvm's cmake exports and the archives
+      # they name in separate packages, so the -static ones are not optional
+      # -- configure fails on the missing .a files -- and the volume cannot be
+      # argued down. Where it comes from can be.
+      - name: Cache the Alpine packages
+        uses: actions/cache@v4
+        with:
+          path: .apk-cache
+          key: apk-i386-alpine${{ env.ALPINE_TAG }}-llvm${{ env.LLVM_VERSION }}
+
+      # The build runs in a 32-bit userspace, which the 64-bit runner executes
+      # natively. The checkout above does not, and cannot: a container: job
+      # runs the actions themselves inside the image, and the runner's node
+      # for musl is built for x86_64 only, so every JavaScript action fails
+      # there with "exec /__e/node24_alpine/bin/node: no such file or
+      # directory". Reaching for docker from a run: step leaves the actions on
+      # the host, where their interpreter is.
+      #
+      # An image rather than jirutka/setup-alpine, which bootstraps by
+      # downloading apk.static from gitlab.alpinelinux.org on a ten second
+      # timeout: that one fetch failed 8 of the job's last 40 runs.
+      - name: "Build and test for 32-bit x86"
         run: |
-          export CC=/usr/bin/clang-17
-          export CXX=/usr/bin/clang++-17
-          mkdir build && cd build
-          cmake -DLLVM_EXTERNAL_LIT="$(which lit)" ../../clad
-          make -j 8 check-clad
-        shell: alpine.sh {0}
+          mkdir -p .apk-cache
+          docker run --rm --platform linux/386 -v "$PWD":/clad \
+            -v "$PWD/.apk-cache":/etc/apk/cache -w /clad \
+            i386/alpine:${{ env.ALPINE_TAG }} sh -euxc '
+              V=${{ env.LLVM_VERSION }}
+              apk add llvm$V-dev clang$V-dev clang$V-static \
+                      clang$V-extra-tools llvm$V-static llvm$V-gtest \
+                      cmake make git py3-pip
+              python3 -m pip install --break-system-packages lit
+              export CC=/usr/bin/clang-$V CXX=/usr/bin/clang++-$V
+              cmake -S . -B build -DLLVM_EXTERNAL_LIT="$(which lit)"
+              make -C build -j $(nproc) check-clad
+            '
 
       - name: Setup tmate session
         if: ${{ failure() && runner.debug }}

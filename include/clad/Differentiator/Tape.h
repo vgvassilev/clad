@@ -898,7 +898,7 @@ private:
     getDiskInfo().m_ActiveVramSlabs = 0;
   }
 
-  void clear_impl(std::false_type) {
+  CUDA_HOST_DEVICE void clear_impl(std::false_type) {
     std::size_t count = m_size;
     for (std::size_t i = 0; i < SBO_SIZE && count > 0; ++i, --count)
       destroy_element(&sbo_elements()[i]);
@@ -915,7 +915,7 @@ private:
     }
   }
 
-  void clear() {
+  CUDA_HOST_DEVICE void clear() {
     clear_impl(std::integral_constant < bool, DiskOffload || GpuOffload > {});
     m_head = nullptr;
     m_tail = nullptr;

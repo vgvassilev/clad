@@ -5,6 +5,10 @@ on:
     paths:
       - '**.h'
       - '**.cpp'
+      - '**.cu'
+      - '**.cuh'
+      # So a change to this job is exercised by this job.
+      - '.github/workflows/clang-tidy-review.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -12,40 +16,49 @@ concurrency:
 
 jobs:
   review:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: `os` below names a recipe cache cell.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v2
+      # Provisions the toolchain and writes the compilation database,
+      # including commands for the CUDA sources CMake does not compile.
+      - name: Prepare the build clang-tidy reads
+        uses: compiler-research/ci-workflows/actions/setup-clang-tidy@main
         with:
-          version: "20"
-
-      - name: install lit
-        run: pip install lit
-
-      - name: run git config command
-        run: |
-          git config --global --add safe.directory /github/workspace
+          version: '22'
+          os: ubuntu-24.04
+          arch: x86_64
+          cuda-version: '12.8.1'
+          # Differentiator.h and CladtorchBuiltins.h keep code behind
+          # _OPENMP that is otherwise never parsed.
+          openmp: 'true'
+          # ThrustDerivatives.h and ThrustBuiltins.h include nothing of
+          # clad's own; they are written to follow this header.
+          force-include: clad/Differentiator/Differentiator.h
+          cmake-args: >-
+            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_CXX_FLAGS=-fexceptions
 
       - name: Run clang-tidy
-        uses: ZedThree/clang-tidy-review@v0.20.1
+        uses: ZedThree/clang-tidy-review@v0.23.1
         id: review
         with:
           build_dir: build
-          apt_packages: cmake,libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev,libomp-20-dev,libopenblas-dev
+          # Where the database was written, so its paths get rewritten to
+          # the container's mount point.
+          base_dir: ${{ github.workspace }}
+          include: "*.[ch],*.[ch]xx,*.[ch]pp,*.[ch]++,*.cc,*.hh,*.cu,*.cuh"
+          clang_tidy_version: '21'
+          # clang-tidy still parses in the container, and these carry
+          # headers the sources reach. No plain libxml2: the review
+          # container is ubuntu 25.10, where that name has no installation
+          # candidate and libxml2-dev brings the runtime anyway.
+          apt_packages: libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev,libomp-21-dev,libopenblas-dev
           exclude: "test/*,unittests/*"
           split_workflow: true
           config_file: .clang-tidy
-          cmake_command: >
-            CC=$GITHUB_WORKSPACE/llvm/bin/clang CXX=$GITHUB_WORKSPACE/llvm/bin/clang++
-            cmake . -B build -DLLVM_DIR="$GITHUB_WORKSPACE/llvm"
-            -DClang_DIR="$GITHUB_WORKSPACE/llvm"
-            -DCMAKE_BUILD_TYPE="Release"
-            -DLLVM_EXTERNAL_LIT="`which lit`"
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=On
-            -DCMAKE_CXX_FLAGS="-fexceptions" # Clad demos can have exceptions
 
       - name: Upload artifacts
-        uses: ZedThree/clang-tidy-review/upload@v0.20.1
+        uses: ZedThree/clang-tidy-review/upload@v0.23.1

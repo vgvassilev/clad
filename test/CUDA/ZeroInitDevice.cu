@@ -2,13 +2,13 @@
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oZeroInitDevice.out \
 // RUN:     -Xclang -verify %s 2>&1 | %filecheck %s
 //
-// RUN: %cudarun ./ZeroInitDevice.out | %filecheck_exec %s
+// RUN: %if cuda-runtime %{ %cudarun ./ZeroInitDevice.out | %filecheck_exec %s %}
 //
 // RUN: %cladclang_cuda -I%S/../../include --cuda-path=%cudapath \
 // RUN:     --cuda-gpu-arch=%cudaarch -fsyntax-only %s -DEXPECT_DIAG \
 // RUN:     -Xclang -verify=device -Xclang -verify-ignore-unexpected=note
 //
-// REQUIRES: cuda-runtime
+// REQUIRES: cuda-compile
 //
 // expected-no-diagnostics
 
