@@ -16,7 +16,7 @@ clad::array_ref<double>mat_ref_f1(mat_ref1, 9);
 
 constexpr double fn(double x, double y) { return x * y; }
 
-//CHECK:inline constexpr void fn_hessian(double x, double y, double *hessianMatrix) {
+//CHECK:constexpr void fn_hessian(double x, double y, double *hessianMatrix) {
 //CHECK-NEXT:    clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 //CHECK-NEXT:    _d_y.pushforward = 1.;
 //CHECK-NEXT:    double _d_x(0.);
@@ -31,7 +31,7 @@ constexpr double fn(double x, double y) { return x * y; }
 
 constexpr double g(double i, double j[2]) { return i * (j[0] + j[1]); }
 
-//CHECK:inline constexpr void g_hessian(double i, double j[2], double *hessianMatrix) {
+//CHECK:constexpr void g_hessian(double i, double j[2], double *hessianMatrix) {
 //CHECK-NEXT:    clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 //CHECK-NEXT:    _d_y.pushforward = 1.;
 //CHECK-NEXT:    double _d_i(0.);

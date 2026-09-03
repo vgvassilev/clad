@@ -1,3 +1,16 @@
+# Two checks are off for reasons that outlive any one patch:
+#
+# llvm-header-guard derives the expected guard from the absolute path, so for
+# the 28 headers outside include/ it asks for the checkout directory and no
+# committed value can satisfy it. Upstream declined to make it configurable
+# (llvm/llvm-project#71732), and the rest of what it encodes -- include/,
+# tools/clang/, the LLVM_CLANG_ and FORTRAN_ prefixes -- is LLVM's own layout.
+#
+# cppcoreguidelines-avoid-const-or-ref-data-members exists to stop a value type
+# losing copy-assignment by accident. Clad's visitors and analyzers are not
+# value types: they are short-lived objects holding references to compiler
+# state that outlives them, 38 such members across VisitorBase,
+# DerivativeBuilder, DiffPlanner and the rest.
 Checks: >
   -*,
   bugprone-*,
@@ -7,6 +20,7 @@ Checks: >
   llvm-*,
   misc-*,
   modernize-*,
+  openmp-*,
   performance-*,
   portability-*,
   readability-*,
@@ -19,6 +33,7 @@ Checks: >
   -misc-non-private-member-variables-in-classes,
   -cppcoreguidelines-non-private-member-variables-in-classes,
   -misc-no-recursion,
+  -cppcoreguidelines-macro-usage,
   -misc-use-anonymous-namespace,
   -modernize-return-braced-init-list,
   -modernize-use-trailing-return-type,
@@ -31,6 +46,8 @@ Checks: >
   -readability-implicit-bool-conversion,
   -cppcoreguidelines-avoid-magic-numbers,
   -clang-analyzer-cplusplus.NewDeleteLeaks,
+  -llvm-header-guard,
+  -cppcoreguidelines-avoid-const-or-ref-data-members,
 
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase

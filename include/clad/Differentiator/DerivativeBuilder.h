@@ -54,6 +54,8 @@ namespace clad {
 namespace clad {
 class ErrorEstimationHandler;
 
+class GeneratedCode;
+
 class VisitorBase;
 
 /// RAII handle for a cloned derivative function. cloneFunction opens one
@@ -110,6 +112,8 @@ struct DerivativeAndOverload {
     friend class JacobianModeVisitor;
     friend class ReverseModeForwPassVisitor;
     clang::Sema& m_Sema;
+    /// Distinct locations for the nodes clad builds; see GeneratedCode.
+    std::unique_ptr<GeneratedCode> m_GeneratedCode;
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
     DiffScheduler& m_Scheduler;
@@ -179,6 +183,12 @@ struct DerivativeAndOverload {
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
                       DiffScheduler& Scheduler);
     ~DerivativeBuilder();
+    /// A location for a node about to be built. Distinct per node, so that a
+    /// line note can later say where that node really ended up.
+    clang::SourceLocation GenLoc();
+    /// Where those locations point, for a caller with generated code to print
+    /// into it.
+    GeneratedCode& getGeneratedCode();
     /// Fuction to set the error diagnostic printing value for numerical
     /// differentiation.
     ///

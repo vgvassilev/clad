@@ -7,7 +7,10 @@
 #include "clad/Differentiator/DerivativeBuilder.h"
 
 #include "ASTIntegrity.h"
+#include "GeneratedCode.h"
 #include "JacobianModeVisitor.h"
+
+#include "clang/Basic/SourceLocation.h"
 
 #include "clad/Differentiator/BaseForwardModeVisitor.h"
 #include "clad/Differentiator/CladUtils.h"
@@ -60,12 +63,20 @@ namespace clad {
 
 DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
                                      DiffScheduler& Scheduler)
-    : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
-      m_Scheduler(Scheduler),
+    : m_Sema(S), m_GeneratedCode(std::make_unique<GeneratedCode>(S)),
+      m_CladPlugin(P), m_Context(S.getASTContext()), m_Scheduler(Scheduler),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
       m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
 
 DerivativeBuilder::~DerivativeBuilder() {}
+
+SourceLocation DerivativeBuilder::GenLoc() {
+  return m_GeneratedCode->nextLoc();
+}
+
+GeneratedCode& DerivativeBuilder::getGeneratedCode() {
+  return *m_GeneratedCode;
+}
 
 static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DeclContext* DC = D->getLexicalDeclContext();
@@ -89,6 +100,17 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     };
     if (std::any_of(Previous.begin(), Previous.end(), definedNotInline))
       dFD->setInlineSpecified(false);
+
+    // Inline fits a derivative clad calls but never names outside: a unit that
+    // does not call one should not emit it. The root of the request graph is
+    // the one name that leaves clad, and an interpreter reaches it from a
+    // later translation unit, where a discardable definition is emitted again
+    // along with every derivative it calls. Let the root follow the primal,
+    // which is what decides whether naming it twice is a redefinition at all.
+    if (R.CallUpdateRequired && R.Function) {
+      dFD->setInlineSpecified(R.Function->isInlineSpecified());
+      dFD->setImplicitlyInline(R.Function->isInlined());
+    }
 
     // Check if we created a top-level decl with the same name for another
     // class.
@@ -249,7 +271,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
 
     IdentifierInfo* II = &m_Context.Idents.get(Name);
     DeclarationName name(II);
-    DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(m_Sema));
+    DeclarationNameInfo DNInfo(name, GenLoc());
     LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
 
     NamespaceDecl* NSD = nullptr;
@@ -586,14 +608,13 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           Expr* dummy = utils::getZeroInit(ptrType, m_Sema);
           // Build ``*nullptr``
           dummy = m_Sema.BuildUnaryOp(nullptr, {}, UO_Deref, dummy).get();
-          SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
           // Build ``static_cast<parTy>(*nullptr)``
           dummy =
               m_Sema
                   .BuildCStyleCastExpr(
-                      fakeLoc,
+                      GenLoc(),
                       m_Sema.getASTContext().getTrivialTypeSourceInfo(parTy),
-                      fakeLoc, dummy)
+                      GenLoc(), dummy)
                   .get();
           Inits.push_back(dummy);
         }

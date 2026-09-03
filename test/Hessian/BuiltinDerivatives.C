@@ -20,7 +20,7 @@ float f1(float x) {
 
 // CHECK: inline void f1_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0);
 
-// CHECK: inline void f1_hessian(float x, float *hessianMatrix) {
+// CHECK: void f1_hessian(float x, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);
@@ -40,7 +40,7 @@ float f2(float x) {
 
 // CHECK: inline void f2_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0);
 
-// CHECK: inline void f2_hessian(float x, float *hessianMatrix) {
+// CHECK: void f2_hessian(float x, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);
@@ -61,7 +61,7 @@ float f3(float x) {
 
 // CHECK: inline void f3_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0);
 
-// CHECK: inline void f3_hessian(float x, float *hessianMatrix) {
+// CHECK: void f3_hessian(float x, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);
@@ -82,7 +82,7 @@ float f4(float x) {
 
 // CHECK: inline void f4_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0);
 
-// CHECK: inline void f4_hessian(float x, float *hessianMatrix) {
+// CHECK: void f4_hessian(float x, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);
@@ -103,7 +103,7 @@ float f5(float x) {
 
 // CHECK: inline void f5_pushforward_pullback(float x, float _d_x, clad::ValueAndPushforward<float, float> _d_y, float *_d_x0);
 
-// CHECK: inline void f5_hessian(float x, float *hessianMatrix) {
+// CHECK: void f5_hessian(float x, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);
@@ -125,7 +125,7 @@ float f6(float x, float y) {
 
 // CHECK: inline void f6_pushforward_pullback(float x, float y, float _d_x, float _d_y, clad::ValueAndPushforward<float, float> _d_y0, float *_d_x0, float *_d_y1);
 
-// CHECK: inline void f6_hessian(float x, float y, float *hessianMatrix) {
+// CHECK: void f6_hessian(float x, float y, float *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _d_y{0.F, 0.F};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     float _d_x(0.F);

@@ -367,7 +367,7 @@ public:
 
   static double static_mem_fn(double u, double v) { return u + v; }
   
-  // CHECK: static inline void static_mem_fn_grad(double u, double v, double *_d_u, double *_d_v) {
+  // CHECK: static void static_mem_fn_grad(double u, double v, double *_d_u, double *_d_v) {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         *_d_u += 1;
   // CHECK-NEXT:         *_d_v += 1;

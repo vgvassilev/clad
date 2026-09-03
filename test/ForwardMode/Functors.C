@@ -291,16 +291,16 @@ struct WidgetArr {
 struct WidgetPointer {
   mutable double i, j;
   double* arr;
-  WidgetPointer() : i(0), j(0) {}
+  WidgetPointer() : i(0), j(0), arr(nullptr) {}
   WidgetPointer(double p_i, double p_j) : i(p_i), j(p_j) {
     arr = static_cast<double*>(malloc(sizeof(double)*10));
     for (int i=0; i<10; ++i) {
       arr[i] = i;
     }
   }
-  // ~WidgetPointer() {
-  //   free(arr);
-  // }
+  ~WidgetPointer() {
+    free(arr);
+  }
   double operator()() {
     double temp=0;
     for (int k=0; k<10; ++k) {

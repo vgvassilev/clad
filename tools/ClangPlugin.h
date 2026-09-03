@@ -13,6 +13,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/DiffScheduler.h"
 #include "clad/Differentiator/Version.h"
+#include "../lib/Differentiator/DerivativePrinter.h"
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
@@ -29,6 +30,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
+#include <cstdint>
 #include <deque>
 #include <map>
 #include <set>
@@ -48,27 +50,125 @@ namespace clad {
 
 bool checkClangVersion();
 namespace plugin {
+/// What the command line last said about one analysis. Unset means no switch
+/// named it, so it runs at the default Analyses.def gives it. Not spelled
+/// 'Default', which is a CLAD_ANALYSIS parameter and would be substituted
+/// inside the macro bodies naming this enum.
+enum class AnalysisSwitch : std::uint8_t { Unset, On, Off };
+
 struct DifferentiationOptions {
-  // Plain bool, not `: 1` bit-fields: with 13 single-bit bools packed
-  // into shared bytes, the compiler emits each ctor-init-list write as
-  // a read-modify-write of the storage byte. The first RMW reads the
-  // byte while it is still uninitialised, which MSan reports as a SEGV
-  // on uninitialised memory under -fsanitize=memory.
+  // Plain bool, not `: 1` bit-fields: packing single-bit bools into shared
+  // bytes makes the compiler emit each ctor-init-list write as a
+  // read-modify-write of the storage byte. The first RMW reads the byte while
+  // it is still uninitialised, which MSan reports as a SEGV on uninitialised
+  // memory under -fsanitize=memory.
   bool DumpSourceFn = false;
   bool DumpSourceFnAST = false;
   bool DumpDerivedFn = false;
   bool DumpDerivedAST = false;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  bool Remark##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
   bool GenerateSourceFile = false;
+  bool DumpGeneratedSource = false;
+  /// Where to write the generated code so a debugger can open it, and
+  /// whether that was asked at all. Asking with no directory writes nothing
+  /// and says nothing, which is how a build that knows it does not want this
+  /// turns the advice off.
+  std::string GeneratedSourceDir;
+  bool GeneratedSourceDirGiven = false;
   bool ValidateClangVersion = true;
-  bool EnableTBRAnalysis = false;
-  bool DisableTBRAnalysis = false;
-  bool EnableVariedAnalysis = false;
-  bool DisableVariedAnalysis = false;
-  bool EnableUsefulAnalysis = false;
-  bool DisableUsefulAnalysis = false;
+  /// What the command line asked of each analysis. The two bools record which
+  /// of the original -enable-<x>/-disable-<x> pair were seen, so that giving
+  /// both is still diagnosed rather than resolved by order. See Analyses.def.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  AnalysisSwitch Id##Switch = AnalysisSwitch::Unset;                           \
+  bool Enable##Id##Analysis = false;                                           \
+  bool Disable##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
   bool PrintNumDiffErrorInfo = false;
   bool EmitPortingHints = false;
 };
+
+/// Match one of the original per-analysis switches, -enable-<x> or
+/// -disable-<x>. Returns false if \p Arg is not such a switch.
+inline bool setAnalysisFromFlag(DifferentiationOptions& DO,
+                                llvm::StringRef Arg) {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  if (Arg == "-enable-" Legacy) {                                              \
+    DO.Enable##Id##Analysis = true;                                            \
+    DO.Id##Switch = AnalysisSwitch::On;                                        \
+    return true;                                                               \
+  }                                                                            \
+  if (Arg == "-disable-" Legacy) {                                             \
+    DO.Disable##Id##Analysis = true;                                           \
+    DO.Id##Switch = AnalysisSwitch::Off;                                       \
+    return true;                                                               \
+  }
+#include "clad/Differentiator/Analyses.def"
+  return false;
+}
+
+enum class AnalysisFlagResult : std::uint8_t { NotMine, Ok, Error };
+
+/// Match -fenable-analysis=<name> or -fdisable-analysis=<name>. The last such
+/// switch on the command line decides, so a build that turns everything off by
+/// default can be overridden one analysis at a time.
+inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
+                                            llvm::StringRef Arg) {
+  AnalysisSwitch To = AnalysisSwitch::On;
+  if (!Arg.consume_front("-fenable-analysis=")) {
+    if (!Arg.consume_front("-fdisable-analysis="))
+      return AnalysisFlagResult::NotMine;
+    To = AnalysisSwitch::Off;
+  }
+
+  // 'all' asks for the conservative derivative rather than for a particular
+  // list, so it covers analyses added after the command line was written.
+  // Only disabling has that meaning: falling back is safe for every analysis
+  // by construction, while whether one is sound to run is what its default
+  // encodes, so there is no configuration 'enable all' would name.
+  if (Arg == "all" && To == AnalysisSwitch::Off) {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  DO.Id##Switch = AnalysisSwitch::Off;
+#include "clad/Differentiator/Analyses.def"
+    return AnalysisFlagResult::Ok;
+  }
+
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  if (Arg == (Name)) {                                                         \
+    DO.Id##Switch = To;                                                        \
+    return AnalysisFlagResult::Ok;                                             \
+  }
+#include "clad/Differentiator/Analyses.def"
+
+  llvm::errs() << "clad: Error: unknown analysis '" << Arg << "'; known:";
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) llvm::errs() << " " Name;
+#include "clad/Differentiator/Analyses.def"
+  llvm::errs() << "; -fdisable-analysis also takes 'all'.\n";
+  return AnalysisFlagResult::Error;
+}
+
+/// Match -Rclad-analysis=<name>, asking for remarks about what that analysis
+/// left in the generated code. Named after -Rpass-missed, which it is the
+/// analogue of: clang's own remark machinery runs in the backend over LLVM IR
+/// and cannot see an AST-level plugin, so clad carries its own switch.
+inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
+                                               llvm::StringRef Arg) {
+  if (!Arg.consume_front("-Rclad-analysis="))
+    return AnalysisFlagResult::NotMine;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  if (Arg == (Name)) {                                                         \
+    DO.Remark##Id##Analysis = true;                                            \
+    return AnalysisFlagResult::Ok;                                             \
+  }
+#include "clad/Differentiator/Analyses.def"
+  llvm::errs() << "clad: Error: unknown analysis '" << Arg << "'; known:";
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) llvm::errs() << " " Name;
+#include "clad/Differentiator/Analyses.def"
+  llvm::errs() << ".\n";
+  return AnalysisFlagResult::Error;
+}
 
     class CladExternalSource : public clang::ExternalSemaSource {
     // ExternalSemaSource
@@ -103,6 +203,9 @@ struct DifferentiationOptions {
     /// Lazily constructed because it needs Sema, which is not available
     /// until InitializeSema; reach it through getScheduler().
     std::unique_ptr<DiffScheduler> m_Scheduler;
+    /// Built on first use; a run that reports nothing never renders anything.
+    /// Reach it through getDerivativePrinter().
+    std::unique_ptr<DerivativePrinter> m_DerivativePrinter;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,
@@ -155,6 +258,22 @@ struct DifferentiationOptions {
 
     /// The Sema::TUScope to restore in CladPlugin::HandleTranslationUnit.
     clang::Scope* m_StoredTUScope = nullptr;
+
+    /// A derivative, and what a report about it would say.
+    struct Generated {
+      clang::FunctionDecl* Derivative = nullptr;
+      /// What was differentiated to get it, and where that was written.
+      /// Both or neither: clad asks for some derivatives itself, and those
+      /// were written on no line at all.
+      const clang::FunctionDecl* Original = nullptr;
+      clang::SourceLocation RequestedAt;
+      /// Whether the to-be-recorded analysis ran, which decides the reason a
+      /// remark gives for a value being kept.
+      bool AnalysisRan = false;
+    };
+
+    /// The derivatives produced here, in the order they were produced.
+    llvm::SmallVector<Generated, 8> m_Generated;
 
   public:
     CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
@@ -257,6 +376,16 @@ struct DifferentiationOptions {
 
   private:
     DiffScheduler& getScheduler();
+    DerivativePrinter& getDerivativePrinter();
+    /// Says, once, that nothing will be able to show the generated code, and
+    /// what to add. Only when debug information was asked for and neither way
+    /// of reaching the code is in place.
+    void adviseOnGeneratedSource() const;
+
+    /// Prints every derivative into the buffer its nodes point into, then
+    /// reports on it: the line notes, the remarks, the source dump. Runs once
+    /// the whole unit is derived and before code generation.
+    void materializeGeneratedCode();
     void AppendDelayed(DelayedCallInfo DCI) {
       // Incremental processing handles the translation unit in chunks and it is
       // expected to have multiple calls to this functionality.
@@ -279,6 +408,12 @@ struct DifferentiationOptions {
     void SendToMultiplexer();
     bool CheckBuiltins();
     void SetRequestOptions(RequestOptions& opts) const;
+    /// Shows what a generated function looks like as text, and where inside
+    /// that text each of its statements sits.
+    void dumpGeneratedSource(clang::Decl* D);
+    /// Reports what an analysis left behind, at the generated code it left it
+    /// in.
+    void emitAnalysisRemarks(const Generated& G);
 
     void ProcessTopLevelDecl(clang::Decl* D) {
       DelayedCallInfo DCI{CallKind::HandleTopLevelDecl, D};
@@ -320,24 +455,31 @@ struct DifferentiationOptions {
             m_DO.DumpDerivedFn = true;
           } else if (args[i] == "-fdump-derived-fn-ast") {
             m_DO.DumpDerivedAST = true;
+          } else if (args[i] == "-fdump-generated-source") {
+            m_DO.DumpGeneratedSource = true;
+          } else if (llvm::StringRef(args[i]).starts_with(
+                         "-fgenerated-source-dir=")) {
+            m_DO.GeneratedSourceDirGiven = true;
+            m_DO.GeneratedSourceDir =
+                llvm::StringRef(args[i])
+                    .drop_front(sizeof("-fgenerated-source-dir=") - 1)
+                    .str();
+          } else if (AnalysisFlagResult R = remarkAnalysisByName(m_DO, args[i]);
+                     R != AnalysisFlagResult::NotMine) {
+            if (R == AnalysisFlagResult::Error)
+              return false;
           } else if (args[i] == "-fgenerate-source-file") {
             m_DO.GenerateSourceFile = true;
           } else if (args[i] == "-fno-validate-clang-version") {
             m_DO.ValidateClangVersion = false;
-          } else if (args[i] == "-enable-tbr") {
-            m_DO.EnableTBRAnalysis = true;
-          } else if (args[i] == "-disable-tbr") {
-            m_DO.DisableTBRAnalysis = true;
-          } else if (args[i] == "-enable-va") {
-            m_DO.EnableVariedAnalysis = true;
-          } else if (args[i] == "-disable-va") {
-            m_DO.DisableVariedAnalysis = true;
-          } else if (args[i] == "-enable-ua") {
-            m_DO.EnableUsefulAnalysis = true;
-          } else if (args[i] == "-disable-ua") {
-            m_DO.DisableUsefulAnalysis = true;
+          } else if (setAnalysisFromFlag(m_DO, args[i])) {
+            // -enable-tbr, -disable-va, and the rest of Analyses.def.
+          } else if (AnalysisFlagResult R = setAnalysisByName(m_DO, args[i]);
+                     R != AnalysisFlagResult::NotMine) {
+            if (R == AnalysisFlagResult::Error)
+              return false;
           } else if (args[i] == "-fcustom-estimation-model") {
-            llvm::errs() << "`-fcustom-estimation-model` is deprecated.";
+            llvm::errs() << "`-fcustom-estimation-model` is deprecated.\n";
             ++i;
             return false;
           } else if (args[i] == "-fprint-num-diff-errors") {
@@ -357,16 +499,25 @@ struct DifferentiationOptions {
                    "derivative.\n"
                 << "-fdump-derived-fn-ast - Prints out the AST of the "
                    "derivative.\n"
+                << "-fdump-generated-source - For each derivative, prints "
+                   "the text clad renders it as and, for every statement in "
+                   "it, the line and column that text occupies. Diagnostics "
+                   "about generated code point into that rendering.\n"
+                << "-Rclad-analysis=<name> - Reports what the named analysis "
+                   "left in the derivative, as remarks pointed at the "
+                   "generated code itself. The analogue of -Rpass-missed, "
+                   "which cannot reach an AST-level plugin.\n"
+                << "-fgenerated-source-dir=<dir> - Writes the code clad "
+                   "generates into <dir>, one file per translation unit, and "
+                   "names it in the debug line table. A debugger that cannot "
+                   "read source embedded in the object -- gdb cannot -- opens "
+                   "that file instead. Given with no directory, nothing is "
+                   "written and clad stops advising that nothing can be "
+                   "read.\n"
                 << "-fgenerate-source-file - Produces a file containing the "
                    "derivatives.\n"
                 << "-fno-validate-clang-version - Disables the validation of "
                    "the clang version.\n"
-                << "-enable-tbr - Ensures that TBR analysis is enabled during "
-                   "reverse-mode differentiation unless explicitly specified "
-                   "in an individual request.\n"
-                << "-disable-tbr - Ensures that TBR analysis is disabled "
-                   "during reverse-mode differentiation unless explicitly "
-                   "specified in an individual request.\n"
                 << "-fcustom-estimation-model - allows user to send in a "
                    "shared object to use as the custom estimation model.\n"
                 << "-fprint-num-diff-errors - allows users to print the "
@@ -378,6 +529,24 @@ struct DifferentiationOptions {
                    "remark naming the expected custom-derivative signature and "
                    "the non-differentiable marker. Useful when teaching clad "
                    "about a new library.\n";
+
+            llvm::errs()
+                << "Each analysis below is optional: it changes the code clad "
+                   "generates, never the values that code computes. Enabling "
+                   "one asks clad to prove more and store less; disabling one "
+                   "falls back to the conservative derivative.\n"
+                << "-fenable-analysis=<name> / -fdisable-analysis=<name> - "
+                   "Turns one analysis on or off; the last such option on the "
+                   "command line decides. -fdisable-analysis=all turns off "
+                   "every analysis clad has, asking for the most conservative "
+                   "derivative it can produce.\n";
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
+      llvm::errs()                                                             \
+          << "-enable-" Legacy " / -disable-" Legacy " - Turns the " Name      \
+             " analysis on or off for the whole translation unit, unless an "  \
+             "individual request specifies otherwise. It " Desc ". Default: "  \
+          << ((Default) ? "on" : "off") << ".\n";
+#include "clad/Differentiator/Analyses.def"
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
           } else if (args[i] == "-version" || args[i] == "-v") {
@@ -392,21 +561,13 @@ struct DifferentiationOptions {
           if (!checkClangVersion())
             return false;
         }
-        if (m_DO.EnableTBRAnalysis && m_DO.DisableTBRAnalysis) {
-          llvm::errs() << "clad: Error: -enable-tbr and -disable-tbr cannot "
-                          "be used together.\n";
-          return false;
-        }
-        if (m_DO.EnableVariedAnalysis && m_DO.DisableVariedAnalysis) {
-          llvm::errs() << "clad: Error: -enable-va and -disable-va cannot "
-                          "be used together.\n";
-          return false;
-        }
-        if (m_DO.EnableUsefulAnalysis && m_DO.DisableUsefulAnalysis) {
-          llvm::errs() << "clad: Error: -enable-ua and -disable-ua cannot "
-                          "be used together.\n";
-          return false;
-        }
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
+      if (m_DO.Enable##Id##Analysis && m_DO.Disable##Id##Analysis) {           \
+        llvm::errs() << "clad: Error: -enable-" Legacy " and -disable-" Legacy \
+                        " cannot be used together.\n";                         \
+        return false;                                                          \
+      }
+#include "clad/Differentiator/Analyses.def"
         return true;
       }
 

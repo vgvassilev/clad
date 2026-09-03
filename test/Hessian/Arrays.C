@@ -6,7 +6,7 @@
 #include "clad/Differentiator/Differentiator.h"
 
 double f(double i, double j[2]) { return i * j[0] * j[1]; }
-// CHECK: inline void f_hessian(double i, double j[2], double *hessianMatrix) {
+// CHECK: void f_hessian(double i, double j[2], double *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     double _d_i(0.);
@@ -23,7 +23,7 @@ double f(double i, double j[2]) { return i * j[0] * j[1]; }
 // CHECK-NEXT: }
 
 double g(double i, double j[2]) { return i * (j[0] + j[1]); }
-// CHECK: inline void g_hessian(double i, double j[2], double *hessianMatrix) {
+// CHECK: void g_hessian(double i, double j[2], double *hessianMatrix) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d_y{0., 0.};
 // CHECK-NEXT:     _d_y.pushforward = 1.;
 // CHECK-NEXT:     double _d_i(0.);
@@ -47,7 +47,7 @@ double h(double arr[3], double weights[3], double multiplier) {
   weightedSum *= multiplier;
   return weightedSum * weightedSum;
 }
-// CHECK: inline void h_hessian_diagonal(double arr[3], double weights[3], double multiplier, double *diagonalHessianVector) {
+// CHECK: void h_hessian_diagonal(double arr[3], double weights[3], double multiplier, double *diagonalHessianVector) {
 // CHECK-NEXT:     *(diagonalHessianVector + {{0U|0UL|0ULL}}) = h_d2arg0_0(arr, weights, multiplier);
 // CHECK-NEXT:     *(diagonalHessianVector + {{1U|1UL|1ULL}}) = h_d2arg0_1(arr, weights, multiplier);
 // CHECK-NEXT:     *(diagonalHessianVector + {{2U|2UL|2ULL}}) = h_d2arg0_2(arr, weights, multiplier);

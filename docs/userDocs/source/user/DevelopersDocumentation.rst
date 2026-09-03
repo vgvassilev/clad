@@ -158,6 +158,95 @@ temporarily the differences in the produced outputs with:
    cmake --build . --target check-clad-execonly
 
 
+Inspecting the generated code
+=============================
+
+Clad builds the derivative as an AST, so its statements belong to no file and
+have nothing a diagnostic can point at. Clad renders its derivatives into a
+buffer it registers with the ``SourceManager``, which gives every generated
+statement a line and a column, and two switches report through it. One buffer
+holds every derivative in the translation unit, so a diagnostic names the
+buffer rather than the derivative -- which derivative it is comes from a note.
+Both are plugin arguments, so each needs ``-Xclang -plugin-arg-clad -Xclang``
+in front.
+
+``-Rclad-analysis=<name>``
+--------------------------------
+
+Reports what the named analysis could not remove from the derivative, and
+where. This is the analogue of ``-Rpass-missed``, which cannot serve clad:
+clang's remark machinery runs in the backend over LLVM IR and never sees a
+plugin working on the AST.
+
+.. code-block:: none
+
+   <clad generated code>:4:5: remark: clad keeps this value for the reverse sweep
+       4 |     double _t0 = t;
+         |     ^~~~~~~~~~~~~~
+   <clad generated code>:4:5: note: to-be-recorded analysis could not show it unused
+   doc.cpp:8:12: note: in the derivative of 'f' requested here
+       8 |   auto g = clad::gradient(f);
+         |            ^
+   doc.cpp:4:3: note: the value kept is the one this expression had
+       4 |   t = t * t;
+         |   ^
+
+Expect three positions: the generated statement that costs, the differentiation
+that asked for the derivative, and the expression in your own code whose value
+is being kept -- the half you can act on. The note giving the reason
+distinguishes an analysis that ran and could not prove the value dead from one
+that was switched off, so a remark never claims to have proved something it
+never ran.
+
+Run ``-plugin-arg-clad -help`` for the analysis names this accepts.
+
+``-fgenerated-source-dir=<dir>``
+--------------------------------
+
+Writes the code clad generates into ``<dir>``, one file per translation unit
+named after it, and names that file in the debug line table. A debugger then
+has something to open when it stops inside a derivative.
+
+.. code-block:: bash
+
+   clang++ -g -fplugin=clad.so -Xclang -plugin-arg-clad \
+       -Xclang -fgenerated-source-dir=build/ doc.cpp
+
+Without it, the only way to reach the code is ``-gembed-source``, which puts
+it in the object; lldb reads that and gdb does not support it at all. When
+debug information is asked for and neither is in place, clad says so once and
+names the flag that fits the debugger being tuned for. Giving the flag with no
+directory writes nothing and turns that advice off, which is the only way to:
+a plugin's diagnostic belongs to no ``-W`` group.
+
+``-fdump-generated-source``
+--------------------------------
+
+Prints a derivative as text together with the position every statement
+occupies in it, which is how the mapping is checked without a diagnostic to
+hang it on.
+
+.. code-block:: none
+
+   generated-source: f_grad
+     1:44-44: {
+     2:5-20: double _d_t = 0.;
+     3:5-20: double t = x * x;
+     4:5-18: double _t0 = t;
+     5:5-13: t = t * t;
+     5:9-13: t * t;
+
+Each line is ``line:begin-end`` followed by the text that starts there. A node
+that renders on one line reports the columns it spans, so a subexpression such
+as ``t * t`` is reported inside the statement containing it; one that cannot
+be measured that way, such as a compound statement, reports only where it
+begins.
+
+This is not ``-fgenerate-source-file``, which appends each derivative to
+``Derivatives.cpp`` for reading. This one reports where each statement *sits*,
+which is what a diagnostic needs in order to point at it.
+
+
 Debugging Clang
 ==================
 

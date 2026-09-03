@@ -23,7 +23,7 @@ TEST(CallDeclOnly, CheckNumDiff) {
 
   // Check the generated code from grad.dump()
   std::string expected = R"(The code is: 
-inline void wrapper1_grad(double *params, double *_d_params) {
+void wrapper1_grad(double *params, double *_d_params) {
     double _d_ix = 0.;
     const double ix = 1 + params[0];
     {

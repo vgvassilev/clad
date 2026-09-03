@@ -14,10 +14,9 @@ namespace clad {
 // as `op`: one of `+=`, `-=`, `*=`, `/=`, or `=` where plain assignment has the
 // same shape.
 //
-// The generators below suppress the same three checks as the ones in Array.h;
-// see the comment there for why none of them can be followed.
-// NOLINTBEGIN(cppcoreguidelines-macro-usage, bugprone-macro-parentheses,
-// modernize-type-traits)
+// The generators below suppress the same two checks as the ones in Array.h;
+// see the comment there for why neither can be followed.
+// NOLINTBEGIN(bugprone-macro-parentheses, modernize-type-traits)
 
 /// Applies `op` between every element and a scalar.
 #define CLAD_ARRAY_REF_OP_SCALAR(op)                                           \
@@ -60,8 +59,7 @@ namespace clad {
       m_arr[i] op arr_exp[i];                                                  \
     return *this;                                                              \
   }
-// NOLINTEND(cppcoreguidelines-macro-usage, bugprone-macro-parentheses,
-// modernize-type-traits)
+// NOLINTEND(bugprone-macro-parentheses, modernize-type-traits)
 
 /// Stores the pointer to and the size of an array and provides some helper
 /// functions for it. The array is supplied should have a life greater than
