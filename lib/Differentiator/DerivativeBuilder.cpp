@@ -694,6 +694,23 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           return {};
         }
       }
+
+      // JacobianDerivedFnTraits always produces a void-returning derivative.
+      // Jacobian outputs are exposed through derivative parameters
+      // corresponding to pointer, reference, or array function arguments.
+      // Reject a non-void primal before JacobianModeVisitor can generate an
+      // incompatible return.
+      if (request.Mode == DiffMode::jacobian &&
+          !FD->getReturnType()->isVoidType()) {
+        SourceLocation L = request.CallContext->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "jacobian mode currently requires function %0 to return void; "
+             "provide differentiable outputs through pointer, reference, or "
+             "array "
+             "parameters")
+            << FD;
+        return {};
+      }
     } else if (const VarDecl* VD = request.Global) {
       // Warn the user about the usage of global variables.
       SourceLocation L = VD->getLocation();
