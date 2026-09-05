@@ -54,6 +54,11 @@ public:
   /// went into.
   clang::SourceLocation startOf(const clang::FunctionDecl* FD);
 
+  /// Where \p S starts in the printed text of \p FD. Not the same as the
+  /// distance from the start of the buffer: a buffer holds the text of every
+  /// derivative printed into it, and only the first of them starts at zero.
+  unsigned offsetOf(const clang::FunctionDecl* FD, const clang::Stmt* S);
+
   /// The printed text of \p FD, for a caller that wants to show it rather than
   /// point into it.
   llvm::StringRef textOf(const clang::FunctionDecl* FD);

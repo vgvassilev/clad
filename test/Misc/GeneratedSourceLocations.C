@@ -37,9 +37,27 @@ double f(double x) {
 // The reverse sweep restores what the forward one saved.
 // CHECK: {{[0-9]+}}:9-{{[0-9]+}}: t = _t0;
 
+// One buffer holds every derivative in the unit, so only the first of them
+// starts where the buffer does. A second one is where a position into the
+// buffer and a position into the text stop agreeing, and reporting the text
+// by the wrong one of the two prints nothing at all.
+// CHECK: generated-source: g_grad
+// CHECK: {{[0-9]+}}:5-{{[0-9]+}}: double _d_u = 0.;
+// CHECK-NEXT: {{[0-9]+}}:5-{{[0-9]+}}: double u = y * y;
+
+// A second function, so that a second derivative is printed into the same
+// buffer after the first.
+double g(double y) {
+  double u = y * y;
+  u = u * u;
+  return u;
+}
+
 int main() {
-  auto g = clad::gradient(f);
+  auto gf = clad::gradient(f);
+  auto gg = clad::gradient(g);
   double d = 0;
-  g.execute(2, &d);
+  gf.execute(2, &d);
+  gg.execute(2, &d);
   return 0;
 }
