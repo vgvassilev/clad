@@ -402,8 +402,11 @@ void InitTimers();
       llvm::SmallVector<const clang::Stmt*, 32> Ordered;
       collectStmts(FD->getBody(), getDerivativePrinter(), FD, Ordered);
       clang::SourceManager& SM = m_CI.getSourceManager();
+      // Into the printed text, not into the buffer it sits in: every
+      // derivative printed after the first starts part-way through its buffer,
+      // and indexing its text by a buffer offset runs off the end of it.
       auto offsetOf = [&](const clang::Stmt* S) {
-        return SM.getFileOffset(getDerivativePrinter().locationOf(FD, S));
+        return getDerivativePrinter().offsetOf(FD, S);
       };
       llvm::stable_sort(Ordered,
                         [&](const clang::Stmt* A, const clang::Stmt* B) {

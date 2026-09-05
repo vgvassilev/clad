@@ -10,6 +10,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -89,22 +90,36 @@ DerivativePrinter::print(const FunctionDecl* FD) {
   return m_Printed.insert({FD, std::move(R)}).first->second;
 }
 
+/// Where \p S starts in \p Text, past the indentation the printer put in
+/// front of it, or nothing if \p Offsets does not have \p S. A free function
+/// so that the header need not name std::optional: whether that is reachable
+/// there depends on the standard library, and on some it is not.
+static std::optional<unsigned>
+textOffsetOf(const llvm::DenseMap<const Stmt*, unsigned>& Offsets,
+             llvm::StringRef Text, const Stmt* S) {
+  auto Found = Offsets.find(S);
+  if (Found == Offsets.end())
+    return std::nullopt;
+  // The printer announces a statement before the indentation in front of it,
+  // so the recorded offset can sit at the start of the line. Both callers
+  // want the statement itself: a caret belongs on its first character, and so
+  // does the text reported beside a position.
+  unsigned Offset = Found->second;
+  while (Offset < Text.size() && (Text[Offset] == ' ' || Text[Offset] == '\t'))
+    ++Offset;
+  return Offset;
+}
+
 SourceLocation DerivativePrinter::locationOf(const FunctionDecl* FD,
                                              const Stmt* S) {
   const Printout& R = print(FD);
   if (!R.At)
     return {};
-  auto Found = R.Offsets.find(S);
-  if (Found == R.Offsets.end())
+  std::optional<unsigned> Offset =
+      textOffsetOf(R.Offsets, m_Locs.textAt(R.At, R.Size), S);
+  if (!Offset)
     return {};
-  // The printer announces a statement before the indentation in front of it,
-  // so the recorded offset can sit at the start of the line. A caret belongs
-  // on the first character of the statement itself.
-  llvm::StringRef Text = m_Locs.textAt(R.At, R.Size);
-  unsigned Offset = Found->second;
-  while (Offset < Text.size() && (Text[Offset] == ' ' || Text[Offset] == '\t'))
-    ++Offset;
-  return R.At.Loc.getLocWithOffset(static_cast<int>(Offset));
+  return R.At.Loc.getLocWithOffset(static_cast<int>(*Offset));
 }
 
 unsigned DerivativePrinter::lineOf(const FunctionDecl* FD, const Stmt* S) {
@@ -147,6 +162,11 @@ SourceRange DerivativePrinter::rangeOf(const FunctionDecl* FD, const Stmt* S) {
     return Begin;
   // A range's end names the last character, not one past it.
   return {Begin, Begin.getLocWithOffset(static_cast<int>(Text.size()) - 1)};
+}
+
+unsigned DerivativePrinter::offsetOf(const FunctionDecl* FD, const Stmt* S) {
+  const Printout& R = print(FD);
+  return textOffsetOf(R.Offsets, m_Locs.textAt(R.At, R.Size), S).value_or(0);
 }
 
 SourceLocation DerivativePrinter::startOf(const FunctionDecl* FD) {
