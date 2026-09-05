@@ -5,6 +5,17 @@
 
 namespace clad {
 
+__device__ inline unsigned int get_dynamic_smem_size() {
+  unsigned int smem_size;
+  asm volatile("mov.u32 %0, %%dynamic_smem_size;" : "=r"(smem_size));
+  return smem_size;
+}
+
+template <typename T> __device__ inline void clear_dynamic_smem(T* ptr) {
+  unsigned int num_elements = (get_dynamic_smem_size() / 2) / sizeof(T);
+  for (unsigned int i = threadIdx.x; i < num_elements; i += blockDim.x)
+    ptr[i] = 0;
+}
 namespace custom_derivatives {
 
 __device__ inline void __expf_pullback(float a, float d_y, float* d_a) {
