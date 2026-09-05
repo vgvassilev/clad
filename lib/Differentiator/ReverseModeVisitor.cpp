@@ -3981,9 +3981,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           else {
             VarDecl* VDDerived = VDDiff.getDecl_dx();
             declsDiff.push_back(VDDerived);
-            if (Stmt* memsetCall = CheckAndBuildCallToMemset(
-                    BuildDeclRef(VDDerived),
-                    VDDerived->getInit()->IgnoreCasts()))
+            // Without an initializer the adjoint is left for the reverse
+            // sweep to read uninitialized, which is a wrong gradient rather
+            // than a missing one. Refuse instead of answering.
+            if (!VDDerived->getInit())
+              diag(DiagnosticsEngine::Error, VD->getLocation(),
+                   "derivative of the initializer of '%0' is not available; "
+                   "the computed gradient would be incorrect")
+                  << VD->getName();
+            else if (Stmt* memsetCall = CheckAndBuildCallToMemset(
+                         BuildDeclRef(VDDerived),
+                         VDDerived->getInit()->IgnoreCasts()))
               memsetCalls.push_back(memsetCall);
             // Track this pointer's allocation size in bytes so an in-place
             // realloc of it can be undone in the reverse sweep. The shadow is
