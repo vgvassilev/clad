@@ -37,6 +37,12 @@ class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer>,
   std::set<const clang::Stmt*>& m_ResSet;
   void markExpr(const clang::Stmt* S) { m_ResSet.insert(S); }
   void setVaried(const clang::Expr* E, bool isVaried = true);
+  /// Records \p VD as varied, and with it every declaration \p VD may alias.
+  /// A write reaching a pointer or reference varies what it refers to, not
+  /// only the pointer itself, so the pointee needs an adjoint just as much.
+  /// The alias targets are the ones TraverseDeclStmt recorded in the REF_TYPE
+  /// dependency set, followed transitively for a pointer bound to a pointer.
+  void addVariedDeclWithAliases(const clang::VarDecl* VD);
   void AnalyzeCFGBlock(const clang::CFGBlock& block);
   void TraverseAllStmtInsideBlock(const clang::CFGBlock& block);
 

@@ -12,6 +12,7 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
 
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
@@ -111,6 +112,27 @@ void VariedAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
       if (merge(succData.get(), m_BlockData[block.getBlockID()].get()))
         m_CFGQueue.insert(succ->getBlockID());
     }
+  }
+}
+
+void VariedAnalyzer::addVariedDeclWithAliases(const VarDecl* VD) {
+  llvm::SmallVector<const VarDecl*, 4> worklist{VD};
+  // What has been queued already. Two pointers initialised from the same
+  // variable reconverge on it, so a declaration can be reached by more than
+  // one path; admitting each one once is what bounds the walk.
+  llvm::SmallPtrSet<const VarDecl*, 4> seen{VD};
+  while (!worklist.empty()) {
+    const VarDecl* cur = worklist.pop_back_val();
+    m_DiffReq.addVariedDecl(cur);
+    // setIsRequired already walks a REF_TYPE's targets to set their varied
+    // bit; this walks the same edges to reach the request's varied-decl set,
+    // which is what decides whether a declaration is given an adjoint.
+    const VarData* data = getVarDataFromDecl(cur);
+    if (data && data->m_Type == VarData::REF_TYPE)
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+      for (const VarDecl* target : *data->m_Val.m_RefData)
+        if (target && seen.insert(target).second)
+          worklist.push_back(target);
   }
 }
 
@@ -438,7 +460,7 @@ bool VariedAnalyzer::TraverseDeclRefExpr(DeclRefExpr* DRE) {
 
   if (m_Varied && m_Marking) {
     setVaried(DRE);
-    m_DiffReq.addVariedDecl(VD);
+    addVariedDeclWithAliases(VD);
     markExpr(DRE);
   } else if (m_Marking)
     setVaried(DRE, false);

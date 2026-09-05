@@ -608,6 +608,35 @@ double f15(double x) { return f15_1(x, pick); }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// A write reaching a variable through a pointer varies that variable, not
+// only the pointer holding its address. Leaving the pointee passive used to
+// deny it an adjoint, which both crashed the reverse mode on the adjoint's
+// missing initializer and dropped the dependency `return y` carries.
+double f16(double x) {
+  double y = 0;
+  double* p = &y;
+  *p = x * x;
+  return y;
+}
+
+// The same through an array element and one more level of indirection, so a
+// pointee reached transitively is not left behind either.
+double f17(double x) {
+  double y[2] = {0, 0};
+  double* p = &y[1];
+  double** q = &p;
+  **q = x * x * x;
+  return y[1];
+}
+
+// A reference binding takes the same path through the dependency set.
+double f18(double x) {
+  double y = 0;
+  double& r = y;
+  r = x * x;
+  return y;
+}
+
 int main(){
     double arr[] = {1,2,3,4,5};
     double darr[] = {0,0,0,0,0};
@@ -634,4 +663,7 @@ int main(){
     printf("{%.2f}\n", dx); // CHECK-EXEC: {0.00}
     TEST1(f14, 3);// CHECK-EXEC: {1.00}
     TEST1(f15, 3);// CHECK-EXEC: {6.00}
+    TEST1(f16, 3);// CHECK-EXEC: {6.00}
+    TEST1(f17, 3);// CHECK-EXEC: {27.00}
+    TEST1(f18, 3);// CHECK-EXEC: {6.00}
 }
