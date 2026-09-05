@@ -3442,9 +3442,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         Expr* derivedL = nullptr;
         Expr* derivedR = nullptr;
         ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
-        // derivedR is the scalar offset, already used by the forward op above;
-        // clone so the derivative op does not share it.
-        derivedR = CloneNode(derivedR);
+        if (derivedL == Ldiff.getExpr())
+          derivedL = CloneNode(derivedL);
+        if (derivedR == Rdiff.getExpr())
+          derivedR = CloneNode(derivedR);
         if (opCode == BO_Sub)
           derivedR = BuildParens(derivedR);
         return StmtDiff(op, BuildOp(opCode, derivedL, derivedR),
@@ -3455,8 +3456,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         Expr* derivedL = nullptr;
         Expr* derivedR = nullptr;
         ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
-        // Clone the scalar offset shared with the forward op above.
-        derivedR = CloneNode(derivedR);
+        if (derivedR == Rdiff.getExpr())
+          derivedR = CloneNode(derivedR);
         addToCurrentBlock(BuildOp(opCode, derivedL, derivedR),
                           direction::forward);
         if (opCode == BO_Assign && derivedL && derivedR)
