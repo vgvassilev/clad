@@ -58,7 +58,6 @@ jobs:
           apt_packages: libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev,libomp-21-dev,libopenblas-dev
           exclude: "test/*,unittests/*"
           split_workflow: true
-          config_file: .clang-tidy
 
       - name: Upload artifacts
         uses: ZedThree/clang-tidy-review/upload@v0.23.1
