@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oPrivateCopy.out 2>&1 | %filecheck %s
 // RUN: ./PrivateCopy.out | %filecheck_exec %s
-// XFAIL: valgrind
 
 // Reverse-mode coverage for utils::isCopyable: a private copy ctor must not
 // be treated as copyable, or ReverseModeVisitor copy-inits from
