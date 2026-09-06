@@ -859,38 +859,71 @@ void lock_pullback(const ::std::weak_ptr<T>* p, ::std::shared_ptr<T> dthis,
 template <typename T, typename U>
 clad::ValueAndAdjoint<::std::reference_wrapper<T>, ::std::reference_wrapper<T>>
 constructor_reverse_forw(
-    clad::ConstructorReverseForwTag<::std::reference_wrapper<T>>, U&& p,
-    U&& d_p) elidable_reverse_forw;
+    clad::ConstructorReverseForwTag<::std::reference_wrapper<T>>, U&& arg,
+    U&& d_arg) elidable_reverse_forw;
 
 template <typename T, typename U>
-void constructor_pullback(U& /*p*/, ::std::reference_wrapper<T>* /*dthis*/,
-                          U* /*d_p*/);
+void constructor_pullback(U& /*arg*/, ::std::reference_wrapper<T>* /*dthis*/,
+                          U* /*d_arg*/);
 
 template <typename T>
 clad::ValueAndAdjoint<T&, T&> conversion_operator_reverse_forw(
-    clad::Tag<T&>, const ::std::reference_wrapper<T>* x,
-    const ::std::reference_wrapper<T>* dx) elidable_reverse_forw;
+    const ::std::reference_wrapper<T>* ref, clad::Tag<T&> /*tag*/,
+    const ::std::reference_wrapper<T>* d_ref) elidable_reverse_forw;
+
+// Not elidable: replaying the conversion on the adjoint gives const T&, which
+// cannot be written.
+template <typename T>
+inline clad::ValueAndAdjoint<const T&, T&> conversion_operator_reverse_forw(
+    const ::std::reference_wrapper<const T>* ref, clad::Tag<const T&> /*tag*/,
+    const ::std::reference_wrapper<const T>* d_ref) noexcept {
+  return {ref->get(), const_cast<T&>(d_ref->get())};
+}
+
+// Avoid autodiff of libc++ `return *__f_` (const T*).
+template <typename T>
+inline void conversion_operator_pullback(
+    const ::std::reference_wrapper<const T>* /*ref*/, T /*d_y*/,
+    ::std::reference_wrapper<const T>* /*d_ref*/) noexcept {}
 
 template <class T>
 inline clad::ValueAndPushforward<const T&, const T&>
-get_pushforward(const ::std::reference_wrapper<const T>* w,
-                const ::std::reference_wrapper<const T>* d_w) noexcept {
-  return {w->get(), d_w->get()};
+get_pushforward(const ::std::reference_wrapper<const T>* ref,
+                const ::std::reference_wrapper<const T>* d_ref) noexcept {
+  return {ref->get(), d_ref->get()};
 }
 
 template <class T>
-inline clad::ValueAndPushforward<T&, T&>
-get_pushforward(const ::std::reference_wrapper<T>* w,
-                const ::std::reference_wrapper<T>* d_w) noexcept {
-  return {w->get(), d_w->get()};
+inline clad::ValueAndAdjoint<const T&, T&>
+get_reverse_forw(const ::std::reference_wrapper<const T>* ref,
+                 const ::std::reference_wrapper<const T>* d_ref) noexcept {
+  // The adjoint is mutable storage even where the primal wrapper is const.
+  return {ref->get(), const_cast<T&>(d_ref->get())};
 }
 
 template <class T>
+inline void
+get_pullback(const ::std::reference_wrapper<const T>* /*ref*/, T /*d_y*/,
+             ::std::reference_wrapper<const T>* /*d_ref*/) noexcept {}
+
+template <class T>
 inline clad::ValueAndPushforward<T&, T&>
-operator_T_amp_pushforward(const ::std::reference_wrapper<T>* w,
-                           const ::std::reference_wrapper<T>* d_w) noexcept {
-  return {w->get(), d_w->get()};
+get_pushforward(const ::std::reference_wrapper<T>* ref,
+                const ::std::reference_wrapper<T>* d_ref) noexcept {
+  return {ref->get(), d_ref->get()};
 }
+
+template <class T>
+inline clad::ValueAndAdjoint<T&, T&>
+get_reverse_forw(const ::std::reference_wrapper<T>* ref,
+                 const ::std::reference_wrapper<T>* d_ref) noexcept {
+  return {ref->get(), d_ref->get()};
+}
+
+// T& return: no _d_y.
+template <class T>
+inline void get_pullback(const ::std::reference_wrapper<T>* /*ref*/,
+                         ::std::reference_wrapper<T>* /*d_ref*/) noexcept {}
 
 } // namespace class_functions
 
@@ -901,16 +934,40 @@ namespace std {
 template <class T>
 inline clad::ValueAndPushforward<::std::reference_wrapper<T>,
                                  ::std::reference_wrapper<T>>
-ref_pushforward(T& t, T& d_t) noexcept {
-  return {::std::ref(t), ::std::ref(d_t)};
+ref_pushforward(T& val, T& d_val) noexcept {
+  return {::std::ref(val), ::std::ref(d_val)};
 }
 
 template <class T>
 inline clad::ValueAndPushforward<::std::reference_wrapper<const T>,
                                  ::std::reference_wrapper<const T>>
-cref_pushforward(const T& t, const T& d_t) noexcept {
-  return {::std::cref(t), ::std::cref(d_t)};
+cref_pushforward(const T& val, const T& d_val) noexcept {
+  return {::std::cref(val), ::std::cref(d_val)};
 }
+
+template <class T>
+inline clad::ValueAndAdjoint<::std::reference_wrapper<T>,
+                             ::std::reference_wrapper<T>>
+ref_reverse_forw(T& val, T& d_val) noexcept {
+  return {::std::ref(val), ::std::ref(d_val)};
+}
+
+template <class T>
+inline clad::ValueAndAdjoint<::std::reference_wrapper<const T>,
+                             ::std::reference_wrapper<const T>>
+cref_reverse_forw(const T& val, const T& d_val) noexcept {
+  return {::std::cref(val), ::std::cref(d_val)};
+}
+
+// Wrappers only alias storage; adjoints accumulate through get() / conversion.
+template <class T>
+inline void ref_pullback(T& /*val*/, ::std::reference_wrapper<T> /*d_y*/,
+                         T* /*d_val*/) noexcept {}
+
+template <class T>
+inline void cref_pullback(const T& /*val*/,
+                          ::std::reference_wrapper<const T> /*d_y*/,
+                          T* /*d_val*/) noexcept {}
 
 // tie and maketuple forward mode
 
