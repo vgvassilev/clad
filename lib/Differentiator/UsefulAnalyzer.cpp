@@ -1,20 +1,23 @@
 #include "UsefulAnalyzer.h"
 
+#include "AnalysisBase.h"
+
 #include "clang/AST/Stmt.h"
+
+#include <memory>
 
 using namespace clang;
 
 namespace clad {
 
 void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
-  // Build the CFG (control-flow graph) of FD.
+  m_Function = FD;
   m_BlockData.resize(m_AnalysisDC->getCFG()->size());
-  m_LoopMem.resize(m_AnalysisDC->getCFG()->size());
-  // Set current block ID to the ID of entry the block.
+  // Useful analysis starts at the exit and propagates to predecessors.
   CFGBlock& exit = m_AnalysisDC->getCFG()->getExit();
   m_CurBlockID = exit.getBlockID();
-  m_BlockData[m_CurBlockID] = createNewVarsData({});
-  // Add the entry block to the queue.
+  m_BlockData[m_CurBlockID] = std::make_unique<VarsData>();
+  // Add the exit block to the queue.
   m_CFGQueue.insert(m_CurBlockID);
 
   // Visit CFG blocks in the queue until it's empty.
@@ -22,30 +25,20 @@ void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
     auto IDIter = m_CFGQueue.begin();
     m_CurBlockID = *IDIter;
     m_CFGQueue.erase(IDIter);
-    CFGBlock& nextBlock = *getCFGBlockByID(m_CurBlockID);
+    CFGBlock& nextBlock = *getCFGBlockByID(m_AnalysisDC, m_CurBlockID);
     AnalyzeCFGBlock(nextBlock);
   }
 }
 
-CFGBlock* UsefulAnalyzer::getCFGBlockByID(unsigned ID) {
-  return *(m_AnalysisDC->getCFG()->begin() + ID);
+bool UsefulAnalyzer::isUseful(const VarDecl* VD) {
+  return getVarDataFromDecl(VD) != nullptr;
 }
 
-bool UsefulAnalyzer::isUseful(const VarDecl* VD) const {
-  const VarsData& curBranch = getCurBlockVarsData();
-  return curBranch.find(VD) != curBranch.end();
-}
-
-void UsefulAnalyzer::copyVarToCurBlock(const clang::VarDecl* VD) {
-  VarsData& curBranch = getCurBlockVarsData();
-  curBranch.insert(VD);
-}
-
-static void mergeVarsData(std::set<const clang::VarDecl*>* targetData,
-                          std::set<const clang::VarDecl*>* mergeData) {
-  for (const clang::VarDecl* i : *mergeData)
-    targetData->insert(i);
-  *mergeData = *targetData;
+void UsefulAnalyzer::markUseful(const clang::VarDecl* VD) {
+  // A useful declaration needs one leaf, not its field or pointee state.
+  if (!getVarDataFromDecl(VD))
+    getCurBlockVarsData()[VD] = VarData(m_AnalysisDC->getASTContext().BoolTy);
+  m_UsefulDecls.insert(VD);
 }
 
 void UsefulAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
@@ -63,24 +56,16 @@ void UsefulAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
     if (!pred)
       continue;
     auto& predData = m_BlockData[pred->getBlockID()];
-    if (!predData)
-      predData = createNewVarsData(*m_BlockData[block.getBlockID()]);
-
-    bool shouldPushPred = true;
-    if (pred->getBlockID() < block.getBlockID()) {
-      if (m_LoopMem[block.getBlockID()] == *m_BlockData[block.getBlockID()])
-        shouldPushPred = false;
-      m_LoopMem[block.getBlockID()] = *m_BlockData[block.getBlockID()];
+    auto* currentData = m_BlockData[block.getBlockID()].get();
+    if (!predData) {
+      predData = std::make_unique<VarsData>();
+      predData->m_Prev = currentData;
     }
 
-    if (shouldPushPred)
+    // Discovery links form a forest. Other edges require a growing merge.
+    if (predData->m_Prev == currentData || merge(predData.get(), currentData))
       m_CFGQueue.insert(pred->getBlockID());
-
-    mergeVarsData(predData.get(), m_BlockData[block.getBlockID()].get());
   }
-
-  for (const VarDecl* i : *m_BlockData[block.getBlockID()])
-    m_UsefulDecls.insert(i);
 }
 
 bool UsefulAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
@@ -137,7 +122,7 @@ bool UsefulAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
     m_Useful = true;
 
   if (m_Useful && m_Marking)
-    copyVarToCurBlock(VD);
+    markUseful(VD);
 
   return true;
 }
