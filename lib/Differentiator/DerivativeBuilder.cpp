@@ -35,6 +35,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclAccessPair.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
@@ -257,9 +258,23 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     if (!isa<DeclRefExpr>(UnresolvedLookup))
       return false;
 
-    const auto* DRE = cast<DeclRefExpr>(UnresolvedLookup);
-    if (const auto* FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
-      return NeedsMoreArgs(FD, ARargs.size());
+    auto* DRE = cast<DeclRefExpr>(UnresolvedLookup);
+    if (auto* FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
+      if (NeedsMoreArgs(FD, ARargs.size()))
+        return true;
+      // With a single candidate Sema builds a plain reference and never
+      // reconsiders it. It can be the wrong function: two instantiations of
+      // one template ask for the same derivative name, so the second lookup
+      // finds the first's derivative. Calling it makes the mismatch a hard
+      // error instead of a signal to derive the overload that fits.
+      OverloadCandidateSet CandidateSet(SourceLocation(),
+                                        OverloadCandidateSet::CSK_Normal);
+      m_Sema.AddOverloadCandidate(FD, DeclAccessPair::make(FD, AS_public),
+                                  ARargs, CandidateSet);
+      OverloadCandidateSet::iterator Best = nullptr;
+      return CandidateSet.BestViableFunction(m_Sema, SourceLocation(), Best) !=
+             OR_Success;
+    }
 
     return false;
   }
