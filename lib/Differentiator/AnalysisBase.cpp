@@ -287,7 +287,7 @@ bool AnalysisBase::merge(VarData& targetData, VarData& mergeData) {
     for (auto& pair : *mergeData.m_Val.m_ArrData) {
       auto it = targetData.m_Val.m_ArrData->find(pair.first);
       if (it == targetData.m_Val.m_ArrData->end())
-        (*targetData.m_Val.m_ArrData)[pair.first] = pair.second.copy();
+        isMod = merge(*targetData[pair.first], pair.second) || isMod;
     }
     return isMod;
   }
@@ -455,8 +455,10 @@ bool AnalysisBase::merge(VarsData* targetData, VarsData* mergeData) {
     if (found) {
       if (merge(*found, *pair.second))
         isModified = true;
-    } else
+    } else {
       (*targetData)[pair.first] = pair.second->copy();
+      isModified = true;
+    }
   }
 
   // For every variable in collected targetData predecessors, search it inside
@@ -474,8 +476,10 @@ bool AnalysisBase::merge(VarsData* targetData, VarsData* mergeData) {
         while (branch) {
           auto it = branch->find(pair.first);
           if (it != branch->end()) {
-            (*targetData)[pair.first] = pair.second->copy();
-            merge((*targetData)[pair.first], it->second);
+            if (targetData->find(pair.first) == targetData->end())
+              (*targetData)[pair.first] = pair.second->copy();
+            isModified =
+                merge((*targetData)[pair.first], it->second) || isModified;
             break;
           }
           branch = branch->m_Prev;
