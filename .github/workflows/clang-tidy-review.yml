@@ -58,6 +58,11 @@ jobs:
           apt_packages: libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev,libthrust-dev,libbenchmark-dev,libomp-21-dev,libopenblas-dev
           exclude: "test/*,unittests/*"
           split_workflow: true
+          # Load-bearing empty: the action passes --checks only when this is
+          # non-empty, and its default list carries none of the negations in
+          # clad's .clang-tidy. Empty, and with no config_file pinning one
+          # file, clang-tidy looks a config up beside each source instead.
+          clang_tidy_checks: ''
 
       - name: Upload artifacts
         uses: ZedThree/clang-tidy-review/upload@v0.23.1
