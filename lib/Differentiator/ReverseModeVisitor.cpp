@@ -935,6 +935,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             ->ActBeforeFinalizingVisitBranchSingleStmtInIfVisitStmt();
 
       Stmt* Forward = utils::unwrapIfSingleStmt(endBlock(direction::forward));
+      if (!Forward)
+        Forward = MakeCompoundStmt({});
       Stmt* Reverse = utils::unwrapIfSingleStmt(BranchDiff.getStmt_dx());
       return StmtDiff(Forward, Reverse);
     };

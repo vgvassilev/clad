@@ -900,6 +900,30 @@ double fn_empty_if_block(double x) {
 //CHECK-NEXT:        ;
 //CHECK-NEXT:}
 
+double fn_deleted_if_block(double x) {
+  double* d = nullptr;
+  double res = 0;
+  if (x > 0)
+    delete[] d;
+  return res;
+}
+
+//CHECK:void fn_deleted_if_block_grad(double x, double *_d_x) {
+//CHECK-NEXT:    bool _cond0;
+//CHECK-NEXT:    double *_d_d = nullptr;
+//CHECK-NEXT:    double *d = nullptr;
+//CHECK-NEXT:    double _d_res = 0.;
+//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        _cond0 = x > 0;
+//CHECK-NEXT:        if (_cond0) {
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:    _d_res += 1;
+//CHECK-NEXT:    delete [] d;
+//CHECK-NEXT:    delete [] _d_d;
+//CHECK-NEXT:}
+
 double fn_empty_if_else(double x) {
   double res = 0;
   if ((res = 0))
@@ -1306,6 +1330,9 @@ int main() {
 
   INIT_GRADIENT(fn_empty_if_block);
   TEST_GRADIENT(fn_empty_if_block, /*numOfDerivativeArgs=*/1, 0, &dx); // CHECK-EXEC: 0.00
+
+  INIT_GRADIENT(fn_deleted_if_block);
+  TEST_GRADIENT(fn_deleted_if_block, /*numOfDerivativeArgs=*/1, 0, &dx); // CHECK-EXEC: 0.00
 
   INIT_GRADIENT(fn_empty_if_else);
   TEST_GRADIENT(fn_empty_if_else, /*numOfDerivativeArgs=*/1, 1, &dx); // CHECK-EXEC: 5.00
