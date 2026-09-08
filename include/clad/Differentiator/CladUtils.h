@@ -19,6 +19,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <cassert>
+#include <set>
 #include <string>
 
 namespace clang {
@@ -544,6 +545,15 @@ namespace clad {
     /// like threadIdx, blockIdx, blockDim, or gridDim.
     bool isCUDABuiltinVariable(const clang::Expr* E,
                                const clang::ASTContext& Context);
+
+    /// Adds to \p Written every variable \p S may write. "Write" is meant
+    /// broadly, as anything that can change a value: an assignment, an
+    /// increment, a taken address, or a bind to a non-const reference.
+    /// Over-approximates on purpose -- callers ask whether a variable is
+    /// provably left alone, and a name that only might be written is no use
+    /// to them.
+    void collectWrittenVars(clang::Stmt* S,
+                            std::set<const clang::VarDecl*>& Written);
     } // namespace utils
     } // namespace clad
 

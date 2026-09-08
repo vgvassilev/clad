@@ -15,6 +15,7 @@
 #include "clang/AST/ParentMapContext.h"
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -30,10 +31,12 @@
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
 #include <memory>
+#include <set>
 #include <vector>
 
 using namespace clang;
@@ -1980,6 +1983,78 @@ namespace clad {
     bool ShouldRecompute(const Expr* E, const ASTContext& C) {
       return !(utils::ContainsFunctionCalls(E) || E->HasSideEffects(C)) ||
              isCUDABuiltInIndex(E);
+    }
+
+    void collectWrittenVars(Stmt* S, std::set<const VarDecl*>& Written) {
+      class WrittenVarCollector
+          : public RecursiveASTVisitor<WrittenVarCollector> {
+        std::set<const VarDecl*>* m_Written;
+
+        void mark(const Expr* E) {
+          if (const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts()))
+            if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+              m_Written->insert(VD);
+        }
+
+        /// Marks the arguments \p Callee may write. A parameter type is what
+        /// says so, and where there is none to consult -- an indirect call --
+        /// every argument counts as written.
+        void markByRefArgs(const FunctionDecl* Callee,
+                           llvm::ArrayRef<Expr*> Args) {
+          for (unsigned i = 0, e = Args.size(); i != e; ++i) {
+            if (Callee) {
+              // Past the last parameter the argument is a variadic one, and
+              // `...` takes its arguments by value, so printf("%d", i) leaves
+              // i alone. Passing it for writing reads as printf("%d", &i),
+              // where the address is what the callee gets and taking it is
+              // already a write.
+              if (i >= Callee->getNumParams())
+                continue;
+              QualType T = Callee->getParamDecl(i)->getType();
+              if (!T->isLValueReferenceType() ||
+                  T.getNonReferenceType().isConstQualified())
+                continue;
+            }
+            mark(Args[i]);
+          }
+        }
+
+      public:
+        explicit WrittenVarCollector(std::set<const VarDecl*>& Written)
+            : m_Written(&Written) {}
+
+        bool VisitBinaryOperator(BinaryOperator* BO) {
+          if (BO->isAssignmentOp())
+            mark(BO->getLHS());
+          return true;
+        }
+
+        bool VisitUnaryOperator(UnaryOperator* UO) {
+          // A taken address is a write that can happen anywhere later.
+          if (UO->isIncrementDecrementOp() || UO->getOpcode() == UO_AddrOf)
+            mark(UO->getSubExpr());
+          return true;
+        }
+
+        bool VisitCallExpr(CallExpr* CE) {
+          const FunctionDecl* FD = CE->getDirectCallee();
+          // An overloaded operator passes its object as argument zero, so the
+          // arguments sit one ahead of the parameters when it is a member.
+          unsigned Offset = isa<CXXOperatorCallExpr>(CE) &&
+                            isa_and_nonnull<CXXMethodDecl>(FD);
+          llvm::ArrayRef<Expr*> Args(CE->getArgs(), CE->getNumArgs());
+          markByRefArgs(FD, Args.drop_front(Offset));
+          return true;
+        }
+
+        bool VisitCXXConstructExpr(CXXConstructExpr* CE) {
+          markByRefArgs(CE->getConstructor(),
+                        llvm::ArrayRef<Expr*>(CE->getArgs(), CE->getNumArgs()));
+          return true;
+        }
+      };
+      WrittenVarCollector Collector(Written);
+      Collector.TraverseStmt(S);
     }
   } // namespace utils
 } // namespace clad

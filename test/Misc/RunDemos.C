@@ -108,14 +108,13 @@
 //CHECK_FLOAT_SUM:    clad::tape<float> _t1 = {};
 //CHECK_FLOAT_SUM:    float _d_sum = 0.F;
 //CHECK_FLOAT_SUM:    float sum = 0.;
-//CHECK_FLOAT_SUM:    unsigned {{int|long|long long}} _t0 = 0;
+//CHECK_FLOAT_SUM:    unsigned {{int|long|long long}} _t0;
 //CHECK_FLOAT_SUM:    for (i = 0; i < n; i++) {
-//CHECK_FLOAT_SUM:        _t0++;
 //CHECK_FLOAT_SUM:        clad::push(_t1, sum);
 //CHECK_FLOAT_SUM:        sum = sum + x;
 //CHECK_FLOAT_SUM:    }
 //CHECK_FLOAT_SUM:    _d_sum += 1;
-//CHECK_FLOAT_SUM:    for (; _t0; _t0--) {
+//CHECK_FLOAT_SUM:    for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 //CHECK_FLOAT_SUM:        i--;
 //CHECK_FLOAT_SUM:        {
 //CHECK_FLOAT_SUM:            _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);

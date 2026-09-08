@@ -183,15 +183,14 @@ double f4(double x) {
 //CHECK-NEXT:     clad::tape<clad::ValueAndAdjoint<double *, double *> > _t1 = {};
 //CHECK-NEXT:     double _d_r = 0.;
 //CHECK-NEXT:     double r = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 //CHECK-NEXT:     for (i = 0; i < 2; ++i) {
-//CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_tracker0, clad::restore_tracker());
 //CHECK-NEXT:         clad::push(_t1, mul2_reverse_forw(&x, _d_x, clad::back(_tracker0)));
 //CHECK-NEXT:         r += *clad::back(_t1).value;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_r += 1;
-//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:     for (_t0 = 2{{U|UL|ULL}}; _t0; _t0--) {
 //CHECK-NEXT:         *clad::back(_t1).adjoint += _d_r;
 //CHECK-NEXT:         clad::back(_tracker0).restore();
 //CHECK-NEXT:         mul2_pullback(&x, _d_x);

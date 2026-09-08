@@ -10,6 +10,7 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 #include "clad/Differentiator/VisitorBase.h"
@@ -19,6 +20,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OpenMPClause.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
@@ -657,15 +659,33 @@ namespace clad {
     /// If we are currently inside a loop, then a clad tape object is created
     /// to be used as the counter; otherwise, a temporary global variable (in
     /// function scope) is created to be used as the counter.
+    ///
+    /// When the caller can prove the iteration count from the loop's own
+    /// bounds (see DiffRequest::countedLoop), it passes that count here and
+    /// the forward sweep stops counting altogether: no reset, no per-iteration
+    /// increment, and -- for a nested loop -- no tape. The reverse loop then
+    /// assigns the count to a plain function-scope variable on entry.
     class LoopCounter {
       clang::Expr *m_Ref = nullptr;
       clang::Expr *m_Pop = nullptr;
       clang::Expr *m_Push = nullptr;
       ReverseModeVisitor& m_RMV;
       clang::VarDecl* m_numRevIterations = nullptr;
+      clang::Expr* m_TripCount = nullptr;
 
     public:
-      LoopCounter(ReverseModeVisitor& RMV);
+      LoopCounter(ReverseModeVisitor& RMV, clang::Expr* tripCount = nullptr);
+
+      /// Returns true if the reverse sweep computes the iteration count from
+      /// the loop bounds instead of reading a count the forward sweep kept.
+      [[nodiscard]] bool isRecomputed() const { return m_TripCount; }
+
+      /// Returns `counter = <trip count>`, the init of the reverse loop.
+      /// Only valid when isRecomputed().
+      [[nodiscard]] clang::Expr* getCounterInit() const {
+        return m_RMV.BuildOp(clang::BinaryOperatorKind::BO_Assign, cloneRef(),
+                             m_TripCount);
+      }
       /// Returns `clad::push(_t, 0UL)` expression if clad tape is used
       /// for counter; otherwise, returns nullptr.
       clang::Expr* getPush() const { return m_Push; }
@@ -683,8 +703,11 @@ namespace clad {
         return m_RMV.CloneNode(m_Ref);
       }
 
-      /// Returns counter post-increment expression (`counter++`).
+      /// Returns counter post-increment expression (`counter++`), or nullptr
+      /// when the count is recomputed and the forward sweep must not count.
       clang::Expr* getCounterIncrement() {
+        if (isRecomputed())
+          return nullptr;
         return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostInc, cloneRef());
       }
 
@@ -918,6 +941,29 @@ namespace clad {
 
     /// A flag indicating if the Stmt is contained in a checkpointed loop.
     bool m_IsInsideCheckpointedLoop = false;
+
+    /// The two expressions a counted loop's reverse sweep needs. What the
+    /// loop *is* -- its index, its bounds, whether they hold still -- belongs
+    /// to the request, not here; this is only what had to be built from it.
+    struct CountedLoopCode {
+      /// The iterations the loop performs, as an expression the reverse sweep
+      /// can evaluate on entry. Null when that could not be proven, in which
+      /// case the forward sweep has to count them.
+      clang::Expr* TripCount = nullptr;
+      /// What the induction variable holds once the loop has exited.
+      clang::Expr* IndVarEnd = nullptr;
+    };
+
+    /// Recognises the counted loop -- an integer variable stepped by one from
+    /// a stable initial value while it stays below a stable bound, with no
+    /// early exit -- and nothing else.
+    CountedLoopCode BuildCountedLoop(const CountedLoopFacts& F);
+
+    /// The loop index whose value the forward sweep need not save before
+    /// overwriting it. A member because the statement that would save it is
+    /// differentiated several calls down, with no parameter of its own to
+    /// carry this; set only while that one statement is being visited.
+    const clang::VarDecl* m_UnsavedLoopIndex = nullptr;
   };
 } // end namespace clad
 
