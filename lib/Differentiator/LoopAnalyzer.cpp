@@ -1,6 +1,7 @@
 #include "LoopAnalyzer.h"
 
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DiffPlanner.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -13,7 +14,11 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+
+#include <set>
+#include <unordered_map>
 
 using namespace clang;
 
@@ -36,6 +41,119 @@ static bool stepsByOne(const Expr* E, const VarDecl* VD) {
     if (BO->getOpcode() == BO_Comma)
       return stepsByOne(BO->getLHS(), VD) || stepsByOne(BO->getRHS(), VD);
   return false;
+}
+
+namespace {
+/// Fills in what each `for` in a body is, in one walk.
+///
+/// The chain of loops a statement sits in is what makes a nested loop's
+/// bounds readable: `for (j = i + 1; ...)` is stable only because the
+/// reverse sweep steps `i` back before entering the reverse of anything
+/// inside `i`'s loop. A walk has that chain; a visit of one loop does not,
+/// which is why this is decided here rather than where the trip count is
+/// built.
+class CountedLoopCollector : public RecursiveASTVisitor<CountedLoopCollector> {
+  const DiffRequest& m_Request;
+  ASTContext& m_Context;
+  std::unordered_map<const ForStmt*, CountedLoopFacts>& m_Out;
+  llvm::SmallVector<const VarDecl*, 4> m_EnclosingIndVars;
+
+  /// Whether \p E reads in the reverse sweep as it did in the forward one:
+  /// it combines arithmetically only constants, variables the primal never
+  /// writes, and the induction variables of the loops around it.
+  bool isStable(const Expr* E) const {
+    E = E->IgnoreParenImpCasts();
+    // A constant is stable however it is spelled -- a literal, a constexpr
+    // variable, an enumerator or a template argument all bound a loop, and
+    // the last three are the usual way a dimension is written.
+    if (E->getIntegerConstantExpr(m_Context))
+      return true;
+    if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+      UnaryOperatorKind op = UO->getOpcode();
+      return (op == UO_Plus || op == UO_Minus) && isStable(UO->getSubExpr());
+    }
+    if (const auto* BO = dyn_cast<BinaryOperator>(E)) {
+      BinaryOperatorKind op = BO->getOpcode();
+      if (op != BO_Add && op != BO_Sub && op != BO_Mul)
+        return false;
+      return isStable(BO->getLHS()) && isStable(BO->getRHS());
+    }
+    const auto* DRE = dyn_cast<DeclRefExpr>(E);
+    if (!DRE)
+      return false;
+    const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+    // Integer only: the count this bounds is arithmetic, and a floating
+    // bound would make it depend on rounding.
+    if (!VD || !VD->getType()->isIntegerType() ||
+        VD->getType().isVolatileQualified())
+      return false;
+    // An enclosing loop's induction variable is written -- by its own
+    // increment -- yet still reads correctly here, because the reverse sweep
+    // steps it back before entering the reverse of this loop.
+    if (llvm::is_contained(m_EnclosingIndVars, VD))
+      return true;
+    return !m_Request.writesVariable(VD);
+  }
+
+public:
+  CountedLoopCollector(
+      const DiffRequest& R, ASTContext& C,
+      std::unordered_map<const ForStmt*, CountedLoopFacts>& Out)
+      : m_Request(R), m_Context(C), m_Out(Out) {}
+
+  bool TraverseForStmt(ForStmt* FS) {
+    CountedLoopFacts F;
+    CountedForLoop L = recogniseCountedForLoop(FS);
+    // An early return can skip the forward loop while the master reverse
+    // sweep still runs, so a recomputed count would be the full one for a
+    // loop that never ran.
+    if (L && !m_Request.hasEarlyReturns() && !mayExitEarly(FS->getBody())) {
+      // The increment is the only thing allowed to move the induction
+      // variable; a body that also writes it -- directly, or by handing it
+      // to a callee as a non-const reference -- runs a number of times the
+      // bounds do not say.
+      std::set<const VarDecl*> writtenInBody;
+      utils::collectWrittenVars(FS->getBody(), writtenInBody);
+      if (!writtenInBody.count(L.IndVar)) {
+        F.IndVar = L.IndVar;
+        F.Init = L.Init;
+        F.Bound = L.Bound;
+        F.Inclusive = L.Inclusive;
+        F.OwnsIndVar = isa<DeclStmt>(FS->getInit());
+        F.BoundsAreStable = isStable(L.Init) && isStable(L.Bound);
+      }
+    }
+    m_Out[FS] = F;
+    // A loop counted at all offers its index to the loops inside it, even
+    // when its own bounds are not stable: its reverse still steps that index
+    // back one per iteration.
+    if (F.IndVar)
+      m_EnclosingIndVars.push_back(F.IndVar);
+    bool res = RecursiveASTVisitor::TraverseForStmt(FS);
+    if (F.IndVar)
+      m_EnclosingIndVars.pop_back();
+    return res;
+  }
+};
+} // namespace
+
+void collectCountedLoops(
+    const DiffRequest& R,
+    std::unordered_map<const ForStmt*, CountedLoopFacts>& Out) {
+  // DiffRequest::countedLoop, the only caller, resolved this definition to
+  // decide it had a body worth walking.
+  const FunctionDecl* Def = R.Function->getDefinition();
+  CountedLoopCollector C(R, Def->getASTContext(), Out);
+  C.TraverseStmt(Def->getBody());
+}
+
+bool mayExitEarly(const Stmt* S) {
+  if (!S)
+    return false;
+  if (isa<BreakStmt>(S) || isa<ContinueStmt>(S) || isa<ReturnStmt>(S) ||
+      isa<GotoStmt>(S) || isa<IndirectGotoStmt>(S) || isa<LabelStmt>(S))
+    return true;
+  return llvm::any_of(S->children(), mayExitEarly);
 }
 
 CountedForLoop recogniseCountedForLoop(const ForStmt* FS) {

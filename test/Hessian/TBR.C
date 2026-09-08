@@ -43,9 +43,7 @@ double linearAndNonlinear(double x, double y) {
 // CHECK-NEXT:     double s = a;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_i = 0;
-// CHECK-NEXT:         _t0 = 0;
 // CHECK-NEXT:         for (i = 0; i < 3; ++i) {
-// CHECK-NEXT:             _t0++;
 // CHECK-NEXT:             _d_s = _d_s + _d_a;
 // CHECK-NEXT:             s = s + a;
 // CHECK-NEXT:             clad::push(_t1, _d_a);
@@ -63,7 +61,7 @@ double linearAndNonlinear(double x, double y) {
 // CHECK-NEXT:         _d_d_a += s * _d_y0.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         for (; _t0; _t0--) {
+// CHECK-NEXT:         for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 a = clad::pop(_t2);
 // CHECK-NEXT:                 double _r_d3 = _d_a0;

@@ -6,7 +6,9 @@
 #include "TBRAnalyzer.h"
 #include "UsefulAnalyzer.h"
 
+#include "LoopAnalyzer.h"
 #include "clad/Differentiator/CladConfig.h"
+
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
@@ -50,10 +52,12 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 using namespace clang;
@@ -477,6 +481,35 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     F.TraverseStmt(Def->getBody());
     m_EarlyReturnInfo = {F.Found, /*HasAnalysisRun=*/true};
     return F.Found;
+  }
+
+  const CountedLoopFacts& DiffRequest::countedLoop(const ForStmt* FS) const {
+    static const CountedLoopFacts None;
+    const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+    if (!Def || !Def->hasBody())
+      return None;
+    if (!m_CountedLoopInfo.HasAnalysisRun) {
+      collectCountedLoops(*this, m_CountedLoopInfo.Loops);
+      m_CountedLoopInfo.HasAnalysisRun = true;
+    }
+    auto it = m_CountedLoopInfo.Loops.find(FS);
+    return it == m_CountedLoopInfo.Loops.end() ? None : it->second;
+  }
+
+  bool DiffRequest::writesVariable(const VarDecl* VD) const {
+    // A reference names storage this walk does not follow, and static or
+    // external storage is reachable from inside a callee. Neither can be
+    // ruled out by looking at the body alone.
+    if (VD->getType()->isReferenceType() || !VD->hasLocalStorage())
+      return true;
+    const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
+    if (!Def || !Def->hasBody())
+      return true;
+    if (!m_WrittenVarInfo.HasAnalysisRun) {
+      utils::collectWrittenVars(Def->getBody(), m_WrittenVarInfo.Written);
+      m_WrittenVarInfo.HasAnalysisRun = true;
+    }
+    return m_WrittenVarInfo.Written.count(VD) != 0;
   }
 
   namespace {

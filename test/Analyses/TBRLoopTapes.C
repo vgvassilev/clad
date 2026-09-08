@@ -16,8 +16,8 @@
 #include <cstdio>
 
 // The pullback of `+` reads neither operand, so no iteration's y is wanted in
-// reverse and the tape holding them goes away. The loop counter that drives
-// the reverse sweep is not the tape's business and stays either way.
+// reverse and the tape holding them goes away. The trip count that drives the
+// reverse sweep is not the tape's business and stays either way.
 double sum(double x) {
   double y = 0;
   for (int i = 0; i < 3; ++i)
@@ -27,12 +27,12 @@ double sum(double x) {
 
 // CHECK-OFF-LABEL: void sum_grad(double x, double *_d_x) {
 // CHECK-OFF: clad::tape<double> _t1 = {};
-// CHECK-OFF: _t0++;
 // CHECK-OFF: clad::push(_t1, y);
+// CHECK-OFF: for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-OFF: y = clad::pop(_t1);
 
 // CHECK-TBR-LABEL: void sum_grad(double x, double *_d_x) {
-// CHECK-TBR: _t0++;
+// CHECK-TBR: for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-TBR-NOT: clad::tape<double>
 // CHECK-TBR-NOT: clad::push
 // CHECK-TBR-NOT: clad::pop

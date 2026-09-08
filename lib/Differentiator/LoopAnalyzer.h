@@ -1,6 +1,8 @@
 #ifndef CLAD_DIFFERENTIATOR_LOOPANALYZER_H
 #define CLAD_DIFFERENTIATOR_LOOPANALYZER_H
 
+#include "clad/Differentiator/DiffPlanner.h"
+
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/SourceLocation.h"
 
@@ -8,6 +10,7 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include <cstdint>
+#include <unordered_map>
 
 namespace clang {
 class Expr;
@@ -54,6 +57,23 @@ struct CountedForLoop {
 /// moves the induction variable itself -- so each caller adds the
 /// conditions its own use needs.
 CountedForLoop recogniseCountedForLoop(const clang::ForStmt* FS);
+
+/// Fills \p Out with what every `for` in \p R's primal is. One walk, because
+/// deciding it needs the chain of loops a statement sits in, which a visit of a
+/// single loop does not have.
+void collectCountedLoops(
+    const DiffRequest& R,
+    std::unordered_map<const clang::ForStmt*, CountedLoopFacts>& Out);
+
+/// Whether \p S can leave the loop it belongs to before that loop's condition
+/// says so. Nested loops and switches are searched too -- a `break` of their
+/// own is theirs to keep, but rejecting the outer loop as well is cheaper than
+/// tracking which construct each one binds to, and costs only coverage.
+///
+/// Syntax, like recogniseCountedForLoop, and separate from it because what an
+/// early exit rules out differs per caller: a trip count worked out from the
+/// bounds would be wrong, while a written extent stays an over-approximation.
+bool mayExitEarly(const clang::Stmt* S);
 
 /// The counted loops enclosing whatever a visitor is currently looking at.
 ///

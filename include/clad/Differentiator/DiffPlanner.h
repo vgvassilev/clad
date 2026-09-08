@@ -32,16 +32,19 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <unordered_map>
 
 namespace clang {
 class CallExpr;
 class CompilerInstance;
 class DeclGroupRef;
 class Expr;
+class ForStmt;
 class FunctionDecl;
 class ParmVarDecl;
 class Sema;
 class Type;
+class VarDecl;
 } // namespace clang
 
 namespace clad {
@@ -49,6 +52,26 @@ using OwnedAnalysisContexts =
     llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
 using ParamSet = std::set<const clang::ParmVarDecl*>;
 using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
+
+/// What one walk of the primal found out about a `for` loop, in terms of the
+/// loop's own expressions rather than anything built from them.
+struct CountedLoopFacts {
+  /// The variable the loop steps, or null when the loop is not counted.
+  const clang::VarDecl* IndVar = nullptr;
+  /// The loop's own start and bound, and whether the comparison includes the
+  /// bound.
+  const clang::Expr* Init = nullptr;
+  const clang::Expr* Bound = nullptr;
+  bool Inclusive = false;
+  /// Whether the loop declares its index, so no statement after the loop can
+  /// read what it left there.
+  bool OwnsIndVar = false;
+  /// Whether Init and Bound read in the reverse sweep as they did in the
+  /// forward one, which is what makes a trip count worth building from them.
+  bool BoundsAreStable = false;
+
+  explicit operator bool() const { return IndVar != nullptr; }
+};
 /// A read-only, AD-oriented view over the primal being differentiated: it
 /// wraps the primal FunctionDecl and surfaces the AD-relevant facts the
 /// FunctionDecl itself does not. Recording such facts here, rather than
@@ -173,6 +196,21 @@ private:
     bool HasAnalysisRun = false;
   } m_NullTangentInfo;
 
+  /// The primal's local variables and parameters it may write. A property of
+  /// the Function, so worked out once and kept.
+  mutable struct WrittenVarInfo {
+    std::set<const clang::VarDecl*> Written;
+    bool HasAnalysisRun = false;
+  } m_WrittenVarInfo;
+
+  /// What each `for` in the primal is. Decided here rather than per loop in a
+  /// visitor because it needs the chain of loops a statement sits in, which
+  /// one walk has and a visit of a single loop does not.
+  mutable struct CountedLoopInfo {
+    std::unordered_map<const clang::ForStmt*, CountedLoopFacts> Loops;
+    bool HasAnalysisRun = false;
+  } m_CountedLoopInfo;
+
 public:
   /// The primal body's tail-position return -- the one an early-return encoder
   /// lets control fall through to, as opposed to an early return that needs a
@@ -199,6 +237,24 @@ public:
   /// is therefore never null. Answers false for a non-pointer, and for a
   /// variable belonging to a function other than this request's.
   bool mayHaveNullTangent(const clang::VarDecl* VD) const;
+
+  /// Whether the primal may write the local variable or parameter \p VD.
+  /// "Write" is meant broadly, as anything that can change the value between
+  /// two points of the body: an assignment, an increment, a taken address, or
+  /// a bind to a non-const reference. A variable this answers false for holds
+  /// the same value throughout the call, so the reverse sweep may read it and
+  /// see what the forward sweep saw -- which is what lets a loop's iteration
+  /// count be recomputed from its bounds rather than counted.
+  ///
+  /// Answers true, conservatively, for anything it cannot see through: a
+  /// variable with static or external storage (a callee may write it), and one
+  /// belonging to a function other than this request's.
+  bool writesVariable(const clang::VarDecl* VD) const;
+
+  /// What is known about \p FS as a counted loop, or a default-constructed
+  /// result when it is not one. Reading the facts does not build anything: a
+  /// caller that wants a trip-count expression builds it from Init and Bound.
+  const CountedLoopFacts& countedLoop(const clang::ForStmt* FS) const;
 
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
