@@ -82,9 +82,13 @@ namespace clad {
     // produces the node on first read, so a representation no consumer reads
     // constructs nothing (unlike a Lazy clone, it holds no template node). The
     // adjoint slot uses it for a reverse-mode leaf's rebuilt m_Variables ref,
-    // which a terminal product-rule leaf never reads.
+    // which a terminal product-rule leaf never reads. The rev-sweep slot keeps
+    // the same LazyBuild infrastructure; discrete compound assignments use it
+    // for a consumed-only snapshot (lazy Pop/store) so discarded standalones
+    // never push.
     std::function<clang::Stmt*()> m_StmtBuild;
     std::function<clang::Stmt*()> m_StmtDxBuild;
+    std::function<clang::Stmt*()> m_RevSweepBuild;
 
     // Clone Src into Slot on first read; a no-op when Src is null (eager slot).
     clang::Stmt* materialize(clang::Stmt*& Slot, const clang::Stmt*& Src);
@@ -141,7 +145,8 @@ namespace clad {
             return valueForRevSweep.Deferred.Cloner;
           }()),
           m_StmtBuild(std::move(orig.Build)),
-          m_StmtDxBuild(std::move(diff.Build)) {
+          m_StmtDxBuild(std::move(diff.Build)),
+          m_RevSweepBuild(std::move(valueForRevSweep.Build)) {
       m_Data[1] = orig.Node;
       m_Data[0] = diff.Node;
     }
@@ -182,6 +187,7 @@ namespace clad {
     void updateRevSweep(clang::Stmt* S) {
       m_ValueForRevSweep = S;
       m_RevSweepSrc = nullptr;
+      m_RevSweepBuild = nullptr;
     }
     // Stmt_dx goes first!
     std::array<clang::Stmt*, 2>& getBothStmts() {
@@ -197,11 +203,23 @@ namespace clad {
     }
 
     clang::Stmt* getRevSweepStmt() {
+      if (!m_ValueForRevSweep && m_RevSweepBuild) {
+        m_ValueForRevSweep = m_RevSweepBuild();
+        m_RevSweepBuild = nullptr;
+      }
       if (clang::Stmt* R = materialize(m_ValueForRevSweep, m_RevSweepSrc))
         return R;
       // If there is no specific value for the reverse sweep, use the forward
       // statement.
       return getStmt();
+    }
+
+    /// Materialize a pending reverse-sweep LazyBuild (e.g. discrete snapshot)
+    /// before CloneNode(getExpr()). In-place FwdWrapper upgrades must run on
+    /// the canonical node first; cloning an un-upgraded wrapper loses the store.
+    void prepareForFwdClone() {
+      if (m_RevSweepBuild)
+        getRevSweepStmt();
     }
   };
 
@@ -1021,9 +1039,10 @@ namespace clad {
     StmtDiff::Lazy LazyClone(const clang::Stmt* N) {
       return {m_Builder.m_NodeCloner.get(), N};
     }
-    /// A StmtDiff forward-value input that runs \p B on first read and nothing
+    /// A StmtDiff representation input that runs \p B on first read and nothing
     /// if the value is never read -- for a representation that is freshly
-    /// constructed (e.g. BuildDeclRef of a remapped decl) rather than cloned,
+    /// constructed (e.g. BuildDeclRef of a remapped decl, or a reverse-sweep
+    /// snapshot that would otherwise emit an unused store) rather than cloned,
     /// so LazyClone's template node is not orphaned.
     StmtDiff::In LazyBuild(std::function<clang::Stmt*()> B) {
       return StmtDiff::In(std::move(B));
