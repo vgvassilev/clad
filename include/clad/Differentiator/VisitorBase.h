@@ -202,6 +202,12 @@ namespace clad {
       return llvm::cast_or_null<clang::Expr>(getRevSweepStmt());
     }
 
+    bool hasRevSweep() const {
+      return m_ValueForRevSweep || m_RevSweepBuild || m_RevSweepSrc;
+    }
+
+    bool hasRevSweepBuild() const { return static_cast<bool>(m_RevSweepBuild); }
+
     clang::Stmt* getRevSweepStmt() {
       if (!m_ValueForRevSweep && m_RevSweepBuild) {
         m_ValueForRevSweep = m_RevSweepBuild();
@@ -216,7 +222,8 @@ namespace clad {
 
     /// Materialize a pending reverse-sweep LazyBuild (e.g. discrete snapshot)
     /// before CloneNode(getExpr()). In-place FwdWrapper upgrades must run on
-    /// the canonical node first; cloning an un-upgraded wrapper loses the store.
+    /// the canonical node first; cloning an un-upgraded wrapper loses the
+    /// store.
     void prepareForFwdClone() {
       if (m_RevSweepBuild)
         getRevSweepStmt();

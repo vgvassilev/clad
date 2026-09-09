@@ -1034,9 +1034,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             direction::reverse);
       // Materialize rev before closing the arm reverse block (Pop placement)
       // only when the conditional reverse value is consumed.
-      Expr* Rev =
-          requestArmRev ? ExprDiff.getRevSweepAsExpr() : nullptr;
+      Expr* Rev = requestArmRev ? ExprDiff.getRevSweepAsExpr() : nullptr;
       Expr* Fwd = ExprDiff.getExpr();
+      // Compositionally stabilize any side-effectful forward value under its
+      // branch only when the branch's reverse value is consumed (requestArmRev)
+      // so the side effects execute exactly once under this branch's condition,
+      // and the expression used downstream (in condExpr and any reverse
+      // calls/pullbacks) is pure. Discarded ternaries do not force tape/store.
+      if (requestArmRev && Fwd && Fwd->HasSideEffects(m_Context)) {
+        if (Fwd->isLValue() && Fwd->getObjectKind() != OK_BitField) {
+          Expr* addr = BuildOp(UO_AddrOf, Fwd);
+          Expr* storeAddr =
+              GlobalStoreAndRef(addr, /*prefix=*/"_t", /*force=*/true);
+          Fwd = BuildOp(UO_Deref, storeAddr);
+        } else {
+          Fwd = GlobalStoreAndRef(Fwd, /*prefix=*/"_t", /*force=*/true);
+        }
+      }
       Expr* Dx = ExprDiff.getExpr_dx();
       CompoundStmt* RCS = endBlock(direction::reverse);
       Stmt* ForwardResult = endBlock(direction::forward);
@@ -1074,7 +1088,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       addToCurrentBlock(Reverse, direction::reverse);
 
     // Arms already materialized above when requestArmRev; reuse those exprs
-    // (do not re-request rev after BuildIf -- that would mis-place discrete Pop).
+    // (do not re-request rev after BuildIf -- that would mis-place discrete
+    // Pop).
     Expr* condExpr =
         m_Sema
             .ActOnConditionalOp(noLoc, noLoc, CloneNode(condStored),
@@ -1967,26 +1982,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       result.updateRevSweep(moveCall);
     }
 
-    // Save cloned arg in a "global" variable, so that it is accessible from
-    // the reverse pass.
-    // For example:
-    // ```
-    // // forward pass
-    // _t0 = a;
-    // modify(a); // a is modified so we store it
-    //
-    // // reverse pass
-    // a = _t0;
-    // modify_pullback(a, ...); // the pullback should always keep `a` intact
-    // ```
-    // FIXME: Handle storing data passed through pointers and structures.
-    // FIXME: Improve TBR to handle these stores.
+    bool isDiscrete = argDiff.hasRevSweepBuild();
     bool passByRef = paramTy->isLValueReferenceType() &&
                      !paramTy.getNonReferenceType().isConstQualified();
-    if (passByRef && m_DiffReq.shouldBeRecorded(arg)) {
-      // Finalize discrete FwdWrapper before CloneNode(getExpr()). Without
-      // this, in-place upgrade never runs (argDiff dies) or runs after the
-      // clone and StoreAndRestore keeps a stale Paren(Assign).
+    bool shouldRecordRef = passByRef && m_DiffReq.shouldBeRecorded(arg);
+
+    if (isDiscrete || shouldRecordRef) {
+      // Finalize discrete FwdWrapper before CloneNode(getExpr()) or call
+      // assembly. Without this, in-place upgrade never runs (argDiff dies) or
+      // runs after the clone and CallArgs keeps a stale Paren(Assign).
       argDiff.prepareForFwdClone();
       Expr* E = argDiff.getExpr();
       // Side-effectful args (e.g. discrete assign) must run once before
@@ -2017,6 +2021,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           argDiff.updateStmt(CloneNode(returnExprs[0]));
         }
       }
+    }
+
+    // Save cloned arg in a "global" variable, so that it is accessible from
+    // the reverse pass.
+    // For example:
+    // ```
+    // // forward pass
+    // _t0 = a;
+    // modify(a); // a is modified so we store it
+    //
+    // // reverse pass
+    // a = _t0;
+    // modify_pullback(a, ...); // the pullback should always keep `a` intact
+    // ```
+    // FIXME: Handle storing data passed through pointers and structures.
+    // FIXME: Improve TBR to handle these stores.
+    if (shouldRecordRef) {
       // argDiff.getExpr() is also returned below as the call argument; clone
       // it for the store/restore so the node is not shared with the call.
       StmtDiff pushPop = StoreAndRestore(CloneNode(argDiff.getExpr()));
@@ -3055,17 +3076,35 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // derivative pointer also.
     bool isPointerOp = E->getType()->isPointerType();
 
-    if (opCode == UO_Plus)
+    if (opCode == UO_Plus) {
       // xi = +xj
       // dxi/dxj = +1.0
       // df/dxj += df/dxi * dxi/dxj = df/dxi
       diff = Visit(E, dfdx());
-    else if (opCode == UO_Minus) {
+      if (diff.hasRevSweep()) {
+        auto sub = std::make_shared<StmtDiff>(std::move(diff));
+        return StmtDiff(LazyBuild([this, sub]() -> Stmt* {
+                          return BuildOp(UO_Plus, sub->getExpr());
+                        }),
+                        sub->getExpr_dx(), LazyBuild([sub]() -> Stmt* {
+                          return sub->getRevSweepAsExpr();
+                        }));
+      }
+    } else if (opCode == UO_Minus) {
       // xi = -xj
       // dxi/dxj = -1.0
       // df/dxj += df/dxi * dxi/dxj = -df/dxi
       auto* d = BuildOp(UO_Minus, dfdx());
       diff = Visit(E, d);
+      if (diff.hasRevSweep()) {
+        auto sub = std::make_shared<StmtDiff>(std::move(diff));
+        return StmtDiff(LazyBuild([this, sub]() -> Stmt* {
+                          return BuildOp(UO_Minus, sub->getExpr());
+                        }),
+                        sub->getExpr_dx(), LazyBuild([this, sub]() -> Stmt* {
+                          return BuildOp(UO_Minus, sub->getRevSweepAsExpr());
+                        }));
+      }
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
       diff = Visit(E, dfdx());
       Expr* diff_dx = diff.getExpr_dx();
@@ -3323,14 +3362,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             Expr* aseIdx = ASE->getIdx();
             const bool baseSE = aseBase->HasSideEffects(m_Context);
             const bool idxSE = aseIdx->HasSideEffects(m_Context);
-            Expr* stabBase =
-                baseSE ? GlobalStoreAndRef(aseBase, /*prefix=*/"_t",
-                                           /*force=*/true)
-                       : CloneNode(aseBase);
-            Expr* stabIdx =
-                idxSE ? GlobalStoreAndRef(aseIdx, /*prefix=*/"_t",
-                                          /*force=*/true)
-                      : CloneNode(aseIdx);
+            Expr* stabBase = baseSE
+                                 ? GlobalStoreAndRef(aseBase, /*prefix=*/"_t",
+                                                     /*force=*/true)
+                                 : CloneNode(aseBase);
+            Expr* stabIdx = idxSE ? GlobalStoreAndRef(aseIdx, /*prefix=*/"_t",
+                                                      /*force=*/true)
+                                  : CloneNode(aseIdx);
             llvm::SmallVector<Expr*, 1> idxs = {stabIdx};
             Expr* newBase = BuildArraySubscript(stabBase, idxs);
             llvm::StringRef fieldName = ME->getMemberDecl()->getName();
@@ -3344,8 +3382,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                 if (auto* ASEdx = dyn_cast<ArraySubscriptExpr>(
                         MEdx->getBase()->IgnoreParenImpCasts())) {
                   llvm::SmallVector<Expr*, 1> idxsDx = {
-                      idxSE ? CloneNode(stabIdx)
-                            : CloneNode(ASEdx->getIdx())};
+                      idxSE ? CloneNode(stabIdx) : CloneNode(ASEdx->getIdx())};
                   Expr* newBaseDx =
                       BuildArraySubscript(CloneNode(ASEdx->getBase()), idxsDx);
                   Expr* newEdx = utils::BuildMemberExpr(
@@ -4419,18 +4456,63 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitCXXFunctionalCastExpr(
       const clang::CXXFunctionalCastExpr* FCE) {
-    StmtDiff castExprDiff = Visit(FCE->getSubExpr(), dfdx());
-    castExprDiff.updateStmt(m_Sema
-                                .BuildCXXFunctionalCastExpr(
-                                    FCE->getTypeInfoAsWritten(), FCE->getType(),
-                                    FCE->getBeginLoc(), castExprDiff.getExpr(),
-                                    FCE->getEndLoc())
-                                .get());
-    return castExprDiff;
+    StmtDiff subDiff = Visit(FCE->getSubExpr(), dfdx());
+    if (subDiff.hasRevSweep()) {
+      auto sub = std::make_shared<StmtDiff>(std::move(subDiff));
+      TypeSourceInfo* TSI = FCE->getTypeInfoAsWritten();
+      QualType Ty = FCE->getType();
+      auto beginLoc = FCE->getBeginLoc();
+      auto endLoc = FCE->getEndLoc();
+      return StmtDiff(
+          LazyBuild([this, sub, TSI, Ty, beginLoc, endLoc]() -> Stmt* {
+            return m_Sema
+                .BuildCXXFunctionalCastExpr(TSI, Ty, beginLoc, sub->getExpr(),
+                                            endLoc)
+                .get();
+          }),
+          sub->getExpr_dx(),
+          LazyBuild([this, sub, TSI, Ty, beginLoc, endLoc]() -> Stmt* {
+            return m_Sema
+                .BuildCXXFunctionalCastExpr(TSI, Ty, beginLoc,
+                                            sub->getRevSweepAsExpr(), endLoc)
+                .get();
+          }));
+    }
+    subDiff.updateStmt(
+        m_Sema
+            .BuildCXXFunctionalCastExpr(FCE->getTypeInfoAsWritten(),
+                                        FCE->getType(), FCE->getBeginLoc(),
+                                        subDiff.getExpr(), FCE->getEndLoc())
+            .get());
+    return subDiff;
   }
 
   StmtDiff ReverseModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
     StmtDiff subExprDiff = Visit(CSCE->getSubExpr(), dfdx());
+    if (subExprDiff.hasRevSweep()) {
+      auto sub = std::make_shared<StmtDiff>(std::move(subExprDiff));
+      auto lParen = CSCE->getLParenLoc();
+      auto rParen = CSCE->getRParenLoc();
+      TypeSourceInfo* TSI = CSCE->getTypeInfoAsWritten();
+      return StmtDiff(
+          LazyBuild([this, sub, lParen, rParen, TSI]() -> Stmt* {
+            return m_Sema
+                .BuildCStyleCastExpr(lParen, TSI, rParen, sub->getExpr())
+                .get();
+          }),
+          LazyBuild([this, sub, lParen, rParen, TSI]() -> Stmt* {
+            Expr* dx = sub->getExpr_dx();
+            if (!dx)
+              return nullptr;
+            return m_Sema.BuildCStyleCastExpr(lParen, TSI, rParen, dx).get();
+          }),
+          LazyBuild([this, sub, lParen, rParen, TSI]() -> Stmt* {
+            return m_Sema
+                .BuildCStyleCastExpr(lParen, TSI, rParen,
+                                     sub->getRevSweepAsExpr())
+                .get();
+          }));
+    }
     Expr* castExpr = m_Sema
                          .BuildCStyleCastExpr(
                              CSCE->getLParenLoc(), CSCE->getTypeInfoAsWritten(),
@@ -4448,7 +4530,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitCXXNamedCastExpr(
       const clang::CXXNamedCastExpr* NCE) {
-    StmtDiff subExprDiff = Visit(NCE->getSubExpr(), dfdx());
+    StmtDiff subDiff = Visit(NCE->getSubExpr(), dfdx());
 
     // Reconstruct the cast
     TypeSourceInfo* TSI = NCE->getTypeInfoAsWritten();
@@ -4476,14 +4558,31 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       assert(0 && "Unsupported cast kind!");
       break;
     }
-    Expr* castExpr =
-        m_Sema
-            .BuildCXXNamedCast(KWLoc, CastKind, TSI, subExprDiff.getExpr(),
-                               Brackets, Range)
-            .get();
-    subExprDiff.updateStmt(castExpr);
-
-    return subExprDiff;
+    if (subDiff.hasRevSweep()) {
+      auto sub = std::make_shared<StmtDiff>(std::move(subDiff));
+      return StmtDiff(LazyBuild([this, sub, KWLoc, CastKind, TSI, Brackets,
+                                 Range]() -> Stmt* {
+                        return m_Sema
+                            .BuildCXXNamedCast(KWLoc, CastKind, TSI,
+                                               sub->getExpr(), Brackets, Range)
+                            .get();
+                      }),
+                      sub->getExpr_dx(),
+                      LazyBuild([this, sub, KWLoc, CastKind, TSI, Brackets,
+                                 Range]() -> Stmt* {
+                        return m_Sema
+                            .BuildCXXNamedCast(KWLoc, CastKind, TSI,
+                                               sub->getRevSweepAsExpr(),
+                                               Brackets, Range)
+                            .get();
+                      }));
+    }
+    Expr* castExpr = m_Sema
+                         .BuildCXXNamedCast(KWLoc, CastKind, TSI,
+                                            subDiff.getExpr(), Brackets, Range)
+                         .get();
+    subDiff.updateStmt(castExpr);
+    return subDiff;
   }
 
   StmtDiff ReverseModeVisitor::VisitImplicitValueInitExpr(
@@ -4826,14 +4925,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             used = true;
             // Since we are manually replacing the statement, implicit casts are
             // not generated automatically.
+            if (repl->isGLValue()) {
+              ExprResult rvalueRes = m_Sema.DefaultLvalueConversion(repl);
+              if (rvalueRes.isUsable())
+                repl = rvalueRes.get();
+            }
             ExprResult newExprRes{repl};
             QualType targetTy = cast<Expr>(S)->getType();
             CastKind kind = m_Sema.PrepareScalarCast(newExprRes, targetTy);
             // CK_NoOp casts trigger an assertion on debug Clang
             if (kind == CK_NoOp)
-              S = repl;
-            else
-              S = m_Sema.ImpCastExprToType(repl, targetTy, kind).get();
+              S = newExprRes.get();
+            else {
+              ExprResult castRes =
+                  m_Sema.ImpCastExprToType(newExprRes.get(), targetTy, kind);
+              if (castRes.isUsable())
+                S = castRes.get();
+              else
+                S = newExprRes.get();
+            }
           }
         return true;
       }
