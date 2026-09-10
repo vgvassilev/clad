@@ -1622,6 +1622,33 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
         return true;
 
+      // JacobianDerivedFnTraits always produces a void-returning derivative.
+      // Jacobian outputs are exposed through derivative parameters
+      // corresponding to pointer, reference, or array function arguments.
+      // Reject a non-void primal before graph scheduling, analyses, or
+      // custom derivative lookup.
+      // Invariant: request.CallContext is set to E above, and request.Function
+      // is guaranteed non-null by findTargetFunction.
+      if (request.Mode == DiffMode::jacobian &&
+          !request.Function->getReturnType()->isVoidType()) {
+        const FunctionDecl* PrimalFD = request.Function;
+        utils::diag(
+            m_Sema, DiagnosticsEngine::Error,
+            request.CallContext->getBeginLoc(),
+            "jacobian mode currently requires function %0 to return void; "
+            "provide differentiable outputs through pointer, reference, or "
+            "array parameters")
+            << PrimalFD;
+        SourceLocation NoteLoc =
+            PrimalFD->getReturnTypeSourceRange().getBegin();
+        if (NoteLoc.isInvalid())
+          NoteLoc = PrimalFD->getLocation();
+        utils::diag(m_Sema, DiagnosticsEngine::Note, NoteLoc,
+                    "%0 declared here with return type %1")
+            << PrimalFD << PrimalFD->getReturnType();
+        return true;
+      }
+
       request.Args = E->getArg(1);
       request.UpdateDiffParamsInfo(m_Sema);
       if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis &&
