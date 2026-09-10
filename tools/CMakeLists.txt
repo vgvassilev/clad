@@ -16,12 +16,14 @@ endif()
 
 set(link_libs cladDifferentiator)
 
-# Supply the symbols RequiredSymbols.cpp references, which such a host lacks.
-# Link the clangAST archive file, not the clangAST target: the target would
+# Supply AST construction and mutation-analysis symbols a static host may lack.
+# Link archive files, not targets: the targets would
 # also drag in LLVMSupport and duplicate its cl::opt registrations. A dylib
 # build already has them from libclang-cpp.
 if (NOT LLVM_LINK_LLVM_DYLIB AND TARGET clangAST)
-  list(APPEND link_libs "$<TARGET_FILE:clangAST>")
+  list(APPEND link_libs "$<TARGET_FILE:clangAnalysis>"
+                       "$<TARGET_FILE:clangASTMatchers>"
+                       "$<TARGET_FILE:clangAST>")
 endif()
 
 if (NOT CLAD_BUILD_STATIC_ONLY)

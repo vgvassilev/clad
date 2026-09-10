@@ -533,8 +533,7 @@ namespace clad {
           if (!DRE)
             continue;
           auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
-          if (!VD || !Caps.contains(VD) ||
-              DRE->refersToEnclosingVariableOrCapture())
+          if (!VD || !Caps.contains(VD))
             continue;
           // BuildDeclRef produces a bare reference for a local (it never
           // name-qualifies one), which is what lets Sema capture it here.
@@ -1164,58 +1163,18 @@ namespace clad {
   }
 
 #if CLANG_VERSION_MAJOR >= 17
-  /// Register every (original, clone) VarDecl pair, at any depth.
-  static void
-  registerClonedDecls(const Stmt* Orig, Stmt* Cloned,
-                      std::unordered_map<const VarDecl*, VarDecl*>& Repls) {
-    if (!Orig || !Cloned)
-      return;
-    if (const auto* DS = dyn_cast<DeclStmt>(Orig))
-      if (auto* ClonedDS = dyn_cast<DeclStmt>(Cloned)) {
-        auto O = DS->decl_begin();
-        auto C = ClonedDS->decl_begin();
-        for (; O != DS->decl_end() && C != ClonedDS->decl_end(); ++O, ++C)
-          if (const auto* OVD = dyn_cast<VarDecl>(*O))
-            if (auto* CVD = dyn_cast<VarDecl>(*C))
-              if (OVD != CVD)
-                Repls[OVD] = CVD;
-      }
-    auto O = Orig->child_begin();
-    auto C = Cloned->child_begin();
-    for (; O != Orig->child_end() && C != Cloned->child_end(); ++O, ++C)
-      registerClonedDecls(*O, *C, Repls);
-  }
-#endif // CLANG_VERSION_MAJOR >= 17
-
-#if CLANG_VERSION_MAJOR > 16
-  VisitorBase::LambdaBuilder::LambdaBuilder(VisitorBase& V)
+  VisitorBase::LambdaBuilder::LambdaBuilder(VisitorBase& V,
+                                            LambdaIntroducer Intro)
       : m_V(V), m_DS(m_AttrFactory),
         m_D(m_DS, clang::ParsedAttributesView::none(),
             clang::DeclaratorContext::LambdaExpr),
-        m_SaveContext(V.m_Sema.CurContext), m_SaveDerivative(V.m_Derivative),
-        m_SaveFnScope(V.m_DerivativeFnScope) {
-    m_Intro.Default = LCD_None;
-    m_Intro.Range.setBegin(noLoc);
-    m_Intro.Range.setEnd(noLoc);
+        m_Intro(std::move(Intro)), m_SaveContext(V.m_Sema.CurContext),
+        m_SaveDerivative(V.m_Derivative), m_SaveFnScope(V.m_DerivativeFnScope) {
   }
 
-  void VisitorBase::LambdaBuilder::cloneCaptures(const LambdaExpr* LE) {
-    m_Intro.Default = LE->getCaptureDefault();
-    for (const clang::LambdaCapture& Cap : LE->explicit_captures())
-      m_Intro.addCapture(Cap.getCaptureKind(), Cap.getLocation(),
-                         Cap.getCapturedVar()->getIdentifier(), /*EllipsisLoc=*/
-                         noLoc, clang::LambdaCaptureInitKind::NoInit,
-                         clang::ExprResult(), clang::ParsedType(),
-                         SourceRange());
-    m_Intro.Range.setBegin(LE->getBeginLoc());
-    m_Intro.Range.setEnd(LE->getEndLoc());
-  }
-
-  void VisitorBase::LambdaBuilder::start(const LambdaExpr* LE,
-                                         QualType CallOpType,
-                                         ParamBuilder BuildParams) {
-    DeclContext* DC = LE->getCallOperator()->getDeclContext();
-
+  void VisitorBase::LambdaBuilder::start(QualType CallOpType,
+                                         ParamBuilder BuildParams,
+                                         bool Mutable) {
     m_Started = true;
     m_V.beginScope(Scope::LambdaScope | Scope::DeclScope |
                    Scope::FunctionDeclarationScope |
@@ -1232,7 +1191,6 @@ namespace clad {
     sema::LambdaScopeInfo* LSI = m_V.m_Sema.getCurLambda();
     LSI->CallOperator->setType(CallOpType);
     m_V.m_Sema.PushDeclContext(m_V.getCurrentScope(), LSI->CallOperator);
-    LSI->Lambda->setDeclContext(DC);
     m_V.m_Derivative = LSI->CallOperator;
 
     llvm::SmallVector<ParmVarDecl*, 8> params;
@@ -1259,7 +1217,7 @@ namespace clad {
                         /*RParenLoc=*/paramListLoc,
                         /*RefQualifierIsLValueRef=*/true,
                         /*RefQualifierLoc=*/SourceLocation(),
-                        /*MutableLoc=*/SourceLocation(),
+                        /*MutableLoc=*/Mutable ? paramListLoc : noLoc,
                         /*ESpecType=*/EST_None,
                         /*ESpecRange=*/SourceRange(),
                         /*Exceptions=*/nullptr,
@@ -1312,21 +1270,25 @@ namespace clad {
   }
 #endif // CLANG_VERSION_MAJOR > 16
 
-  Expr* VisitorBase::buildClonedLambda(const LambdaExpr* LE) {
+  Expr* VisitorBase::buildClonedLambda(
+      const LambdaExpr* LE,
+      llvm::ArrayRef<std::pair<const VarDecl*, VarDecl*>> Captures) {
     // A primal copy needs a *fresh* closure type; a plain StmtClone reuses the
     // original closure, so two clones share the operator() body -- both a
     // one-parent-per-node violation and a node shared with the primal lambda.
     //
-    // We reproduce only explicit by-copy/by-ref captures of a named variable
-    // (each re-resolves by name against the derivative's in-scope copy). Fall
-    // back to a plain clone for the kinds we do not model -- this-capture,
-    // init-capture, and packs.
+    // Rebuild captures against the derivative's declaration map. Fall back
+    // to a plain clone for this-captures and packs.
 #if CLANG_VERSION_MAJOR < 17
     // Lambda differentiation is unsupported below clang-17 (Lambdas.C is
     // UNSUPPORTED there) and the Sema lambda-introduction entry points used
     // below do not exist yet. Never reached; keep the source compilable.
     return cast<Expr>(Clone(LE));
 #else
+    llvm::SaveAndRestore<decltype(m_DeclReplacements)> SaveReplacements(
+        m_DeclReplacements);
+    for (auto Capture : Captures)
+      m_DeclReplacements[Capture.first] = Capture.second;
     for (const clang::LambdaCapture& Cap : LE->explicit_captures())
       if (!Cap.capturesVariable() ||
           (Cap.getCaptureKind() != clang::LCK_ByCopy &&
@@ -1335,61 +1297,145 @@ namespace clad {
 
     const CXXMethodDecl* CallOp = LE->getCallOperator();
 
-    LambdaBuilder LBuilder(*this);
-    LBuilder.cloneCaptures(LE);
-    LBuilder.start(LE, CallOp->getType(),
-                   [&](llvm::SmallVectorImpl<ParmVarDecl*>& params) {
-                     for (const ParmVarDecl* PVD : CallOp->parameters()) {
-                       IdentifierInfo* II = PVD->getIdentifier();
-                       if (!PVD->getDeclName())
-                         II = CreateUniqueIdentifier("arg");
-                       auto* newPVD =
-                           CloneParmVarDecl(PVD, II, /*pushOnScopeChains=*/true,
-                                            /*cloneDefaultArg=*/false);
-                       // Remap references in the cloned body to the new
-                       // parameters.
-                       m_DeclReplacements[PVD] = newPVD;
-                       params.push_back(newPVD);
-                     }
-                   });
-
-    beginBlock();
-    const auto* Body = cast<CompoundStmt>(CallOp->getBody());
-    for (Stmt* S : Body->body()) {
-      // A nested lambda declaration must itself get a fresh closure (otherwise
-      // the recursive clone would reuse it). Rebuild it here -- its own body is
-      // remapped inside the recursive call -- and record the new variable so
-      // later references in this body are updated to it.
-      if (auto* InnerDS = dyn_cast<DeclStmt>(S))
-        if (InnerDS->isSingleDecl())
-          if (auto* InnerVD = dyn_cast<VarDecl>(InnerDS->getSingleDecl()))
-            if (const Expr* InnerInit = InnerVD->getInit())
-              if (const auto* InnerLE =
-                      dyn_cast<LambdaExpr>(InnerInit->IgnoreImplicit())) {
-                Expr* ClonedInner = buildClonedLambda(InnerLE);
-                QualType AutoTy = m_Context.getAutoDeductType();
-                TypeSourceInfo* TSI =
-                    m_Context.getTrivialTypeSourceInfo(AutoTy);
-                VarDecl* NewInnerVD =
-                    BuildVarDecl(AutoTy, InnerVD->getNameAsString(),
-                                 ClonedInner, InnerVD->isDirectInit(), TSI);
-                m_DeclReplacements[InnerVD] = NewInnerVD;
-                addToCurrentBlock(BuildDeclStmt(NewInnerVD));
-                continue;
-              }
-      // Clone the statement and remap references to the lambda's own
-      // parameters (and rebuilt inner lambdas). ReferencesUpdater only admits
-      // declarations enclosed by the "function" it is given, so key it on the
-      // lambda's call operator rather than m_DiffReq.Function (the outer
-      // function being differentiated), which would reject the lambda locals.
-      Stmt* clonedS = CloneNode(S);
-      // Register before remapping, so references in this statement update too.
-      registerClonedDecls(S, clonedS, m_DeclReplacements);
-      utils::ReferencesUpdater up(m_Sema, getCurrentScope(), CallOp,
-                                  m_DeclReplacements);
-      up.TraverseStmt(clonedS);
-      addToCurrentBlock(clonedS);
+    // Mirror the lambda-introduction dance performed while parsing a lambda;
+    // see buildDerivedLambda for the differentiating counterpart.
+    LambdaIntroducer Intro;
+    Intro.Default = LE->getCaptureDefault();
+    llvm::SmallVector<const VarDecl*, 4> InitCaptures;
+    auto Init = LE->capture_init_begin();
+    for (const clang::LambdaCapture& Cap : LE->captures()) {
+      const Expr* CaptureInit = *Init++;
+      if (!Cap.capturesVariable())
+        continue;
+      auto* Variable = cast<VarDecl>(Cap.getCapturedVar());
+      auto Shared = llvm::find_if(Captures, [Variable](const auto& Capture) {
+        return Capture.first == Variable;
+      });
+      auto Replacement = m_DeclReplacements.find(Variable);
+      if (Variable->getType()->isReferenceType() &&
+          Replacement != m_DeclReplacements.end() &&
+          Replacement->second->getType()->isPointerType()) {
+        // A hoisted reference is represented by a pointer. Capture the
+        // referent, preserving its type inside the fresh closure.
+        auto Kind = Shared == Captures.end() ? Cap.getCaptureKind() : LCK_ByRef;
+        QualType Type = Variable->getType().getNonReferenceType();
+        if (Kind == LCK_ByRef)
+          Type = m_Context.getLValueReferenceType(Type);
+        Intro.addCapture(
+            Kind, Cap.getLocation(), Variable->getIdentifier(), noLoc,
+            LambdaCaptureInitKind::CopyInit,
+            ExprResult(BuildOp(UO_Deref, BuildDeclRef(Replacement->second))),
+            ParsedType::make(Type), SourceRange());
+        InitCaptures.push_back(Variable);
+        continue;
+      }
+      if (Cap.isImplicit() && Shared == Captures.end())
+        continue;
+      auto Kind = Shared == Captures.end() ? Cap.getCaptureKind() : LCK_ByRef;
+      if (Shared != Captures.end() && Kind == LCK_ByRef &&
+          Intro.Default == LCD_ByRef)
+        continue;
+      if (Variable->isInitCapture() &&
+          (Replacement == m_DeclReplacements.end() ||
+           Replacement->second->isInitCapture())) {
+        InitCaptures.push_back(Variable);
+        Intro.addCapture(Cap.getCaptureKind(), Cap.getLocation(),
+                         Variable->getIdentifier(), noLoc,
+                         LambdaCaptureInitKind::CopyInit,
+                         ExprResult(Clone(CaptureInit)),
+                         ParsedType::make(Variable->getType()), SourceRange());
+        continue;
+      }
+      if (Replacement != m_DeclReplacements.end())
+        Variable = Replacement->second;
+      Intro.addCapture(Kind, Cap.getLocation(), Variable->getIdentifier(),
+                       noLoc, clang::LambdaCaptureInitKind::NoInit,
+                       clang::ExprResult(), clang::ParsedType(), SourceRange());
     }
+    Intro.Range.setBegin(LE->getBeginLoc());
+    Intro.Range.setEnd(LE->getEndLoc());
+    LambdaBuilder LBuilder(*this, std::move(Intro));
+    LBuilder.start(
+        CallOp->getType(),
+        [&](llvm::SmallVectorImpl<ParmVarDecl*>& params) {
+          auto Original = InitCaptures.begin();
+          for (const auto& Capture : m_Sema.getCurLambda()->Captures)
+            if (Capture.isInitCapture())
+              m_DeclReplacements[*Original++] =
+                  cast<VarDecl>(Capture.getVariable());
+
+          for (const ParmVarDecl* PVD : CallOp->parameters()) {
+            IdentifierInfo* II = PVD->getIdentifier();
+            if (!PVD->getDeclName())
+              II = CreateUniqueIdentifier("arg");
+            auto* newPVD = CloneParmVarDecl(PVD, II, /*pushOnScopeChains=*/true,
+                                            /*cloneDefaultArg=*/false);
+            // Remap references in the cloned body to the new parameters.
+            m_DeclReplacements[PVD] = newPVD;
+            params.push_back(newPVD);
+          }
+        },
+        !CallOp->isConst());
+    beginBlock();
+    // Clone recursively, rebuilding closures and their declarations
+    // wherever they occur, including control-flow bodies and declaration
+    // initializers.
+    utils::StmtClone* Cloner = nullptr;
+    auto RebuildStmt = [&](const Stmt* S) -> Stmt* {
+      if (const auto* Lambda = dyn_cast<LambdaExpr>(S))
+        return buildClonedLambda(Lambda);
+      if (const auto* Return = dyn_cast<ReturnStmt>(S))
+        return m_Sema
+            .ActOnReturnStmt(Return->getReturnLoc(),
+                             Cloner->Clone(Return->getRetValue()),
+                             getCurrentScope())
+            .get();
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(S)) {
+        if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          auto Replacement = m_DeclReplacements.find(VD);
+          if (Replacement != m_DeclReplacements.end())
+            return BuildDeclRef(Replacement->second, clad_compat::nullNNS(),
+                                DRE->getValueKind());
+        }
+      }
+      if (const auto* Call = dyn_cast<CXXOperatorCallExpr>(S))
+        if (const auto* Method =
+                dyn_cast_or_null<CXXMethodDecl>(Call->getDirectCallee()))
+          if (isLambdaCallOperator(Method)) {
+            Expr* Callee =
+                Cloner->Clone(Call->getArg(0)->IgnoreParenImpCasts());
+            llvm::SmallVector<Expr*, 4> Args;
+            for (const Expr* Arg : llvm::drop_begin(Call->arguments()))
+              Args.push_back(Cloner->Clone(Arg));
+            return m_Sema
+                .ActOnCallExpr(getCurrentScope(), Callee, noLoc, Args, noLoc)
+                .get();
+          }
+      return nullptr;
+    };
+    auto RebuildDecl = [&](Decl* D) -> Decl* {
+      auto* VD = dyn_cast<VarDecl>(D);
+      if (!VD)
+        return nullptr;
+      QualType Type = Cloner->CloneType(VD->getType());
+      // Lambda expressions introduce a new closure type on every rebuild.
+      if (Type->getAsCXXRecordDecl() && Type->getAsCXXRecordDecl()->isLambda())
+        Type = m_Context.getAutoDeductType();
+      auto* NewVD = VarDecl::Create(
+          m_Context, m_Sema.CurContext, VD->getBeginLoc(), VD->getLocation(),
+          CreateUniqueIdentifier(VD->getName()), Type,
+          m_Context.getTrivialTypeSourceInfo(Type), VD->getStorageClass());
+      m_DeclReplacements[VD] = NewVD;
+      SetDeclInit(NewVD, Cloner->Clone(VD->getInit()), VD->isDirectInit());
+      m_Sema.FinalizeDeclaration(NewVD);
+      m_Sema.PushOnScopeChains(NewVD, getCurrentScope());
+      return NewVD;
+    };
+    utils::StmtClone BodyCloner(m_Sema, m_Context, RebuildStmt, RebuildDecl);
+    Cloner = &BodyCloner;
+    const auto* Body = cast<CompoundStmt>(CallOp->getBody());
+    for (const Stmt* S : Body->body())
+      addToCurrentBlock(Cloner->Clone(S));
     return LBuilder.finish(endBlock());
 #endif // CLANG_VERSION_MAJOR < 17
   }

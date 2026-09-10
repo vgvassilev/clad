@@ -118,6 +118,11 @@ static const ValueDecl* walkStmt(const Stmt* S,
 
   if (const auto* LE = dyn_cast<LambdaExpr>(S)) {
     llvm::DenseSet<const VarDecl*> Inner = Declared;
+    for (const LambdaCapture& Capture : LE->captures())
+      if (Capture.capturesVariable())
+        if (const auto* VD = dyn_cast<VarDecl>(Capture.getCapturedVar()))
+          if (VD->isInitCapture())
+            Inner.insert(VD);
     if (const CXXMethodDecl* Call = LE->getCallOperator())
       for (const ParmVarDecl* P : Call->parameters())
         Inner.insert(P);

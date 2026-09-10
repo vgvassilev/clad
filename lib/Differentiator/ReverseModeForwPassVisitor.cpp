@@ -195,8 +195,8 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
     else {
       IdentifierInfo* newName = CreateUniqueIdentifier("arg");
       newPVD->setDeclName(newName);
-      m_DeclReplacements[PVD] = newPVD;
     }
+    m_DeclReplacements[PVD] = newPVD;
 
     auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
     if (it != std::end(diffParams)) {
@@ -332,6 +332,16 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
 DeclDiff<clang::VarDecl>
 ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
                                                  bool /*keepLocal*/) {
+  const Expr* Init = VD->getInit();
+  if (const auto* Lambda = dyn_cast_or_null<LambdaExpr>(
+          Init ? Init->IgnoreImplicit() : nullptr)) {
+    QualType AutoType = m_Context.getAutoDeductType();
+    auto* Primal = BuildGlobalVarDecl(
+        AutoType, VD->getNameAsString(), buildClonedLambda(Lambda),
+        VD->isDirectInit(), m_Context.getTrivialTypeSourceInfo(AutoType));
+    m_DeclReplacements[VD] = Primal;
+    return {Primal, nullptr};
+  }
   QualType DerivedType = CloneType(VD->getType());
   StmtDiff initDiff;
   if (const Expr* init = VD->getInit())

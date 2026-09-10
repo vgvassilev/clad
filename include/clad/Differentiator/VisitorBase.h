@@ -337,7 +337,7 @@ namespace clad {
       using ParamBuilder =
           llvm::function_ref<void(llvm::SmallVectorImpl<clang::ParmVarDecl*>&)>;
 
-      explicit LambdaBuilder(VisitorBase& V);
+      LambdaBuilder(VisitorBase& V, clang::LambdaIntroducer Intro);
       LambdaBuilder(const LambdaBuilder&) = delete;
       LambdaBuilder& operator=(const LambdaBuilder&) = delete;
       LambdaBuilder(LambdaBuilder&&) = delete;
@@ -347,13 +347,10 @@ namespace clad {
       /// early return in between leaves Sema inside a half-built closure and
       /// only crashes much later.
       ~LambdaBuilder();
-      /// Without this the new closure is capture-less.
-      void cloneCaptures(const clang::LambdaExpr* LE);
       /// Opens the body scope; on return the caller may begin a block and emit
-      /// into it. \p LE only supplies the declaration context to graft the
-      /// closure onto, \p BuildParams appends the call operator's parameters.
-      void start(const clang::LambdaExpr* LE, clang::QualType CallOpType,
-                 ParamBuilder BuildParams);
+      /// into it. \p BuildParams appends the call operator's parameters.
+      void start(clang::QualType CallOpType, ParamBuilder BuildParams,
+                 bool Mutable = false);
       /// Closes the scopes start() opened.
       clang::Expr* finish(clang::Stmt* Body);
     };
@@ -946,13 +943,12 @@ namespace clad {
                                          bool pushOnScopeChains = false,
                                          bool cloneDefaultArg = true,
                                          clang::SourceLocation Loc = noLoc);
-    /// Build a primal copy of a lambda expression with a *fresh*
-    /// closure type, rather than reusing the original closure (as a plain
-    /// StmtClone does). Reusing the closure makes two clones share the
-    /// operator() body, violating the one-parent-per-node invariant. Only
-    /// captureless lambdas get a fresh closure; captured lambdas fall back to
-    /// a plain clone. Inner lambda-init declarations are rebuilt recursively.
-    clang::Expr* buildClonedLambda(const clang::LambdaExpr* LE);
+    /// Rebuild a lambda with a fresh closure, including nested lambdas.
+    /// Captures already materialized by AD are shared with the pullback.
+    clang::Expr* buildClonedLambda(
+        const clang::LambdaExpr* LE,
+        llvm::ArrayRef<std::pair<const clang::VarDecl*, clang::VarDecl*>>
+            Captures = {});
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///

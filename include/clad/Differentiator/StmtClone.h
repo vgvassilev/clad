@@ -18,6 +18,7 @@
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include <unordered_map>
 
 namespace clang {
@@ -33,6 +34,8 @@ namespace utils {
   private:
     clang::Sema& m_Sema;
     clang::ASTContext& Ctx;
+    llvm::function_ref<clang::Stmt*(const clang::Stmt*)> m_RebuildStmt;
+    llvm::function_ref<clang::Decl*(clang::Decl*)> m_RebuildDecl;
     // While cloning a PseudoObjectExpr, maps each original OpaqueValueExpr to
     // its clone so the syntactic form and the semantic expressions reference
     // the same fresh OVE (null outside such a clone). See
@@ -46,6 +49,13 @@ namespace utils {
   public:
     StmtClone(clang::Sema& sema, clang::ASTContext& ctx)
         : m_Sema(sema), Ctx(ctx) {}
+
+    /// Rebuild nodes that need semantic analysis; null delegates to cloning.
+    StmtClone(clang::Sema& sema, clang::ASTContext& ctx,
+              llvm::function_ref<clang::Stmt*(const clang::Stmt*)> rebuildStmt,
+              llvm::function_ref<clang::Decl*(clang::Decl*)> rebuildDecl)
+        : m_Sema(sema), Ctx(ctx), m_RebuildStmt(rebuildStmt),
+          m_RebuildDecl(rebuildDecl) {}
 
     template<class StmtTy>
     StmtTy* Clone(const StmtTy* S);
@@ -86,6 +96,8 @@ namespace utils {
     DECLARE_CLONE_FN(StringLiteral)
     DECLARE_CLONE_FN(ParenExpr)
     DECLARE_CLONE_FN(ArraySubscriptExpr)
+    DECLARE_CLONE_FN(ArrayInitLoopExpr)
+    DECLARE_CLONE_FN(ArrayInitIndexExpr)
     DECLARE_CLONE_FN(MemberExpr)
     DECLARE_CLONE_FN(CompoundLiteralExpr)
     DECLARE_CLONE_FN(ImplicitCastExpr)
@@ -140,6 +152,10 @@ namespace utils {
   StmtTy* StmtClone::Clone(const StmtTy* S) {
     if (!S)
       return 0;
+
+    if (m_RebuildStmt)
+      if (clang::Stmt* rebuilt = m_RebuildStmt(S))
+        return static_cast<StmtTy*>(rebuilt);
 
     clang::Stmt* clonedStmt = Visit(const_cast<StmtTy*>(S));
     return static_cast<StmtTy*>(clonedStmt);

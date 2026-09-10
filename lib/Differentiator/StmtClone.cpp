@@ -469,6 +469,23 @@ Stmt* StmtClone::VisitLambdaExpr(LambdaExpr* Node) {
       Node->containsUnexpandedParameterPack());
 }
 
+Stmt* StmtClone::VisitArrayInitLoopExpr(ArrayInitLoopExpr* Node) {
+  llvm::DenseMap<OpaqueValueExpr*, OpaqueValueExpr*> LocalSubst;
+  auto* SavedSubst = m_OVESubst;
+  if (!m_OVESubst)
+    m_OVESubst = &LocalSubst;
+  auto* Common = Clone(Node->getCommonExpr());
+  (*m_OVESubst)[Node->getCommonExpr()] = Common;
+  auto* Result = new (Ctx) ArrayInitLoopExpr(CloneType(Node->getType()), Common,
+                                             Clone(Node->getSubExpr()));
+  m_OVESubst = SavedSubst;
+  return Result;
+}
+
+Stmt* StmtClone::VisitArrayInitIndexExpr(ArrayInitIndexExpr* Node) {
+  return new (Ctx) ArrayInitIndexExpr(CloneType(Node->getType()));
+}
+
 Stmt* StmtClone::VisitCUDAKernelCallExpr(CUDAKernelCallExpr* Node) {
   llvm::SmallVector<Expr*, 4> clonedArgs;
   for (Expr* arg : Node->arguments())
@@ -571,7 +588,7 @@ DEFINE_CLONE_STMT_CO(WhileStmt,
 DEFINE_CLONE_STMT(DoStmt, (Clone(Node->getBody()), Clone(Node->getCond()), Node->getDoLoc(), Node->getWhileLoc(), Node->getRParenLoc()))
 DEFINE_CLONE_STMT_CO(IfStmt, (Ctx, Node->getIfLoc(),
                               CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node),
-                              Node->getInit(),
+                              Clone(Node->getInit()),
                               CloneDeclOrNull(Node->getConditionVariable()),
                               Clone(Node->getCond()), Node->getLParenLoc(),
                               Node->getRParenLoc(), Clone(Node->getThen()),
@@ -619,6 +636,9 @@ VarDecl* StmtClone::CloneDeclOrNull(VarDecl* Node)  {
 }
 
 Decl* StmtClone::CloneDecl(Decl* Node)  {
+  if (m_RebuildDecl)
+    if (Decl* rebuilt = m_RebuildDecl(Node))
+      return rebuilt;
   // we support only exactly this class, so no visitor is needed (yet?)
   if (Node->getKind() == Decl::Var) {
     VarDecl* VD = static_cast<VarDecl*>(Node);
