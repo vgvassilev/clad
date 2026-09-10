@@ -657,6 +657,12 @@ namespace clad {
     /// m_Sema.PopDeclContextIsUsed.
     clang::NamespaceDecl* BuildNamespaceDecl(clang::IdentifierInfo* II,
                                              bool isInline);
+    /// Re-declares \p TND in the derivative and makes it findable there by
+    /// name, so the statements that follow can go on naming the type as they
+    /// did.
+    clang::TypedefNameDecl*
+    BuildTypedefNameDecl(const clang::TypedefNameDecl* TND);
+
     /// Wraps a declaration in DeclStmt.
     /// \n Variable declaration cannot be added to code directly, instead we
     /// have to build a declaration staement.
