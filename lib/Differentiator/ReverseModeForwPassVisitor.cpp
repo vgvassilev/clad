@@ -317,7 +317,7 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   if (value)
     returnDiff = Visit(value);
   SourceLocation validLoc{RS->getBeginLoc()};
-  if (!utils::isMemoryType(m_DiffReq->getReturnType()))
+  if (!utils::needsReverseForw(m_DiffReq.Function))
     return m_Sema.BuildReturnStmt(validLoc, returnDiff.getExpr()).get();
   llvm::SmallVector<Expr*, 2> returnArgs = {returnDiff.getExpr(),
                                             returnDiff.getExpr_dx()};

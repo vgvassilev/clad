@@ -2190,7 +2190,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     QualType returnType = FD->getReturnType();
     // FIXME: Decide this in the diff planner
-    bool needsForwPass = utils::isMemoryType(returnType);
+    bool needsForwPass = utils::needsReverseForw(FD);
     bool hasStoredParams = false;
     // If the function has a single arg and does not return a reference or
     // take arg by reference, we can request a derivative w.r.t. to this arg
@@ -3648,12 +3648,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs() &&
         utils::isCopyable(VDType->getAsCXXRecordDecl());
 
+    // A record with no default constructor cannot be declared uninitialized
+    // either, so it needs the same stand-in until the real adjoint is set.
+    const auto* VDDerivedRD = VDDerivedType->getAsCXXRecordDecl();
+    bool isDefaultConstructible = !VDDerivedRD ||
+                                  !VDDerivedRD->hasDefinition() ||
+                                  VDDerivedRD->hasDefaultConstructor();
+
     // Temporarily initialize the object with `*nullptr` to avoid
     // a potential error because of non-existing default constructor.
     Expr* dummyInit = nullptr;
     // FIXME: We need to have a more general way of determining this.
     const auto* CAT = dyn_cast<ConstantArrayType>(VDDerivedType);
-    if (shouldCopyInitialize || isRefType ||
+    if (shouldCopyInitialize || isRefType || !isDefaultConstructible ||
         (CAT && CAT->getElementType()->isRecordType())) {
       QualType dummyTy = VDDerivedType;
       if (CAT)

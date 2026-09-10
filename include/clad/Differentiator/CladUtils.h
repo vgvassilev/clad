@@ -491,6 +491,12 @@ namespace clad {
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
 
+    /// \returns true if differentiating a call to \p FDecl needs a
+    /// `reverse_forw`. `isMemoryType` on the return type, plus
+    /// std::reference_wrapper's accessors, whose const reference cannot carry
+    /// the referent's adjoint.
+    bool needsReverseForw(const clang::FunctionDecl* FDecl);
+
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
     bool shouldUseRestoreTracker(const clang::FunctionDecl* FD);
