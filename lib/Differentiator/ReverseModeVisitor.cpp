@@ -15,6 +15,7 @@
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ExternalRMVSource.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
+#include "clad/Differentiator/ReverseModeForwPassVisitor.h"
 #include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/ASTContext.h"
@@ -787,6 +788,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff
   ReverseModeVisitor::VisitArrayInitLoopExpr(const ArrayInitLoopExpr* AILE) {
+    if (!dfdx())
+      return StmtDiff(Clone(AILE));
     // Since ArrayInitLoopExpr is not possible to express with regular syntax,
     // we have to replicate it with loops.
     // The code we're differentiated is of the form
@@ -852,7 +855,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     ScopeRAII compoundScope(*this, scopeFlags);
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
+    llvm::SmallVector<std::pair<std::size_t, std::size_t>, 4> ReturnCuts;
+    // Case groups have their own reverse entry labels. Unlike an ordinary
+    // block, a switch body can be entered after its first statement.
+    bool HasCaseLabels = llvm::any_of(
+        CS->body(), [](const Stmt* S) { return isa<SwitchCase>(S); });
     for (Stmt* S : CS->body()) {
+      std::size_t ReturnsBefore = m_EarlyReturnMarkers.size();
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingStmtInVisitCompoundStmt();
       StmtDiff SDiff = DifferentiateSingleStmt(S);
@@ -861,7 +870,48 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingStmtInVisitCompoundStmt();
+      if (!HasCaseLabels && m_EarlyReturnMarkers.size() != ReturnsBefore)
+        ReturnCuts.emplace_back(getCurrentBlock().size(),
+                                getCurrentBlock(direction::reverse).size());
     }
+    // The master reverse sweep also runs at early returns. A suffix that
+    // wasn't reached must not replay its mutations or restore unfilled stores.
+    // Record reachability at each cut, using a fresh tape entry per loop
+    // iteration. Empty reverse suffixes need no flag.
+    Stmts EntryRecords;
+    for (auto Cut : llvm::reverse(ReturnCuts)) {
+      Stmts& Reverse = getCurrentBlock(direction::reverse);
+      if (llvm::all_of(llvm::drop_begin(Reverse, Cut.second),
+                       [](const Stmt* S) { return isa<NullStmt>(S); }))
+        continue;
+      Stmts Suffix(Reverse.begin() + Cut.second, Reverse.end());
+      std::reverse(Suffix.begin(), Suffix.end());
+      Reverse.resize(Cut.second);
+      Expr* Reached = nullptr;
+      Expr* Condition = nullptr;
+      if (isInsideLoop) {
+        auto Tape = MakeCladTapeFor(getZeroInit(m_Context.BoolTy), "_reached");
+        EntryRecords.push_back(Tape.Push);
+        Reached = Tape.Last();
+        Condition = Tape.Pop;
+      } else {
+        auto* Flag = GlobalStoreImpl(m_Context.BoolTy, "_reached",
+                                     getZeroInit(m_Context.BoolTy));
+        Reached = BuildDeclRef(Flag);
+        Condition = BuildDeclRef(Flag);
+      }
+      Stmts& Forward = getCurrentBlock();
+      Forward.insert(Forward.begin() + Cut.first,
+                     BuildOp(BO_Assign, Reached,
+                             new (m_Context) CXXBoolLiteralExpr(
+                                 true, m_Context.BoolTy, noLoc)));
+      Reverse.push_back(clad_compat::IfStmt_Create(
+          m_Context, noLoc, false, nullptr, nullptr, Condition, noLoc, noLoc,
+          MakeCompoundStmt(Suffix), noLoc, nullptr));
+    }
+    Stmts& ForwardBlock = getCurrentBlock();
+    ForwardBlock.insert(ForwardBlock.begin(), EntryRecords.begin(),
+                        EntryRecords.end());
     CompoundStmt* Forward = endBlock(direction::forward);
     CompoundStmt* Reverse = endBlock(direction::reverse);
     return StmtDiff(Forward, Reverse);
@@ -1950,21 +2000,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
 #if CLANG_VERSION_MAJOR > 16
-  clang::Expr* ReverseModeVisitor::buildDerivedLambda(const LambdaExpr* LE) {
-    LambdaCaptures Captures(*this);
-    Captures.collect({LE->getBody()});
+  clang::Expr* ReverseModeVisitor::buildDerivedLambda(bool CaptureByRef) {
     LambdaIntroducer Intro;
-    Intro.Default = LCD_None;
-    for (const LambdaCapture& Capture : LE->captures())
-      if (Capture.capturesVariable() &&
-          Captures.contains(cast<VarDecl>(Capture.getCapturedVar())))
-        Intro.Default = LCD_ByRef;
+    Intro.Default = CaptureByRef ? LCD_ByRef : LCD_None;
     Intro.Range.setBegin(noLoc);
     Intro.Range.setEnd(noLoc);
     LambdaBuilder LBuilder(*this, std::move(Intro));
-    LBuilder.start(GetLambdaDerivativeType(LE),
+    LBuilder.start(GetDerivativeType(),
                    [&](llvm::SmallVectorImpl<ParmVarDecl*>& params) {
-                     BuildParams(params, LE);
+                     BuildParams(params);
                    });
     beginBlock();
     DifferentiateWithClad();
@@ -1972,8 +2016,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const LambdaExpr* LE) {
-    if (m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass)
-      return StmtDiff(buildClonedLambda(LE));
+    // Local closures have no planner-owned CFG; differentiate their bodies
+    // conservatively. The enclosing request still uses its normal analyses.
     DiffRequest LambdaReq;
     LambdaReq.Function = LE->getCallOperator();
     LambdaReq.Functor = LE->getLambdaClass();
@@ -1986,6 +2030,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     ReverseModeVisitor NestedVisitor(m_Builder, LambdaReq);
     LambdaCaptures Captures(*this);
     Captures.collect({LE->getBody()});
+    ExprMutationAnalyzer Mutations(*LE->getBody(), m_Context);
+    bool CaptureByRef = false;
+    bool MutatesCaptures = false;
     llvm::SmallVector<std::pair<const VarDecl*, VarDecl*>, 4> Snapshots;
     auto Init = LE->capture_init_begin();
     for (const LambdaCapture& Capture : LE->captures()) {
@@ -1993,6 +2040,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (!Capture.capturesVariable())
         continue;
       auto* Variable = dyn_cast<VarDecl>(Capture.getCapturedVar());
+      if (Variable) {
+        CaptureByRef |= Captures.contains(Variable);
+        MutatesCaptures |= Mutations.isMutated(Variable) ||
+                           Mutations.isPointeeMutated(Variable);
+        if (const auto* RD =
+                Variable->getType().getNonReferenceType()->getAsCXXRecordDecl())
+          if (RD->isLambda())
+            MutatesCaptures |=
+                m_LambdaForwPass.count(RD->getLambdaCallOperator());
+      }
       if (!Variable || (Capture.getCaptureKind() != LCK_ByCopy &&
                         !Variable->isInitCapture()))
         continue;
@@ -2008,6 +2065,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           Variable->getType().getNonReferenceType(), nullptr, SC_None);
       if (Capture.getCaptureKind() == LCK_ByRef)
         Snapshot->setType(Variable->getType());
+      else if (Snapshot->getType()->isArrayType())
+        Snapshot->setType(utils::getNonConstType(Snapshot->getType(), m_Sema));
       Snapshot->setInit(CaptureInit);
       // These declarations are synthesized after the analyses have run.
       auto* SnapshotDecl = BuildDeclStmt(Snapshot);
@@ -2023,9 +2082,28 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     NestedVisitor.m_DeclReplacements = m_DeclReplacements;
     NestedVisitor.m_Variables = m_Variables;
+    NestedVisitor.m_LambdaForwPass = m_LambdaForwPass;
     for (auto Snapshot : Snapshots)
       NestedVisitor.m_DeclReplacements[Snapshot.first] = Snapshot.second;
-    Expr* lambdaE = NestedVisitor.buildDerivedLambda(LE);
+    if (MutatesCaptures || utils::isMemoryType(LambdaReq->getReturnType())) {
+      DiffRequest ForwReq = LambdaReq;
+      ForwReq.Mode = DiffMode::reverse_mode_forward_pass;
+      ForwReq.UseRestoreTracker = MutatesCaptures;
+      ReverseModeForwPassVisitor ForwVisitor(m_Builder, ForwReq);
+      ForwVisitor.m_DeclReplacements = NestedVisitor.m_DeclReplacements;
+      ForwVisitor.m_Variables = m_Variables;
+      ForwVisitor.m_LambdaForwPass = m_LambdaForwPass;
+      ForwVisitor.m_RestoreTrackerOwner = m_RestoreTrackerOwner;
+      QualType AutoType = m_Context.getAutoDeductType();
+      auto* Forw =
+          BuildVarDecl(AutoType, "_forw", ForwVisitor.buildDerivedLambda(),
+                       false, m_Context.getTrivialTypeSourceInfo(AutoType));
+      addToCurrentBlock(BuildDeclStmt(Forw));
+      m_LambdaForwPass[LE->getCallOperator()] = Forw;
+    }
+    Expr* lambdaE = m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass
+                        ? nullptr
+                        : NestedVisitor.buildDerivedLambda(CaptureByRef);
 
     // Build the primal with a fresh closure so it does not share the operator()
     // body with the original lambda (or with a second primal clone emitted in
@@ -2047,11 +2125,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+    // Both f() and f.operator()() have an implicit object, but only the
+    // operator-call spelling includes it in the argument list.
+    const Expr* baseOriginalE = nullptr;
+    if (MD && MD->isInstance()) {
+      if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
+        baseOriginalE = MCE->getImplicitObjectArgument();
+      else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
+        baseOriginalE = OCE->getArg(0);
+    }
     Expr* LambdaCallOpExpr = nullptr;
-    VarDecl* LambdaVariable = nullptr;
     if (MD) {
       if (isLambdaCallOperator(MD)) {
-        const auto* CallE = CE->getArg(0)->IgnoreParenImpCasts();
+        const auto* CallE = baseOriginalE->IgnoreParenImpCasts();
         // FIXME: Handle direct calls when we properly clone lambdas.
         if (isa<LambdaExpr>(CallE)) {
           SourceLocation L = CallE->getBeginLoc();
@@ -2064,10 +2150,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (const auto* DRE = llvm::dyn_cast<DeclRefExpr>(CallE)) {
           const auto* VD = cast<VarDecl>(DRE->getDecl());
           auto Replacement = m_DeclReplacements.find(VD);
-          if (Replacement != m_DeclReplacements.end()) {
-            LambdaVariable = Replacement->second;
+          if (Replacement != m_DeclReplacements.end())
             LambdaCallOpExpr = buildAdjoint(m_Variables[Replacement->second]);
-          }
         }
       }
     }
@@ -2121,15 +2205,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Args to be used in the pullback after the original args
     llvm::SmallVector<Expr*, 16> CallArgDx{};
 
-    // Determine the base of the call if any.
-    const Expr* baseOriginalE = nullptr;
-    if (MD && MD->isInstance()) {
-      if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
-        baseOriginalE = MCE->getImplicitObjectArgument();
-      else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
-        baseOriginalE = OCE->getArg(0);
-    }
-
     // Lookup a reverse_forw function and build if necessary.
     DiffRequest calleeFnForwPassReq;
     calleeFnForwPassReq.Function = FD;
@@ -2137,6 +2212,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     calleeFnForwPassReq.BaseFunctionName =
         clad::utils::ComputeEffectiveFnName(FD);
     FunctionDecl* calleeFnForwPassFD = FindDerivedFunction(calleeFnForwPassReq);
+    Expr* localForwPass = nullptr;
+    if (auto* Forw = m_LambdaForwPass.lookup(FD)) {
+      localForwPass = BuildDeclRef(Forw);
+      calleeFnForwPassFD =
+          Forw->getType()->getAsCXXRecordDecl()->getLambdaCallOperator();
+    }
     bool elideReverseForw =
         (calleeFnForwPassFD &&
          utils::hasElidableReverseForwAttribute(calleeFnForwPassFD)) ||
@@ -2182,24 +2263,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // FIXME: consider moving non-diff analysis to DiffPlanner.
     bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE) ||
                    clad::utils::callOperatesOnNonDifferentiableType(m_Sema, CE);
-    llvm::SmallVector<Expr*, 4> CapturedState;
-    if (!nonDiff && LambdaVariable &&
-        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass) {
-      const auto* Lambda =
-          cast<LambdaExpr>(LambdaVariable->getInit()->IgnoreImplicit());
-      ExprMutationAnalyzer Mutations(*Lambda->getBody(), m_Context);
-      auto Init = Lambda->capture_init_begin();
-      for (const LambdaCapture& Capture : Lambda->captures()) {
-        Expr* CaptureInit = *Init++;
-        if (!Capture.capturesVariable())
-          continue;
-        auto* Variable = cast<VarDecl>(Capture.getCapturedVar());
-        if (Mutations.isMutated(Variable))
-          CapturedState.push_back(Variable->isInitCapture()
-                                      ? CloneNode(CaptureInit)
-                                      : BuildDeclRef(Variable));
-      }
-    }
     // If the result does not depend on the result of the call, just clone
     // the call and visit arguments (since they may contain side-effects like
     // f(x = y))
@@ -2217,7 +2280,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // differentiable so its statically scheduled pullback can propagate it
     // through the implicit object.
     if (!nonDiff && !dfdx() && !utils::hasMemoryTypeParams(FD) &&
-        !needsPullbackForRefReturningInstance && CapturedState.empty())
+        !needsPullbackForRefReturningInstance && !usingRestoreTracker)
       nonDiff = true;
 
     // If all arguments are constant literals, then this does not contribute to
@@ -2236,7 +2299,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType returnType = FD->getReturnType();
     // FIXME: Decide this in the diff planner
     bool needsForwPass = utils::isMemoryType(returnType);
-    bool hasStoredParams = false;
+    bool hasStoredParams = localForwPass && usingRestoreTracker;
     // If the function has a single arg and does not return a reference or
     // take arg by reference, we can request a derivative w.r.t. to this arg
     // using the forward mode.
@@ -2295,17 +2358,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // The set of arguments to be used in a ``reverse_forw`` after the original
     // args.
     llvm::SmallVector<Expr*, 16> revForwAdjointArgs{};
-
-    // Replay a stateful lambda from the state at this call, including calls
-    // whose return value is unused but which modify captured variables.
-    for (Expr* Value : CapturedState) {
-      beginBlock(direction::reverse);
-      StmtDiff State = StoreAndRestore(Value);
-      addToCurrentBlock(State.getStmt());
-      addToCurrentBlock(State.getStmt_dx(), direction::reverse);
-      auto Restore = EndBlockWithoutCreatingCS(direction::reverse);
-      PreCallStmts.append(Restore.begin(), Restore.end());
-    }
 
     /// Add base derivative expression in the derived call output args list if
     /// `CE` is a call to an instance member function.
@@ -2629,7 +2681,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Every mutable argument is storage owned by one of this function's own
     // locals. Their addresses die with this frame, so nothing outlives it to
     // restore them and the callee's records are never read.
-    bool mutatesOnlyOwnLocals = true;
+    bool mutatesOnlyOwnLocals = !localForwPass;
     for (std::size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
       QualType parTy = FD->getParamDecl(i)->getType();
       bool mayWrite = (parTy->isPointerType() &&
@@ -2642,7 +2694,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (argIdx >= CE->getNumArgs() ||
           !utils::designatesLocallyOwnedStorage(
               CE->getArg(argIdx),
-              /*asPointerValue=*/parTy->isPointerType())) {
+              /*asPointerValue=*/parTy->isPointerType(), m_DiffReq.Function)) {
         mutatesOnlyOwnLocals = false;
         break;
       }
@@ -2876,8 +2928,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // m_RestoreTracker is reused across nested reverse_forw calls; clone it.
       if (trackerExpr)
         CallArgs.push_back(CloneNode(trackerExpr));
-      call =
-          BuildCallExprToFunction(calleeFnForwPassFD, CallArgs, CUDAExecConfig);
+      call = localForwPass
+                 ? m_Sema
+                       .ActOnCallExpr(getCurrentScope(), localForwPass, Loc,
+                                      CallArgs, Loc, CUDAExecConfig)
+                       .get()
+                 : BuildCallExprToFunction(calleeFnForwPassFD, CallArgs,
+                                           CUDAExecConfig);
       // Sema can reject the reverse-forward call -- e.g. its signature was
       // synthesized for a function clad cannot actually differentiate (an
       // operation reached through an opaque type). Fall through to recreating
@@ -2953,7 +3010,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (MD && isLambdaCallOperator(MD)) {
       call = m_Sema
                  .ActOnCallExpr(getCurrentScope(),
-                                Clone(CE->getArg(0)->IgnoreParenImpCasts()),
+                                Clone(baseOriginalE->IgnoreParenImpCasts()),
                                 Loc, CallArgs, Loc, CUDAExecConfig)
                  .get();
       return StmtDiff(call);
@@ -3647,6 +3704,24 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   DeclDiff<VarDecl> ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
                                                              bool keepLocal) {
+    if (VD->getType()->isReferenceType())
+      if (const auto* RD =
+              VD->getType().getNonReferenceType()->getAsCXXRecordDecl())
+        if (RD->isLambda()) {
+          // A reference aliases both the primal closure and its pullback;
+          // it does not introduce another set of capture snapshots.
+          Expr* Init = Clone(VD->getInit());
+          QualType Type = Init->getType().withCVRQualifiers(
+              VD->getType().getNonReferenceType().getCVRQualifiers());
+          Type = m_Context.getLValueReferenceType(Type);
+          auto* Alias = BuildVarDecl(Type, VD->getName(), Init);
+          m_DeclReplacements[VD] = Alias;
+          const auto* Source = cast<DeclRefExpr>(Init->IgnoreParenImpCasts());
+          auto Adjoint = m_Variables.find(Source->getDecl());
+          if (Adjoint != m_Variables.end())
+            m_Variables[Alias] = Adjoint->second;
+          return {Alias, nullptr};
+        }
     // Local declarations are promoted to the function global scope. This
     // procedure is done to make declarations visible in the reverse sweep.
     // The reverse_mode_forward_pass mode does not have a reverse pass so
@@ -3846,17 +3921,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     Expr* Init = initDiff.getExpr();
-    bool IsArrayCopy = Init && isa<ArrayInitLoopExpr>(Init);
-    VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
-                                 IsArrayCopy ? nullptr : Init,
+    VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(), Init,
                                  VD->isDirectInit(), VDCloneTSI, SC);
-    if (IsArrayCopy)
-      VDClone->setInit(Init);
 
     // The choice of isDirectInit is mostly stylistic.
     bool isRealConstArray = false;
-    if (const auto* arrType = dyn_cast<ConstantArrayType>(VDType))
-      isRealConstArray = arrType->getElementType()->isRealType();
+    if (isa<ConstantArrayType>(VDType))
+      isRealConstArray = m_Context.getBaseElementType(VDType)->isRealType();
     bool isDirectInit = VD->isDirectInit() && (!RD || isNonAggrClass);
     if (VDDerivedType->isBuiltinType() || !VD->getInit() || isRealConstArray) {
       initDiff.updateStmtDx(getZeroInit(VDType));
@@ -3994,7 +4065,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // Closures are not assignable. Keep the primal declaration at its
         // evaluation site, and hoist only the pullback closure, whose captures
         // refer to the recorded locals and adjoints of this reverse pass.
-        if (VD->getInit() && isa<LambdaExpr>(VD->getInit()->IgnoreImplicit())) {
+        const auto* RD =
+            VD->getType().getNonReferenceType()->getAsCXXRecordDecl();
+        if (RD && RD->isLambda()) {
           addToCurrentBlock(BuildDeclStmt(VDDiff.getDecl()));
           if (auto* Derived = VDDiff.getDecl_dx())
             addToBlock(BuildDeclStmt(Derived),
@@ -5778,11 +5851,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   void
-  ReverseModeVisitor::BuildParams(llvm::SmallVectorImpl<ParmVarDecl*>& params,
-                                  const LambdaExpr* LE) {
+  ReverseModeVisitor::BuildParams(llvm::SmallVectorImpl<ParmVarDecl*>& params) {
     const FunctionDecl* FD = m_DiffReq.Function;
-    if (LE)
-      FD = LE->getCallOperator();
 
     for (ParmVarDecl* PVD : FD->parameters()) {
       IdentifierInfo* PVDII = PVD->getIdentifier();
@@ -5806,7 +5876,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool HasRet = false;
     QualType dRetTy = FD->getReturnType().getNonReferenceType();
     dRetTy = utils::getNonConstType(dRetTy, m_Sema);
-    if ((m_DiffReq.Mode == DiffMode::pullback || LE) && !dRetTy->isVoidType() &&
+    if (m_DiffReq.Mode == DiffMode::pullback && !dRetTy->isVoidType() &&
         !dRetTy->isPointerType() &&
         !utils::isNonConstReferenceType(FD->getReturnType())) {
       auto paramNameExists = [&params](llvm::StringRef name) {
@@ -5857,8 +5927,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     const auto* FnType = cast<FunctionProtoType>(m_Derivative->getType());
-    if (LE)
-      FnType = cast<FunctionProtoType>(GetLambdaDerivativeType(LE));
 
     for (size_t i = 0, s = params.size(), p = s; i < s - HasThis - HasRet;
          ++i) {
@@ -5879,7 +5947,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
 
       const ParmVarDecl* PVD = params[i];
-      if (!LE && !IsSelected) {
+      if (!IsSelected) {
         m_NonIndepParams.push_back(PVD);
         continue;
       }

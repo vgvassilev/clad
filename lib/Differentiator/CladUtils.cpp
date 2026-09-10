@@ -1262,14 +1262,15 @@ namespace clad {
     }
 
     bool designatesLocallyOwnedStorage(const clang::Expr* E,
-                                       bool asPointerValue) {
+                                       bool asPointerValue,
+                                       const clang::DeclContext* Owner) {
       bool peeled = asPointerValue;
       if (asPointerValue) {
         // `&lvalue` passed as a pointer designates that lvalue directly.
         const auto* UO =
             dyn_cast<clang::UnaryOperator>(E->IgnoreParenImpCasts());
         if (UO && UO->getOpcode() == clang::UO_AddrOf)
-          return designatesLocallyOwnedStorage(UO->getSubExpr());
+          return designatesLocallyOwnedStorage(UO->getSubExpr(), false, Owner);
       }
       while (true) {
         E = E->IgnoreParenImpCasts();
@@ -1297,6 +1298,8 @@ namespace clad {
       const auto* DRE = dyn_cast<clang::DeclRefExpr>(E);
       const auto* VD = DRE ? dyn_cast<clang::VarDecl>(DRE->getDecl()) : nullptr;
       if (!VD || !VD->hasLocalStorage() || VD->getType()->isReferenceType())
+        return false;
+      if (Owner && !Owner->Encloses(VD->getDeclContext()))
         return false;
       // The variable's own slot (no indirection peeled) always has automatic
       // storage duration, even for a pointer variable. Storage reached

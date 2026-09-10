@@ -1843,7 +1843,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
       //  Recurse into call graph.
+      unsigned ErrorsBefore = m_Sema.getDiagnostics().getNumErrors();
       TraverseFunctionDeclOnce(request.Function);
+      // A rejected body must not reach synthesis. Other requests can still
+      // be diagnosed and differentiated independently.
+      if (m_Sema.getDiagnostics().getNumErrors() != ErrorsBefore)
+        request.Mode = DiffMode::unknown;
 
       if (requestTBR) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
@@ -2023,6 +2028,48 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return true;
   }
 
+  bool DiffCollector::VisitVarDecl(VarDecl* VD) {
+    if (!m_TopMostReq || m_ParentReq->CustomDerivative ||
+        (m_ParentReq->Mode != DiffMode::reverse &&
+         m_ParentReq->Mode != DiffMode::pullback) ||
+        !VD->hasInit())
+      return true;
+    if (const auto* LE = dyn_cast<LambdaExpr>(VD->getInit()->IgnoreImplicit()))
+      for (const LambdaCapture& Capture : LE->captures()) {
+        if (!Capture.capturesVariable() ||
+            !isa<VarDecl>(Capture.getCapturedVar()) ||
+            Capture.isPackExpansion()) {
+          utils::diag(m_Sema, DiagnosticsEngine::Error, Capture.getLocation(),
+                      "reverse-mode differentiation requires ordinary "
+                      "variable captures");
+          return false;
+        }
+        QualType CaptureType =
+            Capture.getCapturedVar()->getType().getNonReferenceType();
+        if (Capture.getCaptureKind() == LCK_ByCopy &&
+            CaptureType->isArrayType() &&
+            m_Sema.getASTContext()
+                .getBaseElementType(CaptureType)
+                ->isRecordType()) {
+          utils::diag(m_Sema, DiagnosticsEngine::Error, Capture.getLocation(),
+                      "differentiation of array captures with record elements "
+                      "is not supported");
+          return false;
+        }
+      }
+    if (!VD->getType()->isReferenceType())
+      return true;
+    const auto* RD = VD->getType().getNonReferenceType()->getAsCXXRecordDecl();
+    if (RD && RD->isLambda() &&
+        !isa<DeclRefExpr>(VD->getInit()->IgnoreParenImpCasts())) {
+      utils::diag(m_Sema, DiagnosticsEngine::Error, VD->getLocation(),
+                  "differentiation of a closure reference requires a named "
+                  "lambda initializer");
+      return false;
+    }
+    return true;
+  }
+
   bool DiffCollector::VisitCXXConstructExpr(CXXConstructExpr* E) {
     // Don't visit CXXConstructExpr in outside differentiated functions.
     if (!m_TopMostReq)
@@ -2039,6 +2086,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
 
     CXXConstructorDecl* CD = E->getConstructor();
+    if (CD->getParent()->isLambda()) {
+      utils::diag(m_Sema, DiagnosticsEngine::Error, E->getExprLoc(),
+                  "differentiation of copied or moved closures is not "
+                  "supported; use a reference to the lambda instead");
+      return true;
+    }
     DiffRequest forwPassRequest;
     forwPassRequest.Function = CD;
     forwPassRequest.BaseFunctionName = "constructor";

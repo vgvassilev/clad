@@ -26,6 +26,32 @@ ReverseModeForwPassVisitor::ReverseModeForwPassVisitor(
     DerivativeBuilder& builder, const DiffRequest& request)
     : ReverseModeVisitor(builder, request) {}
 
+Expr* ReverseModeForwPassVisitor::buildDerivedLambda() {
+#if CLANG_VERSION_MAJOR > 16
+  LambdaIntroducer Intro;
+  Intro.Default = LCD_ByRef;
+  LambdaBuilder Builder(*this, std::move(Intro));
+  Builder.start(
+      GetDerivativeType(),
+      [&](auto& Params) {
+        DiffParams Args(m_DiffReq->param_begin(), m_DiffReq->param_end());
+        auto BuiltParams = BuildParams(Args);
+        Params.append(BuiltParams.begin(), BuiltParams.end());
+      },
+      /*Mutable=*/false, /*ExplicitResult=*/true);
+  beginBlock();
+  beginBlock(direction::reverse);
+  StmtDiff Body = Visit(m_DiffReq->getBody());
+  for (Stmt* S : m_Globals)
+    addToCurrentBlock(S);
+  utils::AppendIndividualStmts(getCurrentBlock(), Body.getStmt());
+  endBlock(direction::reverse);
+  return Builder.finish(endBlock());
+#else
+  llvm_unreachable("lambda differentiation requires clang 17 or later");
+#endif
+}
+
 DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   const FunctionDecl* FD = m_DiffReq.Function;
 
@@ -114,7 +140,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
     StmtDiff bodyDiff = Visit(m_DiffReq->getBody());
     Stmt* forward = bodyDiff.getStmt();
 
-    for (Stmt* S : ReverseModeVisitor::m_Globals)
+    for (Stmt* S : m_Globals)
       addToCurrentBlock(S);
 
     if (auto* CS = dyn_cast_or_null<CompoundStmt>(forward))
@@ -226,6 +252,8 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
     m_Sema.PushOnScopeChains(trackerPVD, getCurrentScope(),
                              /*AddToContext=*/false);
     m_RestoreTracker = BuildDeclRef(trackerPVD);
+    if (!m_RestoreTrackerOwner)
+      m_RestoreTrackerOwner = m_Derivative;
   }
   params.insert(params.end(), paramDerivatives.begin(), paramDerivatives.end());
   return params;
@@ -238,7 +266,7 @@ StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(clang::Expr* E,
     return {};
   // Storage owned by this function's locals is gone by the time the caller
   // restores the tracker; recording it would replay bytes into freed memory.
-  if (utils::designatesLocallyOwnedStorage(E))
+  if (utils::designatesLocallyOwnedStorage(E, false, m_RestoreTrackerOwner))
     return {};
   // Clone both the tracker base (reused across every store call) and the stored
   // expression E (the caller passes the same node it emits into the primal), so
@@ -290,26 +318,6 @@ ReverseModeForwPassVisitor::DelayedGlobalStoreAndRef(Expr* E,
                             /*isFnScope=*/false};
 }
 
-StmtDiff ReverseModeForwPassVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-  DeclRefExpr* clonedDRE = nullptr;
-  // Check if referenced Decl was "replaced" with another identifier inside
-  // the derivative
-  const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
-  auto it = m_DeclReplacements.find(VD);
-  if (it != std::end(m_DeclReplacements))
-    clonedDRE = BuildDeclRef(it->second);
-  else
-    clonedDRE = cast<DeclRefExpr>(Clone(DRE));
-
-  auto* decl = dyn_cast<VarDecl>(clonedDRE->getDecl());
-  auto foundAdjoint = m_Variables.find(decl);
-  Expr* adjoint = nullptr;
-  if (foundAdjoint != m_Variables.end())
-    adjoint = buildAdjoint(foundAdjoint->second, DRE);
-
-  return StmtDiff(clonedDRE, adjoint);
-}
-
 StmtDiff
 ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   const Expr* value = RS->getRetValue();
@@ -332,12 +340,17 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
 DeclDiff<clang::VarDecl>
 ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
                                                  bool /*keepLocal*/) {
+  if (VD->getType()->isReferenceType())
+    if (const auto* RD =
+            VD->getType().getNonReferenceType()->getAsCXXRecordDecl())
+      if (RD->isLambda())
+        return ReverseModeVisitor::DifferentiateVarDecl(VD);
   const Expr* Init = VD->getInit();
   if (const auto* Lambda = dyn_cast_or_null<LambdaExpr>(
           Init ? Init->IgnoreImplicit() : nullptr)) {
     QualType AutoType = m_Context.getAutoDeductType();
     auto* Primal = BuildGlobalVarDecl(
-        AutoType, VD->getNameAsString(), buildClonedLambda(Lambda),
+        AutoType, VD->getNameAsString(), VisitLambdaExpr(Lambda).getExpr(),
         VD->isDirectInit(), m_Context.getTrivialTypeSourceInfo(AutoType));
     m_DeclReplacements[VD] = Primal;
     return {Primal, nullptr};

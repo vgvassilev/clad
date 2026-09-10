@@ -500,8 +500,12 @@ namespace clad {
     /// function, so a caller must not try to restore it.
     /// \param asPointerValue E is a pointer rvalue passed to a callee, so
     /// the pointee is judged rather than the pointer variable's own slot.
-    bool designatesLocallyOwnedStorage(const clang::Expr* E,
-                                       bool asPointerValue = false);
+    /// \param Owner When provided, restrict ownership to this frame and its
+    /// nested declarations, excluding storage captured from an outer frame.
+    bool
+    designatesLocallyOwnedStorage(const clang::Expr* E,
+                                  bool asPointerValue = false,
+                                  const clang::DeclContext* Owner = nullptr);
 
     bool IsDifferentiableType(clang::QualType T);
 

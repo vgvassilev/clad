@@ -36,6 +36,7 @@ namespace utils {
     clang::ASTContext& Ctx;
     llvm::function_ref<clang::Stmt*(const clang::Stmt*)> m_RebuildStmt;
     llvm::function_ref<clang::Decl*(clang::Decl*)> m_RebuildDecl;
+    clang::SwitchStmt* m_CurrentSwitch = nullptr;
     // While cloning a PseudoObjectExpr, maps each original OpaqueValueExpr to
     // its clone so the syntactic form and the semantic expressions reference
     // the same fresh OVE (null outside such a clone). See
@@ -47,13 +48,11 @@ namespace utils {
     clang::VarDecl* CloneDeclOrNull(clang::VarDecl* Node);
 
   public:
-    StmtClone(clang::Sema& sema, clang::ASTContext& ctx)
-        : m_Sema(sema), Ctx(ctx) {}
-
     /// Rebuild nodes that need semantic analysis; null delegates to cloning.
-    StmtClone(clang::Sema& sema, clang::ASTContext& ctx,
-              llvm::function_ref<clang::Stmt*(const clang::Stmt*)> rebuildStmt,
-              llvm::function_ref<clang::Decl*(clang::Decl*)> rebuildDecl)
+    StmtClone(
+        clang::Sema& sema, clang::ASTContext& ctx,
+        llvm::function_ref<clang::Stmt*(const clang::Stmt*)> rebuildStmt = {},
+        llvm::function_ref<clang::Decl*(clang::Decl*)> rebuildDecl = {})
         : m_Sema(sema), Ctx(ctx), m_RebuildStmt(rebuildStmt),
           m_RebuildDecl(rebuildDecl) {}
 

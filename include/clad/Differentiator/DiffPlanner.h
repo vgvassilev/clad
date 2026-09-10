@@ -521,6 +521,7 @@ struct RequestOptions {
     /// shadow.
     bool VisitBinaryOperator(clang::BinaryOperator* BO);
     bool VisitCXXConstructExpr(clang::CXXConstructExpr* e);
+    bool VisitVarDecl(clang::VarDecl* VD);
     bool shouldVisitImplicitCode() const { return true; }
     /// Here we use TraverseLambdaExpr and not VisitLambdaExpr to ensure the
     /// new nested DiffRequest is created before the visitor goes to the capture

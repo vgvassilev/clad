@@ -214,6 +214,29 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
 
         auto* VDExpr = &getCurBlockVarsData()[VD];
         QualType VDType = VD->getType();
+#if CLANG_VERSION_MAJOR > 16
+        if (const auto* Lambda = dyn_cast<LambdaExpr>(init->IgnoreImplicit())) {
+          // A closure's reference/pointer fields refer to the enclosing
+          // storage, just like ordinary reference declarations. Preserve
+          // those dependencies when the call operator reads the closure.
+          llvm::DenseMap<const ValueDecl*, FieldDecl*> Fields;
+          FieldDecl* ThisField = nullptr;
+          Lambda->getLambdaClass()->getCaptureFields(Fields, ThisField);
+          auto CaptureInit = Lambda->capture_init_begin();
+          for (const LambdaCapture& Capture : Lambda->captures()) {
+            Expr* Init = *CaptureInit++;
+            if (!Capture.capturesVariable())
+              continue;
+            auto* Field = Fields.lookup(Capture.getCapturedVar());
+            if (!Field || (!Field->getType()->isReferenceType() &&
+                           !Field->getType()->isPointerType()))
+              continue;
+            VarData* Data = (*VDExpr)[getProfileID(Field)];
+            Data->resetAsRef();
+            getDependencySet(Init, *Data->m_Val.m_RefData);
+          }
+        }
+#endif
         // if the declared variable is ref type attach its VarData to the
         // VarData of the RHS variable.
         if (VDExpr->m_Type == VarData::REF_TYPE || VDType->isPointerType()) {
@@ -362,10 +385,12 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     resetMode();
 
     TraverseStmt(R);
+  } else {
+    // Even non-differentiable operators can supply an index or a call
+    // argument that the reverse sweep needs to replay.
+    TraverseStmt(L);
+    TraverseStmt(R);
   }
-  // else {
-  // FIXME: add logic/bitwise/comparison operators
-  // }
   return false;
 }
 
@@ -464,7 +489,7 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
 
   auto* MD = dyn_cast<CXXMethodDecl>(FD);
   Expr* base = nullptr;
-  if (MD && MD->isInstance() && !MD->isConst()) {
+  if (MD && MD->isInstance() && (!MD->isConst() || isLambdaCallOperator(MD))) {
     if (auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
       base = MCE->getImplicitObjectArgument();
     else if (auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
@@ -486,7 +511,7 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
     TraverseStmt(base);
     if (paramUnused)
       resetMode();
-    bool paramModified = true;
+    bool paramModified = !MD->isConst();
     if (shouldAnalyzeParams) {
       auto& modifiedParams = (*m_ModifiedParams)[FD];
       if (modifiedParams.find(nullptr) == modifiedParams.end())

@@ -16,14 +16,13 @@
 namespace clad {
 class ReverseModeForwPassVisitor : public ReverseModeVisitor {
 private:
-  Stmts m_Globals;
-
   llvm::SmallVector<clang::ParmVarDecl*, 8> BuildParams(DiffParams& diffParams);
 
 public:
   ReverseModeForwPassVisitor(DerivativeBuilder& builder,
                              const DiffRequest& request);
   DerivativeAndOverload Derive() override;
+  clang::Expr* buildDerivedLambda();
 
   // These overrides are a workaround to prevent RMFPV from generating
   // reverse sweep derivative stmts and store/restore stmts,
@@ -40,7 +39,6 @@ public:
 
   StmtDiff ProcessSingleStmt(const clang::Stmt* S);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS) override;
-  StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE) override;
   StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
 };

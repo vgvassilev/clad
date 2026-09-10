@@ -950,7 +950,7 @@ private:
   template <typename ElTy, size_t N>
   CUDA_HOST_DEVICE void destroy_element(ElTy (*arr)[N]) {
     for (size_t i = 0; i < N; ++i)
-      (*arr)[i].~ElTy();
+      destroy_element(&(*arr)[i]);
   }
 };
 template <typename T, std::size_t SBO_SIZE, std::size_t SLAB_SIZE,

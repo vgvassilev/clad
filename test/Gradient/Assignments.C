@@ -120,9 +120,11 @@ double f5(double x, double y) {
 //CHECK-NEXT:       bool _cond1 = false;
 //CHECK-NEXT:       double _d_z = 0.;
 //CHECK-NEXT:       double z = 0.;
+//CHECK-NEXT:       bool _reached0 = false;
 //CHECK-NEXT:       double _d_t = 0.;
 //CHECK-NEXT:       double t = x * x;
 //CHECK-NEXT:       auto _rev0 = [&] {
+//CHECK-NEXT:       if (_reached0) {
 //CHECK-NEXT:       if (_cond1) {
 //CHECK-NEXT:           {
 //CHECK-NEXT:               double _r_d1 = _d_t;
@@ -130,6 +132,7 @@ double f5(double x, double y) {
 //CHECK-NEXT:               _d_t += -_r_d1;
 //CHECK-NEXT:           }
 //CHECK-NEXT:           _d_t += _d_z;
+//CHECK-NEXT:       }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           _d_t += 1;
@@ -154,6 +157,7 @@ double f5(double x, double y) {
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       }
+//CHECK-NEXT:       _reached0 = true;
 //CHECK-NEXT:       {
 //CHECK-NEXT:       _cond1 = y < 0;
 //CHECK-NEXT:       if (_cond1) {
@@ -184,9 +188,11 @@ double f6(double x, double y) {
 //CHECK-NEXT:       bool _cond1 = false;
 //CHECK-NEXT:       double _d_z = 0.;
 //CHECK-NEXT:       double z = 0.;
+//CHECK-NEXT:       bool _reached0 = false;
 //CHECK-NEXT:       double _d_t = 0.;
 //CHECK-NEXT:       double t = x * x;
 //CHECK-NEXT:       auto _rev0 = [&] {
+//CHECK-NEXT:       if (_reached0) {
 //CHECK-NEXT:       if (_cond1) {
 //CHECK-NEXT:           {
 //CHECK-NEXT:               double _r_d1 = _d_t;
@@ -194,6 +200,7 @@ double f6(double x, double y) {
 //CHECK-NEXT:               _d_t += -_r_d1;
 //CHECK-NEXT:           }
 //CHECK-NEXT:           _d_t += _d_z;
+//CHECK-NEXT:       }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           _d_t += 1;
@@ -218,6 +225,7 @@ double f6(double x, double y) {
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       }
+//CHECK-NEXT:       _reached0 = true;
 //CHECK-NEXT:       {
 //CHECK-NEXT:       _cond1 = y < 0;
 //CHECK-NEXT:       if (_cond1) {

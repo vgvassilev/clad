@@ -134,6 +134,12 @@ namespace clad {
   }
 
   void VisitorBase::SetDeclInit(VarDecl* VD, Expr* Init, bool DirectInit) {
+    // Array capture initialization is already semantically formed, but has
+    // no source-level initializer spelling for Sema to re-check.
+    if (isa_and_nonnull<ArrayInitLoopExpr>(Init)) {
+      VD->setInit(Init);
+      return;
+    }
     if (!Init) {
       // Clang sets inits only once. Therefore, ActOnUninitializedDecl does
       // not reset the init and we have to do it manually.
@@ -1173,8 +1179,8 @@ namespace clad {
   }
 
   void VisitorBase::LambdaBuilder::start(QualType CallOpType,
-                                         ParamBuilder BuildParams,
-                                         bool Mutable) {
+                                         ParamBuilder BuildParams, bool Mutable,
+                                         bool ExplicitResult) {
     m_Started = true;
     m_V.beginScope(Scope::LambdaScope | Scope::DeclScope |
                    Scope::FunctionDeclarationScope |
@@ -1207,6 +1213,13 @@ namespace clad {
     // LSI->ExplicitParams; an invalid LParen makes the lambda print without
     // its parameter list (`[]{...}` instead of `[](T x){...}`).
     SourceLocation paramListLoc = utils::GetValidSLoc(m_V.m_Sema);
+    ParsedType ReturnType;
+    SourceLocation ReturnTypeLoc;
+    if (ExplicitResult) {
+      ReturnType = ParsedType::make(
+          CallOpType->castAs<FunctionProtoType>()->getReturnType());
+      ReturnTypeLoc = paramListLoc;
+    }
     m_D.AddTypeInfo(DeclaratorChunk::getFunction(
                         /*hasProto=*/true,
                         /*isAmbiguous=*/false,
@@ -1229,8 +1242,8 @@ namespace clad {
                         /*LocalRangeBegin=*/noLoc,
                         /*LocalRangeEnd=*/noLoc,
                         /*Declarator=*/m_D,
-                        /*TrailingReturnType=*/ParsedType(),
-                        /*TrailingReturnTypeLoc=*/SourceLocation()),
+                        /*TrailingReturnType=*/ReturnType,
+                        /*TrailingReturnTypeLoc=*/ReturnTypeLoc),
                     /*EndLoc=*/SourceLocation());
 
     m_V.m_Sema.ActOnLambdaClosureParameters(m_V.getCurrentScope(),
@@ -1283,7 +1296,7 @@ namespace clad {
     // Lambda differentiation is unsupported below clang-17 (Lambdas.C is
     // UNSUPPORTED there) and the Sema lambda-introduction entry points used
     // below do not exist yet. Never reached; keep the source compilable.
-    return cast<Expr>(Clone(LE));
+    return Clone(LE);
 #else
     llvm::SaveAndRestore<decltype(m_DeclReplacements)> SaveReplacements(
         m_DeclReplacements);
@@ -1293,7 +1306,7 @@ namespace clad {
       if (!Cap.capturesVariable() ||
           (Cap.getCaptureKind() != clang::LCK_ByCopy &&
            Cap.getCaptureKind() != clang::LCK_ByRef))
-        return cast<Expr>(Clone(LE));
+        return Clone(LE);
 
     const CXXMethodDecl* CallOp = LE->getCallOperator();
 
@@ -1375,7 +1388,7 @@ namespace clad {
             params.push_back(newPVD);
           }
         },
-        !CallOp->isConst());
+        !CallOp->isConst(), LE->hasExplicitResultType());
     beginBlock();
     // Clone recursively, rebuilding closures and their declarations
     // wherever they occur, including control-flow bodies and declaration
@@ -1398,18 +1411,20 @@ namespace clad {
                                 DRE->getValueKind());
         }
       }
-      if (const auto* Call = dyn_cast<CXXOperatorCallExpr>(S))
+      if (const auto* Call = dyn_cast<CallExpr>(S))
         if (const auto* Method =
                 dyn_cast_or_null<CXXMethodDecl>(Call->getDirectCallee()))
           if (isLambdaCallOperator(Method)) {
-            Expr* Callee =
-                Cloner->Clone(Call->getArg(0)->IgnoreParenImpCasts());
+            const auto* MemberCall = dyn_cast<CXXMemberCallExpr>(Call);
+            const Expr* Base = MemberCall
+                                   ? MemberCall->getImplicitObjectArgument()
+                                   : Call->getArg(0);
+            Expr* Callee = Cloner->Clone(Base->IgnoreParenImpCasts());
             llvm::SmallVector<Expr*, 4> Args;
-            for (const Expr* Arg : llvm::drop_begin(Call->arguments()))
+            for (const Expr* Arg :
+                 llvm::drop_begin(Call->arguments(), MemberCall ? 0 : 1))
               Args.push_back(Cloner->Clone(Arg));
-            return m_Sema
-                .ActOnCallExpr(getCurrentScope(), Callee, noLoc, Args, noLoc)
-                .get();
+            return BuildCallExpr(Callee, Args);
           }
       return nullptr;
     };
@@ -1419,12 +1434,19 @@ namespace clad {
         return nullptr;
       QualType Type = Cloner->CloneType(VD->getType());
       // Lambda expressions introduce a new closure type on every rebuild.
-      if (Type->getAsCXXRecordDecl() && Type->getAsCXXRecordDecl()->isLambda())
-        Type = m_Context.getAutoDeductType();
+      if (const auto* RD = Type.getNonReferenceType()->getAsCXXRecordDecl())
+        if (RD->isLambda()) {
+          QualType AutoType = m_Context.getAutoDeductType().withCVRQualifiers(
+              Type.getNonReferenceType().getCVRQualifiers());
+          Type = Type->isReferenceType()
+                     ? m_Context.getLValueReferenceType(AutoType)
+                     : AutoType;
+        }
       auto* NewVD = VarDecl::Create(
           m_Context, m_Sema.CurContext, VD->getBeginLoc(), VD->getLocation(),
           CreateUniqueIdentifier(VD->getName()), Type,
           m_Context.getTrivialTypeSourceInfo(Type), VD->getStorageClass());
+      // An initializer may refer to its own declaration.
       m_DeclReplacements[VD] = NewVD;
       SetDeclInit(NewVD, Cloner->Clone(VD->getInit()), VD->isDirectInit());
       m_Sema.FinalizeDeclaration(NewVD);

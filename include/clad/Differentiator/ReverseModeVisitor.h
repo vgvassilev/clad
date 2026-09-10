@@ -117,9 +117,16 @@ namespace clad {
     clang::Expr* m_CurrentBreakFlagExpr;
 
     clang::Expr* m_RestoreTracker = nullptr;
+    /// Storage owned by this forward frame (including its local closures)
+    /// must not be recorded in a tracker returned to its caller.
+    const clang::DeclContext* m_RestoreTrackerOwner = nullptr;
     /// A never-restored tracker handed to nested reverse_forw calls that only
     /// mutate this reverse_forw's own locals; see VisitCallExpr.
     clang::Expr* m_UnusedRestoreTracker = nullptr;
+    /// Local reverse-forward closures share the capture snapshots with their
+    /// pullbacks. Calls use the ordinary reverse-forward recording path.
+    llvm::DenseMap<const clang::FunctionDecl*, clang::VarDecl*>
+        m_LambdaForwPass;
 
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
@@ -845,21 +852,9 @@ namespace clad {
     ///\paramp[in] source An external RMV source
     void AddExternalSource(ExternalRMVSource& source);
 
-    clang::QualType GetLambdaDerivativeType(const clang::LambdaExpr* LE) {
-      clang::FunctionDecl* FD = LE->getCallOperator();
-      llvm::SmallVector<const clang::ValueDecl*, 4> diffParams{};
-      for (const auto* param : FD->parameters())
-        diffParams.push_back(param);
-
-      return utils::GetDerivativeType(m_Sema, FD, DiffMode::pullback,
-                                      diffParams,
-                                      /*forCustomDerv=*/false,
-                                      /*shouldUseRestoreTracker=*/false);
-    }
-    clang::Expr* buildDerivedLambda(const clang::LambdaExpr* LE);
+    clang::Expr* buildDerivedLambda(bool CaptureByRef);
     /// Builds and returns the sequence of derived function parameters.
-    void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,
-                     const clang::LambdaExpr* LE = nullptr);
+    void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
 
     void MarkDeclThreadPrivate(clang::VarDecl* decl);
 

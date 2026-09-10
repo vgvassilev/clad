@@ -350,7 +350,7 @@ namespace clad {
       /// Opens the body scope; on return the caller may begin a block and emit
       /// into it. \p BuildParams appends the call operator's parameters.
       void start(clang::QualType CallOpType, ParamBuilder BuildParams,
-                 bool Mutable = false);
+                 bool Mutable = false, bool ExplicitResult = false);
       /// Closes the scopes start() opened.
       clang::Expr* finish(clang::Stmt* Body);
     };
