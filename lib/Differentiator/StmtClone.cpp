@@ -6,8 +6,10 @@
 // File originates from the Scout project (http://scout.zih.tu-dresden.de/)
 
 #include "clad/Differentiator/StmtClone.h"
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
@@ -633,6 +635,12 @@ Decl* StmtClone::CloneDecl(Decl* Node)  {
     // cloned_Decl->setDeclaredInCondition(VD->isDeclaredInCondition());
     return cloned_Decl;
   }
+  // An alias declares no storage and holds no initializer to remap, so a
+  // re-declaration of the same written type is a complete copy.
+  if (auto* TND = dyn_cast<TypedefNameDecl>(Node))
+    return utils::BuildTypedefNameDecl(Ctx, TND->getDeclContext(),
+                                       TND->getBeginLoc(), TND->getLocation(),
+                                       TND);
   assert(0 && "other decl clones aren't supported");
   return 0;
 }

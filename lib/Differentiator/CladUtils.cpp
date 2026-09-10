@@ -1965,6 +1965,18 @@ namespace clad {
       return false;
     }
 
+    TypedefNameDecl* BuildTypedefNameDecl(ASTContext& C, DeclContext* DC,
+                                          SourceLocation StartLoc,
+                                          SourceLocation IdLoc,
+                                          const TypedefNameDecl* TND) {
+      TypeSourceInfo* TSI = TND->getTypeSourceInfo();
+      if (isa<TypeAliasDecl>(TND))
+        return TypeAliasDecl::Create(C, DC, StartLoc, IdLoc,
+                                     TND->getIdentifier(), TSI);
+      return TypedefDecl::Create(C, DC, StartLoc, IdLoc, TND->getIdentifier(),
+                                 TSI);
+    }
+
     Expr* BuildEnzymeActivityMarkerRef(Sema& semaRef, llvm::StringRef name) {
       ASTContext& C = semaRef.getASTContext();
       DeclarationName DN = &C.Idents.get(name);
