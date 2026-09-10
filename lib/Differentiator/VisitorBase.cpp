@@ -176,6 +176,17 @@ namespace clad {
     return VD;
   }
 
+  TypedefNameDecl*
+  VisitorBase::BuildTypedefNameDecl(const TypedefNameDecl* TND) {
+    SourceLocation Loc = GenLoc();
+    TypedefNameDecl* Clone = utils::BuildTypedefNameDecl(
+        m_Context, m_Sema.CurContext, Loc, Loc, TND);
+    // The derivative's own statements look the name up, so registering it is
+    // what makes the alias usable rather than merely present.
+    m_Sema.PushOnScopeChains(Clone, getCurrentScope());
+    return Clone;
+  }
+
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
     utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_DiffReq.Function,
                                 m_DeclReplacements);

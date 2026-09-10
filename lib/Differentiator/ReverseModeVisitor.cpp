@@ -4141,6 +4141,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               }
           }
         }
+      } else if (const auto* TND = dyn_cast<TypedefNameDecl>(D)) {
+        // An alias carries no value and so no derivative, but the statements
+        // after it go on naming the type by it. It lands at the top of the
+        // derivative rather than where it stood, because the declarations that
+        // use it are promoted there too, and an alias reads no variable that
+        // would keep it from moving.
+        AddToGlobalBlock(BuildDeclStmt(BuildTypedefNameDecl(TND)));
       } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
         DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
         if (SADDiff.getDecl())
