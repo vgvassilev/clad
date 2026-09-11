@@ -1925,6 +1925,10 @@ namespace clad {
         // If the parent is a Stmt but not an Expr, then the result is not used.
         if (!S)
           return false;
+        // A call returned directly is still consumed by the enclosing
+        // function, including its value and adjoint in reverse_forw mode.
+        if (isa<ReturnStmt>(S))
+          return false;
         E = dyn_cast<Expr>(S);
         if (!E)
           return true;
