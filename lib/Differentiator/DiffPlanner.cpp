@@ -358,6 +358,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     for (Decl* D : DGR)
       TraverseDecl(D);
 
+    DrainDeferredDecls();
+  }
+
+  void DiffCollector::DrainDeferredDecls() {
     // Drain groups delivered during this walk (which may itself deliver
     // more, growing the vector mid-loop -- hence indexed, not range-based).
     // NOLINTNEXTLINE(modernize-loop-convert)
@@ -384,7 +388,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   bool DiffCollector::TraverseFunctionDeclOnce(const DiffRequest& request) {
-    llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
     if (llvm::is_contained(m_Traversed, request))
       return true;
     const FunctionDecl* FD = request.Function;
@@ -1254,56 +1257,59 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return false;
   }
 
-  ///\returns true on error.
-  static bool ProcessInvocationArgs(Sema& S, SourceLocation BeginLoc,
-                                    const Options& ReqOpts,
-                                    const FunctionDecl* FD,
-                                    DiffRequest& request) {
-    const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
-    std::string Annotation = A->getAnnotation().str();
-    // Error estimation returns before the analyses are seeded below, so this
-    // one is set here too: every mode's loops are the same loops, error
-    // estimation's included.
-    request.EnableLoopAnalysis = ReqOpts.EnableLoopAnalysis;
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
-    request.Remark##Id##Analysis = ReqOpts.Remark##Id##Analysis;
-#include "clad/Differentiator/Analyses.def"
-    // So is every fallback: error estimation can reach a call clad cannot
-    // differentiate too.
-#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                \
-    request.Enable##Id##Fallback = ReqOpts.Enable##Id##Fallback;
-#include "clad/Differentiator/Analyses.def"
-    request.FallbacksSeeded = true;
-    if (Annotation == "E") {
-      // Error estimation has no options yet.
-      request.Mode = DiffMode::reverse;
-      request.EnableErrorEstimation = true;
-      return false;
+  bool DiffRequest::UpdateDiffOptions(Sema& S, SourceLocation BeginLoc,
+                                      const Options& ReqOpts,
+                                      const FunctionDecl* Invocation) {
+    if (Invocation) {
+      const auto* A = Invocation->getAttr<AnnotateAttr>();
+      assert(A && "Clad invocation must have a mode annotation");
+      llvm::StringRef Annotation = A->getAnnotation();
+      if (Annotation == "D")
+        Mode = DiffMode::forward;
+      else if (Annotation == "H")
+        Mode = DiffMode::hessian;
+      else if (Annotation == "J")
+        Mode = DiffMode::jacobian;
+      else if (Annotation == "G")
+        Mode = DiffMode::reverse;
+      else if (Annotation == "E") {
+        Mode = DiffMode::reverse;
+        EnableErrorEstimation = true;
+      } else if (Annotation != "A")
+        llvm_unreachable("unknown mode");
     }
 
-    if (Annotation == "D")
-      request.Mode = DiffMode::forward;
-    else if (Annotation == "H")
-      request.Mode = DiffMode::hessian;
-    else if (Annotation == "J")
-      request.Mode = DiffMode::jacobian;
-    else if (Annotation == "G")
-      request.Mode = DiffMode::reverse;
-    else
-      llvm_unreachable("unknown mode");
+    EnableLoopAnalysis = ReqOpts.EnableLoopAnalysis;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
+    Remark##Id##Analysis = ReqOpts.Remark##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+    // Seed fallbacks before the error-estimation early return as well.
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                \
+    Enable##Id##Fallback = ReqOpts.Enable##Id##Fallback;
+#include "clad/Differentiator/Analyses.def"
+    FallbacksSeeded = true;
+    // Error estimation has no invocation options yet.
+    if (EnableErrorEstimation)
+      return false;
+
       // What the command line settled on for the translation unit, which the
       // clad::opts pairs below may still override for this one request.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
-    request.Enable##Id##Analysis = ReqOpts.Enable##Id##Analysis;
+    Enable##Id##Analysis = ReqOpts.Enable##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
     // TBR has nothing to do where there is no reverse sweep. A request that
     // asks for it there is an error below; the command line asking for it
     // everywhere is not, so it is dropped rather than diagnosed.
-    if (request.Mode != DiffMode::reverse && request.Mode != DiffMode::hessian)
-      request.EnableTBRAnalysis = false;
-    request.EmitPortingHints = ReqOpts.EmitPortingHints;
+    if (Mode != DiffMode::reverse && Mode != DiffMode::hessian &&
+        Mode != DiffMode::pullback)
+      EnableTBRAnalysis = false;
+    EmitPortingHints = ReqOpts.EmitPortingHints;
 
-    const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
+    if (!Invocation)
+      return false;
+
+    const TemplateArgumentList* TAL =
+        Invocation->getTemplateSpecializationArgs();
     assert(TAL && "Call must have specialization args!");
 
     // bitmask_opts is a template pack of unsigned integers, so we need to
@@ -1331,7 +1337,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;                                                             \
     }                                                                          \
     if (enable_##Legacy##_in_req || disable_##Legacy##_in_req)                 \
-      request.Enable##Id##Analysis = enable_##Legacy##_in_req;
+      Enable##Id##Analysis = enable_##Legacy##_in_req;
 #include "clad/Differentiator/Analyses.def"
 
         // And of each fallback, the same way.
@@ -1349,11 +1355,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;                                                           \
       }                                                                        \
       if (Enable || Disable)                                                   \
-        request.Enable##Id##Fallback = Enable;                                 \
+        Enable##Id##Fallback = Enable;                                         \
     }
 #include "clad/Differentiator/Analyses.def"
 
-    if (enable_tbr_in_req && request.Mode == DiffMode::forward) {
+    if (enable_tbr_in_req && Mode == DiffMode::forward) {
       utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
                   "tbr analysis is not meant for forward mode AD")
           << BeginLoc;
@@ -1361,7 +1367,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     }
 
     // reverse vector mode is not yet supported.
-    if (request.Mode == DiffMode::reverse &&
+    if (Mode == DiffMode::reverse &&
         clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
       utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
                   "reverse vector mode is not yet supported")
@@ -1371,8 +1377,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     // Check for clad::hessian<diagonal_only>.
     if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only)) {
-      if (request.Mode == DiffMode::hessian) {
-        request.Mode = DiffMode::hessian_diagonal;
+      if (Mode == DiffMode::hessian) {
+        Mode = DiffMode::hessian_diagonal;
         return false;
       }
       utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
@@ -1381,19 +1387,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     }
 
     if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme))
-      request.use_enzyme = true;
+      use_enzyme = true;
 
-    if (request.Mode == DiffMode::forward) {
+    if (Mode == DiffMode::forward) {
       // Check for clad::differentiate<N>.
       if (unsigned order = clad::GetDerivativeOrder(bitmasked_opts_value))
-        request.RequestedDerivativeOrder = order;
+        RequestedDerivativeOrder = order;
 
       // Check for clad::differentiate<vector_mode>.
       if (clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
-        request.Mode = DiffMode::vector_forward_mode;
+        Mode = DiffMode::vector_forward_mode;
 
         // Currently only first order derivative is supported.
-        if (request.RequestedDerivativeOrder != 1) {
+        if (RequestedDerivativeOrder != 1) {
           utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
                       "only first order derivative is supported for now "
                       "in vector forward mode")
@@ -1402,7 +1408,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         }
 
         // We don't yet support enzyme with vector mode.
-        if (request.use_enzyme) {
+        if (use_enzyme) {
           utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
                       "enzyme's vector mode is not yet supported")
               << BeginLoc;
@@ -1949,12 +1955,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     bool nonDiff = false;
     bool hasNoMemoryInputForPointerOrRefReturn = false;
-    // FIXME: We might want to support nested calls to differentiate/gradient
-    // inside differentiated functions.
     if (!m_TopMostReq) {
-      // FIXME: Generated code does not usually have valid source locations.
-      // In that case we should ask the enclosing ast nodes for a source
-      // location and check if it is within range.
       SourceLocation endLoc = E->getEndLoc();
       // We need to find our 'special' diff annotated such:
       // clad::differentiate(...) __attribute__((annotate("D")))
@@ -1973,15 +1974,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // A call to clad::differentiate or clad::gradient was not found.
       if (!findTargetFunction(request, E, m_Sema))
         return true;
-
       request.VerboseDiags = true;
-      // The root of the differentiation request graph should update the
-      // CladFunction object with the generated call.
       request.CallUpdateRequired = true;
       request.CallContext = E;
       request.ImmediateContext = m_EnclosingFD;
 
-      if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
+      if (request.UpdateDiffOptions(m_Sema, endLoc, m_Options, FD))
         return true;
 
       // The Jacobian ABI has no return-derivative slot. Reject non-void
@@ -2038,14 +2036,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           return true;
         }
       }
-      if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis &&
-          request.Args)
-        seedVariedDirection(request);
-
-      if (request.Function->hasAttr<CUDAGlobalAttr>())
-        for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i)
-          request.CUDAGlobalArgsIndexes.push_back(i);
-      m_TopMostReq = &request;
+      return PlanRequest(request);
     } else {
       // If the function contains annotation of non_differentiable, then Clad
       // should not produce any derivative expression for that function call,
@@ -2074,7 +2065,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       if (MD) {
         if (isLambdaCallOperator(MD) &&
-            m_TopMostReq->Mode == DiffMode::reverse) {
+            (m_TopMostReq->Mode == DiffMode::reverse ||
+             m_TopMostReq->Mode == DiffMode::pullback)) {
           request.EnableVariedAnalysis = false;
           return true;
         }
@@ -2147,7 +2139,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                m_TopMostReq->Mode == DiffMode::hessian ||
                canUsePushforwardInRevMode)
         request.Mode = DiffMode::pushforward;
-      else if (m_TopMostReq->Mode == DiffMode::reverse)
+      else if (m_TopMostReq->Mode == DiffMode::reverse ||
+               m_TopMostReq->Mode == DiffMode::pullback)
         request.Mode = DiffMode::pullback;
       else if (m_TopMostReq->Mode == DiffMode::vector_forward_mode ||
                m_TopMostReq->Mode == DiffMode::jacobian ||
@@ -2251,6 +2244,39 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
     }
 
+    return CollectRequest(request, nonDiff,
+                          hasNoMemoryInputForPointerOrRefReturn);
+  }
+
+  bool DiffCollector::PlanRequest(DiffRequest& request) {
+    llvm::SaveAndRestore<bool> InFlight(m_TraversalInFlight, true);
+    bool Result = false;
+    {
+      llvm::SaveAndRestore<const DiffRequest*> Top(m_TopMostReq, &request);
+      llvm::SaveAndRestore<DiffRequest*> Parent(m_ParentReq, nullptr);
+      m_Traversed.clear();
+      if ((request.Mode == DiffMode::reverse ||
+           request.Mode == DiffMode::pullback) &&
+          request.EnableVariedAnalysis)
+        seedVariedDirection(request);
+      if (request.Function->hasAttr<CUDAGlobalAttr>())
+        for (size_t I = 0; I < request.Function->getNumParams(); ++I)
+          request.CUDAGlobalArgsIndexes.push_back(I);
+      Result = CollectRequest(request);
+      m_Traversed.clear();
+    }
+    // An external root has no enclosing Walk to drain module declarations.
+    // Restore the request state before visiting those deferred groups.
+    if (!InFlight.get())
+      DrainDeferredDecls();
+    return Result;
+  }
+
+  bool
+  DiffCollector::CollectRequest(DiffRequest& request, bool nonDiff,
+                                bool hasNoMemoryInputForPointerOrRefReturn) {
+    const auto* E = cast<CallExpr>(request.CallContext);
+    const auto* FD = request.Function;
     if (request.BaseFunctionName.empty())
       request.BaseFunctionName =
           utils::ComputeEffectiveFnName(request.Function);
@@ -2287,8 +2313,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         (!nonDiff || request.Mode != DiffMode::pushforward) &&
         LookupCustomDerivativeDecl(request);
     // Share one request between early classification and final scheduling.
+    // Only nested pullbacks have a caller that consumes a reverse-forward pair.
+    const bool isNestedPullback =
+        request.Mode == DiffMode::pullback && Saved.get();
     DiffRequest forwPassRequest;
-    if (request.Mode == DiffMode::pullback) {
+    if (isNestedPullback) {
       forwPassRequest.Function = request.Function;
       forwPassRequest.BaseFunctionName = request.BaseFunctionName;
       forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
@@ -2360,8 +2389,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         analyzer.Analyze(request);
         if (modifiedParams[FD].empty())
           shouldUseRestoreTracker = false;
-        Saved.get()->addFunctionModifiedParams(FD, modifiedParams[FD]);
-        Saved.get()->addFunctionUsedParams(FD, usedParams[FD]);
+        if (DiffRequest* Parent = Saved.get()) {
+          Parent->addFunctionModifiedParams(FD, modifiedParams[FD]);
+          Parent->addFunctionUsedParams(FD, usedParams[FD]);
+        }
       }
 
       if (request.Mode == DiffMode::hessian ||
@@ -2460,7 +2491,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
     }
 
-    if (request.Mode == DiffMode::pullback) {
+    if (isNestedPullback) {
       // TBR can prove that no state needs restoring, so refresh this before
       // scheduling the request.
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
@@ -2529,11 +2560,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     if (!nonDiff && request.Mode != DiffMode::unknown)
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
-
-    if (m_IsTraversingTopLevelDecl) {
-      m_TopMostReq = nullptr;
-      m_Traversed.clear();
-    }
 
     return true;
   }

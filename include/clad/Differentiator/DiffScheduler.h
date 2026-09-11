@@ -52,6 +52,9 @@ public:
   /// Plan a single lazily-scheduled request (a nested or higher-order
   /// derivative) that the static walk never reached.
   void Plan(DiffRequest& R) { m_Collector.PlanNestedRequest(R); }
+
+  /// Plan an externally supplied root using the same analyses and call graph.
+  void PlanRoot(DiffRequest& R) { m_Collector.PlanRequest(R); }
 };
 
 } // namespace clad

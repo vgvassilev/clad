@@ -531,6 +531,13 @@ public:
   ///      function will be differentiated w.r.t. to its every parameter.
   void UpdateDiffParamsInfo(clang::Sema& semaRef);
 
+  /// Apply invocation options to an already selected differentiation mode.
+  /// A null invocation uses the translation-unit defaults. Returns true on
+  /// error.
+  bool UpdateDiffOptions(clang::Sema& S, clang::SourceLocation Loc,
+                         const Options& Opts,
+                         const clang::FunctionDecl* Invocation = nullptr);
+
   /// The pushforward request a hessian assembled from hessian-vector products
   /// consumes. One factory serves both sides: the planner schedules the
   /// request this builds, and HessianModeVisitor builds it again to find that
@@ -726,20 +733,18 @@ public:
     /// which has no derivative; true if so.
     bool diagnoseByteCopy(const clang::CallExpr* E);
 
-    bool m_IsTraversingTopLevelDecl = true;
-
     /// The function whose body the traversal is currently inside, or null at
     /// namespace scope. VisitCallExpr copies it onto each request it makes.
     const clang::FunctionDecl* m_EnclosingFD = nullptr;
 
-    /// True while Walk is traversing a DeclGroupRef. A traversal can trigger
+    /// True while Walk or PlanRequest is traversing. A traversal can trigger
     /// name lookups that make the ASTReader deserialize pending module decls
     /// and hand them to the consumers, re-entering Walk; such groups are
     /// parked in m_DeferredDGRs and traversed once the active walk finishes.
     bool m_TraversalInFlight = false;
 
     /// Decl groups delivered while a traversal was in flight (see
-    /// m_TraversalInFlight); drained at the end of the outermost Walk.
+    /// m_TraversalInFlight); drained at the end of the outermost traversal.
     llvm::SmallVector<clang::DeclGroupRef, 4> m_DeferredDGRs;
 
   public:
@@ -752,12 +757,14 @@ public:
     /// lookup issued by an active traversal) defer their group until the
     /// active traversal finishes.
     void Walk(clang::DeclGroupRef DGR);
-    /// True while Walk is traversing; see m_TraversalInFlight.
+    /// True while planning is traversing; see m_TraversalInFlight.
     [[nodiscard]] bool isTraversalInFlight() const {
       return m_TraversalInFlight;
     }
     /// Tracks m_EnclosingFD across the traversal.
     bool TraverseDecl(clang::Decl* D);
+    /// Plan a root request supplied by a compiler client.
+    bool PlanRequest(DiffRequest& request);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     /// Record an in-place `p = realloc(p, n)` on the request whose body is
@@ -792,6 +799,9 @@ public:
 
   private:
     bool isInInterval(clang::SourceLocation Loc) const;
+    void DrainDeferredDecls();
+    bool CollectRequest(DiffRequest& request, bool nonDiff = false,
+                        bool hasNoMemoryInputForPointerOrRefReturn = false);
   };
 }
 
