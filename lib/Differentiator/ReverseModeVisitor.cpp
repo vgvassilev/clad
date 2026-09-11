@@ -1898,6 +1898,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       bool isCUDAKernel) {
     StmtDiff result;
     StmtDiff argDiff{};
+    const auto* defaultArg = dyn_cast<CXXDefaultArgExpr>(arg);
     // FIXME: We handle parameters with default values by setting them
     // explicitly. However, some of them have private types and cannot be set.
     // For this reason, we ignore std::__nat. We need to come up with a
@@ -1920,13 +1921,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // is done to reduce cloning complexity and only clone once. The type is
       // same as the call expression as it is the type used to declare the
       // _gradX array
-      QualType dArgTy =
-          utils::getNonConstType(CloneType(arg->getType()), m_Sema);
-      Expr* init = getStdInitListSizeExpr(arg);
+      QualType argType =
+          defaultArg ? utils::GetValueType(param->getType()) : arg->getType();
+      QualType dArgTy = utils::getNonConstType(CloneType(argType), m_Sema);
+      Expr* init = defaultArg ? nullptr : getStdInitListSizeExpr(arg);
       bool shouldCopyInitialize = false;
       if (!init) {
         if (const CXXRecordDecl* CRD = dArgTy->getAsCXXRecordDecl())
-          shouldCopyInitialize = utils::isCopyable(CRD);
+          shouldCopyInitialize = !defaultArg && utils::isCopyable(CRD);
         // Temporarily initialize the object with `*nullptr` to avoid
         // a potential error because of non-existing default constructor.
         if (shouldCopyInitialize) {
@@ -2012,8 +2014,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         dArgRef = BuildDeclRef(dArgDeclCUDA);
       }
       result.updateStmtDx(dArgRef);
-      // Visit using uninitialized reference.
-      argDiff = Visit(arg, BuildDeclRef(dArgDecl));
+      if (defaultArg)
+        argDiff = {Clone(defaultArg->getExpr()), getZeroInit(dArgTy)};
+      else
+        // Visit using uninitialized reference.
+        argDiff = Visit(arg, BuildDeclRef(dArgDecl));
       if (shouldCopyInitialize) {
         if (Expr* dInit = argDiff.getExpr_dx())
           SetDeclInit(dArgDecl, dInit);
