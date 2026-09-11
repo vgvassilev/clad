@@ -644,38 +644,46 @@ public:
   tape_impl& operator=(tape_impl&& other) = delete;
 
   /// Add new value of type T constructed from args to the end of the tape.
-  template <typename... ArgsT>
+    /// Points m_tail at the slab the next element belongs in, allocating one
+  /// if the tape is full. Runs once every SLAB_SIZE elements, so it is kept
+  /// out of line: inlined, its cost pushes emplace_back -- and with it every
+  /// clad::push -- over clang's inline threshold, and the pushes stop being
+  /// inlined into the generated pullbacks.
+  CLAD_NOINLINE CUDA_HOST_DEVICE void advance_slab() {
+    if (m_size == m_capacity) {
+      check_and_evict();
+
+      Slab* new_slab = new Slab();
+      if (DiskOffload || GpuOffload) {
+        if (GpuOffload && !new_slab->is_in_ram)
+          getDiskInfo().m_ActiveVramSlabs++;
+        else
+          getDiskInfo().m_ActiveSlabs++;
+      }
+
+      if (!m_head)
+        m_head = new_slab;
+      else {
+        m_tail->next = new_slab;
+        new_slab->prev = m_tail;
+      }
+      m_capacity += SLAB_SIZE;
+    }
+    if (m_size == SBO_SIZE)
+      m_tail = m_head;
+    else
+      m_tail = m_tail->next;
+  }
+
+template <typename... ArgsT>
   CUDA_HOST_DEVICE void emplace_back(ArgsT&&... args) {
     if (m_size < SBO_SIZE) {
       ::new (const_cast<void*>(static_cast<const volatile void*>(
           sbo_elements() + m_size))) T(std::forward<ArgsT>(args)...);
     } else {
       const auto offset = (m_size - SBO_SIZE) % SLAB_SIZE;
-      if (!offset) {
-        if (m_size == m_capacity) {
-          check_and_evict();
-
-          Slab* new_slab = new Slab();
-          if (DiskOffload || GpuOffload) {
-            if (GpuOffload && !new_slab->is_in_ram)
-              getDiskInfo().m_ActiveVramSlabs++;
-            else
-              getDiskInfo().m_ActiveSlabs++;
-          }
-
-          if (!m_head)
-            m_head = new_slab;
-          else {
-            m_tail->next = new_slab;
-            new_slab->prev = m_tail;
-          }
-          m_capacity += SLAB_SIZE;
-        }
-        if (m_size == SBO_SIZE)
-          m_tail = m_head;
-        else
-          m_tail = m_tail->next;
-      }
+      if (!offset)
+        advance_slab();
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
       // Only H2D transfer if the slab is actively in VRAM
       if (GpuOffload && !m_tail->is_in_ram) {
