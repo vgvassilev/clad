@@ -3033,11 +3033,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return StmtDiff(call);
     }
 
-    if (MD && MD->isInstance())
+    Expr* clonedCallee = Clone(CE->getCallee());
+    if (MD && MD->isInstance()) {
+      Expr* base = CallArgs.front();
+      // The receiver has already been visited. Keep the resolved member and
+      // its qualifiers/template arguments, but use the transformed receiver.
+      if (MD->getRefQualifier() == RQ_RValue && base->isLValue())
+        base = utils::BuildStaticCastToRValue(m_Sema, base);
+      auto* member = cast<MemberExpr>(clonedCallee->IgnoreParenImpCasts());
+      if (isa<ParenExpr>(member->getBase()) && !isa<ParenExpr>(base))
+        base = utils::BuildParenExpr(m_Sema, base);
+      member->setBase(base);
       CallArgs.erase(CallArgs.begin());
+    }
     call = m_Sema
-               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                              CallArgs, Loc, CUDAExecConfig)
+               .ActOnCallExpr(getCurrentScope(), clonedCallee, Loc, CallArgs,
+                              Loc, CUDAExecConfig)
                .get();
     return StmtDiff(call, getZeroInit(call->getType()));
   }
