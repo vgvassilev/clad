@@ -4,6 +4,7 @@ add_clad_unittest(KokkosTests
   ViewBasics.cpp
   ParallelReduce.cpp
   ParallelFor.cpp
+  ViewCtorForward.cpp
   )
 
 # If llvm does not require rtti, kokkos does.
@@ -15,5 +16,7 @@ if (NOT (LLVM_REQUIRES_RTTI OR LLVM_ENABLE_RTTI))
   endif()
 endif()
 
-target_link_libraries(KokkosTests PUBLIC ${Kokkos_LIBRARIES})
-target_include_directories(KokkosTests SYSTEM PRIVATE ${Kokkos_INCLUDE_DIRS})
+# Link the imported target, not Kokkos_LIBRARIES/Kokkos_INCLUDE_DIRS: it
+# carries the usage requirements, notably cxx_std_20, which Kokkos 5.x needs
+# (its headers use std::type_identity). The variables drop them.
+target_link_libraries(KokkosTests PUBLIC Kokkos::kokkos)
