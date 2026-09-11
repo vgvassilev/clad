@@ -72,6 +72,19 @@ constexpr unsigned GetBitmaskedOpts(const unsigned first, Opts... opts) {
 #define CUDA_HOST_DEVICE
 #endif
 
+// Keeps a cold path out of its caller's inline cost. A tape push is a
+// placement-new in the common case and a slab allocation once every
+// SLAB_SIZE elements; inlining the second into the first puts every push
+// over clang's inline threshold, so the pushes themselves stop being
+// inlined into the generated pullbacks.
+#if defined(__GNUC__) || defined(__clang__)
+#define CLAD_NOINLINE __attribute__((noinline))
+#elif defined(_MSC_VER)
+#define CLAD_NOINLINE __declspec(noinline)
+#else
+#define CLAD_NOINLINE
+#endif
+
 // Define trap function that is a CUDA compatible replacement for
 // exit(int code) function
 #ifdef __CUDACC__
