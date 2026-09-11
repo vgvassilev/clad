@@ -6,6 +6,7 @@
 #include <memory>
 #include <set>
 
+#include "clang/AST/ASTLambda.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
@@ -15,11 +16,14 @@
 #include "clang/AST/Stmt.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/Version.h"
 
 #include "AnalysisBase.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
@@ -216,14 +220,14 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         auto* VDExpr = &getCurBlockVarsData()[VD];
         QualType VDType = VD->getType();
 #if CLANG_VERSION_MAJOR > 16
-        Expr* LambdaInit = IgnoreExprNodes(
-            init, IgnoreImplicitSingleStep, IgnoreParensSingleStep,
-            [](Expr* E) {
-              if (auto* List = dyn_cast<InitListExpr>(E))
-                if (List->isTransparent())
-                  return List->getInit(0);
-              return E;
-            });
+        Expr* LambdaInit =
+            IgnoreExprNodes(init, IgnoreImplicitSingleStep,
+                            IgnoreParensSingleStep, [](Expr* E) {
+                              if (auto* List = dyn_cast<InitListExpr>(E))
+                                if (List->isTransparent())
+                                  return List->getInit(0);
+                              return E;
+                            });
         if (const auto* Lambda = dyn_cast<LambdaExpr>(LambdaInit)) {
           // A closure's reference/pointer fields refer to the enclosing
           // storage, just like ordinary reference declarations. Preserve
@@ -231,9 +235,8 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
           llvm::DenseMap<const ValueDecl*, FieldDecl*> Fields;
           FieldDecl* ThisField = nullptr;
           Lambda->getLambdaClass()->getCaptureFields(Fields, ThisField);
-          auto CaptureInit = Lambda->capture_init_begin();
-          for (const LambdaCapture& Capture : Lambda->captures()) {
-            Expr* Init = *CaptureInit++;
+          for (auto [Capture, Init] :
+               llvm::zip(Lambda->captures(), Lambda->capture_inits())) {
             if (!Capture.capturesVariable())
               continue;
             auto* Field = Fields.lookup(Capture.getCapturedVar());
@@ -242,6 +245,8 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
               continue;
             VarData* Data = (*VDExpr)[getProfileID(Field)];
             Data->resetAsRef();
+            // resetAsRef makes the reference member active.
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
             getDependencySet(Init, *Data->m_Val.m_RefData);
           }
         }
@@ -606,5 +611,4 @@ bool TBRAnalyzer::TraverseInitListExpr(clang::InitListExpr* ILE) {
   resetMode();
   return false;
 }
-// NOLINTEND(cppcoreguidelines-pro-type-union-access)
 } // end namespace clad

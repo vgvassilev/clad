@@ -17,6 +17,7 @@
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTLambda.h"
 #include "clang/AST/Attrs.inc"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -1309,15 +1310,15 @@ namespace clad {
     LambdaIntroducer Intro;
     Intro.Default = LE->getCaptureDefault();
     llvm::SmallVector<const VarDecl*, 4> InitCaptures;
-    auto Init = LE->capture_init_begin();
-    for (const clang::LambdaCapture& Cap : LE->captures()) {
-      const Expr* CaptureInit = *Init++;
+    for (auto [Cap, CaptureInit] :
+         llvm::zip(LE->captures(), LE->capture_inits())) {
       if (!Cap.capturesVariable())
         continue;
       auto* Variable = cast<VarDecl>(Cap.getCapturedVar());
-      auto Shared = llvm::find_if(Captures, [Variable](const auto& Capture) {
-        return Capture.first == Variable;
-      });
+      const auto* Shared =
+          llvm::find_if(Captures, [Variable](const auto& Capture) {
+            return Capture.first == Variable;
+          });
       auto Replacement = m_DeclReplacements.find(Variable);
       if (Variable->getType()->isReferenceType() &&
           Replacement != m_DeclReplacements.end() &&
@@ -1365,11 +1366,12 @@ namespace clad {
     LBuilder.start(
         CallOp->getType(),
         [&](llvm::SmallVectorImpl<ParmVarDecl*>& params) {
-          auto Original = InitCaptures.begin();
-          for (const auto& Capture : m_Sema.getCurLambda()->Captures)
-            if (Capture.isInitCapture())
-              m_DeclReplacements[*Original++] =
-                  cast<VarDecl>(Capture.getVariable());
+          auto NewInitCaptures = llvm::make_filter_range(
+              m_Sema.getCurLambda()->Captures,
+              [](const auto& Capture) { return Capture.isInitCapture(); });
+          for (auto [Original, Capture] :
+               llvm::zip(InitCaptures, NewInitCaptures))
+            m_DeclReplacements[Original] = cast<VarDecl>(Capture.getVariable());
 
           for (const ParmVarDecl* PVD : CallOp->parameters()) {
             IdentifierInfo* II = PVD->getIdentifier();

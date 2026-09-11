@@ -28,6 +28,7 @@
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h" // IWYU pragma: keep -- function_ref on LLVM<14
 #include "llvm/ADT/SmallPtrSet.h"

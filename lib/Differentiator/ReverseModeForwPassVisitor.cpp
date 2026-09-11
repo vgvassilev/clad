@@ -14,9 +14,13 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/Lambda.h"
+#include "clang/Basic/Version.h"
+#include "clang/Sema/DeclSpec.h"
 
 #include <algorithm>
 #include <iterator>
+#include <utility>
 
 using namespace clang;
 

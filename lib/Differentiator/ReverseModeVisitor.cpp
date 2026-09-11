@@ -1991,9 +1991,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool CaptureByRef = false;
     bool MutatesCaptures = false;
     llvm::SmallVector<std::pair<const VarDecl*, VarDecl*>, 4> Snapshots;
-    auto Init = LE->capture_init_begin();
-    for (const LambdaCapture& Capture : LE->captures()) {
-      Expr* CaptureInit = *Init++;
+    for (auto [Capture, CaptureInit] :
+         llvm::zip(LE->captures(), LE->capture_inits())) {
       if (!Capture.capturesVariable())
         continue;
       auto* Variable = dyn_cast<VarDecl>(Capture.getCapturedVar());

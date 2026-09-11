@@ -1270,7 +1270,8 @@ namespace clad {
         const auto* UO =
             dyn_cast<clang::UnaryOperator>(E->IgnoreParenImpCasts());
         if (UO && UO->getOpcode() == clang::UO_AddrOf)
-          return designatesLocallyOwnedStorage(UO->getSubExpr(), false, Owner);
+          return designatesLocallyOwnedStorage(UO->getSubExpr(),
+                                               /*asPointerValue=*/false, Owner);
       }
       while (true) {
         E = E->IgnoreParenImpCasts();

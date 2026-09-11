@@ -553,6 +553,8 @@ Stmt* StmtClone::VisitCaseStmt(CaseStmt* Node) {
 }
 
 Stmt* StmtClone::VisitDefaultStmt(DefaultStmt* Node) {
+  // ASTContext owns the node's storage.
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   auto* result = new (Ctx) DefaultStmt(
       Node->getDefaultLoc(), Node->getColonLoc(), Clone(Node->getSubStmt()));
   if (m_CurrentSwitch)
