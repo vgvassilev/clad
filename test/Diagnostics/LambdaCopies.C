@@ -33,19 +33,17 @@ struct ThisCapture {
     auto inner = [this](double y) { return value * y; }; // expected-error {{reverse-mode differentiation requires ordinary variable captures}}
     return inner(x);
   }
-};
 
-struct CopyValue {
-  double value;
-  CopyValue(double x) : value(x) {}
-  CopyValue(const CopyValue& other) : value(2 * other.value) {}
-};
+  double parenthesized(double x) {
+    auto inner = ([this](double y) { return value * y; }); // expected-error {{reverse-mode differentiation requires ordinary variable captures}}
+    return inner(x);
+  }
 
-double record_array_capture(double x) {
-  CopyValue values[2][2] = {{x, 2 * x}, {3 * x, 4 * x}};
-  auto inner = [values] { return values[0][0].value; }; // expected-error {{differentiation of array captures with record elements is not supported}}
-  return inner();
-}
+  double braced(double x) {
+    auto inner{[this](double y) { return value * y; }}; // expected-error {{reverse-mode differentiation requires ordinary variable captures}}
+    return inner(x);
+  }
+};
 
 void request_derivatives() {
   clad::gradient(copy_closure);
@@ -53,5 +51,6 @@ void request_derivatives() {
   clad::gradient(capture_closure);
   clad::gradient(temporary_reference);
   clad::gradient(&ThisCapture::evaluate);
-  clad::gradient(record_array_capture);
+  clad::gradient(&ThisCapture::parenthesized);
+  clad::gradient(&ThisCapture::braced);
 }

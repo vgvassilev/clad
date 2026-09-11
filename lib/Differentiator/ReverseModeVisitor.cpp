@@ -788,8 +788,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff
   ReverseModeVisitor::VisitArrayInitLoopExpr(const ArrayInitLoopExpr* AILE) {
-    if (!dfdx())
-      return StmtDiff(Clone(AILE));
     // Since ArrayInitLoopExpr is not possible to express with regular syntax,
     // we have to replicate it with loops.
     // The code we're differentiated is of the form
@@ -813,7 +811,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmt* loopDiff = BuildStandardForLoop(
         idxDecl, AILE->getArraySize().getZExtValue(), block);
     addToCurrentBlock(loopDiff, direction::reverse);
-    return {Clone(AILE)};
+    // We cannot clone ArrayInitLoopExpr because it's not possible to express
+    // with standard c++ syntax.
+    return {};
   }
 
   StmtDiff
@@ -855,13 +855,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     ScopeRAII compoundScope(*this, scopeFlags);
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
-    llvm::SmallVector<std::pair<std::size_t, std::size_t>, 4> ReturnCuts;
-    // Case groups have their own reverse entry labels. Unlike an ordinary
-    // block, a switch body can be entered after its first statement.
-    bool HasCaseLabels = llvm::any_of(
-        CS->body(), [](const Stmt* S) { return isa<SwitchCase>(S); });
     for (Stmt* S : CS->body()) {
-      std::size_t ReturnsBefore = m_EarlyReturnMarkers.size();
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingStmtInVisitCompoundStmt();
       StmtDiff SDiff = DifferentiateSingleStmt(S);
@@ -870,48 +864,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingStmtInVisitCompoundStmt();
-      if (!HasCaseLabels && m_EarlyReturnMarkers.size() != ReturnsBefore)
-        ReturnCuts.emplace_back(getCurrentBlock().size(),
-                                getCurrentBlock(direction::reverse).size());
     }
-    // The master reverse sweep also runs at early returns. A suffix that
-    // wasn't reached must not replay its mutations or restore unfilled stores.
-    // Record reachability at each cut, using a fresh tape entry per loop
-    // iteration. Empty reverse suffixes need no flag.
-    Stmts EntryRecords;
-    for (auto Cut : llvm::reverse(ReturnCuts)) {
-      Stmts& Reverse = getCurrentBlock(direction::reverse);
-      if (llvm::all_of(llvm::drop_begin(Reverse, Cut.second),
-                       [](const Stmt* S) { return isa<NullStmt>(S); }))
-        continue;
-      Stmts Suffix(Reverse.begin() + Cut.second, Reverse.end());
-      std::reverse(Suffix.begin(), Suffix.end());
-      Reverse.resize(Cut.second);
-      Expr* Reached = nullptr;
-      Expr* Condition = nullptr;
-      if (isInsideLoop) {
-        auto Tape = MakeCladTapeFor(getZeroInit(m_Context.BoolTy), "_reached");
-        EntryRecords.push_back(Tape.Push);
-        Reached = Tape.Last();
-        Condition = Tape.Pop;
-      } else {
-        auto* Flag = GlobalStoreImpl(m_Context.BoolTy, "_reached",
-                                     getZeroInit(m_Context.BoolTy));
-        Reached = BuildDeclRef(Flag);
-        Condition = BuildDeclRef(Flag);
-      }
-      Stmts& Forward = getCurrentBlock();
-      Forward.insert(Forward.begin() + Cut.first,
-                     BuildOp(BO_Assign, Reached,
-                             new (m_Context) CXXBoolLiteralExpr(
-                                 true, m_Context.BoolTy, noLoc)));
-      Reverse.push_back(clad_compat::IfStmt_Create(
-          m_Context, noLoc, false, nullptr, nullptr, Condition, noLoc, noLoc,
-          MakeCompoundStmt(Suffix), noLoc, nullptr));
-    }
-    Stmts& ForwardBlock = getCurrentBlock();
-    ForwardBlock.insert(ForwardBlock.begin(), EntryRecords.begin(),
-                        EntryRecords.end());
     CompoundStmt* Forward = endBlock(direction::forward);
     CompoundStmt* Reverse = endBlock(direction::reverse);
     return StmtDiff(Forward, Reverse);
@@ -1588,6 +1541,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
     QualType ILEType = ILE->getType();
+    // Transparent braces initialize the closure itself, not its captures.
+    if (const auto* RD = ILEType->getAsCXXRecordDecl())
+      if (RD->isLambda() && ILE->isTransparent())
+        return Visit(ILE->getInit(0), dfdx());
     llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
     llvm::SmallVector<Expr*, 16> exprsDiff(ILE->getNumInits());
     for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
@@ -2065,8 +2022,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           Variable->getType().getNonReferenceType(), nullptr, SC_None);
       if (Capture.getCaptureKind() == LCK_ByRef)
         Snapshot->setType(Variable->getType());
-      else if (Snapshot->getType()->isArrayType())
-        Snapshot->setType(utils::getNonConstType(Snapshot->getType(), m_Sema));
       Snapshot->setInit(CaptureInit);
       // These declarations are synthesized after the analyses have run.
       auto* SnapshotDecl = BuildDeclStmt(Snapshot);
@@ -3771,8 +3726,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         VD->getInit() && isa<CXXConstructExpr>(VD->getInit()->IgnoreImplicit());
     const CXXRecordDecl* RD = VD->getType()->getAsCXXRecordDecl();
     bool isNonAggrClass = RD && !RD->isAggregate();
-    bool isLambdaDS =
-        VD->getInit() && isa<LambdaExpr>(VD->getInit()->IgnoreImplicit());
+    bool isLambdaDS = RD && RD->isLambda();
     // We initialize adjoints with original variables as part of
     // the strategy to maintain the structure of the original variable.
     // After that, we'll zero-initialize the adjoint. e.g.
@@ -3920,14 +3874,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDCloneTSI = m_Context.getTrivialTypeSourceInfo(VDCloneType, noLoc);
     }
 
-    Expr* Init = initDiff.getExpr();
-    VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(), Init,
-                                 VD->isDirectInit(), VDCloneTSI, SC);
+    VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
+                                 initDiff.getExpr(), VD->isDirectInit(),
+                                 VDCloneTSI, SC);
 
     // The choice of isDirectInit is mostly stylistic.
     bool isRealConstArray = false;
-    if (isa<ConstantArrayType>(VDType))
-      isRealConstArray = m_Context.getBaseElementType(VDType)->isRealType();
+    if (const auto* arrType = dyn_cast<ConstantArrayType>(VDType))
+      isRealConstArray = arrType->getElementType()->isRealType();
     bool isDirectInit = VD->isDirectInit() && (!RD || isNonAggrClass);
     if (VDDerivedType->isBuiltinType() || !VD->getInit() || isRealConstArray) {
       initDiff.updateStmtDx(getZeroInit(VDType));
@@ -4075,18 +4029,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           continue;
         }
 
-        if (!promoteToFnScope)
-          if (auto* ArrayCopy = dyn_cast_or_null<ArrayInitLoopExpr>(
-                  VDDiff.getDecl()->getInit())) {
-            // Array capture initialization has no ordinary C++ spelling.
-            // Keep its differentiated initializer, but emit the copy as move.
-            inits.push_back(BuildArrayAssignment(
-                BuildDeclRef(VDDiff.getDecl()),
-                ArrayCopy->getCommonExpr()->getSourceExpr(),
-                direction::forward));
-            SetDeclInit(VDDiff.getDecl(), getZeroInit(VD->getType()));
-          }
-
         // Here, we move the declaration to the function global scope.
         // Initialization is replaced with an assignment operation at the same
         // place as the original declaration. This procedure is done to make the
@@ -4113,12 +4055,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                 (CE && !CE->getNumArgs() && !CE->isListInitialization()))
               init = getZeroInit(VD->getType());
             Expr* assignment = nullptr;
-            if (isa<ArrayType>(VD->getType())) {
-              if (auto* ArrayCopy = dyn_cast<ArrayInitLoopExpr>(init))
-                init = ArrayCopy->getCommonExpr()->getSourceExpr();
+            if (isa<ArrayType>(VD->getType()))
               assignment =
                   BuildArrayAssignment(declRef, init, direction::forward);
-            } else
+            else
               assignment = BuildOp(BO_Assign, declRef, init);
             if (isInsideLoop) {
               if (m_DiffReq.shouldBeRecorded(DS)) {
@@ -4195,11 +4135,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
       for (Stmt* memset : memsetCalls)
         addToBlock(memset, block);
-    }
-
-    if (!promoteToFnScope && !inits.empty()) {
-      addToCurrentBlock(DSClone);
-      DSClone = utils::unwrapIfSingleStmt(MakeCompoundStmt(inits));
     }
 
     // This part in necessary to replace local variables inside loops
@@ -4629,11 +4564,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Pop = Clone(Ref);
       bool isFnScope = getCurrentScope()->isFunctionScope() ||
                        m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
-      if (Type->isArrayType()) {
-        SetDeclInit(VD, getZeroInit(Type));
-        addToBlock(decl, m_Globals);
-        Store = BuildArrayAssignment(CloneNode(Ref), E, direction::forward);
-      } else if (isFnScope) {
+      if (isFnScope) {
         Store = decl;
         SetDeclInit(VD, E);
       } else {

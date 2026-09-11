@@ -404,13 +404,11 @@ int main() {
 // CHECK-NEXT:     bool _cond3 = false;
 // CHECK-NEXT:     float _t1 = 0.F;
 // CHECK-NEXT:     float _t2 = 0.F;
-// CHECK-NEXT:     bool _reached0 = false;
 // CHECK-NEXT:     float _d_val = 0.F;
 // CHECK-NEXT:     float val = ::std::pow(x, exponent);
 // CHECK-NEXT:     float _t0 = ::std::pow(x, exponent - 1);
 // CHECK-NEXT:     float _d_derivative = 0.F;
 // CHECK-NEXT:     auto _rev0 = [&] {
-// CHECK-NEXT:         if (_reached0) {
 // CHECK-NEXT:         if (_cond3) {
 // CHECK-NEXT:             float _r4 = 0.F;
 // CHECK-NEXT:             float _r5 = 0.F;
@@ -430,7 +428,6 @@ int main() {
 // CHECK-NEXT:             *_d_x += _r2;
 // CHECK-NEXT:             *_d_exponent += _r3;
 // CHECK-NEXT:             *_d_d_x += (exponent * _t0) * _d_derivative;
-// CHECK-NEXT:         }
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (_cond2)
@@ -460,7 +457,6 @@ int main() {
 // CHECK-NEXT:             return;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _reached0 = true;
 // CHECK-NEXT:     float derivative = (exponent * _t0) * d_x;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _cond3 = d_exponent;

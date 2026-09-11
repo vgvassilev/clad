@@ -44,12 +44,6 @@ double initialized_capture(double x) {
   return inner() + x;
 }
 
-double array_capture(double x) {
-  double values[2] = {x, x * x};
-  auto inner = [values] { return values[0] * values[1]; };
-  return inner();
-}
-
 double loop_capture(double x) {
   double result = 0;
   for (int i = 0; i < 3; ++i) {
@@ -102,17 +96,6 @@ double mutable_capture(double x) {
   return first + inner();
 }
 
-double loop_array_capture(double x) {
-  double result = 0;
-  for (int i = 0; i < 3; ++i) {
-    double values[2] = {x, x * x};
-    auto inner = [values] { return values[0] * values[1]; };
-    result += inner();
-    x += 1;
-  }
-  return result;
-}
-
 double nested_conditional_capture(double x) {
   auto outer = [&] {
     double result = 0;
@@ -154,16 +137,6 @@ double unused_capture_initializer(double x) {
   return inner() + x;
 }
 
-double mutable_array_capture(double x) {
-  double values[2] = {x, x * x};
-  auto inner = [values]() mutable {
-    values[0] *= 2;
-    return values[0] * values[1];
-  };
-  double first = inner();
-  return first + inner();
-}
-
 double nested_early_return_capture(double x) {
   auto outer = [&] {
     if (x < 0) return x * x;
@@ -181,18 +154,6 @@ double elided_copy_capture(double x) {
 
 double repeated_loop_calls(double x) {
   auto inner = [x]() mutable { x *= 2; return x * x; };
-  double result = 0;
-  for (int i = 0; i < 3; ++i)
-    result += inner();
-  return result;
-}
-
-double repeated_array_loop_calls(double x) {
-  double values[2] = {x, x * x};
-  auto inner = [values]() mutable {
-    values[0] *= 2;
-    return values[0] * values[1];
-  };
   double result = 0;
   for (int i = 0; i < 3; ++i)
     result += inner();
@@ -257,10 +218,6 @@ int main() {
   std::printf("%.1f\n", dx);
   // CHECK-EXEC-NEXT: 5.0
   dx = 0;
-  clad::gradient(array_capture).execute(2, &dx);
-  std::printf("%.1f\n", dx);
-  // CHECK-EXEC-NEXT: 12.0
-  dx = 0;
   clad::gradient(loop_capture).execute(2, &dx);
   std::printf("%.1f\n", dx);
   // CHECK-EXEC-NEXT: 18.0
@@ -288,14 +245,6 @@ int main() {
   clad::gradient(mutable_capture).execute(-2, &dx);
   std::printf("%.1f\n", dx);
   // CHECK-EXEC-NEXT: -80.0
-  dx = 0;
-  clad::gradient(loop_array_capture).execute(2, &dx);
-  std::printf("%.1f\n", dx);
-  // CHECK-EXEC-NEXT: 87.0
-  dx = 0;
-  clad::gradient(loop_array_capture).execute(-2, &dx);
-  std::printf("%.1f\n", dx);
-  // CHECK-EXEC-NEXT: 15.0
   dx = 0;
   clad::gradient(nested_conditional_capture).execute(2, &dx);
   std::printf("%.1f\n", dx);
@@ -337,14 +286,6 @@ int main() {
   std::printf("%.1f\n", dx);
   // CHECK-EXEC-NEXT: 2.0
   dx = 0;
-  clad::gradient(mutable_array_capture).execute(2, &dx);
-  std::printf("%.1f\n", dx);
-  // CHECK-EXEC-NEXT: 72.0
-  dx = 0;
-  clad::gradient(mutable_array_capture).execute(-2, &dx);
-  std::printf("%.1f\n", dx);
-  // CHECK-EXEC-NEXT: 72.0
-  dx = 0;
   clad::gradient(nested_early_return_capture).execute(2, &dx);
   std::printf("%.1f\n", dx);
   // CHECK-EXEC-NEXT: 4.0
@@ -368,14 +309,6 @@ int main() {
   clad::gradient(repeated_loop_calls).execute(-2, &dx);
   std::printf("%.1f\n", dx);
   // CHECK-EXEC-NEXT: -336.0
-  dx = 0;
-  clad::gradient(repeated_array_loop_calls).execute(2, &dx);
-  std::printf("%.1f\n", dx);
-  // CHECK-EXEC-NEXT: 168.0
-  dx = 0;
-  clad::gradient(repeated_array_loop_calls).execute(-2, &dx);
-  std::printf("%.1f\n", dx);
-  // CHECK-EXEC-NEXT: 168.0
   dx = 0;
   clad::gradient(loop_reference_initializer).execute(2, &dx);
   std::printf("%.1f\n", dx);

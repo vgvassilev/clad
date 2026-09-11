@@ -10,6 +10,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/IgnoreExpr.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Analysis/CFG.h"
@@ -215,7 +216,15 @@ bool TBRAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
         auto* VDExpr = &getCurBlockVarsData()[VD];
         QualType VDType = VD->getType();
 #if CLANG_VERSION_MAJOR > 16
-        if (const auto* Lambda = dyn_cast<LambdaExpr>(init->IgnoreImplicit())) {
+        Expr* LambdaInit = IgnoreExprNodes(
+            init, IgnoreImplicitSingleStep, IgnoreParensSingleStep,
+            [](Expr* E) {
+              if (auto* List = dyn_cast<InitListExpr>(E))
+                if (List->isTransparent())
+                  return List->getInit(0);
+              return E;
+            });
+        if (const auto* Lambda = dyn_cast<LambdaExpr>(LambdaInit)) {
           // A closure's reference/pointer fields refer to the enclosing
           // storage, just like ordinary reference declarations. Preserve
           // those dependencies when the call operator reads the closure.
@@ -385,12 +394,10 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     resetMode();
 
     TraverseStmt(R);
-  } else {
-    // Even non-differentiable operators can supply an index or a call
-    // argument that the reverse sweep needs to replay.
-    TraverseStmt(L);
-    TraverseStmt(R);
   }
+  // else {
+  // FIXME: add logic/bitwise/comparison operators
+  // }
   return false;
 }
 

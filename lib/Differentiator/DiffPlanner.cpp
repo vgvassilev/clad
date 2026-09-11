@@ -2034,33 +2034,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
          m_ParentReq->Mode != DiffMode::pullback) ||
         !VD->hasInit())
       return true;
-    if (const auto* LE = dyn_cast<LambdaExpr>(VD->getInit()->IgnoreImplicit()))
-      for (const LambdaCapture& Capture : LE->captures()) {
-        if (!Capture.capturesVariable() ||
-            !isa<VarDecl>(Capture.getCapturedVar()) ||
-            Capture.isPackExpansion()) {
-          utils::diag(m_Sema, DiagnosticsEngine::Error, Capture.getLocation(),
-                      "reverse-mode differentiation requires ordinary "
-                      "variable captures");
-          return false;
-        }
-        QualType CaptureType =
-            Capture.getCapturedVar()->getType().getNonReferenceType();
-        if (Capture.getCaptureKind() == LCK_ByCopy &&
-            CaptureType->isArrayType() &&
-            m_Sema.getASTContext()
-                .getBaseElementType(CaptureType)
-                ->isRecordType()) {
-          utils::diag(m_Sema, DiagnosticsEngine::Error, Capture.getLocation(),
-                      "differentiation of array captures with record elements "
-                      "is not supported");
-          return false;
-        }
-      }
-    if (!VD->getType()->isReferenceType())
-      return true;
     const auto* RD = VD->getType().getNonReferenceType()->getAsCXXRecordDecl();
-    if (RD && RD->isLambda() &&
+    if (!RD || !RD->isLambda())
+      return true;
+    for (const LambdaCapture& Capture : RD->captures())
+      if (!Capture.capturesVariable() ||
+          !isa<VarDecl>(Capture.getCapturedVar()) ||
+          Capture.isPackExpansion()) {
+        utils::diag(m_Sema, DiagnosticsEngine::Error, Capture.getLocation(),
+                    "reverse-mode differentiation requires ordinary "
+                    "variable captures");
+        return false;
+      }
+    if (VD->getType()->isReferenceType() &&
         !isa<DeclRefExpr>(VD->getInit()->IgnoreParenImpCasts())) {
       utils::diag(m_Sema, DiagnosticsEngine::Error, VD->getLocation(),
                   "differentiation of a closure reference requires a named "

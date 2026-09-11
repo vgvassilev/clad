@@ -340,17 +340,13 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
 DeclDiff<clang::VarDecl>
 ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
                                                  bool /*keepLocal*/) {
-  if (VD->getType()->isReferenceType())
-    if (const auto* RD =
-            VD->getType().getNonReferenceType()->getAsCXXRecordDecl())
-      if (RD->isLambda())
-        return ReverseModeVisitor::DifferentiateVarDecl(VD);
-  const Expr* Init = VD->getInit();
-  if (const auto* Lambda = dyn_cast_or_null<LambdaExpr>(
-          Init ? Init->IgnoreImplicit() : nullptr)) {
+  const auto* RD = VD->getType().getNonReferenceType()->getAsCXXRecordDecl();
+  if (RD && RD->isLambda()) {
+    if (VD->getType()->isReferenceType())
+      return ReverseModeVisitor::DifferentiateVarDecl(VD);
     QualType AutoType = m_Context.getAutoDeductType();
     auto* Primal = BuildGlobalVarDecl(
-        AutoType, VD->getNameAsString(), VisitLambdaExpr(Lambda).getExpr(),
+        AutoType, VD->getNameAsString(), Visit(VD->getInit()).getExpr(),
         VD->isDirectInit(), m_Context.getTrivialTypeSourceInfo(AutoType));
     m_DeclReplacements[VD] = Primal;
     return {Primal, nullptr};

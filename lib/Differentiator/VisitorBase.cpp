@@ -134,12 +134,6 @@ namespace clad {
   }
 
   void VisitorBase::SetDeclInit(VarDecl* VD, Expr* Init, bool DirectInit) {
-    // Array capture initialization is already semantically formed, but has
-    // no source-level initializer spelling for Sema to re-check.
-    if (isa_and_nonnull<ArrayInitLoopExpr>(Init)) {
-      VD->setInit(Init);
-      return;
-    }
     if (!Init) {
       // Clang sets inits only once. Therefore, ActOnUninitializedDecl does
       // not reset the init and we have to do it manually.

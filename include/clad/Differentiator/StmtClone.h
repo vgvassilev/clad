@@ -95,8 +95,6 @@ namespace utils {
     DECLARE_CLONE_FN(StringLiteral)
     DECLARE_CLONE_FN(ParenExpr)
     DECLARE_CLONE_FN(ArraySubscriptExpr)
-    DECLARE_CLONE_FN(ArrayInitLoopExpr)
-    DECLARE_CLONE_FN(ArrayInitIndexExpr)
     DECLARE_CLONE_FN(MemberExpr)
     DECLARE_CLONE_FN(CompoundLiteralExpr)
     DECLARE_CLONE_FN(ImplicitCastExpr)

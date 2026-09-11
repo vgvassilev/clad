@@ -62,22 +62,9 @@ double mutable_record(double x) {
 }
 
 double pointer_capture(double x) {
-  double values[2] = {x, x * x};
-  auto inner = [p = values] { *p *= 2; return *p * *p; };
+  auto inner = [p = &x] { *p *= 2; return *p * *p; };
   double first = inner();
   return first + inner();
-}
-
-double indexed_pointer_capture(double x) {
-  double values[2] = {x, x};
-  auto inner = [p = values](int i) {
-    p[i] *= 2;
-    return p[i] * p[i];
-  };
-  double result = 0;
-  for (int i = 0; i < 4; ++i)
-    result += inner(i % 2);
-  return result;
 }
 
 double reference_return(double x) {
@@ -93,11 +80,10 @@ double reference_return_assignment(double x) {
 
 double conditional_mutation(double x) {
   auto inner = [&x] {
-    if (x > 0) {
+    if (x > 0)
       x *= 2;
-      return x * x;
-    }
-    x *= 3;
+    else
+      x *= 3;
     return x * x;
   };
   double first = inner();
@@ -106,10 +92,10 @@ double conditional_mutation(double x) {
 
 double local_storage(double x) {
   auto inner = [&x] {
-    double local[2] = {x, x};
-    local[0] *= 2;
+    double local = x;
+    local *= 2;
     x *= 2;
-    return local[0] * x;
+    return local * x;
   };
   double first = inner();
   return first + inner();
@@ -154,35 +140,6 @@ double nested_snapshot(double x) {
   return first + outer();
 }
 
-double early_return_loop(double x) {
-  auto inner = [&x] {
-    double result = 0;
-    for (int i = 0; i < 3; ++i) {
-      if (x > 5)
-        return result + x * x;
-      x *= 2;
-      result += x;
-    }
-    return result + x * x;
-  };
-  return inner();
-}
-
-double nested_array_snapshot(double x) {
-  auto outer = [&x] {
-    double values[2] = {x, x};
-    auto inner = [values]() mutable {
-      values[0] *= 2;
-      return values[0] * values[1];
-    };
-    double first = inner();
-    x *= 2;
-    return first + inner();
-  };
-  double first = outer();
-  return first + outer();
-}
-
 double nested_record_snapshot(double x) {
   auto outer = [&x] {
     auto inner = [v = CopyValue(x)]() mutable {
@@ -214,7 +171,6 @@ int main() {
   INIT_GRADIENT(explicit_call_operator);
   INIT_GRADIENT(mutable_record);
   INIT_GRADIENT(pointer_capture);
-  INIT_GRADIENT(indexed_pointer_capture);
   INIT_GRADIENT(reference_return);
   INIT_GRADIENT(reference_return_assignment);
   INIT_GRADIENT(conditional_mutation);
@@ -223,8 +179,6 @@ int main() {
   INIT_GRADIENT(reference_to_closure);
   INIT_GRADIENT(nested_local_storage);
   INIT_GRADIENT(nested_snapshot);
-  INIT_GRADIENT(early_return_loop);
-  INIT_GRADIENT(nested_array_snapshot);
   INIT_GRADIENT(nested_record_snapshot);
   INIT_GRADIENT(reference_return_loop);
 
@@ -237,7 +191,6 @@ int main() {
   TEST_GRADIENT(mutable_record, 1, 2, &dx); // CHECK-EXEC-NEXT: {80.00}
   TEST_GRADIENT(mutable_record, 1, -2, &dx); // CHECK-EXEC-NEXT: {-80.00}
   TEST_GRADIENT(pointer_capture, 1, 2, &dx); // CHECK-EXEC-NEXT: {80.00}
-  TEST_GRADIENT(indexed_pointer_capture, 1, 2, &dx); // CHECK-EXEC-NEXT: {160.00}
   TEST_GRADIENT(reference_return, 1, 2, &dx); // CHECK-EXEC-NEXT: {4.00}
   TEST_GRADIENT(reference_return_assignment, 1, 2, &dx); // CHECK-EXEC-NEXT: {16.00}
   TEST_GRADIENT(conditional_mutation, 1, 2, &dx); // CHECK-EXEC-NEXT: {80.00}
@@ -247,9 +200,6 @@ int main() {
   TEST_GRADIENT(reference_to_closure, 1, 2, &dx); // CHECK-EXEC-NEXT: {80.00}
   TEST_GRADIENT(nested_local_storage, 1, 2, &dx); // CHECK-EXEC-NEXT: {80.00}
   TEST_GRADIENT(nested_snapshot, 1, 2, &dx); // CHECK-EXEC-NEXT: {400.00}
-  TEST_GRADIENT(early_return_loop, 1, 2, &dx); // CHECK-EXEC-NEXT: {70.00}
-  TEST_GRADIENT(early_return_loop, 1, -2, &dx); // CHECK-EXEC-NEXT: {-242.00}
-  TEST_GRADIENT(nested_array_snapshot, 1, 2, &dx); // CHECK-EXEC-NEXT: {120.00}
   TEST_GRADIENT(nested_record_snapshot, 1, 2, &dx); // CHECK-EXEC-NEXT: {80.00}
   TEST_GRADIENT(reference_return_loop, 1, 2, &dx); // CHECK-EXEC-NEXT: {336.00}
 }

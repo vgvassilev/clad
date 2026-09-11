@@ -470,23 +470,6 @@ Stmt* StmtClone::VisitLambdaExpr(LambdaExpr* Node) {
       Node->containsUnexpandedParameterPack());
 }
 
-Stmt* StmtClone::VisitArrayInitLoopExpr(ArrayInitLoopExpr* Node) {
-  llvm::DenseMap<OpaqueValueExpr*, OpaqueValueExpr*> LocalSubst;
-  auto* SavedSubst = m_OVESubst;
-  if (!m_OVESubst)
-    m_OVESubst = &LocalSubst;
-  auto* Common = Clone(Node->getCommonExpr());
-  (*m_OVESubst)[Node->getCommonExpr()] = Common;
-  auto* Result = new (Ctx) ArrayInitLoopExpr(CloneType(Node->getType()), Common,
-                                             Clone(Node->getSubExpr()));
-  m_OVESubst = SavedSubst;
-  return Result;
-}
-
-Stmt* StmtClone::VisitArrayInitIndexExpr(ArrayInitIndexExpr* Node) {
-  return new (Ctx) ArrayInitIndexExpr(CloneType(Node->getType()));
-}
-
 Stmt* StmtClone::VisitCUDAKernelCallExpr(CUDAKernelCallExpr* Node) {
   llvm::SmallVector<Expr*, 4> clonedArgs;
   for (Expr* arg : Node->arguments())

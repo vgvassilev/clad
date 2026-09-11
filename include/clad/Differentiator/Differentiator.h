@@ -44,18 +44,6 @@
 #endif
 
 namespace clad {
-namespace array_detail {
-template <class Input, class Output>
-CUDA_HOST_DEVICE void assign(Input&& input, Output& output) {
-  output = std::forward<Input>(input);
-}
-
-template <class Input, class T, std::size_t N>
-CUDA_HOST_DEVICE void assign(Input&& input, T (&output)[N]) {
-  for (std::size_t i = 0; i < N; ++i)
-    array_detail::assign(std::forward<Input>(input)[i], output[i]);
-}
-} // namespace array_detail
 
 /// \returns the size of a c-style string
 inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
@@ -106,9 +94,7 @@ push(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithread=*/false, DiskOffload,
           GpuOffload>& to,
      const U& val) {
   to.emplace_back();
-  auto output = std::begin(to.back());
-  for (const auto& element : val)
-    array_detail::assign(element, *output++);
+  std::copy(std::begin(val), std::end(val), std::begin(to.back()));
 }
 
   /// Remove the last value from the tape, return it.
@@ -163,9 +149,7 @@ void push(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true,
           const U& val) {
   std::lock_guard<std::mutex> lock(to.mutex());
   to.emplace_back();
-  auto output = std::begin(to.back());
-  for (const auto& element : val)
-    array_detail::assign(element, *output++);
+  std::copy(std::begin(val), std::end(val), std::begin(to.back()));
 }
 
   /// Remove the last value from the tape, return it.
@@ -466,9 +450,9 @@ template <class T> std::false_type is_range(...);
   // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
   // An overload to initialize arrays from buffers, e.g., `clad::move(t0, arr)`
   template <class T, size_t N>
-  CUDA_HOST_DEVICE void move(T* Input, std::remove_const_t<T> (&Output)[N]) {
+  CUDA_HOST_DEVICE void move(T* Input, T (&Output)[N]) {
     for (size_t i = 0; i < N; ++i)
-      array_detail::assign(std::move(Input[i]), Output[i]);
+      Output[i] = std::move(Input[i]);
   }
 
   // An overload to initialize arrays with init lists, e.g., `clad::move({1, 2},
@@ -477,9 +461,9 @@ template <class T> std::false_type is_range(...);
   CUDA_HOST_DEVICE void move(std::initializer_list<T> Input, T (&Output)[N]) {
     size_t i = 0;
     for (auto it = Input.begin(); it != Input.end() && i < N; ++it, ++i)
-      array_detail::assign(*it, Output[i]);
+      Output[i] = *it;
     for (; i < N; ++i)
-      array_detail::assign(T{}, Output[i]);
+      Output[i] = T();
   }
   // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
