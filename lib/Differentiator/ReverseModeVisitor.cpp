@@ -2234,7 +2234,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // differentiable so its statically scheduled pullback can propagate it
     // through the implicit object.
     if (!nonDiff && !dfdx() && !utils::hasMemoryTypeParams(FD) &&
-        !needsPullbackForRefReturningInstance && !usingRestoreTracker)
+        !needsPullbackForRefReturningInstance &&
+        !(localForwPass && usingRestoreTracker))
       nonDiff = true;
 
     // If all arguments are constant literals, then this does not contribute to

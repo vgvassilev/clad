@@ -12,7 +12,6 @@
 
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/AST/Stmt.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Scope.h"
@@ -37,7 +36,6 @@ namespace utils {
     clang::ASTContext& Ctx;
     llvm::function_ref<clang::Stmt*(const clang::Stmt*)> m_RebuildStmt;
     llvm::function_ref<clang::Decl*(clang::Decl*)> m_RebuildDecl;
-    clang::SwitchStmt* m_CurrentSwitch = nullptr;
     // While cloning a PseudoObjectExpr, maps each original OpaqueValueExpr to
     // its clone so the syntactic form and the semantic expressions reference
     // the same fresh OVE (null outside such a clone). See

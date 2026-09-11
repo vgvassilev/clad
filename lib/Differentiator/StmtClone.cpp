@@ -15,7 +15,6 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/SaveAndRestore.h"
 
 using namespace clang;
 
@@ -547,39 +546,22 @@ Stmt* StmtClone::VisitCaseStmt(CaseStmt* Node) {
       Ctx, Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getCaseLoc(),
       Node->getEllipsisLoc(), Node->getColonLoc());
   result->setSubStmt(Clone(Node->getSubStmt()));
-  if (m_CurrentSwitch)
-    m_CurrentSwitch->addSwitchCase(result);
-  return result;
-}
-
-Stmt* StmtClone::VisitDefaultStmt(DefaultStmt* Node) {
-  // ASTContext owns the node's storage.
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  auto* result = new (Ctx) DefaultStmt(
-      Node->getDefaultLoc(), Node->getColonLoc(), Clone(Node->getSubStmt()));
-  if (m_CurrentSwitch)
-    m_CurrentSwitch->addSwitchCase(result);
   return result;
 }
 
 Stmt* StmtClone::VisitSwitchStmt(SwitchStmt* Node) {
-  // Clone declarations before their uses so rebuilding callbacks can remap
-  // the condition and body. Case labels register with this fresh switch.
-  Stmt* Init = Clone(Node->getInit());
-  VarDecl* CondVar = CloneDeclOrNull(Node->getConditionVariable());
-  SwitchStmt* result =
-      SwitchStmt::Create(Ctx, Init, CondVar, Clone(Node->getCond()),
-                         Node->getLParenLoc(), Node->getRParenLoc());
-  llvm::SaveAndRestore<SwitchStmt*> SaveSwitch(m_CurrentSwitch, result);
+  SourceLocation noLoc;
+  SwitchStmt* result = SwitchStmt::Create(
+      Ctx, Node->getInit(), Node->getConditionVariable(), Node->getCond(),
+      /*LParenLoc=*/noLoc, /*RParenLoc=*/noLoc);
   result->setBody(Clone(Node->getBody()));
   result->setSwitchLoc(Node->getSwitchLoc());
-  if (Node->isAllEnumCasesCovered())
-    result->setAllEnumCasesCovered();
   return result;
 }
 
 DEFINE_CLONE_STMT_CO(ReturnStmt,
                      (Ctx, Node->getReturnLoc(), Clone(Node->getRetValue()), 0))
+DEFINE_CLONE_STMT(DefaultStmt, (Node->getDefaultLoc(), Node->getColonLoc(), Clone(Node->getSubStmt())))
 DEFINE_CLONE_STMT(GotoStmt, (Node->getLabel(), Node->getGotoLoc(), Node->getLabelLoc()))
 DEFINE_CLONE_STMT_CO(WhileStmt,
                      (Ctx, CloneDeclOrNull(Node->getConditionVariable()),
@@ -589,7 +571,7 @@ DEFINE_CLONE_STMT_CO(WhileStmt,
 DEFINE_CLONE_STMT(DoStmt, (Clone(Node->getBody()), Clone(Node->getCond()), Node->getDoLoc(), Node->getWhileLoc(), Node->getRParenLoc()))
 DEFINE_CLONE_STMT_CO(IfStmt, (Ctx, Node->getIfLoc(),
                               CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node),
-                              Clone(Node->getInit()),
+                              Node->getInit(),
                               CloneDeclOrNull(Node->getConditionVariable()),
                               Clone(Node->getCond()), Node->getLParenLoc(),
                               Node->getRParenLoc(), Clone(Node->getThen()),

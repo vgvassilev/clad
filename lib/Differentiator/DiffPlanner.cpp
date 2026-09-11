@@ -373,6 +373,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     LambdaReq.Functor = LE->getLambdaClass();
     llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &LambdaReq);
     RecursiveASTVisitor<DiffCollector>::TraverseLambdaExpr(LE);
+    if (LambdaReq.Mode == DiffMode::unknown)
+      Saved.get()->Mode = DiffMode::unknown;
 
     return true;
   }
@@ -1843,12 +1845,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
       //  Recurse into call graph.
-      unsigned ErrorsBefore = m_Sema.getDiagnostics().getNumErrors();
       TraverseFunctionDeclOnce(request.Function);
-      // A rejected body must not reach synthesis. Other requests can still
-      // be diagnosed and differentiated independently.
-      if (m_Sema.getDiagnostics().getNumErrors() != ErrorsBefore)
-        request.Mode = DiffMode::unknown;
 
       if (requestTBR) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
@@ -2044,6 +2041,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         utils::diag(m_Sema, DiagnosticsEngine::Error, Capture.getLocation(),
                     "reverse-mode differentiation requires ordinary "
                     "variable captures");
+        m_ParentReq->Mode = DiffMode::unknown;
         return false;
       }
     if (VD->getType()->isReferenceType() &&
@@ -2051,6 +2049,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       utils::diag(m_Sema, DiagnosticsEngine::Error, VD->getLocation(),
                   "differentiation of a closure reference requires a named "
                   "lambda initializer");
+      m_ParentReq->Mode = DiffMode::unknown;
       return false;
     }
     return true;
@@ -2076,6 +2075,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       utils::diag(m_Sema, DiagnosticsEngine::Error, E->getExprLoc(),
                   "differentiation of copied or moved closures is not "
                   "supported; use a reference to the lambda instead");
+      m_ParentReq->Mode = DiffMode::unknown;
       return true;
     }
     DiffRequest forwPassRequest;

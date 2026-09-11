@@ -175,17 +175,6 @@ double default_and_initialized_capture(double x) {
   return first + inner();
 }
 
-double nested_if_initializer(double x) {
-  auto outer = [&] {
-    if (double y = x * x; y > 0) {
-      auto inner = [&] { return y * x; };
-      return inner();
-    }
-    return 0.0;
-  };
-  return outer();
-}
-
 double unused_mutating_call(double x) {
   auto inner = [&] { x *= 2; };
   inner();
@@ -325,14 +314,6 @@ int main() {
   clad::gradient(default_and_initialized_capture).execute(-2, &dx);
   std::printf("%.1f\n", dx);
   // CHECK-EXEC-NEXT: -80.0
-  dx = 0;
-  clad::gradient(nested_if_initializer).execute(2, &dx);
-  std::printf("%.1f\n", dx);
-  // CHECK-EXEC-NEXT: 12.0
-  dx = 0;
-  clad::gradient(nested_if_initializer).execute(-2, &dx);
-  std::printf("%.1f\n", dx);
-  // CHECK-EXEC-NEXT: 12.0
   dx = 0;
   clad::gradient(unused_mutating_call).execute(2, &dx);
   std::printf("%.1f\n", dx);

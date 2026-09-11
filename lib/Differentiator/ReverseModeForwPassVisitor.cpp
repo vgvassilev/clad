@@ -144,7 +144,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
     StmtDiff bodyDiff = Visit(m_DiffReq->getBody());
     Stmt* forward = bodyDiff.getStmt();
 
-    for (Stmt* S : m_Globals)
+    for (Stmt* S : ReverseModeVisitor::m_Globals)
       addToCurrentBlock(S);
 
     if (auto* CS = dyn_cast_or_null<CompoundStmt>(forward))
