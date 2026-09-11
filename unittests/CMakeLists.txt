@@ -66,5 +66,6 @@ if (NOT EMSCRIPTEN)
     add_subdirectory(Kokkos)
   endif(Kokkos_FOUND)
 
+  add_subdirectory(Analyses)
   add_subdirectory(Misc)
 endif()
