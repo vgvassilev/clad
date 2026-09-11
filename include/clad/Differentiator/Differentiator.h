@@ -10,6 +10,7 @@
 #include "Array.h"
 #include "ArrayRef.h"
 #include "BuiltinDerivatives.h"
+#include "LibCDerivatives.h"
 #ifdef __CUDACC__
 #include "BuiltinDerivativesCUDA.cuh"
 #endif
