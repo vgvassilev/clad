@@ -591,6 +591,29 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     TimedGenerationRegion G([&request]() { return (std::string)request; });
     EmitPortingHint(request);
     if (const FunctionDecl* FD = request.Function) {
+      // JacobianDerivedFnTraits always produces a void-returning derivative.
+      // Jacobian outputs are exposed through derivative parameters
+      // corresponding to pointer, reference, or array function arguments.
+      // Reject a non-void primal before JacobianModeVisitor can generate an
+      // incompatible return.
+      if (request.Mode == DiffMode::jacobian &&
+          !FD->getReturnType()->isVoidType()) {
+        SourceLocation L = request.CallContext->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "jacobian mode currently requires function %0 to return void; "
+             "provide differentiable outputs through pointer, reference, or "
+             "array "
+             "parameters")
+            << FD;
+        SourceLocation NoteLoc = FD->getReturnTypeSourceRange().getBegin();
+        if (NoteLoc.isInvalid())
+          NoteLoc = FD->getLocation();
+        diag(DiagnosticsEngine::Note, NoteLoc,
+             "%0 declared here with return type %1")
+            << FD << FD->getReturnType();
+        return {};
+      }
+
       // Process the custom derivative
       if (request.CustomDerivative) {
         // We already now that there exists at least one custom derivative
