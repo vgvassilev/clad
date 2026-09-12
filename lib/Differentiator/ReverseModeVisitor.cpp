@@ -3046,9 +3046,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // independent, structurally correct adjoint.
     // An explicit reverse_forw above still takes precedence when a call needs
     // to save additional state or preserve reference/aliasing semantics.
-    bool needsDefaultAdjoint =
-        !nonDiff || m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
-    if (needsDefaultAdjoint && needsForwPass &&
+    if (m_DiffReq.shouldGenerateDefaultReverseForw(CE) && needsForwPass &&
         !returnType->isReferenceType() && !returnType->isPointerType()) {
       auto storeForReverse = [this](Expr* value, llvm::StringRef prefix) {
         if (isInsideLoop)

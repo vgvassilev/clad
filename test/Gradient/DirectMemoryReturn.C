@@ -27,6 +27,7 @@ FallbackMemoryValue make_fallback_memory_value(double input) {
   return {input * input, nullptr};
 }
 
+
 namespace clad {
 
 MemoryValue zero_like(const MemoryValue& /*value*/) {
@@ -67,11 +68,18 @@ double fallback_memory_loss(double input) {
   return result;
 }
 
+double nonactive_memory_loss(double input) {
+  return make_memory_value(1.0).value + input * 0.0;
+}
+
 // CHECK: clad::ValueAndAdjoint<MemoryValue, MemoryValue> direct_memory_value_reverse_forw(double input, double _d_input) {
 // CHECK-NEXT:     MemoryValue _t0 = make_memory_value(input);
 // CHECK-NEXT:     MemoryValue _r0 = clad::zero_like(_t0);
 // CHECK-NEXT:     return {{.*}}_t0{{.*}}_r0{{.*}};
 // CHECK: }
+// CHECK: void nonactive_memory_loss_grad(double input, double *_d_input) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         MemoryValue _r0 = {0., nullptr};
 
 int main() {
   auto gradient = clad::gradient(memory_loss);
@@ -85,4 +93,9 @@ int main() {
   auto fallbackGradient = clad::gradient(fallback_memory_loss);
   fallbackGradient.execute(3.0, &fallbackDerivative);
   printf("%.1f\n", fallbackDerivative); // CHECK-EXEC-NEXT: 12.0
+
+  double nonactiveDerivative = 0.0;
+  auto nonactiveGradient = clad::gradient(nonactive_memory_loss);
+  nonactiveGradient.execute(3.0, &nonactiveDerivative);
+  printf("%.1f\n", nonactiveDerivative); // CHECK-EXEC-NEXT: 0.0
 }

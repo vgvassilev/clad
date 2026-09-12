@@ -176,6 +176,14 @@ private:
     bool HasAnalysisRun = false;
   } m_ActivityRunInfo;
 
+  /// Calls in this request whose reverse-mode lowering may use the default
+  /// reverse-forward adjoint. This is a planning fact, rather than a codegen
+  /// decision: the reverse-mode visitor only consumes it while lowering the
+  /// call. It is keyed by the primal AST node so the same fact is available
+  /// to pullback and reverse-forward requests for this function.
+  mutable llvm::DenseSet<const clang::CallExpr*>
+      m_DefaultReverseForwCalls;
+
   mutable struct UsefulRunInfo {
     std::set<const clang::VarDecl*> UsefulDecls;
     bool HasAnalysisRun = false;
@@ -485,6 +493,16 @@ public:
   /// another direction -- as the hessian reuses one forward request per row --
   /// has to be analyzed from scratch.
   void resetActivityInfo() const { m_ActivityRunInfo = ActivityRunInfo(); }
+  void recordDefaultReverseForwCall(const clang::CallExpr* CE) const {
+    m_DefaultReverseForwCalls.insert(CE);
+  }
+  bool shouldGenerateDefaultReverseForw(const clang::CallExpr* CE) const {
+    return m_DefaultReverseForwCalls.contains(CE);
+  }
+  void inheritDefaultReverseForwCallsFrom(const DiffRequest& Other) const {
+    m_DefaultReverseForwCalls.insert(Other.m_DefaultReverseForwCalls.begin(),
+                                     Other.m_DefaultReverseForwCalls.end());
+  }
   std::set<const clang::VarDecl*>& getVariedDecls() const {
     return m_ActivityRunInfo.VariedDecls;
   }
