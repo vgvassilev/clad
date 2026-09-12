@@ -2008,8 +2008,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // the call. A custom reverse_forw remains authoritative.
       if (bodyRequest && !hasCustomReverseForw &&
           (bodyRequest->Mode == DiffMode::reverse_mode_forward_pass ||
-           !nonDiff) && utils::isMemoryType(returnType) &&
-          !returnType->isReferenceType() && !returnType->isPointerType())
+           !nonDiff) &&
+          utils::isMemoryType(returnType) && !returnType->isReferenceType() &&
+          !returnType->isPointerType())
         bodyRequest->recordDefaultReverseForwCall(E);
 
       if (hasCustomReverseForw ||

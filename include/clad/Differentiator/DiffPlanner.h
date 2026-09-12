@@ -181,8 +181,7 @@ private:
   /// decision: the reverse-mode visitor only consumes it while lowering the
   /// call. It is keyed by the primal AST node so the same fact is available
   /// to pullback and reverse-forward requests for this function.
-  mutable llvm::DenseSet<const clang::CallExpr*>
-      m_DefaultReverseForwCalls;
+  mutable llvm::DenseSet<const clang::CallExpr*> m_DefaultReverseForwCalls;
 
   mutable struct UsefulRunInfo {
     std::set<const clang::VarDecl*> UsefulDecls;
