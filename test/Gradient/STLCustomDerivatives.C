@@ -1057,12 +1057,16 @@ int main() {
 // CHECK-NEXT:         out += arr[id] * tensor_theory_params[0];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_out += 1;
-// CHECK-NEXT:     for (_t0 = 2{{U|UL|ULL}}; _t0; _t0--) {
-// CHECK-NEXT:         id--;
-// CHECK-NEXT:         {
-// CHECK-NEXT:             float _r_d0 = _d_out;
-// CHECK-NEXT:             _d_tensor_theory_params[0] += arr[id] * _r_d0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         float _acc0 = 0.F;
+// CHECK-NEXT:         for (_t0 = 2{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NEXT:             id--;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 float _r_d0 = _d_out;
+// CHECK-NEXT:                 _acc0 += arr[id] * _r_d0;
+// CHECK-NEXT:             }
 // CHECK-NEXT:         }
+// CHECK-NEXT:         _d_tensor_theory_params[0] += _acc0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

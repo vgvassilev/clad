@@ -964,6 +964,11 @@ namespace clad {
     /// differentiated several calls down, with no parameter of its own to
     /// carry this; set only while that one statement is being visited.
     const clang::VarDecl* m_UnsavedLoopIndex = nullptr;
+
+    /// The accumulators of the loop being differentiated, or null outside a
+    /// counted loop. Defined in ReverseModeVisitor.cpp, its only user.
+    struct ReductionScope;
+    ReductionScope* m_Reductions = nullptr;
   };
 } // end namespace clad
 

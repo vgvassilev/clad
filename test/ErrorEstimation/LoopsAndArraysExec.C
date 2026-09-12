@@ -76,17 +76,19 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:     for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
+//CHECK-NEXT:             float _acc0 = 0.F;
 //CHECK-NEXT:             for (j = n > 0 ? n : 0 , _t1 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t1; _t1--) {
 //CHECK-NEXT:                 j--;
 //CHECK-NEXT:                 _final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:                 sum = clad::pop(_t2);
 //CHECK-NEXT:                 double _r_d0 = _d_sum;
 //CHECK-NEXT:                 b_size = std::max(b_size, j);
-//CHECK-NEXT:                 _d_a[i] += _r_d0 * b[j];
+//CHECK-NEXT:                 _acc0 += _r_d0 * b[j];
 //CHECK-NEXT:                 a_size = std::max(a_size, i);
 //CHECK-NEXT:                 _d_b[j] += a[i] * _r_d0;
 //CHECK-NEXT:                 b_size = std::max(b_size, j);
 //CHECK-NEXT:             }
+//CHECK-NEXT:             _d_a[i] += _acc0;
 //CHECK-NEXT:             _d_j = 0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }

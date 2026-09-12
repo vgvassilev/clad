@@ -85,6 +85,25 @@ namespace clad {
 
 using AllocCallInfo = DiffRequest::AllocCallInfo;
 
+/// The accumulators of one loop being differentiated.
+///
+/// The loop analysis says which adjoints are sums over the loop. This holds the
+/// variable each sum is kept in while the body is visited, and the adjoint it
+/// is added to once the loop is done.
+struct ReverseModeVisitor::ReductionScope {
+  struct Accumulator {
+    const LoopFacts::AdjointReduction* Fact;
+    VarDecl* Acc;
+    Expr* Target; // the `_d_Base[Index]` the sum is added to
+  };
+  const LoopFacts& Facts;
+  llvm::SmallVector<Accumulator, 2> Accumulators;
+
+  /// The accumulator that stands in for \p Target, an adjoint subscript of
+  /// \p Base, or null when this loop does not sum it.
+  Expr* accumulatorFor(ReverseModeVisitor& V, const Expr* Base, Expr* Target);
+};
+
 Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   if (E)
     if (const auto* CXXILE =
@@ -1394,9 +1413,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     const Stmt* body = FS->getBody();
-    StmtDiff BodyDiff = DifferentiateLoopBody(
-        body, loopCounter, condVarRes.getStmt_dx(), incDiff.getStmt_dx(),
-        /*isForLoop=*/true, FS->getForLoc());
+    ReductionScope Reductions{CLF, {}};
+    StmtDiff BodyDiff;
+    {
+      // Only this loop's own facts apply inside it: an inner loop the analysis
+      // did not count reduces nothing.
+      llvm::SaveAndRestore<ReductionScope*> SaveReductions(
+          m_Reductions, CLF.IndVar ? &Reductions : nullptr);
+      BodyDiff = DifferentiateLoopBody(
+          body, loopCounter, condVarRes.getStmt_dx(), incDiff.getStmt_dx(),
+          /*isForLoop=*/true, FS->getForLoc());
+    }
 
     /// FIXME: This part in necessary to replace local variables inside loops
     /// with function globals and replace initializations with assignments.
@@ -1507,7 +1534,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                   CounterDecrement, BodyDiff.getStmt_dx(), noLoc, noLoc, noLoc);
 
     addToCurrentBlock(initResult.getStmt_dx(), direction::reverse);
+    // A reduced adjoint sums in its register across the reverse loop and
+    // reaches memory once after it. The reverse block is assembled back to
+    // front, so the flush goes in first and the declaration last.
+    for (const ReductionScope::Accumulator& A : Reductions.Accumulators)
+      addToCurrentBlock(BuildOp(BO_AddAssign, A.Target, BuildDeclRef(A.Acc)),
+                        direction::reverse);
     addToCurrentBlock(Reverse, direction::reverse);
+    for (const ReductionScope::Accumulator& A : Reductions.Accumulators)
+      addToCurrentBlock(BuildDeclStmt(A.Acc), direction::reverse);
     Reverse = endBlock(direction::reverse);
 
     return {utils::unwrapIfSingleStmt(Forward),
@@ -1724,6 +1759,27 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return BuildOp(BO_AddAssign, E, dfdx());
   }
 
+  Expr* ReverseModeVisitor::ReductionScope::accumulatorFor(
+      ReverseModeVisitor& V, const Expr* Base, Expr* Target) {
+    // What the sum may be kept in is this end's business: a type `+` accepts,
+    // and not one whose adjoint CUDA would have updated atomically.
+    if (!V.dfdx() || !Target->getType()->isRealType() ||
+        V.shouldUseCudaAtomicOps(Target))
+      return nullptr;
+    const LoopFacts::AdjointReduction* Fact = Facts.reductionFor(Base);
+    if (!Fact)
+      return nullptr;
+    for (const Accumulator& A : Accumulators)
+      if (A.Fact == Fact)
+        return V.BuildDeclRef(A.Acc);
+    // The analysis vouched for every subscript of Base in this body taking the
+    // same index, so the first one met is the one added to.
+    QualType Ty = Target->getType();
+    VarDecl* Acc = V.BuildVarDecl(Ty, "_acc", V.getZeroInit(Ty));
+    Accumulators.push_back({Fact, Acc, V.CloneNode(Target)});
+    return V.BuildDeclRef(Acc);
+  }
+
   StmtDiff
   ReverseModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     auto ASI = SplitArraySubscript(ASE);
@@ -1755,7 +1811,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     result = BuildArraySubscript(target, resultIndices);
     // Create the (target += dfdx) statement. result is also returned as the
     // adjoint below, so clone it for the increment to avoid sharing.
-    if (Expr* add_assign = BuildDiffIncrement(CloneNode(result)))
+    Expr* incTarget = m_Reductions && Indices.size() == 1
+                          ? m_Reductions->accumulatorFor(*this, Base, result)
+                          : nullptr;
+    if (!incTarget)
+      incTarget = CloneNode(result);
+    if (Expr* add_assign = BuildDiffIncrement(incTarget))
       addToCurrentBlock(add_assign, direction::reverse);
     if (m_ExternalSource)
       m_ExternalSource->ActAfterProcessingArraySubscriptExpr(valueForRevSweep);

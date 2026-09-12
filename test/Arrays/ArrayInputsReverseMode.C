@@ -312,17 +312,21 @@ double func7(double *params) {
 //CHECK-NEXT:         out = out + inv_square(paramsPrime);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_out += 1;
-//CHECK-NEXT:     for (_t0 = 1{{U|UL|ULL}}; _t0; _t0--) {
-//CHECK-NEXT:         {
-//CHECK-NEXT:             double _r_d0 = _d_out;
-//CHECK-NEXT:             _d_out = 0.;
-//CHECK-NEXT:             _d_out += _r_d0;
-//CHECK-NEXT:             inv_square_pullback(paramsPrime, _r_d0, _d_paramsPrime);
+//CHECK-NEXT:     {
+//CHECK-NEXT:         double _acc0 = 0.;
+//CHECK-NEXT:         for (_t0 = 1{{U|UL|ULL}}; _t0; _t0--) {
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 double _r_d0 = _d_out;
+//CHECK-NEXT:                 _d_out = 0.;
+//CHECK-NEXT:                 _d_out += _r_d0;
+//CHECK-NEXT:                 inv_square_pullback(paramsPrime, _r_d0, _d_paramsPrime);
+//CHECK-NEXT:             }
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 _acc0 += _d_paramsPrime[0];
+//CHECK-NEXT:                 clad::zero_init(_d_paramsPrime);
+//CHECK-NEXT:             }
 //CHECK-NEXT:         }
-//CHECK-NEXT:         {
-//CHECK-NEXT:             _d_params[0] += _d_paramsPrime[0];
-//CHECK-NEXT:             clad::zero_init(_d_paramsPrime);
-//CHECK-NEXT:         }
+//CHECK-NEXT:         _d_params[0] += _acc0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 

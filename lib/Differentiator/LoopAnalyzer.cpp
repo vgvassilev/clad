@@ -14,7 +14,9 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <set>
@@ -58,6 +60,124 @@ static bool stepsByOne(const Expr* E, const VarDecl* VD) {
   return false;
 }
 
+/// Whether \p A and \p B are the same expression, structurally.
+static bool sameExpr(const Expr* A, const Expr* B, ASTContext& C) {
+  llvm::FoldingSetNodeID IDA;
+  llvm::FoldingSetNodeID IDB;
+  A->IgnoreParenImpCasts()->Profile(IDA, C, /*Canonical=*/true);
+  B->IgnoreParenImpCasts()->Profile(IDB, C, /*Canonical=*/true);
+  return IDA == IDB;
+}
+
+namespace {
+/// How a body uses each array or pointer variable: whether it is ever written
+/// or declared there, whether every mention is the base of a subscript, and
+/// whether those subscripts all take the same index.
+class SubscriptUses : public RecursiveASTVisitor<SubscriptUses> {
+public:
+  struct Uses {
+    const Expr* Index = nullptr; // the one index, while they all agree
+    bool Uniform = true;
+    bool Written = false;
+    unsigned Refs = 0;       // every mention of the variable
+    unsigned Subscripts = 0; // mentions that are the base of a subscript
+  };
+  llvm::DenseMap<const VarDecl*, Uses> Bases;
+  llvm::SmallPtrSet<const VarDecl*, 8> DeclaredHere;
+
+  explicit SubscriptUses(ASTContext& C) : m_Context(C) {}
+
+  bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+    if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+      Bases[VD].Refs++;
+    return true;
+  }
+  /// A variable the body declares is a fresh object on every iteration, and
+  /// the reverse sweep resets its adjoint each time round; nothing may be
+  /// carried past that.
+  bool VisitVarDecl(VarDecl* VD) {
+    DeclaredHere.insert(VD);
+    return true;
+  }
+  bool VisitArraySubscriptExpr(ArraySubscriptExpr* ASE) {
+    // Only a subscript of a variable is recorded. `m[i][j]` reaches `m`
+    // through its own inner subscript, which this sees on its own.
+    const auto* DRE =
+        dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreParenImpCasts());
+    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+    if (VD) {
+      Uses& U = Bases[VD];
+      U.Subscripts++;
+      if (!U.Index)
+        U.Index = ASE->getIdx();
+      else if (!sameExpr(U.Index, ASE->getIdx(), m_Context))
+        U.Uniform = false;
+    }
+    return true;
+  }
+  bool VisitBinaryOperator(BinaryOperator* BO) {
+    if (BO->isAssignmentOp())
+      markWritten(BO->getLHS());
+    return true;
+  }
+  bool VisitUnaryOperator(UnaryOperator* UO) {
+    if (UO->isIncrementDecrementOp() || UO->getOpcode() == UO_AddrOf)
+      markWritten(UO->getSubExpr());
+    return true;
+  }
+
+private:
+  ASTContext& m_Context;
+  void markWritten(const Expr* E) {
+    E = E->IgnoreParenImpCasts();
+    while (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+      E = ASE->getBase()->IgnoreParenImpCasts();
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
+      if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+        Bases[VD].Written = true;
+  }
+};
+} // namespace
+
+/// The adjoints of \p FS that are reductions. An array qualifies when
+///   - it lives across the loop and the body never writes it,
+///   - the body mentions it only as the base of one subscript, and
+///   - that subscript names the same element on every iteration.
+///
+/// The last rules out an index that reads the induction variable, and one
+/// that reads anything the body writes.
+static void collectAdjointReductions(
+    ForStmt* FS, const VarDecl* IndVar, const std::set<const VarDecl*>& Written,
+    const llvm::SmallPtrSetImpl<const VarDecl*>& OnlyIndexed, ASTContext& C,
+    llvm::SmallVectorImpl<LoopFacts::AdjointReduction>& Out) {
+  SubscriptUses Uses(C);
+  Uses.TraverseStmt(FS->getBody());
+  for (const auto& KV : Uses.Bases) {
+    const VarDecl* Base = KV.first;
+    const SubscriptUses::Uses& U = KV.second;
+    // What one subscript reaches: `double` for `double*` and `double[4]`,
+    // but `double[4]` for `double[3][4]`. A row is read at one index too,
+    // and no register holds a row.
+    QualType Ty = Base->getType().getNonReferenceType();
+    const auto* Arr = C.getAsArrayType(Ty);
+    QualType Elem = Arr ? Arr->getElementType() : Ty->getPointeeType();
+    // OnlyIndexed is the function-wide half of "mentioned in no other way":
+    // a pointer copied from Base before the loop would alias it inside.
+    if (!U.Index || !U.Uniform || U.Written || Written.count(Base) ||
+        Uses.DeclaredHere.contains(Base) || !OnlyIndexed.contains(Base) ||
+        Elem.isNull() || !Elem->isRealType())
+      continue;
+    if (U.Index->HasSideEffects(C) ||
+        utils::exprDependsOnVarDecl(U.Index, IndVar))
+      continue;
+    if (llvm::any_of(Written, [&](const VarDecl* W) {
+          return utils::exprDependsOnVarDecl(U.Index, W);
+        }))
+      continue;
+    Out.push_back({Base, U.Index});
+  }
+}
+
 namespace {
 /// Fills in what each `for` in a body is, in one walk.
 ///
@@ -72,6 +192,9 @@ class CountedLoopCollector : public RecursiveASTVisitor<CountedLoopCollector> {
   ASTContext& m_Context;
   std::unordered_map<const ForStmt*, LoopFacts>& m_Out;
   llvm::SmallVector<const VarDecl*, 4> m_EnclosingIndVars;
+  /// The variables this function mentions only as the base of a subscript, so
+  /// nothing inside it can alias them.
+  llvm::SmallPtrSet<const VarDecl*, 8> m_OnlyIndexed;
 
   /// Whether \p E reads in the reverse sweep as it did in the forward one:
   /// it combines arithmetically only constants, variables the primal never
@@ -111,9 +234,15 @@ class CountedLoopCollector : public RecursiveASTVisitor<CountedLoopCollector> {
   }
 
 public:
-  CountedLoopCollector(const DiffRequest& R, ASTContext& C,
+  CountedLoopCollector(const DiffRequest& R, ASTContext& C, Stmt* Body,
                        std::unordered_map<const ForStmt*, LoopFacts>& Out)
-      : m_Request(R), m_Context(C), m_Out(Out) {}
+      : m_Request(R), m_Context(C), m_Out(Out) {
+    SubscriptUses Uses(C);
+    Uses.TraverseStmt(Body);
+    for (const auto& KV : Uses.Bases)
+      if (KV.second.Refs == KV.second.Subscripts)
+        m_OnlyIndexed.insert(KV.first);
+  }
 
   bool TraverseForStmt(ForStmt* FS) {
     LoopFacts F;
@@ -135,6 +264,8 @@ public:
         F.Inclusive = L.Inclusive;
         F.OwnsIndVar = isa<DeclStmt>(FS->getInit());
         F.BoundsAreStable = isStable(L.Init) && isStable(L.Bound);
+        collectAdjointReductions(FS, L.IndVar, writtenInBody, m_OnlyIndexed,
+                                 m_Context, F.Reductions);
       }
     }
     m_Out[FS] = F;
@@ -160,7 +291,7 @@ collectCountedLoops(const DiffRequest& R,
   // analyzeLoops, the only caller, resolved this definition to decide it had
   // a body worth walking.
   const FunctionDecl* Def = R.Function->getDefinition();
-  CountedLoopCollector C(R, Def->getASTContext(), Out);
+  CountedLoopCollector C(R, Def->getASTContext(), Def->getBody(), Out);
   C.TraverseStmt(Def->getBody());
 }
 
@@ -610,6 +741,17 @@ computeWrittenExtents(const FunctionDecl* FD,
         Extents[i].RefusedAt = V.opaqueWriteLoc();
       }
     }
+}
+
+const LoopFacts::AdjointReduction*
+LoopFacts::reductionFor(const Expr* Base) const {
+  const auto* DRE = dyn_cast<DeclRefExpr>(Base->IgnoreParenImpCasts());
+  const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+  if (!VD)
+    return nullptr;
+  const auto* It = llvm::find_if(
+      Reductions, [VD](const AdjointReduction& A) { return A.Base == VD; });
+  return It == Reductions.end() ? nullptr : It;
 }
 
 void analyzeLoops(const DiffRequest& R, FunctionLoopFacts& Out) {
