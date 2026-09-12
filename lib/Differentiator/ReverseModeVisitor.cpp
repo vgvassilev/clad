@@ -3028,17 +3028,43 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     } // Recreate the original call expression.
 
-    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+    const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE);
+    if (OCE)
       call = BuildOperatorCall(OCE->getOperator(), CallArgs);
-      return StmtDiff(call);
+    else {
+      if (MD && MD->isInstance())
+        CallArgs.erase(CallArgs.begin());
+      call = m_Sema
+                 .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                                CallArgs, Loc, CUDAExecConfig)
+                 .get();
     }
 
-    if (MD && MD->isInstance())
-      CallArgs.erase(CallArgs.begin());
-    call = m_Sema
-               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                              CallArgs, Loc, CUDAExecConfig)
-               .get();
+    // A call returning a memory type by value needs no handwritten
+    // reverse-forward helper when a zero_like customization exists: the
+    // original call supplies the primal and clad::zero_like supplies an
+    // independent, structurally correct adjoint.
+    // An explicit reverse_forw above still takes precedence when a call needs
+    // to save additional state or preserve reference/aliasing semantics.
+    if (m_DiffReq.shouldGenerateDefaultReverseForw(CE) && needsForwPass &&
+        !returnType->isReferenceType() && !returnType->isPointerType()) {
+      auto storeForReverse = [this](Expr* value, llvm::StringRef prefix) {
+        if (isInsideLoop)
+          return GlobalStoreAndRef(value, prefix, /*force=*/true);
+        return StoreAndRef(value, direction::forward, prefix,
+                           /*forceDeclCreation=*/true);
+      };
+      Expr* callRef = storeForReverse(call, /*prefix=*/"_t");
+
+      if (Expr* zeroLike = GetCladZeroLike(CloneNode(callRef))) {
+        Expr* adjointRef = storeForReverse(zeroLike, /*prefix=*/"_r");
+        return StmtDiff(callRef, adjointRef);
+      }
+      call = callRef;
+    }
+
+    if (OCE)
+      return StmtDiff(call);
     return StmtDiff(call, getZeroInit(call->getType()));
   }
 
