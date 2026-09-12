@@ -51,6 +51,22 @@ struct LoopFacts {
   /// Whether Init and Bound read in the reverse sweep as they did in the
   /// forward one, which is what makes a trip count worth building from them.
   bool BoundsAreStable = false;
+  /// An adjoint this loop sums rather than stores: `Base[Index]` is read on
+  /// every iteration at an index the loop never moves, so its adjoint is a
+  /// sum over the loop. Accumulated in place, `_d_Base[Index] +=` is a store
+  /// to an address that never changes, and that is what keeps the loop from
+  /// vectorising.
+  struct AdjointReduction {
+    const clang::VarDecl* Base = nullptr;
+    const clang::Expr* Index = nullptr;
+  };
+  llvm::SmallVector<AdjointReduction, 2> Reductions;
+
+  /// The reduction whose array \p Base names, or null when this loop sums no
+  /// such array. Which expressions name the same array is the analysis's
+  /// rule, so it is asked here rather than repeated by every reader.
+  [[nodiscard]] const AdjointReduction*
+  reductionFor(const clang::Expr* Base) const;
 
   explicit operator bool() const { return IndVar != nullptr; }
 };
