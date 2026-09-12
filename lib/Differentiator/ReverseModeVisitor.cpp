@@ -1224,7 +1224,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   ReverseModeVisitor::CountedLoopCode
-  ReverseModeVisitor::BuildCountedLoop(const CountedLoopFacts& F) {
+  ReverseModeVisitor::BuildCountedLoop(const LoopFacts& F) {
     // Nothing is decided here: whether the loop is counted, and whether its
     // bounds hold still across the sweeps, was settled once for the whole
     // primal. What is left is building the count, which needs Sema and the
@@ -1326,7 +1326,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
     beginBlock(direction::reverse);
-    const CountedLoopFacts& CLF = m_DiffReq.countedLoop(FS);
+    const LoopFacts& CLF = m_DiffReq.getLoopFacts(FS);
     CountedLoopCode CL = BuildCountedLoop(CLF);
     LoopCounter loopCounter(*this, CL.TripCount);
     ScopeRAII forScope(*this, Scope::DeclScope | Scope::ControlScope |
@@ -2333,9 +2333,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     // Build the DiffRequest
     DiffRequest pullbackRequest{};
+    // Named whether or not the callee is differentiated: the call site reads
+    // the callee's written extents through the request further down.
+    pullbackRequest.Function = FD;
     FunctionDecl* pullbackFD = nullptr;
     if (!nonDiff) {
-      pullbackRequest.Function = FD;
       pullbackRequest.BaseFunctionName =
           clad::utils::ComputeEffectiveFnName(FD);
       pullbackRequest.Mode =
@@ -2746,8 +2748,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool useRangeRecords = false;
     if (usingRestoreTracker && !m_RestoreTracker && hasStoredParams &&
         !needsForwPass && pullbackStateType.isNull() && !isMethodOperatorCall) {
-      llvm::SmallVector<WrittenExtent, 8> extents;
-      computeWrittenExtents(FD, extents);
+      llvm::ArrayRef<WrittenExtent> extents =
+          pullbackRequest.getWrittenExtents();
       useRangeRecords = true;
       for (std::size_t i = 0, e = FD->getNumParams(); i != e && useRangeRecords;
            ++i) {

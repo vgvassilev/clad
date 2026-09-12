@@ -26,7 +26,8 @@ CLAD_ANALYSIS(Varied, "activity", "va", false,
 CLAD_ANALYSIS(Useful, "useful", "ua", false,
               "skips the adjoint of a value no output depends on")
 CLAD_ANALYSIS(Loop, "loop", "loop", true,
-              "reads a function's counted loops to bound the range of a "
-              "pointer parameter it writes")
+              "proves what a function's counted loops allow: a trip count the "
+              "reverse sweep recomputes, and the range of a pointer parameter "
+              "the body writes")
 
 #undef CLAD_ANALYSIS

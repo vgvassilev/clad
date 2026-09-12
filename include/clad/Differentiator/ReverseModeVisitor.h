@@ -661,7 +661,7 @@ namespace clad {
     /// function scope) is created to be used as the counter.
     ///
     /// When the caller can prove the iteration count from the loop's own
-    /// bounds (see DiffRequest::countedLoop), it passes that count here and
+    /// bounds (see DiffRequest::getLoopFacts), it passes that count here and
     /// the forward sweep stops counting altogether: no reset, no per-iteration
     /// increment, and -- for a nested loop -- no tape. The reverse loop then
     /// assigns the count to a plain function-scope variable on entry.
@@ -957,7 +957,7 @@ namespace clad {
     /// Recognises the counted loop -- an integer variable stepped by one from
     /// a stable initial value while it stays below a stable bound, with no
     /// early exit -- and nothing else.
-    CountedLoopCode BuildCountedLoop(const CountedLoopFacts& F);
+    CountedLoopCode BuildCountedLoop(const LoopFacts& F);
 
     /// The loop index whose value the forward sweep need not save before
     /// overwriting it. A member because the statement that would save it is

@@ -483,17 +483,28 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return F.Found;
   }
 
-  const CountedLoopFacts& DiffRequest::countedLoop(const ForStmt* FS) const {
-    static const CountedLoopFacts None;
-    const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
-    if (!Def || !Def->hasBody())
-      return None;
-    if (!m_CountedLoopInfo.HasAnalysisRun) {
-      collectCountedLoops(*this, m_CountedLoopInfo.Loops);
-      m_CountedLoopInfo.HasAnalysisRun = true;
+  const FunctionLoopFacts& DiffRequest::getLoopFacts() const {
+    // Re-run for another function: a copied request keeps the facts of the one
+    // it was made for, and ProcessDiffRequest re-points a request at the
+    // definition of what it was planned for.
+    if (!m_LoopFacts || m_LoopFacts->Fn != Function) {
+      auto Facts = std::make_shared<FunctionLoopFacts>();
+      if (Function)
+        analyzeLoops(*this, *Facts);
+      m_LoopFacts = std::move(Facts);
     }
-    auto it = m_CountedLoopInfo.Loops.find(FS);
-    return it == m_CountedLoopInfo.Loops.end() ? None : it->second;
+    return *m_LoopFacts;
+  }
+
+  const LoopFacts& DiffRequest::getLoopFacts(const ForStmt* FS) const {
+    static const LoopFacts None;
+    const auto& Loops = getLoopFacts().Loops;
+    auto it = Loops.find(FS);
+    return it == Loops.end() ? None : it->second;
+  }
+
+  llvm::ArrayRef<WrittenExtent> DiffRequest::getWrittenExtents() const {
+    return getLoopFacts().Extents;
   }
 
   bool DiffRequest::writesVariable(const VarDecl* VD) const {
