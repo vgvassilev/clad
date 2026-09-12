@@ -48,30 +48,17 @@ class VarDecl;
 } // namespace clang
 
 namespace clad {
+/// The loop analysis lives in lib/, so a request names its results without
+/// seeing how they are built.
+struct FunctionLoopFacts;
+struct LoopFacts;
+struct WrittenExtent;
+
 using OwnedAnalysisContexts =
     llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
 using ParamSet = std::set<const clang::ParmVarDecl*>;
 using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
 
-/// What one walk of the primal found out about a `for` loop, in terms of the
-/// loop's own expressions rather than anything built from them.
-struct CountedLoopFacts {
-  /// The variable the loop steps, or null when the loop is not counted.
-  const clang::VarDecl* IndVar = nullptr;
-  /// The loop's own start and bound, and whether the comparison includes the
-  /// bound.
-  const clang::Expr* Init = nullptr;
-  const clang::Expr* Bound = nullptr;
-  bool Inclusive = false;
-  /// Whether the loop declares its index, so no statement after the loop can
-  /// read what it left there.
-  bool OwnsIndVar = false;
-  /// Whether Init and Bound read in the reverse sweep as they did in the
-  /// forward one, which is what makes a trip count worth building from them.
-  bool BoundsAreStable = false;
-
-  explicit operator bool() const { return IndVar != nullptr; }
-};
 /// A read-only, AD-oriented view over the primal being differentiated: it
 /// wraps the primal FunctionDecl and surfaces the AD-relevant facts the
 /// FunctionDecl itself does not. Recording such facts here, rather than
@@ -203,13 +190,13 @@ private:
     bool HasAnalysisRun = false;
   } m_WrittenVarInfo;
 
-  /// What each `for` in the primal is. Decided here rather than per loop in a
-  /// visitor because it needs the chain of loops a statement sits in, which
-  /// one walk has and a visit of a single loop does not.
-  mutable struct CountedLoopInfo {
-    std::unordered_map<const clang::ForStmt*, CountedLoopFacts> Loops;
-    bool HasAnalysisRun = false;
-  } m_CountedLoopInfo;
+  /// What the loop analysis proved about the primal, worked out once on first
+  /// use. Held by pointer: a request is copied often, and every copy of a
+  /// function has the same facts.
+  mutable std::shared_ptr<const FunctionLoopFacts> m_LoopFacts;
+
+  /// Runs the loop analysis on first use and hands back what it proved.
+  const FunctionLoopFacts& getLoopFacts() const;
 
 public:
   /// The primal body's tail-position return -- the one an early-return encoder
@@ -251,10 +238,14 @@ public:
   /// belonging to a function other than this request's.
   bool writesVariable(const clang::VarDecl* VD) const;
 
-  /// What is known about \p FS as a counted loop, or a default-constructed
-  /// result when it is not one. Reading the facts does not build anything: a
-  /// caller that wants a trip-count expression builds it from Init and Bound.
-  const CountedLoopFacts& countedLoop(const clang::ForStmt* FS) const;
+  /// What is known about \p FS as a counted loop, or an empty result when it
+  /// is not one. Reading the facts does not build anything: a caller that
+  /// wants a trip-count expression builds it from Init and Bound.
+  const LoopFacts& getLoopFacts(const clang::ForStmt* FS) const;
+
+  /// The extent each parameter of Function is written over, in parameter
+  /// order, or empty when there is no Function to look at.
+  llvm::ArrayRef<WrittenExtent> getWrittenExtents() const;
 
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;

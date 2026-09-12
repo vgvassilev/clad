@@ -567,9 +567,9 @@ void InitTimers();
     /// Reports, per parameter, the range of it the function was proven to
     /// write. A parameter that prints `unknown` is one a caller cannot record
     /// from, so it is the interesting half of the report.
-    static void printWrittenExtents(const clang::FunctionDecl* FD) {
-      llvm::SmallVector<WrittenExtent, 8> Extents;
-      computeWrittenExtents(FD, Extents);
+    static void printWrittenExtents(const DiffRequest& R) {
+      const clang::FunctionDecl* FD = R.Function;
+      llvm::ArrayRef<WrittenExtent> Extents = R.getWrittenExtents();
       for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
         llvm::outs() << "written-extent: " << FD->getNameAsString() << ": "
                      << FD->getParamDecl(i)->getNameAsString() << " = ";
@@ -783,7 +783,7 @@ void InitTimers();
 
       // if enabled, report what each parameter's writes were proven to cover
       if (m_DO.DumpLoopAnalysis)
-        printWrittenExtents(FD);
+        printWrittenExtents(request);
 
       // If enabled, set the proper fields in derivative builder.
       if (m_DO.PrintNumDiffErrorInfo) {

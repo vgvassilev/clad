@@ -24,6 +24,21 @@ using namespace clang;
 
 namespace clad {
 
+/// Recognises the counted-loop shape in \p FS's header, or returns an empty
+/// result.
+///
+/// This reads the header and nothing else. Whether a caller may act on what
+/// it finds depends on the body and on the rest of the function, so every
+/// caller adds the conditions it needs.
+static LoopFacts recogniseCountedForLoop(const ForStmt* FS);
+
+/// Whether \p S can leave the loop it belongs to before that loop's condition
+/// says so.
+///
+/// A nested loop's own `break` counts too. Telling whose it is costs more
+/// than it saves, and answering yes too often only costs coverage.
+static bool mayExitEarly(const Stmt* S);
+
 /// Whether \p E steps \p VD by exactly one. The increment may carry
 /// unrelated work alongside, as `for (...; ...; ++i, ++p)` does.
 static bool stepsByOne(const Expr* E, const VarDecl* VD) {
@@ -55,7 +70,7 @@ namespace {
 class CountedLoopCollector : public RecursiveASTVisitor<CountedLoopCollector> {
   const DiffRequest& m_Request;
   ASTContext& m_Context;
-  std::unordered_map<const ForStmt*, CountedLoopFacts>& m_Out;
+  std::unordered_map<const ForStmt*, LoopFacts>& m_Out;
   llvm::SmallVector<const VarDecl*, 4> m_EnclosingIndVars;
 
   /// Whether \p E reads in the reverse sweep as it did in the forward one:
@@ -96,14 +111,13 @@ class CountedLoopCollector : public RecursiveASTVisitor<CountedLoopCollector> {
   }
 
 public:
-  CountedLoopCollector(
-      const DiffRequest& R, ASTContext& C,
-      std::unordered_map<const ForStmt*, CountedLoopFacts>& Out)
+  CountedLoopCollector(const DiffRequest& R, ASTContext& C,
+                       std::unordered_map<const ForStmt*, LoopFacts>& Out)
       : m_Request(R), m_Context(C), m_Out(Out) {}
 
   bool TraverseForStmt(ForStmt* FS) {
-    CountedLoopFacts F;
-    CountedForLoop L = recogniseCountedForLoop(FS);
+    LoopFacts F;
+    LoopFacts L = recogniseCountedForLoop(FS);
     // An early return can skip the forward loop while the master reverse
     // sweep still runs, so a recomputed count would be the full one for a
     // loop that never ran.
@@ -137,17 +151,20 @@ public:
 };
 } // namespace
 
-void collectCountedLoops(
-    const DiffRequest& R,
-    std::unordered_map<const ForStmt*, CountedLoopFacts>& Out) {
-  // DiffRequest::countedLoop, the only caller, resolved this definition to
-  // decide it had a body worth walking.
+/// Fills \p Out with what every `for` in \p R's primal is. One walk, because
+/// deciding it needs the chain of loops a statement sits in, which a visit of a
+/// single loop does not have.
+static void
+collectCountedLoops(const DiffRequest& R,
+                    std::unordered_map<const ForStmt*, LoopFacts>& Out) {
+  // analyzeLoops, the only caller, resolved this definition to decide it had
+  // a body worth walking.
   const FunctionDecl* Def = R.Function->getDefinition();
   CountedLoopCollector C(R, Def->getASTContext(), Out);
   C.TraverseStmt(Def->getBody());
 }
 
-bool mayExitEarly(const Stmt* S) {
+static bool mayExitEarly(const Stmt* S) {
   if (!S)
     return false;
   if (isa<BreakStmt>(S) || isa<ContinueStmt>(S) || isa<ReturnStmt>(S) ||
@@ -156,8 +173,8 @@ bool mayExitEarly(const Stmt* S) {
   return llvm::any_of(S->children(), mayExitEarly);
 }
 
-CountedForLoop recogniseCountedForLoop(const ForStmt* FS) {
-  CountedForLoop L;
+static LoopFacts recogniseCountedForLoop(const ForStmt* FS) {
+  LoopFacts L;
   if (!FS)
     return L;
 
@@ -201,35 +218,61 @@ CountedForLoop recogniseCountedForLoop(const ForStmt* FS) {
   L.Inclusive = Inclusive;
   return L;
 }
-bool CountedLoopStack::isNonNegative(const Expr* E) const {
-  if (!E)
-    return false;
-  E = E->IgnoreParenImpCasts();
-  if (const auto* IL = dyn_cast<IntegerLiteral>(E))
-    return !IL->getValue().isNegative();
-  // A loop index already on the stack is non-negative if its own start was.
-  if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
-    const CountedForLoop* L = steppedBy(dyn_cast<VarDecl>(DRE->getDecl()));
-    return L && L->InitIsNonNegative;
-  }
-  if (const auto* BO = dyn_cast<BinaryOperator>(E))
-    if (BO->getOpcode() == BO_Add)
-      return isNonNegative(BO->getLHS()) && isNonNegative(BO->getRHS());
-  return false;
-}
-
-bool CountedLoopStack::enter(const ForStmt* FS) {
-  CountedForLoop L = recogniseCountedForLoop(FS);
-  if (!L)
-    return false;
-  // Computed here rather than at recognition: it depends on the loops this
-  // one sits inside, which only the stack knows.
-  L.InitIsNonNegative = isNonNegative(L.Init);
-  m_Loops.push_back(L);
-  return true;
-}
 
 namespace {
+/// The counted loops enclosing whatever the extent walk is currently looking
+/// at, so it can ask which enclosing loop, if any, steps a given variable.
+class CountedLoopStack {
+  llvm::SmallVector<LoopFacts, 4> m_Loops;
+
+public:
+  /// Recognises \p FS and pushes it. Returns whether it was pushed, which the
+  /// caller must hand back to leave() so the two stay paired.
+  bool enter(const ForStmt* FS) {
+    LoopFacts L = recogniseCountedForLoop(FS);
+    if (!L)
+      return false;
+    // Computed here rather than at recognition: it depends on the loops this
+    // one sits inside, which only the stack knows.
+    L.InitIsNonNegative = isNonNegative(L.Init);
+    m_Loops.push_back(L);
+    return true;
+  }
+  void leave(bool Entered) {
+    if (Entered)
+      m_Loops.pop_back();
+  }
+
+  /// The innermost enclosing loop that steps \p V, or null if none does.
+  const LoopFacts* steppedBy(const VarDecl* V) const {
+    for (const LoopFacts& L : llvm::reverse(m_Loops))
+      if (L.IndVar == V)
+        return &L;
+    return nullptr;
+  }
+
+private:
+  /// Whether \p E is provably at or above zero, given the loops already on
+  /// the stack -- which is what makes `i + 1` non-negative inside a loop over
+  /// `i` that starts at zero.
+  bool isNonNegative(const Expr* E) const {
+    // Recognition fails a loop whose index has no start, so a loop on the
+    // stack always has one, and the operands below are an expression's own.
+    assert(E && "nothing to bound");
+    E = E->IgnoreParenImpCasts();
+    if (const auto* IL = dyn_cast<IntegerLiteral>(E))
+      return !IL->getValue().isNegative();
+    // A loop index already on the stack is non-negative if its own start was.
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+      const LoopFacts* L = steppedBy(dyn_cast<VarDecl>(DRE->getDecl()));
+      return L && L->InitIsNonNegative;
+    }
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      if (BO->getOpcode() == BO_Add)
+        return isNonNegative(BO->getLHS()) && isNonNegative(BO->getRHS());
+    return false;
+  }
+};
 
 /// Whether a loop's body changes what its header promised: assigning to the
 /// induction variable or the bound, stepping either itself, or taking an
@@ -365,7 +408,7 @@ public:
   /// for the whole call, because a call site works the range out from the
   /// argument it passed and reads it much later.
   [[nodiscard]] bool breaksShape(const ForStmt* FS) const {
-    CountedForLoop L = recogniseCountedForLoop(FS);
+    LoopFacts L = recogniseCountedForLoop(FS);
     if (!L)
       return false; // Not recognised anyway; nothing to break.
     LoopShapeBreaker InLoop(L.IndVar, /*Bound=*/nullptr);
@@ -479,7 +522,7 @@ private:
         E.K = WrittenExtent::Kind::Unknown;
         E.Why = WrittenExtent::Refusal::IndexNotCounted;
         E.RefusedAt = Idx->getBeginLoc();
-        const CountedForLoop* L = m_Loops.steppedBy(VD);
+        const LoopFacts* L = m_Loops.steppedBy(VD);
         // A subscript by the loop variable falls inside [0, Bound) only if
         // the loop starts at or above zero and a call site can read Bound.
         // Not Inclusive: `i <= d` reaches out[d], which [0, d) excludes.
@@ -529,8 +572,16 @@ static bool parameterMayBeWritten(QualType T) {
           !T.getNonReferenceType().isConstQualified());
 }
 
-void computeWrittenExtents(const FunctionDecl* FD,
-                           llvm::SmallVectorImpl<WrittenExtent>& Extents) {
+/// Fills \p Extents with the extent each parameter of \p FD is written over,
+/// one entry per parameter, in parameter order.
+///
+/// The shapes it can prove are a short whitelist: a constant subscript, a
+/// dereference, and a subscript by the induction variable of an enclosing
+/// counted loop. Everything else is Kind::Unknown, including every write it
+/// cannot attribute to a parameter.
+static void
+computeWrittenExtents(const FunctionDecl* FD,
+                      llvm::SmallVectorImpl<WrittenExtent>& Extents) {
   Extents.clear();
   Extents.resize(FD->getNumParams());
   // No body to inspect. None would read as "writes nothing", which is the one
@@ -559,6 +610,16 @@ void computeWrittenExtents(const FunctionDecl* FD,
         Extents[i].RefusedAt = V.opaqueWriteLoc();
       }
     }
+}
+
+void analyzeLoops(const DiffRequest& R, FunctionLoopFacts& Out) {
+  Out.Fn = R.Function;
+  // The extents are read off the declaration a call site names, so a callee
+  // defined only later in the file reports NoDefinition rather than a guess.
+  computeWrittenExtents(R.Function, Out.Extents);
+  const FunctionDecl* Def = R.Function->getDefinition();
+  if (Def && Def->hasBody())
+    collectCountedLoops(R, Out.Loops);
 }
 
 } // namespace clad
