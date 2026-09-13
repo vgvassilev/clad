@@ -1921,9 +1921,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // is done to reduce cloning complexity and only clone once. The type is
       // same as the call expression as it is the type used to declare the
       // _gradX array
-      QualType argType =
-          defaultArg ? utils::GetValueType(param->getType()) : arg->getType();
-      QualType dArgTy = utils::getNonConstType(CloneType(argType), m_Sema);
+      QualType dArgTy =
+          utils::getNonConstType(CloneType(arg->getType()), m_Sema);
       Expr* init = defaultArg ? nullptr : getStdInitListSizeExpr(arg);
       bool shouldCopyInitialize = false;
       if (!init) {
