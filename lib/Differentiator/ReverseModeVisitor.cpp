@@ -1927,7 +1927,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       bool shouldCopyInitialize = false;
       if (!init) {
         if (const CXXRecordDecl* CRD = dArgTy->getAsCXXRecordDecl())
-          shouldCopyInitialize = !defaultArg && utils::isCopyable(CRD);
+          shouldCopyInitialize = utils::isCopyable(CRD);
         // Temporarily initialize the object with `*nullptr` to avoid
         // a potential error because of non-existing default constructor.
         if (shouldCopyInitialize) {
