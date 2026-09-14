@@ -59,6 +59,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -570,6 +571,13 @@ void InitTimers();
     static void printWrittenExtents(const DiffRequest& R) {
       const clang::FunctionDecl* FD = R.Function;
       llvm::ArrayRef<WrittenExtent> Extents = R.getWrittenExtents();
+      // Nothing was proven because nothing was asked. Saying so beats one
+      // `none` per parameter, which reads as "writes nothing".
+      if (Extents.size() != FD->getNumParams()) {
+        llvm::outs() << "written-extent: " << FD->getNameAsString()
+                     << ": loop analysis is disabled\n";
+        return;
+      }
       for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
         llvm::outs() << "written-extent: " << FD->getNameAsString() << ": "
                      << FD->getParamDecl(i)->getNameAsString() << " = ";

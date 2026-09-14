@@ -1,7 +1,7 @@
 // What to-be-recorded analysis changes about a loop: the tape a loop body
 // would otherwise fill with one value per iteration.
 //
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fdisable-analysis=all %s \
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fdisable-analysis=tbr %s \
 // RUN:   -I%S/../../include -oTBRLoopTapes.out 2>&1 \
 // RUN:   | %filecheck --check-prefix=CHECK-OFF %s
 // RUN: ./TBRLoopTapes.out | %filecheck_exec %s
