@@ -964,7 +964,23 @@ constructor_pushforward(clad::Tag<::std::thread>, void (* /*f*/)(),
       clad::ValueAndPushforward<::std::thread, ::std::thread>>(pf);
 }
 
-template <class F, class DF>
+template <
+    class F,
+    // NOLINTNEXTLINE(modernize-type-traits)
+    ::std::enable_if_t<::std::is_class<::std::decay_t<F>>::value, int> = 0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, F&& d_f) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      [f = ::std::forward<F>(f), d_f = ::std::forward<F>(d_f)]() mutable {
+        f.operator_call_pushforward(&d_f);
+      });
+}
+
+template <
+    class F, class DF,
+    // NOLINTNEXTLINE(modernize-type-traits)
+    ::std::enable_if_t<!::std::is_class<::std::decay_t<F>>::value, int> = 0>
 inline clad::ValueAndPushforward<::std::thread, ::std::thread>
 constructor_pushforward(clad::Tag<::std::thread>, F&& f, DF&& /*d_f*/) {
   return thread_detail::build<

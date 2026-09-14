@@ -5818,10 +5818,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         workerPullbackReq.BaseFunctionName =
             utils::ComputeEffectiveFnName(threadCallableFD);
         workerPullbackReq.VerboseDiags = false;
-        workerPullbackReq.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-        workerPullbackReq.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
-        if (const auto* MD = dyn_cast<CXXMethodDecl>(threadCallableFD))
-          workerPullbackReq.Functor = MD->getParent();
+        workerPullbackReq.inheritAnalysesFrom(m_DiffReq);
+        // Do not set Functor: matching ordinary call nest-diff keeps field
+        // differentiation of zero-arg call operators correct.
         // CE args are [callable, arg0, ...]; worker params map to arg0+.
         for (size_t i = 0, e = threadCallableFD->getNumParams(); i < e; ++i)
           if (i + 1 < adjointArgs.size() && adjointArgs[i + 1])

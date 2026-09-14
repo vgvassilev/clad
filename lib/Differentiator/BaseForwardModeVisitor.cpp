@@ -2394,27 +2394,35 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     if (threadLike) {
       if (const FunctionDecl* callableFD =
               utils::resolveThreadCallable(m_Sema, CE->getArg(0))) {
+        if (isLambdaCallOperator(callableFD)) {
+          // Lambda nest-diff from thread constructors is not supported yet.
+          SourceLocation L = CE->getArg(0)->getBeginLoc();
+          diag(DiagnosticsEngine::Error, L,
+               "forward-mode differentiation of std::thread with a lambda "
+               "callable is not supported yet");
+          return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
+        }
         DiffRequest pushforwardFnRequest;
         pushforwardFnRequest.Function = callableFD;
         pushforwardFnRequest.Mode = GetPushForwardMode();
         pushforwardFnRequest.BaseFunctionName =
             utils::ComputeEffectiveFnName(callableFD);
         pushforwardFnRequest.VerboseDiags = false;
-        if (const auto* MD = dyn_cast<CXXMethodDecl>(callableFD))
-          pushforwardFnRequest.Functor = MD->getParent();
+        pushforwardFnRequest.inheritAnalysesFrom(m_DiffReq);
         // Always nest-diff the callable so clad emits its pushforward (for
         // functors, that is operator_call_pushforward). Free-function
         // pushforwards are passed as the thread's derivative callable below;
         // method/functor pushforwards are reached later through
         // operator_call_pushforward, so derivedArgs[0] stays the primal
-        // functor object.
+        // functor object. Do not set Functor here: matching VisitCallExpr
+        // keeps field differentiation of zero-arg call operators correct.
         FunctionDecl* pushforwardFD =
             m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
         if (pushforwardFD && !isa<CXXMethodDecl>(callableFD))
           derivedArgs[0] = BuildDeclRef(pushforwardFD);
       } else {
-        // Generic lambdas, overloaded operator(), std::function / bind, etc.
-        // cannot be resolved here; a silent skip would yield a wrong gradient.
+        // Overloaded operator(), std::function / bind, etc. cannot be resolved
+        // here; a silent skip would yield a wrong gradient.
         SourceLocation L = CE->getArg(0)->getBeginLoc();
         diag(DiagnosticsEngine::Error, L,
              "failed to resolve callable of type %0 passed to std::thread; "

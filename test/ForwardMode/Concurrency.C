@@ -62,6 +62,13 @@ struct ScaleFunctor {
   void operator()(std::reference_wrapper<double> r) const { r.get() *= 2.0; }
 };
 
+// Zero-arg functor that mutates through a held pointer; must call
+// operator_call_pushforward (not the primal) in the thread worker.
+struct ScaleHeld {
+  double* p;
+  void operator()() const { *p *= 2.0; }
+};
+
 struct AddToOut {
   void operator()(double a, double b, std::reference_wrapper<double> out) const {
     out.get() = a + b;
@@ -142,6 +149,13 @@ double f_thread_three_args(double x, double y, double z) {
   return x;
 }
 
+double f_thread_functor_0(double x) {
+  ScaleHeld s{&x};
+  std::thread t(s);
+  t.join();
+  return x;
+}
+
 double f_thread_functor(double x) {
   std::reference_wrapper<double> rx = std::ref(x);
   std::thread t(ScaleFunctor{}, rx);
@@ -177,6 +191,8 @@ double f_thread_functor_3(double x, double y, double z) {
 // CHECK:     clad::ValueAndPushforward< ::std::thread, ::std::thread> _t{{.*}} = clad::custom_derivatives::class_functions::constructor_pushforward
 // CHECK: double f_thread_square_darg0(double x) {
 // CHECK: double f_thread_two_args_darg0(double x, double y) {
+// CHECK: double f_thread_functor_0_darg0(double x) {
+// CHECK: operator_call_pushforward
 // CHECK: double f_thread_functor_darg0(double x) {
 // CHECK: double f_thread_functor_2_darg0(double x, double y) {
 // CHECK: operator_call_pushforward
@@ -237,6 +253,9 @@ int main() {
 
   auto d_3arg = clad::differentiate(f_thread_three_args, "x");
   printf("thread_3arg: %.4f\n", d_3arg.execute(1.0, 2.0, 3.0)); // CHECK-EXEC: thread_3arg: 1.0000
+
+  auto d_fun0 = clad::differentiate(f_thread_functor_0, "x");
+  printf("thread_functor0: %.4f\n", d_fun0.execute(3.0)); // CHECK-EXEC: thread_functor0: 2.0000
 
   auto d_functor = clad::differentiate(f_thread_functor, "x");
   printf("thread_functor: %.4f\n", d_functor.execute(3.0)); // CHECK-EXEC: thread_functor: 2.0000

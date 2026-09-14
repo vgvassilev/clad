@@ -19,6 +19,16 @@ double f_unresolved(double x) {
 
 void thread_noop() {}
 
+double f_lambda(double x) {
+  auto worker = []() {};
+  // expected-warning@-1 0-1 {{statement kind 'LambdaExpr' is not supported}}
+  // expected-error@* 0-2 {{declaration of variable '_d_worker' with deduced type 'auto' requires an initializer}}
+  // expected-note@-3 0-20 {{unnamed type used in template argument was declared here}}
+  std::thread t(worker); // expected-error {{forward-mode differentiation of std::thread with a lambda callable is not supported yet}}
+  t.join();
+  return x * x;
+}
+
 double f_detach(double x) {
   std::thread t(thread_noop);
   t.detach(); // expected-error {{detach is not supported in forward-mode AD of std::thread}}
@@ -27,6 +37,7 @@ double f_detach(double x) {
 
 int main() {
   clad::differentiate(f_unresolved, "x");
+  clad::differentiate(f_lambda, "x");
   clad::differentiate(f_detach, "x");
   return 0;
 }
