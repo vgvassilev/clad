@@ -65,6 +65,7 @@ public:
   /// \param[in] FD Function to run the analysis on.
   //, std::set<const clang::ParmVarDecl*>& vPVD
   void Analyze();
+  bool TraverseCXXDefaultArgExpr(clang::CXXDefaultArgExpr* E);
   bool TraverseBinaryOperator(clang::BinaryOperator* BinOp);
   bool TraverseCallExpr(clang::CallExpr* CE);
   bool TraverseConditionalOperator(clang::ConditionalOperator* CO);

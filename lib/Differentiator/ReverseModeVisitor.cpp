@@ -1516,6 +1516,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff
   ReverseModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {
+    // This initializes a call argument, even when the call initializes a local.
+    llvm::SaveAndRestore<bool> saveTrackVarDecl(m_TrackVarDeclConstructor,
+                                                false);
     return Visit(DE->getExpr(), dfdx());
   }
 
@@ -1898,7 +1901,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       bool isCUDAKernel) {
     StmtDiff result;
     StmtDiff argDiff{};
-    const auto* defaultArg = dyn_cast<CXXDefaultArgExpr>(arg);
     // FIXME: We handle parameters with default values by setting them
     // explicitly. However, some of them have private types and cannot be set.
     // For this reason, we ignore std::__nat. We need to come up with a
@@ -1923,7 +1925,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // _gradX array
       QualType dArgTy =
           utils::getNonConstType(CloneType(arg->getType()), m_Sema);
-      Expr* init = defaultArg ? nullptr : getStdInitListSizeExpr(arg);
+      Expr* init = getStdInitListSizeExpr(arg);
       bool shouldCopyInitialize = false;
       if (!init) {
         if (const CXXRecordDecl* CRD = dArgTy->getAsCXXRecordDecl())
@@ -2013,11 +2015,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         dArgRef = BuildDeclRef(dArgDeclCUDA);
       }
       result.updateStmtDx(dArgRef);
-      if (defaultArg)
-        argDiff = {Clone(defaultArg->getExpr()), getZeroInit(dArgTy)};
-      else
-        // Visit using uninitialized reference.
-        argDiff = Visit(arg, BuildDeclRef(dArgDecl));
+      // Visit using uninitialized reference.
+      argDiff = Visit(arg, BuildDeclRef(dArgDecl));
       if (shouldCopyInitialize) {
         if (Expr* dInit = argDiff.getExpr_dx())
           SetDeclInit(dArgDecl, dInit);
