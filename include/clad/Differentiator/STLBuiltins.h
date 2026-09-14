@@ -522,6 +522,23 @@ void push_back_pullback(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
 }
 
 template <typename T>
+void resize_reverse_forw(::std::vector<T>* v,
+                         typename ::std::vector<T>::size_type sz,
+                         ::std::vector<T>* d_v,
+                         typename ::std::vector<T>::size_type /*d_sz*/) {
+  v->resize(sz);
+  d_v->resize(sz);
+}
+
+template <typename T>
+void resize_pullback(::std::vector<T>* v,
+                     typename ::std::vector<T>::size_type /*sz*/,
+                     ::std::vector<T>* d_v,
+                     typename ::std::vector<T>::size_type* /*d_sz*/) {
+  d_v->resize(v->size());
+}
+
+template <typename T>
 elidable_reverse_forw clad::ValueAndAdjoint<T&, T&>
 operator_subscript_reverse_forw(::std::vector<T>* vec,
                                 typename ::std::vector<T>::size_type idx,
