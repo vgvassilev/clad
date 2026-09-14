@@ -1,4 +1,5 @@
 #include "ConstantFolder.h"
+#include "ReductionScope.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
@@ -26,6 +27,7 @@
 
 #include <array>
 #include <cassert>
+#include <utility>
 
 using namespace clang;
 using namespace llvm::omp;
@@ -401,6 +403,18 @@ OMPClause* ReverseModeVisitor::BuildOMPPrivateClause(ArrayRef<Expr*> VarList,
                                   PrivateCopies);
 }
 
+/// Wrap \p Update in `#pragma omp atomic`, so that threads adding to the same
+/// adjoint do not lose each other's work.
+static Stmt* buildAtomicUpdate(Sema& S, Expr* Update, SourceLocation StartLoc,
+                               SourceLocation EndLoc) {
+  DeclarationNameInfo DirName;
+  llvm::SmallVector<OMPClause*, 0> NoClauses;
+  return CLAD_COMPAT_CLANG19_SemaOpenMP(S)
+      .ActOnOpenMPExecutableDirective(OMPD_atomic, DirName, OMPD_unknown,
+                                      NoClauses, Update, StartLoc, EndLoc)
+      .get();
+}
+
 /// Build `reduction(+: Vars)`, which is how a clause gives its adjoint a copy
 /// per thread that starts at the identity and is summed back at the end.
 static OMPClause* buildSumReduction(Sema& S, ASTContext& Ctx,
@@ -549,15 +563,24 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
     // Set the flag to indicate we are inside an OpenMP block
     llvm::SaveAndRestore<bool> SaveisInsideOMPBlock(isInsideOMPBlock);
     isInsideOMPBlock = true;
+    // An enclosing loop keeps its accumulators outside this region, where
+    // every thread would share them, so none of them is visible in here.
+    llvm::SaveAndRestore<ReductionScope*> HideEnclosing(m_Reductions, nullptr);
 
     CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPRegionStart(
         OMPD_parallel, getCurrentScope());
     StmtDiff BodyDiff;
+    llvm::SmallVector<ReductionScope::Accumulator, 2> Accumulators;
     {
       Sema::CompoundScopeRAII CompoundScope(m_Sema);
       if (isOpenMPLoopDirective(D->getDirectiveKind())) {
         const auto* FS = cast<ForStmt>(CS);
+        ReductionScope Reductions{m_DiffReq.getLoopFacts(FS), {}};
+        if (Reductions.Facts.IndVar)
+          m_Reductions = &Reductions;
         BodyDiff = DifferentiateCanonicalLoop(FS);
+        m_Reductions = nullptr;
+        Accumulators = std::move(Reductions.Accumulators);
       } else {
         BodyDiff = Visit(CS);
       }
@@ -592,6 +615,26 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
       }
       m_Globals.swap(temp);
     }
+    // Every thread adds to such an adjoint at the same index. Each sums its
+    // share into an accumulator declared inside the region, so it has one of
+    // its own, and adds it once under `omp atomic`: one update per thread in
+    // place of one racing store per iteration.
+    if (!Accumulators.empty()) {
+      Stmts Body;
+      for (const ReductionScope::Accumulator& A : Accumulators) {
+        // Made while the forward region was open, so that is its context. It
+        // belongs to the reverse region, which declares it.
+        A.Acc->setDeclContext(m_Sema.CurContext);
+        Body.push_back(BuildDeclStmt(A.Acc));
+      }
+      Body.push_back(BodyDiff.getStmt_dx());
+      for (const ReductionScope::Accumulator& A : Accumulators)
+        Body.push_back(buildAtomicUpdate(
+            m_Sema, BuildOp(BO_AddAssign, A.Target, BuildDeclRef(A.Acc)),
+            D->getBeginLoc(), D->getEndLoc()));
+      BodyDiff = {BodyDiff.getStmt(), MakeCompoundStmt(Body)};
+    }
+
     Stmt* Reverse =
         CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema)
             .ActOnOpenMPRegionEnd(BodyDiff.getStmt_dx(), DiffClauses)

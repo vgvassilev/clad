@@ -218,10 +218,14 @@ jobs:
         apt_install cmake ${{ matrix.extra_packages }}
         # libomp-N-dev: best-effort. apt-llvm.org lags on the latest
         # major; recipe-flavor rows get libomp from the recipe build,
-        # not apt. When missing, OpenMP lit tests skip via REQUIRES.
-        if apt-cache show "libomp-${{ matrix.clang-runtime }}-dev" >/dev/null 2>&1; then
-          apt_install "libomp-${{ matrix.clang-runtime }}-dev"
-        fi
+        # not apt. Ask apt for it rather than asking `apt-cache show`
+        # first, whose answer is no on a runner whose package lists do
+        # not carry the major yet -- which is how the coverage row came
+        # to install no libomp and report every OpenMP test unsupported.
+        # When the package really is missing, the tests skip via REQUIRES.
+        omp="libomp-${{ matrix.clang-runtime }}-dev"
+        apt_install "$omp" \
+          || echo "::notice::$omp unavailable; OpenMP tests will skip"
 
     - name: Setup compiler on Linux
       if: runner.os == 'Linux'
