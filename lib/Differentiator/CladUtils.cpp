@@ -22,6 +22,7 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
@@ -1013,6 +1014,53 @@ namespace clad {
           return false;
       }
       return true;
+    }
+
+    bool isStdThreadLike(const CXXRecordDecl* RD) {
+      // std::thread only; std::jthread has different lifetime/join semantics
+      // and is not covered by the thread customs yet.
+      return RD && RD->isInStdNamespace() && RD->getName() == "thread";
+    }
+
+    bool isStdReferenceWrapper(QualType QT) {
+      QT = QT.getNonReferenceType().getUnqualifiedType();
+      if (const auto* RD = QT->getAsCXXRecordDecl())
+        return RD->isInStdNamespace() && RD->getName() == "reference_wrapper";
+      return false;
+    }
+
+    static const FunctionDecl* findCallOperator(Sema& SemaRef,
+                                                CXXRecordDecl* RD) {
+      if (!RD)
+        return nullptr;
+      DeclarationName DN =
+          SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(OO_Call);
+      LookupResult R(SemaRef, DN, noLoc, Sema::LookupMemberName);
+      R.suppressDiagnostics();
+      SemaRef.LookupQualifiedName(R, RD);
+      if (!R.isSingleResult())
+        return nullptr;
+      return dyn_cast<CXXMethodDecl>(R.getFoundDecl());
+    }
+
+    const FunctionDecl* resolveThreadCallable(Sema& SemaRef, const Expr* E) {
+      E = E->IgnoreParenImpCasts();
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+        if (const auto* FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+          return FD;
+        if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          QualType Ty = VD->getType().getNonReferenceType();
+          if (auto* RD = Ty->getAsCXXRecordDecl())
+            return findCallOperator(SemaRef, RD);
+        }
+      }
+      if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(E))
+        return resolveThreadCallable(SemaRef, MTE->getSubExpr());
+      if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(E))
+        return resolveThreadCallable(SemaRef, BTE->getSubExpr());
+      if (auto* RD = E->getType().getNonReferenceType()->getAsCXXRecordDecl())
+        return findCallOperator(SemaRef, RD);
+      return nullptr;
     }
 
     NamespaceDecl* GetCladNamespace(Sema& S) {
