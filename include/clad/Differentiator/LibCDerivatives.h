@@ -1,0 +1,1442 @@
+//--------------------------------------------------------------------*- C++ -*-
+// clad - the C++ Clang-based Automatic Differentiator
+// version: $Id$
+// author:  Vassil Vassilev <vvasilev-at-cern.ch>
+//------------------------------------------------------------------------------
+
+#ifndef CLAD_LIBC_DERIVATIVES
+#define CLAD_LIBC_DERIVATIVES
+
+#include "clad/Differentiator/BuiltinDerivatives.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
+#include <functional>
+
+namespace clad {
+namespace custom_derivatives {
+
+
+namespace std {
+
+// 1. Basic Functions
+
+// 1.1 abs, labs, llabs, imaxabs
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> abs_pushforward(T x, dT d_x) {
+  if (x >= 0)
+    return {x, d_x};
+  else
+    return {-x, -d_x};
+}
+
+// pushforward for labs, llabs, imaxabs
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> labs_pushforward(T x, dT d_x) {
+  return abs_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> llabs_pushforward(T x, dT d_x) {
+  return abs_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> imaxabs_pushforward(T x, dT d_x) {
+  return abs_pushforward(x, d_x);
+}
+
+// 1.2 fabs, fabsf, fabsl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fabs_pushforward(T x, dT d_x) {
+  return abs_pushforward(x, d_x);
+}
+
+// pushforward for fabsf, fasbsl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fabsf_pushforward(T x, dT d_x) {
+  return fabs_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fabsl_pushforward(T x, dT d_x) {
+  return fabs_pushforward(x, d_x);
+}
+
+// 1.3 fmod, fmodf, fmodl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmod_pushforward(T x, T y, dT d_x,
+                                                             dT d_y) {
+  return {::std::fmod(x, y), d_x - d_y * ::std::floor(x / y)};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmod_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  *d_x += d_z;
+  *d_y -= d_z * ::std::floor(x / y);
+}
+
+// pushforward for fmodf, fmodl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmodf_pushforward(T x, T y, dT d_x,
+                                                              dT d_y) {
+  return fmod_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmodl_pushforward(T x, T y, dT d_x,
+                                                              dT d_y) {
+  return fmod_pushforward(x, y, d_x, d_y);
+}
+
+// pullback for fmodf, fmodl
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmodf_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  fmod_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmodl_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  fmod_pullback(x, y, d_z, d_x, d_y);
+}
+
+// 1.4 remainder, remainderf, remainderl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+remainder_pushforward(T x, T y, dT d_x, dT d_y) {
+  return {::std::remainder(x, y), d_x - d_y * ::std::floor(x / y)};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void remainder_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  *d_x += d_z;
+  *d_y -= d_z * ::std::floor(x / y);
+}
+
+// pushforward for remainderf, remainderl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+remainderf_pushforward(T x, T y, dT d_x, dT d_y) {
+  return remainder_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+remainderl_pushforward(T x, T y, dT d_x, dT d_y) {
+  return remainder_pushforward(x, y, d_x, d_y);
+}
+
+// pullback for remainderf, remainderl
+template <typename T, typename U>
+CUDA_HOST_DEVICE void remainderf_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  remainder_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void remainderl_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  remainder_pullback(x, y, d_z, d_x, d_y);
+}
+
+// 1.5 remquo, remquof, remquol
+// To be implemented
+
+// 1.6 fma, fmaf, fmal
+template <typename T1, typename T2, typename T3>
+CUDA_HOST_DEVICE ValueAndPushforward<decltype(::std::fma(T1(), T2(), T3())),
+                                     decltype(::std::fma(T1(), T2(), T3()))>
+fma_pushforward(T1 a, T2 b, T3 c, T1 d_a, T2 d_b, T3 d_c) {
+  auto val = ::std::fma(a, b, c);
+  auto derivative = d_a * b + a * d_b + d_c;
+  return {val, derivative};
+}
+
+template <typename T1, typename T2, typename T3, typename T4>
+CUDA_HOST_DEVICE void fma_pullback(T1 a, T2 b, T3 c, T4 d_y, T1* d_a, T2* d_b,
+                                   T3* d_c) {
+  *d_a += b * d_y;
+  *d_b += a * d_y;
+  *d_c += d_y;
+}
+
+// pushforward for fmaf, fmal
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+fmaf_pushforward(T x, T y, T z, dT d_x, dT d_y, dT d_z) {
+  return fma_pushforward(x, y, z, d_x, d_y, d_z);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+fmal_pushforward(T x, T y, T z, dT d_x, dT d_y, dT d_z) {
+  return fma_pushforward(x, y, z, d_x, d_y, d_z);
+}
+
+// pullback for fmaf, fmal
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmaf_pullback(T x, T y, T z, U d_w, T* d_x, T* d_y,
+                                    T* d_z) {
+  fma_pullback(x, y, z, d_w, d_x, d_y, d_z);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmal_pullback(T x, T y, T z, U d_w, T* d_x, T* d_y,
+                                    T* d_z) {
+  fma_pullback(x, y, z, d_w, d_x, d_y, d_z);
+}
+
+// 1.7 fmax, fmaxf, fmaxl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmax_pushforward(T x, T y, dT d_x,
+                                                             dT d_y) {
+  return {::std::fmax(x, y), (x > y) ? d_x : d_y};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmax_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  if (x > y)
+    *d_x += d_z;
+  else
+    *d_y += d_z;
+}
+
+// pushforward for fmaxf, fmaxl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmaxf_pushforward(T x, T y, dT d_x,
+                                                              dT d_y) {
+  return fmax_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmaxl_pushforward(T x, T y, dT d_x,
+                                                              dT d_y) {
+  return fmax_pushforward(x, y, d_x, d_y);
+}
+
+// pullback for fmaxf, fmaxl
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmaxf_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  fmax_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmaxl_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  fmax_pullback(x, y, d_z, d_x, d_y);
+}
+
+// 1.8 fmin, fminf, fminl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmin_pushforward(T x, T y, dT d_x,
+                                                             dT d_y) {
+  return {::std::fmin(x, y), (x < y) ? d_x : d_y};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmin_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  if (x < y)
+    *d_x += d_z;
+  else
+    *d_y += d_z;
+}
+
+// pushforward for fminf, fminl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fminf_pushforward(T x, T y, dT d_x,
+                                                              dT d_y) {
+  return fmin_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fminl_pushforward(T x, T y, dT d_x,
+                                                              dT d_y) {
+  return fmin_pushforward(x, y, d_x, d_y);
+}
+
+// pullback for fminf, fminl
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fminf_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  fmin_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fminl_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  fmin_pullback(x, y, d_z, d_x, d_y);
+}
+
+// 1.9 fdim, fdimf, fdiml
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fdim_pushforward(T x, T y, dT d_x,
+                                                             dT d_y) {
+  return {::std::fdim(x, y), (x > y) ? d_x : 0};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fdim_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  if (x > y)
+    *d_x += d_z;
+}
+
+// pushforward for fdimf, fdiml
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fdimf_pushforward(T x, T y, dT d_x,
+                                                              dT d_y) {
+  return fdim_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fdiml_pushforward(T x, T y, dT d_x,
+                                                              dT d_y) {
+  return fdim_pushforward(x, y, d_x, d_y);
+}
+
+// pullback for fdimf, fdiml
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fdimf_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  fdim_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fdiml_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  fdim_pullback(x, y, d_z, d_x, d_y);
+}
+
+// 2. Exponential Functions
+
+// 2.1 exp, expf, expl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp_pushforward(T x, dT d_x) {
+  return {::std::exp(x), ::std::exp(x) * d_x};
+}
+
+// pushforward for expf, expl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expf_pushforward(T x, dT d_x) {
+  return exp_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expl_pushforward(T x, dT d_x) {
+  return exp_pushforward(x, d_x);
+}
+
+// 2.2 exp2, exp2f, exp2l
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp2_pushforward(T x, dT d_x) {
+  T dexp2 = ::std::exp2(x) * ::std::log(2);
+  return {::std::exp2(x), dexp2 * d_x};
+}
+
+// pushforward for exp2f, exp2l
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp2f_pushforward(T x, dT d_x) {
+  return exp2_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp2l_pushforward(T x, dT d_x) {
+  return exp2_pushforward(x, d_x);
+}
+
+// 2.3 expm1, expm1f, expm1l
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expm1_pushforward(T x, dT d_x) {
+  return {::std::expm1(x), ::std::exp(x) * d_x};
+}
+
+// pushforward for expm1f, expm1l
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expm1f_pushforward(T x, dT d_x) {
+  return expm1_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expm1l_pushforward(T x, dT d_x) {
+  return expm1_pushforward(x, d_x);
+}
+
+#if __cplusplus >= 201703L
+// 2.4 expint, expintf, expintl
+template <typename T> CUDA_HOST_DEVICE inline T expint_primal(T x) {
+#if defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__)
+  return ::std ::expint(x);
+#else
+  return T(0);
+#endif
+}
+
+template <typename T> CUDA_HOST_DEVICE inline T expintf_primal(T x) {
+#if defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__)
+  return ::std ::expintf(x);
+#else
+  return T(0);
+#endif
+}
+
+template <typename T> CUDA_HOST_DEVICE inline T expintl_primal(T x) {
+#if defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__)
+  return ::std ::expintl(x);
+#else
+  return T(0);
+#endif
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expint_pushforward(T x, dT d_x) {
+  return {static_cast<T>(expint_primal(x)),
+          static_cast<dT>((::std ::exp(x) / x) * d_x)};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expintf_pushforward(T x, dT d_x) {
+  return {static_cast<T>(expintf_primal(x)),
+          static_cast<dT>((::std ::exp(x) / x) * d_x)};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expintl_pushforward(T x, dT d_x) {
+  return {static_cast<T>(expintl_primal(x)),
+          static_cast<dT>((::std ::exp(x) / x) * d_x)};
+}
+#endif
+
+// 3. Logarithmic Functions
+
+// 3.1 log, logf, logl
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T> log_pushforward(T x, T d_x) {
+  T dlog = 1.0 / x;
+  return {::std::log(x), dlog * d_x};
+}
+
+// pushforward for logf, logl
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T> logf_pushforward(T x, T d_x) {
+  return {log_pushforward(x, d_x)};
+}
+
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T> logl_pushforward(T x, T d_x) {
+  return {log_pushforward(x, d_x)};
+}
+
+// 3.2 log10, log10f, log10l
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10_pushforward(T x, dT d_x) {
+  T dlog10 = 1.0 / (x * ::std::log(10));
+  return {::std::log10(x), dlog10 * d_x};
+}
+
+// pushforward for log10f, log10l
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10f_pushforward(T x, dT d_x) {
+  return log10_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10l_pushforward(T x, dT d_x) {
+  return log10_pushforward(x, d_x);
+}
+
+// 3.3 log2, log2f, log2l
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2_pushforward(T x, dT d_x) {
+  T dlog2 = 1.0 / (x * ::std::log(2));
+  return {::std::log2(x), dlog2 * d_x};
+}
+
+// pushforward for log2f, log2l
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2f_pushforward(T x, dT d_x) {
+  return log2_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2l_pushforward(T x, dT d_x) {
+  return log2_pushforward(x, d_x);
+}
+
+// 3.4 log1p, log1pf, log1pl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log1p_pushforward(T x, dT d_x) {
+  T dlog1p = 1.0 / (1 + x);
+  return {::std::log1p(x), dlog1p * d_x};
+}
+
+// pushforward for log1pf, log1pl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log1pf_pushforward(T x, dT d_x) {
+  return log1p_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log1pl_pushforward(T x, dT d_x) {
+  return log1p_pushforward(x, d_x);
+}
+
+// 4. Trigonometric Functions
+// 4.1 sin, sinf, sinl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sin_pushforward(T x, dT d_x) {
+  return {::std::sin(x), ::std::cos(x) * d_x};
+}
+
+// pushforward for sinf, sinl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sinf_pushforward(T x, dT d_x) {
+  return sin_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sinl_pushforward(T x, dT d_x) {
+  return sin_pushforward(x, d_x);
+}
+
+// 4.2 cos, cosf, cosl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cos_pushforward(T x, dT d_x) {
+  return {::std::cos(x), (-1) * ::std::sin(x) * d_x};
+}
+
+// pushforward for cosf, cosl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cosf_pushforward(T x, dT d_x) {
+  return cos_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cosl_pushforward(T x, dT d_x) {
+  return cos_pushforward(x, d_x);
+}
+
+// 4.3 tan, tanf, tanl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tan_pushforward(T x, dT d_x) {
+  T tanx = ::std::tan(x);
+  return {tanx, (1 + tanx * tanx) * d_x};
+}
+
+// pushforward for tanf, tanl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanf_pushforward(T x, dT d_x) {
+  return tan_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanl_pushforward(T x, dT d_x) {
+  return tan_pushforward(x, d_x);
+}
+
+// 4.4 asin, asinf, asinl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asin_pushforward(T x, dT d_x) {
+  return {::std::asin(x), d_x / ::std::sqrt(1 - x * x)};
+}
+
+// pushforward for asinf, asinl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asinf_pushforward(T x, dT d_x) {
+  return asin_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asinl_pushforward(T x, dT d_x) {
+  return asin_pushforward(x, d_x);
+}
+
+// 4.5 acos, acosf, acosl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acos_pushforward(T x, dT d_x) {
+  return {::std::acos(x), ((-1) / (::std::sqrt(1 - x * x))) * d_x};
+}
+
+// pushforward for acosf, acosl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acosf_pushforward(T x, dT d_x) {
+  return acos_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acosl_pushforward(T x, dT d_x) {
+  return acos_pushforward(x, d_x);
+}
+
+// 4.6 atan, atanf, atanl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atan_pushforward(T x, dT d_x) {
+  return {::std::atan(x), d_x / (1 + x * x)};
+}
+
+// pushforward for atanf, atanl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atanf_pushforward(T x, dT d_x) {
+  return atan_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atanl_pushforward(T x, dT d_x) {
+  return atan_pushforward(x, d_x);
+}
+
+// 4.7 atan2, atan2f, atan2l
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atan2_pushforward(T y, T x, dT d_y,
+                                                              dT d_x) {
+  return {::std::atan2(y, x),
+          -(y / ((x * x) + (y * y))) * d_x + x / ((x * x) + (y * y)) * d_y};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void atan2_pullback(T y, T x, U d_z, T* d_y, T* d_x) {
+  *d_y += x / ((x * x) + (y * y)) * d_z;
+
+  *d_x += -(y / ((x * x) + (y * y))) * d_z;
+}
+
+// pushforward for atan2f, atan2l
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atan2f_pushforward(T y, T x, dT d_y,
+                                                               dT d_x) {
+  return atan2_pushforward(y, x, d_y, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atan2l_pushforward(T y, T x, dT d_y,
+                                                               dT d_x) {
+  return atan2_pushforward(y, x, d_y, d_x);
+}
+
+// pullback for atan2f, atan2l
+template <typename T, typename U>
+CUDA_HOST_DEVICE void atan2f_pullback(T y, T x, U d_z, T* d_y, T* d_x) {
+  atan2_pullback(y, x, d_z, d_y, d_x);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void atan2l_pullback(T y, T x, U d_z, T* d_y, T* d_x) {
+  atan2_pullback(y, x, d_z, d_y, d_x);
+}
+
+// 5. Hyperbolic Functions
+// 5.1 sinh, sinhf, sinhl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sinh_pushforward(T x, dT d_x) {
+  return {::std::sinh(x), ::std::cosh(x) * d_x};
+}
+
+// pushforward for sinhf, sinhl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sinhf_pushforward(T x, dT d_x) {
+  return sinh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sinhl_pushforward(T x, dT d_x) {
+  return sinh_pushforward(x, d_x);
+}
+
+// 5.2 cosh, coshf, coshl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cosh_pushforward(T x, dT d_x) {
+  return {::std::cosh(x), ::std::sinh(x) * d_x};
+}
+
+// pushforward for coshf, coshl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> coshf_pushforward(T x, dT d_x) {
+  return cosh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> coshl_pushforward(T x, dT d_x) {
+  return cosh_pushforward(x, d_x);
+}
+
+// 5.3 tanh, tanhf, tanhl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanh_pushforward(T x, dT d_x) {
+  T tanhx = ::std::tanh(x);
+  return {tanhx, (1 - tanhx * tanhx) * d_x};
+}
+
+// pushforward for tanhf, tanhl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanhf_pushforward(T x, dT d_x) {
+  return tanh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanhl_pushforward(T x, dT d_x) {
+  return tanh_pushforward(x, d_x);
+}
+
+// 5.4 asinh, asinhf, asinhl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asinh_pushforward(T x, dT d_x) {
+  return {::std::asinh(x), d_x / ::std::sqrt(1 + x * x)};
+}
+
+// pushforward for asinhf, asinhl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asinhf_pushforward(T x, dT d_x) {
+  return asinh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asinhl_pushforward(T x, dT d_x) {
+  return asinh_pushforward(x, d_x);
+}
+
+// 5.5 acosh, acoshf, acoshl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acosh_pushforward(T x, dT d_x) {
+  return {::std::acosh(x), d_x / ::std::sqrt(x * x - 1)};
+}
+
+// pushforward for acoshf, acoshl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acoshf_pushforward(T x, dT d_x) {
+  return acosh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acoshl_pushforward(T x, dT d_x) {
+  return acosh_pushforward(x, d_x);
+}
+
+// 5.6 atanh, atanhf, atanhl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atanh_pushforward(T x, dT d_x) {
+  return {::std::atanh(x), d_x / (1 - x * x)};
+}
+
+// pushforward for atanhf, atanhl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atanhf_pushforward(T x, dT d_x) {
+  return atanh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atanhl_pushforward(T x, dT d_x) {
+  return atanh_pushforward(x, d_x);
+}
+
+// 6. Error Functions:
+// 6.1 erf, erff, erfl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erf_pushforward(T x, dT d_x) {
+  T derf = (2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x);
+  return {::std::erf(x), derf * d_x};
+}
+
+// pushforward for erff, erfl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erff_pushforward(T x, dT d_x) {
+  return erf_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfl_pushforward(T x, dT d_x) {
+  return erf_pushforward(x, d_x);
+}
+
+// 6.2 erfc, erfcf, erfcl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfc_pushforward(T x, dT d_x) {
+  return {::std::erfc(x), (-2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x) * d_x};
+}
+
+// pushforward for erfcf, erfcl
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfcf_pushforward(T x, dT d_x) {
+  return erfc_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfcl_pushforward(T x, dT d_x) {
+  return erfc_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sqrt_pushforward(T x, dT d_x) {
+  return {::std::sqrt(x), (((T)1) / (((T)2) * ::std::sqrt(x))) * d_x};
+}
+
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T> floor_pushforward(T x, T /*d_x*/) {
+  return {::std::floor(x), (T)0};
+}
+
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T> ceil_pushforward(T x, T /*d_x*/) {
+  return {::std::ceil(x), (T)0};
+}
+
+template <typename T, typename dT> struct AdjOutType {
+  using type = T;
+};
+
+template <typename T, typename dT> struct AdjOutType<T, clad::array<dT>> {
+  using type = clad::array<T>;
+};
+
+template <typename T1, typename T2, typename dT1, typename dT2,
+          typename T_out = decltype(::std::pow(T1(), T2())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+pow_pushforward(T1 x, T2 exponent, dT1 d_x, dT2 d_exponent) {
+  T_out val = ::std::pow(x, exponent);
+  if (exponent == static_cast<T2>(0) && d_exponent == static_cast<dT2>(0))
+    return {val, static_cast<dT_out>(0)};
+  dT_out derivative = (exponent * ::std::pow(x, exponent - 1)) * d_x;
+  // Only add directional derivative of base^exp w.r.t exp if the directional
+  // seed d_exponent is non-zero. This is required because if base is less than
+  // or equal to 0, then log(base) is undefined, and therefore if user only
+  // requested directional derivative of base^exp w.r.t base -- which is valid
+  // --, the result would be undefined because as per C++ valid number + NaN * 0
+  // = NaN.
+  if (d_exponent)
+    derivative += (::std::pow(x, exponent) * ::std::log(x)) * d_exponent;
+  return {val, derivative};
+}
+
+template <typename T1, typename T2, typename T3>
+CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y, T1* d_x,
+                                   T2* d_exponent) {
+  auto t = pow_pushforward(x, exponent, static_cast<T1>(1), static_cast<T2>(0));
+  *d_x += t.pushforward * d_y;
+  t = pow_pushforward(x, exponent, static_cast<T1>(0), static_cast<T2>(1));
+  *d_exponent += t.pushforward * d_y;
+}
+
+// The min/max pushforwards return ValueAndPushforward<T, T> by value even
+// though std::min/max return `const T&`: with reference members the struct
+// is neither default-constructible nor assignable, which breaks
+// differentiating the generated code again at higher orders (issue #1872).
+// GetDerivedFunctionType in DiffPlanner relaxes the expected overload type
+// to match.
+template <typename T, class Compare>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
+min_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
+                const T& d_b, Compare /*dcomp*/) {
+  return {::std::min(a, b, comp), comp(a, b) ? d_a : d_b};
+}
+
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
+min_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
+  return {::std::min(a, b), a < b ? d_a : d_b};
+}
+
+template <typename T, class Compare>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
+max_pushforward(const T& a, const T& b, Compare comp, const T& d_a,
+                const T& d_b, Compare /*dcomp*/) {
+  return {::std::max(a, b, comp), comp(a, b) ? d_b : d_a};
+}
+
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
+max_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
+  return {::std::max(a, b), a < b ? d_b : d_a};
+}
+
+template <typename T, typename U, class Compare>
+CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, Compare comp, U d_y,
+                                   T* d_a, T* d_b, Compare* /*dcomp*/) {
+  if (comp(a, b))
+    *d_a += d_y;
+  else
+    *d_b += d_y;
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, U d_y, T* d_a,
+                                   T* d_b) {
+  min_pullback(a, b, ::std::less<T>{}, d_y, d_a, d_b, (::std::less<T>*)nullptr);
+}
+
+template <typename T, typename U, class Compare>
+CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, Compare comp, U d_y,
+                                   T* d_a, T* d_b, Compare* /*dcomp*/) {
+  if (comp(a, b))
+    *d_b += d_y;
+  else
+    *d_a += d_y;
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, U d_y, T* d_a,
+                                   T* d_b) {
+  max_pullback(a, b, ::std::less<T>{}, d_y, d_a, d_b, (::std::less<T>*)nullptr);
+}
+
+#if __cplusplus >= 201703L
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
+clamp_pushforward(const T& v, const T& lo, const T& hi, const T& d_v,
+                  const T& d_lo, const T& d_hi) {
+  return {::std::clamp(v, lo, hi), v < lo ? d_lo : hi < v ? d_hi : d_v};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void clamp_pullback(const T& v, const T& lo, const T& hi,
+                                     U d_y, T* d_v, T* d_lo, T* d_hi) {
+  if (v < lo)
+    *d_lo += d_y;
+  else if (hi < v)
+    *d_hi += d_y;
+  else
+    *d_v += d_y;
+}
+#endif
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cbrt_pushforward(T x, dT d_x) {
+  T cbrtx = ::std::cbrt(x);
+  return {cbrtx, d_x / (3 * cbrtx * cbrtx)};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> hypot_pushforward(T x, T y, dT d_x,
+                                                              dT d_y) {
+  T h = ::std::hypot(x, y);
+  return {h, (x * d_x + y * d_y) / h};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void hypot_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  T h = ::std::hypot(x, y);
+  *d_x += (x / h) * d_z;
+  *d_y += (y / h) * d_z;
+}
+
+// 7. Special Functions
+#if __cplusplus >= 201703L
+template <typename T> CUDA_HOST_DEVICE inline T clad_beta_primal(T x, T y) {
+#if defined(__cpp_lib_math_special_functions)
+  return ::std::beta(x, y);
+#else
+  return ::std::tgamma(x) * ::std::tgamma(y) / ::std::tgamma(x + y);
+#endif
+}
+// Computes the digamma function psi(x) using a standard asymptotic expansion
+// NOTE: This is a numerical approximation
+// Reference: Wolfram MathWorld, Digamma Function
+// https://mathworld.wolfram.com/DigammaFunction.html
+
+template <typename T> CUDA_HOST_DEVICE inline T clad_digamma(T x) {
+  if (x <= 0.0) {
+    if (x == ::std::floor(x))
+      return (T)NAN;
+    return clad_digamma(1.0 - x) -
+           ::std::acos((T)-1.0) / ::std::tan(::std::acos((T)-1.0) * x);
+  }
+  T result = 0.0;
+  while (x < 8.0) {
+    result -= 1.0 / x;
+    x += 1.0;
+  }
+  T inv_x = 1.0 / x;
+  T inv_x2 = inv_x * inv_x;
+  result +=
+      ::std::log(x) - 0.5 * inv_x -
+      inv_x2 * (1.0 / 12.0 -
+                inv_x2 * (1.0 / 120.0 -
+                          inv_x2 * (1.0 / 252.0 - inv_x2 * (1.0 / 240.0))));
+  return result;
+}
+
+// NOTE: Like digamma this uses a truncated asymptotic expansion.
+// Used as a custom derivative for digamma
+// Reference: Wolfram MathWorld, Trigamma Function
+// https://mathworld.wolfram.com/TrigammaFunction.html
+
+template <typename T> CUDA_HOST_DEVICE inline T clad_trigamma(T x) {
+  if (x <= 0.0) {
+    if (x == ::std::floor(x))
+      return (T)NAN;
+    T pi = ::std::acos((T)-1.0);
+    T csc = 1.0 / ::std::sin(pi * x);
+    return -clad_trigamma(1.0 - x) + (pi * pi * csc * csc);
+  }
+
+  T result = 0.0;
+  while (x < 8.0) {
+    result += 1.0 / (x * x);
+    x += 1.0;
+  }
+
+  T inv_x = 1.0 / x;
+  T inv_x2 = inv_x * inv_x;
+
+  result += inv_x + 0.5 * inv_x2 +
+            inv_x2 * inv_x *
+                (1.0 / 6.0 -
+                 inv_x2 * (1.0 / 30.0 -
+                           inv_x2 * (1.0 / 42.0 - inv_x2 * (1.0 / 30.0))));
+  return result;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> digamma_pushforward(T x, dT d_x) {
+  T psi = clad_digamma(x);
+  dT pushforward = 0;
+  if (d_x)
+    pushforward += clad_trigamma(x) * d_x;
+  return {psi, pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void digamma_pullback(T x, U d_z, T* d_x) {
+  if (d_x)
+    *d_x += clad_trigamma(x) * d_z;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> beta_pushforward(T x, T y, dT d_x,
+                                                             dT d_y) {
+  T b = clad_beta_primal(x, y);
+  T psi_xy = clad_digamma(x + y);
+  dT pushforward = 0;
+  if (d_x)
+    pushforward += b * (clad_digamma(x) - psi_xy) * d_x;
+  if (d_y)
+    pushforward += b * (clad_digamma(y) - psi_xy) * d_y;
+  return {b, pushforward};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void beta_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  T b = clad_beta_primal(x, y);
+  T psi_xy = clad_digamma(x + y);
+  if (d_x)
+    *d_x += b * (clad_digamma(x) - psi_xy) * d_z;
+  if (d_y)
+    *d_y += b * (clad_digamma(y) - psi_xy) * d_z;
+}
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+lgamma_pushforward(T x, dT d_x) noexcept {
+  return {::std::lgamma(x), clad_digamma(x) * d_x};
+}
+
+// pushforward for lgammaf
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+lgammaf_pushforward(T x, dT d_x) noexcept {
+  return lgamma_pushforward(x, d_x);
+}
+
+// pushforward for lgammal
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+lgammal_pushforward(T x, dT d_x) noexcept {
+  return lgamma_pushforward(x, d_x);
+}
+#endif
+
+#if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
+                               defined(__STDCPP_MATH_SPEC_FUNCS__))
+template <typename T, typename dT,
+          typename T_out = decltype(::std::comp_ellint_1(T())),
+          typename dT_out = typename AdjOutType<T_out, dT>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+comp_ellint_1_pushforward(T k, dT d_k) {
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out k_sq = k * k;
+  T_out one = 1.0;
+  T_out derivative = 0.0;
+  if (k_sq < 1.0 && k != 0.0)
+    derivative = (E - (one - k_sq) * K) / (k * (one - k_sq));
+  return {K, static_cast<dT_out>(d_k) * derivative};
+}
+
+template <typename T, typename dT,
+          typename T_out = decltype(::std::comp_ellint_2(T())),
+          typename dT_out = typename AdjOutType<T_out, dT>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+comp_ellint_2_pushforward(T k, dT d_k) {
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out derivative = 0.0;
+  if (k != 0.0)
+    derivative = (E - K) / k;
+  return {E, static_cast<dT_out>(d_k) * derivative};
+}
+
+template <typename T1, typename T2, typename dT1, typename dT2,
+          typename T_out = decltype(::std::comp_ellint_3(T1(), T2())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+comp_ellint_3_pushforward(T1 k, T2 nu, dT1 d_k, dT2 d_nu) {
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out Pi = ::std::comp_ellint_3(k, nu);
+  T_out k2 = k * k;
+  T_out one = 1.0;
+  T_out grad_k = 0.0;
+  if (k2 != static_cast<T_out>(nu) && k != 0.0 && k2 < 1.0) {
+    T_out term_k = E / (one - k2);
+    grad_k = (k / (k2 - static_cast<T_out>(nu))) * (term_k - Pi);
+  }
+  T_out grad_nu = 0.0;
+  if (nu != 0.0 && nu != 1.0 && k2 != static_cast<T_out>(nu)) {
+    T_out p2 = ((k2 - static_cast<T_out>(nu)) / static_cast<T_out>(nu)) * K;
+    T_out p3 = ((static_cast<T_out>(nu) * static_cast<T_out>(nu) - k2) /
+                static_cast<T_out>(nu)) *
+               Pi;
+    grad_nu = (one / (2.0 * (static_cast<T_out>(nu) - one) *
+                      (k2 - static_cast<T_out>(nu)))) *
+              (E + p2 + p3);
+  }
+  return {Pi, (static_cast<dT_out>(d_k) * grad_k) +
+                  (static_cast<dT_out>(d_nu) * grad_nu)};
+}
+
+template <typename T1, typename T2, typename T3>
+CUDA_HOST_DEVICE void comp_ellint_3_pullback(T1 k, T2 nu, T3 d_out, T1* d_k,
+                                             T2* d_nu) {
+  auto K = ::std::comp_ellint_1(k);
+  auto E = ::std::comp_ellint_2(k);
+  auto Pi = ::std::comp_ellint_3(k, nu);
+  auto k2 = k * k;
+  auto one = 1.0;
+  if (k2 != nu && k != 0.0 && k2 < 1.0) {
+    auto term_k = E / (one - k2);
+    *d_k += d_out * ((k / (k2 - nu)) * (term_k - Pi));
+  }
+  if (nu != 0.0 && nu != one && k2 != nu) {
+    auto p2 = ((k2 - nu) / nu) * K;
+    auto p3 = ((nu * nu - k2) / nu) * Pi;
+    *d_nu += d_out * ((one / (2.0 * (nu - one) * (k2 - nu))) * (E + p2 + p3));
+  }
+}
+#endif
+
+} // namespace std
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+powf_pushforward(float x, float exponent, float d_x,
+                 float d_exponent) noexcept {
+  return clad::custom_derivatives::std::pow_pushforward(x, exponent, d_x,
+                                                        d_exponent);
+}
+CUDA_HOST_DEVICE inline void powf_pullback(float x, float exponent, float d_y,
+                                           float* d_x,
+                                           float* d_exponent) noexcept {
+  auto t = powf_pushforward(x, exponent, /*d_x=*/1.F, /*d_exponent*/ 0.F);
+  *d_x += t.pushforward * d_y;
+  t = powf_pushforward(x, exponent, /*d_x=*/0.F, /*d_exponent*/ 1.F);
+  *d_exponent += t.pushforward * d_y;
+}
+CUDA_HOST_DEVICE inline ValueAndPushforward<long double, long double>
+powl_pushforward(long double x, long double exponent, long double d_x,
+                 long double d_exponent) noexcept {
+  return clad::custom_derivatives::std::pow_pushforward(x, exponent, d_x,
+                                                        d_exponent);
+}
+CUDA_HOST_DEVICE inline void powl_pullback(long double x, long double exponent,
+                                           long double d_y, long double* d_x,
+                                           long double* d_exponent) noexcept {
+  auto t = powl_pushforward(x, exponent, /*d_x=*/1.L, /*d_exponent*/ 0.L);
+  *d_x += t.pushforward * d_y;
+  t = powl_pushforward(x, exponent, /*d_x=*/0.L, /*d_exponent*/ 1.L);
+  *d_exponent += t.pushforward * d_y;
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+sqrtf_pushforward(float x, float d_x) noexcept {
+  return {sqrtf(x), (1.F / (2.F * sqrtf(x))) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<long double, long double>
+sqrtl_pushforward(long double x, long double d_x) noexcept {
+  return {sqrtl(x), (1.L / (2.L * sqrtl(x))) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+cbrtf_pushforward(float x, float d_x) noexcept {
+  float cbrtx = cbrtf(x);
+  return {cbrtx, d_x / (3 * cbrtx * cbrtx)};
+}
+CUDA_HOST_DEVICE inline ValueAndPushforward<long double, long double>
+cbrtl_pushforward(long double x, long double d_x) noexcept {
+  long double cbrtx = cbrtl(x);
+  return {cbrtx, d_x / (3 * cbrtx * cbrtx)};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+hypotf_pushforward(float x, float y, float d_x, float d_y) noexcept {
+  float h = hypotf(x, y);
+  return {h, (x * d_x + y * d_y) / h};
+}
+
+CUDA_HOST_DEVICE inline void hypotf_pullback(float x, float y, float d_z,
+                                             float* d_x, float* d_y) noexcept {
+  float h = ::std::hypot(x, y);
+  *d_x += (x / h) * d_z;
+  *d_y += (y / h) * d_z;
+}
+CUDA_HOST_DEVICE inline ValueAndPushforward<long double, long double>
+hypotl_pushforward(long double x, long double y, long double d_x,
+                   long double d_y) noexcept {
+  long double h = hypotl(x, y);
+  return {h, (x * d_x + y * d_y) / h};
+}
+
+CUDA_HOST_DEVICE inline void hypotl_pullback(long double x, long double y,
+                                             long double d_z, long double* d_x,
+                                             long double* d_y) noexcept {
+  long double h = hypotl(x, y);
+  *d_x += (x / h) * d_z;
+  *d_y += (y / h) * d_z;
+}
+
+// NOLINTBEGIN(cppcoreguidelines-no-malloc)
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
+inline ValueAndPushforward<void*, void*> malloc_pushforward(size_t sz,
+                                                            size_t d_sz) {
+  return {malloc(sz), malloc(sz)};
+}
+
+inline ValueAndPushforward<void*, void*>
+calloc_pushforward(size_t n, size_t sz, size_t d_n, size_t d_sz) {
+  return {calloc(n, sz), calloc(n, sz)};
+}
+
+inline ValueAndPushforward<void*, void*>
+realloc_pushforward(void* ptr, size_t sz, void* d_ptr, size_t d_sz) {
+  return {realloc(ptr, sz), realloc(d_ptr, sz)};
+}
+
+inline void free_pushforward(void* ptr, void* d_ptr) {
+  free(ptr);
+  free(d_ptr);
+}
+
+ValueAndAdjoint<void*, void*>
+malloc_reverse_forw(size_t sz, size_t d_sz) elidable_reverse_forw;
+
+ValueAndAdjoint<void*, void*>
+calloc_reverse_forw(size_t n, size_t sz, size_t d_n,
+                    size_t d_sz) elidable_reverse_forw;
+
+ValueAndAdjoint<void*, void*>
+realloc_reverse_forw(void* ptr, size_t sz, void* d_ptr,
+                     size_t d_sz) elidable_reverse_forw;
+
+ValueAndAdjoint<void*, void*>
+memset_reverse_forw(void* ptr, int val, size_t sz, void* d_ptr, int d_val,
+                    size_t d_sz) elidable_reverse_forw;
+
+void free_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
+
+void realloc_pullback(void* ptr, size_t sz, void* d_ptr, size_t* d_sz);
+
+void memset_pullback(void* ptr, int val, size_t sz, void* d_ptr, int* d_val,
+                     size_t* d_sz);
+
+void free_pullback(void* ptr, void* d_ptr);
+// NOLINTEND(cppcoreguidelines-owning-memory)
+// NOLINTEND(cppcoreguidelines-no-malloc)
+
+// These are required because C variants of mathematical functions are
+// defined in global namespace.
+// 1. Basic Math Functions
+using std::abs_pushforward;
+using std::fabs_pushforward;
+using std::fabsf_pushforward;
+using std::fabsl_pushforward;
+using std::fdim_pullback;
+using std::fdim_pushforward;
+using std::fdimf_pullback;
+using std::fdimf_pushforward;
+using std::fdiml_pullback;
+using std::fdiml_pushforward;
+using std::fma_pullback;
+using std::fma_pushforward;
+using std::fmaf_pullback;
+using std::fmaf_pushforward;
+using std::fmal_pullback;
+using std::fmal_pushforward;
+using std::fmax_pullback;
+using std::fmax_pushforward;
+using std::fmaxf_pullback;
+using std::fmaxf_pushforward;
+using std::fmaxl_pullback;
+using std::fmaxl_pushforward;
+using std::fmin_pullback;
+using std::fmin_pushforward;
+using std::fminf_pullback;
+using std::fminf_pushforward;
+using std::fminl_pullback;
+using std::fminl_pushforward;
+using std::fmod_pullback;
+using std::fmod_pushforward;
+using std::fmodf_pullback;
+using std::fmodf_pushforward;
+using std::fmodl_pullback;
+using std::fmodl_pushforward;
+using std::imaxabs_pushforward;
+using std::llabs_pushforward;
+using std::remainder_pullback;
+using std::remainder_pushforward;
+using std::remainderf_pullback;
+using std::remainderf_pushforward;
+using std::remainderl_pullback;
+using std::remainderl_pushforward;
+
+// 2. Exponential Functions
+using std::exp2_pushforward;
+using std::exp2f_pushforward;
+using std::exp2l_pushforward;
+using std::exp_pushforward;
+using std::expf_pushforward;
+using std::expl_pushforward;
+using std::expm1_pushforward;
+using std::expm1f_pushforward;
+using std::expm1l_pushforward;
+#if __cplusplus >= 201703L
+using std::expint_pushforward;
+using std::expintf_pushforward;
+using std::expintl_pushforward;
+#endif
+
+// 3. Logarithmic Functions
+using std::log10_pushforward;
+using std::log10f_pushforward;
+using std::log10l_pushforward;
+using std::log1p_pushforward;
+using std::log1pf_pushforward;
+using std::log1pl_pushforward;
+using std::log2_pushforward;
+using std::log2f_pushforward;
+using std::log2l_pushforward;
+using std::log_pushforward;
+using std::logf_pushforward;
+using std::logl_pushforward;
+
+// 4. Trigonometric Functions
+using std::acos_pushforward;
+using std::acosf_pushforward;
+using std::acosl_pushforward;
+using std::asin_pushforward;
+using std::asinf_pushforward;
+using std::asinl_pushforward;
+using std::atan2_pullback;
+using std::atan2_pushforward;
+using std::atan2f_pullback;
+using std::atan2f_pushforward;
+using std::atan2l_pullback;
+using std::atan2l_pushforward;
+using std::atan_pushforward;
+using std::atanf_pushforward;
+using std::atanl_pushforward;
+using std::cos_pushforward;
+using std::cosf_pushforward;
+using std::cosl_pushforward;
+using std::sin_pushforward;
+using std::sinf_pushforward;
+using std::sinl_pushforward;
+using std::tan_pushforward;
+using std::tanf_pushforward;
+using std::tanl_pushforward;
+
+// 5. Hyperbolic Functions
+using std::acosh_pushforward;
+using std::acoshf_pushforward;
+using std::acoshl_pushforward;
+using std::asinh_pushforward;
+using std::asinhf_pushforward;
+using std::asinhl_pushforward;
+using std::atanh_pushforward;
+using std::atanhf_pushforward;
+using std::atanhl_pushforward;
+using std::cosh_pushforward;
+using std::coshf_pushforward;
+using std::coshl_pushforward;
+using std::sinh_pushforward;
+using std::sinhf_pushforward;
+using std::sinhl_pushforward;
+using std::tanh_pushforward;
+using std::tanhf_pushforward;
+using std::tanhl_pushforward;
+
+// 6. Error Functions
+using std::erf_pushforward;
+using std::erfc_pushforward;
+using std::erfcf_pushforward;
+using std::erfcl_pushforward;
+using std::erff_pushforward;
+using std::erfl_pushforward;
+
+using std::cbrt_pushforward;
+using std::ceil_pushforward;
+using std::floor_pushforward;
+using std::hypot_pullback;
+using std::hypot_pushforward;
+using std::max_pullback;
+using std::max_pushforward;
+using std::min_pullback;
+using std::min_pushforward;
+using std::pow_pullback;
+using std::pow_pushforward;
+using std::sqrt_pushforward;
+
+// 7. Special Functions
+#if __cplusplus >= 201703L
+using std::beta_pullback;
+using std::beta_pushforward;
+using std::lgamma_pushforward;
+using std::lgammaf_pushforward;
+using std::lgammal_pushforward;
+#endif
+
+#if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
+                               defined(__STDCPP_MATH_SPEC_FUNCS__))
+using std::comp_ellint_1_pushforward;
+using std::comp_ellint_2_pushforward;
+using std::comp_ellint_3_pullback;
+using std::comp_ellint_3_pushforward;
+#endif
+
+namespace class_functions {
+template <typename T, typename U>
+void constructor_pullback(ValueAndPushforward<T, U> rhs,
+                          ValueAndPushforward<T, U>* d_this,
+                          ValueAndPushforward<T, U>* d_rhs) {
+  d_rhs->pushforward += d_this->pushforward;
+}
+} // namespace class_functions
+} // namespace custom_derivatives
+
+// Reverse-mode helper for an in-place realloc: resize `ptr` back to the byte
+// size it had before the forward realloc. When that regrows a buffer the
+// forward pass shrank, zero the re-grown tail for adjoint buffers so fresh
+// derivatives start at 0; primal buffers pass zeroGrownTail=false, their tail
+// being overwritten by value restores. Returns the possibly-moved pointer.
+// NOLINTBEGIN(cppcoreguidelines-no-malloc)
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+inline void* reverse_realloc(void* ptr, size_t oldBytes, size_t newBytes,
+                             bool zeroGrownTail) {
+  void* resized = ::realloc(ptr, oldBytes);
+  // realloc failed: keep the original buffer instead of leaking it.
+  if (!resized)
+    return ptr;
+  ptr = resized;
+  if (zeroGrownTail && oldBytes > newBytes)
+    ::memset(static_cast<char*>(ptr) + newBytes, 0, oldBytes - newBytes);
+  return ptr;
+}
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+// NOLINTEND(cppcoreguidelines-owning-memory)
+// NOLINTEND(cppcoreguidelines-no-malloc)
+
+} // namespace clad
+
+
+#endif // CLAD_LIBC_DERIVATIVES
