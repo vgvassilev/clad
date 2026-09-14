@@ -10,6 +10,7 @@
 #include "GeneratedCode.h"
 
 #include "LoopAnalyzer.h"
+#include "ReductionScope.h"
 #include "TBRAnalyzer.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
@@ -85,25 +86,6 @@ using namespace clang;
 namespace clad {
 
 using AllocCallInfo = DiffRequest::AllocCallInfo;
-
-/// The accumulators of one loop being differentiated.
-///
-/// The loop analysis says which adjoints are sums over the loop. This holds the
-/// variable each sum is kept in while the body is visited, and the adjoint it
-/// is added to once the loop is done.
-struct ReverseModeVisitor::ReductionScope {
-  struct Accumulator {
-    const LoopFacts::AdjointReduction* Fact;
-    VarDecl* Acc;
-    Expr* Target; // the `_d_Base[Index]` the sum is added to
-  };
-  const LoopFacts& Facts;
-  llvm::SmallVector<Accumulator, 2> Accumulators;
-
-  /// The accumulator that stands in for \p Target, an adjoint subscript of
-  /// \p Base, or null when this loop does not sum it.
-  Expr* accumulatorFor(ReverseModeVisitor& V, const Expr* Base, Expr* Target);
-};
 
 Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   if (E)
