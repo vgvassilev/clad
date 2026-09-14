@@ -35,7 +35,6 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
-#include "clang/AST/DeclAccessPair.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
@@ -45,7 +44,6 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Sema/Lookup.h"
-#include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
@@ -235,22 +233,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       if (!find.HasFormOfMemberPointer) {
         OverloadExpr* ovl = find.Expression;
 
-        if (isa<UnresolvedLookupExpr>(ovl)) {
-          ExprResult result;
-          SourceLocation Loc;
-          OverloadCandidateSet CandidateSet(Loc,
-                                            OverloadCandidateSet::CSK_Normal);
-          Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
-          auto* ULE = cast<UnresolvedLookupExpr>(ovl);
-          // Populate CandidateSet.
-          m_Sema.buildOverloadedCallSet(S, UnresolvedLookup, ULE, ARargs, Loc,
-                                        &CandidateSet, &result);
-          OverloadCandidateSet::iterator Best = nullptr;
-          OverloadingResult OverloadResult = CandidateSet.BestViableFunction(
-              m_Sema, UnresolvedLookup->getBeginLoc(), Best);
-          if (OverloadResult != 0U) // No overloads were found.
-            return true;
-        }
+        if (isa<UnresolvedLookupExpr>(ovl))
+          return !utils::ResolveOverload(m_Sema, UnresolvedLookup, ARargs);
       }
       return false;
     }
@@ -267,13 +251,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // one template ask for the same derivative name, so the second lookup
       // finds the first's derivative. Calling it makes the mismatch a hard
       // error instead of a signal to derive the overload that fits.
-      OverloadCandidateSet CandidateSet(SourceLocation(),
-                                        OverloadCandidateSet::CSK_Normal);
-      m_Sema.AddOverloadCandidate(FD, DeclAccessPair::make(FD, AS_public),
-                                  ARargs, CandidateSet);
-      OverloadCandidateSet::iterator Best = nullptr;
-      return CandidateSet.BestViableFunction(m_Sema, SourceLocation(), Best) !=
-             OR_Success;
+      return !utils::ResolveOverload(m_Sema, UnresolvedLookup, ARargs);
     }
 
     return false;

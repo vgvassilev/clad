@@ -959,6 +959,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return found == m_ActivityRunInfo.VariedCalls.end() || found->second;
   }
 
+  FunctionDecl* DiffRequest::getDefaultAdjoint(Sema& S, const CallExpr* CE,
+                                               bool nonDiff) const {
+    // A reverse_forw must supply an adjoint the caller can accumulate into,
+    // even when a constant factory contributes nothing to the input gradient.
+    if (nonDiff && Mode != DiffMode::reverse_mode_forward_pass)
+      return nullptr;
+    QualType returnType = CE->getDirectCallee()->getReturnType();
+    if (!returnType->isRecordType() || !utils::isMemoryType(returnType))
+      return nullptr;
+
+    // Model the stored lvalue, which can select a different overload than CE.
+    OpaqueValueExpr value(CE->getExprLoc(), returnType, VK_LValue);
+    return utils::LookupCladZeroLike(S, &value);
+  }
+
   bool DiffRequest::isVaried(const Expr* E) const {
     // FIXME: We should consider removing pullback requests from the
     // diff graph.
@@ -1798,10 +1813,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       for (const auto& decl : m_ParentReq->getVariedDecls())
         request.addVariedDecl(decl);
 
-    // Keep the request whose body contains E. m_ParentReq is replaced with
-    // the callee request below while its body is traversed, but the planning
-    // fact belongs to the containing body.
-    DiffRequest* bodyRequest = m_ParentReq;
     llvm::SaveAndRestore<DiffRequest*> Saved(m_ParentReq, &request);
     if (request.Function->getDefinition())
       request.Function = request.Function->getDefinition();
@@ -1881,11 +1892,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       //  Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
-
-      // The reverse-forward request for this function is built from the same
-      // primal body as its pullback. Carry the call-site planning facts over
-      // so both visitors consume the same decision.
-      forwPassRequest.inheritDefaultReverseForwCallsFrom(request);
 
       if (requestTBR) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
@@ -2001,17 +2007,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
       QualType returnType = request->getReturnType();
       bool hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
-
-      // Whether the default reverse-forward adjoint is applicable is a
-      // call-site planning decision. Record it on the request that owns this
-      // body; ReverseModeVisitor only consumes the result while generating
-      // the call. A custom reverse_forw remains authoritative.
-      if (bodyRequest && !hasCustomReverseForw &&
-          (bodyRequest->Mode == DiffMode::reverse_mode_forward_pass ||
-           !nonDiff) &&
-          utils::isMemoryType(returnType) && !returnType->isReferenceType() &&
-          !returnType->isPointerType())
-        bodyRequest->recordDefaultReverseForwCall(E);
 
       if (hasCustomReverseForw ||
           (!hasCustomPullback &&

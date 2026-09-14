@@ -3040,14 +3040,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                  .get();
     }
 
-    // A call returning a memory type by value needs no handwritten
-    // reverse-forward helper when a zero_like customization exists: the
-    // original call supplies the primal and clad::zero_like supplies an
-    // independent, structurally correct adjoint.
-    // An explicit reverse_forw above still takes precedence when a call needs
-    // to save additional state or preserve reference/aliasing semantics.
-    if (m_DiffReq.shouldGenerateDefaultReverseForw(CE) && needsForwPass &&
-        !returnType->isReferenceType() && !returnType->isPointerType()) {
+    // Resolve zero_like before storing the primal so a failed lookup leaves
+    // no extra temporaries or loop tapes on the fallback path.
+    if (FunctionDecl* zeroLike =
+            m_DiffReq.getDefaultAdjoint(m_Sema, CE, nonDiff)) {
       auto storeForReverse = [this](Expr* value, llvm::StringRef prefix) {
         if (isInsideLoop)
           return GlobalStoreAndRef(value, prefix, /*force=*/true);
@@ -3056,11 +3052,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       };
       Expr* callRef = storeForReverse(call, /*prefix=*/"_t");
 
-      if (Expr* zeroLike = GetCladZeroLike(CloneNode(callRef))) {
-        Expr* adjointRef = storeForReverse(zeroLike, /*prefix=*/"_r");
-        return StmtDiff(callRef, adjointRef);
-      }
-      call = callRef;
+      llvm::SmallVector<Expr*, 1> args{CloneNode(callRef)};
+      Expr* adjoint = BuildCallExpr(BuildDeclRef(zeroLike), args);
+      Expr* adjointRef = storeForReverse(adjoint, /*prefix=*/"_r");
+      return StmtDiff(callRef, adjointRef);
     }
 
     if (OCE)

@@ -820,18 +820,8 @@ namespace clad {
     return utils::LookupTemplateDeclInCladNamespace(m_Sema, "tape");
   }
 
-  LookupResult VisitorBase::tryLookupCladMethod(llvm::StringRef name) {
-    NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
-    CXXScopeSpec CSS;
-    CSS.Extend(m_Context, CladNS, noLoc, noLoc);
-    DeclarationName Name = &m_Context.Idents.get(name);
-    LookupResult R(m_Sema, Name, noLoc, Sema::LookupOrdinaryName);
-    m_Sema.LookupQualifiedName(R, CladNS, CSS);
-    return R;
-  }
-
   LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
-    LookupResult R = tryLookupCladMethod(name);
+    LookupResult R = utils::tryLookupCladMethod(m_Sema, name);
     assert(!R.empty() && isa<FunctionTemplateDecl>(R.getRepresentativeDecl()) &&
            "cannot find requested name");
     return R;
@@ -1439,30 +1429,11 @@ namespace clad {
   }
 
   Expr* VisitorBase::GetCladZeroLike(Expr* value) {
-    NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
-    CXXScopeSpec CSS;
-    CSS.Extend(m_Context, CladNS, noLoc, noLoc);
-
-    LookupResult R = tryLookupCladMethod("zero_like");
-    if (R.empty())
-      return nullptr; // LCOV_EXCL_LINE: version-mismatched runtime header
-
-    ExprResult NameExpr =
-        m_Sema.BuildDeclarationNameExpr(CSS, R, /*NeedsADL=*/false);
-    if (NameExpr.isInvalid())
-      return nullptr; // LCOV_EXCL_LINE: defensive Sema failure
-
-    Expr* UnresolvedLookup = NameExpr.get();
-    llvm::SmallVector<Expr*, 1> args{value};
-    auto ARargs = llvm::MutableArrayRef<Expr*>(args);
-
-    // A missing customization is an expected, silent fallback path. Reuse the
-    // same overload probe as custom derivatives instead of asking Sema to
-    // diagnose an invalid call.
-    if (m_Builder.noOverloadExists(UnresolvedLookup, ARargs))
+    FunctionDecl* zeroLike = utils::LookupCladZeroLike(m_Sema, value);
+    if (!zeroLike)
       return nullptr;
-
-    return BuildCallExpr(UnresolvedLookup, ARargs);
+    llvm::SmallVector<Expr*, 1> args{value};
+    return BuildCallExpr(BuildDeclRef(zeroLike), args);
   }
 
   FunctionDecl* VisitorBase::CreateDerivativeOverload(FunctionDecl* derivative,
