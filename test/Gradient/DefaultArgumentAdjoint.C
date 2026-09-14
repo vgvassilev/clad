@@ -130,7 +130,7 @@ double f3(double x) {
 }
 
 // CHECK-LABEL: void f2_grad(double x, double *_d_x) {
-// CHECK: record::A::constructor_reverse_forw(clad::Tag<record::A>(), b, 3, record::_d_b, 0);
+// CHECK: record::A::constructor_reverse_forw(clad::Tag<{{(record::)?}}A>(), b, 3, record::_d_b, 0);
 // CHECK: A::constructor_pullback(b, 3, &_r0, &record::_d_b, &_r1);
 // CHECK: *_d_x += _r_d0;
 
