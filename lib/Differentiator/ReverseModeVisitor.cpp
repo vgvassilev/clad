@@ -2394,17 +2394,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     // Build the DiffRequest
     DiffRequest pullbackRequest{};
-    // Named whether or not the callee is differentiated: the call site reads
-    // the callee's written extents through the request further down.
+    // Named, and given the analyses, whether or not the callee is
+    // differentiated: the call site reads its written extents from this
+    // request further down.
     pullbackRequest.Function = FD;
+    pullbackRequest.inheritAnalysesFrom(m_DiffReq);
     FunctionDecl* pullbackFD = nullptr;
     if (!nonDiff) {
       pullbackRequest.BaseFunctionName =
           clad::utils::ComputeEffectiveFnName(FD);
       pullbackRequest.Mode =
           asGrad ? DiffMode::pullback : DiffMode::pushforward;
-      // Silence diag outputs in nested derivation process.
-      pullbackRequest.inheritAnalysesFrom(m_DiffReq);
       pullbackRequest.EnableErrorEstimation = m_DiffReq.EnableErrorEstimation;
       // Error estimation only uses forward mode derivatives if they are
       // user-prodived to handle builtin derivatives. We cannot determine which
@@ -2811,7 +2811,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         !needsForwPass && pullbackStateType.isNull() && !isMethodOperatorCall) {
       llvm::ArrayRef<WrittenExtent> extents =
           pullbackRequest.getWrittenExtents();
-      useRangeRecords = true;
+      // Empty where the loop analysis did not run, and there is then nothing
+      // to record from: the tracker stays.
+      useRangeRecords = extents.size() == FD->getNumParams();
       for (std::size_t i = 0, e = FD->getNumParams(); i != e && useRangeRecords;
            ++i) {
         const WrittenExtent& W = extents[i];
@@ -5765,6 +5767,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         pullbackRequest.VerboseDiags = false;
         pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
         pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+        pullbackRequest.EnableLoopAnalysis = m_DiffReq.EnableLoopAnalysis;
         for (size_t i = 0, e = CD->getNumParams(); i < e; ++i)
           if (adjointArgs[i])
             pullbackRequest.DVI.push_back(CD->getParamDecl(i));
