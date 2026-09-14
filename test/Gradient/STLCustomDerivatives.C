@@ -33,26 +33,6 @@ namespace clad {
         namespace class_functions {
             ::std::vector<size_t> size_update_stack;
 
-            template <typename T>
-            void resize_reverse_forw(::std::vector<T> *v,
-                        typename ::std::vector<T>::size_type sz,
-                        ::std::vector<T> *d_v,
-                        typename ::std::vector<T>::size_type d_sz) {
-              size_update_stack.push_back(v->size());
-              v->resize(sz);
-              d_v->resize(sz, 0);
-            }
-
-            template <typename T>
-            void resize_pullback(::std::vector<T> *v,
-                                 typename ::std::vector<T>::size_type sz,
-                                 ::std::vector<T> *d_v,
-                                 typename ::std::vector<T>::size_type *d_sz) {
-              size_t prevSz = size_update_stack.back();
-              size_update_stack.pop_back();
-              d_v->resize(prevSz);
-            }
-
             template<typename T>
             void clear_reverse_forw(::std::vector<T> *v, ::std::vector<T> *d_v) {
                 size_update_stack.push_back(v->size());
