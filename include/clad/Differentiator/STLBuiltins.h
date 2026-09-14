@@ -1153,6 +1153,192 @@ joinable_pushforward(const ::std::thread* t,
   return {t->joinable(), false};
 }
 
+// Reverse mode: primal worker on a real thread; adjoint thread is empty.
+// ReverseModeVisitor nest-diffs the callable and inserts its pullback in the
+// reverse sweep for the constructor (after the forward-pass join has
+// completed). nullptr_t callable-adjoint overloads match codegen that passes
+// nullptr for free-function / unused functor adjoints into reverse_forw.
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(),
+                         void (* /*d_f*/)()) {
+  return {::std::thread(f), ::std::thread()};
+}
+
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(),
+                         ::std::nullptr_t) {
+  return {::std::thread(f), ::std::thread()};
+}
+
+template <class F, class DF>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, DF&& /*d_f*/) {
+  return {::std::thread(::std::forward<F>(f)), ::std::thread()};
+}
+
+template <class A0, class DA0>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0), A0 a0,
+                         void (* /*d_f*/)(A0), DA0&& /*d_a0*/) {
+  return {::std::thread(f, a0), ::std::thread()};
+}
+
+template <class F, class A0, class DF, class DA0>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, A0&& a0, DF&& /*d_f*/,
+                         DA0&& /*d_a0*/) {
+  return {::std::thread(::std::forward<F>(f), ::std::forward<A0>(a0)),
+          ::std::thread()};
+}
+
+template <class A0, class DA0>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0), A0&& a0,
+                         ::std::nullptr_t, DA0&& /*d_a0*/) {
+  return {::std::thread(f, ::std::forward<A0>(a0)), ::std::thread()};
+}
+
+template <class A0, class A1, class DA0, class DA1>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0, A1), A0 a0,
+                         A1 a1, void (* /*d_f*/)(A0, A1), DA0&& /*d_a0*/,
+                         DA1&& /*d_a1*/) {
+  return {::std::thread(f, a0, a1), ::std::thread()};
+}
+
+template <class F, class A0, class A1, class DF, class DA0, class DA1>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                         DF&& /*d_f*/, DA0&& /*d_a0*/, DA1&& /*d_a1*/) {
+  return {::std::thread(::std::forward<F>(f), ::std::forward<A0>(a0),
+                        ::std::forward<A1>(a1)),
+          ::std::thread()};
+}
+
+template <class A0, class A1, class DA0, class DA1>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0, A1), A0&& a0,
+                         A1&& a1, ::std::nullptr_t, DA0&& /*d_a0*/,
+                         DA1&& /*d_a1*/) {
+  return {::std::thread(f, ::std::forward<A0>(a0), ::std::forward<A1>(a1)),
+          ::std::thread()};
+}
+
+template <class F, class A0, class A1, class DA0, class DA1>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                         ::std::nullptr_t, DA0&& /*d_a0*/, DA1&& /*d_a1*/) {
+  return {::std::thread(::std::forward<F>(f), ::std::forward<A0>(a0),
+                        ::std::forward<A1>(a1)),
+          ::std::thread()};
+}
+
+template <class A0, class A1, class A2, class DA0, class DA1, class DA2>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0, A1, A2), A0 a0,
+                         A1 a1, A2 a2, void (* /*d_f*/)(A0, A1, A2),
+                         DA0&& /*d_a0*/, DA1&& /*d_a1*/, DA2&& /*d_a2*/) {
+  return {::std::thread(f, a0, a1, a2), ::std::thread()};
+}
+
+template <class F, class A0, class A1, class A2, class DF, class DA0, class DA1,
+          class DA2>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                         A2&& a2, DF&& /*d_f*/, DA0&& /*d_a0*/, DA1&& /*d_a1*/,
+                         DA2&& /*d_a2*/) {
+  return {::std::thread(::std::forward<F>(f), ::std::forward<A0>(a0),
+                        ::std::forward<A1>(a1), ::std::forward<A2>(a2)),
+          ::std::thread()};
+}
+
+template <class A0, class A1, class A2, class DA0, class DA1, class DA2>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0, A1, A2),
+                         A0&& a0, A1&& a1, A2&& a2, ::std::nullptr_t,
+                         DA0&& /*d_a0*/, DA1&& /*d_a1*/, DA2&& /*d_a2*/) {
+  return {::std::thread(f, ::std::forward<A0>(a0), ::std::forward<A1>(a1),
+                        ::std::forward<A2>(a2)),
+          ::std::thread()};
+}
+
+template <class F, class A0, class A1, class A2, class DA0, class DA1,
+          class DA2>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                         A2&& a2, ::std::nullptr_t, DA0&& /*d_a0*/,
+                         DA1&& /*d_a1*/, DA2&& /*d_a2*/) {
+  return {::std::thread(::std::forward<F>(f), ::std::forward<A0>(a0),
+                        ::std::forward<A1>(a1), ::std::forward<A2>(a2)),
+          ::std::thread()};
+}
+
+inline void constructor_pullback(void (* /*f*/)(), ::std::thread* /*dthis*/,
+                                 void (** /*d_f*/)()) noexcept {}
+
+template <class F, class DF>
+inline void constructor_pullback(F&& /*f*/, ::std::thread* /*dthis*/,
+                                 DF* /*d_f*/) noexcept {}
+
+template <class A0, class DA0>
+inline void
+constructor_pullback(void (* /*f*/)(A0), A0 /*a0*/, ::std::thread* /*dthis*/,
+                     void (** /*d_f*/)(A0), DA0* /*d_a0*/) noexcept {}
+
+template <class F, class A0, class DF, class DA0>
+inline void constructor_pullback(F&& /*f*/, A0&& /*a0*/,
+                                 ::std::thread* /*dthis*/, DF* /*d_f*/,
+                                 DA0* /*d_a0*/) noexcept {}
+
+template <class A0, class A1, class DA0, class DA1>
+inline void constructor_pullback(void (* /*f*/)(A0, A1), A0 /*a0*/, A1 /*a1*/,
+                                 ::std::thread* /*dthis*/,
+                                 void (** /*d_f*/)(A0, A1), DA0* /*d_a0*/,
+                                 DA1* /*d_a1*/) noexcept {}
+
+template <class F, class A0, class A1, class DF, class DA0, class DA1>
+inline void constructor_pullback(F&& /*f*/, A0&& /*a0*/, A1&& /*a1*/,
+                                 ::std::thread* /*dthis*/, DF* /*d_f*/,
+                                 DA0* /*d_a0*/, DA1* /*d_a1*/) noexcept {}
+
+template <class A0, class A1, class A2, class DA0, class DA1, class DA2>
+inline void constructor_pullback(void (* /*f*/)(A0, A1, A2), A0 /*a0*/,
+                                 A1 /*a1*/, A2 /*a2*/, ::std::thread* /*dthis*/,
+                                 void (** /*d_f*/)(A0, A1, A2), DA0* /*d_a0*/,
+                                 DA1* /*d_a1*/, DA2* /*d_a2*/) noexcept {}
+
+template <class F, class A0, class A1, class A2, class DF, class DA0, class DA1,
+          class DA2>
+inline void constructor_pullback(F&& /*f*/, A0&& /*a0*/, A1&& /*a1*/,
+                                 A2&& /*a2*/, ::std::thread* /*dthis*/,
+                                 DF* /*d_f*/, DA0* /*d_a0*/, DA1* /*d_a1*/,
+                                 DA2* /*d_a2*/) noexcept {}
+
+inline void join_reverse_forw(::std::thread* t, ::std::thread* /*d_t*/) {
+  t->join();
+}
+
+inline void join_pullback(::std::thread* /*t*/,
+                          ::std::thread* /*d_t*/) noexcept {}
+
+inline void detach_reverse_forw(::std::thread* t, ::std::thread* /*d_t*/) {
+  // Prefer join under AD: ReverseModeVisitor diagnoses detach. Kept for
+  // completeness if a custom path is selected manually.
+  t->detach();
+}
+
+inline void detach_pullback(::std::thread* /*t*/,
+                            ::std::thread* /*d_t*/) noexcept {}
+
+inline clad::ValueAndAdjoint<bool, bool>
+joinable_reverse_forw(const ::std::thread* t,
+                      const ::std::thread* /*d_t*/) noexcept {
+  return {t->joinable(), false};
+}
+
+inline void joinable_pullback(const ::std::thread* /*t*/, bool /*_d_y*/,
+                              ::std::thread* /*d_t*/) noexcept {}
+
 } // namespace class_functions
 
 namespace std {
