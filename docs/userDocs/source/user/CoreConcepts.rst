@@ -388,7 +388,28 @@ Currently Supported Use Cases
 Error Estimation Core Concepts
 ================================
 
-.. todo:: todo
+A floating-point computation is not the computation it was written as: every
+operation rounds its result, and those roundings accumulate. Clad estimates how
+much they add up to in the final result, and it does so with the machinery it
+already has.
+
+The link is the adjoint. The adjoint of a value is how much the result changes
+when that value changes, which is exactly what a reverse sweep computes, so an
+adjoint also says how much of the result's error comes from the error in that
+value. Clad therefore generates the gradient of the function and, at each
+assignment, adds the adjoint of the value written, multiplied by the rounding
+error of that value, into a running total. What the error of a value is taken
+to be is decided by an error model, which is a parameter of the framework: the
+built-in one uses a Taylor approximation, and a program can supply its own.
+
+The estimate costs one reverse sweep, so it is a whole-program error bound
+obtained at the price of a gradient, rather than at the price of rerunning the
+computation in higher precision.
+
+:doc:`Floating point error estimation <FloatingPointErrorEstimation>` describes
+the framework, its classes and how to write a custom model;
+:cpp:func:`estimate_error` in the :doc:`API reference <reference>` describes the
+interface.
 
 .. _ad-further-reading:
 
