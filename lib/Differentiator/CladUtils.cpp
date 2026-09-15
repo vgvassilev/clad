@@ -22,6 +22,7 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
@@ -1015,6 +1016,53 @@ namespace clad {
       return true;
     }
 
+    bool isStdThreadLike(const CXXRecordDecl* RD) {
+      // std::thread only; std::jthread has different lifetime/join semantics
+      // and is not covered by the thread customs yet.
+      return RD && RD->isInStdNamespace() && RD->getName() == "thread";
+    }
+
+    bool isStdReferenceWrapper(QualType QT) {
+      QT = QT.getNonReferenceType().getUnqualifiedType();
+      if (const auto* RD = QT->getAsCXXRecordDecl())
+        return RD->isInStdNamespace() && RD->getName() == "reference_wrapper";
+      return false;
+    }
+
+    static const FunctionDecl* findCallOperator(Sema& SemaRef,
+                                                CXXRecordDecl* RD) {
+      if (!RD)
+        return nullptr;
+      DeclarationName DN =
+          SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(OO_Call);
+      LookupResult R(SemaRef, DN, noLoc, Sema::LookupMemberName);
+      R.suppressDiagnostics();
+      SemaRef.LookupQualifiedName(R, RD);
+      if (!R.isSingleResult())
+        return nullptr;
+      return dyn_cast<CXXMethodDecl>(R.getFoundDecl());
+    }
+
+    const FunctionDecl* resolveThreadCallable(Sema& SemaRef, const Expr* E) {
+      E = E->IgnoreParenImpCasts();
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+        if (const auto* FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+          return FD;
+        if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          QualType Ty = VD->getType().getNonReferenceType();
+          if (auto* RD = Ty->getAsCXXRecordDecl())
+            return findCallOperator(SemaRef, RD);
+        }
+      }
+      if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(E))
+        return resolveThreadCallable(SemaRef, MTE->getSubExpr());
+      if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(E))
+        return resolveThreadCallable(SemaRef, BTE->getSubExpr());
+      if (auto* RD = E->getType().getNonReferenceType()->getAsCXXRecordDecl())
+        return findCallOperator(SemaRef, RD);
+      return nullptr;
+    }
+
     NamespaceDecl* GetCladNamespace(Sema& S) {
       static NamespaceDecl* Result = nullptr;
       if (Result)
@@ -1222,6 +1270,9 @@ namespace clad {
         return !T->getPointeeType().isConstQualified();
       if (const auto* RT = T->getAs<RecordType>()) {
         const RecordDecl* RD = RT->getDecl();
+        // Including reference_wrapper<const T>, whose field is a const T*.
+        if (RD->isInStdNamespace() && RD->getName() == "reference_wrapper")
+          return true;
         if (const auto* CRD = dyn_cast<CXXRecordDecl>(RD))
           if (!isCopyable(CRD))
             return true;
@@ -1235,6 +1286,27 @@ namespace clad {
         return false;
       }
       return false;
+    }
+
+    /// \returns true if \p FDecl is a member of std::reference_wrapper
+    /// returning a const lvalue reference, i.e. `get` and the conversion to
+    /// `const T&`.
+    static bool isConstRefReturningRefWrapperMember(const FunctionDecl* FDecl) {
+      const auto* Method = dyn_cast_or_null<CXXMethodDecl>(FDecl);
+      if (!Method)
+        return false;
+      const CXXRecordDecl* Record = Method->getParent();
+      if (!Record->isInStdNamespace() ||
+          Record->getName() != "reference_wrapper")
+        return false;
+      QualType Ty = FDecl->getReturnType().getCanonicalType();
+      return Ty->isLValueReferenceType() &&
+             Ty.getNonReferenceType().isConstQualified();
+    }
+
+    bool needsReverseForw(const FunctionDecl* FDecl) {
+      return isMemoryType(FDecl->getReturnType()) ||
+             isConstRefReturningRefWrapperMember(FDecl);
     }
 
     bool shouldUseRestoreTracker(const FunctionDecl* FD) {
@@ -1494,11 +1566,17 @@ namespace clad {
                         mode == DiffMode::pullback ||
                         mode == DiffMode::vector_forward_mode;
       if (mode == DiffMode::reverse_mode_forward_pass) {
-        if (isMemoryType(oRetTy) || isa<CXXConstructorDecl>(FD)) {
+        if (needsReverseForw(FD) || isa<CXXConstructorDecl>(FD)) {
           TemplateDecl* valAndAdjointTempDecl =
               utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
+          // Const lvalue-reference returns: adjoint channel is non-const.
+          QualType adjointTy = oRetTy;
+          if (oRetTy->isLValueReferenceType() &&
+              oRetTy.getNonReferenceType().isConstQualified())
+            adjointTy = C.getLValueReferenceType(
+                oRetTy.getNonReferenceType().getUnqualifiedType());
           dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
-                                              {oRetTy, oRetTy});
+                                              {oRetTy, adjointTy});
         } else {
           dRetTy = oRetTy;
         }
@@ -1571,17 +1649,19 @@ namespace clad {
           FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
       }
 
+      // Type tag before the object prepended below; a constructor has none.
+      if (mode == DiffMode::reverse_mode_forward_pass &&
+          (isa<CXXConversionDecl>(FD) || isa<CXXConstructorDecl>(FD))) {
+        QualType typeTag = utils::GetCladTagOfType(S, oRetTy);
+        FnTypes.insert(FnTypes.begin(), typeTag);
+      }
+
       if (forCustomDerv && !thisTy.isNull()) {
         FnTypes.insert(FnTypes.begin(), thisTy);
         EPI.TypeQuals.removeConst();
       }
 
       if (mode == DiffMode::reverse_mode_forward_pass) {
-        if (isa<CXXConversionDecl>(FD) || isa<CXXConstructorDecl>(FD)) {
-          QualType typeTag = utils::GetCladTagOfType(S, oRetTy);
-          FnTypes.insert(FnTypes.begin(), typeTag);
-        }
-
         if (shouldUseRestoreTracker) {
           QualType trackerTy = GetRestoreTrackerType(S);
           trackerTy = C.getLValueReferenceType(trackerTy);
