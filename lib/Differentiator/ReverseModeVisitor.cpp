@@ -3091,17 +3091,38 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     } // Recreate the original call expression.
 
-    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+    const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE);
+    if (OCE)
       call = BuildOperatorCall(OCE->getOperator(), CallArgs);
-      return StmtDiff(call);
+    else {
+      if (MD && MD->isInstance())
+        CallArgs.erase(CallArgs.begin());
+      call = m_Sema
+                 .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                                CallArgs, Loc, CUDAExecConfig)
+                 .get();
     }
 
-    if (MD && MD->isInstance())
-      CallArgs.erase(CallArgs.begin());
-    call = m_Sema
-               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                              CallArgs, Loc, CUDAExecConfig)
-               .get();
+    // Resolve zero_like before storing the primal so a failed lookup leaves
+    // no extra temporaries or loop tapes on the fallback path.
+    if (FunctionDecl* zeroLike =
+            m_DiffReq.getDefaultAdjoint(m_Sema, CE, nonDiff)) {
+      auto storeForReverse = [this](Expr* value, llvm::StringRef prefix) {
+        if (isInsideLoop)
+          return GlobalStoreAndRef(value, prefix, /*force=*/true);
+        return StoreAndRef(value, direction::forward, prefix,
+                           /*forceDeclCreation=*/true);
+      };
+      Expr* callRef = storeForReverse(call, /*prefix=*/"_t");
+
+      llvm::SmallVector<Expr*, 1> args{CloneNode(callRef)};
+      Expr* adjoint = BuildCallExpr(BuildDeclRef(zeroLike), args);
+      Expr* adjointRef = storeForReverse(adjoint, /*prefix=*/"_r");
+      return StmtDiff(callRef, adjointRef);
+    }
+
+    if (OCE)
+      return StmtDiff(call);
     return StmtDiff(call, getZeroInit(call->getType()));
   }
 

@@ -970,6 +970,21 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return found == m_ActivityRunInfo.VariedCalls.end() || found->second;
   }
 
+  FunctionDecl* DiffRequest::getDefaultAdjoint(Sema& S, const CallExpr* CE,
+                                               bool nonDiff) const {
+    // A reverse_forw must supply an adjoint the caller can accumulate into,
+    // even when a constant factory contributes nothing to the input gradient.
+    if (nonDiff && Mode != DiffMode::reverse_mode_forward_pass)
+      return nullptr;
+    QualType returnType = CE->getDirectCallee()->getReturnType();
+    if (!returnType->isRecordType() || !utils::isMemoryType(returnType))
+      return nullptr;
+
+    // Model the stored lvalue, which can select a different overload than CE.
+    OpaqueValueExpr value(CE->getExprLoc(), returnType, VK_LValue);
+    return utils::LookupCladZeroLike(S, &value);
+  }
+
   bool DiffRequest::isVaried(const Expr* E) const {
     // FIXME: We should consider removing pullback requests from the
     // diff graph.
