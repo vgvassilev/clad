@@ -1345,6 +1345,33 @@ void print(const MyStruct& s) {
   printf("{%.2f, %.2f}\n", s.a, s.b);
 }
 
+// A struct whose only member is another struct. Differentiating a call that
+// takes it by value needs a constructor pullback for the outer type that
+// recurses into the inner one; an empty body would drop the adjoint.
+struct NestedInner {
+  double i;
+};
+
+struct NestedOuter {
+  NestedInner inner;
+};
+
+double nested_use(NestedOuter o) { return o.inner.i * o.inner.i; }
+
+double fn_nested(NestedOuter o) { return nested_use(o); }
+
+// CHECK: static inline constexpr void constructor_pullback(const NestedOuter &arg, NestedOuter *_d_this, NestedOuter *_d_arg) noexcept {
+// CHECK-NEXT:     NestedInner::constructor_pullback(arg.inner, &_d_this->inner, &(*_d_arg).inner);
+// CHECK-NEXT: }
+
+// CHECK: void fn_nested_grad(NestedOuter o, NestedOuter *_d_o) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         NestedOuter _r0 = (*_d_o);
+// CHECK-NEXT:         nested_use_pullback(o, 1, &_r0);
+// CHECK-NEXT:         NestedOuter::constructor_pullback(o, &_r0, _d_o);
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template <typename T>
 void printArray(T* arr, int size) {
   printf("{");
@@ -1478,4 +1505,11 @@ int main() {
     d_i = 0;
     fn36_grad.execute(i, 5, &d_i);
     printf("{%.2f}\n", d_i);    // CHECK-EXEC: {5.00}
+
+    NestedOuter nested_o;
+    nested_o.inner.i = 3;
+    NestedOuter d_nested_o{};
+    auto fn_nested_grad = clad::gradient(fn_nested);
+    fn_nested_grad.execute(nested_o, &d_nested_o);
+    printf("{%.2f}\n", d_nested_o.inner.i);    // CHECK-EXEC: {6.00}
 }
