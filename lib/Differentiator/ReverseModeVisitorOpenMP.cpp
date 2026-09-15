@@ -1,5 +1,5 @@
 #include "ConstantFolder.h"
-#include "ReductionScope.h"
+#include "LoopScope.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
@@ -27,7 +27,6 @@
 
 #include <array>
 #include <cassert>
-#include <utility>
 
 using namespace clang;
 using namespace llvm::omp;
@@ -184,9 +183,9 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
   if (!IsIncrement)
     Stride = BuildOp(UO_Minus, Stride);
 
-  llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
-  // Set isInsideLoop to true to enable tape generation
-  isInsideLoop = true;
+  // The statements below are the loop's own, so they are taped.
+  assert(m_CurrentLoop && "a canonical loop is differentiated in its region");
+  llvm::SaveAndRestore<bool> SaveTapes(m_CurrentLoop->Tapes, true);
 
   // Create variables for chunk bounds: threadlo, threadhi
   QualType IntTy = m_Context.IntTy;
@@ -565,22 +564,24 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
     isInsideOMPBlock = true;
     // An enclosing loop keeps its accumulators outside this region, where
     // every thread would share them, so none of them is visible in here.
-    llvm::SaveAndRestore<ReductionScope*> HideEnclosing(m_Reductions, nullptr);
+    LoopScope Region(*this);
+    Region.Sums = nullptr;
 
     CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPRegionStart(
         OMPD_parallel, getCurrentScope());
     StmtDiff BodyDiff;
-    llvm::SmallVector<ReductionScope::Accumulator, 2> Accumulators;
     {
       Sema::CompoundScopeRAII CompoundScope(m_Sema);
       if (isOpenMPLoopDirective(D->getDirectiveKind())) {
         const auto* FS = cast<ForStmt>(CS);
-        ReductionScope Reductions{m_DiffReq.getLoopFacts(FS), {}};
-        if (Reductions.Facts.IndVar)
-          m_Reductions = &Reductions;
+        Region.Facts = &m_DiffReq.getLoopFacts(FS);
+        // For the body alone. What is summed here is declared in the region
+        // the body belongs to, so a read reaching this scope afterwards --
+        // the reverse region is built from it -- would name a variable
+        // declared in a region it sits outside of.
+        llvm::SaveAndRestore<LoopScope*> SumHere(
+            Region.Sums, Region.Facts->IndVar ? &Region : nullptr);
         BodyDiff = DifferentiateCanonicalLoop(FS);
-        m_Reductions = nullptr;
-        Accumulators = std::move(Reductions.Accumulators);
       } else {
         BodyDiff = Visit(CS);
       }
@@ -619,16 +620,16 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
     // share into an accumulator declared inside the region, so it has one of
     // its own, and adds it once under `omp atomic`: one update per thread in
     // place of one racing store per iteration.
-    if (!Accumulators.empty()) {
+    if (!Region.Accumulators.empty()) {
       Stmts Body;
-      for (const ReductionScope::Accumulator& A : Accumulators) {
+      for (const LoopScope::Accumulator& A : Region.Accumulators) {
         // Made while the forward region was open, so that is its context. It
         // belongs to the reverse region, which declares it.
         A.Acc->setDeclContext(m_Sema.CurContext);
         Body.push_back(BuildDeclStmt(A.Acc));
       }
       Body.push_back(BodyDiff.getStmt_dx());
-      for (const ReductionScope::Accumulator& A : Accumulators)
+      for (const LoopScope::Accumulator& A : Region.Accumulators)
         Body.push_back(buildAtomicUpdate(
             m_Sema, BuildOp(BO_AddAssign, A.Target, BuildDeclRef(A.Acc)),
             D->getBeginLoc(), D->getEndLoc()));
