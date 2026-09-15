@@ -480,6 +480,66 @@ An example that demonstrates differentiation of lambda expressions::
    Functor class should not contain multiple overloaded call operators. 
    This restriction will be removed in the future.  
 
+.. _differentiating-templates-and-overloads:
+
+Differentiating Templates and Overloaded Functions
+----------------------------------------------------
+
+Clad differentiates a function, not a name. When a name stands for more than one
+function -- a function template, or a set of overloads -- the call has to say
+which one is meant, exactly as taking its address would.
+
+For a function template, name the instantiation::
+
+  template <typename T> T poly(T x, T y) { return x * x * y; }
+
+  auto d_poly = clad::gradient(poly<double>);
+  double d_x = 0, d_y = 0;
+  d_poly.execute(3, 5, &d_x, &d_y);  // d_x = 30, d_y = 9
+
+Clad differentiates that instantiation, with the template arguments already
+substituted, so it sees ordinary code in which ``T`` is ``double``. Each
+instantiation is a different function and gets its own derivative:
+``clad::gradient(poly<float>)`` derives a second one. The same holds for member
+functions of class templates and for explicit specializations.
+
+For an overload set, cast to the signature you want::
+
+  double area(double r) { return 3.0 * r * r; }
+  double area(double w, double h) { return w * h; }
+
+  auto d_disk = clad::gradient(static_cast<double (*)(double)>(area));
+  auto d_rect = clad::gradient(static_cast<double (*)(double, double)>(area));
+
+Overloaded member functions take a pointer-to-member cast::
+
+  class A {
+  public:
+    float f1(float x) { return x + x + x; }
+    double f1(double x) { return x + x + x + x; }
+  };
+
+  auto d_f1 = clad::differentiate(static_cast<float (A::*)(float)>(&A::f1), 0);
+
+The cast picks the overload by ordinary C++ rules, before Clad is involved. In
+particular, a name declared in a derived class hides the base class overloads of
+that name. A cast to a signature only the base declares therefore has to use the
+base in the type, as in ``static_cast<double (A::*)(double)>(&B::f1)``, and that
+is true whether or not a ``using`` declaration makes the overload visible in the
+derived class.
+
+If the call does not narrow the name down to a single function, the error comes
+from C++ overload resolution rather than from Clad, and does not mention
+differentiation at all:
+
+.. code-block:: text
+
+  error: no matching function for call to 'gradient'
+  note: candidate template ignored: couldn't infer template argument 'F'
+
+That message means the argument named a set of functions instead of one
+function: add the template argument or the cast.
+
 Differentiable Class Types
 ----------------------------
 
