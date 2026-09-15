@@ -18,7 +18,7 @@ void declaredOnly(int n, double* out);
 // Only parameters it could write through are affected: an int by value cannot
 // carry a write back to the caller, so it stays `none`.
 // CHECK: written-extent: declaredOnly: n = none
-// CHECK-NEXT: written-extent: declaredOnly: out = unknown (the function has no definition here at line [[@LINE-5]])
+// CHECK-NEXT: written-extent: declaredOnly: out = unknown (this function has no body in this file at line [[@LINE-5]])
 
 double f(double a) {
   double o[4] = {0, 0, 0, 0};

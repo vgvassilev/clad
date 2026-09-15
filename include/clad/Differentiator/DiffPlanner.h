@@ -285,6 +285,12 @@ public:
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   bool Enable##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
+  /// Whether the user asked to hear what each analysis left behind
+  /// (-Rclad-analysis=<name>). Diagnostic-only, like EmitPortingHints, and
+  /// therefore excluded from request equality.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  bool Remark##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
 
   /// Run the same analyses \p Other runs. A derived request -- the pullback of
   /// a callee, the pushforward of a nested call -- covers a different
@@ -293,6 +299,9 @@ public:
   void inheritAnalysesFrom(const DiffRequest& Other) {
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   Enable##Id##Analysis = Other.Enable##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  Remark##Id##Analysis = Other.Remark##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
   }
   /// A flag to emit porting-hint remarks (-fclad-porting-hints) when a function
@@ -502,6 +511,10 @@ struct RequestOptions {
   /// been resolved against the defaults in Analyses.def.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   bool Enable##Id##Analysis = Default;
+#include "clad/Differentiator/Analyses.def"
+  /// Whether the user asked to hear what each analysis left behind.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  bool Remark##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
   bool EmitPortingHints = false;
 };

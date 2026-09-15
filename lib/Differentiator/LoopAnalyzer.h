@@ -5,6 +5,8 @@
 #ifndef CLAD_DIFFERENTIATOR_LOOPANALYZER_H
 #define CLAD_DIFFERENTIATOR_LOOPANALYZER_H
 
+#include "Analyses.h"
+
 #include "clang/Basic/SourceLocation.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -27,8 +29,8 @@ struct DiffRequest;
 /// not counted: an integer stepped by one from a start while it compares
 /// below a bound, with no early exit and nothing else moving the index.
 ///
-/// Several parts of clad need this same shape for different reasons: how many
-/// times a reverse sweep must run, what range of a buffer the body writes.
+/// Several parts of clad need this same construct for different reasons: how
+/// many times a reverse sweep must run, what range of a buffer the body writes.
 /// Deciding it once keeps those answers from drifting apart.
 struct LoopFacts {
   /// The variable the loop steps, or null when the loop is not counted.
@@ -68,6 +70,18 @@ struct LoopFacts {
   [[nodiscard]] const AdjointReduction*
   reductionFor(const clang::Expr* Base) const;
 
+  /// Which way this loop missed the counted construct, and the token that
+  /// missed it. Set whenever a fact above is absent, so a report can say what
+  /// would have to change instead of only that clad declined.
+  AnalysisMiss Why = AnalysisMiss::None;
+  clang::SourceLocation MissedAt;
+
+  /// Records a miss, which is the only way to leave a fact unproven.
+  void missed(AnalysisMiss M, clang::SourceLocation At) {
+    Why = M;
+    MissedAt = At;
+  }
+
   explicit operator bool() const { return IndVar != nullptr; }
 };
 
@@ -92,32 +106,10 @@ struct WrittenExtent {
     Unknown
   };
 
-  /// Why a write could not be bounded, recorded where the analysis gives up.
-  /// A caller that only knows an extent is Unknown can say that it declined;
-  /// one that knows why can say what to change. Re-deriving the reason at the
-  /// reporting site instead is how the two drift apart.
-  enum class Refusal : std::uint8_t {
-    /// Not refused -- the extent is proven.
-    None,
-    /// The subscript is a variable no counted loop steps, so nothing bounds
-    /// it: the loop is not counted, counts down, or steps by more than one.
-    IndexNotCounted,
-    /// The subscript is neither a constant nor a variable.
-    IndexNotUnderstood,
-    /// Two writes that do not describe one range.
-    WritesDisagree,
-    /// A counted loop does step the subscript, but a call site cannot use its
-    /// bound: it is neither a by-value parameter nor a usable constant.
-    BoundNotUsable,
-    /// A write through a pointer that could not be attributed to a parameter,
-    /// so it may have been through any of them.
-    OpaqueWrite,
-    /// The function has no body here, so nothing about it could be proven.
-    NoDefinition
-  };
-
   Kind K = Kind::None;
-  Refusal Why = Refusal::None;
+  /// Why the write could not be bounded, recorded where the analysis gives
+  /// up: re-deriving it at the reporting site is how the two drift apart.
+  AnalysisMiss Why = AnalysisMiss::None;
   /// The write, or the part of it, a refusal is about -- for a diagnostic to
   /// point at. Set on every write, since a disagreement between two of them
   /// is only discovered at the second.
@@ -151,7 +143,7 @@ struct FunctionLoopFacts {
 /// `for` loops are counted, with the facts LoopFacts lists, and the extent each
 /// pointer parameter is written over.
 ///
-/// Every check in here is a whitelist of shapes that can be proven by
+/// Every check in here is a whitelist of constructs that can be proven by
 /// inspection; anything outside it yields an empty LoopFacts or an Unknown
 /// extent, so a caller stays conservative as the whitelist grows. Called
 /// through DiffRequest::getLoopFacts, which runs it once per function.
