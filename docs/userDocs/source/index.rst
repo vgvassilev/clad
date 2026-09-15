@@ -102,8 +102,38 @@ The User Guide
 Citing Clad
 -------------
 
+If Clad contributed to your work, please cite the paper describing it:
+
+.. code-block:: bibtex
+
+   % 16th International workshop on Advanced Computing and Analysis Techniques
+   % in physics research (ACAT), 1-5 September, 2014, Prague, The Czech Republic
+   @inproceedings{Vassilev_Clad,
+     author = {Vassilev,V. and Vassilev,M. and Penev,A. and Moneta,L. and Ilieva,V.},
+     title = {{Clad -- Automatic Differentiation Using Clang and LLVM}},
+     journal = {Journal of Physics: Conference Series},
+     year = 2015,
+     month = {may},
+     volume = {608},
+     number = {1},
+     pages = {012055},
+     doi = {10.1088/1742-6596/608/1/012055},
+     url = {https://iopscience.iop.org/article/10.1088/1742-6596/608/1/012055/pdf},
+     publisher = {{IOP} Publishing}
+   }
+
 Founders
 ---------
 
+Clad was founded by Vassil Vassilev, as part of his research interests and
+vision. He holds the exclusive copyright and other related rights, described in
+`Copyright.txt <https://github.com/vgvassilev/clad/blob/master/Copyright.txt>`__.
+
 License
 --------
+
+Clad is an open source project, licensed under the GNU Lesser General Public
+License. A module under a different license says so in the ``License.txt`` of
+its own source folder. See
+`License.txt <https://github.com/vgvassilev/clad/blob/master/License.txt>`__
+for the full text.
