@@ -506,6 +506,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return it == Loops.end() ? None : it->second;
   }
 
+  void DiffRequest::recordMiss(AnalysisMiss M, SourceLocation At) const {
+    if (!m_Misses)
+      m_Misses = std::make_shared<AnalysisMisses>();
+    AnalysisMissRecord R{M, At};
+    if (!llvm::is_contained(m_Misses->Records, R))
+      m_Misses->Records.push_back(R);
+  }
+
+  llvm::ArrayRef<AnalysisMissRecord> DiffRequest::getAnalysisMisses() const {
+    if (!m_Misses)
+      return {};
+    return m_Misses->Records;
+  }
+
   llvm::ArrayRef<WrittenExtent> DiffRequest::getWrittenExtents() const {
     return getLoopFacts().Extents;
   }

@@ -83,5 +83,11 @@ CLAD_ANALYSIS_MISS(OpaqueWrite, BoundedWrite,
 CLAD_ANALYSIS_MISS(NoDefinition, BoundedWrite,
     "this function has no body in this file")
 
+CLAD_ANALYSIS_DESC(TransparentCall, TBR, "a call clad can look inside",
+    "clad saves every argument of this call for the reverse sweep")
+CLAD_ANALYSIS_MISS(CalleeHasNoBody, TransparentCall,
+    "this function has no body in this file, so there is nothing "
+    "to read to find out which arguments it reads")
+
 #undef CLAD_ANALYSIS_DESC
 #undef CLAD_ANALYSIS_MISS

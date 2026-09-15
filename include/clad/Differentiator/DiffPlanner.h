@@ -51,6 +51,12 @@ namespace clad {
 /// The loop analysis lives in lib/, so a request names its results without
 /// seeing how they are built.
 struct FunctionLoopFacts;
+/// The analyses describe what they look for in lib/Differentiator, and a
+/// request only names their verdicts: the enumerators have a fixed underlying
+/// type so that naming them here needs no definition.
+enum class AnalysisMiss : std::uint8_t;
+struct AnalysisMissRecord;
+struct AnalysisMisses;
 struct LoopFacts;
 struct WrittenExtent;
 
@@ -198,6 +204,14 @@ private:
   /// Runs the loop analysis on first use and hands back what it proved.
   const FunctionLoopFacts& getLoopFacts() const;
 
+  /// What an analysis looked for in this function and did not find.
+  ///
+  /// An analysis with a result of its own keeps its misses there, beside the
+  /// facts they explain. A data-flow analysis has no such result, so it files
+  /// them here. Held by pointer, and defined where the analyses are, so this
+  /// header does not carry the table with it.
+  mutable std::shared_ptr<AnalysisMisses> m_Misses;
+
 public:
   /// The primal body's tail-position return -- the one an early-return encoder
   /// lets control fall through to, as opposed to an early return that needs a
@@ -246,6 +260,13 @@ public:
   /// The extent each parameter of Function is written over, in parameter
   /// order, or empty when there is no Function to look at.
   llvm::ArrayRef<WrittenExtent> getWrittenExtents() const;
+
+  /// Files what an analysis looked for at \p At and did not find.
+  ///
+  /// The same record twice is a data-flow analysis reaching the same
+  /// statement again, not two things to report, so the second is dropped.
+  void recordMiss(AnalysisMiss M, clang::SourceLocation At) const;
+  llvm::ArrayRef<AnalysisMissRecord> getAnalysisMisses() const;
 
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
