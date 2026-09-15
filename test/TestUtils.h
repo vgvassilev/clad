@@ -1,9 +1,15 @@
 #ifndef TEST_TEST_UTILS_H
 #define TEST_TEST_UTILS_H
 #include "clad/Differentiator/ArrayRef.h"
+#include "clad/Differentiator/Differentiator.h"
 
 #include <cstdio>
 #include <type_traits>
+#include <cmath>
+#include <cassert>
+#include <iostream>
+#include <iomanip>
+#include <string>
 
 namespace test_utils {
 
@@ -208,6 +214,54 @@ void EssentiallyEqualArrays(A* a, B* b, unsigned size) {
   }
 }
 
+template <typename T>
+T get_tolerance() {
+    if (std::is_same<T,float>::value) return T(1e-3);
+    else if (std::is_same<T,long double>::value) return T(1e-10);
+    else return T(1e-6);
+}
+
+// step for numerical derivative
+template <typename T>
+T get_h() {
+    if (std::is_same<T,float>::value) return T(1e-3);
+    else if (std::is_same<T,long double>::value) return T(1e-8);
+    else return T(1e-6);
+}
+
+// Central finite difference approximation
+template<typename T>
+T numerical_derivative(T (*f)(T), T x) {
+    const T h = get_h<T>();
+    return (f(x + h) - f(x - h)) / (2 * h);
+}
+
+// 1D Test function for comparing Forward vs Reverse vs Numerical
+template<typename T>
+void test_func(const std::string &name,
+               T (*f)(T), const clad::CladFunction<T(*)(T)> &clad_fwd,
+               const decltype(clad::gradient((T (*)(T))nullptr)) &clad_rev,
+               const T (&test_points)[7] = {-2.0,-1.0,-0.5,0.0,0.5,1.0,2.0}) {
+    const T tol = get_tolerance<T>();
+    std::cerr << std::setprecision(10);
+    for (T x : test_points) {
+        T dfwd_val = clad_fwd.execute(x);
+        T drev_val = T();
+        clad_rev.execute(x, &drev_val);
+        T df_num = numerical_derivative(f, x);
+        if (dfwd_val != drev_val || std::abs(dfwd_val - df_num) > tol) {
+            std::cerr << "FAIL: " << name << " at x=" << x
+                      << ": dfwd=" << dfwd_val
+                      << ", drev=" << drev_val
+                      << ", numerical=" << df_num << "\n";
+        } else {
+            std::cout << "PASS: " << name << " at x=" << x
+                      << " dfwd=" << dfwd_val << ", drev=" << drev_val << "\n";
+        }
+    }
+}
+
+
 #define INIT_GRADIENT_ALL(fn) auto fn##_grad = clad::gradient(fn);
 
 #define INIT_JACOBIAN_ALL(fn) auto fn##_jac = clad::jacobian(fn);
@@ -262,4 +316,4 @@ void EssentiallyEqualArrays(A* a, B* b, unsigned size) {
   test_utils::run_error_estimation<PrecissionType>(fn##_err, __VA_ARGS__);
 
 #endif
-}
+} // namespace test_utils
