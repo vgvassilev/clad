@@ -44,6 +44,23 @@ a pointer type. This case will be explained in more detail later.
 .. _pushforward: https://en.wikipedia.org/wiki/Pushforward_(differential)
 .. _pullback: https://en.wikipedia.org/wiki/Pullback_(differential_geometry)
 
+.. note::
+
+   A custom ``_darg`` derivative is matched on its whole signature, return type
+   included. A function returning ``void`` that writes its result through a
+   single non-const reference to a floating point type has a derivative
+   returning that parameter's tangent, so a custom derivative for it returns
+   the tangent rather than ``void``:
+
+   .. literalinclude:: ../../../../test/Documentation/CustomDerivatives/OutputParameter.cpp
+      :language: cpp
+      :start-after: docs-begin-output-parameter
+      :end-before: docs-end-output-parameter
+
+   A custom derivative still written as ``void`` is not silently ignored --
+   Clad reports that one was provided but not used, and names the signature it
+   expected.
+
 
 Clad internally automatically differentiates functions using these same flavours.
 If Clad needs to differentiate a function ``fn`` that has a custom derivative
