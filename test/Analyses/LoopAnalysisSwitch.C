@@ -79,22 +79,27 @@ double f(const double* x, const double* w, int n) {
 // forced it, and what to write instead. The caret of the cause is on the token
 // that missed -- the bound here, the increment below -- not on the `for`,
 // which is where the cost lands but not the cause.
-// CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 29]]:3: remark: clad adds a counter to this loop and increments it every iteration
-// CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 30]]:23: note: the bound is written elsewhere in the function
+// The inner loop's own index moves w's read, so nothing is said about it. In
+// the outer loop it stands still, and what stops it there is said instead.
+// CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 40]]:19: remark: clad adds to this adjoint in memory on every iteration
+// CHECK-ON: note: the index reads a variable the loop writes
+// CHECK-ON: note: to avoid this, make it a broadcast read
+// CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 34]]:3: remark: clad adds a counter to this loop and increments it every iteration
+// CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 35]]:23: note: the bound is written elsewhere in the function
 // CHECK-ON: note: to avoid this, make it a counted loop
-// CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 21]]:3: remark: clad adds a counter to this loop and increments it every iteration
-// CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 22]]:26: note: the increment does not step the index by one
+// CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 26]]:3: remark: clad adds a counter to this loop and increments it every iteration
+// CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 27]]:26: note: the increment does not step the index by one
 // CHECK-ON: note: to avoid this, make it a counted loop
 
 // Off, every loop is reported, and the note names the switch that turned the
 // analysis off rather than blaming code that nothing looked at.
-// CHECK-OFF: LoopAnalysisSwitch.C:[[# @LINE - 49]]:3: remark: clad adds a counter to this loop and increments it every iteration
+// CHECK-OFF: LoopAnalysisSwitch.C:[[# @LINE - 54]]:3: remark: clad adds a counter to this loop and increments it every iteration
 // CHECK-OFF: note: the loop analysis is off (-fdisable-analysis=loop)
-// CHECK-OFF: LoopAnalysisSwitch.C:[[# @LINE - 50]]:5: remark: clad adds a counter to this loop and increments it every iteration
+// CHECK-OFF: LoopAnalysisSwitch.C:[[# @LINE - 55]]:5: remark: clad adds a counter to this loop and increments it every iteration
 // CHECK-OFF: note: the loop analysis is off (-fdisable-analysis=loop)
-// CHECK-OFF: LoopAnalysisSwitch.C:[[# @LINE - 42]]:3: remark: clad adds a counter to this loop and increments it every iteration
+// CHECK-OFF: LoopAnalysisSwitch.C:[[# @LINE - 47]]:3: remark: clad adds a counter to this loop and increments it every iteration
 // CHECK-OFF: note: the loop analysis is off (-fdisable-analysis=loop)
-// CHECK-OFF: LoopAnalysisSwitch.C:[[# @LINE - 33]]:3: remark: clad adds a counter to this loop and increments it every iteration
+// CHECK-OFF: LoopAnalysisSwitch.C:[[# @LINE - 38]]:3: remark: clad adds a counter to this loop and increments it every iteration
 // CHECK-OFF: note: the loop analysis is off (-fdisable-analysis=loop)
 
 // CHECK-CODE: void sum_pullback(const double *x, const double *w, int n, double _d_y, double *_d_x, int *_d_n) {

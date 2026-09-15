@@ -79,6 +79,9 @@ class SubscriptUses : public RecursiveASTVisitor<SubscriptUses> {
 public:
   struct Uses {
     const Expr* Index = nullptr; // the one index, while they all agree
+    /// The first subscript met. A report points at it, so that the reader
+    /// can see which read it is about.
+    const Expr* First = nullptr;
     bool Uniform = true;
     bool Written = false;
     unsigned Refs = 0;       // every mention of the variable
@@ -110,6 +113,8 @@ public:
     if (VD) {
       Uses& U = Bases[VD];
       U.Subscripts++;
+      if (!U.First)
+        U.First = ASE;
       if (!U.Index)
         U.Index = ASE->getIdx();
       else if (!sameExpr(U.Index, ASE->getIdx(), m_Context))
@@ -149,7 +154,8 @@ private:
 /// The last rules out an index that reads the induction variable, and one
 /// that reads anything the body writes.
 static void collectAdjointReductions(
-    ForStmt* FS, const VarDecl* IndVar, const std::set<const VarDecl*>& Written,
+    const DiffRequest& R, ForStmt* FS, const VarDecl* IndVar,
+    const std::set<const VarDecl*>& Written,
     const llvm::SmallPtrSetImpl<const VarDecl*>& OnlyIndexed, ASTContext& C,
     llvm::SmallVectorImpl<LoopFacts::AdjointReduction>& Out) {
   SubscriptUses Uses(C);
@@ -157,26 +163,39 @@ static void collectAdjointReductions(
   for (const auto& KV : Uses.Bases) {
     const VarDecl* Base = KV.first;
     const SubscriptUses::Uses& U = KV.second;
+    // An index the loop moves is an ordinary read, not a near miss, and so
+    // is one that does something when read. Neither is reported.
+    if (!U.Index || U.Index->HasSideEffects(C) ||
+        utils::exprDependsOnVarDecl(U.Index, IndVar))
+      continue;
+    auto missed = [&](AnalysisMiss M) {
+      R.recordMiss(M, U.First->getBeginLoc());
+    };
     // What one subscript reaches: `double` for `double*` and `double[4]`,
-    // but `double[4]` for `double[3][4]`. A row is read at one index too,
-    // and no register holds a row.
+    // but `double[4]` for `double[3][4]`.
     QualType Ty = Base->getType().getNonReferenceType();
     const auto* Arr = C.getAsArrayType(Ty);
     QualType Elem = Arr ? Arr->getElementType() : Ty->getPointeeType();
+    // Everything below reads as a broadcast and is one read away from being
+    // reduced, so each answers why it is not.
+    if (Elem.isNull() || !Elem->isRealType())
+      missed(AnalysisMiss::ElementIsNotANumber);
+    else if (!U.Uniform)
+      missed(AnalysisMiss::SubscriptsDiffer);
+    else if (U.Written || Written.count(Base))
+      missed(AnalysisMiss::ArrayIsWritten);
+    else if (Uses.DeclaredHere.contains(Base))
+      missed(AnalysisMiss::ArrayIsLocal);
     // OnlyIndexed is the function-wide half of "mentioned in no other way":
     // a pointer copied from Base before the loop would alias it inside.
-    if (!U.Index || !U.Uniform || U.Written || Written.count(Base) ||
-        Uses.DeclaredHere.contains(Base) || !OnlyIndexed.contains(Base) ||
-        Elem.isNull() || !Elem->isRealType())
-      continue;
-    if (U.Index->HasSideEffects(C) ||
-        utils::exprDependsOnVarDecl(U.Index, IndVar))
-      continue;
-    if (llvm::any_of(Written, [&](const VarDecl* W) {
-          return utils::exprDependsOnVarDecl(U.Index, W);
-        }))
-      continue;
-    Out.push_back({Base, U.Index});
+    else if (!OnlyIndexed.contains(Base))
+      missed(AnalysisMiss::ArrayEscapes);
+    else if (llvm::any_of(Written, [&](const VarDecl* W) {
+               return utils::exprDependsOnVarDecl(U.Index, W);
+             }))
+      missed(AnalysisMiss::IndexIsWritten);
+    else
+      Out.push_back({Base, U.Index});
   }
 }
 
@@ -278,8 +297,8 @@ public:
     }
     F = *L;
     F.OwnsIndVar = isa<DeclStmt>(FS->getInit());
-    collectAdjointReductions(FS, L->IndVar, writtenInBody, m_OnlyIndexed,
-                             m_Context, F.Reductions);
+    collectAdjointReductions(m_Request, FS, L->IndVar, writtenInBody,
+                             m_OnlyIndexed, m_Context, F.Reductions);
     // Counted either way: what is left decides only whether the reverse sweep
     // can work the count out rather than count it.
     if (!isStable(L->Init))
