@@ -162,3 +162,21 @@ Further Reading
 ===============
 
 - `“Changing Everything With Clang Plugins” — 2020 LLVM Developers’ Meeting: H. Finkel <https://www.youtube.com/watch?v=A9COzFs-gEg>`__
+
+- `Introduction to the Clang AST <https://clang.llvm.org/docs/IntroductionToTheClangAST.html>`__ --
+  the shortest path to reading what ``-ast-dump`` prints.
+
+- `How to write RecursiveASTVisitor based ASTFrontendActions <https://clang.llvm.org/docs/RAVFrontendAction.html>`__ --
+  a walkthrough of the traversal Clad's visitors are built on.
+
+- `Clang Internals Manual <https://clang.llvm.org/docs/InternalsManual.html>`__ --
+  the reference for the AST, Sema and the diagnostics subsystem.
+
+- `Clang Plugins <https://clang.llvm.org/docs/ClangPlugins.html>`__ --
+  how a plugin like Clad is attached to the compiler.
+
+- `LLVM Programmer's Manual <https://llvm.org/docs/ProgrammersManual.html>`__ --
+  the data structures and idioms LLVM code, Clad included, is written in.
+
+For the mathematics rather than the compiler, see
+:ref:`Further Reading <ad-further-reading>` in Core Concepts.
