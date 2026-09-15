@@ -7,6 +7,7 @@
 
 #include "clang/Basic/SourceLocation.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 
 #include <cassert>
@@ -106,6 +107,37 @@ inline const char* detailOf(AnalysisMiss M) {
   }
   llvm_unreachable("unhandled miss"); // LCOV_EXCL_LINE
 }
+
+/// Which analysis acts on the construct.
+inline AnalysisId analysisOf(AnalysisDesc S) {
+  switch (S) {
+#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Cost)                           \
+  case AnalysisDesc::Id:                                                       \
+    return AnalysisId::Analysis;
+#define CLAD_ANALYSIS_MISS(Id, Desc, Detail)
+#include "AnalysisDescs.def"
+  }
+  llvm_unreachable("unhandled construct"); // LCOV_EXCL_LINE
+}
+
+/// One construct an analysis looked for and did not find, filed by an analysis
+/// that keeps no result of its own to hang it on. The construct follows from
+/// the miss, so only the miss is stored.
+struct AnalysisMissRecord {
+  AnalysisMiss Why = AnalysisMiss::None;
+  /// The token that missed, which is also where the cost of missing it lands.
+  clang::SourceLocation At;
+
+  bool operator==(const AnalysisMissRecord& O) const {
+    return Why == O.Why && At == O.At;
+  }
+};
+
+/// The misses filed against one function, kept behind a pointer so the
+/// request that owns them does not carry this header.
+struct AnalysisMisses {
+  llvm::SmallVector<AnalysisMissRecord, 0> Records;
+};
 
 /// The answer of an analysis that was asked to prove something: the fact, or
 /// the construct the input missed and where it missed it.

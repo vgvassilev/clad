@@ -872,6 +872,17 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return result;
   }
 
+  /// Whether \p R asked to hear from the analysis \p A.
+  static bool wantsRemark(const DiffRequest& R, AnalysisId A) {
+    switch (A) {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                       \
+    case AnalysisId::Id:                                                       \
+      return R.Remark##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+    }
+    llvm_unreachable("unhandled analysis"); // LCOV_EXCL_LINE
+  }
+
   void DerivativeBuilder::emitAnalysisMissRemarks(const DiffRequest& R) {
     const clang::FunctionDecl* FD = R.Function;
     if (!FD)
@@ -897,6 +908,17 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                   "to avoid this, make it %0")
           << nameOf(Desc);
     };
+
+    // What an analysis without a result of its own filed as it ran.
+    for (const AnalysisMissRecord& M : R.getAnalysisMisses()) {
+      AnalysisDesc Desc = descOf(M.Why);
+      AnalysisId A = analysisOf(Desc);
+      if (!wantsRemark(R, A))
+        continue;
+      utils::diag(S, clang::DiagnosticsEngine::Remark, M.At, "%0")
+          << costOf(Desc);
+      explain(A, M.Why, M.At, M.At);
+    }
 
     if (!R.RemarkLoopAnalysis || !FD->doesThisDeclarationHaveABody())
       return;
