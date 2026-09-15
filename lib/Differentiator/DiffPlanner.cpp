@@ -981,6 +981,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     public:
       VariedChecker(const DiffRequest& DR) : m_Request(DR) {}
+      // The default expression is not exposed through children().
+      bool VisitCXXDefaultArgExpr(CXXDefaultArgExpr* E) {
+        return TraverseStmt(E->getExpr());
+      }
       bool isVariedE(const clang::Expr* E) {
         // The call-activity pre-pass also fills the varied set, and its
         // conservative markings (an argument handed to a non-const pointer
