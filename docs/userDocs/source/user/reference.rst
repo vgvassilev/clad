@@ -149,8 +149,45 @@ API reference
                d_res[2][0], d_res[2][1]);
       }
 
+   .. cpp:function:: template<class Fn>\
+                  CladFunction estimate_error(Fn fn, const char* args)
+
+   This function generates a function that computes the gradient of ``fn`` and,
+   along the way, an estimate of the floating-point error committed while
+   evaluating it. The estimate comes from the same reverse sweep: the adjoint of
+   a value says how strongly the result depends on it, so multiplying it by the
+   rounding error of that value and summing over the program gives the error in
+   the result.
+
+   The generated function has the signature ``clad::gradient(fn)`` would
+   produce, with one more parameter at the end, of type ``double&``, which
+   receives the total estimated error.
+
+   ::
+
+      #include "clad/Differentiator/Differentiator.h"
+
+      double func(double x, double y) {
+        double z = x * y;
+        return z + x;
+      }
+      int main() {
+
+        auto fn_err = clad::estimate_error(func);
+
+        double d_x = 0, d_y = 0, error = 0;
+        fn_err.execute(3, 5, &d_x, &d_y, error);
+
+        // Result is 6, 3 with an error of about 8e-06
+        printf("Result is %g, %g, error %g\n", d_x, d_y, error);
+      }
+
+   By default the error of each value is estimated with a Taylor approximation
+   model. A different model can be supplied instead; see
+   :doc:`Floating point error estimation <FloatingPointErrorEstimation>`.
+
 ------------------
 
 .. todo::
 
-   Add numerical differentiation and error estimation framework API reference.
+   Add the numerical differentiation API reference.
