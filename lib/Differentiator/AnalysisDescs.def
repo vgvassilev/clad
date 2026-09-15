@@ -1,0 +1,87 @@
+//--------------------------------------------------------*- C++ -*----------//
+// What each analysis in Analyses.def can act on, and every way an input can
+// miss it.
+//
+// Every analysis here is a whitelist: it improves the derivative where it
+// recognises a construct it can reason about, and falls back to the conservative
+// answer everywhere else. The fallback is silent by construction -- nothing
+// went wrong, a construct simply did not match -- which leaves a user paying for
+// a slower derivative with nothing to read. This table is what an analysis
+// says instead: the construct it was looking for, and what the input did.
+//
+// CLAD_ANALYSIS_DESC(Id, Analysis, Name, Cost)
+//
+//   Id          Spells the enumerator, as in AnalysisDesc::Id.
+//   Analysis    Which analysis in Analyses.def acts on it.
+//   Name        How the construct is named to users, article included: a report
+//               reads it as "make it <Name>".
+//   Cost        What clad emits where the construct is missed, in the code's
+//               terms: the extra work the reader is paying for.
+//
+// CLAD_ANALYSIS_MISS(Id, Desc, Detail)
+//
+//   Id     Spells the enumerator, as in AnalysisMiss::Id.
+//   Desc  The construct this input missed.
+//   Detail What the code does instead, in one short sentence about that code
+//          -- not about the analysis, which the reader does not have to know
+//          anything about to act on it.
+//
+// An analysis that wants to report describes here what it was looking for;
+// one that does not report yet has nothing to say and no entry.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef CLAD_ANALYSIS_DESC
+#error "define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Cost) before including"
+#endif
+
+#ifndef CLAD_ANALYSIS_MISS
+#error "define CLAD_ANALYSIS_MISS(Id, Desc, Detail) before including"
+#endif
+
+CLAD_ANALYSIS_DESC(CountedLoop, Loop, "a counted loop",
+    "clad adds a counter to this loop and increments it every "
+    "iteration")
+CLAD_ANALYSIS_MISS(CondNotComparison, CountedLoop,
+    "the condition is not a comparison")
+CLAD_ANALYSIS_MISS(CondNotBelow, CountedLoop,
+    "the comparison is not < or <=")
+CLAD_ANALYSIS_MISS(IndexNotVariable, CountedLoop,
+    "the left side of the comparison is not a variable")
+CLAD_ANALYSIS_MISS(IndexNotInteger, CountedLoop,
+    "the index is not an integer")
+CLAD_ANALYSIS_MISS(NoStart, CountedLoop,
+    "the header gives the index no start value")
+CLAD_ANALYSIS_MISS(StepNotOne, CountedLoop,
+    "the increment does not step the index by one")
+CLAD_ANALYSIS_MISS(FunctionReturnsEarly, CountedLoop,
+    "the function can return before reaching this loop")
+CLAD_ANALYSIS_MISS(BodyExitsEarly, CountedLoop,
+    "the body can leave the loop early")
+CLAD_ANALYSIS_MISS(BodyMovesIndex, CountedLoop,
+    "the body assigns the index too")
+CLAD_ANALYSIS_MISS(StartNotStable, CountedLoop,
+    "the start value is written elsewhere in the function")
+CLAD_ANALYSIS_MISS(BoundNotStable, CountedLoop,
+    "the bound is written elsewhere in the function")
+
+CLAD_ANALYSIS_DESC(BoundedWrite, Loop, "a bounded write",
+    "clad watches every address written here instead of copying "
+    "one range")
+CLAD_ANALYSIS_MISS(IndexNotCounted, BoundedWrite,
+    "no counted loop steps the index of this write")
+CLAD_ANALYSIS_MISS(IndexNotUnderstood, BoundedWrite,
+    "the index is neither a constant nor a variable")
+CLAD_ANALYSIS_MISS(WritesDisagree, BoundedWrite,
+    "two writes here cover ranges that are not one range")
+CLAD_ANALYSIS_MISS(BoundNotUsable, BoundedWrite,
+    "the bound is neither a parameter nor a constant, so a caller "
+    "cannot work it out")
+CLAD_ANALYSIS_MISS(OpaqueWrite, BoundedWrite,
+    "this writes through a pointer that cannot be traced back to "
+    "a parameter")
+CLAD_ANALYSIS_MISS(NoDefinition, BoundedWrite,
+    "this function has no body in this file")
+
+#undef CLAD_ANALYSIS_DESC
+#undef CLAD_ANALYSIS_MISS

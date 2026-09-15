@@ -1105,6 +1105,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // Not a per-call option like the others: the loop analysis is selected for
     // the whole translation unit, and every mode's loops are the same loops.
     request.EnableLoopAnalysis = ReqOpts.EnableLoopAnalysis;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                       \
+    request.Remark##Id##Analysis = ReqOpts.Remark##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
     if (Annotation == "E") {
       // Error estimation has no options yet.
       request.Mode = DiffMode::reverse;
@@ -1990,8 +1993,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         if (request.UseHessianVectorProducts) {
           DiffRequest pushforwardRequest =
               request.pushforwardRequestForHessian(m_Sema);
-          // A custom pushforward is free to take any shape, and the wrapper
-          // builds its calls by position; derive per direction instead.
+          // A custom pushforward is free to take any signature, and the
+          // wrapper builds its calls by position; derive per direction
+          // instead.
           if (LookupCustomDerivativeDecl(pushforwardRequest))
             request.UseHessianVectorProducts = false;
           else
