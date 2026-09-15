@@ -217,6 +217,10 @@ private:
   ///   double _d_x = 1;
   ///   double _d_y = 0;
   void GenerateSeeds(const clang::FunctionDecl* dFD);
+  /// The tangent a void-returning primal's derivative should return: the one
+  /// belonging to its sole output parameter. Null whenever the derivative
+  /// returns void, which is every other case.
+  clang::Expr* GetOutputParamTangent();
 };
 } // end namespace clad
 
