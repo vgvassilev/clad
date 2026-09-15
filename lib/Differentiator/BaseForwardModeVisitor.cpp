@@ -143,6 +143,26 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
       }
     }
   }
+  // A void-returning function's derivative returns the tangent of the one
+  // parameter it writes through. With several such parameters there is no one
+  // tangent to return, and picking one would be a guess, so say so rather than
+  // hand back a derivative whose result cannot be read. Differentiating a
+  // wrapper that returns the wanted output remains the way to ask for it.
+  if (m_DiffReq.Mode == DiffMode::forward &&
+      utils::CanReturnOutputTangent(FD)) {
+    llvm::SmallVector<const ParmVarDecl*, 2> outputParams;
+    utils::CollectOutputParams(FD, outputParams);
+    if (outputParams.size() > 1) {
+      SourceLocation L = m_DiffReq->getLocation();
+      diag(DiagnosticsEngine::Error, L,
+           "attempted to differentiate '%0', which returns void and writes "
+           "through %1 parameters; forward mode returns a single tangent, so "
+           "differentiate a wrapper returning the output you need")
+          << FD->getNameAsString() << (unsigned)outputParams.size() << L;
+      return {};
+    }
+  }
+
   // Check if the function is already declared as a custom derivative.
   std::string gradientName = m_DiffReq.ComputeDerivativeName();
 
@@ -201,6 +221,14 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
         addToCurrentBlock(S);
     else
       addToCurrentBlock(BodyDiff);
+    // The primal wrote its result through a parameter and returned nothing, so
+    // GetDerivativeType gave the derivative that parameter's tangent as its
+    // return type. Hand the tangent back; without this it stays a local the
+    // caller has no way to read.
+    if (Expr* outputTangent = GetOutputParamTangent())
+      addToCurrentBlock(
+          m_Sema.ActOnReturnStmt(noLoc, outputTangent, getCurrentScope())
+              .get());
     Stmt* fnBody = endBlock();
     // FIXME: Enable this when we vgvassilev/clad#367 (removing goto stmts).
     // // If ActOnFinishFunctionBody should pop the current DeclContext.
@@ -314,6 +342,30 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
     params.push_back(dPVD);
     m_Variables[PVD] = {dPVD};
   }
+}
+
+Expr* BaseForwardModeVisitor::GetOutputParamTangent() {
+  const FunctionDecl* FD = m_DiffReq.Function;
+  // Only a derivative GetDerivativeType gave a return type of its own has a
+  // tangent to hand back: the primal returned void and the derivative does
+  // not. Every other forward derivative keeps the primal's return type, and a
+  // pushforward has somewhere to put an output parameter's tangent already.
+  if (m_DiffReq.Mode != DiffMode::forward || !m_Derivative ||
+      !FD->getReturnType()->isVoidType() ||
+      m_Derivative->getReturnType()->isVoidType())
+    return nullptr;
+
+  llvm::SmallVector<const ParmVarDecl*, 2> outputParams;
+  utils::CollectOutputParams(FD, outputParams);
+  assert(outputParams.size() == 1 &&
+         "a tangent-returning derivative has one output parameter");
+  // GenerateSeeds keys the tangents by the derivative's own parameters, which
+  // SetupDerivativeParameters cloned from the primal's in order.
+  auto found = m_Variables.find(m_Derivative->getParamDecl(
+      outputParams.front()->getFunctionScopeIndex()));
+  assert(found != m_Variables.end() && found->second.Decl &&
+         "GenerateSeeds gives a differentiable parameter a tangent");
+  return BuildDeclRef(found->second.Decl);
 }
 
 void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
@@ -785,8 +837,18 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
 
 StmtDiff BaseForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // If there is no return value, we must not attempt to differentiate
-  if (!RS->getRetValue())
+  if (!RS->getRetValue()) {
+    // Unless the derivative has a return value of its own: a void primal
+    // whose tangent is its output parameter's. Dropping the statement would
+    // not merely lose the tangent on this path, it would lose the path --
+    // the derivative would carry on and write the output the primal left
+    // alone. Return the tangent as it stands here instead.
+    if (Expr* outputTangent = GetOutputParamTangent())
+      return StmtDiff(
+          m_Sema.ActOnReturnStmt(noLoc, outputTangent, getCurrentScope())
+              .get());
     return nullptr;
+  }
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Stmt* returnStmt =

@@ -989,6 +989,25 @@ namespace clad {
              !QT.getNonReferenceType().isConstQualified();
     }
 
+    bool CanReturnOutputTangent(const clang::FunctionDecl* FD) {
+      if (!FD->getReturnType()->isVoidType())
+        return false;
+      const auto* MD = dyn_cast<clang::CXXMethodDecl>(FD);
+      return !MD || MD->isStatic();
+    }
+
+    void CollectOutputParams(
+        const clang::FunctionDecl* FD,
+        llvm::SmallVectorImpl<const clang::ParmVarDecl*>& outputParams) {
+      for (const clang::ParmVarDecl* PVD : FD->parameters()) {
+        clang::QualType T = PVD->getType();
+        if (!T->isLValueReferenceType() || !isNonConstReferenceType(T))
+          continue;
+        if (T.getNonReferenceType()->isRealType())
+          outputParams.push_back(PVD);
+      }
+    }
+
     bool isCopyable(const clang::CXXRecordDecl* RD) {
       if (RD->defaultedCopyConstructorIsDeleted())
         return false;
@@ -1461,8 +1480,27 @@ namespace clad {
                       bool forCustomDerv, bool shouldUseRestoreTracker,
                       bool isForErrorEstimation) {
       ASTContext& C = S.getASTContext();
-      if (mode == DiffMode::forward)
+      if (mode == DiffMode::forward) {
+        // A function returning void leaves its result in a parameter, and the
+        // tangent of that parameter is the only thing its derivative has to
+        // give back. Returning it is what keeps the derivative reachable: the
+        // signature is otherwise the primal's, so the tangent would be a local
+        // the caller cannot read. More than one such parameter is left to the
+        // caller of this function to diagnose -- there is no way to choose.
+        if (utils::CanReturnOutputTangent(FD)) {
+          llvm::SmallVector<const clang::ParmVarDecl*, 2> outputParams;
+          utils::CollectOutputParams(FD, outputParams);
+          // getAs looks through the sugar an attributed function type adds.
+          const auto* FnProtoTy = FD->getType()->getAs<FunctionProtoType>();
+          if (outputParams.size() == 1 && FnProtoTy) {
+            QualType dRetTy = utils::getNonConstType(
+                outputParams.front()->getType().getNonReferenceType(), S);
+            return C.getFunctionType(dRetTy, FnProtoTy->getParamTypes(),
+                                     FnProtoTy->getExtProtoInfo());
+          }
+        }
         return FD->getType();
+      }
 
       QualType FnTy = FD->getType();
 
