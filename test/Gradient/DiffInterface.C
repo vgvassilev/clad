@@ -85,6 +85,22 @@ double f_2 (const double& x, const double& y) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
+// The derivative of interest need not be the return value. Naming an output
+// parameter in the argument list and seeding its adjoint computes the
+// derivatives of that output with respect to the other arguments.
+void f_out(double x, double y, double& res) { res = x * y + 2 * x; }
+
+//CHECK:   void f_out_grad(double x, double y, double &res, double *_d_x, double *_d_y, double *_d_res) {
+//CHECK-NEXT:       res = x * y + 2 * x;
+//CHECK-NEXT:       {
+//CHECK-NEXT:           double _r_d0 = *_d_res;
+//CHECK-NEXT:           *_d_res = 0.;
+//CHECK-NEXT:           *_d_x += _r_d0 * y;
+//CHECK-NEXT:           *_d_y += x * _r_d0;
+//CHECK-NEXT:           *_d_x += 2 * _r_d0;
+//CHECK-NEXT:       }
+//CHECK-NEXT:   }
+
 #define TEST(F, ...)                                                           \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -146,6 +162,11 @@ int main () {
   result[0] = 0;
   f2_dX.execute(2, 3, &result[0]);
   printf("{%.2f}\n", result[0]); // CHECK-EXEC: {1.00}
+
+  auto d_f_out = clad::gradient(f_out, "x,y,res");
+  double d_out_x = 0, d_out_y = 0, d_res = 1, res = 0;
+  d_f_out.execute(3, 5, res, &d_out_x, &d_out_y, &d_res);
+  printf("{%.2f, %.2f}\n", d_out_x, d_out_y); // CHECK-EXEC: {7.00, 3.00}
 
   return 0;
 }
