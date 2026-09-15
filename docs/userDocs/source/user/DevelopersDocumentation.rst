@@ -158,6 +158,8 @@ temporarily the differences in the produced outputs with:
    cmake --build . --target check-clad-execonly
 
 
+.. _inspecting-the-generated-code:
+
 Inspecting the generated code
 =============================
 
