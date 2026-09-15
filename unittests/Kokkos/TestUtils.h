@@ -10,7 +10,10 @@ T finite_difference_tangent(F func, const T& x, const T& epsilon) {
   return (func(x + epsilon) - func(x - epsilon)) / (2 * epsilon);
 }
 
-double parallel_polynomial_true_derivative(
+// Defined in a header included by several test TUs; mark inline so the one
+// definition rule is satisfied ([basic.def.odr]) instead of emitting a
+// separate external definition into every including TU.
+inline double parallel_polynomial_true_derivative(
     double x) { // the true derivative of the polynomial tested in
                 // ParallelFor.cpp and ParallelReduce.cpp
   double res = 0;
