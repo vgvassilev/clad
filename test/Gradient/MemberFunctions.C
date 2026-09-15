@@ -830,6 +830,14 @@ int main() {
   SimpleFunctions sf1(2, 3), sf2(3, 4), sf3(4, 5);
   SimpleFunctions d_sf;
 
+  // A gradient of a member function is itself a member function, so it needs a
+  // base object to be called on. Pass it as the first argument to execute.
+  SimpleFunctions mem_fn_base(2, 3), d_mem_fn_base;
+  double d_mem_i = 0, d_mem_j = 0;
+  d_mem_fn.execute(mem_fn_base, 4, 5, &d_mem_fn_base, &d_mem_i, &d_mem_j);
+  printf("{%.2f, %.2f, %.2f, %.2f}\n", d_mem_i, d_mem_j, d_mem_fn_base.x,
+         d_mem_fn_base.y); //CHECK-EXEC: {10.00, 4.00, 4.00, 4.00}
+
   auto d_fn2 = clad::gradient(fn2);
   d_fn2.execute(sf1, 2, &d_sf, &result[0]);
   printf("%.2f", result[0]); //CHECK-EXEC: 39.00
