@@ -65,6 +65,26 @@ CLAD_ANALYSIS_MISS(StartNotStable, CountedLoop,
 CLAD_ANALYSIS_MISS(BoundNotStable, CountedLoop,
     "the bound is written elsewhere in the function")
 
+CLAD_ANALYSIS_DESC(BroadcastRead, Loop, "a broadcast read",
+    "clad adds to this adjoint in memory on every iteration, "
+    "which keeps the loop from vectorising")
+CLAD_ANALYSIS_MISS(ElementIsNotANumber, BroadcastRead,
+    "one element of this is not a number, and a register holds no "
+    "more than one")
+CLAD_ANALYSIS_MISS(SubscriptsDiffer, BroadcastRead,
+    "this is read at more than one index in the loop")
+CLAD_ANALYSIS_MISS(ArrayIsWritten, BroadcastRead,
+    "the loop writes this too")
+CLAD_ANALYSIS_MISS(ArrayIsLocal, BroadcastRead,
+    "this is declared inside the loop, so each iteration gets a "
+    "fresh one and its adjoint starts again")
+CLAD_ANALYSIS_MISS(ArrayEscapes, BroadcastRead,
+    "this is used somewhere other than as the base of a "
+    "subscript, so something else may reach its adjoint")
+CLAD_ANALYSIS_MISS(IndexIsWritten, BroadcastRead,
+    "the index reads a variable the loop writes, so it is not the "
+    "same element every iteration")
+
 CLAD_ANALYSIS_DESC(BoundedWrite, Loop, "a bounded write",
     "clad watches every address written here instead of copying "
     "one range")
