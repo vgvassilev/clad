@@ -7,9 +7,57 @@ API reference
    Provides an interface to easily access, call and print the differentiated
    function.
 
-   .. todo::
+   Every entry point below -- :cpp:func:`differentiate`, :cpp:func:`gradient`,
+   :cpp:func:`hessian`, :cpp:func:`jacobian` and :cpp:func:`estimate_error` --
+   returns one of these. It is a small wrapper around a pointer to the
+   generated derivative, which Clad fills in while compiling the call.
 
-      Add class member documentation.
+   .. cpp:function:: template<class ...Args> return_type_t<F> execute(Args&&... args) const
+
+      Calls the generated derivative. The arguments are the ones the original
+      function takes, followed by the ones the derivative adds -- a pointer or
+      reference per differentiated parameter in reverse mode, the result matrix
+      in Hessian and Jacobian mode. Each mode's section above shows the shape.
+
+      For the derivative of a member function, the object to call it on comes
+      first, unless :cpp:func:`setObject` has already supplied one.
+
+   .. cpp:function:: template<class ...Args> auto operator()(Args&&... args) const
+
+      Same as :cpp:func:`execute`, so a ``CladFunction`` can be passed wherever
+      a callable is expected.
+
+   .. cpp:function:: const char* getCode() const
+
+      Returns the source code of the generated derivative, which Clad stores in
+      the object as a string literal while compiling.
+
+   .. cpp:function:: void dump() const
+
+      Prints :cpp:func:`getCode` to standard output.
+
+   .. cpp:function:: CladFunctionType getFunctionPtr() const
+
+      Returns a pointer to the generated derivative, for code that needs the
+      plain function pointer rather than the wrapper.
+
+   .. cpp:function:: void setObject(FunctorType* functor)
+                     void setObject(FunctorType& functor)
+
+      Remembers an object for the derivative of a member function or a functor,
+      so later :cpp:func:`execute` calls need not pass one.
+
+   .. cpp:function:: void clearObject()
+
+      Forgets the object set by :cpp:func:`setObject`.
+
+   .. cpp:function:: template<class ...Args> return_type_t<F> execute_kernel(dim3 grid, dim3 block, Args&&... args)
+
+      Launches the derivative of a CUDA kernel with the given grid and block
+      dimensions. Only available when compiling CUDA code, and the only way to
+      call the derivative of a ``__global__`` function --
+      :cpp:func:`execute` refuses it. See
+      :doc:`Using Clad on CUDA code <UsingCladOnCUDACode>`.
 
 ------------------
 
