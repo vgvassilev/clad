@@ -751,11 +751,71 @@ namespace clad {
   using ExtractDerivedFnTraitsForwMode_t =
       typename ExtractDerivedFnTraitsForwMode<F>::type;
 
+  /// Whether a parameter is one a function writes a result through: a
+  /// non-const lvalue reference to an arithmetic type. Kept in step with
+  /// utils::CollectOutputParams, which decides the same thing on the AST side.
+  ///
+  /// The `std::..._v` spelling is not available to these traits: part of the
+  /// test suite compiles this header as C++14, where the variable templates do
+  /// not exist. The `_t` aliases are C++14 and are used. This is what the
+  /// NOLINTs below are for -- modernize-type-traits asks for `_v` here, and
+  /// taking the suggestion breaks the C++14 rows.
+  template <class T> struct IsOutputParam : std::false_type {};
+  // NOLINTBEGIN(modernize-type-traits)
+  template <class T>
+  struct IsOutputParam<T&>
+      : std::integral_constant<bool, std::is_arithmetic<T>::value &&
+                                         !std::is_const<T>::value> {};
+  // NOLINTEND(modernize-type-traits)
+
+  /// The tangent type of the sole output parameter among `Ts`, or void when
+  /// there is not exactly one of them. `Found` carries the match made so far,
+  /// void meaning none yet; a second match collapses the answer back to void,
+  /// since no one choice among several outputs is the right one. Written
+  /// recursively rather than as a fold expression because these headers are
+  /// compiled as C++14 by part of the test suite.
+  template <class Found, class... Ts> struct SoleOutputTangent {
+    using type = Found;
+  };
+  // NOLINTBEGIN(modernize-type-traits)
+  template <class Found, class T, class... Rest>
+  struct SoleOutputTangent<Found, T, Rest...> {
+    using OnMatch = std::conditional_t<
+        std::is_same<Found, void>::value,
+        SoleOutputTangent<std::remove_const_t<std::remove_reference_t<T>>,
+                          Rest...>,
+        SoleOutputTangent<void>>;
+    using type =
+        typename std::conditional_t<IsOutputParam<T>::value, OnMatch,
+                                    SoleOutputTangent<Found, Rest...>>::type;
+  };
+  // NOLINTEND(modernize-type-traits)
+
+  /// The signature a forward-mode derivative is given. It is the primal's,
+  /// except that a primal returning void returns the tangent of its sole
+  /// output parameter instead -- otherwise that tangent is computed into a
+  /// local the caller cannot reach. Mirrors utils::GetDerivativeType.
+  template <class F> struct ForwardModeDerivedSignature {
+    using type = F;
+  };
+  template <class... Args> struct ForwardModeDerivedSignature<void(Args...)> {
+    using type = typename SoleOutputTangent<void, Args...>::type(Args...);
+  };
+  /// A C-variadic primal is the same question with an ellipsis to carry over.
+  /// Without this specialization such a function falls back to the primal's
+  /// own type while the generated code returns a tangent, and the two
+  /// disagreeing is what execute reads a stale register through.
+  template <class... Args>
+  struct ForwardModeDerivedSignature<void(Args..., ...)> {
+    using type = typename SoleOutputTangent<void, Args...>::type(Args..., ...);
+  };
+
   /// Specialization for free function pointer type
   template <class F>
   struct ExtractDerivedFnTraitsForwMode<
       F*, typename std::enable_if<std::is_function<F>::value>::type> {
-    using type = remove_reference_and_pointer_t<F>*;
+    using type = typename ForwardModeDerivedSignature<
+        remove_reference_and_pointer_t<F>>::type*;
   };
 
   /// Specialization for member function pointer type
