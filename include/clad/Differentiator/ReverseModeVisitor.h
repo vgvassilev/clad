@@ -106,8 +106,14 @@ namespace clad {
     // Store the Tape-pop operations that will be inserted at the beginning of
     // the OpenMP reverse pass.
     Stmts m_OMPReverseBlocks;
-    /// A flag indicating if the Stmt we are currently visiting is inside loop.
-    bool isInsideLoop = false;
+    /// The loop the statement being visited sits in, or null outside any
+    /// loop. Defined in lib/Differentiator/LoopScope.h.
+    struct LoopScope;
+    LoopScope* m_CurrentLoop = nullptr;
+    /// Whether a store in the statement being visited happens once per
+    /// iteration of a loop, and so has to go on a tape. False in a loop that
+    /// recomputes instead of taping.
+    [[nodiscard]] bool isInsideLoop() const;
     /// A flag indicating if the Stmt we are currently visiting is inside an
     /// OpenMP parallel region.
     bool isInsideOMPBlock = false;
@@ -948,9 +954,6 @@ namespace clad {
     // style. Remove this once we generate constructors explicitly.
     bool m_TrackVarDeclConstructor = false;
 
-    /// A flag indicating if the Stmt is contained in a checkpointed loop.
-    bool m_IsInsideCheckpointedLoop = false;
-
     /// The two expressions a counted loop's reverse sweep needs. What the
     /// loop *is* -- its index, its bounds, whether they hold still -- belongs
     /// to the request, not here; this is only what had to be built from it.
@@ -973,11 +976,6 @@ namespace clad {
     /// differentiated several calls down, with no parameter of its own to
     /// carry this; set only while that one statement is being visited.
     const clang::VarDecl* m_UnsavedLoopIndex = nullptr;
-
-    /// The accumulators of the loop being differentiated, or null outside a
-    /// counted loop. Defined in lib/Differentiator/ReductionScope.h.
-    struct ReductionScope;
-    ReductionScope* m_Reductions = nullptr;
   };
 } // end namespace clad
 
