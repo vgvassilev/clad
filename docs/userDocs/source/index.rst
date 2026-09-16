@@ -37,23 +37,12 @@ checkout :doc:`Using Clad <user/UsingClad>` and
 
 ----------------------
 
-Clad example use::
+Clad example use:
 
-   #include "clad/Differentiator/Differentiator.h"
-   #include <iostream>
-
-   double f(double x, double y) { return x * y; }
-
-   int main() {
-     auto f_dx = clad::differentiate(f, "x");
-     // computes derivative of 'f' when (x, y) = (3, 4) and prints it.
-     std::cout << f_dx.execute(3, 4) << std::endl; // prints: 4
-     f_dx.dump(); // prints:
-     /* double f_darg0(double x, double y) {
-         double _d_x = 1; double _d_y = 0;
-          return _d_x * y + x * _d_y;
-        } */
-   }
+.. literalinclude:: ../../../test/Documentation/Guide/Overview.cpp
+   :language: cpp
+   :start-after: docs-begin-overview
+   :end-before: docs-end-overview
 
 Features
 -----------

@@ -146,11 +146,12 @@ variable. This independent variable does not necessarily have to be the function
 This functionality can be easily understood with the help of an example, so let's set aside
 the mathematics jargon.
 
-Let's say we want to provide pushforward custom derivative for the function :code:`fn`::
+Let's say we want to provide pushforward custom derivative for the function :code:`fn`:
 
-  double fn(double u, double v) {
-    return u * v;
-  }
+.. literalinclude:: ../../../../test/Documentation/CustomDerivatives/Pushforward.cpp
+   :language: cpp
+   :start-after: docs-begin-pushforward-fn
+   :end-before: docs-end-pushforward-fn
 
 Then the pushforward custom derivative for the function :code:`fn` must compute the
 partial derivative of the function's output with respect to the independent variable using the
@@ -173,20 +174,12 @@ primal value, that is, the result of the call :code:`fn(u, v)`. This is essentia
 forward mode AD to work correctly when a function take reference or pointer arguments.
 It is also beneficial for generating more efficient code.
 
-Now we are ready to see the :code:`pushforward` custom derivative of :code:`fn`::
+Now we are ready to see the :code:`pushforward` custom derivative of :code:`fn`:
 
-  namespace clad {
-  namespace custom_derivatives {
-
-  clad::ValueAndPushforward<double, double>
-  fn_pushforward(double u, double v, double du, double dv) {
-    double y = fn(u, v); // compute the primal value
-    double dy = v * du + u * dv; // compute the output derivative
-    return {y, dy};
-  }
-
-  } // namespace custom_derivatives
-  } // namespace clad
+.. literalinclude:: ../../../../test/Documentation/CustomDerivatives/Pushforward.cpp
+   :language: cpp
+   :start-after: docs-begin-pushforward-custom
+   :end-before: docs-end-pushforward-custom
 
 In the :code:`fn_pushforward` function, :code:`du` and :code:`dv` are :math:`\partial u / \partial x`
 and :math:`\partial v / \partial x` respectively, where :code:`x` is the independent variable
@@ -211,11 +204,13 @@ The :ref:`pullback <PullbackFunctions>` custom derivative is used by the Clad re
 Pullback function *pulls* sensitivities of outputs to the sensitivities of inputs.
 Put simply, it computes the contributions to the partial derivatives of some output with respect
 to the function's inputs. This output variable does not necessarily have to be the function's output.
-Let's take the same example as before to understand the pullback custom derivative::
+Let's take the same example as before to understand the pullback custom
+derivative:
 
-  double fn(double u, double v) {
-    return u * v;
-  }
+.. literalinclude:: ../../../../test/Documentation/CustomDerivatives/Pullback.cpp
+   :language: cpp
+   :start-after: docs-begin-pullback-fn
+   :end-before: docs-end-pullback-fn
 
 The pullback custom derivative for the function :code:`fn` must compute the contributions to the
 partial derivatives of some output variable with respect to the function's input variables using the
@@ -230,18 +225,12 @@ If :code:`y` is the final output of the code getting differentiated, then the
 :code:`y` with respect to :code:`u` and :code:`v`. Please note that the output variable is
 :code:`y`, which is not the function's output.
 
-Now we are ready to see the pullback custom derivative of :code:`fn`::
+Now we are ready to see the pullback custom derivative of :code:`fn`:
 
-  namespace clad {
-  namespace custom_derivatives {
-
-  void fn_pullback(double u, double v, double dr, double *du, double *dv) {
-    *du += v * dr;
-    *dv += u * dr;
-  }
-
-  } // namespace custom_derivatives
-  } // namespace clad
+.. literalinclude:: ../../../../test/Documentation/CustomDerivatives/Pullback.cpp
+   :language: cpp
+   :start-after: docs-begin-pullback-custom
+   :end-before: docs-end-pullback-custom
 
 :code:`r` is the :code:`fn`s output and :code:`y` is the final output
 of the code getting differentiated. :code:`dr` is the partial derivative
@@ -251,6 +240,7 @@ partial derivatives :math:`\partial y / \partial u` and :math:`\partial y / \par
 respectively.
 
 Some important things to note here:
+
 - The pullback custom derivative function name must be :code:`<function_name>_pullback`.
 
 - The pullback custom derivative function must take the same number of arguments as the
@@ -267,18 +257,12 @@ The reverse-forward custom derivative is used by the Clad reverse mode AD to det
 the adjoint of a function's return value for functions which returns a reference or a
 pointer type. Adjoint of a variable :code:`u` is the partial derivative of the output variable
 with respect to :code:`u`. Let's understand why reverse-forward functions are needed with
-the help of an example::
+the help of an example:
 
-  double &g(double &u, double &v) {
-    if (u > v)
-      return u;
-    return v;
-  }
-
-  double fn(double u, double v) {
-    double &r = g(u, v);
-    return r;
-  }
+.. literalinclude:: ../../../../test/Documentation/CustomDerivatives/ReverseForw.cpp
+   :language: cpp
+   :start-after: docs-begin-reverse-forw-primal
+   :end-before: docs-end-reverse-forw-primal
 
 In the above example, the :code:`g(u, v)` output and :code:`double &r` refers to the
 same variable, hence they should have the same adjoint. That is, if :code:`g(u, v)` returns
@@ -289,30 +273,23 @@ runtime values. So the question becomes how to correctly set the adjoint :code:`
 :code:`du` or :code:`dv` in the derivative function?
 
 Reverse-forward function is used to solve this problem. The reverse-forward function modifies
-the primal function, :code:`fn` in our case, to return both the primal value and the adjoint.
+the function that returns the reference, :code:`g` in our case, to return both the primal
+value and the adjoint.
 With both the primal value and the adjoint being returned, Clad can correctly set both the :code:`r`
 and :code:`dr`. Note that this method can work because the reverse-forward function computes the
 adjoint variable at runtime instead of the compile-time.
 
-Now we are ready to see the reverse-forward custom derivative of :code:`fn`::
+Now we are ready to see the reverse-forward custom derivative of :code:`g`:
 
-  namespace clad {
-  namespace custom_derivatives {
-
-  clad::ValueAndAdjoint<double &, double &>
-  fn_reverse_forw(double &u, double &v, double &du, double &dv) {
-    if (u > v) {
-      return {u, du}; // primal value and adjoint
-    }
-    return {v, dv}; // primal value and adjoint
-  }
-
-  } // namespace custom_derivatives
-  } // namespace clad
+.. literalinclude:: ../../../../test/Documentation/CustomDerivatives/ReverseForw.cpp
+   :language: cpp
+   :start-after: docs-begin-reverse-forw-custom
+   :end-before: docs-end-reverse-forw-custom
 
 Here :code:`du` and :code:`dv` are the adjoints of the function arguments.
 
 Some important things to note here:
+
 - The reverse-forward custom derivative function name must be :code:`<function_name>_reverse_forw`.
 
 - The reverse-forward custom derivative function must take the same number of arguments as the
@@ -335,41 +312,12 @@ The only differences are:
 
 - The :code:`this` pointer must be accounted for in the custom derivative.
 
-An example will make things clear::
+An example will make things clear:
 
-
-  class A {
-  public:
-    // ...
-    // ...
-
-    double fn(double u, double v) {
-      return u * val1 + v * val2;
-    }
-  };
-
-  namespace clad {
-  namespace custom_derivatives {
-  namespace class_functions {
-    // pushforward custom derivative
-    clad::ValueAndPushforward<double, double>
-    fn_pushforward(A *a, double u, double v, A *da, double du, double dv) {
-      double y = a->fn(u, v); // compute the primal value
-      // compute the derivative
-      double dy = u * da->val1 + du * a->val1 + v * da->val2 + dv * a->val2;
-      return {y, dy};
-    }
-
-    // pullback custom derivative
-    void fn_pullback(A *a, double u, double v, double dr, A *da, double *du, double *dv) {
-      *du += dr * a->val1;
-      da->val1 += dr * u;
-      *dv += dr * a->val2;
-      da->val2 += dr * v;
-    }
-  } // namespace class_functions
-  } // namespace custom_derivatives
-  } // namespace clad
+.. literalinclude:: ../../../../test/Documentation/CustomDerivatives/MemberFunctions.cpp
+   :language: cpp
+   :start-after: docs-begin-member-functions
+   :end-before: docs-end-member-functions
 
 .. note::
 
@@ -414,29 +362,12 @@ functions in two important ways:
   derivative function code. Note that this requires that the class
   type must be move-constructible.
 
-Now let's see constructor pushforward custom derivative in-action::
+Now let's see constructor pushforward custom derivative in-action:
 
-  class Coordinates {
-    public:
-    Coordinates(double px, double py, double pz) :
-      x(px), y(py), z(pz) {}
-
-    public:
-    double x, y, z;
-  };
-
-  namespace clad {
-  namespace custom_derivatives {
-  namespace class_functions {
-  // custom constructor pushforward function
-  clad::ValueAndPushforward<::Coordinates, ::Coordinates>
-  constructor_pushforward(clad::ConstructorPushforwardTag<::Coordinates>, double x, double y,
-                          double z, double d_x, double d_y, double d_z) {
-    return {::Coordinates(x, y, z), ::Coordinates(d_x, d_y, d_z) };
-  }
-  } // namespace class_functions
-  } // namespace custom_derivatives
-  } // namespace clad
+.. literalinclude:: ../../../../test/Documentation/CustomDerivatives/Constructors.cpp
+   :language: cpp
+   :start-after: docs-begin-constructor-pushforward
+   :end-before: docs-end-constructor-pushforward
 
 :code:`clad::ConstructorPushforwardTag<::Coordinates>` is used to identify the
 class for which the constructor pushforward is defined. The member function
@@ -462,31 +393,12 @@ when the constructor is called, at that time the class object does not exist. He
 need of the class object to compute the derivative.
 
 Let's see the constructor pullback custom derivative in-action using the
-same :code:`Coordinates` class ::
+same :code:`Coordinates` class:
 
-  class Coordinates {
-    Coordinates(double px, double py, double pz) :
-      x(px), y(py), z(pz) {}
-
-    public:
-    double x, y, z;
-  }
-
-  namespace clad {
-  namespace custom_derivatives {
-  namespace class_functions {
-  void constructor_pullback(double x, double y, double z, ::Coordinates *d_coordinates,
-      double *d_x, double *d_y, double *d_z) {
-    *d_x += d_coordinates->x;
-    d_coordinates->x = 0;
-    *d_y += d_coordinates->y;
-    d_coordinates->y = 0;
-    *d_z += d_coordinates->z;
-    d_coordinates->z = 0;
-  }
-  } // namespace class_functions
-  } // namespace custom_derivatives
-  } // namespace clad
+.. literalinclude:: ../../../../test/Documentation/CustomDerivatives/Constructors.cpp
+   :language: cpp
+   :start-after: docs-begin-constructor-pullback
+   :end-before: docs-end-constructor-pullback
 
 Note that the constructor pullback does not need anything such as
 :code:`clad::ConstructorPushforwardTag<::Coordinates>`. It is because

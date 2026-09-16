@@ -62,30 +62,18 @@ How do I differentiate with respect to an array?
 If the parameter has a known size, pass an array of the same size for its
 derivative:
 
-.. code-block:: cpp
-
-   double weighted(double x[3]) { return x[0] * x[1] + x[2]; }
-
-   auto g = clad::gradient(weighted);
-   double x[3] = {2, 3, 4}, dx[3] = {};
-   g.execute(x, dx);              // dx = {3, 2, 1}
+.. literalinclude:: ../../../../test/Documentation/FAQ/FixedSizeArray.cpp
+   :language: cpp
+   :start-after: docs-begin-fixed-size-array
+   :end-before: docs-end-fixed-size-array
 
 If it is a pointer whose length is only known at run time, wrap the derivative
 in a ``clad::array_ref`` so Clad knows how far it may write:
 
-.. code-block:: cpp
-
-   double sum_sq(const double* x, int n) {
-     double s = 0;
-     for (int i = 0; i < n; ++i)
-       s += x[i] * x[i];
-     return s;
-   }
-
-   auto g = clad::gradient(sum_sq, "x");
-   double y[4] = {1, 2, 3, 4}, dy[4] = {};
-   clad::array_ref<double> dy_ref(dy, 4);
-   g.execute(y, 4, dy_ref);       // dy = {2, 4, 6, 8}
+.. literalinclude:: ../../../../test/Documentation/FAQ/PointerArray.cpp
+   :language: cpp
+   :start-after: docs-begin-pointer-array
+   :end-before: docs-end-pointer-array
 
 Clad warns that a function has no definition
 =============================================
