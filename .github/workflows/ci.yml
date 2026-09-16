@@ -81,10 +81,10 @@ jobs:
             compiler: clang-13
             clang-runtime: '13'
 
-          - name: ubuntu-clang15-runtime16-doc
+          - name: ubuntu-clang18-runtime18-doc
             os: ubuntu-latest
-            compiler: clang-15
-            clang-runtime: '16'
+            compiler: clang-18
+            clang-runtime: '18'
             doc_build: true
 
           - name: ubu24-clang16-runtime17-shared-libs
