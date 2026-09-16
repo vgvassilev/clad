@@ -28,10 +28,6 @@ Clad consists of 4 primary automatic differentiation functions:
 
 Each of these functions will be explored in this guide.
 
-.. todo::
-
-   Perhaps add example use before proceeding with different differentiation modes.
-
 
 Forward Mode Automatic Differentiation
 ----------------------------------------

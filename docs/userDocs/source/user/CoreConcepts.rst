@@ -407,6 +407,8 @@ weakest: a reference member and the variable it binds to are the same object,
 so a derivative can reach it by two paths and be counted twice. See
 `issue #2082 <https://github.com/vgvassilev/clad/issues/2082>`__.
 
+.. _numerical-differentiation:
+
 Numerical Differentiation
 ============================
 

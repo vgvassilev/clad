@@ -18,14 +18,11 @@ for C++. It is based on LLVM compiler infrastructure and is a plugin for
 transformation. Given C++ source code of a mathematical function, it can
 automatically generate C++ code for computing derivatives of the function.
 
-.. todo::
-
-   Add section that describes complete set of supported language features.
-
 Clad supports a large set of C++ features including control flow statements and
-function calls. Please visit (add hyperlink here) to know more about the
-support of language features. It supports reverse-mode AD (a.k.a backpropagation)
-as well as forward-mode AD. It also facilitates computation of hessian matrix and
+function calls. :doc:`Using Clad <user/UsingClad>` works through what can be
+differentiated and how, and each mode's page states the limits it currently
+has. Clad supports reverse-mode AD (a.k.a backpropagation) as well as
+forward-mode AD, and it also facilitates computation of hessian matrix and
 jacobian matrix of any arbitrary function.
 
 Automatic differentiation solves all the usual problems of numerical
@@ -59,13 +56,6 @@ Features
 - Features numerical differentiation support, to be used as a fallback where
   automatic differentiation is not feasible.
 
-
-.. comment
-
-
-   .. todo::
-
-      Add more features such as error estimation, custom derivatives, class type support etc.
 
 The User Guide
 ---------------
