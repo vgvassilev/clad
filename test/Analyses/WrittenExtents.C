@@ -1,6 +1,16 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fdump-analysis=loop %s \
 // RUN:   -I%S/../../include -oWrittenExtents.out 2>&1 | %filecheck %s
 // RUN: ./WrittenExtents.out
+//
+// Switched off, the analysis proves nothing, and the report says that rather
+// than one `none` per parameter, which would read as "writes nothing".
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fdump-analysis=loop \
+// RUN:   -Xclang -plugin-arg-clad -Xclang -fdisable-analysis=loop \
+// RUN:   -fsyntax-only %s -I%S/../../include 2>&1 \
+// RUN:   | %filecheck --check-prefix=CHECK-OFF %s
+//
+// CHECK-OFF: written-extent: subtract: loop analysis is disabled
+// CHECK-OFF-NOT: written-extent: subtract: out = [0, d)
 
 // What a callee writes through each pointer parameter, proven from its body
 // and expressed in its own parameters so a call site can evaluate it. The

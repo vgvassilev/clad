@@ -755,7 +755,6 @@ LoopFacts::reductionFor(const Expr* Base) const {
 }
 
 void analyzeLoops(const DiffRequest& R, FunctionLoopFacts& Out) {
-  Out.Fn = R.Function;
   // The extents are read off the declaration a call site names, so a callee
   // defined only later in the file reports NoDefinition rather than a guess.
   computeWrittenExtents(R.Function, Out.Extents);

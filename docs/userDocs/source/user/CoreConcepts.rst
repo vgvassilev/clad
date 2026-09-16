@@ -388,4 +388,60 @@ Currently Supported Use Cases
 Error Estimation Core Concepts
 ================================
 
-.. todo:: todo
+A floating-point computation is not the computation it was written as: every
+operation rounds its result, and those roundings accumulate. Clad estimates how
+much they add up to in the final result, and it does so with the machinery it
+already has.
+
+The link is the adjoint. The adjoint of a value is how much the result changes
+when that value changes, which is exactly what a reverse sweep computes, so an
+adjoint also says how much of the result's error comes from the error in that
+value. Clad therefore generates the gradient of the function and, at each
+assignment, adds the adjoint of the value written, multiplied by the rounding
+error of that value, into a running total. What the error of a value is taken
+to be is decided by an error model, which is a parameter of the framework: the
+built-in one uses a Taylor approximation, and a program can supply its own.
+
+The estimate costs one reverse sweep, so it is a whole-program error bound
+obtained at the price of a gradient, rather than at the price of rerunning the
+computation in higher precision.
+
+:doc:`Floating point error estimation <FloatingPointErrorEstimation>` describes
+the framework, its classes and how to write a custom model;
+:cpp:func:`estimate_error` in the :doc:`API reference <reference>` describes the
+interface.
+
+.. _ad-further-reading:
+
+Further Reading
+================
+
+Clad implements the standard forward and reverse modes described in the
+automatic differentiation literature. These are good places to read more about
+the subject itself, independently of Clad:
+
+* A. G. Baydin, B. A. Pearlmutter, A. A. Radul and J. M. Siskind,
+  *Automatic Differentiation in Machine Learning: a Survey*, Journal of Machine
+  Learning Research 18(153), 2018,
+  `jmlr.org/papers/v18/17-468.html <https://jmlr.org/papers/v18/17-468.html>`__.
+  A short survey, and the best starting point if you read only one.
+
+* C. C. Margossian, *A Review of Automatic Differentiation and its Efficient
+  Implementation*, WIREs Data Mining and Knowledge Discovery, 2019,
+  `doi:10.1002/widm.1305 <https://doi.org/10.1002/widm.1305>`__. Covers what
+  implementations actually have to do, which is closer to what Clad does.
+
+* A. Griewank and A. Walther, *Evaluating Derivatives: Principles and
+  Techniques of Algorithmic Differentiation*, 2nd edition, SIAM, 2008,
+  `doi:10.1137/1.9780898717761 <https://doi.org/10.1137/1.9780898717761>`__.
+  The standard reference, and where the theory behind checkpointing and
+  to-be-recorded analysis is worked out.
+
+* `autodiff.org <https://www.autodiff.org>`__, the community portal: a list of
+  tools, a bibliography, and the workshops in the field.
+
+* V. Vassilev, M. Vassilev, A. Penev, L. Moneta and V. Ilieva,
+  *Clad -- Automatic Differentiation Using Clang and LLVM*, Journal of Physics:
+  Conference Series 608, 012055, 2015,
+  `doi:10.1088/1742-6596/608/1/012055 <https://doi.org/10.1088/1742-6596/608/1/012055>`__.
+  How Clad itself is put together.

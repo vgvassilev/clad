@@ -137,8 +137,9 @@ struct WrittenExtent {
 /// Everything the loop analysis proved about one function, filled in one go
 /// and kept on the DiffRequest for every reader.
 struct FunctionLoopFacts {
-  /// The function the rest of this was proven about. A request copied and
-  /// re-pointed at another function must not read the one it was made for.
+  /// The function these facts were proven about, filled in by the request
+  /// that caches them. A request that is copied and re-pointed at another
+  /// function must not read the old ones.
   const clang::FunctionDecl* Fn = nullptr;
   /// Each `for` in the body, counted or not.
   std::unordered_map<const clang::ForStmt*, LoopFacts> Loops;

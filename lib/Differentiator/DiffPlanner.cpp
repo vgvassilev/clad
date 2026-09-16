@@ -489,7 +489,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // definition of what it was planned for.
     if (!m_LoopFacts || m_LoopFacts->Fn != Function) {
       auto Facts = std::make_shared<FunctionLoopFacts>();
-      if (Function)
+      Facts->Fn = Function;
+      // Switched off, the facts stay empty, which every reader already has to
+      // handle: it is what a function whose loops prove nothing looks like.
+      if (Function && EnableLoopAnalysis)
         analyzeLoops(*this, *Facts);
       m_LoopFacts = std::move(Facts);
     }
@@ -1099,6 +1102,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                                     DiffRequest& request) {
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
     std::string Annotation = A->getAnnotation().str();
+    // Not a per-call option like the others: the loop analysis is selected for
+    // the whole translation unit, and every mode's loops are the same loops.
+    request.EnableLoopAnalysis = ReqOpts.EnableLoopAnalysis;
     if (Annotation == "E") {
       // Error estimation has no options yet.
       request.Mode = DiffMode::reverse;
@@ -1863,6 +1869,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
       forwPassRequest.CallContext = request.CallContext;
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
+      forwPassRequest.EnableLoopAnalysis = request.EnableLoopAnalysis;
     }
 
     if (hasNoMemoryInputForPointerOrRefReturn) {
@@ -2116,6 +2123,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     forwPassRequest.Mode = DiffMode::reverse_mode_forward_pass;
     forwPassRequest.CallContext = E;
     forwPassRequest.EmitPortingHints = m_TopMostReq->EmitPortingHints;
+    forwPassRequest.EnableLoopAnalysis = m_TopMostReq->EnableLoopAnalysis;
     QualType recordTy = CD->getThisType()->getPointeeType();
     bool elideRevForw =
         utils::constructorReverseForwIsElidable(CD, m_Sema.getASTContext());
