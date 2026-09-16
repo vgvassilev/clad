@@ -176,12 +176,68 @@ using SIMD techniques.
 Derived Function Types and Derivative Types
 =============================================
 
-.. todo:: todo
+Each entry point asks for a different shape of derivative, so each generates a
+function with its own name and signature. For ``double f(double x, double y)``
+clad produces:
+
+``clad::differentiate(f, "x")``
+  ``double f_darg0(double x, double y)`` -- the same signature as ``f``,
+  returning the derivative instead of the value.
+
+``clad::gradient(f)``
+  ``void f_grad(double x, double y, double *_d_x, double *_d_y)`` -- one
+  extra parameter per differentiated parameter. It returns nothing and writes
+  through those pointers.
+
+``clad::hessian(f)``
+  ``void f_hessian(double x, double y, double *hessianMatrix)`` -- the matrix
+  flattened in row major order, so ``n`` independent variables need ``n * n``
+  elements.
+
+``clad::jacobian(g)``
+  ``void g_jac(..., clad::matrix<double> *_d_vector_out)`` -- one matrix per
+  pointer or array parameter that the function writes to.
+
+``clad::estimate_error(f)``
+  what ``clad::gradient`` would generate, with one more parameter at the end,
+  ``double &_final_error``.
+
+The derivative of a value has the same type as the value. A ``double`` has a
+``double`` derivative, an array of three doubles has an array of three
+doubles, and a user-defined type has a derivative of that same type. This is
+why a gradient asks for a pointer to the parameter's own type rather than to
+some separate derivative type, and why the derivative of an array parameter
+whose length is only known at run time is passed as a ``clad::array_ref``:
+clad has to be told how far it may write.
+
+Reverse mode accumulates into these parameters rather than assigning to them,
+so the caller allocates them and sets them to zero. Calling a gradient twice
+with the same buffer adds the second result to the first.
 
 Custom Derivatives
 ====================
 
-.. todo:: todo
+Clad differentiates source code, so it needs the body of every function it
+reaches. Sometimes there is no body to reach -- the function is in a library,
+or it is a compiler builtin -- and sometimes there is one but it should not be
+differentiated: it may be an iterative approximation whose derivative is
+better computed in closed form, or code whose derivative is known to be more
+numerically stable when written by hand.
+
+A custom derivative is how you tell clad what the derivative of such a
+function is. You write a function whose name is the original's with a suffix,
+put it in ``clad::custom_derivatives``, and clad calls it instead of
+differentiating the body. Which suffix depends on what the call site needs: a
+pushforward for forward mode, a pullback for reverse mode, and a
+reverse-forward function for a call in reverse mode whose result is used
+before the reverse sweep reaches it. The three are described below and in
+:doc:`Custom derivatives <CustomDerivatives>`, which also covers member
+functions and constructors.
+
+The lookup is by name. A custom derivative whose signature does not match what
+clad expects is reported as an error naming the expected signature, but one
+whose *name* is wrong is simply not found: clad differentiates the function
+itself and never mentions that your function exists.
 
 Pushforward and Pullback functions
 ===================================
@@ -241,7 +297,8 @@ effectively compute and process derivatives of function call expressions. For ex
 
 In the derived function, this statement will be transformed to::
 
-  clad::ValueAndPushforward<double, double> _t0 = fn_pushforward(u, v, _d_u, _d_v);
+  clad::ValueAndPushforward<double, double> _t0 =
+      fn_pushforward(u, v, _d_u, _d_v);
   _d_y = _t0.pushforward;
   y = _t0.value;
 
@@ -270,8 +327,8 @@ For a function::
 the prototype of the corresponding pushforward function will be as follows::
 
   clad::ValueAndPushforward<double, double>
-  fn1_pushforward(float i, double& j, long double k, float _d_i, double& _d_j,
-                  long double _d_k);
+  fn1_pushforward(float i, double& j, long double k,
+                  float _d_i, double& _d_j, long double _d_k);
 
 Please note the following specification of the pushforward functions:
 
@@ -298,12 +355,57 @@ function itself, and a misspelled custom derivative is simply never called.
 Pullback functions
 --------------------
 
-.. todo:: todo
+A pullback is the reverse-mode counterpart of a pushforward. Where a
+pushforward carries a derivative forward through a call, from the inputs to
+the result, a pullback carries one backward, from the result to the inputs.
+
+For a function ``double fn(double u, double v)`` the pullback is::
+
+  void fn_pullback(double u, double v, double _d_y,
+                   double *_d_u, double *_d_v);
+
+It takes the original parameters, then the adjoint of the result -- how much
+the final output depends on what this call returned -- then a pointer for each
+parameter's adjoint. It computes nothing to return: it adds each parameter's
+contribution into the adjoint it was handed.
+
+Adding rather than assigning is the contract, not a detail. The same variable
+can reach several calls, and each call owes it a share of the derivative; a
+pullback that assigns silently discards the shares written before it. Clad
+passes fresh zeroed temporaries for arguments taken by value, so the
+difference does not show there, but for an argument taken by reference clad
+hands the pullback the caller's own adjoint, and assigning to it loses
+whatever had accumulated.
+
+A pullback does not return the primal value, because in reverse mode the value
+was computed on the way in and is available already. A call whose result is
+needed by the reverse sweep itself -- one returning a reference, for instance
+-- is handled by a reverse-forward function instead, which returns the value
+and its adjoint together as a ``clad::ValueAndAdjoint``.
 
 Differentiable Class Types
 ==============================
 
-.. todo:: todo
+Clad differentiates a user-defined type member by member. The derivative of an
+object is another object of the same type, whose members hold the derivatives
+of the corresponding members, which follows from the rule that a derivative
+has the type of the value it belongs to. A gradient with respect to a
+parameter of type ``Coordinates`` therefore takes a ``Coordinates *``, and
+reading ``_d_p.x`` gives the derivative with respect to ``p.x``.
+
+Two things need saying for this to work. The first is how an adjoint object
+starts: it must be zero, and what zero means for a type is the type's own
+business, so clad value-initialises by default and lets a type say otherwise
+through ``clad::zero_init`` or ``clad::zero_like``. The second is what a
+constructor contributes, since a constructor is where a member first gets its
+value from the arguments; clad generates or looks up
+``constructor_pushforward`` and ``constructor_pullback`` for that, and
+:doc:`Custom derivatives <CustomDerivatives>` shows how to write them.
+
+Members that are references or pointers are where this model is currently
+weakest: a reference member and the variable it binds to are the same object,
+so a derivative can reach it by two paths and be counted twice. See
+`issue #2082 <https://github.com/vgvassilev/clad/issues/2082>`__.
 
 Numerical Differentiation
 ============================
