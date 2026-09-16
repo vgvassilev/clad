@@ -15,6 +15,7 @@
 #include "clang/AST/Stmt.h"
 #include "clang/Sema/Lookup.h"
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
@@ -310,6 +311,78 @@ DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
 // form to them via m_OVESubst, so the clone shares no node with the original.
 // Passing the original subtrees to Create (as a plain DEFINE_CREATE_EXPR would)
 // splices them, and two such clones (forward + reverse sweep) then share nodes.
+Stmt* StmtClone::VisitBinaryConditionalOperator(
+    BinaryConditionalOperator* Node) {
+  // `a ?: b` evaluates `a` once and names it with an OpaqueValueExpr that the
+  // condition and the true branch both point at. Cloning those sub-expressions
+  // directly would leave them pointing at the original's opaque value, so bind
+  // a clone of it first and let VisitOpaqueValueExpr substitute it, the way
+  // VisitPseudoObjectExpr does.
+  llvm::DenseMap<OpaqueValueExpr*, OpaqueValueExpr*> LocalSubst;
+  auto* SavedSubst = m_OVESubst;
+  if (!m_OVESubst)
+    m_OVESubst = &LocalSubst;
+
+  // The opaque value's source and the common sub-expression are the same node,
+  // and BinaryConditionalOperator's constructor asserts as much, so clone it
+  // once and give both the one clone.
+  OpaqueValueExpr* OVE = Node->getOpaqueValue();
+  auto* common = cast<Expr>(Clone(Node->getCommon()));
+  auto* clonedOVE = new (Ctx)
+      OpaqueValueExpr(OVE->getLocation(), CloneType(OVE->getType()),
+                      OVE->getValueKind(), OVE->getObjectKind(), common);
+  // Carry the dependence across, as VisitOpaqueValueExpr does for the opaque
+  // values it clones itself.
+  clad_compat::ExprSetDeps(clonedOVE, OVE);
+  (*m_OVESubst)[OVE] = clonedOVE;
+
+  auto* result = new (Ctx) BinaryConditionalOperator(
+      common, clonedOVE, cast<Expr>(Clone(Node->getCond())),
+      cast<Expr>(Clone(Node->getTrueExpr())),
+      cast<Expr>(Clone(Node->getFalseExpr())), Node->getQuestionLoc(),
+      Node->getColonLoc(), CloneType(Node->getType()), Node->getValueKind(),
+      Node->getObjectKind());
+  clad_compat::ExprSetDeps(result, Node);
+
+  m_OVESubst = SavedSubst;
+  return result;
+}
+
+Stmt* StmtClone::VisitCXXInheritedCtorInitExpr(CXXInheritedCtorInitExpr* Node) {
+  // The inherited constructor is named, not called here -- the node carries no
+  // argument sub-expressions of its own, so there is nothing to clone into it.
+  auto* result = new (Ctx) CXXInheritedCtorInitExpr(
+      Node->getLocation(), CloneType(Node->getType()), Node->getConstructor(),
+      Node->constructsVBase(), Node->inheritedFromVBase());
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
+
+#if CLANG_VERSION_MAJOR > 16
+Stmt* StmtClone::VisitCXXParenListInitExpr(CXXParenListInitExpr* Node) {
+  llvm::SmallVector<Expr*, 4> inits;
+  inits.reserve(Node->getInitExprs().size());
+  for (Expr* init : Node->getInitExprs())
+    inits.push_back(init ? cast<Expr>(Clone(init)) : nullptr);
+
+  auto* result = CXXParenListInitExpr::Create(
+      Ctx, inits, CloneType(Node->getType()),
+      Node->getUserSpecifiedInitExprs().size(), Node->getInitLoc(),
+      Node->getBeginLoc(), Node->getEndLoc());
+  if (Expr* filler = Node->getArrayFiller())
+    result->setArrayFiller(cast<Expr>(Clone(filler)));
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
+#endif // CLANG_VERSION_MAJOR > 16
+
+Stmt* StmtClone::VisitAttributedStmt(AttributedStmt* Node) {
+  // The attributes are immutable and shared by design, so the clone carries
+  // the same ones; only the statement they are attached to is cloned.
+  return AttributedStmt::Create(Ctx, Node->getAttrLoc(), Node->getAttrs(),
+                                Clone(Node->getSubStmt()));
+}
+
 Stmt* StmtClone::VisitPseudoObjectExpr(PseudoObjectExpr* Node) {
   llvm::DenseMap<OpaqueValueExpr*, OpaqueValueExpr*> LocalSubst;
   auto* SavedSubst = m_OVESubst;
