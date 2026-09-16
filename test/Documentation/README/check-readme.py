@@ -30,7 +30,10 @@ def region(path, slug):
 
 def covered(root):
     """Every (test file, slug) pair that claims to appear in the README."""
-    for dirpath, _, names in os.walk(root):
+    for dirpath, dirnames, names in os.walk(root):
+        # Inputs holds fixtures for other tests, including one deliberately out
+        # of step with a stand-in README; it is not documentation.
+        dirnames[:] = [d for d in dirnames if d != "Inputs"]
         for name in sorted(names):
             if not name.endswith(".cpp"):
                 continue
