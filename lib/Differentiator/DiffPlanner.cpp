@@ -969,8 +969,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (!returnType->isRecordType() || !utils::isMemoryType(returnType))
       return nullptr;
 
-    // Model the stored lvalue, which can select a different overload than CE.
-    OpaqueValueExpr value(CE->getExprLoc(), returnType, VK_LValue);
+    // Both StoreAndRef and GlobalStoreAndRef strip const from the stored value.
+    QualType storedType = utils::getNonConstType(returnType, S);
+    OpaqueValueExpr value(CE->getExprLoc(), storedType, VK_LValue);
     return utils::LookupCladZeroLike(S, &value);
   }
 

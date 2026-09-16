@@ -22,10 +22,15 @@ struct FallbackMemoryValue {
 
 int primalCalls = 0;
 int zeroLikeCalls = 0;
+int mutableZeroLikeCalls = 0;
 
 MemoryValue make_memory_value(double input) {
   ++primalCalls;
   return {input * input, nullptr, 1};
+}
+
+const MemoryValue make_const_memory_value(double input) {
+  return make_memory_value(input);
 }
 
 FallbackMemoryValue make_fallback_memory_value(double input) {
@@ -53,6 +58,11 @@ MemoryValue zero_like(const MemoryValue& value) {
   return {0.0, nullptr, value.extent};
 }
 
+MemoryValue zero_like(MemoryValue& value) {
+  ++mutableZeroLikeCalls;
+  return zero_like(static_cast<const MemoryValue&>(value));
+}
+
 // Overload probing must model the stored lvalue, not the original prvalue.
 MemoryValue zero_like(MemoryValue&&) = delete;
 
@@ -70,6 +80,11 @@ namespace clad::custom_derivatives {
 
 void make_memory_value_pullback(double input, MemoryValue d_output,
                                 double* d_input) {
+  *d_input += 2.0 * input * d_output.value;
+}
+
+void make_const_memory_value_pullback(double input, MemoryValue d_output,
+                                      double* d_input) {
   *d_input += 2.0 * input * d_output.value;
 }
 
@@ -167,6 +182,11 @@ double fallback_operator_loss(double input) {
   return (FallbackMemoryValue{input, nullptr} + input).value;
 }
 
+double const_memory_loss(double input) {
+  auto value = make_const_memory_value(input);
+  return value.value;
+}
+
 // CHECK: clad::ValueAndAdjoint<MemoryValue, MemoryValue> direct_memory_value_reverse_forw(double input, double _d_input) {
 // CHECK-NEXT:     MemoryValue _t0 = make_memory_value(input);
 // CHECK-NEXT:     MemoryValue _r0 = clad::zero_like(_t0);
@@ -237,6 +257,11 @@ double fallback_operator_loss(double input) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// The stored primal loses const, so lookup must select the mutable overload.
+// CHECK: void const_memory_loss_grad(double input, double *_d_input) {
+// CHECK-NEXT:     MemoryValue _t0 = make_const_memory_value(input);
+// CHECK-NEXT:     MemoryValue _r1 = clad::zero_like(_t0);
+
 int main() {
   auto gradient = clad::gradient(memory_loss);
   double d_input = 0.0;
@@ -287,4 +312,11 @@ int main() {
   auto fallbackOperatorGradient = clad::gradient(fallback_operator_loss);
   fallbackOperatorGradient.execute(3.0, &fallbackOperatorDerivative);
   printf("%.1f\n", fallbackOperatorDerivative); // CHECK-EXEC-NEXT: 2.0
+
+  primalCalls = zeroLikeCalls = mutableZeroLikeCalls = 0;
+  double constDerivative = 0.0;
+  auto constGradient = clad::gradient(const_memory_loss);
+  constGradient.execute(3.0, &constDerivative);
+  printf("%.1f %d %d %d\n", constDerivative, primalCalls, zeroLikeCalls,
+         mutableZeroLikeCalls); // CHECK-EXEC-NEXT: 6.0 1 1 1
 }
