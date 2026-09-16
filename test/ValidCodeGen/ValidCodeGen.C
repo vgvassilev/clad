@@ -2,6 +2,7 @@
 // RUN: ./ValidCodeGen.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -verify -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oValidCodeGenWithTBR.out
 // RUN: ./ValidCodeGenWithTBR.out | %filecheck_exec %s
+// RUN: %cladcompile -Xclang -verify %s -I%S/../../include
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
