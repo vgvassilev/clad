@@ -160,6 +160,8 @@ API reference
 
 ------------------
 
-.. todo::
-
-   Add the numerical differentiation API reference.
+Numerical differentiation is not an entry point of its own: clad falls back to
+it while differentiating, and reports through ``-fprint-num-diff-errors``.
+``-DCLAD_NO_NUM_DIFF`` turns the fallback off. The two standalone interfaces,
+``forward_central_difference`` and ``central_difference``, are described in
+:ref:`Numerical Differentiation <numerical-differentiation>`.
