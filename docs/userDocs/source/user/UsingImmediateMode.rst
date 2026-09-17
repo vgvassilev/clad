@@ -24,25 +24,18 @@ Usage of Clad's immediate mode
 ================================================
 
 The following code snippet shows how one can request Clad to use the immediate
-mode for differentiation::
+mode for differentiation:
 
-    #include "clad/Differentiator/Differentiator.h"
+.. literalinclude:: ../../../../test/Documentation/Guide/ImmediateMode.cpp
+   :language: cpp
+   :start-after: docs-begin-immediate-mode
+   :end-before: docs-end-immediate-mode
 
-    constexpr double fn(double x, double y) {
-        return (x + y) / 2;
-    }
-
-    constexpr double fn_test() {
-        auto dx = clad::differentiate<clad::immediate_mode>(fn, "x");
-
-        return dx.execute(4, 7);
-    }
-
-    int main(){
-        constexpr double fn_result = fn_test();
-
-        printf("%.2f\n", fn_result);
-    }
+The example needs ``-std=c++20`` or later, because the immediate-mode
+``CladFunction`` is selected by a ``requires`` clause and a compiler without
+concepts does not see it. It also needs Clang 17 or later: the plugin's
+immediate-mode path is compiled only for those, and on an older Clang no
+derivative is generated for a ``constexpr`` function at all.
 
 It is neccessary both to pass the `clad::immediate_mode` option to
 `clad::differentiate` and to keep both the call to `clad::differentiate` and

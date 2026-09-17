@@ -27,19 +27,12 @@ Asking Clad to differentiate using Vector mode
 ================================================
 
 The following code snippet shows how one can request Clad to use vector mode for
-differentiation::
+differentiation:
 
-    #include "clad/Differentiator/Differentiator.h"
-
-    double prod(double x, double y, double z) { return x*y*z; }
-
-    int main(){
-        auto grad = clad::differentiate<clad::opts::vector_mode>(prod, "x,y");
-        double x = 3.0, y = 4.0, z = 5.0;
-        double dx = 0.0, dy = 0.0;
-        grad.execute(x, y, z, &dx, &dy);
-        printf("d_x = %.2f, d_y = %.2f\n", dx, dy);
-    }
+.. literalinclude:: ../../../../test/Documentation/Guide/VectorMode.cpp
+   :language: cpp
+   :start-after: docs-begin-vector-mode
+   :end-before: docs-end-vector-mode
 
 Thus, the calling convention is to use
 ``clad::differentiate<clad::opts::vector_mode>(...)`` instead of the usual

@@ -46,19 +46,12 @@ Asking Clad to generate gradients with Enzyme
 ================================================
 
 The following code snippet shows how one can request Clad to generate gradients
-with Enzyme::
+with Enzyme:
 
-    #include "clad/Differentiator/Differentiator.h"
-
-    double array_product(double* arr) { return arr[0] * arr[1]; }
-
-    int main(){
-        auto grad = clad::gradient<clad::opts::use_enzyme>(array_product);
-        double v[2] = {3, 4};
-        double g[2] = {0};
-        grad.execute(v, g);
-        printf("d_x = %.2f, d_y = %.2f\n", g[0], g[1]);
-    }
+.. literalinclude:: ../../../../test/Documentation/Guide/EnzymeBackend.cpp
+   :language: cpp
+   :start-after: docs-begin-enzyme
+   :end-before: docs-end-enzyme
 
 Thus, the calling convention is to use
 ``clad::gradient<clad::opts::use_enzyme>(...)`` instead of the usual calling

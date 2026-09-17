@@ -81,24 +81,10 @@ API reference
    number of output parameters of the function are greater than the number of
    input parameters of the function.
 
-   ::
-
-      #include "clad/Differentiator/Differentiator.h"
-
-      double func(double x, double y) { return x * x * y + y * y; }
-
-      int main(){
-
-         // fn_dx is of type CladFunction, which is a tiny wrapper
-         // over the derived function pointer.
-         // It will differentiate 'func' w.r.t 'x'.
-         auto fn_dx = clad::differentiate(func, "x");
-
-         // Using CladFunction::execute method when (x, y) = (5, 3)
-         double func1stOrderDerivative = fn_dx.execute(5,3);
-         printf("Result is %d\n", func1stOrderDerivative); //Result is 30
-
-      }
+   .. literalinclude:: ../../../../test/Documentation/Reference/Differentiate.cpp
+      :language: cpp
+      :start-after: docs-begin-differentiate
+      :end-before: docs-end-differentiate
 
    .. cpp:function:: template<class Fn>\
                   CladFunction gradient(Fn fn, const char* args)
@@ -114,19 +100,10 @@ API reference
    For now it is enough to know that generally reverse mode AD is more efficient
    than the forward mode AD when there are multiple input parameters.
 
-   ::
-
-      #include "clad/Differentiator/Differentiator.h"
-
-      double func (double i, double j) {
-         return 5*i*i + 2*j;
-      }
-      int main() {
-         auto fn_grad = clad::gradient(func);
-         double d_i = 0, d_j = 0;
-         fn_grad.execute(3, 5, &d_i, &d_j);
-         printf("Result is %g , %g \n", d_i, d_j); //Result is 30 , 2
-      }
+   .. literalinclude:: ../../../../test/Documentation/Reference/Gradient.cpp
+      :language: cpp
+      :start-after: docs-begin-gradient
+      :end-before: docs-end-gradient
 
    .. cpp:function:: template<class Fn>\
                   CladFunction hessian(Fn fn, const char* args)
@@ -136,28 +113,10 @@ API reference
    of the provided function (``fn``) with respect to all the arguments
    specified in ``args``.
 
-   ::
-
-      #include "clad/Differentiator/Differentiator.h"
-      double func(double i, double j) {
-         double a = i * j;
-         double b = 4 * a;
-         return b * i;
-      }
-      int main() {
-
-        auto fn_hesn = clad::hessian(func);
-
-        // Creates an empty matrix to store the Hessian in
-        double matrix[4] = {0};
-
-        // Clad requires array size information as well
-        fn_hesn.execute(8, 2, matrix);
-
-        // Result is 16, 64, 64,0
-        printf("Result is %g, %g, %g,%g \n", matrix[0], matrix[1],
-               matrix[2], matrix[3]);
-      }
+   .. literalinclude:: ../../../../test/Documentation/Reference/Hessian.cpp
+      :language: cpp
+      :start-after: docs-begin-hessian
+      :end-before: docs-end-hessian
 
    .. cpp:function:: template<class Fn>\
                   CladFunction jacobian(Fn fn, const char* args)
@@ -165,37 +124,16 @@ API reference
    This function generates a function that can be used to compute
    `jacobian matrix <https://en.wikipedia.org/wiki/Jacobian_matrix_and_determinant>`_
    of the provided function (``fn``) with respect to all
-   the arguments specified in ``args``. If no explicit ``args`` argument is specified,
-   then jacobian is computed with respect to all the input parameters.
-   For a function with 3 input parameters and an output array of size 4,
-   the jacobian matrix (called `_d_result``) will be 3 x 5.
+   the arguments specified in ``args``. If no explicit ``args`` argument is
+   specified, then the jacobian is computed with respect to all the input
+   parameters. The matrix has one row per element of the output and one column
+   per independent scalar, counting the elements of the output array itself. For
+   two scalar parameters and an output array of three elements that is 3 x 5.
 
-    ::
-
-      #include "clad/Differentiator/Differentiator.h"
-      void func(double i, double j, double result[]) {
-        result[0] = i * i * j;
-        result[1] = j * j * i;
-        result[2] = j * i;
-      }
-      int main() {
-
-        auto fn_jcbn = clad::jacobian(func);
-
-        // Creates an empty matrix to store the Jacobian in
-        clad::matrix<double> d_res(3, 5);
-        double res[3] = {0};
-
-        fn_jcbn.execute(8, 2, res, &d_res);
-
-        //Result is 32 64
-        //          4 2
-        //          2 8
-        printf("Result is \n %g %g \n %g %g \n %g %g \n",
-               d_res[0][0], d_res[0][1],
-               d_res[1][0], d_res[1][1], 
-               d_res[2][0], d_res[2][1]);
-      }
+    .. literalinclude:: ../../../../test/Documentation/Reference/Jacobian.cpp
+       :language: cpp
+       :start-after: docs-begin-jacobian
+       :end-before: docs-end-jacobian
 
    .. cpp:function:: template<class Fn>\
                   CladFunction estimate_error(Fn fn, const char* args)
@@ -211,24 +149,10 @@ API reference
    produce, with one more parameter at the end, of type ``double&``, which
    receives the total estimated error.
 
-   ::
-
-      #include "clad/Differentiator/Differentiator.h"
-
-      double func(double x, double y) {
-        double z = x * y;
-        return z + x;
-      }
-      int main() {
-
-        auto fn_err = clad::estimate_error(func);
-
-        double d_x = 0, d_y = 0, error = 0;
-        fn_err.execute(3, 5, &d_x, &d_y, error);
-
-        // Result is 6, 3 with an error of about 8e-06
-        printf("Result is %g, %g, error %g\n", d_x, d_y, error);
-      }
+   .. literalinclude:: ../../../../test/Documentation/Reference/EstimateError.cpp
+      :language: cpp
+      :start-after: docs-begin-estimate-error
+      :end-before: docs-end-estimate-error
 
    By default the error of each value is estimated with a Taylor approximation
    model. A different model can be supplied instead; see

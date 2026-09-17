@@ -51,12 +51,15 @@ Generated derivative function has the same signature as the original function `f
 double f(double x, double y) { return x * y; }
 
 int main() {
-  // Call clad to generate the derivative of f wrt x.
   auto f_dx = clad::differentiate(f, "x");
-  // Execute the generated derivative function.
-  std::cout << f_dx.execute(/*x=*/3, /*y=*/4) << std::endl;
-  // Dump the generated derivative code to standard output.
+  // Computes the derivative of 'f' at (x, y) = (3, 4) and prints it.
+  std::cout << f_dx.execute(3, 4) << std::endl; // prints: 4
   f_dx.dump();
+  // prints: double f_darg0(double x, double y) {
+  // prints:     double _d_x = 1;
+  // prints:     double _d_y = 0;
+  // prints:     return _d_x * y + x * _d_y;
+  // prints: }
 }
 ```
 
@@ -151,26 +154,29 @@ type is `clad::matrix<T>`, where `T` is the pointee type of `arr`. These variabl
 #include <iostream>
 
 void h(double a, double b, double _clad_out_output[]) {
-    output[0] = a * a * a;
-    output[1] = a * a * a + b * b * b;
-    output[2] = 2 * (a + b);
+    _clad_out_output[0] = a * a * a;
+    _clad_out_output[1] = a * a * a + b * b * b;
+    _clad_out_output[2] = 2 * (a + b);
 }
 
 int main() {
-    // This sets all the input variables (i.e a, b, and output) as independent variables 
     auto h_jac = clad::jacobian(h);
-    
-    // The jacobian matrix size should be
-    // the size of the output x the number of independent variables
-    // In this case it is 3 x (1 + 1 + 3)
-    clad::matrix<double> d_output(3, 5);
+
+    // The jacobian matrix has one row per element of the output and one column
+    // per independent variable. The _clad_out_ prefix marks output as an
+    // output rather than an input, so the independent variables are a and b.
+    clad::matrix<double> d_output(3, 2);
     double output[3] = {0};
     h_jac.execute(/*a=*/3, /*b=*/4, output, &d_output);
 
-    // d_output[i][j] is the derivative of the i-th element of `output` w.r.t. the j-th input
+    // d_output[i][j] is the derivative of the i-th element of output w.r.t.
+    // the j-th input.
     std::cout << d_output[0][0] << " " << d_output[0][1] << std::endl
               << d_output[1][0] << " " << d_output[1][1] << std::endl
               << d_output[2][0] << " " << d_output[2][1] << std::endl;
+    // prints: 27 0
+    // prints: 27 48
+    // prints: 2 2
 }
 ```
 
@@ -181,33 +187,31 @@ Or in the case of multiple array parameters:
 #include <iostream>
 
 void h(double a, double b, double _clad_out_arr[], double* _clad_out_ptr) {
-    arr[0] = a * a * a;
-    ptr[0] = arr[0] + b * b * b;
-    arr[1] = 2 * (a + b);
+    _clad_out_arr[0] = a * a * a;
+    _clad_out_ptr[0] = _clad_out_arr[0] + b * b * b;
+    _clad_out_arr[1] = 2 * (a + b);
 }
 
 int main() {
     auto h_jac = clad::jacobian(h);
 
-    // The jacobian matrix size should be
-    // the size of the output x the number of independent variables
-
-    // 3 x (1 + 1 + 2 + 1)
-    clad::matrix<double> d_arr(2, 5);
+    // One matrix per output parameter, each with a row per element of that
+    // parameter and a column per independent variable, here a and b.
+    clad::matrix<double> d_arr(2, 2);
     double arr[2] = {0};
 
-    // 1 x (1 + 1 + 2 + 1)
-    clad::matrix<double> d_ptr(1, 5);
+    clad::matrix<double> d_ptr(1, 2);
     double ptr[1] = {0};
 
     h_jac.execute(/*a=*/3, /*b=*/4, arr, ptr, &d_arr, &d_ptr);
-    
-    // d_arr[i][j] is the derivative of the i-th element of `arr` w.r.t. the j-th input
+
     std::cout << d_arr[0][0] << " " << d_arr[0][1] << std::endl
               << d_arr[1][0] << " " << d_arr[1][1] << std::endl;
+    // prints: 27 0
+    // prints: 2 2
 
-    // Likewise, with `ptr`
     std::cout << d_ptr[0][0] << " " << d_ptr[0][1] << std::endl;
+    // prints: 27 48
 }
 ```
 
@@ -221,15 +225,27 @@ Clad is capable of annotating a given function with floating point error estimat
 The function signature of the generated code is the same as from `clad::gradient(f)` with the exception that it has an extra argument at the end of type `double&`, which returns the total floating point error in the function by reference. For a user function `double f(double, double)` example usage is described below:
 
 ```cpp
-// Generate the floating point error estimation code for 'f'.
-auto df = clad::estimate_error(f);
-// Print the generated code to standard output.
-df.dump();
-// Declare the necessary variables.
-double x, y, d_x, d_y, final_error = 0;
-// Finally call execute on the generated code.
-df.execute(x, y, &d_x, &d_y, final_error);
-// After this, 'final_error' contains the floating point error in function 'f'.
+#include "clad/Differentiator/Differentiator.h"
+#include <iostream>
+
+double f(double x, double y) {
+  double z;
+  z = x + y;
+  return z;
+}
+
+int main() {
+  // Generate the floating point error estimation code for 'f'.
+  auto df = clad::estimate_error(f);
+  // Print the generated code to standard output.
+  df.dump();
+  // Declare the necessary variables.
+  double x = 3, y = 5, d_x = 0, d_y = 0, final_error = 0;
+  // Finally call execute on the generated code.
+  df.execute(x, y, &d_x, &d_y, final_error);
+  // After this, 'final_error' holds the floating point error in 'f'.
+  std::cout << final_error << "\n"; // prints: 1.90735e-06
+}
 ```
 The above example generates the error code using an in-built taylor approximation model. However, clad is capable of using any user defined custom model, for information on how to use your own custom model, please visit [this demo](https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation/CustomModel).
 
@@ -412,31 +428,53 @@ Note: If for any reason clad is unable to algorithmically differentiate a functi
 Sometimes Clad may be unable to differentiate your function (e.g. if its definition is in a library and source code is not available). Alternatively, an efficient/more numerically stable expression for derivatives may be know. In such cases, it is useful to be able to specify a custom derivatives for your function.
 
 Clad supports that functionality by allowing to specify your own derivatives in `namespace clad::custom_derivatives`. For a function named `FNAME` you can specify:
-* a custom derivative w.r.t `I`-th argument by defining a function `FNAME_dargI` inside `namespace clad::custom_derivatives`
-* a custom gradient w.r.t every argument by defining a function `FNAME_grad` inside `namespace clad::custom_derivatives`
+* a forward mode derivative by defining `FNAME_pushforward` inside `namespace clad::custom_derivatives`, which returns the value and the directional derivative as a `clad::ValueAndPushforward`
+* a reverse mode derivative by defining `FNAME_pullback` inside `namespace clad::custom_derivatives`, which adds the call's contribution into each adjoint
 
 When Clad will encounter a function `FNAME`, it will first do a lookup inside the `clad::custom_derivatives` namespace to try to find a suitable custom function, and only if none is found will proceed to automatically derive it.
 
 Example:
 * Suppose that you have a function `my_pow(x, y)` which computes `x` to the power of `y`. However, Clad is not able to differentiate `my_pow`'s body (e.g. it calls an external library or uses some non-differentiable approximation):
 ```cpp
-double my_pow(double x, double y) { // something non-differentiable here... }
+double my_pow(double x, double y) {
+  // ... something clad cannot differentiate ...
+}
 ```
 However, you know analytical formulas of its derivatives, and you can easily specify custom derivatives:
 ```cpp
+#include "clad/Differentiator/Differentiator.h"
+#include <cmath>
+#include <iostream>
+
+// Suppose clad cannot differentiate my_pow's body, but you know the formulas.
+double my_pow(double x, double y) { return std::pow(x, y); }
+
 namespace clad::custom_derivatives {
-  double my_pow_darg0(double x, double y) { return y * my_pow(x, y - 1); }
-  double my_pow_darg1(double x, double y) { return my_pow(x, y) * std::log(x); }
+// Forward mode: return the value alongside the directional derivative.
+clad::ValueAndPushforward<double, double>
+my_pow_pushforward(double x, double y, double d_x, double d_y) {
+  return {my_pow(x, y),
+          y * my_pow(x, y - 1) * d_x + my_pow(x, y) * ::std::log(x) * d_y};
 }
-```
-You can also specify a custom gradient:
-```cpp
-namespace clad::custom_derivatives {
-  void my_pow_grad(double x, double y, double* _d_x, double* _d_y) {
-     double t = my_pow(x, y - 1);
-     *_d_x = y * t;
-     *_d_y = x * t * std::log(x);
-   }
+
+// Reverse mode: add this call's contribution into each adjoint.
+void my_pow_pullback(double x, double y, double d_out, double* _d_x,
+                     double* _d_y) {
+  *_d_x += y * my_pow(x, y - 1) * d_out;
+  *_d_y += my_pow(x, y) * ::std::log(x) * d_out;
+}
+} // namespace clad::custom_derivatives
+
+double f(double x, double y) { return my_pow(x, y); }
+
+int main() {
+  auto f_dx = clad::differentiate(f, "x");
+  std::cout << f_dx.execute(3, 2) << std::endl; // prints: 6
+
+  auto f_grad = clad::gradient(f);
+  double d_x = 0, d_y = 0;
+  f_grad.execute(3, 2, &d_x, &d_y);
+  std::cout << d_x << " " << d_y << std::endl; // prints: 6 9.88751
 }
 ```
 Whenever Clad will encounter `my_pow` inside differentiated function, it will find and use provided custom functions instead of attempting to differentiate it.
