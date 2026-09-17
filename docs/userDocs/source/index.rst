@@ -19,9 +19,9 @@ transformation. Given C++ source code of a mathematical function, it can
 automatically generate C++ code for computing derivatives of the function.
 
 Clad supports a large set of C++ features including control flow statements and
-function calls. :doc:`Using Clad <user/UsingClad>` works through what can be
-differentiated and how, and each mode's page states the limits it currently
-has. Clad supports reverse-mode AD (a.k.a backpropagation) as well as
+function calls. :doc:`Supported C++ features <user/SupportedFeatures>` covers
+what it handles and what it does not, and :doc:`Using Clad <user/UsingClad>`
+works through how. Clad supports reverse-mode AD (a.k.a backpropagation) as well as
 forward-mode AD, and it also facilitates computation of hessian matrix and
 jacobian matrix of any arbitrary function.
 
@@ -65,6 +65,7 @@ The User Guide
 
    user/InstallationAndUsage
    user/UsingClad
+   user/SupportedFeatures
    user/CoreConcepts
    user/reference
    user/CustomDerivatives.rst
