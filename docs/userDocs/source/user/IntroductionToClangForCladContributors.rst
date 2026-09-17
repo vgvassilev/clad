@@ -23,6 +23,8 @@ The AST
 .. |clang::Expr| replace:: ``clang::Expr`` 
 .. _clang::Decl: https://clang.llvm.org/doxygen/classclang_1_1Decl.html
 .. |clang::Decl| replace:: ``clang::Decl`` 
+.. _clang::DeclStmt: https://clang.llvm.org/doxygen/classclang_1_1DeclStmt.html
+.. |clang::DeclStmt| replace:: ``clang::DeclStmt``
 .. _clang::Stmt: https://clang.llvm.org/doxygen/classclang_1_1Stmt.html
 .. |clang::Stmt| replace:: ``clang::Stmt``
 .. _clang::ValueStmt: https://clang.llvm.org/doxygen/classclang_1_1ValueStmt.html
@@ -44,8 +46,8 @@ lot of different things, like loops (``clang::WhileStmt``), conditions
 An important note is that declarations (``clang::Decl``) and statements 
 (``clang::Stmt``) are completely different classes (so, **a declaration is not 
 a statement**), but there’s a separate declaration statement class, 
-|clang::Decl|_, which describes a declaration statement to intertwine the 
-statements and declarations. An expression (``clang::Expr``), on the other 
+|clang::DeclStmt|_, which wraps a declaration so it can appear among
+statements. An expression (``clang::Expr``), on the other
 hand, is always a statement, since ``clang::Expr`` inherits from 
 |clang::ValueStmt|_ which, in turn, inherits from ``clang::Stmt`` and is a 
 statement.

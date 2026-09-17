@@ -28,11 +28,12 @@ Clad supports the following CUDA features:
 * The commonly used CUDA built-in variables `threadIdx`, `blockIdx`, `blockDim`, `gridDim` and `warpSize` 
 * The CUDA host functions `cudaMalloc`, `cudaMemcpy` and `cudaFree`
 
-To use CUDA math functions, the user must define the equivalent pullback function in Clad's CUDA custom derivatives:
+A CUDA math function Clad does not already know needs a pullback. Define it in
+``clad::custom_derivatives`` in your own code, the same way as for any other
+function -- see :doc:`Custom derivatives <CustomDerivatives>`. It must be
+``__device__``, since it is called from device code:
 
 .. code-block:: cpp
-
-    // In `clad/include/clad/Differentiator/BuiltinDerivativesCUDA.cuh`
 
     namespace clad {
 
