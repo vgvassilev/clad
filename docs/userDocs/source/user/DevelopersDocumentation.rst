@@ -1,5 +1,5 @@
-Developers Documentation
-***************************
+Developer guide
+***************
 
 Building from source
 =======================

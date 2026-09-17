@@ -16,14 +16,16 @@
 
 
 # -- Project information -----------------------------------------------------
+import datetime
 import os
 
 project = "Clad"
-copyright = "2014, Vassil Vassilev"
+# Computed rather than written down, so it does not quietly go stale the way
+# the release string did.
+copyright = f"2014-{datetime.date.today().year}, Vassil Vassilev"
 author = "Vassil Vassilev"
 
-# The full version, including alpha/beta/rc tags
-release = "2014"
+# release is set from the VERSION file further down, once CLAD_ROOT is known.
 
 
 # -- General configuration ---------------------------------------------------
@@ -76,7 +78,11 @@ current_file_dir = os.path.dirname(os.path.realpath(__file__))
 CLAD_ROOT = current_file_dir + "/../../.."
 
 with open(CLAD_ROOT + "/VERSION", "r") as f:
-    version = f.read()
+    version = f.read().strip()
+
+# The sidebar header shows project and release together, so a stale release
+# reads as the documentation's own version.
+release = version
 
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 # Add latex physics package

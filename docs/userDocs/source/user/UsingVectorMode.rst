@@ -1,5 +1,5 @@
-Using Vector Mode for Differentiation
-**************************************
+Vector mode
+***********
 
 .. note::
    This feature is still under development and may result in unexpected

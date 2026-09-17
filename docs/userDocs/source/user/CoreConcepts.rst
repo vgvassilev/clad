@@ -1,5 +1,5 @@
-Core Concepts
-***************
+Core concepts
+*************
 
 How Clad Works
 =================
@@ -533,7 +533,7 @@ The estimate costs one reverse sweep, so it is a whole-program error bound
 obtained at the price of a gradient, rather than at the price of rerunning the
 computation in higher precision.
 
-:doc:`Floating point error estimation <FloatingPointErrorEstimation>` describes
+:doc:`Floating-point error estimation <FloatingPointErrorEstimation>` describes
 the framework, its classes and how to write a custom model;
 :cpp:func:`estimate_error` in the :doc:`API reference <reference>` describes the
 interface.

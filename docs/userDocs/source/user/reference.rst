@@ -57,7 +57,7 @@ API reference
       dimensions. Only available when compiling CUDA code, and the only way to
       call the derivative of a ``__global__`` function --
       :cpp:func:`execute` refuses it. See
-      :doc:`Using Clad on CUDA code <UsingCladOnCUDACode>`.
+      :doc:`CUDA support <UsingCladOnCUDACode>`.
 
 ------------------
 
@@ -74,7 +74,7 @@ API reference
 
    One call gives the derivative with respect to one parameter, so forward mode
    suits a function with more outputs than inputs. Reverse mode is the choice
-   when there are many inputs; :doc:`Core Concepts <CoreConcepts>` explains
+   when there are many inputs; :doc:`Core concepts <CoreConcepts>` explains
    why.
 
    .. literalinclude:: ../../../../test/Documentation/Reference/Differentiate.cpp
@@ -151,7 +151,7 @@ API reference
 
    By default the error of each value is estimated with a Taylor approximation
    model. A different model can be supplied instead; see
-   :doc:`Floating point error estimation <FloatingPointErrorEstimation>`.
+   :doc:`Floating-point error estimation <FloatingPointErrorEstimation>`.
 
 ------------------
 

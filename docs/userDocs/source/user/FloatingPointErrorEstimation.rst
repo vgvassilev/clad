@@ -1,5 +1,5 @@
-Floating Point Error Estimation using CHEF-FP
-*********************************************
+Floating-point error estimation
+*******************************
 
 ============
 Introduction

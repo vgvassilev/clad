@@ -32,7 +32,7 @@ symbolic differentiation.
 If you are just getting started, :doc:`Using Clad <user/UsingClad>` and
 :doc:`Tutorials <user/tutorials>` are the places to begin. Clad is a Clang
 plugin, so it is loaded with ``-fplugin=`` at compile time;
-:doc:`Clad Installation <user/InstallationAndUsage>` has the details.
+:doc:`Installation and usage <user/InstallationAndUsage>` has the details.
 
 ----------------------
 
@@ -64,22 +64,34 @@ The User Guide
 
 .. toctree::
    :maxdepth: 2
+   :caption: Getting started
 
    user/InstallationAndUsage
+   user/tutorials
+   user/FAQ
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Guides
+
    user/UsingClad
+   user/CustomDerivatives
+   user/FloatingPointErrorEstimation
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference
+
+   user/reference
    user/SupportedFeatures
    user/CoreConcepts
-   user/reference
-   user/CustomDerivatives
-   user/tutorials
-   user/UsingEnzymeWithinClad
-   user/UsingVectorMode
-   user/UsingImmediateMode
-   user/UsingCladOnCUDACode
-   user/FAQ
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contributing
+
    user/DevelopersDocumentation
    user/IntroductionToClangForCladContributors
-   user/FloatingPointErrorEstimation
 
 Citing Clad
 -------------

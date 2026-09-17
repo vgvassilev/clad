@@ -1,5 +1,5 @@
-Clad Installation
-******************
+Installation and usage
+**********************
 
 This page covers both installation and usage details for Clad.
 
