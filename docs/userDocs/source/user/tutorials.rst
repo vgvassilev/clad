@@ -5,7 +5,7 @@ Clad is an open source clang plugin which supports automatic differentiation of
 mathematical functions in C++. This page walks through one small example per
 mode.
 
-Every example below is a file in clad's test suite, included here verbatim. The
+Every example below is a file in Clad's test suite, included here verbatim. The
 ``// prints:`` comments are what the suite checks the program writes, so the
 code and the numbers beside it are kept true by the build.
 
@@ -20,7 +20,7 @@ argument, and the generated function returns the derivative.
    :start-after: docs-begin-forward-mode
    :end-before: docs-end-forward-mode
 
-`.dump()` prints the derivative clad generated, which is often the quickest way
+`.dump()` prints the derivative Clad generated, which is often the quickest way
 to see what it did.
 
 **The Reverse Mode**

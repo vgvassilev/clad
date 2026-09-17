@@ -20,7 +20,7 @@ Linux (Ubuntu)
 Instructions to build documentation
 -------------------------------------
 
-Make sure you have installed `sphinx` before building clad with documentation.
+Make sure you have installed `sphinx` before building Clad with documentation.
 
 Please use the project's `requirements.txt` file to install Python dependencies.
 This will also install the correct version of `sphinx` : 
@@ -36,7 +36,7 @@ Doxygen Installation `Instructions`_.
 .. _Instructions : https://www.doxygen.nl/download.html
 
 
-To build clad and its documentation, use the following CMake command:
+To build Clad and its documentation, use the following CMake command:
 
 .. code-block:: bash
 
@@ -205,7 +205,7 @@ Run ``-plugin-arg-clad -help`` for the analysis names this accepts.
 ``-fgenerated-source-dir=<dir>``
 --------------------------------
 
-Writes the code clad generates into ``<dir>``, one file per translation unit
+Writes the code Clad generates into ``<dir>``, one file per translation unit
 named after it, and names that file in the debug line table. A debugger then
 has something to open when it stops inside a derivative.
 
@@ -216,7 +216,7 @@ has something to open when it stops inside a derivative.
 
 Without it, the only way to reach the code is ``-gembed-source``, which puts
 it in the object; lldb reads that and gdb does not support it at all. When
-debug information is asked for and neither is in place, clad says so once and
+debug information is asked for and neither is in place, Clad says so once and
 names the flag that fits the debugger being tuned for. Giving the flag with no
 directory writes nothing and turns that advice off, which is the only way to:
 a plugin's diagnostic belongs to no ``-W`` group.
@@ -448,7 +448,7 @@ When in the container the neccessary tools can be installed with:
 
    apk add llvm llvm-dev llvm-gtest llvm-static clang clang-dev clang-static make cmake git
 
-Then clad can be built:
+Then Clad can be built:
 
 .. code-block:: sh
 
