@@ -1,5 +1,5 @@
-Supported C++ Features
-***********************
+Supported C++ features
+**********************
 
 The short answer is that Clad differentiates ordinary numerical C++. Arithmetic
 and comparisons, calls to your own functions and to ``<cmath>``, ``if`` and

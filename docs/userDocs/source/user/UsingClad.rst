@@ -6,7 +6,7 @@ If you are just getting started with Clad, then this is the best place to start.
 You may want to skim some sections on the first read. 
 
 In case you haven't installed Clad already, then please do before proceeding 
-with this guide. Visit :doc:`Clad installation and usage <InstallationAndUsage>` 
+with this guide. Visit :doc:`Installation and usage <InstallationAndUsage>`
 to know more about installing clad.
 
 Let's get started.
@@ -638,4 +638,18 @@ estimation framework.
 Debug functionalities
 ======================
 
+Other ways to differentiate
+============================
+
+Beyond the four entry points above, Clad offers a vectorised forward mode, an
+immediate mode for constant evaluation, support for CUDA kernels, and Enzyme as
+an alternative reverse-mode backend.
+
+.. toctree::
+   :maxdepth: 1
+
+   UsingVectorMode
+   UsingImmediateMode
+   UsingCladOnCUDACode
+   UsingEnzymeWithinClad
 

@@ -1,5 +1,5 @@
-Introduction to Clang for Clad contributors
-**********************************************
+Clang for contributors
+**********************
 
 Since there’s a lack of official documentation for the LLVM Clang, while the
 existing docs are not meant to explain how to modify the Clang AST, we are 

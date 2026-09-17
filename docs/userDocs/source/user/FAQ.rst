@@ -28,7 +28,7 @@ Add the plugin to the command line:
    clang++ -std=c++17 -I /full/path/to/include/ \
            -fplugin=/full/path/to/lib/clad.so SourceFile.cpp
 
-:doc:`Clad Installation <InstallationAndUsage>` has the details, including the
+:doc:`Installation and usage <InstallationAndUsage>` has the details, including the
 spelling older Clang releases need.
 
 Clang cannot load clad.so, or reports an undefined symbol
@@ -54,7 +54,7 @@ function.
 
 So a function with many inputs and one output -- the usual case, a scalar cost
 or likelihood -- wants reverse mode. A function with one input and many outputs
-wants forward mode. :doc:`Core Concepts <CoreConcepts>` explains why.
+wants forward mode. :doc:`Core concepts <CoreConcepts>` explains why.
 
 How do I differentiate with respect to an array?
 =================================================
