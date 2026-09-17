@@ -28,10 +28,12 @@ GeneratedCode::Chunk& GeneratedCode::makeChunk(unsigned TextBytes) {
   auto Owned = llvm::WritableMemoryBuffer::getNewUninitMemBuffer(
       TextBytes + kSlotsPerChunk, Name);
   char* Start = Owned->getBufferStart();
-  // A blank line everywhere until code is printed over it: every slot has to
-  // be a line of its own, and uninitialised bytes would otherwise reach
-  // whoever reads this.
+  // Only a slot has to be a line of its own. The room reserved for code is
+  // blanks until code is printed over it, so that a slot nobody described
+  // lands on the line after the code rather than after the room it was given
+  // -- which is a hundred thousand lines past anything the buffer will hold.
   std::memset(Start, '\n', TextBytes + kSlotsPerChunk);
+  std::memset(Start, ' ', TextBytes);
 
   // Entered from the main file, the way clang-repl enters its input. A chunk
   // outside the include tree cannot be ordered against anything inside it:

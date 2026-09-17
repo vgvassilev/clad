@@ -8,6 +8,16 @@
 //
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -Rclad-analysis=tbr \
 // RUN:   -fsyntax-only %s -I%S/../../include 2>&1 | %filecheck %s
+//
+// A slot stands for a line of the code its buffer holds, so it has to read as
+// one even before that code is printed -- which is never, on a build that
+// asks for none of it. The room reserved for the code is not lines: a slot
+// landing past the end of the room instead of past the end of the code reads
+// as a corrupt location rather than as somewhere clad generated.
+// RUN: %cladclang -Xclang -ast-dump -Xclang -ast-dump-filter \
+// RUN:   -Xclang first_grad -fsyntax-only %s -I%S/../../include 2>&1 \
+// RUN:   | %filecheck --check-prefix=CHECK-SLOT %s
+// CHECK-SLOT: <clad generated code>:{{[0-9][0-9]?[0-9]?[0-9]?}}:
 
 #include "clad/Differentiator/Differentiator.h"
 
