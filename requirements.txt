@@ -1,8 +1,10 @@
 alabaster==0.7.13
 Babel==2.12.1
+beautifulsoup4==4.15.0
 certifi==2024.7.4
 charset-normalizer==3.1.0
 docutils==0.20.1
+furo==2025.12.19
 idna==3.15
 imagesize==1.4.1
 Jinja2==3.1.6
@@ -11,6 +13,8 @@ packaging==23.1
 Pygments==2.20.0
 requests==2.33.0
 snowballstemmer==2.2.0
+soupsieve==2.9.2
+sphinx-basic-ng==1.0.0b2
 Sphinx==7.0.1
 sphinxcontrib-applehelp==1.0.4
 sphinxcontrib-devhelp==1.0.2
