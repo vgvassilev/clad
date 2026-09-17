@@ -1,20 +1,23 @@
 #ifndef CLAD_DIFFERENTIATOR_GENERATEDCODE_H
 #define CLAD_DIFFERENTIATOR_GENERATEDCODE_H
 
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace clang {
-class DiagnosticsEngine;
 class Sema;
+class Stmt;
 } // namespace clang
 
 namespace clad {
+struct DiffRequest;
 
 /// Somewhere for clad's generated code to be, and for its nodes to point at.
 ///
@@ -99,6 +102,11 @@ class GeneratedCode {
   std::string m_FileBase;
   llvm::SmallVector<Chunk, 2> m_ChunkList;
   unsigned m_Used = kSlotsPerChunk; // forces the first nextLoc() to allocate
+  /// The primal statements being differentiated, innermost last.
+  llvm::SmallVector<const clang::Stmt*, 8> m_Statements;
+  /// Whether a GeneratedCodeDiagnostics is holding diagnostics already.
+  bool m_Holding = false;
+  friend class GeneratedCodeDiagnostics;
 
 public:
   explicit GeneratedCode(clang::Sema& S) : m_Sema(S) {}
@@ -173,6 +181,80 @@ public:
   /// Whether \p Loc is one of the slots handed out here.
   [[nodiscard]] bool owns(clang::SourceLocation Loc) const {
     return chunkFor(Loc) != nullptr;
+  }
+
+  /// Whether \p Loc is a slot with no line yet: its chunk has no line notes.
+  [[nodiscard]] bool hasNoLine(clang::SourceLocation Loc) const {
+    const Chunk* C = chunkFor(Loc);
+    return C && !C->Presented;
+  }
+
+  /// Says, for as long as it lives, that the code being built is for the
+  /// primal statement \p S.
+  class StatementScope {
+    GeneratedCode& m_Code;
+
+  public:
+    StatementScope(GeneratedCode& Code, const clang::Stmt* S) : m_Code(Code) {
+      Code.m_Statements.push_back(S);
+    }
+    ~StatementScope() { m_Code.m_Statements.pop_back(); }
+    StatementScope(const StatementScope&) = delete;
+    StatementScope(StatementScope&&) = delete;
+    StatementScope& operator=(const StatementScope&) = delete;
+    StatementScope& operator=(StatementScope&&) = delete;
+  };
+
+  /// The innermost statement the user wrote that the code being built is
+  /// for, or null. One clad built itself would show the reader nothing.
+  [[nodiscard]] const clang::Stmt* currentStatement() const;
+};
+
+/// Says what Sema rejects in generated code without pointing into it.
+///
+/// A generated node points at a slot, and a slot has no line until the
+/// derivative is printed. So a diagnostic Sema raises while clad builds a
+/// derivative shows `<clad generated code>:98344:1` over an empty line.
+///
+/// While one of these lives, it stands in for the compiler's diagnostic
+/// consumer and holds back such diagnostics, and everything after them to keep
+/// the order. When it goes, it puts the consumer back and says them again:
+/// the rejected ones without a location, each followed by the user's
+/// statement and the call that asked for the derivative. A derivative built
+/// while another is being built is part of it, so only the outermost one does
+/// anything.
+class GeneratedCodeDiagnostics : public clang::DiagnosticConsumer {
+  struct Held {
+    clang::StoredDiagnostic Diag;
+    bool HasNoLine = false;
+    /// The user's statement the rejected code was built for, if known.
+    const clang::Stmt* For = nullptr;
+  };
+
+  GeneratedCode& m_Code;
+  clang::DiagnosticsEngine& m_Diags;
+  /// The consumer this stands in for; null if this one does nothing.
+  clang::DiagnosticConsumer* m_Client = nullptr;
+  /// The same consumer, when the engine owned it.
+  std::unique_ptr<clang::DiagnosticConsumer> m_OwnedClient;
+  /// Where the derivative was asked for, and what to say there.
+  clang::SourceLocation m_WhereAt;
+  std::string m_Where;
+  std::vector<Held> m_Held;
+
+public:
+  GeneratedCodeDiagnostics(GeneratedCode& Code, clang::DiagnosticsEngine& Diags,
+                           const DiffRequest& Request);
+  ~GeneratedCodeDiagnostics() override;
+  GeneratedCodeDiagnostics(const GeneratedCodeDiagnostics&) = delete;
+  GeneratedCodeDiagnostics(GeneratedCodeDiagnostics&&) = delete;
+  GeneratedCodeDiagnostics& operator=(const GeneratedCodeDiagnostics&) = delete;
+  GeneratedCodeDiagnostics& operator=(GeneratedCodeDiagnostics&&) = delete;
+
+  void HandleDiagnostic(clang::DiagnosticsEngine::Level Level,
+                        const clang::Diagnostic& Info) override;
+  [[nodiscard]] bool IncludeInDiagnosticCounts() const override {
+    return m_Client->IncludeInDiagnosticCounts();
   }
 };
 

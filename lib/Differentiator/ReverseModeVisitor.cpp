@@ -7,6 +7,7 @@
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "ASTIntegrity.h"
 #include "ConstantFolder.h"
+#include "GeneratedCode.h"
 
 #include "LoopAnalyzer.h"
 #include "TBRAnalyzer.h"
@@ -4043,6 +4044,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   // need to be done to
   StmtDiff ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S,
                                                        Expr* dfdS) {
+    GeneratedCode::StatementScope Statement(m_Builder.getGeneratedCode(), S);
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDifferentiateSingleStmt();
     beginBlock(direction::reverse);

@@ -592,6 +592,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DerivativeAndOverload
   DerivativeBuilder::Derive(const DiffRequest& request) {
     TimedGenerationRegion G([&request]() { return (std::string)request; });
+    GeneratedCodeDiagnostics HoldDiags(*m_GeneratedCode,
+                                       m_Sema.getDiagnostics(), request);
     EmitPortingHint(request);
     if (const FunctionDecl* FD = request.Function) {
       // Process the custom derivative
