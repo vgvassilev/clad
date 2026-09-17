@@ -33,8 +33,8 @@ Consider,
 
 .. math::
 
-   a = x * y
-   b = sin(x)
+   a = x * y \\
+   b = sin(x) \\
    z = a + b
 
 Differentiating this eqn w.r.t to any arbitrary variable t we get :
@@ -120,12 +120,12 @@ Replacing :math:`\pdv{s}{b}` by `sb` and so on.
   sb = sz \\
   sa = sz \\
   sy = x * sa \\
-  sx = y * sa + cos(x) * gb
+  sx = y * sa + cos(x) * sb
 
 Substituting `s = z` we will get `sz` = 1
 
-Thus we don't need to run the program twice for each input. However, as mentioned
-above the only drawback is we need to re-run the program for a different output.
+So one sweep gives the derivative with respect to every input at once. The cost
+is the mirror of forward mode's: a second output needs a second sweep.
 
 
 Vectorized Forward Mode Automatic Differentiation
@@ -143,11 +143,10 @@ Working
 For computing gradient of a function with an n-dimensional input - forward mode
 requires n forward passes.
 
-We can do this in a single forward pass, instead of accumulating a single
-scalar value of derivative with respect to a particular node, we maintain a
-gradient vector at each node. Although, the strategy is pretty similar, it requires
-three passes for computing partial derivatives w.r.t. the three scalar inputs of
-the function.
+Vector mode does it in a single forward pass. Instead of accumulating one
+scalar derivative per node, it maintains a gradient vector at each node, so the
+derivatives with respect to all three scalar inputs are carried together rather
+than one pass at a time.
 
 At each node, we maintain a vector, storing the complete gradient of that node's
 output w.r.t.. all the input parameters. All operations are now vector operations,
@@ -267,9 +266,10 @@ then the corresponding pushforward will be defined as follows\:
 
 .. math::
 
-    fn\_pushforward(x, \dot{u}) = cos(u)*\dot{u}
+    fn\_pushforward(u, \dot{u}) = cos(u)*\dot{u}
 
-Here, :math:`\dot{u} = \pdv{u}{x}` and :math:`x` is the independent variable.
+Here :math:`\dot{u} = \pdv{u}{x}`, and :math:`x` is the independent variable the
+derivative is taken with respect to.
 
 As a concrete example, Clad ships the pushforward of `std::sin` in
 ``clad/Differentiator/BuiltinDerivatives.h``::
@@ -390,8 +390,9 @@ Clad differentiates a user-defined type member by member. The derivative of an
 object is another object of the same type, whose members hold the derivatives
 of the corresponding members, which follows from the rule that a derivative
 has the type of the value it belongs to. A gradient with respect to a
-parameter of type ``Coordinates`` therefore takes a ``Coordinates *``, and
-reading ``_d_p.x`` gives the derivative with respect to ``p.x``.
+parameter of type ``Coordinates`` therefore takes a ``Coordinates *``, so a
+caller passes ``&d_p`` and afterwards reads the derivative with respect to
+``p.x`` as ``d_p.x``.
 
 Two things need saying for this to work. The first is how an adjoint object
 starts: it must be zero, and what zero means for a type is the type's own
