@@ -47,18 +47,19 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "alabaster"
+html_theme = "furo"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
+# Furo takes a repository rather than alabaster's banner, and uses it to put an
+# "Edit this page" link on every page.
 html_theme_options = {
-    "github_user": "vgvassilev",
-    "github_repo": "clad",
-    "github_banner": True,
-    "fixed_sidebar": True,
+    "source_repository": "https://github.com/vgvassilev/clad/",
+    "source_branch": "master",
+    "source_directory": "docs/userDocs/source/",
 }
 
 highlight_language = "C++"
