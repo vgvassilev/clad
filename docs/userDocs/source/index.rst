@@ -25,12 +25,14 @@ works through how. Clad supports reverse-mode AD (a.k.a backpropagation) as well
 forward-mode AD, and it also facilitates computation of hessian matrix and
 jacobian matrix of any arbitrary function.
 
-Automatic differentiation solves all the usual problems of numerical
-differentiation such as precision loss and symbolic differentiation such as
-limitations to closed form expressions and expression swell.
-If you are just getting started with Clad, then please
-checkout :doc:`Using Clad <user/UsingClad>` and
-:doc:`Tutorials <user/tutorials>`.
+Automatic differentiation avoids the precision loss of numerical
+differentiation, and the closed-form restrictions and expression swell of
+symbolic differentiation.
+
+If you are just getting started, :doc:`Using Clad <user/UsingClad>` and
+:doc:`Tutorials <user/tutorials>` are the places to begin. Clad is a Clang
+plugin, so it is loaded with ``-fplugin=`` at compile time;
+:doc:`Clad Installation <user/InstallationAndUsage>` has the details.
 
 ----------------------
 
