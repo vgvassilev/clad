@@ -3,13 +3,17 @@ Supported C++ Features
 
 The short answer is that Clad differentiates ordinary numerical C++. Arithmetic
 and comparisons, calls to your own functions and to ``<cmath>``, ``if`` and
-``switch``, every loop form including range-based ``for``, arrays and pointers,
-structs and classes with their constructors and member functions, references,
-lambdas, function templates, overloaded operators: all of these are exercised by
-the test suite and shown working in :doc:`Using Clad <UsingClad>`.
+``switch``, every loop form, arrays and pointers, references, structs and
+classes with their constructors and member functions, lambdas, function
+templates and overloaded operators are all exercised by the test suite.
+:doc:`Using Clad <UsingClad>` works through the ones you drive directly.
 
-The rest of this page covers the edges: what Clad refuses, what it warns about,
-and what it currently gets wrong.
+One caveat on that list: a class holding a reference *member* is a different
+matter from a reference variable, and currently gives a wrong gradient. See
+`issue #2082 <https://github.com/vgvassilev/clad/issues/2082>`__.
+
+The rest of this page covers the edges: what Clad refuses and what it warns
+about.
 
 If Clad cannot differentiate something
 =======================================
