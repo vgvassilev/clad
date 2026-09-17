@@ -8,8 +8,6 @@ to its fullest.
 
 Let's get started.
 
-.. contents::
-
 What are custom derivatives?
 =============================
 
