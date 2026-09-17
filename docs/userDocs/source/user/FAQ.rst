@@ -5,7 +5,7 @@ The questions below come up repeatedly in Clad's
 `issues <https://github.com/vgvassilev/clad/issues>`__ and
 `discussions <https://github.com/vgvassilev/clad/discussions>`__.
 
-Clang says "clad doesn't appear to be loaded"
+Clang says "Clad doesn't appear to be loaded"
 ==============================================
 
 The full message is:

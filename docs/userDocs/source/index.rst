@@ -28,7 +28,7 @@ jacobian matrix of any arbitrary function.
 Automatic differentiation solves all the usual problems of numerical
 differentiation such as precision loss and symbolic differentiation such as
 limitations to closed form expressions and expression swell.
-If you are just getting started with clad, then please
+If you are just getting started with Clad, then please
 checkout :doc:`Using Clad <user/UsingClad>` and
 :doc:`Tutorials <user/tutorials>`.
 
@@ -68,10 +68,10 @@ The User Guide
    user/SupportedFeatures
    user/CoreConcepts
    user/reference
-   user/CustomDerivatives.rst
+   user/CustomDerivatives
    user/tutorials
    user/UsingEnzymeWithinClad
-   user/UsingVectorMode.rst
+   user/UsingVectorMode
    user/UsingImmediateMode
    user/UsingCladOnCUDACode
    user/FAQ

@@ -116,7 +116,7 @@ in adapting the CHEF-FP code to their specific use cases.
 Top define a custom model using Clad:
 
 1. Implement the ``clad::FPErrorEstimationModel`` class, a generic interface 
-that provides the error expressions for clad to generate.
+that provides the error expressions for Clad to generate.
 
 2. Override the ``AssignError()`` function. This function is called for all LHS 
 of every assignment expression in the target function.

@@ -178,7 +178,7 @@ Derived Function Types and Derivative Types
 
 Each entry point asks for a different shape of derivative, so each generates a
 function with its own name and signature. For ``double f(double x, double y)``
-clad produces:
+Clad produces:
 
 ``clad::differentiate(f, "x")``
   ``double f_darg0(double x, double y)`` -- the same signature as ``f``,
@@ -208,7 +208,7 @@ doubles, and a user-defined type has a derivative of that same type. This is
 why a gradient asks for a pointer to the parameter's own type rather than to
 some separate derivative type, and why the derivative of an array parameter
 whose length is only known at run time is passed as a ``clad::array_ref``:
-clad has to be told how far it may write.
+Clad has to be told how far it may write.
 
 Reverse mode accumulates into these parameters rather than assigning to them,
 so the caller allocates them and sets them to zero. Calling a gradient twice
@@ -224,9 +224,9 @@ differentiated: it may be an iterative approximation whose derivative is
 better computed in closed form, or code whose derivative is known to be more
 numerically stable when written by hand.
 
-A custom derivative is how you tell clad what the derivative of such a
+A custom derivative is how you tell Clad what the derivative of such a
 function is. You write a function whose name is the original's with a suffix,
-put it in ``clad::custom_derivatives``, and clad calls it instead of
+put it in ``clad::custom_derivatives``, and Clad calls it instead of
 differentiating the body. Which suffix depends on what the call site needs: a
 pushforward for forward mode, a pullback for reverse mode, and a
 reverse-forward function for a call in reverse mode whose result is used
@@ -235,8 +235,8 @@ before the reverse sweep reaches it. The three are described below and in
 functions and constructors.
 
 The lookup is by name. A custom derivative whose signature does not match what
-clad expects is reported as an error naming the expected signature, but one
-whose *name* is wrong is simply not found: clad differentiates the function
+Clad expects is reported as an error naming the expected signature, but one
+whose *name* is wrong is simply not found: Clad differentiates the function
 itself and never mentions that your function exists.
 
 Pushforward and Pullback functions
@@ -373,7 +373,7 @@ Adding rather than assigning is the contract, not a detail. The same variable
 can reach several calls, and each call owes it a share of the derivative; a
 pullback that assigns silently discards the shares written before it. Clad
 passes fresh zeroed temporaries for arguments taken by value, so the
-difference does not show there, but for an argument taken by reference clad
+difference does not show there, but for an argument taken by reference Clad
 hands the pullback the caller's own adjoint, and assigning to it loses
 whatever had accumulated.
 
@@ -395,10 +395,10 @@ reading ``_d_p.x`` gives the derivative with respect to ``p.x``.
 
 Two things need saying for this to work. The first is how an adjoint object
 starts: it must be zero, and what zero means for a type is the type's own
-business, so clad value-initialises by default and lets a type say otherwise
+business, so Clad value-initialises by default and lets a type say otherwise
 through ``clad::zero_init`` or ``clad::zero_like``. The second is what a
 constructor contributes, since a constructor is where a member first gets its
-value from the arguments; clad generates or looks up
+value from the arguments; Clad generates or looks up
 ``constructor_pushforward`` and ``constructor_pullback`` for that, and
 :doc:`Custom derivatives <CustomDerivatives>` shows how to write them.
 
