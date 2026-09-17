@@ -64,6 +64,11 @@ html_theme_options = {
 
 highlight_language = "C++"
 
+# Without this, docutils reads a single-backtick span as a title reference and
+# renders it in italics. Every page uses single backticks for identifiers and
+# flags, so the default should be what the pages already mean.
+default_role = "code"
+
 
 todo_include_todos = True
 
