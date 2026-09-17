@@ -106,9 +106,9 @@ such as `std::sin`, more than once. A usage example can be something like:
   
 .. note::
 
-   For derivative orders upto 3, clad has specially defined enums that can be used
-   instead of the integer template parameter. For example, the following code is
-   equivalent to the code shown above::
+   For derivative orders up to 3, Clad defines enums that can be used instead of
+   the integer template parameter, so the third-order example above can also be
+   written::
 
       auto d_fn_3 = clad::differentiate<clad::order::third>(fn, "i");
 
@@ -549,8 +549,8 @@ When Clad will encounter a function ``FNAME``, it will first search for a
 suitable custom derivative function definition within the custom_derivatives namespace. 
 Provided no definition was found, Clad will proceed to automatically derive the function.
 
-Please read `Pushforward and Pullback Functions` section to get better understanding 
-of them.
+:ref:`Pushforward and Pullback functions <PushforwardFunctions>` in Core
+Concepts describes what each one is and when Clad asks for it.
 
 .. note::
 

@@ -17,7 +17,7 @@ API reference
       Calls the generated derivative. The arguments are the ones the original
       function takes, followed by the ones the derivative adds -- a pointer or
       reference per differentiated parameter in reverse mode, the result matrix
-      in Hessian and Jacobian mode. Each mode's section above shows the shape.
+      in Hessian and Jacobian mode. Each mode's entry below shows the shape.
 
       For the derivative of a member function, the object to call it on comes
       first, unless :cpp:func:`setObject` has already supplied one.
@@ -67,19 +67,15 @@ API reference
                   CladFunction differentiate(Fn fn, const char* args)
 
 
-   In very brief, this function differentiate functions using the forward mode
-   automatic differentiation.
+   Differentiates ``fn`` with respect to the one parameter named in ``args``,
+   using forward mode. The generated function has the signature of ``fn`` and
+   returns the derivative in place of the value. If ``args`` is omitted, the
+   first parameter is used.
 
-   More specifically, this function performs partial differentiation of the
-   provided function (``fn``) using the forward mode automatic differentiation
-   with respect to parameter specified in ``args``. Template parameter ``N``
-   denotes the derivative order.
-
-   Please refer this to know more about the forward mode automatic differentiation.
-   For now it is enough to know that forward mode automatic differentiation (AD)
-   is more efficient than the reverse mode automatic differentiation when the
-   number of output parameters of the function are greater than the number of
-   input parameters of the function.
+   One call gives the derivative with respect to one parameter, so forward mode
+   suits a function with more outputs than inputs. Reverse mode is the choice
+   when there are many inputs; :doc:`Core Concepts <CoreConcepts>` explains
+   why.
 
    .. literalinclude:: ../../../../test/Documentation/Reference/Differentiate.cpp
       :language: cpp
@@ -89,16 +85,15 @@ API reference
    .. cpp:function:: template<class Fn>\
                   CladFunction gradient(Fn fn, const char* args)
 
-   In very brief, this function differentiate functions using the reverse mode
-   automatic differentiation.
+   Differentiates ``fn`` with respect to every parameter named in ``args``,
+   using reverse mode, or with respect to all of them if ``args`` is omitted.
+   The generated function returns nothing and takes one extra pointer per
+   differentiated parameter, which it accumulates into, so the caller allocates
+   them and sets them to zero.
 
-   More specifically, this function performs partial differentiation of the provided
-   function (``fn``) using the reverse mode automatic differentiation with respect
-   to all the parameters specified in ``args``.
-
-   Please refer this to know more about the reverse mode automatic differentiation.
-   For now it is enough to know that generally reverse mode AD is more efficient
-   than the forward mode AD when there are multiple input parameters.
+   One call gives every derivative at once, which is why reverse mode suits a
+   function with many inputs and few outputs -- the usual case for a cost or a
+   likelihood.
 
    .. literalinclude:: ../../../../test/Documentation/Reference/Gradient.cpp
       :language: cpp
