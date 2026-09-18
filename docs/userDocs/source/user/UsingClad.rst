@@ -124,6 +124,36 @@ for more details.
 Reverse Mode Automatic Differentiation
 ----------------------------------------
 
+Reverse mode AD computes the derivative of one output with respect to every
+input at once. Mathematically it gives a row of the jacobian matrix, where
+forward mode gives a column, which is why it is the mode to reach for when a
+function has many inputs and few outputs, which is what a cost or a likelihood
+usually is.
+
+``clad::gradient`` provides the reverse mode differentiation functionality. It
+takes a source function and, optionally, the parameters to differentiate with
+respect to, and returns a ``clad::CladFunction`` the same way
+``clad::differentiate`` does. The derived function differs in its signature: it
+returns nothing, and takes one extra pointer per differentiated parameter, in
+the order the parameters are declared. Clad *accumulates* into those pointers
+rather than assigning to them, so the caller allocates them and sets them to
+zero.
+
+.. literalinclude:: ../../../../test/Documentation/UsingClad/ReverseMode.cpp
+   :language: cpp
+   :start-after: docs-begin-reverse-mode
+   :end-before: docs-end-reverse-mode
+
+Passing the parameters explicitly narrows the gradient: ``clad::gradient(fn,
+"x")`` generates a function taking one extra pointer rather than two. As in
+forward mode, a parameter can be named or given by index, so
+``clad::gradient(fn, "x, y")`` and ``clad::gradient(fn, "0, 1")`` are the same
+request.
+
+Visit the API reference of :cpp:func:`gradient` for more details, and
+:doc:`Core concepts <CoreConcepts>` for what Clad generates and why it needs to
+store values along the way.
+
 Hessian Computation
 ----------------------
 
