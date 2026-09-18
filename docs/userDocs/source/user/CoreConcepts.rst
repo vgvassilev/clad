@@ -257,7 +257,7 @@ using SIMD techniques.
 Derived Function Types and Derivative Types
 =============================================
 
-Each entry point asks for a different shape of derivative, so each generates a
+Each entry point asks for a different kind of derivative, so each generates a
 function with its own name and signature. For ``double f(double x, double y)``
 Clad produces:
 
