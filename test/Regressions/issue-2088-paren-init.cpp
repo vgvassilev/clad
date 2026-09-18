@@ -6,8 +6,9 @@
 // C++20 parenthesized aggregate initialization (P0960R3) is represented by
 // CXXParenListInitExpr, which StmtClone has no case for. The VisitStmt fallback
 // diagnoses the initializer and drops it instead of cloning it into a malformed
-// node that ReferencesUpdater would crash walking. The expression only exists
-// from Clang 16, where P0960R3 landed, hence the version gate.
+// node that ReferencesUpdater would crash walking. Covered in both directions
+// below. The expression only exists from Clang 16, where P0960R3 landed, hence
+// the version gate.
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -17,10 +18,12 @@ struct Aggregate {
 };
 
 double f_aggregate(double x) {
-  Aggregate p(x, 2.0); // expected-warning {{statement kind 'CXXParenListInitExpr' is not supported}}
+  // Forward and reverse each visit the initializer once.
+  Aggregate p(x, 2.0); // expected-warning 1+ {{statement kind 'CXXParenListInitExpr' is not supported}}
   return x;
 }
 
 int main() {
   clad::differentiate(f_aggregate, "x");
+  clad::gradient(f_aggregate, "x");
 }

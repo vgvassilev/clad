@@ -30,7 +30,7 @@ double rev(double x) {
 }
 
 // `[[likely]]` on a statement wraps that statement in an AttributedStmt, which
-// StmtClone has no case for.
+// StmtClone has no case for. Covered in both directions below.
 // expected-warning@* 1+ {{statement kind 'AttributedStmt' is not supported}}
 double f_likely(double x) {
   double r = x;
@@ -63,5 +63,6 @@ int main() {
   clad::differentiate(fwd, "x");
   clad::gradient(rev, "x");
   clad::differentiate(f_likely, "x");
+  clad::gradient(f_likely, "x");
   clad::gradient(f_inherited, "x");
 }
