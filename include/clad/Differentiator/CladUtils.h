@@ -149,6 +149,12 @@ namespace clad {
                                             clang::Sema& S,
                                             clang::DeclContext* DC = nullptr);
 
+    /// Resolve a function lookup expression or a direct function reference.
+    /// Return null when no usable overload exists for the arguments.
+    clang::FunctionDecl*
+    ResolveOverload(clang::Sema& S, clang::Expr* lookup,
+                    llvm::MutableArrayRef<clang::Expr*> args);
+
     /// Finds namespace 'namespc` under the declaration context `DC` or the
     /// translation unit declaration if `DC` is null.
     ///
@@ -436,6 +442,10 @@ namespace clad {
 
     /// Find namespace clad declaration.
     clang::NamespaceDecl* GetCladNamespace(clang::Sema& S);
+
+    /// Look up an entity in the clad namespace. The result may be empty.
+    clang::LookupResult tryLookupCladMethod(clang::Sema& S,
+                                            llvm::StringRef name);
     /// Create clad::array<T> type.
     clang::QualType GetCladArrayOfType(clang::Sema& S, clang::QualType T);
     /// Create clad::matrix<T> type.
@@ -491,6 +501,10 @@ namespace clad {
 
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
+
+    /// Resolve clad::zero_like(value), returning null without diagnostics
+    /// when no usable overload exists.
+    clang::FunctionDecl* LookupCladZeroLike(clang::Sema& S, clang::Expr* value);
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
