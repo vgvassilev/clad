@@ -462,11 +462,14 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
 
 StmtDiff BaseForwardModeVisitor::VisitStmt(const Stmt* S) {
   diagUnsupported(S);
-  // Do not clone the unsupported statement. Cloning a kind StmtClone has no
-  // case for yields a malformed node, and ReferencesUpdater crashes walking
-  // it. Having said it is unsupported, drop it and finish cleanly, the way
-  // throw, goto and labels are handled.
-  return StmtDiff();
+  // The node cannot be differentiated, but if StmtClone can reproduce it the
+  // derivative still needs it, for example a try/catch block carried over
+  // verbatim. The kinds StmtClone has no case for would clone into a malformed
+  // node that ReferencesUpdater crashes walking, so drop those the way throw,
+  // goto and labels finish.
+  if (!isStmtCloneSupported(S))
+    return StmtDiff();
+  return StmtDiff(Clone(S));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {

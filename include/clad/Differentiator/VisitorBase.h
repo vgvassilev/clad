@@ -729,6 +729,15 @@ namespace clad {
           << S->getStmtClassName() << L;
     }
 
+    /// Returns true when StmtClone has a case for \p S and can reproduce it.
+    /// The VisitStmt fallback diagnoses a statement it cannot differentiate and
+    /// then clones it, so nodes clad cannot handle but can still carry over
+    /// verbatim (for example CXXTryStmt) survive into the derivative. A few
+    /// kinds have no StmtClone case at all: cloning one asserts in
+    /// StmtClone::VisitStmt or, with asserts off, builds a malformed node that
+    /// ReferencesUpdater then crashes walking. See issue #2088.
+    static bool isStmtCloneSupported(const clang::Stmt* S);
+
     void diagUnsupportedIndirectCalls(const clang::CallExpr* CE) {
       assert(!CE->getDirectCallee() && "This is a direct callee");
       clang::SourceLocation L = CE->getBeginLoc();
