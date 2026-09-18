@@ -138,7 +138,7 @@ Pushforward custom derivatives
 ===============================
 
 The :ref:`pushforward <PushforwardFunctions>` custom derivative is used by the Clad forward mode AD.
-Pushforward functions *pushes* sensitivities of the inputs to the sensitivities of the outputs.
+Pushforward functions *push* the tangents of the inputs to the tangents of the outputs.
 Put simply, it computes partial derivative of function's output with respect to some independent
 variable. This independent variable does not necessarily have to be the function's input.
 This functionality can be easily understood with the help of an example, so let's set aside
@@ -179,8 +179,8 @@ Now we are ready to see the ``pushforward`` custom derivative of ``fn``:
    :start-after: docs-begin-pushforward-custom
    :end-before: docs-end-pushforward-custom
 
-In the ``fn_pushforward`` function, ``du`` and ``dv`` are :math:`\partial u / \partial x`
-and :math:`\partial v / \partial x` respectively, where ``x`` is the independent variable
+In the ``fn_pushforward`` function, ``du`` and ``dv`` carry the tangents
+:math:`\pdv{u}{x}` and :math:`\pdv{v}{x}`, where ``x`` is the independent variable
 with respect to which we are differentiating.
 
 Some important things to note here:
@@ -199,7 +199,7 @@ Pullback custom derivatives
 ============================
 
 The :ref:`pullback <PullbackFunctions>` custom derivative is used by the Clad reverse mode AD.
-Pullback function *pulls* sensitivities of outputs to the sensitivities of inputs.
+Pullback functions *pull* the adjoints of the outputs back to the adjoints of the inputs.
 Put simply, it computes the contributions to the partial derivatives of some output with respect
 to the function's inputs. This output variable does not necessarily have to be the function's output.
 Let's take the same example as before to understand the pullback custom
@@ -212,7 +212,7 @@ derivative:
 
 The pullback custom derivative for the function ``fn`` must compute the contributions to the
 partial derivatives of some output variable with respect to the function's input variables using the
-output sensitivities. For example::
+output adjoints. For example::
 
   r = fn(u, v);
   y = r;
@@ -230,12 +230,12 @@ Now we are ready to see the pullback custom derivative of ``fn``:
    :start-after: docs-begin-pullback-custom
    :end-before: docs-end-pullback-custom
 
-``r`` is the ``fn``s output and ``y`` is the final output
-of the code getting differentiated. ``dr`` is the partial derivative
-of the output variable with respect to the function's output, that is,
-:math:`\partial y/ \partial r`, and ``du`` and ``dv`` are the
-partial derivatives :math:`\partial y / \partial u` and :math:`\partial y / \partial v`
-respectively.
+``r`` is the ``fn``\ 's output and ``y`` is the final output
+of the code getting differentiated. ``dr`` carries the adjoint of ``r``, the
+partial derivative of the output variable with respect to the function's output,
+that is :math:`\pdv{y}{r}`. ``du`` and ``dv`` point at the adjoints of ``u`` and
+``v``; the pullback adds this call's contribution to each, so that
+:math:`\bar{u} \mathrel{+}= \pdv{r}{u} \bar{r}`.
 
 Some important things to note here:
 
@@ -268,7 +268,7 @@ same variable, hence they should have the same adjoint. That is, if ``g(u, v)`` 
 for ``du``. However, there is no purely static analysis mechanism possible for Clad to
 determine the return value of a function call because a function call result depends on the
 runtime values. So the question becomes how to correctly set the adjoint ``dr`` to either
-``du`` or ``dv`` in the derivative function?
+``du`` or ``dv`` in the derived function?
 
 Reverse-forward function is used to solve this problem. The reverse-forward function modifies
 the function that returns the reference, ``g`` in our case, to return both the primal

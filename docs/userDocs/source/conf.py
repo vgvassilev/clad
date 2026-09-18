@@ -33,7 +33,7 @@ author = "Vassil Vassilev"
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["sphinx.ext.todo", "sphinx.ext.mathjax"]
+extensions = ["sphinx.ext.todo", "sphinx.ext.mathjax", "sphinxcontrib.mermaid"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -56,6 +56,8 @@ html_theme = "furo"
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
+html_css_files = ["clad.css"]
+
 # Furo takes a repository rather than alabaster's banner, and uses it to put an
 # "Edit this page" link on every page.
 html_theme_options = {
@@ -65,6 +67,12 @@ html_theme_options = {
 }
 
 highlight_language = "C++"
+
+# GitHub's own highlighting, so a snippet reads the same here as it does in the
+# repository. github-dark ships with Pygments; github-light comes from
+# accessible-pygments, which furo depends on.
+pygments_style = "github-light"
+pygments_dark_style = "github-dark"
 
 # Without this, docutils reads a single-backtick span as a title reference and
 # renders it in italics. Every page uses single backticks for identifiers and
@@ -83,6 +91,22 @@ with open(CLAD_ROOT + "/VERSION", "r") as f:
 # The sidebar header shows project and release together, so a stale release
 # reads as the documentation's own version.
 release = version
+
+# Each diagram as tall as it needs to be; the default boxes every one of them
+# into the same 500px. The width is settled in _static/clad.css, which also says
+# why. A diagram wider than about 740px is scaled down to fit the text column,
+# so keep them under that.
+mermaid_height = "auto"
+# Mermaid names each diagram after Date.now(), and every rule it emits is scoped
+# to that name. Two diagrams rendered in the same millisecond collide, and the
+# second one comes out unstyled and collapsed. Number them instead. The labels
+# are set a little larger than mermaid's default, which is smaller than the body
+# text beside it.
+mermaid_init_config = {
+    "startOnLoad": False,
+    "deterministicIds": True,
+    "themeVariables": {"fontSize": "18px"},
+}
 
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 # Add latex physics package

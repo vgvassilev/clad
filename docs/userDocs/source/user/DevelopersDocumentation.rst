@@ -384,6 +384,8 @@ Github runner.
 .. figure:: ../_static/setup-tmate-session.png
    :width: 850px
    :align: center
+   :alt: The expanded "setup tmate session" step in a GitHub Actions log,
+         showing the ssh command to copy.
 
 Now, to ssh into the GitHub runner do, simply do::
 
