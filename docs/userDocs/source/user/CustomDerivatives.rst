@@ -103,7 +103,7 @@ elements. Other copyable ranges use copy-then-zero to preserve their structure.
 Provide a type-specific ``zero_like`` overload when neither strategy can
 create an independent, structurally correct adjoint. Common examples include
 owning or reference-counted storage, views that alias the primal, device memory,
-and types whose shape, allocator, device, or other runtime metadata requires
+and types whose extents, allocator, device, or other runtime metadata require
 special handling.
 
 For example, a device buffer may require a fresh allocation on the same device

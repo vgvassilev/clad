@@ -17,7 +17,7 @@ API reference
       Calls the generated derivative. The arguments are the ones the original
       function takes, followed by the ones the derivative adds -- a pointer or
       reference per differentiated parameter in reverse mode, the result matrix
-      in Hessian and Jacobian mode. Each mode's entry below shows the shape.
+      in Hessian and Jacobian mode. Each mode's entry below shows its signature.
 
       For the derivative of a member function, the object to call it on comes
       first, unless :cpp:func:`setObject` has already supplied one.
