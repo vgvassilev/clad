@@ -506,6 +506,47 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
+    llvm::SmallVector<Stmt*, 4> paramAccumulations;
+    if (m_DiffReq.Mode == DiffMode::reverse && !m_ExternalSource) {
+      for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI) {
+        const ParmVarDecl* oPVD = VarInfo.param;
+        if (!utils::isArrayOrPointerType(oPVD->getType()) &&
+            !oPVD->getType()->isReferenceType()) {
+          ParmVarDecl* PVD = nullptr;
+          for (auto* p : params) {
+            if (p->getName() == oPVD->getName()) {
+              PVD = p;
+              break;
+            }
+          }
+          if (!PVD) continue;
+
+          auto it = m_Variables.find(PVD);
+          if (it == m_Variables.end()) continue;
+          VarDecl* dPVD = cast<VarDecl>(it->second.Decl);
+
+          QualType valueTy = utils::getNonConstType(oPVD->getType(), m_Sema);
+          valueTy = valueTy.getNonReferenceType();
+
+          auto* VDDerived = BuildGlobalVarDecl(
+              valueTy, "_local" + dPVD->getNameAsString(), getZeroInit(valueTy),
+              false);
+          m_Globals.push_back(BuildDeclStmt(VDDerived));
+
+          m_Variables[PVD] = {VDDerived, AdjointInfo::Plain};
+
+          Expr* dPVD_ref = BuildDeclRef(dPVD);
+          Expr* local_ref = BuildDeclRef(VDDerived);
+          Expr* deref_dPVD = BuildOp(UO_Deref, dPVD_ref);
+          Expr* add_assign = BuildOp(BO_AddAssign, deref_dPVD, local_ref);
+          Stmt* if_stmt = clad_compat::IfStmt_Create(
+              m_Context, noLoc, false, nullptr, nullptr, dPVD_ref, noLoc, noLoc,
+              add_assign, noLoc, nullptr);
+          paramAccumulations.push_back(if_stmt);
+        }
+      }
+    }
+
     // If we the differentiated function is a constructor, generate `this`
     // object and differentiate its inits.
     Stmts initsDiff;
@@ -554,6 +595,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           addToCurrentBlock(S, direction::forward);
       else
         addToCurrentBlock(Reverse, direction::forward);
+      
+      for (Stmt* S : paramAccumulations)
+        addToCurrentBlock(S, direction::forward);
     } else {
       // Function has early returns. Wrap the master reverse in a [&] lambda
       // and call it from each early-return path (via marker patching) plus
@@ -594,9 +638,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // the reverse. ActOnEndOfDerivedFnBody is a no-op without such a source,
       // yielding an empty block that folds to nothing.
       CompoundStmt* Epilogue = nullptr;
-      if (m_ExternalSource) {
+      if (m_ExternalSource || !paramAccumulations.empty()) {
         beginBlock(direction::forward);
-        m_ExternalSource->ActOnEndOfDerivedFnBody();
+        if (m_ExternalSource)
+          m_ExternalSource->ActOnEndOfDerivedFnBody();
+        for (Stmt* S : paramAccumulations)
+          addToCurrentBlock(S, direction::forward);
         Epilogue = endBlock(direction::forward);
       }
 

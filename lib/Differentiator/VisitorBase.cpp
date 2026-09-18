@@ -607,8 +607,11 @@ namespace clad {
                        !nameBase.starts_with("__end") &&
                        !nameBase.starts_with("__begin");
     bool countedName =
-        nameBase.starts_with("_") && !nameBase.starts_with("_d_") &&
-        !nameBase.starts_with("_delta_") && isRangedVar && nameBase != "_this";
+        (nameBase.starts_with("_t") || nameBase.starts_with("_r") ||
+         nameBase.starts_with("_acc") || nameBase.starts_with("_chk") ||
+         nameBase.starts_with("_dummy") || nameBase.starts_with("_temp") ||
+         nameBase.starts_with("_cond")) &&
+        !nameBase.starts_with("_this") && isRangedVar;
     std::size_t idx = 0;
     std::size_t& id = countedName ? m_idCtr[nameBase.str()] : idx;
     std::string idStr = countedName ? std::to_string(id) : "";
