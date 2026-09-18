@@ -51,10 +51,8 @@ The main logic for CHEF-FP resides in the following files:
     function.  It keeps track of error expressions, emits error statements, and
     replaces parameter values.
 
-- `include/clad/Differentiator/EstimationModel.h`_
-
-  - contains the information needed to calculate the estimate value of the
-    error.
+  - it also holds the default error model, and looks up a custom one when the
+    program supplies it.
 
 
    Above files include a lot of useful documentation in the form of code
@@ -66,8 +64,7 @@ How does the FPEE Logic work?
 
 While parsing the code using Clad, if it encounters a floating point variable,
 it needs to be tracked (to accumulate relevant errors against that variable).
-Next, the Error Estimation Calculation Formula (Error Model) needs to be built
-(using ``EstimationModel.h``).
+Next, the Error Estimation Calculation Formula (Error Model) needs to be built.
 
 The error model decides what each write's error is taken to be, and it is
 replaceable. The built-in one is the first-order Taylor expansion of the
@@ -129,21 +126,21 @@ How do I create my own Custom model?
 Custom Models may be one of the main reasons that new users may be interested
 in adapting the CHEF-FP code to their specific use cases. 
 
-Top define a custom model using Clad:
+To define a custom model, declare one function in namespace ``clad``::
 
-1. Implement the ``clad::FPErrorEstimationModel`` class, a generic interface 
-that provides the error expressions for Clad to generate.
+  namespace clad {
+  double getErrorVal(double dx, double x, const char* name);
+  }
 
-2. Override the ``AssignError()`` function. This function is called for all LHS 
-of every assignment expression in the target function.
+Clad looks it up by name when it generates an ``estimate_error`` derivative. If
+it finds one, it calls it in place of the built-in model at every write the
+reverse sweep passes, and accumulates what it returns. ``dx`` is the adjoint of
+the value written, ``x`` is the value itself, and ``name`` is the variable's
+name, which a model can use to treat some variables differently or to report on
+them.
 
-  The function ``AssignError()`` represents the mathematical formula of an
-  error model in a form that Clang can understand and convert to code. It
-  provides users with a reference to the variable of interest and its
-  derivative. The user, in turn, must return an expression that will be used to
-  accumulate the error.
-
-  Note: Creating these functions requires knowledge of the Clang APIs.
+The signature has to match exactly. A ``getErrorVal`` whose signature differs is
+reported as an error naming the expected one, rather than silently ignored.
 
 Demo customization examples can be found here:
 
@@ -189,8 +186,6 @@ forward block.
 
 
 .. _include/clad/Differentiator/ErrorEstimator.h: https://github.com/vgvassilev/clad/blob/master/include/clad/Differentiator/ErrorEstimator.h
-
-.. _include/clad/Differentiator/EstimationModel.h: https://github.com/vgvassilev/clad/blob/master/include/clad/Differentiator/EstimationModel.h
 
 .. _demos/ErrorEstimation: https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation
 
