@@ -13,6 +13,15 @@ function in the AST.
 Forward and Reverse Mode Automatic Differentiation
 ====================================================
 
+Both modes propagate derivatives through the same elementary steps, in opposite
+directions, and this page uses one notation for both. :math:`\dot{v}` is the
+*tangent* of :math:`v`: its derivative with respect to the input being
+differentiated. :math:`\bar{v}` is the *adjoint* of :math:`v`: the derivative
+of the output with respect to :math:`v`. That is the standard notation of the
+automatic differentiation literature; Griewank and Walther, listed under
+:ref:`Further Reading <ad-further-reading>`, is the canonical reference for it.
+Names in ``code font`` are C++ names -- the variables Clad generates, such as
+``_d_x``, and the names in the example code -- not mathematical symbols.
 
 Forward Mode Automatic Differentiation
 ----------------------------------------
@@ -23,109 +32,169 @@ sub-expression recursively. Compared to reverse mode AD, forward
 mode is natural and easy to implement as the flow of derivative information
 coincides with the order of evaluation of the mathematical function.
 
-Consider the following equation :
+Consider the equation
 
 .. math::
 
-   z = x * y + sin(x)
+   z = x y + \sin x
 
-Consider,
+broken into the elementary steps a compiler sees:
 
 .. math::
 
-   a = x * y \\
-   b = sin(x) \\
+   a = x y \\
+   b = \sin x \\
    z = a + b
 
-Differentiating this eqn w.r.t to any arbitrary variable t we get :
+Differentiating each step with respect to an arbitrary variable :math:`t` gives
 
 .. math::
 
-   \pdv{a}{t} = y * \pdv{x}{t} + x * \pdv{y}{t}\\
-   \pdv{b}{t} = cos(x) * \pdv{x}{t}\\
+   \pdv{a}{t} = y \pdv{x}{t} + x \pdv{y}{t} \\
+   \pdv{b}{t} = \cos x \pdv{x}{t} \\
    \pdv{z}{t} = \pdv{a}{t} + \pdv{b}{t}
 
-The above equations were obtained using the chain rule for differentiation which
-is as follows :
-
- .. math::
-
-  \pdv{w}{t} = \pdv{w}{u1} * \pdv{u1}{t} + \pdv{w}{u2} * \pdv{u2}{t} ....
-
-Here `w` denotes the output variable and `u1` and `u2` denote the input variables.
-
-Replacing :math:`\pdv{a}{t}` with :math:`da` and so on we get.
+which is the chain rule
 
 .. math::
 
-   da = y * dx + x * dy\\
-   db = cos(x) * dx\\
-   dz = da + db
+   \pdv{w}{t} = \pdv{w}{u_1} \pdv{u_1}{t} + \pdv{w}{u_2} \pdv{u_2}{t} + \cdots
 
-If we substitute :math:`t = x` i.e. we need to substitute :math:`dx = 1` and
-:math:`dy = 0`. Thus :math:`dz` will be :math:`\pdv{z}{x}`. Similarly we need
-to substitute :math:`dy = 1` as the seed value while differentiating w.r.t
-:math:`y`. The disadvantage of the forward mode AD is clearly visible here; we need to
-calculate derivative w.r.t to both independent variables separately.
+applied step by step, with :math:`w` the output of a step and :math:`u_i` the
+inputs it reads. In tangent notation the three steps read
+
+.. math::
+
+   \dot{a} = y \dot{x} + x \dot{y} \\
+   \dot{b} = \cos x \dot{x} \\
+   \dot{z} = \dot{a} + \dot{b}
+
+Each step is a node of the computation graph, and a tangent travels with the
+arrows, in the same order the program evaluates:
+
+.. mermaid::
+
+   flowchart TD
+     X["x<br/>ẋ = 1"]
+     Y["y<br/>ẏ = 0"]
+     A["a = x y<br/>ȧ = y ẋ + x ẏ"]
+     B["b = sin x<br/>ḃ = cos x ẋ"]
+     Z["z = a + b<br/>ż = ȧ + ḃ"]
+
+     X --> A
+     Y --> A
+     X --> B
+     A --> Z
+     B --> Z
+
+Choosing :math:`t = x` means seeding :math:`\dot{x} = 1` and
+:math:`\dot{y} = 0`, after which :math:`\dot{z}` holds :math:`\pdv{z}{x}`.
+The derivative with respect to :math:`y` needs a second run with the seeds
+swapped. That is the cost of forward mode: :math:`O(n)` sweeps for :math:`n`
+inputs, which is the wrong way round for the gradient of a function with many
+of them.
 
 
 Reverse Mode Automatic Differentiation
 ----------------------------------------
 
 In reverse mode AD, the dependent variable to be differentiated is fixed and the
-derivative is computed with respect to each sub-expression recursively.
-Reverse accumulation traverses the chain rule from outside to inside, or in the
-case of the directed acyclic graph of the function(often used to show flow of
-information), from top to bottom. The reverse mode AD requires only one sweep of
-the computation graph; this is faster than forward mode AD; however it
-should also be noted that the intermidiate variables need to be stored during
-computation which may result in significant amount of memory if the computation
-graph is large.
+derivative is computed with respect to each sub-expression recursively. Reverse
+accumulation traverses the chain rule from outside to inside -- on the directed
+acyclic graph of the function, from the output back to the inputs. A forward
+pass evaluates the function and records what the reverse sweep will need; one
+reverse sweep then gives every derivative. The recording is what reverse mode
+pays for its speed: memory in proportion to the number of operations the
+function executes, not to the size of its source.
 
-Thus the simplicity of the foward mode comes with a big disadvantage we need
-to seed `dx = 0` and `dy = 1`, run the program and then seed `dx = 1` and `dy = 0`
-and run another iteration  of the program. The cost of forward mode AD thus scales
-to `o(n)` where n is the number of input variables. Thus the cost would be very
-high; if we want to calculate the gradient of a very complicated function with large
-number of input variables.
-
-Rewriting the chain rule upside down taking advantage of its symmetry we get :
+Reverse mode reads the same chain rule in the other direction:
 
 .. math::
 
-  \pdv{s}{u} = \pdv{w1}{u} * \pdv{s}{w1} + \pdv{w2}{u} * \pdv{s}{w2}
+   \pdv{s}{u} = \pdv{w_1}{u} \pdv{s}{w_1} + \pdv{w_2}{u} \pdv{s}{w_2}
 
-Here we have reversed the roles of the input and output variables. Here `u` is
-some input variable and `wi` is an output variable dependent on `u`. `s` is an
-intermidiate variable to show change in the position of the derivative.
-
-Here we apply the chain rule for every input variable `u` as opposed to the forward
-mode where we applied chain rule for every output variable `w`.
-
-Applying this modified version of the chain rule on our given equations we
-get :
+Here :math:`u` is an input variable, :math:`w_i` are the step outputs that read
+it directly, and :math:`s` is the final output being differentiated. The rule is
+applied once per input rather than once per output. On the same three steps it
+gives
 
 .. math::
 
-   \pdv{s}{b} = \pdv{s}{z}\\
-   \pdv{s}{a} = \pdv{s}{z}\\
-   \pdv{s}{y} = x * \pdv{s}{a}\\
-   \pdv{s}{x} = y * \pdv{s}{a} + cos(x) * \pdv{s}{b}
+   \pdv{s}{b} = \pdv{s}{z} \\
+   \pdv{s}{a} = \pdv{s}{z} \\
+   \pdv{s}{y} = x \pdv{s}{a} \\
+   \pdv{s}{x} = y \pdv{s}{a} + \cos x \pdv{s}{b}
 
-
-Replacing :math:`\pdv{s}{b}` by `sb` and so on.
+or, in adjoint notation,
 
 .. math::
 
-  sb = sz \\
-  sa = sz \\
-  sy = x * sa \\
-  sx = y * sa + cos(x) * sb
+   \bar{b} = \bar{z} \\
+   \bar{a} = \bar{z} \\
+   \bar{y} = x \bar{a} \\
+   \bar{x} = y \bar{a} + \cos x \bar{b}
 
-Substituting `s = z` we will get `sz` = 1
+It is the same graph with the arrows turned round -- an adjoint travels against
+the order of evaluation:
+
+.. mermaid::
+
+   flowchart BT
+     Z["z<br/>z̄ = 1"]
+     A["a<br/>ā = z̄"]
+     B["b<br/>b̄ = z̄"]
+     X["x<br/>x̄ = y ā + cos x b̄"]
+     Y["y<br/>ȳ = x ā"]
+
+     Z --> A
+     Z --> B
+     A --> X
+     A --> Y
+     B --> X
+
+The sweep is seeded with :math:`\bar{z} = 1`, since :math:`s` is :math:`z`.
 
 So one sweep gives the derivative with respect to every input at once. The cost
 is the mirror of forward mode's: a second output needs a second sweep.
+
+That order -- forward, then back -- survives into the generated code. For a
+primal whose loop overwrites a value,
+
+.. code-block:: cpp
+
+   double f(double x) {
+     double t = 1;
+     for (int i = 0; i < 3; ++i)
+       t *= x;
+     return t;
+   }
+
+``clad::gradient(f)`` emits one function, ``f_grad``, that runs the primal
+forward while recording what it will need, then walks back through it:
+
+.. mermaid::
+
+   flowchart TD
+     SIG["void f_grad(double x, double *_d_x)<br/>the primal parameters, plus one pointer<br/>per differentiated parameter"]
+     DECL["double _d_t = 0.;<br/>clad::tape&lt;double&gt; _t1;<br/>a zeroed adjoint per local, and the tapes"]
+     FWD["forward sweep: the primal statements<br/>t *= x;"]
+     TAPE["clad::push(_t1, t);<br/>only what to-be-recorded analysis<br/>says the reverse sweep reads"]
+     SEED["_d_t += 1;<br/>the seed t̄ = 1"]
+     REV["reverse sweep: the same statements, reversed<br/>t = clad::pop(_t1);<br/>_d_t += _r_d0 * x;"]
+     OUT["*_d_x += t * _r_d0;<br/>x̄ accumulated into the caller's buffer"]
+
+     SIG --> DECL --> FWD --> SEED --> REV --> OUT
+     FWD -- "records" --> TAPE
+     TAPE -- "restores" --> REV
+
+Both sweeps are in the one function body, and the reverse sweep runs after the
+forward one. ``_r_d0`` holds ``t``'s adjoint from before the assignment cleared
+it, which is what lets the adjoints of ``t`` and ``x`` be updated from the same
+step. What reaches the tape is decided by the to-be-recorded analysis rather
+than by the chain rule: ``y = y + x * i`` in a loop stores nothing, because the
+pullback of ``+`` reads neither operand, while ``y = y * x`` stores every
+iteration's ``y``. Turning the analysis off with ``-fdisable-analysis=tbr``
+stores every overwritten value.
 
 
 Vectorized Forward Mode Automatic Differentiation
@@ -140,8 +209,8 @@ parallel processing capabilities and the structure of the computation graph.
 Working
 --------
 
-For computing gradient of a function with an n-dimensional input - forward mode
-requires n forward passes.
+For computing the gradient of a function with an :math:`n`-dimensional input,
+forward mode requires :math:`n` forward passes.
 
 Vector mode does it in a single forward pass. Instead of accumulating one
 scalar derivative per node, it maintains a gradient vector at each node, so the
@@ -153,12 +222,23 @@ output w.r.t.. all the input parameters. All operations are now vector operation
 for example, applying the sum rule will result in the addition of vectors.
 Initialization for input nodes are done using one-hot vectors.
 
-.. figure:: ../_static/vector-mode.png
-  :width: 600
-  :align: center
-  :alt: Vectorized Forward Mode Automatic Differentiation
+For :math:`f(x, y, z) = x + y + z` the three inputs are seeded with one-hot
+vectors, the sum rule adds the vectors at the node, and the output carries the
+whole gradient:
 
-  Vectorized Forward Mode Automatic Differentiation to compute the gradient.
+.. mermaid::
+
+   flowchart TD
+     X["x<br/>∇x = (1, 0, 0)"]
+     Y["y<br/>∇y = (0, 1, 0)"]
+     Z["z<br/>∇z = (0, 0, 1)"]
+     ADD(("+"))
+     F["f(x, y, z)<br/>∇f = ∇x + ∇y + ∇z = (1, 1, 1)"]
+
+     X --> ADD
+     Y --> ADD
+     Z --> ADD
+     ADD --> F
 
 Benefits
 ----------
@@ -171,6 +251,8 @@ This can prevent the recomputation of some expensive functions, which would have
 executed in a non-vectorized version due to multiple forward passes. This approach
 can take advantage of the hardware's vectorization and parallelization capabilities
 using SIMD techniques.
+
+.. _derived-function-types:
 
 Derived Function Types and Derivative Types
 =============================================
@@ -190,8 +272,8 @@ Clad produces:
 
 ``clad::hessian(f)``
   ``void f_hessian(double x, double y, double *hessianMatrix)`` -- the matrix
-  flattened in row major order, so ``n`` independent variables need ``n * n``
-  elements.
+  flattened in row major order, so :math:`n` independent variables need
+  :math:`n^2` elements.
 
 ``clad::jacobian(g)``
   ``void g_jac(..., clad::matrix<double> *_d_vector_out)`` -- one matrix per
@@ -246,8 +328,8 @@ Pushforward and Pullback functions
 Pushforward functions
 -------------------------
 
-Pushforward function of a function computes the output variables sensitivities
-from the input values and the input variables sensitivities.
+A pushforward computes the tangents of the outputs from the input values and
+the tangents of the inputs.
 Intuitively, pushforward functions propagates the derivatives forward. Pushforward
 functions are constructed by applying the core principles of the forward mode
 automatic differentiation.
@@ -256,20 +338,21 @@ As a user, you need to understand how pushforward function mechanism works so th
 can define custom derivative pushforward functions as require and can thus, unlock full
 potential of Clad.
 
-Mathematically, if a function `fn` is represented as\:
+Mathematically, for
 
 .. math::
 
-   fn(u) = sin(u)
+   y = \operatorname{fn}(u) = \sin u
 
-then the corresponding pushforward will be defined as follows\:
+the pushforward is the rule
 
 .. math::
 
-    fn\_pushforward(u, \dot{u}) = cos(u)*\dot{u}
+   \dot{y} = \cos u \, \dot{u}
 
-Here :math:`\dot{u} = \pdv{u}{x}`, and :math:`x` is the independent variable the
-derivative is taken with respect to.
+and ``fn_pushforward`` is the function Clad calls to apply it, given :math:`u`
+and :math:`\dot{u}`. Here :math:`x` is the independent variable the derivative
+is taken with respect to, so :math:`\dot{u} = \pdv{u}{x}`.
 
 As a concrete example, Clad ships the pushforward of `std::sin` in
 ``clad/Differentiator/BuiltinDerivatives.h``::
@@ -302,19 +385,12 @@ In the derived function, this statement will be transformed to::
   _d_y = _t0.pushforward;
   y = _t0.value;
 
-Here, note that\:
+The generated names carry the tangents: ``_d_u`` holds :math:`\dot{u}`,
+``_d_v`` holds :math:`\dot{v}`, and ``_d_y`` receives :math:`\dot{y}`, with
+:math:`x` the independent variable.
 
-.. math::
-
-   \_d\_u = \dot{u} = \pdv{u}{x} \\
-   \_d\_v = \dot{v} = \pdv{v}{x} \\
-   \_d\_y = \dot{y} = \pdv{y}{x}
-
-Here, :math:`x` is the independent variable.
-
-From here onwards, in the context of a pushforward function or a usual forward
-mode derived function, `_d_someVar` will represent :math:`\pdv{someVar}{x}`
-where :math:`x` is the associated independent variable.
+From here onwards, in a pushforward or in a scalar forward-mode derived
+function, ``_d_someVar`` holds the tangent of ``someVar``.
 
 Pushforward functions are generated on demand. That is, if Clad needs to
 differentiate a function call expression,
@@ -524,14 +600,30 @@ The link is the adjoint. The adjoint of a value is how much the result changes
 when that value changes, which is exactly what a reverse sweep computes, so an
 adjoint also says how much of the result's error comes from the error in that
 value. Clad therefore generates the gradient of the function and, at each
-assignment, adds the adjoint of the value written, multiplied by the rounding
-error of that value, into a running total. What the error of a value is taken
-to be is decided by an error model, which is a parameter of the framework: the
-built-in one uses a Taylor approximation, and a program can supply its own.
+assignment, adds the magnitude of the adjoint of the value written times the
+rounding error of that value into a running total. What the error of a value is
+taken to be is decided by an error model, which is a parameter of the framework:
+the built-in one uses a Taylor approximation, and a program can supply its own.
 
-The estimate costs one reverse sweep, so it is a whole-program error bound
-obtained at the price of a gradient, rather than at the price of rerunning the
-computation in higher precision.
+Written out, the estimate is
+
+.. math::
+
+   E = \sum_{i=1}^{k} \left| \bar{v}_i \, v_i \, \varepsilon \right|
+
+The sum runs over the :math:`k` writes the reverse sweep passes -- every
+assignment, every declaration with an initialiser, every increment, the
+returned expression, and one term per floating-point parameter at the end -- so
+a variable written three times contributes three terms. :math:`v_i` is the value
+the :math:`i`-th write leaves behind, :math:`\bar{v}_i` is its adjoint at that
+point, and :math:`\varepsilon` is the model's relative rounding bound. Clad
+accumulates the terms into the ``double&`` parameter it appends to the gradient.
+
+It is a first-order estimate rather than a bound: the model linearises, so the
+higher-order terms are dropped. Taking each term's magnitude keeps the
+contributions from cancelling, which errs high. What it buys is that a
+whole-program estimate costs about what a gradient costs, rather than a rerun of
+the computation in higher precision.
 
 :doc:`Floating-point error estimation <FloatingPointErrorEstimation>` describes
 the framework, its classes and how to write a custom model;

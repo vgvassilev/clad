@@ -19,14 +19,51 @@ Clad differentiation functions takes a function as an input and returns a
 derived function. Generated derived function can be called by calling the 
 `.execute` method on the corresponding `clad::CladFunction` object.
 
-Clad consists of 4 primary automatic differentiation functions:
+Clad consists of five primary automatic differentiation functions:
 
 - ``clad::differentiate`` -- Primary forward mode automatic differentiation
 - ``clad::gradient`` -- Primary reverse mode automatic differentiation
-- ``clad::hessian``  
+- ``clad::hessian``
 - ``clad::jacobian``
+- ``clad::estimate_error``
 
 Each of these functions will be explored in this guide.
+
+Which one you want depends on two things you already know about your function:
+how many inputs and outputs it has, and whether you need first or second
+derivatives.
+
+.. mermaid::
+
+   flowchart TD
+     Q1{"Do you need<br/>second derivatives?"}
+     Q2{"How many inputs<br/>and outputs?"}
+     H["clad::hessian"]
+     D["clad::differentiate"]
+     G["clad::gradient"]
+     J["clad::jacobian"]
+
+     Q1 -- "yes" --> H
+     Q1 -- "no" --> Q2
+     Q2 -- "one in, one out" --> D
+     Q2 -- "many in, one out" --> G
+     Q2 -- "many out" --> J
+
+Each generates a function that keeps the original parameters and adds to them --
+a pointer per differentiated parameter in reverse mode, a result matrix in
+Hessian and Jacobian mode. Which parameters are differentiated is chosen with
+the second argument, so ``clad::gradient(f, "x")`` generates a derivative with
+one extra pointer rather than two.
+:ref:`Derived function types <derived-function-types>` gives the full signature
+of each, and :doc:`Core concepts <CoreConcepts>` explains why forward mode suits
+few inputs and reverse mode suits many.
+
+Three variants modify that choice rather than replacing it.
+``clad::estimate_error`` generates the gradient and, with it, an estimate of the
+floating-point error. ``clad::differentiate<clad::opts::vector_mode>`` computes
+the same gradient in one forward pass instead of a reverse one.
+``clad::differentiate<clad::immediate_mode>`` produces a derivative usable in a
+constant expression.
 
 
 Forward Mode Automatic Differentiation
@@ -131,13 +168,17 @@ Clad can directly compute the
 `hessian matrix <https://en.wikipedia.org/wiki/Hessian_matrix>`_ of a
 function using the ``clad::hessian`` function.
 
-.. figure:: ../_static/hessian-matrix.png
-  :width: 400
-  :align: center
-  :alt: Hessian matrix image taken from wikipedia
-  
-  Hessian matrix when specified parameters are 
-  (x\ :sub:`1`\ , x\ :sub:`2`\ , ..., x\ :sub:`n`\ ).
+For parameters :math:`x_1, x_2, \ldots, x_n` it is the matrix of second
+derivatives:
+
+.. math::
+
+   \mathbf{H}_f = \begin{bmatrix}
+     \pdv[2]{f}{x_1}        & \pdv{f}{x_1}{x_2} & \cdots & \pdv{f}{x_1}{x_n} \\[6pt]
+     \pdv{f}{x_2}{x_1}      & \pdv[2]{f}{x_2}   & \cdots & \pdv{f}{x_2}{x_n} \\[6pt]
+     \vdots                 & \vdots            & \ddots & \vdots            \\[6pt]
+     \pdv{f}{x_n}{x_1}      & \pdv{f}{x_n}{x_2} & \cdots & \pdv[2]{f}{x_n}
+   \end{bmatrix}
 
 ``clad::hessian`` provides the hessian computation functionality. 
 The ``clad::hessian`` function takes a source function as input, and optionally, 
@@ -200,13 +241,18 @@ Clad can compute the
 `jacobian matrix <https://en.wikipedia.org/wiki/Jacobian_matrix_and_determinant>`_ of a
 function through the ``clad::jacobian`` interface.
 
-.. figure:: ../_static/jacobian-matrix.png
-  :width: 400
-  :align: center
-  :alt: Jacobian matrix image taken from Wikipedia
+For a function with :math:`n` parameters :math:`x_1, \ldots, x_n` and :math:`m`
+outputs :math:`f_1, \ldots, f_m`, it holds one row per output and one column per
+parameter:
 
-  Jacobian matrix of a function with x\ :sub:`n`\ parameters:
-  (x\ :sub:`1`\ , x\ :sub:`2`\ , ..., x\ :sub:`n`\ ).
+.. math::
+
+   \mathbf{J}_f = \begin{bmatrix}
+     \pdv{f_1}{x_1} & \pdv{f_1}{x_2} & \cdots & \pdv{f_1}{x_n} \\[6pt]
+     \pdv{f_2}{x_1} & \pdv{f_2}{x_2} & \cdots & \pdv{f_2}{x_n} \\[6pt]
+     \vdots         & \vdots         & \ddots & \vdots         \\[6pt]
+     \pdv{f_m}{x_1} & \pdv{f_m}{x_2} & \cdots & \pdv{f_m}{x_n}
+   \end{bmatrix}
 
 
 A self-explanatory example that demonstrates the usage of ``clad::jacobian``:
@@ -395,8 +441,8 @@ where
 
 .. math::
 
-   X = (x_0, x_1, x_2, ...) \\
-   Y = (y_0, y_1, y_2, ...)
+   X = (x_0, x_1, x_2, \ldots) \\
+   Y = (y_0, y_1, y_2, \ldots)
 
 
 For a class type to be differentiable, it should satisfy the following rules:
@@ -416,12 +462,11 @@ For a class type to be differentiable, it should satisfy the following rules:
   members of ``a`` and ``b`` should be equal.
   
 
-In general, type of derivative of a variable of type 'YType' with respect to
-a variable of type 'XType' is a function of both 'YType' and 'XType'. Therefore,
-:math:`DerivativeType = f(YType, XType)`. Intuitively, derivative type should be
-able to represent all the derivatives that are obtained on differentiating a variable
-``y`` with respect to a variable ``x``. We will obtain more than one derivative if either
-or both of ``x`` and ``y`` are aggregate types.
+In general, the type of the derivative of a variable of type ``YType`` with
+respect to a variable of type ``XType`` is a function of both. Intuitively, the
+derivative type has to be able to represent every derivative obtained by
+differentiating a variable ``y`` with respect to a variable ``x``, and there is
+more than one of those as soon as either is an aggregate type.
 
 In case when both ``y`` and ``x`` are built-in scalar numerical type, as your 
 intuition probably suggests, the derivative type is also a built-in scalar 
@@ -444,21 +489,22 @@ a vector space :math:`V`, then the following relations holds true:
   v \in V \\
   \pdv{v}{x} \in V
 
-If :math:`\pdv{v}{x}` is stored in a variable `d_v`. Then we can access the individual 
-derivatives as follows::
+If :math:`\pdv{v}{x}` is stored in a variable ``d_v``, the individual derivatives
+are reached as follows::
 
   d_v.data[0];  // derivative of v.data[0] w.r.t x
   d_v.data[1];  // derivative of v.data[1] w.r.t x
   .. and so on ..
 
 Similarly, in the case of differentiating a variable ``y`` of type ``double`` with respect to a variable ``v`` of type ``Vector``,
-the derivative, ``d_v``, is again of the ``Vector`` type. But the derivatives represented by the elements of ``d_v.data``` have changed.
+the derivative, ``d_v``, is again of the ``Vector`` type. But the derivatives represented by the elements of ``d_v.data`` have changed.
 In this case, the elements of ``d_v.data`` represent derivative of ``y`` with respect to each of the elements of ``v.data``.
 
-If :math:`\pdv{x}{v}` is stored in a variable ``d_v``. Then we can access the individual derivatives as follows::
+If :math:`\pdv{y}{v}` is stored in a variable ``d_v``, the individual derivatives
+are reached as follows::
 
-  d_v.data[0];  // derivative of x w.r.t v.data[0]
-  d_v.data[1];  // derivative of x w.r.t v.data[1]
+  d_v.data[0];  // derivative of y w.r.t v.data[0]
+  d_v.data[1];  // derivative of y w.r.t v.data[1]
   .. and so on ..
 
 Currently, class type support have the following limitations:

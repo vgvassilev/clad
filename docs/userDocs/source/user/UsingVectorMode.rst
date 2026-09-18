@@ -10,8 +10,8 @@ differentiated with respect to a single input variable. However, in many cases,
 it is desirable to differentiate a function with respect to multiple input
 variables. One way to do this is to use a vectorized version of forward mode AD.
 
-Without vector mode, for computing derivative of a function with n-dimensional
-input - forward mode requires n forward passes, i.e. one for each input
+Without vector mode, computing the derivative of a function with an
+:math:`n`-dimensional input takes :math:`n` forward passes, one for each input
 variable. In vector mode, all these computations are batched together and
 computed in a single forward pass and the function is differentiated with
 respect to multiple input variables. This can help in reducing the overhead of

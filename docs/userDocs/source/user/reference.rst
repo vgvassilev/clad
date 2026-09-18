@@ -123,7 +123,8 @@ API reference
    specified, then the jacobian is computed with respect to all the input
    parameters. The matrix has one row per element of the output and one column
    per independent scalar, counting the elements of the output array itself. For
-   two scalar parameters and an output array of three elements that is 3 x 5.
+   two scalar parameters and an output array of three elements that is
+   :math:`3 \times 5`.
 
     .. literalinclude:: ../../../../test/Documentation/Reference/Jacobian.cpp
        :language: cpp
