@@ -217,12 +217,13 @@ double h_func_dz(const Vec& p, const Vec& p0, double r) {
 }
 #endif
 
-//TODO: Check this distance func. Visualized "octahedron" do not like as octahedron.
+// Signed distance function for a rotated octahedron (|x| + |y| + |z| - r)
 double hyperbolic_func(const Vec& p, const Vec& p0, double r) {
-  return pow((p.x - p0.x) * cos_a + (p.z - p0.z) * sin_a, 2. / 3.) +
-         pow(p.y - p0.y, 2. / 3.) +
-         pow((p.x - p0.x) * -sin_a + (p.z - p0.z) * cos_a, 2. / 3.) -
-         pow(r, 2. / 3.);
+  double x_rot = (p.x - p0.x) * cos_a + (p.z - p0.z) * sin_a;
+  double y_rot = p.y - p0.y;
+  double z_rot = -(p.x - p0.x) * sin_a + (p.z - p0.z) * cos_a;
+
+  return std::abs(x_rot) + std::abs(y_rot) + std::abs(z_rot) - r;
 }
 
 class HyperbolicSolid : public ImplicitSolid {
