@@ -1,5 +1,7 @@
 #include "TBRAnalyzer.h"
 
+#include "Analyses.h"
+
 #include <algorithm>
 #include <cassert>
 #include <iterator>
@@ -73,6 +75,7 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
 }
 
 void TBRAnalyzer::Analyze(const DiffRequest& request) {
+  m_Request = &request;
   m_BlockData.resize(request.m_AnalysisDC->getCFG()->size());
   m_BlockPassCounter.resize(request.m_AnalysisDC->getCFG()->size(), 0);
 
@@ -425,6 +428,11 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
   // Use information about parameters assuming the analysis was performed.
   bool shouldAnalyzeParams = m_ModifiedParams && (m_ModifiedParams->find(FD) !=
                                                   m_ModifiedParams->end());
+  // Without a summary every argument has to be assumed read, and every one
+  // the callee could write, written. Only a callee with no body here is worth
+  // reporting: one with a body and no summary had nothing to summarise.
+  if (!shouldAnalyzeParams && !FD->getDefinition())
+    m_Request->recordMiss(AnalysisMiss::CalleeHasNoBody, CE->getBeginLoc());
   bool hasHiddenParam = (CE->getNumArgs() != FD->getNumParams());
   std::size_t maxParamIdx = FD->getNumParams() - 1;
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);

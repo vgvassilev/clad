@@ -4,13 +4,19 @@ sphinx:
   configuration: docs/userDocs/source/conf.py
   builder: html
 
+# Without this readthedocs installs only its own Sphinx, so the pins in
+# requirements.txt -- including the theme -- never reach the build.
+python:
+  install:
+    - requirements: requirements.txt
+
 build:
-  os: "ubuntu-22.04"
+  os: "ubuntu-24.04"
   tools:
     python: "3.11"
   apt_packages:
-    - clang-14
+    - clang-18
     - cmake
-    - libclang-14-dev
-    - llvm-14-dev
-    - llvm-14-tools
+    - libclang-18-dev
+    - llvm-18-dev
+    - llvm-18-tools

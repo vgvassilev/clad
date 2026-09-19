@@ -1,5 +1,5 @@
-Introduction to Clang for Clad contributors
-**********************************************
+Clang for contributors
+**********************
 
 Since there’s a lack of official documentation for the LLVM Clang, while the
 existing docs are not meant to explain how to modify the Clang AST, we are 
@@ -23,6 +23,8 @@ The AST
 .. |clang::Expr| replace:: ``clang::Expr`` 
 .. _clang::Decl: https://clang.llvm.org/doxygen/classclang_1_1Decl.html
 .. |clang::Decl| replace:: ``clang::Decl`` 
+.. _clang::DeclStmt: https://clang.llvm.org/doxygen/classclang_1_1DeclStmt.html
+.. |clang::DeclStmt| replace:: ``clang::DeclStmt``
 .. _clang::Stmt: https://clang.llvm.org/doxygen/classclang_1_1Stmt.html
 .. |clang::Stmt| replace:: ``clang::Stmt``
 .. _clang::ValueStmt: https://clang.llvm.org/doxygen/classclang_1_1ValueStmt.html
@@ -44,8 +46,8 @@ lot of different things, like loops (``clang::WhileStmt``), conditions
 An important note is that declarations (``clang::Decl``) and statements 
 (``clang::Stmt``) are completely different classes (so, **a declaration is not 
 a statement**), but there’s a separate declaration statement class, 
-|clang::Decl|_, which describes a declaration statement to intertwine the 
-statements and declarations. An expression (``clang::Expr``), on the other 
+|clang::DeclStmt|_, which wraps a declaration so it can appear among
+statements. An expression (``clang::Expr``), on the other
 hand, is always a statement, since ``clang::Expr`` inherits from 
 |clang::ValueStmt|_ which, in turn, inherits from ``clang::Stmt`` and is a 
 statement.
@@ -54,30 +56,62 @@ Statements can be grouped into one with a compound statement
 
 Flow graph of Clad’s compilation
 ==================================
-The graph below indicates the order of execution during compilation of the 
-source code. Clang offers some API functions that work as entry points to the 
-AST’s processing. These functions can be modified by the user and are invoked 
-by clang. In our case, Clad has altered these functions accordingly, in order 
-to compute and include the function’s gradient to the original source code. 
-`This source <https://clang.llvm.org/docs/RAVFrontendAction.html>`__ helps to 
-distinguish the clang functions, their purpose and how they are connected. The
-most useful ones are explained in better detail in later sections.
+Clang hands an AST consumer a translation unit through a few entry points, and
+Clad is such a consumer.
+`This source <https://clang.llvm.org/docs/RAVFrontendAction.html>`__ describes
+those entry points and how they are connected; the ones Clad uses are explained
+in better detail in later sections.
 
-.. figure:: ../_static/clad-flow-graph.png
-   :width: 850px
-   :align: center
+Clad does its work in two passes over the unit, which the graph below follows.
+It first *plans*: a walk of the parsed declarations finds every
+``clad::differentiate``, ``clad::gradient``, ``clad::hessian``,
+``clad::jacobian`` and ``clad::estimate_error`` call, records a request for
+each, and walks into what those functions call to record the sub-requests they
+will need. It then *derives*: it drains those requests, generating a derivative
+for each and pointing the call at it. The two are separate because deriving one
+function discovers more requests still, so the second pass adds to the same
+graph it is draining.
+
+.. mermaid::
+
+   flowchart TD
+     CAC["Action::CreateASTConsumer<br/>builds the CladPlugin consumer"]
+     HTLD["HandleTopLevelDecl<br/>defers each declaration group"]
+     HTU["HandleTranslationUnit<br/>the unit is parsed;<br/>both passes run here"]
+     PLAN["DiffScheduler::Plan<br/>DiffCollector walks the groups"]
+     VCE["DiffCollector::VisitCallExpr<br/>spots the clad:: calls"]
+     GRAPH[("DynamicGraph of DiffRequest<br/>one node per derivative")]
+     FIN["FinalizeTranslationUnit<br/>takes the next node"]
+     PDR["ProcessDiffRequest<br/>one request at a time"]
+     DERIVE["DerivativeBuilder::Derive<br/>picks the visitor for the mode"]
+     VISIT["Visitor::Derive<br/>builds the derivative's AST"]
+     UPDATE["DiffRequest::updateCall<br/>points the call at the derivative"]
+     MAT["materializeGeneratedCode<br/>prints the generated source"]
+     MUX["SendToMultiplexer<br/>replays the decls to CodeGen"]
+
+     CAC --> HTLD --> HTU
+     HTU -- "pass 1: plan" --> PLAN --> VCE
+     VCE -- "records a request" --> GRAPH
+     GRAPH -- "pass 2: derive" --> FIN
+     FIN -- "for each node" --> PDR --> DERIVE --> VISIT --> UPDATE
+     VISIT -. "a nested call" .-> GRAPH
+     UPDATE -- "once the graph is drained" --> MAT --> MUX
 
 Identifying functions to derive
 =================================
-During parsing of the source code through ``HandleTopLevelDecl()``, a 
-``RecursiveASTVisitor`` is created. This visitor traverses the nodes by using 
-the equivalent ``Visit()`` functions. For instance, a call expression, which 
-corresponds to a function call node, is processed through ``VisitCallExpr()`` 
-etc. Clad distinguishes the functions related to a differentiation request by 
-annotating a compiler attribute that matches the first letter of the 
-differentiation method to be used (e.g. “G” for gradient function). This way, 
-when ``VisitCallExpr()`` is called upon those nodes, the differentiation 
-request is identified, initialised and added to a list. 
+``HandleTopLevelDecl()`` sets each declaration group aside for later. The one
+exception is ``clad::differentiate<clad::immediate_mode>`` on a ``constexpr``
+function, which is planned and derived as its group arrives. The walk that finds
+every other request runs once the whole unit is parsed, from
+``HandleTranslationUnit()``. It uses ``DiffCollector``, a
+``RecursiveASTVisitor``, which reaches nodes through the corresponding
+``Visit()`` functions -- a call expression, which corresponds to a function call
+node, through ``VisitCallExpr()``, and so on. Clad distinguishes the functions
+related to a differentiation request by annotating a compiler attribute that
+matches the first letter of the differentiation method to be used (e.g. “G” for
+gradient function). This way, when ``VisitCallExpr()`` is called upon those
+nodes, the differentiation request is identified, initialised and added to the
+request graph.
 Similarly, any statement supported by Clad has a corresponding ``Visit()`` 
 method. An if statement would be visited by ``VisitIfStmt()``, a return 
 statement by ``VisitReturnStmt()``, etc. The general rule is that the ``Visit``
@@ -85,14 +119,14 @@ method is called ``Visit+the name of the statement in Clang``.
 
 Code generation and insertion
 ===============================
-After the parsing is completed and all differentiation requests have been 
-identified, the system can begin processing to compute the derived functions 
-through ``HandleTranslationUnit()``. A ``DerivativeBuilder`` is created and, 
-depending on the Clad function used and its corresponding mode (forward, 
-reverse, etc.), the appropriate ``Visitor`` is defined. The ``Visitor``’s 
-``Derive()`` method is invoked, which contains a nested call to 
-``DifferentiateWithClad()``. This triggers a secondary processing of the nodes 
-in the original function. 
+Once every request has been identified, ``FinalizeTranslationUnit()`` takes them
+off the graph one at a time and hands each to the translation unit’s
+``DerivativeBuilder``, which is built on the first request and reused.
+``DerivativeBuilder::Derive()`` picks the ``Visitor`` for the request’s mode
+(forward, reverse, etc.) and invokes its ``Derive()`` method. That walks the
+original body, which triggers a secondary processing of the nodes in the
+original function. In reverse mode the walk is driven by
+``ReverseModeVisitor::DifferentiateWithClad()``.
 During this traversal, for each node encountered, the corresponding node in the
 derived function is created and returned to the parent node. The parent node 
 then emplaces this newly created node into the current code block of the 
@@ -128,7 +162,7 @@ we just want to ignore it. In the reverse mode, Clad generates derivative
 functions that consist of two parts: a forward pass and a reverse pass. Clad 
 produces a ``clad::StmtDiff`` object for each statement of the original 
 function where the object’s first part is what will be put in the forward pass
-part of the produced derivative function and should basically do the same thing
+part of the produced derived function and should basically do the same thing
 as the original statement, whereas the object’s second part is basically the 
 derivative, which is put into the reverse pass. So, in the case of the null 
 statement, both of these should be nothing! Which is expressed by returning an 

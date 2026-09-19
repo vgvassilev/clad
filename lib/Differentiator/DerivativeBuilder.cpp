@@ -7,8 +7,10 @@
 #include "clad/Differentiator/DerivativeBuilder.h"
 
 #include "ASTIntegrity.h"
+#include "Analyses.h"
 #include "GeneratedCode.h"
 #include "JacobianModeVisitor.h"
+#include "LoopAnalyzer.h"
 
 #include "clang/Basic/SourceLocation.h"
 
@@ -38,6 +40,7 @@
 #include "clang/AST/DeclAccessPair.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -859,7 +862,96 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       }
 #endif
 
+    // What an analysis looked for in the primal and did not find. Reported
+    // here rather than before, because some of them run as the visitor asks.
+    // Only for the requests whose sweep reads those facts: the reverse
+    // forward pass is the same body as its pullback, and would say it twice.
+    if (request.Mode == DiffMode::reverse || request.Mode == DiffMode::pullback)
+      emitAnalysisMissRemarks(request);
+
     return result;
+  }
+
+  /// Whether \p R asked to hear from the analysis \p A.
+  static bool wantsRemark(const DiffRequest& R, AnalysisId A) {
+    switch (A) {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                       \
+    case AnalysisId::Id:                                                       \
+      return R.Remark##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+    }
+    llvm_unreachable("unhandled analysis"); // LCOV_EXCL_LINE
+  }
+
+  void DerivativeBuilder::emitAnalysisMissRemarks(const DiffRequest& R) {
+    const clang::FunctionDecl* FD = R.Function;
+    if (!FD)
+      return;
+    clang::Sema& S = m_Sema;
+
+    /// What in the code stopped the analysis, and what to write instead.
+    /// Where the analysis did not run there is no miss to report, and
+    /// naming one would be false: name the switch that turned it off.
+    auto explain = [&](AnalysisId A, AnalysisMiss M, clang::SourceLocation At,
+                       clang::SourceLocation Fallback) {
+      if (M == AnalysisMiss::None) {
+        utils::diag(S, clang::DiagnosticsEngine::Note, Fallback,
+                    "the %0 analysis is off (-fdisable-analysis=%0)")
+            << nameOf(A);
+        return;
+      }
+      AnalysisDesc Desc = descOf(M);
+      utils::diag(S, clang::DiagnosticsEngine::Note,
+                  At.isValid() ? At : Fallback, "%0")
+          << detailOf(M);
+      utils::diag(S, clang::DiagnosticsEngine::Note, Fallback,
+                  "to avoid this, make it %0")
+          << nameOf(Desc);
+    };
+
+    // What an analysis without a result of its own filed as it ran.
+    for (const AnalysisMissRecord& M : R.getAnalysisMisses()) {
+      AnalysisDesc Desc = descOf(M.Why);
+      AnalysisId A = analysisOf(Desc);
+      if (!wantsRemark(R, A))
+        continue;
+      utils::diag(S, clang::DiagnosticsEngine::Remark, M.At, "%0")
+          << costOf(Desc);
+      explain(A, M.Why, M.At, M.At);
+    }
+
+    if (!R.RemarkLoopAnalysis || !FD->doesThisDeclarationHaveABody())
+      return;
+
+    struct ForStmtFinder : public RecursiveASTVisitor<ForStmtFinder> {
+      llvm::SmallVector<const clang::ForStmt*, 8> Loops;
+      bool VisitForStmt(clang::ForStmt* FS) {
+        Loops.push_back(FS);
+        return true;
+      }
+    } Finder;
+    Finder.TraverseStmt(FD->getBody());
+    for (const clang::ForStmt* FS : Finder.Loops) {
+      const LoopFacts& F = R.getLoopFacts(FS);
+      if (F && F.BoundsAreStable)
+        continue;
+      utils::diag(S, clang::DiagnosticsEngine::Remark, FS->getForLoc(), "%0")
+          << costOf(AnalysisDesc::CountedLoop);
+      explain(AnalysisId::Loop, F.Why, F.MissedAt, FS->getForLoc());
+    }
+
+    llvm::ArrayRef<WrittenExtent> Extents = R.getWrittenExtents();
+    for (unsigned i = 0, e = Extents.size(); i != e; ++i) {
+      const WrittenExtent& W = Extents[i];
+      if (W.isProven())
+        continue;
+      clang::SourceLocation Loc =
+          W.RefusedAt.isValid() ? W.RefusedAt : FD->getLocation();
+      utils::diag(S, clang::DiagnosticsEngine::Remark, Loc, "'%0': %1")
+          << FD->getParamDecl(i)->getNameAsString()
+          << costOf(AnalysisDesc::BoundedWrite);
+      explain(AnalysisId::Loop, W.Why, W.RefusedAt, Loc);
+    }
   }
 
   FunctionDecl*

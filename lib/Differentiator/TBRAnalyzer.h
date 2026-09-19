@@ -40,6 +40,9 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   /// is the result of analysis.
   std::set<const clang::Stmt*>& m_TBRLocs;
   ParamInfo* m_ModifiedParams;
+  /// The request being analysed, set for the duration of Analyze. A call
+  /// clad cannot look inside is reported on it.
+  const DiffRequest* m_Request = nullptr;
   ParamInfo* m_UsedParams;
 
   /// Stores modes in a stack (used to retrieve the old mode after entering

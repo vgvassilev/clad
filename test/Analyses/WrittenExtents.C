@@ -51,7 +51,7 @@ void constIdx(double* v) {
   v[0] = 1.0;
   v[2] = 3.0;
 }
-// CHECK: written-extent: constIdx: v = unknown (writes do not describe one range at line [[@LINE-2]])
+// CHECK: written-extent: constIdx: v = unknown (two writes here cover ranges that are not one range at line [[@LINE-2]])
 
 // A constant bound is as usable as a parameter one.
 void fixedLoop(double* v) {
@@ -67,7 +67,7 @@ void dataDependent(int n, const double* x, double* out) {
 }
 // CHECK: written-extent: dataDependent: n = none
 // CHECK-NEXT: written-extent: dataDependent: x = none
-// CHECK-NEXT: written-extent: dataDependent: out = unknown (index is neither a constant nor a variable at line [[@LINE-4]])
+// CHECK-NEXT: written-extent: dataDependent: out = unknown (the index is neither a constant nor a variable at line [[@LINE-4]])
 
 // Only a loop stepping by one is recognised, and only when it is spelled with
 // ++. The rest report unknown, which is the safe answer, and these cases pin
@@ -79,25 +79,25 @@ void plusEqualOne(int d, double* out) {
   for (int i = 0; i < d; i += 1)
     out[i] = 1;
 }
-// CHECK: written-extent: plusEqualOne: out = unknown (index not stepped by a counted loop at line [[@LINE-2]])
+// CHECK: written-extent: plusEqualOne: out = unknown (no counted loop steps the index of this write at line [[@LINE-2]])
 
 void stepsByTwo(int d, double* out) {
   for (int i = 0; i < d; i += 2)
     out[i] = 1;
 }
-// CHECK: written-extent: stepsByTwo: out = unknown (index not stepped by a counted loop at line [[@LINE-2]])
+// CHECK: written-extent: stepsByTwo: out = unknown (no counted loop steps the index of this write at line [[@LINE-2]])
 
 void stepsByParameter(int d, int k, double* out) {
   for (int i = 0; i < d; i += k)
     out[i] = 1;
 }
-// CHECK: written-extent: stepsByParameter: out = unknown (index not stepped by a counted loop at line [[@LINE-2]])
+// CHECK: written-extent: stepsByParameter: out = unknown (no counted loop steps the index of this write at line [[@LINE-2]])
 
 void countsDown(int d, double* out) {
   for (int i = d - 1; i > 0; --i)
     out[i] = 1;
 }
-// CHECK: written-extent: countsDown: out = unknown (index not stepped by a counted loop at line [[@LINE-2]])
+// CHECK: written-extent: countsDown: out = unknown (no counted loop steps the index of this write at line [[@LINE-2]])
 
 // The header alone is not enough: a body that changes the index or the bound
 // breaks what the header promised, and an inclusive bound reaches one past the
@@ -109,7 +109,7 @@ void inclusiveBound(int d, double* out) {
   for (int i = 0; i <= d; ++i)
     out[i] = 1;
 }
-// CHECK: written-extent: inclusiveBound: out = unknown (index not stepped by a counted loop at line [[@LINE-2]])
+// CHECK: written-extent: inclusiveBound: out = unknown (no counted loop steps the index of this write at line [[@LINE-2]])
 
 void movesIndex(int d, double* out) {
   for (int i = 0; i < d; ++i) {
@@ -117,7 +117,7 @@ void movesIndex(int d, double* out) {
     out[i] = 1;
   }
 }
-// CHECK: written-extent: movesIndex: out = unknown (index not stepped by a counted loop at line [[@LINE-3]])
+// CHECK: written-extent: movesIndex: out = unknown (no counted loop steps the index of this write at line [[@LINE-3]])
 
 void raisesBound(int d, double* out) {
   for (int i = 0; i < d; ++i) {
@@ -125,7 +125,7 @@ void raisesBound(int d, double* out) {
     d = 3;
   }
 }
-// CHECK: written-extent: raisesBound: out = unknown (index not stepped by a counted loop at line [[@LINE-4]])
+// CHECK: written-extent: raisesBound: out = unknown (no counted loop steps the index of this write at line [[@LINE-4]])
 
 // Taking the index's address hands it to anything: the loop no longer owns it.
 void escapesIndex(int d, double* out) {
@@ -134,7 +134,7 @@ void escapesIndex(int d, double* out) {
     out[i] = *p;
   }
 }
-// CHECK: written-extent: escapesIndex: out = unknown (index not stepped by a counted loop at line [[@LINE-3]])
+// CHECK: written-extent: escapesIndex: out = unknown (no counted loop steps the index of this write at line [[@LINE-3]])
 
 // The bound has to hold still for the whole call, not only inside the loop: a
 // caller works the range out from the argument it passed. This one writes
@@ -144,7 +144,7 @@ void raisesBoundBefore(int d, double* out) {
   for (int i = 0; i < d; ++i)
     out[i] = 1;
 }
-// CHECK: written-extent: raisesBoundBefore: out = unknown (index not stepped by a counted loop at line [[@LINE-2]])
+// CHECK: written-extent: raisesBoundBefore: out = unknown (no counted loop steps the index of this write at line [[@LINE-2]])
 
 // A bound taken by reference names storage a callee can change under us, so
 // the value a call site reads is not the value the loop will compare against.
@@ -152,7 +152,7 @@ void referenceBound(int& d, double* out) {
   for (int i = 0; i < d; ++i)
     out[i] = 1;
 }
-// CHECK: written-extent: referenceBound: out = unknown (the loop's bound is not one a call site can use at line [[@LINE-2]])
+// CHECK: written-extent: referenceBound: out = unknown (the bound is neither a parameter nor a constant, so a caller cannot work it out at line [[@LINE-2]])
 
 // Only `for` is recognised; an equivalent while loop is not.
 void whileLoop(int n, double* out) {
@@ -163,7 +163,7 @@ void whileLoop(int n, double* out) {
   }
 }
 // CHECK: written-extent: whileLoop: n = none
-// CHECK-NEXT: written-extent: whileLoop: out = unknown (index not stepped by a counted loop at line [[@LINE-5]])
+// CHECK-NEXT: written-extent: whileLoop: out = unknown (no counted loop steps the index of this write at line [[@LINE-5]])
 
 // A second index walked alongside the induction variable joins the increment
 // with a comma. That still steps the induction variable by one.
@@ -201,7 +201,7 @@ void localBound(int d, double* out) {
     out[i] = 1;
 }
 // CHECK: written-extent: localBound: d = none
-// CHECK-NEXT: written-extent: localBound: out = unknown (the loop's bound is not one a call site can use at line [[@LINE-3]])
+// CHECK-NEXT: written-extent: localBound: out = unknown (the bound is neither a parameter nor a constant, so a caller cannot work it out at line [[@LINE-3]])
 
 // A start below zero reaches out[-1], which [0, d) does not describe.
 void negativeStart(int d, double* out) {
@@ -226,7 +226,7 @@ void twoBounds(int d, int k, double* out) {
   for (int i = 0; i < k; ++i)
     out[i] = 2;
 }
-// CHECK: written-extent: twoBounds: out = unknown (writes do not describe one range at line [[@LINE-2]])
+// CHECK: written-extent: twoBounds: out = unknown (two writes here cover ranges that are not one range at line [[@LINE-2]])
 
 // The index may be declared outside the loop and only assigned in the header.
 // That is the shape clad's own reverse sweeps are emitted in, so it has to be
