@@ -116,8 +116,8 @@ void InitTimers();
         }
         // Handle #pragma clad OFF/DEFAULT
         if (OptionName == "OFF" || OptionName == "DEFAULT") {
-          if (!CladEnabledRange.empty()) {
-            assert(CladEnabledRange.back().getEnd().isInvalid());
+          if (!CladEnabledRange.empty() &&
+              CladEnabledRange.back().getEnd().isInvalid()) {
             CladEnabledRange.back().setEnd(TokLoc);
           }
           return;
