@@ -472,6 +472,21 @@ namespace clad {
 
     bool isCopyable(const clang::CXXRecordDecl* RD);
 
+    /// True if RD is ``std::thread``.
+    /// Note: ``std::jthread`` is intentionally excluded until dedicated customs
+    /// cover its auto-join semantics.
+    bool isStdThreadLike(const clang::CXXRecordDecl* RD);
+
+    /// True if QT (ignoring refs/cv) is ``std::reference_wrapper``.
+    bool isStdReferenceWrapper(clang::QualType QT);
+
+    /// Resolves the callable expression passed as the first argument of a
+    /// ``std::thread`` constructor to a FunctionDecl (free function or the
+    /// unique ``operator()`` of a class/functor). Returns nullptr when the
+    /// callable cannot be resolved uniquely.
+    const clang::FunctionDecl* resolveThreadCallable(clang::Sema& SemaRef,
+                                                     const clang::Expr* E);
+
     bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
 
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
@@ -491,6 +506,12 @@ namespace clad {
 
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
+
+    /// \returns true if differentiating a call to \p FDecl needs a
+    /// `reverse_forw`. `isMemoryType` on the return type, plus
+    /// std::reference_wrapper's accessors, whose const reference cannot carry
+    /// the referent's adjoint.
+    bool needsReverseForw(const clang::FunctionDecl* FDecl);
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 

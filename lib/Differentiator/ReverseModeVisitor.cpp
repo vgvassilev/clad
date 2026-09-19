@@ -2090,6 +2090,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (isNonDiff)
       result.updateStmtDx(nullptr);
     QualType paramTy = param->getType();
+    // For pullback args, take '&' of the adjoint unless the parameter is
+    // already a pointer/array. Strip only rvalue references so Args&& in
+    // std::thread (e.g. double*&&) is treated as a pointer, while double*&
+    // still gets an extra '&' (double**).
+    QualType paramValueTy = paramTy;
+    if (paramTy->isRValueReferenceType())
+      paramValueTy = paramTy.getNonReferenceType();
     if (Expr* adjointArg = result.getExpr_dx()) {
       // An argument of an opaque (non-differentiable) type carries no adjoint,
       // so its adjoint expression has void type. Taking its address for the
@@ -2097,7 +2104,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // through.
       if (adjointArg->getType()->isVoidType())
         result.updateStmtDx(nullptr);
-      else if (!(isNonDiff || utils::isArrayOrPointerType(paramTy) ||
+      else if (!(isNonDiff || utils::isArrayOrPointerType(paramValueTy) ||
                  isCUDAKernel))
         result.updateStmtDx(
             BuildOp(UO_AddrOf, adjointArg, m_DiffReq->getLocation()));
@@ -2136,11 +2143,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool passByRef = paramTy->isLValueReferenceType() &&
                      !paramTy.getNonReferenceType().isConstQualified();
     if (passByRef && m_DiffReq.shouldBeRecorded(arg)) {
-      // argDiff.getExpr() is also returned below as the call argument; clone
-      // it for the store/restore so the node is not shared with the call.
-      StmtDiff pushPop = StoreAndRestore(CloneNode(argDiff.getExpr()));
-      addToCurrentBlock(pushPop.getStmt());
-      PreCallStmts.push_back(pushPop.getStmt_dx());
+      QualType storedTy = argDiff.getExpr()->getType().getNonReferenceType();
+      // Non-copyable class types (e.g. std::mutex) and function types cannot be
+      // taped by value. Custom pullbacks for those APIs must not rely on
+      // restoring the argument.
+      bool canTape = true;
+      if (storedTy->isFunctionType())
+        canTape = false;
+      else if (const CXXRecordDecl* storedRD = storedTy->getAsCXXRecordDecl())
+        canTape = utils::isCopyable(storedRD);
+      if (canTape) {
+        // argDiff.getExpr() is also returned below as the call argument; clone
+        // it for the store/restore so the node is not shared with the call.
+        StmtDiff pushPop = StoreAndRestore(CloneNode(argDiff.getExpr()));
+        addToCurrentBlock(pushPop.getStmt());
+        PreCallStmts.push_back(pushPop.getStmt_dx());
+      }
     }
     result.updateStmt(argDiff.getExpr());
     return result;
@@ -2299,6 +2317,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         baseOriginalE = OCE->getArg(0);
     }
 
+    // detach has no happens-before with the worker pullback (scheduled on the
+    // constructor's reverse sweep). Require join instead.
+    if (MD && MD->isInstance() && FDName == "detach" && baseOriginalE) {
+      QualType baseTy =
+          baseOriginalE->getType().getNonReferenceType().getUnqualifiedType();
+      if (const auto* BaseRD = baseTy->getAsCXXRecordDecl()) {
+        if (utils::isStdThreadLike(BaseRD)) {
+          diag(DiagnosticsEngine::Error, Loc,
+               "detach is not supported in reverse-mode AD of std::thread; "
+               "join the thread so the worker completes before the reverse "
+               "sweep");
+          return StmtDiff(Clone(CE));
+        }
+      }
+    }
+
     // Lookup a reverse_forw function and build if necessary.
     DiffRequest calleeFnForwPassReq;
     calleeFnForwPassReq.Function = FD;
@@ -2386,7 +2420,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     QualType returnType = FD->getReturnType();
     // FIXME: Decide this in the diff planner
-    bool needsForwPass = utils::isMemoryType(returnType);
+    bool needsForwPass = utils::needsReverseForw(FD);
     bool hasStoredParams = false;
     // If the function has a single arg and does not return a reference or
     // take arg by reference, we can request a derivative w.r.t. to this arg
@@ -3848,12 +3882,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs() &&
         utils::isCopyable(VDType->getAsCXXRecordDecl());
 
+    // A record with no default constructor cannot be declared uninitialized
+    // either, so it needs the same stand-in until the real adjoint is set.
+    const auto* VDDerivedRD = VDDerivedType->getAsCXXRecordDecl();
+    bool isDefaultConstructible = !VDDerivedRD ||
+                                  !VDDerivedRD->hasDefinition() ||
+                                  VDDerivedRD->hasDefaultConstructor();
+
     // Temporarily initialize the object with `*nullptr` to avoid
     // a potential error because of non-existing default constructor.
     Expr* dummyInit = nullptr;
     // FIXME: We need to have a more general way of determining this.
     const auto* CAT = dyn_cast<ConstantArrayType>(VDDerivedType);
-    if (shouldCopyInitialize || isRefType ||
+    if (shouldCopyInitialize || isRefType || !isDefaultConstructible ||
         (CAT && CAT->getElementType()->isRecordType())) {
       QualType dummyTy = VDDerivedType;
       if (CAT)
@@ -5708,22 +5749,66 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool elideReverseForw =
         constrForw && utils::hasElidableReverseForwAttribute(constrForw);
 
+    const CXXRecordDecl* RD = CD->getParent();
+    const bool threadLike = utils::isStdThreadLike(RD);
+    const FunctionDecl* threadCallableFD = nullptr;
+    if (threadLike && CE->getNumArgs() >= 1) {
+      threadCallableFD = utils::resolveThreadCallable(m_Sema, CE->getArg(0));
+      if (!threadCallableFD) {
+        // Overloaded operator(), std::function / bind, etc. cannot be resolved
+        // here; a silent skip would yield a wrong gradient.
+        SourceLocation L = CE->getArg(0)->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "failed to resolve callable of type %0 passed to std::thread; "
+             "reverse-mode differentiation of this thread constructor is not "
+             "supported")
+            << CE->getArg(0)->getType();
+        return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
+      }
+      if (isLambdaCallOperator(threadCallableFD)) {
+        // Lambda nest-diff from thread constructors is not supported yet.
+        // Early-return like forward mode so we do not emit reverse_forw that
+        // uses the lambda type in templates (extra -verify notes on some
+        // clang versions).
+        SourceLocation L = CE->getArg(0)->getBeginLoc();
+        diag(DiagnosticsEngine::Error, L,
+             "reverse-mode differentiation of std::thread with a lambda "
+             "callable is not supported yet");
+        return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
+      }
+    }
+
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       const Expr* arg = CE->getArg(i);
       const ParmVarDecl* PVD = CD->getParamDecl(i);
+      // Prefer the worker parameter type over std::thread's Args&& packing.
+      if (threadCallableFD && i >= 1 &&
+          i - 1 < threadCallableFD->getNumParams())
+        PVD = threadCallableFD->getParamDecl(i - 1);
+      // Free-function callables need no object adjoint; functors do (for
+      // operator_call_pullback's _d_this).
+      const bool argNonDiff =
+          nonDiff ||
+          (threadCallableFD && i == 0 && !isa<CXXMethodDecl>(threadCallableFD));
       StmtDiff argDiff = DifferentiateCallArg(arg, PVD, prePullbackCallStmts,
-                                              /*isNonDiff=*/nonDiff);
+                                              /*isNonDiff=*/argNonDiff);
       if (!argDiff.getExpr())
         continue;
       adjointArgs.push_back(argDiff.getExpr_dx());
       primalArgs.push_back(argDiff.getExpr());
+      // Clone: Visit(arg) may already parent the same node in the reverse
+      // block (e.g. ref_reverse_forw's adjoint used by ref_pullback).
       if (elideReverseForw && PVD->getType()->isIntegerType())
-        reverseForwAdjointArgs.push_back(argDiff.getExpr());
+        reverseForwAdjointArgs.push_back(CloneNode(argDiff.getExpr()));
+      else if (Expr* rev = argDiff.getRevSweepAsExpr())
+        reverseForwAdjointArgs.push_back(CloneNode(rev));
       else
-        reverseForwAdjointArgs.push_back(argDiff.getRevSweepAsExpr());
+        reverseForwAdjointArgs.push_back(nullptr);
     }
-
-    const CXXRecordDecl* RD = CD->getParent();
+    // Pass nullptr for the callable adjoint so nullptr_t reverse_forw
+    // overloads are selected.
+    if (threadCallableFD && !reverseForwAdjointArgs.empty())
+      reverseForwAdjointArgs[0] = m_Sema.ActOnCXXNullPtrLiteral(noLoc).get();
 
     if (!nonDiff) {
       // Try to create a pullback constructor call
@@ -5787,6 +5872,132 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
       if (pullbackCall)
         curRevBlock.insert(it, pullbackCall);
+
+      // Thread stores the callable without a CallExpr; nest-diff it and insert
+      // the worker pullback in this constructor's reverse sweep (after the
+      // forward-pass join has completed for the usual construct-then-join
+      // pattern).
+      if (threadCallableFD && !primalArgs.empty()) {
+        DiffRequest workerPullbackReq{};
+        workerPullbackReq.Function = threadCallableFD;
+        workerPullbackReq.Mode = DiffMode::pullback;
+        workerPullbackReq.BaseFunctionName =
+            utils::ComputeEffectiveFnName(threadCallableFD);
+        workerPullbackReq.VerboseDiags = false;
+        workerPullbackReq.inheritAnalysesFrom(m_DiffReq);
+        // Do not set Functor: matching ordinary call nest-diff keeps field
+        // differentiation of zero-arg call operators correct.
+        // CE args are [callable, arg0, ...]; worker params map to arg0+.
+        for (size_t i = 0, e = threadCallableFD->getNumParams(); i < e; ++i)
+          if (i + 1 < adjointArgs.size() && adjointArgs[i + 1])
+            workerPullbackReq.DVI.push_back(threadCallableFD->getParamDecl(i));
+
+        FunctionDecl* workerPullbackFD =
+            m_Builder.HandleNestedDiffRequest(workerPullbackReq);
+        if (workerPullbackFD) {
+          llvm::SmallVector<Expr*, 8> workerPullbackArgs;
+          const auto* threadCallableMD =
+              dyn_cast<CXXMethodDecl>(threadCallableFD);
+          const bool threadCallableIsMethod =
+              threadCallableMD && threadCallableMD->isInstance();
+          // BuildCallExprToFunction uses arg[0] as the object for instance
+          // methods (fn.operator_call_pullback(...)).
+          if (threadCallableIsMethod)
+            workerPullbackArgs.push_back(CloneNode(primalArgs[0]));
+
+          auto unwrapRefWrapper = [&](Expr* E, QualType workerTy) -> Expr* {
+            if (utils::isStdReferenceWrapper(E->getType()) &&
+                !utils::isStdReferenceWrapper(workerTy)) {
+              Expr* getME =
+                  utils::BuildMemberExpr(m_Sema, getCurrentScope(), E, "get");
+              return m_Sema
+                  .ActOnCallExpr(getCurrentScope(), getME, noLoc, {}, noLoc)
+                  .get();
+            }
+            return E;
+          };
+
+          for (size_t i = 1, e = primalArgs.size(); i < e; ++i) {
+            Expr* primal = CloneNode(primalArgs[i]);
+            // thread(f, std::ref(x)) stores a reference_wrapper while f may
+            // take T&; unwrap so the worker pullback sees T / T*.
+            if (i - 1 < threadCallableFD->getNumParams()) {
+              QualType workerTy =
+                  threadCallableFD->getParamDecl(i - 1)->getType();
+              primal = unwrapRefWrapper(primal, workerTy);
+            }
+            workerPullbackArgs.push_back(primal);
+          }
+          // void / pointer / ref returns: no separate dfdx seed (same as
+          // VisitCallExpr).
+          QualType retTy = threadCallableFD->getReturnType();
+          if (!(utils::isNonConstReferenceType(retTy) ||
+                retTy->isPointerType() || retTy->isVoidType())) {
+            workerPullbackArgs.push_back(getZeroInit(retTy));
+          }
+          // operator_call_pullback(..., dfdx?, _d_this, _d_args...)
+          Stmt* dThisDeclStmt = nullptr;
+          if (threadCallableIsMethod) {
+            Expr* dThis = nullptr;
+            if (adjointArgs[0]) {
+              dThis = CloneNode(adjointArgs[0]);
+              if (!dThis->getType()->isPointerType())
+                dThis = BuildOp(UO_AddrOf, dThis);
+            } else {
+              QualType dThisTy = utils::getNonConstType(
+                  primalArgs[0]->getType().getNonReferenceType(), m_Sema);
+              VarDecl* dThisDecl =
+                  BuildVarDecl(dThisTy, "_r", getZeroInit(dThisTy));
+              dThisDeclStmt = BuildDeclStmt(dThisDecl);
+              dThis = BuildOp(UO_AddrOf, BuildDeclRef(dThisDecl));
+            }
+            workerPullbackArgs.push_back(dThis);
+          }
+          for (size_t i = 1, e = adjointArgs.size(); i < e; ++i) {
+            if (!adjointArgs[i])
+              continue;
+            Expr* adjoint = CloneNode(adjointArgs[i]);
+            if (i - 1 < threadCallableFD->getNumParams()) {
+              QualType workerTy =
+                  threadCallableFD->getParamDecl(i - 1)->getType();
+              if (!utils::isStdReferenceWrapper(workerTy)) {
+                QualType adjTy = adjoint->getType();
+                Expr* wrapper = nullptr;
+                if (adjTy->isPointerType() &&
+                    utils::isStdReferenceWrapper(adjTy->getPointeeType()))
+                  wrapper = adjoint;
+                else if (utils::isStdReferenceWrapper(adjTy))
+                  wrapper = adjoint;
+                if (wrapper) {
+                  Expr* getME = utils::BuildMemberExpr(
+                      m_Sema, getCurrentScope(), wrapper, "get");
+                  Expr* getE = m_Sema
+                                   .ActOnCallExpr(getCurrentScope(), getME,
+                                                  noLoc, {}, noLoc)
+                                   .get();
+                  adjoint = BuildOp(UO_AddrOf, getE);
+                }
+              }
+            }
+            workerPullbackArgs.push_back(adjoint);
+          }
+
+          Expr* workerPullbackCall =
+              BuildCallExprToFunction(workerPullbackFD, workerPullbackArgs);
+          if (workerPullbackCall) {
+            Stmts::iterator workerIt = std::begin(curRevBlock) +
+                                       insertionPoint +
+                                       prePullbackCallStmts.size();
+            if (pullbackCall)
+              ++workerIt;
+            if (dThisDeclStmt) {
+              workerIt = curRevBlock.insert(workerIt, dThisDeclStmt);
+              ++workerIt;
+            }
+            curRevBlock.insert(workerIt, workerPullbackCall);
+          }
+        }
+      }
     }
 
     // Create the constructor call in the forward-pass, or creates
@@ -5820,8 +6031,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           reverseForwAdjointArgs.begin(),
           utils::GetCladTagExpr(m_Sema,
                                 clad_compat::getRecordType(m_Context, RD)));
-      Expr* customReverseForwFnCall =
-          BuildCallExprToFunction(constrForw, reverseForwAdjointArgs);
+      // Resolve thread reverse_forw against concrete args (e.g. std::ref),
+      // not only the constructor signature FindDerivedFunction saw.
+      Expr* customReverseForwFnCall = nullptr;
+      if (threadLike)
+        customReverseForwFnCall =
+            m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+                "constructor_reverse_forw", reverseForwAdjointArgs,
+                getCurrentScope(), CE);
+      if (!customReverseForwFnCall)
+        customReverseForwFnCall =
+            BuildCallExprToFunction(constrForw, reverseForwAdjointArgs);
       if (RD->isAggregate()) {
         SourceLocation L = CE->getBeginLoc();
         diag(DiagnosticsEngine::Warning, L,
