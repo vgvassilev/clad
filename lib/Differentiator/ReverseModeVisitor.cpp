@@ -4114,10 +4114,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // double y = x;
     // ->
     // double _d_y = _d_x; double y = x;
+
+
     for (auto* D : DS->decls()) {
       if (auto* VD = dyn_cast<VarDecl>(D)) {
-        DeclDiff<VarDecl> VDDiff;
 
+        // Reject structures containing reference data members to prevent
+        // incorrect gradient generation / double-counting errors (Issue #2082).
+        if (const auto* RD = VD->getType()->getAsCXXRecordDecl()) {
+          for (const clang::FieldDecl* FD : RD->fields()) {
+            if (FD->getType()->isReferenceType()) {
+
+             diag(DiagnosticsEngine::Error, FD->getLocation(), "reference data members are not supported");
+              return StmtDiff();
+            }
+          }
+        }
+        // ----------------------------------------
+
+        DeclDiff<VarDecl> VDDiff;
         VDDiff = DifferentiateVarDecl(VD);
 
         // Here, we move the declaration to the function global scope.
