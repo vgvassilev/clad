@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <limits>
 
 #define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
 
@@ -1169,7 +1170,7 @@ template <typename T> CUDA_HOST_DEVICE inline T clad_beta_primal(T x, T y) {
 template <typename T> CUDA_HOST_DEVICE inline T clad_digamma(T x) {
   if (x <= 0.0) {
     if (x == ::std::floor(x))
-      return (T)NAN;
+      return ::std::numeric_limits<T>::quiet_NaN();
     return clad_digamma(1.0 - x) -
            ::std::acos((T)-1.0) / ::std::tan(::std::acos((T)-1.0) * x);
   }
@@ -1196,7 +1197,7 @@ template <typename T> CUDA_HOST_DEVICE inline T clad_digamma(T x) {
 template <typename T> CUDA_HOST_DEVICE inline T clad_trigamma(T x) {
   if (x <= 0.0) {
     if (x == ::std::floor(x))
-      return (T)NAN;
+      return ::std::numeric_limits<T>::quiet_NaN();
     T pi = ::std::acos((T)-1.0);
     T csc = 1.0 / ::std::sin(pi * x);
     return -clad_trigamma(1.0 - x) + (pi * pi * csc * csc);
