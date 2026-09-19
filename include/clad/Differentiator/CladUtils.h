@@ -504,6 +504,8 @@ namespace clad {
 
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
+    /// Returns true if a function returning T must return its adjoint too.
+    bool returnsAdjoint(clang::QualType T);
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
