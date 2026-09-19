@@ -849,7 +849,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
     diagUnsupported(S);
-    // Unknown stmt, just clone it.
+    // The node cannot be differentiated, but if StmtClone can reproduce it the
+    // derivative still needs it, for example a try/catch block carried over
+    // verbatim. The known kinds StmtClone has no case for would clone into a
+    // malformed node that ReferencesUpdater crashes walking, so drop those the
+    // way throw, goto and labels finish.
+    if (isKnownStmtCloneUnsupported(S))
+      return StmtDiff();
     return StmtDiff(Clone(S));
   }
 

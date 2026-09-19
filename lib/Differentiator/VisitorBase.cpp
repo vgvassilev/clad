@@ -33,6 +33,7 @@
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -678,6 +679,25 @@ namespace clad {
 
     // Return reference to the declaration instead of original expression.
     return BuildDeclRef(Var);
+  }
+
+  bool VisitorBase::isKnownStmtCloneUnsupported(const clang::Stmt* S) {
+    // These are the four kinds from issue #2088 that StmtClone has no case
+    // for. Cloning one from the VisitStmt fallback asserts in
+    // StmtClone::VisitStmt or, with asserts off, yields a malformed node that
+    // ReferencesUpdater crashes on, so the callers diagnose and drop them
+    // instead. This is a fixed deny list, not a general StmtClone support
+    // query.
+    if (isa<BinaryConditionalOperator>(S) || isa<AttributedStmt>(S) ||
+        isa<CXXInheritedCtorInitExpr>(S))
+      return true;
+#if CLANG_VERSION_MAJOR >= 16
+    // C++20 parenthesized aggregate initialization (P0960) is represented by
+    // CXXParenListInitExpr, for which StmtClone has no case either.
+    if (isa<CXXParenListInitExpr>(S))
+      return true;
+#endif
+    return false;
   }
 
   Stmt* VisitorBase::Clone(const Stmt* S) {
