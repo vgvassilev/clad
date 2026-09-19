@@ -4368,6 +4368,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                     FCE->getBeginLoc(), castExprDiff.getExpr(),
                                     FCE->getEndLoc())
                                 .get());
+    
+    Expr* castExprDx = castExprDiff.getExpr_dx();
+    if (castExprDx) {
+      castExprDx = m_Sema
+                       .BuildCXXFunctionalCastExpr(
+                           FCE->getTypeInfoAsWritten(), FCE->getType(),
+                           FCE->getBeginLoc(), castExprDx,
+                           FCE->getEndLoc())
+                       .get();
+      castExprDiff.updateStmtDx(castExprDx);
+    }
+    
     return castExprDiff;
   }
 
@@ -4424,6 +4436,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                Brackets, Range)
             .get();
     subExprDiff.updateStmt(castExpr);
+
+    Expr* castExprDx = subExprDiff.getExpr_dx();
+    if (castExprDx) {
+      castExprDx = m_Sema
+                       .BuildCXXNamedCast(KWLoc, CastKind, TSI, castExprDx,
+                                          Brackets, Range)
+                       .get();
+      subExprDiff.updateStmtDx(castExprDx);
+    }
 
     return subExprDiff;
   }
