@@ -1,5 +1,5 @@
-Floating Point Error Estimation using CHEF-FP
-*********************************************
+Floating-point error estimation
+*******************************
 
 ============
 Introduction
@@ -69,16 +69,32 @@ it needs to be tracked (to accumulate relevant errors against that variable).
 Next, the Error Estimation Calculation Formula (Error Model) needs to be built
 (using ``EstimationModel.h``).
 
-``EstimationModel.h`` contains the information needed to calculate the estimate 
-value of the error. It is highly customizable (e.g., you can plug in your 
-own custom formula as well). The default formula multiplies the derivative 
-(dfdx) with the value of the variable (delta_x), for which the error estimate 
-is required, and the machine epsilon (Em).
+The error model decides what each write's error is taken to be, and it is
+replaceable. The built-in one is the first-order Taylor expansion of the
+function about the computed values. Writing :math:`\Delta v_i` for the rounding
+error the :math:`i`-th write commits,
 
-``std::abs(dfdx * delta_x * Em)``
+.. math::
 
-  For this formula to work, the value of the variable (delta_x) should be saved
-  at the relevant time.
+   f(v + \Delta v) - f(v) \approx \sum_{i=1}^{k} \pdv{f}{v_i} \, \Delta v_i
+   = \sum_{i=1}^{k} \bar{v}_i \, \Delta v_i
+
+Bounding each write's rounding error relatively, :math:`\Delta v_i = v_i
+\varepsilon`, and taking each term's magnitude gives what Clad emits:
+
+.. math::
+
+   E = \sum_{i=1}^{k} \left| \bar{v}_i \, v_i \, \varepsilon \right|
+
+The built-in model uses the ``float`` machine epsilon,
+:math:`\varepsilon = 2^{-23} \approx 1.19 \times 10^{-7}`, for every variable
+it estimates, whatever that variable's own type. A ``double`` computation is
+therefore charged the rounding of a ``float`` one, so the built-in model errs
+high by a wide margin and is a starting point rather than a final answer. A
+program that needs a closer estimate supplies its own model.
+
+For the formula to work, the value of the variable has to be saved at the
+relevant time.
 
 This model will return a formula that is represented using a Clang
 expression.This Clang expression can, in turn, be written into the  derivative
@@ -116,7 +132,7 @@ in adapting the CHEF-FP code to their specific use cases.
 Top define a custom model using Clad:
 
 1. Implement the ``clad::FPErrorEstimationModel`` class, a generic interface 
-that provides the error expressions for clad to generate.
+that provides the error expressions for Clad to generate.
 
 2. Override the ``AssignError()`` function. This function is called for all LHS 
 of every assignment expression in the target function.

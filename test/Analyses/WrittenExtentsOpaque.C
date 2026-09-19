@@ -1,6 +1,12 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fdump-analysis=loop %s \
 // RUN:   -I%S/../../include -oWrittenExtentsOpaque.out 2>&1 | %filecheck %s
 // RUN: ./WrittenExtentsOpaque.out | %filecheck_exec %s
+//
+// FileCheck rather than %filecheck below: the wrapper rejects any line with
+// the word "note:" in it, and a report is mostly notes.
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -Rclad-analysis=loop \
+// RUN:   -fsyntax-only %s -I%S/../../include 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-WHY %s
 
 // A function that writes a parameter only through a call it makes must not be
 // reported as leaving that parameter untouched: a caller gating on the extent
@@ -30,7 +36,7 @@ void viaCall(int n, const double* x, double* out) {
 }
 // CHECK: written-extent: viaCall: n = none
 // CHECK-NEXT: written-extent: viaCall: x = none
-// CHECK-NEXT: written-extent: viaCall: out = unknown (a write could not be attributed to a parameter at line [[@LINE-4]])
+// CHECK-NEXT: written-extent: viaCall: out = unknown (this writes through a pointer that cannot be traced back to a parameter at line [[@LINE-4]])
 
 // The same call shape, but the buffer handed over belongs to this function, so
 // nothing the callee does to it can reach `out`. `out` is nonetheless reported
@@ -48,7 +54,7 @@ void viaLocal(int n, const double* x, double* out) {
 }
 // CHECK: written-extent: viaLocal: n = none
 // CHECK-NEXT: written-extent: viaLocal: x = none
-// CHECK-NEXT: written-extent: viaLocal: out = unknown (a write could not be attributed to a parameter at line [[@LINE-7]])
+// CHECK-NEXT: written-extent: viaLocal: out = unknown (this writes through a pointer that cannot be traced back to a parameter at line [[@LINE-7]])
 
 // A member call keeps its object out of the argument list, so the write below
 // is invisible to a walk over the arguments alone.
@@ -60,13 +66,13 @@ struct Box {
   }
 };
 void viaMemberCall(Box* b) { b->twice(); }
-// CHECK: written-extent: viaMemberCall: b = unknown (a write could not be attributed to a parameter at line [[@LINE-1]])
+// CHECK: written-extent: viaMemberCall: b = unknown (this writes through a pointer that cannot be traced back to a parameter at line [[@LINE-1]])
 
 // A non-const reference is as good as a pointer for writing through, and the
 // callee's body is no more visible here.
 void bump(double& r) { r = r + 1; }
 void viaReference(double* out) { bump(out[0]); }
-// CHECK: written-extent: viaReference: out = unknown (a write could not be attributed to a parameter at line [[@LINE-1]])
+// CHECK: written-extent: viaReference: out = unknown (this writes through a pointer that cannot be traced back to a parameter at line [[@LINE-1]])
 
 double f(const double* x) {
   double a[3] = {0, 0, 0};
@@ -94,3 +100,9 @@ int main() {
   // CHECK-EXEC: 16.00 18.00 26.00
   return 0;
 }
+
+// What the same refusal reads like when the user asks about it: the cost is
+// on the write, and the note says what a caller would have needed.
+// CHECK-WHY: WrittenExtentsOpaque.C:[[# @LINE - 71]]:12: remark: 'out': clad watches every address written here instead of copying one range
+// CHECK-WHY: note: this writes through a pointer that cannot be traced back to a parameter
+// CHECK-WHY: note: to avoid this, make it a bounded write

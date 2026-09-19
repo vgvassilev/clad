@@ -3,13 +3,21 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s \
 // RUN:   -I%S/../../include -oAdjointReductions.out
 // RUN: ./AdjointReductions.out | %filecheck_exec %s
+//
+// Every read below that reads like a broadcast and is not reduced says why,
+// in the order the reports come out. Asking is opt-in, so a read that is not
+// a broadcast at all -- one the loop's own index moves -- says nothing: it
+// would send a reader looking for a problem that is not there.
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -Rclad-analysis=loop \
+// RUN:   -fsyntax-only %s -I%S/../../include 2>&1 \
+// RUN:   | %filecheck --check-prefix=CHECK-WHY %s
 
 // `a[i]` read on every iteration of the j loop is a broadcast, so its adjoint
 // is a reduction over that loop -- and `_d_a[i] +=` accumulated in place is a
 // store to a loop-invariant address, the one thing that keeps LLVM from
 // vectorising the loop around it. Where the loop analysis can vouch for it,
 // the sum lives in a register across the loop and reaches memory once after
-// it. The negative half is every shape that must keep the store where it was,
+// it. The negative half is every case that must keep the store where it was,
 // because moving it would move it past something that reads or resets that
 // adjoint.
 
@@ -129,6 +137,18 @@ double movingIndex(const double* a, int n) {
 // CHECK: void movingIndex_grad_0(const double *a, int n, double *_d_a) {
 // CHECK-NOT: _acc
 
+// `rows[i]` stays put across the j loop, but it reaches a row, and a register
+// holds one number. `a[i]` beside it is still reduced.
+double rowOfRows(const double* const* rows, const double* a, int n) {
+  double s = 0;
+  for (int i = 0; i < n; i++)
+    for (int j = 0; j < n; j++)
+      s += rows[i][j] * a[i];
+  return s;
+}
+// CHECK: void rowOfRows_grad_1(const double *const *rows, const double *a, int n, double *_d_a) {
+// CHECK: _acc
+
 #define CHECK_GRAD(NAME, ARG, ...)                                                  \
   do {                                                                         \
     auto g = clad::gradient(NAME, ARG);                                        \
@@ -189,5 +209,29 @@ int main() {
     printf("outerIndex: %.2f %.2f %.2f %.2f\n", da[0], da[3], db[0], db[3]);
     // CHECK-EXEC: outerIndex: 2.00 2.00 8.00 8.00
   }
+  clad::gradient(rowOfRows, "a");
   return 0;
 }
+
+// CHECK-WHY: note: the index reads a variable the loop writes
+// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: this is read at more than one index in the loop
+// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: this is declared inside the loop
+// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: this is declared inside the loop
+// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: this is read at more than one index in the loop
+// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: this is used somewhere other than as the base of a subscript
+// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: the loop writes this too
+// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: this is read at more than one index in the loop
+// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: this writes through a pointer that cannot be traced back to a parameter
+// CHECK-WHY: note: to avoid this, make it a bounded write
+// CHECK-WHY: note: this is read at more than one index in the loop
+// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: one element of this is not a number
+// CHECK-WHY: note: to avoid this, make it a broadcast read

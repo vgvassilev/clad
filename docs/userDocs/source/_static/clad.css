@@ -1,0 +1,60 @@
+/* Furo's own tokens have no value with enough contrast against a code block's
+   background, so name one here. The three cases are Furo's: no stamp means the
+   reader is on "system", and only prefers-color-scheme separates the two. */
+body {
+    --clad-color-code-border: #d1d9e0;
+}
+@media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+        --clad-color-code-border: #3d444d;
+    }
+}
+body[data-theme="dark"] {
+    --clad-color-code-border: #3d444d;
+}
+
+/* sphinxcontrib-mermaid gives the svg width:100% inside a shrink-to-fit block,
+   which is circular: the browser resolves it to a fraction of the diagram's real
+   size and the labels come out unreadable. Mermaid writes the real size into the
+   viewBox, so draw the diagram at that size and scale it down only when it does
+   not fit. */
+pre.mermaid > svg,
+.mermaid-container > pre > svg {
+    width: auto !important;
+    height: auto !important;
+    max-width: 100% !important;
+    display: block;
+    margin-inline: auto;
+}
+
+/* A diagram is not prose and does not need the 46em measure the text is set to.
+   Letting it use the padding the column reserves is the difference between a
+   diagram drawn at its own size and one scaled down to fit. Below 48em Furo
+   drops that padding, so the bleed has to go with it. */
+@media (min-width: 48em) {
+    pre.mermaid,
+    .mermaid-container {
+        margin-inline: -3em;
+    }
+    .mermaid-container > pre.mermaid {
+        margin-inline: 0;
+    }
+}
+
+/* Furo asks for a .1pt border around a code block, which is thinner than a
+   device pixel and so draws nothing. Give the snippets a real edge. */
+.highlight {
+    border: 1px solid var(--clad-color-code-border);
+    border-radius: 6px;
+}
+
+/* A caption belongs to the block under it, so draw one edge around both. */
+.literal-block-wrapper {
+    border: 1px solid var(--clad-color-code-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.literal-block-wrapper .highlight {
+    border: none;
+    border-radius: 0;
+}

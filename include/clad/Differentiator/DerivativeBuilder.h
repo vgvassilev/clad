@@ -216,6 +216,10 @@ struct DerivativeAndOverload {
     /// boundary) with no custom derivative, emit a remark naming the expected
     /// custom-derivative signature and the non-differentiable marker.
     void EmitPortingHint(const DiffRequest& request);
+    /// Reports every construct an analysis looked for in \p request's primal
+    /// and did not find, at the primal -- which is where the answer would
+    /// have to change.
+    void emitAnalysisMissRemarks(const DiffRequest& request);
     /// Find the derived function if present in the DerivedFnCollector.
     ///
     /// \param[in] request The request to find the derived function.

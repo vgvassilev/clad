@@ -18,42 +18,30 @@ for C++. It is based on LLVM compiler infrastructure and is a plugin for
 transformation. Given C++ source code of a mathematical function, it can
 automatically generate C++ code for computing derivatives of the function.
 
-.. todo::
-
-   Add section that describes complete set of supported language features.
-
 Clad supports a large set of C++ features including control flow statements and
-function calls. Please visit (add hyperlink here) to know more about the
-support of language features. It supports reverse-mode AD (a.k.a backpropagation)
-as well as forward-mode AD. It also facilitates computation of hessian matrix and
+function calls. :doc:`Supported C++ features <user/SupportedFeatures>` covers
+what it handles and what it does not, and :doc:`Using Clad <user/UsingClad>`
+works through how. Clad supports reverse-mode AD (a.k.a backpropagation) as well as
+forward-mode AD, and it also facilitates computation of hessian matrix and
 jacobian matrix of any arbitrary function.
 
-Automatic differentiation solves all the usual problems of numerical
-differentiation such as precision loss and symbolic differentiation such as
-limitations to closed form expressions and expression swell.
-If you are just getting started with clad, then please
-checkout :doc:`Using Clad <user/UsingClad>` and
-:doc:`Tutorials <user/tutorials>`.
+Automatic differentiation avoids the precision loss of numerical
+differentiation, and the closed-form restrictions and expression swell of
+symbolic differentiation.
+
+If you are just getting started, :doc:`Using Clad <user/UsingClad>` and
+:doc:`Tutorials <user/tutorials>` are the places to begin. Clad is a Clang
+plugin, so it is loaded with ``-fplugin=`` at compile time;
+:doc:`Installation and usage <user/InstallationAndUsage>` has the details.
 
 ----------------------
 
-Clad example use::
+Clad example use:
 
-   #include "clad/Differentiator/Differentiator.h"
-   #include <iostream>
-
-   double f(double x, double y) { return x * y; }
-
-   int main() {
-     auto f_dx = clad::differentiate(f, "x");
-     // computes derivative of 'f' when (x, y) = (3, 4) and prints it.
-     std::cout << f_dx.execute(3, 4) << std::endl; // prints: 4
-     f_dx.dump(); // prints:
-     /* double f_darg0(double x, double y) {
-         double _d_x = 1; double _d_y = 0;
-          return _d_x * y + x * _d_y;
-        } */
-   }
+.. literalinclude:: ../../../test/Documentation/Guide/Overview.cpp
+   :language: cpp
+   :start-after: docs-begin-overview
+   :end-before: docs-end-overview
 
 Features
 -----------
@@ -71,33 +59,39 @@ Features
   automatic differentiation is not feasible.
 
 
-.. comment
-
-
-   .. todo::
-
-      Add more features such as error estimation, custom derivatives, class type support etc.
-
 The User Guide
 ---------------
 
 .. toctree::
    :maxdepth: 2
+   :caption: Getting started
 
    user/InstallationAndUsage
-   user/UsingClad
-   user/CoreConcepts
-   user/reference
-   user/CustomDerivatives.rst
    user/tutorials
-   user/UsingEnzymeWithinClad
-   user/UsingVectorMode.rst
-   user/UsingImmediateMode
-   user/UsingCladOnCUDACode
    user/FAQ
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Guides
+
+   user/UsingClad
+   user/CustomDerivatives
+   user/FloatingPointErrorEstimation
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference
+
+   user/reference
+   user/SupportedFeatures
+   user/CoreConcepts
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contributing
+
    user/DevelopersDocumentation
    user/IntroductionToClangForCladContributors
-   user/FloatingPointErrorEstimation
 
 Citing Clad
 -------------
