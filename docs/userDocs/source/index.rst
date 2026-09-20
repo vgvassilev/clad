@@ -92,6 +92,7 @@ The User Guide
 
    user/DevelopersDocumentation
    user/IntroductionToClangForCladContributors
+   Internal documentation <https://clad.readthedocs.io/en/latest/internalDocs/html/index.html>
 
 Citing Clad
 -------------

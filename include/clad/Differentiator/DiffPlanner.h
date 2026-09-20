@@ -303,12 +303,12 @@ public:
   /// A flag to enable/disable diag warnings/errors during differentiation.
   bool VerboseDiags = false;
   /// Whether each analysis runs for this request. One member per entry in
-  /// Analyses.def, spelled Enable<Id>Analysis.
+  /// Analyses.def, spelled Enable\<Id\>Analysis.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   bool Enable##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
   /// Whether the user asked to hear what each analysis left behind
-  /// (-Rclad-analysis=<name>). Diagnostic-only, like EmitPortingHints, and
+  /// (-Rclad-analysis=\<name\>). Diagnostic-only, like EmitPortingHints, and
   /// therefore excluded from request equality.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   bool Remark##Id##Analysis = false;
@@ -379,7 +379,7 @@ public:
   /// overload
   clang::Expr* CustomDerivative = nullptr;
 
-  /// The trailing clad::pullback_state<S> parameter a custom reverse_forw /
+  /// The trailing clad::pullback_state\<S\> parameter a custom reverse_forw /
   /// pullback carries, already in argument form (by reference for a
   /// reverse_forw, by value for a pullback), or null when none. clad does not
   /// synthesize this parameter, so it is appended to the expected derivative
@@ -635,6 +635,7 @@ struct RequestOptions {
 }
 
 // Define the hash function for DiffRequest.
+/// \cond DOXYGEN_CANNOT_PARSE_THIS
 template <> struct std::hash<clad::DiffRequest> {
     std::size_t operator()(const clad::DiffRequest& DR) const {
       const clang::Decl* D = nullptr;
@@ -649,5 +650,7 @@ template <> struct std::hash<clad::DiffRequest> {
       return std::hash<const void*>{}(D);
     }
 };
+
+/// \endcond
 
 #endif

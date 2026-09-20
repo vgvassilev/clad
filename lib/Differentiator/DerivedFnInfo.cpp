@@ -5,8 +5,8 @@ using namespace clang;
 
 namespace clad {
 DerivedFnInfo::DerivedFnInfo(const DiffRequest& request,
-                             FunctionDecl* derivedFn,
-                             FunctionDecl* overloadedDerivedFn)
+                             clang::FunctionDecl* derivedFn,
+                             clang::FunctionDecl* overloadedDerivedFn)
     : m_OriginalFn(request.Function), m_DerivedFn(derivedFn),
       m_OverloadedDerivedFn(overloadedDerivedFn), m_Mode(request.Mode),
       m_DiffVarsInfo(request.DVI),

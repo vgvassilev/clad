@@ -499,7 +499,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return *m_LoopFacts;
   }
 
-  const LoopFacts& DiffRequest::getLoopFacts(const ForStmt* FS) const {
+  const LoopFacts& DiffRequest::getLoopFacts(const clang::ForStmt* FS) const {
     static const LoopFacts None;
     const auto& Loops = getLoopFacts().Loops;
     auto it = Loops.find(FS);
@@ -971,13 +971,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return found != m_UsefulRunInfo.UsefulDecls.end();
   }
 
-  bool DiffRequest::shouldHaveAdjoint(const Stmt* S) const {
+  bool DiffRequest::shouldHaveAdjoint(const clang::Stmt* S) const {
     if (!EnableVariedAnalysis)
       return true;
     auto found = m_ActivityRunInfo.VariedS.find(S);
     return found != m_ActivityRunInfo.VariedS.end();
   }
-  bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
+  bool DiffRequest::shouldHaveAdjoint(const clang::VarDecl* VD) const {
     if (!EnableVariedAnalysis)
       return true;
     return getVariedDecls().find(VD) != getVariedDecls().end();

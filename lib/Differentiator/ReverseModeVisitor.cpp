@@ -4071,7 +4071,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   std::pair<StmtDiff, StmtDiff>
-  ReverseModeVisitor::DifferentiateSingleExpr(const Expr* E, Expr* dfdE) {
+  ReverseModeVisitor::DifferentiateSingleExpr(const clang::Expr* E,
+                                              clang::Expr* dfdE) {
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
     StmtDiff EDiff = Visit(E, dfdE);
@@ -4084,9 +4085,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {StmtDiff(ForwardResult, ReverseResult), EDiff};
   }
 
-  std::pair<StmtDiff, StmtDiff>
-  ReverseModeVisitor::DifferentiateSingleExpr(const Expr* E,
-                                              std::function<Expr*()> dfdE) {
+  std::pair<StmtDiff, StmtDiff> ReverseModeVisitor::DifferentiateSingleExpr(
+      const clang::Expr* E, std::function<clang::Expr*()> dfdE) {
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
     StmtDiff EDiff = Visit(E, std::move(dfdE));
@@ -4568,7 +4568,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return Var;
   }
 
-  Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, QualType Type,
+  Expr* ReverseModeVisitor::GlobalStoreAndRef(clang::Expr* E,
+                                              clang::QualType Type,
                                               llvm::StringRef prefix,
                                               bool force, bool zeroInit) {
     assert(E && "must be provided, otherwise use DelayedGlobalStoreAndRef");
@@ -4635,7 +4636,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return GetFunctionCall("move", "clad", moveArgs);
   }
 
-  Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
+  Expr* ReverseModeVisitor::GlobalStoreAndRef(clang::Expr* E,
+                                              llvm::StringRef prefix,
                                               bool force, bool zeroInit) {
     assert(E && "cannot infer type");
     return GlobalStoreAndRef(
