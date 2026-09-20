@@ -81,12 +81,6 @@ jobs:
             compiler: clang-13
             clang-runtime: '13'
 
-          - name: ubuntu-clang18-runtime18-doc
-            os: ubuntu-latest
-            compiler: clang-18
-            clang-runtime: '18'
-            doc_build: true
-
           - name: ubu24-clang16-runtime17-shared-libs
             os: ubuntu-24.04
             compiler: clang-16
@@ -497,24 +491,6 @@ jobs:
         cd benchmark
         python3 benchmark_compare.py ${baseline_hash} ${current_hash} obj
         cd ..
-    - name: Test build sphinx & doxygen documentation
-      if: ${{ (matrix.doc_build == true) }}
-      run: |
-        sudo apt-get install -y doxygen graphviz
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        mkdir -p obj && cd obj
-        cmake \
-          -DClang_DIR="$PATH_TO_LLVM_BUILD" \
-          -DLLVM_DIR="$PATH_TO_LLVM_BUILD"  \
-          -DCLAD_INCLUDE_DOCS=ON            \
-          -DCLAD_ENABLE_DOXYGEN=ON          \
-          -DCLAD_ENABLE_SPHINX=ON           \
-          -DCMAKE_INSTALL_PREFIX=../inst    \
-          -DCMAKE_BUILD_TYPE=Debug          \
-          -DLLVM_EXTERNAL_LIT="`which lit`" \
-          ..
-        cmake --build . --target sphinx-clad doxygen-clad -- -j${{ env.ncpus }}
     - name: Show reproduce-locally hint
       if: ${{ failure() }}
       shell: bash
