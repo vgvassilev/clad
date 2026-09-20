@@ -10,6 +10,9 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fdump-analysis=loop \
 // RUN:   -Xclang -verify -fsyntax-only %s -I%S/../../include 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK %s
+//
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-ua \
+// RUN:   -Xclang -verify -fsyntax-only %s -I%S/../../include
 
 #include "clad/Differentiator/Differentiator.h"
 
