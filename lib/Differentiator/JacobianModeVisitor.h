@@ -7,6 +7,7 @@
 #include "clang/AST/Type.h"
 
 namespace clad {
+/// \ingroup visitors
 class JacobianModeVisitor : public VectorPushForwardModeVisitor {
 
 public:

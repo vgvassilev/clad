@@ -28,6 +28,7 @@ namespace clad {
 /// this set must be kept minimal to get efficient adjoint codes.
 ///
 /// This class implements this to-be-recorded analysis.
+/// \ingroup analyses
 class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
                     public AnalysisBase {
   /// Used to find DeclRefExpr's that will be used in the backwards pass.

@@ -561,6 +561,7 @@ template <class T> std::false_type is_range(...);
   /// once all clad differentiation functions support differentiating functors.
   template <typename F, typename FunctorT = ExtractFunctorTraits_t<F>,
             bool EnablePadding = false, bool ImmediateMode = false>
+  /// \ingroup runtime
   class CladFunction {
   public:
     using CladFunctionType = F;

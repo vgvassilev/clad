@@ -222,6 +222,7 @@ namespace clad {
   };
 
   /// A base class for all common functionality for visitors
+  /// \ingroup visitors
   class VisitorBase {
   protected:
     VisitorBase(DerivativeBuilder& builder, const DiffRequest& request)

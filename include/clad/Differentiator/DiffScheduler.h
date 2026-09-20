@@ -18,6 +18,7 @@ namespace clad {
 
 /// Owns the differentiation request graph and everything that builds it: the
 /// collector, the analysis-context pool and the derived-function map.
+/// \ingroup pipeline
 class DiffScheduler {
   clang::Sema& m_Sema;
   RequestOptions m_Options;

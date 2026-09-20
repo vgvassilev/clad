@@ -28,6 +28,7 @@ namespace clang {
 namespace clad {
 namespace utils {
 
+  /// \ingroup astutils
   class StmtClone : public clang::StmtVisitor<StmtClone, clang::Stmt*>  {
   public:
   private:

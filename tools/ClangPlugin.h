@@ -219,6 +219,7 @@ inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
       });
     }
     };
+    /// \ingroup pipeline
     class CladPlugin : public clang::SemaConsumer {
     clang::CompilerInstance& m_CI;
     DifferentiationOptions m_DO;
