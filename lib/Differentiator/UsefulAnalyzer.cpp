@@ -7,6 +7,8 @@ using namespace clang;
 namespace clad {
 
 void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
+  if (!m_AnalysisDC->getCFG())
+    return;
   // Build the CFG (control-flow graph) of FD.
   m_BlockData.resize(m_AnalysisDC->getCFG()->size());
   m_LoopMem.resize(m_AnalysisDC->getCFG()->size());
