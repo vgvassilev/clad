@@ -808,10 +808,15 @@ template <class T> std::false_type is_range(...);
   /// Performs partial differentiation of the `fn` argument using forward mode
   /// wrt parameter specified in `args`. Template parameter `BitMaskedOpts`
   /// denotes the derivative order and any extra options. To differentiate `fn`
-  /// wrt several parameters, please see `clad::gradient`. \param[in] fn
-  /// function to differentiate \param[in] args independent parameter
-  /// information \returns `CladFunction` object to access the corresponding
-  /// derived function.
+  /// wrt several parameters, please see `clad::gradient`.
+  ///
+  /// \param[in] fn function to differentiate
+  /// \param[in] args independent parameter information
+  /// \param[in] derivedFn the generated derivative; clad substitutes it while
+  /// compiling the call, so a caller leaves it alone.
+  /// \param[in] code the source of that derivative, substituted the same way.
+  /// \returns `CladFunction` object to access the corresponding derived
+  /// function.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
             typename F,
             typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
@@ -871,6 +876,9 @@ template <class T> std::false_type is_range(...);
   ///
   /// \param[in] fn function to differentiate
   /// \param[in] args independent parameters information
+  /// \param[in] derivedFn the generated derivative; clad substitutes it while
+  /// compiling the call, so a caller leaves it alone.
+  /// \param[in] code the source of that derivative, substituted the same way.
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
@@ -892,8 +900,13 @@ template <class T> std::false_type is_range(...);
   /// Generates function which computes gradient of the given function wrt the
   /// parameters specified in `args` using reverse mode differentiation.
   ///
-  /// \param[in] fn function to differentiate
+  /// \param[in] f function to differentiate
   /// \param[in] args independent parameters information
+  /// \param[in] derivedFn the generated derivative; clad substitutes it while
+  /// compiling the call, so a caller leaves it alone.
+  /// \param[in] code the source of that derivative, substituted the same way.
+  /// \param[in] CUDAkernel whether the function is a __global__ kernel, whose
+  /// derivative has to be launched rather than called.
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
@@ -945,8 +958,11 @@ template <class T> std::false_type is_range(...);
   /// Generates function which computes hessian matrix of the given function wrt
   /// the parameters specified in `args`.
   ///
-  /// \param[in] fn function to differentiate
+  /// \param[in] f function to differentiate
   /// \param[in] args independent parameters information
+  /// \param[in] derivedFn the generated derivative; clad substitutes it while
+  /// compiling the call, so a caller leaves it alone.
+  /// \param[in] code the source of that derivative, substituted the same way.
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
@@ -997,8 +1013,11 @@ template <class T> std::false_type is_range(...);
   /// Generates function which computes jacobian matrix of the given function
   /// wrt the parameters specified in `args` using reverse mode differentiation.
   ///
-  /// \param[in] fn function to differentiate
+  /// \param[in] f function to differentiate
   /// \param[in] args independent parameters information
+  /// \param[in] derivedFn the generated derivative; clad substitutes it while
+  /// compiling the call, so a caller leaves it alone.
+  /// \param[in] code the source of that derivative, substituted the same way.
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,

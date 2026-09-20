@@ -62,9 +62,7 @@ public:
   VariedAnalyzer(const VariedAnalyzer&&) = delete;
   VariedAnalyzer& operator=(const VariedAnalyzer&&) = delete;
 
-  /// Runs Varied analysis.
-  /// \param[in] FD Function to run the analysis on.
-  //, std::set<const clang::ParmVarDecl*>& vPVD
+  /// Runs Varied analysis on the function this analyser was built for.
   void Analyze();
   bool TraverseBinaryOperator(clang::BinaryOperator* BinOp);
   bool TraverseCallExpr(clang::CallExpr* CE);

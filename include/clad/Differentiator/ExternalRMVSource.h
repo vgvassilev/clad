@@ -101,8 +101,10 @@ public:
   /// This is called just before finalising `VisitCallExpr`.
   ///
   /// \param CE call expression that is being visited.
-  /// \param CallArgs
-  /// \param ArgResultDecls
+  /// \param OverloadedDerivedFn the derivative call built so far, if any.
+  /// \param derivedCallArgs the arguments of that derivative call.
+  /// \param ArgResult the adjoints of the original call's arguments.
+  /// \param asGrad whether the call is being differentiated as a gradient.
   virtual void ActBeforeFinalizingVisitCallExpr(
       const clang::CallExpr*& CE, clang::Expr*& OverloadedDerivedFn,
       llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,

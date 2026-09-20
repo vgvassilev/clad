@@ -154,15 +154,20 @@ namespace clad {
     m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
   }
 
-  VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
-                                     Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI, StorageClass SC) {
+  VarDecl* VisitorBase::BuildVarDecl(clang::QualType Type,
+                                     clang::IdentifierInfo* Identifier,
+                                     clang::Expr* Init, bool DirectInit,
+                                     clang::TypeSourceInfo* TSI,
+                                     clang::StorageClass SC) {
     return BuildVarDecl(Type, Identifier, getCurrentScope(), Init, DirectInit,
                         TSI, SC);
   }
-  VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
-                                     Scope* Scope, Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI, StorageClass SC) {
+  VarDecl* VisitorBase::BuildVarDecl(clang::QualType Type,
+                                     clang::IdentifierInfo* Identifier,
+                                     clang::Scope* Scope, clang::Expr* Init,
+                                     bool DirectInit,
+                                     clang::TypeSourceInfo* TSI,
+                                     clang::StorageClass SC) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
     SourceLocation Loc = GenLoc();
@@ -193,9 +198,11 @@ namespace clad {
     up.TraverseStmt(InSubtree);
   }
 
-  VarDecl* VisitorBase::BuildVarDecl(QualType Type, llvm::StringRef prefix,
-                                     Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI, StorageClass SC) {
+  VarDecl* VisitorBase::BuildVarDecl(clang::QualType Type,
+                                     llvm::StringRef prefix, clang::Expr* Init,
+                                     bool DirectInit,
+                                     clang::TypeSourceInfo* TSI,
+                                     clang::StorageClass SC) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit,
                         TSI, SC);
   }
@@ -281,7 +288,7 @@ namespace clad {
     }
   }
 
-  DeclStmt* VisitorBase::BuildDeclStmt(Decl* D) {
+  DeclStmt* VisitorBase::BuildDeclStmt(clang::Decl* D) {
     Stmt* DS = m_Sema
                    .ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(D),
                                   D->getBeginLoc(), D->getEndLoc())
@@ -289,7 +296,8 @@ namespace clad {
     return cast<DeclStmt>(DS);
   }
 
-  DeclStmt* VisitorBase::BuildDeclStmt(llvm::MutableArrayRef<Decl*> Decls) {
+  DeclStmt*
+  VisitorBase::BuildDeclStmt(llvm::MutableArrayRef<clang::Decl*> Decls) {
     auto DGR = DeclGroupRef::Create(m_Context, Decls.data(), Decls.size());
     return new (m_Context) DeclStmt(DGR, noLoc, noLoc);
   }
@@ -647,11 +655,12 @@ namespace clad {
     return E;
   }
 
-  Expr* VisitorBase::StoreAndRef(Expr* E, llvm::StringRef prefix,
+  Expr* VisitorBase::StoreAndRef(clang::Expr* E, llvm::StringRef prefix,
                                  bool forceDeclCreation) {
     return StoreAndRef(E, getCurrentBlock(), prefix, forceDeclCreation);
   }
-  Expr* VisitorBase::StoreAndRef(Expr* E, Stmts& block, llvm::StringRef prefix,
+  Expr* VisitorBase::StoreAndRef(clang::Expr* E, Stmts& block,
+                                 llvm::StringRef prefix,
                                  bool forceDeclCreation) {
     assert(E && "cannot infer type from null expression");
     QualType Type = clad_compat::stripPredefinedSugar(E->getType());
@@ -660,8 +669,8 @@ namespace clad {
     return StoreAndRef(E, Type, block, prefix, forceDeclCreation);
   }
 
-  Expr* VisitorBase::StoreAndRef(Expr* E, QualType Type, Stmts& block,
-                                 llvm::StringRef prefix,
+  Expr* VisitorBase::StoreAndRef(clang::Expr* E, clang::QualType Type,
+                                 Stmts& block, llvm::StringRef prefix,
                                  bool forceDeclCreation) {
     if (!forceDeclCreation) {
       // If Expr is simple (i.e. a reference or a literal), there is no point
@@ -680,19 +689,19 @@ namespace clad {
     return BuildDeclRef(Var);
   }
 
-  Stmt* VisitorBase::Clone(const Stmt* S) {
+  Stmt* VisitorBase::Clone(const clang::Stmt* S) {
     Stmt* clonedStmt = m_Builder.m_NodeCloner->Clone(S);
     updateReferencesOf(clonedStmt);
     return clonedStmt;
   }
-  Expr* VisitorBase::Clone(const Expr* E) {
+  Expr* VisitorBase::Clone(const clang::Expr* E) {
     const Stmt* S = E;
     return llvm::cast<Expr>(Clone(S));
   }
-  Expr* VisitorBase::CloneNode(const Expr* E) {
+  Expr* VisitorBase::CloneNode(const clang::Expr* E) {
     return E ? m_Builder.m_NodeCloner->Clone(E) : nullptr;
   }
-  Stmt* VisitorBase::CloneNode(const Stmt* S) {
+  Stmt* VisitorBase::CloneNode(const clang::Stmt* S) {
     return S ? m_Builder.m_NodeCloner->Clone(S) : nullptr;
   }
 
@@ -714,8 +723,8 @@ namespace clad {
     up.updateType(clonedType);
     return clonedType;
   }
-  Expr* VisitorBase::BuildOp(UnaryOperatorKind OpCode, Expr* E,
-                             SourceLocation OpLoc) {
+  Expr* VisitorBase::BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E,
+                             clang::SourceLocation OpLoc) {
     if (!E)
       return nullptr;
     // Don't generate unary operators that cancel out, e.g. `&*x`.
@@ -749,8 +758,8 @@ namespace clad {
     return m_Sema.BuildUnaryOp(nullptr, OpLoc, clang::UO_Minus, E).get();
   }
 
-  Expr* VisitorBase::BuildOp(clang::BinaryOperatorKind OpCode, Expr* L, Expr* R,
-                             SourceLocation OpLoc) {
+  Expr* VisitorBase::BuildOp(clang::BinaryOperatorKind OpCode, clang::Expr* L,
+                             clang::Expr* R, clang::SourceLocation OpLoc) {
     if (!L || !R)
       return nullptr;
     // Debug clang requires the location to be valid
@@ -796,7 +805,7 @@ namespace clad {
   }
 
   Expr* VisitorBase::BuildArraySubscript(
-      Expr* Base, const llvm::SmallVectorImpl<clang::Expr*>& Indices) {
+      clang::Expr* Base, const llvm::SmallVectorImpl<clang::Expr*>& Indices) {
     Expr* result = Base;
     for (Expr* I : Indices)
       result =
@@ -919,20 +928,20 @@ namespace clad {
     return utils::InstantiateTemplate(m_Sema, GetCladTapeDecl(), {T});
   }
 
-  Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base,
-                                          StringRef MemberFunctionName,
-                                          MutableArrayRef<Expr*> ArgExprs,
-                                          SourceLocation Loc /*=noLoc*/) {
+  Expr* VisitorBase::BuildCallExprToMemFn(
+      clang::Expr* Base, llvm::StringRef MemberFunctionName,
+      llvm::MutableArrayRef<clang::Expr*> ArgExprs,
+      clang::SourceLocation Loc /*=noLoc*/) {
     IdentifierInfo* II = &m_Context.Idents.get(MemberFunctionName);
     UnqualifiedId Member;
     Member.setIdentifier(II, Loc);
     return BuildCallExprToMemFn(Base, &Member, ArgExprs, Loc);
   }
 
-  Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base,
-                                          UnqualifiedId* MemberFunction,
-                                          MutableArrayRef<Expr*> ArgExprs,
-                                          SourceLocation Loc /*=noLoc*/) {
+  Expr* VisitorBase::BuildCallExprToMemFn(
+      clang::Expr* Base, clang::UnqualifiedId* MemberFunction,
+      llvm::MutableArrayRef<clang::Expr*> ArgExprs,
+      clang::SourceLocation Loc /*=noLoc*/) {
     if (Loc.isInvalid())
       Loc = m_DiffReq->getLocation();
     CXXScopeSpec SS;
@@ -962,7 +971,7 @@ namespace clad {
 
   Expr* VisitorBase::BuildCallExprToMemFn(
       clang::CXXMethodDecl* FD, llvm::MutableArrayRef<clang::Expr*> argExprs,
-      bool useRefQualifiedThisObj, SourceLocation Loc /*=noLoc*/) {
+      bool useRefQualifiedThisObj, clang::SourceLocation Loc /*=noLoc*/) {
     QualType ThisTy = FD->getThisType();
     Expr* thisExpr = m_Sema.BuildCXXThisExpr(Loc, ThisTy, /*IsImplicit=*/true);
     bool isArrow = true;

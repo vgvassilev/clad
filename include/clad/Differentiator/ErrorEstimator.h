@@ -96,15 +96,13 @@ public:
   /// since we also need to take into account the error in that expression.
   ///
   /// \param[in] retExpr The return expression.
-  /// \param[in] retDeclRefExpr The temporary value in which the return
-  /// expression is stored.
   void SaveReturnExpr(clang::Expr* retExpr);
 
   /// Emit the error for parameters of nested functions.
   ///
   /// \param[in] fnDecl The function declaration of the nested function.
   /// \param[in] CallArgs The orignal call arguments of the function call.
-  /// \param[in] ArgResultDecls The differentiated call arguments.
+  /// \param[in] ArgResult The differentiated call arguments.
   /// \param[in] numArgs The number of call args.
   void
   EmitNestedFunctionParamError(clang::FunctionDecl* fnDecl,
@@ -128,8 +126,8 @@ public:
 
   /// An abstraction of the error estimation model's AssignError.
   ///
-  /// \param[in] val The variable to get the error for.
-  /// \param[in] valDiff The derivative of the variable 'var'
+  /// \param[in] var The variable to get the error for.
+  /// \param[in] varDiff The derivative of the variable `var`.
   /// \param[in] varName Name of the variable to get the error for.
   ///
   /// \returns The error in the variable 'var'.
@@ -158,9 +156,6 @@ public:
   /// \param[in] LExpr The LHS of the operation.
   /// \param[in] oldValue The derivative of the target function with respect
   /// to the LHS.
-  /// \param[in] deltaVar The delta value of the LHS.
-  /// \param[in] isInsideLoop A flag to keep track of if we are inside a
-  /// loop.
   void EmitBinaryOpErrorStmts(clang::Expr* LExpr, clang::Expr* oldValue);
 
   /// This function emits the error in declaration statements.

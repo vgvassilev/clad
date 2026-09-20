@@ -113,13 +113,14 @@ void GeneratedCode::writeChunksToFiles(DiagnosticsEngine& Diags) const {
   }
 }
 
-GeneratedCode::Chunk* GeneratedCode::chunkFor(SourceLocation Loc) {
+GeneratedCode::Chunk* GeneratedCode::chunkFor(clang::SourceLocation Loc) {
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   return const_cast<Chunk*>(
       static_cast<const GeneratedCode*>(this)->chunkFor(Loc));
 }
 
-const GeneratedCode::Chunk* GeneratedCode::chunkFor(SourceLocation Loc) const {
+const GeneratedCode::Chunk*
+GeneratedCode::chunkFor(clang::SourceLocation Loc) const {
   if (Loc.isInvalid())
     return nullptr;
   FileID File = m_Sema.getSourceManager().getFileID(Loc);
@@ -242,9 +243,9 @@ const Stmt* GeneratedCode::currentStatement() const {
   return nullptr;
 }
 
-GeneratedCodeDiagnostics::GeneratedCodeDiagnostics(GeneratedCode& Code,
-                                                   DiagnosticsEngine& Diags,
-                                                   const DiffRequest& Request)
+GeneratedCodeDiagnostics::GeneratedCodeDiagnostics(
+    GeneratedCode& Code, clang::DiagnosticsEngine& Diags,
+    const DiffRequest& Request)
     : m_Code(Code), m_Diags(Diags) {
   if (Code.m_Holding || !Diags.getClient())
     return;

@@ -122,7 +122,8 @@ SourceLocation DerivativePrinter::locationOf(const FunctionDecl* FD,
   return R.At.Loc.getLocWithOffset(static_cast<int>(*Offset));
 }
 
-unsigned DerivativePrinter::lineOf(const FunctionDecl* FD, const Stmt* S) {
+unsigned DerivativePrinter::lineOf(const clang::FunctionDecl* FD,
+                                   const clang::Stmt* S) {
   const Printout& R = print(FD);
   if (!R.At)
     return 0;
@@ -137,7 +138,7 @@ unsigned DerivativePrinter::lineOf(const FunctionDecl* FD, const Stmt* S) {
   return R.At.Line + static_cast<unsigned>(It - R.LineStarts.begin()) - 1;
 }
 
-unsigned DerivativePrinter::lineOf(const FunctionDecl* FD) {
+unsigned DerivativePrinter::lineOf(const clang::FunctionDecl* FD) {
   return print(FD).At.Line;
 }
 

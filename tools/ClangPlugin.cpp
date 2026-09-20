@@ -82,21 +82,21 @@ namespace clad {
 void InitTimers();
 
   namespace plugin {
-    /// Keeps track if we encountered #pragma clad on/off.
-    // FIXME: Figure out how to make it a member of CladPlugin.
-    std::vector<clang::SourceRange> CladEnabledRange;
-    std::set<clang::SourceLocation> CladLoopCheckpoints;
+  /// Keeps track if we encountered `#pragma clad on/off`.
+  // FIXME: Figure out how to make it a member of CladPlugin.
+  std::vector<clang::SourceRange> CladEnabledRange;
+  std::set<clang::SourceLocation> CladLoopCheckpoints;
 
-    // Define a pragma handler for #pragma clad
-    class CladPragmaHandler : public PragmaHandler {
-    public:
-      CladPragmaHandler() : PragmaHandler("clad") {}
-      void HandlePragma(Preprocessor& PP, PragmaIntroducer Introducer,
-                        Token& PragmaTok) override {
-        if (PragmaTok.isNot(tok::identifier)) {
-          PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
-          return;
-        }
+  // Define a pragma handler for #pragma clad
+  class CladPragmaHandler : public PragmaHandler {
+  public:
+    CladPragmaHandler() : PragmaHandler("clad") {}
+    void HandlePragma(Preprocessor& PP, PragmaIntroducer Introducer,
+                      Token& PragmaTok) override {
+      if (PragmaTok.isNot(tok::identifier)) {
+        PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
+        return;
+      }
 #ifndef NDEBUG
         IdentifierInfo* II = PragmaTok.getIdentifierInfo();
         assert(II->isStr("clad"));
@@ -143,8 +143,8 @@ void InitTimers();
             PP.getDiagnostics().getCustomDiagID(
                 DiagnosticsEngine::Error,
                 "expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma"));
-      }
-    };
+    }
+  };
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {

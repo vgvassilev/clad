@@ -42,7 +42,7 @@ void AnalysisBase::addVar(const clang::VarDecl* VD, bool forceInit) {
 }
 
 // NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
-VarData::VarData(QualType QT, bool forceInit) {
+VarData::VarData(clang::QualType QT, bool forceInit) {
   QT = QT.getCanonicalType();
   if ((forceInit && QT->isLValueReferenceType()) || QT->isRValueReferenceType())
     QT = QT->getPointeeType();
@@ -246,7 +246,7 @@ bool AnalysisBase::findReq(const VarData& varData) {
   return false;
 }
 
-bool AnalysisBase::findReq(const Expr* E) {
+bool AnalysisBase::findReq(const clang::Expr* E) {
   llvm::SmallVector<ProfileID, 2> IDSequence;
   const VarDecl* VD = nullptr;
   if (getIDSequence(E, VD, IDSequence)) {

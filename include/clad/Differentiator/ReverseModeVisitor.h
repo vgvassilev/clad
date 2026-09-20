@@ -332,6 +332,8 @@ namespace clad {
     ///
     /// \param[in] init The variable declaration initializer.
     ///
+    /// \param[in] SC The storage class of the variable declaration.
+    ///
     /// \returns A variable declaration that is already added to the
     /// global scope.
     clang::VarDecl* GlobalStoreImpl(clang::QualType Type,
@@ -422,6 +424,9 @@ namespace clad {
     ///
     /// \param[in] prefix The prefix value for the name of the tape.
     ///
+    /// \param[in] type The element type of the tape; deduced from \p E when
+    /// left empty.
+    ///
     /// \returns A struct containg necessary call expressions for the built
     /// tape
     CladTapeResult MakeCladTapeFor(clang::Expr* E,
@@ -440,8 +445,7 @@ namespace clad {
     /// before the call to the derived function.
     /// \param[in] args All the arguments to the target function.
     /// \param[in] outputArgs The output gradient arguments.
-    ///
-    /// \returns The derivative function call.
+    /// \param[in] CUDAExecConfig The kernel launch configuration, if any.
     void GetMultiArgCentralDiffCall(
         clang::Expr* targetFuncCall, clang::QualType retType, unsigned numArgs,
         clang::Expr* dfdx, llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
@@ -643,6 +647,9 @@ namespace clad {
     /// \param[in] isNonDiff true if the corresponding call is
     /// non-differentiable
     ///
+    /// \param[in] isCUDAKernel true if the call being differentiated is a
+    /// kernel launch
+    ///
     /// \returns A triplet of differentiated arguments, i.e. ``{<original arg>,
     /// <arg for pullback>, <reverse_forw arg>}``. In practice, it will look
     /// somewhat like ``{x, &_r0, _d_x}``.
@@ -737,12 +744,13 @@ namespace clad {
     ///
     ///\param[in] body body of the loop
     ///\param[in] loopCounter associated `LoopCounter` object of the loop.
-    ///\param[in] condVarDiff derived statements of the condition
+    ///\param[in] condVarDifff derived statements of the condition
     /// variable, if any.
     ///\param[in] forLoopIncDiff derived statements of the `for` loop
     /// increment statement, if any.
     ///\param[in] isForLoop should be true if we are differentiating a `for`
     /// loop body; otherwise false.
+    ///\param[in] loopLoc the location of the loop being differentiated.
     ///\returns {forward pass statements, reverse pass statements} for the loop
     /// body.
     StmtDiff DifferentiateLoopBody(
@@ -866,7 +874,7 @@ namespace clad {
     ///
     /// Multiple external RMV source can be registered by calling this function
     /// multiple times.
-    ///\paramp[in] source An external RMV source
+    ///\param[in] source An external RMV source
     void AddExternalSource(ExternalRMVSource& source);
 
     clang::QualType GetLambdaDerivativeType(const clang::LambdaExpr* LE) {

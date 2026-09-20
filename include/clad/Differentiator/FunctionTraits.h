@@ -29,12 +29,14 @@ namespace clad {
   template <typename C, typename = void>
   struct has_call_operator : std::false_type {};
 
+  /// \cond DOXYGEN_CANNOT_PARSE_THIS
   template <typename C>
   struct has_call_operator<
       C,
       typename std::enable_if<(
           sizeof(&remove_reference_and_pointer_t<C>::operator()) > 0)>::type>
       : std::true_type {};
+  /// \endcond
 
   /// Placeholder type for denoting no function type exists
   ///
@@ -809,7 +811,7 @@ namespace clad {
   ///
   /// - If `F` is class type, class reference type, class pointer type, or
   ///   reference to class pointer type
-  ///   Defines member typedef 'type` same as the type of the class.
+  ///   Defines member typedef `type` same as the type of the class.
   ///
   /// - For all other cases, no member typedef `type` is provided.
   template <class F, class = void> struct ExtractFunctorTraits {};

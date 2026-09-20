@@ -56,6 +56,7 @@ template <class C, class Tr>
 class CLAD_NONDIFFERENTIABLE Tag<::std::basic_ios<C, Tr>> {};
 template <> class CLAD_NONDIFFERENTIABLE Tag<::std::ios_base> {};
 
+/// \ingroup rules
 namespace custom_derivatives {
 
 namespace helpers {
