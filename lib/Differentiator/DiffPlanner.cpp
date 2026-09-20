@@ -499,11 +499,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return *m_LoopFacts;
   }
 
-  const LoopFacts& DiffRequest::getLoopFacts(const ForStmt* FS) const {
+  const LoopFacts& DiffRequest::getLoopFacts(const clang::ForStmt* FS) const {
     static const LoopFacts None;
     const auto& Loops = getLoopFacts().Loops;
     auto it = Loops.find(FS);
     return it == Loops.end() ? None : it->second;
+  }
+
+  void DiffRequest::recordMiss(AnalysisMiss M, SourceLocation At) const {
+    if (!m_Misses)
+      m_Misses = std::make_shared<AnalysisMisses>();
+    AnalysisMissRecord R{M, At};
+    if (!llvm::is_contained(m_Misses->Records, R))
+      m_Misses->Records.push_back(R);
+  }
+
+  llvm::ArrayRef<AnalysisMissRecord> DiffRequest::getAnalysisMisses() const {
+    if (!m_Misses)
+      return {};
+    return m_Misses->Records;
   }
 
   llvm::ArrayRef<WrittenExtent> DiffRequest::getWrittenExtents() const {
@@ -957,13 +971,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return found != m_UsefulRunInfo.UsefulDecls.end();
   }
 
-  bool DiffRequest::shouldHaveAdjoint(const Stmt* S) const {
+  bool DiffRequest::shouldHaveAdjoint(const clang::Stmt* S) const {
     if (!EnableVariedAnalysis)
       return true;
     auto found = m_ActivityRunInfo.VariedS.find(S);
     return found != m_ActivityRunInfo.VariedS.end();
   }
-  bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
+  bool DiffRequest::shouldHaveAdjoint(const clang::VarDecl* VD) const {
     if (!EnableVariedAnalysis)
       return true;
     return getVariedDecls().find(VD) != getVariedDecls().end();
@@ -1105,6 +1119,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // Not a per-call option like the others: the loop analysis is selected for
     // the whole translation unit, and every mode's loops are the same loops.
     request.EnableLoopAnalysis = ReqOpts.EnableLoopAnalysis;
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                       \
+    request.Remark##Id##Analysis = ReqOpts.Remark##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
     if (Annotation == "E") {
       // Error estimation has no options yet.
       request.Mode = DiffMode::reverse;
@@ -2017,8 +2034,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         if (request.UseHessianVectorProducts) {
           DiffRequest pushforwardRequest =
               request.pushforwardRequestForHessian(m_Sema);
-          // A custom pushforward is free to take any shape, and the wrapper
-          // builds its calls by position; derive per direction instead.
+          // A custom pushforward is free to take any signature, and the
+          // wrapper builds its calls by position; derive per direction
+          // instead.
           if (LookupCustomDerivativeDecl(pushforwardRequest))
             request.UseHessianVectorProducts = false;
           else
@@ -2040,7 +2058,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       if (hasCustomReverseForw ||
           (!hasCustomPullback &&
-           (utils::isMemoryType(returnType) || shouldUseRestoreTracker))) {
+           (utils::returnsAdjoint(returnType) || shouldUseRestoreTracker))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
       }
     }

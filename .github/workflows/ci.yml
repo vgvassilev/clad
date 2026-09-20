@@ -81,10 +81,10 @@ jobs:
             compiler: clang-13
             clang-runtime: '13'
 
-          - name: ubuntu-clang15-runtime16-doc
+          - name: ubuntu-clang18-runtime18-doc
             os: ubuntu-latest
-            compiler: clang-15
-            clang-runtime: '16'
+            compiler: clang-18
+            clang-runtime: '18'
             doc_build: true
 
           - name: ubu24-clang16-runtime17-shared-libs
@@ -218,10 +218,14 @@ jobs:
         apt_install cmake ${{ matrix.extra_packages }}
         # libomp-N-dev: best-effort. apt-llvm.org lags on the latest
         # major; recipe-flavor rows get libomp from the recipe build,
-        # not apt. When missing, OpenMP lit tests skip via REQUIRES.
-        if apt-cache show "libomp-${{ matrix.clang-runtime }}-dev" >/dev/null 2>&1; then
-          apt_install "libomp-${{ matrix.clang-runtime }}-dev"
-        fi
+        # not apt. Ask apt for it rather than asking `apt-cache show`
+        # first, whose answer is no on a runner whose package lists do
+        # not carry the major yet -- which is how the coverage row came
+        # to install no libomp and report every OpenMP test unsupported.
+        # When the package really is missing, the tests skip via REQUIRES.
+        omp="libomp-${{ matrix.clang-runtime }}-dev"
+        apt_install "$omp" \
+          || echo "::notice::$omp unavailable; OpenMP tests will skip"
 
     - name: Setup compiler on Linux
       if: runner.os == 'Linux'
@@ -638,11 +642,72 @@ jobs:
             use-recipe: 'true'
     steps: *build_steps
 
+  # ROOT ships clad linked into cling, where it runs under an interpreter
+  # rather than a compiler. This job builds that pairing and runs the tests
+  # that need it. Like Valgrind it waits for the merge: building cling costs a
+  # pull request more time than the check is worth.
+  build-cling:
+    if: ${{ github.event_name == 'push' }}
+    timeout-minutes: 120
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - name: ubu24-cling-llvm22
+            os: ubuntu-24.04
+            clang-runtime: '22'
+    steps:
+    - uses: actions/checkout@v7
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: 3.11
+    - name: Install the build and test tools
+      run: |
+        # cmake and ninja are preinstalled on github-hosted runners but not in
+        # the image bin/repro uses, and cling needs libedit. The LLVM install
+        # below has no FileCheck.
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build libedit-dev llvm-18-tools
+        pip3 install lit
+    - name: Setup LLVM ${{ matrix.clang-runtime }} and cling
+      uses: compiler-research/ci-workflows/actions/setup-llvm@main
+      with:
+        version: ${{ matrix.clang-runtime }}
+        os: ${{ matrix.os }}
+        flavor: cling
+        flavor-version: cling-llvm${{ matrix.clang-runtime }}
+    - name: Link clad into cling as ROOT does
+      run: |
+        # ROOT builds clad without its plugin library and links both archives
+        # whole into cling (core/metacling/src/CMakeLists.txt).
+        cmake -S . -B obj -G Ninja -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_DIR="$LLVM_DIR" -DClang_DIR="$Clang_DIR" \
+          -DCLAD_BUILD_STATIC_ONLY=ON
+        cmake --build obj --target cladPlugin cladDifferentiator
+        # setup-llvm leaves its cling build tree in cling/build; relinking
+        # it is all that is left to do.
+        cmake cling/build "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--whole-archive \
+          $PWD/obj/lib/libcladPlugin.a $PWD/obj/lib/libcladDifferentiator.a \
+          -Wl,--no-whole-archive"
+        cmake --build cling/build --target cling
+        cmake --install cling/build
+    - name: Run the tests that need cling
+      run: |
+        # clad's lit configuration looks for the plugin library, so build it
+        # too; only the plugin's own files compile again.
+        cmake obj -DCLAD_BUILD_STATIC_ONLY=OFF -DLLVM_EXTERNAL_LIT="$(which lit)"
+        cmake --build obj --target clad
+        # lit takes FileCheck from the LLVM install, which has none.
+        ln -s /usr/lib/llvm-18/bin/FileCheck install/bin/FileCheck
+        lit -v --param cling="$PWD/install/bin/cling" obj/test/Misc/Cling.cpp
+
   # A post-merge gate nobody watches is not a gate: the run ends long after
   # its author has moved on. Consecutive failures comment on the open report
   # rather than file another, so a week of red master is one thread.
-  valgrind-report:
-    needs: build-valgrind
+  post-merge-report:
+    needs: [build-valgrind, build-cling]
     if: ${{ failure() }}
     runs-on: ubuntu-24.04
     permissions:
@@ -652,6 +717,15 @@ jobs:
       uses: actions/github-script@v9
       with:
         script: |
+          // A row of its own for each gate, so that a red Valgrind and a red
+          // cling are two threads rather than one confusing one. Reporting
+          // is per label from here on; a job that ran and passed is skipped.
+          const gates = [
+            { label: 'valgrind', what: 'Valgrind',
+              result: '${{ needs.build-valgrind.result }}' },
+            { label: 'cling', what: 'Clad inside cling',
+              result: '${{ needs.build-cling.result }}' },
+          ];
           const repo = { owner: context.repo.owner, repo: context.repo.repo };
           const commit = context.payload.head_commit || {};
           const author = (commit.author || {});
@@ -661,33 +735,37 @@ jobs:
                                       : (author.name || 'unknown author');
           const run = `${context.serverUrl}/${context.repo.owner}/`
                     + `${context.repo.repo}/actions/runs/${context.runId}`;
-          const body = [
-            'Valgrind failed on master. It runs after the merge, so the pull',
-            'request that introduced this never saw it.',
-            '',
-            `- commit: ${context.sha} -- ${(commit.message || '').split('\n')[0]}`,
-            `- author: ${who}`,
-            `- run: ${run}`,
-          ].join('\n');
-          const LABEL = 'valgrind';
-          // The label is what carries the thread from one failure to the
-          // next, so it has to exist before anything is filed under it.
-          await github.rest.issues.getLabel({ ...repo, name: LABEL }).catch(() =>
-            github.rest.issues.createLabel({ ...repo, name: LABEL,
-              color: 'b60205', description: 'Post-merge Valgrind failure' }));
-          // listForRepo answers with pull requests too; only an issue is a
-          // report, and a labelled pull request must not swallow one.
-          const open = await github.rest.issues.listForRepo(
-            { ...repo, state: 'open', labels: LABEL });
-          const report = open.data.find(i => !i.pull_request);
-          if (report)
-            await github.rest.issues.createComment(
-              { ...repo, issue_number: report.number, body });
-          else
-            await github.rest.issues.create({
-              ...repo, body, labels: [LABEL],
-              title: `[valgrind] master fails at ${context.sha.slice(0, 8)}`,
-            });
+          for (const gate of gates) {
+            if (gate.result !== 'failure')
+              continue;
+            const body = [
+              `${gate.what} failed on master. It runs after the merge, so the`,
+              'pull request that introduced this never saw it.',
+              '',
+              `- commit: ${context.sha} -- ${(commit.message || '').split('\n')[0]}`,
+              `- author: ${who}`,
+              `- run: ${run}`,
+            ].join('\n');
+            // The label is what carries the thread from one failure to the
+            // next, so it has to exist before anything is filed under it.
+            await github.rest.issues.getLabel({ ...repo, name: gate.label })
+              .catch(() => github.rest.issues.createLabel({
+                ...repo, name: gate.label, color: 'b60205',
+                description: `Post-merge ${gate.what} failure` }));
+            // listForRepo answers with pull requests too; only an issue is a
+            // report, and a labelled pull request must not swallow one.
+            const open = await github.rest.issues.listForRepo(
+              { ...repo, state: 'open', labels: gate.label });
+            const report = open.data.find(i => !i.pull_request);
+            if (report)
+              await github.rest.issues.createComment(
+                { ...repo, issue_number: report.number, body });
+            else
+              await github.rest.issues.create({
+                ...repo, body, labels: [gate.label],
+                title: `[${gate.label}] master fails at ${context.sha.slice(0, 8)}`,
+              });
+          }
 
   observes-change:
     name: Tests observe the change

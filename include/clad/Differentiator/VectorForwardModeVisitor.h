@@ -12,6 +12,7 @@
 namespace clad {
 /// A visitor for processing the function code in vector forward mode.
 /// Used to compute derivatives by clad::vector_forward_differentiate.
+/// \ingroup visitors
 class VectorForwardModeVisitor : public BaseForwardModeVisitor {
 protected:
   /// Tracks where the next independent variable starts in the flat vector of

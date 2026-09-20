@@ -10,6 +10,9 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fdump-analysis=loop \
 // RUN:   -Xclang -verify -fsyntax-only %s -I%S/../../include 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK %s
+//
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-ua \
+// RUN:   -Xclang -verify -fsyntax-only %s -I%S/../../include
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -18,7 +21,7 @@ void declaredOnly(int n, double* out);
 // Only parameters it could write through are affected: an int by value cannot
 // carry a write back to the caller, so it stays `none`.
 // CHECK: written-extent: declaredOnly: n = none
-// CHECK-NEXT: written-extent: declaredOnly: out = unknown (the function has no definition here at line [[@LINE-5]])
+// CHECK-NEXT: written-extent: declaredOnly: out = unknown (this function has no body in this file at line [[@LINE-5]])
 
 double f(double a) {
   double o[4] = {0, 0, 0, 0};

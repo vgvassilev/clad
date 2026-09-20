@@ -1,5 +1,6 @@
 #include "LoopAnalyzer.h"
 
+#include "Analyses.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clang/AST/ASTContext.h"
@@ -19,6 +20,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
+#include <cassert>
 #include <set>
 #include <unordered_map>
 
@@ -26,20 +28,20 @@ using namespace clang;
 
 namespace clad {
 
-/// Recognises the counted-loop shape in \p FS's header, or returns an empty
-/// result.
+/// Recognises the counted-loop construct in \p FS's header, or says which way
+/// it missed.
 ///
 /// This reads the header and nothing else. Whether a caller may act on what
 /// it finds depends on the body and on the rest of the function, so every
 /// caller adds the conditions it needs.
-static LoopFacts recogniseCountedForLoop(const ForStmt* FS);
+static Proven<LoopFacts> recogniseCountedForLoop(const ForStmt* FS);
 
-/// Whether \p S can leave the loop it belongs to before that loop's condition
-/// says so.
+/// The statement by which \p S can leave the loop it belongs to before that
+/// loop's condition says so, or null.
 ///
 /// A nested loop's own `break` counts too. Telling whose it is costs more
 /// than it saves, and answering yes too often only costs coverage.
-static bool mayExitEarly(const Stmt* S);
+static const Stmt* findEarlyExit(const Stmt* S);
 
 /// Whether \p E steps \p VD by exactly one. The increment may carry
 /// unrelated work alongside, as `for (...; ...; ++i, ++p)` does.
@@ -77,6 +79,9 @@ class SubscriptUses : public RecursiveASTVisitor<SubscriptUses> {
 public:
   struct Uses {
     const Expr* Index = nullptr; // the one index, while they all agree
+    /// The first subscript met. A report points at it, so that the reader
+    /// can see which read it is about.
+    const Expr* First = nullptr;
     bool Uniform = true;
     bool Written = false;
     unsigned Refs = 0;       // every mention of the variable
@@ -91,6 +96,12 @@ public:
     if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
       Bases[VD].Refs++;
     return true;
+  }
+  /// A captured statement -- an OpenMP region's body -- names every variable
+  /// it captures a second time, in the capture list. Those are not uses that
+  /// could reach the variable's adjoint, so only the body is walked.
+  bool TraverseCapturedStmt(CapturedStmt* CS) {
+    return TraverseStmt(CS->getCapturedStmt());
   }
   /// A variable the body declares is a fresh object on every iteration, and
   /// the reverse sweep resets its adjoint each time round; nothing may be
@@ -108,6 +119,8 @@ public:
     if (VD) {
       Uses& U = Bases[VD];
       U.Subscripts++;
+      if (!U.First)
+        U.First = ASE;
       if (!U.Index)
         U.Index = ASE->getIdx();
       else if (!sameExpr(U.Index, ASE->getIdx(), m_Context))
@@ -147,7 +160,8 @@ private:
 /// The last rules out an index that reads the induction variable, and one
 /// that reads anything the body writes.
 static void collectAdjointReductions(
-    ForStmt* FS, const VarDecl* IndVar, const std::set<const VarDecl*>& Written,
+    const DiffRequest& R, ForStmt* FS, const VarDecl* IndVar,
+    const std::set<const VarDecl*>& Written,
     const llvm::SmallPtrSetImpl<const VarDecl*>& OnlyIndexed, ASTContext& C,
     llvm::SmallVectorImpl<LoopFacts::AdjointReduction>& Out) {
   SubscriptUses Uses(C);
@@ -155,26 +169,39 @@ static void collectAdjointReductions(
   for (const auto& KV : Uses.Bases) {
     const VarDecl* Base = KV.first;
     const SubscriptUses::Uses& U = KV.second;
+    // An index the loop moves is an ordinary read, not a near miss, and so
+    // is one that does something when read. Neither is reported.
+    if (!U.Index || U.Index->HasSideEffects(C) ||
+        utils::exprDependsOnVarDecl(U.Index, IndVar))
+      continue;
+    auto missed = [&](AnalysisMiss M) {
+      R.recordMiss(M, U.First->getBeginLoc());
+    };
     // What one subscript reaches: `double` for `double*` and `double[4]`,
-    // but `double[4]` for `double[3][4]`. A row is read at one index too,
-    // and no register holds a row.
+    // but `double[4]` for `double[3][4]`.
     QualType Ty = Base->getType().getNonReferenceType();
     const auto* Arr = C.getAsArrayType(Ty);
     QualType Elem = Arr ? Arr->getElementType() : Ty->getPointeeType();
+    // Everything below reads as a broadcast and is one read away from being
+    // reduced, so each answers why it is not.
+    if (Elem.isNull() || !Elem->isRealType())
+      missed(AnalysisMiss::ElementIsNotANumber);
+    else if (!U.Uniform)
+      missed(AnalysisMiss::SubscriptsDiffer);
+    else if (U.Written || Written.count(Base))
+      missed(AnalysisMiss::ArrayIsWritten);
+    else if (Uses.DeclaredHere.contains(Base))
+      missed(AnalysisMiss::ArrayIsLocal);
     // OnlyIndexed is the function-wide half of "mentioned in no other way":
     // a pointer copied from Base before the loop would alias it inside.
-    if (!U.Index || !U.Uniform || U.Written || Written.count(Base) ||
-        Uses.DeclaredHere.contains(Base) || !OnlyIndexed.contains(Base) ||
-        Elem.isNull() || !Elem->isRealType())
-      continue;
-    if (U.Index->HasSideEffects(C) ||
-        utils::exprDependsOnVarDecl(U.Index, IndVar))
-      continue;
-    if (llvm::any_of(Written, [&](const VarDecl* W) {
-          return utils::exprDependsOnVarDecl(U.Index, W);
-        }))
-      continue;
-    Out.push_back({Base, U.Index});
+    else if (!OnlyIndexed.contains(Base))
+      missed(AnalysisMiss::ArrayEscapes);
+    else if (llvm::any_of(Written, [&](const VarDecl* W) {
+               return utils::exprDependsOnVarDecl(U.Index, W);
+             }))
+      missed(AnalysisMiss::IndexIsWritten);
+    else
+      Out.push_back({Base, U.Index});
   }
 }
 
@@ -244,30 +271,54 @@ public:
         m_OnlyIndexed.insert(KV.first);
   }
 
-  bool TraverseForStmt(ForStmt* FS) {
-    LoopFacts F;
-    LoopFacts L = recogniseCountedForLoop(FS);
+  /// What \p FS is, or -- in \p F, which is returned either way -- the one
+  /// way it missed being a counted loop.
+  LoopFacts recognise(ForStmt* FS, LoopFacts F) {
+    using Miss = AnalysisMiss;
+    Proven<LoopFacts> L = recogniseCountedForLoop(FS);
+    if (!L) {
+      F.missed(L.why(), L.where());
+      return F;
+    }
     // An early return can skip the forward loop while the master reverse
     // sweep still runs, so a recomputed count would be the full one for a
     // loop that never ran.
-    if (L && !m_Request.hasEarlyReturns() && !mayExitEarly(FS->getBody())) {
-      // The increment is the only thing allowed to move the induction
-      // variable; a body that also writes it -- directly, or by handing it
-      // to a callee as a non-const reference -- runs a number of times the
-      // bounds do not say.
-      std::set<const VarDecl*> writtenInBody;
-      utils::collectWrittenVars(FS->getBody(), writtenInBody);
-      if (!writtenInBody.count(L.IndVar)) {
-        F.IndVar = L.IndVar;
-        F.Init = L.Init;
-        F.Bound = L.Bound;
-        F.Inclusive = L.Inclusive;
-        F.OwnsIndVar = isa<DeclStmt>(FS->getInit());
-        F.BoundsAreStable = isStable(L.Init) && isStable(L.Bound);
-        collectAdjointReductions(FS, L.IndVar, writtenInBody, m_OnlyIndexed,
-                                 m_Context, F.Reductions);
-      }
+    if (m_Request.hasEarlyReturns()) {
+      F.missed(Miss::FunctionReturnsEarly, FS->getForLoc());
+      return F;
     }
+    if (const Stmt* Exit = findEarlyExit(FS->getBody())) {
+      F.missed(Miss::BodyExitsEarly, Exit->getBeginLoc());
+      return F;
+    }
+    // The increment is the only thing allowed to move the induction
+    // variable; a body that also writes it -- directly, or by handing it
+    // to a callee as a non-const reference -- runs a number of times the
+    // bounds do not say.
+    std::set<const VarDecl*> writtenInBody;
+    utils::collectWrittenVars(FS->getBody(), writtenInBody);
+    if (writtenInBody.count(L->IndVar)) {
+      F.missed(Miss::BodyMovesIndex, FS->getBody()->getBeginLoc());
+      return F;
+    }
+    F = *L;
+    F.OwnsIndVar = isa<DeclStmt>(FS->getInit());
+    collectAdjointReductions(m_Request, FS, L->IndVar, writtenInBody,
+                             m_OnlyIndexed, m_Context, F.Reductions);
+    // Counted either way: what is left decides only whether the reverse sweep
+    // can work the count out rather than count it.
+    if (!isStable(L->Init))
+      F.missed(Miss::StartNotStable, L->Init->getBeginLoc());
+    else if (!isStable(L->Bound))
+      F.missed(Miss::BoundNotStable, L->Bound->getBeginLoc());
+    else
+      F.BoundsAreStable = true;
+    return F;
+  }
+
+  bool TraverseForStmt(ForStmt* FS) {
+    LoopFacts F;
+    F = recognise(FS, F);
     m_Out[FS] = F;
     // A loop counted at all offers its index to the loops inside it, even
     // when its own bounds are not stable: its reverse still steps that index
@@ -295,36 +346,45 @@ collectCountedLoops(const DiffRequest& R,
   C.TraverseStmt(Def->getBody());
 }
 
-static bool mayExitEarly(const Stmt* S) {
+static const Stmt* findEarlyExit(const Stmt* S) {
   if (!S)
-    return false;
+    return nullptr;
   if (isa<BreakStmt>(S) || isa<ContinueStmt>(S) || isa<ReturnStmt>(S) ||
       isa<GotoStmt>(S) || isa<IndirectGotoStmt>(S) || isa<LabelStmt>(S))
-    return true;
-  return llvm::any_of(S->children(), mayExitEarly);
+    return S;
+  for (const Stmt* C : S->children())
+    if (const Stmt* Exit = findEarlyExit(C))
+      return Exit;
+  return nullptr;
 }
 
-static LoopFacts recogniseCountedForLoop(const ForStmt* FS) {
-  LoopFacts L;
-  if (!FS)
-    return L;
+static Proven<LoopFacts> recogniseCountedForLoop(const ForStmt* FS) {
+  assert(FS && "nothing to recognise");
+  // Where a part of the header is missing altogether there is no token of its
+  // own to underline, so the miss lands on the `for`.
+  SourceLocation Head = FS->getForLoc();
+  using Miss = AnalysisMiss;
+  auto miss = [](Miss M, SourceLocation At) {
+    return Proven<LoopFacts>::miss(M, At);
+  };
 
   // `v < bound` or `v <= bound`, naming the variable on the left.
   const auto* Cond = dyn_cast_or_null<BinaryOperator>(FS->getCond());
   if (!Cond)
-    return L;
+    return miss(Miss::CondNotComparison,
+                FS->getCond() ? FS->getCond()->getBeginLoc() : Head);
   bool Inclusive = Cond->getOpcode() == BO_LE;
   if (!Inclusive && Cond->getOpcode() != BO_LT)
-    return L;
+    return miss(Miss::CondNotBelow, Cond->getOperatorLoc());
   const auto* CondLHS =
       dyn_cast<DeclRefExpr>(Cond->getLHS()->IgnoreParenImpCasts());
   if (!CondLHS)
-    return L;
+    return miss(Miss::IndexNotVariable, Cond->getLHS()->getBeginLoc());
   const auto* IndVar = dyn_cast<VarDecl>(CondLHS->getDecl());
   // Integer only: a floating induction variable makes the iteration count
   // depend on rounding.
   if (!IndVar || !IndVar->getType()->isIntegerType())
-    return L;
+    return miss(Miss::IndexNotInteger, CondLHS->getBeginLoc());
 
   // `T v = init` or `v = init`, naming that same variable.
   const Expr* Init = nullptr;
@@ -338,11 +398,14 @@ static LoopFacts recogniseCountedForLoop(const ForStmt* FS) {
       Init = BO->getRHS();
   }
   if (!Init)
-    return L;
+    return miss(Miss::NoStart,
+                FS->getInit() ? FS->getInit()->getBeginLoc() : Head);
 
   if (!stepsByOne(FS->getInc(), IndVar))
-    return L;
+    return miss(Miss::StepNotOne,
+                FS->getInc() ? FS->getInc()->getBeginLoc() : Head);
 
+  LoopFacts L;
   L.IndVar = IndVar;
   L.Init = Init->IgnoreParenImpCasts();
   L.Bound = Cond->getRHS()->IgnoreParenImpCasts();
@@ -360,9 +423,10 @@ public:
   /// Recognises \p FS and pushes it. Returns whether it was pushed, which the
   /// caller must hand back to leave() so the two stay paired.
   bool enter(const ForStmt* FS) {
-    LoopFacts L = recogniseCountedForLoop(FS);
-    if (!L)
+    Proven<LoopFacts> V = recogniseCountedForLoop(FS);
+    if (!V)
       return false;
+    LoopFacts L = *V;
     // Computed here rather than at recognition: it depends on the loops this
     // one sits inside, which only the stack knows.
     L.InitIsNonNegative = isNonNegative(L.Init);
@@ -532,16 +596,17 @@ public:
     return true;
   }
 
-  /// Whether acting on \p FS's recognised shape would be unsound here.
+  /// Whether acting on \p FS's recognised construct would be unsound here.
   ///
   /// The index and the bound are watched over different reaches. The index
   /// only has to hold still while the loop runs. The bound has to hold still
   /// for the whole call, because a call site works the range out from the
   /// argument it passed and reads it much later.
   [[nodiscard]] bool breaksShape(const ForStmt* FS) const {
-    LoopFacts L = recogniseCountedForLoop(FS);
-    if (!L)
+    Proven<LoopFacts> V = recogniseCountedForLoop(FS);
+    if (!V)
       return false; // Not recognised anyway; nothing to break.
+    const LoopFacts& L = *V;
     LoopShapeBreaker InLoop(L.IndVar, /*Bound=*/nullptr);
     InLoop.TraverseStmt(const_cast<Stmt*>(cast<Stmt>(FS->getBody())));
     if (InLoop.broken())
@@ -566,7 +631,7 @@ private:
   /// itself -- when it folds to a constant, or names a by-value parameter it
   /// passed. Marks \p E BoundNotReadable otherwise, leaving it Unknown.
   void classifyBound(const Expr* B, WrittenExtent& E) const {
-    E.Why = WrittenExtent::Refusal::BoundNotUsable;
+    E.Why = AnalysisMiss::BoundNotUsable;
     B = B->IgnoreParenImpCasts();
     // Folded, not matched against a literal: a dimension is usually written
     // as a constexpr variable, an enumerator or a template argument, and all
@@ -579,7 +644,7 @@ private:
       if (V.isNegative())
         return;
       E.K = WrittenExtent::Kind::Range;
-      E.Why = WrittenExtent::Refusal::None;
+      E.Why = AnalysisMiss::None;
       E.BoundIsParam = false;
       E.BoundConst = V.getZExtValue();
       return;
@@ -591,7 +656,7 @@ private:
         if (it == m_ParamIdx.end() || PVD->getType()->isReferenceType())
           return;
         E.K = WrittenExtent::Kind::Range;
-        E.Why = WrittenExtent::Refusal::None;
+        E.Why = AnalysisMiss::None;
         E.BoundIsParam = true;
         E.BoundParamIdx = it->second;
       }
@@ -628,7 +693,7 @@ private:
                                      Cur.BoundConst == New.BoundConst);
     if (!same) {
       Cur.K = WrittenExtent::Kind::Unknown;
-      Cur.Why = WrittenExtent::Refusal::WritesDisagree;
+      Cur.Why = AnalysisMiss::WritesDisagree;
       Cur.RefusedAt = New.RefusedAt;
     }
   }
@@ -651,7 +716,7 @@ private:
       } else if (const auto* DRE = dyn_cast<DeclRefExpr>(Idx)) {
         const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
         E.K = WrittenExtent::Kind::Unknown;
-        E.Why = WrittenExtent::Refusal::IndexNotCounted;
+        E.Why = AnalysisMiss::IndexNotCounted;
         E.RefusedAt = Idx->getBeginLoc();
         const LoopFacts* L = m_Loops.steppedBy(VD);
         // A subscript by the loop variable falls inside [0, Bound) only if
@@ -661,7 +726,7 @@ private:
           classifyBound(L->Bound, E);
       } else {
         E.K = WrittenExtent::Kind::Unknown;
-        E.Why = WrittenExtent::Refusal::IndexNotUnderstood;
+        E.Why = AnalysisMiss::IndexNotUnderstood;
         E.RefusedAt = Idx->getBeginLoc();
       }
     } else if (const auto* UO = dyn_cast<UnaryOperator>(LHS)) {
@@ -706,7 +771,7 @@ static bool parameterMayBeWritten(QualType T) {
 /// Fills \p Extents with the extent each parameter of \p FD is written over,
 /// one entry per parameter, in parameter order.
 ///
-/// The shapes it can prove are a short whitelist: a constant subscript, a
+/// The constructs it can prove are a short whitelist: a constant subscript, a
 /// dereference, and a subscript by the induction variable of an enclosing
 /// counted loop. Everything else is Kind::Unknown, including every write it
 /// cannot attribute to a parameter.
@@ -722,7 +787,7 @@ computeWrittenExtents(const FunctionDecl* FD,
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i)
       if (parameterMayBeWritten(FD->getParamDecl(i)->getType())) {
         Extents[i].K = WrittenExtent::Kind::Unknown;
-        Extents[i].Why = WrittenExtent::Refusal::NoDefinition;
+        Extents[i].Why = AnalysisMiss::NoDefinition;
         Extents[i].RefusedAt = FD->getLocation();
       }
     return;
@@ -737,7 +802,7 @@ computeWrittenExtents(const FunctionDecl* FD,
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
       if (parameterMayBeWritten(FD->getParamDecl(i)->getType())) {
         Extents[i].K = WrittenExtent::Kind::Unknown;
-        Extents[i].Why = WrittenExtent::Refusal::OpaqueWrite;
+        Extents[i].Why = AnalysisMiss::OpaqueWrite;
         Extents[i].RefusedAt = V.opaqueWriteLoc();
       }
     }

@@ -13,6 +13,7 @@ namespace clad {
 /// This class is designed to store collection of `DerivedFnInfo` objects.
 /// It's purpose is to avoid repeated generation of same derivatives by
 /// making it possible to reuse previously computed derivatives.
+/// \ingroup pipeline
 class DerivedFnCollector {
   using DerivedFns = llvm::SmallVector<DerivedFnInfo, 16>;
   using DerivativeSet = llvm::SmallSet<const clang::FunctionDecl*, 16>;

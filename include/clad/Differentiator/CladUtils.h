@@ -84,6 +84,7 @@ namespace clad {
     /// \note Currently only namespace and class/struct nested name specifiers
     /// are supported.
     ///
+    /// \param[in] semaRef the Sema to build the specifier with.
     /// \param[in] DC
     /// \param[out] CSS
     /// \param[in] addGlobalNS if true, then the global namespace specifier will
@@ -149,7 +150,7 @@ namespace clad {
                                             clang::Sema& S,
                                             clang::DeclContext* DC = nullptr);
 
-    /// Finds namespace 'namespc` under the declaration context `DC` or the
+    /// Finds namespace `namespc` under the declaration context `DC` or the
     /// translation unit declaration if `DC` is null.
     ///
     /// \param S
@@ -285,9 +286,9 @@ namespace clad {
 
     bool IsCladValueAndPushforwardType(clang::QualType T);
 
-    /// If `T` is a `clad::pullback_state<Payload>` specialization, returns its
-    /// `Payload` argument; otherwise returns a null `QualType`. Used to thread
-    /// the payload a custom `reverse_forw` returns into its matching
+    /// If `T` is a `clad::pullback_state\<Payload\>` specialization, returns
+    /// its `Payload` argument; otherwise returns a null `QualType`. Used to
+    /// thread the payload a custom `reverse_forw` returns into its matching
     /// `pullback`, and to diagnose a mismatched pullback signature.
     clang::QualType GetPullbackStatePayload(clang::QualType T);
 
@@ -368,11 +369,13 @@ namespace clad {
     ComputeMemExprPathType(clang::Sema& semaRef, clang::RecordDecl* RD,
                            llvm::ArrayRef<llvm::StringRef> fields);
 
-    /// Instantiate clad::class<TemplateArgs> type
+    /// Instantiate clad::class\<TemplateArgs\> type
     ///
+    /// \param[in] S the Sema to build the type with.
     /// \param[in] CladClassDecl the decl of the class that is going to be used
-    /// in the creation of the type \param[in] TemplateArgs an array of template
-    /// arguments \returns The created type clad::class<TemplateArgs>
+    /// in the creation of the type.
+    /// \param[in] TemplateArgs an array of template arguments.
+    /// \returns The created type clad::class\<TemplateArgs\>
     clang::QualType
     InstantiateTemplate(clang::Sema& S, clang::TemplateDecl* CladClassDecl,
                         llvm::ArrayRef<clang::QualType> TemplateArgs);
@@ -381,8 +384,17 @@ namespace clad {
                                         clang::TemplateArgumentListInfo& TLI);
     /// Builds the QualType of the derivative to be generated.
     ///
+    /// \param[in] S the Sema to build the type with.
+    /// \param[in] FD the function whose derivative is being typed.
+    /// \param[in] mode the differentiation mode the derivative is for.
+    /// \param[in] diffParams the parameters being differentiated with respect
+    /// to.
     /// \param[in] forCustomDerv If true, turns member functions into regular
     /// functions by moving the base to the parameters.
+    /// \param[in] shouldUseRestoreTracker whether the derivative takes a
+    /// trailing restore tracker.
+    /// \param[in] isForErrorEstimation whether the derivative also carries the
+    /// floating-point error estimate.
     clang::QualType GetDerivativeType(
         clang::Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
         llvm::ArrayRef<const clang::ValueDecl*> diffParams,
@@ -390,7 +402,8 @@ namespace clad {
         bool isForErrorEstimation = false);
     /// Find declaration of clad::class templated type
     ///
-    /// \param[in] className name of the class to be found
+    /// \param[in] S the Sema to look the name up in.
+    /// \param[in] ClassName name of the class to be found
     /// \returns The declaration of the class with the name ClassName
     clang::TemplateDecl*
     LookupTemplateDeclInCladNamespace(clang::Sema& S,
@@ -401,7 +414,7 @@ namespace clad {
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
 
     /// Returns true if \p RD is marked non-differentiable (opaque) by a
-    /// clad::custom_derivatives::nondifferentiable(clad::Tag<T>) declaration:
+    /// clad::custom_derivatives::nondifferentiable(clad::Tag\<T\>) declaration:
     /// clad must not clone its member bodies to synthesize a derivative. The
     /// built-in standard-library markers live in STLBuiltins.h; users extend
     /// the set by declaring their own.
@@ -410,13 +423,13 @@ namespace clad {
 
     /// Returns true if the type \p CE fundamentally operates on -- the object
     /// of a member call, or the first argument of a free operator (`os << x`)
-    /// -- is non-differentiable (Tag-aware, so it honors clad::Tag<T> markers).
-    /// Deliberately narrower than hasNonDifferentiableAttribute(Expr): it looks
-    /// only at the operated-on type, so a differentiable call that merely
-    /// passes a marked value is unaffected. Callers use it to skip the call
-    /// outright (an early return) rather than to set the weaker nonDiff flag,
-    /// which in reverse mode would still schedule a pullback and descend into
-    /// the type's machinery.
+    /// -- is non-differentiable (Tag-aware, so it honors clad::Tag\<T\>
+    /// markers). Deliberately narrower than
+    /// hasNonDifferentiableAttribute(Expr): it looks only at the operated-on
+    /// type, so a differentiable call that merely passes a marked value is
+    /// unaffected. Callers use it to skip the call outright (an early return)
+    /// rather than to set the weaker nonDiff flag, which in reverse mode would
+    /// still schedule a pullback and descend into the type's machinery.
     bool callOperatesOnNonDifferentiableType(clang::Sema& S,
                                              const clang::CallExpr* CE);
 
@@ -436,18 +449,18 @@ namespace clad {
 
     /// Find namespace clad declaration.
     clang::NamespaceDecl* GetCladNamespace(clang::Sema& S);
-    /// Create clad::array<T> type.
+    /// Create clad::array\<T\> type.
     clang::QualType GetCladArrayOfType(clang::Sema& S, clang::QualType T);
-    /// Create clad::matrix<T> type.
+    /// Create clad::matrix\<T\> type.
     clang::QualType GetCladMatrixOfType(clang::Sema& S, clang::QualType T);
-    /// Create clad::array_ref<T> type.
+    /// Create clad::array_ref\<T\> type.
     clang::QualType GetCladArrayRefOfType(clang::Sema& S, clang::QualType T);
-    /// Returns type clad::Tag<T>
+    /// Returns type clad::Tag\<T\>
     clang::QualType GetCladTagOfType(clang::Sema& S, clang::QualType T);
     /// Builds a value-initialized temporary of type `T`, i.e. `T()`.
     clang::Expr* BuildDefaultConstructExpr(clang::Sema& S, clang::QualType T);
 
-    /// Returns type clad::Tag<T>()
+    /// Returns type clad::Tag\<T\>()
     clang::Expr* GetCladTagExpr(clang::Sema& S, clang::QualType T);
 
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
@@ -491,6 +504,8 @@ namespace clad {
 
     /// Returns true if T allows to edit any memory.
     bool isMemoryType(clang::QualType T);
+    /// Returns true if a function returning T must return its adjoint too.
+    bool returnsAdjoint(clang::QualType T);
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
@@ -499,6 +514,7 @@ namespace clad {
     /// duration in the current function, reached through subscripts,
     /// members, dereferences or accessor calls. Such storage dies with the
     /// function, so a caller must not try to restore it.
+    /// \param E the expression to judge.
     /// \param asPointerValue E is a pointer rvalue passed to a callee, so
     /// the pointee is judged rather than the pointer variable's own slot.
     bool designatesLocallyOwnedStorage(const clang::Expr* E,

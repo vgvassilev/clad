@@ -28,6 +28,7 @@ namespace clad {
 /// are determined, meaning variables that depend on input parameters
 /// in a differentiable way. That result enables us to remove redundant
 /// statements in the reverse mode, improving generated codes efficiency.
+/// \ingroup analyses
 class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer>,
                        public AnalysisBase {
   bool m_Varied = false;
@@ -61,9 +62,7 @@ public:
   VariedAnalyzer(const VariedAnalyzer&&) = delete;
   VariedAnalyzer& operator=(const VariedAnalyzer&&) = delete;
 
-  /// Runs Varied analysis.
-  /// \param[in] FD Function to run the analysis on.
-  //, std::set<const clang::ParmVarDecl*>& vPVD
+  /// Runs Varied analysis on the function this analyser was built for.
   void Analyze();
   bool TraverseBinaryOperator(clang::BinaryOperator* BinOp);
   bool TraverseCallExpr(clang::CallExpr* CE);

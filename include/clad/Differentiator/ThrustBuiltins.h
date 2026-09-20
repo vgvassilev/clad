@@ -15,6 +15,7 @@ template <class T> inline void zero_init(::thrust::device_vector<T>& v) {
   ::thrust::fill(v.begin(), v.end(), T(0)); // NOLINT(misc-include-cleaner)
 }
 
+/// \ingroup rules
 namespace custom_derivatives::class_functions {
 
 // Constructors (reverse mode pullbacks)

@@ -1,5 +1,5 @@
-Using Enzyme within Clad
-*************************
+Enzyme backend
+**************
 
 Like Clad, `Enzyme <https://enzyme.mit.edu/>`_ is also a library for Automatic
 Differentiation(AD). A major difference is that, Enzyme works at the LLVM

@@ -5,7 +5,7 @@ Clad is an open source clang plugin which supports automatic differentiation of
 mathematical functions in C++. This page walks through one small example per
 mode.
 
-Every example below is a file in clad's test suite, included here verbatim. The
+Every example below is a file in Clad's test suite, included here verbatim. The
 ``// prints:`` comments are what the suite checks the program writes, so the
 code and the numbers beside it are kept true by the build.
 
@@ -20,7 +20,7 @@ argument, and the generated function returns the derivative.
    :start-after: docs-begin-forward-mode
    :end-before: docs-end-forward-mode
 
-`.dump()` prints the derivative clad generated, which is often the quickest way
+`.dump()` prints the derivative Clad generated, which is often the quickest way
 to see what it did.
 
 **The Reverse Mode**
@@ -41,8 +41,8 @@ none, as in `clad::gradient(f)`, differentiates with respect to all of them.
 **The Hessian Mode**
 
 Clad can also produce a hessian matrix through the `clad::hessian` API call.
-It returns the matrix as a flattened array in row major order, so `n`
-independent variables need `n * n` elements.
+It returns the matrix as a flattened array in row major order, so :math:`n`
+independent variables need :math:`n^2` elements.
 
 .. literalinclude:: ../../../../test/Documentation/Tutorials/Hessian.cpp
    :language: cpp
@@ -68,7 +68,7 @@ the jacobian as a `clad::matrix` for every pointer or array parameter.
 The matrix has one row per element of the output and one column per independent
 scalar. Here the output has three elements, and the independent scalars are
 `x`, `y`, `z` and the three elements of `output` itself, which is why it is
-3 x 6. The last three columns come out zero here, because `output` does not
+:math:`3 \times 6`. The last three columns come out zero here, because `output` does not
 depend on its own previous contents.
 
 **Error Estimation API**

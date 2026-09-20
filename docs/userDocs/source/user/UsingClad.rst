@@ -6,7 +6,7 @@ If you are just getting started with Clad, then this is the best place to start.
 You may want to skim some sections on the first read. 
 
 In case you haven't installed Clad already, then please do before proceeding 
-with this guide. Visit :doc:`Clad installation and usage <InstallationAndUsage>` 
+with this guide. Visit :doc:`Installation and usage <InstallationAndUsage>`
 to know more about installing clad.
 
 Let's get started.
@@ -19,18 +19,51 @@ Clad differentiation functions takes a function as an input and returns a
 derived function. Generated derived function can be called by calling the 
 `.execute` method on the corresponding `clad::CladFunction` object.
 
-Clad consists of 4 primary automatic differentiation functions:
+Clad consists of five primary automatic differentiation functions:
 
 - ``clad::differentiate`` -- Primary forward mode automatic differentiation
 - ``clad::gradient`` -- Primary reverse mode automatic differentiation
-- ``clad::hessian``  
+- ``clad::hessian``
 - ``clad::jacobian``
+- ``clad::estimate_error``
 
 Each of these functions will be explored in this guide.
 
-.. todo::
+Which one you want depends on two things you already know about your function:
+how many inputs and outputs it has, and whether you need first or second
+derivatives.
 
-   Perhaps add example use before proceeding with different differentiation modes.
+.. mermaid::
+
+   flowchart TD
+     Q1{"Do you need<br/>second derivatives?"}
+     Q2{"How many inputs<br/>and outputs?"}
+     H["clad::hessian"]
+     D["clad::differentiate"]
+     G["clad::gradient"]
+     J["clad::jacobian"]
+
+     Q1 -- "yes" --> H
+     Q1 -- "no" --> Q2
+     Q2 -- "one in, one out" --> D
+     Q2 -- "many in, one out" --> G
+     Q2 -- "many out" --> J
+
+Each generates a function that keeps the original parameters and adds to them --
+a pointer per differentiated parameter in reverse mode, a result matrix in
+Hessian and Jacobian mode. Which parameters are differentiated is chosen with
+the second argument, so ``clad::gradient(f, "x")`` generates a derivative with
+one extra pointer rather than two.
+:ref:`Derived function types <derived-function-types>` gives the full signature
+of each, and :doc:`Core concepts <CoreConcepts>` explains why forward mode suits
+few inputs and reverse mode suits many.
+
+Three variants modify that choice rather than replacing it.
+``clad::estimate_error`` generates the gradient and, with it, an estimate of the
+floating-point error. ``clad::differentiate<clad::opts::vector_mode>`` computes
+the same gradient in one forward pass instead of a reverse one.
+``clad::differentiate<clad::immediate_mode>`` produces a derivative usable in a
+constant expression.
 
 
 Forward Mode Automatic Differentiation
@@ -110,9 +143,9 @@ such as `std::sin`, more than once. A usage example can be something like:
   
 .. note::
 
-   For derivative orders upto 3, clad has specially defined enums that can be used
-   instead of the integer template parameter. For example, the following code is
-   equivalent to the code shown above::
+   For derivative orders up to 3, Clad defines enums that can be used instead of
+   the integer template parameter, so the third-order example above can also be
+   written::
 
       auto d_fn_3 = clad::differentiate<clad::order::third>(fn, "i");
 
@@ -128,6 +161,36 @@ for more details.
 Reverse Mode Automatic Differentiation
 ----------------------------------------
 
+Reverse mode AD computes the derivative of one output with respect to every
+input at once. Mathematically it gives a row of the jacobian matrix, where
+forward mode gives a column, which is why it is the mode to reach for when a
+function has many inputs and few outputs, which is what a cost or a likelihood
+usually is.
+
+``clad::gradient`` provides the reverse mode differentiation functionality. It
+takes a source function and, optionally, the parameters to differentiate with
+respect to, and returns a ``clad::CladFunction`` the same way
+``clad::differentiate`` does. The derived function differs in its signature: it
+returns nothing, and takes one extra pointer per differentiated parameter, in
+the order the parameters are declared. Clad *accumulates* into those pointers
+rather than assigning to them, so the caller allocates them and sets them to
+zero.
+
+.. literalinclude:: ../../../../test/Documentation/UsingClad/ReverseMode.cpp
+   :language: cpp
+   :start-after: docs-begin-reverse-mode
+   :end-before: docs-end-reverse-mode
+
+Passing the parameters explicitly narrows the gradient: ``clad::gradient(fn,
+"x")`` generates a function taking one extra pointer rather than two. As in
+forward mode, a parameter can be named or given by index, so
+``clad::gradient(fn, "x, y")`` and ``clad::gradient(fn, "0, 1")`` are the same
+request.
+
+Visit the API reference of :cpp:func:`gradient` for more details, and
+:doc:`Core concepts <CoreConcepts>` for what Clad generates and why it needs to
+store values along the way.
+
 Hessian Computation
 ----------------------
 
@@ -135,13 +198,17 @@ Clad can directly compute the
 `hessian matrix <https://en.wikipedia.org/wiki/Hessian_matrix>`_ of a
 function using the ``clad::hessian`` function.
 
-.. figure:: ../_static/hessian-matrix.png
-  :width: 400
-  :align: center
-  :alt: Hessian matrix image taken from wikipedia
-  
-  Hessian matrix when specified parameters are 
-  (x\ :sub:`1`\ , x\ :sub:`2`\ , ..., x\ :sub:`n`\ ).
+For parameters :math:`x_1, x_2, \ldots, x_n` it is the matrix of second
+derivatives:
+
+.. math::
+
+   \mathbf{H}_f = \begin{bmatrix}
+     \pdv[2]{f}{x_1}        & \pdv{f}{x_1}{x_2} & \cdots & \pdv{f}{x_1}{x_n} \\[6pt]
+     \pdv{f}{x_2}{x_1}      & \pdv[2]{f}{x_2}   & \cdots & \pdv{f}{x_2}{x_n} \\[6pt]
+     \vdots                 & \vdots            & \ddots & \vdots            \\[6pt]
+     \pdv{f}{x_n}{x_1}      & \pdv{f}{x_n}{x_2} & \cdots & \pdv[2]{f}{x_n}
+   \end{bmatrix}
 
 ``clad::hessian`` provides the hessian computation functionality. 
 The ``clad::hessian`` function takes a source function as input, and optionally, 
@@ -204,13 +271,18 @@ Clad can compute the
 `jacobian matrix <https://en.wikipedia.org/wiki/Jacobian_matrix_and_determinant>`_ of a
 function through the ``clad::jacobian`` interface.
 
-.. figure:: ../_static/jacobian-matrix.png
-  :width: 400
-  :align: center
-  :alt: Jacobian matrix image taken from Wikipedia
+For a function with :math:`n` parameters :math:`x_1, \ldots, x_n` and :math:`m`
+outputs :math:`f_1, \ldots, f_m`, it holds one row per output and one column per
+parameter:
 
-  Jacobian matrix of a function with x\ :sub:`n`\ parameters:
-  (x\ :sub:`1`\ , x\ :sub:`2`\ , ..., x\ :sub:`n`\ ).
+.. math::
+
+   \mathbf{J}_f = \begin{bmatrix}
+     \pdv{f_1}{x_1} & \pdv{f_1}{x_2} & \cdots & \pdv{f_1}{x_n} \\[6pt]
+     \pdv{f_2}{x_1} & \pdv{f_2}{x_2} & \cdots & \pdv{f_2}{x_n} \\[6pt]
+     \vdots         & \vdots         & \ddots & \vdots         \\[6pt]
+     \pdv{f_m}{x_1} & \pdv{f_m}{x_2} & \cdots & \pdv{f_m}{x_n}
+   \end{bmatrix}
 
 
 A self-explanatory example that demonstrates the usage of ``clad::jacobian``:
@@ -399,8 +471,8 @@ where
 
 .. math::
 
-   X = (x_0, x_1, x_2, ...) \\
-   Y = (y_0, y_1, y_2, ...)
+   X = (x_0, x_1, x_2, \ldots) \\
+   Y = (y_0, y_1, y_2, \ldots)
 
 
 For a class type to be differentiable, it should satisfy the following rules:
@@ -420,12 +492,11 @@ For a class type to be differentiable, it should satisfy the following rules:
   members of ``a`` and ``b`` should be equal.
   
 
-In general, type of derivative of a variable of type 'YType' with respect to
-a variable of type 'XType' is a function of both 'YType' and 'XType'. Therefore,
-:math:`DerivativeType = f(YType, XType)`. Intuitively, derivative type should be
-able to represent all the derivatives that are obtained on differentiating a variable
-``y`` with respect to a variable ``x``. We will obtain more than one derivative if either
-or both of ``x`` and ``y`` are aggregate types.
+In general, the type of the derivative of a variable of type ``YType`` with
+respect to a variable of type ``XType`` is a function of both. Intuitively, the
+derivative type has to be able to represent every derivative obtained by
+differentiating a variable ``y`` with respect to a variable ``x``, and there is
+more than one of those as soon as either is an aggregate type.
 
 In case when both ``y`` and ``x`` are built-in scalar numerical type, as your 
 intuition probably suggests, the derivative type is also a built-in scalar 
@@ -448,21 +519,22 @@ a vector space :math:`V`, then the following relations holds true:
   v \in V \\
   \pdv{v}{x} \in V
 
-If :math:`\pdv{v}{x}` is stored in a variable `d_v`. Then we can access the individual 
-derivatives as follows::
+If :math:`\pdv{v}{x}` is stored in a variable ``d_v``, the individual derivatives
+are reached as follows::
 
   d_v.data[0];  // derivative of v.data[0] w.r.t x
   d_v.data[1];  // derivative of v.data[1] w.r.t x
   .. and so on ..
 
 Similarly, in the case of differentiating a variable ``y`` of type ``double`` with respect to a variable ``v`` of type ``Vector``,
-the derivative, ``d_v``, is again of the ``Vector`` type. But the derivatives represented by the elements of ``d_v.data``` have changed.
+the derivative, ``d_v``, is again of the ``Vector`` type. But the derivatives represented by the elements of ``d_v.data`` have changed.
 In this case, the elements of ``d_v.data`` represent derivative of ``y`` with respect to each of the elements of ``v.data``.
 
-If :math:`\pdv{x}{v}` is stored in a variable ``d_v``. Then we can access the individual derivatives as follows::
+If :math:`\pdv{y}{v}` is stored in a variable ``d_v``, the individual derivatives
+are reached as follows::
 
-  d_v.data[0];  // derivative of x w.r.t v.data[0]
-  d_v.data[1];  // derivative of x w.r.t v.data[1]
+  d_v.data[0];  // derivative of y w.r.t v.data[0]
+  d_v.data[1];  // derivative of y w.r.t v.data[1]
   .. and so on ..
 
 Currently, class type support have the following limitations:
@@ -553,8 +625,8 @@ When Clad will encounter a function ``FNAME``, it will first search for a
 suitable custom derivative function definition within the custom_derivatives namespace. 
 Provided no definition was found, Clad will proceed to automatically derive the function.
 
-Please read `Pushforward and Pullback Functions` section to get better understanding 
-of them.
+:ref:`Pushforward and Pullback functions <PushforwardFunctions>` in Core
+Concepts describes what each one is and when Clad asks for it.
 
 .. note::
 
@@ -639,7 +711,117 @@ This `tutorial <https://compiler-research.org/tutorials/fp_error_estimation_clad
 provides a comprehensive guide on building your own custom models and understanding the working behind the error 
 estimation framework.
 
+.. _debug-functionalities:
+.. _inspecting-the-generated-code:
+
 Debug functionalities
 ======================
 
+The quickest look at a derivative is through the ``clad::CladFunction`` you
+already hold. ``dump()`` prints it and ``getCode()`` returns it as a string::
+
+  auto df = clad::differentiate(f, "x");
+  df.dump();
+
+That gives the one derivative you asked for. The switches below cover the cases
+it does not: everything Clad generated for a translation unit, a file you can
+step through in a debugger, and what the analyses decided.
+
+Derivatives are built as an AST and belong to no file of yours, so a diagnostic
+about one names ``<clad generated code>`` rather than a path. Clad renders them
+into a buffer with real lines and columns to make that possible; one buffer
+holds every derivative in the translation unit, so which derivative a
+diagnostic means comes from a note under it. All three switches below are
+plugin arguments, so each needs ``-Xclang -plugin-arg-clad -Xclang`` in front.
+
+``-Rclad-analysis=<name>``
+--------------------------------
+
+Reports what the named analysis could not remove from the derivative, and
+where. This is the analogue of ``-Rpass-missed``, which cannot serve clad:
+clang's remark machinery runs in the backend over LLVM IR and never sees a
+plugin working on the AST.
+
+.. code-block:: none
+
+   <clad generated code>:4:5: remark: clad keeps this value for the reverse sweep
+       4 |     double _t0 = t;
+         |     ^~~~~~~~~~~~~~
+   <clad generated code>:4:5: note: to-be-recorded analysis could not show it unused
+   doc.cpp:8:12: note: in the derivative of 'f' requested here
+       8 |   auto g = clad::gradient(f);
+         |            ^
+   doc.cpp:4:3: note: the value kept is the one this expression had
+       4 |   t = t * t;
+         |   ^
+
+Expect three positions: the generated statement that costs, the differentiation
+that asked for the derivative, and the expression in your own code whose value
+is being kept -- the half you can act on. The note giving the reason
+distinguishes an analysis that ran and could not prove the value dead from one
+that was switched off, so a remark never claims to have proved something it
+never ran.
+
+Run ``-plugin-arg-clad -help`` for the analysis names this accepts.
+
+``-fgenerated-source-dir=<dir>``
+--------------------------------
+
+Writes the code Clad generates into ``<dir>``, one file per translation unit
+named after it, and names that file in the debug line table. A debugger then
+has something to open when it stops inside a derivative.
+
+.. code-block:: bash
+
+   clang++ -g -fplugin=clad.so -Xclang -plugin-arg-clad \
+       -Xclang -fgenerated-source-dir=build/ doc.cpp
+
+Without it, the only way to reach the code is ``-gembed-source``, which puts
+it in the object; lldb reads that and gdb does not support it at all. When
+debug information is asked for and neither is in place, Clad says so once and
+names the flag that fits the debugger being tuned for. Giving the flag with no
+directory writes nothing and turns that advice off, which is the only way to:
+a plugin's diagnostic belongs to no ``-W`` group.
+
+``-fdump-generated-source``
+--------------------------------
+
+Prints a derivative as text together with the position every statement
+occupies in it, which is how the mapping is checked without a diagnostic to
+hang it on.
+
+.. code-block:: none
+
+   generated-source: f_grad
+     1:44-44: {
+     2:5-20: double _d_t = 0.;
+     3:5-20: double t = x * x;
+     4:5-18: double _t0 = t;
+     5:5-13: t = t * t;
+     5:9-13: t * t;
+
+Each line is ``line:begin-end`` followed by the text that starts there. A node
+that renders on one line reports the columns it spans, so a subexpression such
+as ``t * t`` is reported inside the statement containing it; one that cannot
+be measured that way, such as a compound statement, reports only where it
+begins.
+
+This is not ``-fgenerate-source-file``, which appends each derivative to
+``Derivatives.cpp`` for reading. This one reports where each statement *sits*,
+which is what a diagnostic needs in order to point at it.
+
+Other ways to differentiate
+============================
+
+Beyond the four entry points above, Clad offers a vectorised forward mode, an
+immediate mode for constant evaluation, support for CUDA kernels, and Enzyme as
+an alternative reverse-mode backend.
+
+.. toctree::
+   :maxdepth: 1
+
+   UsingVectorMode
+   UsingImmediateMode
+   UsingCladOnCUDACode
+   UsingEnzymeWithinClad
 

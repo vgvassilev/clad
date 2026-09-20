@@ -20,6 +20,7 @@ template <class T> void zero_init(::std::vector<::cladtorch::Tensor<T>>& p) {
     elem.fill(0);
 }
 
+/// \ingroup rules
 namespace custom_derivatives {
 namespace cladtorch {
 inline ::clad::ValueAndPushforward<float, float>

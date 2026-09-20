@@ -7,8 +7,10 @@
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "ASTIntegrity.h"
 #include "ConstantFolder.h"
+#include "GeneratedCode.h"
 
 #include "LoopAnalyzer.h"
+#include "ReductionScope.h"
 #include "TBRAnalyzer.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
@@ -84,25 +86,6 @@ using namespace clang;
 namespace clad {
 
 using AllocCallInfo = DiffRequest::AllocCallInfo;
-
-/// The accumulators of one loop being differentiated.
-///
-/// The loop analysis says which adjoints are sums over the loop. This holds the
-/// variable each sum is kept in while the body is visited, and the adjoint it
-/// is added to once the loop is done.
-struct ReverseModeVisitor::ReductionScope {
-  struct Accumulator {
-    const LoopFacts::AdjointReduction* Fact;
-    VarDecl* Acc;
-    Expr* Target; // the `_d_Base[Index]` the sum is added to
-  };
-  const LoopFacts& Facts;
-  llvm::SmallVector<Accumulator, 2> Accumulators;
-
-  /// The accumulator that stands in for \p Target, an adjoint subscript of
-  /// \p Base, or null when this loop does not sum it.
-  Expr* accumulatorFor(ReverseModeVisitor& V, const Expr* Base, Expr* Target);
-};
 
 Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   if (E)
@@ -2385,7 +2368,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     QualType returnType = FD->getReturnType();
     // FIXME: Decide this in the diff planner
-    bool needsForwPass = utils::isMemoryType(returnType);
+    bool needsForwPass = utils::returnsAdjoint(returnType);
     bool hasStoredParams = false;
     // If the function has a single arg and does not return a reference or
     // take arg by reference, we can request a derivative w.r.t. to this arg
@@ -4043,6 +4026,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   // need to be done to
   StmtDiff ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S,
                                                        Expr* dfdS) {
+    GeneratedCode::StatementScope Statement(m_Builder.getGeneratedCode(), S);
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDifferentiateSingleStmt();
     beginBlock(direction::reverse);
@@ -4069,7 +4053,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   std::pair<StmtDiff, StmtDiff>
-  ReverseModeVisitor::DifferentiateSingleExpr(const Expr* E, Expr* dfdE) {
+  ReverseModeVisitor::DifferentiateSingleExpr(const clang::Expr* E,
+                                              clang::Expr* dfdE) {
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
     StmtDiff EDiff = Visit(E, dfdE);
@@ -4082,9 +4067,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {StmtDiff(ForwardResult, ReverseResult), EDiff};
   }
 
-  std::pair<StmtDiff, StmtDiff>
-  ReverseModeVisitor::DifferentiateSingleExpr(const Expr* E,
-                                              std::function<Expr*()> dfdE) {
+  std::pair<StmtDiff, StmtDiff> ReverseModeVisitor::DifferentiateSingleExpr(
+      const clang::Expr* E, std::function<clang::Expr*()> dfdE) {
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
     StmtDiff EDiff = Visit(E, std::move(dfdE));
@@ -4566,7 +4550,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return Var;
   }
 
-  Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, QualType Type,
+  Expr* ReverseModeVisitor::GlobalStoreAndRef(clang::Expr* E,
+                                              clang::QualType Type,
                                               llvm::StringRef prefix,
                                               bool force, bool zeroInit) {
     assert(E && "must be provided, otherwise use DelayedGlobalStoreAndRef");
@@ -4633,7 +4618,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return GetFunctionCall("move", "clad", moveArgs);
   }
 
-  Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
+  Expr* ReverseModeVisitor::GlobalStoreAndRef(clang::Expr* E,
+                                              llvm::StringRef prefix,
                                               bool force, bool zeroInit) {
     assert(E && "cannot infer type");
     return GlobalStoreAndRef(

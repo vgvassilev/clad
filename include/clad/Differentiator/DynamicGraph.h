@@ -12,6 +12,7 @@
 #include <vector>
 
 namespace clad {
+/// \ingroup pipeline
 template <typename T> class DynamicGraph {
 private:
   /// Storing nodes in the graph. The index of the node in the vector is used as

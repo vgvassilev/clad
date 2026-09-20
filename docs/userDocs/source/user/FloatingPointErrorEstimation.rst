@@ -1,5 +1,5 @@
-Floating Point Error Estimation using CHEF-FP
-*********************************************
+Floating-point error estimation
+*******************************
 
 ============
 Introduction
@@ -51,10 +51,8 @@ The main logic for CHEF-FP resides in the following files:
     function.  It keeps track of error expressions, emits error statements, and
     replaces parameter values.
 
-- `include/clad/Differentiator/EstimationModel.h`_
-
-  - contains the information needed to calculate the estimate value of the
-    error.
+  - it also holds the default error model, and looks up a custom one when the
+    program supplies it.
 
 
    Above files include a lot of useful documentation in the form of code
@@ -66,19 +64,34 @@ How does the FPEE Logic work?
 
 While parsing the code using Clad, if it encounters a floating point variable,
 it needs to be tracked (to accumulate relevant errors against that variable).
-Next, the Error Estimation Calculation Formula (Error Model) needs to be built
-(using ``EstimationModel.h``).
+Next, the Error Estimation Calculation Formula (Error Model) needs to be built.
 
-``EstimationModel.h`` contains the information needed to calculate the estimate 
-value of the error. It is highly customizable (e.g., you can plug in your 
-own custom formula as well). The default formula multiplies the derivative 
-(dfdx) with the value of the variable (delta_x), for which the error estimate 
-is required, and the machine epsilon (Em).
+The error model decides what each write's error is taken to be, and it is
+replaceable. The built-in one is the first-order Taylor expansion of the
+function about the computed values. Writing :math:`\Delta v_i` for the rounding
+error the :math:`i`-th write commits,
 
-``std::abs(dfdx * delta_x * Em)``
+.. math::
 
-  For this formula to work, the value of the variable (delta_x) should be saved
-  at the relevant time.
+   f(v + \Delta v) - f(v) \approx \sum_{i=1}^{k} \pdv{f}{v_i} \, \Delta v_i
+   = \sum_{i=1}^{k} \bar{v}_i \, \Delta v_i
+
+Bounding each write's rounding error relatively, :math:`\Delta v_i = v_i
+\varepsilon`, and taking each term's magnitude gives what Clad emits:
+
+.. math::
+
+   E = \sum_{i=1}^{k} \left| \bar{v}_i \, v_i \, \varepsilon \right|
+
+The built-in model uses the ``float`` machine epsilon,
+:math:`\varepsilon = 2^{-23} \approx 1.19 \times 10^{-7}`, for every variable
+it estimates, whatever that variable's own type. A ``double`` computation is
+therefore charged the rounding of a ``float`` one, so the built-in model errs
+high by a wide margin and is a starting point rather than a final answer. A
+program that needs a closer estimate supplies its own model.
+
+For the formula to work, the value of the variable has to be saved at the
+relevant time.
 
 This model will return a formula that is represented using a Clang
 expression.This Clang expression can, in turn, be written into the  derivative
@@ -113,21 +126,21 @@ How do I create my own Custom model?
 Custom Models may be one of the main reasons that new users may be interested
 in adapting the CHEF-FP code to their specific use cases. 
 
-Top define a custom model using Clad:
+To define a custom model, declare one function in namespace ``clad``::
 
-1. Implement the ``clad::FPErrorEstimationModel`` class, a generic interface 
-that provides the error expressions for clad to generate.
+  namespace clad {
+  double getErrorVal(double dx, double x, const char* name);
+  }
 
-2. Override the ``AssignError()`` function. This function is called for all LHS 
-of every assignment expression in the target function.
+Clad looks it up by name when it generates an ``estimate_error`` derivative. If
+it finds one, it calls it in place of the built-in model at every write the
+reverse sweep passes, and accumulates what it returns. ``dx`` is the adjoint of
+the value written, ``x`` is the value itself, and ``name`` is the variable's
+name, which a model can use to treat some variables differently or to report on
+them.
 
-  The function ``AssignError()`` represents the mathematical formula of an
-  error model in a form that Clang can understand and convert to code. It
-  provides users with a reference to the variable of interest and its
-  derivative. The user, in turn, must return an expression that will be used to
-  accumulate the error.
-
-  Note: Creating these functions requires knowledge of the Clang APIs.
+The signature has to match exactly. A ``getErrorVal`` whose signature differs is
+reported as an error naming the expected one, rather than silently ignored.
 
 Demo customization examples can be found here:
 
@@ -173,8 +186,6 @@ forward block.
 
 
 .. _include/clad/Differentiator/ErrorEstimator.h: https://github.com/vgvassilev/clad/blob/master/include/clad/Differentiator/ErrorEstimator.h
-
-.. _include/clad/Differentiator/EstimationModel.h: https://github.com/vgvassilev/clad/blob/master/include/clad/Differentiator/EstimationModel.h
 
 .. _demos/ErrorEstimation: https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation
 

@@ -5,7 +5,7 @@ The questions below come up repeatedly in Clad's
 `issues <https://github.com/vgvassilev/clad/issues>`__ and
 `discussions <https://github.com/vgvassilev/clad/discussions>`__.
 
-Clang says "clad doesn't appear to be loaded"
+Clang says "Clad doesn't appear to be loaded"
 ==============================================
 
 The full message is:
@@ -28,7 +28,7 @@ Add the plugin to the command line:
    clang++ -std=c++17 -I /full/path/to/include/ \
            -fplugin=/full/path/to/lib/clad.so SourceFile.cpp
 
-:doc:`Clad Installation <InstallationAndUsage>` has the details, including the
+:doc:`Installation and usage <InstallationAndUsage>` has the details, including the
 spelling older Clang releases need.
 
 Clang cannot load clad.so, or reports an undefined symbol
@@ -54,7 +54,7 @@ function.
 
 So a function with many inputs and one output -- the usual case, a scalar cost
 or likelihood -- wants reverse mode. A function with one input and many outputs
-wants forward mode. :doc:`Core Concepts <CoreConcepts>` explains why.
+wants forward mode. :doc:`Core concepts <CoreConcepts>` explains why.
 
 How do I differentiate with respect to an array?
 =================================================
@@ -112,7 +112,7 @@ as a string:
 That shows the one derivative you asked for. To see everything Clad generated
 for a translation unit, including the derivatives it produced for nested calls,
 or to get a file you can compile and step through in a debugger, see
-:ref:`Inspecting the generated code <inspecting-the-generated-code>`.
+:ref:`Debug functionalities <debug-functionalities>`.
 
 Can Clad differentiate templates and overloaded functions?
 ===========================================================

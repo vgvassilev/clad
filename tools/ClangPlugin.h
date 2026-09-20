@@ -83,8 +83,9 @@ struct DifferentiationOptions {
   bool GeneratedSourceDirGiven = false;
   bool ValidateClangVersion = true;
   /// What the command line asked of each analysis. The two bools record which
-  /// of the original -enable-<x>/-disable-<x> pair were seen, so that giving
-  /// both is still diagnosed rather than resolved by order. See Analyses.def.
+  /// of the original -enable-\<x\>/-disable-\<x\> pair were seen, so that
+  /// giving both is still diagnosed rather than resolved by order. See
+  /// Analyses.def.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   AnalysisSwitch Id##Switch = AnalysisSwitch::Unset;                           \
   bool Enable##Id##Analysis = false;                                           \
@@ -94,8 +95,8 @@ struct DifferentiationOptions {
   bool EmitPortingHints = false;
 };
 
-/// Match one of the original per-analysis switches, -enable-<x> or
-/// -disable-<x>. Returns false if \p Arg is not such a switch.
+/// Match one of the original per-analysis switches, -enable-\<x\> or
+/// -disable-\<x\>. Returns false if \p Arg is not such a switch.
 inline bool setAnalysisFromFlag(DifferentiationOptions& DO,
                                 llvm::StringRef Arg) {
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
@@ -115,9 +116,9 @@ inline bool setAnalysisFromFlag(DifferentiationOptions& DO,
 
 enum class AnalysisFlagResult : std::uint8_t { NotMine, Ok, Error };
 
-/// Match -fenable-analysis=<name> or -fdisable-analysis=<name>. The last such
-/// switch on the command line decides, so a build that turns everything off by
-/// default can be overridden one analysis at a time.
+/// Match -fenable-analysis=\<name\> or -fdisable-analysis=\<name\>. The last
+/// such switch on the command line decides, so a build that turns everything
+/// off by default can be overridden one analysis at a time.
 inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
                                             llvm::StringRef Arg) {
   AnalysisSwitch To = AnalysisSwitch::On;
@@ -153,7 +154,7 @@ inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
   return AnalysisFlagResult::Error;
 }
 
-/// Match -Rclad-analysis=<name>, asking for remarks about what that analysis
+/// Match -Rclad-analysis=\<name\>, asking for remarks about what that analysis
 /// left in the generated code. Named after -Rpass-missed, which it is the
 /// analogue of: clang's own remark machinery runs in the backend over LLVM IR
 /// and cannot see an AST-level plugin, so clad carries its own switch.
@@ -174,7 +175,7 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
   return AnalysisFlagResult::Error;
 }
 
-/// Match -fdump-analysis=<name>, asking the named analysis to report what it
+/// Match -fdump-analysis=\<name\>, asking the named analysis to report what it
 /// concluded. One flag naming an analysis rather than a flag per analysis:
 /// clad has several and will grow more.
 inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
@@ -219,6 +220,7 @@ inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
       });
     }
     };
+    /// \ingroup pipeline
     class CladPlugin : public clang::SemaConsumer {
     clang::CompilerInstance& m_CI;
     DifferentiationOptions m_DO;

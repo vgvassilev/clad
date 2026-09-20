@@ -17,7 +17,7 @@ API reference
       Calls the generated derivative. The arguments are the ones the original
       function takes, followed by the ones the derivative adds -- a pointer or
       reference per differentiated parameter in reverse mode, the result matrix
-      in Hessian and Jacobian mode. Each mode's section above shows the shape.
+      in Hessian and Jacobian mode. Each mode's entry below shows its signature.
 
       For the derivative of a member function, the object to call it on comes
       first, unless :cpp:func:`setObject` has already supplied one.
@@ -57,7 +57,7 @@ API reference
       dimensions. Only available when compiling CUDA code, and the only way to
       call the derivative of a ``__global__`` function --
       :cpp:func:`execute` refuses it. See
-      :doc:`Using Clad on CUDA code <UsingCladOnCUDACode>`.
+      :doc:`CUDA support <UsingCladOnCUDACode>`.
 
 ------------------
 
@@ -67,19 +67,15 @@ API reference
                   CladFunction differentiate(Fn fn, const char* args)
 
 
-   In very brief, this function differentiate functions using the forward mode
-   automatic differentiation.
+   Differentiates ``fn`` with respect to the one parameter named in ``args``,
+   using forward mode. The generated function has the signature of ``fn`` and
+   returns the derivative in place of the value. If ``args`` is omitted, the
+   first parameter is used.
 
-   More specifically, this function performs partial differentiation of the
-   provided function (``fn``) using the forward mode automatic differentiation
-   with respect to parameter specified in ``args``. Template parameter ``N``
-   denotes the derivative order.
-
-   Please refer this to know more about the forward mode automatic differentiation.
-   For now it is enough to know that forward mode automatic differentiation (AD)
-   is more efficient than the reverse mode automatic differentiation when the
-   number of output parameters of the function are greater than the number of
-   input parameters of the function.
+   One call gives the derivative with respect to one parameter, so forward mode
+   suits a function with more outputs than inputs. Reverse mode is the choice
+   when there are many inputs; :doc:`Core concepts <CoreConcepts>` explains
+   why.
 
    .. literalinclude:: ../../../../test/Documentation/Reference/Differentiate.cpp
       :language: cpp
@@ -89,16 +85,15 @@ API reference
    .. cpp:function:: template<class Fn>\
                   CladFunction gradient(Fn fn, const char* args)
 
-   In very brief, this function differentiate functions using the reverse mode
-   automatic differentiation.
+   Differentiates ``fn`` with respect to every parameter named in ``args``,
+   using reverse mode, or with respect to all of them if ``args`` is omitted.
+   The generated function returns nothing and takes one extra pointer per
+   differentiated parameter, which it accumulates into, so the caller allocates
+   them and sets them to zero.
 
-   More specifically, this function performs partial differentiation of the provided
-   function (``fn``) using the reverse mode automatic differentiation with respect
-   to all the parameters specified in ``args``.
-
-   Please refer this to know more about the reverse mode automatic differentiation.
-   For now it is enough to know that generally reverse mode AD is more efficient
-   than the forward mode AD when there are multiple input parameters.
+   One call gives every derivative at once, which is why reverse mode suits a
+   function with many inputs and few outputs -- the usual case for a cost or a
+   likelihood.
 
    .. literalinclude:: ../../../../test/Documentation/Reference/Gradient.cpp
       :language: cpp
@@ -128,7 +123,8 @@ API reference
    specified, then the jacobian is computed with respect to all the input
    parameters. The matrix has one row per element of the output and one column
    per independent scalar, counting the elements of the output array itself. For
-   two scalar parameters and an output array of three elements that is 3 x 5.
+   two scalar parameters and an output array of three elements that is
+   :math:`3 \times 5`.
 
     .. literalinclude:: ../../../../test/Documentation/Reference/Jacobian.cpp
        :language: cpp
@@ -156,10 +152,12 @@ API reference
 
    By default the error of each value is estimated with a Taylor approximation
    model. A different model can be supplied instead; see
-   :doc:`Floating point error estimation <FloatingPointErrorEstimation>`.
+   :doc:`Floating-point error estimation <FloatingPointErrorEstimation>`.
 
 ------------------
 
-.. todo::
-
-   Add the numerical differentiation API reference.
+Numerical differentiation is not an entry point of its own: Clad falls back to
+it while differentiating, and reports through ``-fprint-num-diff-errors``.
+``-DCLAD_NO_NUM_DIFF`` turns the fallback off. The two standalone interfaces,
+``forward_central_difference`` and ``central_difference``, are described in
+:ref:`Numerical Differentiation <numerical-differentiation>`.

@@ -28,6 +28,7 @@ namespace clad {
 /// this set must be kept minimal to get efficient adjoint codes.
 ///
 /// This class implements this to-be-recorded analysis.
+/// \ingroup analyses
 class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
                     public AnalysisBase {
   /// Used to find DeclRefExpr's that will be used in the backwards pass.
@@ -40,6 +41,9 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   /// is the result of analysis.
   std::set<const clang::Stmt*>& m_TBRLocs;
   ParamInfo* m_ModifiedParams;
+  /// The request being analysed, set for the duration of Analyze. A call
+  /// clad cannot look inside is reported on it.
+  const DiffRequest* m_Request = nullptr;
   ParamInfo* m_UsedParams;
 
   /// Stores modes in a stack (used to retrieve the old mode after entering

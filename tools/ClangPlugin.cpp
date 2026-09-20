@@ -11,6 +11,7 @@
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
+#include "../lib/Differentiator/Analyses.h"
 #include "../lib/Differentiator/DerivativePrinter.h"
 #include "../lib/Differentiator/GeneratedCode.h"
 #include "../lib/Differentiator/LoopAnalyzer.h"
@@ -81,21 +82,21 @@ namespace clad {
 void InitTimers();
 
   namespace plugin {
-    /// Keeps track if we encountered #pragma clad on/off.
-    // FIXME: Figure out how to make it a member of CladPlugin.
-    std::vector<clang::SourceRange> CladEnabledRange;
-    std::set<clang::SourceLocation> CladLoopCheckpoints;
+  /// Keeps track if we encountered `#pragma clad on/off`.
+  // FIXME: Figure out how to make it a member of CladPlugin.
+  std::vector<clang::SourceRange> CladEnabledRange;
+  std::set<clang::SourceLocation> CladLoopCheckpoints;
 
-    // Define a pragma handler for #pragma clad
-    class CladPragmaHandler : public PragmaHandler {
-    public:
-      CladPragmaHandler() : PragmaHandler("clad") {}
-      void HandlePragma(Preprocessor& PP, PragmaIntroducer Introducer,
-                        Token& PragmaTok) override {
-        if (PragmaTok.isNot(tok::identifier)) {
-          PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
-          return;
-        }
+  // Define a pragma handler for #pragma clad
+  class CladPragmaHandler : public PragmaHandler {
+  public:
+    CladPragmaHandler() : PragmaHandler("clad") {}
+    void HandlePragma(Preprocessor& PP, PragmaIntroducer Introducer,
+                      Token& PragmaTok) override {
+      if (PragmaTok.isNot(tok::identifier)) {
+        PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
+        return;
+      }
 #ifndef NDEBUG
         IdentifierInfo* II = PragmaTok.getIdentifierInfo();
         assert(II->isStr("clad"));
@@ -115,10 +116,10 @@ void InitTimers();
         }
         // Handle #pragma clad OFF/DEFAULT
         if (OptionName == "OFF" || OptionName == "DEFAULT") {
-          if (!CladEnabledRange.empty()) {
-            assert(CladEnabledRange.back().getEnd().isInvalid());
+          // If a second OFF is seen, ignore it if the interval is closed.
+          if (!CladEnabledRange.empty() &&
+              CladEnabledRange.back().getEnd().isInvalid())
             CladEnabledRange.back().setEnd(TokLoc);
-          }
           return;
         }
         // Handle #pragma clad checkpoint loop
@@ -142,8 +143,8 @@ void InitTimers();
             PP.getDiagnostics().getCustomDiagID(
                 DiagnosticsEngine::Error,
                 "expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma"));
-      }
-    };
+    }
+  };
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
@@ -459,7 +460,7 @@ void InitTimers();
 
     /// The values a derivative keeps for its reverse sweep, in the order they
     /// appear. Clad names them `_t<N>`; a value kept in a loop goes onto a
-    /// tape instead, so both shapes count.
+    /// tape instead, so count both.
     static void collectKeptValues(
         const clang::Stmt* S,
         llvm::SmallVectorImpl<
@@ -601,33 +602,9 @@ void InitTimers();
         case WrittenExtent::Kind::Unknown:
           // Report why, not just that: which refusal it was is what tells a
           // reader whether the code or the analysis is the thing to change.
-          llvm::outs() << "unknown (";
-          switch (W.Why) {
-          case WrittenExtent::Refusal::None:
-            llvm::outs() << "no reason recorded";
-            break;
-          case WrittenExtent::Refusal::IndexNotCounted:
-            llvm::outs() << "index not stepped by a counted loop";
-            break;
-          case WrittenExtent::Refusal::IndexNotUnderstood:
-            llvm::outs() << "index is neither a constant nor a variable";
-            break;
-          case WrittenExtent::Refusal::WritesDisagree:
-            llvm::outs() << "writes do not describe one range";
-            break;
-          case WrittenExtent::Refusal::BoundNotUsable:
-            llvm::outs() << "the loop's bound is not one a call site can use";
-            break;
-          case WrittenExtent::Refusal::OpaqueWrite:
-            llvm::outs() << "a write could not be attributed to a parameter";
-            break;
-          case WrittenExtent::Refusal::NoDefinition:
-            llvm::outs() << "the function has no definition here";
-            break;
-          }
+          llvm::outs() << "unknown (" << detailOf(W.Why);
           // The line the refusal is about, so a reader can go look at it
-          // rather than re-find it. Printing it also keeps the recorded
-          // location honest -- nothing else reads it yet.
+          // rather than re-find it; the remark below puts a caret on it.
           if (W.RefusedAt.isValid()) {
             const clang::SourceManager& SM =
                 FD->getASTContext().getSourceManager();
@@ -993,6 +970,9 @@ void InitTimers();
           (m_DO.Id##Switch == AnalysisSwitch::Unset)                           \
               ? (Default)                                                      \
               : (m_DO.Id##Switch == AnalysisSwitch::On);
+#include "clad/Differentiator/Analyses.def"
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
+      opts.Remark##Id##Analysis = m_DO.Remark##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
       opts.EmitPortingHints = m_DO.EmitPortingHints;
     }

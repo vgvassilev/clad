@@ -1,5 +1,5 @@
-Using Clad-generated derivatives in an immediate context
-**********************************************************
+Immediate mode
+**************
 
 The derivatives that Clad generates are valid C++ code, which could in theory
 be executed at compile-time (or in an immediate context as the C++ standard
