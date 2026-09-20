@@ -202,16 +202,18 @@ namespace clad {
                                      llvm::StringRef prefix, clang::Expr* Init,
                                      bool DirectInit,
                                      clang::TypeSourceInfo* TSI,
-                                     clang::StorageClass SC) {
-    return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit,
-                        TSI, SC);
+                                     clang::StorageClass SC,
+                                     bool isUserVariable) {
+    return BuildVarDecl(Type, CreateUniqueIdentifier(prefix, isUserVariable),
+                        Init, DirectInit, TSI, SC);
   }
 
   VarDecl* VisitorBase::BuildGlobalVarDecl(QualType Type,
                                            llvm::StringRef prefix, Expr* Init,
                                            bool DirectInit, TypeSourceInfo* TSI,
-                                           StorageClass SC) {
-    return BuildVarDecl(Type, CreateUniqueIdentifier(prefix),
+                                           StorageClass SC,
+                                           bool isUserVariable) {
+    return BuildVarDecl(Type, CreateUniqueIdentifier(prefix, isUserVariable),
                         m_DerivativeFnScope, Init, DirectInit, TSI, SC);
   }
 
@@ -606,17 +608,16 @@ namespace clad {
     return {VD, Deref ? AdjointInfo::Deref : AdjointInfo::Plain};
   }
 
-  IdentifierInfo*
-  VisitorBase::CreateUniqueIdentifier(llvm::StringRef nameBase) {
+  IdentifierInfo* VisitorBase::CreateUniqueIdentifier(llvm::StringRef nameBase,
+                                                      bool isUserVariable) {
     // For intermediate variables, use numbered names (_t0), for everything
     // else first try a name without number (e.g. first try to use _d_x and
     // use _d_x0 only if _d_x is taken).
     bool isRangedVar = !nameBase.starts_with("__range") &&
                        !nameBase.starts_with("__end") &&
                        !nameBase.starts_with("__begin");
-    bool countedName =
-        nameBase.starts_with("_") && !nameBase.starts_with("_d_") &&
-        !nameBase.starts_with("_delta_") && isRangedVar && nameBase != "_this";
+    bool countedName = !isUserVariable && nameBase.starts_with("_") &&
+                       !nameBase.starts_with("_this") && isRangedVar;
     std::size_t idx = 0;
     std::size_t& id = countedName ? m_idCtr[nameBase.str()] : idx;
     std::string idStr = countedName ? std::to_string(id) : "";

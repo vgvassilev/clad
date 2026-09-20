@@ -1760,7 +1760,9 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
   VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
-                                  initDiff.getExpr(), VD->isDirectInit());
+                                  initDiff.getExpr(), VD->isDirectInit(),
+                                  /*TSI=*/nullptr, clang::SC_None,
+                                  /*isUserVariable=*/true);
   // FIXME: Create unique identifier for derivative.
   Expr* initDx = initDiff.getExpr_dx();
   QualType VDType = VD->getType();
