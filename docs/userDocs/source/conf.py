@@ -114,7 +114,11 @@ mathjax3_config = {
     "loader": {"load": ["[tex]/physics"]},
     "tex": {"packages": {"[+]": ["physics"]}},
 }
-if os.environ.get("CLAD_BUILD_INTERNAL_DOCS"):
+# READTHEDOCS is set on every readthedocs build, pull request previews
+# included, so the internal documentation is built and checked there rather
+# than only for the version that gets published. CLAD_BUILD_INTERNAL_DOCS
+# keeps it opt-in everywhere else, because it runs cmake and doxygen.
+if os.environ.get("CLAD_BUILD_INTERNAL_DOCS") or os.environ.get("READTHEDOCS"):
     html_extra_path = [CLAD_ROOT + "/build/docs/"]
 
     import shutil

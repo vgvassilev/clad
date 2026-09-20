@@ -30,10 +30,12 @@ IGNORE_PREFIX          = clad::
 
 # Default since 1.9.x, but stated so that turning it off is a deliberate act.
 WARNINGS               = YES
-# The doc row of ci.yml builds the doxygen-clad target, so a comment that names
-# a parameter the function does not have now fails the build the way a Sphinx
-# one does. Note that YES does *not* do this -- doxygen still exits 0 -- and
-# FAIL_ON_WARNINGS is what makes it exit non-zero.
+# readthedocs builds the internal documentation on every build, pull request
+# previews included, so a comment that names a parameter the function does not
+# have fails that build the way a Sphinx warning does. Note that YES does *not*
+# do this -- doxygen still exits 0 -- and FAIL_ON_WARNINGS is what makes it exit
+# non-zero. readthedocs builds with doxygen 1.9.8; a newer one locally resolves
+# names 1.9.8 cannot, so a clean local run is not proof.
 WARN_AS_ERROR          = FAIL_ON_WARNINGS
 # 1280 of them today; this waits until the ones below it are dealt with.
 WARN_IF_UNDOCUMENTED   = NO
