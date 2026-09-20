@@ -944,7 +944,7 @@ namespace clad {
     /// Checks if the type is of clad::array\<T\> or clad::array_ref\<T\> type
     bool isCladArrayType(clang::QualType QT);
 
-    /// Creates the expression clad::matrix\<T\>::identity(Args) for the given
+    /// Creates the expression %clad::matrix\<T\>::%identity(Args) for the given
     /// type and args.
     clang::Expr*
     BuildIdentityMatrixExpr(clang::QualType T,

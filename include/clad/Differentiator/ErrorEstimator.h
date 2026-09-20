@@ -166,7 +166,7 @@ public:
   void EmitDeclErrorStmts(DeclDiff<clang::VarDecl> VDDiff, bool isInsideLoop);
 
   /// This function returns the size expression for a given variable
-  /// (`var.size()` for clad::array/clad::array_ref
+  /// (`var.size()` for %clad::array/%clad::array_ref
   /// or `var_size` for array/pointer types)
   clang::Expr* getSizeExpr(const clang::VarDecl* VD);
 
