@@ -77,7 +77,8 @@ namespace clad {
     /// }
     ///
     /// Passing `SomeStruct` as declaration context will create
-    /// nested name specifier of the form `::A::B::struct SomeClass::` or
+    /// nested name specifier of the form `A::B::struct SomeClass::`, with a
+    /// leading pair of colons, or
     /// `A::B::struct SomeClass::` depending on if `addGlobalNS` is true or
     /// false in the `CXXScopeSpec` argument `CSS`.
     ///
