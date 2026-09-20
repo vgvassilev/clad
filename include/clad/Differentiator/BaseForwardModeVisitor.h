@@ -26,6 +26,7 @@
 namespace clad {
 /// A visitor for processing the function code in forward mode.
 /// Used to compute derivatives by clad::differentiate.
+/// \ingroup visitors
 class BaseForwardModeVisitor
     : public clang::ConstStmtVisitor<BaseForwardModeVisitor, StmtDiff>,
       public clang::ConstOMPClauseVisitor<BaseForwardModeVisitor,

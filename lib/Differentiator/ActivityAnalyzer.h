@@ -28,6 +28,7 @@ namespace clad {
 /// are determined, meaning variables that depend on input parameters
 /// in a differentiable way. That result enables us to remove redundant
 /// statements in the reverse mode, improving generated codes efficiency.
+/// \ingroup analyses
 class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer>,
                        public AnalysisBase {
   bool m_Varied = false;

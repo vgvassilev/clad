@@ -23,6 +23,7 @@ class CompoundStmt;
 namespace clad {
 /// The estimation handler which interfaces with Clad's reverse mode visitors
 /// to fetch derivatives.
+/// \ingroup visitors
 class ErrorEstimationHandler : public ExternalRMVSource {
   // FIXME: Find a good way to modularize using declarations that are used in
   // multiple header files. 

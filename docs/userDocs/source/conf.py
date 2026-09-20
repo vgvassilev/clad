@@ -117,6 +117,7 @@ mathjax3_config = {
 if os.environ.get("CLAD_BUILD_INTERNAL_DOCS"):
     html_extra_path = [CLAD_ROOT + "/build/docs/"]
 
+    import shutil
     import subprocess
 
     CMAKE_CONFIGURE_COMMAND = (
@@ -125,11 +126,22 @@ if os.environ.get("CLAD_BUILD_INTERNAL_DOCS"):
         "/usr/lib/llvm-18 -DCLAD_ENABLE_DOXYGEN=ON "
         "-DCLAD_INCLUDE_DOCS=ON"
     ).format(CLAD_ROOT)
-    subprocess.call(CMAKE_CONFIGURE_COMMAND, shell=True)
+    # check_call, not call: these used to be able to fail and still leave a
+    # green build, published with no internal documentation in it.
+    subprocess.check_call(CMAKE_CONFIGURE_COMMAND, shell=True)
 
     INTERNAL_DOCS_DIR = "{0}/build/docs/internalDocs".format(CLAD_ROOT)
-    RUN_DOXYGEN_COMMAND = (
-        "(cat doxygen.cfg; echo 'OUTPUT_DIRECTORY = .') | doxygen -"
-    ).format(INTERNAL_DOCS_DIR)
+    RUN_DOXYGEN_COMMAND = "(cat doxygen.cfg; echo 'OUTPUT_DIRECTORY = .') | doxygen -"
     print(RUN_DOXYGEN_COMMAND)
-    subprocess.call(RUN_DOXYGEN_COMMAND, shell=True, cwd=INTERNAL_DOCS_DIR)
+    subprocess.check_call(RUN_DOXYGEN_COMMAND, shell=True, cwd=INTERNAL_DOCS_DIR)
+
+    # html_extra_path publishes everything under build/docs, so without this the
+    # files cmake and doxygen were driven by are served beside the documentation
+    # they produced.
+    for leftover in ("CMakeFiles", "Makefile", "cmake_install.cmake",
+                     "doxygen.cfg"):
+        path = os.path.join(INTERNAL_DOCS_DIR, leftover)
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        elif os.path.isfile(path):
+            os.remove(path)

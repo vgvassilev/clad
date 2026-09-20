@@ -13,6 +13,7 @@
 
 namespace clad {
 
+/// \ingroup analyses
 class UsefulAnalyzer : public clang::RecursiveASTVisitor<UsefulAnalyzer> {
 
   bool m_Useful = false;

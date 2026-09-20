@@ -70,6 +70,7 @@ using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
 /// FunctionDecl itself does not. Recording such facts here, rather than
 /// rediscovering them inside a visitor, keeps them available to every visitor
 /// and correct after a request is copied and re-pointed at another Function.
+/// \ingroup pipeline
 struct DiffRequest {
   /// Recognises a C heap-memory builtin call and centralises the invariants
   /// reverse mode must preserve for it, so all memory-op reasoning goes through
@@ -540,6 +541,7 @@ struct RequestOptions {
   bool EmitPortingHints = false;
 };
 
+  /// \ingroup pipeline
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
     /// The source interval where clad was activated.
     ///

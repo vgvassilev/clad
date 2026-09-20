@@ -59,6 +59,7 @@ namespace clad {
 
   /// A visitor for processing the function code in reverse mode.
   /// Used to compute derivatives by clad::gradient.
+  /// \ingroup visitors
   class ReverseModeVisitor
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
         public clang::ConstOMPClauseVisitor<ReverseModeVisitor,

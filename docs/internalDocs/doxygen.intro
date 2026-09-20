@@ -1,15 +1,68 @@
 /// @mainpage clad
 ///
 /// @section main_intro Introduction
-/// Welcome to the clad project.
+/// This documentation describes the @b internal software that makes up clad,
+/// not the @b external use of clad. There are no instructions here on how to
+/// use clad, only the APIs that make up the software. For usage instructions,
+/// please see the user guide.
 ///
-/// This documentation describes the @b internal software that makes 
-/// up clad, not the @b external use of clad. There are no instructions
-/// here on how to use clad, only the APIs that make up the software. For 
-/// usage instructions, please see the programmer's guide or reference 
-/// manual.
+/// @section main_shape How clad is put together
+/// clad is a clang plugin. It runs as an AST consumer, finds the calls that
+/// ask for a derivative, and generates a function for each of them before the
+/// rest of the compiler sees the translation unit. Three layers do that work,
+/// and they are the three places to start reading:
 ///
-/// @section main_caveat Caveat 
-/// This documentation is generated directly from the source code with doxygen. 
+/// - @ref pipeline decides @em what to differentiate. Clang hands each group
+///   of declarations to clad::plugin::CladPlugin, which defers them; once the
+///   unit is parsed, clad::DiffScheduler walks it with clad::DiffCollector,
+///   which records a clad::DiffRequest for every @c clad:: call it finds.
+///   The requests live in a clad::DynamicGraph, which is drained one node at
+///   a time -- and grows while it drains, because deriving one function
+///   discovers the calls it makes.
+///
+/// - @ref visitors decides @em how. clad::DerivativeBuilder picks a visitor
+///   for the request's mode and the visitor walks the original body, building
+///   the derivative's AST as it goes. clad::VisitorBase holds what they share;
+///   clad::BaseForwardModeVisitor and clad::ReverseModeVisitor are the two
+///   that matter, and the rest are built on them.
+///
+/// - @ref analyses decides @em what can be left out. A derivative is correct
+///   without them and much more expensive: the to-be-recorded analysis is what
+///   keeps a reverse sweep from storing every intermediate value.
+///
+/// Two more groups are support rather than architecture. @ref astutils holds
+/// the helpers for building and copying clang AST nodes, and @ref runtime
+/// holds the types the generated code and the user's program both link
+/// against -- clad::array, clad::tape, clad::CladFunction.
+///
+/// @section main_caveat Caveat
+/// This documentation is generated directly from the source code with doxygen.
 /// Since clad is constantly under active development, what you're about to
 /// read is out of date!
+///
+/// @defgroup pipeline The differentiation pipeline
+/// @brief Finding the requests and driving them to a derivative.
+///
+/// Entry is clad::plugin::CladPlugin, an AST consumer. It defers each
+/// declaration group, then plans and derives once the unit is parsed. The
+/// request graph is what makes the two passes separate: deriving a function
+/// adds requests to the graph that is being drained.
+///
+/// @defgroup visitors Mode visitors
+/// @brief Turning one request into the AST of a derivative.
+///
+/// One visitor per differentiation mode, all sharing clad::VisitorBase.
+/// clad::DerivativeBuilder chooses between them from the request's mode.
+///
+/// @defgroup analyses Static analyses
+/// @brief Deciding what the generated code does not have to do.
+///
+/// Each analysis answers one question about the original function -- which
+/// values a reverse sweep will read back, which variables the result depends
+/// on -- so the visitors can leave work out.
+///
+/// @defgroup astutils AST utilities
+/// @brief Building, cloning and comparing clang AST nodes.
+///
+/// @defgroup runtime Runtime support
+/// @brief The types the generated code and the caller share.

@@ -100,6 +100,7 @@ struct DerivativeAndOverload {
   class VisitorBase;
   /// The main builder class which then uses either ForwardModeVisitor or
   /// ReverseModeVisitor based on the required mode.
+  /// \ingroup pipeline
   class DerivativeBuilder {
   private:
     friend class VisitorBase;
