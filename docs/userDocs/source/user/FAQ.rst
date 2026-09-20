@@ -112,7 +112,7 @@ as a string:
 That shows the one derivative you asked for. To see everything Clad generated
 for a translation unit, including the derivatives it produced for nested calls,
 or to get a file you can compile and step through in a debugger, see
-:ref:`Inspecting the generated code <inspecting-the-generated-code>`.
+:ref:`Debug functionalities <debug-functionalities>`.
 
 Can Clad differentiate templates and overloaded functions?
 ===========================================================
