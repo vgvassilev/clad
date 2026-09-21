@@ -10,6 +10,13 @@ on:
   pull_request:
     branches:
       - master
+    # The three files ci.yml skips its matrix for. Here the filter can sit on
+    # the trigger: this workflow produces no check that merging requires, so a
+    # run that never happens strands nothing.
+    paths-ignore:
+      - 'docs/**'
+      - '.readthedocs.yaml'
+      - 'requirements.txt'
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:

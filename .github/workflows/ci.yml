@@ -12,6 +12,69 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # docs/, .readthedocs.yaml and requirements.txt are readthedocs' inputs and
+  # nobody else's. The invariant that makes that true is that no row sets
+  # CLAD_INCLUDE_DOCS, which is what would have cmake descend into docs/; add
+  # a row that sets it and this gate stops testing it. readthedocs reports its
+  # own check, so a change confined to those three needs no matrix.
+  #
+  # paths-ignore on the pull_request trigger is the obvious way and the wrong
+  # one. Merging needs `Tests observe the change` and `codecov/patch`, both
+  # produced by this workflow, and a workflow that a path filter skips reports
+  # no checks at all -- the pull request would wait on them for ever. Gating
+  # jobs leaves the two that produce them running instead: observes-change
+  # runs whatever its needs did, and coverage is measured on a self-hosted row
+  # that is not gated. Gating that row too would strand the pull request, as
+  # #2098 shows: its coverage row failed, nothing was uploaded, and
+  # codecov/patch never appeared.
+  rebuild-needed:
+    name: Decide whether to rebuild
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
+    outputs:
+      value: ${{ steps.decide.outputs.value }}
+    steps:
+    - name: Decide
+      id: decide
+      env:
+        GH_TOKEN: ${{ github.token }}
+        EVENT_NAME: ${{ github.event_name }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      run: |
+        if [ "$EVENT_NAME" != pull_request ]; then
+          echo 'value=true' >> "$GITHUB_OUTPUT"
+          echo "A $EVENT_NAME builds everything." | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        files=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" \
+                  --jq '.[].filename')
+        # README.md is deliberately not on this list. test/Documentation
+        # compiles the code shown in it and fails when the two drift apart,
+        # so editing it changes what the suite asserts.
+        rest=$(printf '%s\n' "$files" | grep -Ev \
+                 '^docs/|^\.readthedocs\.yaml$|^requirements\.txt$' || true)
+        # Each branch says what it decided and why. The matrix condition is
+        # fail-open, so a full build is also what an empty output produces:
+        # without this the log cannot tell a decision from a broken one.
+        if [ -z "$files" ]; then
+          # No file list means the question went unanswered, not that
+          # nothing changed.
+          echo 'value=true' >> "$GITHUB_OUTPUT"
+          echo 'The pull request listed no files; building rather than guessing.' \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+        elif [ -n "$rest" ]; then
+          echo 'value=true' >> "$GITHUB_OUTPUT"
+          { echo 'Rebuilding clad. Changed files readthedocs does not own:'
+            printf '%s\n' "$rest" | head -10 | sed 's/^/    /'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+        else
+          echo 'value=false' >> "$GITHUB_OUTPUT"
+          echo 'Only readthedocs reads what this pull request changes; clad is not rebuilt.' \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+        fi
+
   # Pre-flight job to activate the cuda infrastructure
   prepare-dell:
     name: Activate self-host infrastructure
@@ -23,6 +86,10 @@ jobs:
           target-host: 192.168.100.30
 
   build:
+    needs: rebuild-needed
+    # `!cancelled()` rather than the default: when the decision job itself
+    # fails, build. The alternative is a matrix that skips itself quietly.
+    if: ${{ !cancelled() && needs.rebuild-needed.outputs.value != 'false' }}
     timeout-minutes: 600 # If some self-host machine is not available
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -779,6 +846,8 @@ jobs:
         if-no-files-found: ignore
 
   build-wasm:
+    needs: rebuild-needed
+    if: ${{ !cancelled() && needs.rebuild-needed.outputs.value != 'false' }}
     timeout-minutes: 30
     name: ubu24-emscr-runtime22
     runs-on: ubuntu-24.04
