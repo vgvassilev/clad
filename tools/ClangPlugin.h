@@ -12,6 +12,7 @@
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/DiffScheduler.h"
+#include "clad/Differentiator/Options.h"
 #include "clad/Differentiator/Version.h"
 #include "../lib/Differentiator/DerivativePrinter.h"
 
@@ -26,6 +27,7 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -56,49 +58,31 @@ namespace plugin {
 /// inside the macro bodies naming this enum.
 enum class AnalysisSwitch : std::uint8_t { Unset, On, Off };
 
-struct DifferentiationOptions {
-  // Plain bool, not `: 1` bit-fields: packing single-bit bools into shared
-  // bytes makes the compiler emit each ctor-init-list write as a
-  // read-modify-write of the storage byte. The first RMW reads the byte while
-  // it is still uninitialised, which MSan reports as a SEGV on uninitialised
-  // memory under -fsanitize=memory.
-  bool DumpSourceFn = false;
-  bool DumpSourceFnAST = false;
-  bool DumpDerivedFn = false;
-  bool DumpDerivedAST = false;
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
-  bool Remark##Id##Analysis = false;
-#include "clad/Differentiator/Analyses.def"
-  /// Whether -fdump-analysis named each analysis; see Analyses.def.
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
-  bool Dump##Id##Analysis = false;
-#include "clad/Differentiator/Analyses.def"
-  bool GenerateSourceFile = false;
-  bool DumpGeneratedSource = false;
-  /// Where to write the generated code so a debugger can open it, and
-  /// whether that was asked at all. Asking with no directory writes nothing
-  /// and says nothing, which is how a build that knows it does not want this
-  /// turns the advice off.
-  std::string GeneratedSourceDir;
-  bool GeneratedSourceDirGiven = false;
-  bool ValidateClangVersion = true;
-  /// What the command line asked of each analysis. The two bools record which
-  /// of the original -enable-\<x\>/-disable-\<x\> pair were seen, so that
-  /// giving both is still diagnosed rather than resolved by order. See
-  /// Analyses.def.
+/// What the switches said while the command line was being read. Each analysis
+/// takes its answer from the last switch that named it; the two bools record
+/// which of the original -enable-\<x\>/-disable-\<x\> pair were seen, so that
+/// giving both is diagnosed rather than resolved by order.
+struct AnalysisFlags {
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   AnalysisSwitch Id##Switch = AnalysisSwitch::Unset;                           \
   bool Enable##Id##Analysis = false;                                           \
   bool Disable##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
-  bool PrintNumDiffErrorInfo = false;
-  bool EmitPortingHints = false;
+
+  /// Hands each analysis its answer: what a switch asked, or the default the
+  /// table gives it.
+  void resolveInto(Options& O) const {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+  O.Enable##Id##Analysis = (Id##Switch == AnalysisSwitch::Unset)               \
+                               ? (Default)                                     \
+                               : (Id##Switch == AnalysisSwitch::On);
+#include "clad/Differentiator/Analyses.def"
+  }
 };
 
 /// Match one of the original per-analysis switches, -enable-\<x\> or
 /// -disable-\<x\>. Returns false if \p Arg is not such a switch.
-inline bool setAnalysisFromFlag(DifferentiationOptions& DO,
-                                llvm::StringRef Arg) {
+inline bool setAnalysisFromFlag(AnalysisFlags& DO, llvm::StringRef Arg) {
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   if (Arg == "-enable-" Legacy) {                                              \
     DO.Enable##Id##Analysis = true;                                            \
@@ -119,7 +103,7 @@ enum class AnalysisFlagResult : std::uint8_t { NotMine, Ok, Error };
 /// Match -fenable-analysis=\<name\> or -fdisable-analysis=\<name\>. The last
 /// such switch on the command line decides, so a build that turns everything
 /// off by default can be overridden one analysis at a time.
-inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
+inline AnalysisFlagResult setAnalysisByName(AnalysisFlags& DO,
                                             llvm::StringRef Arg) {
   AnalysisSwitch To = AnalysisSwitch::On;
   if (!Arg.consume_front("-fenable-analysis=")) {
@@ -158,7 +142,7 @@ inline AnalysisFlagResult setAnalysisByName(DifferentiationOptions& DO,
 /// left in the generated code. Named after -Rpass-missed, which it is the
 /// analogue of: clang's own remark machinery runs in the backend over LLVM IR
 /// and cannot see an AST-level plugin, so clad carries its own switch.
-inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
+inline AnalysisFlagResult remarkAnalysisByName(Options& DO,
                                                llvm::StringRef Arg) {
   if (!Arg.consume_front("-Rclad-analysis="))
     return AnalysisFlagResult::NotMine;
@@ -178,8 +162,7 @@ inline AnalysisFlagResult remarkAnalysisByName(DifferentiationOptions& DO,
 /// Match -fdump-analysis=\<name\>, asking the named analysis to report what it
 /// concluded. One flag naming an analysis rather than a flag per analysis:
 /// clad has several and will grow more.
-inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
-                                             llvm::StringRef Arg) {
+inline AnalysisFlagResult dumpAnalysisByName(Options& DO, llvm::StringRef Arg) {
   if (!Arg.consume_front("-fdump-analysis="))
     return AnalysisFlagResult::NotMine;
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
@@ -223,7 +206,7 @@ inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
     /// \ingroup pipeline
     class CladPlugin : public clang::SemaConsumer {
     clang::CompilerInstance& m_CI;
-    DifferentiationOptions m_DO;
+    Options m_DO;
     std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
     bool m_HasRuntime = false;
     /// Lazily constructed because it needs Sema, which is not available
@@ -302,7 +285,7 @@ inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
     llvm::SmallVector<Generated, 8> m_Generated;
 
   public:
-    CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
+    CladPlugin(clang::CompilerInstance& CI, Options& DO);
     ~CladPlugin() override;
     // ASTConsumer
     void Initialize(clang::ASTContext& Context) override;
@@ -433,7 +416,6 @@ inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
     void FinalizeTranslationUnit();
     void SendToMultiplexer();
     bool CheckBuiltins();
-    void SetRequestOptions(RequestOptions& opts) const;
     /// Shows what a generated function looks like as text, and where inside
     /// that text each of its statements sits.
     void dumpGeneratedSource(clang::Decl* D);
@@ -461,7 +443,7 @@ inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
     template <typename ConsumerType>
     class Action : public clang::PluginASTAction {
     private:
-      DifferentiationOptions m_DO;
+      Options m_DO;
 
     protected:
       std::unique_ptr<clang::ASTConsumer>
@@ -472,6 +454,7 @@ inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
 
       bool ParseArgs(const clang::CompilerInstance& CI,
                      const std::vector<std::string>& args) override {
+        AnalysisFlags Switches;
         for (unsigned i = 0, e = args.size(); i != e; ++i) {
           if (args[i] == "-fdump-source-fn") {
             m_DO.DumpSourceFn = true;
@@ -502,9 +485,10 @@ inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
             m_DO.GenerateSourceFile = true;
           } else if (args[i] == "-fno-validate-clang-version") {
             m_DO.ValidateClangVersion = false;
-          } else if (setAnalysisFromFlag(m_DO, args[i])) {
+          } else if (setAnalysisFromFlag(Switches, args[i])) {
             // -enable-tbr, -disable-va, and the rest of Analyses.def.
-          } else if (AnalysisFlagResult R = setAnalysisByName(m_DO, args[i]);
+          } else if (AnalysisFlagResult R =
+                         setAnalysisByName(Switches, args[i]);
                      R != AnalysisFlagResult::NotMine) {
             if (R == AnalysisFlagResult::Error)
               return false;
@@ -595,12 +579,15 @@ inline AnalysisFlagResult dumpAnalysisByName(DifferentiationOptions& DO,
             return false;
         }
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
-      if (m_DO.Enable##Id##Analysis && m_DO.Disable##Id##Analysis) {           \
+      if (Switches.Enable##Id##Analysis && Switches.Disable##Id##Analysis) {   \
         llvm::errs() << "clad: Error: -enable-" Legacy " and -disable-" Legacy \
                         " cannot be used together.\n";                         \
         return false;                                                          \
       }
 #include "clad/Differentiator/Analyses.def"
+        // Every switch has been read, so each analysis can be told what it
+        // was asked for; nothing downstream has to know which switch said so.
+        Switches.resolveInto(m_DO);
         return true;
       }
 
