@@ -4,6 +4,7 @@
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DynamicGraph.h"
+#include "clad/Differentiator/Options.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/Timers.h"
 
@@ -526,21 +527,6 @@ public:
 
 using DiffInterval = std::vector<clang::SourceRange>;
 
-// FIXME: These are translation-unit-wide defaults taken from the compiler
-// invocation, not the options of a request; rename to InvocationOptions.
-struct RequestOptions {
-  /// Whether each analysis runs, once the switches on the command line have
-  /// been resolved against the defaults in Analyses.def.
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
-  bool Enable##Id##Analysis = Default;
-#include "clad/Differentiator/Analyses.def"
-  /// Whether the user asked to hear what each analysis left behind.
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
-  bool Remark##Id##Analysis = false;
-#include "clad/Differentiator/Analyses.def"
-  bool EmitPortingHints = false;
-};
-
   /// \ingroup pipeline
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
     /// The source interval where clad was activated.
@@ -567,7 +553,7 @@ struct RequestOptions {
     DiffRequest* m_ParentReq = nullptr;
     clang::Sema& m_Sema;
 
-    const RequestOptions& m_Options;
+    const Options& m_Options;
 
     llvm::DenseSet<const clang::FunctionDecl*> m_Traversed;
 
@@ -586,7 +572,7 @@ struct RequestOptions {
   public:
     DiffCollector(DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
-                  RequestOptions& opts, OwnedAnalysisContexts& AllAnalysisDC);
+                  Options& opts, OwnedAnalysisContexts& AllAnalysisDC);
     /// Run the static planning pass over a group of top-level declarations,
     /// populating the request graph. A no-op when the clad-enabled interval is
     /// empty. Re-entrant calls (e.g. module decls deserialized during a

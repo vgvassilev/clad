@@ -8,6 +8,7 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/Options.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
@@ -146,43 +147,46 @@ void InitTimers();
     }
   };
 
-    CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
-        : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
-      CodeGenOptions& CGOpts = m_CI.getCodeGenOpts();
-      bool WantTiming = CGOpts.TimePasses;
+  CladPlugin::CladPlugin(CompilerInstance& CI, Options& DO)
+      : m_CI(CI), m_DO(DO) {
+    CodeGenOptions& CGOpts = m_CI.getCodeGenOpts();
+    bool WantTiming = CGOpts.TimePasses;
 
-      if (WantTiming || getenv("CLAD_ENABLE_TIMING"))
-        InitTimers();
+    if (WantTiming || getenv("CLAD_ENABLE_TIMING"))
+      InitTimers();
 
-        // Register clad as a backend pass via the path of clad.so itself,
-        // resolved from any symbol we own. Cleaner than iterating
-        // CI.getFrontendOpts().Plugins (which depends on how clang was
-        // invoked) and keeps the lookup inside this DSO.
+      // Register clad as a backend pass via the path of clad.so itself,
+      // resolved from any symbol we own. Cleaner than iterating
+      // CI.getFrontendOpts().Plugins (which depends on how clang was
+      // invoked) and keeps the lookup inside this DSO. Asking which module a
+      // function lives in means handing its address to a C API, which is a
+      // cast neither platform offers a typed spelling for.
 #ifdef CLAD_BUILD_STATIC_ONLY
-        // Skip registration entirely if clad is statically linked
+      // Skip registration entirely if clad is statically linked
 #elif _WIN32
-      HMODULE hm = nullptr;
-      if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                                 GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                             reinterpret_cast<LPCSTR>(&InitTimers), &hm) &&
-          hm) {
-        char buf[MAX_PATH];
-        if (DWORD n = GetModuleFileNameA(hm, buf, MAX_PATH);
-            n > 0 && n < MAX_PATH)
-          CGOpts.PassPlugins.emplace_back(buf);
-      }
+    HMODULE hm = nullptr;
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCSTR>(&InitTimers), &hm) &&
+        hm) {
+      char buf[MAX_PATH];
+      if (DWORD n = GetModuleFileNameA(hm, buf, MAX_PATH);
+          n > 0 && n < MAX_PATH)
+        CGOpts.PassPlugins.emplace_back(buf);
+    }
 #else
-      if (Dl_info info;
-          dladdr(reinterpret_cast<void*>(&InitTimers), &info) && info.dli_fname)
-        CGOpts.PassPlugins.emplace_back(info.dli_fname);
+    if (Dl_info info;
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        dladdr(reinterpret_cast<void*>(&InitTimers), &info) && info.dli_fname)
+      CGOpts.PassPlugins.emplace_back(info.dli_fname);
 #endif
 
-      // Add define for __CLAD__, so that CladFunction::CladFunction()
-      // doesn't throw an error.
-      auto predefines = m_CI.getPreprocessor().getPredefines();
-      predefines.append("#define __CLAD__ 1\n");
-      m_CI.getPreprocessor().setPredefines(predefines);
-    }
+    // Add define for __CLAD__, so that CladFunction::CladFunction()
+    // doesn't throw an error.
+    auto predefines = m_CI.getPreprocessor().getPredefines();
+    predefines.append("#define __CLAD__ 1\n");
+    m_CI.getPreprocessor().setPredefines(predefines);
+  }
 
     CladPlugin::~CladPlugin() {}
 
@@ -619,7 +623,7 @@ void InitTimers();
     }
 
     static void printDerivative(clang::Decl* D, bool DeclarationOnly,
-                                const DifferentiationOptions& DO) {
+                                const Options& DO) {
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
@@ -962,21 +966,6 @@ void InitTimers();
       return m_HasRuntime;
     }
 
-    void CladPlugin::SetRequestOptions(RequestOptions& opts) const {
-      // The last switch that named the analysis decides; otherwise it runs at
-      // the default Analyses.def gives it.
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
-      opts.Enable##Id##Analysis =                                              \
-          (m_DO.Id##Switch == AnalysisSwitch::Unset)                           \
-              ? (Default)                                                      \
-              : (m_DO.Id##Switch == AnalysisSwitch::On);
-#include "clad/Differentiator/Analyses.def"
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                     \
-      opts.Remark##Id##Analysis = m_DO.Remark##Id##Analysis;
-#include "clad/Differentiator/Analyses.def"
-      opts.EmitPortingHints = m_DO.EmitPortingHints;
-    }
-
     DerivativePrinter& CladPlugin::getDerivativePrinter() {
       assert(m_DerivativeBuilder &&
              "asked to print before anything was derived");
@@ -987,12 +976,9 @@ void InitTimers();
     }
 
     DiffScheduler& CladPlugin::getScheduler() {
-      if (!m_Scheduler) {
-        RequestOptions Opts{};
-        SetRequestOptions(Opts);
-        m_Scheduler = std::make_unique<DiffScheduler>(m_CI.getSema(), Opts,
+      if (!m_Scheduler)
+        m_Scheduler = std::make_unique<DiffScheduler>(m_CI.getSema(), m_DO,
                                                       CladEnabledRange);
-      }
       return *m_Scheduler;
     }
 

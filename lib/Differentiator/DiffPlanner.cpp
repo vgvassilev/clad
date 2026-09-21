@@ -13,6 +13,7 @@
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
+#include "clad/Differentiator/Options.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/Timers.h"
 
@@ -329,7 +330,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
   DiffCollector::DiffCollector(DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
-                               clang::Sema& S, RequestOptions& opts,
+                               clang::Sema& S, Options& opts,
                                OwnedAnalysisContexts& AllAnalysisDC)
       : m_Interval(Interval), m_DiffRequestGraph(requestGraph),
         m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {}
@@ -1111,7 +1112,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
   ///\returns true on error.
   static bool ProcessInvocationArgs(Sema& S, SourceLocation BeginLoc,
-                                    const RequestOptions& ReqOpts,
+                                    const Options& ReqOpts,
                                     const FunctionDecl* FD,
                                     DiffRequest& request) {
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
