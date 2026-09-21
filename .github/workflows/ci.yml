@@ -665,7 +665,11 @@ jobs:
   build-valgrind:
     if: ${{ github.event_name == 'push' }}
     timeout-minutes: 360 # Valgrind takes about two hours.
-    name: ${{ matrix.name }}
+    # A literal rather than ${{ matrix.name }}: this job is skipped on every
+    # pull request, and a skipped job's name is resolved before the matrix
+    # expands, so the expression form reports as a check called `matrix.name`.
+    # Holds while the matrix has the one row below.
+    name: ubu24-clang20-runtime22-vg
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -692,7 +696,11 @@ jobs:
   build-cling:
     if: ${{ github.event_name == 'push' }}
     timeout-minutes: 120
-    name: ${{ matrix.name }}
+    # A literal rather than ${{ matrix.name }}: this job is skipped on every
+    # pull request, and a skipped job's name is resolved before the matrix
+    # expands, so the expression form reports as a check called `matrix.name`.
+    # Holds while the matrix has the one row below.
+    name: ubu24-cling-llvm22
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
