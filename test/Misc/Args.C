@@ -27,9 +27,23 @@
 // CHECK_HELP-NEXT: -enable-ua / -disable-ua {{.*}} Default: off.
 // CHECK_HELP-NEXT: -enable-loop / -disable-loop {{.*}} Default: on.
 
+// An unknown option that is nothing like one clad has is reported on its
+// own: a suggestion that far out would mislead rather than help.
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad\
 // RUN: -Xclang -invalid %s 2>&1 | FileCheck --check-prefix=CHECK_INVALID %s
-// CHECK_INVALID: -invalid
+// CHECK_INVALID: invalid option -invalid
+// CHECK_INVALID-NOT: did you mean
+
+// One edit away, the option it was meant to be is named.
+// RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
+// RUN: -Xclang -fdump-derivd-fn %s 2>&1 | FileCheck --check-prefix=CHECK_TYPO %s
+// CHECK_TYPO: invalid option -fdump-derivd-fn; did you mean -fdump-derived-fn?
+
+// A joined option is measured by its spelling, not by the value after it,
+// which would otherwise swamp the distance.
+// RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
+// RUN: -Xclang -Rclad-analysi=loop %s 2>&1 | FileCheck --check-prefix=CHECK_TYPO_EQ %s
+// CHECK_TYPO_EQ: invalid option -Rclad-analysi=loop; did you mean -Rclad-analysis=?
 
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad\
 // RUN: -Xclang -version %s 2>&1 | FileCheck --check-prefix=CHECK_VERSION %s
