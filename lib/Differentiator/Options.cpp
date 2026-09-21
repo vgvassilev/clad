@@ -17,6 +17,9 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
+#include <array>
+#include <climits>
 #include <cstdint>
 #include <string>
 
@@ -199,6 +202,39 @@ static bool applyOption(Options& O, OptionID ID, llvm::StringRef Val) {
   }
 }
 
+/// Every spelling clad accepts, in the table's order.
+static constexpr std::array OptionSpellings = {
+#define CLAD_OPTION(Id, Kind, Spelling, MetaVar, Help) Spelling,
+#include "clad/Differentiator/Options.def"
+};
+
+/// The spelling nearest \p Arg, or empty where nothing is near enough to be
+/// worth naming. Measured as clang's OptTable::findNearest measures it, and
+/// offered on the same terms its driver offers one: within a single edit,
+/// past which a suggestion misleads more often than it helps.
+static llvm::StringRef nearestOption(llvm::StringRef Arg) {
+  // A joined option's value is not part of its spelling, so a misspelt
+  // -Rclad-analysis=loop is measured against -Rclad-analysis= rather than
+  // against the whole argument, which the value would dominate.
+  llvm::StringRef Head = Arg;
+  if (auto Eq = Arg.find('='); Eq != llvm::StringRef::npos)
+    Head = Arg.take_front(Eq + 1);
+
+  llvm::StringRef Best;
+  unsigned BestDistance = UINT_MAX;
+  for (const char* S : OptionSpellings) {
+    llvm::StringRef Spelling = S;
+    unsigned Distance = std::min(
+        Arg.edit_distance(Spelling, /*AllowReplacements=*/true, BestDistance),
+        Head.edit_distance(Spelling, /*AllowReplacements=*/true, BestDistance));
+    if (Distance < BestDistance) {
+      BestDistance = Distance;
+      Best = Spelling;
+    }
+  }
+  return BestDistance <= 1 ? Best : llvm::StringRef();
+}
+
 /// The help screen, read out of the tables that define what it describes:
 /// every option from Options.td, then the per-analysis switches from
 /// Analyses.td, which is a pair per analysis rather than an option of its own.
@@ -264,7 +300,10 @@ bool Options::read(llvm::ArrayRef<std::string> Args) {
     case OptionID::Unknown:
       if (setAnalysisFromFlag(Switches, Arg))
         break;
-      llvm::errs() << "clad: Error: invalid option " << Arg << "\n";
+      llvm::errs() << "clad: Error: invalid option " << Arg;
+      if (llvm::StringRef Near = nearestOption(Arg); !Near.empty())
+        llvm::errs() << "; did you mean " << Near << "?";
+      llvm::errs() << "\n";
       return false;
     default:
       break;
