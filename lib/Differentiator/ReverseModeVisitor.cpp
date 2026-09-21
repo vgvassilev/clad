@@ -4,9 +4,10 @@
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-#include "clad/Differentiator/ReverseModeVisitor.h"
+#include "../../include/clad/Differentiator/ReverseModeVisitor.h"
 #include "ASTIntegrity.h"
 #include "ConstantFolder.h"
+#include "clad/Differentiator/ReverseModeVisitor.h"
 
 #include "LoopAnalyzer.h"
 #include "TBRAnalyzer.h"
@@ -354,7 +355,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
 
     llvm::SmallVector<ParmVarDecl*, 8> params;
-    BuildParams(params);
+    if (!BuildParams(params)) {
+      return DerivativeAndOverload();
+    }
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
@@ -4122,14 +4125,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // Reject structures containing reference data members to prevent
         // incorrect gradient generation / double-counting errors (Issue #2082).
         if (const auto* RD = VD->getType()->getAsCXXRecordDecl()) {
-          for (const clang::FieldDecl* FD : RD->fields()) {
-            if (FD->getType()->isReferenceType()) {
+          if (const FieldDecl* FD = FindReferenceDataMember(RD)) {
+            diag(DiagnosticsEngine::Error, VD->getLocation(),
+                 "variable '%0' has unsupported reference data member")
+                << VD->getName();
 
-             diag(DiagnosticsEngine::Error, FD->getLocation(), "reference data members are not supported");
-              return StmtDiff();
-            }
+            diag(DiagnosticsEngine::Note, FD->getLocation(),
+                 "reference member '%0' declared here")
+                << FD->getName();
+
+            return StmtDiff();
           }
         }
+
         // ----------------------------------------
 
         DeclDiff<VarDecl> VDDiff;
@@ -5923,7 +5931,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return false;
   }
 
-  void
+  bool
   ReverseModeVisitor::BuildParams(llvm::SmallVectorImpl<ParmVarDecl*>& params,
                                   const LambdaExpr* LE) {
     const FunctionDecl* FD = m_DiffReq.Function;
@@ -5931,6 +5939,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       FD = LE->getCallOperator();
 
     for (ParmVarDecl* PVD : FD->parameters()) {
+      if (const auto* RD = PVD->getType()->getAsCXXRecordDecl()) {
+        if (const auto* FD = FindReferenceDataMember(RD)) {
+          diag(DiagnosticsEngine::Error, PVD->getLocation(),
+         "parameter '%0' has unsupported reference data member")
+        << PVD->getName();
+
+          diag(DiagnosticsEngine::Note, FD->getLocation(),
+               "reference member '%0' declared here")
+              << FD->getName();
+          return false;
+        }
+
+      }
+
       IdentifierInfo* PVDII = PVD->getIdentifier();
       // Implicitly created special member functions have no parameter names.
       if (!PVD->getDeclName())
@@ -6051,6 +6073,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       params.push_back(dPVD);
     }
+    return true;
   }
   void ReverseModeVisitor::MarkDeclThreadPrivate(VarDecl* decl) {
     auto* Init = decl->getInit();
@@ -6069,4 +6092,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmt* TPStmt = BuildDeclStmt(TPDecl);
     AddToGlobalBlock(TPStmt);
   }
-} // end namespace clad
+
+const clang::FieldDecl* ReverseModeVisitor::FindReferenceDataMember(const clang::CXXRecordDecl* RD) {
+  if (!RD || RD->isLambda())
+    return nullptr;
+
+  for (const clang::FieldDecl* FD : RD->fields()) {
+    if (FD->getType()->isReferenceType())
+      return FD;
+
+    if (const auto* FieldRD = FD->getType()->getAsCXXRecordDecl()) {
+      if (const clang::FieldDecl* RefFD = FindReferenceDataMember(FieldRD))
+        return RefFD;
+    }
+  }
+
+  return nullptr;
+}
+
+}// end namespace clad

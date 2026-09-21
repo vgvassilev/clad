@@ -170,6 +170,7 @@ namespace clad {
         return false;
       return m_Stack.top().Eager || static_cast<bool>(m_Stack.top().Build);
     }
+    const clang::FieldDecl* FindReferenceDataMember(const clang::CXXRecordDecl* RD);
     /// Distributes one adjoint seed to several consumers: the first to claim it
     /// takes the node itself, the rest get clones, so the seed is parented
     /// exactly once and never shared. Local to a split point (a binary
@@ -881,7 +882,7 @@ namespace clad {
     }
     clang::Expr* buildDerivedLambda(const clang::LambdaExpr* LE);
     /// Builds and returns the sequence of derived function parameters.
-    void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,
+    bool BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,
                      const clang::LambdaExpr* LE = nullptr);
 
     void MarkDeclThreadPrivate(clang::VarDecl* decl);
