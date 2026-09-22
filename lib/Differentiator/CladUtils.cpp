@@ -22,6 +22,7 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
@@ -1015,6 +1016,63 @@ namespace clad {
       return true;
     }
 
+    bool isStdThreadLike(const CXXRecordDecl* RD) {
+      // std::thread only; std::jthread not covered yet.
+      return RD && RD->isInStdNamespace() && RD->getName() == "thread";
+    }
+
+    bool isStdReferenceWrapper(QualType QT) {
+      QT = QT.getNonReferenceType().getUnqualifiedType();
+      if (const auto* RD = QT->getAsCXXRecordDecl())
+        return RD->isInStdNamespace() && RD->getName() == "reference_wrapper";
+      return false;
+    }
+
+    static const FunctionDecl* findCallOperator(Sema& SemaRef,
+                                                CXXRecordDecl* RD) {
+      if (!RD)
+        return nullptr;
+      // Nest-diffing std::function's type-erased operator() is useless.
+      if (RD->isInStdNamespace() && RD->getName() == "function")
+        return nullptr;
+      DeclarationName DN =
+          SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(OO_Call);
+      LookupResult R(SemaRef, DN, noLoc, Sema::LookupMemberName);
+      R.suppressDiagnostics();
+      SemaRef.LookupQualifiedName(R, RD);
+      if (!R.isSingleResult())
+        return nullptr;
+      const auto* MD = dyn_cast<CXXMethodDecl>(R.getFoundDecl());
+      if (!MD || !MD->isDefined())
+        return nullptr;
+      return MD;
+    }
+
+    const FunctionDecl* resolveThreadCallable(Sema& SemaRef, const Expr* E) {
+      E = E->IgnoreParenImpCasts();
+      // Move/copy of std::thread is not a worker callable.
+      if (const auto* RD =
+              E->getType().getNonReferenceType()->getAsCXXRecordDecl())
+        if (isStdThreadLike(RD))
+          return nullptr;
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+        if (const auto* FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+          return FD;
+        if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          QualType Ty = VD->getType().getNonReferenceType();
+          if (auto* RD = Ty->getAsCXXRecordDecl())
+            return findCallOperator(SemaRef, RD);
+        }
+      }
+      if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(E))
+        return resolveThreadCallable(SemaRef, MTE->getSubExpr());
+      if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(E))
+        return resolveThreadCallable(SemaRef, BTE->getSubExpr());
+      if (auto* RD = E->getType().getNonReferenceType()->getAsCXXRecordDecl())
+        return findCallOperator(SemaRef, RD);
+      return nullptr;
+    }
+
     NamespaceDecl* GetCladNamespace(Sema& S) {
       static NamespaceDecl* Result = nullptr;
       if (Result)
@@ -1261,14 +1319,9 @@ namespace clad {
 
     bool needsReverseForw(const FunctionDecl* FDecl) {
       QualType Ret = FDecl->getReturnType();
-      if (returnsAdjoint(Ret) || isConstRefReturningRefWrapperMember(FDecl))
-        return true;
       // reference_wrapper<const T> is not a returnsAdjoint (const T* field).
-      QualType Unqual = Ret.getNonReferenceType().getUnqualifiedType();
-      if (const auto* RD = Unqual->getAsCXXRecordDecl())
-        if (RD->isInStdNamespace() && RD->getName() == "reference_wrapper")
-          return true;
-      return false;
+      return returnsAdjoint(Ret) || isStdReferenceWrapper(Ret) ||
+             isConstRefReturningRefWrapperMember(FDecl);
     }
 
     bool shouldUseRestoreTracker(const FunctionDecl* FD) {
