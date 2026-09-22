@@ -27,6 +27,7 @@
 namespace clad {
   /// A visitor for processing the function code to generate hessians
   /// Used to compute Hessian matrices by clad::hessian.
+  /// \ingroup visitors
   class HessianModeVisitor
       : public clang::ConstStmtVisitor<HessianModeVisitor, StmtDiff>,
         public VisitorBase {

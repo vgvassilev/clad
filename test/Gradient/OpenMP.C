@@ -846,19 +846,24 @@ double fn21(const double *x, int n) {
 // CHECK-NEXT:      _d_result += 1;
 // CHECK-NEXT:      #pragma omp parallel
 // CHECK-NEXT:          {
-// CHECK-NEXT:              int _t_chunklo1 = 0;
-// CHECK-NEXT:              int _t_chunkhi1 = 0;
-// CHECK-NEXT:              clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
-// CHECK-NEXT:              for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
-// CHECK-NEXT:                  #pragma omp critical
-// CHECK-NEXT:                      {
+// CHECK-NEXT:              double _acc0 = 0.;
+// CHECK-NEXT:              {
+// CHECK-NEXT:                  int _t_chunklo1 = 0;
+// CHECK-NEXT:                  int _t_chunkhi1 = 0;
+// CHECK-NEXT:                  clad::GetStaticSchedule(0, n - 1, 1, &_t_chunklo1, &_t_chunkhi1);
+// CHECK-NEXT:                  for (int i = _t_chunkhi1; i >= _t_chunklo1; i -= 1) {
+// CHECK-NEXT:                      #pragma omp critical
 // CHECK-NEXT:                          {
-// CHECK-NEXT:                              double _r_d0 = _d_result;
-// CHECK-NEXT:                              _d_x[0] += _r_d0 * x[0];
-// CHECK-NEXT:                              _d_x[0] += x[0] * _r_d0;
+// CHECK-NEXT:                              {
+// CHECK-NEXT:                                  double _r_d0 = _d_result;
+// CHECK-NEXT:                                  _acc0 += _r_d0 * x[0];
+// CHECK-NEXT:                                  _acc0 += x[0] * _r_d0;
+// CHECK-NEXT:                              }
 // CHECK-NEXT:                          }
-// CHECK-NEXT:                      }
+// CHECK-NEXT:                  }
 // CHECK-NEXT:              }
+// CHECK-NEXT:              #pragma omp atomic
+// CHECK-NEXT:                  _d_x[0] += _acc0;
 // CHECK-NEXT:          }
 // CHECK-NEXT:  }
 

@@ -1214,6 +1214,12 @@ namespace clad {
       }
     }
 
+    bool returnsAdjoint(QualType T) {
+      if (T->isPointerType())
+        return true;
+      return isMemoryType(T);
+    }
+
     bool isMemoryType(QualType T) {
       T = T.getCanonicalType();
       if (T->isReferenceType())
@@ -1494,11 +1500,11 @@ namespace clad {
                         mode == DiffMode::pullback ||
                         mode == DiffMode::vector_forward_mode;
       if (mode == DiffMode::reverse_mode_forward_pass) {
-        if (isMemoryType(oRetTy) || isa<CXXConstructorDecl>(FD)) {
+        if (returnsAdjoint(oRetTy) || isa<CXXConstructorDecl>(FD)) {
           TemplateDecl* valAndAdjointTempDecl =
               utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
-          dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
-                                              {oRetTy, oRetTy});
+          dRetTy = utils::InstantiateTemplate(
+              S, valAndAdjointTempDecl, {oRetTy, getNonConstType(oRetTy, S)});
         } else {
           dRetTy = oRetTy;
         }

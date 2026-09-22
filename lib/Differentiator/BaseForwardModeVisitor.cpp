@@ -1741,12 +1741,12 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
 }
 
 DeclDiff<VarDecl>
-BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
+BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD) {
   return DifferentiateVarDecl(VD, false);
 }
 
 DeclDiff<VarDecl>
-BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
+BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
                                              bool ignoreInit) {
   StmtDiff initDiff{};
   const Expr* init = VD->getInit();

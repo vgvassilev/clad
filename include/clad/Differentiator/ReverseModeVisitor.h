@@ -59,6 +59,7 @@ namespace clad {
 
   /// A visitor for processing the function code in reverse mode.
   /// Used to compute derivatives by clad::gradient.
+  /// \ingroup visitors
   class ReverseModeVisitor
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
         public clang::ConstOMPClauseVisitor<ReverseModeVisitor,
@@ -105,8 +106,14 @@ namespace clad {
     // Store the Tape-pop operations that will be inserted at the beginning of
     // the OpenMP reverse pass.
     Stmts m_OMPReverseBlocks;
-    /// A flag indicating if the Stmt we are currently visiting is inside loop.
-    bool isInsideLoop = false;
+    /// The loop the statement being visited sits in, or null outside any
+    /// loop. Defined in lib/Differentiator/LoopScope.h.
+    struct LoopScope;
+    LoopScope* m_CurrentLoop = nullptr;
+    /// Whether a store in the statement being visited happens once per
+    /// iteration of a loop, and so has to go on a tape. False in a loop that
+    /// recomputes instead of taping.
+    [[nodiscard]] bool isInsideLoop() const;
     /// A flag indicating if the Stmt we are currently visiting is inside an
     /// OpenMP parallel region.
     bool isInsideOMPBlock = false;
@@ -331,6 +338,8 @@ namespace clad {
     ///
     /// \param[in] init The variable declaration initializer.
     ///
+    /// \param[in] SC The storage class of the variable declaration.
+    ///
     /// \returns A variable declaration that is already added to the
     /// global scope.
     clang::VarDecl* GlobalStoreImpl(clang::QualType Type,
@@ -421,6 +430,9 @@ namespace clad {
     ///
     /// \param[in] prefix The prefix value for the name of the tape.
     ///
+    /// \param[in] type The element type of the tape; deduced from \p E when
+    /// left empty.
+    ///
     /// \returns A struct containg necessary call expressions for the built
     /// tape
     CladTapeResult MakeCladTapeFor(clang::Expr* E,
@@ -439,8 +451,7 @@ namespace clad {
     /// before the call to the derived function.
     /// \param[in] args All the arguments to the target function.
     /// \param[in] outputArgs The output gradient arguments.
-    ///
-    /// \returns The derivative function call.
+    /// \param[in] CUDAExecConfig The kernel launch configuration, if any.
     void GetMultiArgCentralDiffCall(
         clang::Expr* targetFuncCall, clang::QualType retType, unsigned numArgs,
         clang::Expr* dfdx, llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
@@ -642,6 +653,9 @@ namespace clad {
     /// \param[in] isNonDiff true if the corresponding call is
     /// non-differentiable
     ///
+    /// \param[in] isCUDAKernel true if the call being differentiated is a
+    /// kernel launch
+    ///
     /// \returns A triplet of differentiated arguments, i.e. ``{<original arg>,
     /// <arg for pullback>, <reverse_forw arg>}``. In practice, it will look
     /// somewhat like ``{x, &_r0, _d_x}``.
@@ -736,12 +750,13 @@ namespace clad {
     ///
     ///\param[in] body body of the loop
     ///\param[in] loopCounter associated `LoopCounter` object of the loop.
-    ///\param[in] condVarDiff derived statements of the condition
+    ///\param[in] condVarDifff derived statements of the condition
     /// variable, if any.
     ///\param[in] forLoopIncDiff derived statements of the `for` loop
     /// increment statement, if any.
     ///\param[in] isForLoop should be true if we are differentiating a `for`
     /// loop body; otherwise false.
+    ///\param[in] loopLoc the location of the loop being differentiated.
     ///\returns {forward pass statements, reverse pass statements} for the loop
     /// body.
     StmtDiff DifferentiateLoopBody(
@@ -865,7 +880,7 @@ namespace clad {
     ///
     /// Multiple external RMV source can be registered by calling this function
     /// multiple times.
-    ///\paramp[in] source An external RMV source
+    ///\param[in] source An external RMV source
     void AddExternalSource(ExternalRMVSource& source);
 
     clang::QualType GetLambdaDerivativeType(const clang::LambdaExpr* LE) {
@@ -939,9 +954,6 @@ namespace clad {
     // style. Remove this once we generate constructors explicitly.
     bool m_TrackVarDeclConstructor = false;
 
-    /// A flag indicating if the Stmt is contained in a checkpointed loop.
-    bool m_IsInsideCheckpointedLoop = false;
-
     /// The two expressions a counted loop's reverse sweep needs. What the
     /// loop *is* -- its index, its bounds, whether they hold still -- belongs
     /// to the request, not here; this is only what had to be built from it.
@@ -964,11 +976,6 @@ namespace clad {
     /// differentiated several calls down, with no parameter of its own to
     /// carry this; set only while that one statement is being visited.
     const clang::VarDecl* m_UnsavedLoopIndex = nullptr;
-
-    /// The accumulators of the loop being differentiated, or null outside a
-    /// counted loop. Defined in ReverseModeVisitor.cpp, its only user.
-    struct ReductionScope;
-    ReductionScope* m_Reductions = nullptr;
   };
 } // end namespace clad
 

@@ -22,6 +22,7 @@ namespace clang {
 }
 
 namespace clad {
+  /// \ingroup astutils
   class ConstantFolder:
     public clang::StmtVisitor<ConstantFolder, clang::Expr*> {
   private:

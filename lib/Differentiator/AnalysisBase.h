@@ -196,6 +196,7 @@ struct VarsData {
   void clear() { m_Data.clear(); }
 };
 // NOLINTEND(cppcoreguidelines-pro-type-union-access)
+/// \ingroup analyses
 class AnalysisBase {
 protected:
   clang::AnalysisDeclContext* m_AnalysisDC;

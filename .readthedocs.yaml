@@ -17,6 +17,10 @@ build:
   apt_packages:
     - clang-18
     - cmake
+    # The internal documentation is doxygen output, and its graphs are dot.
+    # Both happen to be in the image; neither was asked for.
+    - doxygen
+    - graphviz
     - libclang-18-dev
     - llvm-18-dev
     - llvm-18-tools

@@ -1,4 +1,5 @@
 #include "ConstantFolder.h"
+#include "LoopScope.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
@@ -182,9 +183,9 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
   if (!IsIncrement)
     Stride = BuildOp(UO_Minus, Stride);
 
-  llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
-  // Set isInsideLoop to true to enable tape generation
-  isInsideLoop = true;
+  // The statements below are the loop's own, so they are taped.
+  assert(m_CurrentLoop && "a canonical loop is differentiated in its region");
+  llvm::SaveAndRestore<bool> SaveTapes(m_CurrentLoop->Tapes, true);
 
   // Create variables for chunk bounds: threadlo, threadhi
   QualType IntTy = m_Context.IntTy;
@@ -401,6 +402,18 @@ OMPClause* ReverseModeVisitor::BuildOMPPrivateClause(ArrayRef<Expr*> VarList,
                                   PrivateCopies);
 }
 
+/// Wrap \p Update in `#pragma omp atomic`, so that threads adding to the same
+/// adjoint do not lose each other's work.
+static Stmt* buildAtomicUpdate(Sema& S, Expr* Update, SourceLocation StartLoc,
+                               SourceLocation EndLoc) {
+  DeclarationNameInfo DirName;
+  llvm::SmallVector<OMPClause*, 0> NoClauses;
+  return CLAD_COMPAT_CLANG19_SemaOpenMP(S)
+      .ActOnOpenMPExecutableDirective(OMPD_atomic, DirName, OMPD_unknown,
+                                      NoClauses, Update, StartLoc, EndLoc)
+      .get();
+}
+
 /// Build `reduction(+: Vars)`, which is how a clause gives its adjoint a copy
 /// per thread that starts at the identity and is summed back at the end.
 static OMPClause* buildSumReduction(Sema& S, ASTContext& Ctx,
@@ -549,6 +562,10 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
     // Set the flag to indicate we are inside an OpenMP block
     llvm::SaveAndRestore<bool> SaveisInsideOMPBlock(isInsideOMPBlock);
     isInsideOMPBlock = true;
+    // An enclosing loop keeps its accumulators outside this region, where
+    // every thread would share them, so none of them is visible in here.
+    LoopScope Region(*this);
+    Region.Sums = nullptr;
 
     CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema).ActOnOpenMPRegionStart(
         OMPD_parallel, getCurrentScope());
@@ -557,6 +574,13 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
       Sema::CompoundScopeRAII CompoundScope(m_Sema);
       if (isOpenMPLoopDirective(D->getDirectiveKind())) {
         const auto* FS = cast<ForStmt>(CS);
+        Region.Facts = &m_DiffReq.getLoopFacts(FS);
+        // For the body alone. What is summed here is declared in the region
+        // the body belongs to, so a read reaching this scope afterwards --
+        // the reverse region is built from it -- would name a variable
+        // declared in a region it sits outside of.
+        llvm::SaveAndRestore<LoopScope*> SumHere(
+            Region.Sums, Region.Facts->IndVar ? &Region : nullptr);
         BodyDiff = DifferentiateCanonicalLoop(FS);
       } else {
         BodyDiff = Visit(CS);
@@ -592,6 +616,26 @@ StmtDiff ReverseModeVisitor::VisitOMPExecutableDirective(
       }
       m_Globals.swap(temp);
     }
+    // Every thread adds to such an adjoint at the same index. Each sums its
+    // share into an accumulator declared inside the region, so it has one of
+    // its own, and adds it once under `omp atomic`: one update per thread in
+    // place of one racing store per iteration.
+    if (!Region.Accumulators.empty()) {
+      Stmts Body;
+      for (const LoopScope::Accumulator& A : Region.Accumulators) {
+        // Made while the forward region was open, so that is its context. It
+        // belongs to the reverse region, which declares it.
+        A.Acc->setDeclContext(m_Sema.CurContext);
+        Body.push_back(BuildDeclStmt(A.Acc));
+      }
+      Body.push_back(BodyDiff.getStmt_dx());
+      for (const LoopScope::Accumulator& A : Region.Accumulators)
+        Body.push_back(buildAtomicUpdate(
+            m_Sema, BuildOp(BO_AddAssign, A.Target, BuildDeclRef(A.Acc)),
+            D->getBeginLoc(), D->getEndLoc()));
+      BodyDiff = {BodyDiff.getStmt(), MakeCompoundStmt(Body)};
+    }
+
     Stmt* Reverse =
         CLAD_COMPAT_CLANG19_SemaOpenMP(m_Sema)
             .ActOnOpenMPRegionEnd(BodyDiff.getStmt_dx(), DiffClauses)

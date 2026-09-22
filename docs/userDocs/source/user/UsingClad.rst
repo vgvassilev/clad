@@ -161,6 +161,36 @@ for more details.
 Reverse Mode Automatic Differentiation
 ----------------------------------------
 
+Reverse mode AD computes the derivative of one output with respect to every
+input at once. Mathematically it gives a row of the jacobian matrix, where
+forward mode gives a column, which is why it is the mode to reach for when a
+function has many inputs and few outputs, which is what a cost or a likelihood
+usually is.
+
+``clad::gradient`` provides the reverse mode differentiation functionality. It
+takes a source function and, optionally, the parameters to differentiate with
+respect to, and returns a ``clad::CladFunction`` the same way
+``clad::differentiate`` does. The derived function differs in its signature: it
+returns nothing, and takes one extra pointer per differentiated parameter, in
+the order the parameters are declared. Clad *accumulates* into those pointers
+rather than assigning to them, so the caller allocates them and sets them to
+zero.
+
+.. literalinclude:: ../../../../test/Documentation/UsingClad/ReverseMode.cpp
+   :language: cpp
+   :start-after: docs-begin-reverse-mode
+   :end-before: docs-end-reverse-mode
+
+Passing the parameters explicitly narrows the gradient: ``clad::gradient(fn,
+"x")`` generates a function taking one extra pointer rather than two. As in
+forward mode, a parameter can be named or given by index, so
+``clad::gradient(fn, "x, y")`` and ``clad::gradient(fn, "0, 1")`` are the same
+request.
+
+Visit the API reference of :cpp:func:`gradient` for more details, and
+:doc:`Core concepts <CoreConcepts>` for what Clad generates and why it needs to
+store values along the way.
+
 Hessian Computation
 ----------------------
 
@@ -681,8 +711,104 @@ This `tutorial <https://compiler-research.org/tutorials/fp_error_estimation_clad
 provides a comprehensive guide on building your own custom models and understanding the working behind the error 
 estimation framework.
 
+.. _debug-functionalities:
+.. _inspecting-the-generated-code:
+
 Debug functionalities
 ======================
+
+The quickest look at a derivative is through the ``clad::CladFunction`` you
+already hold. ``dump()`` prints it and ``getCode()`` returns it as a string::
+
+  auto df = clad::differentiate(f, "x");
+  df.dump();
+
+That gives the one derivative you asked for. The switches below cover the cases
+it does not: everything Clad generated for a translation unit, a file you can
+step through in a debugger, and what the analyses decided.
+
+Derivatives are built as an AST and belong to no file of yours, so a diagnostic
+about one names ``<clad generated code>`` rather than a path. Clad renders them
+into a buffer with real lines and columns to make that possible; one buffer
+holds every derivative in the translation unit, so which derivative a
+diagnostic means comes from a note under it. All three switches below are
+plugin arguments, so each needs ``-Xclang -plugin-arg-clad -Xclang`` in front.
+
+``-Rclad-analysis=<name>``
+--------------------------------
+
+Reports what the named analysis could not remove from the derivative, and
+where. This is the analogue of ``-Rpass-missed``, which cannot serve clad:
+clang's remark machinery runs in the backend over LLVM IR and never sees a
+plugin working on the AST.
+
+.. code-block:: none
+
+   <clad generated code>:4:5: remark: clad keeps this value for the reverse sweep
+       4 |     double _t0 = t;
+         |     ^~~~~~~~~~~~~~
+   <clad generated code>:4:5: note: to-be-recorded analysis could not show it unused
+   doc.cpp:8:12: note: in the derivative of 'f' requested here
+       8 |   auto g = clad::gradient(f);
+         |            ^
+   doc.cpp:4:3: note: the value kept is the one this expression had
+       4 |   t = t * t;
+         |   ^
+
+Expect three positions: the generated statement that costs, the differentiation
+that asked for the derivative, and the expression in your own code whose value
+is being kept -- the half you can act on. The note giving the reason
+distinguishes an analysis that ran and could not prove the value dead from one
+that was switched off, so a remark never claims to have proved something it
+never ran.
+
+Run ``-plugin-arg-clad -help`` for the analysis names this accepts.
+
+``-fgenerated-source-dir=<dir>``
+--------------------------------
+
+Writes the code Clad generates into ``<dir>``, one file per translation unit
+named after it, and names that file in the debug line table. A debugger then
+has something to open when it stops inside a derivative.
+
+.. code-block:: bash
+
+   clang++ -g -fplugin=clad.so -Xclang -plugin-arg-clad \
+       -Xclang -fgenerated-source-dir=build/ doc.cpp
+
+Without it, the only way to reach the code is ``-gembed-source``, which puts
+it in the object; lldb reads that and gdb does not support it at all. When
+debug information is asked for and neither is in place, Clad says so once and
+names the flag that fits the debugger being tuned for. Giving the flag with no
+directory writes nothing and turns that advice off, which is the only way to:
+a plugin's diagnostic belongs to no ``-W`` group.
+
+``-fdump-generated-source``
+--------------------------------
+
+Prints a derivative as text together with the position every statement
+occupies in it, which is how the mapping is checked without a diagnostic to
+hang it on.
+
+.. code-block:: none
+
+   generated-source: f_grad
+     1:44-44: {
+     2:5-20: double _d_t = 0.;
+     3:5-20: double t = x * x;
+     4:5-18: double _t0 = t;
+     5:5-13: t = t * t;
+     5:9-13: t * t;
+
+Each line is ``line:begin-end`` followed by the text that starts there. A node
+that renders on one line reports the columns it spans, so a subexpression such
+as ``t * t`` is reported inside the statement containing it; one that cannot
+be measured that way, such as a compound statement, reports only where it
+begins.
+
+This is not ``-fgenerate-source-file``, which appends each derivative to
+``Derivatives.cpp`` for reading. This one reports where each statement *sits*,
+which is what a diagnostic needs in order to point at it.
 
 Other ways to differentiate
 ============================

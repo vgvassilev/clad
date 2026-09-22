@@ -97,6 +97,12 @@ public:
       Bases[VD].Refs++;
     return true;
   }
+  /// A captured statement -- an OpenMP region's body -- names every variable
+  /// it captures a second time, in the capture list. Those are not uses that
+  /// could reach the variable's adjoint, so only the body is walked.
+  bool TraverseCapturedStmt(CapturedStmt* CS) {
+    return TraverseStmt(CS->getCapturedStmt());
+  }
   /// A variable the body declares is a fresh object on every iteration, and
   /// the reverse sweep resets its adjoint each time round; nothing may be
   /// carried past that.

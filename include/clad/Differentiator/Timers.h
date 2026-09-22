@@ -11,14 +11,14 @@ namespace clad {
 struct TimedAnalysisRegion {
   TimedAnalysisRegion(llvm::StringRef Name);
   /// Only runs the lambda if timers are enabled. Useful for more complex
-  /// operations such as ::print.
+  /// operations such as printing a declaration.
   TimedAnalysisRegion(const std::function<std::string()>& NameProvider);
   ~TimedAnalysisRegion();
 };
 struct TimedGenerationRegion {
   TimedGenerationRegion(llvm::StringRef Name);
   /// Only runs the lambda if timers are enabled. Useful for more complex
-  /// operations such as ::print.
+  /// operations such as printing a declaration.
   TimedGenerationRegion(const std::function<std::string()>& NameProvider);
   ~TimedGenerationRegion();
 };

@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <limits>
 
 #define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
 
@@ -46,11 +47,11 @@ template <typename T, typename U> struct ValueAndAdjoint {
 struct no_state {};
 
 /// Per-call state a custom `X_reverse_forw` hands to its matching `X_pullback`.
-/// The reverse_forw takes a trailing `pullback_state<Payload>&` out-parameter
+/// The reverse_forw takes a trailing `pullback_state\<Payload\>&` out-parameter
 /// and fills it in the forward sweep; the pullback takes a trailing
-/// `pullback_state<Payload>`, by value or by reference, and reads it in the
+/// `pullback_state\<Payload\>`, by value or by reference, and reads it in the
 /// reverse sweep. Take it by reference when the payload owns storage that
-/// cannot be copied, such as a `clad::tape<T>` the pullback pops from. clad
+/// cannot be copied, such as a `clad::tape\<T\>` the pullback pops from. clad
 /// declares one carrier and threads it into both calls -- the same out-param
 /// mechanism as `clad::restore_tracker`, and it composes with the
 /// `ValueAndAdjoint` a value-returning reverse_forw already returns. Use it to
@@ -59,7 +60,7 @@ struct no_state {};
 ///
 /// `Payload` is author-owned; extend it by appending fields. An empty
 /// `pullback_state<no_state>` folds away at -O1+. When a reverse_forw also
-/// takes a `restore_tracker&`, the `pullback_state<Payload>&` comes first.
+/// takes a `restore_tracker&`, the `pullback_state\<Payload\>&` comes first.
 template <typename Payload = no_state> struct pullback_state {
   Payload data{};
 };
@@ -77,9 +78,9 @@ template <typename Payload = no_state> struct pullback_state {
 ///
 /// In the case of constructor pushforward, there are no objects of the class
 /// type passed to the constructor. Therefore, we cannot simply use arguments
-/// to determine the class. To solve this, 'clad::Tag<T>' is
+/// to determine the class. To solve this, 'clad::Tag\<T\>' is
 /// used. A custom_derivative pushforward for constructor is required to have
-/// 'clad::Tag<T>' as the first argument, where 'T' is the
+/// 'clad::Tag\<T\>' as the first argument, where 'T' is the
 /// class for which constructor pushforward is defined.
 /// We do the same for constructor_reverse_forw.
 template <class T> class Tag {};
@@ -104,6 +105,7 @@ template <class T> using ConstructorPushforwardTag = Tag<T>;
 
 template <class T> using ConstructorReverseForwTag = Tag<T>;
 
+/// \ingroup rules
 namespace custom_derivatives {
 #ifdef __CUDACC__
 template <typename T>
@@ -1169,7 +1171,7 @@ template <typename T> CUDA_HOST_DEVICE inline T clad_beta_primal(T x, T y) {
 template <typename T> CUDA_HOST_DEVICE inline T clad_digamma(T x) {
   if (x <= 0.0) {
     if (x == ::std::floor(x))
-      return (T)NAN;
+      return ::std::numeric_limits<T>::quiet_NaN();
     return clad_digamma(1.0 - x) -
            ::std::acos((T)-1.0) / ::std::tan(::std::acos((T)-1.0) * x);
   }
@@ -1196,7 +1198,7 @@ template <typename T> CUDA_HOST_DEVICE inline T clad_digamma(T x) {
 template <typename T> CUDA_HOST_DEVICE inline T clad_trigamma(T x) {
   if (x <= 0.0) {
     if (x == ::std::floor(x))
-      return (T)NAN;
+      return ::std::numeric_limits<T>::quiet_NaN();
     T pi = ::std::acos((T)-1.0);
     T csc = 1.0 / ::std::sin(pi * x);
     return -clad_trigamma(1.0 - x) + (pi * pi * csc * csc);

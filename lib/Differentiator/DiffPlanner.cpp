@@ -13,6 +13,7 @@
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
+#include "clad/Differentiator/Options.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/Timers.h"
 
@@ -329,7 +330,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
   DiffCollector::DiffCollector(DiffInterval& Interval,
                                clad::DynamicGraph<DiffRequest>& requestGraph,
-                               clang::Sema& S, RequestOptions& opts,
+                               clang::Sema& S, Options& opts,
                                OwnedAnalysisContexts& AllAnalysisDC)
       : m_Interval(Interval), m_DiffRequestGraph(requestGraph),
         m_AllAnalysisDC(AllAnalysisDC), m_Sema(S), m_Options(opts) {}
@@ -499,7 +500,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return *m_LoopFacts;
   }
 
-  const LoopFacts& DiffRequest::getLoopFacts(const ForStmt* FS) const {
+  const LoopFacts& DiffRequest::getLoopFacts(const clang::ForStmt* FS) const {
     static const LoopFacts None;
     const auto& Loops = getLoopFacts().Loops;
     auto it = Loops.find(FS);
@@ -971,13 +972,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return found != m_UsefulRunInfo.UsefulDecls.end();
   }
 
-  bool DiffRequest::shouldHaveAdjoint(const Stmt* S) const {
+  bool DiffRequest::shouldHaveAdjoint(const clang::Stmt* S) const {
     if (!EnableVariedAnalysis)
       return true;
     auto found = m_ActivityRunInfo.VariedS.find(S);
     return found != m_ActivityRunInfo.VariedS.end();
   }
-  bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
+  bool DiffRequest::shouldHaveAdjoint(const clang::VarDecl* VD) const {
     if (!EnableVariedAnalysis)
       return true;
     return getVariedDecls().find(VD) != getVariedDecls().end();
@@ -1111,7 +1112,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
   ///\returns true on error.
   static bool ProcessInvocationArgs(Sema& S, SourceLocation BeginLoc,
-                                    const RequestOptions& ReqOpts,
+                                    const Options& ReqOpts,
                                     const FunctionDecl* FD,
                                     DiffRequest& request) {
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
@@ -2031,7 +2032,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       if (hasCustomReverseForw ||
           (!hasCustomPullback &&
-           (utils::isMemoryType(returnType) || shouldUseRestoreTracker))) {
+           (utils::returnsAdjoint(returnType) || shouldUseRestoreTracker))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
       }
     }

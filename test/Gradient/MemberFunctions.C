@@ -792,6 +792,81 @@ float fn12(const B b, const float* in) {
 // CHECK-NEXT:      b.scale_pullback(in, &res, _d_b, &_d_res);
 // CHECK-NEXT:  }
 
+struct C {
+  double d[2];
+  const double* data() const { return d; }
+};
+
+double prod(const double* a) { return a[0] * a[1]; }
+
+double fn13(double x) {
+  C c;
+  c.d[0] = x;
+  c.d[1] = x;
+  return prod(c.data());
+}
+
+// CHECK:  void prod_pullback(const double *a, double _d_y, double *_d_a) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_a[0] += _d_y * a[1];
+// CHECK-NEXT:          _d_a[1] += a[0] * _d_y;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK:  clad::ValueAndAdjoint<const double *, double *> data_reverse_forw(C *_d_this) const {
+// CHECK-NEXT:      return {this->d, _d_this->d};
+// CHECK-NEXT:  }
+
+// CHECK:  void fn13_grad(double x, double *_d_x) {
+// CHECK-NEXT:      C _d_c = {{.*}};
+// CHECK-NEXT:      C c;
+// CHECK-NEXT:      c.d[0] = x;
+// CHECK-NEXT:      c.d[1] = x;
+// CHECK-NEXT:      clad::ValueAndAdjoint<const double *, double *> _t0 = c.data_reverse_forw(&_d_c);
+// CHECK-NEXT:      prod_pullback(_t0.value, 1, _t0.adjoint);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r_d1 = _d_c.d[1];
+// CHECK-NEXT:          _d_c.d[1] = 0.;
+// CHECK-NEXT:          *_d_x += _r_d1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r_d0 = _d_c.d[0];
+// CHECK-NEXT:          _d_c.d[0] = 0.;
+// CHECK-NEXT:          *_d_x += _r_d0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+struct D {
+  int value;
+  const int* func() const { return &value; }
+};
+
+double fn14(double x) {
+  D d;
+  d.value = 3;
+  return x * *d.func();
+}
+
+// CHECK:  clad::ValueAndAdjoint<const int *, int *> func_reverse_forw(D *_d_this) const {
+// CHECK-NEXT:      return {&this->value, &_d_this->value};
+// CHECK-NEXT:  }
+
+// CHECK:  void fn14_grad(double x, double *_d_x) {
+// CHECK-NEXT:      D _d_d = {0};
+// CHECK-NEXT:      D d;
+// CHECK-NEXT:      d.value = 3;
+// CHECK-NEXT:      clad::ValueAndAdjoint<const int *, int *> _t0 = d.func_reverse_forw(&_d_d);
+// CHECK-NEXT:      clad::ValueAndAdjoint<const int *, int *> _t1 = d.func_reverse_forw(&_d_d);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_x += 1 * *_t0.value;
+// CHECK-NEXT:          *_t1.adjoint += x * 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          int _r_d0 = _d_d.value;
+// CHECK-NEXT:          _d_d.value = 0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
   auto d_const_mem_fn = clad::gradient(&SimpleFunctions::const_mem_fn);
@@ -891,6 +966,16 @@ int main() {
   auto d_fn12 = clad::gradient(fn12, "0");
   d_fn12.execute(b, &in, &d_b);
   printf("%.2f", d_b.m); //CHECK-EXEC: 2.00
+
+  auto d_fn13 = clad::gradient(fn13);
+  double d_fn13_x = 0;
+  d_fn13.execute(3, &d_fn13_x);
+  printf("%.2f", d_fn13_x); //CHECK-EXEC: 6.00
+
+  auto d_fn14 = clad::gradient(fn14);
+  double d_fn14_x = 0;
+  d_fn14.execute(2, &d_fn14_x);
+  printf("%.2f", d_fn14_x); //CHECK-EXEC: 3.00
   
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 

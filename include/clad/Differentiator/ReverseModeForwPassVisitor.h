@@ -14,6 +14,7 @@
 #include "llvm/ADT/StringRef.h"
 
 namespace clad {
+/// \ingroup visitors
 class ReverseModeForwPassVisitor : public ReverseModeVisitor {
 private:
   Stmts m_Globals;

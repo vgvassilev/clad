@@ -31,10 +31,10 @@ namespace numerical_diff {
     /// destructors.
     ///
     /// \tparam T the type of buffer to make.
-    /// \param[in] \c n The length for the buffer.
-    /// \param[in] \c constructInPlace True if an object has to be constructed
+    /// \param[in] n The length for the buffer.
+    /// \param[in] constructInPlace True if an object has to be constructed
     /// in place. Use for trivially constructable types ONLY.
-    /// \param[in] \c args Arguments to forward to the constructor.
+    /// \param[in] args Arguments to forward to the constructor.
     ///
     /// \returns A raw pointer to the newly created buffer.
     template <typename T, typename... Args,
@@ -52,7 +52,7 @@ namespace numerical_diff {
     /// A function to make some buffer space.
     ///
     /// \tparam T the type of buffer to make.
-    /// \param[in] \c n The length for the buffer.
+    /// \param[in] n The length for the buffer.
     ///
     /// \returns A raw pointer to the newly created buffer.
     template <typename T> T* make_buffer_space(std::size_t n) {
@@ -86,8 +86,8 @@ namespace numerical_diff {
   /// catastrophic cancellations, hence resulting into a 0 derivative over a
   /// large interval.
   ///
-  /// \param[in] \c x Input to the target function.
-  /// \param[in] \c h The h to make representable.
+  /// \param[in] x Input to the target function.
+  /// \param[in] h The h to make representable.
   ///
   /// \returns A value of h that does not result in catastrohic cancellation.
   inline precision make_h_representable(precision x, precision h) {
@@ -104,7 +104,7 @@ namespace numerical_diff {
 
   /// A function to return the h value to use.
   ///
-  /// \param[in] \c arg The input argument to adjust and get h for.
+  /// \param[in] arg The input argument to adjust and get h for.
   ///
   /// \returns A calculated and adjusted h value.
   inline precision get_h(precision arg) {
@@ -120,14 +120,14 @@ namespace numerical_diff {
   /// a function to the standard output stream. This can be enabled by
   /// '-fprint-num-diff-errors'.
   ///
-  /// \param[in] \c derivError The error associated with numerically
+  /// \param[in] derivError The error associated with numerically
   /// differentiating a function. This error is calculated by the remainder term
   /// on expanding the five-point stencil series.
-  /// \param[in] \c evalError This error is associated with the evaluation of
+  /// \param[in] evalError This error is associated with the evaluation of
   /// the target functions.
-  /// \param[in] \c paramPos The position of the parameter to which this error
+  /// \param[in] paramPos The position of the parameter to which this error
   ///  belongs.
-  /// \param[in] \c arrPos The position of the array element
+  /// \param[in] arrPos The position of the array element
   /// (-1 if parameter is scalar) to which the error belongs.
   inline void printError(precision derivError, precision evalError,
                          unsigned paramPos, int arrPos = -1) {
@@ -162,15 +162,15 @@ namespace numerical_diff {
   /// }
   /// \endcode
   ///
-  /// \param[in] \c arg The argument to update.
-  /// \param[in] \c idx The index of the current parameter in the target
-  /// function parameter pack, starting from 0. 
-  /// \param[in] \c currIdx The index value of the parameter to be updated.
-  /// \param[in] \c multiplier A multiplier to compound with h before updating
+  /// \param[in] arg The argument to update.
+  /// \param[in] idx The index of the current parameter in the target
+  /// function parameter pack, starting from 0.
+  /// \param[in] currIdx The index value of the parameter to be updated.
+  /// \param[in] multiplier A multiplier to compound with h before updating
   /// 'arg'.
-  /// \param[out] \c h_val The h value that was set for each argument.
-  /// \param[in] \c n The length of the input pointer/array. NOOP here.
-  /// \param[in] \c i The specific index to get the adjusted h for. NOOP here.
+  /// \param[out] h_val The h value that was set for each argument.
+  /// \param[in] n The length of the input pointer/array. NOOP here.
+  /// \param[in] i The specific index to get the adjusted h for. NOOP here.
   ///
   /// \returns The updated argument.
   template <typename T, typename std::enable_if<!std::is_pointer<T>::value,
@@ -209,17 +209,17 @@ namespace numerical_diff {
   /// \warning User function should not delete the returned 'arg' replacement,
   /// it will lead to double free or undefined behaviour.
   ///
-  /// \param[in] \c arg The argument to update.
-  /// \param[in] \c idx The index of the current parameter in the target
+  /// \param[in] arg The argument to update.
+  /// \param[in] idx The index of the current parameter in the target
   /// function parameter pack, starting from 0.
-  /// \param[in] \c currIdx The index value of the parameter to be
+  /// \param[in] currIdx The index value of the parameter to be
   /// updated.
-  /// \param[in] \c multiplier A multiplier to compound with h before
+  /// \param[in] multiplier A multiplier to compound with h before
   /// updating 'arg'.
-  /// \param[out] \c h_val The h value that was set for each
+  /// \param[out] h_val The h value that was set for each
   /// argument.
-  /// \param[in] \c n The length of the input pointer/array.
-  /// \param[in] \c i The specific index to get the adjusted h for.
+  /// \param[in] n The length of the input pointer/array.
+  /// \param[in] i The specific index to get the adjusted h for.
   ///
   /// \returns The updated argument.
   template <typename T>
@@ -246,14 +246,14 @@ namespace numerical_diff {
   /// A helper function to calculate the numerical derivative of a target
   /// function.
   ///
-  /// \param[in] \c f The target function to numerically differentiate.
-  /// \param[out] \c _grad The gradient array reference to which the gradients
+  /// \param[in] f The target function to numerically differentiate.
+  /// \param[out] _grad The gradient array reference to which the gradients
   /// will be written.
-  /// \param[in] \c printErrors A flag to decide if we want to print numerical
+  /// \param[in] printErrors A flag to decide if we want to print numerical
   /// diff errors estimates.
-  /// \param[in] \c idxSeq The index sequence associated with
+  /// \param[in] idxSeq The index sequence associated with
   /// the input parameter pack.
-  /// \param[in] \c args The arguments to the function to differentiate.
+  /// \param[in] args The arguments to the function to differentiate.
   template <typename F, std::size_t... Ints,
             typename RetType = typename clad::function_traits<F>::return_type,
             typename... Args>
@@ -329,14 +329,14 @@ namespace numerical_diff {
   /// A helper function to calculate the numerical derivative of a target
   /// function.
   ///
-  /// \param[in] \c f The target function to numerically differentiate.
-  /// \param[out] \c _grad The gradient array reference to which the gradients
+  /// \param[in] f The target function to numerically differentiate.
+  /// \param[out] _grad The gradient array reference to which the gradients
   /// will be written.
-  /// \param[in] \c printErrors A flag to decide if we want to print numerical
+  /// \param[in] printErrors A flag to decide if we want to print numerical
   /// diff errors estimates.
-  /// \param[in] \c idxSeq The index sequence associated with
+  /// \param[in] idxSeq The index sequence associated with
   /// the input parameter pack.
-  /// \param[in] \c args The arguments to the function to differentiate.
+  /// \param[in] args The arguments to the function to differentiate.
   template <typename F, std::size_t... Ints,
             typename RetType = typename clad::function_traits<F>::return_type,
             typename... Args>
@@ -402,12 +402,12 @@ namespace numerical_diff {
   /// significance, hence it is only wise to use these methods when it is
   /// absolutely necessary.
   ///
-  /// \param[in] \c f The target function to numerically differentiate.
-  /// \param[out] \c _grad The gradient array reference to which the gradients
+  /// \param[in] f The target function to numerically differentiate.
+  /// \param[out] _grad The gradient array reference to which the gradients
   /// will be written.
-  /// \param[in] \c printErrors A flag to decide if we want to print numerical
+  /// \param[in] printErrors A flag to decide if we want to print numerical
   /// diff errors estimates.
-  /// \param[in] \c args The arguments to the function to differentiate.
+  /// \param[in] args The arguments to the function to differentiate.
   template <typename F, std::size_t... Ints, typename GradType,
             typename... Args>
   void central_difference(F f, GradType& _grad, bool printErrors,
@@ -420,18 +420,18 @@ namespace numerical_diff {
   /// A helper function to calculate ther derivative with respect to a
   /// single input.
   ///
-  /// \param[in] \c f The target function to numerically differentiate.
-  /// \param[in] \c arg The argument with respect to which differentiation is
+  /// \param[in] f The target function to numerically differentiate.
+  /// \param[in] arg The argument with respect to which differentiation is
   /// requested.
-  /// \param[in] \c n The positional value of 'arg'.
-  /// \param[in] \c arrIdx The index value of the input pointer/array to
+  /// \param[in] n The positional value of 'arg'.
+  /// \param[in] arrIdx The index value of the input pointer/array to
   /// differentiate with respect to.
-  /// \param[in] \c arrLen The length of the pointer/array.
-  /// \param[in] \c printErrors A flag to decide if we want to print numerical
+  /// \param[in] arrLen The length of the pointer/array.
+  /// \param[in] printErrors A flag to decide if we want to print numerical
   /// diff errors estimates.
-  /// \param[in] \c idxSeq The index sequence associated with the input
+  /// \param[in] idxSeq The index sequence associated with the input
   /// parameter pack.
-  /// \param[in] \c args The arguments to the function to differentiate.
+  /// \param[in] args The arguments to the function to differentiate.
   ///
   /// \returns The numerical derivative
   template <typename F, typename T, std::size_t... Ints, typename... Args>
@@ -500,13 +500,13 @@ namespace numerical_diff {
   /// input may have.
   /// To overcome these, you may use the central_difference method instead.
   ///
-  /// \param[in] \c f The target function to numerically differentiate.
-  /// \param[in] \c arg The argument with respect to which differentiation is
+  /// \param[in] f The target function to numerically differentiate.
+  /// \param[in] arg The argument with respect to which differentiation is
   /// requested.
-  /// \param[in] \c n The positional value of 'arg'.
-  /// \param[in] \c printErrors A flag to decide if we want to print numerical
+  /// \param[in] n The positional value of 'arg'.
+  /// \param[in] printErrors A flag to decide if we want to print numerical
   /// diff errors estimates.
-  /// \param[in] \c args The arguments to the function to differentiate.
+  /// \param[in] args The arguments to the function to differentiate.
   ///
   /// \returns The derivative value.
   template <
@@ -537,16 +537,16 @@ namespace numerical_diff {
   /// input may have.
   /// To overcome these, you may use the central_difference method instead.
   ///
-  /// \param[in] \c f The target function to numerically differentiate.
-  /// \param[in] \c arg The argument with respect to which differentiation is
+  /// \param[in] f The target function to numerically differentiate.
+  /// \param[in] arg The argument with respect to which differentiation is
   /// requested.
-  /// \param[in] \c n The positional value of 'arg'.
-  /// \param[in] \c arrLen The length of the pointer/array.
-  /// \param[in] \c arrIdx The specific index value to differentiate the target
+  /// \param[in] n The positional value of 'arg'.
+  /// \param[in] arrLen The length of the pointer/array.
+  /// \param[in] arrIdx The specific index value to differentiate the target
   /// function with respect to.
-  /// \param[in] \c printErrors A flag to decide if we want to print numerical
+  /// \param[in] printErrors A flag to decide if we want to print numerical
   /// diff errors estimates.
-  /// \param[in] \c args The arguments to the function to differentiate.
+  /// \param[in] args The arguments to the function to differentiate.
   ///
   /// \returns The derivative value.
   template <typename F, typename T, typename... Args>

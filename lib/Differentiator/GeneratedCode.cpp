@@ -1,5 +1,10 @@
 #include "GeneratedCode.h"
 
+#include "clad/Differentiator/DiffPlanner.h"
+
+#include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -14,9 +19,11 @@
 
 #include <algorithm>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 using namespace clang;
 
@@ -106,13 +113,14 @@ void GeneratedCode::writeChunksToFiles(DiagnosticsEngine& Diags) const {
   }
 }
 
-GeneratedCode::Chunk* GeneratedCode::chunkFor(SourceLocation Loc) {
+GeneratedCode::Chunk* GeneratedCode::chunkFor(clang::SourceLocation Loc) {
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   return const_cast<Chunk*>(
       static_cast<const GeneratedCode*>(this)->chunkFor(Loc));
 }
 
-const GeneratedCode::Chunk* GeneratedCode::chunkFor(SourceLocation Loc) const {
+const GeneratedCode::Chunk*
+GeneratedCode::chunkFor(clang::SourceLocation Loc) const {
   if (Loc.isInvalid())
     return nullptr;
   FileID File = m_Sema.getSourceManager().getFileID(Loc);
@@ -224,6 +232,98 @@ void GeneratedCode::present() {
                      /*IsFileExit=*/false, SrcMgr::C_User);
     }
   }
+}
+
+const Stmt* GeneratedCode::currentStatement() const {
+  for (auto It = m_Statements.rbegin(); It != m_Statements.rend(); ++It) {
+    const SourceLocation Loc = (*It)->getBeginLoc();
+    if (Loc.isValid() && !owns(Loc))
+      return *It;
+  }
+  return nullptr;
+}
+
+GeneratedCodeDiagnostics::GeneratedCodeDiagnostics(
+    GeneratedCode& Code, clang::DiagnosticsEngine& Diags,
+    const DiffRequest& Request)
+    : m_Code(Code), m_Diags(Diags) {
+  if (Code.m_Holding || !Diags.getClient())
+    return;
+  Code.m_Holding = true;
+
+  // Point at the call that asked for the derivative. One clad asked for
+  // itself has no call; point at the function, whose name may be one clad
+  // made up.
+  if (const FunctionDecl* FD = Request.Function) {
+    if (Request.CallContext) {
+      m_WhereAt = Request.CallContext->getBeginLoc();
+      m_Where =
+          "in the derivative of '" + FD->getNameAsString() + "' requested here";
+    } else {
+      m_WhereAt = FD->getLocation();
+      m_Where = "in a derivative of this function that clad asked for itself";
+    }
+    // A note has to point at the user's code.
+    if (m_WhereAt.isInvalid() || Code.hasNoLine(m_WhereAt))
+      m_Where.clear();
+  }
+
+  // The engine keeps pointing at its consumer when it stops owning it.
+  m_Client = Diags.getClient();
+  m_OwnedClient = Diags.takeClient();
+  Diags.setClient(this, /*ShouldOwnClient=*/false);
+}
+
+GeneratedCodeDiagnostics::~GeneratedCodeDiagnostics() {
+  if (!m_Client)
+    return;
+  m_Code.m_Holding = false;
+  const bool Owned = m_OwnedClient != nullptr;
+  m_Diags.setClient(Owned ? m_OwnedClient.release() : m_Client, Owned);
+
+  const unsigned NoteID =
+      m_Diags.getCustomDiagID(DiagnosticsEngine::Note, "%0");
+  SourceManager& SM = m_Diags.getSourceManager();
+  for (const auto& [Diag, HasNoLine, For] : m_Held) {
+    m_Diags.Report(Diag);
+    if (!HasNoLine || Diag.getLevel() == DiagnosticsEngine::Note)
+      continue;
+    // Right after the diagnostic and ahead of what Sema added to it, which is
+    // where clang puts the context of a diagnostic.
+    if (For)
+      m_Diags.Report(StoredDiagnostic(
+          DiagnosticsEngine::Note, NoteID,
+          "in the code clad generated for this statement",
+          FullSourceLoc(For->getBeginLoc(), SM),
+          CharSourceRange::getTokenRange(For->getSourceRange()),
+          /*Fixits=*/{}));
+    if (!m_Where.empty())
+      m_Diags.Report(StoredDiagnostic(DiagnosticsEngine::Note, NoteID, m_Where,
+                                      FullSourceLoc(m_WhereAt, SM),
+                                      /*Ranges=*/{}, /*Fixits=*/{}));
+  }
+}
+
+void GeneratedCodeDiagnostics::HandleDiagnostic(DiagnosticsEngine::Level Level,
+                                                const Diagnostic& Info) {
+  const bool HasNoLine =
+      Info.hasSourceManager() && m_Code.hasNoLine(Info.getLocation());
+  if (HasNoLine) {
+    llvm::SmallString<128> Message;
+    Info.FormatDiagnostic(Message);
+    m_Held.push_back({StoredDiagnostic(Level, Info.getID(), Message),
+                      /*HasNoLine=*/true, m_Code.currentStatement()});
+    return;
+  }
+  // Held too once one is, or it would come out ahead of that one.
+  if (!m_Held.empty()) {
+    m_Held.push_back({StoredDiagnostic(Level, Info)});
+    return;
+  }
+  m_Client->HandleDiagnostic(Level, Info);
+  // The compiler reads its error count from whichever consumer is installed.
+  NumWarnings = m_Client->getNumWarnings();
+  NumErrors = m_Client->getNumErrors();
 }
 
 } // namespace clad

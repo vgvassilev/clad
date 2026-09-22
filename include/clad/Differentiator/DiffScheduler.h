@@ -8,6 +8,9 @@
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/DynamicGraph.h"
+#include "clad/Differentiator/Options.h"
+
+#include <utility>
 
 namespace clang {
 class DeclGroupRef;
@@ -18,9 +21,10 @@ namespace clad {
 
 /// Owns the differentiation request graph and everything that builds it: the
 /// collector, the analysis-context pool and the derived-function map.
+/// \ingroup pipeline
 class DiffScheduler {
   clang::Sema& m_Sema;
-  RequestOptions m_Options;
+  Options m_Options;
   DiffInterval& m_Interval;
   DynamicGraph<DiffRequest> m_Graph;
   OwnedAnalysisContexts m_AllAnalysisDC;
@@ -28,9 +32,8 @@ class DiffScheduler {
   DiffCollector m_Collector;
 
 public:
-  DiffScheduler(clang::Sema& S, const RequestOptions& Opts,
-                DiffInterval& Interval)
-      : m_Sema(S), m_Options(Opts), m_Interval(Interval),
+  DiffScheduler(clang::Sema& S, Options Opts, DiffInterval& Interval)
+      : m_Sema(S), m_Options(std::move(Opts)), m_Interval(Interval),
         m_Collector(m_Interval, m_Graph, m_Sema, m_Options, m_AllAnalysisDC) {}
 
   DynamicGraph<DiffRequest>& getGraph() { return m_Graph; }

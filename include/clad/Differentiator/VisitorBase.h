@@ -222,6 +222,7 @@ namespace clad {
   };
 
   /// A base class for all common functionality for visitors
+  /// \ingroup visitors
   class VisitorBase {
   protected:
     VisitorBase(DerivativeBuilder& builder, const DiffRequest& request)
@@ -538,6 +539,7 @@ namespace clad {
     /// \endcode
     /// \param[in] OpCode The code for the unary operation to be built.
     /// \param[in] E The expression to build the unary operation with.
+    /// \param[in] OpLoc The location to give the operator.
     /// \returns An expression of the newly built unary operation or null if the
     /// operand in null.
     clang::Expr* BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E,
@@ -557,6 +559,7 @@ namespace clad {
     /// \param[in] OpCode The code for the binary operation to be built.
     /// \param[in] L The LHS expression to build the binary operation with.
     /// \param[in] R The RHS expression to build the binary operation with.
+    /// \param[in] OpLoc The location to give the operator.
     /// \returns An expression of the newly built binary operation or null if
     /// either LHS or RHS is null.
     clang::Expr* BuildOp(clang::BinaryOperatorKind OpCode, clang::Expr* L,
@@ -600,11 +603,13 @@ namespace clad {
     /// \param[in] Type The type of variable declaration to build.
     /// \param[in] Identifier The identifier information for the variable
     /// declaration.
+    /// \param[in] scope The scope to declare the variable in.
     /// \param[in] Init The initalization expression to assign to the variable
     ///  declaration.
     /// \param[in] DirectInit A check for if the initialization expression is a
     /// C style initalization.
     /// \param[in] TSI The type source information of the variable declaration.
+    /// \param[in] SC The storage class of the variable declaration.
     /// \returns The newly built variable declaration.
     clang::VarDecl*
     BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
@@ -621,6 +626,7 @@ namespace clad {
     /// \param[in] DirectInit A check for if the initialization expression is a
     /// C style initalization.
     /// \param[in] TSI The type source information of the variable declaration.
+    /// \param[in] SC The storage class of the variable declaration.
     /// \returns The newly built variable declaration.
     clang::VarDecl* BuildVarDecl(clang::QualType Type,
                                  clang::IdentifierInfo* Identifier,
@@ -637,6 +643,7 @@ namespace clad {
     /// \param[in] DirectInit A check for if the initialization expression is a
     /// C style initalization.
     /// \param[in] TSI The type source information of the variable declaration.
+    /// \param[in] SC The storage class of the variable declaration.
     /// \returns The newly built variable declaration.
     clang::VarDecl* BuildVarDecl(clang::QualType Type,
                                  llvm::StringRef prefix = "_t",
@@ -673,7 +680,7 @@ namespace clad {
     /// Wraps a set of declarations in a DeclStmt.
     /// \n This function is useful to wrap multiple variable declarations in one
     /// single declaration statement.
-    /// \param[in] D The declarations to build a declaration statement from.
+    /// \param[in] DS The declarations to build a declaration statement from.
     /// \returns The declaration statement expression corresponding to the input
     /// variable declaration.
     clang::DeclStmt* BuildDeclStmt(llvm::MutableArrayRef<clang::Decl*> DS);
@@ -683,7 +690,8 @@ namespace clad {
     /// declaration reference expressions. This function builds a declaration
     /// reference given a declaration.
     /// \param[in] D The declaration to build a DeclRefExpr for.
-    /// \param[in] SS The nested name specifier for the declaration.
+    /// \param[in] NNS The nested name specifier to qualify the reference with.
+    /// \param[in] VK The value kind of the reference.
     /// \returns the DeclRefExpr for the given declaration.
     clang::DeclRefExpr* BuildDeclRef(
         clang::DeclaratorDecl* D,
@@ -799,7 +807,7 @@ namespace clad {
     clang::LookupResult& GetCladTapePush();
     clang::LookupResult& GetCladTapePop();
     clang::LookupResult& GetCladTapeBack();
-    /// Instantiate clad::tape<T> type.
+    /// Instantiate clad::tape\<T\> type.
     clang::QualType GetCladTapeOfType(clang::QualType T);
 
     /// Helper to build a function call expression.
@@ -859,11 +867,10 @@ namespace clad {
     ///
     /// \param[in] Base expr to the object which is used to call the member
     ///  function
-    /// \param[in] isArrow if true specifies that the member function is
-    /// accessed by an -> otherwise .
     /// \param[in] MemberFunctionName the name of the member function
     /// \param[in] ArgExprs the arguments to be used when calling the member
     ///  function
+    /// \param[in] Loc the location to give the call.
     /// \returns Built member function call expression
     ///  Base.MemberFunction(ArgExprs) or Base->MemberFunction(ArgExprs)
     clang::Expr*
@@ -885,6 +892,7 @@ namespace clad {
     /// \param[in] argExprs function arguments expressions
     /// \param[in] useRefQualifiedThisObj If true, then the `this` object is
     /// perfectly forwarded while calling member functions.
+    /// \param[in] Loc the location to give the call.
     /// \returns Built member function call expression
     clang::Expr* BuildCallExprToMemFn(
         clang::CXXMethodDecl* FD, llvm::MutableArrayRef<clang::Expr*> argExprs,
@@ -898,6 +906,8 @@ namespace clad {
     /// \param[in] argExprs function arguments expressions
     /// \param[in] useRefQualifiedThisObj If true, then the `this` object is
     /// perfectly forwarded while calling member functions.
+    /// \param[in] CUDAExecConfig the kernel launch configuration, for a call
+    /// to a __global__ function.
     /// \returns Built call expression
     clang::Expr*
     BuildCallExprToFunction(const clang::FunctionDecl* FD,
@@ -931,19 +941,19 @@ namespace clad {
         llvm::StringRef name, llvm::MutableArrayRef<clang::Expr*> argExprs,
         llvm::ArrayRef<clang::TemplateArgument> templateArgs);
 
-    /// Checks if the type is of clad::array<T> or clad::array_ref<T> type
+    /// Checks if the type is of clad::array\<T\> or clad::array_ref\<T\> type
     bool isCladArrayType(clang::QualType QT);
 
-    /// Creates the expression clad::matrix<T>::identity(Args) for the given
+    /// Creates the expression %clad::matrix\<T\>::%identity(Args) for the given
     /// type and args.
     clang::Expr*
     BuildIdentityMatrixExpr(clang::QualType T,
                             llvm::MutableArrayRef<clang::Expr*> Args);
     /// Creates the expression Base.size() for the given Base expr. The Base
-    /// expr must be of clad::array_ref<T> type
+    /// expr must be of clad::array_ref\<T\> type
     clang::Expr* BuildArrayRefSizeExpr(clang::Expr* Base);
     /// Creates the expression Base.slice(Args) for the given Base expr and Args
-    /// array. The Base expr must be of clad::array_ref<T> type
+    /// array. The Base expr must be of clad::array_ref\<T\> type
     clang::Expr*
     BuildArrayRefSliceExpr(clang::Expr* Base,
                            llvm::MutableArrayRef<clang::Expr*> Args);
@@ -967,6 +977,7 @@ namespace clad {
     /// \param[in] targetPos The relative position of 'targetArg'.
     /// \param[in] numArgs The total number of 'args'.
     /// \param[in] args All the arguments to the target function.
+    /// \param[in] CUDAExecConfig The kernel launch configuration, if any.
     ///
     /// \returns The derivative function call.
     clang::Expr* GetSingleArgCentralDiffCall(
