@@ -619,6 +619,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// when no usable overload exists.
     clang::FunctionDecl* LookupCladZeroLike(clang::Sema& S, clang::Expr* value);
 
+    /// \returns true if differentiating a call to \p FDecl needs a
+    /// `reverse_forw` (``returnsAdjoint`` return, ``reference_wrapper``, or a
+    /// const-ref accessor that still needs a non-const adjoint channel).
+    bool needsReverseForw(const clang::FunctionDecl* FDecl);
+
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
     /// Whether FD writes into a record argument that owns memory, whose adjoint
