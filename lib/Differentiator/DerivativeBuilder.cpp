@@ -878,7 +878,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   /// Whether \p R asked to hear from the analysis \p A.
   static bool wantsRemark(const DiffRequest& R, AnalysisId A) {
     switch (A) {
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                       \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     case AnalysisId::Id:                                                       \
       return R.Remark##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"

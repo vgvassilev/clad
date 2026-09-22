@@ -26,6 +26,7 @@
 #include "llvm/TableGen/Record.h"
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -361,6 +362,73 @@ static void checkMisses(CladRecordKeeper& Records, const Record* Clad) {
       PrintFatalError(M->getLoc(), Twine("no construct lists ") + M->getName());
 }
 
+/// Every analysis the table defines, in the order their positions put them.
+static std::vector<const Record*> analysesOf(CladRecordKeeper& Records) {
+  std::vector<const Record*> Out;
+  for (const Record* A : Records.getAllDerivedDefinitions("Analysis"))
+    Out.push_back(A);
+  llvm::sort(Out, [](const Record* L, const Record* R) {
+    return L->getValueAsInt("RequestBit") < R->getValueAsInt("RequestBit");
+  });
+  return Out;
+}
+
+/// A pair takes two adjacent bits, so no two analyses may come within one of
+/// each other, and neither may sit where clad::opts has already spent a bit.
+/// Every Analysis is looked at, listed or not, for the reason checkCodes
+/// gives: a retired one still owns its bits. Caught here rather than by the
+/// static_assert in CladConfig.h, which fires a file later and can only say
+/// that something collided.
+static void checkRequestBits(CladRecordKeeper& Records, const Record* Clad) {
+  struct Claim {
+    std::string By;
+    SMLoc Loc;
+  };
+  std::map<int64_t, Claim> Taken;
+  std::string Clash;
+  SMLoc ClashLoc;
+  auto claim = [&](int64_t B, StringRef By, ArrayRef<SMLoc> Loc) {
+    auto It = Taken.find(B);
+    if (It == Taken.end()) {
+      Taken[B] = {By.str(), Loc.empty() ? SMLoc() : Loc.front()};
+      return;
+    }
+    if (Clash.empty()) {
+      Clash =
+          (Twine(By) + " and " + It->second.By + " both want bit " + Twine(B))
+              .str();
+      ClashLoc = Loc.empty() ? It->second.Loc : Loc.front();
+    }
+  };
+
+  for (const Record* R : Records.getAllDerivedDefinitions("Reserved"))
+    claim(R->getValueAsInt("FirstBit"), R->getValueAsString("Name"),
+          R->getLoc());
+  for (const Record* A : Records.getAllDerivedDefinitions("Analysis")) {
+    int64_t B = A->getValueAsInt("RequestBit");
+    // Counted from ORDER_BITS, so below zero is inside the derivative order:
+    // the pair would not collide with another option and the bitmask would
+    // read as asking for an order nobody wrote.
+    if (B < 0)
+      PrintFatalError(A->getLoc(),
+                      "RequestBit " + Twine(B) + " of " + A->getName() +
+                          " is negative; a position is counted from "
+                          "ORDER_BITS and starts at 0");
+    claim(B, A->getName(), A->getLoc());
+    claim(B + 1, A->getName(), A->getLoc());
+  }
+  if (Clash.empty())
+    return;
+
+  // Say where to go instead: working it out means reading both this table and
+  // the options CladConfig.h spells out, which is the mistake being reported.
+  int64_t Free = 0;
+  while (Taken.count(Free) || Taken.count(Free + 1))
+    ++Free;
+  PrintFatalError(ClashLoc,
+                  Clash + "; the lowest free pair starts at " + Twine(Free));
+}
+
 /// What the table has to hold for the rest of this file to render all of it.
 /// Checked before anything is written, so a mistake is reported once rather
 /// than once per backend.
@@ -369,7 +437,7 @@ static void checkAnalyses(CladRecordKeeper& Records) {
   if (!Clad)
     return;
   checkCodes(Records);
-  checkListed(Records, Clad, "Analysis", "Analyses");
+  checkRequestBits(Records, Clad);
   checkListed(Records, Clad, "Diagnostic", "Diagnostics");
   checkListed(Records, Clad, "Desc", "Descs");
   checkMisses(Records, Clad);
@@ -377,18 +445,114 @@ static void checkAnalyses(CladRecordKeeper& Records) {
 
 static void emitAnalyses(raw_ostream& OS, CladRecordKeeper& Records) {
   OS << cxxBanner("lib/Differentiator/Analyses.td") << R"(
+// One sequence, in the order the clad::opts bits are laid out: an analysis,
+// or an option that is not one. Define whichever you came for; the other then
+// expands to nothing.
+//
+// FirstBit is a position, not a value: an analysis takes
+// 1 << (ORDER_BITS + FirstBit) for enable_<legacy> and the bit above it for
+// disable_<legacy>; anything else takes the one. The positions are not
+// consecutive, because each option took the next one free when it was added,
+// and they never change: a request carries them into every translation unit
+// that names one.
+#if !defined(CLAD_ANALYSIS) && !defined(CLAD_OPT_RESERVED)
+#error "define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc) or CLAD_OPT_RESERVED(Name, FirstBit) before including"
+#endif
+
 #ifndef CLAD_ANALYSIS
-#error "define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) before including"
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)
+#endif
+
+#ifndef CLAD_OPT_RESERVED
+#define CLAD_OPT_RESERVED(Name, FirstBit)
 #endif
 
 )";
-  for (const Record* A : listOf(Records.getDef("Clad"), "Analyses"))
-    OS << "CLAD_ANALYSIS(" << A->getName() << ", \""
-       << A->getValueAsString("Name") << "\", \""
-       << A->getValueAsString("Legacy") << "\", "
-       << (A->getValueAsBit("Default") ? "true" : "false") << ",\n    "
-       << cxxString(A->getValueAsString("Summary")) << ")\n";
-  OS << "\n#undef CLAD_ANALYSIS\n";
+  // Ordered by the position each one sits on rather than by a list somebody
+  // keeps: a new analysis takes the next free pair, so it lands at the end,
+  // which is where a reader of -help expects it.
+  std::vector<const Record*> Analyses = analysesOf(Records);
+  // The whole space, so that picking a position does not mean reading this
+  // file and CladConfig.h side by side. Rendered rather than written down: it
+  // is the two lists below and above, and a map that drifts is worse than
+  // none.
+  std::map<int64_t, std::string> Space;
+  for (const Record* R : Records.getAllDerivedDefinitions("Reserved"))
+    Space[R->getValueAsInt("FirstBit")] =
+        (R->getValueAsString("Name") + "|spelled out in clad::opts").str();
+  for (const Record* A : Analyses) {
+    int64_t B = A->getValueAsInt("RequestBit");
+    StringRef L = A->getValueAsString("Legacy");
+    Space[B] = ("enable_" + L).str();
+    Space[B + 1] = ("disable_" + L).str();
+  }
+  OS << "// Where the positions have gone, counted from ORDER_BITS. They are\n"
+        "// not consecutive: each option took the next one free when it was\n"
+        "// added, so single-bit options sit between the analyses' pairs. Nor\n"
+        "// can they be tidied -- a position reaches the mangled name of "
+        "every\n"
+        "// request that names it.\n//\n";
+  int64_t NextPair = -1;
+  for (int64_t P = 0; P <= Space.rbegin()->first + 2; ++P) {
+    auto It = Space.find(P);
+    bool FreeHere = It == Space.end();
+    bool FreePair = FreeHere && !Space.count(P + 1);
+    if (FreePair && NextPair < 0)
+      NextPair = P;
+    std::string Who = FreeHere ? "free" : It->second;
+    std::string Note;
+    size_t Bar = Who.find('|');
+    if (Bar != std::string::npos) {
+      Note = Who.substr(Bar + 1);
+      Who = Who.substr(0, Bar);
+    }
+    if (FreePair && P == NextPair)
+      Note = "the next pair starts here";
+    OS << "//   " << (P < 10 ? " " : "") << P << "  " << Who;
+    if (!Note.empty())
+      OS << std::string(Who.size() < 16 ? 16 - Who.size() : 1, ' ') << "-- "
+         << Note;
+    OS << "\n";
+  }
+  OS << "\n";
+
+  // Each entry says what its number turns into, relative to ORDER_BITS rather
+  // than as a value: a bare 2 beside a name reads like a mask, and the mask it
+  // makes is not 2.
+  // In position order, the two kinds together: the file then reads as the
+  // space itself, and a position is written down once rather than here and
+  // again in CladConfig.h.
+  std::map<int64_t, std::pair<std::string, std::string>> Entries;
+  for (const Record* R : Records.getAllDerivedDefinitions("Reserved"))
+    Entries[R->getValueAsInt("FirstBit")] = {
+        ("CLAD_OPT_RESERVED(" + R->getValueAsString("Name") + ", " +
+         Twine(R->getValueAsInt("FirstBit")) + ")")
+            .str(),
+        ("// " + R->getValueAsString("Name") + " at ORDER_BITS+" +
+         Twine(R->getValueAsInt("FirstBit")))
+            .str()};
+  // An analysis carries everything about itself, so its entry runs onto a
+  // second line; the note goes where the first one ends, which is still
+  // between arguments and so still only whitespace to the preprocessor.
+  for (const Record* A : Analyses)
+    Entries[A->getValueAsInt("RequestBit")] = {
+        ("CLAD_ANALYSIS(" + A->getName() + ", \"" +
+         A->getValueAsString("Name") + "\", " + A->getValueAsString("Legacy") +
+         ", " + (A->getValueAsBit("Default") ? "true" : "false") + ", " +
+         Twine(A->getValueAsInt("RequestBit")) + ",")
+            .str(),
+        ("// enable_" + A->getValueAsString("Legacy") + " at ORDER_BITS+" +
+         Twine(A->getValueAsInt("RequestBit")) + ", disable_" +
+         A->getValueAsString("Legacy") + " at +" +
+         Twine(A->getValueAsInt("RequestBit") + 1) + "\n    " +
+         cxxString(A->getValueAsString("Summary")) + ")")
+            .str()};
+  for (const auto& E : Entries) {
+    const std::string& Entry = E.second.first;
+    OS << Entry << std::string(Entry.size() < 38 ? 38 - Entry.size() : 1, ' ')
+       << E.second.second << "\n";
+  }
+  OS << "\n#undef CLAD_ANALYSIS\n#undef CLAD_OPT_RESERVED\n";
 }
 
 static void emitAnalysisDescs(raw_ostream& OS, CladRecordKeeper& Records) {
@@ -452,7 +616,7 @@ less; turning one off falls back to the conservative derivative.
 below, and each analysis also has a switch of its own.
 
 )";
-  for (const Record* A : listOf(Clad, "Analyses"))
+  for (const Record* A : analysesOf(Records))
     OS << "``-enable-" << A->getValueAsString("Legacy") << "`` / ``-disable-"
        << A->getValueAsString("Legacy") << "``\n"
        << "  Turns the " << A->getValueAsString("Name")

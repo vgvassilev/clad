@@ -305,13 +305,13 @@ public:
   bool VerboseDiags = false;
   /// Whether each analysis runs for this request. One member per entry in
   /// Analyses.td, spelled Enable\<Id\>Analysis.
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   bool Enable##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
   /// Whether the user asked to hear what each analysis left behind
   /// (-Rclad-analysis=\<name\>). Diagnostic-only, like EmitPortingHints, and
   /// therefore excluded from request equality.
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   bool Remark##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
 
@@ -320,10 +320,10 @@ public:
   /// function, but the user asked for the analyses once, for the whole
   /// differentiation.
   void inheritAnalysesFrom(const DiffRequest& Other) {
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   Enable##Id##Analysis = Other.Enable##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   Remark##Id##Analysis = Other.Remark##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
   }
@@ -442,6 +442,13 @@ public:
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
            Args == other.Args && Mode == other.Mode &&
+           // Written out rather than expanded from the table, because the
+           // loop analysis has to be left out. A pullback does not inherit it
+           // from the request that asked for it, so comparing it would leave
+           // the request that looks a derivative up different from the one
+           // that generated it, and clad would emit a call to a signature it
+           // never wrote: "too few arguments to function call, expected 3,
+           // have 2". #2145 is the inheritance this waits on.
            EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
            EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
