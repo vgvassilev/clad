@@ -14,6 +14,7 @@
 #include "clad/Differentiator/Version.h"
 #include "../lib/Differentiator/Analyses.h"
 #include "../lib/Differentiator/DerivativePrinter.h"
+#include "../lib/Differentiator/Diagnostics.h"
 #include "../lib/Differentiator/GeneratedCode.h"
 #include "../lib/Differentiator/LoopAnalyzer.h"
 #include "../lib/Differentiator/TBRAnalyzer.h"
@@ -539,23 +540,21 @@ void InitTimers();
       // Why the value is still here is a different sentence depending on
       // whether the analysis ran at all; saying "could not prove" when it was
       // switched off would be false.
-      const char* Because =
-          G.AnalysisRan ? "to-be-recorded analysis could not show it unused"
-                        : "to-be-recorded analysis is disabled";
+      const CladDiag Because = G.AnalysisRan
+                                   ? CladDiag::note_tbr_could_not_prove
+                                   : CladDiag::note_tbr_disabled;
       const clang::SourceManager& SM = m_CI.getSourceManager();
       for (const auto& [K, VD] : Kept) {
         clang::SourceLocation Loc = getDerivativePrinter().locationOf(FD, K);
         if (Loc.isInvalid())
           continue;
-        utils::diag(S, clang::DiagnosticsEngine::Remark, Loc,
-                    "clad keeps this value for the reverse sweep")
+        utils::diag(S, CladDiag::remark_value_kept, Loc)
             << getDerivativePrinter().rangeOf(FD, K);
-        utils::diag(S, clang::DiagnosticsEngine::Note, Loc, "%0") << Because;
+        utils::diag(S, Because, Loc);
         // Which derivative this is, said outright rather than left to the
         // include stack, which has no caret and no wording.
         if (G.RequestedAt.isValid())
-          utils::diag(S, clang::DiagnosticsEngine::Note, G.RequestedAt,
-                      "in the derivative of '%0' requested here")
+          utils::diag(S, CladDiag::note_derivative_requested, G.RequestedAt)
               << G.Original->getNameAsString();
         // The half the user can act on: the expression in their own code
         // whose value this is. Only if it is theirs -- a kept value can be one
@@ -564,8 +563,7 @@ void InitTimers();
         const clang::SourceLocation Primal = primalLocationOf(K, VD, SM);
         if (Primal.isValid() &&
             !m_DerivativeBuilder->getGeneratedCode().owns(Primal))
-          utils::diag(S, clang::DiagnosticsEngine::Note, Primal,
-                      "the value kept is the one this expression had")
+          utils::diag(S, CladDiag::note_kept_value_is, Primal)
               << primalRangeOf(K, VD);
       }
     }

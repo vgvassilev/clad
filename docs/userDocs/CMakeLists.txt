@@ -11,6 +11,6 @@ create_sphinx_target(
   TARGET_NAME sphinx-clad
 )
 
-# The options page is rendered from Options.td, so it has to exist before
-# sphinx reads the directory.
-add_dependencies(sphinx-clad clad-options)
+# The pages listing the analyses, what clad says and the options are rendered
+# from the tables, so they have to exist before sphinx reads the directory.
+add_dependencies(sphinx-clad clad-options clad-analyses)

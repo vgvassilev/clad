@@ -40,7 +40,7 @@ double f(double x) { return mix(x, 2.) + square(x); }
 // CHECK: CallMissRemarks.cpp:[[# @LINE - 3]]:29: remark: clad saves every argument of this call for the reverse sweep
 // CHECK-NEXT: double f(double x) { return mix(x, 2.) + square(x); }
 // CHECK: note: this function has no body in this file
-// CHECK: note: to avoid this, make it a call clad can look inside
+// CHECK: note: to avoid this, make it a call clad can look inside (CLAD1004)
 
 // Nothing is said about square: clad read it, so this is not a miss, and a
 // reader sent to look at it would find nothing to fix.
