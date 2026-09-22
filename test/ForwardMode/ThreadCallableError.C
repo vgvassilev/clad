@@ -32,8 +32,11 @@ double f_std_function(double x) {
 double f_lambda(double x) {
   auto worker = []() {};
   // expected-warning@-1 0-1 {{statement kind 'LambdaExpr' is not supported}}
+  // Remapped Sema notes from `_d_worker` (old clangs leave it uninitialized):
   // expected-error@* 0-2 {{declaration of variable '_d_worker' with deduced type 'auto' requires an initializer}}
-  // expected-note@-3 0-20 {{unnamed type used in template argument was declared here}}
+  // expected-note@* 0-4 {{in the code clad generated for this statement}}
+  // expected-note@* 0-4 {{in the derivative of 'f_lambda' requested here}}
+  // expected-note@* 0-20 {{unnamed type used in template argument was declared here}}
   std::thread t(worker); // expected-error {{forward-mode differentiation of std::thread with a lambda callable is not supported yet}}
   t.join();
   return x * x;

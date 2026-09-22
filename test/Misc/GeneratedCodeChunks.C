@@ -90,16 +90,16 @@ double uncopyable(double x) {
   return u.v;
 }
 void requestUncopyable() { clad::gradient(uncopyable); }
-// CHECK-UNPRINTED: {{^}}error: no matching constructor for initialization of 'Uncopyable'
+// CHECK-UNPRINTED: {{^}}error: {{(no matching constructor for initialization of|call to deleted constructor of)}} 'Uncopyable'
 // CHECK-UNPRINTED-NEXT: GeneratedCodeChunks.C:[[@LINE-6]]:3: note: in the code clad generated for this statement
 // CHECK-UNPRINTED: GeneratedCodeChunks.C:[[@LINE-3]]:28: note: in the derivative of 'uncopyable' requested here
 
 // What Sema says about the user's own type comes after where it happened.
-// CHECK-UNPRINTED: note: candidate constructor not viable
+// CHECK-UNPRINTED-DAG: note: {{(candidate constructor not viable|'Uncopyable' has been explicitly marked deleted here)}}
 
 // The derivatives a hessian needs are ones clad asks for itself. No call wrote
 // them, so the note points at the function.
 void requestUncopyableHessian() { clad::hessian(uncopyable); }
-// CHECK-UNPRINTED: {{^}}error: no matching constructor for initialization of 'Uncopyable'
+// CHECK-UNPRINTED: {{^}}error: {{(no matching constructor for initialization of|call to deleted constructor of)}} 'Uncopyable'
 // CHECK-UNPRINTED-NEXT: GeneratedCodeChunks.C:[[@LINE-17]]:8: note: in a derivative of this function that clad asked for itself
 #endif
