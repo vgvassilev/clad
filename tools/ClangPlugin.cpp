@@ -1107,9 +1107,35 @@ void InitTimers();
 
           DiffRequest request;
           request.Function = FD;
+          request.BaseFunctionName = FD->getNameAsString();
           request.Mode = pragmaReq.Mode;
+
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+          request.Enable##Id##Analysis =                                       \
+              (m_DO.Id##Switch == AnalysisSwitch::Unset)                       \
+                  ? (Default)                                                  \
+                  : (m_DO.Id##Switch == AnalysisSwitch::On);                   \
+          request.Remark##Id##Analysis = m_DO.Remark##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+          request.EmitPortingHints = m_DO.EmitPortingHints;
+
+          if (request.DVI.empty() && FD) {
+            for (auto PVD : FD->parameters()) {
+              DiffInputVarInfo dVarInfo(PVD, IndexInterval());
+              request.DVI.push_back(dVarInfo);
+            }
+          }
+
           request.UpdateDiffParamsInfo(S);
-          ProcessDiffRequest(request);
+
+          // Create and register prototype declaration in AST scope so the derivative name is callable
+          DiffRequest protoReq = request;
+          protoReq.DeclarationOnly = true;
+          ProcessDiffRequest(protoReq);
+
+          // Schedule full definition generation in the graph as a source node
+          request.DeclarationOnly = false;
+          getScheduler().getGraph().addNode(request, /*isSource=*/true);
         }
         CladPragmaDiffRequests.clear();
 
