@@ -304,7 +304,7 @@ public:
   /// A flag to enable/disable diag warnings/errors during differentiation.
   bool VerboseDiags = false;
   /// Whether each analysis runs for this request. One member per entry in
-  /// Analyses.def, spelled Enable\<Id\>Analysis.
+  /// Analyses.td, spelled Enable\<Id\>Analysis.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   bool Enable##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"

@@ -83,13 +83,13 @@ double f(const double* x, const double* w, int n) {
 // the outer loop it stands still, and what stops it there is said instead.
 // CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 40]]:19: remark: clad adds to this adjoint in memory on every iteration
 // CHECK-ON: note: the index reads a variable the loop writes
-// CHECK-ON: note: to avoid this, make it a broadcast read
+// CHECK-ON: note: to avoid this, make it a broadcast read (CLAD1002)
 // CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 34]]:3: remark: clad adds a counter to this loop and increments it every iteration
 // CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 35]]:23: note: the bound is written elsewhere in the function
-// CHECK-ON: note: to avoid this, make it a counted loop
+// CHECK-ON: note: to avoid this, make it a counted loop (CLAD1001)
 // CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 26]]:3: remark: clad adds a counter to this loop and increments it every iteration
 // CHECK-ON: LoopAnalysisSwitch.C:[[# @LINE - 27]]:26: note: the increment does not step the index by one
-// CHECK-ON: note: to avoid this, make it a counted loop
+// CHECK-ON: note: to avoid this, make it a counted loop (CLAD1001)
 
 // Off, every loop is reported, and the note names the switch that turned the
 // analysis off rather than blaming code that nothing looked at.

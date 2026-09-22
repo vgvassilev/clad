@@ -85,6 +85,8 @@ The User Guide
    user/reference
    user/SupportedFeatures
    user/CoreConcepts
+   user/Analyses
+   user/Diagnostics
    user/Options
 
 .. toctree::

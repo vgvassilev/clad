@@ -105,4 +105,4 @@ int main() {
 // on the write, and the note says what a caller would have needed.
 // CHECK-WHY: WrittenExtentsOpaque.C:[[# @LINE - 71]]:12: remark: 'out': clad watches every address written here instead of copying one range
 // CHECK-WHY: note: this writes through a pointer that cannot be traced back to a parameter
-// CHECK-WHY: note: to avoid this, make it a bounded write
+// CHECK-WHY: note: to avoid this, make it a bounded write (CLAD1003)

@@ -15,15 +15,16 @@ build:
   tools:
     python: "3.11"
   jobs:
-    # The options page is rendered from lib/Differentiator/Options.td, which
-    # is where every option clad takes is written down. readthedocs runs
-    # sphinx itself rather than the cmake target that would render it, so the
-    # tool that does is built here; the apt packages below carry the LLVM it
-    # needs.
+    # The user pages that list clad's analyses, its reports and its
+    # options are rendered from the tables under lib/Differentiator,
+    # which is where all three are written down. readthedocs runs
+    # sphinx itself rather than the cmake targets that would render
+    # them, so the tool that does is built here; the apt packages
+    # below carry the LLVM it needs.
     pre_build:
       - cmake -S . -B /tmp/clad-td -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm
         -DClang_DIR=/usr/lib/llvm-18/lib/cmake/clang -DCLAD_DISABLE_TESTS=ON
-      - cmake --build /tmp/clad-td --target clad-options
+      - cmake --build /tmp/clad-td --target clad-options clad-analyses
   apt_packages:
     - clang-18
     - cmake

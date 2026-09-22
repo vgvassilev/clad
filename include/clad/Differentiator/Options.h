@@ -30,7 +30,7 @@ struct Options {
 #include "clad/Differentiator/Options.def"
 
   /// Whether each analysis runs, the switches already resolved against the
-  /// default the table gives it. One member per entry in Analyses.def.
+  /// default the table gives it. One member per entry in Analyses.td.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   bool Enable##Id##Analysis = Default;
 #include "clad/Differentiator/Analyses.def"

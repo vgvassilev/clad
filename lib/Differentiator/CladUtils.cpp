@@ -1,7 +1,9 @@
 #include "clad/Differentiator/CladUtils.h"
+
 #include "clad/Differentiator/Compatibility.h"
 
 #include "ConstantFolder.h"
+#include "Diagnostics.h"
 
 #include "clang/AST/APValue.h"
 #include "clang/AST/ASTContext.h"
@@ -42,6 +44,13 @@
 using namespace clang;
 namespace clad {
   namespace utils {
+
+  clang::Sema::SemaDiagnosticBuilder diag(clang::Sema& S, CladDiag D,
+                                          clang::SourceLocation Loc) {
+    unsigned ID =
+        S.Diags.getDiagnosticIDs()->getCustomDiagID(severityOf(D), textOf(D));
+    return S.Diag(Loc, ID);
+  }
     static SourceLocation noLoc{};
 
     std::string ComputeEffectiveFnName(const FunctionDecl* FD) {

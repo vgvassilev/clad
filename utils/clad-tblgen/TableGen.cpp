@@ -11,9 +11,12 @@
 /// when it no longer matches the table. The page is rendered where the
 /// documentation is built.
 
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -39,18 +42,36 @@ using CladRecordKeeper = RecordKeeper;
 using CladRecordKeeper = const RecordKeeper;
 #endif
 
-enum class Action : std::uint8_t { GenOptions, GenOptionsDocs };
+enum class Action : std::uint8_t {
+  GenAnalyses,
+  GenAnalysisDescs,
+  GenAnalysesDocs,
+  GenDiagnostics,
+  GenDiagnosticsDocs,
+  GenOptions,
+  GenOptionsDocs
+};
 
 // The parser writes it, so it is neither const nor hidden from the linker by
 // anything but its own definition. Marked on the declarator rather than the
 // line above, which clang-format is free to move away from it.
-static cl::opt<Action>
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-    TheAction(cl::desc("What to render:"),
-              cl::values(clEnumValN(Action::GenOptions, "gen-options",
-                                    "the options, as CLAD_OPTION entries"),
-                         clEnumValN(Action::GenOptionsDocs, "gen-options-docs",
-                                    "the page listing the options")));
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static cl::opt<Action> TheAction(
+    cl::desc("What to render:"),
+    cl::values(clEnumValN(Action::GenAnalyses, "gen-analyses",
+                          "the analyses, as CLAD_ANALYSIS entries"),
+               clEnumValN(Action::GenAnalysisDescs, "gen-analysis-descs",
+                          "the constructs and the ways to miss them"),
+               clEnumValN(Action::GenAnalysesDocs, "gen-analyses-docs",
+                          "the page the reports send a reader to"),
+               clEnumValN(Action::GenDiagnostics, "gen-diagnostics",
+                          "the messages, as CLAD_DIAG entries"),
+               clEnumValN(Action::GenDiagnosticsDocs, "gen-diagnostics-docs",
+                          "the page listing what clad says"),
+               clEnumValN(Action::GenOptions, "gen-options",
+                          "the options, as CLAD_OPTION entries"),
+               clEnumValN(Action::GenOptionsDocs, "gen-options-docs",
+                          "the page listing the options")));
 
 /// Says where the file came from and how to make it again. Every generated
 /// file opens with it, in whichever comment its language spells: \p Open
@@ -279,8 +300,220 @@ Either spelling works on every clang clad supports.
        << wrapped(proseOf(R), "  ", RSTProseWidth) << "\n";
 }
 
+/// What a list-of-def field names, in the order the table gives them.
+static std::vector<const Record*> listOf(const Record* R, StringRef Field) {
+  std::vector<const Record*> Out;
+  for (const auto* D : R->getValueAsListOfDefs(Field))
+    Out.push_back(D);
+  return Out;
+}
+
+/// The reStructuredText of a code block field, without its trailing blank.
+static std::string trimmed(StringRef Text) { return Text.rtrim().str(); }
+
+/// Every record of class \p Class has to be reachable from Clad's \p Field.
+/// One that is not is written down and never rendered -- no table entry, no
+/// section in the documentation -- and the table alone cannot say so.
+static void checkListed(CladRecordKeeper& Records, const Record* Clad,
+                        StringRef Class, StringRef Field) {
+  DenseSet<const Record*> Listed;
+  for (const Record* R : listOf(Clad, Field))
+    Listed.insert(R);
+  for (const Record* R : Records.getAllDerivedDefinitions(Class))
+    if (!Listed.contains(R))
+      PrintFatalError(R->getLoc(), Twine("Clad's ") + Field +
+                                       " does not list " + R->getName() +
+                                       ", so nothing renders it");
+}
+
+/// What a code promises: a report prints it, a build log keeps it and a reader
+/// searches for it, so two constructs must never share one. Every Desc is
+/// looked at, listed or not, because a construct that has been retired still
+/// owns its number.
+static void checkCodes(CladRecordKeeper& Records) {
+  DenseMap<int64_t, const Record*> ByCode;
+  for (const Record* S : Records.getAllDerivedDefinitions("Desc")) {
+    const Record*& Owner = ByCode[S->getValueAsInt("Code")];
+    if (Owner)
+      PrintFatalError(S->getLoc(), Twine("CLAD") +
+                                       Twine(S->getValueAsInt("Code")) +
+                                       " is already " + Owner->getName());
+    Owner = S;
+  }
+}
+
+/// Every way to miss a construct belongs to exactly one construct: a report
+/// prints it under that construct's code, and the page lists it in that
+/// construct's section.
+static void checkMisses(CladRecordKeeper& Records, const Record* Clad) {
+  DenseMap<const Record*, const Record*> Owner;
+  for (const Record* S : listOf(Clad, "Descs"))
+    for (const Record* M : listOf(S, "Misses")) {
+      const Record*& First = Owner[M];
+      if (First)
+        PrintFatalError(M->getLoc(), Twine(M->getName()) + " is listed by " +
+                                         First->getName() + " and " +
+                                         S->getName());
+      First = S;
+    }
+  for (const Record* M : Records.getAllDerivedDefinitions("Miss"))
+    if (!Owner.lookup(M))
+      PrintFatalError(M->getLoc(), Twine("no construct lists ") + M->getName());
+}
+
+/// What the table has to hold for the rest of this file to render all of it.
+/// Checked before anything is written, so a mistake is reported once rather
+/// than once per backend.
+static void checkAnalyses(CladRecordKeeper& Records) {
+  const Record* Clad = Records.getDef("Clad");
+  if (!Clad)
+    return;
+  checkCodes(Records);
+  checkListed(Records, Clad, "Analysis", "Analyses");
+  checkListed(Records, Clad, "Diagnostic", "Diagnostics");
+  checkListed(Records, Clad, "Desc", "Descs");
+  checkMisses(Records, Clad);
+}
+
+static void emitAnalyses(raw_ostream& OS, CladRecordKeeper& Records) {
+  OS << cxxBanner("lib/Differentiator/Analyses.td", "clad-analyses") << R"(
+#ifndef CLAD_ANALYSIS
+#error "define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) before including"
+#endif
+
+)";
+  for (const Record* A : listOf(Records.getDef("Clad"), "Analyses"))
+    OS << "CLAD_ANALYSIS(" << A->getName() << ", \""
+       << A->getValueAsString("Name") << "\", \""
+       << A->getValueAsString("Legacy") << "\", "
+       << (A->getValueAsBit("Default") ? "true" : "false") << ",\n    "
+       << cxxString(A->getValueAsString("Summary")) << ")\n";
+  OS << "\n#undef CLAD_ANALYSIS\n";
+}
+
+static void emitAnalysisDescs(raw_ostream& OS, CladRecordKeeper& Records) {
+  OS << cxxBanner("lib/Differentiator/Analyses.td", "clad-analyses") << R"(
+#ifndef CLAD_ANALYSIS_DESC
+#error "define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Code, Cost) before including"
+#endif
+
+#ifndef CLAD_ANALYSIS_MISS
+#error "define CLAD_ANALYSIS_MISS(Id, Desc, Detail) before including"
+#endif
+
+)";
+  for (const Record* S : listOf(Records.getDef("Clad"), "Descs")) {
+    OS << "CLAD_ANALYSIS_DESC(" << S->getName() << ", "
+       << S->getValueAsDef("Owner")->getName() << ", \""
+       << S->getValueAsString("Name") << "\", " << S->getValueAsInt("Code")
+       << ",\n    " << cxxString(S->getValueAsString("Cost")) << ")\n";
+    for (const Record* M : listOf(S, "Misses"))
+      OS << "CLAD_ANALYSIS_MISS(" << M->getName() << ", " << S->getName()
+         << ",\n    " << cxxString(M->getValueAsString("Detail")) << ")\n";
+    OS << "\n";
+  }
+  OS << "#undef CLAD_ANALYSIS_DESC\n#undef CLAD_ANALYSIS_MISS\n";
+}
+
+static void emitAnalysesDocs(raw_ostream& OS, CladRecordKeeper& Records) {
+  const Record* Clad = Records.getDef("Clad");
+  StringRef Title = Clad->getValueAsString("Title");
+  OS << rstBanner("lib/Differentiator/Analyses.td", "clad-analyses") << "\n"
+     << Title << "\n"
+     << std::string(Title.size(), '*') << "\n"
+     << trimmed(Clad->getValueAsString("Overview")) << "\n";
+
+  for (const Record* S : listOf(Clad, "Descs")) {
+    int64_t Code = S->getValueAsInt("Code");
+    std::string Heading =
+        ("CLAD" + Twine(Code) + ": " + S->getValueAsString("Name")).str();
+    // The anchor is the code, which is what a report prints and a reader
+    // searches for.
+    OS << "\n.. _clad" << Code << ":\n\n"
+       << Heading << "\n"
+       << std::string(Heading.size(), '=') << "\n"
+       << trimmed(S->getValueAsString("Doc")) << "\n";
+
+    std::vector<const Record*> Misses = listOf(S, "Misses");
+    if (Misses.empty())
+      continue;
+    OS << "\nWhat a report says when this is missed:\n\n";
+    for (const Record* M : Misses)
+      OS << "- " << M->getValueAsString("Detail") << "\n";
+  }
+
+  OS << R"(
+Turning an analysis on or off
+
+Each analysis is optional: it changes the code clad generates, never the
+values that code computes. Turning one on asks clad to prove more and store
+less; turning one off falls back to the conservative derivative.
+``-fenable-analysis=<name>`` and ``-fdisable-analysis=<name>`` take the names
+below, and each analysis also has a switch of its own.
+
+)";
+  for (const Record* A : listOf(Clad, "Analyses"))
+    OS << "``-enable-" << A->getValueAsString("Legacy") << "`` / ``-disable-"
+       << A->getValueAsString("Legacy") << "``\n"
+       << "  Turns the " << A->getValueAsString("Name")
+       << " analysis on or off for the whole translation unit, unless an\n"
+       << "  individual request specifies otherwise. It "
+       << A->getValueAsString("Summary")
+       << ". Default: " << (A->getValueAsBit("Default") ? "on" : "off")
+       << ".\n\n";
+}
+
+static void emitDiagnostics(raw_ostream& OS, CladRecordKeeper& Records) {
+  OS << cxxBanner("lib/Differentiator/Analyses.td", "clad-analyses") << R"(
+#ifndef CLAD_DIAG
+#error "define CLAD_DIAG(Id, Severity, Text) before including"
+#endif
+
+)";
+  for (const Record* D : listOf(Records.getDef("Clad"), "Diagnostics"))
+    OS << "CLAD_DIAG(" << D->getName() << ", "
+       << D->getValueAsString("Severity") << ",\n    "
+       << cxxString(D->getValueAsString("Text")) << ")\n";
+  OS << "\n#undef CLAD_DIAG\n";
+}
+
+static void emitDiagnosticsDocs(raw_ostream& OS, CladRecordKeeper& Records) {
+  StringRef Title = "What clad says";
+  OS << rstBanner("lib/Differentiator/Analyses.td", "clad-analyses") << "\n"
+     << Title << "\n"
+     << std::string(Title.size(), '*') << R"(
+
+Every message clad emits, as it is worded. A placeholder like ``%0`` is
+filled in where the message is emitted: a name from the code, or one of the
+constructs in :doc:`Analyses`.
+
+)";
+  for (const Record* D : listOf(Records.getDef("Clad"), "Diagnostics")) {
+    OS << "``" << D->getName() << "``\n"
+       << "  " << D->getValueAsString("Severity") << ": "
+       << D->getValueAsString("Text") << "\n\n";
+  }
+}
+
 static bool cladTableGenMain(raw_ostream& OS, CladRecordKeeper& Records) {
+  // Options.td has no Clad record, so this is a no-op for the option backends.
+  checkAnalyses(Records);
   switch (TheAction.getValue()) {
+  case Action::GenAnalyses:
+    emitAnalyses(OS, Records);
+    break;
+  case Action::GenAnalysisDescs:
+    emitAnalysisDescs(OS, Records);
+    break;
+  case Action::GenAnalysesDocs:
+    emitAnalysesDocs(OS, Records);
+    break;
+  case Action::GenDiagnostics:
+    emitDiagnostics(OS, Records);
+    break;
+  case Action::GenDiagnosticsDocs:
+    emitDiagnosticsDocs(OS, Records);
+    break;
   case Action::GenOptions:
     emitOptions(OS, Records);
     break;

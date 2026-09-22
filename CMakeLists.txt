@@ -329,12 +329,13 @@ endif()
 
 include(AddClad)
 
-# Options.td is the one place every option clad takes is written down. The
-# header rendered from it is committed, so building clad never runs tblgen and
-# this stays a developer target; test/Analyses/OptionTableUpToDate.cpp fails
-# when what is committed no longer matches the table. The reference page is
-# not committed: the sphinx target depends on this one, and readthedocs runs
-# it before building.
+# Analyses.td and Options.td are where clad's analyses, the constructs they
+# look for, the wording of every report and every option clad takes are
+# written down. The headers rendered from them are committed, so building
+# clad never runs tblgen and these stay developer targets; the UpToDate tests
+# under test/Analyses fail when what is committed no longer matches a table.
+# The user pages are not committed: the sphinx target depends on both, and
+# readthedocs runs them before building.
 #
 # clad-tblgen runs on the machine doing the build, so there is nothing to
 # build when that machine is not the target: what it renders is committed,
@@ -349,15 +350,32 @@ if (NOT CMAKE_CROSSCOMPILING)
 find_library(CLAD_LLVM_TABLEGEN_LIB NAMES LLVMTableGen REQUIRED
              HINTS ${LLVM_LIBRARY_DIR} ${LLVM_LIBRARY_DIRS})
 add_subdirectory(utils/clad-tblgen)
+set(CLAD_OUT ${CMAKE_CURRENT_SOURCE_DIR}/include/clad/Differentiator)
 set(CLAD_OPTIONS_TD ${CMAKE_CURRENT_SOURCE_DIR}/lib/Differentiator/Options.td)
 set(CLAD_TBLGEN_INCLUDES -I ${LLVM_INCLUDE_DIRS})
 add_custom_target(clad-options
   COMMAND clad-tblgen -gen-options ${CLAD_TBLGEN_INCLUDES} ${CLAD_OPTIONS_TD}
-          -o ${CMAKE_CURRENT_SOURCE_DIR}/include/clad/Differentiator/Options.def
+          -o ${CLAD_OUT}/Options.def
   COMMAND clad-tblgen -gen-options-docs ${CLAD_TBLGEN_INCLUDES} ${CLAD_OPTIONS_TD}
           -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Options.rst
   DEPENDS clad-tblgen ${CLAD_OPTIONS_TD}
   COMMENT "Regenerating what Options.td describes"
+  VERBATIM)
+
+set(CLAD_ANALYSES_TD ${CMAKE_CURRENT_SOURCE_DIR}/lib/Differentiator/Analyses.td)
+add_custom_target(clad-analyses
+  COMMAND clad-tblgen -gen-analyses ${CLAD_ANALYSES_TD}
+          -o ${CLAD_OUT}/Analyses.def
+  COMMAND clad-tblgen -gen-analysis-descs ${CLAD_ANALYSES_TD}
+          -o ${CMAKE_CURRENT_SOURCE_DIR}/lib/Differentiator/AnalysisDescs.def
+  COMMAND clad-tblgen -gen-analyses-docs ${CLAD_ANALYSES_TD}
+          -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Analyses.rst
+  COMMAND clad-tblgen -gen-diagnostics ${CLAD_ANALYSES_TD}
+          -o ${CMAKE_CURRENT_SOURCE_DIR}/lib/Differentiator/Diagnostics.def
+  COMMAND clad-tblgen -gen-diagnostics-docs ${CLAD_ANALYSES_TD}
+          -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Diagnostics.rst
+  DEPENDS clad-tblgen ${CLAD_ANALYSES_TD}
+  COMMENT "Regenerating what Analyses.td describes"
   VERBATIM)
 endif()
 
