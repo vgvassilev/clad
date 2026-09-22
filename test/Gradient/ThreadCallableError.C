@@ -21,7 +21,7 @@ double f_unresolved(double x) {
 void thread_noop() {}
 
 // Outside the differentiated fn so we only hit the thread diagnostic.
-std::function<void()> g_std_function = thread_noop;
+std::function<void()> g_std_function = thread_noop; // expected-warning 0-1 {{gradient uses a global variable 'g_std_function'}}
 
 double f_std_function(double x) {
   std::thread t(g_std_function); // expected-error {{failed to resolve callable of type 'std::function}}
@@ -37,21 +37,21 @@ double f_lambda(double x) {
   // expected-note@* 0-4 {{in the code clad generated for this statement}}
   // expected-note@* 0-4 {{in the derivative of 'f_lambda' requested here}}
   // expected-note@* 0-20 {{unnamed type used in template argument was declared here}}
-  std::thread t(worker); // expected-error {{forward-mode differentiation of std::thread with a lambda callable is not supported yet}}
+  std::thread t(worker); // expected-error {{reverse-mode differentiation of std::thread with a lambda callable is not supported yet}}
   t.join();
   return x * x;
 }
 
 double f_detach(double x) {
   std::thread t(thread_noop);
-  t.detach(); // expected-error {{detach is not supported in forward-mode AD of std::thread}}
+  t.detach(); // expected-error {{detach is not supported in reverse-mode AD of std::thread}}
   return x * x;
 }
 
 int main() {
-  clad::differentiate(f_unresolved, "x");
-  clad::differentiate(f_std_function, "x");
-  clad::differentiate(f_lambda, "x");
-  clad::differentiate(f_detach, "x");
+  clad::gradient(f_unresolved);
+  clad::gradient(f_std_function);
+  clad::gradient(f_lambda);
+  clad::gradient(f_detach);
   return 0;
 }
