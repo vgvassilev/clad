@@ -508,6 +508,11 @@ namespace clad {
     /// Returns true if a function returning T must return its adjoint too.
     bool returnsAdjoint(clang::QualType T);
 
+    /// \returns true if differentiating a call to \p FDecl needs a
+    /// `reverse_forw` (``returnsAdjoint`` return, ``reference_wrapper``, or a
+    /// const-ref accessor that still needs a non-const adjoint channel).
+    bool needsReverseForw(const clang::FunctionDecl* FDecl);
+
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
     bool shouldUseRestoreTracker(const clang::FunctionDecl* FD);
