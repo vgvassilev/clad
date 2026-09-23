@@ -345,9 +345,26 @@ include(AddClad)
 # libLLVM, which does not carry TableGenMain. It ships with the same package
 # as the headers clad already needs, so on a native build not finding it
 # means a broken install rather than a supported one.
+#
+# Built inside LLVM the library is not on disk yet -- it is a target being
+# produced alongside clad -- so find_library() cannot see it and, being
+# REQUIRED, stops the configure before anything is built. Name the target
+# instead and let cmake order the two; that is what broke the Compiler
+# Explorer builder and the in-tree build the README describes.
 if (NOT CMAKE_CROSSCOMPILING)
-find_library(CLAD_LLVM_TABLEGEN_LIB NAMES LLVMTableGen REQUIRED
-             HINTS ${LLVM_LIBRARY_DIR} ${LLVM_LIBRARY_DIRS})
+# Only an in-tree build defines a real LLVMTableGen target. Standalone,
+# LLVMConfig exports an IMPORTED one of the same name, and taking that would
+# quietly replace the lookup the paragraph above argues for.
+set(_clad_tablegen_imported TRUE)
+if (TARGET LLVMTableGen)
+  get_target_property(_clad_tablegen_imported LLVMTableGen IMPORTED)
+endif()
+if (TARGET LLVMTableGen AND NOT _clad_tablegen_imported)
+  set(CLAD_LLVM_TABLEGEN_LIB LLVMTableGen)
+else()
+  find_library(CLAD_LLVM_TABLEGEN_LIB NAMES LLVMTableGen REQUIRED
+               HINTS ${LLVM_LIBRARY_DIR} ${LLVM_LIBRARY_DIRS})
+endif()
 add_subdirectory(utils/clad-tblgen)
 set(CLAD_OPTIONS_TD ${CMAKE_CURRENT_SOURCE_DIR}/lib/Differentiator/Options.td)
 set(CLAD_TBLGEN_INCLUDES -I ${LLVM_INCLUDE_DIRS})
