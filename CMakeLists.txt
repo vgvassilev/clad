@@ -329,6 +329,38 @@ endif()
 
 include(AddClad)
 
+# Options.td is the one place every option clad takes is written down. The
+# header rendered from it is committed, so building clad never runs tblgen and
+# this stays a developer target; test/Analyses/OptionTableUpToDate.cpp fails
+# when what is committed no longer matches the table. The reference page is
+# not committed: the sphinx target depends on this one, and readthedocs runs
+# it before building.
+#
+# clad-tblgen runs on the machine doing the build, so there is nothing to
+# build when that machine is not the target: what it renders is committed,
+# and a cross build has no use for it.
+#
+# The TableGen library is looked up rather than taken from
+# LLVM_LINK_COMPONENTS, because llvm-config maps the tablegen component onto
+# libLLVM, which does not carry TableGenMain. It ships with the same package
+# as the headers clad already needs, so on a native build not finding it
+# means a broken install rather than a supported one.
+if (NOT CMAKE_CROSSCOMPILING)
+find_library(CLAD_LLVM_TABLEGEN_LIB NAMES LLVMTableGen REQUIRED
+             HINTS ${LLVM_LIBRARY_DIR} ${LLVM_LIBRARY_DIRS})
+add_subdirectory(utils/clad-tblgen)
+set(CLAD_OPTIONS_TD ${CMAKE_CURRENT_SOURCE_DIR}/lib/Differentiator/Options.td)
+set(CLAD_TBLGEN_INCLUDES -I ${LLVM_INCLUDE_DIRS})
+add_custom_target(clad-options
+  COMMAND clad-tblgen -gen-options ${CLAD_TBLGEN_INCLUDES} ${CLAD_OPTIONS_TD}
+          -o ${CMAKE_CURRENT_SOURCE_DIR}/include/clad/Differentiator/Options.def
+  COMMAND clad-tblgen -gen-options-docs ${CLAD_TBLGEN_INCLUDES} ${CLAD_OPTIONS_TD}
+          -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Options.rst
+  DEPENDS clad-tblgen ${CLAD_OPTIONS_TD}
+  COMMENT "Regenerating what Options.td describes"
+  VERBATIM)
+endif()
+
 add_subdirectory(lib)
 add_subdirectory(tools)
 

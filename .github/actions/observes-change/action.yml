@@ -74,7 +74,14 @@ runs:
         echo "No touched tests -- skipping the baseline pass."
         exit 0
       fi
-      dirs="${{ inputs.functional-dirs }}"
+      # The baseline is the tree as it was everywhere but the tests being
+      # measured. Reverting only the functional directories would leave the
+      # build system naming files that are no longer in them: a change that
+      # adds a subdirectory stops cmake before a test can run. .github stays
+      # as the change wrote it, because the steps still to come are read from
+      # there.
+      dirs=". :(exclude).github"
+      for d in ${{ inputs.test-dirs }}; do dirs="$dirs :(exclude)$d"; done
       echo "observes_dirs=$dirs" >> $GITHUB_ENV
       # A reverse patch handles files the change adds or deletes, which
       # `git checkout <base> -- <dirs>` would leave behind.

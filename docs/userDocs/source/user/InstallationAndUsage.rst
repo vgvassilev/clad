@@ -107,5 +107,6 @@ To print the Clad generated derivative add:
 
    -Xclang -plugin-arg-clad -Xclang -fdump-derived-fn
 
+Every option clad takes is listed in :doc:`Options`.
 
 Note: Clad does not work with the Apple releases of Clang

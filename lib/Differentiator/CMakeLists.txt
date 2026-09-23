@@ -57,6 +57,7 @@ llvm_add_library(cladDifferentiator
   JacobianModeVisitor.cpp
   HessianModeVisitor.cpp
   MultiplexExternalRMVSource.cpp
+  Options.cpp
   PushForwardModeVisitor.cpp
   ReverseModeForwPassVisitor.cpp
   ReverseModeVisitor.cpp

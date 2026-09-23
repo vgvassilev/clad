@@ -77,6 +77,13 @@ set(CLAD_TEST_PARAMS
 # Unit tests
 list(APPEND CLAD_TEST_DEPS CladUnitTests)
 
+# OptionTableUpToDate re-renders the table and diffs it, so the suite needs the
+# renderer built. Nothing else does: what it renders is committed, which is why
+# a cross build omits the target altogether.
+if(TARGET clad-tblgen)
+  list(APPEND CLAD_TEST_DEPS clad-tblgen)
+endif()
+
 add_custom_target(clad-test-depends DEPENDS ${CLAD_TEST_DEPS})
 set_target_properties(clad-test-depends PROPERTIES FOLDER "Clad tests")
 

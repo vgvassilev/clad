@@ -2,3 +2,7 @@
 /.vscode
 /inst
 .cache/
+
+# Rendered by clad-tblgen from the tables under lib/Differentiator when the
+# documentation is built. Those tables are where these are written.
+/docs/userDocs/source/user/Options.rst
