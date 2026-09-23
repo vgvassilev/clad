@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #ifndef Max_Records
@@ -72,9 +73,15 @@ public:
   // block-local tracker declaration used to (re-)initialize the tracker.
   CUDA_HOST_DEVICE void clear() { m_cnt = m_off = 0; }
 #else
-  using RawMemory = std::vector<uint8_t>;
   using Address = char*;
-  std::map<const Address, RawMemory> m_data;
+  struct Record {
+    Address addr;
+    std::size_t size;
+    std::size_t off;
+  };
+  std::vector<Record> m_meta;
+  std::vector<uint8_t> m_buf;
+  std::unordered_map<Address, std::size_t> m_index;
 
 public:
   // Store the value and the address of `val`.
@@ -84,25 +91,29 @@ public:
     // _tracker.store(x); // stored
     // ...
     // _tracker.store(x); // ignored
-    if (m_data.find((char*)&val) != m_data.end())
+    Address addr = (char*)&val;
+    if (!m_index.emplace(addr, m_meta.size()).second)
       return;
-    std::vector<uint8_t> buffer(sizeof(T));
-    std::memcpy(buffer.data(), &val, sizeof(T));
-    m_data.emplace((char*)&val, std::move(buffer));
+    std::size_t off = m_buf.size();
+    m_buf.resize(off + sizeof(T));
+    std::memcpy(m_buf.data() + off, &val, sizeof(T));
+    m_meta.push_back({addr, sizeof(T), off});
   }
   // Set all stored addresses to the corresponding values bitwise. Keeps the
   // stored values: the reverse sweep restores the same state again after the
   // pullback's forward replay re-mutates it.
   void restore() {
-    for (std::pair<const Address, RawMemory>& pair : m_data) {
-      std::vector<uint8_t>& buffer = pair.second;
-      std::memcpy(pair.first, buffer.data(), buffer.size());
-    }
+    for (const Record& rec : m_meta)
+      std::memcpy(rec.addr, m_buf.data() + rec.off, rec.size);
   }
 
   // Drop all records without writing anything back. Emitted where a
   // block-local tracker declaration used to (re-)initialize the tracker.
-  void clear() { m_data.clear(); }
+  void clear() {
+    m_meta.clear();
+    m_buf.clear();
+    m_index.clear();
+  }
 #endif
 };
 } // namespace clad
