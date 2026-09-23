@@ -10,7 +10,6 @@
 // CHECK_HELP-NEXT: -fdump-analysis=<name>
 // CHECK_HELP-NEXT: -fgenerate-source-file
 // CHECK_HELP-NEXT: -fno-validate-clang-version
-// CHECK_HELP-NEXT: -fcustom-estimation-model
 // CHECK_HELP-NEXT: -fprint-num-diff-errors
 // CHECK_HELP-NEXT: -fclad-porting-hints
 // Every analysis clad knows about is listed, with the default it runs at.

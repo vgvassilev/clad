@@ -493,7 +493,7 @@ inline AnalysisFlagResult dumpAnalysisByName(Options& DO, llvm::StringRef Arg) {
             if (R == AnalysisFlagResult::Error)
               return false;
           } else if (args[i] == "-fcustom-estimation-model") {
-            llvm::errs() << "`-fcustom-estimation-model` is deprecated.\n";
+            llvm::errs() << "`-fcustom-estimation-model` is deprecated. Define `clad::getErrorVal` instead.\n";
             ++i;
             return false;
           } else if (args[i] == "-fprint-num-diff-errors") {
@@ -535,8 +535,6 @@ inline AnalysisFlagResult dumpAnalysisByName(Options& DO, llvm::StringRef Arg) {
                    "derivatives.\n"
                 << "-fno-validate-clang-version - Disables the validation of "
                    "the clang version.\n"
-                << "-fcustom-estimation-model - allows user to send in a "
-                   "shared object to use as the custom estimation model.\n"
                 << "-fprint-num-diff-errors - allows users to print the "
                    "calculated numerical diff errors, this flag is overriden "
                    "by -DCLAD_NO_NUM_DIFF.\n"
