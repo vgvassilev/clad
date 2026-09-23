@@ -58,6 +58,57 @@ double loopEarly(double x, double y) {
 // CHECK-LABEL: void loopEarly_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK: auto _rev0 = [&
 
+// Statements after `if (c) return` in a loop never ran on that iteration, so
+// their reverse must be gated -- they would otherwise pop empty tapes.
+double loopEarlyThenMore(double x) {
+  double s = 0;
+  double t = 1;
+  for (int i = 0; i < 5; ++i) {
+    s += x;
+    if (i == 2)
+      return s;
+    t = t * 0.5;
+  }
+  return s + t;
+}
+
+// CHECK-LABEL: void loopEarlyThenMore_grad(double x, double *_d_x) {
+// CHECK: if (!clad::back(_cond0)) {
+
+// A loop that both returns and continues has a control-flow tape. The
+// returning iteration must push a case or reverse pops an empty size_t tape.
+double loopReturnAndContinue(double x) {
+  double s = 0;
+  for (int i = 0; i < 10; ++i) {
+    if (i > 5)
+      return s;
+    if (i % 2 == 0)
+      continue;
+    s += x;
+  }
+  return s;
+}
+
+// CHECK-LABEL: void loopReturnAndContinue_grad(double x, double *_d_x) {
+// CHECK: clad::tape<unsigned {{int|long|long long}}>
+
+// Two early exits: statements after both ifs run only when neither fired.
+double twoEarlyThenMore(double x, double y) {
+  double s = 0;
+  for (int i = 0; i < 10; ++i) {
+    s += x;
+    if (i == 3)
+      return s;
+    if (y < 0)
+      return s;
+    s += y;
+  }
+  return s;
+}
+
+// CHECK-LABEL: void twoEarlyThenMore_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: clad::back(_cond0) || clad::back(_cond1)
+
 // The early return fires after some primal state (a, b) is already built, so
 // the lambda captures a partially-computed forward sweep.
 double midEarly(double x, double y) {
@@ -242,6 +293,24 @@ int main() {
   dx = dy = 0;
   // s never exceeds 20: falls through to the tail, 5*x*y, so d = {5y, 5x}.
   TEST_GRADIENT(loopEarly, /*numOfDerivativeArgs=*/2, 1, 1, &dx, &dy); // CHECK-EXEC: {5.00, 5.00}
+
+  dx = dy = 0;
+  INIT_GRADIENT(loopEarlyThenMore);
+  // Returns on i == 2 after three s += x; t is unused. d = {3}.
+  TEST_GRADIENT(loopEarlyThenMore, /*numOfDerivativeArgs=*/1, 2, &dx); // CHECK-EXEC: {3.00}
+
+  dx = dy = 0;
+  INIT_GRADIENT(loopReturnAndContinue);
+  // i = 1, 3, 5 add x; i > 5 returns. d = {3}.
+  TEST_GRADIENT(loopReturnAndContinue, /*numOfDerivativeArgs=*/1, 1, &dx); // CHECK-EXEC: {3.00}
+
+  dx = dy = 0;
+  INIT_GRADIENT(twoEarlyThenMore);
+  // i == 3 returns after four s += x and three s += y. d = {4, 3}.
+  TEST_GRADIENT(twoEarlyThenMore, /*numOfDerivativeArgs=*/2, 1, 1, &dx, &dy); // CHECK-EXEC: {4.00, 3.00}
+  dx = dy = 0;
+  // y < 0 returns on the first iteration after one s += x. d = {1, 0}.
+  TEST_GRADIENT(twoEarlyThenMore, /*numOfDerivativeArgs=*/2, 1, -1, &dx, &dy); // CHECK-EXEC: {1.00, 0.00}
 
   dx = dy = 0;
   INIT_GRADIENT(midEarly);

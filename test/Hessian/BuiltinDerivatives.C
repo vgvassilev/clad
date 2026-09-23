@@ -409,6 +409,7 @@ int main() {
 // CHECK-NEXT:     float _t0 = ::std::pow(x, exponent - 1);
 // CHECK-NEXT:     float _d_derivative = 0.F;
 // CHECK-NEXT:     auto _rev0 = [&] {
+// CHECK-NEXT:         if (!_cond2)
 // CHECK-NEXT:         if (_cond3) {
 // CHECK-NEXT:             float _r4 = 0.F;
 // CHECK-NEXT:             float _r5 = 0.F;
@@ -420,7 +421,7 @@ int main() {
 // CHECK-NEXT:             *_d_x += _r6;
 // CHECK-NEXT:             *_d_d_exponent += (_t2 * _t1) * _d_derivative;
 // CHECK-NEXT:         }
-// CHECK-NEXT:         {
+// CHECK-NEXT:         if (!_cond2) {
 // CHECK-NEXT:             *_d_exponent += _d_derivative * d_x * _t0;
 // CHECK-NEXT:             float _r2 = 0.F;
 // CHECK-NEXT:             float _r3 = 0.F;

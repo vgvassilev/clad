@@ -32,6 +32,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -862,6 +863,50 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return result;
   }
 
+  // True when S always leaves the remaining statements of its enclosing
+  // compound unexecuted (return / break / continue, or an if whose every
+  // taken branch does).
+  static bool stmtAlwaysExits(const Stmt* S) {
+    if (!S)
+      return false;
+    if (isa<ReturnStmt>(S) || isa<BreakStmt>(S) || isa<ContinueStmt>(S))
+      return true;
+    if (const auto* CS = dyn_cast<CompoundStmt>(S)) {
+      for (const Stmt* C : CS->body())
+        if (stmtAlwaysExits(C))
+          return true;
+      return false;
+    }
+    if (const auto* IS = dyn_cast<IfStmt>(S))
+      return stmtAlwaysExits(IS->getThen()) && stmtAlwaysExits(IS->getElse());
+    return false;
+  }
+
+  // True when a loop body contains a `break` or `continue` that belongs to
+  // that loop (not a nested loop, and not a `break` of an inner switch).
+  static bool loopBodyHasBreakOrContinue(const Stmt* S,
+                                         bool insideSwitch = false) {
+    if (!S)
+      return false;
+    if (isa<ContinueStmt>(S))
+      return true;
+    if (isa<BreakStmt>(S))
+      return !insideSwitch;
+    if (isa<ForStmt>(S) || isa<WhileStmt>(S) || isa<DoStmt>(S) ||
+        isa<CXXForRangeStmt>(S))
+      return false;
+    if (isa<SwitchStmt>(S)) {
+      for (const Stmt* C : S->children())
+        if (loopBodyHasBreakOrContinue(C, /*insideSwitch=*/true))
+          return true;
+      return false;
+    }
+    for (const Stmt* C : S->children())
+      if (loopBodyHasBreakOrContinue(C, insideSwitch))
+        return true;
+    return false;
+  }
+
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,
@@ -871,12 +916,55 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     ScopeRAII compoundScope(*this, scopeFlags);
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
+    // After `if (c) return; stmt;`, stmt does not run on the path that
+    // returned. Its reverse must not either -- otherwise loop-iteration tapes
+    // (restore_trackers, conds) are popped on an iteration that never pushed.
+    // Several such exits accumulate: after `if (a) return; if (b) return;`,
+    // later statements run only when `!a && !b`.
+    Expr* skipRestWhen = nullptr;
+    bool skipRestAlways = false;
+    auto noteExitWhen = [&](Expr* exitWhen) {
+      if (!exitWhen || skipRestAlways)
+        return;
+      if (!skipRestWhen) {
+        skipRestWhen = exitWhen;
+        return;
+      }
+      skipRestWhen = BuildOp(BinaryOperatorKind::BO_LOr,
+                             BuildParens(CloneNode(skipRestWhen)),
+                             BuildParens(CloneNode(exitWhen)));
+    };
     for (Stmt* S : CS->body()) {
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingStmtInVisitCompoundStmt();
       StmtDiff SDiff = DifferentiateSingleStmt(S);
       addToCurrentBlock(SDiff.getStmt(), direction::forward);
-      addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
+      Stmt* rev = SDiff.getStmt_dx();
+      if (rev && skipRestAlways)
+        rev = nullptr;
+      else if (rev && skipRestWhen) {
+        Expr* gate = BuildOp(clang::UnaryOperatorKind::UO_LNot,
+                             BuildParens(CloneNode(skipRestWhen)));
+        rev = clad_compat::IfStmt_Create(
+            m_Context, noLoc, /*IsConstexpr=*/false, /*Init=*/nullptr,
+            /*Var=*/nullptr, gate, noLoc, noLoc, rev, noLoc, /*Else=*/nullptr);
+      }
+      addToCurrentBlock(rev, direction::reverse);
+
+      if (!skipRestAlways) {
+        if (const auto* If = dyn_cast<IfStmt>(S)) {
+          bool thenExits = stmtAlwaysExits(If->getThen());
+          bool elseExits = stmtAlwaysExits(If->getElse());
+          Expr* cond = SDiff.getRevSweepAsExpr();
+          if (thenExits && elseExits)
+            skipRestAlways = true;
+          else if (thenExits)
+            noteExitWhen(cond);
+          else if (elseExits && cond)
+            noteExitWhen(BuildOp(clang::UnaryOperatorKind::UO_LNot,
+                                 BuildParens(CloneNode(cond))));
+        }
+      }
 
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingStmtInVisitCompoundStmt();
@@ -1111,6 +1199,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
     auto* activeBreakContHandler = PushBreakContStmtHandler();
+    activeBreakContHandler->m_HasBreakOrContinue =
+        loopBodyHasBreakOrContinue(FRS->getBody());
     activeBreakContHandler->BeginCFSwitchStmtScope();
     const VarDecl* LoopVD = FRS->getLoopVariable();
 
@@ -1662,6 +1752,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         GetActiveBreakContStmtHandler()->m_IsInvokedBySwitchStmt)
       addToCurrentBlock(CloseReverseSwitchCaseGroup(*GetActiveSwitchStmtInfo()),
                         direction::reverse);
+    // A return mid-iteration must record a control-flow-tape case, same as
+    // continue. Otherwise a loop that also has break/continue still pops the
+    // size_t tape in reverse, but this iteration never pushed (the fallthrough
+    // push lives at the end of the body, which the return skipped).
+    for (BreakContStmtHandler& H : m_BreakContStmtHandlers) {
+      if (H.m_IsInvokedBySwitchStmt || !H.m_HasBreakOrContinue)
+        continue;
+      addToCurrentBlock(H.GetNextCFCaseStmt(), direction::reverse);
+      addToCurrentBlock(H.CreateCFTapePushExprToCurrentCase(),
+                        direction::forward);
+    }
     addToCurrentBlock(Reverse, direction::reverse);
 
     Stmt* marker = m_Sema.ActOnNullStmt(noLoc).get();
@@ -4070,7 +4171,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     std::reverse(RCS->body_begin(), RCS->body_end());
     Stmt* ReverseResult = utils::unwrapIfSingleStmt(RCS);
 
-    return StmtDiff(SDiff.getStmt(), ReverseResult);
+    // Keep the if-condition used as a reverse-sweep gate so statements after
+    // `if (c) return;` can skip their reverse on the iteration that returned.
+    Stmt* revSweep = isa<IfStmt>(S) ? SDiff.getRevSweepStmt() : nullptr;
+    return StmtDiff(SDiff.getStmt(), ReverseResult, revSweep);
   }
 
   std::pair<StmtDiff, StmtDiff>
@@ -5311,6 +5415,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     Expr* counterIncrement = loopCounter.getCounterIncrement();
     auto* activeBreakContHandler = PushBreakContStmtHandler();
+    activeBreakContHandler->m_HasBreakOrContinue =
+        loopBodyHasBreakOrContinue(body);
     activeBreakContHandler->BeginCFSwitchStmtScope();
     m_LoopBlock.emplace_back();
     // differentiate loop body and add loop increment expression

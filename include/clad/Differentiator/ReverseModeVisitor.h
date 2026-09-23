@@ -830,6 +830,11 @@ namespace clad {
       /// control-flow tape. Lets VisitBreakStmt pick the right handling.
       bool m_IsInvokedBySwitchStmt = false;
 
+      /// True when this loop's body has a `break` or `continue` belonging to
+      /// it. Early returns then also record a CF-tape case, so reverse can pop
+      /// the iteration that returned before the fallthrough push.
+      bool m_HasBreakOrContinue = false;
+
       BreakContStmtHandler(ReverseModeVisitor& RMV, bool forSwitchStmt = false)
           : m_RMV(RMV), m_IsInvokedBySwitchStmt(forSwitchStmt) {}
 
