@@ -153,7 +153,15 @@ void ReverseModeVisitor::DifferentiateWithEnzyme() {
     llvm::APSInt argValue = m_Context.MakeIntValue(enzymeRealParams.size(),
                                                    m_Context.UnsignedIntTy);
     TemplateArgument TA(m_Context, argValue, m_Context.UnsignedIntTy);
-    TLI.addArgument(TemplateArgumentLoc(TA, TemplateArgumentLocInfo()));
+    // A non-type argument's location info is read back as an Expr, and a
+    // default-constructed TemplateArgumentLocInfo holds no alternative at
+    // all -- it only read as one because Expr happened to be the first
+    // member of the underlying PointerUnion. Clang 23 reorders that union,
+    // so the read asserts instead. Hand over the literal the argument stands
+    // for, which is what the location info is for.
+    auto* argExpr = IntegerLiteral::Create(m_Context, argValue,
+                                           m_Context.UnsignedIntTy, noLoc);
+    TLI.addArgument(TemplateArgumentLoc(TA, argExpr));
 
     QT = utils::InstantiateTemplate(m_Sema, gradDecl, TLI);
   } else {

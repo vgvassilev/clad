@@ -8,7 +8,7 @@
 // entry reads the way a clang option does. What clad does not reuse is
 // llvm::opt::OptTable at run time: the table it generates has changed contract
 // four times across the LLVM releases clad supports, while the records below
-// are read identically by every llvm-tblgen from 14 to 22.
+// are read identically by every llvm-tblgen from 14 to 23.
 //
 // The one pair not written here is -enable-<x>/-disable-<x>, which is a
 // switch per analysis rather than an option in its own right and is spelled

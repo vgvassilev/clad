@@ -98,10 +98,9 @@ jobs:
       matrix:
 
         include:
-          # --- LINUX: Last 11 Runtimes (12-22) ---
-          # Using Ubuntu 22.04 for older runtimes, 24.04 for newer ones
-          - { name: ubu22-gcc11-runtime12, os: ubuntu-22.04, compiler: gcc-11, clang-runtime: '12' }
-          - { name: ubu22-clang13-runtime13, os: ubuntu-22.04, compiler: clang-13, clang-runtime: '13' }
+          # --- LINUX: Last 10 Runtimes (14-23) ---
+          # Ubuntu 24.04 throughout; the rows that still exercise 22.04
+          # are the cuda and kokkos ones further down.
           - { name: ubu24-gcc13-runtime14, os: ubuntu-24.04, compiler: gcc-13, clang-runtime: '14' }
           - { name: ubu24-clang15-runtime15, os: ubuntu-24.04, compiler: clang-15, clang-runtime: '15' }
           - { name: ubu24-gcc14-runtime16, os: ubuntu-24.04, compiler: gcc-14, clang-runtime: '16' }
@@ -111,7 +110,12 @@ jobs:
           - { name: ubu24-clang19-runtime20, os: ubuntu-24.04, compiler: clang-19, clang-runtime: '20', cuda: '12.6.3' }
           - { name: ubu24-clang20-runtime21, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '21', cuda: '12.8.1' }
           - { name: ubu24-clang20-runtime22, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '22', cuda: '13.0.3' }
-          - { name: ubu24-clang22-runtime22-asan, os: ubuntu-24.04, compiler: clang-22, clang-runtime: '22', flavor: asan, extra_cmake_options: '-DLLVM_USE_SANITIZER=Address' }
+          # 23 comes from the published llvm-release cell, not from apt:
+          # apt-llvm.org carries no 23 packages, so flavor=system -- what
+          # every row above uses -- would have nothing to install.
+          # use-recipe selects the empty flavor, which is that cell.
+          - { name: ubu24-clang20-runtime23, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '23', use-recipe: 'true' }
+          - { name: ubu24-clang22-runtime23-asan, os: ubuntu-24.04, compiler: clang-22, clang-runtime: '23', flavor: asan, extra_cmake_options: '-DLLVM_USE_SANITIZER=Address' }
           # --- MACOS: Last 5 Runtimes (17-21) ---
           # Using macOS ARM (standard) for all; Runtime 17 on Intel for x86 sanity
           - { name: osx-intel-runtime17, os: macos-15-intel, compiler: clang, clang-runtime: '17' }
@@ -143,10 +147,10 @@ jobs:
             extra_packages: "libomp-20-dev libopenblas-dev"
             benchmark: true
 
-          - name: ubu22-clang13-runtime13-cuda
+          - name: ubu22-clang14-runtime14-cuda
             os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '13'
+            compiler: clang-14
+            clang-runtime: '14'
 
           - name: ubu24-clang16-runtime17-shared-libs
             os: ubuntu-24.04

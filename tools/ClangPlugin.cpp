@@ -758,10 +758,8 @@ void InitTimers();
       const FunctionDecl* FD = request.Function;
       ASTContext& C = S.getASTContext();
       clang::PrintingPolicy Policy = C.getPrintingPolicy();
-#if CLANG_VERSION_MAJOR > 10
       // Our testsuite expects 'a<b<c> >' rather than 'a<b<c>>'.
       Policy.SplitTemplateClosers = true;
-#endif
       // if enabled, print source code of the original functions
       if (m_DO.DumpSourceFn) {
         FD->print(llvm::outs(), Policy);
