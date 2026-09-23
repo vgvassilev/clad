@@ -719,6 +719,27 @@ double fn13(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+// By-value construction from named class objects must clone each argument
+// DeclRef so the derivative is a tree (no shared AST node).
+struct Point {
+  double x, y;
+  Point(double x_ = 0, double y_ = 0) : x(x_), y(y_) {}
+};
+
+struct Segment {
+  Point a, b;
+  Segment(Point a_, Point b_) : a(a_), b(b_) {}
+};
+
+double fn14(double x, double y) {
+  Point p(x, y);
+  Point q(0, 0);
+  Segment s(q, p);
+  return s.b.x + s.a.y;
+}
+
+// CHECK: void fn14_grad(double x, double y, double *_d_x, double *_d_y) {
+
 int main() {
     double d_i, d_j;
 
@@ -763,4 +784,7 @@ int main() {
 
     INIT_GRADIENT(fn13);
     TEST_GRADIENT(fn13, /*numOfDerivativeArgs=*/2, 7, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 4.00}
+
+    INIT_GRADIENT(fn14);
+    TEST_GRADIENT(fn14, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
 }
