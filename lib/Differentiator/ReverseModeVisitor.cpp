@@ -4428,9 +4428,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             .BuildCXXNamedCast(KWLoc, CastKind, TSI, subExprDiff.getExpr(),
                                Brackets, Range)
             .get();
-    subExprDiff.updateStmt(castExpr);
 
-    return subExprDiff;
+    Expr* castExprDiff = subExprDiff.getExpr_dx();
+    if (castExprDiff != nullptr)
+      castExprDiff = m_Sema
+                         .BuildCXXNamedCast(KWLoc, CastKind, TSI, castExprDiff,
+                                            Brackets, Range)
+                         .get();
+
+    return {castExpr, castExprDiff};
   }
 
   StmtDiff ReverseModeVisitor::VisitImplicitValueInitExpr(
