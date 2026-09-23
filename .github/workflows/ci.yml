@@ -116,13 +116,17 @@ jobs:
           # use-recipe selects the empty flavor, which is that cell.
           - { name: ubu24-clang20-runtime23, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '23', use-recipe: 'true' }
           - { name: ubu24-clang22-runtime23-asan, os: ubuntu-24.04, compiler: clang-22, clang-runtime: '23', flavor: asan, extra_cmake_options: '-DLLVM_USE_SANITIZER=Address' }
-          # --- MACOS: Last 5 Runtimes (17-21) ---
-          # Using macOS ARM (standard) for all; Runtime 17 on Intel for x86 sanity
-          - { name: osx-intel-runtime17, os: macos-15-intel, compiler: clang, clang-runtime: '17' }
-          - { name: osx-arm-runtime18, os: macos-26, compiler: clang, clang-runtime: '18' }
-          - { name: osx-arm-runtime19, os: macos-26, compiler: clang, clang-runtime: '19' }
+          # --- MACOS: Last 5 Runtimes (19-23) ---
+          # macOS ARM (standard) throughout; the oldest runtime runs on Intel
+          # for x86 sanity. brew has llvm@19 through llvm@22 but no llvm@23,
+          # so that row takes the published llvm-release cell instead. The
+          # Intel row stays on macos-15-intel because it needs no cell; the
+          # ones that are built are for macos-26-intel.
+          - { name: osx-intel-runtime19, os: macos-15-intel, compiler: clang, clang-runtime: '19' }
           - { name: osx-arm-runtime20, os: macos-26, compiler: clang, clang-runtime: '20' }
           - { name: osx-arm-runtime21, os: macos-26, compiler: clang, clang-runtime: '21' }
+          - { name: osx-arm-runtime22, os: macos-26, compiler: clang, clang-runtime: '22' }
+          - { name: osx-arm-runtime23, os: macos-26, compiler: clang, clang-runtime: '23', use-recipe: 'true' }
 
           # --- WINDOWS: Last 5 Runtimes (17-21) ---
           - { name: win-msvc-runtime17, os: windows-2022, compiler: msvc, clang-runtime: '17' }
@@ -353,10 +357,14 @@ jobs:
     - name: Setup LLVM extras on macOS
       if: runner.os == 'macOS'
       run: |
-        # setup-llvm ran `brew install llvm@N` above; pick the prefix
-        # and copy SDK headers into /usr/local/include/ (ln fails on
-        # macOS-arm runners, so we copy).
-        PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
+        # setup-llvm always lands the install at $GITHUB_WORKSPACE/install,
+        # whichever flavor ran: the Homebrew path symlinks the brew prefix
+        # there, the recipe flavors put a real install tree there. Reading
+        # the brew prefix directly only worked for the former.
+        #
+        # The SDK headers still have to be copied into /usr/local/include/
+        # (ln fails on macOS-arm runners), which is what this step is for.
+        PATH_TO_LLVM_BUILD="$GITHUB_WORKSPACE/install"
         pip3 install lit
         sudo cp -r -n $(xcrun --show-sdk-path)/usr/include/ /usr/local/include/
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
