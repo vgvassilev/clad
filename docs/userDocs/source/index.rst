@@ -85,6 +85,7 @@ The User Guide
    user/reference
    user/SupportedFeatures
    user/CoreConcepts
+   user/Options
 
 .. toctree::
    :maxdepth: 2

@@ -1,0 +1,71 @@
+// Generated from lib/Differentiator/Options.td by clad-tblgen.
+// Do not edit: edit the .td and regenerate with `ninja clad-options`.
+
+#ifndef CLAD_OPTION
+#error "define CLAD_OPTION(Id, Kind, Spelling, MetaVar, Help) before including"
+#endif
+
+// An option that also sets a field of clad::Options. Leave it undefined to
+// see every option as a plain CLAD_OPTION. Value is the expression the field
+// takes; for a Joined option it names Val, the text after the spelling.
+#ifndef CLAD_OPTION_WITH_MARSHALLING
+#define CLAD_OPTION_WITH_MARSHALLING(Id, Kind, Spelling, MetaVar, Help, Type,  \
+                                     KeyPath, Default, Value)                  \
+  CLAD_OPTION(Id, Kind, Spelling, MetaVar, Help)
+#endif
+
+CLAD_OPTION(Rclad_analysis_EQ, Joined, "-Rclad-analysis=", "<name>",
+    "Reports what the named analysis left in the derivative.")
+CLAD_OPTION_WITH_MARSHALLING(fclad_porting_hints, Flag, "-fclad-porting-hints", "",
+    "Names the custom derivative clad would have used, where it "
+    "fell back to differentiating a definition.",
+    bool, EmitPortingHints, false, true)
+CLAD_OPTION(fcustom_estimation_model, Flag, "-fcustom-estimation-model", "",
+    "Deprecated; sending in a shared object as the estimation "
+    "model is no longer supported.")
+CLAD_OPTION(fdisable_analysis_EQ, Joined, "-fdisable-analysis=", "<name>",
+    "Turns the named analysis off; 'all' turns off every one.")
+CLAD_OPTION(fdump_analysis_EQ, Joined, "-fdump-analysis=", "<name>",
+    "Prints what the named analysis concluded, per function "
+    "differentiated.")
+CLAD_OPTION_WITH_MARSHALLING(fdump_derived_fn, Flag, "-fdump-derived-fn", "",
+    "Prints out the source code of the derivative.",
+    bool, DumpDerivedFn, false, true)
+CLAD_OPTION_WITH_MARSHALLING(fdump_derived_fn_ast, Flag, "-fdump-derived-fn-ast", "",
+    "Prints out the AST of the derivative.",
+    bool, DumpDerivedAST, false, true)
+CLAD_OPTION_WITH_MARSHALLING(fdump_generated_source, Flag, "-fdump-generated-source", "",
+    "Prints the text clad renders each derivative as, and where "
+    "every statement lands in it.",
+    bool, DumpGeneratedSource, false, true)
+CLAD_OPTION_WITH_MARSHALLING(fdump_source_fn, Flag, "-fdump-source-fn", "",
+    "Prints out the source code of the function.",
+    bool, DumpSourceFn, false, true)
+CLAD_OPTION_WITH_MARSHALLING(fdump_source_fn_ast, Flag, "-fdump-source-fn-ast", "",
+    "Prints out the AST of the function.",
+    bool, DumpSourceFnAST, false, true)
+CLAD_OPTION(fenable_analysis_EQ, Joined, "-fenable-analysis=", "<name>",
+    "Turns the named analysis on; the last such option decides.")
+CLAD_OPTION_WITH_MARSHALLING(fgenerate_source_file, Flag, "-fgenerate-source-file", "",
+    "Produces a file containing the derivatives.",
+    bool, GenerateSourceFile, false, true)
+CLAD_OPTION_WITH_MARSHALLING(fgenerated_source_dir_EQ, Joined, "-fgenerated-source-dir=", "<dir>",
+    "Writes the code clad generates into <dir> and names it in "
+    "the debug line table.",
+    std::optional<std::string>, GeneratedSourceDir, std::nullopt, Val.str())
+CLAD_OPTION_WITH_MARSHALLING(fno_validate_clang_version, Flag, "-fno-validate-clang-version", "",
+    "Disables the validation of the clang version.",
+    bool, ValidateClangVersion, true, false)
+CLAD_OPTION_WITH_MARSHALLING(fprint_num_diff_errors, Flag, "-fprint-num-diff-errors", "",
+    "Prints the calculated numerical diff errors; overridden by "
+    "-DCLAD_NO_NUM_DIFF.",
+    bool, PrintNumDiffErrorInfo, false, true)
+CLAD_OPTION(help, Flag, "-help", "",
+    "Prints out this screen.")
+CLAD_OPTION(v, Flag, "-v", "",
+    "Alias for -version.")
+CLAD_OPTION(version, Flag, "-version", "",
+    "Prints out clad's version.")
+
+#undef CLAD_OPTION_WITH_MARSHALLING
+#undef CLAD_OPTION

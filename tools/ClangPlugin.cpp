@@ -379,7 +379,7 @@ void InitTimers();
       // debugger that understands it, or through a file on disk.
       // Naming the flag at all is an answer, even with no directory after it:
       // it says the generated code being unreadable is known and meant.
-      if (m_DO.GeneratedSourceDirGiven)
+      if (m_DO.GeneratedSourceDir)
         return;
       const clang::CodeGenOptions& CGO = m_CI.getCodeGenOpts();
       // Through the enum's own type rather than by name: which header spells
@@ -734,9 +734,9 @@ void InitTimers();
             std::make_unique<DerivativeBuilder>(S, *this, getScheduler());
         // Before the first chunk is made: a chunk keeps the name it was made
         // with, and that name is what the line table records.
-        if (!m_DO.GeneratedSourceDir.empty())
+        if (m_DO.GeneratedSourceDir && !m_DO.GeneratedSourceDir->empty())
           m_DerivativeBuilder->getGeneratedCode().setFileBase(
-              m_DO.GeneratedSourceDir, m_CI.getCodeGenOpts().MainFileName);
+              *m_DO.GeneratedSourceDir, m_CI.getCodeGenOpts().MainFileName);
       }
 
       if (request.Global) {
