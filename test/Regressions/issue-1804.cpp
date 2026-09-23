@@ -37,10 +37,8 @@ double g_outer(double *params, double const *obs) { return g_inner(params, obs);
 // CHECK: clad::ValueAndPushforward<double, double> g_inner_pushforward(double *params, const double *obs, double *_d_params, const double *_d_obs) {
 // CHECK-NEXT:     return {*obs * params[0], (_d_obs ? *_d_obs : 0.) * params[0] + *obs * _d_params[0]};
 
-// Clang prints the type of a compound literal as `double [1]` up to clang 13
-// and as `double[1]` from clang 14 on, so accept either spelling.
 // CHECK: double g_outer_darg0_0(double *params, const double *obs) {
-// CHECK-NEXT: clad::ValueAndPushforward<double, double> _t0 = g_inner_pushforward(params, obs, (double{{ ?}}[1]){1.}, nullptr);
+// CHECK-NEXT: clad::ValueAndPushforward<double, double> _t0 = g_inner_pushforward(params, obs, (double[1]){1.}, nullptr);
 
 // A local pointer inherits the null tangent of the one it is derived from. The
 // classification runs over the whole function at once, so that a read that

@@ -271,7 +271,8 @@ DEFINE_CLONE_EXPR(GNUNullExpr,
 DEFINE_CLONE_EXPR(VAArgExpr,
                   (Node->getBuiltinLoc(), Clone(Node->getSubExpr()),
                    Node->getWrittenTypeInfo(), Node->getRParenLoc(),
-                   CloneType(Node->getType()), Node->isMicrosoftABI()))
+                   CloneType(Node->getType()),
+                   CLAD_COMPAT_CLANG23_VAArgExpr_VarArgKind_Param(Node)))
 DEFINE_CLONE_EXPR(ImplicitValueInitExpr, (CloneType(Node->getType())))
 DEFINE_CLONE_EXPR(CXXScalarValueInitExpr,
                   (CloneType(Node->getType()), Node->getTypeSourceInfo(),
@@ -295,13 +296,23 @@ DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
                    Node->getBeginLoc(), Clone(Node->getReplacement()),
                    Node->getAssociatedDecl(), Node->getIndex(),
                    Node->getPackIndex(), Node->isReferenceParameter()))
-#else
+#elif CLANG_VERSION_MAJOR < 23
 DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
                   (CloneType(Node->getType()), Node->getValueKind(),
                    Node->getBeginLoc(), Clone(Node->getReplacement()),
                    Node->getAssociatedDecl(), Node->getIndex(),
                    Node->getPackIndex(), Node->isReferenceParameter(),
                    Node->getFinal()))
+#else
+// Clang 23 stores the parameter's type where the reference-ness bit used to
+// sit, so isReferenceParameter() is gone and the type takes its place in the
+// argument list.
+DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
+                  (CloneType(Node->getType()), Node->getValueKind(),
+                   Node->getBeginLoc(), Clone(Node->getReplacement()),
+                   Node->getAssociatedDecl(),
+                   CloneType(Node->getParameterType()), Node->getIndex(),
+                   Node->getPackIndex(), Node->getFinal()))
 #endif
 // A PseudoObjectExpr (e.g. a `threadIdx.x` __declspec(property) access) binds
 // OpaqueValueExprs in its semantic expressions and references those same OVE
@@ -406,7 +417,10 @@ Stmt* StmtClone::VisitInitListExpr(InitListExpr* Node) {
   // node: preserve the type, the array filler and the union field so aggregate
   // emission stays valid.
   auto* result = new (Ctx)
-      InitListExpr(Ctx, Node->getLBraceLoc(), initExprs, Node->getRBraceLoc());
+      InitListExpr(Ctx, Node->getLBraceLoc(), initExprs,
+                   Node->getRBraceLoc()
+                       CLAD_COMPAT_CLANG23_InitListExpr_IsExplicit_ExtraParam(
+                           Node->isExplicit()));
   result->setType(CloneType(Node->getType()));
   if (Expr* filler = Node->getArrayFiller())
     result->setArrayFiller(Clone(filler));

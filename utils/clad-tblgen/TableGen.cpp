@@ -263,14 +263,13 @@ to it behind its own ``-Xclang -plugin-arg-clad``::
   clang++ -fplugin=/path/to/clad.so \
           -Xclang -plugin-arg-clad -Xclang -fdump-derived-fn ...
 
-From clang 14 the driver spells it without ``-Xclang``. Note the doubled
+The driver spells the same thing without ``-Xclang``. Note the doubled
 dash: clang appends whatever follows ``-fplugin-arg-clad-`` to the plugin's
 arguments verbatim, and every option below starts with one of its own::
 
   clang++ -fplugin=/path/to/clad.so -fplugin-arg-clad--fdump-derived-fn ...
 
-Clad supports clang 12 and later, and clang 12 and 13 have no
-``-fplugin-arg-``; the ``-Xclang`` form above works on every version.
+Either spelling works on every clang clad supports.
 
 )";
   for (const Record* R : optionsOf(Records))

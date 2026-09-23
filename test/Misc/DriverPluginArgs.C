@@ -3,11 +3,10 @@
 // -fplugin-arg-clad- verbatim, and every clad option starts with one of its
 // own; -fplugin-arg-clad-help would pass `help` and be rejected.
 //
-// The driver gained this in clang 14, so the test asks for it. -Xclang
-// -plugin-arg-clad, which Args.C covers, works on every version clad
-// supports.
+// The driver gained this in clang 14, which is the oldest clang clad
+// supports, so every version reaching this test has it. -Xclang
+// -plugin-arg-clad, which Args.C covers, is the other spelling.
 //
-// REQUIRES: driver-plugin-args
 // RUN: clang -fsyntax-only -fplugin=%cladlib -fplugin-arg-clad--help \
 // RUN:   -I%S/../../include %s 2>&1 | FileCheck %s
 // The header is a line of its own, which it was not before the screen came
