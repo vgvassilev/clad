@@ -124,12 +124,15 @@ jobs:
           - { name: osx-arm-runtime20, os: macos-26, compiler: clang, clang-runtime: '20' }
           - { name: osx-arm-runtime21, os: macos-26, compiler: clang, clang-runtime: '21' }
 
-          # --- WINDOWS: Last 5 Runtimes (17-21) ---
-          - { name: win-msvc-runtime17, os: windows-2022, compiler: msvc, clang-runtime: '17' }
-          - { name: win-msvc-runtime18, os: windows-2022, compiler: msvc, clang-runtime: '18' }
+          # --- WINDOWS: Last 5 Runtimes (19-23) ---
+          # These rows get their LLVM from conda-forge's clangdev rather than
+          # from a ci-workflows cell, so a major is available here as soon as
+          # that package is and the window costs nothing but matrix rows.
           - { name: win-msvc-runtime19, os: windows-2022, compiler: msvc, clang-runtime: '19' }
           - { name: win-msvc-runtime20, os: windows-2022, compiler: msvc, clang-runtime: '20' }
           - { name: win-msvc-runtime21, os: windows-2022, compiler: msvc, clang-runtime: '21' }
+          - { name: win-msvc-runtime22, os: windows-2022, compiler: msvc, clang-runtime: '22' }
+          - { name: win-msvc-runtime23, os: windows-2022, compiler: msvc, clang-runtime: '23' }
 
           # --- CUSTOM: Debug, coverage, benchmarks, static analysis ---
           - name: ubu24-clang20-runtime22-debug
