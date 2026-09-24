@@ -85,6 +85,11 @@ double qualified(double x) {
   return make_box(x).Box::scaled() * x;
 }
 double parenthesized(double x) { return (make_box(x)).scaled() * x; }
+double dereferenced(double x) {
+  Box box{x, nullptr};
+  Box* ptr = &box;
+  return (*ptr).scaled() * x;
+}
 double loop(double x) {
   double result = 0;
   for (int i = 0; i < 3; ++i)
@@ -104,6 +109,9 @@ double copy_only(double x) { return make_copy_only(x).read() * x; }
 // CHECK: make_box_pullback(x,
 // CHECK-LABEL: void lvalue_grad(
 // CHECK: make_box_pullback(x,
+// The const method adds an implicit cast around the original parentheses.
+// CHECK-LABEL: void dereferenced_grad(
+// CHECK: = (*ptr).scaled();
 // CHECK-LABEL: void loop_grad(
 // CHECK: make_box_pullback(
 // CHECK-LABEL: void copy_only_grad(
@@ -132,6 +140,8 @@ int main() {
   // CHECK-EXEC-NEXT: qualified: 81 1 1
   check("parenthesized", clad::gradient(parenthesized));
   // CHECK-EXEC-NEXT: parenthesized: 81 1 1
+  check("dereferenced", clad::gradient(dereferenced));
+  // CHECK-EXEC-NEXT: dereferenced: 18 0 1
   check("loop", clad::gradient(loop));
   // CHECK-EXEC-NEXT: loop: 366 3 3
   check("branch", clad::gradient(branch));

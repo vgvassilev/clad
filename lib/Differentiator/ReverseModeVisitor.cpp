@@ -3041,7 +3041,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (MD->getRefQualifier() == RQ_RValue && base->isLValue())
         base = utils::BuildStaticCastToRValue(m_Sema, base);
       auto* member = cast<MemberExpr>(clonedCallee->IgnoreParenImpCasts());
-      if (isa<ParenExpr>(member->getBase()) && !isa<ParenExpr>(base))
+      if (isa<ParenExpr>(member->getBase()->IgnoreImpCasts()) &&
+          !isa<ParenExpr>(base))
         base = utils::BuildParenExpr(m_Sema, base);
       member->setBase(base);
       CallArgs.erase(CallArgs.begin());
