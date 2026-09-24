@@ -788,11 +788,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (thisExpr) {
       Expr* member = utils::BuildMemberExpr(m_Sema, getCurrentScope(), thisExpr,
                                             fieldName);
-      init = BuildOp(BO_Assign, member, initDiff.getExpr());
+      // initDiff's forward/adjoint exprs may already be parented by the
+      // constructor clone or the reverse sweep; clone so the member
+      // assignments own distinct nodes.
+      init = BuildOp(BO_Assign, member, CloneNode(initDiff.getExpr()));
       Expr* memberDx = utils::BuildMemberExpr(
           m_Sema, getCurrentScope(), cloneThisExprDerivative(), fieldName);
       if (!memberDx->getType()->isRealType())
-        initDx = BuildOp(BO_Assign, memberDx, initDiff.getExpr_dx());
+        initDx = BuildOp(BO_Assign, memberDx, CloneNode(initDiff.getExpr_dx()));
     }
     return {init, initDx, endBlock(direction::reverse)};
   }
@@ -5877,9 +5880,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SmallVector<Expr*, 4> clonedPrimalArgs;
     for (Expr* primalArg : primalArgs)
       clonedPrimalArgs.push_back(CloneNode(primalArg));
+    llvm::SmallVector<Expr*, 4> clonedRevForwArgs;
+    for (Expr* arg : reverseForwAdjointArgs)
+      clonedRevForwArgs.push_back(CloneNode(arg));
     Expr* callClone = BuildConstructorCall(m_Sema, CE, clonedPrimalArgs,
                                            m_TrackVarDeclConstructor);
-    Expr* callDiff = BuildConstructorCall(m_Sema, CE, reverseForwAdjointArgs,
+    Expr* callDiff = BuildConstructorCall(m_Sema, CE, clonedRevForwArgs,
                                           m_TrackVarDeclConstructor);
     return {callClone, callDiff};
   }
