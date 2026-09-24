@@ -6,6 +6,9 @@ on:
   pull_request:
     branches:
       - master
+    # labeled as well, so that run-post-merge can ask for the gates below
+    # without waiting for a push that has nothing to do with them.
+    types: [opened, synchronize, reopened, labeled]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -40,9 +43,19 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         EVENT_NAME: ${{ github.event_name }}
+        ACTION: ${{ github.event.action }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         REPO: ${{ github.repository }}
       run: |
+        # A label moves no file. The gates it asks for do not go through this
+        # job, so answering false here is what keeps a label from replaying
+        # the whole matrix.
+        if [ "$ACTION" = labeled ]; then
+          echo 'value=false' >> "$GITHUB_OUTPUT"
+          echo "A label changes no file; clad is not rebuilt." \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
         if [ "$EVENT_NAME" != pull_request ]; then
           echo 'value=true' >> "$GITHUB_OUTPUT"
           echo "A $EVENT_NAME builds everything." | tee -a "$GITHUB_STEP_SUMMARY"
@@ -682,12 +695,14 @@ jobs:
   # rather than about the change under review. Step list shared via the
   # &build_steps anchor.
   build-valgrind:
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ github.event_name == 'push'
+        || contains(github.event.pull_request.labels.*.name,
+                    'run-post-merge') }}
     timeout-minutes: 360 # Valgrind takes about two hours.
-    # A literal rather than ${{ matrix.name }}: this job is skipped on every
-    # pull request, and a skipped job's name is resolved before the matrix
-    # expands, so the expression form reports as a check called `matrix.name`.
-    # Holds while the matrix has the one row below.
+    # A literal rather than ${{ matrix.name }}: this job is skipped on a pull
+    # request that does not ask for it, and a skipped job's name is resolved
+    # before the matrix expands, so the expression form reports as a check
+    # called `matrix.name`. Holds while the matrix has the one row below.
     name: ubu24-clang20-runtime22-vg
     runs-on: ${{ matrix.os }}
     strategy:
@@ -713,12 +728,14 @@ jobs:
   # that need it. Like Valgrind it waits for the merge: building cling costs a
   # pull request more time than the check is worth.
   build-cling:
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ github.event_name == 'push'
+        || contains(github.event.pull_request.labels.*.name,
+                    'run-post-merge') }}
     timeout-minutes: 120
-    # A literal rather than ${{ matrix.name }}: this job is skipped on every
-    # pull request, and a skipped job's name is resolved before the matrix
-    # expands, so the expression form reports as a check called `matrix.name`.
-    # Holds while the matrix has the one row below.
+    # A literal rather than ${{ matrix.name }}: this job is skipped on a pull
+    # request that does not ask for it, and a skipped job's name is resolved
+    # before the matrix expands, so the expression form reports as a check
+    # called `matrix.name`. Holds while the matrix has the one row below.
     name: ubu24-cling-llvm22
     runs-on: ${{ matrix.os }}
     strategy:
@@ -778,7 +795,11 @@ jobs:
   # rather than file another, so a week of red master is one thread.
   post-merge-report:
     needs: [build-valgrind, build-cling]
-    if: ${{ failure() }}
+    # Only after a merge, even though the gates above now also run on a
+    # labelled pull request: this reports against head_commit, which a pull
+    # request event does not carry, and the author of a branch watching its
+    # own run needs no issue filed at them.
+    if: ${{ failure() && github.event_name == 'push' }}
     runs-on: ubuntu-24.04
     permissions:
       issues: write
