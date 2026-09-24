@@ -137,7 +137,12 @@ if os.environ.get("CLAD_BUILD_INTERNAL_DOCS") or os.environ.get("READTHEDOCS"):
     INTERNAL_DOCS_DIR = "{0}/build/docs/internalDocs".format(CLAD_ROOT)
     RUN_DOXYGEN_COMMAND = "(cat doxygen.cfg; echo 'OUTPUT_DIRECTORY = .') | doxygen -"
     print(RUN_DOXYGEN_COMMAND)
-    subprocess.check_call(RUN_DOXYGEN_COMMAND, shell=True, cwd=INTERNAL_DOCS_DIR)
+    # stderr onto stdout: doxygen says what it is unhappy about on stderr, and
+    # readthedocs keeps only stdout in the build log. Without this a warning
+    # -- which WARN_AS_ERROR turns into a failure -- reaches the reader as a
+    # CalledProcessError naming the command and nothing else.
+    subprocess.check_call(RUN_DOXYGEN_COMMAND, shell=True, cwd=INTERNAL_DOCS_DIR,
+                          stderr=subprocess.STDOUT)
 
     # html_extra_path publishes everything under build/docs, so without this the
     # files cmake and doxygen were driven by are served beside the documentation
