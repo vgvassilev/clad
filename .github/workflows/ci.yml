@@ -772,7 +772,12 @@ jobs:
         cmake -S . -B obj -G Ninja -DCMAKE_BUILD_TYPE=Release \
           -DLLVM_DIR="$LLVM_DIR" -DClang_DIR="$Clang_DIR" \
           -DCLAD_BUILD_STATIC_ONLY=ON
-        cmake --build obj --target cladPlugin cladDifferentiator
+        # clad-tblgen too, though ROOT does not need it: this row takes the
+        # llvm-root recipe, so it is the only one with no libLLVM to fall back
+        # on, and the only one where a library named after the one that needs
+        # it fails to link. Naming just the two archives is what let that reach
+        # ROOT.
+        cmake --build obj --target cladPlugin cladDifferentiator clad-tblgen
         # setup-llvm leaves its cling build tree in cling/build; relinking
         # it is all that is left to do.
         cmake cling/build "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--whole-archive \
