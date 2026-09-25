@@ -188,7 +188,7 @@ double square(const double& x) {
 }
 
 // CHECK: clad::ValueAndPushforward<double, clad::array<double> > square_vector_pushforward(const double &x, const clad::array<double> &_d_x) {
-// CHECK-NEXT:    unsigned long indepVarCount = _d_x.size();
+// CHECK-NEXT:    unsigned {{int|long|long long}} indepVarCount = _d_x.size();
 // CHECK-NEXT:    clad::array<double> _d_vector_z(_d_x * x + x * _d_x);
 // CHECK-NEXT:    double z = x * x;
 // CHECK-NEXT:    return {z, _d_vector_z};
@@ -225,7 +225,7 @@ double f7(const double* arr, double w, int n) {
 }
 
 // CHECK: clad::ValueAndPushforward<double, clad::array<double> > weighted_array_squared_sum_vector_pushforward(const double *arr, double w, int n, clad::matrix<double> &_d_arr, clad::array<double> _d_w, clad::array<int> _d_n) {
-// CHECK-NEXT:    unsigned long indepVarCount = _d_n.size();
+// CHECK-NEXT:    unsigned {{int|long|long long}} indepVarCount = _d_n.size();
 // CHECK-NEXT:    clad::array<double> _d_vector_sum(clad::zero_vector(indepVarCount));
 // CHECK-NEXT:    double sum = 0;
 // CHECK-NEXT:    {
@@ -262,7 +262,7 @@ void sum_ref(double& res, int n, const double* arr) {
 }
 
 // CHECK: void sum_ref_vector_pushforward(double &res, int n, const double *arr, clad::array<double> &_d_res, clad::array<int> _d_n, clad::matrix<double> &_d_arr) {
-// CHECK-NEXT:    unsigned long indepVarCount = _d_arr[0].size();
+// CHECK-NEXT:    unsigned {{int|long|long long}} indepVarCount = _d_arr[0].size();
 // CHECK-NEXT:    {
 // CHECK-NEXT:        clad::array<int> _d_vector_i(clad::zero_vector(indepVarCount));
 // CHECK-NEXT:        for (int i = 0; i < n; ++i) {
