@@ -45,6 +45,23 @@ Learning from a derivative
       :start-after: docs-begin-fit-call
       :end-before: docs-end-fit-call
 
+:demo:`XorNetwork.cpp`
+   A network with one hidden layer learning exclusive or, the standard first
+   example of something no straight line can separate. Nine weights, four
+   training cases, and one call to clad; everything else is arithmetic on the
+   gradient it returns. Between this and the GPT-2 above, the only thing that
+   changes is the size.
+
+   .. literalinclude:: ../../../../demos/XorNetwork.cpp
+      :language: cpp
+      :start-after: docs-begin-xor
+      :end-before: docs-end-xor
+
+   .. literalinclude:: ../../../../demos/XorNetwork.cpp
+      :language: cpp
+      :start-after: docs-begin-xor-call
+      :end-before: docs-end-xor-call
+
 :demo:`cladtorch/`
    The same idea, grown up: a GPT-2 that trains and writes text. One call asks
    for the gradient of the loss, and the training loop does the rest. Needs
@@ -59,6 +76,26 @@ Learning from a derivative
       :language: cpp
       :start-after: docs-begin-llm
       :end-before: docs-end-llm
+
+Using the second derivative
+===========================
+
+:demo:`NewtonsMethod.cpp`
+   Newton's method walks to the bottom of the Rosenbrock function, a long
+   curved valley whose floor is nearly flat. Following the slope alone crawls
+   once you are in the valley; the second derivative says how the slope is
+   itself changing, which is what lets a step cross the floor rather than inch
+   along it. Clad writes both, so the method is a few lines of arithmetic.
+
+   .. literalinclude:: ../../../../demos/NewtonsMethod.cpp
+      :language: cpp
+      :start-after: docs-begin-newton
+      :end-before: docs-end-newton
+
+   .. literalinclude:: ../../../../demos/NewtonsMethod.cpp
+      :language: cpp
+      :start-after: docs-begin-newton-call
+      :end-before: docs-end-newton-call
 
 Differentiating a whole program
 ===============================
@@ -78,6 +115,24 @@ Differentiating a whole program
       :language: cpp
       :start-after: docs-begin-sensitivity-call
       :end-before: docs-end-sensitivity-call
+
+:demo:`KeplerEquation.cpp`
+   Where a body is on its orbit has no closed form: you iterate until the
+   answer stops moving. The loop runs as many times as its arguments make it
+   run and stops on a value computed inside it, so there is no formula to
+   differentiate. Clad differentiates what the program does, and the demo
+   prints its answer beside the one worked out by hand so you can see they
+   agree.
+
+   .. literalinclude:: ../../../../demos/KeplerEquation.cpp
+      :language: cpp
+      :start-after: docs-begin-kepler
+      :end-before: docs-end-kepler
+
+   .. literalinclude:: ../../../../demos/KeplerEquation.cpp
+      :language: cpp
+      :start-after: docs-begin-kepler-call
+      :end-before: docs-end-kepler-call
 
 :demo:`ComputerGraphics/smallpt/`
    A path tracer. Its shapes are described by a function that says how far away
@@ -161,6 +216,25 @@ Running on a GPU
 Reaching past what clad can differentiate
 =========================================
 
+:demo:`CustomDerivative.cpp`
+   Some code is not worth differentiating. This raises a number to a power by
+   treating its bit pattern as a logarithm -- fast, a few percent out, and
+   with no derivative you would want. So you write the derivative down instead
+   and clad uses it without reading the body, which is also what you do for a
+   function from a library whose source you do not have. The demo prints the
+   approximate value beside the exact derivatives to show which came from
+   where.
+
+   .. literalinclude:: ../../../../demos/CustomDerivative.cpp
+      :language: cpp
+      :start-after: docs-begin-custom
+      :end-before: docs-end-custom
+
+   .. literalinclude:: ../../../../demos/CustomDerivative.cpp
+      :language: cpp
+      :start-after: docs-begin-custom-call
+      :end-before: docs-end-custom-call
+
 :demo:`CustomTypeNumDiff.cpp`
    Some types clad cannot take apart, like a number stored as a scaled integer.
    It falls back to measuring the derivative instead of deriving it, by
@@ -183,6 +257,24 @@ Reaching past what clad can differentiate
 
 Doing it in one pass
 ====================
+
+:demo:`CoordinateChange.cpp`
+   A gradient is for a function with one output. This one has three, and the
+   whole table of partial derivatives is the jacobian, which clad fills in a
+   single pass. The demo takes its determinant and prints it beside
+   ``r*r*sin(theta)``, the factor every integral in spherical coordinates
+   carries, so you can see they agree.
+
+   .. literalinclude:: ../../../../demos/CoordinateChange.cpp
+      :language: cpp
+      :start-after: docs-begin-jacobian
+      :end-before: docs-end-jacobian
+
+   .. literalinclude:: ../../../../demos/CoordinateChange.cpp
+      :language: cpp
+      :start-after: docs-begin-jacobian-call
+      :end-before: docs-end-jacobian-call
+
 
 :demo:`VectorForwardMode.cpp`
    Forward mode normally costs one pass per input you ask about. Vector mode
