@@ -1576,7 +1576,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     auto LookupOverload = [this, fnDecl, &request](NamespaceDecl* NSD,
                                                    bool* foundAnyDecl) {
       DeclContext* DC = NSD;
-      if (isa<CXXMethodDecl>(fnDecl))
+      if (isa<CXXMethodDecl>(request.Function))
         DC = utils::LookupNSD(m_Sema, "class_functions",
                               /*shouldExist=*/false, DC);
       else
