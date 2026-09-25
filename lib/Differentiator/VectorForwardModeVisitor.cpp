@@ -106,8 +106,8 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   // Instantiate a variable indepVarCount to store the total number of
   // independent variables requested.
   // size_t indepVarCount = indVarCountExpr;
-  auto* totalIndVars =
-      BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount", indVarCountExpr);
+  auto* totalIndVars = BuildVarDecl(
+      clad_compat::getSizeType(m_Context), "indepVarCount", indVarCountExpr);
   addToCurrentBlock(BuildDeclStmt(totalIndVars));
   m_IndVarCountDecl = totalIndVars;
 
