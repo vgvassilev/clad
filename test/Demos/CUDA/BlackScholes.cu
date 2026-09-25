@@ -10,8 +10,3 @@
 // RUN:     | %filecheck_nodiag %s
 //
 // REQUIRES: cuda-compile
-//
-// Clad refuses the pullbacks it ships for rsqrtf, __logf and __expf
-// and reports it against the demo's own lines, so this demo does not
-// compile. Tracked in #2172; drop the XFAIL when it does.
-// XFAIL: *
