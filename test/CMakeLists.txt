@@ -77,9 +77,9 @@ set(CLAD_TEST_PARAMS
 # Unit tests
 list(APPEND CLAD_TEST_DEPS CladUnitTests)
 
-# OptionTableUpToDate re-renders the table and diffs it, so the suite needs the
-# renderer built. Nothing else does: what it renders is committed, which is why
-# a cross build omits the target altogether.
+# TableIsWellFormed runs clad-tblgen against deliberately broken tables, so the
+# suite needs the renderer. A cross build was given one already built for the
+# host, and has no target to wait on.
 if(TARGET clad-tblgen)
   list(APPEND CLAD_TEST_DEPS clad-tblgen)
 endif()

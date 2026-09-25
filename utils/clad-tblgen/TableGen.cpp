@@ -6,10 +6,10 @@
 /// against and the page its options are documented in. Everything
 /// user-facing is written in a table; nothing here decides wording.
 ///
-/// The header is committed, so building clad never runs this; regenerate it
-/// with `ninja clad-options`, and test/Analyses/OptionTableUpToDate fails
-/// when it no longer matches the table. The page is rendered where the
-/// documentation is built.
+/// Nothing it renders is committed: the headers are built into the build
+/// directory before anything that expands them, and the pages where the
+/// documentation is built. A cross build runs a copy of this built for the
+/// host, which is why it configures on its own and wants nothing from clang.
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -76,21 +76,21 @@ static cl::opt<Action> TheAction(
 /// Says where the file came from and how to make it again. Every generated
 /// file opens with it, in whichever comment its language spells: \p Open
 /// starts the comment and \p Cont continues it.
-static std::string banner(StringRef Open, StringRef Cont, StringRef Table,
-                          StringRef Target) {
+static std::string banner(StringRef Open, StringRef Cont, StringRef Table) {
   return (Open + " Generated from " + Table + " by clad-tblgen.\n" + Cont +
-          " Do not edit: edit the .td and regenerate with `ninja " + Target +
-          "`.\n")
+          " Do not edit, and do not commit: it is rendered into the build "
+          "directory.\n" +
+          Cont + " Edit " + Table + " instead.\n")
       .str();
 }
 
 /// The two tables, and the target that renders each.
-static std::string cxxBanner(StringRef Table, StringRef Target) {
-  return banner("//", "//", Table, Target);
+static std::string cxxBanner(StringRef Table) {
+  return banner("//", "//", Table);
 }
-static std::string rstBanner(StringRef Table, StringRef Target) {
+static std::string rstBanner(StringRef Table) {
   // An RST comment is continued by indenting, not by opening a second one.
-  return banner("..", "  ", Table, Target);
+  return banner("..", "  ", Table);
 }
 
 /// The text as C++ string literals, wrapped so the generated line stays
@@ -238,7 +238,7 @@ static std::string wrapped(StringRef Text, StringRef Prefix, unsigned Width) {
 static constexpr unsigned RSTProseWidth = 76;
 
 static void emitOptions(raw_ostream& OS, CladRecordKeeper& Records) {
-  OS << cxxBanner("lib/Differentiator/Options.td", "clad-options") << R"(
+  OS << cxxBanner("lib/Differentiator/Options.td") << R"(
 #ifndef CLAD_OPTION
 #error "define CLAD_OPTION(Id, Kind, Spelling, MetaVar, Help) before including"
 #endif
@@ -274,7 +274,7 @@ static void emitOptions(raw_ostream& OS, CladRecordKeeper& Records) {
 
 static void emitOptionsDocs(raw_ostream& OS, CladRecordKeeper& Records) {
   StringRef Title = "Options";
-  OS << rstBanner("lib/Differentiator/Options.td", "clad-options") << "\n"
+  OS << rstBanner("lib/Differentiator/Options.td") << "\n"
      << Title << "\n"
      << std::string(Title.size(), '*') << R"(
 
@@ -376,7 +376,7 @@ static void checkAnalyses(CladRecordKeeper& Records) {
 }
 
 static void emitAnalyses(raw_ostream& OS, CladRecordKeeper& Records) {
-  OS << cxxBanner("lib/Differentiator/Analyses.td", "clad-analyses") << R"(
+  OS << cxxBanner("lib/Differentiator/Analyses.td") << R"(
 #ifndef CLAD_ANALYSIS
 #error "define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) before including"
 #endif
@@ -392,7 +392,7 @@ static void emitAnalyses(raw_ostream& OS, CladRecordKeeper& Records) {
 }
 
 static void emitAnalysisDescs(raw_ostream& OS, CladRecordKeeper& Records) {
-  OS << cxxBanner("lib/Differentiator/Analyses.td", "clad-analyses") << R"(
+  OS << cxxBanner("lib/Differentiator/Analyses.td") << R"(
 #ifndef CLAD_ANALYSIS_DESC
 #error "define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Code, Cost) before including"
 #endif
@@ -418,7 +418,7 @@ static void emitAnalysisDescs(raw_ostream& OS, CladRecordKeeper& Records) {
 static void emitAnalysesDocs(raw_ostream& OS, CladRecordKeeper& Records) {
   const Record* Clad = Records.getDef("Clad");
   StringRef Title = Clad->getValueAsString("Title");
-  OS << rstBanner("lib/Differentiator/Analyses.td", "clad-analyses") << "\n"
+  OS << rstBanner("lib/Differentiator/Analyses.td") << "\n"
      << Title << "\n"
      << std::string(Title.size(), '*') << "\n"
      << trimmed(Clad->getValueAsString("Overview")) << "\n";
@@ -464,7 +464,7 @@ below, and each analysis also has a switch of its own.
 }
 
 static void emitDiagnostics(raw_ostream& OS, CladRecordKeeper& Records) {
-  OS << cxxBanner("lib/Differentiator/Analyses.td", "clad-analyses") << R"(
+  OS << cxxBanner("lib/Differentiator/Analyses.td") << R"(
 #ifndef CLAD_DIAG
 #error "define CLAD_DIAG(Id, Severity, Text) before including"
 #endif
@@ -479,7 +479,7 @@ static void emitDiagnostics(raw_ostream& OS, CladRecordKeeper& Records) {
 
 static void emitDiagnosticsDocs(raw_ostream& OS, CladRecordKeeper& Records) {
   StringRef Title = "What clad says";
-  OS << rstBanner("lib/Differentiator/Analyses.td", "clad-analyses") << "\n"
+  OS << rstBanner("lib/Differentiator/Analyses.td") << "\n"
      << Title << "\n"
      << std::string(Title.size(), '*') << R"(
 

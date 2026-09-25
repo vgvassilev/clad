@@ -24,7 +24,7 @@ build:
     pre_build:
       - cmake -S . -B /tmp/clad-td -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm
         -DClang_DIR=/usr/lib/llvm-18/lib/cmake/clang -DCLAD_DISABLE_TESTS=ON
-      - cmake --build /tmp/clad-td --target clad-options clad-analyses
+      - cmake --build /tmp/clad-td --target clad-table-docs
   apt_packages:
     - clang-18
     - cmake
