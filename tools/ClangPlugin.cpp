@@ -84,10 +84,23 @@ namespace clad {
 void InitTimers();
 
   namespace plugin {
+<<<<<<< HEAD
+    /// Keeps track if we encountered #pragma clad on/off.
+    // FIXME: Figure out how to make it a member of CladPlugin.
+    struct PragmaDiffInfo {
+      std::string FunctionName;
+      DiffMode Mode;
+      clang::SourceLocation Loc;
+    };
+    static std::vector<PragmaDiffInfo> CladPragmaDiffRequests;
+    std::vector<clang::SourceRange> CladEnabledRange;
+    std::set<clang::SourceLocation> CladLoopCheckpoints;
+=======
   /// Keeps track if we encountered `#pragma clad on/off`.
   // FIXME: Figure out how to make it a member of CladPlugin.
   std::vector<clang::SourceRange> CladEnabledRange;
   std::set<clang::SourceLocation> CladLoopCheckpoints;
+>>>>>>> upstream/master
 
   // Define a pragma handler for #pragma clad
   class CladPragmaHandler : public PragmaHandler {
@@ -105,6 +118,13 @@ void InitTimers();
 #endif
 
         PP.Lex(PragmaTok);
+        if (PragmaTok.isNot(tok::identifier)) {
+          PP.Diag(PragmaTok.getLocation(),
+                  PP.getDiagnostics().getCustomDiagID(
+                      DiagnosticsEngine::Error,
+                      "expected option after '#pragma clad'"));
+          return;
+        }
         llvm::StringRef OptionName = PragmaTok.getIdentifierInfo()->getName();
         SourceLocation TokLoc = PragmaTok.getLocation();
         // Handle #pragma clad ON
@@ -139,12 +159,45 @@ void InitTimers();
           CladLoopCheckpoints.insert(PragmaTok.getLocation());
           return;
         }
+        // Handle #pragma clad gradient <fn_name> or #pragma clad differentiate <fn_name>
+        if (OptionName == "gradient" || OptionName == "differentiate") {
+          DiffMode mode = (OptionName == "gradient") ? DiffMode::reverse : DiffMode::forward;
+          PP.Lex(PragmaTok);
+          bool hasParen = false;
+          if (PragmaTok.is(tok::l_paren)) {
+            hasParen = true;
+            PP.Lex(PragmaTok);
+          }
+          if (PragmaTok.isNot(tok::identifier)) {
+            PP.Diag(PragmaTok.getLocation(),
+                    PP.getDiagnostics().getCustomDiagID(
+                        DiagnosticsEngine::Error,
+                        "expected function name in '#pragma clad %0'"))
+                << OptionName;
+            return;
+          }
+          std::string FnName = PragmaTok.getIdentifierInfo()->getName().str();
+          SourceLocation FnLoc = PragmaTok.getLocation();
+          if (hasParen) {
+            PP.Lex(PragmaTok);
+            if (PragmaTok.isNot(tok::r_paren)) {
+              PP.Diag(PragmaTok.getLocation(),
+                      PP.getDiagnostics().getCustomDiagID(
+                          DiagnosticsEngine::Error,
+                          "expected ')' after function name in '#pragma clad %0'"))
+                  << OptionName;
+              return;
+            }
+          }
+          CladPragmaDiffRequests.push_back({FnName, mode, FnLoc});
+          return;
+        }
         // Diagnose unknown clad pragma option
         PP.Diag(
             TokLoc,
             PP.getDiagnostics().getCustomDiagID(
                 DiagnosticsEngine::Error,
-                "expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma"));
+                "expected 'ON', 'OFF', 'DEFAULT', 'gradient', 'differentiate', or `checkpoint` in pragma"));
     }
   };
 
@@ -1014,6 +1067,67 @@ void InitTimers();
     void CladPlugin::HandleTranslationUnit(ASTContext& C) {
       // In case of diagnostics, don't bother, just let the compiler finish.
       if (!m_CI.getDiagnostics().hasErrorOccurred()) {
+        for (const auto& pragmaReq : CladPragmaDiffRequests) {
+          Sema& S = m_CI.getSema();
+          DeclarationName Name(&C.Idents.get(pragmaReq.FunctionName));
+          LookupResult R(S, Name, pragmaReq.Loc, Sema::LookupOrdinaryName);
+          S.LookupQualifiedName(R, C.getTranslationUnitDecl());
+          FunctionDecl* FD = nullptr;
+          if (!R.empty()) {
+            for (NamedDecl* D : R) {
+              if (auto* F = dyn_cast<FunctionDecl>(D)) {
+                if (F->isThisDeclarationADefinition() || F->hasBody()) {
+                  FD = F;
+                  break;
+                }
+                if (!FD)
+                  FD = F;
+              }
+            }
+          }
+
+          if (!FD) {
+            unsigned diagID = S.Diags.getCustomDiagID(
+                DiagnosticsEngine::Error,
+                "cannot find function '%0' for differentiation requested via '#pragma clad'");
+            S.Diag(pragmaReq.Loc, diagID) << pragmaReq.FunctionName;
+            continue;
+          }
+
+          DiffRequest request;
+          request.Function = FD;
+          request.BaseFunctionName = FD->getNameAsString();
+          request.Mode = pragmaReq.Mode;
+
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+          request.Enable##Id##Analysis =                                       \
+              (m_DO.Id##Switch == AnalysisSwitch::Unset)                       \
+                  ? (Default)                                                  \
+                  : (m_DO.Id##Switch == AnalysisSwitch::On);                   \
+          request.Remark##Id##Analysis = m_DO.Remark##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+          request.EmitPortingHints = m_DO.EmitPortingHints;
+
+          if (request.DVI.empty() && FD) {
+            for (auto PVD : FD->parameters()) {
+              DiffInputVarInfo dVarInfo(PVD, IndexInterval());
+              request.DVI.push_back(dVarInfo);
+            }
+          }
+
+          request.UpdateDiffParamsInfo(S);
+
+          // Create and register prototype declaration in AST scope so the derivative name is callable
+          DiffRequest protoReq = request;
+          protoReq.DeclarationOnly = true;
+          ProcessDiffRequest(protoReq);
+
+          // Schedule full definition generation in the graph as a source node
+          request.DeclarationOnly = false;
+          getScheduler().getGraph().addNode(request, /*isSource=*/true);
+        }
+        CladPragmaDiffRequests.clear();
+
         // Traverse all collected DeclGroupRef only once to create the static
         // graph. Planning can trigger implicit instantiations (e.g. clad::Tag
         // when parsing the differentiate-call arguments) whose consumer
