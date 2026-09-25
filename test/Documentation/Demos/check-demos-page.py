@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep the demos page and demos/ telling the same story.
+"""Keep the demos page, the demos' tests and demos/ telling the same story.
 
 The page describes each demo and pulls the lines where it calls clad straight
 out of the file, so the code on the page cannot drift. What can still drift is
@@ -10,6 +10,11 @@ checks, along with every marker the page includes actually being there.
 Each entry also links to its demo, and conf.py builds that link out of the
 name, so a name that no longer matches the tree is a link into a 404. Checking
 the name against the tree is therefore checking the link.
+
+The tests under test/Demos are checked against the same list. Most of them
+name their demo in a RUN line and would fail on their own if it moved, but the
+CUDA ones are skipped wherever there is no toolkit, which is nearly
+everywhere; reading their RUN lines here is what notices.
 """
 
 import re
@@ -21,6 +26,11 @@ from pathlib import Path
 NOT_A_DEMO = {"Makefile", "helper", "BlackScholes"}
 
 MARKER = re.compile(r"docs-(?:begin|end)-[\w-]+")
+
+# Two demos nothing here can build: cladtorch wants libtorch and something to
+# train on, and the notebook wants a C++ Jupyter kernel. Neither is a
+# dependency worth carrying to find out whether a demo still compiles.
+UNCOMPILED = {"cladtorch", "Jupyter"}
 
 
 def entries(page):
@@ -59,6 +69,15 @@ def stray_markers(root, page):
     return problems
 
 
+def compiled(root):
+    """Demo paths the tests under test/Demos name in their RUN lines."""
+    named = set()
+    for t in sorted((Path(root) / "test" / "Demos").rglob("*")):
+        if t.suffix in (".cpp", ".cu"):
+            named |= set(re.findall(r"/demos/(\S+)", t.read_text()))
+    return named
+
+
 def demos(root):
     """Top-level entries under demos/, a directory counting as one demo."""
     return {p.name for p in sorted((Path(root) / "demos").iterdir())
@@ -90,12 +109,20 @@ def main(root, page):
         elif marker not in f.read_text():
             problems.append(f"demos/{rel} has no {marker} marker to include")
     problems += stray_markers(root, page)
+    named = compiled(root)
+    for demo in sorted(present - UNCOMPILED):
+        if not any(n == demo or n.startswith(demo + "/") for n in named):
+            problems.append(f"no test under test/Demos compiles demos/{demo}")
+    for n in sorted(named):
+        if not (Path(root) / "demos" / n).exists():
+            problems.append(f"a test compiles demos/{n}, which is missing")
 
     for p in problems:
         print(f"  {p}")
     if problems:
         sys.exit(f"{len(problems)} disagreement(s) between the page and demos/")
-    print(f"{len(present)} demos, all listed; "
+    print(f"{len(present)} demos, all listed and all compiled but "
+          f"{', '.join(sorted(UNCOMPILED))}; "
           f"{len(includes(page))} included excerpts, all present")
 
 
