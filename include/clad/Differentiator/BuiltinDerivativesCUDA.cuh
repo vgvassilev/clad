@@ -19,7 +19,8 @@ namespace custom_derivatives {
 // None of them carries a pullback now. Keeping one is not merely dead weight:
 // with a pushforward beside it clad re-runs the pullback lookup to warn that
 // the pullback goes unused, and that lookup wants two parameters where a real
-// pullback has three, so the warning becomes the very error being fixed.__device__ inline ValueAndPushforward<float, float>
+// pullback has three, so the warning becomes the very error being fixed.
+__device__ inline ValueAndPushforward<float, float>
 __expf_pushforward(float a, float d_a) {
   return {__expf(a), __expf(a) * d_a};
 }
