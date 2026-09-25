@@ -1180,37 +1180,26 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       for (const auto& arg : TAL->get(0).pack_elements())
         bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
 
-    bool enable_tbr_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::enable_tbr);
-    bool disable_tbr_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::disable_tbr);
-    bool enable_va_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::enable_va);
-    bool disable_va_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::disable_va);
-    bool enable_ua_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::enable_ua);
-    bool disable_ua_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::disable_ua);
-    // Sanity checks.
-    if (enable_tbr_in_req && disable_tbr_in_req) {
-      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
-                  "both enable and disable TBR options are specified")
-          << BeginLoc;
-      return true;
-    }
-    if (enable_va_in_req && disable_va_in_req) {
-      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
-                  "both enable and disable VA options are specified")
-          << BeginLoc;
-      return true;
-    }
-    if (enable_ua_in_req && disable_ua_in_req) {
-      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
-                  "both enable and disable UA options are specified")
-          << BeginLoc;
-      return true;
-    }
+    // What the request asks of each analysis, over the
+    // whole-translation-unit answer it already carries. Generated from the
+    // same table the command line is: an analysis that can be switched for
+    // the translation unit can be switched for one request.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
+    const bool enable_##Legacy##_in_req =                                      \
+        clad::HasOption(bitmasked_opts_value, clad::opts::enable_##Legacy);    \
+    const bool disable_##Legacy##_in_req =                                     \
+        clad::HasOption(bitmasked_opts_value, clad::opts::disable_##Legacy);   \
+    if (enable_##Legacy##_in_req && disable_##Legacy##_in_req) {               \
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,                       \
+                  "both clad::opts::enable_" #Legacy                           \
+                  " and clad::opts::disable_" #Legacy " are specified")        \
+          << BeginLoc;                                                         \
+      return true;                                                             \
+    }                                                                          \
+    if (enable_##Legacy##_in_req || disable_##Legacy##_in_req)                 \
+      request.Enable##Id##Analysis = enable_##Legacy##_in_req;
+#include "clad/Differentiator/Analyses.def"
+
     if (enable_tbr_in_req && request.Mode == DiffMode::forward) {
       utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
                   "tbr analysis is not meant for forward mode AD")
@@ -1226,18 +1215,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           << BeginLoc;
       return true;
     }
-
-    // Override the default value of TBR analysis.
-    if (enable_tbr_in_req || disable_tbr_in_req)
-      request.EnableTBRAnalysis = enable_tbr_in_req && !disable_tbr_in_req;
-
-    // Override the default value of VA analysis.
-    if (enable_va_in_req || disable_va_in_req)
-      request.EnableVariedAnalysis = enable_va_in_req && !disable_va_in_req;
-
-    // Override the default value of UA analysis.
-    if (enable_ua_in_req || disable_ua_in_req)
-      request.EnableUsefulAnalysis = enable_ua_in_req && !disable_ua_in_req;
 
     // Check for clad::hessian<diagonal_only>.
     if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only)) {
