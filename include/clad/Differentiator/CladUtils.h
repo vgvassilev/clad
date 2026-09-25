@@ -502,6 +502,19 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     bool isCopyable(const clang::CXXRecordDecl* RD);
 
+    /// True if RD is ``std::thread`` (not ``std::jthread``).
+    bool isStdThreadLike(const clang::CXXRecordDecl* RD);
+
+    /// True if QT (ignoring refs/cv) is ``std::reference_wrapper``.
+    bool isStdReferenceWrapper(clang::QualType QT);
+
+    /// Resolves the callable expression passed as the first argument of a
+    /// ``std::thread`` constructor to a FunctionDecl (free function or the
+    /// unique ``operator()`` of a class/functor). Returns nullptr when the
+    /// callable cannot be resolved uniquely.
+    const clang::FunctionDecl* resolveThreadCallable(clang::Sema& SemaRef,
+                                                     const clang::Expr* E);
+
     bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
 
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
@@ -523,6 +536,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isMemoryType(clang::QualType T);
     /// Returns true if a function returning T must return its adjoint too.
     bool returnsAdjoint(clang::QualType T);
+
+    /// \returns true if differentiating a call to \p FDecl needs a
+    /// `reverse_forw` (``returnsAdjoint`` return, ``reference_wrapper``, or a
+    /// const-ref accessor that still needs a non-const adjoint channel).
+    bool needsReverseForw(const clang::FunctionDecl* FDecl);
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 

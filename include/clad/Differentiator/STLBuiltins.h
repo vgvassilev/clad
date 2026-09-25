@@ -5,14 +5,17 @@
 #include <clad/Differentiator/Array.h>
 #include <clad/Differentiator/BuiltinDerivatives.h>
 #include <clad/Differentiator/FunctionTraits.h>
+#include <cstddef>
 #include <functional>
 #include <initializer_list>
 #include <iosfwd>
 #include <iterator>
 #include <memory>
 #include <string>
+#include <thread>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
@@ -877,20 +880,533 @@ void lock_pullback(const ::std::weak_ptr<T>* p, ::std::shared_ptr<T> dthis,
 template <typename T, typename U>
 clad::ValueAndAdjoint<::std::reference_wrapper<T>, ::std::reference_wrapper<T>>
 constructor_reverse_forw(
-    clad::ConstructorReverseForwTag<::std::reference_wrapper<T>>, U&& p,
-    U&& d_p) elidable_reverse_forw;
+    clad::ConstructorReverseForwTag<::std::reference_wrapper<T>>, U&& arg,
+    U&& d_arg) elidable_reverse_forw;
 
 template <typename T, typename U>
-void constructor_pullback(U& /*p*/, ::std::reference_wrapper<T>* /*dthis*/,
-                          U* /*d_p*/);
+void constructor_pullback(U& /*arg*/, ::std::reference_wrapper<T>* /*dthis*/,
+                          U* /*d_arg*/);
 
 template <typename T>
 clad::ValueAndAdjoint<T&, T&> conversion_operator_reverse_forw(
-    clad::Tag<T&>, const ::std::reference_wrapper<T>* x,
-    const ::std::reference_wrapper<T>* dx) elidable_reverse_forw;
+    const ::std::reference_wrapper<T>* ref, clad::Tag<T&> /*tag*/,
+    const ::std::reference_wrapper<T>* d_ref) elidable_reverse_forw;
+
+// Not elidable: replaying the conversion on the adjoint gives const T&, which
+// cannot be written.
+template <typename T>
+inline clad::ValueAndAdjoint<const T&, T&> conversion_operator_reverse_forw(
+    const ::std::reference_wrapper<const T>* ref, clad::Tag<const T&> /*tag*/,
+    const ::std::reference_wrapper<const T>* d_ref) noexcept {
+  return {ref->get(), const_cast<T&>(d_ref->get())};
+}
+
+// Avoid autodiff of libc++ `return *__f_` (const T*).
+template <typename T>
+inline void conversion_operator_pullback(
+    const ::std::reference_wrapper<const T>* /*ref*/, T /*d_y*/,
+    ::std::reference_wrapper<const T>* /*d_ref*/) noexcept {}
+
+template <class T>
+inline clad::ValueAndPushforward<const T&, const T&>
+get_pushforward(const ::std::reference_wrapper<const T>* ref,
+                const ::std::reference_wrapper<const T>* d_ref) noexcept {
+  return {ref->get(), d_ref->get()};
+}
+
+template <class T>
+inline clad::ValueAndAdjoint<const T&, T&>
+get_reverse_forw(const ::std::reference_wrapper<const T>* ref,
+                 const ::std::reference_wrapper<const T>* d_ref) noexcept {
+  // The adjoint is mutable storage even where the primal wrapper is const.
+  return {ref->get(), const_cast<T&>(d_ref->get())};
+}
+
+template <class T>
+inline void
+get_pullback(const ::std::reference_wrapper<const T>* /*ref*/, T /*d_y*/,
+             ::std::reference_wrapper<const T>* /*d_ref*/) noexcept {}
+
+template <class T>
+inline clad::ValueAndPushforward<T&, T&>
+get_pushforward(const ::std::reference_wrapper<T>* ref,
+                const ::std::reference_wrapper<T>* d_ref) noexcept {
+  return {ref->get(), d_ref->get()};
+}
+
+template <class T>
+inline clad::ValueAndAdjoint<T&, T&>
+get_reverse_forw(const ::std::reference_wrapper<T>* ref,
+                 const ::std::reference_wrapper<T>* d_ref) noexcept {
+  return {ref->get(), d_ref->get()};
+}
+
+// T& return: no _d_y.
+template <class T>
+inline void get_pullback(const ::std::reference_wrapper<T>* /*ref*/,
+                         ::std::reference_wrapper<T>* /*d_ref*/) noexcept {}
+
+// std::thread custom derivatives
+namespace thread_detail {
+template <class V, class... Args> inline V build(Args&&... args) {
+  return {::std::thread(::std::forward<Args>(args)...), ::std::thread()};
+}
+} // namespace thread_detail
+
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>) noexcept {
+  return {::std::thread(), ::std::thread()};
+}
+
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, void (* /*f*/)(),
+                        void (*pf)()) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(pf);
+}
+
+// Separate DF/DA*/Arg* so T& workers can take std::ref without deduction
+// conflict.
+
+template <
+    class F, class DF,
+    // NOLINTNEXTLINE(modernize-type-traits)
+    ::std::enable_if_t<::std::is_class<::std::decay_t<F>>::value, int> = 0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, DF&& d_f) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      [f = ::std::forward<F>(f), d_f = ::std::forward<DF>(d_f)]() mutable {
+        f.operator_call_pushforward(&d_f);
+      });
+}
+
+template <
+    class F, class DF,
+    // NOLINTNEXTLINE(modernize-type-traits)
+    ::std::enable_if_t<!::std::is_class<::std::decay_t<F>>::value, int> = 0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, DF&& /*d_f*/) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      ::std::forward<F>(f));
+}
+
+template <class A0, class Arg0, class DArg0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, void (* /*f*/)(A0), Arg0&& a0,
+                        void (*pf)(A0, A0), DArg0&& d_a0) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      pf, ::std::forward<Arg0>(a0), ::std::forward<DArg0>(d_a0));
+}
+
+template <
+    class F, class A0, class DF, class DA0,
+    // NOLINTNEXTLINE(modernize-type-traits)
+    ::std::enable_if_t<::std::is_class<::std::decay_t<F>>::value, int> = 0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, A0&& a0, DF&& d_f,
+                        DA0&& d_a0) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      [f = ::std::forward<F>(f), d_f = ::std::forward<DF>(d_f),
+       a0 = ::std::forward<A0>(a0),
+       d_a0 = ::std::forward<DA0>(d_a0)]() mutable {
+        f.operator_call_pushforward(a0, &d_f, d_a0);
+      });
+}
+
+template <
+    class F, class A0, class DF, class DA0,
+    // NOLINTNEXTLINE(modernize-type-traits)
+    ::std::enable_if_t<!::std::is_class<::std::decay_t<F>>::value, int> = 0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, A0&& a0, DF&& /*d_f*/,
+                        DA0&& /*d_a0*/) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      ::std::forward<F>(f), ::std::forward<A0>(a0));
+}
+
+template <class F, class A0, class DA0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, A0&& a0,
+                        ::std::nullptr_t, DA0&& /*d_a0*/) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      ::std::forward<F>(f), ::std::forward<A0>(a0));
+}
+
+template <class A0, class Arg0, class DA0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, void (*f)(A0), Arg0&& a0,
+                        ::std::nullptr_t, DA0&& /*d_a0*/) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      f, ::std::forward<Arg0>(a0));
+}
+
+template <class A0, class A1, class Arg0, class Arg1, class DArg0, class DArg1>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, void (* /*f*/)(A0, A1),
+                        Arg0&& a0, Arg1&& a1, void (*pf)(A0, A1, A0, A1),
+                        DArg0&& d_a0, DArg1&& d_a1) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      pf, ::std::forward<Arg0>(a0), ::std::forward<Arg1>(a1),
+      ::std::forward<DArg0>(d_a0), ::std::forward<DArg1>(d_a1));
+}
+
+template <
+    class F, class A0, class A1, class DF, class DA0, class DA1,
+    // NOLINTNEXTLINE(modernize-type-traits)
+    ::std::enable_if_t<::std::is_class<::std::decay_t<F>>::value, int> = 0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                        DF&& d_f, DA0&& d_a0, DA1&& d_a1) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      [f = ::std::forward<F>(f), d_f = ::std::forward<DF>(d_f),
+       a0 = ::std::forward<A0>(a0), a1 = ::std::forward<A1>(a1),
+       d_a0 = ::std::forward<DA0>(d_a0),
+       d_a1 = ::std::forward<DA1>(d_a1)]() mutable {
+        f.operator_call_pushforward(a0, a1, &d_f, d_a0, d_a1);
+      });
+}
+
+template <
+    class F, class A0, class A1, class DF, class DA0, class DA1,
+    // NOLINTNEXTLINE(modernize-type-traits)
+    ::std::enable_if_t<!::std::is_class<::std::decay_t<F>>::value, int> = 0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                        DF&& /*d_f*/, DA0&& /*d_a0*/, DA1&& /*d_a1*/) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      ::std::forward<F>(f), ::std::forward<A0>(a0), ::std::forward<A1>(a1));
+}
+
+template <class F, class A0, class A1, class DA0, class DA1>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                        ::std::nullptr_t, DA0&& /*d_a0*/, DA1&& /*d_a1*/) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      ::std::forward<F>(f), ::std::forward<A0>(a0), ::std::forward<A1>(a1));
+}
+
+template <class A0, class A1, class Arg0, class Arg1, class DA0, class DA1>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, void (*f)(A0, A1), Arg0&& a0,
+                        Arg1&& a1, ::std::nullptr_t, DA0&& /*d_a0*/,
+                        DA1&& /*d_a1*/) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      f, ::std::forward<Arg0>(a0), ::std::forward<Arg1>(a1));
+}
+
+template <class A0, class A1, class A2, class Arg0, class Arg1, class Arg2,
+          class DArg0, class DArg1, class DArg2>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, void (* /*f*/)(A0, A1, A2),
+                        Arg0&& a0, Arg1&& a1, Arg2&& a2,
+                        void (*pf)(A0, A1, A2, A0, A1, A2), DArg0&& d_a0,
+                        DArg1&& d_a1, DArg2&& d_a2) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      pf, ::std::forward<Arg0>(a0), ::std::forward<Arg1>(a1),
+      ::std::forward<Arg2>(a2), ::std::forward<DArg0>(d_a0),
+      ::std::forward<DArg1>(d_a1), ::std::forward<DArg2>(d_a2));
+}
+
+template <
+    class F, class A0, class A1, class A2, class DF, class DA0, class DA1,
+    class DA2,
+    // NOLINTNEXTLINE(modernize-type-traits)
+    ::std::enable_if_t<::std::is_class<::std::decay_t<F>>::value, int> = 0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                        A2&& a2, DF&& d_f, DA0&& d_a0, DA1&& d_a1, DA2&& d_a2) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      [f = ::std::forward<F>(f), d_f = ::std::forward<DF>(d_f),
+       a0 = ::std::forward<A0>(a0), a1 = ::std::forward<A1>(a1),
+       a2 = ::std::forward<A2>(a2), d_a0 = ::std::forward<DA0>(d_a0),
+       d_a1 = ::std::forward<DA1>(d_a1),
+       d_a2 = ::std::forward<DA2>(d_a2)]() mutable {
+        f.operator_call_pushforward(a0, a1, a2, &d_f, d_a0, d_a1, d_a2);
+      });
+}
+
+template <
+    class F, class A0, class A1, class A2, class DF, class DA0, class DA1,
+    class DA2,
+    // NOLINTNEXTLINE(modernize-type-traits)
+    ::std::enable_if_t<!::std::is_class<::std::decay_t<F>>::value, int> = 0>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                        A2&& a2, DF&& /*d_f*/, DA0&& /*d_a0*/, DA1&& /*d_a1*/,
+                        DA2&& /*d_a2*/) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      ::std::forward<F>(f), ::std::forward<A0>(a0), ::std::forward<A1>(a1),
+      ::std::forward<A2>(a2));
+}
+
+template <class F, class A0, class A1, class A2, class DA0, class DA1,
+          class DA2>
+inline clad::ValueAndPushforward<::std::thread, ::std::thread>
+constructor_pushforward(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                        A2&& a2, ::std::nullptr_t, DA0&& /*d_a0*/,
+                        DA1&& /*d_a1*/, DA2&& /*d_a2*/) {
+  return thread_detail::build<
+      clad::ValueAndPushforward<::std::thread, ::std::thread>>(
+      ::std::forward<F>(f), ::std::forward<A0>(a0), ::std::forward<A1>(a1),
+      ::std::forward<A2>(a2));
+}
+
+inline void join_pushforward(::std::thread* t, ::std::thread* /*d_t*/) {
+  t->join();
+}
+
+inline void detach_pushforward(::std::thread* t, ::std::thread* /*d_t*/) {
+  t->detach();
+}
+
+inline clad::ValueAndPushforward<bool, bool>
+joinable_pushforward(const ::std::thread* t,
+                     const ::std::thread* /*d_t*/) noexcept {
+  return {t->joinable(), false};
+}
+
+// Reverse mode: primal on a real thread; pullback runs on the main thread after
+// join (#2114). nullptr_t callable-adjoint overloads match codegen that passes
+// nullptr for free-function / unused functor adjoints into reverse_forw.
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(),
+                         void (* /*d_f*/)()) {
+  return {::std::thread(f), ::std::thread()};
+}
+
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(),
+                         ::std::nullptr_t) {
+  return {::std::thread(f), ::std::thread()};
+}
+
+template <class F, class DF>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, DF&& /*d_f*/) {
+  return {::std::thread(::std::forward<F>(f)), ::std::thread()};
+}
+
+template <class A0, class DA0>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0), A0 a0,
+                         void (* /*d_f*/)(A0), DA0&& /*d_a0*/) {
+  return {::std::thread(f, a0), ::std::thread()};
+}
+
+template <class F, class A0, class DF, class DA0>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, A0&& a0, DF&& /*d_f*/,
+                         DA0&& /*d_a0*/) {
+  return {::std::thread(::std::forward<F>(f), ::std::forward<A0>(a0)),
+          ::std::thread()};
+}
+
+template <class A0, class DA0>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0), A0&& a0,
+                         ::std::nullptr_t, DA0&& /*d_a0*/) {
+  return {::std::thread(f, ::std::forward<A0>(a0)), ::std::thread()};
+}
+
+template <class A0, class A1, class DA0, class DA1>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0, A1), A0 a0,
+                         A1 a1, void (* /*d_f*/)(A0, A1), DA0&& /*d_a0*/,
+                         DA1&& /*d_a1*/) {
+  return {::std::thread(f, a0, a1), ::std::thread()};
+}
+
+template <class F, class A0, class A1, class DF, class DA0, class DA1>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                         DF&& /*d_f*/, DA0&& /*d_a0*/, DA1&& /*d_a1*/) {
+  return {::std::thread(::std::forward<F>(f), ::std::forward<A0>(a0),
+                        ::std::forward<A1>(a1)),
+          ::std::thread()};
+}
+
+template <class A0, class A1, class DA0, class DA1>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0, A1), A0&& a0,
+                         A1&& a1, ::std::nullptr_t, DA0&& /*d_a0*/,
+                         DA1&& /*d_a1*/) {
+  return {::std::thread(f, ::std::forward<A0>(a0), ::std::forward<A1>(a1)),
+          ::std::thread()};
+}
+
+template <class F, class A0, class A1, class DA0, class DA1>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                         ::std::nullptr_t, DA0&& /*d_a0*/, DA1&& /*d_a1*/) {
+  return {::std::thread(::std::forward<F>(f), ::std::forward<A0>(a0),
+                        ::std::forward<A1>(a1)),
+          ::std::thread()};
+}
+
+template <class A0, class A1, class A2, class DA0, class DA1, class DA2>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0, A1, A2), A0 a0,
+                         A1 a1, A2 a2, void (* /*d_f*/)(A0, A1, A2),
+                         DA0&& /*d_a0*/, DA1&& /*d_a1*/, DA2&& /*d_a2*/) {
+  return {::std::thread(f, a0, a1, a2), ::std::thread()};
+}
+
+template <class F, class A0, class A1, class A2, class DF, class DA0, class DA1,
+          class DA2>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                         A2&& a2, DF&& /*d_f*/, DA0&& /*d_a0*/, DA1&& /*d_a1*/,
+                         DA2&& /*d_a2*/) {
+  return {::std::thread(::std::forward<F>(f), ::std::forward<A0>(a0),
+                        ::std::forward<A1>(a1), ::std::forward<A2>(a2)),
+          ::std::thread()};
+}
+
+template <class A0, class A1, class A2, class DA0, class DA1, class DA2>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, void (*f)(A0, A1, A2),
+                         A0&& a0, A1&& a1, A2&& a2, ::std::nullptr_t,
+                         DA0&& /*d_a0*/, DA1&& /*d_a1*/, DA2&& /*d_a2*/) {
+  return {::std::thread(f, ::std::forward<A0>(a0), ::std::forward<A1>(a1),
+                        ::std::forward<A2>(a2)),
+          ::std::thread()};
+}
+
+template <class F, class A0, class A1, class A2, class DA0, class DA1,
+          class DA2>
+inline clad::ValueAndAdjoint<::std::thread, ::std::thread>
+constructor_reverse_forw(clad::Tag<::std::thread>, F&& f, A0&& a0, A1&& a1,
+                         A2&& a2, ::std::nullptr_t, DA0&& /*d_a0*/,
+                         DA1&& /*d_a1*/, DA2&& /*d_a2*/) {
+  return {::std::thread(::std::forward<F>(f), ::std::forward<A0>(a0),
+                        ::std::forward<A1>(a1), ::std::forward<A2>(a2)),
+          ::std::thread()};
+}
+
+inline void constructor_pullback(void (* /*f*/)(), ::std::thread* /*dthis*/,
+                                 void (** /*d_f*/)()) noexcept {}
+
+template <class F, class DF>
+inline void constructor_pullback(F&& /*f*/, ::std::thread* /*dthis*/,
+                                 DF* /*d_f*/) noexcept {}
+
+template <class A0, class DA0>
+inline void
+constructor_pullback(void (* /*f*/)(A0), A0 /*a0*/, ::std::thread* /*dthis*/,
+                     void (** /*d_f*/)(A0), DA0* /*d_a0*/) noexcept {}
+
+template <class F, class A0, class DF, class DA0>
+inline void constructor_pullback(F&& /*f*/, A0&& /*a0*/,
+                                 ::std::thread* /*dthis*/, DF* /*d_f*/,
+                                 DA0* /*d_a0*/) noexcept {}
+
+template <class A0, class A1, class DA0, class DA1>
+inline void constructor_pullback(void (* /*f*/)(A0, A1), A0 /*a0*/, A1 /*a1*/,
+                                 ::std::thread* /*dthis*/,
+                                 void (** /*d_f*/)(A0, A1), DA0* /*d_a0*/,
+                                 DA1* /*d_a1*/) noexcept {}
+
+template <class F, class A0, class A1, class DF, class DA0, class DA1>
+inline void constructor_pullback(F&& /*f*/, A0&& /*a0*/, A1&& /*a1*/,
+                                 ::std::thread* /*dthis*/, DF* /*d_f*/,
+                                 DA0* /*d_a0*/, DA1* /*d_a1*/) noexcept {}
+
+template <class A0, class A1, class A2, class DA0, class DA1, class DA2>
+inline void constructor_pullback(void (* /*f*/)(A0, A1, A2), A0 /*a0*/,
+                                 A1 /*a1*/, A2 /*a2*/, ::std::thread* /*dthis*/,
+                                 void (** /*d_f*/)(A0, A1, A2), DA0* /*d_a0*/,
+                                 DA1* /*d_a1*/, DA2* /*d_a2*/) noexcept {}
+
+template <class F, class A0, class A1, class A2, class DF, class DA0, class DA1,
+          class DA2>
+inline void constructor_pullback(F&& /*f*/, A0&& /*a0*/, A1&& /*a1*/,
+                                 A2&& /*a2*/, ::std::thread* /*dthis*/,
+                                 DF* /*d_f*/, DA0* /*d_a0*/, DA1* /*d_a1*/,
+                                 DA2* /*d_a2*/) noexcept {}
+
+inline void join_reverse_forw(::std::thread* t, ::std::thread* /*d_t*/) {
+  t->join();
+}
+
+inline void join_pullback(::std::thread* /*t*/,
+                          ::std::thread* /*d_t*/) noexcept {}
+
+inline void detach_reverse_forw(::std::thread* t, ::std::thread* /*d_t*/) {
+  // Prefer join under AD: ReverseModeVisitor diagnoses detach. Kept for
+  // completeness if a custom path is selected manually.
+  t->detach();
+}
+
+inline void detach_pullback(::std::thread* /*t*/,
+                            ::std::thread* /*d_t*/) noexcept {}
+
+inline clad::ValueAndAdjoint<bool, bool>
+joinable_reverse_forw(const ::std::thread* t,
+                      const ::std::thread* /*d_t*/) noexcept {
+  return {t->joinable(), false};
+}
+
+inline void joinable_pullback(const ::std::thread* /*t*/, bool /*_d_y*/,
+                              ::std::thread* /*d_t*/) noexcept {}
+
 } // namespace class_functions
 
 namespace std {
+
+// std::ref and std::cref
+
+template <class T>
+inline clad::ValueAndPushforward<::std::reference_wrapper<T>,
+                                 ::std::reference_wrapper<T>>
+ref_pushforward(T& val, T& d_val) noexcept {
+  return {::std::ref(val), ::std::ref(d_val)};
+}
+
+template <class T>
+inline clad::ValueAndPushforward<::std::reference_wrapper<const T>,
+                                 ::std::reference_wrapper<const T>>
+cref_pushforward(const T& val, const T& d_val) noexcept {
+  return {::std::cref(val), ::std::cref(d_val)};
+}
+
+template <class T>
+inline clad::ValueAndAdjoint<::std::reference_wrapper<T>,
+                             ::std::reference_wrapper<T>>
+ref_reverse_forw(T& val, T& d_val) noexcept {
+  return {::std::ref(val), ::std::ref(d_val)};
+}
+
+template <class T>
+inline clad::ValueAndAdjoint<::std::reference_wrapper<const T>,
+                             ::std::reference_wrapper<const T>>
+cref_reverse_forw(const T& val, const T& d_val) noexcept {
+  return {::std::cref(val), ::std::cref(d_val)};
+}
+
+// Wrappers only alias storage; adjoints accumulate through get() / conversion.
+template <class T>
+inline void ref_pullback(T& /*val*/, ::std::reference_wrapper<T> /*d_y*/,
+                         T* /*d_val*/) noexcept {}
+
+template <class T>
+inline void cref_pullback(const T& /*val*/,
+                          ::std::reference_wrapper<const T> /*d_y*/,
+                          T* /*d_val*/) noexcept {}
 
 // tie and maketuple forward mode
 

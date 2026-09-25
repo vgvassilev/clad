@@ -1136,6 +1136,21 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         baseOriginalE = MCE->getImplicitObjectArgument();
       else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
         baseOriginalE = OCE->getArg(0);
+      // detach races with the worker pushforward running on the thread.
+      if (baseOriginalE && MD->getDeclName().isIdentifier() &&
+          MD->getName() == "detach") {
+        QualType baseTy =
+            baseOriginalE->getType().getNonReferenceType().getUnqualifiedType();
+        if (const auto* BaseRD = baseTy->getAsCXXRecordDecl()) {
+          if (utils::isStdThreadLike(BaseRD)) {
+            diag(DiagnosticsEngine::Error, validLoc,
+                 "detach is not supported in forward-mode AD of std::thread; "
+                 "join the thread so the worker pushforward completes before "
+                 "the derivative returns");
+            return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
+          }
+        }
+      }
       baseDiff = Visit(baseOriginalE);
       Expr* baseDerivative = baseDiff.getExpr_dx();
       if (!baseDerivative || baseDerivative->getType()->isVoidType()) {
@@ -2367,11 +2382,57 @@ StmtDiff BaseForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
 
 StmtDiff
 BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
+  QualType recTy = CE->getType().getNonReferenceType().getCanonicalType();
+  const auto* RecRD = recTy->getAsCXXRecordDecl();
+  const bool threadLike = utils::isStdThreadLike(RecRD);
+
   llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
   for (auto arg : CE->arguments()) {
     auto argDiff = Visit(arg);
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
+  }
+
+  if (!clonedArgs.empty() && !derivedArgs.empty() && CE->getNumArgs() >= 1) {
+    if (threadLike) {
+      QualType arg0Ty =
+          CE->getArg(0)->getType().getNonReferenceType().getUnqualifiedType();
+      // Move/copy of an existing thread is not a worker launch.
+      if (!utils::isStdThreadLike(arg0Ty->getAsCXXRecordDecl())) {
+        if (const FunctionDecl* callableFD =
+                utils::resolveThreadCallable(m_Sema, CE->getArg(0))) {
+          if (isLambdaCallOperator(callableFD)) {
+            // Lambda nest-diff from thread constructors is not supported yet.
+            SourceLocation L = CE->getArg(0)->getBeginLoc();
+            diag(DiagnosticsEngine::Error, L,
+                 "forward-mode differentiation of std::thread with a lambda "
+                 "callable is not supported yet");
+            return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
+          }
+          DiffRequest pushforwardFnRequest;
+          pushforwardFnRequest.Function = callableFD;
+          pushforwardFnRequest.Mode = GetPushForwardMode();
+          pushforwardFnRequest.BaseFunctionName =
+              utils::ComputeEffectiveFnName(callableFD);
+          pushforwardFnRequest.VerboseDiags = false;
+          pushforwardFnRequest.inheritAnalysesFrom(m_DiffReq);
+          // Nest-diff the callable; do not set Functor (matches VisitCallExpr).
+          FunctionDecl* pushforwardFD =
+              m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
+          if (pushforwardFD && !isa<CXXMethodDecl>(callableFD))
+            derivedArgs[0] = BuildDeclRef(pushforwardFD);
+        } else {
+          // Unresolvable callable (overloads, std::function, ...); do not skip.
+          SourceLocation L = CE->getArg(0)->getBeginLoc();
+          diag(DiagnosticsEngine::Error, L,
+               "failed to resolve callable of type %0 passed to std::thread; "
+               "forward-mode differentiation of this thread constructor is not "
+               "supported")
+              << CE->getArg(0)->getType();
+          return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
+        }
+      }
+    }
   }
 
   Expr* pushforwardCall =
@@ -2384,6 +2445,14 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     Expr* pushforwardE =
         utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                CloneNode(valueAndPushforwardE), "pushforward");
+    if (const auto* RD = recTy->getAsCXXRecordDecl()) {
+      if (!utils::isCopyable(RD)) {
+        llvm::SmallVector<Expr*, 1> moveArgs = {valueE};
+        valueE = GetFunctionCall("move", "std", moveArgs);
+        moveArgs[0] = pushforwardE;
+        pushforwardE = GetFunctionCall("move", "std", moveArgs);
+      }
+    }
     return StmtDiff(valueE, pushforwardE);
   }
 
