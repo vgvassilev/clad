@@ -286,15 +286,6 @@ Doing it in one pass
       :start-after: docs-begin-vectormode
       :end-before: docs-end-vectormode
 
-:demo:`RosenbrockFunction.cpp`
-   The Rosenbrock function, a long narrow valley that optimisers are measured
-   against, with its derivatives taken in forward mode.
-
-   .. literalinclude:: ../../../../demos/RosenbrockFunction.cpp
-      :language: cpp
-      :start-after: docs-begin-rosenbrock
-      :end-before: docs-end-rosenbrock
-
 Without installing anything
 ===========================
 
