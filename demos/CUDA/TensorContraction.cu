@@ -15,6 +15,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#include <iostream>
+
 typedef unsigned long long int size_type;
 
 __device__ void computeStartStep(size_type& A_start, size_type& A_step,
