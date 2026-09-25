@@ -5,10 +5,6 @@
 // a function with respect to multiple parameters.
 //----------------------------------------------------------------------------//
 
-// To run the demo please type:
-// path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ -x c++ -std=c++17 VectorForwardMode.cpp
-
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
 
@@ -21,8 +17,10 @@ double weighted_sum(double* arr, double* weights, int n) {
 }
 
 int main() {
+  // docs-begin-vectormode
   auto weighted_sum_grad =
       clad::differentiate<clad::opts::vector_mode>(weighted_sum, "arr,weights");
+  // docs-end-vectormode
 
   // Initialize array and weights.
   double arr[3] = {3.0, 4.0, 5.0};

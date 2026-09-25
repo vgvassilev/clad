@@ -9,6 +9,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclAccessPair.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
@@ -28,6 +29,8 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/Overload.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/TemplateDeduction.h"
 
@@ -315,6 +318,27 @@ namespace clad {
         Result.setNamingClass(CXXRD);
 
       return Result;
+    }
+
+    FunctionDecl* ResolveOverload(Sema& S, Expr* lookup,
+                                  llvm::MutableArrayRef<Expr*> args) {
+      OverloadCandidateSet Candidates(noLoc, OverloadCandidateSet::CSK_Normal);
+      if (lookup->hasPlaceholderType(BuiltinType::Overload)) {
+        auto* ULE =
+            cast<UnresolvedLookupExpr>(OverloadExpr::find(lookup).Expression);
+        ExprResult result;
+        S.buildOverloadedCallSet(S.getScopeForContext(S.CurContext), lookup,
+                                 ULE, args, noLoc, &Candidates, &result);
+      } else {
+        auto* FD = cast<FunctionDecl>(cast<DeclRefExpr>(lookup)->getDecl());
+        S.AddOverloadCandidate(FD, DeclAccessPair::make(FD, AS_public), args,
+                               Candidates);
+      }
+      OverloadCandidateSet::iterator Best = nullptr;
+      if (Candidates.BestViableFunction(S, lookup->getExprLoc(), Best) !=
+          OR_Success)
+        return nullptr;
+      return Best->Function;
     }
 
     NamespaceDecl* LookupNSD(Sema& S, llvm::StringRef namespc, bool shouldExist,
@@ -1033,6 +1057,10 @@ namespace clad {
       return Result;
     }
 
+    LookupResult tryLookupCladMethod(Sema& S, llvm::StringRef name) {
+      return LookupQualifiedName(name, S, GetCladNamespace(S));
+    }
+
     Expr* getZeroInit(QualType T, Sema& S) {
       // FIXME: Consolidate other uses of synthesizeLiteral for creation 0 or 1.
       if (T->isVoidType() || isa<VariableArrayType>(T))
@@ -1246,6 +1274,15 @@ namespace clad {
         return false;
       }
       return false;
+    }
+
+    FunctionDecl* LookupCladZeroLike(Sema& S, Expr* value) {
+      LookupResult R = tryLookupCladMethod(S, "zero_like");
+      CXXScopeSpec CSS;
+      Expr* lookup =
+          S.BuildDeclarationNameExpr(CSS, R, /*NeedsADL=*/false).get();
+      llvm::SmallVector<Expr*, 1> args{value};
+      return ResolveOverload(S, lookup, args);
     }
 
     bool shouldUseRestoreTracker(const FunctionDecl* FD) {

@@ -16,6 +16,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <cassert>
@@ -166,6 +167,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     clang::LookupResult LookupQualifiedName(llvm::StringRef name,
                                             clang::Sema& S,
                                             clang::DeclContext* DC = nullptr);
+
+    /// Resolve a function lookup expression or a direct function reference.
+    /// Return null when no usable overload exists for the arguments.
+    clang::FunctionDecl*
+    ResolveOverload(clang::Sema& S, clang::Expr* lookup,
+                    llvm::MutableArrayRef<clang::Expr*> args);
 
     /// Finds namespace `namespc` under the declaration context `DC` or the
     /// translation unit declaration if `DC` is null.
@@ -466,6 +473,10 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     /// Find namespace clad declaration.
     clang::NamespaceDecl* GetCladNamespace(clang::Sema& S);
+
+    /// Look up an entity in the clad namespace. The result may be empty.
+    clang::LookupResult tryLookupCladMethod(clang::Sema& S,
+                                            llvm::StringRef name);
     /// Create clad::array\<T\> type.
     clang::QualType GetCladArrayOfType(clang::Sema& S, clang::QualType T);
     /// Create clad::matrix\<T\> type.
@@ -523,6 +534,10 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isMemoryType(clang::QualType T);
     /// Returns true if a function returning T must return its adjoint too.
     bool returnsAdjoint(clang::QualType T);
+
+    /// Resolve clad::zero_like(value), returning null without diagnostics
+    /// when no usable overload exists.
+    clang::FunctionDecl* LookupCladZeroLike(clang::Sema& S, clang::Expr* value);
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 

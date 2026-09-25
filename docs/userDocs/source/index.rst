@@ -84,6 +84,7 @@ The User Guide
 
    user/reference
    user/SupportedFeatures
+   user/demos
    user/CoreConcepts
    user/Analyses
    user/Diagnostics

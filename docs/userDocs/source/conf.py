@@ -80,6 +80,37 @@ pygments_dark_style = "github-dark"
 default_role = "code"
 
 
+# Demos are whole programs rather than API, so doxygen does not cover them --
+# it reads include/, lib/ and tools/ -- and a reader who wants more than the
+# few lines a page quotes has to go to the repository. :demo:`Gradient.cpp`
+# writes that link from the path itself, so it cannot name one file and point
+# at another. A trailing slash marks a directory, which GitHub serves under
+# tree/ rather than blob/.
+#
+# The revision is the one the documentation was built from, not master. Every
+# release keeps its pages, and master keeps moving: a demo rewritten or
+# deleted after v2.4 was cut would leave v2.4's pages quoting code that the
+# link no longer leads to. Pinning the commit also makes the excerpt and the
+# linked file the same file. Readthedocs reports the commit for a tag, a
+# branch and a pull request preview alike; anywhere else there is no commit
+# GitHub can be trusted to have, so a local build links master.
+DEMO_REF = os.environ.get("READTHEDOCS_GIT_COMMIT_HASH", "master")
+DEMO_URL = "https://github.com/vgvassilev/clad/{0}/" + DEMO_REF + "/demos/{1}"
+
+
+def demo_role(name, rawtext, text, lineno, inliner, options=None, content=None):
+    from docutils import nodes
+
+    uri = DEMO_URL.format("tree" if text.endswith("/") else "blob",
+                          text.rstrip("/"))
+    return [nodes.reference("", "", nodes.literal(text, text), refuri=uri)], []
+
+
+def setup(app):
+    app.add_role("demo", demo_role)
+    return {"parallel_read_safe": True}
+
+
 todo_include_todos = True
 
 current_file_dir = os.path.dirname(os.path.realpath(__file__))

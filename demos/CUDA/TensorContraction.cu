@@ -15,6 +15,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#include <iostream>
+
 typedef unsigned long long int size_type;
 
 __device__ void computeStartStep(size_type& A_start, size_type& A_step,
@@ -160,7 +162,9 @@ int main() {
   float C[D1][D2][D4][D5] = {0}; // Result tensor
 
   // Compute the gradient
+  // docs-begin-cuda
   auto tensor_grad = clad::gradient(launchTensorContraction3D, "C, A, B");
+  // docs-end-cuda
 
   // Initialize the gradient inputs
   float gradC[D1][D2][D4][D5] = {{{{1, 1}, {1, 1}, {1, 1}},

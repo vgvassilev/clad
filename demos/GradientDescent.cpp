@@ -7,19 +7,6 @@
 //
 //----------------------------------------------------------------------------//
 
-// To run the demo please type:
-// path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ GradientDescent.cpp
-//
-// A typical invocation would be:
-// ../../../../obj/Debug+Asserts/bin/clang++  -Xclang -add-plugin -Xclang clad \
-// -Xclang -load -Xclang ../../../../obj/Debug+Asserts/lib/libclad.dylib     \
-// -I../include/ GradientDescent.cpp
-//
-// To plot the results install gnuplot and type:
-// gnuplot -e "plot 'dataset_gd.dat' with points pt 7; replot 'out_gd.dat' \
-// using 1:2 with lines; pause -1"
-
 #include <fstream>  // For plotting data.
 #include <iostream> // For std::*
 #include <vector>   // For std::vector.
@@ -87,10 +74,12 @@ void performStep(double& theta_0, double& theta_1, Dataset dt, T clad_grad) {
 
 // The cost function to minimize using gradient descent
 // theta_x are the parameters to learn; x, y are the inputs and outputs of f
+// docs-begin-fit
 double cost(double theta_0, double theta_1, double x, double y) {
   double f_x = f(theta_0, theta_1, x);
   return (f_x - y) * (f_x - y);
 }
+// docs-end-fit
 
 // Function to optimize the cost function of interest
 // theta is the hypothesis parameter list and maxSteps is the maximum steps to
@@ -102,7 +91,9 @@ std::vector<double> optimize(std::vector<double> theta, Dataset dt,
   int currentStep = 0;
 
   // Call for Clad to differentiate the cost function specified before
+  // docs-begin-fit-call
   auto clad_grad = clad::gradient(cost);
+  // docs-end-fit-call
 
   do {
     performStep(theta[0], theta[1], dt, clad_grad);

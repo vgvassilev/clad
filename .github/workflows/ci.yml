@@ -10,8 +10,13 @@ on:
     # without waiting for a push that has nothing to do with them.
     types: [opened, synchronize, reopened, labeled]
 
+# A label gets a group of its own. It asks for the gates below without
+# touching a file, so it has no business cancelling the build it arrives
+# beside -- and concurrency is settled before any job's `if`, so the decision
+# job cannot save a run that was already cancelled here.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha
+         }}-${{ github.event.action == 'labeled' && 'label' || 'build' }}
   cancel-in-progress: true
 
 jobs:

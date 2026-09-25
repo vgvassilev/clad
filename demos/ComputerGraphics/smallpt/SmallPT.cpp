@@ -7,14 +7,6 @@
 //          Based on smallpt, a Path Tracer by Kevin Beason, 2008
 //----------------------------------------------------------------------------//
 
-// To compile the demo please type:
-// path/to/clang++ -O3 -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so -I../../include/ -std=c++17 SmallPT.cpp \
-// -fopenmp=libiomp5 -o SmallPT
-//
-// To run the demo please type:
-// ./SmallPT 500 && xv image.ppm
-
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
 
@@ -122,11 +114,13 @@ double sphere_func_dz(const Vec& p, const Vec& p0, double r) {
 }
 #endif
 
+// docs-begin-smallpt
 double sphere_distance_func(const Vec& p, const Vec& p0, double r) {
   return sqrt((p.x - p0.x) * (p.x - p0.x) + (p.y - p0.y) * (p.y - p0.y) +
               (p.z - p0.z) * (p.z - p0.z)) -
          r;
 }
+// docs-end-smallpt
 
 double sphere_implicit_func(const Vec& p, const Vec& p0, double r) {
   return (p.x - p0.x) * (p.x - p0.x) + (p.y - p0.y) * (p.y - p0.y) +
@@ -164,7 +158,9 @@ public:
     // as described in #1411.
     Vec result{};
     Vec dummy{};
+    // docs-begin-smallpt-call
     auto dist_grad = clad::gradient(sphere_distance_func, "p, p0");
+    // docs-end-smallpt-call
     dist_grad.execute(pt, p, r, &result, &dummy);
     return result; // nabla f of signed distance functions is always unit vector
   }

@@ -6,10 +6,6 @@
 // author:  Garima Singh
 //----------------------------------------------------------------------------//
 
-// To run the demo please type:
-// path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ -std=c++17 FloatSum.cpp
-//
 // To plot the results install gnuplot and type:
 //
 // 1) The following if you want a comparision between calculated reuslts
@@ -45,6 +41,7 @@
 // comparing the results of our estimation accordingly.
 
 // This is the vanilla summation algorithm in single precision
+// docs-begin-esterror
 float vanillaSum(float x, unsigned int n) {
   float sum = 0.0;
   for (unsigned int i = 0; i < n; i++) {
@@ -52,6 +49,7 @@ float vanillaSum(float x, unsigned int n) {
   }
   return sum;
 }
+// docs-end-esterror
 
 // this is the compensated summation algorithm, also known as 'Kahan Summation
 // Algorithm'. This algorithm is used to reduce the loss of precision incurred
@@ -78,7 +76,9 @@ double kahanSum(float x, unsigned int n) {
 
 int main() {
 
+  // docs-begin-esterror-call
   auto df = clad::estimate_error(vanillaSum);
+  // docs-end-esterror-call
 
   // Select starting parameters
   double x = 0.10003E-5, finalError;
