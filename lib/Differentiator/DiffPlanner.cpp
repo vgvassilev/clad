@@ -1136,7 +1136,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // Not a per-call option like the others: the loop analysis is selected for
     // the whole translation unit, and every mode's loops are the same loops.
     request.EnableLoopAnalysis = ReqOpts.EnableLoopAnalysis;
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                       \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     request.Remark##Id##Analysis = ReqOpts.Remark##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
     if (Annotation == "E") {

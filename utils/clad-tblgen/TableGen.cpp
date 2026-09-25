@@ -26,6 +26,7 @@
 #include "llvm/TableGen/Record.h"
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -361,6 +362,17 @@ static void checkMisses(CladRecordKeeper& Records, const Record* Clad) {
       PrintFatalError(M->getLoc(), Twine("no construct lists ") + M->getName());
 }
 
+/// Every analysis the table defines, in the order their positions put them.
+static std::vector<const Record*> analysesOf(CladRecordKeeper& Records) {
+  std::vector<const Record*> Out;
+  for (const Record* A : Records.getAllDerivedDefinitions("Analysis"))
+    Out.push_back(A);
+  llvm::sort(Out, [](const Record* L, const Record* R) {
+    return L->getValueAsInt("RequestBit") < R->getValueAsInt("RequestBit");
+  });
+  return Out;
+}
+
 /// What the table has to hold for the rest of this file to render all of it.
 /// Checked before anything is written, so a mistake is reported once rather
 /// than once per backend.
@@ -369,7 +381,6 @@ static void checkAnalyses(CladRecordKeeper& Records) {
   if (!Clad)
     return;
   checkCodes(Records);
-  checkListed(Records, Clad, "Analysis", "Analyses");
   checkListed(Records, Clad, "Diagnostic", "Diagnostics");
   checkListed(Records, Clad, "Desc", "Descs");
   checkMisses(Records, Clad);
@@ -377,18 +388,107 @@ static void checkAnalyses(CladRecordKeeper& Records) {
 
 static void emitAnalyses(raw_ostream& OS, CladRecordKeeper& Records) {
   OS << cxxBanner("lib/Differentiator/Analyses.td") << R"(
+// One sequence, in the order the clad::opts bits are laid out: an analysis,
+// or an option that is not one. Define whichever you came for; the other then
+// expands to nothing.
+//
+// FirstBit is a position, not a value: an analysis takes
+// 1 << (ORDER_BITS + FirstBit) for enable_<legacy> and the bit above it for
+// disable_<legacy>; anything else takes the one.
+#if !defined(CLAD_ANALYSIS) && !defined(CLAD_OPT_RESERVED)
+#error "define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc) or CLAD_OPT_RESERVED(Name, FirstBit) before including"
+#endif
+
 #ifndef CLAD_ANALYSIS
-#error "define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) before including"
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)
+#endif
+
+#ifndef CLAD_OPT_RESERVED
+#define CLAD_OPT_RESERVED(Name, FirstBit)
 #endif
 
 )";
-  for (const Record* A : listOf(Records.getDef("Clad"), "Analyses"))
-    OS << "CLAD_ANALYSIS(" << A->getName() << ", \""
-       << A->getValueAsString("Name") << "\", \""
-       << A->getValueAsString("Legacy") << "\", "
-       << (A->getValueAsBit("Default") ? "true" : "false") << ",\n    "
-       << cxxString(A->getValueAsString("Summary")) << ")\n";
-  OS << "\n#undef CLAD_ANALYSIS\n";
+  // Ordered by the position each one sits on rather than by a list somebody
+  // keeps: a new analysis takes the next free pair, so it lands at the end,
+  // which is where a reader of -help expects it.
+  std::vector<const Record*> Analyses = analysesOf(Records);
+  // The whole space, so that picking a position does not mean reading the
+  // table and CladConfig.h side by side. Rendered from the entries rather than
+  // written down, because a map that drifts is worse than none.
+  std::map<int64_t, std::string> Space;
+  for (const Record* R : Records.getAllDerivedDefinitions("Reserved"))
+    Space[R->getValueAsInt("FirstBit")] =
+        (R->getValueAsString("Name") + "|spelled out in clad::opts").str();
+  for (const Record* A : Analyses) {
+    int64_t B = A->getValueAsInt("RequestBit");
+    StringRef L = A->getValueAsString("Legacy");
+    Space[B] = ("enable_" + L).str();
+    Space[B + 1] = ("disable_" + L).str();
+  }
+  OS << "// Where the positions have gone, counted from ORDER_BITS. They are\n"
+        "// not consecutive: each option took the next one free when it was\n"
+        "// added, so single-bit options sit between the analyses' pairs. Nor\n"
+        "// can they be tidied -- a position reaches the mangled name of "
+        "every\n"
+        "// request that names it.\n//\n";
+  int64_t NextPair = -1;
+  for (int64_t P = 0; P <= Space.rbegin()->first + 2; ++P) {
+    auto It = Space.find(P);
+    bool FreeHere = It == Space.end();
+    bool FreePair = FreeHere && !Space.count(P + 1);
+    if (FreePair && NextPair < 0)
+      NextPair = P;
+    std::string Who = FreeHere ? "free" : It->second;
+    std::string Note;
+    size_t Bar = Who.find('|');
+    if (Bar != std::string::npos) {
+      Note = Who.substr(Bar + 1);
+      Who = Who.substr(0, Bar);
+    }
+    if (FreePair && P == NextPair)
+      Note = "the next pair starts here";
+    OS << "//   " << (P < 10 ? " " : "") << P << "  " << Who;
+    if (!Note.empty())
+      OS << std::string(Who.size() < 16 ? 16 - Who.size() : 1, ' ') << "-- "
+         << Note;
+    OS << "\n";
+  }
+  OS << "\n";
+
+  // Both kinds in position order, so the file reads as the space itself. Each
+  // entry carries a note saying what its number turns into: a bare 2 beside a
+  // name reads like a mask, and the mask it makes is not 2.
+  std::map<int64_t, std::pair<std::string, std::string>> Entries;
+  for (const Record* R : Records.getAllDerivedDefinitions("Reserved"))
+    Entries[R->getValueAsInt("FirstBit")] = {
+        ("CLAD_OPT_RESERVED(" + R->getValueAsString("Name") + ", " +
+         Twine(R->getValueAsInt("FirstBit")) + ")")
+            .str(),
+        ("// " + R->getValueAsString("Name") + " at ORDER_BITS+" +
+         Twine(R->getValueAsInt("FirstBit")))
+            .str()};
+  // An analysis carries everything about itself, so its entry runs onto a
+  // second line; the note goes where the first one ends, which is still
+  // between arguments and so still only whitespace to the preprocessor.
+  for (const Record* A : Analyses)
+    Entries[A->getValueAsInt("RequestBit")] = {
+        ("CLAD_ANALYSIS(" + A->getName() + ", \"" +
+         A->getValueAsString("Name") + "\", " + A->getValueAsString("Legacy") +
+         ", " + (A->getValueAsBit("Default") ? "true" : "false") + ", " +
+         Twine(A->getValueAsInt("RequestBit")) + ",")
+            .str(),
+        ("// enable_" + A->getValueAsString("Legacy") + " at ORDER_BITS+" +
+         Twine(A->getValueAsInt("RequestBit")) + ", disable_" +
+         A->getValueAsString("Legacy") + " at +" +
+         Twine(A->getValueAsInt("RequestBit") + 1) + "\n    " +
+         cxxString(A->getValueAsString("Summary")) + ")")
+            .str()};
+  for (const auto& E : Entries) {
+    const std::string& Entry = E.second.first;
+    OS << Entry << std::string(Entry.size() < 38 ? 38 - Entry.size() : 1, ' ')
+       << E.second.second << "\n";
+  }
+  OS << "\n#undef CLAD_ANALYSIS\n#undef CLAD_OPT_RESERVED\n";
 }
 
 static void emitAnalysisDescs(raw_ostream& OS, CladRecordKeeper& Records) {
@@ -452,7 +552,7 @@ less; turning one off falls back to the conservative derivative.
 below, and each analysis also has a switch of its own.
 
 )";
-  for (const Record* A : listOf(Clad, "Analyses"))
+  for (const Record* A : analysesOf(Records))
     OS << "``-enable-" << A->getValueAsString("Legacy") << "`` / ``-disable-"
        << A->getValueAsString("Legacy") << "``\n"
        << "  Turns the " << A->getValueAsString("Name")

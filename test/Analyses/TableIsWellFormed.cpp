@@ -12,11 +12,6 @@
 // Everything the table defines has to be reachable from Clad, or it is written
 // down and never rendered.
 // RUN: not %clad_tblgen -I %S/../../lib/Differentiator -gen-analysis-descs \
-// RUN:   %S/Inputs/unlisted-analysis.td -o %t.def 2>&1 \
-// RUN:   | FileCheck --check-prefix=ANALYSIS %s
-// ANALYSIS: Clad's Analyses does not list Unlisted
-
-// RUN: not %clad_tblgen -I %S/../../lib/Differentiator -gen-analysis-descs \
 // RUN:   %S/Inputs/unlisted-diagnostic.td -o %t.def 2>&1 \
 // RUN:   | FileCheck --check-prefix=DIAGNOSTIC %s
 // DIAGNOSTIC: Clad's Diagnostics does not list note_unlisted
