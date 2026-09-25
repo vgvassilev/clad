@@ -3,7 +3,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-extern "C" int printf(const char*, ...);
 
 double product(double x, double y) { return x * y; }
 
