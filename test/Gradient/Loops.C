@@ -821,7 +821,7 @@ double fn14(double i, double j) {
 // CHECK-NEXT:             switch (clad::pop(_t1)) {
 // CHECK-NEXT:               case {{4U|4UL|4ULL}}:
 // CHECK-NEXT:                 ;
-// CHECK-NEXT:                 {
+// CHECK-NEXT:                 if (!(clad::back(_cond0) || clad::back(_cond1))) {
 // CHECK-NEXT:                     if (clad::back(_cond2)) {
 // CHECK-NEXT:                       case {{3U|3UL|3ULL}}:
 // CHECK-NEXT:                         ;
@@ -832,7 +832,7 @@ double fn14(double i, double j) {
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                     clad::pop(_cond2);
 // CHECK-NEXT:                 }
-// CHECK-NEXT:                 {
+// CHECK-NEXT:                 if (!clad::back(_cond0)) {
 // CHECK-NEXT:                     if (clad::back(_cond1)) {
 // CHECK-NEXT:                       case {{2U|2UL|2ULL}}:
 // CHECK-NEXT:                         ;
@@ -928,13 +928,13 @@ double fn15(double i, double j) {
 // CHECK-NEXT:             switch (clad::pop(_t1)) {
 // CHECK-NEXT:               case {{2U|2UL|2ULL}}:
 // CHECK-NEXT:                 ;
-// CHECK-NEXT:                 {
+// CHECK-NEXT:                 if (!clad::back(_cond0)) {
 // CHECK-NEXT:                     while (clad::back(_t2))
 // CHECK-NEXT:                         {
 // CHECK-NEXT:                             switch (clad::pop(_t3)) {
 // CHECK-NEXT:                               case {{2U|2UL|2ULL}}:
 // CHECK-NEXT:                                 ;
-// CHECK-NEXT:                                 {
+// CHECK-NEXT:                                 if (!clad::back(_cond1)) {
 // CHECK-NEXT:                                     if (clad::back(_cond2)) {
 // CHECK-NEXT:                                         *_d_j += _d_res;
 // CHECK-NEXT:                                     }
@@ -953,7 +953,8 @@ double fn15(double i, double j) {
 // CHECK-NEXT:                         }
 // CHECK-NEXT:                     clad::pop(_t2);
 // CHECK-NEXT:                 }
-// CHECK-NEXT:                 _d_another_choice = 0;
+// CHECK-NEXT:                 if (!clad::back(_cond0))
+// CHECK-NEXT:                     _d_another_choice = 0;
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     if (clad::back(_cond0))
 // CHECK-NEXT:                       case {{1U|1UL|1ULL}}:
@@ -1023,11 +1024,11 @@ double fn16(double i, double j) {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
 // CHECK-NEXT:           case {{3U|3UL|3ULL}}:
 // CHECK-NEXT:             ;
-// CHECK-NEXT:             {
+// CHECK-NEXT:             if (!(clad::back(_cond0) || clad::back(_cond1))) {
 // CHECK-NEXT:                 *_d_i += _d_res;
 // CHECK-NEXT:                 *_d_j += _d_res;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             {
+// CHECK-NEXT:             if (!clad::back(_cond0)) {
 // CHECK-NEXT:                 if (clad::back(_cond1)) {
 // CHECK-NEXT:                   case {{2U|2UL|2ULL}}:
 // CHECK-NEXT:                     ;
@@ -1123,18 +1124,12 @@ double fn17(double i, double j) {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
 // CHECK-NEXT:           case {{2U|2UL|2ULL}}:
 // CHECK-NEXT:             ;
-// CHECK-NEXT:             {
+// CHECK-NEXT:             if (!clad::back(_cond0)) {
 // CHECK-NEXT:                 while (clad::back(_t2))
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                         switch (clad::pop(_t3)) {
 // CHECK-NEXT:                           case {{3U|3UL|3ULL}}:
 // CHECK-NEXT:                             ;
-// CHECK-NEXT:                             {
-// CHECK-NEXT:                                 *_d_i += _d_res * j * j * i;
-// CHECK-NEXT:                                 *_d_i += i * _d_res * j * j;
-// CHECK-NEXT:                                 *_d_j += i * i * _d_res * j;
-// CHECK-NEXT:                                 *_d_j += i * i * j * _d_res;
-// CHECK-NEXT:                             }
 // CHECK-NEXT:                             {
 // CHECK-NEXT:                                 if (clad::back(_cond1)) {
 // CHECK-NEXT:                                   case {{1U|1UL|1ULL}}:
@@ -1677,7 +1672,7 @@ double fn27(double i, double j) {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
 // CHECK-NEXT:           case {{2U|2UL|2ULL}}:
 // CHECK-NEXT:             ;
-// CHECK-NEXT:             {
+// CHECK-NEXT:             if (!clad::back(_cond0)) {
 // CHECK-NEXT:                 _d_c += _d_res * j * i;
 // CHECK-NEXT:                 *_d_i += c * _d_res * j;
 // CHECK-NEXT:                 *_d_j += c * i * _d_res;
