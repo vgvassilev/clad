@@ -33,6 +33,24 @@ __global__ void func(double* out, double x) {
 // CHECK: val = val * 2.;
 // CHECK: }
 
+__global__ void square(double* out, const double* in) {
+    out[0] = in[0] * in[0];
+}
+
+double func1(double* in) {
+  double tmp[1] = {0};
+  square<<<1, 1>>>(tmp, in);
+  return tmp[0] * 2;
+}
+
+// CHECK: void func1_grad(double *in, double *_d_in) {
+// CHECK-NEXT:     double _d_tmp[1] = {0};
+// CHECK-NEXT:     double tmp[1] = {0};
+// CHECK-NEXT:     square<<<1, 1>>>(tmp, in);
+// CHECK-NEXT:     _d_tmp[0] += 1 * 2;
+// CHECK-NEXT:     square_pullback<<<1, 1>>>(tmp, in, _d_tmp, _d_in);
+// CHECK-NEXT: }
+
 int main() {
     double *d_out, *d_out_d, *d_x;
     cudaMalloc(&d_out, sizeof(double) * 2);
@@ -46,6 +64,7 @@ int main() {
     cudaMemcpy(d_x, &seed_x, sizeof(double), cudaMemcpyHostToDevice);
 
     auto df = clad::gradient(func);
+    auto d_func1 = clad::gradient(func1);
     df.execute_kernel(dim3(1), dim3(2), d_out, 5.0, d_out_d, d_x);
     cudaDeviceSynchronize();
 

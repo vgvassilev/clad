@@ -232,6 +232,10 @@ bool VariedAnalyzer::TraverseCXXOperatorCallExpr(
   return false;
 }
 
+bool VariedAnalyzer::TraverseCUDAKernelCallExpr(CUDAKernelCallExpr* KCE) {
+  return TraverseCallExpr(KCE);
+}
+
 bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
   Expr* callee = CE->getCallee();
   if (isa<CXXPseudoDestructorExpr>(callee))
