@@ -373,6 +373,62 @@ static std::vector<const Record*> analysesOf(CladRecordKeeper& Records) {
   return Out;
 }
 
+/// A pair takes two adjacent bits, so no two analyses may come within one of
+/// each other, and neither may sit where clad::opts has already spent a bit.
+/// Every Analysis is looked at, listed or not, for the reason checkCodes
+/// gives: a retired one still owns its bits. Caught here rather than by the
+/// static_assert in CladConfig.h, which fires a file later and can only say
+/// that something collided.
+static void checkRequestBits(CladRecordKeeper& Records, const Record* Clad) {
+  struct Claim {
+    std::string By;
+    SMLoc Loc;
+  };
+  std::map<int64_t, Claim> Taken;
+  std::string Clash;
+  SMLoc ClashLoc;
+  auto claim = [&](int64_t B, StringRef By, ArrayRef<SMLoc> Loc) {
+    auto It = Taken.find(B);
+    if (It == Taken.end()) {
+      Taken[B] = {By.str(), Loc.empty() ? SMLoc() : Loc.front()};
+      return;
+    }
+    if (Clash.empty()) {
+      Clash =
+          (Twine(By) + " and " + It->second.By + " both want bit " + Twine(B))
+              .str();
+      ClashLoc = Loc.empty() ? It->second.Loc : Loc.front();
+    }
+  };
+
+  for (const Record* R : Records.getAllDerivedDefinitions("Reserved"))
+    claim(R->getValueAsInt("FirstBit"), R->getValueAsString("Name"),
+          R->getLoc());
+  for (const Record* A : Records.getAllDerivedDefinitions("Analysis")) {
+    int64_t B = A->getValueAsInt("RequestBit");
+    // Counted from ORDER_BITS, so below zero is inside the derivative order:
+    // the pair would not collide with another option and the bitmask would
+    // read as asking for an order nobody wrote.
+    if (B < 0)
+      PrintFatalError(A->getLoc(),
+                      "RequestBit " + Twine(B) + " of " + A->getName() +
+                          " is negative; a position is counted from "
+                          "ORDER_BITS and starts at 0");
+    claim(B, A->getName(), A->getLoc());
+    claim(B + 1, A->getName(), A->getLoc());
+  }
+  if (Clash.empty())
+    return;
+
+  // Say where to go instead: working it out means reading both this table and
+  // the options CladConfig.h spells out, which is the mistake being reported.
+  int64_t Free = 0;
+  while (Taken.count(Free) || Taken.count(Free + 1))
+    ++Free;
+  PrintFatalError(ClashLoc,
+                  Clash + "; the lowest free pair starts at " + Twine(Free));
+}
+
 /// What the table has to hold for the rest of this file to render all of it.
 /// Checked before anything is written, so a mistake is reported once rather
 /// than once per backend.
@@ -381,6 +437,7 @@ static void checkAnalyses(CladRecordKeeper& Records) {
   if (!Clad)
     return;
   checkCodes(Records);
+  checkRequestBits(Records, Clad);
   checkListed(Records, Clad, "Diagnostic", "Diagnostics");
   checkListed(Records, Clad, "Desc", "Descs");
   checkMisses(Records, Clad);

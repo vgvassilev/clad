@@ -1,0 +1,16 @@
+// A stand-in for the rendered table, with two analyses on one bit. Found
+// before the real one because the test puts this directory first on the
+// include path.
+#ifndef CLAD_ANALYSIS
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)
+#endif
+
+#ifndef CLAD_OPT_RESERVED
+#define CLAD_OPT_RESERVED(Name, FirstBit)
+#endif
+
+CLAD_ANALYSIS(TBR, "tbr", tbr, true, 2, "")
+CLAD_ANALYSIS(Loop, "loop", loop, true, 2, "")
+
+#undef CLAD_ANALYSIS
+#undef CLAD_OPT_RESERVED
