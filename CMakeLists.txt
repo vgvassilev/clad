@@ -391,7 +391,16 @@ file(MAKE_DIRECTORY ${CLAD_GEN_INCL} ${CLAD_GEN_LIB})
 
 set(CLAD_OPTIONS_TD ${CMAKE_CURRENT_SOURCE_DIR}/lib/Differentiator/Options.td)
 set(CLAD_ANALYSES_TD ${CMAKE_CURRENT_SOURCE_DIR}/lib/Differentiator/Analyses.td)
-set(CLAD_TBLGEN_INCLUDES -I ${LLVM_INCLUDE_DIRS})
+# Where an included .td is looked for, collected the way llvm's own
+# TableGen.cmake collects it: from the include path, one -I each. Spelling it
+# "-I ${LLVM_INCLUDE_DIRS}" is wrong in both directions. Against an LLVM build
+# tree that variable names two directories, and the second is left to be read
+# as a positional argument; in an in-tree build LLVMConfig is never read and it
+# is empty, so the flag swallows the .td that follows it.
+get_directory_property(CLAD_TBLGEN_INCLUDES INCLUDE_DIRECTORIES)
+list(REMOVE_ITEM CLAD_TBLGEN_INCLUDES "")
+list(REMOVE_DUPLICATES CLAD_TBLGEN_INCLUDES)
+list(TRANSFORM CLAD_TBLGEN_INCLUDES PREPEND -I)
 
 # add_custom_command rather than a target: these are inputs to compiling clad,
 # so they have to be built before it and rebuilt when the table changes.
