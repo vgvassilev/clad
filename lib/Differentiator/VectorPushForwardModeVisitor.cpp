@@ -40,8 +40,8 @@ void VectorPushForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
 
   // Create a variable to store the total number of independent variables.
   Expr* indVarCountExpr = lastParamSizeExpr;
-  auto* totalIndVars = BuildVarDecl(
-      clad_compat::getSizeType(m_Context), "indepVarCount", indVarCountExpr);
+  auto* totalIndVars = BuildVarDecl(clad_compat::getSizeType(m_Context),
+                                    "indepVarCount", indVarCountExpr);
   addToCurrentBlock(BuildDeclStmt(totalIndVars));
   m_IndVarCountDecl = totalIndVars;
 
