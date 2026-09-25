@@ -472,6 +472,11 @@ public:
   /// the direction this request differentiates along. A call the analysis
   /// never saw answers true.
   [[nodiscard]] bool shouldHavePushforward(const clang::CallExpr* CE) const;
+  /// Select zero_like for this call's default adjoint, or null if inapplicable.
+  /// nonDiff is the visitor's final call-activity result.
+  clang::FunctionDecl* getDefaultAdjoint(clang::Sema& S,
+                                         const clang::CallExpr* CE,
+                                         bool nonDiff) const;
   std::string ComputeDerivativeName() const;
   bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
 
