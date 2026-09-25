@@ -18,7 +18,7 @@ namespace clad {
 
 /// The analyses clad can run, one per entry in Analyses.td.
 enum class AnalysisId : std::uint8_t {
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) Id,
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc) Id,
 #include "clad/Differentiator/Analyses.def"
 };
 
@@ -45,7 +45,7 @@ enum class AnalysisMiss : std::uint8_t {
 /// How the analysis is named to users, as -fdisable-analysis takes it.
 inline const char* nameOf(AnalysisId A) {
   switch (A) {
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   case AnalysisId::Id:                                                         \
     return Name;
 #include "clad/Differentiator/Analyses.def"

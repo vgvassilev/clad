@@ -5,6 +5,30 @@
 // the wording of every message they emit, and the documentation a reader gets
 // sent to.
 //
+// To add an analysis, write one def:
+//
+//   def MyAnalysis : Analysis</*name=*/"mine", /*legacy=*/"mine",
+//                             /*onByDefault=*/0, /*requestBit=*/13,
+//                             "skips the adjoint of a value nobody reads">;
+//
+// and build. That is the whole of it. The def gives you
+//
+//   -fenable-analysis=mine / -fdisable-analysis=mine   the command line
+//   -enable-mine / -disable-mine                       the older spelling
+//   clad::opts::enable_mine / disable_mine             one request
+//   Options::EnableMyAnalysisAnalysis                  what was asked for
+//   DiffRequest::EnableMyAnalysisAnalysis              what a request carries
+//   a line on -help, and a row on the reference page
+//
+// What it does not give you is anything that runs the analysis: that is code,
+// and each analysis is different.
+//
+// The number is a position, not a value, and the only part to choose. The
+// defs below are written in position order and say where the free ones start;
+// put the new one there, in order. A number that is already spoken for, by an
+// analysis or by an option clad::opts spells out, is an error naming what took
+// it rather than a quiet collision.
+//
 // Five files are rendered from it, none of them committed. The three headers
 // are built before anything that expands them, into the build directory:
 //
@@ -23,30 +47,67 @@
 // code clad generates, never the values that code computes. With all of them
 // off clad must still produce a correct derivative, only a more conservative
 // one.
-// To add one: write the def and name it in Clad's Analyses below. The next
-// build renders the tables again, and the switches, the help screen, what a
-// request carries and the reference page all come from the def.
-class Analysis<string name, string legacy, bit onByDefault, string summary> {
+class Analysis<string name, string legacy, bit onByDefault, int requestBit,
+               string summary> {
   // How the analysis is named to users, as -fdisable-analysis takes it.
   string Name = name;
-  // Suffix of the original -enable-<legacy>/-disable-<legacy> pair.
+  // Suffix of two things that spell an analysis the older way: the original
+  // -enable-<legacy>/-disable-<legacy> pair, which -fenable-analysis=<name>
+  // has since replaced, and clad::opts::enable_<legacy>, which it has not.
+  // The second is public API -- a user writes clad::opts::enable_va -- so
+  // this is not free to follow Name even once the flags go.
   string Legacy = legacy;
   // Whether it runs when no switch selects it.
   bit Default = onByDefault;
+  // Where clad::opts::enable_<legacy> sits in the bitmask a request carries,
+  // counted from ORDER_BITS; disable_<legacy> takes the bit above it. A
+  // position, not a value: the two are OR-able once shifted, these numbers
+  // are not.
+  //
+  // They are baked into every translation unit that names one, so a number is
+  // never reused and never changes. Pick any free pair from the list below
+  // and clad-tblgen will tell you if it is taken, by an analysis or by one of
+  // the options CladConfig.h writes out by hand -- those are the Reserved
+  // entries, there so that the list is the whole space.
+  int RequestBit = requestBit;
   // One line for -help.
   string Summary = summary;
 }
 
-def TBR : Analysis<"tbr", "tbr", 1,
+// A clad::opts bit that something other than an analysis has taken. These
+// four are generated into the enum like the analyses are, and are here for
+// the same reason: so a position is spoken for in one place, and so the check
+// that hands them out can see the whole space and name what took the number
+// you picked.
+class Reserved<int firstBit, string name> {
+  int FirstBit = firstBit;
+  string Name = name;
+}
+
+// The positions, in order, so that a free one can be seen. An analysis takes
+// two, the one it names and the one above it; a reserved option takes one.
+// Reading order is for us -- clad-tblgen sorts by position, so a def may go
+// anywhere.
+def : Reserved</*firstBit=*/0, /*name=*/"use_enzyme">;
+def : Reserved</*firstBit=*/1, /*name=*/"vector_mode">;
+def TBR : Analysis</*name=*/"tbr", /*legacy=*/"tbr", /*onByDefault=*/1,
+                   /*requestBit=*/2,
                    "skips storing a value whose reverse sweep can recover it">;
-def Varied : Analysis<"activity", "va", 0,
+def : Reserved</*firstBit=*/4, /*name=*/"diagonal_only">;
+def Varied : Analysis</*name=*/"activity", /*legacy=*/"va", /*onByDefault=*/0,
+                      /*requestBit=*/5,
                       "skips the adjoint of a value no input can vary">;
-def Useful : Analysis<"useful", "ua", 0,
+def : Reserved</*firstBit=*/7, /*name=*/"immediate_mode">;
+// 8 is free and stays free: an analysis needs two in a row, and 9 is taken.
+def Useful : Analysis</*name=*/"useful", /*legacy=*/"ua", /*onByDefault=*/0,
+                      /*requestBit=*/9,
                       "skips the adjoint of a value no output depends on">;
-def Loop : Analysis<"loop", "loop", 1,
+def Loop : Analysis</*name=*/"loop", /*legacy=*/"loop", /*onByDefault=*/1,
+                    /*requestBit=*/11,
                     "proves what a function's counted loops allow: a trip "
                     "count the reverse sweep recomputes, and the range of a "
                     "pointer parameter the body writes">;
+// 13 and up are free.
 
 // One way an input can miss a construct. Detail says what the code does instead,
 // in one short sentence about that code -- not about the analysis, which the
@@ -252,7 +313,6 @@ than through a pointer, is what lets the analysis see it.
 
 // What is generated, and in which order.
 def Clad {
-  list<Analysis> Analyses = [TBR, Varied, Useful, Loop];
   list<Desc> Descs = [CountedLoop, BroadcastRead, BoundedWrite,
                       TransparentCall];
   list<Diagnostic> Diagnostics = [remark_construct_cost,

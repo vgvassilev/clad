@@ -27,24 +27,27 @@ enum order {
   third = 3,
 }; // enum order
 
+/// What a single request asks of clad, over and above what the command line
+/// asked of the translation unit.
+///
+/// The per-analysis pairs come from Analyses.td, so an analysis that can be
+/// switched for the whole translation unit can also be switched for one
+/// request. Two bits each: neither set leaves the analysis at whatever the
+/// command line settled on.
 enum opts : unsigned {
-  use_enzyme = 1 << ORDER_BITS,
-  vector_mode = 1 << (ORDER_BITS + 1),
+// The options that are not analyses: which differentiator does the work, and
+// what is asked of the derivative. Their positions come from the same table as
+// the analyses below, so that a bit is spoken for in one place.
+#define CLAD_OPT_RESERVED(Name, FirstBit) Name = 1 << (ORDER_BITS + (FirstBit)),
+#include "clad/Differentiator/Analyses.def"
 
-  // Storing two bits for tbr analysis.
-  // 00 - default, 01 - enable, 10 - disable, 11 - not used / invalid
-  enable_tbr = 1 << (ORDER_BITS + 2),
-  disable_tbr = 1 << (ORDER_BITS + 3),
-  enable_va = 1 << (ORDER_BITS + 5),
-  disable_va = 1 << (ORDER_BITS + 6),
-  enable_ua = 1 << (ORDER_BITS + 9),
-  disable_ua = 1 << (ORDER_BITS + 10),
-
-  // Specifying whether we only want the diagonal of the hessian.
-  diagonal_only = 1 << (ORDER_BITS + 4),
-
-  // Specify that we need a constexpr-enabled CladFunction
-  immediate_mode = 1 << (ORDER_BITS + 7),
+// What clad may prove about the code, one pair per analysis. Grouped rather
+// than interleaved by position: each value is written out, so declaration
+// order is free to say what kind of option each one is.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  enable_##Legacy = 1 << (ORDER_BITS + (FirstBit)),                            \
+  disable_##Legacy = 1 << (ORDER_BITS + (FirstBit) + 1),
+#include "clad/Differentiator/Analyses.def"
 }; // enum opts
 
 constexpr unsigned GetDerivativeOrder(const unsigned bitmasked_opts) {

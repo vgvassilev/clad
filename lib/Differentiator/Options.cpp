@@ -36,7 +36,7 @@ enum class AnalysisSwitch : std::uint8_t { Unset, On, Off };
 /// which of the original -enable-X/-disable-X pair were seen, so that
 /// giving both is diagnosed rather than resolved by order.
 struct AnalysisFlags {
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   AnalysisSwitch Id##Switch = AnalysisSwitch::Unset;                           \
   bool Enable##Id##Analysis = false;                                           \
   bool Disable##Id##Analysis = false;
@@ -45,7 +45,7 @@ struct AnalysisFlags {
   /// Hands each analysis its answer: what a switch asked, or the default the
   /// table gives it.
   void resolveInto(Options& O) const {
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   O.Enable##Id##Analysis = (Id##Switch == AnalysisSwitch::Unset)               \
                                ? (Default)                                     \
                                : (Id##Switch == AnalysisSwitch::On);
@@ -55,9 +55,9 @@ struct AnalysisFlags {
   /// Says where both halves of a pair were given, which is a contradiction
   /// rather than something to resolve by order.
   [[nodiscard]] bool contradicted() const {
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   if (Enable##Id##Analysis && Disable##Id##Analysis) {                         \
-    llvm::errs() << "clad: Error: -enable-" Legacy " and -disable-" Legacy     \
+    llvm::errs() << "clad: Error: -enable-" #Legacy " and -disable-" #Legacy   \
                     " cannot be used together.\n";                             \
     return true;                                                               \
   }
@@ -70,13 +70,13 @@ struct AnalysisFlags {
 /// -disable-X. These are a switch per analysis rather than an option in
 /// their own right, so Analyses.td spells them and Options.td does not.
 static bool setAnalysisFromFlag(AnalysisFlags& F, llvm::StringRef Arg) {
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
-  if (Arg == "-enable-" Legacy) {                                              \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  if (Arg == "-enable-" #Legacy) {                                             \
     F.Enable##Id##Analysis = true;                                             \
     F.Id##Switch = AnalysisSwitch::On;                                         \
     return true;                                                               \
   }                                                                            \
-  if (Arg == "-disable-" Legacy) {                                             \
+  if (Arg == "-disable-" #Legacy) {                                            \
     F.Disable##Id##Analysis = true;                                            \
     F.Id##Switch = AnalysisSwitch::Off;                                        \
     return true;                                                               \
@@ -89,7 +89,7 @@ static bool setAnalysisFromFlag(AnalysisFlags& F, llvm::StringRef Arg) {
 /// have. \p Also names whatever else that option accepts.
 static bool unknownAnalysis(llvm::StringRef Name, const char* Also) {
   llvm::errs() << "clad: Error: unknown analysis '" << Name << "'; known:";
-#define CLAD_ANALYSIS(Id, AName, Legacy, Default, Desc)                        \
+#define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
   llvm::errs() << " " AName;
 #include "clad/Differentiator/Analyses.def"
   llvm::errs() << Also << "\n";
@@ -107,13 +107,13 @@ static bool setAnalysisByName(AnalysisFlags& F, llvm::StringRef Name,
   // by construction, while whether one is sound to run is what its default
   // encodes, so there is no configuration 'enable all' would name.
   if (Name == "all" && To == AnalysisSwitch::Off) {
-#define CLAD_ANALYSIS(Id, AName, Legacy, Default, Desc)                        \
+#define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
   F.Id##Switch = AnalysisSwitch::Off;
 #include "clad/Differentiator/Analyses.def"
     return true;
   }
 
-#define CLAD_ANALYSIS(Id, AName, Legacy, Default, Desc)                        \
+#define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
   if (Name == (AName)) {                                                       \
     F.Id##Switch = To;                                                         \
     return true;                                                               \
@@ -126,7 +126,7 @@ static bool setAnalysisByName(AnalysisFlags& F, llvm::StringRef Name,
 /// Asks the named analysis for remarks about what it left in the generated
 /// code.
 static bool remarkAnalysisByName(Options& O, llvm::StringRef Name) {
-#define CLAD_ANALYSIS(Id, AName, Legacy, Default, Desc)                        \
+#define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
   if (Name == (AName)) {                                                       \
     O.Remark##Id##Analysis = true;                                             \
     return true;                                                               \
@@ -137,7 +137,7 @@ static bool remarkAnalysisByName(Options& O, llvm::StringRef Name) {
 
 /// Asks the named analysis to report what it concluded.
 static bool dumpAnalysisByName(Options& O, llvm::StringRef Name) {
-#define CLAD_ANALYSIS(Id, AName, Legacy, Default, Desc)                        \
+#define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
   if (Name == (AName)) {                                                       \
     O.Dump##Id##Analysis = true;                                               \
     return true;                                                               \
@@ -249,8 +249,8 @@ static void printHelp() {
          "generates, never the values that code computes. Enabling one asks "
          "clad to prove more and store less; disabling one falls back to the "
          "conservative derivative.\n";
-#define CLAD_ANALYSIS(Id, AName, Legacy, Default, Desc)                        \
-  llvm::errs() << "-enable-" Legacy " / -disable-" Legacy                      \
+#define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
+  llvm::errs() << "-enable-" #Legacy " / -disable-" #Legacy                    \
                   " - Turns the " AName                                        \
                   " analysis on or off for the whole translation unit, "       \
                   "unless an individual request specifies otherwise. It " Desc \
