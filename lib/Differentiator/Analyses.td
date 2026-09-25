@@ -5,19 +5,17 @@
 // the wording of every message they emit, and the documentation a reader gets
 // sent to.
 //
-// Five files are generated from it. The three headers are committed, so that a
-// build without the TableGen library still works; the two pages are rendered
-// where the documentation is built:
+// Five files are rendered from it, none of them committed. The three headers
+// are built before anything that expands them, into the build directory:
 //
 //   include/clad/Differentiator/Analyses.def   the analyses
 //   lib/Differentiator/AnalysisDescs.def       the constructs and their misses
 //   lib/Differentiator/Diagnostics.def         the messages
+//
+// and the two pages where the documentation is built:
+//
 //   docs/userDocs/source/user/Analyses.rst     the page reports link to
 //   docs/userDocs/source/user/Diagnostics.rst  the messages, as a reference
-//
-// Regenerate with `ninja clad-analyses` after editing;
-// test/Analyses/AnalysisTableUpToDate.cpp fails if what is committed no longer
-// matches.
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,6 +23,9 @@
 // code clad generates, never the values that code computes. With all of them
 // off clad must still produce a correct derivative, only a more conservative
 // one.
+// To add one: write the def and name it in Clad's Analyses below. The next
+// build renders the tables again, and the switches, the help screen, what a
+// request carries and the reference page all come from the def.
 class Analysis<string name, string legacy, bit onByDefault, string summary> {
   // How the analysis is named to users, as -fdisable-analysis takes it.
   string Name = name;

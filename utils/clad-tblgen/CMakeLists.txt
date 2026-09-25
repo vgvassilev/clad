@@ -1,22 +1,33 @@
-# Built only where LLVM ships its TableGen library. What this tool renders is
-# committed, so a build without it lacks nothing but the ability to regenerate.
+# Configurable on its own, not only as part of clad. A cross build cannot run
+# a tool it compiled for the target, so it needs one built for the host, and
+# building the host one must not drag in everything clad needs -- this tool
+# reads a table and writes text, and wants nothing from clang.
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  cmake_minimum_required(VERSION 3.20)
+  project(clad-tblgen C CXX)
+  # The same standard clad's own build asks for; LLVM's headers need it.
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  find_package(LLVM REQUIRED CONFIG)
+  list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+  include(AddLLVM)
+  include(HandleLLVMOptions)
+  include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
+  find_library(CLAD_LLVM_TABLEGEN_LIB NAMES LLVMTableGen REQUIRED
+               HINTS ${LLVM_LIBRARY_DIR} ${LLVM_LIBRARY_DIRS})
+endif()
 
 # Let LLVM say how it wants to be linked; the answer decides which libraries
 # appear and in what order.
 #
-# Without a libLLVM the components are archives, and naming TableGen is enough:
-# LLVMExports gives it an INTERFACE_LINK_LIBRARIES of LLVMSupport, so cmake
-# brings Support along and puts it after -- which is what a linker walking
-# archives forward needs, since TableGen's references are satisfied by what
-# follows it.
+# With a libLLVM to link against, llvm_config folds every component into it.
+# That library carries no TableGenMain, so the one that was looked up has to be
+# named as well -- and a shared library ahead of it keeps its symbols
+# available whatever the order.
 #
-# With a libLLVM, llvm_config folds every component into it, and that library
-# carries no TableGenMain. Name the one the top level found instead. It has to
-# be the file rather than the imported target: the target would bring its
-# include directories too, and on a Homebrew prefix that puts /usr/local
-# ahead of the SDK's own headers. Nothing is lost by it -- a shared library
-# leaves no undefined symbol for an archive to satisfy, so the order that
-# matters above does not arise here.
+# Without one the components are archives, and a linker walking archives only
+# looks forward: naming TableGen is enough, because LLVMExports gives it an
+# INTERFACE_LINK_LIBRARIES of LLVMSupport and cmake puts Support after it.
 if (LLVM_LINK_LLVM_DYLIB)
   set(LLVM_LINK_COMPONENTS Support)
   add_llvm_executable(clad-tblgen TableGen.cpp)

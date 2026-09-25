@@ -161,9 +161,18 @@ if os.environ.get("CLAD_BUILD_INTERNAL_DOCS") or os.environ.get("READTHEDOCS"):
         "/usr/lib/llvm-18 -DCLAD_ENABLE_DOXYGEN=ON "
         "-DCLAD_INCLUDE_DOCS=ON"
     ).format(CLAD_ROOT)
+    # doxygen preprocesses clad's headers, and they expand tables that are
+    # rendered into the build directory rather than committed. Configuring only
+    # writes the rule that renders them, so without this every expansion site
+    # is an include doxygen cannot open -- which WARN_AS_ERROR turns into a
+    # failed documentation build.
+    CMAKE_BUILD_TABLES_COMMAND = "cmake --build {0}/build --target clad-tables".format(
+        CLAD_ROOT
+    )
     # check_call, not call: these used to be able to fail and still leave a
     # green build, published with no internal documentation in it.
     subprocess.check_call(CMAKE_CONFIGURE_COMMAND, shell=True)
+    subprocess.check_call(CMAKE_BUILD_TABLES_COMMAND, shell=True)
 
     INTERNAL_DOCS_DIR = "{0}/build/docs/internalDocs".format(CLAD_ROOT)
     RUN_DOXYGEN_COMMAND = "(cat doxygen.cfg; echo 'OUTPUT_DIRECTORY = .') | doxygen -"

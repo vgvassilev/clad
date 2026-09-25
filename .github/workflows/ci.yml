@@ -926,6 +926,33 @@ jobs:
         os: ubuntu-24.04
         arch: x86_64
 
+    # The tables clad compiles are rendered by clad-tblgen, which a build for
+    # wasm cannot run. Build one for the host first: it reads a table and
+    # writes text, so it needs only a native LLVM's TableGen and Support and
+    # nothing from clang, and utils/clad-tblgen configures on its own for
+    # exactly this.
+    - name: Build clad-tblgen for the host
+      run: |
+        # Any native LLVM with a TableGen library will do, and it need not be
+        # the one clad is built against: the tool renders the same tables
+        # whichever major it was compiled with. Take whatever the image
+        # already carries rather than pinning a version that may not be there.
+        for v in 20 19 18 17 16; do
+          if [ -d "/usr/lib/llvm-$v/lib/cmake/llvm" ]; then
+            NATIVE_LLVM="/usr/lib/llvm-$v"; break
+          fi
+        done
+        if [ -z "$NATIVE_LLVM" ]; then
+          sudo apt-get update
+          sudo apt-get install -y llvm-18-dev
+          NATIVE_LLVM=/usr/lib/llvm-18
+        fi
+        echo "Rendering the tables with $NATIVE_LLVM"
+        cmake -S "$GITHUB_WORKSPACE/utils/clad-tblgen" -B tblgen-native \
+          -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="$NATIVE_LLVM/lib/cmake/llvm"
+        cmake --build tblgen-native -j$(nproc)
+        echo "CLAD_TBLGEN=$(pwd)/tblgen-native/clad-tblgen" >> $GITHUB_ENV
+
     - name: Build Clad for wasm
       run: |
         LLVM_BUILD_DIR="$(pwd)/install/build"
@@ -935,6 +962,7 @@ jobs:
           -DClang_DIR=$LLVM_BUILD_DIR/lib/cmake/clang \
           -DLLD_DIR=$LLVM_BUILD_DIR/lib/cmake/lld \
           -DCLAD_BUILD_STATIC_ONLY=ON \
+          -DCLAD_TBLGEN="$CLAD_TBLGEN" \
           -DLLVM_ENABLE_WERROR=On \
           $GITHUB_WORKSPACE
         emmake make -j$(nproc)
