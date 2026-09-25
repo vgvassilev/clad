@@ -37,12 +37,14 @@ static int sample_mult(const float* probs, int n, float coin) {
   return n - 1; // in case of rounding errors
 }
 
+// docs-begin-llm-loss
 static float gpt2_loss(const GPT2& model, const ITensor& input,
                        const ITensor& targets) {
   auto probs = model.forward(input);
   auto loss = cross_entropy_loss(probs, targets);
   return loss.scalar();
 }
+// docs-end-llm-loss
 
 int main() {
   GPT2 model("gpt2_124M.bin");
@@ -78,7 +80,9 @@ int main() {
 
   GPT2 d_model(config);
 
+  // docs-begin-llm
   auto grad = clad::gradient(gpt2_loss, "0");
+  // docs-end-llm
   grad.dump(); // Dump the gradient function for debugging
 
   struct timespec start {};

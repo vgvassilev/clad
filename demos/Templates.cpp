@@ -6,10 +6,6 @@
 //
 //----------------------------------------------------------------------------//
 
-// To run the demo please type:
-// path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ -std=c++17 Templates.cpp
-
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
 
@@ -42,9 +38,11 @@ int main() {
 
   // Differentiating template objects is exactly same as differentiating
   // ordinary objects.
+  // docs-begin-specialisation
   auto d_E_double = clad::differentiate(E_double, "i");
   auto d_E_long_double = clad::differentiate(E_long_double, "j");
-  // calculate derivative of `E_double` wrt `i` when (i, j) = (7, 9) 
+  // docs-end-specialisation
+  // calculate derivative of `E_double` wrt `i` when (i, j) = (7, 9)
   auto E_double_d_i = d_E_double.execute(7, 9);
   // calculate derivative of `E_long_double` wrt `j` when (i, j) = (7, 9)
   auto E_long_double_d_j = d_E_long_double.execute(7, 9);
