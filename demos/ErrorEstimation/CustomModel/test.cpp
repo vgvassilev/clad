@@ -10,9 +10,11 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+// docs-begin-custommodel
 namespace clad {
 double getErrorVal(double dx, double x, const char* name) { return dx * x; }
 } // namespace clad
+// docs-end-custommodel
 
 // Use a trivial dummy example to check if the our custom model is working
 // correctly.

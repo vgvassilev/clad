@@ -7,10 +7,6 @@
 // author:  Alexander Penev <alexander_penev-at-yahoo.com>
 //----------------------------------------------------------------------------//
 
-// To run the demo please type:
-// path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ -std=c++17 Gradient.cpp
-
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
 
@@ -20,11 +16,14 @@ float sphere_implicit_func(float x, float y, float z, float xc, float yc, float 
 }
 
 int main() {
-  // Differentiate implicit sphere function. Clad will produce the three partial derivatives
-  // of function sphere_implicit_func
+  // Differentiate implicit sphere function. Clad will produce the three partial
+  // derivatives of function sphere_implicit_func
+
+  // docs-begin-normal
   auto sphere_implicit_func_dx = clad::differentiate(sphere_implicit_func, 0);
   auto sphere_implicit_func_dy = clad::differentiate(sphere_implicit_func, 1);
   auto sphere_implicit_func_dz = clad::differentiate(sphere_implicit_func, 2);
+  // docs-end-normal
 
   // Point P=(x,y,z) on surface
   float x = 5.0f;

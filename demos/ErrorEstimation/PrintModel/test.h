@@ -2,6 +2,7 @@
 #include <iostream>
 #include <limits>
 
+// docs-begin-printmodel
 namespace clad
 {
     __attribute__((always_inline)) double getErrorVal(double dx, double x, const char *name)
@@ -11,3 +12,4 @@ namespace clad
         return error;
     }
 } // clad
+// docs-end-printmodel

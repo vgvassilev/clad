@@ -6,10 +6,6 @@
 // author:  Martin Vasilev <mrtn.vassilev-at-gmail.com>
 //----------------------------------------------------------------------------//
 
-// To run the demo please type:
-// path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ -std=c++17 RosenbrockFunction.cpp
-
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
 
@@ -20,8 +16,10 @@ double rosenbrock_func(double x, double y) {
 
 double rosenbrock(double x[], int size) {
   double sum = 0;
+  // docs-begin-rosenbrock
   auto rosenbrockX = clad::differentiate(rosenbrock_func, 0);
   auto rosenbrockY = clad::differentiate(rosenbrock_func, 1);
+  // docs-end-rosenbrock
 
   for (int i = 0; i < size-1; i++) {
     double one = rosenbrockX.execute(x[i], x[i + 1]);

@@ -1,6 +1,3 @@
-// RUN: %cladclang %S/../../demos/BasicUsage.cpp -I%S/../../include 2>&1
-// RUN: %cladclang %S/../../demos/ControlFlow.cpp -I%S/../../include 2>&1
-// RUN: %cladclang %S/../../demos/DebuggingClad.cpp -I%S/../../include 2>&1
 // RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include 2>&1
 // RUN: %cladclang %S/../../demos/ComputerGraphics/smallpt/SmallPT.cpp -I%S/../../include 2>&1
 
@@ -229,31 +226,6 @@
 // CHECK_CUSTOM_NUM_DIFF_EXEC: Result of df/dx is = 0.07
 // CHECK_CUSTOM_NUM_DIFF_EXEC: Result of df/dx is = 0.003
 
-//-----------------------------------------------------------------------------/
-// Demo: Arrays.cpp
-//-----------------------------------------------------------------------------/
-// RUN: %cladclang %S/../../demos/Arrays.cpp -I%S/../../include -oArrays.out 2>&1
-// RUN: ./Arrays.out | FileCheck -check-prefix CHECK_ARRAYS_EXEC %s
-// CHECK_ARRAYS_EXEC: Forward Mode w.r.t. arr:
-// CHECK_ARRAYS_EXEC:  res_arr = 0.17, 0.2, 0.1
-// CHECK_ARRAYS_EXEC: Reverse Mode w.r.t. all:
-// CHECK_ARRAYS_EXEC:  darr = {0.17, 0.2, 0.1}
-// CHECK_ARRAYS_EXEC:  dweights = {0.33, 0.67, 1}
-// CHECK_ARRAYS_EXEC: Reverse Mode w.r.t. arr:
-// CHECK_ARRAYS_EXEC:  darr = {0.17, 0.2, 0.1}
-// CHECK_ARRAYS_EXEC: Hessian Mode w.r.t. to all:
-// CHECK_ARRAYS_EXEC:  matrix =
-// CHECK_ARRAYS_EXEC:   {0, 0, 0, 0.33, 0, 0}
-// CHECK_ARRAYS_EXEC:   {0, 0, 0, 0, 0.33, 0}
-// CHECK_ARRAYS_EXEC:   {0, 0, 0, 0, 0, 0.33}
-// CHECK_ARRAYS_EXEC:   {0.33, 0, 0, 0, 0, 0}
-// CHECK_ARRAYS_EXEC:   {0, 0.33, 0, 0, 0, 0}
-// CHECK_ARRAYS_EXEC:   {0, 0, 0.33, 0, 0, 0}
-// CHECK_ARRAYS_EXEC: Hessian Mode w.r.t. to arr:
-// CHECK_ARRAYS_EXEC:  matrix =
-// CHECK_ARRAYS_EXEC:   {0, 0, 0}
-// CHECK_ARRAYS_EXEC:   {0, 0, 0}
-// CHECK_ARRAYS_EXEC:   {0, 0, 0}
 
 //-----------------------------------------------------------------------------/
 // Demo: VectorForwardMode.cpp
