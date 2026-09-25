@@ -225,6 +225,25 @@ Learning from a derivative
       :start-after: docs-begin-fit-call
       :end-before: docs-end-fit-call
 
+:demo:`HelixFit.cpp`
+   A charged particle in a magnetic field moves along a helix, and a detector
+   reports points it passed through; recovering the helix is how its momentum
+   is measured. Each point gives two numbers that should be zero when the
+   helix is right, and clad differentiates both. Levenberg-Marquardt turns
+   those derivatives into a fit, which is how data is fitted in practice when
+   the model is not a straight line. Reduced from a fitter contributed in
+   `#1202 <https://github.com/vgvassilev/clad/pull/1202>`_.
+
+   .. literalinclude:: ../../../../demos/HelixFit.cpp
+      :language: cpp
+      :start-after: docs-begin-helix
+      :end-before: docs-end-helix
+
+   .. literalinclude:: ../../../../demos/HelixFit.cpp
+      :language: cpp
+      :start-after: docs-begin-helix-call
+      :end-before: docs-end-helix-call
+
 :demo:`XorNetwork.cpp`
    A network with one hidden layer learning exclusive or, the standard first
    example of something no straight line can separate. Nine weights, four
