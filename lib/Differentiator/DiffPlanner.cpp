@@ -1133,8 +1133,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                                     DiffRequest& request) {
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
     std::string Annotation = A->getAnnotation().str();
-    // Not a per-call option like the others: the loop analysis is selected for
-    // the whole translation unit, and every mode's loops are the same loops.
+    // Error estimation returns before the analyses are seeded below, so this
+    // one is set here too: every mode's loops are the same loops, error
+    // estimation's included.
     request.EnableLoopAnalysis = ReqOpts.EnableLoopAnalysis;
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     request.Remark##Id##Analysis = ReqOpts.Remark##Id##Analysis;
@@ -1156,10 +1157,16 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::reverse;
     else
       llvm_unreachable("unknown mode");
-    if (request.Mode == DiffMode::reverse || request.Mode == DiffMode::hessian)
-      request.EnableTBRAnalysis = ReqOpts.EnableTBRAnalysis;
-    request.EnableVariedAnalysis = ReqOpts.EnableVariedAnalysis;
-    request.EnableUsefulAnalysis = ReqOpts.EnableUsefulAnalysis;
+    // What the command line settled on for the translation unit, which the
+    // clad::opts pairs below may still override for this one request.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
+    request.Enable##Id##Analysis = ReqOpts.Enable##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+    // TBR has nothing to do where there is no reverse sweep. A request that
+    // asks for it there is an error below; the command line asking for it
+    // everywhere is not, so it is dropped rather than diagnosed.
+    if (request.Mode != DiffMode::reverse && request.Mode != DiffMode::hessian)
+      request.EnableTBRAnalysis = false;
     request.EmitPortingHints = ReqOpts.EmitPortingHints;
 
     const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
