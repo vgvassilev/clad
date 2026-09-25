@@ -36,4 +36,4 @@ The code is: void func_grad(float x, float y, float *_d_x, float *_d_y, double &
 
 Here, notice that the result in the `_final_error` variable  now reflects the error expression defined in the custom model we just compiled!
 
-This demo is also a runnable test under `CLAD_BASE/test/Misc/RunDemos.C` and will run as a part of the lit test suite. Thus, the same can be verified by running `make check-clad`.
+This demo is also a runnable test under `CLAD_BASE/test/Demos/CustomModel.cpp` and will run as a part of the lit test suite. Thus, the same can be verified by running `make check-clad`.
