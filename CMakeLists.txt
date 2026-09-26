@@ -353,23 +353,6 @@ elseif (CMAKE_CROSSCOMPILING)
     "Cross-compiling clad needs a clad-tblgen built for the host: configure "
     "utils/clad-tblgen against a native LLVM and pass -DCLAD_TBLGEN=<path>.")
 else()
-  # The TableGen library is looked up rather than taken from
-  # LLVM_LINK_COMPONENTS, because with a libLLVM to link against llvm_config
-  # folds every component into it and that library carries no TableGenMain.
-  #
-  # Only an in-tree build defines a real LLVMTableGen target. Standalone,
-  # LLVMConfig exports an IMPORTED one of the same name, and taking that would
-  # bring its include directories along with it.
-  set(_clad_tablegen_imported TRUE)
-  if (TARGET LLVMTableGen)
-    get_target_property(_clad_tablegen_imported LLVMTableGen IMPORTED)
-  endif()
-  if (TARGET LLVMTableGen AND NOT _clad_tablegen_imported)
-    set(CLAD_LLVM_TABLEGEN_LIB LLVMTableGen)
-  else()
-    find_library(CLAD_LLVM_TABLEGEN_LIB NAMES LLVMTableGen REQUIRED
-                 HINTS ${LLVM_LIBRARY_DIR} ${LLVM_LIBRARY_DIRS})
-  endif()
   add_subdirectory(utils/clad-tblgen)
   set(CLAD_TBLGEN_EXE $<TARGET_FILE:clad-tblgen>)
   # lit's site config is written at configure time, so it cannot carry a
