@@ -2882,6 +2882,78 @@ double fn46(double x, double y) {
 // CHECK-NEXT:         }
 // CHECK-NEXT: }
 
+double fn47(double x, double y, int n) {
+  double sum = 0;
+  for (int k = 0; k < n; ++k)
+    sum += (x + y) * std::sin(y + k);
+  return sum;
+}
+
+// CHECK: void fn47_grad_0_1(double x, double y, int n, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     int _d_n = 0;
+// CHECK-NEXT:     int _d_k = 0;
+// CHECK-NEXT:     int k = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_sum = 0.;
+// CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     for (k = 0; k < n; ++k) {
+// CHECK-NEXT:         sum += (x + y) * clad::push(_t1, std::sin(y + k));
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_sum += 1;
+// CHECK-NEXT:     for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NEXT:         --k;
+// CHECK-NEXT:         double _r0 = _d_sum * clad::pop(_t1);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         *_d_y += _r0;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         _r1 += (x + y) * _d_sum * {{.*}}sin_pushforward(y + k, 1.).pushforward;
+// CHECK-NEXT:         *_d_y += _r1;
+// CHECK-NEXT:         _d_k += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double fn48(double x, double y, int n) {
+  double sum = 0;
+  for (int k = 0; k < n; ++k)
+    sum += (k % 2 ? x + y : 2.) * std::sin(y + k);
+  return sum;
+}
+
+// CHECK: void fn48_grad_0_1(double x, double y, int n, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     int _d_n = 0;
+// CHECK-NEXT:     int _d_k = 0;
+// CHECK-NEXT:     int k = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     clad::tape<bool> _cond0 = {};
+// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_sum = 0.;
+// CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     for (k = 0; k < n; ++k) {
+// CHECK-NEXT:         clad::push(_cond0, k % 2);
+// CHECK-NEXT:         clad::push(_t2, (clad::back(_cond0) ? x + y : 2.));
+// CHECK-NEXT:         sum += clad::back(_t2) * clad::push(_t1, std::sin(y + k));
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_sum += 1;
+// CHECK-NEXT:     for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NEXT:         --k;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r0 = _d_sum * clad::pop(_t1);
+// CHECK-NEXT:             if (clad::back(_cond0)) {
+// CHECK-NEXT:                 *_d_x += _r0;
+// CHECK-NEXT:                 *_d_y += _r0;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             clad::pop(_cond0);
+// CHECK-NEXT:         }
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         _r1 += clad::back(_t2) * _d_sum * {{.*}}sin_pushforward(y + k, 1.).pushforward;
+// CHECK-NEXT:         *_d_y += _r1;
+// CHECK-NEXT:         _d_k += _r1;
+// CHECK-NEXT:         clad::pop(_t2);
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient(F);\
@@ -2991,4 +3063,14 @@ int main() {
   TEST_2(fn44, 2, 3); // CHECK-EXEC: {1.00, 1.00}
   TEST_2(fn45, 1, 0.5); // CHECK-EXEC: {-50.00, 100.00}
   TEST_2(fn46, 1, 0.5); // CHECK-EXEC: {-50.00, 100.00}
+
+  auto d_fn47 = clad::gradient(fn47, "x, y");
+  result[0] = result[1] = 0;
+  d_fn47.execute(1, 0.5, 3, result, result + 1);
+  printf("{%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: {2.08, 2.30}
+
+  auto d_fn48 = clad::gradient(fn48, "x, y");
+  result[0] = result[1] = 0;
+  d_fn48.execute(1, 0.5, 3, result, result + 1);
+  printf("{%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: {1.00, 1.26}
 }
