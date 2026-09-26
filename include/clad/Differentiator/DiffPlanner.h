@@ -65,6 +65,16 @@ using OwnedAnalysisContexts =
     llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
 using ParamSet = std::set<const clang::ParmVarDecl*>;
 using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
+/// The source ranges where clad was switched on, in order.
+using DiffInterval = std::vector<clang::SourceRange>;
+
+/// Reports a clad entry-point call in the initialiser of a variable the
+/// compiler has to work out before clad is handed the declaration, and says
+/// what to write instead. clad cannot fix such a call: by the time the
+/// declaration reaches this plugin the compiler has already diagnosed the
+/// initialiser. See #2188.
+void DiagnoseConstantInitRequests(clang::Sema& S, const DiffInterval& Interval,
+                                  clang::DeclGroupRef DGR);
 
 /// A read-only, AD-oriented view over the primal being differentiated: it
 /// wraps the primal FunctionDecl and surfaces the AD-relevant facts the
@@ -536,8 +546,6 @@ public:
   }
   bool HasTbrAnalysisRun() const { return m_TbrRunInfo.HasAnalysisRun; }
 };
-
-using DiffInterval = std::vector<clang::SourceRange>;
 
   /// \ingroup pipeline
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {

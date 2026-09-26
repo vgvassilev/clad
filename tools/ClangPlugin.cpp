@@ -225,6 +225,11 @@ void InitTimers();
     void CladPlugin::HandleTopLevelDeclForClad(DeclGroupRef DGR) {
       if (!CheckBuiltins())
         return;
+
+      // Before anything else, and whether or not an error has already been
+      // reported: a call clad cannot reach in time still deserves an
+      // explanation. See DiagnoseConstantInitRequests.
+      DiagnoseConstantInitRequests(m_CI.getSema(), CladEnabledRange, DGR);
 #if CLANG_VERSION_MAJOR > 16
       // Traverse all constexpr FunctionDecls for the static graph only once to
       // differentiate them immeditely.
