@@ -832,15 +832,98 @@ jobs:
   # Every row above is handed an LLVM installation, where LLVM_INCLUDE_DIRS
   # holds one directory, LLVM_LIBRARY_DIR holds the libraries, and
   # CMAKE_SOURCE_DIR and CMAKE_BINARY_DIR are clad's own. None of that is true
-  # for the consumer below, so a build rule that relies on any of it passes
-  # the whole matrix and breaks it. This row is the only one that can say
-  # otherwise, and it waits for a change to the files that decide how clad is
-  # built.
+  # for the two consumers below, so a build rule that relies on any of it
+  # passes the whole matrix and breaks them. The two rows here are the only
+  # ones that can say otherwise, and they wait for a change to the files that
+  # decide how clad is built.
   #
-  # It is not a Windows row, though ROOT met the failure there: the difference
-  # is in what LLVMConfig says, and a generator says it on every platform.
-  # What stays uncovered is MSVC and a build tree together, which only ROOT
-  # builds.
+  # Neither is a Windows row, though ROOT met the second failure there: both
+  # differences are in what LLVMConfig says, and a generator says it on every
+  # platform. What stays uncovered is MSVC and a build tree together, which
+  # only ROOT builds.
+
+  # clad inside LLVM, which is what the compiler-explorer image builds
+  # (compiler-explorer/misc-builder, clad/build.sh) -- against this checkout
+  # rather than against master, which is the part that script cannot do.
+  # LLVMConfig is never read here, so the variables it sets are empty.
+  #
+  # LLVM is compiled again rather than installed, because an installed one
+  # cannot be built in tree. It is not paid for again: ci-workflows publishes
+  # the objects of that build next to the install, and fetch-ccache reads them.
+  build-in-tree:
+    needs: [rebuild-needed]
+    if: ${{ needs.rebuild-needed.outputs.build_system == 'true'
+        || contains(github.event.pull_request.labels.*.name,
+                    'run-post-merge') }}
+    timeout-minutes: 120
+    name: ubu24-intree-llvm22
+    runs-on: ubuntu-24.04
+    steps:
+    # At the workspace root, not under a path: of its own. bin/repro
+    # --ci-workflows stages the actions under .github/ and act resolves them
+    # from the root, so a checkout that moves .github out of the root cannot
+    # be reproduced locally.
+    - uses: actions/checkout@v7
+    - name: Install the build tools
+      run: sudo apt-get update && sudo apt-get install -y -qq cmake ninja-build ccache
+    # ccache before setup-llvm: fetch-ccache restores nothing without it.
+    #
+    # The objects for this LLVM are published beside the install tree, so most
+    # of the rebuild below is read rather than compiled. How much depends on
+    # how far this configure is from the one that produced them -- an entry is
+    # keyed on the compile command, and these flags are not the recipe's. The
+    # two that are not negotiable are the source commit and its path relative
+    # to the workspace; get either wrong and nothing hits at all.
+    - name: Setup LLVM and the objects it was built from
+      id: llvm
+      uses: compiler-research/ci-workflows/actions/setup-llvm@main
+      with:
+        version: '22'
+        os: ubuntu-24.04
+        arch: x86_64
+        fetch-ccache: 'true'
+    # The commit the objects came from, not a tag of our choosing: ccache keys
+    # on preprocessed output, so another commit is another cache.
+    - name: Clone that LLVM where the recipe cloned it
+      env:
+        SRC: ${{ steps.llvm.outputs.src-commit }}
+      run: |
+        set -euo pipefail
+        # Refuse an empty answer rather than fetch whatever the remote points
+        # at. git treats no ref as the default branch, so this row quietly
+        # built LLVM's main once: the objects then matched nothing, and clad
+        # was compiled against an LLVM no other row covers.
+        if [ -z "${SRC:-}" ]; then
+          echo "::error::setup-llvm reported no src-commit; without it there is" \
+               "nothing to match the restored objects to."
+          exit 1
+        fi
+        dir="$GITHUB_WORKSPACE/_recipe_work/llvm-project"
+        git init -q "$dir"
+        git -C "$dir" remote add origin https://github.com/llvm/llvm-project.git
+        git -C "$dir" fetch -q --depth 1 origin "$SRC"
+        git -C "$dir" checkout -q FETCH_HEAD
+        echo "building LLVM $SRC, the commit the restored objects came from"
+    - name: Build clad as part of LLVM
+      run: |
+        # What the compiler-explorer image builds, against this checkout.
+        cmake -S "$GITHUB_WORKSPACE/_recipe_work/llvm-project/llvm" \
+          -B "$GITHUB_WORKSPACE/_recipe_work/llvm-project/build" -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_ENABLE_PROJECTS=clang \
+          -DLLVM_EXTERNAL_PROJECTS=clad \
+          -DLLVM_EXTERNAL_CLAD_SOURCE_DIR="$GITHUB_WORKSPACE" \
+          -DLLVM_TARGETS_TO_BUILD=host \
+          -DCLAD_DISABLE_TESTS=ON \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        cmake --build "$GITHUB_WORKSPACE/_recipe_work/llvm-project/build" \
+          --target clad
+    # A miss is silent: the row still passes, only slowly. Say what happened
+    # so a configure that stops matching the producer is visible.
+    - name: Report what the cache did
+      if: always()
+      run: ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
 
   # clad standalone against an LLVM build tree with a multi-config generator,
   # which is what ROOT builds on Windows. A multi-config LLVMConfig hands out
