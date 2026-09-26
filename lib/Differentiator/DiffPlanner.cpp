@@ -441,7 +441,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (E.isValid() &&
           clad_compat::SourceManager_isPointWithin(SM, Loc, B, E))
         return true;
-      else if (SM.isBeforeInTranslationUnit(B, Loc))
+      if (E.isInvalid() && SM.isBeforeInTranslationUnit(B, Loc))
         return true;
     }
     return false;
