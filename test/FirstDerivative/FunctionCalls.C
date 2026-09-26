@@ -232,9 +232,10 @@ int main () {
   clad::differentiate(test_7, "i");
   clad::differentiate(test_8, "x");
   clad::differentiate<clad::opts::enable_tbr>(test_8); // expected-error {{tbr analysis is not meant for forward mode AD}}
-  clad::differentiate<clad::opts::enable_tbr, clad::opts::disable_tbr>(test_8); // expected-error {{both enable and disable TBR options are specified}}
-  clad::gradient<clad::opts::enable_va, clad::opts::disable_va>(test_8); // expected-error {{both enable and disable VA options are specified}}
-  clad::gradient<clad::opts::enable_ua, clad::opts::disable_ua>(test_8); // expected-error {{both enable and disable UA options are specified}}
+  clad::differentiate<clad::opts::enable_tbr, clad::opts::disable_tbr>(test_8); // expected-error {{both clad::opts::enable_tbr and clad::opts::disable_tbr are specified}}
+  clad::gradient<clad::opts::enable_va, clad::opts::disable_va>(test_8); // expected-error {{both clad::opts::enable_va and clad::opts::disable_va are specified}}
+  clad::gradient<clad::opts::enable_ua, clad::opts::disable_ua>(test_8); // expected-error {{both clad::opts::enable_ua and clad::opts::disable_ua are specified}}
+  clad::gradient<clad::opts::enable_loop, clad::opts::disable_loop>(test_8); // expected-error {{both clad::opts::enable_loop and clad::opts::disable_loop are specified}}
 
   clad::differentiate<clad::opts::diagonal_only>(test_8); // expected-error {{diagonal only option is only valid for hessian mode}}
   clad::differentiate(test_9);
