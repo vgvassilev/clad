@@ -2184,6 +2184,29 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const LambdaExpr* LE) {
+    // Snapshot by value captures at creation; the reverse sweep
+    // feeds the snapshot adjoint back into the capture
+    for (const LambdaCapture& Capture : LE->captures()) {
+      if (!Capture.capturesVariable() || Capture.getCaptureKind() != LCK_ByCopy)
+        continue;
+      auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+      if (m_LambdaCaptureSnapshots.count({LE, capVD}))
+        continue;
+      VarDecl* encVD = getEnclosingCaptureClone(capVD);
+      QualType ty = utils::getNonConstType(
+          capVD->getType().getNonReferenceType(), m_Sema);
+      VarDecl* snap = BuildVarDecl(ty, "_t", BuildDeclRef(encVD));
+      addToCurrentBlock(BuildDeclStmt(snap), direction::forward);
+      VarDecl* dsnap = BuildVarDecl(ty, "_d_t", getZeroInit(ty));
+      AddToGlobalBlock(BuildDeclStmt(dsnap));
+      m_Variables[snap] = {dsnap};
+      auto it = m_Variables.find(encVD);
+      if (it != m_Variables.end())
+        addToCurrentBlock(BuildOp(BO_AddAssign, buildAdjoint(it->second),
+                                  BuildDeclRef(dsnap)),
+                          direction::reverse);
+      m_LambdaCaptureSnapshots[{LE, capVD}] = snap;
+    }
     DiffRequest LambdaReq = m_DiffReq;
     LambdaReq.Function = LE->getCallOperator();
     LambdaReq.Functor = LE->getLambdaClass();
@@ -2212,6 +2235,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     Expr* LambdaCallOpExpr = nullptr;
+    const LambdaExpr* calledLambda = nullptr;
     if (MD) {
       if (isLambdaCallOperator(MD)) {
         const auto* CallE = CE->getArg(0)->IgnoreParenImpCasts();
@@ -2226,18 +2250,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
         if (const auto* DRE = llvm::dyn_cast<DeclRefExpr>(CallE)) {
           const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
-          for (auto* D : m_Derivative->decls())
-            if (auto* lookupVD = dyn_cast<VarDecl>(D))
-              if (lookupVD->getNameAsString() ==
-                  "_d_" + VD->getNameAsString()) {
-                CXXScopeSpec SS;
-                LambdaCallOpExpr = DeclRefExpr::Create(
-                    m_Context, NestedNameSpecifierLoc(), SourceLocation(),
-                    lookupVD,
-                    /*RefersToEnclosingVariableOrCapture=*/false, noLoc,
-                    lookupVD->getType(), VK_LValue);
-              }
+          if (VD && VD->getInit()) {
+            const Expr* init = VD->getInit();
+            if (const auto* EWC = dyn_cast<ExprWithCleanups>(init))
+              init = EWC->getSubExpr();
+            calledLambda = dyn_cast<LambdaExpr>(init->IgnoreImplicit());
+          }
+          if (VarDecl* lookupVD = m_LambdaDerivatives.lookup(VD))
+            LambdaCallOpExpr = DeclRefExpr::Create(
+                m_Context, NestedNameSpecifierLoc(), SourceLocation(), lookupVD,
+                /*RefersToEnclosingVariableOrCapture=*/false, noLoc,
+                lookupVD->getType(), VK_LValue);
         }
+        // The lambda was refused, so there is no derivative to call.
+        if (!LambdaCallOpExpr)
+          return getZeroInit(CE->getType());
       }
     }
 
@@ -2647,6 +2674,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         OverloadedDerivedFn = BuildCallExprToFunction(
             pullbackFD, pullbackCallArgs, CUDAExecConfig);
       } else if (MD && isLambdaCallOperator(MD)) {
+        if (calledLambda) {
+          for (const LambdaCapture& Capture : calledLambda->captures()) {
+            if (!Capture.capturesVariable())
+              continue;
+            auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+            auto [val, adjoint] = getCaptureValueAndAdjoint(
+                calledLambda, capVD, Capture.getCaptureKind() == LCK_ByCopy);
+            pullbackCallArgs.push_back(val);
+            pullbackCallArgs.push_back(BuildOp(UO_AddrOf, adjoint));
+          }
+        }
         OverloadedDerivedFn =
             m_Sema
                 .ActOnCallExpr(
@@ -3922,6 +3960,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         VDDerived = BuildGlobalVarDecl(
             AutoQT, "_d_" + VD->getNameAsString(), initDiff.getExpr_dx(), false,
             m_Context.getTrivialTypeSourceInfo(AutoQT, noLoc), SC);
+        m_LambdaDerivatives[VD] = VDDerived;
       }
     }
     // If we are differentiating `VarDecl` corresponding to a local variable
@@ -4125,6 +4164,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+    // Refuse an unsupported lambda before building any derivative for it.
+    for (const Decl* D : DS->decls())
+      if (const auto* VD = dyn_cast<VarDecl>(D))
+        if (const auto* LE = dyn_cast_or_null<LambdaExpr>(VD->getInit()))
+          if (diagnoseUnsupportedLambda(LE))
+            return {};
+
     llvm::SmallVector<Stmt*, 16> inits;
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
@@ -6064,6 +6110,32 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
 
       params.push_back(dPVD);
+    }
+
+    if (LE && LE->capture_size()) {
+      for (const LambdaCapture& Capture : LE->captures()) {
+        auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+        QualType valTy = utils::getNonConstType(
+            capVD->getType().getNonReferenceType(), m_Sema);
+        auto* valPVD = utils::BuildParmVarDecl(
+            m_Sema, m_Derivative,
+            CreateUniqueIdentifier(capVD->getNameAsString()), valTy);
+        m_Sema.PushOnScopeChains(valPVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+        params.push_back(valPVD);
+        m_DeclReplacements[capVD] = valPVD;
+        auto* adjPVD = utils::BuildParmVarDecl(
+            m_Sema, m_Derivative,
+            CreateUniqueIdentifier("_d_" + capVD->getNameAsString()),
+            m_Context.getPointerType(valTy));
+        m_Sema.PushOnScopeChains(adjPVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+        params.push_back(adjPVD);
+        AdjointInfo::WrapKind wrap = valTy->isRecordType()
+                                         ? AdjointInfo::ParenDeref
+                                         : AdjointInfo::Deref;
+        m_Variables[valPVD] = {adjPVD, wrap};
+      }
     }
   }
   void ReverseModeVisitor::MarkDeclThreadPrivate(VarDecl* decl) {
