@@ -1555,6 +1555,11 @@ namespace clad {
               utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
           dRetTy = utils::InstantiateTemplate(
               S, valAndAdjointTempDecl, {oRetTy, getNonConstType(oRetTy, S)});
+          // Naming a specialization does not instantiate it, and a
+          // derivative built before the end of the translation unit can
+          // reach here before anything else has.
+          S.RequireCompleteType(GetValidSLoc(S), dRetTy,
+                                clang::diag::err_incomplete_type);
         } else {
           dRetTy = oRetTy;
         }
