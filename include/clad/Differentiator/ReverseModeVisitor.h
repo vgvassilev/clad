@@ -196,6 +196,8 @@ namespace clad {
         if (m_Taken)
           return m_RMV.CloneNode(m_Seed);
         m_Taken = true;
+        if (m_Seed->HasSideEffects(m_RMV.m_Context))
+          m_Seed = m_RMV.StoreAndRef(m_Seed, direction::reverse);
         return m_Seed;
       }
       explicit operator bool() const { return m_Seed != nullptr; }
