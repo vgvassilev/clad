@@ -251,6 +251,42 @@ double f6(double x, double y) {
 //CHECK-NEXT: }
 
 
+struct Buf { 
+  double* p;
+};
+
+double f7(double x) {
+  double s[2] = {0, 0};
+  Buf b{s};
+  b.p[0] = x * x;
+  b.p[1] = 3 * x;
+  return b.p[0] + b.p[1];
+}
+
+//CHECK: void f7_grad(double x, double *_d_x) {
+//CHECK-NEXT:     double _d_s[2] = {0};
+//CHECK-NEXT:     double s[2] = {0, 0};
+//CHECK-NEXT:     Buf _d_b = {_d_s};
+//CHECK-NEXT:     Buf b{s};
+//CHECK-NEXT:     b.p[0] = x * x;
+//CHECK-NEXT:     b.p[1] = 3 * x;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         _d_b.p[0] += 1;
+//CHECK-NEXT:         _d_b.p[1] += 1;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         double _r_d1 = _d_b.p[1];
+//CHECK-NEXT:         _d_b.p[1] = 0.;
+//CHECK-NEXT:         *_d_x += 3 * _r_d1;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         double _r_d0 = _d_b.p[0];
+//CHECK-NEXT:         _d_b.p[0] = 0.;
+//CHECK-NEXT:         *_d_x += _r_d0 * x;
+//CHECK-NEXT:         *_d_x += x * _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_tbr>(F);\
@@ -273,4 +309,5 @@ int main() {
   TEST2(f4, 3, 4) // CHECK-EXEC: {4.00, 3.00}
   TEST2(f5, 8, 3) // CHECK-EXEC: {3.00, 7.00}
   TEST2(f6, 5, 2) // CHECK-EXEC: {2.00, 5.00}
+  TEST(f7, 2); // CHECK-EXEC: {7.00}
 }
