@@ -80,6 +80,37 @@ pygments_dark_style = "github-dark"
 default_role = "code"
 
 
+# Demos are whole programs rather than API, so doxygen does not cover them --
+# it reads include/, lib/ and tools/ -- and a reader who wants more than the
+# few lines a page quotes has to go to the repository. :demo:`Gradient.cpp`
+# writes that link from the path itself, so it cannot name one file and point
+# at another. A trailing slash marks a directory, which GitHub serves under
+# tree/ rather than blob/.
+#
+# The revision is the one the documentation was built from, not master. Every
+# release keeps its pages, and master keeps moving: a demo rewritten or
+# deleted after v2.4 was cut would leave v2.4's pages quoting code that the
+# link no longer leads to. Pinning the commit also makes the excerpt and the
+# linked file the same file. Readthedocs reports the commit for a tag, a
+# branch and a pull request preview alike; anywhere else there is no commit
+# GitHub can be trusted to have, so a local build links master.
+DEMO_REF = os.environ.get("READTHEDOCS_GIT_COMMIT_HASH", "master")
+DEMO_URL = "https://github.com/vgvassilev/clad/{0}/" + DEMO_REF + "/demos/{1}"
+
+
+def demo_role(name, rawtext, text, lineno, inliner, options=None, content=None):
+    from docutils import nodes
+
+    uri = DEMO_URL.format("tree" if text.endswith("/") else "blob",
+                          text.rstrip("/"))
+    return [nodes.reference("", "", nodes.literal(text, text), refuri=uri)], []
+
+
+def setup(app):
+    app.add_role("demo", demo_role)
+    return {"parallel_read_safe": True}
+
+
 todo_include_todos = True
 
 current_file_dir = os.path.dirname(os.path.realpath(__file__))
@@ -130,14 +161,28 @@ if os.environ.get("CLAD_BUILD_INTERNAL_DOCS") or os.environ.get("READTHEDOCS"):
         "/usr/lib/llvm-18 -DCLAD_ENABLE_DOXYGEN=ON "
         "-DCLAD_INCLUDE_DOCS=ON"
     ).format(CLAD_ROOT)
+    # doxygen preprocesses clad's headers, and they expand tables that are
+    # rendered into the build directory rather than committed. Configuring only
+    # writes the rule that renders them, so without this every expansion site
+    # is an include doxygen cannot open -- which WARN_AS_ERROR turns into a
+    # failed documentation build.
+    CMAKE_BUILD_TABLES_COMMAND = "cmake --build {0}/build --target clad-tables".format(
+        CLAD_ROOT
+    )
     # check_call, not call: these used to be able to fail and still leave a
     # green build, published with no internal documentation in it.
     subprocess.check_call(CMAKE_CONFIGURE_COMMAND, shell=True)
+    subprocess.check_call(CMAKE_BUILD_TABLES_COMMAND, shell=True)
 
     INTERNAL_DOCS_DIR = "{0}/build/docs/internalDocs".format(CLAD_ROOT)
     RUN_DOXYGEN_COMMAND = "(cat doxygen.cfg; echo 'OUTPUT_DIRECTORY = .') | doxygen -"
     print(RUN_DOXYGEN_COMMAND)
-    subprocess.check_call(RUN_DOXYGEN_COMMAND, shell=True, cwd=INTERNAL_DOCS_DIR)
+    # stderr onto stdout: doxygen says what it is unhappy about on stderr, and
+    # readthedocs keeps only stdout in the build log. Without this a warning
+    # -- which WARN_AS_ERROR turns into a failure -- reaches the reader as a
+    # CalledProcessError naming the command and nothing else.
+    subprocess.check_call(RUN_DOXYGEN_COMMAND, shell=True, cwd=INTERNAL_DOCS_DIR,
+                          stderr=subprocess.STDOUT)
 
     # html_extra_path publishes everything under build/docs, so without this the
     # files cmake and doxygen were driven by are served beside the documentation

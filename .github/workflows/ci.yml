@@ -6,9 +6,17 @@ on:
   pull_request:
     branches:
       - master
+    # labeled as well, so that run-post-merge can ask for the gates below
+    # without waiting for a push that has nothing to do with them.
+    types: [opened, synchronize, reopened, labeled]
 
+# A label gets a group of its own. It asks for the gates below without
+# touching a file, so it has no business cancelling the build it arrives
+# beside -- and concurrency is settled before any job's `if`, so the decision
+# job cannot save a run that was already cancelled here.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha
+         }}-${{ github.event.action == 'labeled' && 'label' || 'build' }}
   cancel-in-progress: true
 
 jobs:
@@ -40,9 +48,19 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         EVENT_NAME: ${{ github.event_name }}
+        ACTION: ${{ github.event.action }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         REPO: ${{ github.repository }}
       run: |
+        # A label moves no file. The gates it asks for do not go through this
+        # job, so answering false here is what keeps a label from replaying
+        # the whole matrix.
+        if [ "$ACTION" = labeled ]; then
+          echo 'value=false' >> "$GITHUB_OUTPUT"
+          echo "A label changes no file; clad is not rebuilt." \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
         if [ "$EVENT_NAME" != pull_request ]; then
           echo 'value=true' >> "$GITHUB_OUTPUT"
           echo "A $EVENT_NAME builds everything." | tee -a "$GITHUB_STEP_SUMMARY"
@@ -98,10 +116,9 @@ jobs:
       matrix:
 
         include:
-          # --- LINUX: Last 11 Runtimes (12-22) ---
-          # Using Ubuntu 22.04 for older runtimes, 24.04 for newer ones
-          - { name: ubu22-gcc11-runtime12, os: ubuntu-22.04, compiler: gcc-11, clang-runtime: '12' }
-          - { name: ubu22-clang13-runtime13, os: ubuntu-22.04, compiler: clang-13, clang-runtime: '13' }
+          # --- LINUX: Last 10 Runtimes (14-23) ---
+          # Ubuntu 24.04 throughout; the rows that still exercise 22.04
+          # are the cuda and kokkos ones further down.
           - { name: ubu24-gcc13-runtime14, os: ubuntu-24.04, compiler: gcc-13, clang-runtime: '14' }
           - { name: ubu24-clang15-runtime15, os: ubuntu-24.04, compiler: clang-15, clang-runtime: '15' }
           - { name: ubu24-gcc14-runtime16, os: ubuntu-24.04, compiler: gcc-14, clang-runtime: '16' }
@@ -111,21 +128,33 @@ jobs:
           - { name: ubu24-clang19-runtime20, os: ubuntu-24.04, compiler: clang-19, clang-runtime: '20', cuda: '12.6.3' }
           - { name: ubu24-clang20-runtime21, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '21', cuda: '12.8.1' }
           - { name: ubu24-clang20-runtime22, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '22', cuda: '13.0.3' }
-          - { name: ubu24-clang22-runtime22-asan, os: ubuntu-24.04, compiler: clang-22, clang-runtime: '22', flavor: asan, extra_cmake_options: '-DLLVM_USE_SANITIZER=Address' }
-          # --- MACOS: Last 5 Runtimes (17-21) ---
-          # Using macOS ARM (standard) for all; Runtime 17 on Intel for x86 sanity
-          - { name: osx-intel-runtime17, os: macos-15-intel, compiler: clang, clang-runtime: '17' }
-          - { name: osx-arm-runtime18, os: macos-26, compiler: clang, clang-runtime: '18' }
-          - { name: osx-arm-runtime19, os: macos-26, compiler: clang, clang-runtime: '19' }
+          # 23 comes from the published llvm-release cell, not from apt:
+          # apt-llvm.org carries no 23 packages, so flavor=system -- what
+          # every row above uses -- would have nothing to install.
+          # use-recipe selects the empty flavor, which is that cell.
+          - { name: ubu24-clang20-runtime23, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '23', use-recipe: 'true' }
+          - { name: ubu24-clang22-runtime23-asan, os: ubuntu-24.04, compiler: clang-22, clang-runtime: '23', flavor: asan, extra_cmake_options: '-DLLVM_USE_SANITIZER=Address' }
+          # --- MACOS: Last 5 Runtimes (19-23) ---
+          # macOS ARM (standard) throughout; the oldest runtime runs on Intel
+          # for x86 sanity. brew has llvm@19 through llvm@22 but no llvm@23,
+          # so that row takes the published llvm-release cell instead. The
+          # Intel row stays on macos-15-intel because it needs no cell; the
+          # ones that are built are for macos-26-intel.
+          - { name: osx-intel-runtime19, os: macos-15-intel, compiler: clang, clang-runtime: '19' }
           - { name: osx-arm-runtime20, os: macos-26, compiler: clang, clang-runtime: '20' }
           - { name: osx-arm-runtime21, os: macos-26, compiler: clang, clang-runtime: '21' }
+          - { name: osx-arm-runtime22, os: macos-26, compiler: clang, clang-runtime: '22' }
+          - { name: osx-arm-runtime23, os: macos-26, compiler: clang, clang-runtime: '23', use-recipe: 'true' }
 
-          # --- WINDOWS: Last 5 Runtimes (17-21) ---
-          - { name: win-msvc-runtime17, os: windows-2022, compiler: msvc, clang-runtime: '17' }
-          - { name: win-msvc-runtime18, os: windows-2022, compiler: msvc, clang-runtime: '18' }
+          # --- WINDOWS: Last 5 Runtimes (19-23) ---
+          # These rows get their LLVM from conda-forge's clangdev rather than
+          # from a ci-workflows cell, so a major is available here as soon as
+          # that package is and the window costs nothing but matrix rows.
           - { name: win-msvc-runtime19, os: windows-2022, compiler: msvc, clang-runtime: '19' }
           - { name: win-msvc-runtime20, os: windows-2022, compiler: msvc, clang-runtime: '20' }
           - { name: win-msvc-runtime21, os: windows-2022, compiler: msvc, clang-runtime: '21' }
+          - { name: win-msvc-runtime22, os: windows-2022, compiler: msvc, clang-runtime: '22' }
+          - { name: win-msvc-runtime23, os: windows-2022, compiler: msvc, clang-runtime: '23' }
 
           # --- CUSTOM: Debug, coverage, benchmarks, static analysis ---
           - name: ubu24-clang20-runtime22-debug
@@ -143,10 +172,10 @@ jobs:
             extra_packages: "libomp-20-dev libopenblas-dev"
             benchmark: true
 
-          - name: ubu22-clang13-runtime13-cuda
+          - name: ubu22-clang14-runtime14-cuda
             os: ubuntu-22.04
-            compiler: clang-13
-            clang-runtime: '13'
+            compiler: clang-14
+            clang-runtime: '14'
 
           - name: ubu24-clang16-runtime17-shared-libs
             os: ubuntu-24.04
@@ -349,10 +378,14 @@ jobs:
     - name: Setup LLVM extras on macOS
       if: runner.os == 'macOS'
       run: |
-        # setup-llvm ran `brew install llvm@N` above; pick the prefix
-        # and copy SDK headers into /usr/local/include/ (ln fails on
-        # macOS-arm runners, so we copy).
-        PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
+        # setup-llvm always lands the install at $GITHUB_WORKSPACE/install,
+        # whichever flavor ran: the Homebrew path symlinks the brew prefix
+        # there, the recipe flavors put a real install tree there. Reading
+        # the brew prefix directly only worked for the former.
+        #
+        # The SDK headers still have to be copied into /usr/local/include/
+        # (ln fails on macOS-arm runners), which is what this step is for.
+        PATH_TO_LLVM_BUILD="$GITHUB_WORKSPACE/install"
         pip3 install lit
         sudo cp -r -n $(xcrun --show-sdk-path)/usr/include/ /usr/local/include/
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
@@ -528,7 +561,11 @@ jobs:
         }
         ((Get-Content -path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake
         $lit = @(which lit)
-        cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+        # Clang_DIR and LLVM_DIR name config files; CMAKE_PREFIX_PATH names the
+        # conda prefix itself, which is what find_package needs to resolve the
+        # dependencies LLVM's exports mention. LLVMSupport lists ZLIB::ZLIB in
+        # its link interface, and that target only exists once ZLIB is found.
+        cmake -DCMAKE_PREFIX_PATH="$env:PATH_TO_LLVM_BUILD" -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
         cmake --build . --config Release
     - name: Test Clad on *nix
       if: ${{ runner.os != 'windows' }}
@@ -663,12 +700,14 @@ jobs:
   # rather than about the change under review. Step list shared via the
   # &build_steps anchor.
   build-valgrind:
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ github.event_name == 'push'
+        || contains(github.event.pull_request.labels.*.name,
+                    'run-post-merge') }}
     timeout-minutes: 360 # Valgrind takes about two hours.
-    # A literal rather than ${{ matrix.name }}: this job is skipped on every
-    # pull request, and a skipped job's name is resolved before the matrix
-    # expands, so the expression form reports as a check called `matrix.name`.
-    # Holds while the matrix has the one row below.
+    # A literal rather than ${{ matrix.name }}: this job is skipped on a pull
+    # request that does not ask for it, and a skipped job's name is resolved
+    # before the matrix expands, so the expression form reports as a check
+    # called `matrix.name`. Holds while the matrix has the one row below.
     name: ubu24-clang20-runtime22-vg
     runs-on: ${{ matrix.os }}
     strategy:
@@ -694,12 +733,14 @@ jobs:
   # that need it. Like Valgrind it waits for the merge: building cling costs a
   # pull request more time than the check is worth.
   build-cling:
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ github.event_name == 'push'
+        || contains(github.event.pull_request.labels.*.name,
+                    'run-post-merge') }}
     timeout-minutes: 120
-    # A literal rather than ${{ matrix.name }}: this job is skipped on every
-    # pull request, and a skipped job's name is resolved before the matrix
-    # expands, so the expression form reports as a check called `matrix.name`.
-    # Holds while the matrix has the one row below.
+    # A literal rather than ${{ matrix.name }}: this job is skipped on a pull
+    # request that does not ask for it, and a skipped job's name is resolved
+    # before the matrix expands, so the expression form reports as a check
+    # called `matrix.name`. Holds while the matrix has the one row below.
     name: ubu24-cling-llvm22
     runs-on: ${{ matrix.os }}
     strategy:
@@ -736,7 +777,12 @@ jobs:
         cmake -S . -B obj -G Ninja -DCMAKE_BUILD_TYPE=Release \
           -DLLVM_DIR="$LLVM_DIR" -DClang_DIR="$Clang_DIR" \
           -DCLAD_BUILD_STATIC_ONLY=ON
-        cmake --build obj --target cladPlugin cladDifferentiator
+        # clad-tblgen too, though ROOT does not need it: this row takes the
+        # llvm-root recipe, so it is the only one with no libLLVM to fall back
+        # on, and the only one where a library named after the one that needs
+        # it fails to link. Naming just the two archives is what let that reach
+        # ROOT.
+        cmake --build obj --target cladPlugin cladDifferentiator clad-tblgen
         # setup-llvm leaves its cling build tree in cling/build; relinking
         # it is all that is left to do.
         cmake cling/build "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--whole-archive \
@@ -759,7 +805,11 @@ jobs:
   # rather than file another, so a week of red master is one thread.
   post-merge-report:
     needs: [build-valgrind, build-cling]
-    if: ${{ failure() }}
+    # Only after a merge, even though the gates above now also run on a
+    # labelled pull request: this reports against head_commit, which a pull
+    # request event does not carry, and the author of a branch watching its
+    # own run needs no issue filed at them.
+    if: ${{ failure() && github.event_name == 'push' }}
     runs-on: ubuntu-24.04
     permissions:
       issues: write
@@ -876,6 +926,33 @@ jobs:
         os: ubuntu-24.04
         arch: x86_64
 
+    # The tables clad compiles are rendered by clad-tblgen, which a build for
+    # wasm cannot run. Build one for the host first: it reads a table and
+    # writes text, so it needs only a native LLVM's TableGen and Support and
+    # nothing from clang, and utils/clad-tblgen configures on its own for
+    # exactly this.
+    - name: Build clad-tblgen for the host
+      run: |
+        # Any native LLVM with a TableGen library will do, and it need not be
+        # the one clad is built against: the tool renders the same tables
+        # whichever major it was compiled with. Take whatever the image
+        # already carries rather than pinning a version that may not be there.
+        for v in 20 19 18 17 16; do
+          if [ -d "/usr/lib/llvm-$v/lib/cmake/llvm" ]; then
+            NATIVE_LLVM="/usr/lib/llvm-$v"; break
+          fi
+        done
+        if [ -z "$NATIVE_LLVM" ]; then
+          sudo apt-get update
+          sudo apt-get install -y llvm-18-dev
+          NATIVE_LLVM=/usr/lib/llvm-18
+        fi
+        echo "Rendering the tables with $NATIVE_LLVM"
+        cmake -S "$GITHUB_WORKSPACE/utils/clad-tblgen" -B tblgen-native \
+          -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="$NATIVE_LLVM/lib/cmake/llvm"
+        cmake --build tblgen-native -j$(nproc)
+        echo "CLAD_TBLGEN=$(pwd)/tblgen-native/clad-tblgen" >> $GITHUB_ENV
+
     - name: Build Clad for wasm
       run: |
         LLVM_BUILD_DIR="$(pwd)/install/build"
@@ -885,6 +962,7 @@ jobs:
           -DClang_DIR=$LLVM_BUILD_DIR/lib/cmake/clang \
           -DLLD_DIR=$LLVM_BUILD_DIR/lib/cmake/lld \
           -DCLAD_BUILD_STATIC_ONLY=ON \
+          -DCLAD_TBLGEN="$CLAD_TBLGEN" \
           -DLLVM_ENABLE_WERROR=On \
           $GITHUB_WORKSPACE
         emmake make -j$(nproc)

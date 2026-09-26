@@ -510,16 +510,11 @@ static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
    Stmt *Then, SourceLocation EL=SourceLocation(), Stmt *Else=nullptr)
 {
 
-#if CLANG_VERSION_MAJOR < 14
-  return IfStmt::Create(Ctx, IL, IsConstexpr, Init, Var, Cond, LPL, RPL, Then,
-                        EL, Else);
-#else
   IfStatementKind kind = IfStatementKind::Ordinary;
   if (IsConstexpr)
     kind = IfStatementKind::Constexpr;
   return IfStmt::Create(Ctx, IL, kind, Init, Var, Cond, LPL, RPL, Then, EL,
                         Else);
-#endif
 }
 
 // Compatibility helper function for creation CallExpr and CUDAKernelCallExpr.
@@ -583,17 +578,9 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
   clang::ParsedAttributesView::none(),
 #endif
 
-#if CLANG_VERSION_MAJOR < 13
-#define CLAD_COMPAT_ExprValueKind_R_or_PR_Value ExprValueKind::VK_RValue
-#elif CLANG_VERSION_MAJOR >= 13
 #define CLAD_COMPAT_ExprValueKind_R_or_PR_Value ExprValueKind::VK_PRValue
-#endif
 
-#if LLVM_VERSION_MAJOR < 13
-#define CLAD_COMPAT_llvm_sys_fs_Append llvm::sys::fs::F_Append
-#elif LLVM_VERSION_MAJOR >= 13
 #define CLAD_COMPAT_llvm_sys_fs_Append llvm::sys::fs::OF_Append
-#endif
 
 #if CLANG_VERSION_MAJOR < 19
 #define CLAD_COMPAT_Sema_ForVisibleRedeclaration Sema::ForVisibleRedeclaration
@@ -602,17 +589,10 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
   RedeclarationKind::ForVisibleRedeclaration
 #endif
 
-#if CLANG_VERSION_MAJOR <= 13
-#define CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD) /**/
-#elif CLANG_VERSION_MAJOR > 13
 #define CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD) , FD->UsesFPIntrin()
-#endif
 
-#if CLANG_VERSION_MAJOR <= 13
-#define CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node) Node->isConstexpr()
-#elif CLANG_VERSION_MAJOR > 13
-#define CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node) Node->getStatementKind()
-#endif
+#define CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node)                       \
+  Node->getStatementKind()
 
 #if CLANG_VERSION_MAJOR < 19
 static inline MemberExpr* BuildMemberExpr(
@@ -705,17 +685,37 @@ ArraySize_GetValue(const std::optional<const Expr*>& opt) {
 #define CLAD_COMPAT_CLANG16_LangOptions_ExtraParams /**/
 #endif
 
-#if CLANG_VERSION_MAJOR < 13
-static inline bool IsPRValue(const Expr* E) { return E->isRValue(); }
-#else
 static inline bool IsPRValue(const Expr* E) { return E->isPRValue(); }
-#endif
 
 #if CLANG_VERSION_MAJOR >= 16
 #define CLAD_COMPAT_CLANG16_CXXDefaultArgExpr_getRewrittenExpr_Param(Node)     \
   , Node->getRewrittenExpr()
 #else
 #define CLAD_COMPAT_CLANG16_CXXDefaultArgExpr_getRewrittenExpr_Param(Node) /**/
+#endif
+
+// Clang 23 widened VAArgExpr's ABI flag from a bool to a three-state
+// VarArgKind (standard, Microsoft, z/OS), so its constructor takes the enum.
+// Before that only the Microsoft bit could be represented, which is what
+// isMicrosoftABI() answers.
+#if CLANG_VERSION_MAJOR < 23
+#define CLAD_COMPAT_CLANG23_VAArgExpr_VarArgKind_Param(Node)                   \
+  Node->isMicrosoftABI()
+#else
+#define CLAD_COMPAT_CLANG23_VAArgExpr_VarArgKind_Param(Node)                   \
+  Node->getVarargABI()
+#endif
+
+// Clang 23 stores whether an initializer list was written with braces rather
+// than deriving it from the brace locations, so the constructor takes it.
+// Before that, InitListExpr::isExplicit() answered
+// `LBraceLoc.isValid() && RBraceLoc.isValid()`; pass what that would have
+// returned to keep the node reading the same on both.
+#if CLANG_VERSION_MAJOR < 23
+#define CLAD_COMPAT_CLANG23_InitListExpr_IsExplicit_ExtraParam(isExplicit) /**/
+#else
+#define CLAD_COMPAT_CLANG23_InitListExpr_IsExplicit_ExtraParam(isExplicit)     \
+  , isExplicit
 #endif
 
 // Clang 15 renamed StringKind::Ascii to StringKind::Ordinary

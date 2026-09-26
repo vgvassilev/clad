@@ -281,14 +281,14 @@ To compile `SourceFile.cpp` with Clad enabled, use the following commands (note 
 Clad also provides certain flags to save and print the generated derivative code:
 
 - To save the Clad generated derivative code to `Derivatives.cpp`:
-  - `-fplugin-arg-clad--fgenerate-source-file` (Clang >=14)
-  - `-Xclang -plugin-arg-clad -Xclang -fgenerate-source-file` (Clang <14)
+  - `-fplugin-arg-clad--fgenerate-source-file`
+  - `-Xclang -plugin-arg-clad -Xclang -fgenerate-source-file`
 - To print the Clad generated derivative:
-  - `-fplugin-arg-clad--fdump-derived-fn` (Clang >=14)
-  - `-Xclang -plugin-arg-clad -Xclang -fdump-derived-fn` (Clang <14)
+  - `-fplugin-arg-clad--fdump-derived-fn`
+  - `-Xclang -plugin-arg-clad -Xclang -fdump-derived-fn`
 
 ## How to install
-At the moment, LLVM/Clang 12.0.x - 22.2.x are supported.
+At the moment, LLVM/Clang 14.0.x - 23.2.x are supported.
 
 ### Conda Installation
 
@@ -367,7 +367,7 @@ make check-clad
 ```
 pip3 install lit
 ```
-Clone the LLVM project and checkout the required LLVM version (Currently supported versions 12.0.x - 22.2.x)
+Clone the LLVM project and checkout the required LLVM version (Currently supported versions 14.0.x - 23.2.x)
 
 ```
 git clone https://github.com/llvm/llvm-project.git

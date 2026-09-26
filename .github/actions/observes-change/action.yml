@@ -56,6 +56,19 @@ runs:
     shell: bash
     run: |
       cd "$GITHUB_WORKSPACE"
+      # Some changes have no baseline to measure against. One that moves the
+      # supported LLVM window is the clearest: reverting it leaves the row
+      # built against the version it adds without a supported clang, so cmake
+      # stops before a test can run and the row fails for a reason that has
+      # nothing to do with what the tests observe. Such a change says so with
+      # this label instead. It turns off a check that merging requires, so it
+      # is named for the reason rather than the effect and the row records
+      # that it was used.
+      if [[ "${{ contains(github.event.pull_request.labels.*.name, 'no-baseline-check') }}" == true ]]; then
+        echo "Labelled no-baseline-check -- skipping the baseline pass." \
+          | tee -a "$GITHUB_STEP_SUMMARY"
+        exit 0
+      fi
       action=${{ github.action_path }}
       base="${{ inputs.base-sha }}"
       if [[ -z "$base" ]]; then
@@ -74,7 +87,14 @@ runs:
         echo "No touched tests -- skipping the baseline pass."
         exit 0
       fi
-      dirs="${{ inputs.functional-dirs }}"
+      # The baseline is the tree as it was everywhere but the tests being
+      # measured. Reverting only the functional directories would leave the
+      # build system naming files that are no longer in them: a change that
+      # adds a subdirectory stops cmake before a test can run. .github stays
+      # as the change wrote it, because the steps still to come are read from
+      # there.
+      dirs=". :(exclude).github"
+      for d in ${{ inputs.test-dirs }}; do dirs="$dirs :(exclude)$d"; done
       echo "observes_dirs=$dirs" >> $GITHUB_ENV
       # A reverse patch handles files the change adds or deletes, which
       # `git checkout <base> -- <dirs>` would leave behind.

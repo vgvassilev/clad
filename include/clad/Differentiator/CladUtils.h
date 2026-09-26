@@ -16,9 +16,12 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
 #include <set>
 #include <string>
 
@@ -29,42 +32,56 @@ namespace clang {
 }
 
 namespace clad {
-  namespace utils {
-    /// If `FD` is an overloaded operator, returns a name, unique for
-    /// each operator, that can be used to create valid C++ identifiers.
-    /// Otherwise if `FD` is an ordinary function, returns the name of the
-    /// function `FD`.
-    std::string ComputeEffectiveFnName(const clang::FunctionDecl* FD);
+/// A message clad emits; see Diagnostics.h, which the sites that name one
+/// include. Named here so that every reader of this header does not have to
+/// read the list.
+enum class CladDiag : std::uint16_t;
+namespace utils {
+/// If `FD` is an overloaded operator, returns a name, unique for
+/// each operator, that can be used to create valid C++ identifiers.
+/// Otherwise if `FD` is an ordinary function, returns the name of the
+/// function `FD`.
+std::string ComputeEffectiveFnName(const clang::FunctionDecl* FD);
 
-    // Unwraps S to a single statement if it's a compound statement only
-    // containing 1 statement.
-    clang::Stmt* unwrapIfSingleStmt(clang::Stmt* S);
+// Unwraps S to a single statement if it's a compound statement only
+// containing 1 statement.
+clang::Stmt* unwrapIfSingleStmt(clang::Stmt* S);
 
-    /// Creates and returns a compound statement having statements as follows:
-    /// {`S`, all the statement of `initial` in sequence}
-    clang::CompoundStmt* PrependAndCreateCompoundStmt(clang::ASTContext& C,
-                                                      clang::Stmt* initial,
-                                                      clang::Stmt* S);
+/// Creates and returns a compound statement having statements as follows:
+/// {`S`, all the statement of `initial` in sequence}
+clang::CompoundStmt* PrependAndCreateCompoundStmt(clang::ASTContext& C,
+                                                  clang::Stmt* initial,
+                                                  clang::Stmt* S);
 
-    /// Creates and returns a compound statement having statements as follows:
-    /// {all the statements of `initial` in sequence, `S`}
-    clang::CompoundStmt* AppendAndCreateCompoundStmt(clang::ASTContext& C,
-                                                     clang::Stmt* initial,
-                                                     clang::Stmt* S);
+/// Creates and returns a compound statement having statements as follows:
+/// {all the statements of `initial` in sequence, `S`}
+clang::CompoundStmt* AppendAndCreateCompoundStmt(clang::ASTContext& C,
+                                                 clang::Stmt* initial,
+                                                 clang::Stmt* S);
 
-    template <std::size_t N>
-    clang::Sema::SemaDiagnosticBuilder
-    diag(clang::Sema& S, clang::DiagnosticsEngine::Level Level,
-         clang::SourceLocation Loc, const char (&Format)[N]) {
-      static_assert(N > 1, "Diagnostic format string must not be empty");
-      assert(!std::isupper(Format[0]) && "Diagnostics start with lower case!");
-      assert((std::isalpha(Format[N - 2]) || Format[N - 2] == ')' ||
-              Format[N - 2] == '\'' || std::isdigit(Format[N - 2])) &&
-             "Diagnostics end with no punctuation!");
-      unsigned DiagID = S.Diags.getCustomDiagID(Level, Format);
-      clang::Sema::SemaDiagnosticBuilder B = S.Diag(Loc, DiagID);
-      return B;
-    }
+/// Emits the message Analyses.td describes under this name, at its own
+/// severity. The placeholders are filled in by the caller, as with the
+/// literal form below.
+clang::Sema::SemaDiagnosticBuilder diag(clang::Sema& S, CladDiag D,
+                                        clang::SourceLocation Loc);
+
+template <std::size_t N>
+clang::Sema::SemaDiagnosticBuilder diag(
+    clang::Sema& S, clang::DiagnosticsEngine::Level Level,
+    clang::SourceLocation Loc,
+    // Bound to the literal itself, which is what lets the checks below read
+    // its length and its last character at compile time.
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
+    const char (&Format)[N]) {
+  static_assert(N > 1, "Diagnostic format string must not be empty");
+  assert(!std::isupper(Format[0]) && "Diagnostics start with lower case!");
+  assert((std::isalpha(Format[N - 2]) || Format[N - 2] == ')' ||
+          Format[N - 2] == '\'' || std::isdigit(Format[N - 2])) &&
+         "Diagnostics end with no punctuation!");
+  unsigned DiagID = S.Diags.getCustomDiagID(Level, Format);
+  clang::Sema::SemaDiagnosticBuilder B = S.Diag(Loc, DiagID);
+  return B;
+}
 
     /// Creates nested name specifier associated with declaration context
     /// argument `DC`.
@@ -150,6 +167,12 @@ namespace clad {
     clang::LookupResult LookupQualifiedName(llvm::StringRef name,
                                             clang::Sema& S,
                                             clang::DeclContext* DC = nullptr);
+
+    /// Resolve a function lookup expression or a direct function reference.
+    /// Return null when no usable overload exists for the arguments.
+    clang::FunctionDecl*
+    ResolveOverload(clang::Sema& S, clang::Expr* lookup,
+                    llvm::MutableArrayRef<clang::Expr*> args);
 
     /// Finds namespace `namespc` under the declaration context `DC` or the
     /// translation unit declaration if `DC` is null.
@@ -450,6 +473,10 @@ namespace clad {
 
     /// Find namespace clad declaration.
     clang::NamespaceDecl* GetCladNamespace(clang::Sema& S);
+
+    /// Look up an entity in the clad namespace. The result may be empty.
+    clang::LookupResult tryLookupCladMethod(clang::Sema& S,
+                                            llvm::StringRef name);
     /// Create clad::array\<T\> type.
     clang::QualType GetCladArrayOfType(clang::Sema& S, clang::QualType T);
     /// Create clad::matrix\<T\> type.
@@ -507,6 +534,10 @@ namespace clad {
     bool isMemoryType(clang::QualType T);
     /// Returns true if a function returning T must return its adjoint too.
     bool returnsAdjoint(clang::QualType T);
+
+    /// Resolve clad::zero_like(value), returning null without diagnostics
+    /// when no usable overload exists.
+    clang::FunctionDecl* LookupCladZeroLike(clang::Sema& S, clang::Expr* value);
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 

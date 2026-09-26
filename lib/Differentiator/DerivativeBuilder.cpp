@@ -8,6 +8,7 @@
 
 #include "ASTIntegrity.h"
 #include "Analyses.h"
+#include "Diagnostics.h"
 #include "GeneratedCode.h"
 #include "JacobianModeVisitor.h"
 #include "LoopAnalyzer.h"
@@ -37,7 +38,6 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
-#include "clang/AST/DeclAccessPair.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -48,7 +48,6 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Sema/Lookup.h"
-#include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
@@ -238,22 +237,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       if (!find.HasFormOfMemberPointer) {
         OverloadExpr* ovl = find.Expression;
 
-        if (isa<UnresolvedLookupExpr>(ovl)) {
-          ExprResult result;
-          SourceLocation Loc;
-          OverloadCandidateSet CandidateSet(Loc,
-                                            OverloadCandidateSet::CSK_Normal);
-          Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
-          auto* ULE = cast<UnresolvedLookupExpr>(ovl);
-          // Populate CandidateSet.
-          m_Sema.buildOverloadedCallSet(S, UnresolvedLookup, ULE, ARargs, Loc,
-                                        &CandidateSet, &result);
-          OverloadCandidateSet::iterator Best = nullptr;
-          OverloadingResult OverloadResult = CandidateSet.BestViableFunction(
-              m_Sema, UnresolvedLookup->getBeginLoc(), Best);
-          if (OverloadResult != 0U) // No overloads were found.
-            return true;
-        }
+        if (isa<UnresolvedLookupExpr>(ovl))
+          return !utils::ResolveOverload(m_Sema, UnresolvedLookup, ARargs);
       }
       return false;
     }
@@ -270,13 +255,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // one template ask for the same derivative name, so the second lookup
       // finds the first's derivative. Calling it makes the mismatch a hard
       // error instead of a signal to derive the overload that fits.
-      OverloadCandidateSet CandidateSet(SourceLocation(),
-                                        OverloadCandidateSet::CSK_Normal);
-      m_Sema.AddOverloadCandidate(FD, DeclAccessPair::make(FD, AS_public),
-                                  ARargs, CandidateSet);
-      OverloadCandidateSet::iterator Best = nullptr;
-      return CandidateSet.BestViableFunction(m_Sema, SourceLocation(), Best) !=
-             OR_Success;
+      return !utils::ResolveOverload(m_Sema, UnresolvedLookup, ARargs);
     }
 
     return false;
@@ -897,18 +876,15 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     auto explain = [&](AnalysisId A, AnalysisMiss M, clang::SourceLocation At,
                        clang::SourceLocation Fallback) {
       if (M == AnalysisMiss::None) {
-        utils::diag(S, clang::DiagnosticsEngine::Note, Fallback,
-                    "the %0 analysis is off (-fdisable-analysis=%0)")
-            << nameOf(A);
+        utils::diag(S, CladDiag::note_analysis_off, Fallback) << nameOf(A);
         return;
       }
       AnalysisDesc Desc = descOf(M);
-      utils::diag(S, clang::DiagnosticsEngine::Note,
-                  At.isValid() ? At : Fallback, "%0")
+      utils::diag(S, CladDiag::note_construct_miss,
+                  At.isValid() ? At : Fallback)
           << detailOf(M);
-      utils::diag(S, clang::DiagnosticsEngine::Note, Fallback,
-                  "to avoid this, make it %0")
-          << nameOf(Desc);
+      utils::diag(S, CladDiag::note_construct_fix, Fallback)
+          << nameOf(Desc) << codeOf(Desc);
     };
 
     // What an analysis without a result of its own filed as it ran.
@@ -917,8 +893,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       AnalysisId A = analysisOf(Desc);
       if (!wantsRemark(R, A))
         continue;
-      utils::diag(S, clang::DiagnosticsEngine::Remark, M.At, "%0")
-          << costOf(Desc);
+      utils::diag(S, CladDiag::remark_construct_cost, M.At) << costOf(Desc);
       explain(A, M.Why, M.At, M.At);
     }
 
@@ -937,7 +912,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       const LoopFacts& F = R.getLoopFacts(FS);
       if (F && F.BoundsAreStable)
         continue;
-      utils::diag(S, clang::DiagnosticsEngine::Remark, FS->getForLoc(), "%0")
+      utils::diag(S, CladDiag::remark_construct_cost, FS->getForLoc())
           << costOf(AnalysisDesc::CountedLoop);
       explain(AnalysisId::Loop, F.Why, F.MissedAt, FS->getForLoc());
     }
@@ -949,7 +924,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         continue;
       clang::SourceLocation Loc =
           W.RefusedAt.isValid() ? W.RefusedAt : FD->getLocation();
-      utils::diag(S, clang::DiagnosticsEngine::Remark, Loc, "'%0': %1")
+      utils::diag(S, CladDiag::remark_construct_cost_for, Loc)
           << FD->getParamDecl(i)->getNameAsString()
           << costOf(AnalysisDesc::BoundedWrite);
       explain(AnalysisId::Loop, W.Why, W.RefusedAt, Loc);

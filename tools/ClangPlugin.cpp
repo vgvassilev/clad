@@ -14,6 +14,7 @@
 #include "clad/Differentiator/Version.h"
 #include "../lib/Differentiator/Analyses.h"
 #include "../lib/Differentiator/DerivativePrinter.h"
+#include "../lib/Differentiator/Diagnostics.h"
 #include "../lib/Differentiator/GeneratedCode.h"
 #include "../lib/Differentiator/LoopAnalyzer.h"
 #include "../lib/Differentiator/TBRAnalyzer.h"
@@ -379,7 +380,7 @@ void InitTimers();
       // debugger that understands it, or through a file on disk.
       // Naming the flag at all is an answer, even with no directory after it:
       // it says the generated code being unreadable is known and meant.
-      if (m_DO.GeneratedSourceDirGiven)
+      if (m_DO.GeneratedSourceDir)
         return;
       const clang::CodeGenOptions& CGO = m_CI.getCodeGenOpts();
       // Through the enum's own type rather than by name: which header spells
@@ -539,23 +540,21 @@ void InitTimers();
       // Why the value is still here is a different sentence depending on
       // whether the analysis ran at all; saying "could not prove" when it was
       // switched off would be false.
-      const char* Because =
-          G.AnalysisRan ? "to-be-recorded analysis could not show it unused"
-                        : "to-be-recorded analysis is disabled";
+      const CladDiag Because = G.AnalysisRan
+                                   ? CladDiag::note_tbr_could_not_prove
+                                   : CladDiag::note_tbr_disabled;
       const clang::SourceManager& SM = m_CI.getSourceManager();
       for (const auto& [K, VD] : Kept) {
         clang::SourceLocation Loc = getDerivativePrinter().locationOf(FD, K);
         if (Loc.isInvalid())
           continue;
-        utils::diag(S, clang::DiagnosticsEngine::Remark, Loc,
-                    "clad keeps this value for the reverse sweep")
+        utils::diag(S, CladDiag::remark_value_kept, Loc)
             << getDerivativePrinter().rangeOf(FD, K);
-        utils::diag(S, clang::DiagnosticsEngine::Note, Loc, "%0") << Because;
+        utils::diag(S, Because, Loc);
         // Which derivative this is, said outright rather than left to the
         // include stack, which has no caret and no wording.
         if (G.RequestedAt.isValid())
-          utils::diag(S, clang::DiagnosticsEngine::Note, G.RequestedAt,
-                      "in the derivative of '%0' requested here")
+          utils::diag(S, CladDiag::note_derivative_requested, G.RequestedAt)
               << G.Original->getNameAsString();
         // The half the user can act on: the expression in their own code
         // whose value this is. Only if it is theirs -- a kept value can be one
@@ -564,8 +563,7 @@ void InitTimers();
         const clang::SourceLocation Primal = primalLocationOf(K, VD, SM);
         if (Primal.isValid() &&
             !m_DerivativeBuilder->getGeneratedCode().owns(Primal))
-          utils::diag(S, clang::DiagnosticsEngine::Note, Primal,
-                      "the value kept is the one this expression had")
+          utils::diag(S, CladDiag::note_kept_value_is, Primal)
               << primalRangeOf(K, VD);
       }
     }
@@ -734,9 +732,9 @@ void InitTimers();
             std::make_unique<DerivativeBuilder>(S, *this, getScheduler());
         // Before the first chunk is made: a chunk keeps the name it was made
         // with, and that name is what the line table records.
-        if (!m_DO.GeneratedSourceDir.empty())
+        if (m_DO.GeneratedSourceDir && !m_DO.GeneratedSourceDir->empty())
           m_DerivativeBuilder->getGeneratedCode().setFileBase(
-              m_DO.GeneratedSourceDir, m_CI.getCodeGenOpts().MainFileName);
+              *m_DO.GeneratedSourceDir, m_CI.getCodeGenOpts().MainFileName);
       }
 
       if (request.Global) {
@@ -758,10 +756,8 @@ void InitTimers();
       const FunctionDecl* FD = request.Function;
       ASTContext& C = S.getASTContext();
       clang::PrintingPolicy Policy = C.getPrintingPolicy();
-#if CLANG_VERSION_MAJOR > 10
       // Our testsuite expects 'a<b<c> >' rather than 'a<b<c>>'.
       Policy.SplitTemplateClosers = true;
-#endif
       // if enabled, print source code of the original functions
       if (m_DO.DumpSourceFn) {
         FD->print(llvm::outs(), Policy);

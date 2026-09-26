@@ -1315,7 +1315,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 
               // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
               auto* initList = new (m_Context) InitListExpr(
-                  m_Context, CE->getBeginLoc(), initExprs, CE->getEndLoc());
+                  m_Context, CE->getBeginLoc(), initExprs,
+                  CE->getEndLoc()
+                      CLAD_COMPAT_CLANG23_InitListExpr_IsExplicit_ExtraParam(
+                          /*isExplicit=*/true));
               initList->setType(arrType);
 
               TypeSourceInfo* tInfo =

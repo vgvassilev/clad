@@ -16,28 +16,28 @@
 
 namespace clad {
 
-/// The analyses clad can run, one per entry in Analyses.def.
+/// The analyses clad can run, one per entry in Analyses.td.
 enum class AnalysisId : std::uint8_t {
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc) Id,
 #include "clad/Differentiator/Analyses.def"
 };
 
 /// A construct an analysis can act on, one per CLAD_ANALYSIS_DESC in
-/// AnalysisDescs.def.
+/// Analyses.td.
 enum class AnalysisDesc : std::uint8_t {
-#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Cost) Id,
+#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Code, Cost) Id,
 #define CLAD_ANALYSIS_MISS(Id, Desc, Detail)
 #include "AnalysisDescs.def"
 };
 
 /// A way an input can miss a construct, one per CLAD_ANALYSIS_MISS in
-/// AnalysisDescs.def.
+/// Analyses.td.
 ///
 /// None means no miss was recorded. It is there for a record that carries a
 /// miss beside an answer; a Proven never holds it.
 enum class AnalysisMiss : std::uint8_t {
   None,
-#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Cost)
+#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Code, Cost)
 #define CLAD_ANALYSIS_MISS(Id, Desc, Detail) Id,
 #include "AnalysisDescs.def"
 };
@@ -56,7 +56,7 @@ inline const char* nameOf(AnalysisId A) {
 /// How the construct is named to users.
 inline const char* nameOf(AnalysisDesc S) {
   switch (S) {
-#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Cost)                           \
+#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Code, Cost)                     \
   case AnalysisDesc::Id:                                                       \
     return Name;
 #define CLAD_ANALYSIS_MISS(Id, Desc, Detail)
@@ -68,9 +68,23 @@ inline const char* nameOf(AnalysisDesc S) {
 /// What clad emits where the construct is missed: the work the reader pays for.
 inline const char* costOf(AnalysisDesc S) {
   switch (S) {
-#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Cost)                           \
+#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Code, Cost)                     \
   case AnalysisDesc::Id:                                                       \
     return Cost;
+#define CLAD_ANALYSIS_MISS(Id, Desc, Detail)
+#include "AnalysisDescs.def"
+  }
+  llvm_unreachable("unhandled construct"); // LCOV_EXCL_LINE
+}
+
+/// The number a report prints for the construct, as CLAD1001 and up. A reader
+/// searches for it and a build log keeps it, so it never changes; it is also
+/// the anchor of the construct's section in the user documentation.
+inline unsigned codeOf(AnalysisDesc S) {
+  switch (S) {
+#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Code, Cost)                     \
+  case AnalysisDesc::Id:                                                       \
+    return Code;
 #define CLAD_ANALYSIS_MISS(Id, Desc, Detail)
 #include "AnalysisDescs.def"
   }
@@ -83,7 +97,7 @@ inline AnalysisDesc descOf(AnalysisMiss M) {
   switch (M) {
   case AnalysisMiss::None: // LCOV_EXCL_LINE: ruled out above
     break;                 // LCOV_EXCL_LINE
-#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Cost)
+#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Code, Cost)
 #define CLAD_ANALYSIS_MISS(Id, Desc, Detail)                                   \
   case AnalysisMiss::Id:                                                       \
     return AnalysisDesc::Desc;
@@ -99,7 +113,7 @@ inline const char* detailOf(AnalysisMiss M) {
   switch (M) {
   case AnalysisMiss::None: // LCOV_EXCL_LINE: ruled out above
     break;                 // LCOV_EXCL_LINE
-#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Cost)
+#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Code, Cost)
 #define CLAD_ANALYSIS_MISS(Id, Desc, Detail)                                   \
   case AnalysisMiss::Id:                                                       \
     return Detail;
@@ -111,7 +125,7 @@ inline const char* detailOf(AnalysisMiss M) {
 /// Which analysis acts on the construct.
 inline AnalysisId analysisOf(AnalysisDesc S) {
   switch (S) {
-#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Cost)                           \
+#define CLAD_ANALYSIS_DESC(Id, Analysis, Name, Code, Cost)                     \
   case AnalysisDesc::Id:                                                       \
     return AnalysisId::Analysis;
 #define CLAD_ANALYSIS_MISS(Id, Desc, Detail)

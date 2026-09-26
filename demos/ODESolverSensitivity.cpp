@@ -10,18 +10,6 @@
 // http://kitchingroup.cheme.cmu.edu/blog/2018/10/11/A-differentiable-ODE-integrator-for-sensitivity-analysis/
 //----------------------------------------------------------------------------//
 
-// To run the demo please type:
-// path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ ODESolverSensitivity.cpp
-//
-// A typical invocation would be:
-// ../../../../obj/Debug+Asserts/bin/clang++  -Xclang -add-plugin -Xclang clad \
-// -Xclang -load -Xclang ../../../../obj/Debug+Asserts/lib/libclad.dylib     \
-// -I../include/ ODESolverSensitivity.cpp
-//
-// To plot the results install gnuplot and type:
-// gnuplot -e "plot 'sens.dat' using 1:2 with lines; pause -1"
-
 #include <fstream>
 #include <cmath>
 
@@ -55,16 +43,20 @@ double rungeKutta(double x0, double y0, double x, double h, double a, double b, 
   return y;
 }
 
+// docs-begin-sensitivity
 double solution(double a, double b, double c, double x) {
   return rungeKutta(0, 0, x, 0.001, a, b, c);
 }
+// docs-end-sensitivity
 
 // Evaluate b-sensitivity over x domain
 double bSensitivity(double x) {
   // Using reverse mode since forward mode doesn't support
   // differentiation of multi-arg calls
   // FIXME: switch to clad::differentiate after fixing vgvassilev/clad#168
+  // docs-begin-sensitivity-call
   auto h = clad::gradient(solution);
+  // docs-end-sensitivity-call
 
   double grad[4];
   h.execute(1.0, 3.0, 3.0, x, &grad[0], &grad[1], &grad[2], &grad[3]);

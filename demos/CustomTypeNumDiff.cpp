@@ -7,10 +7,6 @@
 // author: Garima Singh
 //----------------------------------------------------------------------------//
 
-// To run the demo please type:
-// path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ -std=c++17 CustomTypeNumDiff.cpp
-
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
 
@@ -137,7 +133,9 @@ int main() {
   grad.emplace_back(&dy);
   // Finally, call the numerical diff method, keep the order of the arguments to
   // the function in mind!
+  // docs-begin-numdiff
   numerical_diff::central_difference(func, grad, /*printErrors=*/0, x, y);
+  // docs-end-numdiff
   // Finally print the results!
   std::cout << "Result of df/dx is = " << dx << "\nResult of df/dx is = " << dy
             << std::endl;

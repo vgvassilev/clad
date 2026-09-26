@@ -3,7 +3,7 @@
 // The immediate-mode path in the plugin is compiled only for clang 17 and
 // later (tools/ClangPlugin.cpp), so on older clang no derivative is generated
 // and the constexpr initialisation below cannot be evaluated.
-// UNSUPPORTED: clang-11, clang-12, clang-13, clang-14, clang-15, clang-16
+// UNSUPPORTED: clang-14, clang-15, clang-16
 
 // docs-begin-immediate-mode
 #include "clad/Differentiator/Differentiator.h"

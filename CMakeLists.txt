@@ -39,12 +39,12 @@ set(CMAKE_MODULE_PATH
   )
 
 # Define clad supported version of clang and llvm.
-set(CLANG_MIN_SUPPORTED 12.0)
-set(CLANG_MAX_SUPPORTED "22.2.x")
-set(CLANG_VERSION_UPPER_BOUND 22.2.0)
-set(LLVM_MIN_SUPPORTED 12.0)
-set(LLVM_MAX_SUPPORTED "22.2.x")
-set(LLVM_VERSION_UPPER_BOUND 22.2.0)
+set(CLANG_MIN_SUPPORTED 14.0)
+set(CLANG_MAX_SUPPORTED "23.2.x")
+set(CLANG_VERSION_UPPER_BOUND 23.2.0)
+set(LLVM_MIN_SUPPORTED 14.0)
+set(LLVM_MAX_SUPPORTED "23.2.x")
+set(LLVM_VERSION_UPPER_BOUND 23.2.0)
 
 # If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:
@@ -298,6 +298,9 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/
   FILES_MATCHING
   PATTERN "CMakeFiles" EXCLUDE
   PATTERN "*.inc"
+  # The tables clad's own headers expand are rendered here, so an installed
+  # clad needs them beside the headers that include them.
+  PATTERN "*.def"
   )
 
 install(FILES cmake/modules/AddClad.cmake
@@ -328,6 +331,117 @@ if (TARGET clang-headers)
 endif()
 
 include(AddClad)
+
+# Analyses.td and Options.td are where clad's analyses, the constructs they
+# look for, the wording of every report and every option clad takes are
+# written down. Everything rendered from them lands in the build directory and
+# none of it is committed, so what clad compiles is what the .td files say and
+# there is no second copy to go stale. The documentation pages are rendered the
+# same way, by a target readthedocs runs before sphinx.
+#
+# A cross build cannot run a tool it built for the target, so it is given one
+# built for the host: configure utils/clad-tblgen on its own against a native
+# LLVM and pass the result as CLAD_TBLGEN. Without that there is nothing to
+# render with, which is a configure error rather than a header that silently
+# goes stale.
+if (CLAD_TBLGEN)
+  set(CLAD_TBLGEN_EXE ${CLAD_TBLGEN})
+  set(CLAD_TBLGEN_EXE_FOR_LIT ${CLAD_TBLGEN})
+  add_custom_target(clad-tblgen-ready)
+elseif (CMAKE_CROSSCOMPILING)
+  message(FATAL_ERROR
+    "Cross-compiling clad needs a clad-tblgen built for the host: configure "
+    "utils/clad-tblgen against a native LLVM and pass -DCLAD_TBLGEN=<path>.")
+else()
+  # The TableGen library is looked up rather than taken from
+  # LLVM_LINK_COMPONENTS, because with a libLLVM to link against llvm_config
+  # folds every component into it and that library carries no TableGenMain.
+  #
+  # Only an in-tree build defines a real LLVMTableGen target. Standalone,
+  # LLVMConfig exports an IMPORTED one of the same name, and taking that would
+  # bring its include directories along with it.
+  set(_clad_tablegen_imported TRUE)
+  if (TARGET LLVMTableGen)
+    get_target_property(_clad_tablegen_imported LLVMTableGen IMPORTED)
+  endif()
+  if (TARGET LLVMTableGen AND NOT _clad_tablegen_imported)
+    set(CLAD_LLVM_TABLEGEN_LIB LLVMTableGen)
+  else()
+    find_library(CLAD_LLVM_TABLEGEN_LIB NAMES LLVMTableGen REQUIRED
+                 HINTS ${LLVM_LIBRARY_DIR} ${LLVM_LIBRARY_DIRS})
+  endif()
+  add_subdirectory(utils/clad-tblgen)
+  set(CLAD_TBLGEN_EXE $<TARGET_FILE:clad-tblgen>)
+  # lit's site config is written at configure time, so it cannot carry a
+  # generator expression; name where the tool lands. An in-tree build follows
+  # LLVM's runtime directory, a standalone one the value set further up.
+  if (LLVM_RUNTIME_OUTPUT_INTDIR)
+    set(CLAD_TBLGEN_EXE_FOR_LIT ${LLVM_RUNTIME_OUTPUT_INTDIR}/clad-tblgen)
+  else()
+    set(CLAD_TBLGEN_EXE_FOR_LIT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/clad-tblgen)
+  endif()
+  add_custom_target(clad-tblgen-ready DEPENDS clad-tblgen)
+endif()
+
+# Public: clad's own headers expand them, so an installed clad needs them.
+set(CLAD_GEN_INCL ${CMAKE_CURRENT_BINARY_DIR}/include/clad/Differentiator)
+# Private: only the differentiator reads these, and nothing outside should.
+set(CLAD_GEN_LIB ${CMAKE_CURRENT_BINARY_DIR}/lib/Differentiator)
+file(MAKE_DIRECTORY ${CLAD_GEN_INCL} ${CLAD_GEN_LIB})
+
+set(CLAD_OPTIONS_TD ${CMAKE_CURRENT_SOURCE_DIR}/lib/Differentiator/Options.td)
+set(CLAD_ANALYSES_TD ${CMAKE_CURRENT_SOURCE_DIR}/lib/Differentiator/Analyses.td)
+# Where an included .td is looked for, collected the way llvm's own
+# TableGen.cmake collects it: from the include path, one -I each. Spelling it
+# "-I ${LLVM_INCLUDE_DIRS}" is wrong in both directions. Against an LLVM build
+# tree that variable names two directories, and the second is left to be read
+# as a positional argument; in an in-tree build LLVMConfig is never read and it
+# is empty, so the flag swallows the .td that follows it.
+get_directory_property(CLAD_TBLGEN_INCLUDES INCLUDE_DIRECTORIES)
+list(REMOVE_ITEM CLAD_TBLGEN_INCLUDES "")
+list(REMOVE_DUPLICATES CLAD_TBLGEN_INCLUDES)
+list(TRANSFORM CLAD_TBLGEN_INCLUDES PREPEND -I)
+
+# add_custom_command rather than a target: these are inputs to compiling clad,
+# so they have to be built before it and rebuilt when the table changes.
+add_custom_command(
+  OUTPUT ${CLAD_GEN_INCL}/Options.def
+  COMMAND ${CLAD_TBLGEN_EXE} -gen-options ${CLAD_TBLGEN_INCLUDES}
+          ${CLAD_OPTIONS_TD} -o ${CLAD_GEN_INCL}/Options.def
+  DEPENDS clad-tblgen-ready ${CLAD_OPTIONS_TD}
+  COMMENT "Rendering what Options.td describes"
+  VERBATIM)
+
+add_custom_command(
+  OUTPUT ${CLAD_GEN_INCL}/Analyses.def ${CLAD_GEN_LIB}/AnalysisDescs.def
+         ${CLAD_GEN_LIB}/Diagnostics.def
+  COMMAND ${CLAD_TBLGEN_EXE} -gen-analyses ${CLAD_ANALYSES_TD}
+          -o ${CLAD_GEN_INCL}/Analyses.def
+  COMMAND ${CLAD_TBLGEN_EXE} -gen-analysis-descs ${CLAD_ANALYSES_TD}
+          -o ${CLAD_GEN_LIB}/AnalysisDescs.def
+  COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics ${CLAD_ANALYSES_TD}
+          -o ${CLAD_GEN_LIB}/Diagnostics.def
+  DEPENDS clad-tblgen-ready ${CLAD_ANALYSES_TD}
+  COMMENT "Rendering what Analyses.td describes"
+  VERBATIM)
+
+add_custom_target(clad-tables DEPENDS
+  ${CLAD_GEN_INCL}/Options.def ${CLAD_GEN_INCL}/Analyses.def
+  ${CLAD_GEN_LIB}/AnalysisDescs.def ${CLAD_GEN_LIB}/Diagnostics.def)
+
+# The pages readthedocs builds; not committed either, and rendered only where
+# the documentation is.
+add_custom_target(clad-table-docs
+  COMMAND ${CLAD_TBLGEN_EXE} -gen-options-docs ${CLAD_TBLGEN_INCLUDES}
+          ${CLAD_OPTIONS_TD}
+          -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Options.rst
+  COMMAND ${CLAD_TBLGEN_EXE} -gen-analyses-docs ${CLAD_ANALYSES_TD}
+          -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Analyses.rst
+  COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics-docs ${CLAD_ANALYSES_TD}
+          -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Diagnostics.rst
+  DEPENDS clad-tblgen-ready ${CLAD_OPTIONS_TD} ${CLAD_ANALYSES_TD}
+  COMMENT "Rendering the pages the tables describe"
+  VERBATIM)
 
 add_subdirectory(lib)
 add_subdirectory(tools)

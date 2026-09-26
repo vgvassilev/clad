@@ -77,6 +77,13 @@ set(CLAD_TEST_PARAMS
 # Unit tests
 list(APPEND CLAD_TEST_DEPS CladUnitTests)
 
+# TableIsWellFormed runs clad-tblgen against deliberately broken tables, so the
+# suite needs the renderer. A cross build was given one already built for the
+# host, and has no target to wait on.
+if(TARGET clad-tblgen)
+  list(APPEND CLAD_TEST_DEPS clad-tblgen)
+endif()
+
 add_custom_target(clad-test-depends DEPENDS ${CLAD_TEST_DEPS})
 set_target_properties(clad-test-depends PROPERTIES FOLDER "Clad tests")
 

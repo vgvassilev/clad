@@ -304,7 +304,7 @@ public:
   /// A flag to enable/disable diag warnings/errors during differentiation.
   bool VerboseDiags = false;
   /// Whether each analysis runs for this request. One member per entry in
-  /// Analyses.def, spelled Enable\<Id\>Analysis.
+  /// Analyses.td, spelled Enable\<Id\>Analysis.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
   bool Enable##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
@@ -472,6 +472,11 @@ public:
   /// the direction this request differentiates along. A call the analysis
   /// never saw answers true.
   [[nodiscard]] bool shouldHavePushforward(const clang::CallExpr* CE) const;
+  /// Select zero_like for this call's default adjoint, or null if inapplicable.
+  /// nonDiff is the visitor's final call-activity result.
+  clang::FunctionDecl* getDefaultAdjoint(clang::Sema& S,
+                                         const clang::CallExpr* CE,
+                                         bool nonDiff) const;
   std::string ComputeDerivativeName() const;
   bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
 

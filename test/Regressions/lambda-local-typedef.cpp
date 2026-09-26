@@ -1,6 +1,6 @@
 // RUN: %cladclang -I%S/../../include %s -o %t
 // RUN: %t | %filecheck_exec %s
-// UNSUPPORTED: clang-11, clang-12, clang-13, clang-14, clang-15, clang-16
+// UNSUPPORTED: clang-14, clang-15, clang-16
 
 // Reverse mode copies a lambda's body to build the primal, and the copy of a
 // declaration was written for variables alone: anything else came back null

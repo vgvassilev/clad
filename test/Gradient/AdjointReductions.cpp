@@ -214,24 +214,24 @@ int main() {
 }
 
 // CHECK-WHY: note: the index reads a variable the loop writes
-// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: to avoid this, make it a broadcast read (CLAD1002)
 // CHECK-WHY: note: this is read at more than one index in the loop
-// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: to avoid this, make it a broadcast read (CLAD1002)
 // CHECK-WHY: note: this is declared inside the loop
-// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: to avoid this, make it a broadcast read (CLAD1002)
 // CHECK-WHY: note: this is declared inside the loop
-// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: to avoid this, make it a broadcast read (CLAD1002)
 // CHECK-WHY: note: this is read at more than one index in the loop
-// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: to avoid this, make it a broadcast read (CLAD1002)
 // CHECK-WHY: note: this is used somewhere other than as the base of a subscript
-// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: to avoid this, make it a broadcast read (CLAD1002)
 // CHECK-WHY: note: the loop writes this too
-// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: to avoid this, make it a broadcast read (CLAD1002)
 // CHECK-WHY: note: this is read at more than one index in the loop
-// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: to avoid this, make it a broadcast read (CLAD1002)
 // CHECK-WHY: note: this writes through a pointer that cannot be traced back to a parameter
-// CHECK-WHY: note: to avoid this, make it a bounded write
+// CHECK-WHY: note: to avoid this, make it a bounded write (CLAD1003)
 // CHECK-WHY: note: this is read at more than one index in the loop
-// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: to avoid this, make it a broadcast read (CLAD1002)
 // CHECK-WHY: note: one element of this is not a number
-// CHECK-WHY: note: to avoid this, make it a broadcast read
+// CHECK-WHY: note: to avoid this, make it a broadcast read (CLAD1002)
