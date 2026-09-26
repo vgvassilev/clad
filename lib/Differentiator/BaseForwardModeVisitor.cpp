@@ -661,6 +661,21 @@ BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
   return StmtDiff(forStmtDiff);
 }
 
+// Returns true if `E` is a comparison whose operands contain an assignment,
+// e.g. `(res = u * v) < 0`. Such a condition has a side effect that must be
+// differentiated. Comparisons without an assignment, such as `i < v.size()`,
+// are deliberately excluded: visiting them would also differentiate the call
+// and hoist it out of the loop, changing when it is evaluated.
+static bool isComparisonWithAssignment(const BinaryOperator* BO) {
+  if (!BO || !BO->isComparisonOp())
+    return false;
+  auto isAssignment = [](const Expr* E) {
+    const auto* Inner = dyn_cast<BinaryOperator>(E->IgnoreParenImpCasts());
+    return Inner && Inner->isAssignmentOp();
+  };
+  return isAssignment(BO->getLHS()) || isAssignment(BO->getRHS());
+}
+
 StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
   ScopeRAII forScope(*this, Scope::DeclScope | Scope::ControlScope |
                                 Scope::BreakScope | Scope::ContinueScope);
@@ -706,13 +721,14 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
     // If it's a supported differentiable operator we wrap it back into
     // parentheses and then visit. To ensure the correctness, a comma operator
     // expression (cond_dx, cond) is generated and put instead of the condition.
-    // FIXME: Add support for other expressions in cond (comparisons, function
-    // calls, etc.). Ideally, we should be able to simply always call
-    // Visit(cond)
+    // FIXME: Add support for other expressions in cond (function calls, etc.).
+    // Ideally, we should be able to simply always call Visit(cond)
     auto* condBO = dyn_cast<BinaryOperator>(cond);
     auto* condUO = dyn_cast<UnaryOperator>(cond);
-    // FIXME: Currently we only support logical and assignment operators.
-    if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) ||
+    // FIXME: Currently we only support logical and assignment operators, and
+    // comparisons that contain an assignment.
+    if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp() ||
+                    isComparisonWithAssignment(condBO))) ||
         condUO) {
       condDiff = Visit(cond);
       if (condDiff.getExpr_dx() && (!isUnusedResult(condDiff.getExpr_dx())))
@@ -2082,8 +2098,10 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
     cond = cond->IgnoreParenImpCasts();
     auto* condBO = dyn_cast<BinaryOperator>(cond);
     auto* condUO = dyn_cast<UnaryOperator>(cond);
-    // FIXME: Currently we only support logical and assignment operators.
-    if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) ||
+    // FIXME: Currently we only support logical and assignment operators, and
+    // comparisons that contain an assignment.
+    if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp() ||
+                    isComparisonWithAssignment(condBO))) ||
         condUO) {
       StmtDiff condDiff = Visit(cond);
       // After Visit(cond) is called the derivative could either be recorded in
