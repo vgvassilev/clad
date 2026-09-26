@@ -484,6 +484,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return F.Found;
   }
 
+  llvm::SmallVector<const ParmVarDecl*, 2>
+  DiffRequest::getOutputParams() const {
+    llvm::SmallVector<const ParmVarDecl*, 2> outputParams;
+    if (Function && utils::CanReturnOutputTangent(Function))
+      utils::CollectOutputParams(Function, outputParams);
+    return outputParams;
+  }
+
+  const ParmVarDecl* DiffRequest::getOutputTangentParam() const {
+    // Every other mode either keeps the primal's return type or has somewhere
+    // of its own to put an output parameter's tangent, as a pushforward does.
+    if (Mode != DiffMode::forward)
+      return nullptr;
+    llvm::SmallVector<const ParmVarDecl*, 2> outputParams = getOutputParams();
+    if (outputParams.size() != 1)
+      return nullptr;
+    return outputParams.front();
+  }
+
   const FunctionLoopFacts& DiffRequest::getLoopFacts() const {
     // Re-run for another function: a copied request keeps the facts of the one
     // it was made for, and ProcessDiffRequest re-points a request at the
@@ -1664,6 +1683,36 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       request.Args = E->getArg(1);
       request.UpdateDiffParamsInfo(m_Sema);
+
+      // A void-returning function's derivative returns the tangent of the one
+      // parameter it writes through. With several such parameters there is no
+      // one tangent to return, and picking one would be a guess, so say so
+      // rather than hand back a derivative whose result cannot be read.
+      // Differentiating a wrapper that returns the wanted output remains the
+      // way to ask for it.
+      if (request.Mode == DiffMode::forward) {
+        llvm::SmallVector<const ParmVarDecl*, 2> outputParams =
+            request.getOutputParams();
+        if (outputParams.size() > 1) {
+          // Point at the differentiation that asked for this, not at the
+          // function: nothing is wrong with the function, and it may live in
+          // a header the user does not own. The parameters it writes through
+          // get a note, so the reason is still reachable from the message.
+          SourceLocation outLoc = request.Args->getBeginLoc();
+          utils::diag(m_Sema, DiagnosticsEngine::Error, outLoc,
+                      "attempted to differentiate '%0', which returns void and "
+                      "writes through %1 parameters; forward mode returns a "
+                      "single tangent, so differentiate a wrapper returning "
+                      "the output you need")
+              << request.Function->getNameAsString()
+              << static_cast<unsigned>(outputParams.size()) << outLoc;
+          for (const ParmVarDecl* PVD : outputParams)
+            utils::diag(m_Sema, DiagnosticsEngine::Note, PVD->getLocation(),
+                        "'%0' is written through here")
+                << PVD->getNameAsString() << PVD->getLocation();
+          return true;
+        }
+      }
       if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis &&
           request.Args)
         seedVariedDirection(request);

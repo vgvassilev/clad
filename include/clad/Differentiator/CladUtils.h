@@ -511,6 +511,29 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns true if QT is a non-const reference type.
     bool isNonConstReferenceType(clang::QualType QT);
 
+    /// Collects the parameters \p FD writes a result through: non-const lvalue
+    /// references to a real type. A function returning void has nowhere else
+    /// to put a result, so in forward mode these are what the derivative has
+    /// to hand back. Pointers are deliberately not counted -- how many
+    /// elements one addresses is not something the signature says.
+    void CollectOutputParams(
+        const clang::FunctionDecl* FD,
+        llvm::SmallVectorImpl<const clang::ParmVarDecl*>& outputParams);
+
+    /// Whether a forward derivative of \p FD may hand back the tangent of an
+    /// output parameter rather than returning void.
+    ///
+    /// The answer has to be the same here and in
+    /// ExtractDerivedFnTraitsForwMode, which decides the derivative's type
+    /// from the header side; where the two disagree CladFunction::execute
+    /// calls through a type whose return it has wrong, and reads a register
+    /// nothing wrote. That rules out instance member functions, whose
+    /// derivative the traits describe through a member pointer type with no
+    /// room for a changed return type. A static member function is addressed
+    /// as a plain function pointer, takes the free-function path in the
+    /// traits, and so belongs here.
+    bool CanReturnOutputTangent(const clang::FunctionDecl* FD);
+
     bool isCopyable(const clang::CXXRecordDecl* RD);
 
     bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
