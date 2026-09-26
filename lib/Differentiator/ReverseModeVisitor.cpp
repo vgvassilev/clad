@@ -1100,8 +1100,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Both arms claim a shared seed lazily: only an arm whose reverse code
     // consumes it pulls, so a constant arm builds nothing and the seed is
     // parented once across the two arms.
-    SeedClaim seed(*this, dfdx());
-    auto seedThunk = [&seed]() -> Expr* {
+    Expr* dfdxExpr = dfdx();
+    VarDecl* seedDecl = nullptr;
+    if (dfdxExpr && dfdxExpr->HasSideEffects(m_Context)) {
+      seedDecl = BuildVarDecl(dfdxExpr->getType(), "_r", dfdxExpr);
+      dfdxExpr = BuildDeclRef(seedDecl);
+    }
+    SeedClaim seed(*this, dfdxExpr);
+    bool seedUsed = false;
+    auto seedThunk = [&seed, &seedUsed]() -> Expr* {
+      seedUsed = static_cast<bool>(seed);
       return seed ? seed.claim() : nullptr;
     };
     std::tie(ifTrueDiff, ifTrueExprDiff) = VisitBranch(ifTrue, seedThunk);
@@ -1130,6 +1138,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       addToCurrentBlock(Forward, direction::forward);
     if (Reverse)
       addToCurrentBlock(Reverse, direction::reverse);
+    // Added after the if: a reverse block is emitted back to front.
+    if (seedDecl && seedUsed)
+      addToCurrentBlock(BuildDeclStmt(seedDecl), direction::reverse);
 
     Expr* condExpr =
         m_Sema
