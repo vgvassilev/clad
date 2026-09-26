@@ -942,7 +942,7 @@ namespace clad {
         auto OpKind = UO->getOpcode();
         if (OpKind == UO_Plus || OpKind == UO_Minus)
           return UsefulToStore(UO->getSubExpr());
-        return false;
+        return UO->isIncrementDecrementOp();
       }
       if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
         return UsefulToStore(ASE->getBase()) || UsefulToStore(ASE->getIdx());

@@ -600,6 +600,50 @@ double func13(double* x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+double func14(const double* x, int n) {
+  int i = 0;
+  double s = 2 * x[i++];
+  for (int k = 0; k < n; ++k)
+    s += (k + 3) * x[i++];
+  s += 6 * x[++i];
+  return s; // n = 2: 2 * x[0] + 3 * x[1] + 4 * x[2] + 6 * x[4]
+}
+
+// CHECK:  void func14_grad_0(const double *x, int n, double *_d_x) {
+// CHECK-NEXT:      int _d_n = 0;
+// CHECK-NEXT:      int _d_k = 0;
+// CHECK-NEXT:      int k = 0;
+// CHECK-NEXT:      clad::tape<double> _t2 = {};
+// CHECK-NEXT:      int _d_i = 0;
+// CHECK-NEXT:      int i = 0;
+// CHECK-NEXT:      double _t0 = x[i++];
+// CHECK-NEXT:      double _d_s = 0.;
+// CHECK-NEXT:      double s = 2 * _t0;
+// CHECK-NEXT:      unsigned {{int|long|long long}} _t1;
+// CHECK-NEXT:      for (k = 0; k < n; ++k) {
+// CHECK-NEXT:          s += (k + 3) * clad::push(_t2, x[i++]);
+// CHECK-NEXT:      }
+// CHECK-NEXT:      double _t3 = x[++i];
+// CHECK-NEXT:      s += 6 * _t3;
+// CHECK-NEXT:      _d_s += 1;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r_d1 = _d_s;
+// CHECK-NEXT:          --i;
+// CHECK-NEXT:          _d_x[(i + 1)] += 6 * _r_d1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      for (_t1 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t1; _t1--) {
+// CHECK-NEXT:          --k;
+// CHECK-NEXT:          double _r_d0 = _d_s;
+// CHECK-NEXT:          _d_k += _r_d0 * clad::pop(_t2);
+// CHECK-NEXT:          i--;
+// CHECK-NEXT:          _d_x[i] += (k + 3) * _r_d0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          i--;
+// CHECK-NEXT:          _d_x[i] += 2 * _d_s;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 int main() {
   double arr[] = {1, 2, 3};
   auto f_dx = clad::gradient(f);
@@ -679,4 +723,9 @@ int main() {
   double x1[] = {1, 2, 3, 4}, dx1[4] = {0}, dy = 0;
   func13grad.execute(x1, 5, dx1, &dy);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", dx1[0], dx1[1], dx1[2], dx1[3], dy); // CHECK-EXEC: {3.00, 0.00, 10.00, 0.00, 6.00}
+
+  auto func14grad = clad::gradient(func14, "x");
+  double x2[5] = {1, 2, 3, 4, 5}, dx2[5] = {0};
+  func14grad.execute(x2, 2, dx2);
+  printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", dx2[0], dx2[1], dx2[2], dx2[3], dx2[4]); // CHECK-EXEC: {2.00, 3.00, 4.00, 0.00, 6.00}
 }
