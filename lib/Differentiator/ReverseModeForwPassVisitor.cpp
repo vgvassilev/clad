@@ -61,7 +61,7 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
   DiffParams args{};
   std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
   auto params = BuildParams(args);
-  m_Derivative->setParams(params);
+  utils::SetParams(m_Derivative, params);
   m_Derivative->setBody(nullptr);
 
   if (!m_DiffReq.DeclarationOnly) {

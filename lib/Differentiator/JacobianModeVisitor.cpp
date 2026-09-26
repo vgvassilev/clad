@@ -150,8 +150,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
                               nonArrayIndVarCountExpr);
   }
 
-  vectorDiffFD->setParams(
-      clad_compat::makeArrayRef(params.data(), params.size()));
+  utils::SetParams(vectorDiffFD,
+                   clad_compat::makeArrayRef(params.data(), params.size()));
   vectorDiffFD->setBody(nullptr);
 
   // Instantiate a variable indepVarCount to store the total number of

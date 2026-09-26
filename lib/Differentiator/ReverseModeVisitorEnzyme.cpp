@@ -180,7 +180,7 @@ void ReverseModeVisitor::DifferentiateWithEnzyme() {
   FunctionDecl* enzymeCallFD = FunctionDecl::Create(
       m_Context, fdDeclContext, loc, loc, nameEnzyme, enzymeFunctionType,
       m_DiffReq->getTypeSourceInfo(), SC_Extern);
-  enzymeCallFD->setParams(enzymeParams);
+  utils::SetParams(enzymeCallFD, enzymeParams);
   Expr* enzymeCall = BuildCallExprToFunction(enzymeCallFD, enzymeArgs);
 
   // Prepare the statements that assign the gradients to

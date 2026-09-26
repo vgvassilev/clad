@@ -555,6 +555,15 @@ template <class T> std::false_type is_range(...);
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
   // do not need. Another disadvantage is that it is difficult to distinguish a
   // 'normal' use of std::{function,mem_fn} from the ones we must differentiate.
+  /// Marks a point where clad has not put a derivative in place yet.
+  ///
+  /// Deliberately not constexpr, and empty so that clad can differentiate
+  /// through it. Calling it makes the enclosing expression non-constant, so
+  /// the compiler reports that rather than working out an answer from a null
+  /// derivative -- a zero indistinguishable from a derivative that really is
+  /// zero. At run time it does nothing.
+  CUDA_HOST_DEVICE inline void NoDerivativeYet() {}
+
   /// Explicitly passing `FunctorT` type is necessary for maintaining
   /// const correctness of functor types.
   /// Default value of `Functor` here is temporary, and should be removed
@@ -646,8 +655,10 @@ template <class T> std::false_type is_range(...);
                             return_type_t<F>>::type
         CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE
         execute(Args&&... args) const {
-      if (!m_Function)
+      if (!m_Function) {
+        NoDerivativeYet();
         return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
       if (m_CUDAkernel) {
         printf("Use execute_kernel() for global CUDA kernels\n");
         return static_cast<return_type_t<F>>(return_type_t<F>());
