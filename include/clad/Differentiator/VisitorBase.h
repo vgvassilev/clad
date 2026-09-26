@@ -644,21 +644,25 @@ namespace clad {
     /// C style initalization.
     /// \param[in] TSI The type source information of the variable declaration.
     /// \param[in] SC The storage class of the variable declaration.
+    /// \param isUserVariable True if this represents a user variable to preserve name.
     /// \returns The newly built variable declaration.
     clang::VarDecl* BuildVarDecl(clang::QualType Type,
                                  llvm::StringRef prefix = "_t",
                                  clang::Expr* Init = nullptr,
                                  bool DirectInit = false,
                                  clang::TypeSourceInfo* TSI = nullptr,
-                                 clang::StorageClass SC = clang::SC_None);
+                                 clang::StorageClass SC = clang::SC_None,
+                                 bool isUserVariable = false);
     /// Builds variable declaration to be used inside the derivative
     /// body in the derivative function global scope.
+    /// The \p isUserVariable parameter controls whether to preserve a user name.
     clang::VarDecl* BuildGlobalVarDecl(clang::QualType Type,
                                        llvm::StringRef prefix = "_t",
                                        clang::Expr* Init = nullptr,
                                        bool DirectInit = false,
                                        clang::TypeSourceInfo* TSI = nullptr,
-                                       clang::StorageClass SC = clang::SC_None);
+                                       clang::StorageClass SC = clang::SC_None,
+                                       bool isUserVariable = false);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until
     /// m_Sema.PopDeclContextIsUsed.
@@ -754,7 +758,10 @@ namespace clad {
 
     /// Creates unique identifier of the form "_nameBase<number>" that is
     /// guaranteed not to collide with anything in the current scope.
-    clang::IdentifierInfo* CreateUniqueIdentifier(llvm::StringRef nameBase);
+    /// \param nameBase The base name.
+    /// \param isUserVariable True if this represents a user variable to preserve name.
+    clang::IdentifierInfo* CreateUniqueIdentifier(llvm::StringRef nameBase,
+                                                  bool isUserVariable = false);
     std::unordered_map<std::string, std::size_t> m_idCtr;
 
     /// Updates references in newly cloned statements.

@@ -4005,7 +4005,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
                                  initDiff.getExpr(), VD->isDirectInit(),
-                                 VDCloneTSI, SC);
+                                 VDCloneTSI, SC, /*isUserVariable=*/true);
 
     // The choice of isDirectInit is mostly stylistic.
     bool isRealConstArray = false;
