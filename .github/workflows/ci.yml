@@ -42,6 +42,7 @@ jobs:
       pull-requests: read
     outputs:
       value: ${{ steps.decide.outputs.value }}
+      build_system: ${{ steps.decide.outputs.build_system }}
     steps:
     - name: Decide
       id: decide
@@ -57,12 +58,17 @@ jobs:
         # the whole matrix.
         if [ "$ACTION" = labeled ]; then
           echo 'value=false' >> "$GITHUB_OUTPUT"
+          echo 'build_system=false' >> "$GITHUB_OUTPUT"
           echo "A label changes no file; clad is not rebuilt." \
             | tee -a "$GITHUB_STEP_SUMMARY"
           exit 0
         fi
         if [ "$EVENT_NAME" != pull_request ]; then
           echo 'value=true' >> "$GITHUB_OUTPUT"
+          # The two rows that build LLVM from source stay off after a merge:
+          # they are here to answer before one, and the pull request that
+          # changed these files has already been asked.
+          echo 'build_system=false' >> "$GITHUB_OUTPUT"
           echo "A $EVENT_NAME builds everything." | tee -a "$GITHUB_STEP_SUMMARY"
           exit 0
         fi
@@ -73,6 +79,26 @@ jobs:
         # so editing it changes what the suite asserts.
         rest=$(printf '%s\n' "$files" | grep -Ev \
                  '^docs/|^\.readthedocs\.yaml$|^requirements\.txt$' || true)
+        # What decides how clad is built, and so what the two rows below are
+        # the only ones able to check. The tables and the tool that renders
+        # them are in here with the cmake files: the build rules exist to run
+        # that tool, and its output is what those rows failed to find.
+        # This file too: a change to the rows below has to run them, or the
+        # only way to find out whether they still catch anything is to wait for
+        # the consumer they exist for to break again.
+        build_system=$(printf '%s\n' "$files" | grep -E \
+                 '(^|/)CMakeLists\.txt$|\.cmake$|^cmake/|^utils/clad-tblgen/|\.td$|^\.github/workflows/ci\.yml$' \
+                 || true)
+        # Fail open for the same reason the decision below does: no file list
+        # means the question went unanswered, not that nothing changed.
+        if [ -z "$files" ] || [ -n "$build_system" ]; then
+          echo 'build_system=true' >> "$GITHUB_OUTPUT"
+          { echo 'Building clad in LLVM and against an LLVM build tree. Changed:'
+            printf '%s\n' "${build_system:-<unknown>}" | head -10 | sed 's/^/    /'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+        else
+          echo 'build_system=false' >> "$GITHUB_OUTPUT"
+        fi
         # Each branch says what it decided and why. The matrix condition is
         # fail-open, so a full build is also what an empty output produces:
         # without this the log cannot tell a decision from a broken one.
@@ -803,6 +829,65 @@ jobs:
   # A post-merge gate nobody watches is not a gate: the run ends long after
   # its author has moved on. Consecutive failures comment on the open report
   # rather than file another, so a week of red master is one thread.
+  # Every row above is handed an LLVM installation, where LLVM_INCLUDE_DIRS
+  # holds one directory, LLVM_LIBRARY_DIR holds the libraries, and
+  # CMAKE_SOURCE_DIR and CMAKE_BINARY_DIR are clad's own. None of that is true
+  # for the consumer below, so a build rule that relies on any of it passes
+  # the whole matrix and breaks it. This row is the only one that can say
+  # otherwise, and it waits for a change to the files that decide how clad is
+  # built.
+  #
+  # It is not a Windows row, though ROOT met the failure there: the difference
+  # is in what LLVMConfig says, and a generator says it on every platform.
+  # What stays uncovered is MSVC and a build tree together, which only ROOT
+  # builds.
+
+  # clad standalone against an LLVM build tree with a multi-config generator,
+  # which is what ROOT builds on Windows. A multi-config LLVMConfig hands out
+  #
+  #   set(LLVM_LIBRARY_DIR ".../<build>/${CONFIGURATION}/lib")
+  #
+  # with ${CONFIGURATION} unexpanded, and nothing defines it in clad's scope,
+  # so anything that looks a library up under that hint finds nothing. Nothing
+  # about it is MSVC's: Ninja Multi-Config reproduces it here, which is why
+  # this row is Linux and takes minutes.
+  #
+  # LLVM is configured but only the two libraries clad-tblgen links are built.
+  # LLVMConfig is written at configure time and is all clad reads, so the
+  # failure this row exists for needs no LLVM build at all; the two libraries
+  # are there to link the tool and render a table, which is the other thing a
+  # build tree has broken before.
+  build-multiconfig:
+    timeout-minutes: 60
+    name: ubu24-multiconfig-llvm21
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v7
+    # cmake as well as ninja: both are preinstalled on a github-hosted runner
+    # and neither is in the image bin/repro uses, and a row that cannot be run
+    # locally is a row whose failures have to be read rather than reproduced.
+    - name: Install the build tools
+      run: sudo apt-get update && sudo apt-get install -y -qq cmake ninja-build
+    - name: Clone LLVM
+      run: |
+        git clone --depth 1 -b llvmorg-21.1.0 \
+          https://github.com/llvm/llvm-project.git llvm-project
+    - name: Configure LLVM with a multi-config generator
+      run: |
+        cmake -S llvm-project/llvm -B llvm-build -G "Ninja Multi-Config" \
+          -DLLVM_ENABLE_PROJECTS=clang \
+          -DLLVM_TARGETS_TO_BUILD=host
+    - name: Configure clad against the build tree
+      run: |
+        cmake -S . -B clad-build -G "Ninja Multi-Config" \
+          -DLLVM_DIR="$PWD/llvm-build/lib/cmake/llvm" \
+          -DClang_DIR="$PWD/llvm-build/lib/cmake/clang" \
+          -DCLAD_DISABLE_TESTS=ON
+    - name: Render the tables and link the tool that renders them
+      run: |
+        cmake --build clad-build --config Release \
+          --target clad-tblgen clad-tables
+
   post-merge-report:
     needs: [build-valgrind, build-cling]
     # Only after a merge, even though the gates above now also run on a
