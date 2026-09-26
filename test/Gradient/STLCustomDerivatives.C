@@ -283,6 +283,9 @@ double fn24(double x){
    std::pair<double, double> p(x,1);
    return p.first;
 }
+double fn25(const std::vector<double>& v) {
+  return 3 * v[1] + v[0] * v[1];
+}
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn1);
@@ -357,6 +360,11 @@ int main() {
 
     INIT_GRADIENT(fn24);
     TEST_GRADIENT(fn24, /*numOfDerivativeArgs=*/1, 3, &d_i);  // CHECK-EXEC: {1.00}
+
+    INIT_GRADIENT(fn25);
+    std::vector<double> v25{3, 5}, dv25(2, 0);
+    fn25_grad.execute(v25, &dv25);
+    printf("{%.2f, %.2f}\n", dv25[0], dv25[1]);  // CHECK-EXEC: {5.00, 6.00}
 }
 
 // CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -1173,3 +1181,14 @@ int main() {
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
+
+// CHECK: void fn25_grad(const std::vector<double> &v, std::vector<double> *_d_v) {
+// CHECK-NEXT:    {{.*}}value_type _t0 = v[1];
+// CHECK-NEXT:    {{.*}}value_type _t2 = v[0];
+// CHECK-NEXT:    {{.*}}value_type _t1 = v[1];
+// CHECK-NEXT:    {
+// CHECK-NEXT:        (*_d_v)[1] += 3 * 1;
+// CHECK-NEXT:        (*_d_v)[0] += 1 * _t1;
+// CHECK-NEXT:        (*_d_v)[1] += _t2 * 1;
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
