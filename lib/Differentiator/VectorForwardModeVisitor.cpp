@@ -94,8 +94,8 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   // BuildVectorModeParams and materialized into m_IndVarCountDecl below.
   Expr* indVarCountExpr = nullptr;
   auto params = BuildVectorModeParams(args, indVarCountExpr);
-  vectorDiffFD->setParams(
-      clad_compat::makeArrayRef(params.data(), params.size()));
+  utils::SetParams(vectorDiffFD,
+                   clad_compat::makeArrayRef(params.data(), params.size()));
   vectorDiffFD->setBody(nullptr);
 
   // Create the body of the derivative.

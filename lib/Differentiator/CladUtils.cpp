@@ -548,6 +548,14 @@ namespace clad {
       return PVD;
     }
 
+    void SetParams(FunctionDecl* FD, llvm::ArrayRef<ParmVarDecl*> params) {
+      FD->setParams(params);
+      // Scope depth is 0: these belong to a plain function, not to a nested
+      // function prototype.
+      for (unsigned i = 0; i < params.size(); ++i)
+        params[i]->setScopeInfo(/*scopeDepth=*/0, /*parameterIndex=*/i);
+    }
+
     clang::QualType GetValueType(clang::QualType T) {
       QualType valueType = T;
       if (T->isPointerType())

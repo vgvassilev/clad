@@ -1553,7 +1553,7 @@ namespace clad {
         m_Sema.PushOnScopeChains(PVD, getCurrentScope(),
                                  /*AddToContext=*/false);
 
-    diffOverloadFD->setParams(overloadParams);
+    utils::SetParams(diffOverloadFD, overloadParams);
     diffOverloadFD->setBody(/*B=*/nullptr);
 
     beginScope(Scope::FnScope | Scope::DeclScope);

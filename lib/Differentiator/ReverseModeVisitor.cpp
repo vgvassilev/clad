@@ -356,7 +356,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
-    m_Derivative->setParams(params);
+    utils::SetParams(m_Derivative, params);
     m_Derivative->setBody(nullptr);
 
     m_Sema.PopFunctionScopeInfo();
