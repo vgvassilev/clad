@@ -2475,7 +2475,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // If the user-provided derivative doesn't use clad::restore_tracker,
           // attempt to store the base manually
           bool isCopiable = utils::isCopyable(MD->getParent());
-          if (!usingRestoreTracker && isCopiable) {
+          // Save primals only when there is a reverse sweep.
+          bool hasReverseSweep =
+              m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass;
+          if (!usingRestoreTracker && isCopiable && hasReverseSweep) {
             // baseExpr is already in CallArgs; the record/restore below needs
             // its own copy of the base so the stored temp and the restore
             // assignment do not share nodes with the call argument.
@@ -4608,6 +4611,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         isInsideLoop() ||
         (m_DiffReq.hasEarlyReturns() &&
          (isValueAndAdjoint || utils::IsCladValueAndPushforwardType(Type)));
+
+    if (requiresTape && m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass)
+      return StoreAndRef(E, Type, direction::forward, prefix,
+                         /*forceDeclCreation=*/true);
 
     if (requiresTape) {
       CladTapeResult CladTape = MakeCladTapeFor(E, prefix, Type);
