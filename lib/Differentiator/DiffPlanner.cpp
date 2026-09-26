@@ -427,12 +427,16 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return TraverseStmt(Def->getBody());
   }
 
-  bool DiffCollector::isInInterval(SourceLocation Loc) const {
-    const SourceManager &SM = m_Sema.getSourceManager();
-    for (size_t i = 0, e = m_Interval.size(); i < e; ++i) {
-      SourceLocation B = m_Interval[i].getBegin();
-      SourceLocation E = m_Interval[i].getEnd();
-      assert((i == e-1 || E.isValid()) && "Unexpected open interval");
+  /// Whether \p Loc lies where clad was switched on. Anything reporting on a
+  /// call clad would have collected reads this, so that it agrees with the
+  /// collector about which calls those are.
+  static bool isInCladInterval(const SourceManager& SM,
+                               const DiffInterval& Interval,
+                               SourceLocation Loc) {
+    for (size_t i = 0, e = Interval.size(); i < e; ++i) {
+      SourceLocation B = Interval[i].getBegin();
+      SourceLocation E = Interval[i].getEnd();
+      assert((i == e - 1 || E.isValid()) && "Unexpected open interval");
       assert(E.isInvalid() || SM.isBeforeInTranslationUnit(B, E));
       if (E.isValid() &&
           clad_compat::SourceManager_isPointWithin(SM, Loc, B, E))
@@ -441,6 +445,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
     }
     return false;
+  }
+
+  bool DiffCollector::isInInterval(SourceLocation Loc) const {
+    return isInCladInterval(m_Sema.getSourceManager(), m_Interval, Loc);
   }
 
   const ReturnStmt* DiffRequest::getTailReturn() const {
@@ -1600,6 +1608,82 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return RecursiveASTVisitor::TraverseDecl(D);
   }
 
+  /// Whether \p E calls a clad entry point. They are annotated with the first
+  /// letter of the mode they ask for.
+  static bool isCladEntryPointCall(const CallExpr* E) {
+    const FunctionDecl* FD = E->getDirectCallee();
+    if (!FD)
+      return false;
+    const auto* A = FD->getAttr<AnnotateAttr>();
+    if (!A)
+      return false;
+    llvm::StringRef Mode = A->getAnnotation();
+    return Mode == "D" || Mode == "G" || Mode == "H" || Mode == "J" ||
+           Mode == "E";
+  }
+
+  /// Finds the first clad entry-point call in a statement.
+  class CladCallFinder : public RecursiveASTVisitor<CladCallFinder> {
+  public:
+    const CallExpr* Found = nullptr;
+    bool VisitCallExpr(CallExpr* E) {
+      if (!isCladEntryPointCall(E))
+        return true;
+      Found = E;
+      return false;
+    }
+  };
+
+  /// Reports variables whose initialiser the compiler works out before clad
+  /// is handed the declaration, so that clad never gets to put the derivative
+  /// into the call.
+  class ConstantInitChecker : public RecursiveASTVisitor<ConstantInitChecker> {
+    Sema& m_Sema;
+    const DiffInterval& m_Interval;
+
+  public:
+    ConstantInitChecker(Sema& S, const DiffInterval& Interval)
+        : m_Sema(S), m_Interval(Interval) {}
+
+    bool VisitVarDecl(VarDecl* VD) {
+      // Only a variable the language requires to be initialised by a constant
+      // expression is beyond help. An ordinary one is worked out again after
+      // clad has rewritten the call, and comes out right.
+      if (!VD->isConstexpr() && !VD->hasAttr<ConstInitAttr>())
+        return true;
+      Expr* Init = VD->getInit();
+      if (!Init)
+        return true;
+      CladCallFinder Finder;
+      Finder.TraverseStmt(Init);
+      if (!Finder.Found)
+        return true;
+      // Say nothing where clad is switched off: DiffCollector skips such a
+      // call, so the derivative is missing for that reason and not for the
+      // one below. The same location the collector tests.
+      if (!isInCladInterval(m_Sema.getSourceManager(), m_Interval,
+                            Finder.Found->getEndLoc()))
+        return true;
+      utils::diag(m_Sema, DiagnosticsEngine::Warning,
+                  Finder.Found->getBeginLoc(),
+                  "clad cannot put the derivative into this call: the compiler "
+                  "works out the initialiser of '%0' before clad is handed the "
+                  "declaration")
+          << VD->getName() << Finder.Found->getSourceRange();
+      utils::diag(m_Sema, DiagnosticsEngine::Note, Finder.Found->getBeginLoc(),
+                  "call clad from a constexpr function, keep the result in an "
+                  "ordinary variable there, and evaluate that function here");
+      return true;
+    }
+  };
+
+  void DiagnoseConstantInitRequests(Sema& S, const DiffInterval& Interval,
+                                    DeclGroupRef DGR) {
+    ConstantInitChecker Checker(S, Interval);
+    for (Decl* D : DGR)
+      Checker.TraverseDecl(D);
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     DiffRequest request;
@@ -1623,14 +1707,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // We need to find our 'special' diff annotated such:
       // clad::differentiate(...) __attribute__((annotate("D")))
       // TODO: why not check for its name? clad::differentiate/gradient?
-      const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
-
-      if (!A)
-        return true;
-
-      std::string Annotation = A->getAnnotation().str();
-      if (Annotation != "D" && Annotation != "G" && Annotation != "H" &&
-          Annotation != "J" && Annotation != "E")
+      if (!isCladEntryPointCall(E))
         return true;
 
       // A call to clad::differentiate or clad::gradient was not found.

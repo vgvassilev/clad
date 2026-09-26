@@ -41,11 +41,11 @@ can hold the call, for a different reason. Clad puts the derivative into a call
 by rewriting it, and is handed a declaration only once the compiler has
 finished with it, so such an initialiser is worked out before the derivative is
 there. That covers a `constexpr` or `constinit` variable at namespace scope and
-a `constexpr` local, even one inside a `constexpr` function. Write it the way
-the example above does: call Clad from a `constexpr` function, keep the result
-in an ordinary variable there, and evaluate that function where the constant is
-wanted. An ordinary variable is unaffected, because its value is worked out
-again after the rewrite.
+a `constexpr` local, even one inside a `constexpr` function. Clad says so, and
+suggests writing it the way the example above does: call Clad from a
+`constexpr` function, keep the result in an ordinary variable there, and
+evaluate that function where the constant is wanted. An ordinary variable is
+unaffected, because its value is worked out again after the rewrite.
 
 When using `constexpr` there is no easy way to tell whether the functions are
 actually being evaluated during translation, so it is a good idea to use
