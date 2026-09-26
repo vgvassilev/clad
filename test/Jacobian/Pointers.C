@@ -9,7 +9,7 @@ void nonMemFn(double i, double j, double* _clad_out_out) {
 }
 
 // CHECK: void nonMemFn_jac(double i, double j, double *_clad_out_out, clad::matrix<double> *_d_vector__clad_out_out) {
-// CHECK-NEXT:     unsigned long indepVarCount = {{2U|2UL|2ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = {{2U|2UL|2ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     *_d_vector__clad_out_out = clad::identity_matrix(_d_vector__clad_out_out->rows(), indepVarCount, {{2U|2UL|2ULL}});

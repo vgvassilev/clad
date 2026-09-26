@@ -11,7 +11,7 @@ void f_1(double a, double b, double c, double _clad_out_output[]) {
 }
 
 // CHECK: void f_1_jac(double a, double b, double c, double _clad_out_output[], clad::matrix<double> *_d_vector__clad_out_output) {
-// CHECK-NEXT:     unsigned long indepVarCount = {{3U|3UL|3ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = {{3U|3UL|3ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_a = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_b = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_c = clad::one_hot_vector(indepVarCount, {{2U|2UL|2ULL}});
@@ -37,7 +37,7 @@ void f_3(double x, double y, double z, double *_clad_out__result) {
 }
 
 // CHECK: void f_3_jac(double x, double y, double z, double *_clad_out__result, clad::matrix<double> *_d_vector__clad_out__result) {
-// CHECK-NEXT:     unsigned long indepVarCount = {{3U|3UL|3ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = {{3U|3UL|3ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_x = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_y = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_z = clad::one_hot_vector(indepVarCount, {{2U|2UL|2ULL}});
@@ -61,7 +61,7 @@ void f_3(double x, double y, double z, double *_clad_out__result) {
 double multiply(double x, double y) { return x * y; }
 
 // CHECK: clad::ValueAndPushforward<double, clad::array<double> > multiply_vector_pushforward(double x, double y, clad::array<double> _d_x, clad::array<double> _d_y) {
-// CHECK-NEXT:     unsigned long indepVarCount = _d_y.size();
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = _d_y.size();
 // CHECK-NEXT:     return {x * y, _d_x * y + x * _d_y};
 // CHECK-NEXT: }
 
@@ -74,7 +74,7 @@ void f_4(double x, double y, double z, double *_clad_out__result) {
 }
 
 // CHECK: void f_4_jac(double x, double y, double z, double *_clad_out__result, clad::matrix<double> *_d_vector__clad_out__result) {
-// CHECK-NEXT:     unsigned long indepVarCount = {{3U|3UL|3ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = {{3U|3UL|3ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_x = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_y = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_z = clad::one_hot_vector(indepVarCount, {{2U|2UL|2ULL}});
@@ -96,7 +96,7 @@ void f_4(double x, double y, double z, double *_clad_out__result) {
 // CHECK-NEXT: }
 
 // CHECK: void f_1_jac_0(double a, double b, double c, double _clad_out_output[], clad::matrix<double> *_d_vector__clad_out_output) {
-// CHECK-NEXT:     unsigned long indepVarCount = {{3U|3UL|3ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = {{3U|3UL|3ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_a = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_b = clad::zero_vector(indepVarCount);
 // CHECK-NEXT:     clad::array<double> _d_vector_c = clad::zero_vector(indepVarCount);
@@ -118,7 +118,7 @@ void f_5(float a, double _clad_out_output[]){
 }
 
 // CHECK: void f_5_jac(float a, double _clad_out_output[], clad::matrix<double> *_d_vector__clad_out_output) {
-// CHECK-NEXT:     unsigned long indepVarCount = {{1U|1UL|1ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = {{1U|1UL|1ULL}};
 // CHECK-NEXT:     clad::array<float> _d_vector_a = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = _d_vector_a;
@@ -134,7 +134,7 @@ void f_6(double a[2], double b, double _clad_out_output[]) {
 }
 
 // CHECK: void f_6_jac(double a[2], double b, double _clad_out_output[], clad::matrix<double> *_d_vector_a, clad::matrix<double> *_d_vector__clad_out_output) {
-// CHECK-NEXT:     unsigned long indepVarCount = _d_vector_a->rows() + {{1U|1UL|1ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = _d_vector_a->rows() + {{1U|1UL|1ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_b = clad::one_hot_vector(indepVarCount, _d_vector_a->rows());
 // CHECK-NEXT:     *_d_vector_a = clad::identity_matrix(_d_vector_a->rows(), indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount, _d_vector_a->rows() + {{1U|1UL|1ULL}});
@@ -156,7 +156,7 @@ void f_7(double a, double& b, double&c) {
 }
 
 // CHECK: void f_7_jac(double a, double &b, double &c, clad::array<double> *_d_vector_b, clad::array<double> *_d_vector_c) {
-// CHECK-NEXT:     unsigned long indepVarCount = {{3U|3UL|3ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = {{3U|3UL|3ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_a = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     *_d_vector_b = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     *_d_vector_c = clad::one_hot_vector(indepVarCount, {{2U|2UL|2ULL}});
@@ -174,7 +174,7 @@ void f_8(double a, double b, double _clad_out_output[]) {
 }
 
 // CHECK: void f_8_jac(double a, double b, double _clad_out_output[], clad::matrix<double> *_d_vector__clad_out_output) {
-// CHECK-NEXT:     unsigned long indepVarCount = {{2U|2UL|2ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = {{2U|2UL|2ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_a = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_b = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount, 2UL);
@@ -197,7 +197,7 @@ void f_9(float a, double _clad_out_output[]){
 }
 
 // CHECK: void f_9_jac(float a, double _clad_out_output[], clad::matrix<double> *_d_vector__clad_out_output) {
-// CHECK-NEXT:     unsigned long indepVarCount = {{1U|1UL|1ULL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} indepVarCount = {{1U|1UL|1ULL}};
 // CHECK-NEXT:     clad::array<float> _d_vector_a = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount,  {{1U|1UL|1ULL}});
 // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = _d_vector_a * a + a * _d_vector_a;
@@ -212,7 +212,7 @@ void f_10(float a, double _clad_out_output[]){
 }
 
 // CHECK: void f_10_jac(float a, double _clad_out_output[], clad::matrix<double> *_d_vector__clad_out_output) {
-// CHECK-NEXT:    unsigned long indepVarCount = 1UL;
+// CHECK-NEXT:    unsigned {{int|long|long long}} indepVarCount = 1UL;
 // CHECK-NEXT:    clad::array<float> _d_vector_a = clad::one_hot_vector(indepVarCount, 0UL);
 // CHECK-NEXT:    *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount, 1UL);
 // CHECK-NEXT:    (*_d_vector__clad_out_output)[0] = _d_vector_a * a + a * _d_vector_a;
@@ -228,7 +228,7 @@ void f_11(double a[2], double b[1], double _clad_out_output[]) {
 }
 
 // CHECK: void f_11_jac(double a[2], double b[1], double _clad_out_output[], clad::matrix<double> *_d_vector_a, clad::matrix<double> *_d_vector_b, clad::matrix<double> *_d_vector__clad_out_output) {
-// CHECK-NEXT:    unsigned long indepVarCount = _d_vector_a->rows() + _d_vector_b->rows();
+// CHECK-NEXT:    unsigned {{int|long|long long}} indepVarCount = _d_vector_a->rows() + _d_vector_b->rows();
 // CHECK-NEXT:    *_d_vector_a = clad::identity_matrix(_d_vector_a->rows(), indepVarCount, 0UL);
 // CHECK-NEXT:    *_d_vector_b = clad::identity_matrix(_d_vector_b->rows(), indepVarCount, _d_vector_a->rows());
 // CHECK-NEXT:    *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount, _d_vector_a->rows() + _d_vector_b->rows());
