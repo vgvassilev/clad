@@ -1,6 +1,9 @@
 // REQUIRES: cling
-// RUN: cat %s | %cling -D__CLAD__ -I%S/../../include 2>&1 | FileCheck %s \
-// RUN:   --implicit-check-not "clad generated code"
+// %cling stands for a path and carries no flags, so the include paths are
+// named here -- and clad's public headers expand a table that is rendered into
+// the build directory, not committed beside them.
+// RUN: cat %s | %cling -D__CLAD__ -I%S/../../include -I%clad_gen_incl 2>&1 \
+// RUN:   | FileCheck %s --implicit-check-not "clad generated code"
 
 // Clad inside cling, asked for derivatives the way ROOT asks: a derivative
 // it can build, one it cannot, and a session that carries on afterwards.
