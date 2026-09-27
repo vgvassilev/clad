@@ -2157,7 +2157,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       if (hasCustomReverseForw ||
           (!hasCustomPullback &&
-           (utils::returnsAdjoint(returnType) || shouldUseRestoreTracker))) {
+           (utils::returnsAdjoint(returnType) || shouldUseRestoreTracker ||
+            utils::allocatesIntoRecordParam(request.Function)))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
       }
     }
