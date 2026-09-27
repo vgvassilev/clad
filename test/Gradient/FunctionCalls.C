@@ -1360,6 +1360,19 @@ double fnIdLoop(double x, double y) {
 // CHECK-LABEL: void fnIdLoop_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK: clad::push(_t{{[0-9]+}}, identity_reverse_forw(a, _d_a));
 
+double fn36(double x, double y) {
+  return x * std::log(2) + std::pow(2, 3) * y;
+}
+
+// CHECK: void fn36_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     {{.*}} _t0 = std::log(2);
+// CHECK-NEXT:     {{.*}} _t1 = std::pow(2, 3);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += 1 * _t0;
+// CHECK-NEXT:         *_d_y += _t1 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main() {
   double result[7];
   float fresult[7];
@@ -1484,6 +1497,8 @@ int main() {
   TEST2(fn35, 10, 1);  // CHECK-EXEC: {-3.00, 2.00}
   INIT(fnIdLoop);
   TEST2(fnIdLoop, 2, 5);  // CHECK-EXEC: {3.00, 1.00}
+  INIT(fn36);
+  TEST2(fn36, 3, 5);  // CHECK-EXEC: {0.69, 8.00}
 }
 
 double sq_defined_later(double x) {

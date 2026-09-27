@@ -1929,7 +1929,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         E->getDirectCallee();
     bool shouldUseRestoreTracker =
         utils::shouldUseRestoreTracker(request.Function);
-    bool hasCustomPullback = LookupCustomDerivativeDecl(request);
+    // Literal-only calls like log(2) are non-differentiable, so their
+    // pushforward is never called. Builtin pushforwards use floating-point
+    // types, so log<int> reports a type mismatch.
+    bool hasCustomPullback =
+        (!nonDiff || request.Mode != DiffMode::pushforward) &&
+        LookupCustomDerivativeDecl(request);
     // Share one request between early classification and final scheduling.
     DiffRequest forwPassRequest;
     if (request.Mode == DiffMode::pullback) {
