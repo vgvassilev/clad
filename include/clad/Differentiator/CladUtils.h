@@ -554,6 +554,10 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
+    /// Whether FD writes into a record argument that owns memory, whose adjoint
+    /// only its reverse_forw can shape.
+    bool allocatesIntoRecordParam(const clang::FunctionDecl* FD);
+
     bool shouldUseRestoreTracker(const clang::FunctionDecl* FD);
     /// Returns true when E designates storage with automatic storage
     /// duration in the current function, reached through subscripts,

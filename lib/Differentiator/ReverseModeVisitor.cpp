@@ -707,8 +707,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* setCall = nullptr;
     if (isDerivedThis) {
       // size already parents the malloc call above; clone for the memset.
-      llvm::SmallVector<Expr*, 3> args = {BuildDeclRef(thisDecl),
-                                          getZeroInit(m_Context.IntTy),
+      Expr* dest = BuildDeclRef(thisDecl);
+      if (!thisTy->getPointeeType().isTriviallyCopyableType(m_Context)) {
+        TypeSourceInfo* voidPtrTSI =
+            m_Context.getTrivialTypeSourceInfo(m_Context.VoidPtrTy, noLoc);
+        dest = m_Sema.BuildCStyleCastExpr(noLoc, voidPtrTSI, noLoc, dest).get();
+      }
+      llvm::SmallVector<Expr*, 3> args = {dest, getZeroInit(m_Context.IntTy),
                                           CloneNode(size)};
       setCall = GetFunctionCall("memset", "", args);
     } else
@@ -2074,8 +2079,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         dArgRef = BuildDeclRef(dArgDeclCUDA);
       }
       result.updateStmtDx(dArgRef);
-      // Visit using uninitialized reference.
-      argDiff = Visit(arg, BuildDeclRef(dArgDecl));
+      if (arg->getType()->isIntegerType() &&
+          isa<MemberExpr>(arg->IgnoreParenImpCasts()))
+        argDiff = Visit(arg);
+      else
+        // Visit using uninitialized reference.
+        argDiff = Visit(arg, BuildDeclRef(dArgDecl));
       if (shouldCopyInitialize) {
         if (Expr* dInit = argDiff.getExpr_dx())
           SetDeclInit(dArgDecl, dInit);
@@ -2386,7 +2395,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     QualType returnType = FD->getReturnType();
     // FIXME: Decide this in the diff planner
-    bool needsForwPass = utils::returnsAdjoint(returnType);
+    // A callee allocating into a record argument must shape its adjoint too.
+    bool needsForwPass = utils::returnsAdjoint(returnType) ||
+                         utils::allocatesIntoRecordParam(FD);
     bool hasStoredParams = false;
     // If the function has a single arg and does not return a reference or
     // take arg by reference, we can request a derivative w.r.t. to this arg
@@ -2434,6 +2445,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Custom elidable reverse_forw helpers propagate their adjoint directly
       // and intentionally have no pullback, for example smart pointers.
       if (!pullbackFD && isRefReturningInstanceCall && elideReverseForw)
+        nonDiff = true;
+      if (elideReverseForw && MD && MD->isInstance() &&
+          FD->getReturnType()->isReferenceType())
         nonDiff = true;
     }
 
@@ -2701,10 +2715,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Insert PreCallStmts
     it = block.insert(it, PreCallStmts.begin(), PreCallStmts.end());
     it += PreCallStmts.size();
+
+    Stmts* pullbackBlock = nullptr;
     if (OverloadedDerivedFn) {
       // Insert the CallExpr to the derived function
       it = block.insert(it, OverloadedDerivedFn);
       it++;
+      pullbackBlock = &block;
     }
 
     if (isa<CUDAKernelCallExpr>(CE) || (MD && isLambdaCallOperator(MD)))
@@ -2911,10 +2928,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       block.insert(it, peeksAfter.begin(), peeksAfter.end());
     }
 
+    // A reshaping call needs its reverse_forw to give the adjoint a buffer.
+    bool inReverseForw =
+        m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass && MD &&
+        MD->isInstance() && !MD->isConst() &&
+        utils::isMemoryType(MD->getThisType()->getPointeeType());
     if (!useRangeRecords && calleeFnForwPassFD &&
         (!hasDynamicNonDiffParams || !needsForwPass) &&
         ((hasStoredParams && !recordsAreDead) || needsForwPass ||
-         !pullbackStateType.isNull())) {
+         !pullbackStateType.isNull() || inReverseForw)) {
       if (const auto* CD = dyn_cast<CXXConversionDecl>(FD))
         CallArgs.push_back(
             utils::GetCladTagExpr(m_Sema, CD->getConversionType()));
@@ -3027,7 +3049,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // operation reached through an opaque type). Fall through to recreating
       // the original call rather than storing a null expression.
       if (call) {
-        if (!needsForwPass ||
+        QualType forwRetTy = calleeFnForwPassFD->getReturnType();
+        bool forwReturnsPair =
+            forwRetTy->getAsCXXRecordDecl() &&
+            forwRetTy->getAsCXXRecordDecl()->getName() == "ValueAndAdjoint";
+        if (!needsForwPass || !forwReturnsPair ||
             (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE)))
           return StmtDiff(call);
         Expr* callRes = nullptr;
@@ -3070,9 +3096,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           Expr* adjointAddr = BuildOp(
               UO_AddrOf, utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                                 CloneNode(callRes), "adjoint"));
-          resValue = BuildOp(UO_Deref, GlobalStoreAndRef(valueAddr,
-                                                         /*prefix=*/"_t",
-                                                         /*force=*/true));
+          resValue = BuildOp(UO_Deref,
+                             GlobalStoreAndRef(valueAddr, valueAddr->getType(),
+                                               /*prefix=*/"_t",
+                                               /*force=*/true));
           resAdjoint = BuildOp(UO_Deref, GlobalStoreAndRef(adjointAddr,
                                                            /*prefix=*/"_t",
                                                            /*force=*/true));
@@ -3089,6 +3116,28 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           Stmts& block = getCurrentBlock(direction::reverse);
           it = std::begin(block) + insertionPoint;
           block.insert(it, add_assign);
+          QualType retTy = FD->getReturnType();
+          bool pullbackTookSeed =
+              !(utils::isNonConstReferenceType(retTy) ||
+                retTy->isPointerType() || retTy->isVoidType());
+          if (OverloadedDerivedFn && MD && MD->isInstance() &&
+              retTy->isReferenceType() && pullbackTookSeed) {
+            bool paramsCarryAdjoint = false;
+            for (const ParmVarDecl* PVD : FD->parameters()) {
+              QualType PT = PVD->getType();
+              // IsDifferentiableType counts integers as real types
+              if (PT.getCanonicalType()->isIntegerType())
+                continue;
+              paramsCarryAdjoint |= utils::IsDifferentiableType(PT);
+            }
+            if (!paramsCarryAdjoint && pullbackBlock) {
+              auto* pullbackIt = std::find(std::begin(*pullbackBlock),
+                                           std::end(*pullbackBlock),
+                                           cast<Stmt>(OverloadedDerivedFn));
+              if (pullbackIt != std::end(*pullbackBlock))
+                pullbackBlock->erase(pullbackIt);
+            }
+          }
         }
         return StmtDiff(resValue, resAdjoint);
       }
