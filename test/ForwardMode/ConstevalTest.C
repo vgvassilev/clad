@@ -32,13 +32,13 @@ consteval double mul(double a, double b, double c) {
 //CHECK-NEXT:    }
 
 consteval double fn_test() {
-    auto dx = clad::differentiate<clad::immediate_mode>(fn, "x");
+    auto dx = clad::differentiate(fn, "x");
 
     return dx.execute(4, 7);
 }
 
 consteval double mul_test() {
-    auto dx = clad::differentiate<clad::immediate_mode>(mul, "a");
+    auto dx = clad::differentiate(mul, "a");
 
     return dx.execute(5, 6, 10);
 }

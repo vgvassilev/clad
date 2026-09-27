@@ -4,60 +4,65 @@ Immediate mode
 The derivatives that Clad generates are valid C++ code, which could in theory
 be executed at compile-time (or in an immediate context as the C++ standard
 calls it). When a function is differentiated all specifiers, such as
-`constexpr` and `consteval` are kept, but it is important to understand the
-interface that Clad provides for those derivatives to the user.
+`constexpr` and `consteval` are kept, so the derivative of a `constexpr`
+function is itself `constexpr`.
 
-When Clad differentiates a function (e.g. with `clad::differentiate`) the user
-receives a `CladFunction`, which contains a function pointer to the generated
-derivative, among many other things. Unfortunately due to how the C++ standard
-is written handling function pointers in an immediate context is very
-restricted and care needs to be taken to not violate the rules or the compiler
-won't be able to evaluate our `constexpr`/`consteval` functions during
-translation.
-
-Currently to get a `CladFunction` that is usable in immediate mode the user has
-to pass `clad::immediate_mode` to the differentiation function and that removes
-the ability to dump the generated derivative, but it may be possible to add
-support for that in the future.
+Getting the derivative in time is the harder half. Clad normally waits until
+the whole translation unit is parsed before generating anything, which is too
+late for a compiler that is already working out the value of a call. So when
+the call to `clad::differentiate` sits in the body of a `constexpr` or
+`consteval` function, Clad plans and generates that derivative as soon as the
+declaration carrying it arrives. There is nothing to ask for: Clad reads where
+the call is and decides.
 
 Usage of Clad's immediate mode
 ================================================
 
-The following code snippet shows how one can request Clad to use the immediate
-mode for differentiation:
+The following code snippet differentiates a function and evaluates the
+derivative while the program compiles:
 
 .. literalinclude:: ../../../../test/Documentation/Guide/ImmediateMode.cpp
    :language: cpp
    :start-after: docs-begin-immediate-mode
    :end-before: docs-end-immediate-mode
 
-The example needs ``-std=c++20`` or later, because the immediate-mode
-``CladFunction`` is selected by a ``requires`` clause and a compiler without
-concepts does not see it. It also needs Clang 17 or later: the plugin's
-immediate-mode path is compiled only for those, and on an older Clang no
-derivative is generated for a ``constexpr`` function at all.
+The example needs Clang 17 or later: the early-generation path in the plugin
+is compiled only for those, and on an older Clang no derivative is generated
+for a `constexpr` function at all.
 
-It is neccessary both to pass the `clad::immediate_mode` option to
-`clad::differentiate` and to keep both the call to `clad::differentiate` and
-all it's `.execute(...)` calls in the same immediate context, as the C++
-standard forbids having a function pointer to an immediate function outside of
-an immediate context. (It is not possible to do the differentiation and
-executions in main as `dx` would contain such a pointer, but `main` is not and
-can not be immediate)
+Both the call to `clad::differentiate` and all its `.execute(...)` calls have
+to stay in the same immediate context, as the C++ standard forbids holding a
+function pointer to an immediate function outside of one. (It is not possible
+to do the differentiation and the executions in `main`, as `dx` would hold
+such a pointer while `main` is not and cannot be immediate.)
+
+No variable the language requires to be initialised by a constant expression
+can hold the call, for a different reason. Clad puts the derivative into a call
+by rewriting it, and is handed a declaration only once the compiler has
+finished with it, so such an initialiser is worked out before the derivative is
+there. That covers a `constexpr` or `constinit` variable at namespace scope and
+a `constexpr` local, even one inside a `constexpr` function. Write it the way
+the example above does: call Clad from a `constexpr` function, keep the result
+in an ordinary variable there, and evaluate that function where the constant is
+wanted. An ordinary variable is unaffected, because its value is worked out
+again after the rewrite.
 
 When using `constexpr` there is no easy way to tell whether the functions are
-actually being evaluated during translation, so it is a good idea to use either
-`consteval` or an `if consteval` (in C++23 and newer) to check if the immediate
-contexts are behaving as expected or assign the results to a variable marked
-`constexpr` as that would fail if the expression that is being assigned isn't
-immediate.
+actually being evaluated during translation, so it is a good idea to use
+either `consteval` or an `if consteval` (in C++23 and newer) to check that the
+immediate contexts behave as expected, or to assign the result to a variable
+marked `constexpr`, which fails if the expression being assigned is not a
+constant one.
 
 Use cases supported by Clad's immediate mode
 ================================================
 
-Currently Clad's immediate mode is primarily meant to be used in the forward
-mode (`clad::differentiate`) as internal data structures that Clad needs for
-differentiating loops, etc. are not yet usable in an immediate context.
+Forward mode (`clad::differentiate`) works throughout. Reverse mode
+(`clad::gradient`) needs C++26: Clad calls the generated gradient through a
+pointer whose adjoint parameters are ``void*`` while the function itself takes
+a pointer to each argument's own type, and a cast from ``void*`` only became a
+constant expression in C++26. Loops are a separate matter -- the tape Clad
+uses to reverse one is not usable while the program compiles.
 
 Both `constexpr` and `consteval` are supported as Clad doesn't actually rely on
 these specific keywords for its support, but instead uses clang's API to

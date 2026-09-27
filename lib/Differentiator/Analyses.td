@@ -97,8 +97,8 @@ def : Reserved</*firstBit=*/4, /*name=*/"diagonal_only">;
 def Varied : Analysis</*name=*/"activity", /*legacy=*/"va", /*onByDefault=*/0,
                       /*requestBit=*/5,
                       "skips the adjoint of a value no input can vary">;
-def : Reserved</*firstBit=*/7, /*name=*/"immediate_mode">;
-// 8 is free and stays free: an analysis needs two in a row, and 9 is taken.
+// 7 and 8 are free: 7 was clad::immediate_mode, which clad now works out for
+// itself, and an analysis needs two in a row, which these are.
 def Useful : Analysis</*name=*/"useful", /*legacy=*/"ua", /*onByDefault=*/0,
                       /*requestBit=*/9,
                       "skips the adjoint of a value no output depends on">;

@@ -335,9 +335,11 @@ public:
   /// A flag to request a clad::restore_tracker parameter in the generated
   /// _reverse_forw function.
   bool UseRestoreTracker = false;
-  /// A flag specifying whether this differentiation is to be used
-  /// in immediate contexts.
-  bool ImmediateMode = false;
+  /// The function whose body holds the call asking for this derivative, or
+  /// null at namespace scope. Read from where the call is, not from anything
+  /// a user asks for; what it means for scheduling is decided in one place,
+  /// CladPlugin::HandleTopLevelDeclForClad.
+  const clang::FunctionDecl* ImmediateContext = nullptr;
   /// A flag specifying whether this differentiation is to be used
   /// for error estimation.
   bool EnableErrorEstimation = false;
@@ -569,6 +571,10 @@ using DiffInterval = std::vector<clang::SourceRange>;
 
     bool m_IsTraversingTopLevelDecl = true;
 
+    /// The function whose body the traversal is currently inside, or null at
+    /// namespace scope. VisitCallExpr copies it onto each request it makes.
+    const clang::FunctionDecl* m_EnclosingFD = nullptr;
+
     /// True while Walk is traversing a DeclGroupRef. A traversal can trigger
     /// name lookups that make the ASTReader deserialize pending module decls
     /// and hand them to the consumers, re-entering Walk; such groups are
@@ -593,6 +599,8 @@ using DiffInterval = std::vector<clang::SourceRange>;
     [[nodiscard]] bool isTraversalInFlight() const {
       return m_TraversalInFlight;
     }
+    /// Tracks m_EnclosingFD across the traversal.
+    bool TraverseDecl(clang::Decl* D);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     /// Record an in-place `p = realloc(p, n)` on the request whose body is

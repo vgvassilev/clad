@@ -302,10 +302,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     }
     call->setArg(*derivedFnArgIdx, Arg);
 
-    if (ImmediateMode) {
-      assert(!codeArgIdx && "We found the index of the code argument!");
-      return;
-    }
     // Update the code parameter if it was found. Use the context's
     // PrintingPolicy so DeclRefExpr / NestedNameSpecifier print the same
     // as the rest of the translation unit -- a fresh PrintingPolicy
@@ -1235,10 +1231,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (unsigned order = clad::GetDerivativeOrder(bitmasked_opts_value))
         request.RequestedDerivativeOrder = order;
 
-      // Check for clad::differentiate<immediate_mode>.
-      if (clad::HasOption(bitmasked_opts_value, clad::opts::immediate_mode))
-        request.ImmediateMode = true;
-
       // Check for clad::differentiate<vector_mode>.
       if (clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
         request.Mode = DiffMode::vector_forward_mode;
@@ -1600,6 +1592,14 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return false;
   }
 
+  bool DiffCollector::TraverseDecl(Decl* D) {
+    const FunctionDecl* Enclosing = m_EnclosingFD;
+    if (const auto* FD = dyn_cast_or_null<FunctionDecl>(D))
+      Enclosing = FD;
+    llvm::SaveAndRestore<const FunctionDecl*> Saved(m_EnclosingFD, Enclosing);
+    return RecursiveASTVisitor::TraverseDecl(D);
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     DiffRequest request;
@@ -1642,6 +1642,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // CladFunction object with the generated call.
       request.CallUpdateRequired = true;
       request.CallContext = E;
+      request.ImmediateContext = m_EnclosingFD;
 
       if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
         return true;

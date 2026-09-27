@@ -23,15 +23,15 @@ constexpr double prod(double a, double b, double c) { return a * b * c; }
 //CHECK: constexpr double prod_darg2(double a, double b, double c) {
 
 constexpr double da() {
-  return clad::differentiate<clad::immediate_mode>(prod, "a").execute(2., 3.,
+  return clad::differentiate(prod, "a").execute(2., 3.,
                                                                      5.);
 }
 constexpr double db() {
-  return clad::differentiate<clad::immediate_mode>(prod, "b").execute(2., 3.,
+  return clad::differentiate(prod, "b").execute(2., 3.,
                                                                      5.);
 }
 constexpr double dc() {
-  return clad::differentiate<clad::immediate_mode>(prod, "c").execute(2., 3.,
+  return clad::differentiate(prod, "c").execute(2., 3.,
                                                                      5.);
 }
 

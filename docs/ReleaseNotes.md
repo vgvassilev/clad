@@ -46,7 +46,11 @@ Error Estimation
 
 Misc
 ----
-*
+* `clad::immediate_mode` is gone. Clad decides for itself whether a derivative
+  is needed while the program compiles, from where the call to
+  `clad::differentiate` sits, so code passing the option should simply drop it.
+  Every mode now gets it, which makes `clad::gradient` usable in an immediate
+  context when compiled as C++26.
 
 Fixed Bugs
 ----------
