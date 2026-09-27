@@ -47,7 +47,7 @@ inline const char* nameOf(AnalysisId A) {
   switch (A) {
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   case AnalysisId::Id:                                                         \
-    return Name;
+    return #Name;
 #include "clad/Differentiator/Analyses.def"
   }
   llvm_unreachable("unhandled analysis"); // LCOV_EXCL_LINE

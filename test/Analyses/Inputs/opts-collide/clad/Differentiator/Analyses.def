@@ -9,8 +9,8 @@
 #define CLAD_OPT_RESERVED(Name, FirstBit)
 #endif
 
-CLAD_ANALYSIS(TBR, "tbr", tbr, true, 2, "")
-CLAD_ANALYSIS(Loop, "loop", loop, true, 2, "")
+CLAD_ANALYSIS(TBR, tbr, tbr, true, 2, "")
+CLAD_ANALYSIS(Loop, loop, loop, true, 2, "")
 
 #undef CLAD_ANALYSIS
 #undef CLAD_OPT_RESERVED

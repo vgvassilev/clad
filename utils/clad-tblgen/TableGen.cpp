@@ -529,9 +529,9 @@ static void emitAnalyses(raw_ostream& OS, CladRecordKeeper& Records) {
   // between arguments and so still only whitespace to the preprocessor.
   for (const Record* A : Analyses)
     Entries[A->getValueAsInt("RequestBit")] = {
-        ("CLAD_ANALYSIS(" + A->getName() + ", \"" +
-         A->getValueAsString("Name") + "\", " + A->getValueAsString("Legacy") +
-         ", " + (A->getValueAsBit("Default") ? "true" : "false") + ", " +
+        ("CLAD_ANALYSIS(" + A->getName() + ", " + A->getValueAsString("Name") +
+         ", " + A->getValueAsString("Legacy") + ", " +
+         (A->getValueAsBit("Default") ? "true" : "false") + ", " +
          Twine(A->getValueAsInt("RequestBit")) + ",")
             .str(),
         ("// enable_" + A->getValueAsString("Legacy") + " at ORDER_BITS+" +

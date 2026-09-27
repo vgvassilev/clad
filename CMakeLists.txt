@@ -387,11 +387,18 @@ list(TRANSFORM CLAD_TBLGEN_INCLUDES PREPEND -I)
 
 # add_custom_command rather than a target: these are inputs to compiling clad,
 # so they have to be built before it and rebuilt when the table changes.
+#
+# Both the target and the tool's own path are named below. The target orders the
+# two; the path is what makes a rebuilt clad-tblgen re-render, because cmake
+# does not carry the file-level dependencies of a custom target through to what
+# depends on it (cmake #15858, which llvm's own TableGen.cmake names for the
+# same reason). Without it a changed generator leaves every table as it was, and
+# clad compiles against output its renderer no longer produces.
 add_custom_command(
   OUTPUT ${CLAD_GEN_INCL}/Options.def
   COMMAND ${CLAD_TBLGEN_EXE} -gen-options ${CLAD_TBLGEN_INCLUDES}
           ${CLAD_OPTIONS_TD} -o ${CLAD_GEN_INCL}/Options.def
-  DEPENDS clad-tblgen-ready ${CLAD_OPTIONS_TD}
+  DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_OPTIONS_TD}
   COMMENT "Rendering what Options.td describes"
   VERBATIM)
 
@@ -404,7 +411,7 @@ add_custom_command(
           -o ${CLAD_GEN_LIB}/AnalysisDescs.def
   COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics ${CLAD_ANALYSES_TD}
           -o ${CLAD_GEN_LIB}/Diagnostics.def
-  DEPENDS clad-tblgen-ready ${CLAD_ANALYSES_TD}
+  DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_ANALYSES_TD}
   COMMENT "Rendering what Analyses.td describes"
   VERBATIM)
 
@@ -422,7 +429,7 @@ add_custom_target(clad-table-docs
           -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Analyses.rst
   COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics-docs ${CLAD_ANALYSES_TD}
           -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Diagnostics.rst
-  DEPENDS clad-tblgen-ready ${CLAD_OPTIONS_TD} ${CLAD_ANALYSES_TD}
+  DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_OPTIONS_TD} ${CLAD_ANALYSES_TD}
   COMMENT "Rendering the pages the tables describe"
   VERBATIM)
 

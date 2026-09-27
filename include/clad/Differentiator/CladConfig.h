@@ -59,9 +59,18 @@ enum opts : unsigned {
 // What clad may prove about the code, one pair per analysis. Grouped rather
 // than interleaved by position: each value is written out, so declaration
 // order is free to say what kind of option each one is.
+//
+// Named the way -fenable-analysis= and every report name it, and again the way
+// the first of these was spelled. A reader of clad::opts::enable_va has to know
+// that va is the activity analysis; a reader of enable_activity_analysis does
+// not. The short spellings stay because they are public API -- a position
+// reaches the mangled name of every request that carries one -- so the two are
+// the same option under two names, not two options.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
-  enable_##Legacy = 1 << (ORDER_BITS + (FirstBit)),                            \
-  disable_##Legacy = 1 << (ORDER_BITS + (FirstBit) + 1),
+  enable_##Name##_analysis = 1 << (ORDER_BITS + (FirstBit)),                   \
+  disable_##Name##_analysis = 1 << (ORDER_BITS + (FirstBit) + 1),              \
+  enable_##Legacy = enable_##Name##_analysis,                                  \
+  disable_##Legacy = disable_##Name##_analysis,
 #include "clad/Differentiator/Analyses.def"
 }; // enum opts
 
@@ -77,7 +86,7 @@ constexpr unsigned CountSetBits(unsigned V) {
 constexpr unsigned AllOpts = 0
 #define CLAD_OPT_RESERVED(Name, FirstBit) | Name
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
-  | enable_##Legacy | disable_##Legacy
+  | enable_##Name##_analysis | disable_##Name##_analysis
 #include "clad/Differentiator/Analyses.def"
     ;
 constexpr unsigned NumOpts = 0

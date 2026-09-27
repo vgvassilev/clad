@@ -90,7 +90,7 @@ static bool setAnalysisFromFlag(AnalysisFlags& F, llvm::StringRef Arg) {
 static bool unknownAnalysis(llvm::StringRef Name, const char* Also) {
   llvm::errs() << "clad: Error: unknown analysis '" << Name << "'; known:";
 #define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
-  llvm::errs() << " " AName;
+  llvm::errs() << " " #AName;
 #include "clad/Differentiator/Analyses.def"
   llvm::errs() << Also << "\n";
   return false;
@@ -114,7 +114,7 @@ static bool setAnalysisByName(AnalysisFlags& F, llvm::StringRef Name,
   }
 
 #define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
-  if (Name == (AName)) {                                                       \
+  if (Name == #AName) {                                                        \
     F.Id##Switch = To;                                                         \
     return true;                                                               \
   }
@@ -127,7 +127,7 @@ static bool setAnalysisByName(AnalysisFlags& F, llvm::StringRef Name,
 /// code.
 static bool remarkAnalysisByName(Options& O, llvm::StringRef Name) {
 #define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
-  if (Name == (AName)) {                                                       \
+  if (Name == #AName) {                                                        \
     O.Remark##Id##Analysis = true;                                             \
     return true;                                                               \
   }
@@ -138,7 +138,7 @@ static bool remarkAnalysisByName(Options& O, llvm::StringRef Name) {
 /// Asks the named analysis to report what it concluded.
 static bool dumpAnalysisByName(Options& O, llvm::StringRef Name) {
 #define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
-  if (Name == (AName)) {                                                       \
+  if (Name == #AName) {                                                        \
     O.Dump##Id##Analysis = true;                                               \
     return true;                                                               \
   }
@@ -251,7 +251,7 @@ static void printHelp() {
          "conservative derivative.\n";
 #define CLAD_ANALYSIS(Id, AName, Legacy, Default, FirstBit, Desc)              \
   llvm::errs() << "-enable-" #Legacy " / -disable-" #Legacy                    \
-                  " - Turns the " AName                                        \
+                  " - Turns the " #AName                                       \
                   " analysis on or off for the whole translation unit, "       \
                   "unless an individual request specifies otherwise. It " Desc \
                   ". Default: "                                                \
