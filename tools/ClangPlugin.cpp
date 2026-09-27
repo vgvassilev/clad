@@ -249,7 +249,15 @@ void InitTimers();
       // processing node), so leave them to the outer caller.
       if (!getScheduler().isTraversalInFlight())
         for (DiffRequest& request : getScheduler().getGraph().getNodes()) {
-          if (request.ImmediateMode && request.Function->isConstexpr()) {
+          // Both halves matter. A derivative is needed this early only when
+          // the call asking for it can itself be worked out while the
+          // program compiles, and building one for every constexpr function
+          // instead runs clad before the translation unit is complete, which
+          // it is not ready for -- a name the derivative needs may not be
+          // there yet.
+          if (request.ImmediateContext &&
+              request.ImmediateContext->isConstexpr() &&
+              request.Function->isConstexpr()) {
             getScheduler().getGraph().setCurrentProcessingNode(request);
             ProcessDiffRequest(request);
             getScheduler().getGraph().markCurrentNodeProcessed();

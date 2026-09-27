@@ -569,7 +569,7 @@ template <class T> std::false_type is_range(...);
   /// Default value of `Functor` here is temporary, and should be removed
   /// once all clad differentiation functions support differentiating functors.
   template <typename F, typename FunctorT = ExtractFunctorTraits_t<F>,
-            bool EnablePadding = false, bool ImmediateMode = false>
+            bool EnablePadding = false>
   /// \ingroup runtime
   class CladFunction {
   public:
@@ -591,49 +591,27 @@ template <class T> std::false_type is_range(...);
     /// pointer and never copied, so a non-static buffer would dangle. Every
     /// clad entry point defaults it to "" and the plugin rewrites that to a
     /// StringLiteral, so the precondition holds for all generated code.
-#ifdef __cpp_concepts
-    CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
-                                  FunctorType* functor = nullptr,
-                                  bool CUDAkernel = false)
-      requires(!ImmediateMode)
+    CLAD_CONSTEXPR_CXX14 CUDA_HOST_DEVICE
+    CladFunction(CladFunctionType f, const char* code,
+                 FunctorType* functor = nullptr, bool CUDAkernel = false)
         : m_Function(f), m_Code(code), m_Functor(functor),
           m_CUDAkernel(CUDAkernel) {
 #ifndef __CLAD__
       static_assert(false, "clad doesn't appear to be loaded; make sure that "
                            "you pass clad.so to clang.");
 #endif
+      // clad fills \p f in by rewriting the call that produced it, which
+      // happens after the compiler has first tried to work out the
+      // initialiser of the variable being built here. Failing that first
+      // attempt is what makes the compiler work the value out again, once
+      // \p f is set; letting it succeed stores the null for good. See #2188.
+      if (!f)
+        NoDerivativeYet();
       // `code` is a clad-emitted string literal (static storage duration), so
       // point at it directly instead of malloc'ing a copy that was never freed
       // (LeakSanitizer flagged it). This keeps CladFunction trivially
-      // destructible, which constexpr/immediate mode and CUDA require.
+      // destructible, which constant evaluation and CUDA require.
     }
-
-    constexpr CUDA_HOST_DEVICE CladFunction(CladFunctionType f,
-                                            FunctorType* functor = nullptr,
-                                            bool CUDAkernel = false)
-      requires(ImmediateMode)
-        : m_Function(f), m_Code("<constexpr functions don't have support for "
-                                "printing the derivative yet>"),
-          m_Functor(functor), m_CUDAkernel(CUDAkernel) {
-#ifndef __CLAD__
-      static_assert(false, "clad doesn't appear to be loaded; make sure that "
-                           "you pass clad.so to clang.");
-#endif
-    }
-#else
-    CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
-                                  FunctorType* functor = nullptr,
-                                  bool CUDAkernel = false)
-        : m_Function(f), m_Code(code), m_Functor(functor),
-          m_CUDAkernel(CUDAkernel) {
-#ifndef __CLAD__
-      static_assert(false, "clad doesn't appear to be loaded; make sure that "
-                           "you pass clad.so to clang.");
-#endif
-      // Point at the static-duration literal directly; see the constructor
-      // above.
-    }
-#endif
 
     /// Constructor overload for initializing `m_Functor` when functor
     /// is passed by reference.
@@ -834,33 +812,14 @@ template <class T> std::false_type is_range(...);
             typename = typename std::enable_if<
                 !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
                                  opts::vector_mode) &&
-                !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
-                                 opts::immediate_mode) &&
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
-  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
-      annotate("D")))
+  constexpr CladFunction<
+      DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((annotate("D")))
   differentiate(F fn, ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
                                                                   code);
-  }
-
-  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
-            typename F,
-            typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
-            typename = typename std::enable_if<
-                !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
-                                 opts::vector_mode) &&
-                clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
-                                opts::immediate_mode) &&
-                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
-  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, false,
-                         true> __attribute__((annotate("D")))
-  differentiate(F fn, ArgSpec args = "",
-                DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr)) {
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, false, true>(
-        derivedFn);
   }
 
   /// Specialization for differentiating functors.
@@ -923,8 +882,6 @@ template <class T> std::false_type is_range(...);
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
             typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
-                !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
-                                 opts::immediate_mode) &&
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
                          true> __attribute__((annotate("G"))) CUDA_HOST_DEVICE
@@ -933,21 +890,6 @@ template <class T> std::false_type is_range(...);
            const char* code = "", bool CUDAkernel = false) {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
         derivedFn /* will be replaced by gradient*/, code, nullptr, CUDAkernel);
-  }
-
-  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
-            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
-            typename = typename std::enable_if<
-                clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
-                                opts::immediate_mode) &&
-                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
-  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true,
-                         true> __attribute__((annotate("G"))) CUDA_HOST_DEVICE
-  gradient(F f, ArgSpec args = "",
-           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-           bool CUDAkernel = false) {
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true, true>(
-        derivedFn /* will be replaced by gradient*/, nullptr, CUDAkernel);
   }
 
   /// Specialization for differentiating functors.
@@ -979,8 +921,6 @@ template <class T> std::false_type is_range(...);
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
             typename F, typename DerivedFnType = HessianDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
-                !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
-                                 opts::immediate_mode) &&
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   constexpr CladFunction<
       DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((annotate("H")))
@@ -989,20 +929,6 @@ template <class T> std::false_type is_range(...);
           const char* code = "") {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
         derivedFn /* will be replaced by hessian*/, code);
-  }
-
-  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
-            typename F, typename DerivedFnType = HessianDerivedFnTraits_t<F>,
-            typename = typename std::enable_if<
-                clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
-                                opts::immediate_mode) &&
-                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
-  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, false,
-                         true> __attribute__((annotate("H")))
-  hessian(F f, ArgSpec args = "",
-          DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr)) {
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, false, true>(
-        derivedFn /* will be replaced by hessian*/);
   }
 
   /// Specialization for differentiating functors.

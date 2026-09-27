@@ -14,7 +14,7 @@
 // RUN: not %clad_tblgen -I %S/../../lib/Differentiator -gen-analysis-descs \
 // RUN:   %S/Inputs/overlapping-request-bit.td -o %t.def 2>&1 \
 // RUN:   | FileCheck --check-prefix=REQUESTBIT %s
-// REQUESTBIT: Varied and Overlapping both want bit 5; the lowest free pair starts at 13
+// REQUESTBIT: Varied and Overlapping both want bit 5; the lowest free pair starts at 7
 
 // A position is counted from ORDER_BITS, so one below zero would put the pair
 // where the derivative order is read from.
@@ -28,7 +28,7 @@
 // RUN: not %clad_tblgen -I %S/../../lib/Differentiator -gen-analysis-descs \
 // RUN:   %S/Inputs/reserved-request-bit.td -o %t.def 2>&1 \
 // RUN:   | FileCheck --check-prefix=RESERVED %s
-// RESERVED: Reserving and immediate_mode both want bit 7; the lowest free pair starts at 13
+// RESERVED: Reserving and diagonal_only both want bit 4; the lowest free pair starts at 7
 
 // Everything the table defines has to be reachable from Clad, or it is written
 // down and never rendered.

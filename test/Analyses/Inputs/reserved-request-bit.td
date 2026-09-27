@@ -3,5 +3,5 @@
 // reserved positions rather than leaving the collision to a static_assert.
 include "Analyses.td"
 
-def Reserving : Analysis<"reserving", "reserving", 0, 7,
+def Reserving : Analysis<"reserving", "reserving", 0, 4,
                          "this must never render">;
