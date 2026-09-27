@@ -1142,15 +1142,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             .get();
     // If result is a glvalue, we should keep it as it can potentially be
     // assigned as in (c ? a : b) = x;
+    bool isPtr = CO->getType()->isPointerType();
+    bool isAssignable = CO->isModifiableLvalue(m_Context) == Expr::MLV_Valid;
     Expr* ResultRef = nullptr;
-    if ((CO->isModifiableLvalue(m_Context) == Expr::MLV_Valid) &&
-        ifTrueExprDiff.getExpr_dx() && ifFalseExprDiff.getExpr_dx()) {
+    if ((isPtr || isAssignable) && ifTrueExprDiff.getExpr_dx() &&
+        ifFalseExprDiff.getExpr_dx()) {
       ResultRef = m_Sema
                       .ActOnConditionalOp(noLoc, noLoc, CloneNode(condStored),
                                           ifTrueExprDiff.getExpr_dx(),
                                           ifFalseExprDiff.getExpr_dx())
                       .get();
-      if (ResultRef->isModifiableLvalue(m_Context) != Expr::MLV_Valid)
+      if (isAssignable &&
+          ResultRef->isModifiableLvalue(m_Context) != Expr::MLV_Valid)
         ResultRef = nullptr;
     }
     Stmt* revBlock = utils::unwrapIfSingleStmt(endBlock(direction::reverse));

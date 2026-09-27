@@ -282,6 +282,64 @@ double newAndDeletePointer(double i, double j) {
 // CHECK-NEXT:     delete [] _d_r;
 // CHECK-NEXT: }
 
+double condNewPointer(double x, int n) {
+  double* p = n > 0 ? new double[n]() : nullptr;
+  p[0] = x * x;
+  double r = p[0];
+  delete[] p;
+  return r;
+}
+
+// CHECK: void condNewPointer_grad_0(double x, int n, double *_d_x) {
+// CHECK-NEXT:     int _d_n = 0;
+// CHECK-NEXT:     bool _cond0 = n > 0;
+// CHECK-NEXT:     double *_d_p = _cond0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
+// CHECK-NEXT:     double *p = _cond0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
+// CHECK-NEXT:     p[0] = x * x;
+// CHECK-NEXT:     double _d_r = 0.;
+// CHECK-NEXT:     double r = p[0];
+// CHECK-NEXT:     _d_r += 1;
+// CHECK-NEXT:     _d_p[0] += _d_r;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_p[0];
+// CHECK-NEXT:         _d_p[0] = 0.;
+// CHECK-NEXT:         *_d_x += _r_d0 * x;
+// CHECK-NEXT:         *_d_x += x * _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     delete [] p;
+// CHECK-NEXT:     delete [] _d_p;
+// CHECK-NEXT: }
+
+double condPointerToPointer(double x, int c) {
+  double y = 0;
+  double* p = &y;
+  double* q = &y;
+  double** r = c ? &p : &q;
+  **r = x * x;
+  return y;
+}
+
+// CHECK: void condPointerToPointer_grad_0(double x, int c, double *_d_x) {
+// CHECK-NEXT:     int _d_c = 0;
+// CHECK-NEXT:     double _d_y = 0.;
+// CHECK-NEXT:     double y = 0;
+// CHECK-NEXT:     double *_d_p = &_d_y;
+// CHECK-NEXT:     double *p = &y;
+// CHECK-NEXT:     double *_d_q = &_d_y;
+// CHECK-NEXT:     double *q = &y;
+// CHECK-NEXT:     bool _cond0 = c;
+// CHECK-NEXT:     double **_d_r = _cond0 ? &_d_p : &_d_q;
+// CHECK-NEXT:     double **r = _cond0 ? &p : &q;
+// CHECK-NEXT:     **r = x * x;
+// CHECK-NEXT:     _d_y += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = **_d_r;
+// CHECK-NEXT:         **_d_r = 0.;
+// CHECK-NEXT:         *_d_x += _r_d0 * x;
+// CHECK-NEXT:         *_d_x += x * _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 struct T {
   double x;
   int y;
@@ -585,8 +643,18 @@ int main() {
   d_newAndDeletePointer.execute(5, 7, &d_i, &d_j);
   printf("%.2f %.2f\n", d_i, d_j); // CHECK-EXEC: 9.00 7.00
 
-  auto d_structPointer = clad::gradient(structPointer);
+  auto d_condNewPointer = clad::gradient(condNewPointer, "x");
   double d_x = 0;
+  d_condNewPointer.execute(5, 2, &d_x);
+  printf("%.2f\n", d_x); // CHECK-EXEC: 10.00
+
+  auto d_condPointerToPointer = clad::gradient(condPointerToPointer, "x");
+  d_x = 0;
+  d_condPointerToPointer.execute(3, 1, &d_x);
+  printf("%.2f\n", d_x); // CHECK-EXEC: 6.00
+
+  auto d_structPointer = clad::gradient(structPointer);
+  d_x = 0;
   d_structPointer.execute(5, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 1.00
 
