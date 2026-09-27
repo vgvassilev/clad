@@ -38,9 +38,57 @@ double allocThenAssign(double x) {
 // CHECK-NEXT:  delete [] _d_owner;
 // CHECK-NEXT:  }
 
+struct Vec {
+  double* data_ = nullptr;
+  double* tmp = nullptr;
+  void resize() {
+    delete[] data_;
+    data_ = tmp;
+  }
+  void resizeViaAlias() {
+    double* old = data_;
+    data_ = tmp;
+    delete[] old;
+  }
+  double& at(int i) { return data_[i]; }
+};
+
+double reallocMember(Vec& v, double x) {
+  v.at(0) = x * x;
+  v.resize();
+  v.at(1) = 3 * x;
+  return v.at(1);
+}
+
+double reallocAlias(Vec& v, double x) {
+  v.at(0) = x * x;
+  v.resizeViaAlias();
+  v.at(1) = 3 * x;
+  return v.at(1);
+}
+
 int main() {
   double dx = 0;
   auto grad=clad::gradient(allocThenAssign);
   grad.execute(3, &dx);
   printf("{%.2f}\n", dx); // CHECK-EXEC: {6.00}
+
+  double* buf[4] = {new double[2](), new double[3](), new double[2](),
+                    new double[3]()};
+  Vec v, dv;
+  v.data_ = buf[0]; v.tmp = buf[1];
+  dv.data_ = buf[2]; dv.tmp = buf[3];
+  double dvx = 0;
+  auto reallocGrad = clad::gradient(reallocMember, "v, x");
+  reallocGrad.execute(v, 2, &dv, &dvx);
+  printf("{%.2f}\n", dvx); // CHECK-EXEC: {3.00}
+
+  v.data_ = buf[0]; v.tmp = buf[1];
+  dv.data_ = buf[2]; dv.tmp = buf[3];
+  dvx = 0;
+  auto aliasGrad = clad::gradient(reallocAlias, "v, x");
+  aliasGrad.execute(v, 2, &dv, &dvx);
+  printf("{%.2f}\n", dvx); // CHECK-EXEC: {3.00}
+  for (double* b : buf)
+    delete[] b;
 }
