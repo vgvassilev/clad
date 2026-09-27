@@ -5758,9 +5758,68 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {clonedNewE, derivedNewE};
   }
 
+  using VarSet = llvm::SmallPtrSetImpl<const VarDecl*>;
+  static bool holdsOnlyOwnAllocations(const VarDecl* VD, const Stmt* Body,
+                                      ASTContext& C, VarSet& Seen);
+
+  static bool isOwnAllocation(const Expr* E, const Stmt* Body, ASTContext& C,
+                              VarSet& Seen) {
+    E = E->IgnoreParenImpCasts();
+    if (const auto* CO = dyn_cast<ConditionalOperator>(E))
+      return isOwnAllocation(CO->getTrueExpr(), Body, C, Seen) &&
+             isOwnAllocation(CO->getFalseExpr(), Body, C, Seen);
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
+      if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+        return holdsOnlyOwnAllocations(VD, Body, C, Seen);
+    return isa<CXXNewExpr>(E) ||
+           E->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNotNull);
+  }
+
+  static bool onlyOwnAllocationsReach(const VarDecl* VD, const Stmt* S,
+                                      const Stmt* Body, ASTContext& C,
+                                      VarSet& Seen) {
+    auto isVD = [VD](const Expr* E) {
+      const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParens());
+      return DRE && DRE->getDecl() == VD;
+    };
+    if (const auto* ICE = dyn_cast<ImplicitCastExpr>(S))
+      if (ICE->getCastKind() == CK_LValueToRValue && isVD(ICE->getSubExpr()))
+        return true;
+    if (const auto* BO = dyn_cast<BinaryOperator>(S))
+      if (BO->getOpcode() == BO_Assign && isVD(BO->getLHS()))
+        return isOwnAllocation(BO->getRHS(), Body, C, Seen) &&
+               onlyOwnAllocationsReach(VD, BO->getRHS(), Body, C, Seen);
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+      return DRE->getDecl() != VD;
+    return llvm::all_of(S->children(), [&](const Stmt* Child) {
+      return !Child || onlyOwnAllocationsReach(VD, Child, Body, C, Seen);
+    });
+  }
+
+  static bool holdsOnlyOwnAllocations(const VarDecl* VD, const Stmt* Body,
+                                      ASTContext& C, VarSet& Seen) {
+    // Revisiting a variable adds no value it could hold.
+    if (!Seen.insert(VD).second)
+      return true;
+    if (isa<ParmVarDecl>(VD) || !VD->hasLocalStorage())
+      return false;
+    if (VD->getInit() && !isOwnAllocation(VD->getInit(), Body, C, Seen))
+      return false;
+    return onlyOwnAllocationsReach(VD, Body, Body, C, Seen);
+  }
+
   StmtDiff
   ReverseModeVisitor::VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE) {
-    StmtDiff argDiff = Visit(CDE->getArgument());
+    const Expr* arg = CDE->getArgument();
+    StmtDiff argDiff = Visit(arg);
+    if (!utils::designatesLocallyOwnedStorage(arg))
+      return {nullptr, nullptr};
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(arg->IgnoreParenImpCasts()))
+      if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+        llvm::SmallPtrSet<const VarDecl*, 4> Seen;
+        if (!holdsOnlyOwnAllocations(VD, m_DiffReq->getBody(), m_Context, Seen))
+          return {nullptr, nullptr};
+      }
     Expr* clonedDeleteE =
         m_Sema
             .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),

@@ -38,9 +38,111 @@ double allocThenAssign(double x) {
 // CHECK-NEXT:  delete [] _d_owner;
 // CHECK-NEXT:  }
 
+double swapBuffers(double x) {
+  double* a = new double[1];
+  double* b = new double[1];
+  a[0] = x;
+  b[0] = x * x;
+  double* t = a;
+  a = b;
+  b = t;
+  double r = a[0] * b[0];
+  delete[] a;
+  delete[] b;
+  return r;
+}
+
+// The buffer belongs to the caller, so the derivative leaves it alone.
+double freeParam(double* p, double x) {
+  p[0] = x * x;
+  double r = p[0];
+  delete[] p;
+  return r;
+}
+
+struct Vec {
+  double* data_ = nullptr;
+  double* tmp = nullptr;
+  void resize() {
+    delete[] data_;
+    data_ = tmp;
+  }
+  void resizeViaAlias() {
+    double* old = data_;
+    data_ = tmp;
+    delete[] old;
+  }
+  void resizeViaAssignedAlias() {
+    double* old;
+    old = data_;
+    data_ = tmp;
+    delete[] old;
+  }
+  double& at(int i) { return data_[i]; }
+};
+
+double reallocMember(Vec& v, double x) {
+  v.at(0) = x * x;
+  v.resize();
+  v.at(1) = 3 * x;
+  return v.at(1);
+}
+
+double reallocAlias(Vec& v, double x) {
+  v.at(0) = x * x;
+  v.resizeViaAlias();
+  v.at(1) = 3 * x;
+  return v.at(1);
+}
+
+double reallocAssignedAlias(Vec& v, double x) {
+  v.at(0) = x * x;
+  v.resizeViaAssignedAlias();
+  v.at(1) = 3 * x;
+  return v.at(1);
+}
+
 int main() {
   double dx = 0;
   auto grad=clad::gradient(allocThenAssign);
   grad.execute(3, &dx);
   printf("{%.2f}\n", dx); // CHECK-EXEC: {6.00}
+
+  dx = 0;
+  clad::gradient(swapBuffers).execute(3, &dx);
+  printf("{%.2f}\n", dx); // CHECK-EXEC: {27.00}
+
+  double* param = new double[1]();
+  double* dparam = new double[1]();
+  dx = 0;
+  clad::gradient(freeParam).execute(param, 3, dparam, &dx);
+  printf("{%.2f}\n", dx); // CHECK-EXEC: {6.00}
+  delete[] param;
+  delete[] dparam;
+
+  double* buf[4] = {new double[2](), new double[3](), new double[2](),
+                    new double[3]()};
+  Vec v, dv;
+  v.data_ = buf[0]; v.tmp = buf[1];
+  dv.data_ = buf[2]; dv.tmp = buf[3];
+  double dvx = 0;
+  auto reallocGrad = clad::gradient(reallocMember, "v, x");
+  reallocGrad.execute(v, 2, &dv, &dvx);
+  printf("{%.2f}\n", dvx); // CHECK-EXEC: {3.00}
+
+  v.data_ = buf[0]; v.tmp = buf[1];
+  dv.data_ = buf[2]; dv.tmp = buf[3];
+  dvx = 0;
+  auto aliasGrad = clad::gradient(reallocAlias, "v, x");
+  aliasGrad.execute(v, 2, &dv, &dvx);
+  printf("{%.2f}\n", dvx); // CHECK-EXEC: {3.00}
+
+  v.data_ = buf[0]; v.tmp = buf[1];
+  dv.data_ = buf[2]; dv.tmp = buf[3];
+  dvx = 0;
+  auto assignedAliasGrad = clad::gradient(reallocAssignedAlias, "v, x");
+  assignedAliasGrad.execute(v, 2, &dv, &dvx);
+  printf("{%.2f}\n", dvx); // CHECK-EXEC: {3.00}
+  for (double* b : buf)
+    delete[] b;
 }
