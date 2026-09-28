@@ -28,6 +28,8 @@ TEST(Tape, IndexAcrossSlabs) {
     EXPECT_EQ(t[i], static_cast<int>(i)) << "at " << i;
 }
 
+// The const subscript reaches the same lookup as the non-const one, cursor
+// included; there is no separate walk for it to get wrong.
 TEST(Tape, IndexThroughConst) {
   SmallTape t = {};
   fill(t, 23);
