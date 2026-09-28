@@ -75,6 +75,26 @@ template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
 using tape =
     tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload, GpuOffload>;
 
+/// The attributes on clad::forward_sweep. A derivative whose primal returns
+/// before its tail runs its forward sweep as a closure handed to
+/// forward_sweep, and the derivative's locals are that closure's captures:
+/// forced inline they are plain locals again, out of line every one of them
+/// lives in memory behind a reference and the sweep is a call. Define the
+/// macro before including clad to try another spelling, or to switch the
+/// forcing off.
+#ifndef CLAD_FORWARD_SWEEP_ATTRS
+#define CLAD_FORWARD_SWEEP_ATTRS __attribute__((always_inline, flatten))
+#endif
+
+/// Runs the forward sweep \p f of a derivative whose primal returns before
+/// its tail. Each early return of the primal is a return from \p f, and the
+/// reverse sweep follows the call, so it runs on every path.
+template <class F>
+CLAD_FORWARD_SWEEP_ATTRS CUDA_HOST_DEVICE CLAD_CONSTEXPR_CXX14 void
+forward_sweep(F&& f) {
+  f();
+}
+
 /// Add value to the end of the tape, return the same value.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
           bool DiskOffload = false, bool GpuOffload, typename... ArgsT>

@@ -381,7 +381,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       Stmt* fnBody = endBlock();
       m_Derivative->setBody(fnBody);
-      // FIXME: Enable this when we vgvassilev/clad#367 (removing goto stmts).
+      // FIXME: Nothing the visitor emits jumps any more, so Sema's jump-scope
+      // check would pass; enabling this is a change of its own.
       // // If ActOnFinishFunctionBody should pop the current DeclContext.
       // bool IsInstantiation = false;
       // m_Sema.ActOnFinishFunctionBody(m_Derivative, fnBody, IsInstantiation);
@@ -552,18 +553,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       else
         addToCurrentBlock(Reverse, direction::forward);
     } else {
-      // Function has early returns. Wrap the master reverse in a [&] lambda
-      // and call it from each early-return path (via marker patching) plus
-      // once at the natural tail. This replaces the previous goto/label
-      // encoding which violated [stmt.dcl]/2 in the presence of locals with
-      // non-trivial initializers/destructors (vgvassilev/clad#367).
+      // A return before the tail cannot fall through into the reverse sweep.
+      // The forward sweep therefore runs as a closure handed to
+      // clad::forward_sweep, each early return a return from it, and the
+      // reverse follows the call, so it runs on every path. The helper's
+      // declaration forces the closure inline; out of line, every local the
+      // closure touches would live in memory behind a reference.
       //
-      // Source-order matters: the lambda's [&] capture-default binds names
-      // looked up at the lambda's definition point, so every captured local
-      // must be declared before the lambda. Split the forward sweep into
-      // its leading run of DeclStmts and the rest; emit those decls, then
-      // the lambda binding, then the computation tail (which may contain
-      // markers that resolve to calls into the now-declared lambda).
+      // Every local of the sweep has to outlive it. The reverse reads what
+      // it names, and it also reads through what it does not: a hoisted
+      // pointer that stands in for a reference, a restore tracker that
+      // recorded an address. Split the forward sweep into its leading run of
+      // DeclStmts and the rest, and let the hoister move every declaration
+      // out of the rest, leaving an assignment where the original computed
+      // the value.
       llvm::SmallVector<Stmt*, 8> ForwardDeclPrefix;
       llvm::SmallVector<Stmt*, 16> ForwardCompSuffix;
       auto* FwdCS = dyn_cast_or_null<CompoundStmt>(Forward);
@@ -583,87 +586,79 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         classify(Forward);
 
       // An ExternalSource (error estimation) appends an epilogue after the
-      // reverse sweep — e.g. `_final_error += ...` for each parameter and the
-      // return value. It must run on every return path, but emitting it after
-      // the lambda would make it unreachable once an early return fires (which
-      // calls the lambda and returns). Materialize it now into its own block
-      // so it can be folded into the lambda body and captured together with
-      // the reverse. ActOnEndOfDerivedFnBody is a no-op without such a source,
-      // yielding an empty block that folds to nothing.
+      // reverse sweep -- `_final_error += ...` for each parameter and the
+      // return value. It has to run on every return path, so it follows the
+      // call with the reverse. ActOnEndOfDerivedFnBody is a no-op without
+      // such a source, yielding an empty block that folds to nothing.
       CompoundStmt* Epilogue = nullptr;
       if (m_ExternalSource) {
         beginBlock(direction::forward);
         m_ExternalSource->ActOnEndOfDerivedFnBody();
         Epilogue = endBlock(direction::forward);
       }
-
-      // The reverse sweep and the epilogue become the lambda body; collect
-      // their captures now so the hoister below can place the captured decls
-      // before the lambda.
-      llvm::SmallVector<Stmt*, 2> LambdaBody;
+      llvm::SmallVector<Stmt*, 2> ReverseBody;
       if (Reverse)
-        LambdaBody.push_back(Reverse);
+        ReverseBody.push_back(Reverse);
       if (Epilogue)
-        LambdaBody.push_back(Epilogue);
-      LambdaCaptures Captures(*this);
-      Captures.collect(LambdaBody);
+        ReverseBody.push_back(Epilogue);
 
-      // clad emits a zero-initialized adjoint (`double _d_b = 0.;`) lazily,
-      // next to the primal it shadows, so a captured adjoint decl can land in
-      // the computation suffix -- after the lambda. Move such decls before it.
-      Captures.orderCaptureDecls(ForwardDeclPrefix, ForwardCompSuffix,
-                                 m_Globals);
-
+      LambdaCaptures Hoisted(*this);
+      Hoisted.collect(ReverseBody);
+      for (Stmt* S : ForwardCompSuffix)
+        if (auto* DS = dyn_cast<DeclStmt>(S))
+          for (Decl* D : DS->decls())
+            if (auto* VD = dyn_cast<VarDecl>(D))
+              Hoisted.add(VD);
+      Hoisted.orderCaptureDecls(ForwardDeclPrefix, ForwardCompSuffix);
       for (Stmt* S : ForwardDeclPrefix)
         addToCurrentBlock(S, direction::forward);
 
-      // The reverse-pass lambda captures by reference, so every captured local
-      // must be declared before it. That invariant is enforced globally by
-      // findUseBeforeDecl (ASTIntegrity), which flags a lambda-body reference
-      // to a local not yet in scope at the lambda's definition point.
-
-      VarDecl* RevVD = buildAndBindLambda(
-          m_DiffReq.Function->getBody(), "_rev", Captures, [&] {
-            // Emit the master reverse into the closure. clad no longer reuses
-            // AST nodes across the forward/reverse sweeps (b75bba2c), so the
-            // reverse's nodes are closure-unique and need no clone.
-            if (auto* RCS = dyn_cast_or_null<CompoundStmt>(Reverse))
-              for (Stmt* S : RCS->body())
-                addToCurrentBlock(S, direction::forward);
-            else if (Reverse)
-              addToCurrentBlock(Reverse, direction::forward);
-
-            // Fold the ExternalSource epilogue in after the reverse sweep so it
-            // runs on every return path; emitting it after the lambda would
-            // make it unreachable once an early return fires.
-            if (Epilogue)
-              for (Stmt* S : Epilogue->body())
-                addToCurrentBlock(S, direction::forward);
+      // The closure's body was built at function scope, so Sema recorded no
+      // capture for it: every local and parameter it reads but does not
+      // declare is rebuilt inside the closure, where the reference registers
+      // the capture. Collected from the body as it is now, after the hoist:
+      // an array the hoister had to leave inside is declared by the closure,
+      // and a rebuilt reference to it would capture it from a scope where it
+      // does not exist.
+      LambdaCaptures Free(*this);
+      Free.collect(ForwardCompSuffix);
+      Expr* Sweep =
+          buildLambda(*this, m_Sema, m_DiffReq.Function->getBody(), [&] {
+            for (Stmt* S : ForwardCompSuffix)
+              addToCurrentBlock(S, direction::forward);
+            // Each marker gets its own return; one shared node would have
+            // several parents. Built here so that it is the closure's.
+            patchEarlyReturnMarkers([&]() -> Stmt* {
+              return m_Sema
+                  .ActOnReturnStmt(noLoc, /*RetValExpr=*/nullptr,
+                                   getCurrentScope())
+                  .get();
+            });
+            Free.resolve(getCurrentBlock(direction::forward));
           });
-      addToCurrentBlock(BuildDeclStmt(RevVD), direction::forward);
-
-      for (Stmt* S : ForwardCompSuffix)
-        addToCurrentBlock(S, direction::forward);
-
-      // Patch each marker with its own fresh `{ _rev(); return; }`. A single
-      // shared replacement would land under several parents and violate the
-      // single-parent AST invariant, so build one per marker site.
-      patchEarlyReturnMarkers([&]() -> Stmt* {
-        Expr* RevCallEarly = BuildCallExpr(BuildDeclRef(RevVD), {});
-        Stmt* RetStmt = m_Sema
-                            .ActOnReturnStmt(noLoc, /*RetValExpr=*/nullptr,
-                                             getCurrentScope())
-                            .get();
-        return MakeCompoundStmt({RevCallEarly, RetStmt});
-      });
-
-      // Natural-tail path: the tail-return seed was already emitted into the
-      // forward sweep as the last statement before this point
-      // (VisitReturnStmt), so it runs only on fall-through. Follow it with the
-      // lambda call; the function's implicit fall-off-end serves as the natural
-      // return.
-      Expr* RevCallTail = BuildCallExpr(BuildDeclRef(RevVD), {});
-      addToCurrentBlock(RevCallTail, direction::forward);
+      // Looked up and deduced, the way a push is built, so the call is the
+      // one a hand-written `clad::forward_sweep(...)` resolves to.
+      LookupResult SweepLR = LookupCladTapeMethod("forward_sweep");
+      CXXScopeSpec CSS;
+      CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
+      Expr* Callee =
+          m_Sema.BuildDeclarationNameExpr(CSS, SweepLR, /*NeedsADL=*/false)
+              .get();
+      Expr* SweepArgs[] = {Sweep};
+      addToCurrentBlock(
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Callee, noLoc, SweepArgs, noLoc)
+              .get(),
+          direction::forward);
+      // The tail-return seed is the closure's last statement
+      // (VisitReturnStmt), so it runs on fall-through only; the reverse
+      // follows the call.
+      for (Stmt* S : ReverseBody)
+        if (auto* CS = dyn_cast<CompoundStmt>(S))
+          for (Stmt* SS : CS->body())
+            addToCurrentBlock(SS, direction::forward);
+        else
+          addToCurrentBlock(S, direction::forward);
     }
     for (auto S = initsDiff.rbegin(), S_end = initsDiff.rend(); S != S_end; ++S)
       addToCurrentBlock(*S, direction::forward);
@@ -1627,11 +1622,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // If this return stmt is the last stmt in the function body, the forward
     // sweep falls through into the reverse sweep without needing any jump or
     // call. When there are also early returns, however, the master reverse is
-    // wrapped in a [&] lambda that both the natural and early-return paths
-    // invoke; applying this tail seed inside the lambda would double-apply it
-    // on every early-return path. Emit it into the forward sweep instead -- it
-    // is the last statement visited, so it lands on the fall-through path just
-    // before the lambda's tail call (see DifferentiateWithClad).
+    // reached from the natural and the early-return paths alike; applying this
+    // tail seed inside it would double-apply it on every early-return path.
+    // Emit it into the forward sweep instead -- it is the last statement
+    // visited, so it lands on the fall-through path, at the end of the
+    // forward-sweep closure (see DifferentiateWithClad).
     if (RS == m_DiffReq.getTailReturn()) {
       if (m_DiffReq.hasEarlyReturns()) {
         addToCurrentBlock(Reverse, direction::forward);
@@ -1640,18 +1635,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return {nullptr, Reverse};
     }
 
-    // Early return.  The previous encoding emitted a label inside the master
-    // reverse and a goto into it from the forward sweep, which violated
-    // [stmt.dcl]/2 (https://eel.is/c++draft/stmt.dcl#2) when any local with a
-    // non-trivial initializer/destructor sat between the goto and its target.
-    //
-    // Instead, emit the adjoint-seed Reverse to the current reverse block
-    // unwrapped — the cond-tape gating in the surrounding reverse loop will
-    // select this seed only on the iteration whose forward-push corresponded
-    // to this return — and emit a NullStmt marker in the forward direction.
-    // Finalization (DifferentiateWithClad) replaces every marker with
-    // `{ _rev(); return; }`, where `_rev` is a [&] lambda wrapping the master
-    // reverse (vgvassilev/clad#367).
+    // Early return. The adjoint-seed Reverse goes to the current reverse
+    // block unwrapped -- the cond-tape gating in the surrounding reverse loop
+    // selects this seed only on the iteration whose forward push corresponded
+    // to this return -- and a NullStmt marker goes in the forward direction.
+    // Finalization (DifferentiateWithClad) replaces every marker with a
+    // return from the forward-sweep closure.
     if (!Reverse)
       Reverse = m_Sema.ActOnNullStmt(noLoc).get();
 
@@ -1671,10 +1660,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   void ReverseModeVisitor::patchEarlyReturnMarkers(
       llvm::function_ref<Stmt*()> MakeReplacement) {
-    // Replace each marker with a fresh structured `{ _rev(); return; }` so the
-    // generated body is well-formed without goto. Each site gets its own node
-    // (MakeReplacement builds one per hit); sharing a single replacement across
-    // markers would give it several parents and break the single-parent AST
+    // Replace each marker with what MakeReplacement builds, a return from the
+    // forward-sweep closure. Each site gets its own node; sharing one across
+    // would give it several parents and break the single-parent AST
     // invariant. We mutate via the child-iterator pattern used by
     // PlaceholderReplacer; Stmt::children() returns a writable range of Stmt*&.
     class Patcher : public RecursiveASTVisitor<Patcher> {
@@ -3814,7 +3802,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType VDType = VD->getType();
     // A function-scope declaration is not promoted, but with early returns
     // LambdaCaptures::orderCaptureDecls may still split it -- declaration
-    // hoisted before the reverse-sweep lambda, initializer left behind as an
+    // hoisted before the forward-sweep closure, initializer left behind as an
     // assignment -- so it needs the same reassignable type. Except when it is
     // a reference binding a temporary: the pointer that makes a reference
     // reassignable has no lvalue to point at (clad supports neither encoding
@@ -3822,7 +3810,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool bindsTemporary =
         VDType->isLValueReferenceType() &&
         (!VD->getInit() || !VD->getInit()->IgnoreImplicit()->isLValue());
-    bool mayBeSplitForLambda =
+    bool mayBeSplitForEarlyReturn =
         !promoteToFnScope && m_DiffReq.hasEarlyReturns() &&
         getCurrentScope()->isFunctionScope() &&
         m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass && !keepLocal &&
@@ -3832,7 +3820,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // be split for the early-return lambda, change its type to make it
     // reassignable. The split drops its own const, once it knows it happens;
     // the pointer has to be decided here, as it changes how uses are spelled.
-    if ((promoteToFnScope || mayBeSplitForLambda) &&
+    if ((promoteToFnScope || mayBeSplitForEarlyReturn) &&
         VDCloneType->isReferenceType())
       VDCloneType = m_Context.getPointerType(VDCloneType.getNonReferenceType());
     if (promoteToFnScope)
@@ -3988,7 +3976,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // ->
     // double* ref;
     // ref = &x;
-    if (isRefType && (promoteToFnScope || mayBeSplitForLambda)) {
+    if (isRefType && (promoteToFnScope || mayBeSplitForEarlyReturn)) {
       // FIXME: Add extra parantheses if derived variable pointer is pointing to
       // a class type object.
       initDiff = {BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),

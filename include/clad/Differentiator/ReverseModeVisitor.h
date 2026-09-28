@@ -81,8 +81,7 @@ namespace clad {
     /// will be executed on return.
     std::vector<Stmts> m_Reverse;
     /// Markers emitted at early-return sites in the forward block, patched
-    /// with `{ _rev(); return; }` at finalization, where `_rev` is the lambda
-    /// wrapping the master reverse sweep.
+    /// at finalization with a return from the forward-sweep closure.
     llvm::SmallPtrSet<clang::Stmt*, 4> m_EarlyReturnMarkers;
     /// Storing expressions to delete/free memory in the reverse pass.
     Stmts m_DeallocExprs;
