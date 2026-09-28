@@ -1958,6 +1958,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       const Expr* arg, const ParmVarDecl* param,
       llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts, bool isNonDiff,
       bool isCUDAKernel) {
+    // Constructors inside arguments do not directly initialize a variable,
+    // even when the enclosing call does.
+    llvm::SaveAndRestore<bool> saveTrackVarDecl(m_TrackVarDeclConstructor,
+                                                false);
     StmtDiff result;
     StmtDiff argDiff{};
     // FIXME: We handle parameters with default values by setting them

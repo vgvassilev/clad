@@ -73,6 +73,18 @@ void VariedAnalyzer::Analyze() {
   }
 }
 
+bool VariedAnalyzer::TraverseCXXDefaultArgExpr(CXXDefaultArgExpr* E) {
+  // RecursiveASTVisitor skips the underlying default expression unless
+  // shouldVisitImplicitCode() is enabled.
+  return TraverseStmt(E->getExpr());
+}
+
+bool VariedAnalyzer::TraverseCXXDefaultInitExpr(CXXDefaultInitExpr* E) {
+  // RecursiveASTVisitor skips the underlying default initializer unless
+  // shouldVisitImplicitCode() is enabled.
+  return TraverseStmt(E->getExpr());
+}
+
 void VariedAnalyzer::TraverseAllStmtInsideBlock(const CFGBlock& block) {
   for (const clang::CFGElement& Element : block) {
     if (Element.getKind() == clang::CFGElement::Statement) {
