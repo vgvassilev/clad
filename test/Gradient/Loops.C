@@ -20,17 +20,18 @@ double f1(double x) {
 // CHECK: void f1_grad(double x, double *_d_x) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _t1[3];
 // CHECK-NEXT:     double _d_t = 0.;
 // CHECK-NEXT:     double t = 1;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; i++) {
-// CHECK-NEXT:         clad::push(_t1, t);
+// CHECK-NEXT:         _t1[i] = t;
 // CHECK-NEXT:         t *= x;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_t += 1;
 // CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
-// CHECK-NEXT:         t = clad::pop(_t1);
+// CHECK-NEXT:         i--;
+// CHECK-NEXT:         t = _t1[i];
 // CHECK-NEXT:         double _r_d0 = _d_t;
 // CHECK-NEXT:         _d_t = 0.;
 // CHECK-NEXT:         _d_t += _r_d0 * x;
@@ -52,20 +53,22 @@ double f2(double x) {
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t1;
 // CHECK-NEXT:     int _d_j = 0;
 // CHECK-NEXT:     int j = 0;
-// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _t2[3][3];
 // CHECK-NEXT:     double _d_t = 0.;
 // CHECK-NEXT:     double t = 1;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; i++) {
 // CHECK-NEXT:         for (j = 0; j < 3; j++) {
-// CHECK-NEXT:             clad::push(_t2, t);
+// CHECK-NEXT:             _t2[i][j] = t;
 // CHECK-NEXT:             t *= x;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_t += 1;
 // CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NEXT:         i--;
 // CHECK-NEXT:         for (j = 3 , _t1 = 3{{U|UL|ULL}}; _t1; _t1--) {
-// CHECK-NEXT:             t = clad::pop(_t2);
+// CHECK-NEXT:             j--;
+// CHECK-NEXT:             t = _t2[i][j];
 // CHECK-NEXT:             double _r_d0 = _d_t;
 // CHECK-NEXT:             _d_t = 0.;
 // CHECK-NEXT:             _d_t += _r_d0 * x;
@@ -178,18 +181,19 @@ double f_const_local(double x) {
 // CHECK: void f_const_local_grad(double x, double *_d_x) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _t1[3];
 // CHECK-NEXT:     double _d_n = 0.;
 // CHECK-NEXT:     double n = 0.;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; ++i) {
-// CHECK-NEXT:         clad::push(_t1, n) , n = x + i;
+// CHECK-NEXT:         _t1[i] = n , n = x + i;
 // CHECK-NEXT:         res += x * n;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             *_d_x += _d_res * n;
 // CHECK-NEXT:             _d_n += x * _d_res;
@@ -198,7 +202,7 @@ double f_const_local(double x) {
 // CHECK-NEXT:             *_d_x += _d_n;
 // CHECK-NEXT:             _d_i += _d_n;
 // CHECK-NEXT:             _d_n = 0.;
-// CHECK-NEXT:             n = clad::pop(_t1);
+// CHECK-NEXT:             n = _t1[i];
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -1401,18 +1405,19 @@ double fn22(double param) {
 // CHECK: void fn22_grad(double param, double *_d_param) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<double{{ ?}}[1]> _t1 = {};
+// CHECK-NEXT:     double _t1[1][1];
 // CHECK-NEXT:     double _d_arr[1] = {0};
 // CHECK-NEXT:     double arr[1] = {0};
 // CHECK-NEXT:     double _d_out = 0.;
 // CHECK-NEXT:     double out = 0.;
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 1; i++) {
-// CHECK-NEXT:         clad::push(_t1, arr) , clad::move({1.}, arr);
+// CHECK-NEXT:         clad::move(arr, _t1[i]) , clad::move({1.}, arr);
 // CHECK-NEXT:         out += arr[0] * param;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_out += 1;
 // CHECK-NEXT:     for (_t0 = 1{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NEXT:         i--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_out;
 // CHECK-NEXT:             _d_arr[0] += _r_d0 * param;
@@ -1420,8 +1425,7 @@ double fn22(double param) {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             clad::zero_init(_d_arr);
-// CHECK-NEXT:             clad::move(clad::back(_t1), arr);
-// CHECK-NEXT:             clad::pop(_t1);
+// CHECK-NEXT:             clad::move(_t1[i], arr);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -2659,14 +2663,14 @@ double fn43(double* x, double y) {
 //CHECK-NEXT:    double _d_y = 0.;
 //CHECK-NEXT:    int _d_i = 0;
 //CHECK-NEXT:    int i = 0;
-//CHECK-NEXT:    clad::tape<double> _t1 = {};
+//CHECK-NEXT:     double _t1[3];
 //CHECK-NEXT:    double _d_t4 = 0.;
 //CHECK-NEXT:    double t4 = 0.;
 //CHECK-NEXT:    double _d_out = 0.;
 //CHECK-NEXT:    double out = 0.;
 //CHECK-NEXT:    unsigned {{int|long}} _t0;
 //CHECK-NEXT:    for (i = 0; i < 3; i++) {
-//CHECK-NEXT:        clad::push(_t1, t4) , t4 = x[i];
+//CHECK-NEXT:         _t1[i] = t4 , t4 = x[i];
 //CHECK-NEXT:        out += 1. / t4;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    _d_out += 1;
@@ -2679,7 +2683,7 @@ double fn43(double* x, double y) {
 //CHECK-NEXT:        {
 //CHECK-NEXT:            _d_x[i] += _d_t4;
 //CHECK-NEXT:            _d_t4 = 0.;
-//CHECK-NEXT:            t4 = clad::pop(_t1);
+//CHECK-NEXT:             t4 = _t1[i];
 //CHECK-NEXT:        }
 //CHECK-NEXT:    }
 //CHECK-NEXT:}

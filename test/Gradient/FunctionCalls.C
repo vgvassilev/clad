@@ -904,16 +904,16 @@ void mult(double* x, double y) {
 // CHECK: void mult_pullback(double *x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _t1[3];
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; ++i) {
-// CHECK-NEXT:         clad::push(_t1, x[i]);
+// CHECK-NEXT:         _t1[i] = x[i];
 // CHECK-NEXT:         x[i] *= y;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             x[i] = clad::pop(_t1);
+// CHECK-NEXT:             x[i] = _t1[i];
 // CHECK-NEXT:             double _r_d0 = _d_x[i];
 // CHECK-NEXT:             _d_x[i] = 0.;
 // CHECK-NEXT:             _d_x[i] += _r_d0 * y;
