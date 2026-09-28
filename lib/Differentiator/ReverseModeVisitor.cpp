@@ -115,6 +115,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 }
 
   Expr* ReverseModeVisitor::CladTapeResult::Last() {
+    if (!Indices.empty())
+      return V.BuildSlot(Ref, Indices);
     LookupResult& Back = V.GetCladTapeBack();
     CXXScopeSpec CSS;
     CSS.Extend(V.m_Context, utils::GetCladNamespace(V.m_Sema), noLoc, noLoc);
@@ -129,14 +131,84 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return V.BuildCallExpr(BackDRE, RefClone);
   }
 
+  Expr* ReverseModeVisitor::BuildSlot(Expr* Array,
+                                      llvm::ArrayRef<Expr*> Indices) {
+    Expr* Slot = CloneNode(Array);
+    for (Expr* I : Indices) {
+      Expr* Idx = CloneNode(I);
+      Slot = BuildArraySubscript(Slot, Idx);
+    }
+    return Slot;
+  }
+
+  bool ReverseModeVisitor::loopsForSlots(
+      QualType Type, llvm::SmallVectorImpl<LoopScope*>& Loops) const {
+    // A slot holds by value what a tape holds by value, in an array declared
+    // without an initializer and assigned into: a scalar, or a fixed-size
+    // array of them. Anything with a constructor stays on the tape.
+    QualType Elem = Type;
+    while (const auto* AT = m_Context.getAsConstantArrayType(Elem))
+      Elem = AT->getElementType();
+    if (!Elem->isScalarType())
+      return false;
+    // Past a page the array is no longer a few locals' worth of frame, and
+    // the tape, which grows on the heap, is the right home.
+    static constexpr uint64_t MaxSlotBytes = 4096;
+    uint64_t Bytes = m_Context.getTypeSizeInChars(Type).getQuantity();
+    for (LoopScope* L = m_CurrentLoop; L; L = L->m_Enclosing) {
+      if (!L->Tapes || !L->Index || L->Facts->Count <= 0)
+        return false;
+      auto Count = static_cast<uint64_t>(L->Facts->Count);
+      if (Bytes > MaxSlotBytes / Count)
+        return false;
+      Bytes *= Count;
+      Loops.push_back(L);
+    }
+    std::reverse(Loops.begin(), Loops.end());
+    return !Loops.empty();
+  }
+
   ReverseModeVisitor::CladTapeResult
   ReverseModeVisitor::MakeCladTapeFor(Expr* E, llvm::StringRef prefix,
-                                      clang::QualType type) {
+                                      clang::QualType type, bool AllowSlots) {
     assert(E && "must be provided");
     E = E->IgnoreImplicit();
     if (type.isNull())
       type = E->getType();
     type.removeLocalConst();
+    llvm::SmallVector<LoopScope*, 2> Loops;
+    if (AllowSlots && !isInsideOMPBlock && loopsForSlots(type, Loops)) {
+      // `T name[N0][N1]...`, one dimension per loop, outermost first. The
+      // loops are nested, so the slot of an iteration is unique, and the
+      // reverse sweep, which walks the same nest backwards, finds it by the
+      // indices it restores on its way.
+      QualType ArrTy = type;
+      for (LoopScope* L : llvm::reverse(Loops))
+        ArrTy = m_Context.getConstantArrayType(
+            ArrTy, llvm::APInt(64, static_cast<uint64_t>(L->Facts->Count)),
+            /*SizeExpr=*/nullptr, clad_compat::ArraySizeModifier_Normal,
+            /*IndexTypeQuals=*/0);
+      // Left uninitialized: every slot is written before it is read, since
+      // the analysis counts no loop a return can skip (LoopAnalyzer.cpp).
+      VarDecl* VD = GlobalStoreImpl(ArrTy, prefix, /*init=*/nullptr, SC_None);
+      VD->setLocation(m_DiffReq->getLocation());
+      CladTapeResult Slots{*this, nullptr, nullptr, BuildDeclRef(VD), {}};
+      for (LoopScope* L : Loops) {
+        L->UsesSlots = true;
+        Expr* Idx = BuildDeclRef(L->Index);
+        if (L->Facts->Start)
+          Idx = BuildOp(BO_Sub, Idx,
+                        ConstantFolder::synthesizeLiteral(
+                            L->Index->getType(), m_Context, L->Facts->Start));
+        Slots.Indices.push_back(Idx);
+      }
+      Expr* Slot = Slots.Last();
+      Slots.Push = isa<ArrayType>(type)
+                       ? BuildArrayAssignment(Slot, E, direction::forward)
+                       : BuildOp(BO_Assign, Slot, E);
+      Slots.Pop = Slots.Last();
+      return Slots;
+    }
     QualType TapeType = GetCladTapeOfType(type);
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
@@ -167,7 +239,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (isInsideOMPBlock)
       MarkDeclThreadPrivate(VD);
-    return CladTapeResult{*this, PushExpr, PopExpr, CloneNode(TapeRef)};
+    return CladTapeResult{*this, PushExpr, PopExpr, CloneNode(TapeRef), {}};
   }
 
   bool ReverseModeVisitor::shouldUseCudaAtomicOps(const Expr* E) {
@@ -1255,34 +1327,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // loop itself uses keeps the two in step; without it an empty loop would
     // wrap the subtraction around and iterate the reverse sweep forever.
     QualType sizeTy = clad_compat::getSizeType(m_Context);
+    // A count the analysis knows -- the common `i < 3` -- is spelled out;
+    // arithmetic over literals would say the same thing longer.
+    if (F.Count >= 0) {
+      CL.TripCount =
+          ConstantFolder::synthesizeLiteral(sizeTy, m_Context, F.Count);
+      CL.IndVarEnd = ConstantFolder::synthesizeLiteral(
+          indVar->getType(), m_Context, F.Start + F.Count);
+      return CL;
+    }
     // clang returned llvm::Optional here before 16, and the two spell the
     // same thing differently.
     clad_compat::llvm_Optional<llvm::APSInt> initVal =
         init->getIntegerConstantExpr(m_Context);
-    clad_compat::llvm_Optional<llvm::APSInt> boundVal =
-        bound->getIntegerConstantExpr(m_Context);
-
-    // A loop written with constant bounds -- the common `i < 3` -- has a count
-    // known here, and spelling it out beats emitting arithmetic over literals.
-    // Both are widened to int64_t and subtracted, so each has to leave room
-    // for the difference and for the inclusive bound's extra iteration. Half
-    // the positive range apiece is plenty for a loop count and needs no case
-    // analysis at the ends.
     static constexpr unsigned MaxCountBits = 62;
-    if (initVal && boundVal && initVal->isNonNegative() &&
-        boundVal->isNonNegative() && initVal->getActiveBits() <= MaxCountBits &&
-        boundVal->getActiveBits() <= MaxCountBits) {
-      int64_t count = static_cast<int64_t>(boundVal->getZExtValue()) -
-                      static_cast<int64_t>(initVal->getZExtValue()) +
-                      (inclusive ? 1 : 0);
-      CL.TripCount = ConstantFolder::synthesizeLiteral(sizeTy, m_Context,
-                                                       count > 0 ? count : 0);
-      int64_t end = static_cast<int64_t>(initVal->getZExtValue()) +
-                    (count > 0 ? count : 0);
-      CL.IndVarEnd =
-          ConstantFolder::synthesizeLiteral(indVar->getType(), m_Context, end);
-      return CL;
-    }
 
     auto toSize = [&](const Expr* E) {
       // A cast binds tighter than the arithmetic it may contain, so a compound
@@ -1371,6 +1429,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     LoopScope Loop(*this);
     Loop.Tapes = true;
     Loop.Facts = &CLF;
+    // A count the analysis knows lets a store in the body take an array
+    // slot at the loop's index (see MakeCladTapeFor).
+    if (CLF.Count >= 0) {
+      auto Clone = m_DeclReplacements.find(CLF.IndVar);
+      if (Clone != m_DeclReplacements.end())
+        Loop.Index = Clone->second;
+    }
     StmtDiff condVarRes;
     VarDecl* condVarClone = nullptr;
     if (FS->getConditionVariable()) {
@@ -1420,7 +1485,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           body, loopCounter, condVarRes.getStmt_dx(), incDiff.getStmt_dx(),
           /*isForLoop=*/true, FS->getForLoc());
     }
-
+    // A slot is read back by the index, so the reverse sweep steps it back
+    // in every iteration, ahead of the body that reads it. The increment's
+    // own reverse already does so when something to be restored reads the
+    // index; only the other case needs the step here.
+    if (Loop.UsesSlots && !m_DiffReq.shouldBeRecorded(CLF.Step->getSubExpr())) {
+      auto Dec = CLF.Step->getOpcode() == UO_PostInc ? UO_PostDec : UO_PreDec;
+      BodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
+          m_Context, BodyDiff.getStmt_dx(),
+          BuildOp(Dec, BuildDeclRef(Loop.Index))));
+    }
     /// FIXME: This part in necessary to replace local variables inside loops
     /// with function globals and replace initializations with assignments.
     /// This is a temporary measure to avoid the bug that arises from
@@ -4809,9 +4883,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     if (isInsideLoop) {
-      auto* Push = cast<CallExpr>(Result.getExpr());
-      unsigned lastArg = Push->getNumArgs() - 1;
-      Push->setArg(lastArg, V.m_Sema.DefaultLvalueConversion(New).get());
+      // The stored value is the last argument of a push onto a tape, and the
+      // right-hand side of a store into an array slot.
+      Expr* Value = V.m_Sema.DefaultLvalueConversion(New).get();
+      if (auto* Store =
+              dyn_cast<BinaryOperator>(Result.getExpr()->IgnoreParens())) {
+        Store->setRHS(Value);
+      } else {
+        auto* Push = cast<CallExpr>(Result.getExpr());
+        Push->setArg(Push->getNumArgs() - 1, Value);
+      }
     } else if (isFnScope) {
       V.SetDeclInit(Declaration, New);
       V.addToCurrentBlock(V.BuildDeclStmt(Declaration), direction::forward);
@@ -4863,6 +4944,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* dummy = E;
       auto CladTape = MakeCladTapeFor(dummy);
       Expr* Push = CladTape.Push;
+      // The store stands in for the value inside the expression being
+      // rebuilt. A push is a call and binds as tightly as the value did; a
+      // slot store is an assignment and binds looser than anything around
+      // it, so it goes in parentheses.
+      if (!CladTape.Indices.empty())
+        Push = BuildParens(Push);
       Expr* Pop = CladTape.Pop;
       return DelayedStoreResult{*this,
                                 StmtDiff{Push, nullptr, Pop},
@@ -5478,8 +5565,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                  "m_ControlFlowTape is already initialized");
 
     auto* zeroLiteral = CreateSizeTLiteralExpr(0);
-    m_ControlFlowTape.reset(
-        new CladTapeResult(m_RMV.MakeCladTapeFor(zeroLiteral)));
+    // Pushes onto it are built from Ref below, so it has to be a tape.
+    m_ControlFlowTape.reset(new CladTapeResult(m_RMV.MakeCladTapeFor(
+        zeroLiteral, "_t", /*type=*/{}, /*AllowSlots=*/false)));
   }
 
   Expr* ReverseModeVisitor::BreakContStmtHandler::CreateCFTapePushExpr(

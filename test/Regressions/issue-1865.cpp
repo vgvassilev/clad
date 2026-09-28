@@ -14,8 +14,8 @@ double inline_divisor_2(double* p) {
 }
 
 // CHECK: void inline_divisor_2_grad(double *p, double *_d_p) {
-// CHECK: double _r{{[0-9]+}} = clad::pop(_t{{[0-9]+}});
-// CHECK-NEXT: double _r{{[0-9]+}} = _d_s * -(1. / (_r{{[0-9]+}} * _r{{[0-9]+}}));
+// CHECK: s += 1. / (_t{{[0-9]+}}[i] = (x + a * a));
+// CHECK: double _r{{[0-9]+}} = _d_s * -(1. / (_t{{[0-9]+}}[i] * _t{{[0-9]+}}[i]));
 
 // Correct at one iteration before #1865, wrong for two or more.
 double inline_divisor_3(double* p) {

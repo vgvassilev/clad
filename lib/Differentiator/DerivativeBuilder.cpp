@@ -916,6 +916,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           << costOf(AnalysisDesc::CountedLoop);
       explain(AnalysisId::Loop, F.Why, F.MissedAt, FS->getForLoc());
     }
+    for (const clang::ForStmt* FS : Finder.Loops) {
+      const LoopFacts& F = R.getLoopFacts(FS);
+      if (!F || !F.BoundsAreStable || F.Count >= 0)
+        continue;
+      utils::diag(S, CladDiag::remark_construct_cost, FS->getForLoc())
+          << costOf(AnalysisDesc::ArrayRecord);
+      explain(AnalysisId::Loop, F.ArrayWhy, F.ArrayMissedAt, FS->getForLoc());
+    }
 
     llvm::ArrayRef<WrittenExtent> Extents = R.getWrittenExtents();
     for (unsigned i = 0, e = Extents.size(); i != e; ++i) {

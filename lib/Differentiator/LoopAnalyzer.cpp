@@ -2,6 +2,7 @@
 
 #include "Analyses.h"
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -21,6 +22,7 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include <cassert>
+#include <cstdint>
 #include <set>
 #include <unordered_map>
 
@@ -43,23 +45,27 @@ static Proven<LoopFacts> recogniseCountedForLoop(const ForStmt* FS);
 /// than it saves, and answering yes too often only costs coverage.
 static const Stmt* findEarlyExit(const Stmt* S);
 
-/// Whether \p E steps \p VD by exactly one. The increment may carry
-/// unrelated work alongside, as `for (...; ...; ++i, ++p)` does.
-static bool stepsByOne(const Expr* E, const VarDecl* VD) {
+/// The `i++` or `++i` in \p E that steps \p VD by exactly one, or null. The
+/// increment may carry unrelated work alongside, as `for (...; ...; ++i, ++p)`
+/// does.
+static const UnaryOperator* stepOf(const Expr* E, const VarDecl* VD) {
   if (!E)
-    return false;
+    return nullptr;
   E = E->IgnoreParenImpCasts();
   if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
     if (UO->getOpcode() != UO_PostInc && UO->getOpcode() != UO_PreInc)
-      return false;
+      return nullptr;
     const auto* DRE =
         dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreParenImpCasts());
-    return DRE && DRE->getDecl() == VD;
+    return DRE && DRE->getDecl() == VD ? UO : nullptr;
   }
   if (const auto* BO = dyn_cast<BinaryOperator>(E))
-    if (BO->getOpcode() == BO_Comma)
-      return stepsByOne(BO->getLHS(), VD) || stepsByOne(BO->getRHS(), VD);
-  return false;
+    if (BO->getOpcode() == BO_Comma) {
+      if (const UnaryOperator* UO = stepOf(BO->getLHS(), VD))
+        return UO;
+      return stepOf(BO->getRHS(), VD);
+    }
+  return nullptr;
 }
 
 /// Whether \p A and \p B are the same expression, structurally.
@@ -313,6 +319,29 @@ public:
       F.missed(Miss::BoundNotStable, L->Bound->getBeginLoc());
     else
       F.BoundsAreStable = true;
+    // A count known while compiling, the common `i < 3`. Both ends are
+    // widened to int64_t and subtracted, so each has to leave room for the
+    // difference and for the inclusive bound's extra iteration; half the
+    // positive range apiece is plenty for a loop count.
+    if (F.BoundsAreStable) {
+      static constexpr unsigned MaxCountBits = 62;
+      clad_compat::llvm_Optional<llvm::APSInt> Start =
+          L->Init->getIntegerConstantExpr(m_Context);
+      clad_compat::llvm_Optional<llvm::APSInt> Bound =
+          L->Bound->getIntegerConstantExpr(m_Context);
+      if (Start && Bound && Start->isNonNegative() && Bound->isNonNegative() &&
+          Start->getActiveBits() <= MaxCountBits &&
+          Bound->getActiveBits() <= MaxCountBits) {
+        int64_t Count = static_cast<int64_t>(Bound->getZExtValue()) -
+                        static_cast<int64_t>(Start->getZExtValue()) +
+                        (F.Inclusive ? 1 : 0);
+        F.Count = Count > 0 ? Count : 0;
+        F.Start = static_cast<int64_t>(Start->getZExtValue());
+      } else {
+        F.ArrayWhy = Miss::CountNotLiteral;
+        F.ArrayMissedAt = (Start ? L->Bound : L->Init)->getBeginLoc();
+      }
+    }
     return F;
   }
 
@@ -401,12 +430,14 @@ static Proven<LoopFacts> recogniseCountedForLoop(const ForStmt* FS) {
     return miss(Miss::NoStart,
                 FS->getInit() ? FS->getInit()->getBeginLoc() : Head);
 
-  if (!stepsByOne(FS->getInc(), IndVar))
+  const UnaryOperator* Step = stepOf(FS->getInc(), IndVar);
+  if (!Step)
     return miss(Miss::StepNotOne,
                 FS->getInc() ? FS->getInc()->getBeginLoc() : Head);
 
   LoopFacts L;
   L.IndVar = IndVar;
+  L.Step = Step;
   L.Init = Init->IgnoreParenImpCasts();
   L.Bound = Cond->getRHS()->IgnoreParenImpCasts();
   L.Inclusive = Inclusive;

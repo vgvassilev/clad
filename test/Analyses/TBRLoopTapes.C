@@ -1,5 +1,5 @@
-// What to-be-recorded analysis changes about a loop: the tape a loop body
-// would otherwise fill with one value per iteration.
+// What to-be-recorded analysis changes about a loop: the record a loop body
+// would otherwise keep, one value per iteration.
 //
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fdisable-analysis=tbr %s \
 // RUN:   -I%S/../../include -oTBRLoopTapes.out 2>&1 \
@@ -16,8 +16,8 @@
 #include <cstdio>
 
 // The pullback of `+` reads neither operand, so no iteration's y is wanted in
-// reverse and the tape holding them goes away. The trip count that drives the
-// reverse sweep is not the tape's business and stays either way.
+// reverse and the record holding them goes away. The trip count that drives
+// the reverse sweep is not the record's business and stays either way.
 double sum(double x) {
   double y = 0;
   for (int i = 0; i < 3; ++i)
@@ -26,20 +26,20 @@ double sum(double x) {
 }
 
 // CHECK-OFF-LABEL: void sum_grad(double x, double *_d_x) {
-// CHECK-OFF: clad::tape<double> _t1 = {};
-// CHECK-OFF: clad::push(_t1, y);
+// CHECK-OFF: double _t1[3];
+// CHECK-OFF: _t1[i] = y;
 // CHECK-OFF: for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
-// CHECK-OFF: y = clad::pop(_t1);
+// CHECK-OFF: y = _t1[i];
 
 // CHECK-TBR-LABEL: void sum_grad(double x, double *_d_x) {
 // CHECK-TBR: for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-TBR-NOT: double _t1[
 // CHECK-TBR-NOT: clad::tape<double>
 // CHECK-TBR-NOT: clad::push
-// CHECK-TBR-NOT: clad::pop
 
 // The pullback of `*` reads both operands, so every iteration's y is wanted
-// and the tape stays. Without this, an analysis that dropped every tape would
-// still pass the case above.
+// and the record stays. Without this, an analysis that dropped every record
+// would still pass the case above.
 double product(double x) {
   double y = 1;
   for (int i = 0; i < 3; ++i)
@@ -48,12 +48,12 @@ double product(double x) {
 }
 
 // CHECK-OFF-LABEL: void product_grad(double x, double *_d_x) {
-// CHECK-OFF: clad::tape<double> _t1 = {};
-// CHECK-OFF: clad::push(_t1, y);
+// CHECK-OFF: double _t1[3];
+// CHECK-OFF: _t1[i] = y;
 
 // CHECK-TBR-LABEL: void product_grad(double x, double *_d_x) {
-// CHECK-TBR: clad::tape<double> _t1 = {};
-// CHECK-TBR: clad::push(_t1, y);
+// CHECK-TBR: double _t1[3];
+// CHECK-TBR: _t1[i] = y;
 
 int main() {
   auto s = clad::gradient(sum);

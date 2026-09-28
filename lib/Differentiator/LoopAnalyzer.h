@@ -18,6 +18,7 @@ namespace clang {
 class Expr;
 class ForStmt;
 class FunctionDecl;
+class UnaryOperator;
 class VarDecl;
 } // namespace clang
 
@@ -39,6 +40,8 @@ struct LoopFacts {
   /// own expressions, not copies.
   const clang::Expr* Init = nullptr;
   const clang::Expr* Bound = nullptr;
+  /// The `i++` or `++i` of the increment, the loop's own expression.
+  const clang::UnaryOperator* Step = nullptr;
   /// Whether the comparison is `<=` rather than `<`, so the bound is the last
   /// value taken rather than the first not taken.
   bool Inclusive = false;
@@ -53,6 +56,15 @@ struct LoopFacts {
   /// Whether Init and Bound read in the reverse sweep as they did in the
   /// forward one, which is what makes a trip count worth building from them.
   bool BoundsAreStable = false;
+  /// The count when the start and the bound are both literals, and the
+  /// start; Count is -1 otherwise. A value stored once per iteration of such
+  /// a loop can take a slot in an array of Count at index (i - Start),
+  /// instead of a push onto a tape.
+  int64_t Count = -1;
+  int64_t Start = 0;
+  /// Why the count is not a literal, for the report; None when it is.
+  AnalysisMiss ArrayWhy = AnalysisMiss::None;
+  clang::SourceLocation ArrayMissedAt;
   /// An adjoint this loop sums rather than stores: `Base[Index]` is read on
   /// every iteration at an index the loop never moves, so its adjoint is a
   /// sum over the loop. Accumulated in place, `_d_Base[Index] +=` is a store
