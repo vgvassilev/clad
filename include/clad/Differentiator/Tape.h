@@ -380,6 +380,12 @@ protected:
   Slab* m_tail = nullptr;
   std::size_t m_size = 0;
   std::size_t m_capacity = SBO_SIZE;
+  /// The slab the last indexed access landed in, and its number counted from
+  /// the head. A sweep reads a recorded run in order, so the next element is
+  /// in this slab or the one beside it, and the walk from an end is spared.
+  /// Left alone by the multithreaded tape, where a read must not write.
+  Slab* m_cursor = nullptr;
+  std::size_t m_cursor_no = 0;
 #ifndef __CUDACC__
   mutable std::mutex m_TapeMutex;
 #endif
@@ -840,6 +846,8 @@ public:
             trigger_reverse_prefetch();
 
           m_tail->next = nullptr;
+          if (m_cursor == old_tail)
+            m_cursor = nullptr;
           delete old_tail;
           m_capacity -= SLAB_SIZE;
         }
@@ -849,31 +857,69 @@ public:
   }
 
 private:
+  /// The slab numbered \p no, counted from the head, reached from whichever
+  /// of the head, the tail and the last access is nearest. Every slab from
+  /// the head to the tail exists (pop_back frees only past the tail), so the
+  /// walk never runs off the list.
+  CUDA_HOST_DEVICE Slab* slab_no(std::size_t no) {
+    assert(m_size > SBO_SIZE && "no slab is in use");
+    std::size_t tail_no = (m_size - 1 - SBO_SIZE) / SLAB_SIZE;
+    assert(no <= tail_no && "past the last slab");
+    Slab* from = m_head;
+    std::size_t from_no = 0;
+    if (tail_no - no < no) {
+      from = m_tail;
+      from_no = tail_no;
+    }
+    if (!is_multithread && m_cursor) {
+      std::size_t d = m_cursor_no < no ? no - m_cursor_no : m_cursor_no - no;
+      std::size_t best = from_no < no ? no - from_no : from_no - no;
+      if (d < best) {
+        from = m_cursor;
+        from_no = m_cursor_no;
+      }
+    }
+    while (from_no < no) {
+      from = from->next;
+      ++from_no;
+    }
+    while (from_no > no) {
+      from = from->prev;
+      --from_no;
+    }
+    if (!is_multithread) {
+      m_cursor = from;
+      m_cursor_no = no;
+    }
+    return from;
+  }
+
   /// Returns pointer to element at specified index, handling SBO or slab lookup
   CUDA_HOST_DEVICE T* at(std::size_t index) {
     if (index < SBO_SIZE)
       return sbo_elements() + index;
-
-    Slab* slab = m_head;
-    std::size_t idx = (index - SBO_SIZE) / SLAB_SIZE;
-    while (idx--)
-      slab = slab->next;
-
+    Slab* slab = slab_no((index - SBO_SIZE) / SLAB_SIZE);
     if (DiskOffload || GpuOffload)
       ensure_loaded(slab);
-
     return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
   }
 
+  /// The const form walks from the nearer end and moves no cursor; it also
+  /// cannot load an offloaded slab.
   CUDA_HOST_DEVICE const T* at(std::size_t index) const {
     if (index < SBO_SIZE)
       return sbo_elements() + index;
+    std::size_t no = (index - SBO_SIZE) / SLAB_SIZE;
+    std::size_t tail_no = (m_size - 1 - SBO_SIZE) / SLAB_SIZE;
     Slab* slab = m_head;
-    std::size_t idx = (index - SBO_SIZE) / SLAB_SIZE;
-    while (idx--)
-      slab = slab->next;
-
-    // Const version cannot ensure loaded if DiskOffload is true
+    if (tail_no - no < no) {
+      slab = m_tail;
+      for (std::size_t i = tail_no; i > no; --i)
+        slab = slab->prev;
+    } else {
+      for (std::size_t i = 0; i < no; ++i)
+        slab = slab->next;
+    }
     return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
   }
 
@@ -948,6 +994,7 @@ private:
     clear_impl(std::integral_constant < bool, DiskOffload || GpuOffload > {});
     m_head = nullptr;
     m_tail = nullptr;
+    m_cursor = nullptr;
     m_size = 0;
     m_capacity = SBO_SIZE;
   }
