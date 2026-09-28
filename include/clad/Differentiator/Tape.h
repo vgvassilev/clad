@@ -643,8 +643,7 @@ public:
   tape_impl(tape_impl&& other) = delete;
   tape_impl& operator=(tape_impl&& other) = delete;
 
-  /// Add new value of type T constructed from args to the end of the tape.
-    /// Points m_tail at the slab the next element belongs in, allocating one
+  /// Points m_tail at the slab the next element belongs in, allocating one
   /// if the tape is full. Runs once every SLAB_SIZE elements, so it is kept
   /// out of line: inlined, its cost pushes emplace_back -- and with it every
   /// clad::push -- over clang's inline threshold, and the pushes stop being
@@ -675,7 +674,8 @@ public:
       m_tail = m_tail->next;
   }
 
-template <typename... ArgsT>
+  /// Add new value of type T constructed from args to the end of the tape.
+  template <typename... ArgsT>
   CUDA_HOST_DEVICE void emplace_back(ArgsT&&... args) {
     if (m_size < SBO_SIZE) {
       ::new (const_cast<void*>(static_cast<const volatile void*>(
