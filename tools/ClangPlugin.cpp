@@ -252,7 +252,16 @@ void InitTimers();
       // Plan call above then defers the group; processing requests here would
       // interleave with the outer traversal (and clobber its current
       // processing node), so leave them to the outer caller.
-      if (!getScheduler().isTraversalInFlight())
+      //
+      // It is re-entered while a request is being built, too: Sema hands the
+      // consumers every function it instantiates on the spot, and a constexpr
+      // derivative that calls a constexpr template makes it do so from inside
+      // ProcessDiffRequest. The node in progress is not yet marked processed,
+      // so processing the graph here would build it a second time, and a
+      // third, without end. Leave the graph to the outer call, as
+      // FinalizeTranslationUnit does.
+      if (!getScheduler().isTraversalInFlight() &&
+          !getScheduler().getGraph().isProcessingNode())
         for (DiffRequest& request : getScheduler().getGraph().getNodes()) {
           // Both halves matter. A derivative is needed this early only when
           // the call asking for it can itself be worked out while the

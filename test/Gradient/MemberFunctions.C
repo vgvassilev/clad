@@ -635,20 +635,17 @@ double fn8(double x, double y) {
 }
 
 // CHECK:  void fn8_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      S _d_s = {0., false};
-// CHECK-NEXT:      S s = {x, false};
-// CHECK-NEXT:      auto _rev0 = [&] {
-// CHECK-NEXT:          if (s.Cond(y))
-// CHECK-NEXT:              ;
-// CHECK-NEXT:          *_d_x += _d_s.val;
-// CHECK-NEXT:      };
-// CHECK-NEXT:      if (s.Cond(y)) {
-// CHECK-NEXT:          _rev0();
-// CHECK-NEXT:          return;
-// CHECK-NEXT:      }
-// CHECK-NEXT:      *_d_y += 1;
-// CHECK-NEXT:      _rev0();
-// CHECK-NEXT:  }
+// CHECK-NEXT:     S _d_s = {0., false};
+// CHECK-NEXT:     S s = {x, false};
+// CHECK-NEXT:     clad::forward_sweep([&] {
+// CHECK-NEXT:         if (s.Cond(y))
+// CHECK-NEXT:             return;
+// CHECK-NEXT:         *_d_y += 1;
+// CHECK-NEXT:     });
+// CHECK-NEXT:     if (s.Cond(y))
+// CHECK-NEXT:         ;
+// CHECK-NEXT:     *_d_x += _d_s.val;
+// CHECK-NEXT: }
 
 double fn9(double x, double y) {
   S* s = new S{x, false};

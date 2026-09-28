@@ -369,6 +369,8 @@ namespace clad {
     public:
       llvm::SmallSetVector<VarDecl*, 16> Referenced;
       llvm::SmallPtrSet<VarDecl*, 16> Declared;
+      // Both forms of an initializer list, as resolve() walks them.
+      bool shouldVisitImplicitCode() const { return true; }
       bool VisitDeclRefExpr(DeclRefExpr* DRE) {
         if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
           if (VD->isLocalVarDecl() || isa<ParmVarDecl>(VD))
@@ -391,28 +393,12 @@ namespace clad {
 
   void VisitorBase::LambdaCaptures::orderCaptureDecls(
       llvm::SmallVectorImpl<Stmt*>& Prefix,
-      llvm::SmallVectorImpl<Stmt*>& Suffix, llvm::ArrayRef<Stmt*> AlreadyLive) {
-    llvm::SmallPtrSet<const VarDecl*, 16> Available;
-    auto note = [&](Stmt* S) {
-      if (auto* DS = dyn_cast_or_null<DeclStmt>(S))
-        for (Decl* D : DS->decls())
-          if (auto* VD = dyn_cast<VarDecl>(D))
-            Available.insert(VD);
-    };
-    for (const ParmVarDecl* P : m_V.m_Derivative->parameters())
-      Available.insert(P);
-    for (Stmt* S : AlreadyLive)
-      note(S);
-    for (Stmt* S : Prefix)
-      note(S);
-
-    // Moving a decl earlier preserves its value only if its initializer yields
-    // the same value there: it may reference only names already live before
-    // the lambda. This checks availability, not that those names are unmutated
-    // in between; it is sound for the decls clad moves -- zero-initialized
-    // adjoints and entry-live seeds, whose operands the forward sweep has not
-    // yet reassigned. A decl reading a value the suffix computes fails the test
-    // and stays put (findUseBeforeDecl catches a captured local left behind).
+      llvm::SmallVectorImpl<Stmt*>& Suffix) {
+    // A decl moves whole only when its initializer reads no local and no
+    // parameter: a zero, a literal, a global. Anything else is computed in
+    // place, because moving it would run it on a path that returns before
+    // it -- past a guard the original put in front of it -- and would read
+    // its operands before the forward sweep has written them.
     auto selfContained = [&](const VarDecl* VD) {
       const Expr* Init = VD->getInit();
       if (!Init)
@@ -420,25 +406,21 @@ namespace clad {
       bool Ok = true;
       class RefChecker : public RecursiveASTVisitor<RefChecker> {
       public:
-        const llvm::SmallPtrSetImpl<const VarDecl*>* Available = nullptr;
         bool* Ok = nullptr;
         bool VisitDeclRefExpr(DeclRefExpr* DRE) const {
           auto* RVD = dyn_cast<VarDecl>(DRE->getDecl());
-          if (RVD && (RVD->isLocalVarDecl() || isa<ParmVarDecl>(RVD)) &&
-              !Available->count(RVD)) {
+          if (RVD && (RVD->isLocalVarDecl() || isa<ParmVarDecl>(RVD))) {
             *Ok = false;
             return false;
           }
           return true;
         }
       } RC;
-      RC.Available = &Available;
       RC.Ok = &Ok;
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       RC.TraverseStmt(const_cast<Expr*>(Init));
       return Ok;
     };
-
     llvm::SmallVector<Stmt*, 16> Remaining;
     for (Stmt* S : Suffix) {
       auto* DS = dyn_cast<DeclStmt>(S);
@@ -492,7 +474,6 @@ namespace clad {
             if (Expr* Zero = m_V.getZeroInit(VD->getType()))
               m_V.SetDeclInit(VD, Zero);
           Prefix.push_back(m_V.BuildDeclStmt(VD));
-          note(Prefix.back());
           continue;
         }
         // Splitting needs a whole-object assignment, which an array type has
@@ -530,10 +511,6 @@ namespace clad {
         m_V.SetDeclInit(VD, Placeholder);
         flushKept();
         Prefix.push_back(m_V.BuildDeclStmt(VD));
-        // Not noted: the hoisted decl only holds a placeholder until the
-        // assignment below runs, so a later decl reading VD (e.g. a
-        // `_t0 = y` snapshot of a split `y`) must go through this same split
-        // path rather than treat the placeholder as the real value.
         Remaining.push_back(m_V.BuildOp(BO_Assign, DeclRef, Init));
       }
       flushKept();
@@ -546,6 +523,11 @@ namespace clad {
     public:
       LambdaCaptures& Caps;
       explicit CapRefRebuilder(LambdaCaptures& Caps) : Caps(Caps) {}
+      // An initializer list has a syntactic and a semantic form, and CodeGen
+      // reads the semantic one, which the visitor skips unless told to visit
+      // implicit code. A reference rebuilt in the syntactic form alone leaves
+      // the emitted one uncaptured.
+      bool shouldVisitImplicitCode() const { return true; }
       bool VisitStmt(Stmt* P) {
         for (Stmt*& Child : P->children()) {
           auto* DRE = dyn_cast_or_null<DeclRefExpr>(Child);
