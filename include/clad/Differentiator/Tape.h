@@ -904,25 +904,6 @@ private:
     return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
   }
 
-  /// The const form walks from the nearer end and moves no cursor; it also
-  /// cannot load an offloaded slab.
-  CUDA_HOST_DEVICE const T* at(std::size_t index) const {
-    if (index < SBO_SIZE)
-      return sbo_elements() + index;
-    std::size_t no = (index - SBO_SIZE) / SLAB_SIZE;
-    std::size_t tail_no = (m_size - 1 - SBO_SIZE) / SLAB_SIZE;
-    Slab* slab = m_head;
-    if (tail_no - no < no) {
-      slab = m_tail;
-      for (std::size_t i = tail_no; i > no; --i)
-        slab = slab->prev;
-    } else {
-      for (std::size_t i = 0; i < no; ++i)
-        slab = slab->next;
-    }
-    return slab->elements() + ((index - SBO_SIZE) % SLAB_SIZE);
-  }
-
   template <typename It> using value_type_of = decltype(*std::declval<It>());
 
   // Call destructor for every value in the given range.
