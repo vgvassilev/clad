@@ -19,10 +19,11 @@ Clad differentiation functions takes a function as an input and returns a
 derived function. Generated derived function can be called by calling the 
 `.execute` method on the corresponding `clad::CladFunction` object.
 
-Clad consists of five primary automatic differentiation functions:
+Clad consists of six primary automatic differentiation functions:
 
 - ``clad::differentiate`` -- Primary forward mode automatic differentiation
 - ``clad::gradient`` -- Primary reverse mode automatic differentiation
+- ``clad::pullback`` -- Vector-Jacobian Product (reverse mode AD with seed cotangent)
 - ``clad::hessian``
 - ``clad::jacobian``
 - ``clad::estimate_error``
@@ -191,6 +192,69 @@ request.
 Visit the API reference of :cpp:func:`gradient` for more details, and
 :doc:`Core concepts <CoreConcepts>` for what Clad generates and why it needs to
 store values along the way.
+
+Pullback Mode (Vector-Jacobian Product / VJP)
+---------------------------------------------
+
+The ``clad::pullback`` interface generates reverse-mode derivatives seeded with an
+explicit output cotangent (:math:`d_y`). Whereas ``clad::gradient`` evaluates
+reverse mode using an implicit unit cotangent seed (1.0), ``clad::pullback``
+accepts a caller-supplied cotangent seed, enabling derivative chaining and custom
+reverse-mode passes.
+
+For an ordinary value or const-reference result, the seed has the corresponding
+non-const value type. The seed argument is omitted if the function returns
+``void``, a pointer, or a non-const reference (whose cotangents propagate through
+referenced memory). Adjoint output parameters are generated only for the selected
+independent arguments. Output adjoints are accumulated using ``+=`` into the
+caller-provided buffers::
+
+    #include "clad/Differentiator/Differentiator.h"
+    #include <cstdio>
+
+    double f(double x, double y) { return 2.0 * x + 3.0 * y; }
+
+    int main() {
+        auto f_pb = clad::pullback(f);
+
+        double dx = 0.0, dy = 0.0;
+        double seed = 1.5; // d_y
+
+        // Inputs: x=2, y=3. Cotangent seed: 1.5. Output adjoints: &dx, &dy
+        f_pb.execute(2.0, 3.0, seed, &dx, &dy);
+
+        std::printf("dx = %g, dy = %g\n", dx, dy); // dx = 3, dy = 4.5
+    }
+
+When differentiating with respect to a subset of parameters, the public typed
+derivative signature preserves positional adjoint slots corresponding to the
+original primal parameters. Every passive or unselected position remains in the
+public function type and callers pass ``nullptr`` for that slot. The selected
+derivative forwards and accumulates only the requested adjoints, leaving unselected
+slots untouched without dereferencing them. For example, when differentiating
+``f(x, y)`` with respect to ``"y"``::
+
+    auto f_pb_y = clad::pullback(f, "y");
+    double dy = 0.0;
+    // Slot for unselected parameter x is passed as nullptr:
+    f_pb_y.execute(2.0, 3.0, seed, nullptr, &dy);
+
+Supported forms include free functions (including ``noexcept`` free functions),
+member functions (including ``volatile`` and ``const volatile`` methods),
+named function objects (lambdas are not supported in pullback mode), and
+compile-time derivatives when a pullback call is evaluated from a ``constexpr``
+function. Current Clad schedules that immediate evaluation automatically.
+
+Intentionally unsupported forms and option combinations fail closed with compile-time diagnostics:
+
+- ``clad::opts::use_enzyme``: Enzyme is not supported for pullback mode.
+- ``clad::opts::vector_mode``: Reverse vector mode is not yet supported.
+- Lambda expressions: Pullback does not support lambda expressions; use named function objects instead.
+- ``std::initializer_list`` parameters: Pullback does not support functions with ``std::initializer_list`` parameters.
+- Non-default calling conventions: Only standard platform calling conventions (SysV ABI on POSIX) are supported; non-default calling conventions (e.g., ``__attribute__((ms_abi))`` on x86_64) fail closed at compile time via template substitution failure.
+- libc++'s internal ``std::__nat`` default tag is rejected at the public pullback boundary; an unrelated user type named ``__nat`` remains ordinary.
+- Root custom pullbacks carrying ``clad::pullback_state`` are rejected because the public trait has no state-carrier slot. Nested reverse calls may carry state internally.
+- CUDA runtime execution requires an active CUDA toolkit and device runtime; Clad generates host/device AST annotations but does not run device kernels when CUDA runtime is absent.
 
 Hessian Computation
 ----------------------

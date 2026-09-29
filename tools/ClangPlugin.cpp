@@ -840,11 +840,15 @@ void InitTimers();
       if (DerivativeDecl) {
         if (!alreadyDerived &&
             (!request.CustomDerivative || request.CallUpdateRequired)) {
+          FunctionDecl* DisplayDerivativeDecl = DerivativeDecl;
+          if (request.Mode == DiffMode::pullback && request.CustomDerivative &&
+              OverloadedDerivativeDecl)
+            DisplayDerivativeDecl = OverloadedDerivativeDecl;
           // Reported on at the end of the unit rather than here: reading a
           // buffer settles where its lines are, so everything has to be
           // printed into it first.
           Generated G;
-          G.Derivative = DerivativeDecl;
+          G.Derivative = DisplayDerivativeDecl;
           G.AnalysisRan = request.EnableTBRAnalysis;
           // Where a user asked for this derivative, when one did. Clad asks
           // for some itself -- the second derivative a hessian needs -- and
@@ -854,7 +858,7 @@ void InitTimers();
             G.RequestedAt = request.CallContext->getBeginLoc();
           }
           m_Generated.push_back(G);
-          printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
+          printDerivative(DisplayDerivativeDecl, request.DeclarationOnly, m_DO);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
           // We ideally should not call `HandleTopLevelDecl` for declarations
