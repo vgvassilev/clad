@@ -15,9 +15,12 @@
 #include <unordered_map>
 
 namespace clang {
+class DeclRefExpr;
 class Expr;
 class ForStmt;
 class FunctionDecl;
+class Stmt;
+class UnaryOperator;
 class VarDecl;
 } // namespace clang
 
@@ -39,6 +42,8 @@ struct LoopFacts {
   /// own expressions, not copies.
   const clang::Expr* Init = nullptr;
   const clang::Expr* Bound = nullptr;
+  /// The `i++` or `++i` of the increment, the loop's own expression.
+  const clang::UnaryOperator* Step = nullptr;
   /// Whether the comparison is `<=` rather than `<`, so the bound is the last
   /// value taken rather than the first not taken.
   bool Inclusive = false;
@@ -53,6 +58,15 @@ struct LoopFacts {
   /// Whether Init and Bound read in the reverse sweep as they did in the
   /// forward one, which is what makes a trip count worth building from them.
   bool BoundsAreStable = false;
+  /// The count when the start and the bound are both literals, and the
+  /// start; Count is -1 otherwise. A value stored once per iteration of such
+  /// a loop can take a slot in an array of Count at index (i - Start),
+  /// instead of a push onto a tape.
+  int64_t Count = -1;
+  int64_t Start = 0;
+  /// Why the count is not a literal, for the report; None when it is.
+  AnalysisMiss ArrayWhy = AnalysisMiss::None;
+  clang::SourceLocation ArrayMissedAt;
   /// An adjoint this loop sums rather than stores: `Base[Index]` is read on
   /// every iteration at an index the loop never moves, so its adjoint is a
   /// sum over the loop. Accumulated in place, `_d_Base[Index] +=` is a store
@@ -69,6 +83,13 @@ struct LoopFacts {
   /// rule, so it is asked here rather than repeated by every reader.
   [[nodiscard]] const AdjointReduction*
   reductionFor(const clang::Expr* Base) const;
+
+  /// Where the body reads a value the iteration before it left, or null when
+  /// every value it reads is its own. A loop that recomputes its body in the
+  /// reverse sweep instead of taping it cannot have one, since the value to
+  /// recompute from is gone. Proven only for a request that asks, which today
+  /// is one carrying `#pragma clad checkpoint loop`.
+  const clang::DeclRefExpr* CarriedRead = nullptr;
 
   /// Which way this loop missed the counted construct, and the token that
   /// missed it. Set whenever a fact above is absent, so a report can say what
@@ -133,8 +154,9 @@ struct FunctionLoopFacts {
   /// that caches them. A request that is copied and re-pointed at another
   /// function must not read the old ones.
   const clang::FunctionDecl* Fn = nullptr;
-  /// Each `for` in the body, counted or not.
-  std::unordered_map<const clang::ForStmt*, LoopFacts> Loops;
+  /// Each loop in the body, keyed by the loop statement. A `while` and a
+  /// `do` are here for the facts that need no count.
+  std::unordered_map<const clang::Stmt*, LoopFacts> Loops;
   /// The extent each pointer parameter is written over, in parameter order.
   llvm::SmallVector<WrittenExtent, 8> Extents;
 };

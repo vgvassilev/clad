@@ -31,16 +31,16 @@ struct Options {
 
   /// Whether each analysis runs, the switches already resolved against the
   /// default the table gives it. One member per entry in Analyses.td.
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   bool Enable##Id##Analysis = Default;
 #include "clad/Differentiator/Analyses.def"
   /// Whether the user asked to hear what each analysis left behind
   /// (-Rclad-analysis=NAME).
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   bool Remark##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
   /// Whether -fdump-analysis=NAME asked for what each one concluded.
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   bool Dump##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
 

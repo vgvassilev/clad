@@ -39,10 +39,12 @@ double earlyBeforeLoop(double* c) { return poly(c, 3); }
 double loopAfterEarly(double* c) { return poly(c, 4); }
 
 // CHECK-LABEL: inline void poly_pushforward_pullback(
-// The loop counter is hoisted above the master reverse lambda and only reset
-// in the forward sweep, so it must be zero-initialized at its declaration.
+// The loop counter is declared before the forward-sweep closure and only
+// reset inside it, so it must be zero-initialized at its declaration.
 // CHECK: {{__size_t|size_t|unsigned long long|unsigned long|unsigned int}} _t0 = {{0U|0UL|0ULL}};
-// CHECK: auto _rev0 = [&
+// CHECK: clad::forward_sweep([&] {
+// CHECK: return;
+// CHECK: });
 // CHECK: for (; _t0; _t0--)
 
 int main() {

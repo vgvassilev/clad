@@ -222,7 +222,8 @@ DerivativeAndOverload HessianModeVisitor::BuildHessianFromVectorProducts(
   if (params.back()->getIdentifier())
     m_Sema.PushOnScopeChains(params.back(), getCurrentScope(),
                              /*AddToContext=*/false);
-  hessianFD->setParams(clad_compat::makeArrayRef(params.data(), params.size()));
+  utils::SetParams(hessianFD,
+                   clad_compat::makeArrayRef(params.data(), params.size()));
   Expr* Result = BuildDeclRef(params.back());
 
   beginScope(Scope::FnScope | Scope::DeclScope);
@@ -603,7 +604,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
 
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
         clad_compat::makeArrayRef(params.data(), params.size());
-    hessianFD->setParams(paramsRef);
+    utils::SetParams(hessianFD, paramsRef);
     Expr* Result = BuildDeclRef(params.back());
     std::vector<Stmt*> CompStmtSave;
 

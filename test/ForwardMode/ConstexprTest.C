@@ -33,7 +33,7 @@ constexpr double mul(double a, double b, double c) {
 
 constexpr double fn_test() {
     if consteval {
-	auto dx = clad::differentiate<clad::immediate_mode>(fn, "x");
+	auto dx = clad::differentiate(fn, "x");
 
 	return dx.execute(4, 7);
     } else {
@@ -44,7 +44,7 @@ constexpr double fn_test() {
 
 constexpr double mul_test() {
     if consteval {
-	auto dx = clad::differentiate<clad::immediate_mode>(mul, "a");
+	auto dx = clad::differentiate(mul, "a");
 
 	return dx.execute(5, 6, 10);
     } else {

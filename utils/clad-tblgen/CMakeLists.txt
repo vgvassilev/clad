@@ -13,8 +13,6 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   include(AddLLVM)
   include(HandleLLVMOptions)
   include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
-  find_library(CLAD_LLVM_TABLEGEN_LIB NAMES LLVMTableGen REQUIRED
-               HINTS ${LLVM_LIBRARY_DIR} ${LLVM_LIBRARY_DIRS})
 endif()
 
 # Let LLVM say how it wants to be linked; the answer decides which libraries
@@ -29,6 +27,19 @@ endif()
 # looks forward: naming TableGen is enough, because LLVMExports gives it an
 # INTERFACE_LINK_LIBRARIES of LLVMSupport and cmake puts Support after it.
 if (LLVM_LINK_LLVM_DYLIB)
+  # Resolved here rather than wherever clad configures, because this is the
+  # only branch that names it: a REQUIRED lookup for a library nothing links
+  # stops a configure that would otherwise have worked, which is what it did
+  # for a consumer building clad against a multi-config LLVM build tree.
+  #
+  # Looked up rather than taken from the LLVMTableGen target even where LLVM
+  # defines one. A target would know the path for the configuration being
+  # built, which a lookup cannot work out on a multi-config build tree -- but
+  # naming an imported target broke the macOS row whose LLVM install carries
+  # its own libc++, and this branch does not need it: a build tree without a
+  # libLLVM takes the other one, where the lookup does not happen at all.
+  find_library(CLAD_LLVM_TABLEGEN_LIB NAMES LLVMTableGen REQUIRED
+               HINTS ${LLVM_LIBRARY_DIR} ${LLVM_LIBRARY_DIRS})
   set(LLVM_LINK_COMPONENTS Support)
   add_llvm_executable(clad-tblgen TableGen.cpp)
   target_link_libraries(clad-tblgen PRIVATE ${CLAD_LLVM_TABLEGEN_LIB})
