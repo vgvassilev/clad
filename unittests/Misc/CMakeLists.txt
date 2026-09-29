@@ -2,6 +2,7 @@ add_clad_unittest(MiscTests
   CallDeclOnly.cpp
   Defs.cpp
   DynamicGraph.cpp
+  MultiplexExternalRMVSourceTest.cpp
 )
 
 # Create a library from the Defs.cpp file
