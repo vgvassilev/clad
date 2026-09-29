@@ -264,10 +264,10 @@ public:
   /// belonging to a function other than this request's.
   bool writesVariable(const clang::VarDecl* VD) const;
 
-  /// What is known about \p FS as a counted loop, or an empty result when it
-  /// is not one. Reading the facts does not build anything: a caller that
-  /// wants a trip-count expression builds it from Init and Bound.
-  const LoopFacts& getLoopFacts(const clang::ForStmt* FS) const;
+  /// What is known about the loop \p S, or an empty result when nothing is.
+  /// Reading the facts does not build anything: a caller that wants a
+  /// trip-count expression builds it from Init and Bound.
+  const LoopFacts& getLoopFacts(const clang::Stmt* S) const;
 
   /// The extent each parameter of Function is written over, in parameter
   /// order, or empty when there is no Function to look at.

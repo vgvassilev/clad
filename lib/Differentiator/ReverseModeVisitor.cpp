@@ -5018,6 +5018,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     LoopScope Loop(*this);
     Loop.Tapes = true;
+    Loop.Facts = &m_DiffReq.getLoopFacts(WS);
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
@@ -5085,6 +5086,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     LoopScope Loop(*this);
     Loop.Tapes = true;
+    Loop.Facts = &m_DiffReq.getLoopFacts(DS);
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
@@ -5401,6 +5403,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       loopLoc = body->getBeginLoc();
     bool shouldCheckpoint =
         hasCheckpointingPragma(m_Context, loopLoc, m_DiffReq);
+    // A value one iteration hands the next is not there to recompute from.
+    // Refuse, rather than produce a gradient that is wrong without a trace,
+    // and keep the tape so that generation goes on.
+    const DeclRefExpr* Carried =
+        m_CurrentLoop->Facts ? m_CurrentLoop->Facts->CarriedRead : nullptr;
+    if (shouldCheckpoint && Carried) {
+      std::string Name = Carried->getDecl()->getNameAsString();
+      diag(DiagnosticsEngine::Error, loopLoc,
+           "'#pragma clad checkpoint loop' recomputes each iteration of "
+           "this loop from the values before it, but '%0' carries a value "
+           "from one iteration into the next; the gradient would be wrong")
+          << Name;
+      diag(DiagnosticsEngine::Note, Carried->getBeginLoc(),
+           "'%0' is read here before the iteration assigns it")
+          << Name;
+      shouldCheckpoint = false;
+    }
     if (shouldCheckpoint) {
       m_CurrentLoop->Tapes = false;
       m_CurrentLoop->Checkpointed = true;

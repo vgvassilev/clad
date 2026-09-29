@@ -211,6 +211,92 @@ static void collectAdjointReductions(
   }
 }
 
+/// LoopFacts::CarriedRead of a loop with body \p Body and index \p IndVar.
+///
+/// Exempt are the index, which the loop steps and the reverse sweep restores;
+/// a variable only added to or subtracted from, since the adjoint of `s += e`
+/// never reads s; and one declared in the body. An assignment below the body's
+/// top level does not count as assigning, since a path may skip it.
+static const DeclRefExpr* carriedRead(Stmt* Body, const VarDecl* IndVar) {
+  std::set<const VarDecl*> Written;
+  utils::collectWrittenVars(Body, Written);
+  class Uses : public RecursiveASTVisitor<Uses> {
+  public:
+    llvm::SmallVector<const DeclRefExpr*, 32> Refs;
+    llvm::SmallPtrSet<const Expr*, 16> Targets; // written, not read
+    llvm::SmallPtrSet<const Expr*, 16> Linear;  // `+=`, `-=`, `++`, `--`
+    llvm::SmallPtrSet<const VarDecl*, 8> Local;
+    bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+      Refs.push_back(DRE);
+      return true;
+    }
+    bool VisitBinaryOperator(BinaryOperator* BO) {
+      if (BO->getOpcode() == BO_Assign)
+        Targets.insert(BO->getLHS()->IgnoreParenImpCasts());
+      else if (BO->getOpcode() == BO_AddAssign ||
+               BO->getOpcode() == BO_SubAssign)
+        Linear.insert(BO->getLHS()->IgnoreParenImpCasts());
+      return true;
+    }
+    bool VisitUnaryOperator(UnaryOperator* UO) {
+      if (UO->isIncrementDecrementOp())
+        Linear.insert(UO->getSubExpr()->IgnoreParenImpCasts());
+      return true;
+    }
+    bool VisitVarDecl(VarDecl* VD) {
+      Local.insert(VD);
+      return true;
+    }
+  } U;
+  U.TraverseStmt(Body);
+  auto Var = [](const DeclRefExpr* DRE) {
+    return dyn_cast<VarDecl>(DRE->getDecl());
+  };
+  llvm::SmallPtrSet<const VarDecl*, 8> OnlyLinear;
+  for (const VarDecl* VD : Written)
+    if (llvm::all_of(U.Refs, [&](const DeclRefExpr* R) {
+          return Var(R) != VD || U.Linear.count(R);
+        }))
+      OnlyLinear.insert(VD);
+  // The top-level statements in order, an assignment defining its target
+  // once its right-hand side has been read.
+  llvm::SmallVector<Stmt*, 16> Top;
+  if (auto* CS = dyn_cast<CompoundStmt>(Body))
+    Top.append(CS->body_begin(), CS->body_end());
+  else
+    Top.push_back(Body);
+  llvm::SmallPtrSet<const VarDecl*, 8> Defined;
+  auto Carried = [&](const DeclRefExpr* R) {
+    const VarDecl* VD = Var(R);
+    return VD && VD != IndVar && Written.count(VD) && !U.Local.count(VD) &&
+           !Defined.count(VD) && !OnlyLinear.count(VD) && !U.Targets.count(R);
+  };
+  for (Stmt* S : Top) {
+    const VarDecl* Defines = nullptr;
+    if (const auto* BO = dyn_cast<BinaryOperator>(S))
+      if (BO->getOpcode() == BO_Assign)
+        if (const auto* DRE =
+                dyn_cast<DeclRefExpr>(BO->getLHS()->IgnoreParenImpCasts()))
+          Defines = Var(DRE);
+    // The references inside S, in source order.
+    class Refs : public RecursiveASTVisitor<Refs> {
+    public:
+      llvm::SmallVector<const DeclRefExpr*, 16> In;
+      bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+        In.push_back(DRE);
+        return true;
+      }
+    } R;
+    R.TraverseStmt(S);
+    for (const DeclRefExpr* DRE : R.In)
+      if (Carried(DRE))
+        return DRE;
+    if (Defines)
+      Defined.insert(Defines);
+  }
+  return nullptr;
+}
+
 namespace {
 /// Fills in what each `for` in a body is, in one walk.
 ///
@@ -223,8 +309,12 @@ namespace {
 class CountedLoopCollector : public RecursiveASTVisitor<CountedLoopCollector> {
   const DiffRequest& m_Request;
   ASTContext& m_Context;
-  std::unordered_map<const ForStmt*, LoopFacts>& m_Out;
+  std::unordered_map<const Stmt*, LoopFacts>& m_Out;
   llvm::SmallVector<const VarDecl*, 4> m_EnclosingIndVars;
+  /// Whether anything asks what a loop carries. Only `#pragma clad checkpoint
+  /// loop` does, and proving it costs a walk of every loop body, so a request
+  /// without the pragma does not pay for it.
+  bool m_AnyCheckpoint;
   /// The variables this function mentions only as the base of a subscript, so
   /// nothing inside it can alias them.
   llvm::SmallPtrSet<const VarDecl*, 8> m_OnlyIndexed;
@@ -268,8 +358,9 @@ class CountedLoopCollector : public RecursiveASTVisitor<CountedLoopCollector> {
 
 public:
   CountedLoopCollector(const DiffRequest& R, ASTContext& C, Stmt* Body,
-                       std::unordered_map<const ForStmt*, LoopFacts>& Out)
-      : m_Request(R), m_Context(C), m_Out(Out) {
+                       std::unordered_map<const Stmt*, LoopFacts>& Out)
+      : m_Request(R), m_Context(C), m_Out(Out),
+        m_AnyCheckpoint(!R.m_CladLoopCheckpoints.empty()) {
     SubscriptUses Uses(C);
     Uses.TraverseStmt(Body);
     for (const auto& KV : Uses.Bases)
@@ -348,6 +439,8 @@ public:
   bool TraverseForStmt(ForStmt* FS) {
     LoopFacts F;
     F = recognise(FS, F);
+    if (m_AnyCheckpoint)
+      F.CarriedRead = carriedRead(FS->getBody(), F.IndVar);
     m_Out[FS] = F;
     // A loop counted at all offers its index to the loops inside it, even
     // when its own bounds are not stable: its reverse still steps that index
@@ -359,6 +452,20 @@ public:
       m_EnclosingIndVars.pop_back();
     return res;
   }
+
+  // A loop no counted construct describes still carries values, which is the
+  // one fact proven without a count. A range `for` is not here: the pragma
+  // that asks refuses to attach to one (tools/ClangPlugin.cpp).
+  bool VisitWhileStmt(WhileStmt* WS) {
+    if (m_AnyCheckpoint)
+      m_Out[WS].CarriedRead = carriedRead(WS->getBody(), /*IndVar=*/nullptr);
+    return true;
+  }
+  bool VisitDoStmt(DoStmt* DS) {
+    if (m_AnyCheckpoint)
+      m_Out[DS].CarriedRead = carriedRead(DS->getBody(), /*IndVar=*/nullptr);
+    return true;
+  }
 };
 } // namespace
 
@@ -367,7 +474,7 @@ public:
 /// single loop does not have.
 static void
 collectCountedLoops(const DiffRequest& R,
-                    std::unordered_map<const ForStmt*, LoopFacts>& Out) {
+                    std::unordered_map<const Stmt*, LoopFacts>& Out) {
   // analyzeLoops, the only caller, resolved this definition to decide it had
   // a body worth walking.
   const FunctionDecl* Def = R.Function->getDefinition();

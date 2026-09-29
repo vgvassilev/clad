@@ -504,10 +504,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return *m_LoopFacts;
   }
 
-  const LoopFacts& DiffRequest::getLoopFacts(const clang::ForStmt* FS) const {
+  const LoopFacts& DiffRequest::getLoopFacts(const clang::Stmt* S) const {
     static const LoopFacts None;
     const auto& Loops = getLoopFacts().Loops;
-    auto it = Loops.find(FS);
+    auto it = Loops.find(S);
     return it == Loops.end() ? None : it->second;
   }
 
