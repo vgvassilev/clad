@@ -9,6 +9,10 @@ set(CLAD_PLUGIN_SRC
 )
 
 llvm_add_library(cladPlugin STATIC ${CLAD_PLUGIN_SRC})
+# ClangPlugin.cpp reaches into lib/Differentiator for Diagnostics.h, which
+# expands a table rendered beside it in the build directory.
+target_include_directories(cladPlugin PRIVATE ${CLAD_GEN_LIB})
+add_dependencies(cladPlugin clad-tables)
 
 if (CLAD_BUILD_STATIC_ONLY)
   target_compile_definitions(cladPlugin PRIVATE CLAD_BUILD_STATIC_ONLY)
@@ -61,6 +65,10 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
 
 
   add_llvm_library(clad MODULE ${CLAD_PLUGIN_SRC} DISABLE_LLVM_LINK_LLVM_DYLIB PLUGIN_TOOL clang)
+  # ClangPlugin.cpp reaches into lib/Differentiator for Diagnostics.h, which
+  # expands a table rendered beside it in the build directory.
+  target_include_directories(clad PRIVATE ${CLAD_GEN_LIB})
+  add_dependencies(clad clad-tables)
 
   target_link_libraries(clad PRIVATE ${link_libs})
 

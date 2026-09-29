@@ -5,19 +5,41 @@
 // the wording of every message they emit, and the documentation a reader gets
 // sent to.
 //
-// Five files are generated from it. The three headers are committed, so that a
-// build without the TableGen library still works; the two pages are rendered
-// where the documentation is built:
+// To add an analysis, write one def:
+//
+//   def MyAnalysis : Analysis</*name=*/"mine", /*legacy=*/"mine",
+//                             /*onByDefault=*/0, /*requestBit=*/13,
+//                             "skips the adjoint of a value nobody reads">;
+//
+// and build. That is the whole of it. The def gives you
+//
+//   -fenable-analysis=mine / -fdisable-analysis=mine   the command line
+//   -enable-mine / -disable-mine                       the older spelling
+//   clad::opts::enable_mine / disable_mine             one request
+//   Options::EnableMyAnalysisAnalysis                  what was asked for
+//   DiffRequest::EnableMyAnalysisAnalysis              what a request carries
+//   a line on -help, and a row on the reference page
+//
+// What it does not give you is anything that runs the analysis: that is code,
+// and each analysis is different.
+//
+// The number is a position, not a value, and the only part to choose. The
+// defs below are written in position order and say where the free ones start;
+// put the new one there, in order. A number that is already spoken for, by an
+// analysis or by an option clad::opts spells out, is an error naming what took
+// it rather than a quiet collision.
+//
+// Five files are rendered from it, none of them committed. The three headers
+// are built before anything that expands them, into the build directory:
 //
 //   include/clad/Differentiator/Analyses.def   the analyses
 //   lib/Differentiator/AnalysisDescs.def       the constructs and their misses
 //   lib/Differentiator/Diagnostics.def         the messages
+//
+// and the two pages where the documentation is built:
+//
 //   docs/userDocs/source/user/Analyses.rst     the page reports link to
 //   docs/userDocs/source/user/Diagnostics.rst  the messages, as a reference
-//
-// Regenerate with `ninja clad-analyses` after editing;
-// test/Analyses/AnalysisTableUpToDate.cpp fails if what is committed no longer
-// matches.
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,27 +47,67 @@
 // code clad generates, never the values that code computes. With all of them
 // off clad must still produce a correct derivative, only a more conservative
 // one.
-class Analysis<string name, string legacy, bit onByDefault, string summary> {
+class Analysis<string name, string legacy, bit onByDefault, int requestBit,
+               string summary> {
   // How the analysis is named to users, as -fdisable-analysis takes it.
   string Name = name;
-  // Suffix of the original -enable-<legacy>/-disable-<legacy> pair.
+  // Suffix of two things that spell an analysis the older way: the original
+  // -enable-<legacy>/-disable-<legacy> pair, which -fenable-analysis=<name>
+  // has since replaced, and clad::opts::enable_<legacy>, which it has not.
+  // The second is public API -- a user writes clad::opts::enable_va -- so
+  // this is not free to follow Name even once the flags go.
   string Legacy = legacy;
   // Whether it runs when no switch selects it.
   bit Default = onByDefault;
+  // Where clad::opts::enable_<legacy> sits in the bitmask a request carries,
+  // counted from ORDER_BITS; disable_<legacy> takes the bit above it. A
+  // position, not a value: the two are OR-able once shifted, these numbers
+  // are not.
+  //
+  // They are baked into every translation unit that names one, so a number is
+  // never reused and never changes. Pick any free pair from the list below
+  // and clad-tblgen will tell you if it is taken, by an analysis or by one of
+  // the options CladConfig.h writes out by hand -- those are the Reserved
+  // entries, there so that the list is the whole space.
+  int RequestBit = requestBit;
   // One line for -help.
   string Summary = summary;
 }
 
-def TBR : Analysis<"tbr", "tbr", 1,
+// A clad::opts bit that something other than an analysis has taken. These
+// four are generated into the enum like the analyses are, and are here for
+// the same reason: so a position is spoken for in one place, and so the check
+// that hands them out can see the whole space and name what took the number
+// you picked.
+class Reserved<int firstBit, string name> {
+  int FirstBit = firstBit;
+  string Name = name;
+}
+
+// The positions, in order, so that a free one can be seen. An analysis takes
+// two, the one it names and the one above it; a reserved option takes one.
+// Reading order is for us -- clad-tblgen sorts by position, so a def may go
+// anywhere.
+def : Reserved</*firstBit=*/0, /*name=*/"use_enzyme">;
+def : Reserved</*firstBit=*/1, /*name=*/"vector_mode">;
+def TBR : Analysis</*name=*/"tbr", /*legacy=*/"tbr", /*onByDefault=*/1,
+                   /*requestBit=*/2,
                    "skips storing a value whose reverse sweep can recover it">;
-def Varied : Analysis<"activity", "va", 0,
+def : Reserved</*firstBit=*/4, /*name=*/"diagonal_only">;
+def Varied : Analysis</*name=*/"activity", /*legacy=*/"va", /*onByDefault=*/0,
+                      /*requestBit=*/5,
                       "skips the adjoint of a value no input can vary">;
-def Useful : Analysis<"useful", "ua", 0,
+// 7 and 8 are free: 7 was clad::immediate_mode, which clad now works out for
+// itself, and an analysis needs two in a row, which these are.
+def Useful : Analysis</*name=*/"useful", /*legacy=*/"ua", /*onByDefault=*/0,
+                      /*requestBit=*/9,
                       "skips the adjoint of a value no output depends on">;
-def Loop : Analysis<"loop", "loop", 1,
+def Loop : Analysis</*name=*/"loop", /*legacy=*/"loop", /*onByDefault=*/1,
+                    /*requestBit=*/11,
                     "proves what a function's counted loops allow: a trip "
                     "count the reverse sweep recomputes, and the range of a "
                     "pointer parameter the body writes">;
+// 13 and up are free.
 
 // One way an input can miss a construct. Detail says what the code does instead,
 // in one short sentence about that code -- not about the analysis, which the
@@ -77,6 +139,8 @@ def BodyMovesIndex : Miss<"the body assigns the index too">;
 def StartNotStable : Miss<"the start value is written elsewhere in the "
                           "function">;
 def BoundNotStable : Miss<"the bound is written elsewhere in the function">;
+def CountNotLiteral : Miss<"the start or the bound is not a literal, so the "
+                           "count is not known until run time">;
 
 def ElementIsNotANumber : Miss<"one element of this is not a number, and a "
                                "register holds no more than one">;
@@ -232,6 +296,26 @@ a bound the caller can work out: another parameter, or a constant.
 }];
 }
 
+def ArrayRecord : Desc<Loop, 1005, "a loop with a literal count",
+                        "clad pushes what this loop stores onto a tape and "
+                        "pops it back, instead of keeping it in an array "
+                        "indexed by the loop"> {
+  let Misses = [CountNotLiteral];
+  let Doc = [{
+A counted loop whose start and bound are both literals::
+
+  for (int i = 0; i < 15; i++)    // fifteen iterations, known while compiling
+    t = f(x, i);                   // t's fifteen values live in an array
+
+What the body stores for the reverse sweep, one value per iteration, takes
+a slot in an array of that many at the loop's index, and the reverse sweep
+reads it back by the same index, rather than pushing it onto a tape and
+popping it. The optimiser then sees an array where it saw calls into a
+tape. A loop clad cannot count, or one whose count is known only at run
+time, keeps the tape.
+}];
+}
+
 def TransparentCall : Desc<TBR, 1004, "a call clad can look inside",
                             "clad saves every argument of this call for the "
                             "reverse sweep"> {
@@ -251,9 +335,8 @@ than through a pointer, is what lets the analysis see it.
 
 // What is generated, and in which order.
 def Clad {
-  list<Analysis> Analyses = [TBR, Varied, Useful, Loop];
   list<Desc> Descs = [CountedLoop, BroadcastRead, BoundedWrite,
-                      TransparentCall];
+                      TransparentCall, ArrayRecord];
   list<Diagnostic> Diagnostics = [remark_construct_cost,
                                   remark_construct_cost_for,
                                   note_construct_miss, note_construct_fix,

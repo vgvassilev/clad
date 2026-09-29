@@ -4,7 +4,7 @@
 // marker, offers the elidable_reverse_forw route -- for a constructor whose
 // reverse pass is a no-op (e.g. a shallow copy that shares its adjoint).
 // RUN: clang -std=c++17 -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
-// RUN:   -Xclang -fclad-porting-hints %s -I%S/../../include 2>&1 | %filecheck %s
+// RUN:   -Xclang -fclad-porting-hints %s -I%S/../../include -I%clad_gen_incl 2>&1 | %filecheck %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include "PortingHintsGadget.h"

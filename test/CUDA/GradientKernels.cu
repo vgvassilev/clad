@@ -494,7 +494,7 @@ double fn_memory(double *out, double *in) {
 // CHECK: void fn_memory_grad(double *out, double *in, double *_d_out, double *_d_in) {
 //CHECK-NEXT:    int _d_i = 0;
 //CHECK-NEXT:    int i = 0;
-//CHECK-NEXT:    clad::tape<double> _t1 = {};
+//CHECK-NEXT:    double _t1[10];
 //CHECK-NEXT:    double *_d_in_dev = nullptr;
 //CHECK-NEXT:    double *in_dev = nullptr;
 //CHECK-NEXT:    cudaMalloc(&_d_in_dev, 10 * sizeof(double));
@@ -512,14 +512,14 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    unsigned long _t0;
 //CHECK-NEXT:    for (i = 0; i < 10; ++i) {
 //CHECK-NEXT:        printf("Writing result of out[%d]\n", i);
-//CHECK-NEXT:        clad::push(_t1, res);
+//CHECK-NEXT:        _t1[i] = res;
 //CHECK-NEXT:        res += out_host[i];
 //CHECK-NEXT:    }
 //CHECK-NEXT:    _d_res += 1;
 //CHECK-NEXT:    for (_t0 = 10UL; _t0; _t0--) {
 //CHECK-NEXT:        --i;
 //CHECK-NEXT:        {
-//CHECK-NEXT:            res = clad::pop(_t1);
+//CHECK-NEXT:            res = _t1[i];
 //CHECK-NEXT:            double _r_d0 = _d_res;
 //CHECK-NEXT:            _d_out_host[i] += _r_d0;
 //CHECK-NEXT:        }

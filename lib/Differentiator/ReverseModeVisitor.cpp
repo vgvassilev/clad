@@ -115,6 +115,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 }
 
   Expr* ReverseModeVisitor::CladTapeResult::Last() {
+    if (!Indices.empty())
+      return V.BuildSlot(Ref, Indices);
     LookupResult& Back = V.GetCladTapeBack();
     CXXScopeSpec CSS;
     CSS.Extend(V.m_Context, utils::GetCladNamespace(V.m_Sema), noLoc, noLoc);
@@ -129,14 +131,84 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return V.BuildCallExpr(BackDRE, RefClone);
   }
 
+  Expr* ReverseModeVisitor::BuildSlot(Expr* Array,
+                                      llvm::ArrayRef<Expr*> Indices) {
+    Expr* Slot = CloneNode(Array);
+    for (Expr* I : Indices) {
+      Expr* Idx = CloneNode(I);
+      Slot = BuildArraySubscript(Slot, Idx);
+    }
+    return Slot;
+  }
+
+  bool ReverseModeVisitor::loopsForSlots(
+      QualType Type, llvm::SmallVectorImpl<LoopScope*>& Loops) const {
+    // A slot holds by value what a tape holds by value, in an array declared
+    // without an initializer and assigned into: a scalar, or a fixed-size
+    // array of them. Anything with a constructor stays on the tape.
+    QualType Elem = Type;
+    while (const auto* AT = m_Context.getAsConstantArrayType(Elem))
+      Elem = AT->getElementType();
+    if (!Elem->isScalarType())
+      return false;
+    // Past a page the array is no longer a few locals' worth of frame, and
+    // the tape, which grows on the heap, is the right home.
+    static constexpr uint64_t MaxSlotBytes = 4096;
+    uint64_t Bytes = m_Context.getTypeSizeInChars(Type).getQuantity();
+    for (LoopScope* L = m_CurrentLoop; L; L = L->m_Enclosing) {
+      if (!L->Tapes || !L->Index || L->Facts->Count <= 0)
+        return false;
+      auto Count = static_cast<uint64_t>(L->Facts->Count);
+      if (Bytes > MaxSlotBytes / Count)
+        return false;
+      Bytes *= Count;
+      Loops.push_back(L);
+    }
+    std::reverse(Loops.begin(), Loops.end());
+    return !Loops.empty();
+  }
+
   ReverseModeVisitor::CladTapeResult
   ReverseModeVisitor::MakeCladTapeFor(Expr* E, llvm::StringRef prefix,
-                                      clang::QualType type) {
+                                      clang::QualType type, bool AllowSlots) {
     assert(E && "must be provided");
     E = E->IgnoreImplicit();
     if (type.isNull())
       type = E->getType();
     type.removeLocalConst();
+    llvm::SmallVector<LoopScope*, 2> Loops;
+    if (AllowSlots && !isInsideOMPBlock && loopsForSlots(type, Loops)) {
+      // `T name[N0][N1]...`, one dimension per loop, outermost first. The
+      // loops are nested, so the slot of an iteration is unique, and the
+      // reverse sweep, which walks the same nest backwards, finds it by the
+      // indices it restores on its way.
+      QualType ArrTy = type;
+      for (LoopScope* L : llvm::reverse(Loops))
+        ArrTy = m_Context.getConstantArrayType(
+            ArrTy, llvm::APInt(64, static_cast<uint64_t>(L->Facts->Count)),
+            /*SizeExpr=*/nullptr, clad_compat::ArraySizeModifier_Normal,
+            /*IndexTypeQuals=*/0);
+      // Left uninitialized: every slot is written before it is read, since
+      // the analysis counts no loop a return can skip (LoopAnalyzer.cpp).
+      VarDecl* VD = GlobalStoreImpl(ArrTy, prefix, /*init=*/nullptr, SC_None);
+      VD->setLocation(m_DiffReq->getLocation());
+      CladTapeResult Slots{*this, nullptr, nullptr, BuildDeclRef(VD), {}};
+      for (LoopScope* L : Loops) {
+        L->UsesSlots = true;
+        Expr* Idx = BuildDeclRef(L->Index);
+        if (L->Facts->Start)
+          Idx = BuildOp(BO_Sub, Idx,
+                        ConstantFolder::synthesizeLiteral(
+                            L->Index->getType(), m_Context, L->Facts->Start));
+        Slots.Indices.push_back(Idx);
+      }
+      Expr* Slot = Slots.Last();
+      Slots.Push = isa<ArrayType>(type)
+                       ? BuildArrayAssignment(Slot, E, direction::forward)
+                       : BuildOp(BO_Assign, Slot, E);
+      Slots.Pop = Slots.Last();
+      return Slots;
+    }
     QualType TapeType = GetCladTapeOfType(type);
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
@@ -167,7 +239,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (isInsideOMPBlock)
       MarkDeclThreadPrivate(VD);
-    return CladTapeResult{*this, PushExpr, PopExpr, CloneNode(TapeRef)};
+    return CladTapeResult{*this, PushExpr, PopExpr, CloneNode(TapeRef), {}};
   }
 
   bool ReverseModeVisitor::shouldUseCudaAtomicOps(const Expr* E) {
@@ -356,7 +428,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
-    m_Derivative->setParams(params);
+    utils::SetParams(m_Derivative, params);
     m_Derivative->setBody(nullptr);
 
     m_Sema.PopFunctionScopeInfo();
@@ -381,7 +453,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
       Stmt* fnBody = endBlock();
       m_Derivative->setBody(fnBody);
-      // FIXME: Enable this when we vgvassilev/clad#367 (removing goto stmts).
+      // FIXME: Nothing the visitor emits jumps any more, so Sema's jump-scope
+      // check would pass; enabling this is a change of its own.
       // // If ActOnFinishFunctionBody should pop the current DeclContext.
       // bool IsInstantiation = false;
       // m_Sema.ActOnFinishFunctionBody(m_Derivative, fnBody, IsInstantiation);
@@ -552,18 +625,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       else
         addToCurrentBlock(Reverse, direction::forward);
     } else {
-      // Function has early returns. Wrap the master reverse in a [&] lambda
-      // and call it from each early-return path (via marker patching) plus
-      // once at the natural tail. This replaces the previous goto/label
-      // encoding which violated [stmt.dcl]/2 in the presence of locals with
-      // non-trivial initializers/destructors (vgvassilev/clad#367).
+      // A return before the tail cannot fall through into the reverse sweep.
+      // The forward sweep therefore runs as a closure handed to
+      // clad::forward_sweep, each early return a return from it, and the
+      // reverse follows the call, so it runs on every path. The helper's
+      // declaration forces the closure inline; out of line, every local the
+      // closure touches would live in memory behind a reference.
       //
-      // Source-order matters: the lambda's [&] capture-default binds names
-      // looked up at the lambda's definition point, so every captured local
-      // must be declared before the lambda. Split the forward sweep into
-      // its leading run of DeclStmts and the rest; emit those decls, then
-      // the lambda binding, then the computation tail (which may contain
-      // markers that resolve to calls into the now-declared lambda).
+      // Every local of the sweep has to outlive it. The reverse reads what
+      // it names, and it also reads through what it does not: a hoisted
+      // pointer that stands in for a reference, a restore tracker that
+      // recorded an address. Split the forward sweep into its leading run of
+      // DeclStmts and the rest, and let the hoister move every declaration
+      // out of the rest, leaving an assignment where the original computed
+      // the value.
       llvm::SmallVector<Stmt*, 8> ForwardDeclPrefix;
       llvm::SmallVector<Stmt*, 16> ForwardCompSuffix;
       auto* FwdCS = dyn_cast_or_null<CompoundStmt>(Forward);
@@ -583,87 +658,79 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         classify(Forward);
 
       // An ExternalSource (error estimation) appends an epilogue after the
-      // reverse sweep — e.g. `_final_error += ...` for each parameter and the
-      // return value. It must run on every return path, but emitting it after
-      // the lambda would make it unreachable once an early return fires (which
-      // calls the lambda and returns). Materialize it now into its own block
-      // so it can be folded into the lambda body and captured together with
-      // the reverse. ActOnEndOfDerivedFnBody is a no-op without such a source,
-      // yielding an empty block that folds to nothing.
+      // reverse sweep -- `_final_error += ...` for each parameter and the
+      // return value. It has to run on every return path, so it follows the
+      // call with the reverse. ActOnEndOfDerivedFnBody is a no-op without
+      // such a source, yielding an empty block that folds to nothing.
       CompoundStmt* Epilogue = nullptr;
       if (m_ExternalSource) {
         beginBlock(direction::forward);
         m_ExternalSource->ActOnEndOfDerivedFnBody();
         Epilogue = endBlock(direction::forward);
       }
-
-      // The reverse sweep and the epilogue become the lambda body; collect
-      // their captures now so the hoister below can place the captured decls
-      // before the lambda.
-      llvm::SmallVector<Stmt*, 2> LambdaBody;
+      llvm::SmallVector<Stmt*, 2> ReverseBody;
       if (Reverse)
-        LambdaBody.push_back(Reverse);
+        ReverseBody.push_back(Reverse);
       if (Epilogue)
-        LambdaBody.push_back(Epilogue);
-      LambdaCaptures Captures(*this);
-      Captures.collect(LambdaBody);
+        ReverseBody.push_back(Epilogue);
 
-      // clad emits a zero-initialized adjoint (`double _d_b = 0.;`) lazily,
-      // next to the primal it shadows, so a captured adjoint decl can land in
-      // the computation suffix -- after the lambda. Move such decls before it.
-      Captures.orderCaptureDecls(ForwardDeclPrefix, ForwardCompSuffix,
-                                 m_Globals);
-
+      LambdaCaptures Hoisted(*this);
+      Hoisted.collect(ReverseBody);
+      for (Stmt* S : ForwardCompSuffix)
+        if (auto* DS = dyn_cast<DeclStmt>(S))
+          for (Decl* D : DS->decls())
+            if (auto* VD = dyn_cast<VarDecl>(D))
+              Hoisted.add(VD);
+      Hoisted.orderCaptureDecls(ForwardDeclPrefix, ForwardCompSuffix);
       for (Stmt* S : ForwardDeclPrefix)
         addToCurrentBlock(S, direction::forward);
 
-      // The reverse-pass lambda captures by reference, so every captured local
-      // must be declared before it. That invariant is enforced globally by
-      // findUseBeforeDecl (ASTIntegrity), which flags a lambda-body reference
-      // to a local not yet in scope at the lambda's definition point.
-
-      VarDecl* RevVD = buildAndBindLambda(
-          m_DiffReq.Function->getBody(), "_rev", Captures, [&] {
-            // Emit the master reverse into the closure. clad no longer reuses
-            // AST nodes across the forward/reverse sweeps (b75bba2c), so the
-            // reverse's nodes are closure-unique and need no clone.
-            if (auto* RCS = dyn_cast_or_null<CompoundStmt>(Reverse))
-              for (Stmt* S : RCS->body())
-                addToCurrentBlock(S, direction::forward);
-            else if (Reverse)
-              addToCurrentBlock(Reverse, direction::forward);
-
-            // Fold the ExternalSource epilogue in after the reverse sweep so it
-            // runs on every return path; emitting it after the lambda would
-            // make it unreachable once an early return fires.
-            if (Epilogue)
-              for (Stmt* S : Epilogue->body())
-                addToCurrentBlock(S, direction::forward);
+      // The closure's body was built at function scope, so Sema recorded no
+      // capture for it: every local and parameter it reads but does not
+      // declare is rebuilt inside the closure, where the reference registers
+      // the capture. Collected from the body as it is now, after the hoist:
+      // an array the hoister had to leave inside is declared by the closure,
+      // and a rebuilt reference to it would capture it from a scope where it
+      // does not exist.
+      LambdaCaptures Free(*this);
+      Free.collect(ForwardCompSuffix);
+      Expr* Sweep =
+          buildLambda(*this, m_Sema, m_DiffReq.Function->getBody(), [&] {
+            for (Stmt* S : ForwardCompSuffix)
+              addToCurrentBlock(S, direction::forward);
+            // Each marker gets its own return; one shared node would have
+            // several parents. Built here so that it is the closure's.
+            patchEarlyReturnMarkers([&]() -> Stmt* {
+              return m_Sema
+                  .ActOnReturnStmt(noLoc, /*RetValExpr=*/nullptr,
+                                   getCurrentScope())
+                  .get();
+            });
+            Free.resolve(getCurrentBlock(direction::forward));
           });
-      addToCurrentBlock(BuildDeclStmt(RevVD), direction::forward);
-
-      for (Stmt* S : ForwardCompSuffix)
-        addToCurrentBlock(S, direction::forward);
-
-      // Patch each marker with its own fresh `{ _rev(); return; }`. A single
-      // shared replacement would land under several parents and violate the
-      // single-parent AST invariant, so build one per marker site.
-      patchEarlyReturnMarkers([&]() -> Stmt* {
-        Expr* RevCallEarly = BuildCallExpr(BuildDeclRef(RevVD), {});
-        Stmt* RetStmt = m_Sema
-                            .ActOnReturnStmt(noLoc, /*RetValExpr=*/nullptr,
-                                             getCurrentScope())
-                            .get();
-        return MakeCompoundStmt({RevCallEarly, RetStmt});
-      });
-
-      // Natural-tail path: the tail-return seed was already emitted into the
-      // forward sweep as the last statement before this point
-      // (VisitReturnStmt), so it runs only on fall-through. Follow it with the
-      // lambda call; the function's implicit fall-off-end serves as the natural
-      // return.
-      Expr* RevCallTail = BuildCallExpr(BuildDeclRef(RevVD), {});
-      addToCurrentBlock(RevCallTail, direction::forward);
+      // Looked up and deduced, the way a push is built, so the call is the
+      // one a hand-written `clad::forward_sweep(...)` resolves to.
+      LookupResult SweepLR = LookupCladTapeMethod("forward_sweep");
+      CXXScopeSpec CSS;
+      CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
+      Expr* Callee =
+          m_Sema.BuildDeclarationNameExpr(CSS, SweepLR, /*NeedsADL=*/false)
+              .get();
+      Expr* SweepArgs[] = {Sweep};
+      addToCurrentBlock(
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Callee, noLoc, SweepArgs, noLoc)
+              .get(),
+          direction::forward);
+      // The tail-return seed is the closure's last statement
+      // (VisitReturnStmt), so it runs on fall-through only; the reverse
+      // follows the call.
+      for (Stmt* S : ReverseBody)
+        if (auto* CS = dyn_cast<CompoundStmt>(S))
+          for (Stmt* SS : CS->body())
+            addToCurrentBlock(SS, direction::forward);
+        else
+          addToCurrentBlock(S, direction::forward);
     }
     for (auto S = initsDiff.rbegin(), S_end = initsDiff.rend(); S != S_end; ++S)
       addToCurrentBlock(*S, direction::forward);
@@ -1260,34 +1327,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // loop itself uses keeps the two in step; without it an empty loop would
     // wrap the subtraction around and iterate the reverse sweep forever.
     QualType sizeTy = clad_compat::getSizeType(m_Context);
+    // A count the analysis knows -- the common `i < 3` -- is spelled out;
+    // arithmetic over literals would say the same thing longer.
+    if (F.Count >= 0) {
+      CL.TripCount =
+          ConstantFolder::synthesizeLiteral(sizeTy, m_Context, F.Count);
+      CL.IndVarEnd = ConstantFolder::synthesizeLiteral(
+          indVar->getType(), m_Context, F.Start + F.Count);
+      return CL;
+    }
     // clang returned llvm::Optional here before 16, and the two spell the
     // same thing differently.
     clad_compat::llvm_Optional<llvm::APSInt> initVal =
         init->getIntegerConstantExpr(m_Context);
-    clad_compat::llvm_Optional<llvm::APSInt> boundVal =
-        bound->getIntegerConstantExpr(m_Context);
-
-    // A loop written with constant bounds -- the common `i < 3` -- has a count
-    // known here, and spelling it out beats emitting arithmetic over literals.
-    // Both are widened to int64_t and subtracted, so each has to leave room
-    // for the difference and for the inclusive bound's extra iteration. Half
-    // the positive range apiece is plenty for a loop count and needs no case
-    // analysis at the ends.
     static constexpr unsigned MaxCountBits = 62;
-    if (initVal && boundVal && initVal->isNonNegative() &&
-        boundVal->isNonNegative() && initVal->getActiveBits() <= MaxCountBits &&
-        boundVal->getActiveBits() <= MaxCountBits) {
-      int64_t count = static_cast<int64_t>(boundVal->getZExtValue()) -
-                      static_cast<int64_t>(initVal->getZExtValue()) +
-                      (inclusive ? 1 : 0);
-      CL.TripCount = ConstantFolder::synthesizeLiteral(sizeTy, m_Context,
-                                                       count > 0 ? count : 0);
-      int64_t end = static_cast<int64_t>(initVal->getZExtValue()) +
-                    (count > 0 ? count : 0);
-      CL.IndVarEnd =
-          ConstantFolder::synthesizeLiteral(indVar->getType(), m_Context, end);
-      return CL;
-    }
 
     auto toSize = [&](const Expr* E) {
       // A cast binds tighter than the arithmetic it may contain, so a compound
@@ -1376,6 +1429,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     LoopScope Loop(*this);
     Loop.Tapes = true;
     Loop.Facts = &CLF;
+    // A count the analysis knows lets a store in the body take an array
+    // slot at the loop's index (see MakeCladTapeFor).
+    if (CLF.Count >= 0) {
+      auto Clone = m_DeclReplacements.find(CLF.IndVar);
+      if (Clone != m_DeclReplacements.end())
+        Loop.Index = Clone->second;
+    }
     StmtDiff condVarRes;
     VarDecl* condVarClone = nullptr;
     if (FS->getConditionVariable()) {
@@ -1425,7 +1485,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           body, loopCounter, condVarRes.getStmt_dx(), incDiff.getStmt_dx(),
           /*isForLoop=*/true, FS->getForLoc());
     }
-
+    // A slot is read back by the index, so the reverse sweep steps it back
+    // in every iteration, ahead of the body that reads it. The increment's
+    // own reverse already does so when something to be restored reads the
+    // index; only the other case needs the step here.
+    if (Loop.UsesSlots && !m_DiffReq.shouldBeRecorded(CLF.Step->getSubExpr())) {
+      auto Dec = CLF.Step->getOpcode() == UO_PostInc ? UO_PostDec : UO_PreDec;
+      BodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
+          m_Context, BodyDiff.getStmt_dx(),
+          BuildOp(Dec, BuildDeclRef(Loop.Index))));
+    }
     /// FIXME: This part in necessary to replace local variables inside loops
     /// with function globals and replace initializations with assignments.
     /// This is a temporary measure to avoid the bug that arises from
@@ -1627,11 +1696,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // If this return stmt is the last stmt in the function body, the forward
     // sweep falls through into the reverse sweep without needing any jump or
     // call. When there are also early returns, however, the master reverse is
-    // wrapped in a [&] lambda that both the natural and early-return paths
-    // invoke; applying this tail seed inside the lambda would double-apply it
-    // on every early-return path. Emit it into the forward sweep instead -- it
-    // is the last statement visited, so it lands on the fall-through path just
-    // before the lambda's tail call (see DifferentiateWithClad).
+    // reached from the natural and the early-return paths alike; applying this
+    // tail seed inside it would double-apply it on every early-return path.
+    // Emit it into the forward sweep instead -- it is the last statement
+    // visited, so it lands on the fall-through path, at the end of the
+    // forward-sweep closure (see DifferentiateWithClad).
     if (RS == m_DiffReq.getTailReturn()) {
       if (m_DiffReq.hasEarlyReturns()) {
         addToCurrentBlock(Reverse, direction::forward);
@@ -1640,18 +1709,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return {nullptr, Reverse};
     }
 
-    // Early return.  The previous encoding emitted a label inside the master
-    // reverse and a goto into it from the forward sweep, which violated
-    // [stmt.dcl]/2 (https://eel.is/c++draft/stmt.dcl#2) when any local with a
-    // non-trivial initializer/destructor sat between the goto and its target.
-    //
-    // Instead, emit the adjoint-seed Reverse to the current reverse block
-    // unwrapped — the cond-tape gating in the surrounding reverse loop will
-    // select this seed only on the iteration whose forward-push corresponded
-    // to this return — and emit a NullStmt marker in the forward direction.
-    // Finalization (DifferentiateWithClad) replaces every marker with
-    // `{ _rev(); return; }`, where `_rev` is a [&] lambda wrapping the master
-    // reverse (vgvassilev/clad#367).
+    // Early return. The adjoint-seed Reverse goes to the current reverse
+    // block unwrapped -- the cond-tape gating in the surrounding reverse loop
+    // selects this seed only on the iteration whose forward push corresponded
+    // to this return -- and a NullStmt marker goes in the forward direction.
+    // Finalization (DifferentiateWithClad) replaces every marker with a
+    // return from the forward-sweep closure.
     if (!Reverse)
       Reverse = m_Sema.ActOnNullStmt(noLoc).get();
 
@@ -1671,10 +1734,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   void ReverseModeVisitor::patchEarlyReturnMarkers(
       llvm::function_ref<Stmt*()> MakeReplacement) {
-    // Replace each marker with a fresh structured `{ _rev(); return; }` so the
-    // generated body is well-formed without goto. Each site gets its own node
-    // (MakeReplacement builds one per hit); sharing a single replacement across
-    // markers would give it several parents and break the single-parent AST
+    // Replace each marker with what MakeReplacement builds, a return from the
+    // forward-sweep closure. Each site gets its own node; sharing one across
+    // would give it several parents and break the single-parent AST
     // invariant. We mutate via the child-iterator pattern used by
     // PlaceholderReplacer; Stmt::children() returns a writable range of Stmt*&.
     class Patcher : public RecursiveASTVisitor<Patcher> {
@@ -3814,7 +3876,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType VDType = VD->getType();
     // A function-scope declaration is not promoted, but with early returns
     // LambdaCaptures::orderCaptureDecls may still split it -- declaration
-    // hoisted before the reverse-sweep lambda, initializer left behind as an
+    // hoisted before the forward-sweep closure, initializer left behind as an
     // assignment -- so it needs the same reassignable type. Except when it is
     // a reference binding a temporary: the pointer that makes a reference
     // reassignable has no lvalue to point at (clad supports neither encoding
@@ -3822,7 +3884,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool bindsTemporary =
         VDType->isLValueReferenceType() &&
         (!VD->getInit() || !VD->getInit()->IgnoreImplicit()->isLValue());
-    bool mayBeSplitForLambda =
+    bool mayBeSplitForEarlyReturn =
         !promoteToFnScope && m_DiffReq.hasEarlyReturns() &&
         getCurrentScope()->isFunctionScope() &&
         m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass && !keepLocal &&
@@ -3832,7 +3894,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // be split for the early-return lambda, change its type to make it
     // reassignable. The split drops its own const, once it knows it happens;
     // the pointer has to be decided here, as it changes how uses are spelled.
-    if ((promoteToFnScope || mayBeSplitForLambda) &&
+    if ((promoteToFnScope || mayBeSplitForEarlyReturn) &&
         VDCloneType->isReferenceType())
       VDCloneType = m_Context.getPointerType(VDCloneType.getNonReferenceType());
     if (promoteToFnScope)
@@ -3988,7 +4050,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // ->
     // double* ref;
     // ref = &x;
-    if (isRefType && (promoteToFnScope || mayBeSplitForLambda)) {
+    if (isRefType && (promoteToFnScope || mayBeSplitForEarlyReturn)) {
       // FIXME: Add extra parantheses if derived variable pointer is pointing to
       // a class type object.
       initDiff = {BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),
@@ -4821,9 +4883,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     if (isInsideLoop) {
-      auto* Push = cast<CallExpr>(Result.getExpr());
-      unsigned lastArg = Push->getNumArgs() - 1;
-      Push->setArg(lastArg, V.m_Sema.DefaultLvalueConversion(New).get());
+      // The stored value is the last argument of a push onto a tape, and the
+      // right-hand side of a store into an array slot.
+      Expr* Value = V.m_Sema.DefaultLvalueConversion(New).get();
+      if (auto* Store =
+              dyn_cast<BinaryOperator>(Result.getExpr()->IgnoreParens())) {
+        Store->setRHS(Value);
+      } else {
+        auto* Push = cast<CallExpr>(Result.getExpr());
+        Push->setArg(Push->getNumArgs() - 1, Value);
+      }
     } else if (isFnScope) {
       V.SetDeclInit(Declaration, New);
       V.addToCurrentBlock(V.BuildDeclStmt(Declaration), direction::forward);
@@ -4875,6 +4944,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* dummy = E;
       auto CladTape = MakeCladTapeFor(dummy);
       Expr* Push = CladTape.Push;
+      // The store stands in for the value inside the expression being
+      // rebuilt. A push is a call and binds as tightly as the value did; a
+      // slot store is an assignment and binds looser than anything around
+      // it, so it goes in parentheses.
+      if (!CladTape.Indices.empty())
+        Push = BuildParens(Push);
       Expr* Pop = CladTape.Pop;
       return DelayedStoreResult{*this,
                                 StmtDiff{Push, nullptr, Pop},
@@ -4943,6 +5018,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     LoopScope Loop(*this);
     Loop.Tapes = true;
+    Loop.Facts = &m_DiffReq.getLoopFacts(WS);
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
@@ -5010,6 +5086,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     LoopScope Loop(*this);
     Loop.Tapes = true;
+    Loop.Facts = &m_DiffReq.getLoopFacts(DS);
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
@@ -5326,6 +5403,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       loopLoc = body->getBeginLoc();
     bool shouldCheckpoint =
         hasCheckpointingPragma(m_Context, loopLoc, m_DiffReq);
+    // A value one iteration hands the next is not there to recompute from.
+    // Refuse, rather than produce a gradient that is wrong without a trace,
+    // and keep the tape so that generation goes on.
+    const DeclRefExpr* Carried =
+        m_CurrentLoop->Facts ? m_CurrentLoop->Facts->CarriedRead : nullptr;
+    if (shouldCheckpoint && Carried) {
+      std::string Name = Carried->getDecl()->getNameAsString();
+      diag(DiagnosticsEngine::Error, loopLoc,
+           "'#pragma clad checkpoint loop' recomputes each iteration of "
+           "this loop from the values before it, but '%0' carries a value "
+           "from one iteration into the next; the gradient would be wrong")
+          << Name;
+      diag(DiagnosticsEngine::Note, Carried->getBeginLoc(),
+           "'%0' is read here before the iteration assigns it")
+          << Name;
+      shouldCheckpoint = false;
+    }
     if (shouldCheckpoint) {
       m_CurrentLoop->Tapes = false;
       m_CurrentLoop->Checkpointed = true;
@@ -5490,8 +5584,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                  "m_ControlFlowTape is already initialized");
 
     auto* zeroLiteral = CreateSizeTLiteralExpr(0);
-    m_ControlFlowTape.reset(
-        new CladTapeResult(m_RMV.MakeCladTapeFor(zeroLiteral)));
+    // Pushes onto it are built from Ref below, so it has to be a tape.
+    m_ControlFlowTape.reset(new CladTapeResult(m_RMV.MakeCladTapeFor(
+        zeroLiteral, "_t", /*type=*/{}, /*AllowSlots=*/false)));
   }
 
   Expr* ReverseModeVisitor::BreakContStmtHandler::CreateCFTapePushExpr(

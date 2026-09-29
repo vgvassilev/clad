@@ -31,8 +31,8 @@ double linearAndNonlinear(double x, double y) {
 // CHECK-NEXT:     {{__size_t|size_t|unsigned long long|unsigned long|unsigned int}} _t0;
 // CHECK-NEXT:     int _d_i0 = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<double> _t1 = {};
-// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _t1[3];
+// CHECK-NEXT:     double _t2[3];
 // CHECK-NEXT:     double _d_d_a = 0.;
 // CHECK-NEXT:     double _d_a = _d_x * y + x * _d_y;
 // CHECK-NEXT:     double _d_a0 = 0.;
@@ -46,9 +46,9 @@ double linearAndNonlinear(double x, double y) {
 // CHECK-NEXT:         for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:             _d_s = _d_s + _d_a;
 // CHECK-NEXT:             s = s + a;
-// CHECK-NEXT:             clad::push(_t1, _d_a);
+// CHECK-NEXT:             _t1[i] = _d_a;
 // CHECK-NEXT:             _d_a = _d_a * x + a * _d_x;
-// CHECK-NEXT:             clad::push(_t2, a);
+// CHECK-NEXT:             _t2[i] = a;
 // CHECK-NEXT:             a = a * x;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
@@ -62,15 +62,16 @@ double linearAndNonlinear(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NEXT:             --i;
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 a = clad::pop(_t2);
+// CHECK-NEXT:                 a = _t2[i];
 // CHECK-NEXT:                 double _r_d3 = _d_a0;
 // CHECK-NEXT:                 _d_a0 = 0.;
 // CHECK-NEXT:                 _d_a0 += _r_d3 * x;
 // CHECK-NEXT:                 *_d_x0 += a * _r_d3;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 _d_a = clad::pop(_t1);
+// CHECK-NEXT:                 _d_a = _t1[i];
 // CHECK-NEXT:                 double _r_d2 = _d_d_a;
 // CHECK-NEXT:                 _d_d_a = 0.;
 // CHECK-NEXT:                 _d_d_a += _r_d2 * x;

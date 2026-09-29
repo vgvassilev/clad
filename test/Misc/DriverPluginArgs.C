@@ -8,7 +8,7 @@
 // -plugin-arg-clad, which Args.C covers, is the other spelling.
 //
 // RUN: clang -fsyntax-only -fplugin=%cladlib -fplugin-arg-clad--help \
-// RUN:   -I%S/../../include %s 2>&1 | FileCheck %s
+// RUN:   -I%S/../../include -I%clad_gen_incl %s 2>&1 | FileCheck %s
 // The header is a line of its own, which it was not before the screen came
 // from the table, and the option after it is the first the table holds.
 // CHECK: Options specific to Clad (preceded by -plugin-arg-clad):
@@ -17,7 +17,7 @@
 
 // -fplugin= alone both loads clad and runs it; no -add-plugin is needed.
 // RUN: clang -fplugin=%cladlib -fplugin-arg-clad--fdump-derived-fn \
-// RUN:   -I%S/../../include %s -o %t 2>&1 | FileCheck --check-prefix=CHECK-DUMP %s
+// RUN:   -I%S/../../include -I%clad_gen_incl %s -o %t 2>&1 | FileCheck --check-prefix=CHECK-DUMP %s
 // RUN: %t | %filecheck_exec %s
 // CHECK-DUMP: double f_darg0(double x)
 

@@ -4,7 +4,7 @@
 // ill-formed Tag<Boxed>. clad additionally notes that a full specialization
 // marks only this instantiation; the whole family needs a partial one.
 // RUN: clang -std=c++17 -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
-// RUN:   -Xclang -fclad-porting-hints %s -I%S/../../include 2>&1 | %filecheck %s
+// RUN:   -Xclang -fclad-porting-hints %s -I%S/../../include -I%clad_gen_incl 2>&1 | %filecheck %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include "PortingHintsBoxed.h"

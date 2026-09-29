@@ -13,4 +13,4 @@ create_sphinx_target(
 
 # The pages listing the analyses, what clad says and the options are rendered
 # from the tables, so they have to exist before sphinx reads the directory.
-add_dependencies(sphinx-clad clad-options clad-analyses)
+add_dependencies(sphinx-clad clad-table-docs)

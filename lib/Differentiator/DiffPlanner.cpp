@@ -302,10 +302,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     }
     call->setArg(*derivedFnArgIdx, Arg);
 
-    if (ImmediateMode) {
-      assert(!codeArgIdx && "We found the index of the code argument!");
-      return;
-    }
     // Update the code parameter if it was found. Use the context's
     // PrintingPolicy so DeclRefExpr / NestedNameSpecifier print the same
     // as the rest of the translation unit -- a fresh PrintingPolicy
@@ -431,12 +427,16 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return TraverseStmt(Def->getBody());
   }
 
-  bool DiffCollector::isInInterval(SourceLocation Loc) const {
-    const SourceManager &SM = m_Sema.getSourceManager();
-    for (size_t i = 0, e = m_Interval.size(); i < e; ++i) {
-      SourceLocation B = m_Interval[i].getBegin();
-      SourceLocation E = m_Interval[i].getEnd();
-      assert((i == e-1 || E.isValid()) && "Unexpected open interval");
+  /// Whether \p Loc lies where clad was switched on. Anything reporting on a
+  /// call clad would have collected reads this, so that it agrees with the
+  /// collector about which calls those are.
+  static bool isInCladInterval(const SourceManager& SM,
+                               const DiffInterval& Interval,
+                               SourceLocation Loc) {
+    for (size_t i = 0, e = Interval.size(); i < e; ++i) {
+      SourceLocation B = Interval[i].getBegin();
+      SourceLocation E = Interval[i].getEnd();
+      assert((i == e - 1 || E.isValid()) && "Unexpected open interval");
       assert(E.isInvalid() || SM.isBeforeInTranslationUnit(B, E));
       if (E.isValid() &&
           clad_compat::SourceManager_isPointWithin(SM, Loc, B, E))
@@ -445,6 +445,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
     }
     return false;
+  }
+
+  bool DiffCollector::isInInterval(SourceLocation Loc) const {
+    return isInCladInterval(m_Sema.getSourceManager(), m_Interval, Loc);
   }
 
   const ReturnStmt* DiffRequest::getTailReturn() const {
@@ -500,10 +504,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return *m_LoopFacts;
   }
 
-  const LoopFacts& DiffRequest::getLoopFacts(const clang::ForStmt* FS) const {
+  const LoopFacts& DiffRequest::getLoopFacts(const clang::Stmt* S) const {
     static const LoopFacts None;
     const auto& Loops = getLoopFacts().Loops;
-    auto it = Loops.find(FS);
+    auto it = Loops.find(S);
     return it == Loops.end() ? None : it->second;
   }
 
@@ -1133,10 +1137,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                                     DiffRequest& request) {
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
     std::string Annotation = A->getAnnotation().str();
-    // Not a per-call option like the others: the loop analysis is selected for
-    // the whole translation unit, and every mode's loops are the same loops.
+    // Error estimation returns before the analyses are seeded below, so this
+    // one is set here too: every mode's loops are the same loops, error
+    // estimation's included.
     request.EnableLoopAnalysis = ReqOpts.EnableLoopAnalysis;
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                       \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     request.Remark##Id##Analysis = ReqOpts.Remark##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
     if (Annotation == "E") {
@@ -1156,10 +1161,16 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::reverse;
     else
       llvm_unreachable("unknown mode");
-    if (request.Mode == DiffMode::reverse || request.Mode == DiffMode::hessian)
-      request.EnableTBRAnalysis = ReqOpts.EnableTBRAnalysis;
-    request.EnableVariedAnalysis = ReqOpts.EnableVariedAnalysis;
-    request.EnableUsefulAnalysis = ReqOpts.EnableUsefulAnalysis;
+    // What the command line settled on for the translation unit, which the
+    // clad::opts pairs below may still override for this one request.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
+    request.Enable##Id##Analysis = ReqOpts.Enable##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+    // TBR has nothing to do where there is no reverse sweep. A request that
+    // asks for it there is an error below; the command line asking for it
+    // everywhere is not, so it is dropped rather than diagnosed.
+    if (request.Mode != DiffMode::reverse && request.Mode != DiffMode::hessian)
+      request.EnableTBRAnalysis = false;
     request.EmitPortingHints = ReqOpts.EmitPortingHints;
 
     const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
@@ -1173,37 +1184,26 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       for (const auto& arg : TAL->get(0).pack_elements())
         bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
 
-    bool enable_tbr_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::enable_tbr);
-    bool disable_tbr_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::disable_tbr);
-    bool enable_va_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::enable_va);
-    bool disable_va_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::disable_va);
-    bool enable_ua_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::enable_ua);
-    bool disable_ua_in_req =
-        clad::HasOption(bitmasked_opts_value, clad::opts::disable_ua);
-    // Sanity checks.
-    if (enable_tbr_in_req && disable_tbr_in_req) {
-      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
-                  "both enable and disable TBR options are specified")
-          << BeginLoc;
-      return true;
-    }
-    if (enable_va_in_req && disable_va_in_req) {
-      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
-                  "both enable and disable VA options are specified")
-          << BeginLoc;
-      return true;
-    }
-    if (enable_ua_in_req && disable_ua_in_req) {
-      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
-                  "both enable and disable UA options are specified")
-          << BeginLoc;
-      return true;
-    }
+    // What the request asks of each analysis, over the
+    // whole-translation-unit answer it already carries. Generated from the
+    // same table the command line is: an analysis that can be switched for
+    // the translation unit can be switched for one request.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
+    const bool enable_##Legacy##_in_req =                                      \
+        clad::HasOption(bitmasked_opts_value, clad::opts::enable_##Legacy);    \
+    const bool disable_##Legacy##_in_req =                                     \
+        clad::HasOption(bitmasked_opts_value, clad::opts::disable_##Legacy);   \
+    if (enable_##Legacy##_in_req && disable_##Legacy##_in_req) {               \
+      utils::diag(S, DiagnosticsEngine::Error, BeginLoc,                       \
+                  "both clad::opts::enable_" #Legacy                           \
+                  " and clad::opts::disable_" #Legacy " are specified")        \
+          << BeginLoc;                                                         \
+      return true;                                                             \
+    }                                                                          \
+    if (enable_##Legacy##_in_req || disable_##Legacy##_in_req)                 \
+      request.Enable##Id##Analysis = enable_##Legacy##_in_req;
+#include "clad/Differentiator/Analyses.def"
+
     if (enable_tbr_in_req && request.Mode == DiffMode::forward) {
       utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
                   "tbr analysis is not meant for forward mode AD")
@@ -1219,18 +1219,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           << BeginLoc;
       return true;
     }
-
-    // Override the default value of TBR analysis.
-    if (enable_tbr_in_req || disable_tbr_in_req)
-      request.EnableTBRAnalysis = enable_tbr_in_req && !disable_tbr_in_req;
-
-    // Override the default value of VA analysis.
-    if (enable_va_in_req || disable_va_in_req)
-      request.EnableVariedAnalysis = enable_va_in_req && !disable_va_in_req;
-
-    // Override the default value of UA analysis.
-    if (enable_ua_in_req || disable_ua_in_req)
-      request.EnableUsefulAnalysis = enable_ua_in_req && !disable_ua_in_req;
 
     // Check for clad::hessian<diagonal_only>.
     if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only)) {
@@ -1250,10 +1238,6 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // Check for clad::differentiate<N>.
       if (unsigned order = clad::GetDerivativeOrder(bitmasked_opts_value))
         request.RequestedDerivativeOrder = order;
-
-      // Check for clad::differentiate<immediate_mode>.
-      if (clad::HasOption(bitmasked_opts_value, clad::opts::immediate_mode))
-        request.ImmediateMode = true;
 
       // Check for clad::differentiate<vector_mode>.
       if (clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
@@ -1616,6 +1600,90 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return false;
   }
 
+  bool DiffCollector::TraverseDecl(Decl* D) {
+    const FunctionDecl* Enclosing = m_EnclosingFD;
+    if (const auto* FD = dyn_cast_or_null<FunctionDecl>(D))
+      Enclosing = FD;
+    llvm::SaveAndRestore<const FunctionDecl*> Saved(m_EnclosingFD, Enclosing);
+    return RecursiveASTVisitor::TraverseDecl(D);
+  }
+
+  /// Whether \p E calls a clad entry point. They are annotated with the first
+  /// letter of the mode they ask for.
+  static bool isCladEntryPointCall(const CallExpr* E) {
+    const FunctionDecl* FD = E->getDirectCallee();
+    if (!FD)
+      return false;
+    const auto* A = FD->getAttr<AnnotateAttr>();
+    if (!A)
+      return false;
+    llvm::StringRef Mode = A->getAnnotation();
+    return Mode == "D" || Mode == "G" || Mode == "H" || Mode == "J" ||
+           Mode == "E";
+  }
+
+  /// Finds the first clad entry-point call in a statement.
+  class CladCallFinder : public RecursiveASTVisitor<CladCallFinder> {
+  public:
+    const CallExpr* Found = nullptr;
+    bool VisitCallExpr(CallExpr* E) {
+      if (!isCladEntryPointCall(E))
+        return true;
+      Found = E;
+      return false;
+    }
+  };
+
+  /// Reports variables whose initialiser the compiler works out before clad
+  /// is handed the declaration, so that clad never gets to put the derivative
+  /// into the call.
+  class ConstantInitChecker : public RecursiveASTVisitor<ConstantInitChecker> {
+    Sema& m_Sema;
+    const DiffInterval& m_Interval;
+
+  public:
+    ConstantInitChecker(Sema& S, const DiffInterval& Interval)
+        : m_Sema(S), m_Interval(Interval) {}
+
+    bool VisitVarDecl(VarDecl* VD) {
+      // Only a variable the language requires to be initialised by a constant
+      // expression is beyond help. An ordinary one is worked out again after
+      // clad has rewritten the call, and comes out right.
+      if (!VD->isConstexpr() && !VD->hasAttr<ConstInitAttr>())
+        return true;
+      Expr* Init = VD->getInit();
+      if (!Init)
+        return true;
+      CladCallFinder Finder;
+      Finder.TraverseStmt(Init);
+      if (!Finder.Found)
+        return true;
+      // Say nothing where clad is switched off: DiffCollector skips such a
+      // call, so the derivative is missing for that reason and not for the
+      // one below. The same location the collector tests.
+      if (!isInCladInterval(m_Sema.getSourceManager(), m_Interval,
+                            Finder.Found->getEndLoc()))
+        return true;
+      utils::diag(m_Sema, DiagnosticsEngine::Warning,
+                  Finder.Found->getBeginLoc(),
+                  "clad cannot put the derivative into this call: the compiler "
+                  "works out the initialiser of '%0' before clad is handed the "
+                  "declaration")
+          << VD->getName() << Finder.Found->getSourceRange();
+      utils::diag(m_Sema, DiagnosticsEngine::Note, Finder.Found->getBeginLoc(),
+                  "call clad from a constexpr function, keep the result in an "
+                  "ordinary variable there, and evaluate that function here");
+      return true;
+    }
+  };
+
+  void DiagnoseConstantInitRequests(Sema& S, const DiffInterval& Interval,
+                                    DeclGroupRef DGR) {
+    ConstantInitChecker Checker(S, Interval);
+    for (Decl* D : DGR)
+      Checker.TraverseDecl(D);
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     DiffRequest request;
@@ -1639,14 +1707,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // We need to find our 'special' diff annotated such:
       // clad::differentiate(...) __attribute__((annotate("D")))
       // TODO: why not check for its name? clad::differentiate/gradient?
-      const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
-
-      if (!A)
-        return true;
-
-      std::string Annotation = A->getAnnotation().str();
-      if (Annotation != "D" && Annotation != "G" && Annotation != "H" &&
-          Annotation != "J" && Annotation != "E")
+      if (!isCladEntryPointCall(E))
         return true;
 
       // A call to clad::differentiate or clad::gradient was not found.
@@ -1658,6 +1719,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // CladFunction object with the generated call.
       request.CallUpdateRequired = true;
       request.CallContext = E;
+      request.ImmediateContext = m_EnclosingFD;
 
       if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
         return true;

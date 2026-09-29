@@ -251,8 +251,12 @@ bool AnalysisBase::findReq(const clang::Expr* E) {
   const VarDecl* VD = nullptr;
   if (getIDSequence(E, VD, IDSequence)) {
     VarData* data = getVarDataFromDecl(VD);
-    for (ProfileID& id : IDSequence)
+    for (ProfileID& id : IDSequence) {
+      if (data->m_Type != VarData::ARR_TYPE &&
+          data->m_Type != VarData::OBJ_TYPE)
+        break;
       data = (*data)[id];
+    }
     return findReq(*data);
   }
 

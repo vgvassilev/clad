@@ -36,7 +36,9 @@ double func(double* A, int n, std::vector<double>& v) {
 
 // CHECK: void func_grad_0_2(
 // CHECK: clad::tape<clad::restore_tracker> _tracker0 = {};
-// CHECK: auto _rev0 = [&] {
+// CHECK: clad::forward_sweep([&] {
+// CHECK: return;
+// CHECK: });
 // CHECK: clad::back(_tracker0).restore();
 
 int main() {

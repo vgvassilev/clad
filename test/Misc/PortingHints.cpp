@@ -3,15 +3,15 @@
 // custom derivative), naming the expected custom-derivative signature and the
 // non-differentiable marker.
 // RUN: clang -std=c++17 -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad -Xclang \
-// RUN:   -fclad-porting-hints %s -I%S/../../include 2>&1 | %filecheck %s
+// RUN:   -fclad-porting-hints %s -I%S/../../include -I%clad_gen_incl 2>&1 | %filecheck %s
 //
 // Without the flag, clad is silent about the clone.
-// RUN: clang -std=c++17 -fsyntax-only -fplugin=%cladlib %s -I%S/../../include 2>&1 \
+// RUN: clang -std=c++17 -fsyntax-only -fplugin=%cladlib %s -I%S/../../include -I%clad_gen_incl 2>&1 \
 // RUN:   | %filecheck --check-prefix=CHECK-QUIET --allow-empty %s
 //
 // The flag is listed in -help.
 // RUN: clang -std=c++17 -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad -Xclang \
-// RUN:   -help %s -I%S/../../include 2>&1 | %filecheck --check-prefix=CHECK-HELP %s
+// RUN:   -help %s -I%S/../../include -I%clad_gen_incl 2>&1 | %filecheck --check-prefix=CHECK-HELP %s
 //
 #include "clad/Differentiator/Differentiator.h"
 #include "PortingHintsLib.h"
