@@ -415,6 +415,9 @@ public:
   /// This will be particularly useful for pushforward and pullback functions.
   bool DeclarationOnly = false;
 
+  /// A boolean to indicate if explicit differentiation arguments were provided.
+  bool HasCustomDiffArgs = false;
+
   clang::AnalysisDeclContext* m_AnalysisDC = nullptr;
 
   /// Recomputes `DiffInputVarsInfo` using the current values of data members.
@@ -463,7 +466,8 @@ public:
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
            EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
-           DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
+           DeclarationOnly == other.DeclarationOnly &&
+           HasCustomDiffArgs == other.HasCustomDiffArgs && Global == other.Global &&
            CUDAGlobalArgsIndexes == other.CUDAGlobalArgsIndexes;
   }
 

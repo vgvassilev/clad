@@ -668,6 +668,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // Case 1)
     SourceLocation dArgsL = diffArgs->getBeginLoc();
     if (auto SL = dyn_cast<StringLiteral>(E)) {
+      HasCustomDiffArgs = true;
       IndexIntervalTable indexes{};
       llvm::StringRef string = SL->getString().trim();
       if (string.empty()) {
@@ -858,6 +859,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     Expr::SideEffectsKind AllowSideEffects =
         Expr::SideEffectsKind::SE_NoSideEffects;
     if (E->EvaluateAsInt(res, C, AllowSideEffects)) {
+      HasCustomDiffArgs = true;
       intValue = res.Val.getInt();
       DiffInputVarInfo dVarInfo;
       auto idx = intValue.getExtValue();
@@ -894,6 +896,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // Treat the default (unspecified) argument as a special case, as if all
     // function's arguments were requested.
     if (isa<CXXDefaultArgExpr>(E)) {
+      HasCustomDiffArgs = false;
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(params));
       
       // If the function has no parameters, then we cannot differentiate it."

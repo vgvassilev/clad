@@ -1471,7 +1471,8 @@ namespace clad {
           resType = GetCladArrayOfType(S, valueType);
 
           // Add const qualifier if the parameter is const.
-          if (Type.getNonReferenceType().isConstQualified())
+          if (Mode != DiffMode::jacobian &&
+              Type.getNonReferenceType().isConstQualified())
             resType.addConst();
 
           // Add reference qualifier if the parameter is a reference.
@@ -1607,9 +1608,26 @@ namespace clad {
         if (isNAT(FnProtoTy->getParamType(i)))
           break;
         QualType PVDTy = FnTypes[i];
-        if (mode == DiffMode::jacobian &&
-            !(utils::isArrayOrPointerType(PVDTy) || PVDTy->isReferenceType()))
-          continue;
+        if (mode == DiffMode::jacobian) {
+          if (!(utils::isArrayOrPointerType(PVDTy) || PVDTy->isReferenceType()))
+            continue;
+          // Const parameters cannot receive derivatives as outputs.
+          if (utils::GetValueType(PVDTy).isConstQualified())
+            continue;
+          // If an argument list was specified, independent variables are inputs,
+          // not outputs.
+          if (diffParams.size() != FD->getNumParams()) {
+            bool isDiffParam = false;
+            for (const ValueDecl* param : diffParams) {
+              if (param == FD->getParamDecl(i)) {
+                isDiffParam = true;
+                break;
+              }
+            }
+            if (isDiffParam)
+              continue;
+          }
+        }
         // FIXME: Make this system consistent across modes.
         if (returnVoid) {
           // Check if (IsDifferentiableType(PVDTy))
