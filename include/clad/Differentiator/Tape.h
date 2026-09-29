@@ -248,10 +248,21 @@ public:
 /// (SBO), primarily used for storing values in reverse-mode AD. Stores elements
 /// in a static buffer first, then falls back to dynamically allocated linked
 /// slabs if capacity exceeds SBO.
+/// The lock of a multithreaded tape. A single-threaded tape has none, so it
+/// carries no mutex, which is 64 bytes on macOS and a destructor call per
+/// tape object, of which a generated pullback keeps hundreds.
+template <bool is_multithread> struct tape_lock {};
+#ifndef __CUDACC__
+template <> struct tape_lock<true> {
+  mutable std::mutex m_TapeMutex;
+  std::mutex& mutex() const { return m_TapeMutex; }
+};
+#endif
+
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
           bool is_multithread = false, bool DiskOffload = false,
           bool GpuOffload = false>
-class tape_impl {
+class tape_impl : public tape_lock<is_multithread> {
   /// Storage planning for slabs kept in memory (RAM).
   /// Provides access to the raw data buffer.
   struct RAMStorage {
@@ -386,9 +397,6 @@ protected:
   /// Left alone by the multithreaded tape, where a read must not write.
   Slab* m_cursor = nullptr;
   std::size_t m_cursor_no = 0;
-#ifndef __CUDACC__
-  mutable std::mutex m_TapeMutex;
-#endif
   /// Holds current state related to disk offloading, including the file manager
   /// and also keep track of active/maximum RAM slabs.
 #ifndef __CUDA_ARCH__
@@ -634,10 +642,6 @@ public:
                                  DiskOffload, GpuOffload>;
   using const_iterator = tape_iterator<const T, SBO_SIZE, SLAB_SIZE,
                                        is_multithread, DiskOffload, GpuOffload>;
-
-#ifndef __CUDACC__
-  std::mutex& mutex() const { return m_TapeMutex; }
-#endif
 
   CUDA_HOST_DEVICE tape_impl() = default;
 
