@@ -641,21 +641,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // the value.
       llvm::SmallVector<Stmt*, 8> ForwardDeclPrefix;
       llvm::SmallVector<Stmt*, 16> ForwardCompSuffix;
-      auto* FwdCS = dyn_cast_or_null<CompoundStmt>(Forward);
       bool inDecls = true;
-      auto classify = [&](Stmt* S) {
-        if (inDecls && isa<DeclStmt>(S))
-          ForwardDeclPrefix.push_back(S);
-        else {
+      // A function body is a compound statement ([dcl.fct.def.general]), so
+      // each sweep of it is one too, here and for the reverse below.
+      auto* FwdCS = cast_or_null<CompoundStmt>(Forward);
+      if (FwdCS)
+        for (Stmt* S : FwdCS->body()) {
+          if (inDecls && isa<DeclStmt>(S)) {
+            ForwardDeclPrefix.push_back(S);
+            continue;
+          }
           inDecls = false;
           ForwardCompSuffix.push_back(S);
         }
-      };
-      if (FwdCS)
-        for (Stmt* S : FwdCS->body())
-          classify(S);
-      else if (Forward)
-        classify(Forward);
 
       // An ExternalSource (error estimation) appends an epilogue after the
       // reverse sweep -- `_final_error += ...` for each parameter and the
@@ -726,11 +724,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // (VisitReturnStmt), so it runs on fall-through only; the reverse
       // follows the call.
       for (Stmt* S : ReverseBody)
-        if (auto* CS = dyn_cast<CompoundStmt>(S))
-          for (Stmt* SS : CS->body())
-            addToCurrentBlock(SS, direction::forward);
-        else
-          addToCurrentBlock(S, direction::forward);
+        for (Stmt* SS : cast<CompoundStmt>(S)->body())
+          addToCurrentBlock(SS, direction::forward);
     }
     for (auto S = initsDiff.rbegin(), S_end = initsDiff.rend(); S != S_end; ++S)
       addToCurrentBlock(*S, direction::forward);
