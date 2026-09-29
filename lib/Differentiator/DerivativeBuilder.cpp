@@ -173,6 +173,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       // Generated member function should be called outside of class definitions
       // even if their original function had different access specifier.
       returnedFD->setAccess(AS_public);
+      const auto* MD = cast<CXXMethodDecl>(FD);
+      if (MD->isVirtual())
+        returnedFD->setVirtualAsWritten(true);
     } else {
       assert (isa<FunctionDecl>(FD) && "Unexpected!");
       NamespaceCount = VB.RebuildEnclosingNamespaces(DC);
