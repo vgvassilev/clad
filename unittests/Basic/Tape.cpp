@@ -82,3 +82,9 @@ TEST(Tape, DefaultSizesAcrossSlabs) {
   EXPECT_EQ(t[64 + 1024], 64. + 1024);
   EXPECT_EQ(t[n - 1], static_cast<double>(n - 1));
 }
+
+TEST(Tape, NoMutexUnlessMultithreaded) {
+  // The lock lives in the multithreaded instantiation only.
+  EXPECT_LT(sizeof(clad::tape<double>),
+            sizeof(clad::tape<double, 64, 1024, /*is_multithread=*/true>));
+}
