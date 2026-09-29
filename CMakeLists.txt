@@ -125,7 +125,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   if (DEFINED LLD_DIR)
     find_package(LLD QUIET CONFIG PATHS ${LLD_DIR} "${LLD_DIR}/lib/cmake/lld" "${LLD_DIR}/cmake" NO_DEFAULT_PATH)
   else()
-    find_package(LLD QUIET CONFIG HINTS "${LLVM_DIR}/../lld" "${LLVM_BINARY_DIR}/lib/cmake/lld")
+    find_package(LLD QUIET CONFIG HINTS "${LLVM_DIR}/../lld" "${LLVM_BINARY_DIR}/lib/cmake/lld" NO_DEFAULT_PATH)
   endif()
 
   if (DEFINED CLANG_VERSION)
