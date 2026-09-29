@@ -15,9 +15,11 @@
 #include <unordered_map>
 
 namespace clang {
+class DeclRefExpr;
 class Expr;
 class ForStmt;
 class FunctionDecl;
+class Stmt;
 class UnaryOperator;
 class VarDecl;
 } // namespace clang
@@ -82,6 +84,13 @@ struct LoopFacts {
   [[nodiscard]] const AdjointReduction*
   reductionFor(const clang::Expr* Base) const;
 
+  /// Where the body reads a value the iteration before it left, or null when
+  /// every value it reads is its own. A loop that recomputes its body in the
+  /// reverse sweep instead of taping it cannot have one, since the value to
+  /// recompute from is gone. Proven only for a request that asks, which today
+  /// is one carrying `#pragma clad checkpoint loop`.
+  const clang::DeclRefExpr* CarriedRead = nullptr;
+
   /// Which way this loop missed the counted construct, and the token that
   /// missed it. Set whenever a fact above is absent, so a report can say what
   /// would have to change instead of only that clad declined.
@@ -145,8 +154,9 @@ struct FunctionLoopFacts {
   /// that caches them. A request that is copied and re-pointed at another
   /// function must not read the old ones.
   const clang::FunctionDecl* Fn = nullptr;
-  /// Each `for` in the body, counted or not.
-  std::unordered_map<const clang::ForStmt*, LoopFacts> Loops;
+  /// Each loop in the body, keyed by the loop statement. A `while` and a
+  /// `do` are here for the facts that need no count.
+  std::unordered_map<const clang::Stmt*, LoopFacts> Loops;
   /// The extent each pointer parameter is written over, in parameter order.
   llvm::SmallVector<WrittenExtent, 8> Extents;
 };
