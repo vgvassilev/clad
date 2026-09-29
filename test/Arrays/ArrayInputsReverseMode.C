@@ -649,7 +649,8 @@ int main() {
   auto func8grad = clad::gradient(func8);
   double arr2[5] = {1, 2, 3, 4, 5};
   double _d_arr2[5] = {};
-  double d_i = 0, d_n = 0;
+  double d_i = 0;
+  int d_n = 0;
   func8grad.execute(3, arr, 5, &d_i, _d_arr2, &d_n);
   printf("Result = {%.2f}\n", d_i); // CHECK-EXEC: Result = {1.00}
 

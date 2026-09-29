@@ -11,13 +11,14 @@
 // call inside a constexpr function, so a namespace-scope initialiser is
 // worked out before the derivative exists. See #2188.
 //
-// The second is typing, and the standard decides it. The gradient is built in
-// time, but clad calls it through a pointer whose adjoint parameters are
-// void* -- see GradientDerivedFnTraits in FunctionTraits.h -- while the
-// generated function takes double*. A cast from void* only became a constant
-// expression in C++26, so the same program compiled with -std=c++2c works and
-// gives the right gradient. Before that it cannot, however early the
-// derivative arrives. See #2190.
+// The second is typing, and the standard decides it. For a partial gradient
+// specifying parameters with a string argument, clad calls the generated
+// gradient through a pointer whose adjoint parameters are void* -- see
+// GradientDerivedFnTraits in FunctionTraits.h -- while the generated function
+// takes double*. A cast from void* only became a constant expression in C++26,
+// so the same program compiled with -std=c++2c works and gives the right
+// gradient. Before that it cannot, however early the derivative arrives. See
+// #2190.
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -29,9 +30,9 @@ constexpr double AtNamespaceScope = clad::differentiate(f, "a").execute(3., 5.);
 //CHECK: note: non-constexpr function 'NoDerivativeYet' cannot be used in a constant expression
 
 constexpr double reverse_mode() {
-  auto g = clad::gradient(f);
-  double da = 0, db = 0;
-  g.execute(3., 5., &da, &db);
+  auto g = clad::gradient(f, "b");
+  double db = 0;
+  g.execute(3., 5., &db);
   return db;
 }
 

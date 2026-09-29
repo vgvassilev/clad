@@ -899,13 +899,17 @@ template <class T> std::false_type is_range(...);
   /// derivative has to be launched rather than called.
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
-  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
-            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+  template <unsigned... BitMaskedOpts, typename F,
+            typename ArgSpec = DefaultArgSpec,
+            typename DerivedFnType = typename std::conditional<
+                std::is_same<ArgSpec, DefaultArgSpec>::value,
+                FullGradientDerivedFnTraits_t<F>,
+                GradientDerivedFnTraits_t<F>>::type,
             typename = typename std::enable_if<
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
                          true> __attribute__((annotate("G"))) CUDA_HOST_DEVICE
-  gradient(F f, ArgSpec args = "",
+  gradient(F f, ArgSpec args = {},
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "", bool CUDAkernel = false) {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
@@ -915,13 +919,17 @@ template <class T> std::false_type is_range(...);
   /// Specialization for differentiating functors.
   /// The specialization is needed because objects have to be passed
   /// by reference whereas functions have to be passed by value.
-  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
-            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+  template <unsigned... BitMaskedOpts, typename F,
+            typename ArgSpec = DefaultArgSpec,
+            typename DerivedFnType = typename std::conditional<
+                std::is_same<ArgSpec, DefaultArgSpec>::value,
+                FullGradientDerivedFnTraits_t<F>,
+                GradientDerivedFnTraits_t<F>>::type,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
                          true> __attribute__((annotate("G"))) CUDA_HOST_DEVICE
-  gradient(F&& f, ArgSpec args = "",
+  gradient(F&& f, ArgSpec args = {},
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(

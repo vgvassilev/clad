@@ -391,7 +391,14 @@ namespace clad {
   using TakeNFirstArgs_t = decltype(TakeNFirstArgs<N>(argument_types_t<F>{}));
 
   template <class T, class R> struct OutputParamType {
-    using type = typename std::remove_pointer<R>::type*;
+    using UnderlyingR = typename std::remove_cv<
+        typename std::remove_all_extents<
+            typename std::remove_reference<
+                typename std::remove_pointer<R>::type>::type>::type>::type;
+    using type = typename std::conditional<
+        std::is_void<UnderlyingR>::value,
+        void*,
+        UnderlyingR*>::type;
   };
 
   template <class T, class R>
@@ -472,6 +479,73 @@ namespace clad {
              !has_call_operator<F>::value>::type> {
     using type = NoFunction*;
   };
+
+  template <class T, class = void> struct FullGradientDerivedFnTraits {};
+
+  // FullGradientDerivedFnTraits is used to deduce type of the derived functions
+  // derived using reverse modes when all parameters are differentiated
+  template <class T>
+  using FullGradientDerivedFnTraits_t =
+      typename FullGradientDerivedFnTraits<T>::type;
+
+  // FullGradientDerivedFnTraits specializations for pure function pointer types
+  template <class ReturnType, class... Args>
+  struct FullGradientDerivedFnTraits<ReturnType (*)(Args...)> {
+    using type = void (*)(Args..., OutputParamType_t<Args, Args>...);
+  };
+
+#define FullGradientDerivedFnTraits_AddSPECS(var, cv, vol, ref, noex)          \
+  template <typename R, typename C, typename... Args>                          \
+  struct FullGradientDerivedFnTraits<R (C::*)(Args...) cv vol ref noex> {      \
+    using type =                                                               \
+        void (C::*)(Args..., OutputParamType_t<C, C>,                          \
+                    OutputParamType_t<Args, Args>...) cv vol ref noex;         \
+  };
+
+#if __cpp_noexcept_function_type > 0
+#define FullGradientDerivedFnTraits_AddNOEX(var, con, vol, ref)                \
+  FullGradientDerivedFnTraits_AddSPECS(var, con, vol, ref, )                   \
+      FullGradientDerivedFnTraits_AddSPECS(var, con, vol, ref, noexcept)
+#else
+#define FullGradientDerivedFnTraits_AddNOEX(var, con, vol, ref)                \
+  FullGradientDerivedFnTraits_AddSPECS(var, con, vol, ref, )
+#endif
+
+#define FullGradientDerivedFnTraits_AddREF(var, con, vol)                      \
+  FullGradientDerivedFnTraits_AddNOEX(var, con, vol, )                         \
+      FullGradientDerivedFnTraits_AddNOEX(var, con, vol, &)                    \
+          FullGradientDerivedFnTraits_AddNOEX(var, con, vol, &&)
+
+#define FullGradientDerivedFnTraits_AddVOL(var, con)                           \
+  FullGradientDerivedFnTraits_AddREF(var, con, )                               \
+      FullGradientDerivedFnTraits_AddREF(var, con, volatile)
+
+#define FullGradientDerivedFnTraits_AddCON(var)                                \
+  FullGradientDerivedFnTraits_AddVOL(var, )                                    \
+      FullGradientDerivedFnTraits_AddVOL(var, const)
+
+  FullGradientDerivedFnTraits_AddCON(()); // Declares all the specializations
+
+  template <class F>
+  struct FullGradientDerivedFnTraits<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             has_call_operator<F>::value>::type> {
+    using ClassType =
+        typename std::decay<remove_reference_and_pointer_t<F>>::type;
+    using type =
+        FullGradientDerivedFnTraits_t<decltype(&ClassType::operator())>;
+  };
+  template <class F>
+  struct FullGradientDerivedFnTraits<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             !has_call_operator<F>::value>::type> {
+    using type = NoFunction*;
+  };
+
+  /// Marker type for default (unspecified) independent arguments in clad::gradient.
+  struct DefaultArgSpec {};
 
   /// This specific specialization is for error estimation calls.
   template <class T, class = void> struct GradientDerivedEstFnTraits {};

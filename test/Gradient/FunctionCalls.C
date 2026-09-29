@@ -1363,7 +1363,7 @@ double fnIdLoop(double x, double y) {
 int main() {
   double result[7];
   float fresult[7];
-  double d_n;
+  int d_n;
   INIT(fn1);
   INIT(fn2);
   INIT(fn3);

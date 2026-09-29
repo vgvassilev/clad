@@ -414,6 +414,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
+    if (shouldCreateOverload) {
+      bool isDefaultArgs =
+          m_DiffReq.Args && isa<CXXDefaultArgExpr>(m_DiffReq.Args);
+      if (isDefaultArgs) {
+        std::size_t numOfDerivativeParams = m_DiffReq->getNumParams();
+        if (isa<CXXMethodDecl>(m_DiffReq.Function) &&
+            !utils::IsStaticMethod(m_DiffReq.Function) &&
+            (!m_DiffReq.Functor || m_DiffReq.Mode != DiffMode::jacobian))
+          ++numOfDerivativeParams;
+        if (m_Derivative->getNumParams() ==
+            m_DiffReq->getNumParams() + numOfDerivativeParams)
+          shouldCreateOverload = false;
+      }
+    }
+
     if (!shouldCreateOverload)
       return DerivativeAndOverload{result.fd, /*overload=*/nullptr};
 
