@@ -5745,7 +5745,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff
   ReverseModeVisitor::VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE) {
-    StmtDiff argDiff = Visit(CDE->getArgument());
+    const Expr* arg = CDE->getArgument();
+    StmtDiff argDiff = Visit(arg);
+    if (!utils::designatesLocallyOwnedStorage(arg))
+      return {nullptr, nullptr};
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(arg->IgnoreParenImpCasts()))
+      if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+        if (const Expr* init = VD->getInit()) {
+          init = init->IgnoreParenImpCasts();
+          if (init->isGLValue() && !utils::designatesLocallyOwnedStorage(init))
+            return {nullptr, nullptr};
+        }
     Expr* clonedDeleteE =
         m_Sema
             .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
