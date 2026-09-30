@@ -205,9 +205,10 @@ reverse-mode passes.
 For an ordinary value or const-reference result, the seed has the corresponding
 non-const value type. The seed argument is omitted if the function returns
 ``void``, a pointer, or a non-const reference (whose cotangents propagate through
-referenced memory). Adjoint output parameters are generated only for the selected
-independent arguments. Output adjoints are accumulated using ``+=`` into the
-caller-provided buffers::
+referenced memory). Only selected adjoints are consumed by the implementation;
+the public callable still preserves every positional adjoint slot. Contributions
+to ordinary scalar input adjoints accumulate using ``+=`` into caller-provided
+buffers::
 
     #include "clad/Differentiator/Differentiator.h"
     #include <cstdio>
@@ -239,11 +240,24 @@ slots untouched without dereferencing them. For example, when differentiating
     // Slot for unselected parameter x is passed as nullptr:
     f_pb_y.execute(2.0, 3.0, seed, nullptr, &dy);
 
+For pointer/reference memory, an adjoint buffer may be an incoming memory
+cotangent rather than an append-only scalar accumulator. A reverse sweep can
+transform or clear that buffer when reversing an in-place write. Pre-seed the
+memory buffers whose cotangents should propagate. In a partial pullback with no
+separate return seed, include those memory parameters in the selection: even a
+non-null unselected slot is ignored and cannot supply an output-memory seed.
+
 Supported forms include free functions (including ``noexcept`` free functions),
 member functions (including ``volatile`` and ``const volatile`` methods),
 named function objects (lambdas are not supported in pullback mode), and
 compile-time derivatives when a pullback call is evaluated from a ``constexpr``
-function. Current Clad schedules that immediate evaluation automatically.
+function with Clang 17 or later. Current Clad schedules that immediate evaluation
+automatically; Clang 14–16 still support runtime pullbacks of ``constexpr``
+functions.
+
+A pullback of a named function object borrows that object rather than owning a
+copy. The original object must outlive calls to ``execute``; do not retain a
+pullback created from a temporary function object.
 
 Intentionally unsupported forms and option combinations fail closed with compile-time diagnostics:
 

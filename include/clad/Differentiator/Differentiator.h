@@ -947,15 +947,20 @@ template <class T> std::false_type is_range(...);
   ///      The seed argument is omitted if `f` returns `void`, a pointer, or
   ///      a non-const reference (whose cotangents propagate through referenced
   ///      memory).
-  ///   3. Pointer to `_d_this` (when differentiating member functions or
-  ///      named function objects with member variables).
-  ///   4. Pointers to output adjoint variables (&d_x0, &d_x1, ...) for each
-  ///      independent variable selected.
+  ///   3. Pointer to `_d_this` (when differentiating instance member functions
+  ///      or named function objects).
+  ///   4. One pointer to an output adjoint variable per primal parameter,
+  ///      in primal parameter order. Pass nullptr for passive or unselected
+  ///      parameters; only selected adjoints are consumed.
   ///
   /// Accumulation contract:
-  ///   Input adjoints are accumulated into caller-provided memory using `+=`.
-  ///   Callers must zero-initialize adjoint buffers if unaccumulated gradients
-  ///   are desired.
+  ///   Contributions to ordinary scalar input adjoints accumulate using `+=`.
+  ///   Zero-initialize those buffers if unaccumulated gradients are desired.
+  ///   Memory adjoints for pointer/reference parameters may instead carry
+  ///   incoming cotangents and be transformed or cleared by the reverse sweep.
+  ///   For a no-seed pullback, pre-seed the relevant memory adjoints and
+  ///   include those parameters in the selection; unselected slots are still
+  ///   ignored.
   ///
   /// \note Calling conventions: Only standard platform calling convention
   ///       (SysV ABI on POSIX) is supported; non-default calling conventions
@@ -965,6 +970,9 @@ template <class T> std::false_type is_range(...);
   /// tags
   ///       (such as libc++ `std::__nat`) are out of scope for pullback
   ///       deduction.
+  /// \note Named function objects are borrowed, not owned. Keep the original
+  ///       object alive while using the returned CladFunction; do not retain
+  ///       a pullback constructed from a temporary function object.
   /// \note CUDA: Host/device attributes are generated on AST declarations, but
   ///       execution requires an available CUDA toolchain and runtime.
   ///

@@ -406,7 +406,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!dFnProto)
       return {};
     if (m_DiffReq.Mode == DiffMode::pullback) {
-      const FunctionDecl* FD = m_DiffReq.Function;
+      const auto* FD = m_DiffReq.Function;
       std::size_t numPrimals = 0;
       for (const ParmVarDecl* PVD : FD->parameters()) {
         if (utils::isStdNATType(PVD->getType(), m_Sema))
@@ -550,9 +550,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!shouldCreateOverload)
       return DerivativeAndOverload{result.fd, /*overload=*/nullptr};
 
-    OverloadKind overloadKind = m_DiffReq.Mode == DiffMode::pullback
-                                    ? OverloadKind::PullbackCustom
-                                    : OverloadKind::Default;
+    const auto overloadKind = m_DiffReq.Mode == DiffMode::pullback
+                                  ? OverloadKind::PullbackCustom
+                                  : OverloadKind::Default;
     FunctionDecl* overloadFD = CreateDerivativeOverload(nullptr, overloadKind);
     if (!overloadFD)
       return DerivativeAndOverload{/*derivative=*/nullptr,
@@ -6136,7 +6136,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (!paramNameExists(identifier))
           break;
       }
-      IdentifierInfo* II = &m_Context.Idents.get("_d_" + identifier);
+      IdentifierInfo* II = CreateUniqueIdentifier("_d_" + identifier);
       ParmVarDecl* retPVD =
           utils::BuildParmVarDecl(m_Sema, m_Derivative, II, dRetTy);
       m_Sema.PushOnScopeChains(retPVD, getCurrentScope(),
@@ -6152,7 +6152,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // parameter for representing derivative of `this` pointer with respect to
     // the independent parameter.
     if (HasThis) {
-      IdentifierInfo* dThisII = &m_Context.Idents.get("_d_this");
+      IdentifierInfo* dThisII = CreateUniqueIdentifier("_d_this");
       const auto* MD = cast<CXXMethodDecl>(FD);
       QualType thisTy = utils::GetParameterDerivativeType(
           m_Sema, m_DiffReq.Mode, MD->getThisType());

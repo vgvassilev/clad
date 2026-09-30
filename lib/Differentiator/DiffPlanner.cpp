@@ -667,6 +667,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     auto E = diffArgs->IgnoreParenImpCasts();
     // Case 1)
     SourceLocation dArgsL = diffArgs->getBeginLoc();
+    if (dArgsL.isInvalid())
+      dArgsL = CallContext ? CallContext->getBeginLoc() : FD->getBeginLoc();
     auto rejectPassivePullbackParam = [&](const ValueDecl* VD) {
       if (Mode != DiffMode::pullback || !VD ||
           !utils::hasNonDifferentiableAttribute(VD))
@@ -688,11 +690,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
       // Split the string by ',' characters, trim whitespaces.
       llvm::SmallVector<llvm::StringRef, 16> diffParamsSpec{};
-      do {
-        llvm::StringRef pInfo{};
-        std::tie(pInfo, string) = string.split(',');
-        diffParamsSpec.push_back(pInfo.trim());
-      } while (!string.empty());
+      string.split(diffParamsSpec, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/true);
+      for (llvm::StringRef& spec : diffParamsSpec)
+        spec = spec.trim();
       // Stores parameters and field declarations to be used as candidates for
       // independent arguments.
       // If we are differentiating a call operator that have no parameters,
@@ -743,8 +743,22 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
         dVarInfo.source = diffSpec.str();
         // Check if diffSpec represents an index of an independent variable.
+        if (diffSpec.empty()) {
+          utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                      "empty parameter name in differentiation argument list")
+              << dArgsL;
+          DVI.clear();
+          return;
+        }
         if ('0' <= diffSpec[0] && diffSpec[0] <= '9') {
-          unsigned idx = std::stoi(dVarInfo.source);
+          unsigned idx = 0;
+          if (diffSpec.getAsInteger(/*Radix=*/10, idx)) {
+            utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                        "could not parse argument index '%0'")
+                << diffSpec << dArgsL;
+            DVI.clear();
+            return;
+          }
           // Fail if the specified index is invalid.
           if (idx >= FD->getNumParams()) {
             utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
@@ -753,6 +767,16 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             return;
           }
           dVarInfo.param = FD->getParamDecl(idx);
+          if (std::any_of(DVI.begin(), DVI.end(),
+                          [&dVarInfo](const DiffInputVarInfo& existing) {
+                            return existing.param == dVarInfo.param;
+                          })) {
+            utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                        "requested parameter %0 was specified multiple times")
+                << dVarInfo.param << dArgsL;
+            DVI.clear();
+            return;
+          }
           if (rejectPassivePullbackParam(dVarInfo.param)) {
             DVI.clear();
             return;

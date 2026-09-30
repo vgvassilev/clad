@@ -9,6 +9,8 @@
 #include "ConstantFolder.h"
 
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
@@ -55,6 +57,7 @@
 #include <cassert>
 #include <cstddef>
 #include <numeric>
+#include <string>
 #include <utility>
 
 #include "clad/Differentiator/Compatibility.h"
@@ -1541,7 +1544,7 @@ namespace clad {
         QualType to = derivType->getParamType(i);
         if (from.isNull() || to.isNull())
           return nullptr;
-        if (m_Context.hasSameType(from, to))
+        if (from.getCanonicalType() == to.getCanonicalType())
           continue;
         bool ObjCLifetimeConversion = false;
         if (!customPullback ||
@@ -1558,8 +1561,14 @@ namespace clad {
 
     std::size_t numOfDerivativeParams = 0;
     llvm::SmallVector<QualType, 16> paramTypes;
-    for (const ParmVarDecl* PVD : originalParams)
-      paramTypes.push_back(PVD->getType());
+    // Public pullback traits see canonical parameter types, which omit
+    // top-level cv qualifiers on by-value parameters. A source
+    // FunctionProtoType may retain those qualifiers, so normalize before
+    // deriving adjoint slots.
+    for (unsigned i = 0; i < numPrimals; ++i)
+      paramTypes.push_back(pullbackMode ? m_Context.getCanonicalParamType(
+                                              reqType->getParamType(i))
+                                        : originalParams[i]->getType());
 
     if (pullbackMode) {
       if (hasSeed)
@@ -1571,9 +1580,9 @@ namespace clad {
       }
       // The public callable type is positional: passive and unselected primals
       // retain an adjoint slot, but the implementation never consumes it.
-      for (const ParmVarDecl* PVD : originalParams)
+      for (unsigned i = 0; i < numPrimals; ++i)
         paramTypes.push_back(utils::GetParameterDerivativeType(
-            m_Sema, m_DiffReq.Mode, PVD->getType()));
+            m_Sema, m_DiffReq.Mode, paramTypes[i]));
     } else {
       numOfDerivativeParams = numPrimals;
       if (!vectorMode && originalMD && originalMD->isInstance() &&
@@ -1657,8 +1666,10 @@ namespace clad {
     for (const ParmVarDecl* PVD : originalParams) {
       IdentifierInfo* II = reserveName(PVD->getIdentifier(), "arg");
       auto* VD = utils::BuildParmVarDecl(
-          m_Sema, diffOverloadFD, II, PVD->getType(), PVD->getStorageClass(),
-          /*defArg=*/nullptr, PVD->getTypeSourceInfo());
+          m_Sema, diffOverloadFD, II,
+          pullbackMode ? paramTypes[primalParams.size()] : PVD->getType(),
+          PVD->getStorageClass(), /*defArg=*/nullptr,
+          pullbackMode ? nullptr : PVD->getTypeSourceInfo());
       overloadParams.push_back(VD);
       primalParams.push_back(VD);
     }
@@ -1671,7 +1682,14 @@ namespace clad {
       if (customObject)
         ++calleeParamIdx;
       for (ParmVarDecl* PVD : primalParams) {
-        callArgs.push_back(BuildDeclRef(PVD));
+        Expr* primalArg = BuildDeclRef(PVD);
+        // A named rvalue-reference parameter is an lvalue expression. Restore
+        // its value category when forwarding to the implementation.
+        if (PVD->getType()->isRValueReferenceType())
+          primalArg = utils::BuildStaticCastToRValue(m_Sema, primalArg);
+        if (!primalArg)
+          return cleanupPrototypeAndFail();
+        callArgs.push_back(primalArg);
         ++calleeParamIdx;
       }
 
@@ -1707,7 +1725,7 @@ namespace clad {
           cleanName = "arg";
         IdentifierInfo* II = reserveName(nullptr, "_d_" + cleanName);
         QualType dParamTy = utils::GetParameterDerivativeType(
-            m_Sema, m_DiffReq.Mode, primal->getType());
+            m_Sema, m_DiffReq.Mode, paramTypes[i]);
         auto* dPVD = utils::BuildParmVarDecl(m_Sema, diffOverloadFD, II,
                                              dParamTy, StorageClass::SC_None);
         overloadParams.push_back(dPVD);
@@ -1757,7 +1775,8 @@ namespace clad {
       return cleanupPrototypeAndFail();
     for (std::size_t i = 0; i < paramTypes.size(); ++i)
       if (!overloadParams[i] || paramTypes[i].isNull() ||
-          !m_Context.hasSameType(overloadParams[i]->getType(), paramTypes[i]))
+          overloadParams[i]->getType().getCanonicalType() !=
+              paramTypes[i].getCanonicalType())
         return cleanupPrototypeAndFail();
 
     for (ParmVarDecl* PVD : overloadParams)
