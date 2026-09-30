@@ -555,9 +555,7 @@ template <typename T, typename P>
 void operator_subscript_pullback(const ::std::vector<T>* vec,
                                  typename ::std::vector<T>::size_type idx,
                                  P d_y, ::std::vector<T>* d_vec,
-                                 typename ::std::vector<T>::size_type* d_idx) {
-  (*d_vec)[idx] += d_y;
-}
+                                 typename ::std::vector<T>::size_type* d_idx);
 
 template <typename T>
 void operator_subscript_pullback(::std::vector<T>* vec,
