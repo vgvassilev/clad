@@ -1161,8 +1161,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::reverse;
     else
       llvm_unreachable("unknown mode");
-        // What the command line settled on for the translation unit, which the
-        // clad::opts pairs below may still override for this one request.
+      // What the command line settled on for the translation unit, which the
+      // clad::opts pairs below may still override for this one request.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     request.Enable##Id##Analysis = ReqOpts.Enable##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
