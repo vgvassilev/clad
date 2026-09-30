@@ -148,6 +148,12 @@ void InitTimers();
     }
   };
 
+  // Keep this bridge out of the header: engine clients may include it in
+  // multiple translation units, and the non-inline definition has one owner.
+  FunctionDecl* ProcessDiffRequest(CladPlugin& P, DiffRequest& request) {
+    return P.ProcessDiffRequest(request);
+  }
+
   CladPlugin::CladPlugin(CompilerInstance& CI, Options& DO)
       : m_CI(CI), m_DO(DO) {
     CodeGenOptions& CGOpts = m_CI.getCodeGenOpts();

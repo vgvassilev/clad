@@ -41,6 +41,7 @@ int main() {
   clad::pullback(selection, "0,0"); // expected-error {{requested parameter 'x' was specified multiple times}}
   clad::pullback(selection, "0,x"); // expected-error {{requested parameter 'x' was specified multiple times}}
   clad::pullback(passive_selection, "y"); // expected-error {{is marked non-differentiable and cannot be selected for pullback}}
+  clad::pullback(passive_selection, "1"); // expected-error {{is marked non-differentiable and cannot be selected for pullback}}
   clad::pullback(passive_selection, 1); // expected-error {{is marked non-differentiable and cannot be selected for pullback}}
   clad::pullback(all_passive); // expected-error {{pullback requires at least one differentiable parameter}}
 

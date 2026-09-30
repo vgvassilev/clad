@@ -1163,11 +1163,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return BaseFunctionName + "_grad";
     }
 
-    if (Mode == DiffMode::pullback) {
-      if (DVI.size() != Function->getNumParams())
-        return BaseFunctionName + "_pullback" + argInfo;
-      return BaseFunctionName + "_pullback";
-    }
+    // Complete and nested pullback requests returned above; only a partial
+    // public request reaches this branch, so its argument suffix is required.
+    if (Mode == DiffMode::pullback)
+      return BaseFunctionName + "_pullback" + argInfo;
 
     std::string s;
     if (CurrentDerivativeOrder > 1)
@@ -1990,9 +1989,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
 
       // Warn if we find pullbacks.
-      if (canUsePushforwardInRevMode &&
-          (m_TopMostReq->Mode == DiffMode::reverse ||
-           m_TopMostReq->Mode == DiffMode::pullback)) {
+      // canUsePushforwardInRevMode already includes the top-level mode check.
+      if (canUsePushforwardInRevMode) {
         DiffRequest R = request;
         R.BaseFunctionName = utils::ComputeEffectiveFnName(R.Function);
         R.Mode = DiffMode::pullback;

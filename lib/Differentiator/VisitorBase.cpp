@@ -47,6 +47,7 @@
 #include "clang/Sema/Template.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -1628,12 +1629,14 @@ namespace clad {
                Scope::DeclScope);
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(getCurrentScope(), diffOverloadFD);
-    auto cleanupPrototypeAndFail = [&]() -> FunctionDecl* {
+    // Own the function/prototype frame on both success and failure. Its
+    // guard must outlive the body guard and die before cloned's namespace
+    // guard, preserving the same inner-to-outer unwind order on every exit.
+    auto prototypeFrame = llvm::make_scope_exit([&] {
       m_Sema.PopFunctionScopeInfo();
       m_Sema.PopDeclContext();
       endScope();
-      return nullptr;
-    };
+    });
 
     llvm::SmallVector<ParmVarDecl*, 16> overloadParams;
     llvm::SmallVector<ParmVarDecl*, 16> primalParams;
@@ -1688,7 +1691,7 @@ namespace clad {
         if (PVD->getType()->isRValueReferenceType())
           primalArg = utils::BuildStaticCastToRValue(m_Sema, primalArg);
         if (!primalArg)
-          return cleanupPrototypeAndFail();
+          return nullptr;
         callArgs.push_back(primalArg);
         ++calleeParamIdx;
       }
@@ -1744,7 +1747,7 @@ namespace clad {
         utils::diag(m_Sema, DiagnosticsEngine::Error, diagLoc,
                     "internal error: pullback overload did not consume the "
                     "complete derivative parameter layout");
-        return cleanupPrototypeAndFail();
+        return nullptr;
       }
     } else {
       for (ParmVarDecl* PVD : primalParams)
@@ -1772,12 +1775,12 @@ namespace clad {
     // does not materialize ParmVarDecl objects. Validate the parameters built
     // above, before publishing them on the declaration or scope chains.
     if (overloadParams.size() != paramTypes.size())
-      return cleanupPrototypeAndFail();
+      return nullptr;
     for (std::size_t i = 0; i < paramTypes.size(); ++i)
       if (!overloadParams[i] || paramTypes[i].isNull() ||
           overloadParams[i]->getType().getCanonicalType() !=
               paramTypes[i].getCanonicalType())
-        return cleanupPrototypeAndFail();
+        return nullptr;
 
     for (ParmVarDecl* PVD : overloadParams)
       if (PVD->getIdentifier())
@@ -1788,29 +1791,32 @@ namespace clad {
     diffOverloadFD->setBody(/*B=*/nullptr);
 
     beginScope(Scope::FnScope | Scope::DeclScope);
-    m_DerivativeFnScope = getCurrentScope();
+    // The overload owns this temporary body scope, not the caller's visitor
+    // state. Restore the previous pointer rather than retaining a scope that
+    // endScope deletes, including when a later AST construction fails.
+    llvm::SaveAndRestore<Scope*> restoreDerivativeScope(m_DerivativeFnScope,
+                                                        getCurrentScope());
     beginBlock();
-    auto cleanupBodyAndFail = [&]() -> FunctionDecl* {
-      endBlock();
+    bool publishBody = false;
+    auto bodyFrame = llvm::make_scope_exit([&] {
+      CompoundStmt* body = endBlock();
+      if (publishBody)
+        diffOverloadFD->setBody(body);
       endScope();
-      m_Sema.PopFunctionScopeInfo();
-      m_Sema.PopDeclContext();
-      endScope();
-      return nullptr;
-    };
+    });
 
     if (customObject) {
       Expr* object = m_Sema.BuildCXXThisExpr(
           GenLoc(), originalMD->getThisType(), /*IsImplicit=*/true);
       if (!object)
-        return cleanupBodyAndFail();
+        return nullptr;
       callArgs.insert(callArgs.begin(), object);
     }
 
     if (!pullbackMode) {
       for (std::size_t i = numPrimals; i < diffParams.size(); ++i) {
         if (i >= overloadParams.size())
-          return cleanupBodyAndFail();
+          return nullptr;
         ParmVarDecl* overloadParam = overloadParams[i];
         ParmVarDecl* diffParam = diffParams[i];
         QualType diffParamType = diffParam->getType();
@@ -1828,7 +1834,7 @@ namespace clad {
           init = BuildCStyleCast(typeInfo, init);
         }
         if (!init)
-          return cleanupBodyAndFail();
+          return nullptr;
         VarDecl* diffVD =
             BuildGlobalVarDecl(diffParamType, diffParam->getName(), init);
         callArgs.push_back(BuildDeclRef(diffVD));
@@ -1841,19 +1847,16 @@ namespace clad {
       derivative->addAttr(CUDADeviceAttr::CreateImplicit(m_Context));
     }
     if (callArgs.size() != derivType->getNumParams())
-      return cleanupBodyAndFail();
+      return nullptr;
     Expr* callExpr = BuildCallExprToFunction(derivative, callArgs,
                                              /*CUDAExecConfig=*/nullptr,
                                              /*useRefQualifiedThisObj=*/true);
     if (!callExpr)
-      return cleanupBodyAndFail();
+      return nullptr;
     addToCurrentBlock(callExpr);
-    diffOverloadFD->setBody(endBlock());
-
-    endScope();
-    m_Sema.PopFunctionScopeInfo();
-    m_Sema.PopDeclContext();
-    endScope();
+    // The body guard publishes only a complete, validated wrapper. A failed
+    // call unwinds the block without attaching a partial body to the decl.
+    publishBody = true;
     return diffOverloadFD;
   }
 

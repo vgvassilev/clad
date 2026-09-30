@@ -59,6 +59,8 @@ add_subdirectory(Basic)
 
 # Misc and Kokkos compile with -fplugin=clad.so; only Basic is header-only.
 if (NOT EMSCRIPTEN)
+  add_subdirectory(Engine)
+
   find_package(Kokkos)
   if (Kokkos_FOUND)
     set(CMAKE_CXX_STANDARD 17)
