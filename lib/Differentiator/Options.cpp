@@ -287,7 +287,7 @@ bool Options::read(llvm::ArrayRef<std::string> Args) {
         return false;
       break;
     case OptionID::fcustom_estimation_model:
-      llvm::errs() << "`-fcustom-estimation-model` is deprecated.\n";
+      llvm::errs() << "`-fcustom-estimation-model` is deprecated. Define `clad::getErrorVal` instead.\n";
       return false;
     case OptionID::help:
       // The frontend's own ShowHelp does not give us control.
