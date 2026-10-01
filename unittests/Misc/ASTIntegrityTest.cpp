@@ -14,20 +14,25 @@ TEST(ASTIntegrityTest, FindSharedNode) {
   ASTContext& Ctx = AST->getASTContext();
 
   // Create an integer literal to share.
-  auto* SharedLit = IntegerLiteral::Create(Ctx, llvm::APInt(32, 1), Ctx.IntTy, SourceLocation());
+  auto* SharedLit = IntegerLiteral::Create(Ctx, llvm::APInt(32, 1), Ctx.IntTy,
+                                           SourceLocation());
 
   Stmt* Stmts1[] = {SharedLit};
-  auto* Comp1 = CompoundStmt::Create(Ctx, Stmts1, SourceLocation(), SourceLocation());
+  auto* Comp1 = CompoundStmt::Create(Ctx, Stmts1, SourceLocation(),
+                                     SourceLocation());
 
   Stmt* Stmts2[] = {SharedLit, Comp1};
-  auto* Root = CompoundStmt::Create(Ctx, Stmts2, SourceLocation(), SourceLocation());
+  auto* Root = CompoundStmt::Create(Ctx, Stmts2, SourceLocation(),
+                                    SourceLocation());
 
   const Stmt* Shared = findSharedNode(Root);
   EXPECT_EQ(Shared, SharedLit);
 
-  auto* Lit2 = IntegerLiteral::Create(Ctx, llvm::APInt(32, 2), Ctx.IntTy, SourceLocation());
+  auto* Lit2 = IntegerLiteral::Create(Ctx, llvm::APInt(32, 2), Ctx.IntTy,
+                                      SourceLocation());
   Stmt* Stmts3[] = {Lit2, Comp1};
-  auto* ProperRoot = CompoundStmt::Create(Ctx, Stmts3, SourceLocation(), SourceLocation());
+  auto* ProperRoot = CompoundStmt::Create(Ctx, Stmts3, SourceLocation(),
+                                          SourceLocation());
 
   EXPECT_EQ(findSharedNode(ProperRoot), nullptr);
 }
