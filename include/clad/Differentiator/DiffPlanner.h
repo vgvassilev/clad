@@ -622,6 +622,9 @@ public:
     /// or constructor initializers. If we use Visit they would be processed
     /// under the parent DiffRequest which is not in the lambda scope.
     bool TraverseLambdaExpr(clang::LambdaExpr* LE);
+    /// Plans the requests a kernel launch contains without descending into
+    /// its execution configuration.
+    bool TraverseCUDAKernelCallExpr(clang::CUDAKernelCallExpr* KCE);
     /// Plan a lazily-scheduled nested request the static TU walk never reaches
     /// (built in DerivativeBuilder::HandleNestedDiffRequest). Currently records
     /// its early-return flag by walking the request's own body.
