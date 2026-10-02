@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -o %t -Xclang -verify 2>&1 | %filecheck
-// RUN: %t | %filecheck_exec
+// RUN: %cladclang %s -I%S/../../include -o %t -Xclang -verify 2>&1 | %filecheck %s
+// RUN: %t | %filecheck_exec %s
 // expected-no-diagnostics
 
 #include "clad/Differentiator/Differentiator.h"
