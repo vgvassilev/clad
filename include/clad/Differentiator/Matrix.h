@@ -23,8 +23,8 @@ private:
   size_t m_cols;
 
 public:
-  /// Delete the default constructor.
-  matrix() = delete;
+  /// Default constructor.
+  CUDA_HOST_DEVICE matrix() : m_data(), m_rows(0), m_cols(0) {}
 
   /// Construct a matrix of size rows x cols.
   CUDA_HOST_DEVICE matrix(size_t rows, size_t cols)

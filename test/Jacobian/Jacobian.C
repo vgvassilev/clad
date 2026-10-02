@@ -96,7 +96,7 @@ void f_4(double x, double y, double z, double *_clad_out__result) {
 // CHECK-NEXT: }
 
 // CHECK: void f_1_jac_0(double a, double b, double c, double _clad_out_output[], clad::matrix<double> *_d_vector__clad_out_output) {
-// CHECK-NEXT:     unsigned long indepVarCount = {{3U|3UL|3ULL}};
+// CHECK-NEXT:     unsigned long indepVarCount = {{1U|1UL|1ULL}};
 // CHECK-NEXT:     clad::array<double> _d_vector_a = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_b = clad::zero_vector(indepVarCount);
 // CHECK-NEXT:     clad::array<double> _d_vector_c = clad::zero_vector(indepVarCount);
@@ -264,9 +264,10 @@ void f_11(double a[2], double b[1], double _clad_out_output[]) {
 #define TEST_F_1_SINGLE_PARAM(x, y, z) { \
   outputarr[0] = 0; outputarr[1] = 1; outputarr[2] = 0;\
   auto j = clad::jacobian(f_1,"a");\
-  j.execute(x, y, z, outputarr, &result);\
+  clad::matrix<double> result_single(3, 1);\
+  j.execute(x, y, z, outputarr, &result_single);\
   printf("Result is = {%.2f, %.2f, %.2f}\n",\
-  result[0][0], result[1][0], result[2][0]);\
+  result_single[0][0], result_single[1][0], result_single[2][0]);\
 }
 
 
