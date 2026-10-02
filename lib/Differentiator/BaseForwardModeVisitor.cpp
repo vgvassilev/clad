@@ -466,6 +466,10 @@ StmtDiff BaseForwardModeVisitor::VisitStmt(const Stmt* S) {
   return StmtDiff(Clone(S));
 }
 
+StmtDiff BaseForwardModeVisitor::VisitAttributedStmt(const AttributedStmt* S) {
+  return Visit(S->getSubStmt());
+}
+
 StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
   ScopeRAII compoundScope(*this, Scope::DeclScope);
   beginBlock();

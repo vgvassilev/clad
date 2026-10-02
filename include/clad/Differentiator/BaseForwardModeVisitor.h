@@ -121,6 +121,7 @@ public:
   StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
   virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
   StmtDiff VisitStmt(const clang::Stmt* S);
+  StmtDiff VisitAttributedStmt(const clang::AttributedStmt* S);
   StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
   // Decl is not Stmt, so it cannot be visited directly.
   virtual DeclDiff<clang::VarDecl>
