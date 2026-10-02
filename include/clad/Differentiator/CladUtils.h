@@ -8,6 +8,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
@@ -37,6 +38,16 @@ namespace clad {
 /// read the list.
 enum class CladDiag : std::uint16_t;
 namespace utils {
+/// AST-owned lookups. Keep this with the Sema-owning DerivativeBuilder.
+struct CladLookupCache {
+  clang::NamespaceDecl* CladNamespace = nullptr;
+  clang::QualType RestoreTrackerType;
+  clang::TemplateDecl* Matrix = nullptr;
+  clang::TemplateDecl* Array = nullptr;
+  clang::TemplateDecl* ArrayRef = nullptr;
+  clang::TemplateDecl* Tag = nullptr;
+};
+
 /// If `FD` is an overloaded operator, returns a name, unique for
 /// each operator, that can be used to create valid C++ identifiers.
 /// Otherwise if `FD` is an ordinary function, returns the name of the
@@ -415,10 +426,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// \returns The created type clad::class\<TemplateArgs\>
     clang::QualType
     InstantiateTemplate(clang::Sema& S, clang::TemplateDecl* CladClassDecl,
-                        llvm::ArrayRef<clang::QualType> TemplateArgs);
+                        llvm::ArrayRef<clang::QualType> TemplateArgs,
+                        CladLookupCache* Cache = nullptr);
     clang::QualType InstantiateTemplate(clang::Sema& S,
                                         clang::TemplateDecl* CladClassDecl,
-                                        clang::TemplateArgumentListInfo& TLI);
+                                        clang::TemplateArgumentListInfo& TLI,
+                                        CladLookupCache* Cache = nullptr);
     /// Builds the QualType of the derivative to be generated.
     ///
     /// \param[in] S the Sema to build the type with.
@@ -436,15 +449,15 @@ clang::Sema::SemaDiagnosticBuilder diag(
         clang::Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
         llvm::ArrayRef<const clang::ValueDecl*> diffParams,
         bool forCustomDerv = false, bool shouldUseRestoreTracker = false,
-        bool isForErrorEstimation = false);
+        bool isForErrorEstimation = false, CladLookupCache* Cache = nullptr);
     /// Find declaration of clad::class templated type
     ///
     /// \param[in] S the Sema to look the name up in.
     /// \param[in] ClassName name of the class to be found
     /// \returns The declaration of the class with the name ClassName
     clang::TemplateDecl*
-    LookupTemplateDeclInCladNamespace(clang::Sema& S,
-                                      llvm::StringRef ClassName);
+    LookupTemplateDeclInCladNamespace(clang::Sema& S, llvm::StringRef ClassName,
+                                      CladLookupCache* Cache = nullptr);
 
     bool hasNonDifferentiableAttribute(const clang::Decl* D);
 
@@ -485,29 +498,39 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool ContainsFunctionCalls(const clang::Stmt* E);
 
     /// Find namespace clad declaration.
-    clang::NamespaceDecl* GetCladNamespace(clang::Sema& S);
+    clang::NamespaceDecl* GetCladNamespace(clang::Sema& S,
+                                           CladLookupCache* Cache = nullptr);
 
     /// Look up an entity in the clad namespace. The result may be empty.
     clang::LookupResult tryLookupCladMethod(clang::Sema& S,
-                                            llvm::StringRef name);
+                                            llvm::StringRef name,
+                                            CladLookupCache* Cache = nullptr);
     /// Create clad::array\<T\> type.
-    clang::QualType GetCladArrayOfType(clang::Sema& S, clang::QualType T);
+    clang::QualType GetCladArrayOfType(clang::Sema& S, clang::QualType T,
+                                       CladLookupCache* Cache = nullptr);
     /// Create clad::matrix\<T\> type.
-    clang::QualType GetCladMatrixOfType(clang::Sema& S, clang::QualType T);
+    clang::QualType GetCladMatrixOfType(clang::Sema& S, clang::QualType T,
+                                        CladLookupCache* Cache = nullptr);
     /// Create clad::array_ref\<T\> type.
-    clang::QualType GetCladArrayRefOfType(clang::Sema& S, clang::QualType T);
+    clang::QualType GetCladArrayRefOfType(clang::Sema& S, clang::QualType T,
+                                          CladLookupCache* Cache = nullptr);
     /// Returns type clad::Tag\<T\>
-    clang::QualType GetCladTagOfType(clang::Sema& S, clang::QualType T);
+    clang::QualType GetCladTagOfType(clang::Sema& S, clang::QualType T,
+                                     CladLookupCache* Cache = nullptr);
     /// Builds a value-initialized temporary of type `T`, i.e. `T()`.
     clang::Expr* BuildDefaultConstructExpr(clang::Sema& S, clang::QualType T);
 
     /// Returns type clad::Tag\<T\>()
-    clang::Expr* GetCladTagExpr(clang::Sema& S, clang::QualType T);
+    clang::Expr* GetCladTagExpr(clang::Sema& S, clang::QualType T,
+                                CladLookupCache* Cache = nullptr);
 
-    clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
-                                               clang::QualType Type);
+    clang::QualType
+    GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
+                               clang::QualType Type,
+                               CladLookupCache* Cache = nullptr);
 
-    clang::QualType GetRestoreTrackerType(clang::Sema& S);
+    clang::QualType GetRestoreTrackerType(clang::Sema& S,
+                                          CladLookupCache* Cache = nullptr);
 
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 

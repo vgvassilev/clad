@@ -119,7 +119,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return V.BuildSlot(Ref, Indices);
     LookupResult& Back = V.GetCladTapeBack();
     CXXScopeSpec CSS;
-    CSS.Extend(V.m_Context, utils::GetCladNamespace(V.m_Sema), noLoc, noLoc);
+    CSS.Extend(V.m_Context,
+               utils::GetCladNamespace(V.m_Sema, &V.m_Builder.getLookupCache()),
+               noLoc, noLoc);
     Expr* BackDRE = V.m_Sema
                         .BuildDeclarationNameExpr(CSS, Back,
                                                   /*AcceptInvalidDecl=*/false)
@@ -222,7 +224,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     VD->setLocation(m_DiffReq->getLocation());
 
     CXXScopeSpec CSS;
-    CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
+    CSS.Extend(m_Context,
+               utils::GetCladNamespace(m_Sema, &m_Builder.getLookupCache()),
+               noLoc, noLoc);
     auto* PopDRE = m_Sema
                        .BuildDeclarationNameExpr(CSS, Pop,
                                                  /*AcceptInvalidDecl=*/false)
@@ -710,7 +714,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // one a hand-written `clad::forward_sweep(...)` resolves to.
       LookupResult SweepLR = LookupCladTapeMethod("forward_sweep");
       CXXScopeSpec CSS;
-      CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
+      CSS.Extend(m_Context,
+                 utils::GetCladNamespace(m_Sema, &m_Builder.getLookupCache()),
+                 noLoc, noLoc);
       Expr* Callee =
           m_Sema.BuildDeclarationNameExpr(CSS, SweepLR, /*NeedsADL=*/false)
               .get();
@@ -2371,7 +2377,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
          utils::hasElidableReverseForwAttribute(calleeFnForwPassFD)) ||
         isCastSem;
     bool usingRestoreTracker = false;
-    QualType trackerType = utils::GetRestoreTrackerType(m_Sema);
+    QualType trackerType =
+        utils::GetRestoreTrackerType(m_Sema, &m_Builder.getLookupCache());
     // We need to check if the last parameter is actually a tracker because
     // custom derivatives currently don't have it.
     if (calleeFnForwPassFD) {
@@ -2976,8 +2983,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         ((hasStoredParams && !recordsAreDead) || needsForwPass ||
          !pullbackStateType.isNull())) {
       if (const auto* CD = dyn_cast<CXXConversionDecl>(FD))
-        CallArgs.push_back(
-            utils::GetCladTagExpr(m_Sema, CD->getConversionType()));
+        CallArgs.push_back(utils::GetCladTagExpr(
+            m_Sema, CD->getConversionType(), &m_Builder.getLookupCache()));
       CallArgs.insert(CallArgs.end(), revForwAdjointArgs.begin(),
                       revForwAdjointArgs.end());
       // Pass the same _state carrier the pullback receives, so the reverse_forw
@@ -5939,7 +5946,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       reverseForwAdjointArgs.insert(
           reverseForwAdjointArgs.begin(),
           utils::GetCladTagExpr(m_Sema,
-                                clad_compat::getRecordType(m_Context, RD)));
+                                clad_compat::getRecordType(m_Context, RD),
+                                &m_Builder.getLookupCache()));
       Expr* customReverseForwFnCall =
           BuildCallExprToFunction(constrForw, reverseForwAdjointArgs);
       if (RD->isAggregate()) {
@@ -6102,7 +6110,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       IdentifierInfo* dThisII = &m_Context.Idents.get("_d_this");
       const auto* MD = cast<CXXMethodDecl>(FD);
       QualType thisTy = utils::GetParameterDerivativeType(
-          m_Sema, m_DiffReq.Mode, MD->getThisType());
+          m_Sema, m_DiffReq.Mode, MD->getThisType(),
+          &m_Builder.getLookupCache());
 
       auto* dPVD =
           utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext, dThisII, thisTy);

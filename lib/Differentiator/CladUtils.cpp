@@ -1052,8 +1052,9 @@ namespace clad {
       return true;
     }
 
-    NamespaceDecl* GetCladNamespace(Sema& S) {
-      static NamespaceDecl* Result = nullptr;
+    NamespaceDecl* GetCladNamespace(Sema& S, CladLookupCache* Cache) {
+      NamespaceDecl* Uncached = nullptr;
+      NamespaceDecl*& Result = Cache ? Cache->CladNamespace : Uncached;
       if (Result)
         return Result;
       DeclarationName CladName = &S.getASTContext().Idents.get("clad");
@@ -1065,8 +1066,9 @@ namespace clad {
       return Result;
     }
 
-    LookupResult tryLookupCladMethod(Sema& S, llvm::StringRef name) {
-      return LookupQualifiedName(name, S, GetCladNamespace(S));
+    LookupResult tryLookupCladMethod(Sema& S, llvm::StringRef name,
+                                     CladLookupCache* Cache) {
+      return LookupQualifiedName(name, S, GetCladNamespace(S, Cache));
     }
 
     Expr* getZeroInit(QualType T, Sema& S) {
@@ -1092,13 +1094,14 @@ namespace clad {
     }
 
     QualType InstantiateTemplate(Sema& S, TemplateDecl* CladClassDecl,
-                                 TemplateArgumentListInfo& TLI) {
+                                 TemplateArgumentListInfo& TLI,
+                                 CladLookupCache* Cache) {
       // This will instantiate tape<T> type and return it.
       QualType TT = clad_compat::CheckTemplateIdType(
           S, TemplateName(CladClassDecl), GetValidSLoc(S), TLI);
       // Get clad namespace and its identifier clad::.
       CXXScopeSpec CSS;
-      CSS.Extend(S.getASTContext(), GetCladNamespace(S), GetValidSLoc(S),
+      CSS.Extend(S.getASTContext(), GetCladNamespace(S, Cache), GetValidSLoc(S),
                  GetValidSLoc(S));
       clad_compat::NestedNameSpecifierTy NS = CSS.getScopeRep();
 
@@ -1108,11 +1111,13 @@ namespace clad {
           S.getASTContext(), clad_compat::ElaboratedTypeKeyword_None, NS, TT);
     }
 
-    clang::QualType GetRestoreTrackerType(clang::Sema& S) {
-      static QualType T;
+    clang::QualType GetRestoreTrackerType(clang::Sema& S,
+                                          CladLookupCache* Cache) {
+      QualType Uncached;
+      QualType& T = Cache ? Cache->RestoreTrackerType : Uncached;
       if (!T.isNull())
         return T;
-      NamespaceDecl* CladNS = GetCladNamespace(S);
+      NamespaceDecl* CladNS = GetCladNamespace(S, Cache);
       CXXScopeSpec CSS;
       CSS.Extend(S.getASTContext(), CladNS, noLoc, noLoc);
       DeclarationName TrackerName =
@@ -1137,8 +1142,9 @@ namespace clad {
     }
 
     TemplateDecl* LookupTemplateDeclInCladNamespace(Sema& S,
-                                                    llvm::StringRef ClassName) {
-      NamespaceDecl* CladNS = GetCladNamespace(S);
+                                                    llvm::StringRef ClassName,
+                                                    CladLookupCache* Cache) {
+      NamespaceDecl* CladNS = GetCladNamespace(S, Cache);
       CXXScopeSpec CSS;
       CSS.Extend(S.getASTContext(), CladNS, noLoc, noLoc);
       DeclarationName TapeName = &S.getASTContext().Idents.get(ClassName);
@@ -1381,7 +1387,8 @@ namespace clad {
     }
 
     QualType InstantiateTemplate(Sema& S, TemplateDecl* CladClassDecl,
-                                 ArrayRef<QualType> TemplateArgs) {
+                                 ArrayRef<QualType> TemplateArgs,
+                                 CladLookupCache* Cache) {
       // Create a list of template arguments.
       TemplateArgumentListInfo TLI{};
       for (auto T : TemplateArgs) {
@@ -1390,23 +1397,28 @@ namespace clad {
             TA, S.getASTContext().getTrivialTypeSourceInfo(T)));
       }
 
-      return InstantiateTemplate(S, CladClassDecl, TLI);
+      return InstantiateTemplate(S, CladClassDecl, TLI, Cache);
     }
 
-    QualType GetCladMatrixOfType(Sema& S, clang::QualType T) {
-      static TemplateDecl* matrixDecl = nullptr;
+    QualType GetCladMatrixOfType(Sema& S, clang::QualType T,
+                                 CladLookupCache* Cache) {
+      TemplateDecl* Uncached = nullptr;
+      TemplateDecl*& matrixDecl = Cache ? Cache->Matrix : Uncached;
       if (!matrixDecl)
-        matrixDecl =
-            utils::LookupTemplateDeclInCladNamespace(S,
-                                                     /*ClassName=*/"matrix");
-      return InstantiateTemplate(S, matrixDecl, {T});
+        matrixDecl = utils::LookupTemplateDeclInCladNamespace(
+            S,
+            /*ClassName=*/"matrix", Cache);
+      return InstantiateTemplate(S, matrixDecl, {T}, Cache);
     }
 
-    QualType GetCladArrayOfType(Sema& S, clang::QualType T) {
-      static TemplateDecl* arrayDecl = nullptr;
+    QualType GetCladArrayOfType(Sema& S, clang::QualType T,
+                                CladLookupCache* Cache) {
+      TemplateDecl* Uncached = nullptr;
+      TemplateDecl*& arrayDecl = Cache ? Cache->Array : Uncached;
       if (!arrayDecl)
-        arrayDecl = LookupTemplateDeclInCladNamespace(S, /*ClassName=*/"array");
-      return utils::InstantiateTemplate(S, arrayDecl, {T});
+        arrayDecl =
+            LookupTemplateDeclInCladNamespace(S, /*ClassName=*/"array", Cache);
+      return utils::InstantiateTemplate(S, arrayDecl, {T}, Cache);
     }
 
     bool IsDifferentiableType(QualType T) {
@@ -1447,15 +1459,18 @@ namespace clad {
       return finder.dependsOnDecl;
     }
 
-    QualType GetCladArrayRefOfType(Sema& S, QualType T) {
-      static TemplateDecl* arrayRefDecl = nullptr;
+    QualType GetCladArrayRefOfType(Sema& S, QualType T,
+                                   CladLookupCache* Cache) {
+      TemplateDecl* Uncached = nullptr;
+      TemplateDecl*& arrayRefDecl = Cache ? Cache->ArrayRef : Uncached;
       if (!arrayRefDecl)
         arrayRefDecl = utils::LookupTemplateDeclInCladNamespace(
-            S, /*ClassName=*/"array_ref");
-      return utils::InstantiateTemplate(S, arrayRefDecl, {T});
+            S, /*ClassName=*/"array_ref", Cache);
+      return utils::InstantiateTemplate(S, arrayRefDecl, {T}, Cache);
     }
 
-    QualType GetParameterDerivativeType(Sema& S, DiffMode Mode, QualType Type) {
+    QualType GetParameterDerivativeType(Sema& S, DiffMode Mode, QualType Type,
+                                        CladLookupCache* Cache) {
       ASTContext& C = S.getASTContext();
       if (Mode == DiffMode::vector_pushforward || Mode == DiffMode::jacobian) {
         QualType valueType = GetNonConstValueType(Type);
@@ -1463,12 +1478,12 @@ namespace clad {
         if (isArrayOrPointerType(Type)) {
           // If the parameter is a pointer or an array, then the derivative will
           // be a reference to the matrix.
-          resType = GetCladMatrixOfType(S, valueType);
+          resType = GetCladMatrixOfType(S, valueType, Cache);
           resType = C.getLValueReferenceType(resType);
         } else {
           // If the parameter is not a pointer or an array, then the derivative
           // will be a clad array.
-          resType = GetCladArrayOfType(S, valueType);
+          resType = GetCladArrayOfType(S, valueType, Cache);
 
           // Add const qualifier if the parameter is const.
           if (Type.getNonReferenceType().isConstQualified())
@@ -1493,7 +1508,7 @@ namespace clad {
         QualType valueType = GetNonConstValueType(Type);
         if (isArrayOrPointerType(Type))
           // Generate array reference type for the derivative.
-          return GetCladArrayRefOfType(S, valueType);
+          return GetCladArrayRefOfType(S, valueType, Cache);
         // Generate pointer type for the derivative.
         return C.getPointerType(valueType);
       }
@@ -1515,7 +1530,7 @@ namespace clad {
     GetDerivativeType(Sema& S, const clang::FunctionDecl* FD, DiffMode mode,
                       llvm::ArrayRef<const clang::ValueDecl*> diffParams,
                       bool forCustomDerv, bool shouldUseRestoreTracker,
-                      bool isForErrorEstimation) {
+                      bool isForErrorEstimation, CladLookupCache* Cache) {
       ASTContext& C = S.getASTContext();
       if (mode == DiffMode::forward)
         return FD->getType();
@@ -1552,9 +1567,11 @@ namespace clad {
       if (mode == DiffMode::reverse_mode_forward_pass) {
         if (returnsAdjoint(oRetTy) || isa<CXXConstructorDecl>(FD)) {
           TemplateDecl* valAndAdjointTempDecl =
-              utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
+              utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint",
+                                                       Cache);
           dRetTy = utils::InstantiateTemplate(
-              S, valAndAdjointTempDecl, {oRetTy, getNonConstType(oRetTy, S)});
+              S, valAndAdjointTempDecl, {oRetTy, getNonConstType(oRetTy, S)},
+              Cache);
         } else {
           dRetTy = oRetTy;
         }
@@ -1566,10 +1583,12 @@ namespace clad {
       } else if (!returnVoid && !oRetTy->isVoidType()) {
         // Handle pushforwards
         TemplateDecl* valueAndPushforward =
-            utils::LookupTemplateDeclInCladNamespace(S, "ValueAndPushforward");
-        QualType PushFwdTy = utils::GetParameterDerivativeType(S, mode, oRetTy);
+            utils::LookupTemplateDeclInCladNamespace(S, "ValueAndPushforward",
+                                                     Cache);
+        QualType PushFwdTy =
+            utils::GetParameterDerivativeType(S, mode, oRetTy, Cache);
         dRetTy = utils::InstantiateTemplate(S, valueAndPushforward,
-                                            {oRetTy, PushFwdTy});
+                                            {oRetTy, PushFwdTy}, Cache);
       } else if (mode == DiffMode::pullback) {
         // Handle pullbacks
         QualType argTy = oRetTy.getNonReferenceType();
@@ -1588,7 +1607,8 @@ namespace clad {
         if (MD->isInstance() && !RD->isLambda() && mode != DiffMode::jacobian &&
             !isa<CXXConstructorDecl>(MD)) {
           thisTy = MD->getThisType();
-          QualType dthisTy = utils::GetParameterDerivativeType(S, mode, thisTy);
+          QualType dthisTy =
+              utils::GetParameterDerivativeType(S, mode, thisTy, Cache);
           FnTypes.push_back(dthisTy);
           if (MD->isConst()) {
             QualType constObjTy = C.getConstType(thisTy->getPointeeType());
@@ -1621,10 +1641,11 @@ namespace clad {
           for (const ValueDecl* param : diffParams)
             if (param == FD->getParamDecl(i))
               FnTypes.push_back(
-                  utils::GetParameterDerivativeType(S, mode, PVDTy));
+                  utils::GetParameterDerivativeType(S, mode, PVDTy, Cache));
         } else if (mode == DiffMode::reverse_mode_forward_pass ||
                    utils::IsDifferentiableType(PVDTy))
-          FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
+          FnTypes.push_back(
+              utils::GetParameterDerivativeType(S, mode, PVDTy, Cache));
       }
 
       if (forCustomDerv && !thisTy.isNull()) {
@@ -1634,12 +1655,12 @@ namespace clad {
 
       if (mode == DiffMode::reverse_mode_forward_pass) {
         if (isa<CXXConversionDecl>(FD) || isa<CXXConstructorDecl>(FD)) {
-          QualType typeTag = utils::GetCladTagOfType(S, oRetTy);
+          QualType typeTag = utils::GetCladTagOfType(S, oRetTy, Cache);
           FnTypes.insert(FnTypes.begin(), typeTag);
         }
 
         if (shouldUseRestoreTracker) {
-          QualType trackerTy = GetRestoreTrackerType(S);
+          QualType trackerTy = GetRestoreTrackerType(S, Cache);
           trackerTy = C.getLValueReferenceType(trackerTy);
           FnTypes.push_back(trackerTy);
         }
@@ -1651,11 +1672,12 @@ namespace clad {
       return C.getFunctionType(dRetTy, FnTypes, EPI);
     }
 
-    QualType GetCladTagOfType(Sema& S, QualType T) {
-      static clang::TemplateDecl* CladTag = nullptr;
+    QualType GetCladTagOfType(Sema& S, QualType T, CladLookupCache* Cache) {
+      TemplateDecl* Uncached = nullptr;
+      TemplateDecl*& CladTag = Cache ? Cache->Tag : Uncached;
       if (!CladTag)
-        CladTag = utils::LookupTemplateDeclInCladNamespace(S, "Tag");
-      return utils::InstantiateTemplate(S, CladTag, {T});
+        CladTag = utils::LookupTemplateDeclInCladNamespace(S, "Tag", Cache);
+      return utils::InstantiateTemplate(S, CladTag, {T}, Cache);
     }
 
     Expr* BuildDefaultConstructExpr(Sema& S, QualType T) {
@@ -1668,8 +1690,8 @@ namespace clad {
           .get();
     }
 
-    Expr* GetCladTagExpr(Sema& S, QualType T) {
-      return BuildDefaultConstructExpr(S, utils::GetCladTagOfType(S, T));
+    Expr* GetCladTagExpr(Sema& S, QualType T, CladLookupCache* Cache) {
+      return BuildDefaultConstructExpr(S, utils::GetCladTagOfType(S, T, Cache));
     }
 
     bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
