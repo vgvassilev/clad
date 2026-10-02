@@ -28,6 +28,15 @@ double labelled(double x, int i) {
   return r;
 }
 
+double wrapped(double x, int i) {
+  double r = 0;
+  switch (i) [[likely]] {
+    case 0: r = x * x; break;
+    default: r = 3 * x; break;
+  }
+  return r;
+}
+
 int main() {
   auto df = clad::differentiate(branch, "x");
   auto gf = clad::gradient(branch);
@@ -35,6 +44,8 @@ int main() {
   auto gn = clad::gradient(nested);
   auto dl = clad::differentiate(labelled, "x");
   auto gl = clad::gradient(labelled, "x");
+  auto dw = clad::differentiate(wrapped, "x");
+  auto gw = clad::gradient(wrapped, "x");
   for (double x : {2., -2.}) {
     double d = 0, n = 0;
     gf.execute(x, &d);
@@ -46,11 +57,18 @@ int main() {
     gl.execute(2., i, &d);
     std::printf("%.0f %.0f\n", dl.execute(2., i), d);
   }
+  for (int i : {0, 1}) {
+    double d = 0;
+    gw.execute(2., i, &d);
+    std::printf("%.0f %.0f\n", dw.execute(2., i), d);
+  }
 }
 
 // CHECK-EXEC: 2 2 4 4
 // CHECK-EXEC-NEXT: 3 3 1 1
 
+// CHECK-EXEC-NEXT: 4 4
+// CHECK-EXEC-NEXT: 3 3
 // CHECK-EXEC-NEXT: 4 4
 // CHECK-EXEC-NEXT: 3 3
 

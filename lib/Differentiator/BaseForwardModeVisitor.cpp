@@ -2238,14 +2238,14 @@ StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
   // It will always be equal to the last visited case/default label.
   SwitchCase* activeSC = nullptr;
 
-  if (auto CS = dyn_cast<CompoundStmt>(SS->getBody())) {
+  const Stmt* SwitchBody = utils::SkipLikelihoodHints(SS->getBody());
+  if (auto CS = dyn_cast<CompoundStmt>(SwitchBody)) {
     // Visit(CS) cannot be used because then we will not be easily able to
     // determine when active switch case label should be changed.
-    for (Stmt* stmt : CS->body()) {
+    for (const Stmt* stmt : CS->body())
       activeSC = DeriveSwitchStmtBodyHelper(stmt, activeSC);
-    }
   } else {
-    activeSC = DeriveSwitchStmtBodyHelper(SS->getBody(), activeSC);
+    activeSC = DeriveSwitchStmtBodyHelper(SwitchBody, activeSC);
   }
 
   // scope and block of the last switch case label is not popped in
