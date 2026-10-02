@@ -307,10 +307,15 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
       continue;
 
     IdentifierInfo* II = &m_Context.Idents.get("_d_" + PVD->getNameAsString());
+    if (std::any_of(params.begin(), params.end(), [II](const ParmVarDecl* Param) {
+          return Param->getIdentifier() == II;
+        }))
+      II = CreateUniqueIdentifier(II->getName());
     QualType diffTy = utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
                                                         PVD->getType());
     auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, diffTy,
                                          PVD->getStorageClass());
+    m_Sema.PushOnScopeChains(dPVD, getCurrentScope(), /*AddToContext=*/false);
     params.push_back(dPVD);
     m_Variables[PVD] = {dPVD};
   }
