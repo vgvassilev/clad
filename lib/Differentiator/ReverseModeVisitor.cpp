@@ -915,6 +915,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return StmtDiff(Clone(S));
   }
 
+  StmtDiff ReverseModeVisitor::VisitAttributedStmt(const AttributedStmt* S) {
+    return Visit(S->getSubStmt());
+  }
+
   StmtDiff
   ReverseModeVisitor::VisitCompoundLiteralExpr(const CompoundLiteralExpr* CLE) {
     StmtDiff result = Visit(CLE->getInitializer());
