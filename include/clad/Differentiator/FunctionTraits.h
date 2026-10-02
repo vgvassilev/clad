@@ -199,8 +199,18 @@ namespace clad {
     using argument_types = void;
   };
 
-  // specializations for noexcept member functions
-  #if __cpp_noexcept_function_type > 0
+  // specializations for noexcept member and non-member functions
+#if __cpp_noexcept_function_type > 0
+  template <class ReturnType, class... Args>
+  struct function_traits<ReturnType (*)(Args...) noexcept> {
+    using return_type = ReturnType;
+    using argument_types = list<Args...>;
+  };
+  template <class ReturnType, class... Args>
+  struct function_traits<ReturnType (*)(Args..., ...) noexcept> {
+    using return_type = ReturnType;
+    using argument_types = list<Args...>;
+  };
   template <class ReturnType, class C, class... Args>
   struct function_traits<ReturnType (C::*)(Args...) noexcept> {
     using return_type = ReturnType;
@@ -641,6 +651,127 @@ namespace clad {
   };
   template <class F>
   struct JacobianDerivedFnTraits<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             !has_call_operator<F>::value>::type> {
+    using type = NoFunction*;
+  };
+
+  template <class R> struct PullbackSeedType {
+    using type = std::remove_const_t<std::remove_reference_t<R>>;
+  };
+
+  template <class R>
+  using PullbackSeedType_t = typename PullbackSeedType<R>::type;
+
+  template <class R>
+  struct PullbackHasSeed
+      : std::integral_constant<
+            bool, !std::is_void<PullbackSeedType_t<R>>::value &&
+                      !std::is_pointer<PullbackSeedType_t<R>>::value &&
+                      !(std::is_reference<R>::value &&
+                        !std::is_const<std::remove_reference_t<R>>::value)> {};
+
+  template <class T> struct PullbackAdjointParamType {
+    using type =
+        std::remove_const_t<std::remove_reference_t<std::remove_pointer_t<T>>>*;
+  };
+
+  template <class T>
+  using PullbackAdjointParamType_t = typename PullbackAdjointParamType<T>::type;
+
+  template <class T, class = void> struct PullbackDerivedFnTraits {};
+
+  template <class T>
+  using PullbackDerivedFnTraits_t = typename PullbackDerivedFnTraits<T>::type;
+
+  template <class ReturnType, class... Args>
+  struct PullbackDerivedFnTraits<
+      ReturnType (*)(Args...),
+      typename std::enable_if<PullbackHasSeed<ReturnType>::value>::type> {
+    using type = void (*)(Args..., PullbackSeedType_t<ReturnType>,
+                          PullbackAdjointParamType_t<Args>...);
+  };
+
+  template <class ReturnType, class... Args>
+  struct PullbackDerivedFnTraits<
+      ReturnType (*)(Args...),
+      typename std::enable_if<!PullbackHasSeed<ReturnType>::value>::type> {
+    using type = void (*)(Args..., PullbackAdjointParamType_t<Args>...);
+  };
+
+#if __cpp_noexcept_function_type > 0
+  template <class ReturnType, class... Args>
+  struct PullbackDerivedFnTraits<
+      ReturnType (*)(Args...) noexcept,
+      typename std::enable_if<PullbackHasSeed<ReturnType>::value>::type> {
+    using type = void (*)(Args..., PullbackSeedType_t<ReturnType>,
+                          PullbackAdjointParamType_t<Args>...) noexcept;
+  };
+
+  template <class ReturnType, class... Args>
+  struct PullbackDerivedFnTraits<
+      ReturnType (*)(Args...) noexcept,
+      typename std::enable_if<!PullbackHasSeed<ReturnType>::value>::type> {
+    using type = void (*)(Args...,
+                          PullbackAdjointParamType_t<Args>...) noexcept;
+  };
+#endif
+
+#define PullbackDerivedFnTraits_AddSPECS(var, cv, vol, ref, noex)            \
+    template <typename R, typename C, typename... Args>                        \
+    struct PullbackDerivedFnTraits<                                            \
+        R (C::*)(Args...) cv vol ref noex,                                     \
+        typename std::enable_if<PullbackHasSeed<R>::value>::type> {            \
+      using type =                                                             \
+          void (C::*)(Args..., PullbackSeedType_t<R>,                          \
+                      PullbackAdjointParamType_t<cv vol C>,                    \
+                      PullbackAdjointParamType_t<Args>...) cv vol ref noex;    \
+    };                                                                         \
+    template <typename R, typename C, typename... Args>                        \
+    struct PullbackDerivedFnTraits<                                            \
+        R (C::*)(Args...) cv vol ref noex,                                     \
+        typename std::enable_if<!PullbackHasSeed<R>::value>::type> {           \
+      using type =                                                             \
+          void (C::*)(Args..., PullbackAdjointParamType_t<cv vol C>,           \
+                      PullbackAdjointParamType_t<Args>...) cv vol ref noex;    \
+    };
+
+#if __cpp_noexcept_function_type > 0
+#define PullbackDerivedFnTraits_AddNOEX(var, con, vol, ref)                  \
+    PullbackDerivedFnTraits_AddSPECS(var, con, vol, ref, )                     \
+        PullbackDerivedFnTraits_AddSPECS(var, con, vol, ref, noexcept)
+#else
+#define PullbackDerivedFnTraits_AddNOEX(var, con, vol, ref)                  \
+    PullbackDerivedFnTraits_AddSPECS(var, con, vol, ref, )
+#endif
+
+#define PullbackDerivedFnTraits_AddREF(var, con, vol)                        \
+    PullbackDerivedFnTraits_AddNOEX(var, con, vol, )                           \
+        PullbackDerivedFnTraits_AddNOEX(var, con, vol, &)                      \
+            PullbackDerivedFnTraits_AddNOEX(var, con, vol, &&)
+
+#define PullbackDerivedFnTraits_AddVOL(var, con)                             \
+    PullbackDerivedFnTraits_AddREF(var, con, )                                 \
+        PullbackDerivedFnTraits_AddREF(var, con, volatile)
+
+#define PullbackDerivedFnTraits_AddCON(var)                                  \
+    PullbackDerivedFnTraits_AddVOL(var, )                                      \
+        PullbackDerivedFnTraits_AddVOL(var, const)
+
+  PullbackDerivedFnTraits_AddCON(()); // Declares all the specializations
+
+  template <class F>
+  struct PullbackDerivedFnTraits<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             has_call_operator<F>::value>::type> {
+    using ClassType =
+        typename std::decay<remove_reference_and_pointer_t<F>>::type;
+    using type = PullbackDerivedFnTraits_t<decltype(&ClassType::operator())>;
+  };
+  template <class F>
+  struct PullbackDerivedFnTraits<
       F, typename std::enable_if<
              std::is_class<remove_reference_and_pointer_t<F>>::value &&
              !has_call_operator<F>::value>::type> {

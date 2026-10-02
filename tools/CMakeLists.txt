@@ -149,6 +149,11 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     add_dependencies(LLVMEnzyme Enzyme) # Emzyme is the ExternalProject_Add target.
     set_property(TARGET LLVMEnzyme PROPERTY IMPORTED_LOCATION ${_enzyme_static_archive_name})
 
+    # ClangBackendPlugin.cpp is also compiled into cladPlugin with Enzyme
+    # enabled. Its static consumers need both the archive and its build
+    # dependency, not just the module's whole-archive link below.
+    target_link_libraries(cladPlugin PUBLIC LLVMEnzyme)
+
     # Paste the contents of libLLVMEnzyme-X.so into clad.so.
     if (APPLE)
       set(_enzyme_link_flags -Wl,-force_load $<TARGET_FILE:LLVMEnzyme> -Wl,-force_load cladDifferentiator)

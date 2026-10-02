@@ -9,10 +9,13 @@
 #include "ConstantFolder.h"
 
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/ScopeExit.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
 
@@ -55,6 +58,7 @@
 #include <cassert>
 #include <cstddef>
 #include <numeric>
+#include <string>
 #include <utility>
 
 #include "clad/Differentiator/Compatibility.h"
@@ -717,7 +721,10 @@ namespace clad {
           (EKind == UO_Deref && OpCode == UO_AddrOf))
         return UO->getSubExpr();
     }
-    // Debug clang requires the location to be valid
+    // Debug clang requires the location to be valid. For prefix unary ops,
+    // OpLoc must not be after E's end loc.
+    if (!OpLoc.isValid() && E)
+      OpLoc = E->getBeginLoc();
     if (!OpLoc.isValid())
       OpLoc = GenLoc();
     // Call function for UnaryMinus
@@ -1427,110 +1434,355 @@ namespace clad {
     return BuildCallExpr(BuildDeclRef(zeroLike), args);
   }
 
+  bool VisitorBase::PullbackNeedsOverload() const {
+    if (m_DiffReq.Mode != DiffMode::pullback || !m_DiffReq.CallUpdateRequired ||
+        !m_DiffReq.Function)
+      return false;
+
+    // A custom pullback is a free-function customization even for an instance
+    // method and may use qualification conversions. Always expose it through a
+    // wrapper with the public callable type.
+    if (m_DiffReq.CustomDerivative)
+      return true;
+
+    llvm::SmallPtrSet<const ValueDecl*, 16> selected;
+    for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
+      if (!VarInfo.param || !selected.insert(VarInfo.param).second)
+        return true;
+
+    std::size_t numPrimals = 0;
+    for (const ParmVarDecl* PVD : m_DiffReq->parameters()) {
+      if (utils::isStdNATType(PVD->getType(), m_Sema))
+        break;
+      ++numPrimals;
+      if (utils::hasNonDifferentiableAttribute(PVD) || !selected.count(PVD))
+        return true;
+    }
+    return selected.size() != numPrimals;
+  }
+
   FunctionDecl* VisitorBase::CreateDerivativeOverload(FunctionDecl* derivative,
                                                       OverloadKind kind) {
     const bool vectorMode = kind == OverloadKind::VectorMode;
+    const bool pullbackMode = kind == OverloadKind::PullbackCustom;
     if (!derivative)
       derivative = m_Derivative;
+    const FunctionDecl* originalFD = m_DiffReq.Function;
+    if (!derivative || !originalFD)
+      return nullptr;
+
+    const auto* derivType = derivative->getType()->getAs<FunctionProtoType>();
+    const auto* reqType = originalFD->getType()->getAs<FunctionProtoType>();
+    if (!derivType || !reqType || derivType->isVariadic() ||
+        reqType->isVariadic() || !derivType->getReturnType()->isVoidType())
+      return nullptr;
+
     auto diffParams = derivative->parameters();
+    if (diffParams.size() != derivType->getNumParams())
+      return nullptr;
     auto diffNameInfo = derivative->getNameInfo();
-    // Calculate the total number of parameters that would be required for
-    // automatic differentiation in the derived function if all args are
-    // requested.
-    // FIXME: Here we are assuming all function parameters are of differentiable
-    // type. Ideally, we should not make any such assumption.
-    std::size_t totalDerivedParamsSize = m_DiffReq->getNumParams() * 2;
-    std::size_t numOfDerivativeParams = m_DiffReq->getNumParams();
+    SourceLocation diagLoc = m_DiffReq.CallContext
+                                 ? m_DiffReq.CallContext->getBeginLoc()
+                                 : originalFD->getBeginLoc();
 
-    // Account for the this pointer. Vector mode takes exactly one derivative
-    // parameter per original parameter.
-    if (!vectorMode && isa<CXXMethodDecl>(m_DiffReq.Function) &&
-        !utils::IsStaticMethod(m_DiffReq.Function) &&
-        (!m_DiffReq.Functor || m_DiffReq.Mode != DiffMode::jacobian))
-      ++numOfDerivativeParams;
-    // All output parameters have the same type. They are cast back to the
-    // correct type before the call to the actual derived function.
-    // We require each output parameter to be of same type in the overloaded
-    // derived function due to limitations of generating the exact derived
-    // function type at the compile-time (without clad plugin help).
-    QualType outputParamType =
-        vectorMode ? utils::GetCladArrayRefOfType(m_Sema, m_Context.VoidTy)
-                   : m_Context.getPointerType(m_Context.VoidTy);
+    llvm::SmallVector<const ParmVarDecl*, 16> originalParams;
+    for (const ParmVarDecl* PVD : originalFD->parameters()) {
+      if (utils::isStdNATType(PVD->getType(), m_Sema))
+        break;
+      originalParams.push_back(PVD);
+    }
+    const std::size_t numPrimals = originalParams.size();
 
+    llvm::SmallVector<char, 16> selected(numPrimals, false);
+    for (std::size_t i = 0; i < numPrimals; ++i) {
+      const ParmVarDecl* PVD = originalParams[i];
+      if (utils::hasNonDifferentiableAttribute(PVD))
+        continue;
+      for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
+        if (VarInfo.param == PVD) {
+          selected[i] = true;
+          break;
+        }
+    }
+
+    const auto* originalMD = dyn_cast<CXXMethodDecl>(originalFD);
+    const bool isConstructor = isa<CXXConstructorDecl>(originalFD);
+    const bool hasDThis = originalMD && originalMD->isInstance() &&
+                          !originalMD->getParent()->isLambda();
+    const bool customPullback = pullbackMode && m_DiffReq.CustomDerivative;
+    const bool customObject = customPullback && hasDThis && !isConstructor;
+
+    QualType originalReturn = originalFD->getReturnType();
+    if (const auto* CD = dyn_cast<CXXConstructorDecl>(originalFD))
+      originalReturn = CD->getThisType()->getPointeeType();
+    QualType seedType = originalReturn.getNonReferenceType();
+    seedType = utils::getNonConstType(seedType, m_Sema);
+    bool hasSeed = !isConstructor && !seedType->isVoidType() &&
+                   !seedType->isPointerType() &&
+                   !utils::isNonConstReferenceType(originalReturn);
+
+    if (pullbackMode) {
+      llvm::SmallVector<const ValueDecl*, 8> requestedParams;
+      for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
+        if (VarInfo.param)
+          requestedParams.push_back(VarInfo.param);
+      QualType expectedCalleeTy = utils::GetDerivativeType(
+          m_Sema, originalFD, m_DiffReq.Mode, requestedParams,
+          /*forCustomDerv=*/customPullback);
+      if (expectedCalleeTy.isNull())
+        return nullptr;
+      const auto* expectedCallee = expectedCalleeTy->getAs<FunctionProtoType>();
+      if (!expectedCallee ||
+          expectedCallee->getNumParams() != derivType->getNumParams()) {
+        utils::diag(m_Sema, DiagnosticsEngine::Error, diagLoc,
+                    "internal error: unexpected derivative parameter count for "
+                    "pullback overload");
+        return nullptr;
+      }
+
+      for (unsigned i = 0; i < derivType->getNumParams(); ++i) {
+        QualType from = expectedCallee->getParamType(i);
+        QualType to = derivType->getParamType(i);
+        if (from.isNull() || to.isNull())
+          return nullptr;
+        if (from.getCanonicalType() == to.getCanonicalType())
+          continue;
+        bool ObjCLifetimeConversion = false;
+        if (!customPullback ||
+            !m_Sema.IsQualificationConversion(from, to, /*CStyle=*/false,
+                                              ObjCLifetimeConversion)) {
+          utils::diag(
+              m_Sema, DiagnosticsEngine::Error, diagLoc,
+              "internal error: unexpected derivative parameter type for "
+              "pullback overload");
+          return nullptr;
+        }
+      }
+    }
+
+    std::size_t numOfDerivativeParams = 0;
     llvm::SmallVector<QualType, 16> paramTypes;
+    // Public pullback traits see canonical parameter types, which omit
+    // top-level cv qualifiers on by-value parameters. A source
+    // FunctionProtoType may retain those qualifiers, so normalize before
+    // deriving adjoint slots.
+    for (unsigned i = 0; i < numPrimals; ++i)
+      paramTypes.push_back(pullbackMode ? m_Context.getCanonicalParamType(
+                                              reqType->getParamType(i))
+                                        : originalParams[i]->getType());
 
-    // Add types for representing original function parameters.
-    for (auto* PVD : m_DiffReq->parameters())
-      paramTypes.push_back(PVD->getType());
-    // Add types for representing parameter derivatives.
-    // FIXME: We are assuming all function parameters are differentiable. We
-    // should not make any such assumptions.
-    for (std::size_t i = 0; i < numOfDerivativeParams; ++i)
-      paramTypes.push_back(outputParamType);
+    if (pullbackMode) {
+      if (hasSeed)
+        paramTypes.push_back(seedType);
+      if (hasDThis) {
+        QualType dThisTy = utils::GetParameterDerivativeType(
+            m_Sema, m_DiffReq.Mode, originalMD->getThisType());
+        paramTypes.push_back(dThisTy);
+      }
+      // The public callable type is positional: passive and unselected primals
+      // retain an adjoint slot, but the implementation never consumes it.
+      for (unsigned i = 0; i < numPrimals; ++i)
+        paramTypes.push_back(utils::GetParameterDerivativeType(
+            m_Sema, m_DiffReq.Mode, paramTypes[i]));
+    } else {
+      numOfDerivativeParams = numPrimals;
+      if (!vectorMode && originalMD && originalMD->isInstance() &&
+          (!m_DiffReq.Functor || m_DiffReq.Mode != DiffMode::jacobian))
+        ++numOfDerivativeParams;
+      if (diffParams.size() < numPrimals ||
+          diffParams.size() > numPrimals + numOfDerivativeParams) {
+        utils::diag(m_Sema, DiagnosticsEngine::Error, diagLoc,
+                    "internal error: unexpected derivative parameter count "
+                    "for overload");
+        return nullptr;
+      }
+      QualType outputParamType =
+          vectorMode ? utils::GetCladArrayRefOfType(m_Sema, m_Context.VoidTy)
+                     : m_Context.getPointerType(m_Context.VoidTy);
+      for (std::size_t i = 0; i < numOfDerivativeParams; ++i)
+        paramTypes.push_back(outputParamType);
+    }
 
-    auto diffFuncOverloadEPI =
-        dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo();
-    QualType diffFunctionOverloadType =
-        m_Context.getFunctionType(m_Context.VoidTy, paramTypes,
-                                  // Cast to function pointer.
-                                  diffFuncOverloadEPI);
+    const std::size_t expectedPublicParams =
+        pullbackMode
+            ? numPrimals + (hasSeed ? 1 : 0) + (hasDThis ? 1 : 0) + numPrimals
+            : numPrimals + numOfDerivativeParams;
+    if (paramTypes.size() != expectedPublicParams)
+      return nullptr;
+
+    QualType diffFunctionOverloadType = m_Context.getFunctionType(
+        m_Context.VoidTy, paramTypes, reqType->getExtProtoInfo());
 
     // FIXME: We should not use const_cast to get the decl context here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-    // Called while the caller's Derive() still holds a ClonedFunction for the
-    // same namespaces; cloneFunction rebuilds them from the root, so restore
-    // CurContext/Scope here or the caller's handle pops past the TU and
-    // crashes.
+    auto* DC = const_cast<DeclContext*>(originalFD->getDeclContext());
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
     m_Sema.CurContext = DC;
-    // `cloned` owns its namespace Scopes; pops at end of this function,
-    // rebasing to the depth the outer Derive had on entry.
-    ClonedFunction cloned =
-        m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
-                                diffNameInfo, diffFunctionOverloadType);
+    ClonedFunction cloned = m_Builder.cloneFunction(
+        originalFD, *this, DC, noLoc, diffNameInfo, diffFunctionOverloadType);
     FunctionDecl* diffOverloadFD = cloned.fd;
+    if (!diffOverloadFD)
+      return nullptr;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(getCurrentScope(), diffOverloadFD);
+    // Own the function/prototype frame on both success and failure. Its
+    // guard must outlive the body guard and die before cloned's namespace
+    // guard, preserving the same inner-to-outer unwind order on every exit.
+    auto prototypeFrame = clad_compat::makeScopeExit([&] {
+      m_Sema.PopFunctionScopeInfo();
+      m_Sema.PopDeclContext();
+      endScope();
+    });
 
-    llvm::SmallVector<ParmVarDecl*, 4> overloadParams;
-    llvm::SmallVector<Expr*, 4> callArgs;
-
-    overloadParams.reserve(totalDerivedParamsSize);
+    llvm::SmallVector<ParmVarDecl*, 16> overloadParams;
+    llvm::SmallVector<ParmVarDecl*, 16> primalParams;
+    llvm::SmallVector<ParmVarDecl*, 16> adjointParams;
+    llvm::SmallVector<Expr*, 16> callArgs;
+    overloadParams.reserve(paramTypes.size());
+    primalParams.reserve(numPrimals);
+    adjointParams.reserve(numPrimals);
     callArgs.reserve(diffParams.size());
 
-    for (auto* PVD : m_DiffReq->parameters()) {
-      auto* VD = utils::BuildParmVarDecl(
-          m_Sema, diffOverloadFD, PVD->getIdentifier(), PVD->getType(),
-          PVD->getStorageClass(), /*defArg=*/nullptr, PVD->getTypeSourceInfo());
-      overloadParams.push_back(VD);
-      callArgs.push_back(BuildDeclRef(VD));
-    }
-
-    for (std::size_t i = 0; i < numOfDerivativeParams; ++i) {
-      IdentifierInfo* II = nullptr;
-      StorageClass SC = StorageClass::SC_None;
-      std::size_t effectiveDiffIndex = m_DiffReq->getNumParams() + i;
-      // `effectiveDiffIndex < diffParams.size()` implies that this
-      // parameter represents an actual derivative of one of the function
-      // original parameters.
-      if (effectiveDiffIndex < diffParams.size()) {
-        auto* GVD = diffParams[effectiveDiffIndex];
-        II = CreateUniqueIdentifier("_temp_" + GVD->getNameAsString());
-        SC = GVD->getStorageClass();
-      } else {
-        II = CreateUniqueIdentifier("_d_" + std::to_string(i));
+    // Parameters are built before any is pushed onto the scope chains. Keep a
+    // local reservation set so a custom seed named like a primal cannot create
+    // duplicate identifiers in the wrapper.
+    llvm::SmallPtrSet<const IdentifierInfo*, 16> reservedNames;
+    auto reserveName = [&](IdentifierInfo* preferred,
+                           llvm::StringRef fallback) -> IdentifierInfo* {
+      if (preferred && reservedNames.insert(preferred).second)
+        return preferred;
+      std::string base = fallback.empty() ? "arg" : fallback.str();
+      for (unsigned suffix = 0;; ++suffix) {
+        std::string candidate = base;
+        if (suffix)
+          candidate += std::to_string(suffix - 1);
+        IdentifierInfo* II = &m_Context.Idents.get(candidate);
+        if (reservedNames.insert(II).second)
+          return II;
       }
-      auto* PVD = utils::BuildParmVarDecl(m_Sema, diffOverloadFD, II,
-                                          outputParamType, SC);
-      overloadParams.push_back(PVD);
+    };
+
+    for (const ParmVarDecl* PVD : originalParams) {
+      IdentifierInfo* II = reserveName(PVD->getIdentifier(), "arg");
+      auto* VD = utils::BuildParmVarDecl(
+          m_Sema, diffOverloadFD, II,
+          pullbackMode ? paramTypes[primalParams.size()] : PVD->getType(),
+          PVD->getStorageClass(), /*defArg=*/nullptr,
+          pullbackMode ? nullptr : PVD->getTypeSourceInfo());
+      overloadParams.push_back(VD);
+      primalParams.push_back(VD);
     }
 
-    for (auto* PVD : overloadParams)
+    std::size_t calleeParamIdx = 0;
+    if (pullbackMode) {
+      // A custom member pullback consumes an explicit object parameter, but
+      // its wrapper is itself a member function. Build the CXXThisExpr only
+      // after entering the wrapper body scope below.
+      if (customObject)
+        ++calleeParamIdx;
+      for (ParmVarDecl* PVD : primalParams) {
+        Expr* primalArg = BuildDeclRef(PVD);
+        // A named rvalue-reference parameter is an lvalue expression. Restore
+        // its value category when forwarding to the implementation.
+        if (PVD->getType()->isRValueReferenceType())
+          primalArg = utils::BuildStaticCastToRValue(m_Sema, primalArg);
+        if (!primalArg)
+          return nullptr;
+        callArgs.push_back(primalArg);
+        ++calleeParamIdx;
+      }
+
+      if (hasSeed) {
+        const ParmVarDecl* calleeSeed = diffParams[calleeParamIdx];
+        IdentifierInfo* II = reserveName(calleeSeed->getIdentifier(), "_d_y");
+        auto* seedPVD =
+            utils::BuildParmVarDecl(m_Sema, diffOverloadFD, II, seedType,
+                                    calleeSeed->getStorageClass());
+        overloadParams.push_back(seedPVD);
+        callArgs.push_back(BuildDeclRef(seedPVD));
+        ++calleeParamIdx;
+      }
+
+      if (hasDThis) {
+        const ParmVarDecl* calleeDThis = diffParams[calleeParamIdx];
+        QualType dThisTy = utils::GetParameterDerivativeType(
+            m_Sema, m_DiffReq.Mode, originalMD->getThisType());
+        IdentifierInfo* II =
+            reserveName(calleeDThis->getIdentifier(), "_d_this");
+        auto* dThisPVD =
+            utils::BuildParmVarDecl(m_Sema, diffOverloadFD, II, dThisTy,
+                                    calleeDThis->getStorageClass());
+        overloadParams.push_back(dThisPVD);
+        callArgs.push_back(BuildDeclRef(dThisPVD));
+        ++calleeParamIdx;
+      }
+
+      for (std::size_t i = 0; i < numPrimals; ++i) {
+        const ParmVarDecl* primal = originalParams[i];
+        std::string cleanName = primal->getName().ltrim('_').str();
+        if (cleanName.empty())
+          cleanName = "arg";
+        IdentifierInfo* II = reserveName(nullptr, "_d_" + cleanName);
+        QualType dParamTy = utils::GetParameterDerivativeType(
+            m_Sema, m_DiffReq.Mode, paramTypes[i]);
+        auto* dPVD = utils::BuildParmVarDecl(m_Sema, diffOverloadFD, II,
+                                             dParamTy, StorageClass::SC_None);
+        overloadParams.push_back(dPVD);
+        adjointParams.push_back(dPVD);
+      }
+
+      for (std::size_t i = 0; i < numPrimals; ++i)
+        if (selected[i]) {
+          callArgs.push_back(BuildDeclRef(adjointParams[i]));
+          ++calleeParamIdx;
+        }
+
+      if (calleeParamIdx != diffParams.size() ||
+          callArgs.size() + (customObject ? 1 : 0) !=
+              derivType->getNumParams()) {
+        utils::diag(m_Sema, DiagnosticsEngine::Error, diagLoc,
+                    "internal error: pullback overload did not consume the "
+                    "complete derivative parameter layout");
+        return nullptr;
+      }
+    } else {
+      for (ParmVarDecl* PVD : primalParams)
+        callArgs.push_back(BuildDeclRef(PVD));
+      QualType outputParamType =
+          vectorMode ? utils::GetCladArrayRefOfType(m_Sema, m_Context.VoidTy)
+                     : m_Context.getPointerType(m_Context.VoidTy);
+      for (std::size_t i = 0; i < numOfDerivativeParams; ++i) {
+        IdentifierInfo* proposed = nullptr;
+        StorageClass SC = StorageClass::SC_None;
+        std::size_t effectiveDiffIndex = numPrimals + i;
+        if (effectiveDiffIndex < diffParams.size()) {
+          const ParmVarDecl* GVD = diffParams[effectiveDiffIndex];
+          proposed = CreateUniqueIdentifier("_temp_" + GVD->getNameAsString());
+          SC = GVD->getStorageClass();
+        }
+        IdentifierInfo* II = reserveName(proposed, "_d_" + std::to_string(i));
+        auto* PVD = utils::BuildParmVarDecl(m_Sema, diffOverloadFD, II,
+                                            outputParamType, SC);
+        overloadParams.push_back(PVD);
+      }
+    }
+
+    // cloneFunction creates the declaration and function prototype type but
+    // does not materialize ParmVarDecl objects. Validate the parameters built
+    // above, before publishing them on the declaration or scope chains.
+    if (overloadParams.size() != paramTypes.size())
+      return nullptr;
+    for (std::size_t i = 0; i < paramTypes.size(); ++i)
+      if (!overloadParams[i] || paramTypes[i].isNull() ||
+          overloadParams[i]->getType().getCanonicalType() !=
+              paramTypes[i].getCanonicalType())
+        return nullptr;
+
+    for (ParmVarDecl* PVD : overloadParams)
       if (PVD->getIdentifier())
         m_Sema.PushOnScopeChains(PVD, getCurrentScope(),
                                  /*AddToContext=*/false);
@@ -1539,60 +1791,72 @@ namespace clad {
     diffOverloadFD->setBody(/*B=*/nullptr);
 
     beginScope(Scope::FnScope | Scope::DeclScope);
-    m_DerivativeFnScope = getCurrentScope();
+    // The overload owns this temporary body scope, not the caller's visitor
+    // state. Restore the previous pointer rather than retaining a scope that
+    // endScope deletes, including when a later AST construction fails.
+    llvm::SaveAndRestore<Scope*> restoreDerivativeScope(m_DerivativeFnScope,
+                                                        getCurrentScope());
     beginBlock();
+    bool publishBody = false;
+    auto bodyFrame = clad_compat::makeScopeExit([&] {
+      CompoundStmt* body = endBlock();
+      if (publishBody)
+        diffOverloadFD->setBody(body);
+      endScope();
+    });
 
-    // Build derivatives to be used in the call to the actual derived function.
-    // These are initialised by effectively casting the derivative parameters of
-    // overloaded derived function to the correct type.
-    for (std::size_t i = m_DiffReq->getNumParams(); i < diffParams.size();
-         ++i) {
-      auto* overloadParam = overloadParams[i];
-      auto* diffParam = diffParams[i];
-      QualType diffParamType = diffParam->getType();
-      TypeSourceInfo* typeInfo =
-          m_Context.getTrivialTypeSourceInfo(diffParamType);
-      Expr* init = BuildDeclRef(overloadParam);
-      if (vectorMode) {
-        // A clad::array_ref<void> reaches a non-array_ref parameter through
-        // its underlying pointer.
-        if (!isCladArrayType(diffParamType))
-          init = BuildCallExprToMemFn(init, /*MemberFunctionName=*/"ptr", {});
-        init = m_Sema
-                   .BuildCXXNamedCast(noLoc, tok::TokenKind::kw_static_cast,
-                                      typeInfo, init, noLoc, noLoc)
-                   .get();
-      } else {
-        init = BuildCStyleCast(typeInfo, init);
+    if (customObject) {
+      Expr* object = m_Sema.BuildCXXThisExpr(
+          GenLoc(), originalMD->getThisType(), /*IsImplicit=*/true);
+      if (!object)
+        return nullptr;
+      callArgs.insert(callArgs.begin(), object);
+    }
+
+    if (!pullbackMode) {
+      for (std::size_t i = numPrimals; i < diffParams.size(); ++i) {
+        if (i >= overloadParams.size())
+          return nullptr;
+        ParmVarDecl* overloadParam = overloadParams[i];
+        ParmVarDecl* diffParam = diffParams[i];
+        QualType diffParamType = diffParam->getType();
+        TypeSourceInfo* typeInfo =
+            m_Context.getTrivialTypeSourceInfo(diffParamType);
+        Expr* init = BuildDeclRef(overloadParam);
+        if (vectorMode) {
+          if (!isCladArrayType(diffParamType))
+            init = BuildCallExprToMemFn(init, "ptr", {});
+          init = m_Sema
+                     .BuildCXXNamedCast(noLoc, tok::TokenKind::kw_static_cast,
+                                        typeInfo, init, noLoc, noLoc)
+                     .get();
+        } else {
+          init = BuildCStyleCast(typeInfo, init);
+        }
+        if (!init)
+          return nullptr;
+        VarDecl* diffVD =
+            BuildGlobalVarDecl(diffParamType, diffParam->getName(), init);
+        callArgs.push_back(BuildDeclRef(diffVD));
+        addToCurrentBlock(BuildDeclStmt(diffVD));
       }
-
-      auto* diffVD =
-          BuildGlobalVarDecl(diffParamType, diffParam->getName(), init);
-      callArgs.push_back(BuildDeclRef(diffVD));
-      addToCurrentBlock(BuildDeclStmt(diffVD));
     }
 
-    // If the function is a global kernel, we need to transform it
-    // into a device function when calling it inside the overload function
-    // which is the final global kernel returned.
-    if (derivative->hasAttr<clang::CUDAGlobalAttr>()) {
-      derivative->dropAttr<clang::CUDAGlobalAttr>();
-      derivative->addAttr(clang::CUDADeviceAttr::CreateImplicit(m_Context));
+    if (derivative->hasAttr<CUDAGlobalAttr>()) {
+      derivative->dropAttr<CUDAGlobalAttr>();
+      derivative->addAttr(CUDADeviceAttr::CreateImplicit(m_Context));
     }
-
+    if (callArgs.size() != derivType->getNumParams())
+      return nullptr;
     Expr* callExpr = BuildCallExprToFunction(derivative, callArgs,
                                              /*CUDAExecConfig=*/nullptr,
                                              /*useRefQualifiedThisObj=*/true);
+    if (!callExpr)
+      return nullptr;
     addToCurrentBlock(callExpr);
-    Stmt* diffOverloadBody = endBlock();
-
-    diffOverloadFD->setBody(diffOverloadBody);
-
-    endScope(); // Function body scope
-    m_Sema.PopFunctionScopeInfo();
-    m_Sema.PopDeclContext();
-    endScope(); // Function decl scope
-
+    // The body guard publishes only a complete, validated wrapper. A failed
+    // call unwinds the block without attaching a partial body to the decl.
+    publishBody = true;
     return diffOverloadFD;
   }
 

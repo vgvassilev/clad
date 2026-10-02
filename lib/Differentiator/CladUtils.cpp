@@ -1501,12 +1501,29 @@ namespace clad {
       return Type;
     }
 
-    static bool isNAT(QualType T) {
+    bool isStdNATType(QualType T, Sema& S) {
+      if (T.isNull())
+        return false;
       T = GetValueType(T);
-      if (const auto* RT = T->getAs<RecordType>()) {
-        const RecordDecl* RD = RT->getDecl();
-        if (RD->getNameAsString() == "__nat")
+      if (T.isNull())
+        return false;
+      const auto* RT = T->getAs<RecordType>();
+      if (!RT)
+        return false;
+      const RecordDecl* RD = RT->getDecl();
+      if (!RD || RD->getName() != "__nat")
+        return false;
+
+      const NamespaceDecl* Std = S.getStdNamespace();
+      if (!Std)
+        return false;
+      const DeclContext* DC = RD->getDeclContext();
+      while (const auto* NS = dyn_cast_or_null<NamespaceDecl>(DC)) {
+        if (NS->getPrimaryContext() == Std->getPrimaryContext())
           return true;
+        if (!NS->isInline())
+          return false;
+        DC = NS->getParent();
       }
       return false;
     }
@@ -1534,7 +1551,7 @@ namespace clad {
         // explicitly. However, some of them have private types and cannot be
         // set. For this reason, we ignore std::__nat. We need to come up with a
         // general solution.
-        if (isNAT(T))
+        if (isStdNATType(T, S))
           break;
         FnTypes.push_back(T);
       }
@@ -1604,7 +1621,7 @@ namespace clad {
         // explicitly. However, some of them have private types and cannot be
         // set. For this reason, we ignore std::__nat. We need to come up with a
         // general solution.
-        if (isNAT(FnProtoTy->getParamType(i)))
+        if (isStdNATType(FnProtoTy->getParamType(i), S))
           break;
         QualType PVDTy = FnTypes[i];
         if (mode == DiffMode::jacobian &&

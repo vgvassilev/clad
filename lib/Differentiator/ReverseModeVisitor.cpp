@@ -13,6 +13,7 @@
 #include "LoopScope.h"
 #include "TBRAnalyzer.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ExternalRMVSource.h"
@@ -359,6 +360,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   ReverseModeVisitor::~ReverseModeVisitor() = default;
 
+  static bool needsDThis(const FunctionDecl* FD);
+
   DerivativeAndOverload ReverseModeVisitor::Derive() {
     assert(m_DiffReq.Function && "Must not be null.");
     PrettyStackTraceDerivative CrashInfo(m_DiffReq, m_Blocks, m_Sema,
@@ -373,26 +376,82 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool shouldCreateOverload = false;
     // FIXME: Gradient overload doesn't know how to handle additional parameters
     // added by the plugins yet.
-    if (m_DiffReq.Mode == DiffMode::reverse) {
-      if (returnTy->isRealType())
-        m_Pullback.push_back(ConstantFolder::synthesizeLiteral(m_Context.IntTy,
-                                                               m_Context,
-                                                               /*val=*/1));
-      else if (!returnTy->isVoidType()) {
-        diag(DiagnosticsEngine::Warning, m_DiffReq.Function->getBeginLoc(),
-             "clad::gradient only supports differentiation functions of real "
-             "return types. Return stmt ignored")
-            << m_DiffReq.Function->getReturnTypeSourceRange();
-        diag(DiagnosticsEngine::Note, m_DiffReq.CallContext->getBeginLoc(),
-             "use clad::jacobian to compute derivatives of multiple real "
-             "outputs w.r.t. multiple real inputs");
+    if (m_DiffReq.Mode == DiffMode::reverse ||
+        m_DiffReq.Mode == DiffMode::pullback) {
+      if (m_DiffReq.Mode != DiffMode::pullback) {
+        if (returnTy->isRealType())
+          m_Pullback.push_back(
+              ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                                /*val=*/1));
+        else if (!returnTy->isVoidType()) {
+          diag(DiagnosticsEngine::Warning, m_DiffReq.Function->getBeginLoc(),
+               "clad::gradient only supports differentiation functions of real "
+               "return types. Return stmt ignored")
+              << m_DiffReq.Function->getReturnTypeSourceRange();
+          diag(DiagnosticsEngine::Note, m_DiffReq.CallContext->getBeginLoc(),
+               "use clad::jacobian to compute derivatives of multiple real "
+               "outputs w.r.t. multiple real inputs");
+        }
       }
-      shouldCreateOverload = !m_ExternalSource;
+      shouldCreateOverload =
+          !m_ExternalSource &&
+          (m_DiffReq.Mode != DiffMode::pullback || PullbackNeedsOverload());
       if (!m_DiffReq.DeclarationOnly && !m_DiffReq.DerivedFDPrototypes.empty())
-        // If the overload is already created, we don't need to create it again.
         shouldCreateOverload = false;
     }
     QualType dFnType = GetDerivativeType();
+    if (dFnType.isNull())
+      return {};
+    const auto* dFnProto = dFnType->getAs<FunctionProtoType>();
+    if (!dFnProto)
+      return {};
+    if (m_DiffReq.Mode == DiffMode::pullback) {
+      const auto* FD = m_DiffReq.Function;
+      std::size_t numPrimals = 0;
+      for (const ParmVarDecl* PVD : FD->parameters()) {
+        if (utils::isStdNATType(PVD->getType(), m_Sema))
+          break;
+        ++numPrimals;
+      }
+      std::size_t expectedParams = numPrimals;
+      QualType returnType = FD->getReturnType();
+      const bool isConstructor = isa<CXXConstructorDecl>(FD);
+      if (!isConstructor) {
+        QualType seedType =
+            utils::getNonConstType(returnType.getNonReferenceType(), m_Sema);
+        if (!seedType->isVoidType() && !seedType->isPointerType() &&
+            !utils::isNonConstReferenceType(returnType))
+          ++expectedParams;
+      }
+      // GetDerivativeType substitutes the constructed object for a
+      // constructor's declared void return; BuildParams materializes that
+      // cotangent as _d_this, so constructors still contribute one slot here.
+      if (needsDThis(FD))
+        ++expectedParams;
+      // Error estimation appends a trailing `double& _final_error` parameter
+      // to both the function type and the materialized pullback parameters.
+      if (m_DiffReq.EnableErrorEstimation)
+        ++expectedParams;
+      for (std::size_t i = 0; i < numPrimals; ++i) {
+        const ParmVarDecl* PVD = FD->getParamDecl(i);
+        if (utils::hasNonDifferentiableAttribute(PVD))
+          continue;
+        for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
+          if (VarInfo.param == PVD) {
+            ++expectedParams;
+            break;
+          }
+      }
+      if (dFnProto->getNumParams() != expectedParams) {
+        SourceLocation L = m_DiffReq.CallContext
+                               ? m_DiffReq.CallContext->getBeginLoc()
+                               : FD->getBeginLoc();
+        utils::diag(m_Sema, DiagnosticsEngine::Error, L,
+                    "internal error: generated pullback parameter layout "
+                    "does not match its function type");
+        return {};
+      }
+    }
 
     // Check if the function is already declared as a custom derivative.
     std::string name = m_DiffReq.ComputeDerivativeName();
@@ -414,6 +473,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     ClonedFunction result = m_Builder.cloneFunction(m_DiffReq.Function, *this,
                                                     DC, loc, DNI, dFnType);
     m_Derivative = result.fd;
+    if (!m_Derivative)
+      return {};
 
     // Function declaration scope
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -489,7 +550,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!shouldCreateOverload)
       return DerivativeAndOverload{result.fd, /*overload=*/nullptr};
 
-    return DerivativeAndOverload{result.fd, CreateDerivativeOverload()};
+    const auto overloadKind = m_DiffReq.Mode == DiffMode::pullback
+                                  ? OverloadKind::PullbackCustom
+                                  : OverloadKind::Default;
+    FunctionDecl* overloadFD = CreateDerivativeOverload(nullptr, overloadKind);
+    if (!overloadFD)
+      return DerivativeAndOverload{/*derivative=*/nullptr,
+                                   /*overload=*/nullptr};
+    return DerivativeAndOverload{result.fd, overloadFD};
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
@@ -6027,6 +6095,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   static bool needsDThis(const FunctionDecl* FD) {
     if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
       const CXXRecordDecl* RD = MD->getParent();
+      // Constructors are included: GetDerivativeType substitutes the object
+      // cotangent for their declared void return and BuildParams names it
+      // _d_this.
       if (MD->isInstance() && !RD->isLambda())
         return true;
     }
@@ -6041,6 +6112,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       FD = LE->getCallOperator();
 
     for (ParmVarDecl* PVD : FD->parameters()) {
+      if (utils::isStdNATType(PVD->getType(), m_Sema))
+        break;
       IdentifierInfo* PVDII = PVD->getIdentifier();
       // Implicitly created special member functions have no parameter names.
       if (!PVD->getDeclName())
@@ -6083,7 +6156,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (!paramNameExists(identifier))
           break;
       }
-      IdentifierInfo* II = &m_Context.Idents.get("_d_" + identifier);
+      IdentifierInfo* II = CreateUniqueIdentifier("_d_" + identifier);
       ParmVarDecl* retPVD =
           utils::BuildParmVarDecl(m_Sema, m_Derivative, II, dRetTy);
       m_Sema.PushOnScopeChains(retPVD, getCurrentScope(),
@@ -6099,7 +6172,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // parameter for representing derivative of `this` pointer with respect to
     // the independent parameter.
     if (HasThis) {
-      IdentifierInfo* dThisII = &m_Context.Idents.get("_d_this");
+      IdentifierInfo* dThisII = CreateUniqueIdentifier("_d_this");
       const auto* MD = cast<CXXMethodDecl>(FD);
       QualType thisTy = utils::GetParameterDerivativeType(
           m_Sema, m_DiffReq.Mode, MD->getThisType());
