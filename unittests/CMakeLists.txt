@@ -68,3 +68,7 @@ if (NOT EMSCRIPTEN)
 
   add_subdirectory(Misc)
 endif()
+
+if (NOT EMSCRIPTEN)
+  add_subdirectory(Compiler)
+endif()

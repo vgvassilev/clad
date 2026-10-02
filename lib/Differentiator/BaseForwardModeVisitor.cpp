@@ -307,8 +307,8 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
       continue;
 
     IdentifierInfo* II = &m_Context.Idents.get("_d_" + PVD->getNameAsString());
-    QualType diffTy = utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
-                                                        PVD->getType());
+    QualType diffTy = utils::GetParameterDerivativeType(
+        m_Sema, m_DiffReq.Mode, PVD->getType(), &m_Builder.getLookupCache());
     auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, diffTy,
                                          PVD->getStorageClass());
     params.push_back(dPVD);
@@ -2569,7 +2569,8 @@ clang::Expr* BaseForwardModeVisitor::BuildCustomDerivativeConstructorPFCall(
   llvm::SmallVector<Expr*, 4> customPushforwardArgs;
   // Builds clad::Tag<T>()
   Expr* tagArg =
-      utils::GetCladTagExpr(m_Sema, CE->getType().withoutLocalFastQualifiers());
+      utils::GetCladTagExpr(m_Sema, CE->getType().withoutLocalFastQualifiers(),
+                            &m_Builder.getLookupCache());
   customPushforwardArgs.push_back(tagArg);
   customPushforwardArgs.append(clonedArgs.begin(), clonedArgs.end());
   customPushforwardArgs.append(derivedArgs.begin(), derivedArgs.end());
