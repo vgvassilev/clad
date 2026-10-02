@@ -539,6 +539,7 @@ namespace clad {
     StmtDiff VisitOpaqueValueExpr(const clang::OpaqueValueExpr* OVE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
+    StmtDiff VisitAttributedStmt(const clang::AttributedStmt* S);
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff
     VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
