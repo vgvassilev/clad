@@ -8,8 +8,10 @@
 #include <vector>
 
 TEST(CompilerInstances, LookupCachesStayWithTheirSema) {
-  ASSERT_FALSE(
-      llvm::sys::DynamicLibrary::LoadLibraryPermanently(CLAD_TEST_PLUGIN));
+  std::string error;
+  ASSERT_FALSE(llvm::sys::DynamicLibrary::LoadLibraryPermanently(
+      CLAD_TEST_PLUGIN, &error))
+      << error;
   const char* code = R"(
 #include "clad/Differentiator/Differentiator.h"
 double loop(double x, int n) {
