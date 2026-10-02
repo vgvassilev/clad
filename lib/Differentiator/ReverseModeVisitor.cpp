@@ -916,7 +916,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitAttributedStmt(const AttributedStmt* S) {
-    return Visit(S->getSubStmt());
+    const Stmt* SubStmt = utils::SkipLikelihoodHints(S);
+    return SubStmt == S ? VisitStmt(S) : Visit(SubStmt);
   }
 
   StmtDiff

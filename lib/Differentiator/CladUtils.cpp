@@ -54,6 +54,16 @@ namespace clad {
         S.Diags.getDiagnosticIDs()->getCustomDiagID(severityOf(D), textOf(D));
     return S.Diag(Loc, ID);
   }
+  const Stmt* SkipLikelihoodHints(const Stmt* S) {
+    while (const auto* AS = dyn_cast<AttributedStmt>(S)) {
+      for (const Attr* A : AS->getAttrs())
+        if (!isa<LikelyAttr, UnlikelyAttr>(A))
+          return S;
+      S = AS->getSubStmt();
+    }
+    return S;
+  }
+
     static SourceLocation noLoc{};
 
     std::string ComputeEffectiveFnName(const FunctionDecl* FD) {

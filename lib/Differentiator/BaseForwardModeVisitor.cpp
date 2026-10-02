@@ -467,7 +467,8 @@ StmtDiff BaseForwardModeVisitor::VisitStmt(const Stmt* S) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitAttributedStmt(const AttributedStmt* S) {
-  return Visit(S->getSubStmt());
+  const Stmt* SubStmt = utils::SkipLikelihoodHints(S);
+  return SubStmt == S ? VisitStmt(S) : Visit(SubStmt);
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
@@ -2168,12 +2169,13 @@ StmtDiff BaseForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
 }
 
 /// returns first switch case label contained in the compound statement `CS`.
-static SwitchCase* getContainedSwitchCaseStmt(const CompoundStmt* CS) {
-  for (Stmt* stmt : CS->body()) {
+static const SwitchCase* getContainedSwitchCaseStmt(const CompoundStmt* CS) {
+  for (const Stmt* stmt : CS->body()) {
+    stmt = utils::SkipLikelihoodHints(stmt);
     if (auto SC = dyn_cast<SwitchCase>(stmt))
       return SC;
     else if (auto nestedCS = dyn_cast<CompoundStmt>(stmt)) {
-      if (SwitchCase* nestedRes = getContainedSwitchCaseStmt(nestedCS))
+      if (const SwitchCase* nestedRes = getContainedSwitchCaseStmt(nestedCS))
         return nestedRes;
     }
   }
@@ -2275,6 +2277,7 @@ StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
 SwitchCase*
 BaseForwardModeVisitor::DeriveSwitchStmtBodyHelper(const Stmt* stmt,
                                                    SwitchCase* activeSC) {
+  stmt = utils::SkipLikelihoodHints(stmt);
   if (auto SC = dyn_cast<SwitchCase>(stmt)) {
     // New switch case label have been visited. Pop the scope and block
     // corresponding to the active switch case label, and update its
