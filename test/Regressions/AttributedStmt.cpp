@@ -53,4 +53,3 @@ int main() {
 
 // CHECK-EXEC-NEXT: 4 4
 // CHECK-EXEC-NEXT: 3 3
-
