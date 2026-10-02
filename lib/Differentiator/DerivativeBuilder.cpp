@@ -526,7 +526,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     for (const DiffInputVarInfo& VarInfo : request.DVI)
       diffParams.push_back(VarInfo.param);
     QualType DerivativeType = utils::GetDerivativeType(
-        m_Sema, FD, request.Mode, diffParams, /*forCustomDerv=*/true);
+        m_Sema, FD, request.Mode, diffParams, /*forCustomDerv=*/true, false,
+        false, &m_LookupCache);
 
     diag(DiagnosticsEngine::Remark, Loc,
          "clad has no custom derivative for %0 and is differentiating its "
@@ -584,9 +585,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         llvm::SmallVector<const ValueDecl*, 4> diffParams{};
         for (const DiffInputVarInfo& VarInfo : request.DVI)
           diffParams.push_back(VarInfo.param);
-        QualType DerivativeType =
-            utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
-                                     diffParams, /*forCustomDerv=*/true);
+        QualType DerivativeType = utils::GetDerivativeType(
+            m_Sema, request.Function, request.Mode, diffParams,
+            /*forCustomDerv=*/true, false, false, &m_LookupCache);
         // Generate dummy inits. A custom reverse_forw / pullback may carry a
         // trailing clad::pullback_state<S> parameter that clad does not
         // synthesize into DerivativeType; append it so the overload call has

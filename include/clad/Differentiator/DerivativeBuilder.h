@@ -113,6 +113,7 @@ struct DerivativeAndOverload {
     friend class JacobianModeVisitor;
     friend class ReverseModeForwPassVisitor;
     clang::Sema& m_Sema;
+    utils::CladLookupCache m_LookupCache;
     /// Distinct locations for the nodes clad builds; see GeneratedCode.
     std::unique_ptr<GeneratedCode> m_GeneratedCode;
     plugin::CladPlugin& m_CladPlugin;
@@ -186,6 +187,7 @@ struct DerivativeAndOverload {
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
                       DiffScheduler& Scheduler);
     ~DerivativeBuilder();
+    utils::CladLookupCache& getLookupCache() { return m_LookupCache; }
     /// A location for a node about to be built. Distinct per node, so that a
     /// line note can later say where that node really ended up.
     clang::SourceLocation GenLoc();

@@ -152,7 +152,8 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
   else if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function))
     tagType = CD->getThisType()->getPointeeType();
   if (!tagType.isNull()) {
-    QualType typeTag = utils::GetCladTagOfType(m_Sema, tagType);
+    QualType typeTag =
+        utils::GetCladTagOfType(m_Sema, tagType, &m_Builder.getLookupCache());
     IdentifierInfo* emptyII = &m_Context.Idents.get("");
     ParmVarDecl* typeTagPVD =
         utils::BuildParmVarDecl(m_Sema, m_Derivative, emptyII, typeTag);
@@ -218,7 +219,8 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
     }
   }
   if (m_DiffReq.UseRestoreTracker) {
-    QualType trackerTy = utils::GetRestoreTrackerType(m_Sema);
+    QualType trackerTy =
+        utils::GetRestoreTrackerType(m_Sema, &m_Builder.getLookupCache());
     trackerTy = m_Sema.getASTContext().getLValueReferenceType(trackerTy);
     ParmVarDecl* trackerPVD = utils::BuildParmVarDecl(
         m_Sema, m_Derivative, CreateUniqueIdentifier("_tracker"), trackerTy);

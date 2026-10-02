@@ -98,7 +98,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
       ParmVarDecl* derivedPVD =
           utils::BuildParmVarDecl(m_Sema, m_Derivative, derivedPVDII,
                                   utils::GetParameterDerivativeType(
-                                      m_Sema, m_DiffReq.Mode, PVD->getType()),
+                                      m_Sema, m_DiffReq.Mode, PVD->getType(),
+                                      &m_Builder.getLookupCache()),
                                   PVD->getStorageClass());
       derivedParams.push_back(derivedPVD);
       adjointDecl = derivedPVD;
@@ -117,7 +118,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
       ParmVarDecl* derivedPVD =
           utils::BuildParmVarDecl(m_Sema, m_Derivative, derivedPVDII,
                                   utils::GetParameterDerivativeType(
-                                      m_Sema, m_DiffReq.Mode, PVD->getType()),
+                                      m_Sema, m_DiffReq.Mode, PVD->getType(),
+                                      &m_Builder.getLookupCache()),
                                   PVD->getStorageClass());
       derivedParams.push_back(derivedPVD);
       adjointDecl = derivedPVD;
@@ -125,8 +127,9 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
       nonArrayIndVarCount += 1;
     } else {
       VarDecl* derivedPVD =
-          BuildVarDecl(utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
-                                                         PVD->getType())
+          BuildVarDecl(utils::GetParameterDerivativeType(
+                           m_Sema, m_DiffReq.Mode, PVD->getType(),
+                           &m_Builder.getLookupCache())
                            ->getPointeeType(),
                        derivedPVDII);
       adjointDecls.push_back(BuildDeclStmt(derivedPVD));

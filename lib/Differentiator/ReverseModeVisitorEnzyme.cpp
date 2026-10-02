@@ -146,8 +146,8 @@ void ReverseModeVisitor::DifferentiateWithEnzyme() {
   QualType QT;
   if (!enzymeRealParams.empty()) {
     // Find the EnzymeGradient datastructure
-    auto* gradDecl =
-        utils::LookupTemplateDeclInCladNamespace(m_Sema, "EnzymeGradient");
+    auto* gradDecl = utils::LookupTemplateDeclInCladNamespace(
+        m_Sema, "EnzymeGradient", &m_Builder.getLookupCache());
 
     TemplateArgumentListInfo TLI{};
     llvm::APSInt argValue = m_Context.MakeIntValue(enzymeRealParams.size(),
@@ -163,7 +163,8 @@ void ReverseModeVisitor::DifferentiateWithEnzyme() {
                                            m_Context.UnsignedIntTy, noLoc);
     TLI.addArgument(TemplateArgumentLoc(TA, argExpr));
 
-    QT = utils::InstantiateTemplate(m_Sema, gradDecl, TLI);
+    QT = utils::InstantiateTemplate(m_Sema, gradDecl, TLI,
+                                    &m_Builder.getLookupCache());
   } else {
     QT = m_Context.VoidTy;
   }
