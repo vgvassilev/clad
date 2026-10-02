@@ -15,6 +15,7 @@
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/ScopeExit.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
 
@@ -47,7 +48,6 @@
 #include "clang/Sema/Template.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -1632,7 +1632,7 @@ namespace clad {
     // Own the function/prototype frame on both success and failure. Its
     // guard must outlive the body guard and die before cloned's namespace
     // guard, preserving the same inner-to-outer unwind order on every exit.
-    auto prototypeFrame = llvm::make_scope_exit([&] {
+    auto prototypeFrame = clad_compat::makeScopeExit([&] {
       m_Sema.PopFunctionScopeInfo();
       m_Sema.PopDeclContext();
       endScope();
@@ -1798,7 +1798,7 @@ namespace clad {
                                                         getCurrentScope());
     beginBlock();
     bool publishBody = false;
-    auto bodyFrame = llvm::make_scope_exit([&] {
+    auto bodyFrame = clad_compat::makeScopeExit([&] {
       CompoundStmt* body = endBlock();
       if (publishBody)
         diffOverloadFD->setBody(body);
