@@ -446,6 +446,9 @@ clang::Sema::SemaDiagnosticBuilder diag(
     LookupTemplateDeclInCladNamespace(clang::Sema& S,
                                       llvm::StringRef ClassName);
 
+    /// Remove only likelihood hints. Semantic statement attributes remain.
+    const clang::Stmt* SkipLikelihoodHints(const clang::Stmt* S);
+
     bool hasNonDifferentiableAttribute(const clang::Decl* D);
 
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
