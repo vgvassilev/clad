@@ -221,3 +221,78 @@ int main() {
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
+
+// CHECK: double wrapped_darg0(double x, int i) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     double _d_r = 0;
+// CHECK-NEXT:     double r = 0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         switch (i) {
+// CHECK-NEXT:           case 0:
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 _d_r = _d_x * x + x * _d_x;
+// CHECK-NEXT:                 r = x * x;
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:           default:
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 _d_r = 3 * _d_x;
+// CHECK-NEXT:                 r = 3 * x;
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return _d_r;
+// CHECK-NEXT: }
+// CHECK: void wrapped_grad_0(double x, int i, double *_d_x) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int _cond0;
+// CHECK-NEXT:     double _d_r = 0.;
+// CHECK-NEXT:     double r = 0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _cond0 = i;
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:             {
+// CHECK-NEXT:               case 0:
+// CHECK-NEXT:                 r = x * x;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:               default:
+// CHECK-NEXT:                 r = 3 * x;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_r += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         switch (_cond0) {
+// CHECK-NEXT:           default:
+// CHECK-NEXT:             ;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     *_d_x += 3 * _d_r;
+// CHECK-NEXT:                     _d_r = 0.;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 if (_cond0 != 0)
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:           case 0:
+// CHECK-NEXT:             ;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     *_d_x += _d_r * x;
+// CHECK-NEXT:                     *_d_x += x * _d_r;
+// CHECK-NEXT:                     _d_r = 0.;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:                 if (0 == _cond0)
+// CHECK-NEXT:                     break;
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
