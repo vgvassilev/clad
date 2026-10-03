@@ -31,7 +31,7 @@ double offsetSlot(double x) {
 // CHECK-NEXT:     double _t1[3];
 // CHECK-NEXT:     double _d_t = 0.;
 // CHECK-NEXT:     double t = 1;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     for (i = 2; i < 5; i++) {
 // CHECK-NEXT:         _t1[i - 2] = t;
 // CHECK-NEXT:         t *= x * i;
