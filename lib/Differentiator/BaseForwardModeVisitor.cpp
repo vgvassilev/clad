@@ -154,7 +154,9 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   SourceLocation validLoc{m_DiffReq->getLocation()};
   DeclarationNameInfo name(II, validLoc);
   llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
+  // Nested derivatives must not search the caller's local scopes.
+  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
+                                         getEnclosingNamespaceOrTUScope());
 
   m_Sema.CurContext = DC;
   QualType derivedFnType = GetDerivativeType();
@@ -307,10 +309,16 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
       continue;
 
     IdentifierInfo* II = &m_Context.Idents.get("_d_" + PVD->getNameAsString());
+    if (std::any_of(params.begin(), params.end(),
+                    [II](const ParmVarDecl* Param) {
+                      return Param->getIdentifier() == II;
+                    }))
+      II = CreateUniqueIdentifier(II->getName());
     QualType diffTy = utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
                                                         PVD->getType());
     auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, diffTy,
                                          PVD->getStorageClass());
+    m_Sema.PushOnScopeChains(dPVD, getCurrentScope(), /*AddToContext=*/false);
     params.push_back(dPVD);
     m_Variables[PVD] = {dPVD};
   }
