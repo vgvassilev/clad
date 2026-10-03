@@ -1258,6 +1258,9 @@ namespace clad {
     bool returnsAdjoint(QualType T) {
       if (T->isPointerType())
         return true;
+      if (T->isLValueReferenceType() &&
+          T.getNonReferenceType()->isRealFloatingType())
+        return true;
       return isMemoryType(T);
     }
 
@@ -1368,6 +1371,21 @@ namespace clad {
       if (!peeled)
         return true;
       return !VD->getType()->isPointerType();
+    }
+
+    bool allocatesIntoRecordParam(const FunctionDecl* FD) {
+      for (const ParmVarDecl* PVD : FD->parameters()) {
+        QualType T = PVD->getType().getCanonicalType();
+        if (T->isPointerType() || T->isReferenceType()) {
+          QualType pointee = T->isPointerType() ? T->getPointeeType()
+                                                : T.getNonReferenceType();
+          if (pointee.isConstQualified())
+            continue;
+          if (pointee->getAs<RecordType>() && isMemoryType(pointee))
+            return true;
+        }
+      }
+      return false;
     }
 
     bool hasMemoryTypeParams(const FunctionDecl* FD) {

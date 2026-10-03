@@ -283,6 +283,16 @@ double fn24(double x){
    std::pair<double, double> p(x,1);
    return p.first;
 }
+
+double fn25(const std::vector<double>& v) {
+  return 3 * v[1] + v[0] * v[1];
+}
+
+struct Pt { double x, y; };
+double fn26(const std::vector<Pt>& v, double s) {
+  return s * v[1].x + v[0].y * s * s;
+}
+
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn1);
@@ -357,6 +367,15 @@ int main() {
 
     INIT_GRADIENT(fn24);
     TEST_GRADIENT(fn24, /*numOfDerivativeArgs=*/1, 3, &d_i);  // CHECK-EXEC: {1.00}
+
+    std::vector<double> v25{3, 5}, dv25(2, 0);
+    clad::gradient(fn25).execute(v25, &dv25);
+    printf("{%.2f, %.2f}\n", dv25[0], dv25[1]);  // CHECK-EXEC: {5.00, 6.00}
+
+    std::vector<Pt> v26{{1, 2}, {3, 4}}, dv26(2, Pt{0, 0});
+    double ds = 0;
+    clad::gradient(fn26).execute(v26, 2, &dv26, &ds);
+    printf("{%.2f, %.2f, %.2f}\n", dv26[0].y, dv26[1].x, ds);  // CHECK-EXEC: {4.00, 2.00, 11.00}
 }
 
 // CHECK: void fn1_grad(double u, double v, double *_d_u, double *_d_v) {
