@@ -563,6 +563,10 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     clang::QualType GetRestoreTrackerType(clang::Sema& S);
 
+    /// Returns std::size_t as its typedef, so that the generated code spells
+    /// it `size_t` on every target rather than as the integer type it names.
+    clang::QualType GetSizeTType(clang::Sema& S);
+
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
     bool IsZeroOrNullValue(const clang::Expr* E);
