@@ -33,6 +33,7 @@ class BaseForwardModeVisitor
                                           clang::OMPClause*>,
       public VisitorBase {
   unsigned m_IndependentVarIndex = ~0;
+  bool m_EvaluatingOpaqueOperand = false;
 
 protected:
   const clang::ValueDecl* m_IndependentVar = nullptr;
@@ -99,6 +100,9 @@ public:
   virtual StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
+  bool containsNonDifferentiableCall(const clang::Stmt* S);
+  clang::Expr* VisitForEvaluation(const clang::Expr* E);
+
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
