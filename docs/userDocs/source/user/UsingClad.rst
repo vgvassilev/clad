@@ -574,6 +574,13 @@ If the attribute is applied to a function declaration, Clad refrains from produc
    :start-after: docs-begin-non-differentiable-function
    :end-before: docs-end-non-differentiable-function
 
+In forward modes, a non-differentiable call contributes a zero tangent for
+its result. Evaluating its arguments and receiver can still change active
+variables. Those tangent updates follow the executed branches and loop
+iterations, including nested differentiable calls inside the operands.
+This rule does not add constructor or reverse-mode support. Differentiating
+the generated capturing lambdas again in higher-order modes remains unsupported.
+
 Marking a type you do not own
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

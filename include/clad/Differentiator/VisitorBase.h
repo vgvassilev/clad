@@ -19,6 +19,7 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/ExceptionSpecificationType.h"
 #include "clang/Basic/Lambda.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/Specifiers.h"
@@ -373,7 +374,8 @@ namespace clad {
     // FIXME: This will become problematic when we try to support C.
     template <typename F>
     static clang::Expr* buildLambda(VisitorBase& V, clang::Sema& S,
-                                    const clang::Stmt* LocSrc, F&& func) {
+                                    const clang::Stmt* LocSrc, F&& func,
+                                    clang::QualType ReturnType = {}) {
       // FIXME: Here we use some of the things that are used from Parser, it
       // seems to be the easiest way to create lambda.
       clang::LambdaIntroducer Intro;
@@ -387,6 +389,18 @@ namespace clad {
       clang::Declarator D(
           DS, CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam
                   clang::DeclaratorContext::LambdaExpr);
+      if (!ReturnType.isNull()) {
+        auto Loc = LocSrc->getBeginLoc();
+        D.AddTypeInfo(clang::DeclaratorChunk::getFunction(
+                          true, false, Loc, nullptr, 0, noLoc, Loc, true, noLoc,
+                          noLoc, clang::EST_None, {}, nullptr, nullptr, 0,
+                          nullptr, nullptr, {}, noLoc, noLoc, D,
+                          S.CreateParsedType(ReturnType,
+                                             S.Context.getTrivialTypeSourceInfo(
+                                                 ReturnType, Loc)),
+                          Loc),
+                      Loc);
+      }
 #if CLANG_VERSION_MAJOR > 16
       V.beginScope(clang::Scope::LambdaScope | clang::Scope::DeclScope |
 
@@ -428,8 +442,10 @@ namespace clad {
     /// added by addToCurrentBlock from func invocation.
     template <typename F>
     static clang::Expr* wrapInLambda(VisitorBase& V, clang::Sema& S,
-                                     const clang::Stmt* LocSrc, F&& func) {
-      clang::Expr* lambda = buildLambda(V, S, LocSrc, std::forward<F>(func));
+                                     const clang::Stmt* LocSrc, F&& func,
+                                     clang::QualType ReturnType = {}) {
+      clang::Expr* lambda =
+          buildLambda(V, S, LocSrc, std::forward<F>(func), ReturnType);
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();
     }
