@@ -1161,8 +1161,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::reverse;
     else
       llvm_unreachable("unknown mode");
-    // What the command line settled on for the translation unit, which the
-    // clad::opts pairs below may still override for this one request.
+      // What the command line settled on for the translation unit, which the
+      // clad::opts pairs below may still override for this one request.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     request.Enable##Id##Analysis = ReqOpts.Enable##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
@@ -1184,10 +1184,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       for (const auto& arg : TAL->get(0).pack_elements())
         bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
 
-    // What the request asks of each analysis, over the
-    // whole-translation-unit answer it already carries. Generated from the
-    // same table the command line is: an analysis that can be switched for
-    // the translation unit can be switched for one request.
+        // What the request asks of each analysis, over the
+        // whole-translation-unit answer it already carries. Generated from the
+        // same table the command line is: an analysis that can be switched for
+        // the translation unit can be switched for one request.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     const bool enable_##Legacy##_in_req =                                      \
         clad::HasOption(bitmasked_opts_value, clad::opts::enable_##Legacy);    \

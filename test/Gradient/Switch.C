@@ -258,7 +258,7 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 2;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
 // CHECK-NEXT:     while (counter--)
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _t0++;
@@ -371,7 +371,7 @@ double fn4(double i, double j) {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t1;
+// CHECK-NEXT:     unsigned {{int|long}} _t1;
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
@@ -557,7 +557,7 @@ double fn7(double u, double v) {
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         {

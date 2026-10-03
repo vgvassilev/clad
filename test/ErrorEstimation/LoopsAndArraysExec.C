@@ -21,13 +21,13 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:     unsigned {{int|long}} f_size = {{0U|0UL}};
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     for (i = 1; i < n; i++) {
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += f[i] + f[i - 1];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (_t0 = n > 1 ? ((unsigned {{int|long|long long}})n - 1{{U|UL|ULL}}) : 0{{U|UL|ULL}}; _t0; _t0--) {
+//CHECK-NEXT:     for (_t0 = n > 1 ? ((unsigned {{int|long}})n - 1{{U|UL|ULL}}) : 0{{U|UL|ULL}}; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});
@@ -57,15 +57,15 @@ double mulSum(float* a, float* b, int n) {
 //CHECK: void mulSum_grad(float *a, float *b, int n, float *_d_a, float *_d_b, int *_d_n, double &_final_error) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t1;
+//CHECK-NEXT:     unsigned {{int|long}} _t1;
 //CHECK-NEXT:     int _d_j = 0;
 //CHECK-NEXT:     int j = 0;
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
-//CHECK-NEXT:     unsigned {{int|long|long long}} b_size = 0{{U|UL|ULL}};
-//CHECK-NEXT:     unsigned {{int|long|long long}} a_size = 0{{U|UL|ULL}};
+//CHECK-NEXT:     unsigned {{int|long}} b_size = 0{{U|UL|ULL}};
+//CHECK-NEXT:     unsigned {{int|long}} a_size = 0{{U|UL|ULL}};
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         for (j = 0; j < n; j++) {
 //CHECK-NEXT:             clad::push(_t2, sum);
@@ -73,11 +73,11 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
+//CHECK-NEXT:     for (_t0 = n > 0 ? (unsigned {{int|long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             float _acc0 = 0.F;
-//CHECK-NEXT:             for (j = n > 0 ? n : 0 , _t1 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t1; _t1--) {
+//CHECK-NEXT:             for (j = n > 0 ? n : 0 , _t1 = n > 0 ? (unsigned {{int|long}})n : 0{{U|UL|ULL}}; _t1; _t1--) {
 //CHECK-NEXT:                 j--;
 //CHECK-NEXT:                 _final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:                 sum = clad::pop(_t2);
@@ -117,13 +117,13 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:     unsigned {{int|long}} a_size = {{0U|0UL}};
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += a[i] / b[i];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
+//CHECK-NEXT:     for (_t0 = n > 0 ? (unsigned {{int|long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});

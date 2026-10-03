@@ -33,7 +33,7 @@ int main() {
 // CHECK-NEXT:     Struct s = {0.};
 // CHECK-NEXT:     double _d_result = 0.;
 // CHECK-NEXT:     double result = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:         s = {0.};
 // CHECK-NEXT:         s.val = a * (i + 1);
