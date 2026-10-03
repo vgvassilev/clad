@@ -154,7 +154,9 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   SourceLocation validLoc{m_DiffReq->getLocation()};
   DeclarationNameInfo name(II, validLoc);
   llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
+  // Nested derivatives must not search the caller's local scopes.
+  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
+                                         getEnclosingNamespaceOrTUScope());
 
   m_Sema.CurContext = DC;
   QualType derivedFnType = GetDerivativeType();
