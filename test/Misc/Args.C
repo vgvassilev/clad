@@ -51,7 +51,7 @@
 
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
 // RUN:  -Xclang -fcustom-estimation-model %s 2>&1 | FileCheck --check-prefix=CHECK_EST_INVALID %s
-// CHECK_EST_INVALID: `-fcustom-estimation-model` is deprecated
+// CHECK_EST_INVALID: `-fcustom-estimation-model` is deprecated. Define `clad::getErrorVal` instead.
 
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad -Xclang -enable-tbr \
 // RUN:  -Xclang -plugin-arg-clad -Xclang -disable-tbr %s 2>&1 | FileCheck --check-prefix=CHECK_TBR %s
