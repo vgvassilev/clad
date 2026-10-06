@@ -66,6 +66,7 @@ public:
   void Analyze();
   bool TraverseBinaryOperator(clang::BinaryOperator* BinOp);
   bool TraverseCallExpr(clang::CallExpr* CE);
+  bool TraverseCUDAKernelCallExpr(clang::CUDAKernelCallExpr* KCE);
   bool TraverseConditionalOperator(clang::ConditionalOperator* CO);
   bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE);
   bool TraverseDeclStmt(clang::DeclStmt* DS);

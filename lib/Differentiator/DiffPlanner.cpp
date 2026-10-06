@@ -46,6 +46,7 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1682,6 +1683,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     ConstantInitChecker Checker(S, Interval);
     for (Decl* D : DGR)
       Checker.TraverseDecl(D);
+  }
+
+  bool DiffCollector::TraverseCUDAKernelCallExpr(CUDAKernelCallExpr* KCE) {
+    return WalkUpFromCUDAKernelCallExpr(KCE) &&
+           TraverseStmt(KCE->getCallee()) &&
+           llvm::all_of(KCE->arguments(),
+                        [this](Expr* arg) { return TraverseStmt(arg); });
   }
 
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
