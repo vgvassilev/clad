@@ -56,6 +56,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -641,9 +642,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           return {};
         }
 
-        auto* derivativeFD = dyn_cast_or_null<FunctionDecl>(result.derivative);
-        if (!derivativeFD)
-          return {};
+        // getDirectCallee returned this declaration, and null was rejected
+        // above. Its dynamic type is therefore a FunctionDecl.
+        auto* derivativeFD = cast<FunctionDecl>(result.derivative);
 
         if (request.Mode == DiffMode::reverse ||
             request.Mode == DiffMode::jacobian ||

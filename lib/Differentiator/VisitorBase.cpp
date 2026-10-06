@@ -1478,8 +1478,9 @@ namespace clad {
       return nullptr;
 
     auto diffParams = derivative->parameters();
-    if (diffParams.size() != derivType->getNumParams())
-      return nullptr;
+    // FunctionDecl::parameters() takes its size from this same prototype.
+    assert(diffParams.size() == derivType->getNumParams() &&
+           "parameter range must match its function prototype");
     auto diffNameInfo = derivative->getNameInfo();
     SourceLocation diagLoc = m_DiffReq.CallContext
                                  ? m_DiffReq.CallContext->getBeginLoc()
@@ -1529,8 +1530,8 @@ namespace clad {
       QualType expectedCalleeTy = utils::GetDerivativeType(
           m_Sema, originalFD, m_DiffReq.Mode, requestedParams,
           /*forCustomDerv=*/customPullback);
-      if (expectedCalleeTy.isNull())
-        return nullptr;
+      assert(!expectedCalleeTy.isNull() &&
+             "derivative type factory returned a null type");
       const auto* expectedCallee = expectedCalleeTy->getAs<FunctionProtoType>();
       if (!expectedCallee ||
           expectedCallee->getNumParams() != derivType->getNumParams()) {
@@ -1603,12 +1604,12 @@ namespace clad {
         paramTypes.push_back(outputParamType);
     }
 
-    const std::size_t expectedPublicParams =
+    [[maybe_unused]] const std::size_t expectedPublicParams =
         pullbackMode
             ? numPrimals + (hasSeed ? 1 : 0) + (hasDThis ? 1 : 0) + numPrimals
             : numPrimals + numOfDerivativeParams;
-    if (paramTypes.size() != expectedPublicParams)
-      return nullptr;
+    assert(paramTypes.size() == expectedPublicParams &&
+           "public parameter construction must match its layout");
 
     QualType diffFunctionOverloadType = m_Context.getFunctionType(
         m_Context.VoidTy, paramTypes, reqType->getExtProtoInfo());
@@ -1622,8 +1623,8 @@ namespace clad {
     ClonedFunction cloned = m_Builder.cloneFunction(
         originalFD, *this, DC, noLoc, diffNameInfo, diffFunctionOverloadType);
     FunctionDecl* diffOverloadFD = cloned.fd;
-    if (!diffOverloadFD)
-      return nullptr;
+    assert(diffOverloadFD &&
+           "cloneFunction must return an AST-owned declaration");
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
@@ -1771,16 +1772,17 @@ namespace clad {
       }
     }
 
-    // cloneFunction creates the declaration and function prototype type but
-    // does not materialize ParmVarDecl objects. Validate the parameters built
-    // above, before publishing them on the declaration or scope chains.
-    if (overloadParams.size() != paramTypes.size())
-      return nullptr;
+    // cloneFunction does not materialize ParmVarDecl objects. The loops above
+    // build exactly one declaration per public slot, and BuildParmVarDecl
+    // preserves the supplied type. Check these construction invariants before
+    // publishing parameters on the declaration or scope chains.
+    assert(overloadParams.size() == paramTypes.size() &&
+           "parameter declarations must match the public layout");
     for (std::size_t i = 0; i < paramTypes.size(); ++i)
-      if (!overloadParams[i] || paramTypes[i].isNull() ||
-          overloadParams[i]->getType().getCanonicalType() !=
-              paramTypes[i].getCanonicalType())
-        return nullptr;
+      assert(overloadParams[i] && !paramTypes[i].isNull() &&
+             overloadParams[i]->getType().getCanonicalType() ==
+                 paramTypes[i].getCanonicalType() &&
+             "parameter construction must preserve the supplied type");
 
     for (ParmVarDecl* PVD : overloadParams)
       if (PVD->getIdentifier())
@@ -1808,8 +1810,9 @@ namespace clad {
     if (customObject) {
       Expr* object = m_Sema.BuildCXXThisExpr(
           GenLoc(), originalMD->getThisType(), /*IsImplicit=*/true);
-      if (!object)
-        return nullptr;
+      // BuildCXXThisExpr creates an AST-owned expression; unlike ActOnCXXThis
+      // it does not return an ExprResult signalling semantic rejection.
+      assert(object && "BuildCXXThisExpr must return an expression");
       callArgs.insert(callArgs.begin(), object);
     }
 
@@ -1846,8 +1849,10 @@ namespace clad {
       derivative->dropAttr<CUDAGlobalAttr>();
       derivative->addAttr(CUDADeviceAttr::CreateImplicit(m_Context));
     }
-    if (callArgs.size() != derivType->getNumParams())
-      return nullptr;
+    // Pullbacks validated consumption before adding the one custom-object
+    // argument; legacy wrappers append one argument per derivative parameter.
+    assert(callArgs.size() == derivType->getNumParams() &&
+           "call argument construction must match the derivative layout");
     Expr* callExpr = BuildCallExprToFunction(derivative, callArgs,
                                              /*CUDAExecConfig=*/nullptr,
                                              /*useRefQualifiedThisObj=*/true);

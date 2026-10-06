@@ -40,6 +40,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
+#include <cassert>
 #include <memory>
 #include <set>
 #include <vector>
@@ -1505,8 +1506,8 @@ namespace clad {
       if (T.isNull())
         return false;
       T = GetValueType(T);
-      if (T.isNull())
-        return false;
+      // Unwrapping a valid pointer/reference/array preserves a valid type.
+      assert(!T.isNull() && "GetValueType must preserve a non-null type");
       const auto* RT = T->getAs<RecordType>();
       if (!RT)
         return false;

@@ -985,6 +985,11 @@ template <class T> std::false_type is_range(...);
   ///             with respect to every differentiable parameter. The public
   ///             callable keeps one adjoint position per primal parameter;
   ///             pass nullptr for an unselected or non-differentiable slot.
+  /// \param derivedFn The generated pullback; Clad substitutes it while
+  ///                  compiling the call, so a caller leaves it alone.
+  /// \param code The source of that pullback, substituted the same way.
+  /// \param CUDAkernel Whether the function is a __global__ kernel, whose
+  ///                   pullback has to be launched rather than called.
   template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
             typename F, typename DerivedFnType = PullbackDerivedFnTraits_t<F>,
             typename = typename std::enable_if<

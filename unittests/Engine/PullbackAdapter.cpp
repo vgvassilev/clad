@@ -11,6 +11,7 @@
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LLVM.h"
@@ -283,6 +284,16 @@ double collision_primal(double _d_y, double _d_y0);
 void collision_derivative(double x, double y, double _d_y, double* d_x);
 double variadic(double x, ...);
 void good(double x, double seed, double* dx);
+struct NonCopyable {
+  NonCopyable() noexcept {}
+  NonCopyable(const NonCopyable&) noexcept = delete;
+  ~NonCopyable() noexcept {}
+};
+// Complete constructor/destructor semantics during parsing, not in the
+// post-parse probe after the statically linked plugin's delayed replay.
+void complete_noncopyable() { NonCopyable value; }
+double noncopyable_primal(NonCopyable x);
+void noncopyable_derivative(NonCopyable x, double seed, NonCopyable* dx);
 void variadic_derivative(double x, ...);
 double nonvoid(double x, double seed, double* dx);
 void too_short(double x);
@@ -392,6 +403,57 @@ TEST(PullbackAdapter, CustomAdapterFailurePropagatesWithoutPublishing) {
     E.request(E.function("primal"));
     E.adapter(E.function("good"), /*Success=*/true);
   });
+}
+
+TEST(PullbackAdapter, NonCopyableArgumentFailureRestoresSemaForNextRequest) {
+  run([](EngineContext& E) {
+    E.request(E.function("noncopyable_primal"));
+    // Matching parameter types do not guarantee a callable adapter: forwarding
+    // this named by-value parameter requires a deleted copy constructor.
+    // Preserve the fallible Sema call check and unwind both cleanup frames.
+    E.adapter(E.function("noncopyable_derivative"), /*Success=*/false,
+              /*Custom=*/true, clad::VisitorBase::OverloadKind::PullbackCustom,
+              "deleted");
+    E.request(E.function("primal"));
+    E.adapter(E.function("good"), /*Success=*/true);
+  });
+}
+
+// This is an AST/Sema test, not a CUDA execution test. Host-only CUDA parsing
+// needs neither CUDA headers/libraries nor a physical GPU.
+TEST(PullbackAdapter, CudaKernelAdapterKeepsKernelWrapperAndDeviceImpl) {
+  run(
+      [](EngineContext& E) {
+        ASSERT_TRUE(E.sema().getLangOpts().CUDA);
+        auto* primal = E.function("cuda_primal");
+        auto* implementation = E.function("cuda_impl");
+        ASSERT_NE(primal, nullptr);
+        ASSERT_NE(implementation, nullptr);
+        ASSERT_TRUE(primal->hasAttr<CUDAGlobalAttr>());
+        ASSERT_TRUE(implementation->hasAttr<CUDAGlobalAttr>());
+
+        E.request(primal);
+        auto* wrapper = E.adapter(implementation, /*Success=*/true);
+        ASSERT_NE(wrapper, nullptr);
+        EXPECT_NE(wrapper, implementation);
+        EXPECT_TRUE(wrapper->hasAttr<CUDAGlobalAttr>());
+        EXPECT_FALSE(implementation->hasAttr<CUDAGlobalAttr>());
+        ASSERT_TRUE(implementation->hasAttr<CUDADeviceAttr>());
+        EXPECT_TRUE(implementation->getAttr<CUDADeviceAttr>()->isImplicit());
+
+        // The CUDA request must restore Sema state for a following host
+        // request.
+        E.request(E.function("host_primal"));
+        E.adapter(E.function("host_impl"), /*Success=*/true);
+      },
+      R"cpp(
+__attribute__((global)) void cuda_primal(double x);
+__attribute__((global)) void cuda_impl(double x, double* dx);
+double host_primal(double x);
+void host_impl(double x, double seed, double* dx);
+)cpp",
+      {"-x", "cuda", "--cuda-host-only", "-nocudainc", "-nocudalib",
+       "--cuda-gpu-arch=sm_70", "-std=c++17"});
 }
 
 TEST(PullbackAdapter, ConstructorAdapterKeepsObjectCotangentSlot) {

@@ -68,6 +68,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -400,11 +401,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         shouldCreateOverload = false;
     }
     QualType dFnType = GetDerivativeType();
-    if (dFnType.isNull())
-      return {};
-    const auto* dFnProto = dFnType->getAs<FunctionProtoType>();
-    if (!dFnProto)
-      return {};
+    // These reverse modes obtain a prototype from ASTContext::getFunctionType,
+    // not a fallible Sema type-construction result.
+    assert(!dFnType.isNull() && "derivative type factory returned a null type");
+    const auto* dFnProto = cast<FunctionProtoType>(dFnType.getTypePtr());
     if (m_DiffReq.Mode == DiffMode::pullback) {
       const auto* FD = m_DiffReq.Function;
       std::size_t numPrimals = 0;
@@ -473,8 +473,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     ClonedFunction result = m_Builder.cloneFunction(m_DiffReq.Function, *this,
                                                     DC, loc, DNI, dFnType);
     m_Derivative = result.fd;
-    if (!m_Derivative)
-      return {};
+    assert(m_Derivative &&
+           "cloneFunction must return an AST-owned declaration");
 
     // Function declaration scope
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
