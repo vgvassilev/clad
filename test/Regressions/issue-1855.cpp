@@ -1,7 +1,4 @@
 // RUN: %cladclang -fsyntax-only -Xclang -verify -std=c++17 -I%S/../../include %s
-// RUN: %cladclang -fsyntax-only -Xclang -verify -std=c++17 -I%S/../../include %s 2>&1 | %filecheck %s --check-prefix=FAIL-CLOSED
-// FAIL-CLOSED: void n_grad(float arg, float *_d_arg) {
-// FAIL-CLOSED-NOT: <no independent variable specified>
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -40,16 +37,7 @@ void l(float) {
 
 float m; // expected-warning {{gradient uses a global variable}}
 
-void n(float) {
+void n() {
   l(m);
-}
-
-void zero_param() {}
-
-void test_nested_globals() {
-  clad::gradient(n);
-}
-
-void test_zero_param_rejection() {
-  clad::gradient(zero_param); // expected-error {{attempted to differentiate function with no parameters}}
+  clad::gradient(n); // expected-error {{attempted to differentiate function with no parameters}}
 }

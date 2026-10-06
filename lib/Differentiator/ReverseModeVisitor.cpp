@@ -560,11 +560,295 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return DerivativeAndOverload{result.fd, overloadFD};
   }
 
+  static const ParmVarDecl* getBaseParmVar(const Expr* E) {
+    while (E) {
+      E = E->IgnoreParenCasts();
+      if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+        if (UO->getOpcode() == UO_Deref) {
+          E = UO->getSubExpr();
+          continue;
+        }
+      } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+        E = ASE->getBase();
+        continue;
+      } else if (const auto* ME = dyn_cast<MemberExpr>(E)) {
+        E = ME->getBase();
+        continue;
+      } else if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+        return dyn_cast<ParmVarDecl>(DRE->getDecl());
+      }
+      break;
+    }
+    return nullptr;
+  }
+
+  static bool
+  isParamModified(const ParmVarDecl* PVD, const FunctionDecl* FD,
+                  llvm::SmallPtrSetImpl<const FunctionDecl*>& Visited);
+  static bool isParamModified(const ParmVarDecl* PVD, const FunctionDecl* FD);
+
+  class DependentPointerDataflowVisitor
+      : public RecursiveASTVisitor<DependentPointerDataflowVisitor> {
+  public:
+    llvm::StringRef TargetParamName;
+    std::set<std::string> ActiveNames;
+    bool FoundDependentWrite = false;
+
+    DependentPointerDataflowVisitor(const ParmVarDecl* Target,
+                                    const llvm::ArrayRef<DiffInputVarInfo> DVI)
+        : TargetParamName(Target->getName()) {
+      for (const auto& info : DVI)
+        if (info.param)
+          ActiveNames.insert(info.param->getName().str());
+    }
+
+    bool isExprActive(const Expr* E) const {
+      if (!E)
+        return false;
+      class ActiveRefFinder : public RecursiveASTVisitor<ActiveRefFinder> {
+      public:
+        const std::set<std::string>& Active;
+        bool Found = false;
+        ActiveRefFinder(const std::set<std::string>& A) : Active(A) {}
+        bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+          if (Active.count(DRE->getDecl()->getName().str())) {
+            Found = true;
+            return false;
+          }
+          return true;
+        }
+        bool VisitMemberExpr(MemberExpr* ME) {
+          if (Active.count(ME->getMemberDecl()->getName().str())) {
+            Found = true;
+            return false;
+          }
+          return true;
+        }
+      } finder(ActiveNames);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      finder.TraverseStmt(const_cast<Expr*>(E));
+      return finder.Found;
+    }
+
+    bool VisitVarDecl(VarDecl* VD) {
+      if (VD->hasInit() && isExprActive(VD->getInit()))
+        ActiveNames.insert(VD->getName().str());
+      return true;
+    }
+
+    bool VisitBinaryOperator(BinaryOperator* BO) {
+      if (BO->isAssignmentOp()) {
+        Expr* LHS = BO->getLHS();
+        Expr* RHS = BO->getRHS();
+        const ParmVarDecl* BasePVD = getBaseParmVar(LHS);
+        if (BasePVD && BasePVD->getName() == TargetParamName) {
+          if (isExprActive(RHS) || isExprActive(LHS)) {
+            FoundDependentWrite = true;
+            return false;
+          }
+        } else if (const auto* DRE =
+                       dyn_cast<DeclRefExpr>(LHS->IgnoreParenCasts())) {
+          if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            if (isExprActive(RHS))
+              ActiveNames.insert(VD->getName().str());
+          }
+        }
+      }
+      return true;
+    }
+
+    bool VisitCallExpr(CallExpr* CE) {
+      const FunctionDecl* Callee = CE->getDirectCallee();
+      bool targetIsModifiedInCall = false;
+      bool passesActive = false;
+      for (unsigned i = 0; i < CE->getNumArgs(); ++i) {
+        const Expr* Arg = CE->getArg(i);
+        const ParmVarDecl* BasePVD = getBaseParmVar(Arg);
+        if (BasePVD && BasePVD->getName() == TargetParamName) {
+          if (Callee && i < Callee->getNumParams()) {
+            const ParmVarDecl* CalleeParam = Callee->getParamDecl(i);
+            QualType PT = CalleeParam->getType();
+            if (utils::isNonConstReferenceType(PT) ||
+                (PT->isPointerType() &&
+                 !utils::GetValueType(PT).isConstQualified())) {
+              const FunctionDecl* Def = Callee;
+              if (!Def->hasBody())
+                Def = Callee->getDefinition();
+              if (Def && Def->hasBody()) {
+                if (isParamModified(CalleeParam, Def))
+                  targetIsModifiedInCall = true;
+              } else {
+                targetIsModifiedInCall = true;
+              }
+            }
+          } else if (!Callee) {
+            targetIsModifiedInCall = true;
+          }
+        }
+        if (isExprActive(Arg))
+          passesActive = true;
+      }
+      if (targetIsModifiedInCall && passesActive) {
+        FoundDependentWrite = true;
+        return false;
+      }
+      return true;
+    }
+  };
+
+  class ParamModificationVisitor
+      : public RecursiveASTVisitor<ParamModificationVisitor> {
+  public:
+    llvm::StringRef TargetParamName;
+    llvm::SmallPtrSetImpl<const FunctionDecl*>& Visited;
+    bool IsModified = false;
+
+    ParamModificationVisitor(llvm::StringRef ParamName,
+                             llvm::SmallPtrSetImpl<const FunctionDecl*>& V)
+        : TargetParamName(ParamName), Visited(V) {}
+
+    bool VisitBinaryOperator(BinaryOperator* BO) {
+      if (BO->isAssignmentOp()) {
+        const ParmVarDecl* BasePVD = getBaseParmVar(BO->getLHS());
+        if (BasePVD && BasePVD->getName() == TargetParamName) {
+          IsModified = true;
+          return false;
+        }
+      }
+      return true;
+    }
+
+    bool VisitUnaryOperator(UnaryOperator* UO) {
+      if (UO->isIncrementDecrementOp()) {
+        const ParmVarDecl* BasePVD = getBaseParmVar(UO->getSubExpr());
+        if (BasePVD && BasePVD->getName() == TargetParamName) {
+          IsModified = true;
+          return false;
+        }
+      }
+      return true;
+    }
+
+    bool VisitCallExpr(CallExpr* CE) {
+      const FunctionDecl* Callee = CE->getDirectCallee();
+      if (!Callee) {
+        for (const Expr* Arg : CE->arguments()) {
+          const ParmVarDecl* BasePVD = getBaseParmVar(Arg);
+          if (BasePVD && BasePVD->getName() == TargetParamName) {
+            IsModified = true;
+            return false;
+          }
+        }
+        return true;
+      }
+      for (unsigned i = 0; i < CE->getNumArgs(); ++i) {
+        const Expr* Arg = CE->getArg(i);
+        const ParmVarDecl* BasePVD = getBaseParmVar(Arg);
+        if (BasePVD && BasePVD->getName() == TargetParamName) {
+          if (i < Callee->getNumParams()) {
+            const ParmVarDecl* CalleeParam = Callee->getParamDecl(i);
+            QualType PT = CalleeParam->getType();
+            if (utils::isNonConstReferenceType(PT) ||
+                (PT->isPointerType() &&
+                 !utils::GetValueType(PT).isConstQualified())) {
+              const FunctionDecl* Def = Callee;
+              if (!Def->hasBody())
+                Def = Callee->getDefinition();
+              if (Def && Def->hasBody()) {
+                if (isParamModified(CalleeParam, Def, Visited)) {
+                  IsModified = true;
+                  return false;
+                }
+              } else {
+                IsModified = true;
+                return false;
+              }
+            }
+          }
+        }
+      }
+      if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+        if (OCE->getNumArgs() > 0) {
+          const ParmVarDecl* BasePVD = getBaseParmVar(OCE->getArg(0));
+          if (BasePVD && BasePVD->getName() == TargetParamName) {
+            OverloadedOperatorKind OOK = OCE->getOperator();
+            if (OOK == OO_Equal || OOK == OO_PlusEqual ||
+                OOK == OO_MinusEqual || OOK == OO_StarEqual ||
+                OOK == OO_SlashEqual || OOK == OO_PercentEqual ||
+                OOK == OO_LessLessEqual || OOK == OO_GreaterGreaterEqual ||
+                OOK == OO_AmpEqual || OOK == OO_PipeEqual ||
+                OOK == OO_CaretEqual || OOK == OO_PlusPlus ||
+                OOK == OO_MinusMinus) {
+              IsModified = true;
+              return false;
+            }
+          }
+        }
+      }
+      if (const auto* ME = dyn_cast<CXXMemberCallExpr>(CE)) {
+        const ParmVarDecl* BasePVD =
+            getBaseParmVar(ME->getImplicitObjectArgument());
+        if (BasePVD && BasePVD->getName() == TargetParamName) {
+          const CXXMethodDecl* MD = ME->getMethodDecl();
+          if (MD && !MD->isConst()) {
+            IsModified = true;
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+  };
+
+  static bool
+  isParamModified(const ParmVarDecl* PVD, const FunctionDecl* FD,
+                  llvm::SmallPtrSetImpl<const FunctionDecl*>& Visited) {
+    if (!PVD || !FD)
+      return false;
+    const FunctionDecl* Def = FD;
+    if (!Def->hasBody())
+      Def = FD->getDefinition();
+    if (!Def || !Def->hasBody())
+      return false;
+    if (!Visited.insert(Def).second)
+      return false;
+
+    ParamModificationVisitor visitor(PVD->getName(), Visited);
+    visitor.TraverseStmt(Def->getBody());
+    return visitor.IsModified;
+  }
+
+  static bool isParamModified(const ParmVarDecl* PVD, const FunctionDecl* FD) {
+    llvm::SmallPtrSet<const FunctionDecl*, 8> Visited;
+    return isParamModified(PVD, FD, Visited);
+  }
+
+  static bool
+  isDependentPointerParam(const ParmVarDecl* PVD, const FunctionDecl* FD,
+                          const llvm::ArrayRef<DiffInputVarInfo> DVI) {
+    if (!PVD || !FD)
+      return false;
+    const FunctionDecl* Def = FD;
+    if (!Def->hasBody())
+      Def = FD->getDefinition();
+    if (!Def || !Def->hasBody())
+      return false;
+
+    DependentPointerDataflowVisitor visitor(PVD, DVI);
+    visitor.TraverseStmt(Def->getBody());
+    return visitor.FoundDependentWrite;
+  }
+
   void ReverseModeVisitor::DifferentiateWithClad() {
-    if (m_DiffReq.Mode == DiffMode::reverse && !m_ExternalSource) {
+    if ((m_DiffReq.Mode == DiffMode::reverse ||
+         m_DiffReq.Mode == DiffMode::pullback) &&
+        !m_ExternalSource) {
       // create derived variables for parameters which are not part of
       // independent variables (args).
       for (const ParmVarDecl* param : m_NonIndepParams) {
+        if (m_DiffReq.Mode == DiffMode::pullback &&
+            !isParamModified(param, m_DiffReq.Function))
+          continue;
         QualType paramTy = param->getType();
         if (const auto* DT = dyn_cast<DecayedType>(paramTy))
           paramTy = DT->getOriginalType();
@@ -573,12 +857,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           // We cannot initialize derived variable for pointer types because
           // we do not know the correct size.
           if (!utils::GetValueType(paramTy).isConstQualified()) {
-            SourceLocation L = param->getLocation();
-            diag(DiagnosticsEngine::Error, L,
-                 "dependent non-const pointer and array parameters "
-                 "are not supported; differentiate w.r.t. %0 or mark it const")
-                << param << L;
-            return;
+            if (m_DiffReq.Mode == DiffMode::reverse ||
+                isDependentPointerParam(param, m_DiffReq.Function,
+                                        m_DiffReq.DVI)) {
+              SourceLocation L = param->getLocation();
+              diag(
+                  DiagnosticsEngine::Error, L,
+                  "dependent non-const pointer and array parameters "
+                  "are not supported; differentiate w.r.t. %0 or mark it const")
+                  << param << L;
+              return;
+            }
           }
           continue;
         }

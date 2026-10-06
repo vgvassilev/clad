@@ -294,11 +294,27 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               .BuildUnaryOp(/*Scope=*/nullptr, noLoc,
                             UnaryOperatorKind::UO_AddrOf, Arg)
               .get();
-    // Take into account if the user selected an overload by a cast expr.
+    QualType Ty = GetDerivedFunctionType(call);
     if (isa<ExplicitCastExpr>(call->getArg(0))) {
-      QualType Ty = GetDerivedFunctionType(call);
       TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(Ty, noLoc);
       Arg = SemaRef.BuildCStyleCastExpr(noLoc, TSI, noLoc, Arg).get();
+    } else {
+      QualType ArgTy = Arg->getType();
+      if (ArgTy.getCanonicalType() != Ty.getCanonicalType()) {
+        bool ObjCLifetimeConversion = false;
+        if (SemaRef.IsQualificationConversion(ArgTy, Ty, /*CStyle=*/false,
+                                              ObjCLifetimeConversion)) {
+          TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(Ty, noLoc);
+          Arg = SemaRef.BuildCStyleCastExpr(noLoc, TSI, noLoc, Arg).get();
+        } else {
+          SourceLocation Loc = call->getBeginLoc();
+          utils::diag(SemaRef, DiagnosticsEngine::Error, Loc,
+                      "derived function type %0 does not match expected "
+                      "callable type %1")
+              << ArgTy << Ty << Loc;
+          return;
+        }
+      }
     }
     call->setArg(*derivedFnArgIdx, Arg);
 
@@ -1451,7 +1467,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (Found.empty() && R.Mode == DiffMode::vector_pushforward)
       Found = LookupPropagator(R.BaseFunctionName + "_pushforward");
 
-    if (Found.empty())
+    const bool isPartialPullback = R.Mode == DiffMode::pullback && R.Function &&
+                                   R.DVI.size() != R.Function->getNumParams();
+
+    if (Found.empty() && !isPartialPullback)
       return nullptr; // Nothing found.
 
     if (foundAnyDecl)
@@ -1519,9 +1538,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
                                               /*ForTakingAddress=*/false);
-    if (Expr* overload =
-            utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
-      return overload;
+    if (!Found.empty()) {
+      if (Expr* overload =
+              utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
+        return overload;
+    }
 
     // For an original that returns `const T&`, the expected pushforward
     // returns ValueAndPushforward<const T&, const T&>. With two reference
@@ -1533,34 +1554,90 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // exact match fails keeps genuinely reference-returning pushforwards
     // (e.g. the STL builtins for operator[], at, front, back) matching as
     // before.
-    if (const auto* FPT = dTy->getAs<FunctionProtoType>()) {
-      auto* CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
-          FPT->getReturnType()->getAsCXXRecordDecl());
-      TemplateDecl* VPDecl =
-          utils::LookupTemplateDeclInCladNamespace(S, "ValueAndPushforward");
-      if (CTSD && CTSD->getSpecializedTemplate() == VPDecl) {
-        const auto& tArgs = CTSD->getTemplateArgs();
-        QualType valueTy = tArgs[0].getAsType();
-        QualType pushforwardTy = tArgs[1].getAsType();
-        if (valueTy->isLValueReferenceType() &&
-            valueTy.getNonReferenceType().isConstQualified() &&
-            C.hasSameType(valueTy, pushforwardTy)) {
-          QualType relaxedTy =
-              valueTy.getNonReferenceType().getUnqualifiedType();
-          QualType relaxedRetTy =
-              utils::InstantiateTemplate(S, VPDecl, {relaxedTy, relaxedTy});
-          QualType relaxedDTy = C.getFunctionType(
-              relaxedRetTy, FPT->getParamTypes(), FPT->getExtProtoInfo());
-          TemplateSpecCandidateSet RelaxedCandidates(
-              R.CallContext->getBeginLoc(), /*ForTakingAddress=*/false);
-          if (Expr* overload = utils::MatchOverloadType(S, relaxedDTy, Found,
-                                                        RelaxedCandidates))
-            return overload;
+    if (!Found.empty()) {
+      if (const auto* FPT = dTy->getAs<FunctionProtoType>()) {
+        auto* CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+            FPT->getReturnType()->getAsCXXRecordDecl());
+        TemplateDecl* VPDecl =
+            utils::LookupTemplateDeclInCladNamespace(S, "ValueAndPushforward");
+        if (CTSD && CTSD->getSpecializedTemplate() == VPDecl) {
+          const auto& tArgs = CTSD->getTemplateArgs();
+          QualType valueTy = tArgs[0].getAsType();
+          QualType pushforwardTy = tArgs[1].getAsType();
+          if (valueTy->isLValueReferenceType() &&
+              valueTy.getNonReferenceType().isConstQualified() &&
+              C.hasSameType(valueTy, pushforwardTy)) {
+            QualType relaxedTy =
+                valueTy.getNonReferenceType().getUnqualifiedType();
+            QualType relaxedRetTy =
+                utils::InstantiateTemplate(S, VPDecl, {relaxedTy, relaxedTy});
+            QualType relaxedDTy = C.getFunctionType(
+                relaxedRetTy, FPT->getParamTypes(), FPT->getExtProtoInfo());
+            TemplateSpecCandidateSet RelaxedCandidates(
+                R.CallContext->getBeginLoc(), /*ForTakingAddress=*/false);
+            if (Expr* overload = utils::MatchOverloadType(S, relaxedDTy, Found,
+                                                          RelaxedCandidates))
+              return overload;
+          }
         }
       }
     }
 
-    if (!enableDiagnostics)
+    if (isPartialPullback) {
+      LookupResult fullFound =
+          LookupPropagator(R.BaseFunctionName + "_pullback");
+      if (!fullFound.empty()) {
+        llvm::SmallVector<const ValueDecl*, 4> allParams{};
+        for (const ParmVarDecl* PVD : R.Function->parameters())
+          allParams.push_back(PVD);
+        QualType fullDTy = utils::GetDerivativeType(
+            S, R.Function, R.Mode, allParams, /*forCustomDerv=*/true,
+            /*shouldUseRestoreTracker=*/false);
+        TemplateSpecCandidateSet FullCandidates(R.CallContext->getBeginLoc(),
+                                                /*ForTakingAddress=*/false);
+        if (Expr* overload = utils::MatchOverloadType(S, fullDTy, fullFound,
+                                                      FullCandidates)) {
+          bool canAdapt = true;
+          const ParmVarDecl* unadaptableParam = nullptr;
+          for (const ParmVarDecl* PVD : R.Function->parameters()) {
+            bool isSelected = false;
+            for (const auto& info : R.DVI) {
+              if (info.param == PVD) {
+                isSelected = true;
+                break;
+              }
+            }
+            if (!isSelected) {
+              QualType PT = PVD->getType();
+              if (const auto* DT = dyn_cast<DecayedType>(PT))
+                PT = DT->getOriginalType();
+              if (utils::isArrayOrPointerType(PT) &&
+                  !PT->isConstantArrayType() &&
+                  !utils::GetValueType(PT).isConstQualified()) {
+                canAdapt = false;
+                unadaptableParam = PVD;
+                break;
+              }
+            }
+          }
+          if (!canAdapt) {
+            SourceLocation L = R.CallContext ? R.CallContext->getBeginLoc()
+                                             : R.Function->getBeginLoc();
+            utils::diag(S, DiagnosticsEngine::Error, L,
+                        "cannot adapt custom pullback for partial selection; "
+                        "parameter %0 requires scratch storage of unknown size")
+                << unadaptableParam << L;
+            return nullptr;
+          }
+          if (foundAnyDecl)
+            *foundAnyDecl = true;
+          R.IsAdaptedFullCustomPullback = true;
+          return overload;
+        }
+      }
+    }
+
+    if (!enableDiagnostics || Found.empty())
       return nullptr;
 
     // We did not match the found candidates. Warn and offer the user hints.
@@ -1835,7 +1912,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Args = E->getArg(1);
       const unsigned errorsBefore = m_Sema.getDiagnostics().getNumErrors();
       request.UpdateDiffParamsInfo(m_Sema);
-      if (m_Sema.getDiagnostics().getNumErrors() != errorsBefore)
+      if (request.Mode == DiffMode::pullback &&
+          m_Sema.getDiagnostics().getNumErrors() != errorsBefore)
         return true;
       if ((request.Mode == DiffMode::reverse ||
            request.Mode == DiffMode::pullback) &&

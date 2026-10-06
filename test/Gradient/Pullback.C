@@ -282,6 +282,34 @@ void f_wrapper_name_collision_pullback(double primal, double x,
 // CHECK-NEXT:     clad::custom_derivatives::f_wrapper_name_collision_pullback(x, _d_y, _d_x);
 // CHECK-NEXT: }
 
+// 20. By-value, reference and struct-reference intermediate parameter reuse
+double f_interm_val(double t, double x) {
+  t = x * x;
+  return t * 3.0;
+}
+
+struct ScratchBuf {
+  double val;
+};
+
+double f_interm_ref(double& t, double x) {
+  t = x * x;
+  return t * 3.0;
+}
+
+double f_interm_struct(ScratchBuf& b, double x) {
+  b.val = x * x;
+  return b.val * 3.0;
+}
+
+// 21. Member function for nullable _d_this test
+struct MemberOffset {
+  double factor;
+  double scale(double x, double y) const {
+    return factor * x * y;
+  }
+};
+
 int main() {
   // Test 1: Unit seed (1.0)
   auto pb1 = clad::pullback(f_scalar);
@@ -568,6 +596,37 @@ int main() {
   pb_collision.execute(3.0, 2.0, &dx_collision);
   printf("Wrapper name collision: dx=%.2f\n", dx_collision);
   // CHECK-EXEC: Wrapper name collision: dx=12.00
+
+  // Test 31: By-value intermediate parameter reuse in partial pullback with non-unit seed & accumulation
+  auto pb_ival = clad::pullback(f_interm_val, "x");
+  double dx_ival = 10.0;
+  pb_ival.execute(0.0, 2.0, 2.5, nullptr, &dx_ival);
+  auto grad_ival = clad::gradient(f_interm_val, "x");
+  double g_dx_ival = 0.0;
+  grad_ival.execute(0.0, 2.0, &g_dx_ival);
+  printf("By-value intermediate: dx=%.2f, grad=%.2f, agrees=%d\n",
+         dx_ival, g_dx_ival, (dx_ival == 10.0 + 2.5 * g_dx_ival));
+  // CHECK-EXEC: By-value intermediate: dx=40.00, grad=12.00, agrees=1
+
+  // Test 32: Reference and struct-reference intermediate parameter reuse in partial pullback
+  auto pb_iref = clad::pullback(f_interm_ref, "x");
+  double dummy_t = 0.0, dx_iref = 5.0;
+  pb_iref.execute(dummy_t, 2.0, 3.0, nullptr, &dx_iref);
+  auto pb_istruct = clad::pullback(f_interm_struct, "x");
+  ScratchBuf sbuf{0.0};
+  double dx_istruct = 7.0;
+  pb_istruct.execute(sbuf, 2.0, 3.0, nullptr, &dx_istruct);
+  printf("Ref intermediate: dx=%.2f, Struct intermediate: dx=%.2f\n",
+         dx_iref, dx_istruct);
+  // CHECK-EXEC: Ref intermediate: dx=41.00, Struct intermediate: dx=43.00
+
+  // Test 33: Member function partial pullback with nullable d_this, non-unit seed and accumulation
+  MemberOffset mo{3.0};
+  auto pb_mo_y = clad::pullback(&MemberOffset::scale, "y");
+  double dy_mo = 5.0;
+  pb_mo_y.execute(mo, 4.0, 2.0, 2.0, nullptr, nullptr, &dy_mo);
+  printf("Member nullable d_this: dy=%.2f\n", dy_mo);
+  // CHECK-EXEC: Member nullable d_this: dy=29.00
 
   return 0;
 }

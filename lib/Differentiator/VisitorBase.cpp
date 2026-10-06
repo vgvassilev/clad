@@ -1482,6 +1482,12 @@ namespace clad {
     assert(diffParams.size() == derivType->getNumParams() &&
            "parameter range must match its function prototype");
     auto diffNameInfo = derivative->getNameInfo();
+    if (m_DiffReq.IsAdaptedFullCustomPullback) {
+      std::string reqName = m_DiffReq.ComputeDerivativeName();
+      IdentifierInfo* II = &m_Context.Idents.get(reqName);
+      diffNameInfo =
+          DeclarationNameInfo(DeclarationName(II), originalFD->getLocation());
+    }
     SourceLocation diagLoc = m_DiffReq.CallContext
                                  ? m_DiffReq.CallContext->getBeginLoc()
                                  : originalFD->getBeginLoc();
@@ -1524,9 +1530,14 @@ namespace clad {
 
     if (pullbackMode) {
       llvm::SmallVector<const ValueDecl*, 8> requestedParams;
-      for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
-        if (VarInfo.param)
-          requestedParams.push_back(VarInfo.param);
+      if (m_DiffReq.IsAdaptedFullCustomPullback) {
+        for (const ParmVarDecl* PVD : originalFD->parameters())
+          requestedParams.push_back(PVD);
+      } else {
+        for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
+          if (VarInfo.param)
+            requestedParams.push_back(VarInfo.param);
+      }
       QualType expectedCalleeTy = utils::GetDerivativeType(
           m_Sema, originalFD, m_DiffReq.Mode, requestedParams,
           /*forCustomDerv=*/customPullback);
@@ -1737,7 +1748,7 @@ namespace clad {
       }
 
       for (std::size_t i = 0; i < numPrimals; ++i)
-        if (selected[i]) {
+        if (selected[i] || m_DiffReq.IsAdaptedFullCustomPullback) {
           callArgs.push_back(BuildDeclRef(adjointParams[i]));
           ++calleeParamIdx;
         }
@@ -1814,6 +1825,53 @@ namespace clad {
       // it does not return an ExprResult signalling semantic rejection.
       assert(object && "BuildCXXThisExpr must return an expression");
       callArgs.insert(callArgs.begin(), object);
+    }
+
+    if (pullbackMode && m_DiffReq.IsAdaptedFullCustomPullback) {
+      std::size_t adjointStartIdx = (customObject ? 1 : 0) + numPrimals +
+                                    (hasSeed ? 1 : 0) + (hasDThis ? 1 : 0);
+      for (std::size_t i = 0; i < numPrimals; ++i) {
+        if (!selected[i]) {
+          QualType nonPtrTy = utils::GetValueType(paramTypes[i]);
+          QualType scratchTy = utils::getNonConstType(nonPtrTy, m_Sema);
+          scratchTy = scratchTy.getNonReferenceType();
+          Expr* zeroInit = utils::getZeroInit(scratchTy, m_Sema);
+          VarDecl* scratchVD = BuildGlobalVarDecl(
+              scratchTy, "_scratch_" + std::to_string(i), zeroInit);
+          addToCurrentBlock(BuildDeclStmt(scratchVD));
+          Expr* scratchAddr = BuildOp(UO_AddrOf, BuildDeclRef(scratchVD));
+          Expr* callerAdjoint = BuildDeclRef(adjointParams[i]);
+          Expr* effectiveArg =
+              m_Sema
+                  .ActOnConditionalOp(GenLoc(), GenLoc(), callerAdjoint,
+                                      callerAdjoint, scratchAddr)
+                  .get();
+          if (!effectiveArg)
+            effectiveArg = scratchAddr;
+          callArgs[adjointStartIdx + i] = effectiveArg;
+        }
+      }
+    }
+
+    if (pullbackMode && hasDThis && !isConstructor) {
+      std::size_t dThisIdx =
+          (customObject ? 1 : 0) + numPrimals + (hasSeed ? 1 : 0);
+      QualType thisValTy = originalMD->getThisType()->getPointeeType();
+      thisValTy = utils::getNonConstType(thisValTy, m_Sema);
+      Expr* dThisInit = utils::getZeroInit(thisValTy, m_Sema);
+      VarDecl* scratchThisVD =
+          BuildGlobalVarDecl(thisValTy, "_scratch_this", dThisInit);
+      addToCurrentBlock(BuildDeclStmt(scratchThisVD));
+      Expr* scratchThisAddr = BuildOp(UO_AddrOf, BuildDeclRef(scratchThisVD));
+      Expr* callerDThis = callArgs[dThisIdx];
+      Expr* effectiveDThis =
+          m_Sema
+              .ActOnConditionalOp(GenLoc(), GenLoc(), callerDThis, callerDThis,
+                                  scratchThisAddr)
+              .get();
+      if (!effectiveDThis)
+        effectiveDThis = scratchThisAddr;
+      callArgs[dThisIdx] = effectiveDThis;
     }
 
     if (!pullbackMode) {

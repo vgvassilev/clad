@@ -583,8 +583,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // overload resolution using Sema::ActOnCallExpr to make sure we
         // follow the c++ standard.
         llvm::SmallVector<const ValueDecl*, 4> diffParams{};
-        for (const DiffInputVarInfo& VarInfo : request.DVI)
-          diffParams.push_back(VarInfo.param);
+        if (request.IsAdaptedFullCustomPullback)
+          for (const ParmVarDecl* PVD : request.Function->parameters())
+            diffParams.push_back(PVD);
+        else
+          for (const DiffInputVarInfo& VarInfo : request.DVI)
+            diffParams.push_back(VarInfo.param);
         QualType DerivativeType =
             utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
                                      diffParams, /*forCustomDerv=*/true);

@@ -398,6 +398,10 @@ public:
   /// synthesize this parameter, so it is appended to the expected derivative
   /// signature when matching the overload and when building its overload call.
   clang::QualType PullbackStateParam;
+
+  /// Indicates that a full custom pullback is being adapted for a partial
+  /// pullback request.
+  bool IsAdaptedFullCustomPullback = false;
   // FIXME: First per-request fact communicated across the request graph. The
   // finer call-site activity that would let a pullback early-exit inactive
   // branches or narrow toward a directional call wants the same channel: rework
