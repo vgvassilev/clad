@@ -404,10 +404,39 @@ namespace clad {
   template <class T>
   using GradientDerivedFnTraits_t = typename GradientDerivedFnTraits<T>::type;
 
+  /// The type every derivative output parameter of a gradient has when it can
+  /// be spelled without knowing the argument spec: if all the parameters are
+  /// the same floating-point type T, the derivative of any subset of them is
+  /// a T*. Otherwise it is void, i.e. the parameters are void* and the plugin's
+  /// overload casts them back. The plugin makes the same decision in
+  /// VisitorBase::CreateDerivativeOverload.
+  template <class T, class... Ts>
+  struct AreAllSameType : std::true_type {};
+  template <class T, class U, class... Ts>
+  struct AreAllSameType<T, U, Ts...>
+      : std::integral_constant<bool, std::is_same<T, U>::value &&
+                                         AreAllSameType<U, Ts...>::value> {};
+
+  template <class T> struct IsGradientRealType : std::false_type {};
+  template <> struct IsGradientRealType<float> : std::true_type {};
+  template <> struct IsGradientRealType<double> : std::true_type {};
+  template <> struct IsGradientRealType<long double> : std::true_type {};
+
+  template <class... Args> struct GradientOutputElementType {
+    using type = void;
+  };
+  template <class T, class... Rest>
+  struct GradientOutputElementType<T, Rest...> {
+    using type = typename std::conditional<
+        IsGradientRealType<T>::value && AreAllSameType<T, Rest...>::value, T,
+        void>::type;
+  };
+
   // GradientDerivedFnTraits specializations for pure function pointer types
   template <class ReturnType, class... Args>
   struct GradientDerivedFnTraits<ReturnType (*)(Args...)> {
-    using type = void (*)(Args..., OutputParamType_t<Args, void>...);
+    using OutputElementType = typename GradientOutputElementType<Args...>::type;
+    using type = void (*)(Args..., OutputParamType_t<Args, OutputElementType>...);
   };
 
   /// These macro expansions are used to cover all possible cases of
