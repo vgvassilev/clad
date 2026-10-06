@@ -294,11 +294,27 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
               .BuildUnaryOp(/*Scope=*/nullptr, noLoc,
                             UnaryOperatorKind::UO_AddrOf, Arg)
               .get();
-    // Take into account if the user selected an overload by a cast expr.
+    QualType Ty = GetDerivedFunctionType(call);
     if (isa<ExplicitCastExpr>(call->getArg(0))) {
-      QualType Ty = GetDerivedFunctionType(call);
       TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(Ty, noLoc);
       Arg = SemaRef.BuildCStyleCastExpr(noLoc, TSI, noLoc, Arg).get();
+    } else {
+      QualType ArgTy = Arg->getType();
+      if (ArgTy.getCanonicalType() != Ty.getCanonicalType()) {
+        bool ObjCLifetimeConversion = false;
+        if (SemaRef.IsQualificationConversion(ArgTy, Ty, /*CStyle=*/false,
+                                              ObjCLifetimeConversion)) {
+          TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(Ty, noLoc);
+          Arg = SemaRef.BuildCStyleCastExpr(noLoc, TSI, noLoc, Arg).get();
+        } else {
+          SourceLocation Loc = call->getBeginLoc();
+          utils::diag(SemaRef, DiagnosticsEngine::Error, Loc,
+                      "derived function type %0 does not match expected "
+                      "callable type %1")
+              << ArgTy << Ty << Loc;
+          return;
+        }
+      }
     }
     call->setArg(*derivedFnArgIdx, Arg);
 
@@ -645,10 +661,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
     // Diff info for pullbacks is generated automatically,
-    // its parameters are not provided by the user.
-    if (Mode == DiffMode::pullback)
+    // its parameters are not provided by the user (unless explicitly
+    // requested).
+    if (Mode == DiffMode::pullback && !Args)
       return;
-
     DVI.clear();
     auto& C = semaRef.getASTContext();
     const Expr* diffArgs = Args;
@@ -667,6 +683,18 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     auto E = diffArgs->IgnoreParenImpCasts();
     // Case 1)
     SourceLocation dArgsL = diffArgs->getBeginLoc();
+    if (dArgsL.isInvalid())
+      dArgsL = CallContext ? CallContext->getBeginLoc() : FD->getBeginLoc();
+    auto rejectPassivePullbackParam = [&](const ValueDecl* VD) {
+      if (Mode != DiffMode::pullback || !VD ||
+          !utils::hasNonDifferentiableAttribute(VD))
+        return false;
+      utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                  "parameter %0 is marked non-differentiable and cannot be "
+                  "selected for pullback")
+          << VD << dArgsL;
+      return true;
+    };
     if (auto SL = dyn_cast<StringLiteral>(E)) {
       IndexIntervalTable indexes{};
       llvm::StringRef string = SL->getString().trim();
@@ -678,11 +706,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
       // Split the string by ',' characters, trim whitespaces.
       llvm::SmallVector<llvm::StringRef, 16> diffParamsSpec{};
-      do {
-        llvm::StringRef pInfo{};
-        std::tie(pInfo, string) = string.split(',');
-        diffParamsSpec.push_back(pInfo.trim());
-      } while (!string.empty());
+      string.split(diffParamsSpec, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/true);
+      for (llvm::StringRef& spec : diffParamsSpec)
+        spec = spec.trim();
       // Stores parameters and field declarations to be used as candidates for
       // independent arguments.
       // If we are differentiating a call operator that have no parameters,
@@ -733,8 +759,22 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
         dVarInfo.source = diffSpec.str();
         // Check if diffSpec represents an index of an independent variable.
+        if (diffSpec.empty()) {
+          utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                      "empty parameter name in differentiation argument list")
+              << dArgsL;
+          DVI.clear();
+          return;
+        }
         if ('0' <= diffSpec[0] && diffSpec[0] <= '9') {
-          unsigned idx = std::stoi(dVarInfo.source);
+          unsigned idx = 0;
+          if (diffSpec.getAsInteger(/*Radix=*/10, idx)) {
+            utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                        "could not parse argument index '%0'")
+                << diffSpec << dArgsL;
+            DVI.clear();
+            return;
+          }
           // Fail if the specified index is invalid.
           if (idx >= FD->getNumParams()) {
             utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
@@ -743,6 +783,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             return;
           }
           dVarInfo.param = FD->getParamDecl(idx);
+          if (std::any_of(DVI.begin(), DVI.end(),
+                          [&dVarInfo](const DiffInputVarInfo& existing) {
+                            return existing.param == dVarInfo.param;
+                          })) {
+            utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                        "requested parameter %0 was specified multiple times")
+                << dVarInfo.param << dArgsL;
+            DVI.clear();
+            return;
+          }
+          if (rejectPassivePullbackParam(dVarInfo.param)) {
+            DVI.clear();
+            return;
+          }
           DVI.push_back(dVarInfo);
           continue;
         }
@@ -774,7 +828,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         }
 
         dVarInfo.param = it->second;
-        
+        if (rejectPassivePullbackParam(dVarInfo.param)) {
+          DVI.clear();
+          return;
+        }
+
         std::size_t lSqBracketIdx = diffSpec.find("[");
         if (lSqBracketIdx != llvm::StringRef::npos) {
           llvm::StringRef interval(diffSpec.slice(lSqBracketIdx + 1, diffSpec.find(']')));
@@ -886,6 +944,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         }
         dVarInfo.param = FD->getParamDecl(idx);
       }
+      if (rejectPassivePullbackParam(dVarInfo.param)) {
+        DVI.clear();
+        return;
+      }
       // Returns a single parameter.
       DVI.push_back(dVarInfo);
       return;
@@ -907,9 +969,17 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
 
       // insert an empty index for each parameter.
-      for (unsigned i=0; i<params.size(); ++i) {
+      for (unsigned i = 0; i < params.size(); ++i) {
+        if (Mode == DiffMode::pullback &&
+            utils::hasNonDifferentiableAttribute(params[i]))
+          continue;
         DiffInputVarInfo dVarInfo(params[i], IndexInterval());
         DVI.push_back(dVarInfo);
+      }
+      if (Mode == DiffMode::pullback && DVI.empty()) {
+        utils::diag(semaRef, DiagnosticsEngine::Error, dArgsL,
+                    "pullback requires at least one differentiable parameter")
+            << dArgsL;
       }
       return;
     }
@@ -1049,7 +1119,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
   std::string DiffRequest::ComputeDerivativeName() const {
     if (Mode != DiffMode::forward && Mode != DiffMode::reverse &&
-        Mode != DiffMode::vector_forward_mode) {
+        Mode != DiffMode::vector_forward_mode &&
+        (Mode != DiffMode::pullback || !CallUpdateRequired ||
+         DVI.size() == Function->getNumParams())) {
       std::string name = BaseFunctionName + "_" + DiffModeToString(Mode);
       for (auto index : CUDAGlobalArgsIndexes)
         name += "_" + std::to_string(index);
@@ -1107,6 +1179,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return BaseFunctionName + "_grad";
     }
 
+    // Complete and nested pullback requests returned above; only a partial
+    // public request reaches this branch, so its argument suffix is required.
+    if (Mode == DiffMode::pullback)
+      return BaseFunctionName + "_pullback" + argInfo;
+
     std::string s;
     if (CurrentDerivativeOrder > 1)
       s = std::to_string(CurrentDerivativeOrder);
@@ -1159,6 +1236,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::jacobian;
     else if (Annotation == "G")
       request.Mode = DiffMode::reverse;
+    else if (Annotation == "P")
+      request.Mode = DiffMode::pullback;
     else
       llvm_unreachable("unknown mode");
     // What the command line settled on for the translation unit, which the
@@ -1169,7 +1248,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // TBR has nothing to do where there is no reverse sweep. A request that
     // asks for it there is an error below; the command line asking for it
     // everywhere is not, so it is dropped rather than diagnosed.
-    if (request.Mode != DiffMode::reverse && request.Mode != DiffMode::hessian)
+    if (request.Mode != DiffMode::reverse &&
+        request.Mode != DiffMode::hessian && request.Mode != DiffMode::pullback)
       request.EnableTBRAnalysis = false;
     request.EmitPortingHints = ReqOpts.EmitPortingHints;
 
@@ -1212,7 +1292,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     }
 
     // reverse vector mode is not yet supported.
-    if (request.Mode == DiffMode::reverse &&
+    if ((request.Mode == DiffMode::reverse ||
+         request.Mode == DiffMode::pullback) &&
         clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
       utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
                   "reverse vector mode is not yet supported")
@@ -1231,8 +1312,15 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
     }
 
-    if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme))
+    if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme)) {
+      if (request.Mode == DiffMode::pullback) {
+        utils::diag(S, DiagnosticsEngine::Error, BeginLoc,
+                    "enzyme is not supported for pullback mode")
+            << BeginLoc;
+        return true;
+      }
       request.use_enzyme = true;
+    }
 
     if (request.Mode == DiffMode::forward) {
       // Check for clad::differentiate<N>.
@@ -1379,7 +1467,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (Found.empty() && R.Mode == DiffMode::vector_pushforward)
       Found = LookupPropagator(R.BaseFunctionName + "_pushforward");
 
-    if (Found.empty())
+    const bool isPartialPullback = R.Mode == DiffMode::pullback && R.Function &&
+                                   R.DVI.size() != R.Function->getNumParams();
+
+    if (Found.empty() && !isPartialPullback)
       return nullptr; // Nothing found.
 
     if (foundAnyDecl)
@@ -1447,9 +1538,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     TemplateSpecCandidateSet FailedCandidates(R.CallContext->getBeginLoc(),
                                               /*ForTakingAddress=*/false);
-    if (Expr* overload =
-            utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
-      return overload;
+    if (!Found.empty()) {
+      if (Expr* overload =
+              utils::MatchOverloadType(S, dTy, Found, FailedCandidates))
+        return overload;
+    }
 
     // For an original that returns `const T&`, the expected pushforward
     // returns ValueAndPushforward<const T&, const T&>. With two reference
@@ -1461,34 +1554,90 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // exact match fails keeps genuinely reference-returning pushforwards
     // (e.g. the STL builtins for operator[], at, front, back) matching as
     // before.
-    if (const auto* FPT = dTy->getAs<FunctionProtoType>()) {
-      auto* CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
-          FPT->getReturnType()->getAsCXXRecordDecl());
-      TemplateDecl* VPDecl =
-          utils::LookupTemplateDeclInCladNamespace(S, "ValueAndPushforward");
-      if (CTSD && CTSD->getSpecializedTemplate() == VPDecl) {
-        const auto& tArgs = CTSD->getTemplateArgs();
-        QualType valueTy = tArgs[0].getAsType();
-        QualType pushforwardTy = tArgs[1].getAsType();
-        if (valueTy->isLValueReferenceType() &&
-            valueTy.getNonReferenceType().isConstQualified() &&
-            C.hasSameType(valueTy, pushforwardTy)) {
-          QualType relaxedTy =
-              valueTy.getNonReferenceType().getUnqualifiedType();
-          QualType relaxedRetTy =
-              utils::InstantiateTemplate(S, VPDecl, {relaxedTy, relaxedTy});
-          QualType relaxedDTy = C.getFunctionType(
-              relaxedRetTy, FPT->getParamTypes(), FPT->getExtProtoInfo());
-          TemplateSpecCandidateSet RelaxedCandidates(
-              R.CallContext->getBeginLoc(), /*ForTakingAddress=*/false);
-          if (Expr* overload = utils::MatchOverloadType(S, relaxedDTy, Found,
-                                                        RelaxedCandidates))
-            return overload;
+    if (!Found.empty()) {
+      if (const auto* FPT = dTy->getAs<FunctionProtoType>()) {
+        auto* CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+            FPT->getReturnType()->getAsCXXRecordDecl());
+        TemplateDecl* VPDecl =
+            utils::LookupTemplateDeclInCladNamespace(S, "ValueAndPushforward");
+        if (CTSD && CTSD->getSpecializedTemplate() == VPDecl) {
+          const auto& tArgs = CTSD->getTemplateArgs();
+          QualType valueTy = tArgs[0].getAsType();
+          QualType pushforwardTy = tArgs[1].getAsType();
+          if (valueTy->isLValueReferenceType() &&
+              valueTy.getNonReferenceType().isConstQualified() &&
+              C.hasSameType(valueTy, pushforwardTy)) {
+            QualType relaxedTy =
+                valueTy.getNonReferenceType().getUnqualifiedType();
+            QualType relaxedRetTy =
+                utils::InstantiateTemplate(S, VPDecl, {relaxedTy, relaxedTy});
+            QualType relaxedDTy = C.getFunctionType(
+                relaxedRetTy, FPT->getParamTypes(), FPT->getExtProtoInfo());
+            TemplateSpecCandidateSet RelaxedCandidates(
+                R.CallContext->getBeginLoc(), /*ForTakingAddress=*/false);
+            if (Expr* overload = utils::MatchOverloadType(S, relaxedDTy, Found,
+                                                          RelaxedCandidates))
+              return overload;
+          }
         }
       }
     }
 
-    if (!enableDiagnostics)
+    if (isPartialPullback) {
+      LookupResult fullFound =
+          LookupPropagator(R.BaseFunctionName + "_pullback");
+      if (!fullFound.empty()) {
+        llvm::SmallVector<const ValueDecl*, 4> allParams{};
+        for (const ParmVarDecl* PVD : R.Function->parameters())
+          allParams.push_back(PVD);
+        QualType fullDTy = utils::GetDerivativeType(
+            S, R.Function, R.Mode, allParams, /*forCustomDerv=*/true,
+            /*shouldUseRestoreTracker=*/false);
+        TemplateSpecCandidateSet FullCandidates(R.CallContext->getBeginLoc(),
+                                                /*ForTakingAddress=*/false);
+        if (Expr* overload = utils::MatchOverloadType(S, fullDTy, fullFound,
+                                                      FullCandidates)) {
+          bool canAdapt = true;
+          const ParmVarDecl* unadaptableParam = nullptr;
+          for (const ParmVarDecl* PVD : R.Function->parameters()) {
+            bool isSelected = false;
+            for (const auto& info : R.DVI) {
+              if (info.param == PVD) {
+                isSelected = true;
+                break;
+              }
+            }
+            if (!isSelected) {
+              QualType PT = PVD->getType();
+              if (const auto* DT = dyn_cast<DecayedType>(PT))
+                PT = DT->getOriginalType();
+              if (utils::isArrayOrPointerType(PT) &&
+                  !PT->isConstantArrayType() &&
+                  !utils::GetValueType(PT).isConstQualified()) {
+                canAdapt = false;
+                unadaptableParam = PVD;
+                break;
+              }
+            }
+          }
+          if (!canAdapt) {
+            SourceLocation L = R.CallContext ? R.CallContext->getBeginLoc()
+                                             : R.Function->getBeginLoc();
+            utils::diag(S, DiagnosticsEngine::Error, L,
+                        "cannot adapt custom pullback for partial selection; "
+                        "parameter %0 requires scratch storage of unknown size")
+                << unadaptableParam << L;
+            return nullptr;
+          }
+          if (foundAnyDecl)
+            *foundAnyDecl = true;
+          R.IsAdaptedFullCustomPullback = true;
+          return overload;
+        }
+      }
+    }
+
+    if (!enableDiagnostics || Found.empty())
       return nullptr;
 
     // We did not match the found candidates. Warn and offer the user hints.
@@ -1619,7 +1768,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return false;
     llvm::StringRef Mode = A->getAnnotation();
     return Mode == "D" || Mode == "G" || Mode == "H" || Mode == "J" ||
-           Mode == "E";
+           Mode == "E" || Mode == "P";
   }
 
   /// Finds the first clad entry-point call in a statement.
@@ -1724,10 +1873,51 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
         return true;
 
+      if (request.Mode == DiffMode::pullback && request.Function) {
+        const auto* MD = dyn_cast<CXXMethodDecl>(request.Function);
+        if ((MD && (isLambdaCallOperator(MD) ||
+                    (MD->getParent() && MD->getParent()->isLambda()))) ||
+            (request.Functor && request.Functor->isLambda())) {
+          utils::diag(m_Sema, DiagnosticsEngine::Error, E->getBeginLoc(),
+                      "pullback does not support lambda expressions; use named "
+                      "function objects instead")
+              << E->getBeginLoc();
+          return true;
+        }
+
+        for (const ParmVarDecl* PVD : request.Function->parameters()) {
+          QualType PT = PVD->getType().getNonReferenceType();
+          QualType elemTy;
+          if (m_Sema.isStdInitializerList(utils::GetValueType(PT), &elemTy)) {
+            utils::diag(m_Sema, DiagnosticsEngine::Error, E->getBeginLoc(),
+                        "pullback does not support functions with "
+                        "std::initializer_list parameters")
+                << E->getBeginLoc();
+            return true;
+          }
+        }
+      }
+
+      if (request.Mode == DiffMode::pullback && request.Function) {
+        for (const ParmVarDecl* PVD : request.Function->parameters()) {
+          if (utils::isStdNATType(PVD->getType(), m_Sema)) {
+            utils::diag(m_Sema, DiagnosticsEngine::Error, E->getBeginLoc(),
+                        "pullback does not support functions with std::__nat "
+                        "parameters")
+                << E->getBeginLoc();
+            return true;
+          }
+        }
+      }
       request.Args = E->getArg(1);
+      const unsigned errorsBefore = m_Sema.getDiagnostics().getNumErrors();
       request.UpdateDiffParamsInfo(m_Sema);
-      if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis &&
-          request.Args)
+      if (request.Mode == DiffMode::pullback &&
+          m_Sema.getDiagnostics().getNumErrors() != errorsBefore)
+        return true;
+      if ((request.Mode == DiffMode::reverse ||
+           request.Mode == DiffMode::pullback) &&
+          request.EnableVariedAnalysis && request.Args)
         seedVariedDirection(request);
 
       if (request.Function->hasAttr<CUDAGlobalAttr>())
@@ -1759,7 +1949,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       if (MD) {
         if (isLambdaCallOperator(MD) &&
-            m_TopMostReq->Mode == DiffMode::reverse) {
+            (m_TopMostReq->Mode == DiffMode::reverse ||
+             m_TopMostReq->Mode == DiffMode::pullback)) {
           request.EnableVariedAnalysis = false;
           return true;
         }
@@ -1782,7 +1973,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // their implicit object can carry the adjoint.
       hasNoMemoryInputForPointerOrRefReturn =
           !utils::hasMemoryTypeParams(FD) && hasPointerOrRefReturn &&
-          m_TopMostReq->Mode == DiffMode::reverse;
+          (m_TopMostReq->Mode == DiffMode::reverse ||
+           m_TopMostReq->Mode == DiffMode::pullback);
       // Skip reverse-mode scheduling for integral-return helper calls that
       // cannot accumulate through memory arguments. Keep this narrow to avoid
       // suppressing diagnostics on variadic/non-helper calls.
@@ -1792,18 +1984,22 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             QualType ParamType = PVD->getType();
             return ParamType->isPointerType() || ParamType->isReferenceType();
           });
-      if (m_TopMostReq->Mode == DiffMode::reverse && !FD->isVariadic() &&
-          HasPointerOrReferenceParam && !utils::hasMemoryTypeParams(FD) &&
+      if ((m_TopMostReq->Mode == DiffMode::reverse ||
+           m_TopMostReq->Mode == DiffMode::pullback) &&
+          !FD->isVariadic() && HasPointerOrReferenceParam &&
+          !utils::hasMemoryTypeParams(FD) &&
           returnType->isIntegralOrEnumerationType())
         nonDiff = true;
 
-      if (nonDiff && m_TopMostReq->Mode != DiffMode::reverse)
+      if (nonDiff && m_TopMostReq->Mode != DiffMode::reverse &&
+          m_TopMostReq->Mode != DiffMode::pullback)
         return true;
 
       request.Function = FD;
       request.CallContext = E;
       bool canUsePushforwardInRevMode =
-          m_TopMostReq->Mode == DiffMode::reverse &&
+          (m_TopMostReq->Mode == DiffMode::reverse ||
+           m_TopMostReq->Mode == DiffMode::pullback) &&
           !request.EnableErrorEstimation &&
           utils::canUsePushforwardInRevMode(FD);
 
@@ -1822,7 +2018,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                m_TopMostReq->Mode == DiffMode::hessian ||
                canUsePushforwardInRevMode)
         request.Mode = DiffMode::pushforward;
-      else if (m_TopMostReq->Mode == DiffMode::reverse)
+      else if (m_TopMostReq->Mode == DiffMode::reverse ||
+               m_TopMostReq->Mode == DiffMode::pullback)
         request.Mode = DiffMode::pullback;
       else if (m_TopMostReq->Mode == DiffMode::vector_forward_mode ||
                m_TopMostReq->Mode == DiffMode::jacobian ||
@@ -1870,8 +2067,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
 
       // Warn if we find pullbacks.
-      if (canUsePushforwardInRevMode &&
-          m_TopMostReq->Mode == DiffMode::reverse) {
+      // canUsePushforwardInRevMode already includes the top-level mode check.
+      if (canUsePushforwardInRevMode) {
         DiffRequest R = request;
         R.BaseFunctionName = utils::ComputeEffectiveFnName(R.Function);
         R.Mode = DiffMode::pullback;
@@ -2001,8 +2198,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         analyzer.Analyze(request);
         if (modifiedParams[FD].empty())
           shouldUseRestoreTracker = false;
-        Saved.get()->addFunctionModifiedParams(FD, modifiedParams[FD]);
-        Saved.get()->addFunctionUsedParams(FD, usedParams[FD]);
+        if (Saved.get()) {
+          // NOLINTBEGIN(bugprone-pointer-arithmetic-on-polymorphic-object)
+          Saved.get()->addFunctionModifiedParams(FD, modifiedParams[FD]);
+          Saved.get()->addFunctionUsedParams(FD, usedParams[FD]);
+          // NOLINTEND(bugprone-pointer-arithmetic-on-polymorphic-object)
+        }
       }
 
       if (request.Mode == DiffMode::hessian ||

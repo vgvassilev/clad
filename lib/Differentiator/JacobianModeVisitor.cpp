@@ -253,6 +253,9 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
   endScope(); // Function decl scope
   // Create the overload declaration for the derivative.
   FunctionDecl* overloadFD = CreateDerivativeOverload();
+  if (!overloadFD)
+    return DerivativeAndOverload{/*derivative=*/nullptr,
+                                 /*overload=*/nullptr};
   return DerivativeAndOverload{vectorDiffFD, overloadFD};
 }
 

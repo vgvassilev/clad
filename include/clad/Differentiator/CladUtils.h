@@ -419,6 +419,10 @@ clang::Sema::SemaDiagnosticBuilder diag(
     clang::QualType InstantiateTemplate(clang::Sema& S,
                                         clang::TemplateDecl* CladClassDecl,
                                         clang::TemplateArgumentListInfo& TLI);
+    /// Returns true only for std::__nat, including declarations in an inline
+    /// namespace directly below std. Same-named user records are not special.
+    bool isStdNATType(clang::QualType T, clang::Sema& S);
+
     /// Builds the QualType of the derivative to be generated.
     ///
     /// \param[in] S the Sema to build the type with.
