@@ -47,6 +47,34 @@ constexpr double d_larger_wrt_a(double a, double b) {
   return da;
 }
 
+constexpr double f(double x, double y) {
+  return x * y;
+}
+
+constexpr double test_full() {
+  auto g = clad::gradient(f);
+
+  double dx = 0;
+  double dy = 0;
+
+  g.execute(3., 5., &dx, &dy);
+
+  return dx + dy;
+}
+
+constexpr double test_partial() {
+  auto g = clad::gradient(f, "x");
+
+  double dx = 0;
+
+  g.execute(3., 5., &dx);
+
+  return dx;
+}
+
+static_assert(test_full() == 8.);
+static_assert(test_partial() == 5.);
+
 int main() {
 #if __cpp_constexpr >= 202406L
   // Worked out during compilation: d(a*b*c)/db at (2,3,5) is a*c.
