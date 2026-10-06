@@ -201,6 +201,18 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
         addToCurrentBlock(S);
     else
       addToCurrentBlock(BodyDiff);
+    // The primal wrote its result through a parameter and returned nothing, so
+    // GetDerivativeType gave the derivative that parameter's tangent as its
+    // return type. Hand the tangent back; without this it stays a local the
+    // caller has no way to read.
+    // A primal that already ends in `return;` had its tangent returned by
+    // VisitReturnStmt a moment ago, and a second one here would be
+    // unreachable code in the user's translation unit.
+    if (Expr* outputTangent = GetOutputParamTangent()) {
+      Stmts& block = getCurrentBlock();
+      if (block.empty() || !isa<ReturnStmt>(block.back()))
+        addToCurrentBlock(BuildReturnStmt(outputTangent));
+    }
     Stmt* fnBody = endBlock();
     // FIXME: Enable this when we vgvassilev/clad#367 (removing goto stmts).
     // // If ActOnFinishFunctionBody should pop the current DeclContext.
@@ -314,6 +326,26 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
     params.push_back(dPVD);
     m_Variables[PVD] = {dPVD};
   }
+}
+
+Expr* BaseForwardModeVisitor::GetOutputParamTangent() {
+  // The request knows which parameter a void-returning primal writes its
+  // result through; only a derivative GetDerivativeType then gave a return
+  // type of its own has that tangent to hand back. Every other forward
+  // derivative keeps the primal's return type, and a pushforward has
+  // somewhere to put an output parameter's tangent already.
+  const ParmVarDecl* outputParam = m_DiffReq.getOutputTangentParam();
+  if (!outputParam || !m_Derivative ||
+      m_Derivative->getReturnType()->isVoidType())
+    return nullptr;
+
+  // GenerateSeeds keys the tangents by the derivative's own parameters, which
+  // SetupDerivativeParameters cloned from the primal's in order.
+  auto found = m_Variables.find(
+      m_Derivative->getParamDecl(outputParam->getFunctionScopeIndex()));
+  assert(found != m_Variables.end() && found->second.Decl &&
+         "GenerateSeeds gives a differentiable parameter a tangent");
+  return BuildDeclRef(found->second.Decl);
 }
 
 void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
@@ -785,8 +817,16 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
 
 StmtDiff BaseForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // If there is no return value, we must not attempt to differentiate
-  if (!RS->getRetValue())
+  if (!RS->getRetValue()) {
+    // Unless the derivative has a return value of its own: a void primal
+    // whose tangent is its output parameter's. Dropping the statement would
+    // not merely lose the tangent on this path, it would lose the path --
+    // the derivative would carry on and write the output the primal left
+    // alone. Return the tangent as it stands here instead.
+    if (Expr* outputTangent = GetOutputParamTangent())
+      return StmtDiff(BuildReturnStmt(outputTangent));
     return nullptr;
+  }
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Stmt* returnStmt =
