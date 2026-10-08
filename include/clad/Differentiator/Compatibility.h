@@ -80,8 +80,10 @@ using namespace llvm;
 // clang-20 clang::Sema::AA_Casting became scoped
 #if CLANG_VERSION_MAJOR < 20
 #define CLAD_COMPAT_CLANG20_SemaAACasting clang::Sema::AA_Casting
+#define CLAD_COMPAT_CLANG20_SemaAAConverting clang::Sema::AA_Converting
 #else
 #define CLAD_COMPAT_CLANG20_SemaAACasting clang::AssignmentAction::Casting
+#define CLAD_COMPAT_CLANG20_SemaAAConverting clang::AssignmentAction::Converting
 #endif
 
 // clang-19 SemaOpenMP was introduced
