@@ -91,7 +91,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     // should follow closer what clang does, namely building a
     // FunctionTemplateDecl and then we should instantiate it with the
     // particular template parameters.
-    if (R.Function && !R.Function->getPrimaryTemplate())
+    if (R.DerivedFDPrototypes.size() >= R.CurrentDerivativeOrder)
+      Previous.addDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
+    else if (R.Function && !R.Function->getPrimaryTemplate())
       S.LookupQualifiedName(Previous, dFD->getParent());
 
     // Derivatives are declared inline, but a hand-written custom derivative may
