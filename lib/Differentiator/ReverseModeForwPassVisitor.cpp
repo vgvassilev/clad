@@ -94,6 +94,20 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
       // directly leaves nowhere for the free()s to go, and both blocks leak
       // for the lifetime of the program.
       SourceLocation validLoc{CD->getBeginLoc()};
+      for (const FieldDecl* FD : CD->getParent()->fields()) {
+        QualType FT = FD->getType().getCanonicalType();
+        // IsDifferentiableType counts integers as real types;
+        if (!FT->isIntegerType() && !FT->isEnumeralType())
+          continue;
+        Expr* primalField = utils::BuildMemberExpr(
+            m_Sema, getCurrentScope(),
+            BuildOp(UO_Deref, CloneNode(thisObj.getExpr())), FD->getName());
+        Expr* adjointField = utils::BuildMemberExpr(
+            m_Sema, getCurrentScope(),
+            BuildOp(UO_Deref, CloneNode(dthisObj.getExpr())), FD->getName());
+        if (primalField && adjointField)
+          ctorEpilogue.push_back(BuildOp(BO_Assign, adjointField, primalField));
+      }
       llvm::SmallVector<Expr*, 2> returnArgs = {
           BuildOp(UO_Deref, CloneNode(thisObj.getExpr())),
           BuildOp(UO_Deref, CloneNode(dthisObj.getExpr()))};
@@ -102,6 +116,27 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
       VarDecl* resultDecl =
           BuildVarDecl(m_Derivative->getReturnType(), "_ret", returnInitList);
       ctorEpilogue.push_back(BuildDeclStmt(resultDecl));
+      if (CD->getParent()->hasNonTrivialDestructor()) {
+        CanQualType recordTy =
+            m_Context.getCanonicalType(thisTy->getPointeeType());
+        DeclarationNameInfo dtorName(
+            m_Context.DeclarationNames.getCXXDestructorName(recordTy),
+            validLoc);
+        for (Expr* obj : {thisObj.getExpr(), dthisObj.getExpr()}) {
+          CXXScopeSpec SS;
+          Expr* dtor = m_Sema
+                           .BuildMemberReferenceExpr(
+                               CloneNode(obj), obj->getType(), validLoc,
+                               /*IsArrow=*/true, SS, noLoc,
+                               /*FirstQualifierInScope=*/nullptr, dtorName,
+                               /*TemplateArgs=*/nullptr, getCurrentScope())
+                           .get();
+          ctorEpilogue.push_back(m_Sema
+                                     .ActOnCallExpr(getCurrentScope(), dtor,
+                                                    validLoc, {}, validLoc)
+                                     .get());
+        }
+      }
       // BuildThisExpr pairs the object's malloc with a free and hands it back;
       // the derived object is allocated the same way and needs its own.
       ctorEpilogue.push_back(thisObj.getStmt_dx());
@@ -252,7 +287,30 @@ StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(clang::Expr* E,
 
 StmtDiff ReverseModeForwPassVisitor::ProcessSingleStmt(const clang::Stmt* S) {
   StmtDiff SDiff = Visit(S);
-  return {SDiff.getStmt()};
+  Stmt* forward = SDiff.getStmt();
+  if (forward && m_ThisExprDerivative)
+    if (const auto* BinOp = dyn_cast<BinaryOperator>(S))
+      if (BinOp->getOpcode() == BO_Assign)
+        if (const auto* ME =
+                dyn_cast<MemberExpr>(BinOp->getLHS()->IgnoreParenImpCasts())) {
+          QualType FT = ME->getType().getCanonicalType();
+          if ((FT->isIntegerType() || FT->isEnumeralType()) &&
+              isa<CXXThisExpr>(ME->getBase()->IgnoreParenImpCasts())) {
+            const auto* FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
+            Expr* adjointField =
+                FD ? utils::BuildMemberExpr(
+                         m_Sema, getCurrentScope(),
+                         BuildOp(UO_Deref, CloneNode(m_ThisExprDerivative)),
+                         FD->getName())
+                   : nullptr;
+            if (adjointField) {
+              Expr* mirrored =
+                  BuildOp(BO_Assign, adjointField, Clone(BinOp->getRHS()));
+              forward = MakeCompoundStmt({forward, mirrored});
+            }
+          }
+        }
+  return {forward};
 }
 
 StmtDiff
