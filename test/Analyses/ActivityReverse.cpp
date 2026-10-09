@@ -278,7 +278,7 @@ double f9(double x, double const *obs)
 // CHECK-NEXT:     double _t1[2];
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0.;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     for (loopIdx0 = 0; loopIdx0 < 2; loopIdx0++) {
 // CHECK-NEXT:         _t1[loopIdx0] = res;
 // CHECK-NEXT:         res += std::lgamma(obs[2 + loopIdx0] + 1) + x;
