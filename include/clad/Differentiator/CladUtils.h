@@ -285,6 +285,19 @@ clang::Sema::SemaDiagnosticBuilder diag(
                      clang::TypeSourceInfo* TSI = nullptr,
                      clang::SourceLocation Loc = clang::SourceLocation());
 
+    /// Attaches \p params to \p FD and tells each one where it sits.
+    ///
+    /// A hand-built ParmVarDecl keeps scope index 0 until told otherwise, and
+    /// setParams does not tell it. Codegen assigns arguments by position and
+    /// never reads the index, but constant evaluation keys a parameter's
+    /// storage on it -- see CallRef::getOrigParam in clang's ExprConstant.cpp,
+    /// which maps a parameter through OrigCallee->getParamDecl(index). Leave
+    /// them all at 0 and they share the first parameter's slot, so the
+    /// derivative is right at run time and reads every argument as the first
+    /// one at compile time. See #2181.
+    void SetParams(clang::FunctionDecl* FD,
+                   llvm::ArrayRef<clang::ParmVarDecl*> params);
+
     /// If `T` represents an array or a pointer type then returns the
     /// corresponding array element or the pointee type. If `T` is a reference
     /// type then return the corresponding non-reference type. Otherwise, if `T`

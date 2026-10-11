@@ -100,9 +100,10 @@ graph it is draining.
 Identifying functions to derive
 =================================
 ``HandleTopLevelDecl()`` sets each declaration group aside for later. The one
-exception is ``clad::differentiate<clad::immediate_mode>`` on a ``constexpr``
-function, which is planned and derived as its group arrives. The walk that finds
-every other request runs once the whole unit is parsed, from
+exception is a ``constexpr`` function differentiated from inside another
+``constexpr`` function, which is planned and derived as its group arrives so
+that the derivative exists if the compiler evaluates the call. The walk that
+finds every other request runs once the whole unit is parsed, from
 ``HandleTranslationUnit()``. It uses ``DiffCollector``, a
 ``RecursiveASTVisitor``, which reaches nodes through the corresponding
 ``Visit()`` functions -- a call expression, which corresponds to a function call

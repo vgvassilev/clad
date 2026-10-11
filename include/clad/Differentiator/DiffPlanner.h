@@ -65,6 +65,16 @@ using OwnedAnalysisContexts =
     llvm::SmallVector<std::unique_ptr<clang::AnalysisDeclContext>, 4>;
 using ParamSet = std::set<const clang::ParmVarDecl*>;
 using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
+/// The source ranges where clad was switched on, in order.
+using DiffInterval = std::vector<clang::SourceRange>;
+
+/// Reports a clad entry-point call in the initialiser of a variable the
+/// compiler has to work out before clad is handed the declaration, and says
+/// what to write instead. clad cannot fix such a call: by the time the
+/// declaration reaches this plugin the compiler has already diagnosed the
+/// initialiser. See #2188.
+void DiagnoseConstantInitRequests(clang::Sema& S, const DiffInterval& Interval,
+                                  clang::DeclGroupRef DGR);
 
 /// A read-only, AD-oriented view over the primal being differentiated: it
 /// wraps the primal FunctionDecl and surfaces the AD-relevant facts the
@@ -254,10 +264,10 @@ public:
   /// belonging to a function other than this request's.
   bool writesVariable(const clang::VarDecl* VD) const;
 
-  /// What is known about \p FS as a counted loop, or an empty result when it
-  /// is not one. Reading the facts does not build anything: a caller that
-  /// wants a trip-count expression builds it from Init and Bound.
-  const LoopFacts& getLoopFacts(const clang::ForStmt* FS) const;
+  /// What is known about the loop \p S, or an empty result when nothing is.
+  /// Reading the facts does not build anything: a caller that wants a
+  /// trip-count expression builds it from Init and Bound.
+  const LoopFacts& getLoopFacts(const clang::Stmt* S) const;
 
   /// The extent each parameter of Function is written over, in parameter
   /// order, or empty when there is no Function to look at.
@@ -305,13 +315,13 @@ public:
   bool VerboseDiags = false;
   /// Whether each analysis runs for this request. One member per entry in
   /// Analyses.td, spelled Enable\<Id\>Analysis.
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   bool Enable##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
   /// Whether the user asked to hear what each analysis left behind
   /// (-Rclad-analysis=\<name\>). Diagnostic-only, like EmitPortingHints, and
   /// therefore excluded from request equality.
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   bool Remark##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
 
@@ -320,10 +330,10 @@ public:
   /// function, but the user asked for the analyses once, for the whole
   /// differentiation.
   void inheritAnalysesFrom(const DiffRequest& Other) {
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   Enable##Id##Analysis = Other.Enable##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
-#define CLAD_ANALYSIS(Id, Name, Legacy, Default, Desc)                         \
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   Remark##Id##Analysis = Other.Remark##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
   }
@@ -335,9 +345,11 @@ public:
   /// A flag to request a clad::restore_tracker parameter in the generated
   /// _reverse_forw function.
   bool UseRestoreTracker = false;
-  /// A flag specifying whether this differentiation is to be used
-  /// in immediate contexts.
-  bool ImmediateMode = false;
+  /// The function whose body holds the call asking for this derivative, or
+  /// null at namespace scope. Read from where the call is, not from anything
+  /// a user asks for; what it means for scheduling is decided in one place,
+  /// CladPlugin::HandleTopLevelDeclForClad.
+  const clang::FunctionDecl* ImmediateContext = nullptr;
   /// A flag specifying whether this differentiation is to be used
   /// for error estimation.
   bool EnableErrorEstimation = false;
@@ -442,6 +454,11 @@ public:
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
            Args == other.Args && Mode == other.Mode &&
+           // Written out rather than expanded from the table, so that the loop
+           // analysis can be left out: a pullback does not inherit it, so
+           // comparing it would make the request that looks a derivative up
+           // differ from the one that generated it, and clad would call a
+           // signature it never wrote. #2145 is the inheritance this waits on.
            EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
            EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
@@ -530,8 +547,6 @@ public:
   bool HasTbrAnalysisRun() const { return m_TbrRunInfo.HasAnalysisRun; }
 };
 
-using DiffInterval = std::vector<clang::SourceRange>;
-
   /// \ingroup pipeline
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
     /// The source interval where clad was activated.
@@ -564,6 +579,10 @@ using DiffInterval = std::vector<clang::SourceRange>;
 
     bool m_IsTraversingTopLevelDecl = true;
 
+    /// The function whose body the traversal is currently inside, or null at
+    /// namespace scope. VisitCallExpr copies it onto each request it makes.
+    const clang::FunctionDecl* m_EnclosingFD = nullptr;
+
     /// True while Walk is traversing a DeclGroupRef. A traversal can trigger
     /// name lookups that make the ASTReader deserialize pending module decls
     /// and hand them to the consumers, re-entering Walk; such groups are
@@ -588,6 +607,8 @@ using DiffInterval = std::vector<clang::SourceRange>;
     [[nodiscard]] bool isTraversalInFlight() const {
       return m_TraversalInFlight;
     }
+    /// Tracks m_EnclosingFD across the traversal.
+    bool TraverseDecl(clang::Decl* D);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     /// Record an in-place `p = realloc(p, n)` on the request whose body is

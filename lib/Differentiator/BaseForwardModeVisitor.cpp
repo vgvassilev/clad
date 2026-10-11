@@ -174,7 +174,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   llvm::SmallVector<ParmVarDecl*, 16> params;
   SetupDerivativeParameters(params);
 
-  m_Derivative->setParams(params);
+  utils::SetParams(m_Derivative, params);
   m_Derivative->setBody(nullptr);
 
   m_Sema.PopFunctionScopeInfo();

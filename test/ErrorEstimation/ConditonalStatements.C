@@ -90,39 +90,32 @@ float func2(float x) {
 //CHECK-NEXT:     double _ret_value0 = 0.;
 //CHECK-NEXT:     float _d_z = 0.F;
 //CHECK-NEXT:     float z = x * x;
-//CHECK-NEXT:     auto _rev0 = [&] {
-//CHECK-NEXT:         if (_cond0) {
-//CHECK-NEXT:             *_d_x += 1;
-//CHECK-NEXT:             *_d_x += 1;
-//CHECK-NEXT:         } else {
-//CHECK-NEXT:             *_d_x += 1 * x;
-//CHECK-NEXT:             *_d_x += x * 1;
-//CHECK-NEXT:         }
+//CHECK-NEXT:     clad::forward_sweep([&] {
 //CHECK-NEXT:         {
-//CHECK-NEXT:             _final_error += std::abs(_d_z * z * {{.+}});
-//CHECK-NEXT:             *_d_x += _d_z * x;
-//CHECK-NEXT:             *_d_x += x * _d_z;
+//CHECK-NEXT:             _cond0 = z > 9;
+//CHECK-NEXT:             if (_cond0) {
+//CHECK-NEXT:                 _ret_value0 = x + x;
+//CHECK-NEXT:                 return;
+//CHECK-NEXT:             } else {
+//CHECK-NEXT:                 _ret_value0 = x * x;
+//CHECK-NEXT:                 return;
+//CHECK-NEXT:             }
 //CHECK-NEXT:         }
-//CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
-//CHECK-NEXT:         _final_error += std::abs(1. * _ret_value0 * {{.+}});
-//CHECK-NEXT:     };
-//CHECK-NEXT:     {
-//CHECK-NEXT:     _cond0 = z > 9;
+//CHECK-NEXT:     });
 //CHECK-NEXT:     if (_cond0) {
-//CHECK-NEXT:         _ret_value0 = x + x;
-//CHECK-NEXT:         {
-//CHECK-NEXT:             _rev0();
-//CHECK-NEXT:             return;
-//CHECK-NEXT:         }
+//CHECK-NEXT:         *_d_x += 1;
+//CHECK-NEXT:         *_d_x += 1;
 //CHECK-NEXT:     } else {
-//CHECK-NEXT:         _ret_value0 = x * x;
-//CHECK-NEXT:         {
-//CHECK-NEXT:             _rev0();
-//CHECK-NEXT:             return;
-//CHECK-NEXT:         }
+//CHECK-NEXT:         *_d_x += 1 * x;
+//CHECK-NEXT:         *_d_x += x * 1;
 //CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         _final_error += std::abs(_d_z * z * {{.+}});
+//CHECK-NEXT:         *_d_x += _d_z * x;
+//CHECK-NEXT:         *_d_x += x * _d_z;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     _rev0();
+//CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
+//CHECK-NEXT:     _final_error += std::abs(1. * _ret_value0 * {{.+}});
 //CHECK-NEXT: }
 
 float func3(float x, float y) { return x > 30 ? x * y : x + y; }

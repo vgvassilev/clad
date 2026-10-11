@@ -27,25 +27,82 @@ enum order {
   third = 3,
 }; // enum order
 
+// A pair sits on two adjacent bits above the order, so the higher of the two
+// is what has to fit. Checked here, before the enumerators are formed: an
+// entry that does not fit makes its own enumerator ill-formed, and that error
+// names a shift width rather than the table the number came from.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  static_assert((FirstBit) >= 0,                                               \
+                "clad::opts: the position for " #Legacy " is below the "       \
+                "order, so its bits would be read as a derivative order "      \
+                "rather than as options.");                                    \
+  static_assert(ORDER_BITS + (FirstBit) + 1 < sizeof(unsigned) * 8,            \
+                "clad::opts has run out of bits: the pair for " #Legacy        \
+                " does not fit. Widen the type the bitmask is carried in.");
+#include "clad/Differentiator/Analyses.def"
+
+/// What a single request asks of clad, over and above what the command line
+/// asked of the translation unit.
+///
+/// The per-analysis pairs come from Analyses.td, so an analysis that can be
+/// switched for the whole translation unit can also be switched for one
+/// request. Two bits each: neither set leaves the analysis at whatever the
+/// command line settled on, and the pair disagreeing is an error rather than
+/// something resolved by order.
 enum opts : unsigned {
-  use_enzyme = 1 << ORDER_BITS,
-  vector_mode = 1 << (ORDER_BITS + 1),
+// The options that are not analyses: which differentiator does the work, and
+// what is asked of the derivative. Their positions come from the same table as
+// the analyses below, so that a bit is spoken for in one place.
+#define CLAD_OPT_RESERVED(Name, FirstBit) Name = 1 << (ORDER_BITS + (FirstBit)),
+#include "clad/Differentiator/Analyses.def"
 
-  // Storing two bits for tbr analysis.
-  // 00 - default, 01 - enable, 10 - disable, 11 - not used / invalid
-  enable_tbr = 1 << (ORDER_BITS + 2),
-  disable_tbr = 1 << (ORDER_BITS + 3),
-  enable_va = 1 << (ORDER_BITS + 5),
-  disable_va = 1 << (ORDER_BITS + 6),
-  enable_ua = 1 << (ORDER_BITS + 9),
-  disable_ua = 1 << (ORDER_BITS + 10),
-
-  // Specifying whether we only want the diagonal of the hessian.
-  diagonal_only = 1 << (ORDER_BITS + 4),
-
-  // Specify that we need a constexpr-enabled CladFunction
-  immediate_mode = 1 << (ORDER_BITS + 7),
+// What clad may prove about the code, one pair per analysis. Grouped rather
+// than interleaved by position: each value is written out, so declaration
+// order is free to say what kind of option each one is.
+//
+// Named the way -fenable-analysis= and every report name it, and again the way
+// the first of these was spelled. A reader of clad::opts::enable_va has to know
+// that va is the activity analysis; a reader of enable_activity_analysis does
+// not. The short spellings stay because they are public API -- a position
+// reaches the mangled name of every request that carries one -- so the two are
+// the same option under two names, not two options.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  enable_##Name##_analysis = 1 << (ORDER_BITS + (FirstBit)),                   \
+  disable_##Name##_analysis = 1 << (ORDER_BITS + (FirstBit) + 1),              \
+  enable_##Legacy = enable_##Name##_analysis,                                  \
+  disable_##Legacy = disable_##Name##_analysis,
+#include "clad/Differentiator/Analyses.def"
 }; // enum opts
+
+/// Only the check below reads these; they are not part of clad's interface.
+namespace opts_detail {
+/// Recursive because this is evaluated as far back as C++11.
+constexpr unsigned CountSetBits(unsigned V) {
+  return V ? 1 + CountSetBits(V & (V - 1)) : 0;
+}
+
+/// Every option, and how many there are. Both kinds are counted, and both
+/// come from the table, so that adding one is not also a count to keep.
+constexpr unsigned AllOpts = 0
+#define CLAD_OPT_RESERVED(Name, FirstBit) | Name
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  | enable_##Name##_analysis | disable_##Name##_analysis
+#include "clad/Differentiator/Analyses.def"
+    ;
+constexpr unsigned NumOpts = 0
+#define CLAD_OPT_RESERVED(Name, FirstBit) +1
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc) +2
+#include "clad/Differentiator/Analyses.def"
+    ;
+} // namespace opts_detail
+
+// Two options on one bit would make each of them silently mean the other as
+// well, so say so at the point the table is read rather than leave it to be
+// found in a wrong derivative.
+static_assert(opts_detail::CountSetBits(opts_detail::AllOpts) ==
+                  opts_detail::NumOpts,
+              "two clad::opts share a bit: check the RequestBit values in "
+              "Analyses.td against the options spelled out above");
 
 constexpr unsigned GetDerivativeOrder(const unsigned bitmasked_opts) {
   return bitmasked_opts & ORDER_MASK;
@@ -70,6 +127,19 @@ constexpr unsigned GetBitmaskedOpts(const unsigned first, Opts... opts) {
 #define CUDA_HOST_DEVICE __host__ __device__
 #else
 #define CUDA_HOST_DEVICE
+#endif
+
+// Keeps a cold path out of its caller's inline cost. A tape push is a
+// placement-new in the common case and a slab allocation once every
+// SLAB_SIZE elements; inlining the second into the first puts every push
+// over clang's inline threshold, so the pushes themselves stop being
+// inlined into the generated pullbacks.
+#if defined(__GNUC__) || defined(__clang__)
+#define CLAD_NOINLINE __attribute__((noinline))
+#elif defined(_MSC_VER)
+#define CLAD_NOINLINE __declspec(noinline)
+#else
+#define CLAD_NOINLINE
 #endif
 
 // Define trap function that is a CUDA compatible replacement for

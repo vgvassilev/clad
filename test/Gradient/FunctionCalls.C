@@ -385,37 +385,34 @@ double check_and_return(double x, char c, const char* s) {
 }
 
 // CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_c, char *_d_s) {
-// CHECK-NEXT:    bool _cond0 = false;
-// CHECK-NEXT:    double _d_cond0;
-// CHECK-NEXT:    _d_cond0 = 0.;
-// CHECK-NEXT:    bool _cond1 = false;
-// CHECK-NEXT:    bool _cond2 = false;
-// CHECK-NEXT:    auto _rev0 = [&] {
-// CHECK-NEXT:        {
-// CHECK-NEXT:            if (_cond2)
-// CHECK-NEXT:                *_d_x += _d_y;
-// CHECK-NEXT:            {
-// CHECK-NEXT:                if (_cond1) {
-// CHECK-NEXT:                    double _r_d0 = _d_cond0;
-// CHECK-NEXT:                    _d_cond0 = 0.;
-// CHECK-NEXT:                }
-// CHECK-NEXT:            }
-// CHECK-NEXT:        }
-// CHECK-NEXT:    };
-// CHECK-NEXT:    {
-// CHECK-NEXT:        {
-// CHECK-NEXT:            _cond1 = c == 'a';
-// CHECK-NEXT:            if (_cond1)
-// CHECK-NEXT:                _cond0 = s[0] == 'a';
-// CHECK-NEXT:        }
-// CHECK-NEXT:        _cond2 = _cond1 && _cond0;
-// CHECK-NEXT:        if (_cond2) {
-// CHECK-NEXT:            _rev0();
-// CHECK-NEXT:            return;
-// CHECK-NEXT:        }
-// CHECK-NEXT:    }
-// CHECK-NEXT:    _rev0();
-// CHECK-NEXT:}
+// CHECK-NEXT:     bool _cond0 = false;
+// CHECK-NEXT:     double _d_cond0;
+// CHECK-NEXT:     _d_cond0 = 0.;
+// CHECK-NEXT:     bool _cond1 = false;
+// CHECK-NEXT:     bool _cond2 = false;
+// CHECK-NEXT:     clad::forward_sweep([&] {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 _cond1 = c == 'a';
+// CHECK-NEXT:                 if (_cond1)
+// CHECK-NEXT:                     _cond0 = s[0] == 'a';
+// CHECK-NEXT:             }
+// CHECK-NEXT:             _cond2 = _cond1 && _cond0;
+// CHECK-NEXT:             if (_cond2)
+// CHECK-NEXT:                 return;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     });
+// CHECK-NEXT:     {
+// CHECK-NEXT:         if (_cond2)
+// CHECK-NEXT:             *_d_x += _d_y;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (_cond1) {
+// CHECK-NEXT:                 double _r_d0 = _d_cond0;
+// CHECK-NEXT:                 _d_cond0 = 0.;
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 double fn8(double x, double y) {
   return check_and_return(x, 'a', "aa") * y * std::tanh(1.0) * std::max(1.0, 2.0); // expected-warning {{ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]}}
@@ -627,27 +624,24 @@ double recFun (double x, double y) {
 
 //CHECK: void recFun_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
 //CHECK-NEXT:     bool _cond0 = false;
-//CHECK-NEXT:     auto _rev0 = [&] {
-//CHECK-NEXT:         if (_cond0) {
-//CHECK-NEXT:             double _r0 = 0.;
-//CHECK-NEXT:             double _r1 = 0.;
-//CHECK-NEXT:             recFun_pullback(x - 1, y, _d_y0, &_r0, &_r1);
-//CHECK-NEXT:             *_d_x += _r0;
-//CHECK-NEXT:             *_d_y += _r1;
+//CHECK-NEXT:     clad::forward_sweep([&] {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             _cond0 = x > y;
+//CHECK-NEXT:             if (_cond0)
+//CHECK-NEXT:                 return;
 //CHECK-NEXT:         }
-//CHECK-NEXT:     };
-//CHECK-NEXT:     {
-//CHECK-NEXT:     _cond0 = x > y;
+//CHECK-NEXT:         {
+//CHECK-NEXT:             *_d_x += _d_y0 * y;
+//CHECK-NEXT:             *_d_y += x * _d_y0;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     });
 //CHECK-NEXT:     if (_cond0) {
-//CHECK-NEXT:         _rev0();
-//CHECK-NEXT:         return;
+//CHECK-NEXT:         double _r0 = 0.;
+//CHECK-NEXT:         double _r1 = 0.;
+//CHECK-NEXT:         recFun_pullback(x - 1, y, _d_y0, &_r0, &_r1);
+//CHECK-NEXT:         *_d_x += _r0;
+//CHECK-NEXT:         *_d_y += _r1;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     }
-//CHECK-NEXT:     {
-//CHECK-NEXT:         *_d_x += _d_y0 * y;
-//CHECK-NEXT:         *_d_y += x * _d_y0;
-//CHECK-NEXT:     }
-//CHECK-NEXT:     _rev0();
 //CHECK-NEXT: }
 
 double fn16(double x, double y) {
@@ -910,16 +904,16 @@ void mult(double* x, double y) {
 // CHECK: void mult_pullback(double *x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _t1[3];
 // CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; ++i) {
-// CHECK-NEXT:         clad::push(_t1, x[i]);
+// CHECK-NEXT:         _t1[i] = x[i];
 // CHECK-NEXT:         x[i] *= y;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             x[i] = clad::pop(_t1);
+// CHECK-NEXT:             x[i] = _t1[i];
 // CHECK-NEXT:             double _r_d0 = _d_x[i];
 // CHECK-NEXT:             _d_x[i] = 0.;
 // CHECK-NEXT:             _d_x[i] += _r_d0 * y;

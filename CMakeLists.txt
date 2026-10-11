@@ -122,11 +122,13 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # Emscripten builds of clangInterpreter link lldWasm/lldCommon
   # (clang/lib/Interpreter/CMakeLists.txt), so ClangTargets.cmake references
   # LLD targets and find_package(Clang) fails unless LLD is found first.
+  # Look only in LLD_DIR and next to the LLVM found above: the default paths
+  # include PATH, and the LLD of a clang on PATH loads that compiler's
+  # LLVMConfig.cmake over it.
   if (DEFINED LLD_DIR)
-    find_package(LLD QUIET CONFIG PATHS ${LLD_DIR} "${LLD_DIR}/lib/cmake/lld" "${LLD_DIR}/cmake" NO_DEFAULT_PATH)
-  else()
-    find_package(LLD QUIET CONFIG HINTS "${LLVM_DIR}/../lld" "${LLVM_BINARY_DIR}/lib/cmake/lld")
+    set(lld_search_paths ${LLD_DIR} "${LLD_DIR}/lib/cmake/lld" "${LLD_DIR}/cmake")
   endif()
+  find_package(LLD QUIET CONFIG PATHS ${lld_search_paths} "${LLVM_DIR}/../lld" "${LLVM_BINARY_DIR}/lib/cmake/lld" NO_DEFAULT_PATH)
 
   if (DEFINED CLANG_VERSION)
     message(FATAL_ERROR "Clang's configuration is not versioned. Please set LLVM_VERSION instead.")
@@ -353,23 +355,6 @@ elseif (CMAKE_CROSSCOMPILING)
     "Cross-compiling clad needs a clad-tblgen built for the host: configure "
     "utils/clad-tblgen against a native LLVM and pass -DCLAD_TBLGEN=<path>.")
 else()
-  # The TableGen library is looked up rather than taken from
-  # LLVM_LINK_COMPONENTS, because with a libLLVM to link against llvm_config
-  # folds every component into it and that library carries no TableGenMain.
-  #
-  # Only an in-tree build defines a real LLVMTableGen target. Standalone,
-  # LLVMConfig exports an IMPORTED one of the same name, and taking that would
-  # bring its include directories along with it.
-  set(_clad_tablegen_imported TRUE)
-  if (TARGET LLVMTableGen)
-    get_target_property(_clad_tablegen_imported LLVMTableGen IMPORTED)
-  endif()
-  if (TARGET LLVMTableGen AND NOT _clad_tablegen_imported)
-    set(CLAD_LLVM_TABLEGEN_LIB LLVMTableGen)
-  else()
-    find_library(CLAD_LLVM_TABLEGEN_LIB NAMES LLVMTableGen REQUIRED
-                 HINTS ${LLVM_LIBRARY_DIR} ${LLVM_LIBRARY_DIRS})
-  endif()
   add_subdirectory(utils/clad-tblgen)
   set(CLAD_TBLGEN_EXE $<TARGET_FILE:clad-tblgen>)
   # lit's site config is written at configure time, so it cannot carry a
@@ -404,11 +389,18 @@ list(TRANSFORM CLAD_TBLGEN_INCLUDES PREPEND -I)
 
 # add_custom_command rather than a target: these are inputs to compiling clad,
 # so they have to be built before it and rebuilt when the table changes.
+#
+# Both the target and the tool's own path are named below. The target orders the
+# two; the path is what makes a rebuilt clad-tblgen re-render, because cmake
+# does not carry the file-level dependencies of a custom target through to what
+# depends on it (cmake #15858, which llvm's own TableGen.cmake names for the
+# same reason). Without it a changed generator leaves every table as it was, and
+# clad compiles against output its renderer no longer produces.
 add_custom_command(
   OUTPUT ${CLAD_GEN_INCL}/Options.def
   COMMAND ${CLAD_TBLGEN_EXE} -gen-options ${CLAD_TBLGEN_INCLUDES}
           ${CLAD_OPTIONS_TD} -o ${CLAD_GEN_INCL}/Options.def
-  DEPENDS clad-tblgen-ready ${CLAD_OPTIONS_TD}
+  DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_OPTIONS_TD}
   COMMENT "Rendering what Options.td describes"
   VERBATIM)
 
@@ -421,7 +413,7 @@ add_custom_command(
           -o ${CLAD_GEN_LIB}/AnalysisDescs.def
   COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics ${CLAD_ANALYSES_TD}
           -o ${CLAD_GEN_LIB}/Diagnostics.def
-  DEPENDS clad-tblgen-ready ${CLAD_ANALYSES_TD}
+  DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_ANALYSES_TD}
   COMMENT "Rendering what Analyses.td describes"
   VERBATIM)
 
@@ -439,7 +431,7 @@ add_custom_target(clad-table-docs
           -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Analyses.rst
   COMMAND ${CLAD_TBLGEN_EXE} -gen-diagnostics-docs ${CLAD_ANALYSES_TD}
           -o ${CMAKE_CURRENT_SOURCE_DIR}/docs/userDocs/source/user/Diagnostics.rst
-  DEPENDS clad-tblgen-ready ${CLAD_OPTIONS_TD} ${CLAD_ANALYSES_TD}
+  DEPENDS clad-tblgen-ready ${CLAD_TBLGEN_EXE} ${CLAD_OPTIONS_TD} ${CLAD_ANALYSES_TD}
   COMMENT "Rendering the pages the tables describe"
   VERBATIM)
 

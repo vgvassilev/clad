@@ -297,21 +297,21 @@ namespace clad {
     public:
       explicit LambdaCaptures(VisitorBase& V) : m_V(V) {}
       void collect(llvm::ArrayRef<clang::Stmt*> Body);
-      /// A `[&]` capture binds a variable at the lambda's definition point, so
-      /// every captured decl must precede the lambda. \p Prefix and \p Suffix
-      /// are the forward block split at the lambda's insertion point. Each
-      /// captured decl in \p Suffix moves to the end of \p Prefix: whole, if
-      /// its initializer references only names already live there (the
-      /// function's parameters, \p AlreadyLive, and \p Prefix); otherwise
-      /// split into a zero-initialized declaration (moved) plus an assignment
-      /// left at the original spot, so the real value is still computed where
-      /// the original control flow put it. Array decls, which have no
-      /// whole-object assignment to split into, stay in \p Suffix.
+      /// \p Prefix and \p Suffix are the forward sweep split where the
+      /// closure begins. A captured decl in \p Suffix is read after the
+      /// closure too, so it moves to the end of \p Prefix: whole, if
+      /// its initializer reads no local and no parameter; otherwise split into
+      /// a zero-initialized declaration (moved) plus an assignment left at the
+      /// original spot, so the value is computed where the original control
+      /// flow put it. Array decls, which have no whole-object assignment to
+      /// split into, stay in \p Suffix.
       void orderCaptureDecls(llvm::SmallVectorImpl<clang::Stmt*>& Prefix,
-                             llvm::SmallVectorImpl<clang::Stmt*>& Suffix,
-                             llvm::ArrayRef<clang::Stmt*> AlreadyLive);
+                             llvm::SmallVectorImpl<clang::Stmt*>& Suffix);
       void resolve(llvm::ArrayRef<clang::Stmt*> Body);
       bool contains(clang::VarDecl* VD) const { return m_Captures.count(VD); }
+      /// Adds \p VD as if the body had named it, so orderCaptureDecls moves
+      /// it too.
+      void add(clang::VarDecl* VD) { m_Captures.insert(VD); }
     };
 
 #if CLANG_VERSION_MAJOR > 16
@@ -432,37 +432,6 @@ namespace clad {
       clang::Expr* lambda = buildLambda(V, S, LocSrc, std::forward<F>(func));
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();
-    }
-
-    /// Build a [&]-capture lambda whose body is produced by `func` and bind
-    /// it to a fresh VarDecl. Returns the VarDecl so the caller can wrap it
-    /// in a DeclStmt (placed at function-body scope) and call it from one or
-    /// more sites via DeclRefExpr + ActOnCallExpr. Use this when the same
-    /// lambda body must be invoked from multiple paths (e.g. a reverse-pass
-    /// segment shared between an early-return path and the natural tail).
-    ///
-    /// The binding uses `auto` deduction so the pretty-printer renders it as
-    /// `auto X = [&] {...};` rather than the closure type's unspellable
-    /// `(lambda at ...)` form. Sema deduces the concrete closure type from
-    /// the initializer; the TypeSourceInfo retains the `auto` keyword.
-    ///
-    /// \p func emits the closure body; \p Captures then resolves that body's
-    /// references to enclosing variables (its collect() must have already run),
-    /// so callers hand over a pure body-emission callback.
-    template <typename F>
-    clang::VarDecl* buildAndBindLambda(const clang::Stmt* LocSrc,
-                                       llvm::StringRef NameHint,
-                                       LambdaCaptures& Captures, F&& func) {
-      clang::Expr* lambda = buildLambda(*this, m_Sema, LocSrc, [&] {
-        std::forward<F>(func)();
-        // Resolve captures while the closure scope is active and its body is
-        // the current block.
-        Captures.resolve(getCurrentBlock());
-      });
-      clang::IdentifierInfo* II = CreateUniqueIdentifier(NameHint);
-      clang::QualType AutoTy = m_Context.getAutoDeductType();
-      clang::TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(AutoTy);
-      return BuildVarDecl(AutoTy, II, lambda, /*DirectInit=*/false, TSI);
     }
 
     /// For a qualtype QT returns if it's type is Array or Pointer Type
