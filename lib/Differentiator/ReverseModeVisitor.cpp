@@ -3423,6 +3423,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       DelayedStoreResult RDelayed = DelayedGlobalStoreAndRef(R);
       StmtDiff& RResult = RDelayed.Result;
 
+      // Cache the reverse-sweep value before reusing it. It may be a
+      // destructive tape pop, while the value may be needed more than once.
+      Expr* RRev = RResult.getRevSweepAsExpr();
+      if (dfdx())
+        RRev = StoreAndRef(RRev, direction::reverse);
+
       // dl = df/dxi * xr (for L), built lazily so a constant L builds nothing.
       // dl and dr claim the shared seed -- one takes it raw, the other clones
       // -- so it is never orphaned nor doubly parented.
@@ -3430,7 +3436,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Ldiff = seed
                   ? Visit(L,
                           [this, &seed,
-                           rp = RResult.getRevSweepAsExpr()]() -> Expr* {
+                           rp = RRev]() -> Expr* {
                             return BuildOp(BO_Mul, seed.claim(), CloneNode(rp));
                           })
                   : Visit(L, static_cast<Expr*>(nullptr));
