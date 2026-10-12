@@ -1,11 +1,13 @@
 // RUN: %cladclang %s -I%S/../../include -Xclang -verify -o %t 2>&1 | %filecheck %s
-// RUN: %t
+// RUN: %t | %filecheck_exec %s
 // RUN: %cladclang %s -I%S/../../include -Xclang -verify -Xclang -plugin-arg-clad -Xclang -enable-va -o %t
-// RUN: %t
+// RUN: %t | %filecheck_exec %s
 // RUN: %cladclang %s -I%S/../../include -Xclang -verify -Xclang -plugin-arg-clad -Xclang -disable-tbr -o %t
-// RUN: %t
+// RUN: %t | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
+
+#include <cstdio>
 
 struct DefaultFactor {
   struct Construct {};
@@ -68,7 +70,7 @@ double f1(double x, A a = A()) { return 2 * x; }
 double use_default_temporary(double x) { return f1(x); }
 } // namespace temporary
 
-bool check_defaults() {
+void check_defaults() {
   auto gradient = clad::gradient(use_default_factor);
   double derivative = 0.0;
   gradient.execute(3.0, &derivative);
@@ -80,8 +82,9 @@ bool check_defaults() {
   auto temporaryGradient = clad::gradient(temporary::use_default_temporary);
   double temporaryDerivative = 0.0;
   temporaryGradient.execute(3.0, &temporaryDerivative);
-  return derivative == 2.0 && globalDerivative == 6.0 &&
-         temporaryDerivative == 2.0;
+  std::printf("default=%.1f\n", derivative); // CHECK-EXEC: default=2.0
+  std::printf("global=%.1f\n", globalDerivative); // CHECK-EXEC: global=6.0
+  std::printf("temporary=%.1f\n", temporaryDerivative); // CHECK-EXEC: temporary=2.0
 }
 
 namespace scalar {
@@ -105,7 +108,7 @@ double f5(double x) { return x * f1(b); }
 // CHECK: _d_b += _r0;
 // CHECK: *_d_x += scalar::_d_b;
 
-bool check() {
+void check() {
   auto d2 = clad::gradient(f2);
   auto d3 = clad::gradient(f3);
   double r2 = 0, r3 = 0;
@@ -114,7 +117,10 @@ bool check() {
   auto d4 = clad::differentiate(f4, "x");
   auto d5 = clad::differentiate(f5, "x");
   b = 2;
-  return r2 == 3 && r3 == 3 && d4.execute(2) == 6 && d5.execute(2) == 6;
+  std::printf("scalar f2=%.1f\n", r2); // CHECK-EXEC: scalar f2=3.0
+  std::printf("scalar f3=%.1f\n", r3); // CHECK-EXEC: scalar f3=3.0
+  std::printf("scalar f4=%.1f\n", d4.execute(2)); // CHECK-EXEC: scalar f4=6.0
+  std::printf("scalar f5=%.1f\n", d5.execute(2)); // CHECK-EXEC: scalar f5=6.0
 }
 } // namespace scalar
 
@@ -142,13 +148,14 @@ double f3(double x) {
 // CHECK: A::constructor_pullback(b, 3, &_r0, &record::_d_b, &_r1);
 // CHECK: *_d_x += _r_d0;
 
-bool check() {
+void check() {
   auto d2 = clad::gradient(f2);
   auto d3 = clad::gradient(f3);
   double r2 = 0, r3 = 0;
   d2.execute(2, &r2);
   d3.execute(2, &r3);
-  return r2 == 3 && r3 == 3;
+  std::printf("record f2=%.1f\n", r2); // CHECK-EXEC: record f2=3.0
+  std::printf("record f3=%.1f\n", r3); // CHECK-EXEC: record f3=3.0
 }
 } // namespace record
 
@@ -176,13 +183,14 @@ double f2(double x) {
 // CHECK: _d_global_default += _r0.a;
 // CHECK: *_d_x += _d_global_default;
 
-bool check() {
+void check() {
   auto d1 = clad::gradient(f1);
   auto d2 = clad::gradient(f2);
   double r1 = 0, r2 = 0;
   d1.execute(2, &r1);
   d2.execute(2, &r2);
-  return r1 == 1 && r2 == 1;
+  std::printf("member f1=%.1f\n", r1); // CHECK-EXEC: member f1=1.0
+  std::printf("member f2=%.1f\n", r2); // CHECK-EXEC: member f2=1.0
 }
 } // namespace member_default
 
@@ -230,7 +238,7 @@ double f5(double x) {
 // CHECK: _d_global_default += _r_d0 * 2;
 // CHECK: *_d_x += _d_global_default;
 
-bool check() {
+void check() {
   auto d2 = clad::gradient(f2);
   auto d4 = clad::gradient(f4);
   auto d5 = clad::gradient(f5);
@@ -238,11 +246,16 @@ bool check() {
   d2.execute(2, &r2);
   d4.execute(2, &r4);
   d5.execute(2, &r5);
-  return r2 == 3 && r4 == 3 && r5 == 3;
+  std::printf("effects f2=%.1f\n", r2); // CHECK-EXEC: effects f2=3.0
+  std::printf("effects f4=%.1f\n", r4); // CHECK-EXEC: effects f4=3.0
+  std::printf("effects f5=%.1f\n", r5); // CHECK-EXEC: effects f5=3.0
 }
 } // namespace effects
 
 int main() {
-  return !check_defaults() || !scalar::check() || !record::check() ||
-         !member_default::check() || !effects::check();
+  check_defaults();
+  scalar::check();
+  record::check();
+  member_default::check();
+  effects::check();
 }
