@@ -3435,8 +3435,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       SeedClaim seed(*this, dfdx());
       Ldiff = seed
                   ? Visit(L,
-                          [this, &seed,
-                           rp = RRev]() -> Expr* {
+                          [this, &seed, rp = RRev]() -> Expr* {
                             return BuildOp(BO_Mul, seed.claim(), CloneNode(rp));
                           })
                   : Visit(L, static_cast<Expr*>(nullptr));
