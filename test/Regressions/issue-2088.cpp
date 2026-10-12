@@ -12,10 +12,14 @@
 // expected-warning@+1 2 {{statement kind 'BinaryConditionalOperator' is not supported}}
 double elvis(double x) { double y = x ?: 1.0; return y; }
 
-double likely_attr(double x) {
+double scale(double v) { return 2 * v; }
+
+// Likelihood hints are differentiated through; any other statement attribute
+// is still a statement clad does not know, and is cloned. nomerge wants a call.
+double nomerge_attr(double x) {
   double r = x;
   // expected-warning@+1 {{statement kind 'AttributedStmt' is not supported}}
-  if (r > 0) [[likely]] { r *= 2; }
+  [[clang::nomerge]] r = scale(r);
   return r;
 }
 
@@ -39,6 +43,6 @@ int main() {
   // derivations of one `?:` must not end up sharing a node. DerivativeBuilder
   // checks for that even when the derivation only emitted a diagnostic.
   clad::gradient(elvis, "x");
-  clad::differentiate(likely_attr, "x");
+  clad::differentiate(nomerge_attr, "x");
   clad::gradient(inherited, "x");
 }
