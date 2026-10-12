@@ -384,6 +384,12 @@ double check_and_return(double x, char c, const char* s) {
   return 1;
 }
 
+// The adjoint of x must not take the name of the parameter _d_x.
+double& pick(double& x, double& _d_x) { return x; }
+double fnParamClash(double a, double b) { return pick(a, b) * 2; }
+
+// CHECK: clad::ValueAndAdjoint<double &, double &> pick_reverse_forw(double &x, double &_d_x, double &_d_x0, double &_d__d_x) {
+
 // CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_c, char *_d_s) {
 // CHECK-NEXT:     bool _cond0 = false;
 // CHECK-NEXT:     double _d_cond0;
@@ -1384,6 +1390,7 @@ int main() {
   INIT(fn5);
   INIT(fn6);
   INIT(fn7);
+  INIT(fnParamClash);
   INIT(fn8);
   INIT(fn9);
   INIT(fn10);
@@ -1398,6 +1405,7 @@ int main() {
   TEST_ARR5(fn5, arr, 5);       // CHECK-EXEC: {5.00, 1.00, 0.00, 0.00, 0.00}
   TEST2(fn6, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
   TEST2(fn7, 3, 5);             // CHECK-EXEC: {11.00, 78.00}
+  TEST2(fnParamClash, 3, 5);    // CHECK-EXEC: {2.00, 0.00}
   TEST2(fn8, 3, 5);             // CHECK-EXEC: {7.62, 4.57}
   TEST2(fn9, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
   TEST2(fn10, 8, 5);            // CHECK-EXEC: {0.00, 7.00}

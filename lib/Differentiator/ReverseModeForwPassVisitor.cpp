@@ -237,7 +237,10 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       newPVD->setDeclName(newName);
       m_DeclReplacements[PVD] = newPVD;
     }
-
+  }
+  for (size_t i = 0, e = m_DiffReq->getNumParams(); i < e; ++i) {
+    const ParmVarDecl* PVD = m_DiffReq->getParamDecl(i);
+    ParmVarDecl* newPVD = params[params.size() - e + i];
     auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
     if (it != std::end(diffParams)) {
       *it = newPVD;
