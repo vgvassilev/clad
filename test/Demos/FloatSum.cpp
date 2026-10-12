@@ -11,13 +11,13 @@
 // CHECK:    clad::tape<float> _t1 = {};
 // CHECK:    float _d_sum = 0.F;
 // CHECK:    float sum = 0.;
-// CHECK:    unsigned {{int|long|long long}} _t0;
+// CHECK:    unsigned {{int|long}} _t0;
 // CHECK:    for (i = 0; i < n; i++) {
 // CHECK:        clad::push(_t1, sum);
 // CHECK:        sum = sum + x;
 // CHECK:    }
 // CHECK:    _d_sum += 1;
-// CHECK:    for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK:    for (_t0 = n > 0 ? (unsigned {{int|long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK:        i--;
 // CHECK:        {
 // CHECK:            _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);

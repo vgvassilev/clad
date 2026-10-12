@@ -197,7 +197,7 @@ double const_memory_loss(double input) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_result = 0.;
 // CHECK-NEXT:     double result = 0.;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < 2; ++i) {
 // CHECK-NEXT:         result += make_fallback_memory_value(input).value;
 // CHECK-NEXT:     }

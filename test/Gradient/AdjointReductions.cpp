@@ -38,7 +38,7 @@ double outerIndex(const double* a, const double* b, int n) {
 }
 // CHECK: void outerIndex_grad_0_1(const double *a, const double *b, int n, double *_d_a, double *_d_b) {
 // CHECK: double _acc0 = 0.;
-// CHECK-NEXT: for (j = n > 0 ? n : 0 , _t1 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t1; _t1--) {
+// CHECK-NEXT: for (j = n > 0 ? n : 0 , _t1 = n > 0 ? (unsigned {{int|long}})n : 0{{U|UL|ULL}}; _t1; _t1--) {
 // CHECK: _acc0 += _r_d0 * b[j];
 // CHECK: _d_a[i] += _acc0;
 
@@ -51,7 +51,7 @@ double constantIndex(const double* a, int n) {
 }
 // CHECK: void constantIndex_grad_0(const double *a, int n, double *_d_a) {
 // CHECK-NOT: _acc
-// CHECK: for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK: for (_t0 = n > 0 ? (unsigned {{int|long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 
 // The array is declared in the enclosing loop, so it lives across the inner
 // one: the sum is carried across the inner loop only, and reaches _d_t before

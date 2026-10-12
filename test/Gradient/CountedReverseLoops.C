@@ -51,7 +51,7 @@ double paramBound(const double* x, int n) {
   return s;
 }
 // CHECK: void paramBound_grad_0(const double *x, int n, double *_d_x) {
-// CHECK: for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK: for (_t0 = n > 0 ? (unsigned {{int|long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 
 // An inclusive bound runs once more, and a non-zero start that many fewer.
 double inclusiveBound(const double* x, int n) {
@@ -61,7 +61,7 @@ double inclusiveBound(const double* x, int n) {
   return s;
 }
 // CHECK: void inclusiveBound_grad_0(const double *x, int n, double *_d_x) {
-// CHECK: for (_t0 = n >= 1 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK: for (_t0 = n >= 1 ? (unsigned {{int|long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 
 // Nested loops are where counting cost the most: the inner counter used to be
 // a whole clad::tape, pushed once per outer iteration. Recomputed, it is a
@@ -74,7 +74,7 @@ double nested(const double* x) {
   return s;
 }
 // CHECK: void nested_grad(const double *x, double *_d_x) {
-// CHECK-NOT: clad::tape<unsigned {{int|long|long long}}>
+// CHECK-NOT: clad::tape<unsigned {{int|long}}>
 // CHECK: for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT: i--;
 // CHECK-NEXT: for (j = 2 , _t1 = 2{{U|UL|ULL}}; _t1; _t1--) {
@@ -103,10 +103,10 @@ double triangular(const double* x, int n) {
   return s;
 }
 // CHECK: void triangular_grad_0(const double *x, int n, double *_d_x) {
-// CHECK-NOT: clad::tape<unsigned {{int|long|long long}}>
-// CHECK: for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NOT: clad::tape<unsigned {{int|long}}>
+// CHECK: for (_t0 = n > 0 ? (unsigned {{int|long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT: i--;
-// CHECK-NEXT: for (j = n > i + 1 ? n : i + 1 , _t1 = n > i + 1 ? ((unsigned {{int|long|long long}})n - (unsigned {{int|long|long long}})(i + 1)) : 0{{U|UL|ULL}}; _t1; _t1--) {
+// CHECK-NEXT: for (j = n > i + 1 ? n : i + 1 , _t1 = n > i + 1 ? ((unsigned {{int|long}})n - (unsigned {{int|long}})(i + 1)) : 0{{U|UL|ULL}}; _t1; _t1--) {
 
 // A variadic argument travels by value, so a loop that reports its progress
 // still has an index only the increment moves. Handing it over for writing
@@ -123,7 +123,7 @@ double logsIndex(const double* x, int n) {
 }
 // CHECK: void logsIndex_grad_0(const double *x, int n, double *_d_x) {
 // CHECK-NOT: _t0++;
-// CHECK: for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK: for (_t0 = n > 0 ? (unsigned {{int|long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 
 // A start the count has to carry a sign through, which is how a stencil walks
 // the halo either side of its centre.
@@ -135,7 +135,7 @@ double negatedStart(const double* x, int n, int m) {
 }
 // CHECK: void negatedStart_grad_0(const double *x, int n, int m, double *_d_x) {
 // CHECK-NOT: _t0++;
-// CHECK: for (_t0 = n > -m ? ((unsigned {{int|long|long long}})n - (unsigned {{int|long|long long}})-m) : 0{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK: for (_t0 = n > -m ? ((unsigned {{int|long}})n - (unsigned {{int|long}})-m) : 0{{U|UL|ULL}}; _t0; _t0--) {
 
 // An inclusive bound over a start that is not a constant. The start cannot
 // absorb the extra iteration the way a literal one does, so the count carries
@@ -148,7 +148,7 @@ double inclusiveVarStart(const double* x, int n, int lo) {
 }
 // CHECK: void inclusiveVarStart_grad_0(const double *x, int n, int lo, double *_d_x) {
 // CHECK-NOT: _t0++;
-// CHECK: for (_t0 = n >= lo ? ((unsigned {{int|long|long long}})n - (unsigned {{int|long|long long}})lo + 1{{U|UL|ULL}}) : 0{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK: for (_t0 = n >= lo ? ((unsigned {{int|long}})n - (unsigned {{int|long}})lo + 1{{U|UL|ULL}}) : 0{{U|UL|ULL}}; _t0; _t0--) {
 
 // -- Counted ---------------------------------------------------------------
 
@@ -168,7 +168,7 @@ double outerUnstable(const double* x, int n) {
 }
 // CHECK: void outerUnstable_grad_0(const double *x, int n, double *_d_x) {
 // CHECK: _t0++;
-// CHECK: for (j = 5 > i + 1 ? 5 : i + 1 , _t1 = 5 > i + 1 ? ((unsigned {{int|long|long long}})5 - (unsigned {{int|long|long long}})(i + 1)) : 0{{U|UL|ULL}}; _t1; _t1--) {
+// CHECK: for (j = 5 > i + 1 ? 5 : i + 1 , _t1 = 5 > i + 1 ? ((unsigned {{int|long}})5 - (unsigned {{int|long}})(i + 1)) : 0{{U|UL|ULL}}; _t1; _t1--) {
 
 // The same inner loop, but the variable its start names belongs to a while
 // loop. Nothing steps that variable back on the way into the inner reverse
@@ -184,7 +184,7 @@ double triangularUnderWhile(const double* x, int n) {
   return s;
 }
 // CHECK: void triangularUnderWhile_grad_0(const double *x, int n, double *_d_x) {
-// CHECK: clad::tape<unsigned {{int|long|long long}}>
+// CHECK: clad::tape<unsigned {{int|long}}>
 
 // The index of the inner loop is declared outside it, so a statement after the
 // loop can read what the loop left there. Its pre-loop value has to be saved,
