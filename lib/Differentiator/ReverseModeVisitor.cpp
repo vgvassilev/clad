@@ -879,7 +879,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     m_ArrayInitLoopIdx.push(idxDecl);
     Expr* idx = BuildDeclRef(idxDecl);
     // Build `_d_res[i]`
-    Expr* diff = BuildArraySubscript(dfdx(), {idx});
+    Expr* diff = BuildArraySubscript(dfdx(), idx);
     beginBlock(direction::reverse);
     Visit(AILE->getSubExpr(), diff);
     Stmt* block = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
@@ -1796,11 +1796,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // dfdx() is the aggregate adjoint reused as the base for every element;
         // clone it so each element access owns its base.
         if (ILEType->isArrayType()) {
-          elemDfDx =
-              m_Sema
-                  .ActOnArraySubscriptExpr(getCurrentScope(), CloneNode(dfdx()),
-                                           noLoc, I, noLoc)
-                  .get();
+          elemDfDx = BuildArraySubscript(CloneNode(dfdx()), I);
         } else if (ILEType->isRecordType()) {
           auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
           std::advance(field_iterator, i);
@@ -3284,7 +3280,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* gradRef = BuildDeclRef(VD);
       Expr* idx =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
-      Expr* gradElem = BuildArraySubscript(gradRef, {idx});
+      Expr* gradElem = BuildArraySubscript(gradRef, idx);
       // dfdx is reused for every argument; clone so the products do not share.
       Expr* gradExpr = BuildOp(BO_Mul, CloneNode(dfdx), gradElem);
       // Inputs were not pointers, so the output args are not in global GPU

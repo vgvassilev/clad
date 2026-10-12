@@ -751,17 +751,22 @@ namespace clad {
     std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>
     SplitArraySubscript(const clang::Expr* ASE);
 
-    /// Build an array subscript expression with a given base expression and
-    /// a sequence of indices.
-    clang::Expr*
-    BuildArraySubscript(clang::Expr* Base,
-                        const llvm::SmallVectorImpl<clang::Expr*>& IS);
+    /// Build `Base[I0][I1]...` through Sema's subscript action, so a class's
+    /// operator[] is used as well as builtin subscripting. The brackets are
+    /// not ones the user wrote unless their locations are given, and a
+    /// subscript may instantiate operator[]'s return type, which needs a valid
+    /// location: so they default to GenLoc(). Null if a subscript is
+    /// ill-formed.
+    clang::Expr* BuildArraySubscript(
+        clang::Expr* Base, const llvm::SmallVectorImpl<clang::Expr*>& IS,
+        clang::SourceLocation LLoc = {}, clang::SourceLocation RLoc = {});
 
-    /// Build an array subscript expression with a given base expression and
-    /// one index.
-    clang::Expr* BuildArraySubscript(clang::Expr* Base, clang::Expr*& Idx) {
+    /// Build `Base[Idx]`, likewise.
+    clang::Expr* BuildArraySubscript(clang::Expr* Base, clang::Expr* Idx,
+                                     clang::SourceLocation LLoc = {},
+                                     clang::SourceLocation RLoc = {}) {
       llvm::SmallVector<clang::Expr*, 1> IS = {Idx};
-      return BuildArraySubscript(Base, IS);
+      return BuildArraySubscript(Base, IS, LLoc, RLoc);
     }
     /// Find declaration of clad::tape templated type.
     clang::TemplateDecl* GetCladTapeDecl();
