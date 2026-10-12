@@ -787,12 +787,23 @@ namespace clad {
   }
 
   Expr* VisitorBase::BuildArraySubscript(
-      clang::Expr* Base, const llvm::SmallVectorImpl<clang::Expr*>& Indices) {
+      clang::Expr* Base, const llvm::SmallVectorImpl<clang::Expr*>& Indices,
+      clang::SourceLocation LLoc, clang::SourceLocation RLoc) {
+    if (!LLoc.isValid())
+      LLoc = GenLoc();
+    if (!RLoc.isValid())
+      RLoc = GenLoc();
     Expr* result = Base;
-    for (Expr* I : Indices)
-      result =
-          m_Sema.CreateBuiltinArraySubscriptExpr(result, GenLoc(), I, GenLoc())
-              .get();
+    for (Expr* I : Indices) {
+      assert(I && "subscripting with an index that failed to build");
+      // get() is null for an ill-formed subscript, and the caller then
+      // receives null.
+      if (result)
+        result = m_Sema
+                     .ActOnArraySubscriptExpr(getCurrentScope(), result, LLoc,
+                                              I, RLoc)
+                     .get();
+    }
     return result;
   }
 
