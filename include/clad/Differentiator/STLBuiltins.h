@@ -560,6 +560,10 @@ void operator_subscript_pullback(const ::std::vector<T>* vec,
   (*d_vec)[idx] += d_y;
 }
 
+// Empty on purpose: a record element's adjoint is accumulated in place,
+// through the reference into d_vec that operator_subscript_reverse_forw hands
+// back, so adding d_y here would count it twice -- and a record need not have
+// the += the arithmetic overload uses.
 template <typename T, typename P,
           ::std::enable_if_t<!::std::is_arithmetic<T>::value, int> = 0>
 void operator_subscript_pullback(const ::std::vector<T>* vec,

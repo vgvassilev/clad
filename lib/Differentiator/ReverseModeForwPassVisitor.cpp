@@ -116,6 +116,11 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
       VarDecl* resultDecl =
           BuildVarDecl(m_Derivative->getReturnType(), "_ret", returnInitList);
       ctorEpilogue.push_back(BuildDeclStmt(resultDecl));
+      // Both objects own what their constructors allocated, which the copies
+      // in _ret have duplicated, so both are destroyed before being freed.
+      // _this was constructed in place. _d_this never was, but BuildThisExpr
+      // zeroes it right after its malloc, so a pointer member the derived
+      // constructor did not assign is null here and deleting it is a no-op.
       if (CD->getParent()->hasNonTrivialDestructor()) {
         CanQualType recordTy =
             m_Context.getCanonicalType(thisTy->getPointeeType());
