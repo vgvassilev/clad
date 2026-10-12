@@ -200,6 +200,9 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
   // Create the overload declaration for the derivative.
   FunctionDecl* overloadFD = CreateDerivativeOverload(/*derivative=*/nullptr,
                                                       OverloadKind::VectorMode);
+  if (!overloadFD)
+    return DerivativeAndOverload{/*derivative=*/nullptr,
+                                 /*overload=*/nullptr};
   return DerivativeAndOverload{vectorDiffFD, overloadFD};
 }
 

@@ -308,9 +308,7 @@ class CladExternalSource : public clang::ExternalSemaSource {
     };
 
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
-                                            DiffRequest& request) {
-      return P.ProcessDiffRequest(request);
-    }
+                                            DiffRequest& request);
 
     template <typename ConsumerType>
     class Action : public clang::PluginASTAction {

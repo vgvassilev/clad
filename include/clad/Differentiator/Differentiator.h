@@ -928,6 +928,97 @@ template <class T> std::false_type is_range(...);
         derivedFn /* will be replaced by gradient*/, code, f);
   }
 
+  /// Generates the pullback (Vector-Jacobian Product / VJP) of the specified
+  /// function.
+  ///
+  /// A pullback executes reverse-mode automatic differentiation seeded with a
+  /// caller-supplied output cotangent (d_y). Mathematically, it computes the
+  /// vector-Jacobian product v^T * J w.r.t. the requested independent
+  /// parameters.
+  ///
+  /// Whereas clad::gradient evaluates reverse mode using an implicit unit
+  /// cotangent seed (1.0), clad::pullback accepts a caller-supplied cotangent
+  /// seed, enabling derivative chaining and custom reverse-mode passes.
+  ///
+  /// Execution parameter order via `execute(...)`:
+  ///   1. Primal function inputs (x0, x1, ...)
+  ///   2. Output cotangent seed (d_y). For an ordinary value or const-reference
+  ///      result, the seed has the corresponding non-const value type.
+  ///      The seed argument is omitted if `f` returns `void`, a pointer, or
+  ///      a non-const reference (whose cotangents propagate through referenced
+  ///      memory).
+  ///   3. Pointer to `_d_this` (when differentiating instance member functions
+  ///      or named function objects).
+  ///   4. One pointer to an output adjoint variable per primal parameter,
+  ///      in primal parameter order. Pass nullptr for passive or unselected
+  ///      parameters; only selected adjoints are consumed.
+  ///
+  /// Accumulation contract:
+  ///   Contributions to ordinary scalar input adjoints accumulate using `+=`.
+  ///   Zero-initialize those buffers if unaccumulated gradients are desired.
+  ///   Memory adjoints for pointer/reference parameters may instead carry
+  ///   incoming cotangents and be transformed or cleared by the reverse sweep.
+  ///   For a no-seed pullback, pre-seed the relevant memory adjoints and
+  ///   include those parameters in the selection; unselected slots are still
+  ///   ignored.
+  ///
+  /// \note Calling conventions: Only standard platform calling convention
+  ///       (SysV ABI on POSIX) is supported; non-default calling conventions
+  ///       (e.g., `__attribute__((ms_abi))` on x86_64) fail closed at
+  ///       compile-time.
+  /// \note Portability boundary: Functions carrying internal library default
+  /// tags
+  ///       (such as libc++ `std::__nat`) are out of scope for pullback
+  ///       deduction.
+  /// \note Named function objects are borrowed, not owned. Keep the original
+  ///       object alive while using the returned CladFunction; do not retain
+  ///       a pullback constructed from a temporary function object.
+  /// \note CUDA: Host/device attributes are generated on AST declarations, but
+  ///       execution requires an available CUDA toolchain and runtime.
+  ///
+  /// \param f The function, method, or named function object to be
+  /// differentiated
+  ///          (lambdas are not supported in pullback mode; use named function
+  ///          objects).
+  /// \param args (Optional) Comma-separated names of independent variables
+  ///             (e.g., "x" or "x, y"). If omitted, the pullback is computed
+  ///             with respect to every differentiable parameter. The public
+  ///             callable keeps one adjoint position per primal parameter;
+  ///             pass nullptr for an unselected or non-differentiable slot.
+  /// \param derivedFn The generated pullback; Clad substitutes it while
+  ///                  compiling the call, so a caller leaves it alone.
+  /// \param code The source of that pullback, substituted the same way.
+  /// \param CUDAkernel Whether the function is a __global__ kernel, whose
+  ///                   pullback has to be launched rather than called.
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = PullbackDerivedFnTraits_t<F>,
+            typename = typename std::enable_if<
+                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
+                         true> __attribute__((annotate("P"))) CUDA_HOST_DEVICE
+  pullback(F f, ArgSpec args = "",
+           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+           const char* code = "", bool CUDAkernel = false) {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn /* will be replaced by pullback*/, code, nullptr, CUDAkernel);
+  }
+
+  /// Specialization for differentiating named function objects (lambdas are not
+  /// supported).
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = PullbackDerivedFnTraits_t<F>,
+            typename = typename std::enable_if<
+                std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
+                         true> __attribute__((annotate("P"))) CUDA_HOST_DEVICE
+  // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
+  pullback(F&& f, ArgSpec args = "",
+           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+           const char* code = "") {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn /* will be replaced by pullback*/, code, f);
+  }
+
   /// Generates function which computes hessian matrix of the given function wrt
   /// the parameters specified in `args`.
   ///

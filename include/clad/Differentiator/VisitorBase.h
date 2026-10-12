@@ -1025,21 +1025,28 @@ namespace clad {
 
     /// Which flavour of overload CreateDerivativeOverload should build.
     ///
-    /// The derivative parameters of an overload all share one type, because
-    /// the exact derivative type cannot be spelled at compile time without the
-    /// plugin's help. Vector forward mode spells that type
-    /// clad::array_ref<void>; every other mode spells it void*.
+    /// Default gradient/Jacobian overloads type-erase derivative outputs as
+    /// void*. Vector forward mode uses clad::array_ref<void>. PullbackCustom
+    /// builds the exact public callable type and may adapt a generated partial
+    /// pullback or a custom pullback to that positional interface.
     ///
-    /// This is an explicit argument rather than a set of virtual hooks because
-    /// the visitor hierarchy does not follow the mode split:
-    /// JacobianModeVisitor derives from VectorForwardModeVisitor but builds a
-    /// default overload, so it would silently inherit vector mode's flavour.
-    enum class OverloadKind { Default, VectorMode };
+    /// This is an explicit argument rather than virtual visitor state because
+    /// JacobianModeVisitor derives from VectorForwardModeVisitor but needs the
+    /// default flavour.
+    enum class OverloadKind : std::uint8_t {
+      Default,
+      VectorMode,
+      PullbackCustom
+    };
 
-    /// Builds an overload for the derivative function that has derived params
-    /// for all the arguments of the requested function and it calls the
-    /// original derivative function internally. Used in gradient, jacobian and
-    /// vector forward modes.
+    /// Whether a root public pullback needs a typed adapter. Nested pullbacks
+    /// do not update a CladFunction and therefore never create a public
+    /// wrapper.
+    [[nodiscard]] bool PullbackNeedsOverload() const;
+
+    /// Builds an overload which forwards to derivative. PullbackCustom retains
+    /// every public primal/adjoint position while forwarding only parameters
+    /// materialized by the implementation.
     clang::FunctionDecl*
     CreateDerivativeOverload(clang::FunctionDecl* derivative = nullptr,
                              OverloadKind kind = OverloadKind::Default);

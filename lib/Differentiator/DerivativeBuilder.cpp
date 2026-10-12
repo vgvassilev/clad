@@ -56,6 +56,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -582,8 +583,12 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // overload resolution using Sema::ActOnCallExpr to make sure we
         // follow the c++ standard.
         llvm::SmallVector<const ValueDecl*, 4> diffParams{};
-        for (const DiffInputVarInfo& VarInfo : request.DVI)
-          diffParams.push_back(VarInfo.param);
+        if (request.IsAdaptedFullCustomPullback)
+          for (const ParmVarDecl* PVD : request.Function->parameters())
+            diffParams.push_back(PVD);
+        else
+          for (const DiffInputVarInfo& VarInfo : request.DVI)
+            diffParams.push_back(VarInfo.param);
         QualType DerivativeType =
             utils::GetDerivativeType(m_Sema, request.Function, request.Mode,
                                      diffParams, /*forCustomDerv=*/true);
@@ -626,19 +631,47 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           return {};
         DerivativeAndOverload result{};
         result.derivative = Call->getDirectCallee();
+        if (!result.derivative)
+          return {};
 
-        // reverse and jacobian modes require overloads, even if the derivatives
-        // are custom
+        if (request.Mode == DiffMode::pullback && request.CallUpdateRequired &&
+            !request.PullbackStateParam.isNull()) {
+          SourceLocation L = request.CallContext
+                                 ? request.CallContext->getBeginLoc()
+                                 : request.Function->getBeginLoc();
+          utils::diag(m_Sema, DiagnosticsEngine::Error, L,
+                      "the public pullback interface cannot expose a custom "
+                      "pullback_state parameter")
+              << L;
+          return {};
+        }
+
+        // getDirectCallee returned this declaration, and null was rejected
+        // above. Its dynamic type is therefore a FunctionDecl.
+        auto* derivativeFD = cast<FunctionDecl>(result.derivative);
+
         if (request.Mode == DiffMode::reverse ||
-            request.Mode == DiffMode::jacobian) {
+            request.Mode == DiffMode::jacobian ||
+            request.Mode == DiffMode::pullback) {
           ReverseModeVisitor V(*this, request);
-          result.overload =
-              V.CreateDerivativeOverload(cast<FunctionDecl>(result.derivative));
+          bool needsOverload =
+              request.Mode != DiffMode::pullback || V.PullbackNeedsOverload();
+          if (needsOverload) {
+            VisitorBase::OverloadKind overloadKind =
+                request.Mode == DiffMode::pullback
+                    ? VisitorBase::OverloadKind::PullbackCustom
+                    : VisitorBase::OverloadKind::Default;
+            result.overload =
+                V.CreateDerivativeOverload(derivativeFD, overloadKind);
+            if (!result.overload)
+              return {};
+          }
         } else if (request.Mode == DiffMode::vector_forward_mode) {
           VectorForwardModeVisitor V(*this, request);
-          result.overload =
-              V.CreateDerivativeOverload(cast<FunctionDecl>(result.derivative),
-                                         VisitorBase::OverloadKind::VectorMode);
+          result.overload = V.CreateDerivativeOverload(
+              derivativeFD, VisitorBase::OverloadKind::VectorMode);
+          if (!result.overload)
+            return {};
         }
         return result;
       }
