@@ -1,9 +1,9 @@
 # -*- Python -*-
 
 import platform
+import subprocess
 
 import lit.formats
-import lit.util
 
 config.name = "Clad Unit Tests"
 config.suffixes = []  # Seems not to matter for google tests?
@@ -44,4 +44,15 @@ config.environment["CLANG_NO_DEFAULT_CONFIG"] = "1"
 
 # CompilerInstanceTests compiles C++ in-process; on Darwin the C++ headers
 # come from the SDK, which the driver finds through SDKROOT, as in test/.
-lit.util.usePlatformSdkOnDarwin(config, lit_config)
+# lit.util.usePlatformSdkOnDarwin does the same from config.target_triple,
+# which this suite's config does not have.
+if platform.system() == "Darwin" and "SDKROOT" not in config.environment:
+    try:
+        sdk = subprocess.run(
+            ["xcrun", "--show-sdk-path", "--sdk", "macosx"],
+            capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        sdk = ""
+    if sdk:
+        lit_config.note("using SDKROOT: %r" % sdk)
+        config.environment["SDKROOT"] = sdk
