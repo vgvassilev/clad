@@ -11,5 +11,6 @@ endif()
 export_executable_symbols(CompilerInstanceTests)
 target_compile_definitions(CompilerInstanceTests PRIVATE
   "CLAD_TEST_PLUGIN=R\"($<TARGET_FILE:clad>)\""
+  "CLAD_TEST_CLANG=R\"(${LLVM_TOOLS_BINARY_DIR}/clang${CMAKE_EXECUTABLE_SUFFIX})\""
   "CLAD_TEST_INCLUDE=R\"(${CLAD_SOURCE_DIR}/include)\""
   "CLAD_TEST_GENERATED_INCLUDE=R\"(${CLAD_BINARY_DIR}/include)\"")

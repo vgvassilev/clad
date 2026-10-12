@@ -3,6 +3,7 @@
 import platform
 
 import lit.formats
+import lit.util
 
 config.name = "Clad Unit Tests"
 config.suffixes = []  # Seems not to matter for google tests?
@@ -40,3 +41,7 @@ config.environment[shlibpath_var] = shlibpath
 # possibly be present in system and user configuration files, so disable
 # default configs for the test runs.
 config.environment["CLANG_NO_DEFAULT_CONFIG"] = "1"
+
+# CompilerInstanceTests compiles C++ in-process; on Darwin the C++ headers
+# come from the SDK, which the driver finds through SDKROOT, as in test/.
+lit.util.usePlatformSdkOnDarwin(config, lit_config)

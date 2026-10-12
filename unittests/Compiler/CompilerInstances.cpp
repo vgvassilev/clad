@@ -78,8 +78,12 @@ void request() {
   for (int i = 0; i < 2; ++i) {
     SCOPED_TRACE(i);
     unsigned Seen = 0;
+    // The driver finds clang's resource directory and the C++ library
+    // relative to the binary it is told it runs as; the default name,
+    // "clang-tool", points it at neither, and <stddef.h> goes missing.
     ASSERT_TRUE(clang::tooling::runToolOnCodeWithArgs(
-        std::make_unique<DerivativeCheckingAction>(Seen), code, args));
+        std::make_unique<DerivativeCheckingAction>(Seen), code, args,
+        "input.cc", CLAD_TEST_CLANG));
     ASSERT_EQ(Seen, 7u);
   }
 }
