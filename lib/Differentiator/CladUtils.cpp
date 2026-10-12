@@ -372,7 +372,7 @@ namespace clad {
 
     QualType getUnsignedType(QualType T, const ASTContext& C) {
       T = T.getNonReferenceType().getUnqualifiedType();
-      if (C.isPromotableIntegerType(T))
+      if (clad_compat::isPromotableIntegerType(C, T))
         T = C.getPromotedIntegerType(T);
       return T->isUnsignedIntegerType() ? T : C.getCorrespondingUnsignedType(T);
     }

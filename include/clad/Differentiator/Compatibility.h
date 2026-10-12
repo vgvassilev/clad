@@ -358,6 +358,16 @@ inline clang::QualType getTypeDeclType(clang::ASTContext& C,
 #endif
 }
 
+// Clang 16 moved isPromotableIntegerType from Type to ASTContext.
+inline bool isPromotableIntegerType(const clang::ASTContext& C,
+                                    clang::QualType T) {
+#if CLANG_VERSION_MAJOR < 16
+  return T->isPromotableIntegerType();
+#else
+  return C.isPromotableIntegerType(T);
+#endif
+}
+
 // Clang 22 (llvm/llvm-project#143653): getSizeType returns a
 // PredefinedSugarType that prints as "__size_t". clad's tests want
 // the platform integer spelling -- use the canonical type.
