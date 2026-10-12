@@ -225,6 +225,11 @@ void InitTimers();
     void CladPlugin::HandleTopLevelDeclForClad(DeclGroupRef DGR) {
       if (!CheckBuiltins())
         return;
+
+      // Before anything else, and whether or not an error has already been
+      // reported: a call clad cannot reach in time still deserves an
+      // explanation. See DiagnoseConstantInitRequests.
+      DiagnoseConstantInitRequests(m_CI.getSema(), CladEnabledRange, DGR);
 #if CLANG_VERSION_MAJOR > 16
       // Traverse all constexpr FunctionDecls for the static graph only once to
       // differentiate them immeditely.
@@ -247,9 +252,26 @@ void InitTimers();
       // Plan call above then defers the group; processing requests here would
       // interleave with the outer traversal (and clobber its current
       // processing node), so leave them to the outer caller.
-      if (!getScheduler().isTraversalInFlight())
+      //
+      // It is re-entered while a request is being built, too: Sema hands the
+      // consumers every function it instantiates on the spot, and a constexpr
+      // derivative that calls a constexpr template makes it do so from inside
+      // ProcessDiffRequest. The node in progress is not yet marked processed,
+      // so processing the graph here would build it a second time, and a
+      // third, without end. Leave the graph to the outer call, as
+      // FinalizeTranslationUnit does.
+      if (!getScheduler().isTraversalInFlight() &&
+          !getScheduler().getGraph().isProcessingNode())
         for (DiffRequest& request : getScheduler().getGraph().getNodes()) {
-          if (request.ImmediateMode && request.Function->isConstexpr()) {
+          // Both halves matter. A derivative is needed this early only when
+          // the call asking for it can itself be worked out while the
+          // program compiles, and building one for every constexpr function
+          // instead runs clad before the translation unit is complete, which
+          // it is not ready for -- a name the derivative needs may not be
+          // there yet.
+          if (request.ImmediateContext &&
+              request.ImmediateContext->isConstexpr() &&
+              request.Function->isConstexpr()) {
             getScheduler().getGraph().setCurrentProcessingNode(request);
             ProcessDiffRequest(request);
             getScheduler().getGraph().markCurrentNodeProcessed();

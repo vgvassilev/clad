@@ -54,6 +54,16 @@ namespace clad {
         S.Diags.getDiagnosticIDs()->getCustomDiagID(severityOf(D), textOf(D));
     return S.Diag(Loc, ID);
   }
+  const Stmt* SkipLikelihoodHints(const Stmt* S) {
+    while (const auto* AS = dyn_cast<AttributedStmt>(S)) {
+      for (const Attr* A : AS->getAttrs())
+        if (!isa<LikelyAttr, UnlikelyAttr>(A))
+          return S;
+      S = AS->getSubStmt();
+    }
+    return S;
+  }
+
     static SourceLocation noLoc{};
 
     std::string ComputeEffectiveFnName(const FunctionDecl* FD) {
@@ -546,6 +556,14 @@ namespace clad {
       ParmVarDecl* PVD =
           ParmVarDecl::Create(C, DC, Loc, Loc, II, T, TSI, SC, defArg);
       return PVD;
+    }
+
+    void SetParams(FunctionDecl* FD, llvm::ArrayRef<ParmVarDecl*> params) {
+      FD->setParams(params);
+      // Scope depth is 0: these belong to a plain function, not to a nested
+      // function prototype.
+      for (unsigned i = 0; i < params.size(); ++i)
+        params[i]->setScopeInfo(/*scopeDepth=*/0, /*parameterIndex=*/i);
     }
 
     clang::QualType GetValueType(clang::QualType T) {

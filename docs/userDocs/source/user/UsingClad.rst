@@ -58,12 +58,13 @@ one extra pointer rather than two.
 of each, and :doc:`Core concepts <CoreConcepts>` explains why forward mode suits
 few inputs and reverse mode suits many.
 
-Three variants modify that choice rather than replacing it.
+Two variants modify that choice rather than replacing it.
 ``clad::estimate_error`` generates the gradient and, with it, an estimate of the
 floating-point error. ``clad::differentiate<clad::opts::vector_mode>`` computes
-the same gradient in one forward pass instead of a reverse one.
-``clad::differentiate<clad::immediate_mode>`` produces a derivative usable in a
-constant expression.
+the same gradient in one forward pass instead of a reverse one. Differentiating
+a ``constexpr`` function from inside another one additionally gives a
+derivative usable in a constant expression, which
+:doc:`Immediate mode <UsingImmediateMode>` describes.
 
 
 Forward Mode Automatic Differentiation

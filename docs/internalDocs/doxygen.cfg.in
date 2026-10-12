@@ -69,7 +69,11 @@ XML_PROGRAMLISTING     = NO
 #--- Preprocessor ------------------------------------------------
 
 MACRO_EXPANSION        = YES
-INCLUDE_PATH           = @CMAKE_SOURCE_DIR@/include
+# The build directory as well: clad's public headers expand tables that are
+# rendered there, and doxygen preprocesses those headers.
+INCLUDE_PATH           = @clad_srcdir@/include \
+                         @clad_bindir@/include \
+                         @clad_bindir@/lib/Differentiator
 # Attribute macros, which doxygen otherwise reads as part of the declaration
 # and then cannot parse what follows.
 PREDEFINED             = CLAD_NONDIFFERENTIABLE= \

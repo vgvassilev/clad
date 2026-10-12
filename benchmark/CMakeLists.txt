@@ -42,6 +42,7 @@ target_compile_definitions(tapenade_support PRIVATE
 CB_ADD_GBENCHMARK(VectorModeComparison VectorModeComparison.cpp)
 CB_ADD_GBENCHMARK(MemoryComplexity_tapenade MemoryComplexity.cpp)
 CB_ADD_GBENCHMARK(Multithreading Multithreading.cpp)
+CB_ADD_GBENCHMARK(Tape Tape.cpp)
 CB_ADD_GBENCHMARK(Hessians Hessians.cpp)
 CB_ADD_GBENCHMARK(GPT2Training GPT2Training.cpp)
 

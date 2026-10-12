@@ -56,16 +56,16 @@ float func2(float x) {
 //CHECK: void func2_grad(float x, float *_d_x, double &_final_error) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     clad::tape<float> _t1 = {};
+//CHECK-NEXT:     float _t1[9];
 //CHECK-NEXT:     float _d_m = 0.F;
 //CHECK-NEXT:     float m = 0.F;
-//CHECK-NEXT:     clad::tape<float> _t2 = {};
+//CHECK-NEXT:     float _t2[9];
 //CHECK-NEXT:     float _d_z = 0.F;
 //CHECK-NEXT:     float z;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 //CHECK-NEXT:     for (i = 0; i < 9; i++) {
-//CHECK-NEXT:         clad::push(_t1, m) , m = x * x;
-//CHECK-NEXT:         clad::push(_t2, z);
+//CHECK-NEXT:         _t1[i] = m , m = x * x;
+//CHECK-NEXT:         _t2[i] = z;
 //CHECK-NEXT:         z = m + m;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_z += 1;
@@ -73,7 +73,7 @@ float func2(float x) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_z * z * {{.+}});
-//CHECK-NEXT:             z = clad::pop(_t2);
+//CHECK-NEXT:             z = _t2[i];
 //CHECK-NEXT:             _d_m += _d_z;
 //CHECK-NEXT:             _d_m += _d_z;
 //CHECK-NEXT:             _d_z = 0.F;
@@ -83,7 +83,7 @@ float func2(float x) {
 //CHECK-NEXT:             *_d_x += _d_m * x;
 //CHECK-NEXT:             *_d_x += x * _d_m;
 //CHECK-NEXT:             _d_m = 0.F;
-//CHECK-NEXT:             m = clad::pop(_t1);
+//CHECK-NEXT:             m = _t1[i];
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
@@ -148,16 +148,16 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     unsigned {{int|long}} x_size = {{0U|0UL}};
-//CHECK-NEXT:     clad::tape<float> _t1 = {};
+//CHECK-NEXT:     float _t1[10];
 //CHECK-NEXT:     unsigned {{int|long}} y_size = {{0U|0UL}};
-//CHECK-NEXT:     clad::tape<float> _t2 = {};
+//CHECK-NEXT:     float _t2[10];
 //CHECK-NEXT:     float _d_sum = 0.F;
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
 //CHECK-NEXT:     for (i = 0; i < 10; i++) {
-//CHECK-NEXT:         clad::push(_t1, x[i]);
+//CHECK-NEXT:         _t1[i] = x[i];
 //CHECK-NEXT:         x[i] += y[i];
-//CHECK-NEXT:         clad::push(_t2, sum);
+//CHECK-NEXT:         _t2[i] = sum;
 //CHECK-NEXT:         sum += x[i];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
@@ -165,14 +165,14 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});
-//CHECK-NEXT:             sum = clad::pop(_t2);
+//CHECK-NEXT:             sum = _t2[i];
 //CHECK-NEXT:             float _r_d1 = _d_sum;
 //CHECK-NEXT:             _d_x[i] += _r_d1;
 //CHECK-NEXT:             x_size = std::max(x_size, i);
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _final_error += std::abs(_d_x[i] * x[i] * {{.+}});
-//CHECK-NEXT:             x[i] = clad::pop(_t1);
+//CHECK-NEXT:             x[i] = _t1[i];
 //CHECK-NEXT:             float _r_d0 = _d_x[i];
 //CHECK-NEXT:             _d_y[i] += _r_d0;
 //CHECK-NEXT:             y_size = std::max(y_size, i);
@@ -304,18 +304,18 @@ double func6(double x) {
 //CHECK: void func6_grad(double x, double *_d_x, double &_final_error) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     clad::tape<double> _t1 = {};
+//CHECK-NEXT:     double _t1[9];
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     for (i = 1; i < 10; i++) {
-//CHECK-NEXT:         clad::push(_t1, sum);
+//CHECK-NEXT:         _t1[i - 1] = sum;
 //CHECK-NEXT:         sum += fun(x);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (_t0 = 9{{U|UL|ULL}}; _t0; _t0--) {
 //CHECK-NEXT:         i--;
-//CHECK-NEXT:         sum = clad::pop(_t1);
+//CHECK-NEXT:         sum = _t1[i - 1];
 //CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         fun_pullback(x, _d_sum, &_r0, _final_error);
 //CHECK-NEXT:         *_d_x += _r0;

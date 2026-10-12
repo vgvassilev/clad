@@ -1,7 +1,7 @@
 // REQUIRES: clang-repl
 // UNSUPPORTED: clang-14, clang-15, clang-16, clang-17, clang-18
 // RUN: cat %s | %clang-repl -Xcc -fplugin=%cladlib                            \
-// RUN:             -Xcc -I%S/../../include -Xcc -Xclang -Xcc -verify |        \
+// RUN:             -Xcc -I%S/../../include -Xcc -I%clad_gen_incl -Xcc -Xclang -Xcc -verify |        \
 // RUN:                FileCheck %s
 
 double sq(double x) { return x*x; }
