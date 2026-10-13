@@ -1603,7 +1603,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // paths, or once per iteration, beforehand would be once on every path,
     // and in place several times: there the call keeps its arguments and gets
     // no numerical derivative.
-    bool NumDiffViable = utils::GetNumDiffTarget(m_Sema, FD) != nullptr;
+    bool NumDiffViable = utils::GetNumDiffTarget(m_Sema, FD, CE) != nullptr;
     auto hasEffects = [&](const Expr* Arg) {
       return Arg->HasSideEffects(m_Context, /*IncludePossibleEffects=*/false);
     };
@@ -1632,7 +1632,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // Check if the function is eligible for numerical differentiation.
     Expr* fnCallee =
         CE->getNumArgs() == 1 && NumDiffViable
-            ? GetNumDiffCallee(FD, cast<CallExpr>(call)->getCallee())
+            ? GetNumDiffCallee(FD, cast<CallExpr>(call)->getCallee(), CE)
             : nullptr;
     if (fnCallee)
       callDiff =

@@ -241,16 +241,21 @@ clang::Sema::SemaDiagnosticBuilder diag(
                                    const clang::LookupResult& Overloads);
 
     /// Returns true if the function has only real non-reference parameters and
-    /// returns a real number.
-    bool IsRealFunction(const clang::FunctionDecl* FD);
+    /// returns a real number. A variadic function counts unless the call \p CE
+    /// passes something past its parameters: numerical_diff, like a
+    /// pushforward, calls it through them, and would drop the rest. A null CE
+    /// asks about the function, for its declared parameters.
+    bool IsRealFunction(const clang::FunctionDecl* FD,
+                        const clang::CallExpr* CE);
 
     /// The function the numerical-diff fallback passes as a pointer to
     /// differentiate \p FD: FD itself, or, for a builtin whose address cannot
     /// be taken, the library function it stands for (`exp` for
     /// `__builtin_exp`). Null when there is none, or FD is not a real
-    /// function.
+    /// function for the call \p CE (see IsRealFunction).
     const clang::FunctionDecl* GetNumDiffTarget(clang::Sema& S,
-                                                const clang::FunctionDecl* FD);
+                                                const clang::FunctionDecl* FD,
+                                                const clang::CallExpr* CE);
 
     /// Returns true if `arg` is an argument passed by reference or is of
     /// pointer/array type.
@@ -642,7 +647,8 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     /// Returns true if FD can be differentiated as a pushforward
     /// And be used in the reverse mode.
-    bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD);
+    bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD,
+                                    const clang::CallExpr* CE);
 
     ///\returns a fully qualified type that is as close as coders would write.
     clang::QualType makeTypeReadable(clang::Sema& S, clang::QualType Ty);

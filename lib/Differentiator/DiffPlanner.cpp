@@ -1403,7 +1403,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // user-prodived to handle builtin derivatives. If found, we have to change
     // the mode of the request.
     if (R.EnableErrorEstimation && R.Mode == DiffMode::pullback &&
-        utils::canUsePushforwardInRevMode(R.Function)) {
+        utils::canUsePushforwardInRevMode(
+            R.Function, dyn_cast_or_null<CallExpr>(R.CallContext))) {
       R.Mode = DiffMode::pushforward;
       R.EnableErrorEstimation = false;
       if (Expr* overload = getOverloadExpr(S, DC, R, foundAnyDecl)) {
@@ -1938,7 +1939,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       bool canUsePushforwardInRevMode =
           m_TopMostReq->Mode == DiffMode::reverse &&
           !request.EnableErrorEstimation &&
-          utils::canUsePushforwardInRevMode(FD);
+          utils::canUsePushforwardInRevMode(FD, E);
 
       std::string FDName = FD->getNameAsString();
 #if CLANG_VERSION_MAJOR < 16

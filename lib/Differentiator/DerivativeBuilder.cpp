@@ -675,8 +675,10 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               L = request.CallContext->getBeginLoc();
             diagnoseUndefinedFunction(
                 FD, L,
-                /*numDiffViable=*/utils::GetNumDiffTarget(m_Sema, FD) !=
-                    nullptr);
+                /*numDiffViable=*/
+                // One request serves every call to FD, so this asks about FD;
+                // a call passing more than its parameters is refused there.
+                utils::GetNumDiffTarget(m_Sema, FD, /*CE=*/nullptr) != nullptr);
           }
           return {};
         }

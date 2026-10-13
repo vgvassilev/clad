@@ -620,8 +620,10 @@ namespace clad {
       return DeclarationNameInfo(II, noLoc);
     }
 
-    bool IsRealFunction(const clang::FunctionDecl* FD) {
+    bool IsRealFunction(const clang::FunctionDecl* FD, const CallExpr* CE) {
       if (isa<CXXMethodDecl>(FD) || !FD->getReturnType()->isRealType())
+        return false;
+      if (FD->isVariadic() && CE && CE->getNumArgs() > FD->getNumParams())
         return false;
       for (auto PVD : FD->parameters()) {
         if (!PVD->getType()->isRealType())
@@ -630,8 +632,9 @@ namespace clad {
       return true;
     }
 
-    const FunctionDecl* GetNumDiffTarget(Sema& S, const FunctionDecl* FD) {
-      if (!IsRealFunction(FD))
+    const FunctionDecl* GetNumDiffTarget(Sema& S, const FunctionDecl* FD,
+                                         const CallExpr* CE) {
+      if (!IsRealFunction(FD, CE))
         return nullptr;
       const Builtin::Context& BI = S.getASTContext().BuiltinInfo;
       auto addressable = [&](const FunctionDecl* F) {
@@ -1902,8 +1905,9 @@ namespace clad {
       return BuildDefaultConstructExpr(S, utils::GetCladTagOfType(S, T));
     }
 
-    bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
-      return FD->getNumParams() == 1 && utils::IsRealFunction(FD);
+    bool canUsePushforwardInRevMode(const FunctionDecl* FD,
+                                    const CallExpr* CE) {
+      return FD->getNumParams() == 1 && utils::IsRealFunction(FD, CE);
     }
 
     QualType makeTypeReadable(Sema& S, QualType Ty) {
