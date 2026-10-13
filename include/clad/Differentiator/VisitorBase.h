@@ -976,7 +976,8 @@ namespace clad {
     /// library function a builtin stands for (see utils::GetNumDiffTarget).
     /// Null when numerical differentiation is not viable for FD.
     clang::Expr* GetNumDiffCallee(const clang::FunctionDecl* FD,
-                                  clang::Expr* Callee);
+                                  clang::Expr* Callee,
+                                  const clang::CallExpr* CE);
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///

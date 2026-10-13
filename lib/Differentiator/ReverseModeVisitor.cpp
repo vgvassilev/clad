@@ -2558,7 +2558,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // If the function has a single arg and does not return a reference or
     // take arg by reference, we can request a derivative w.r.t. to this arg
     // using the forward mode.
-    bool asGrad = !utils::canUsePushforwardInRevMode(FD);
+    bool asGrad = !utils::canUsePushforwardInRevMode(FD, CE);
 
     // Build the DiffRequest
     DiffRequest pullbackRequest{};
@@ -2842,7 +2842,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                     /*RParenLoc=*/m_DiffReq->getLocation(), CUDAExecConfig)
                 .get();
       } else if (Expr* NumDiffCallee =
-                     GetNumDiffCallee(FD, Clone(CE->getCallee()))) {
+                     GetNumDiffCallee(FD, Clone(CE->getCallee()), CE)) {
         // FIXME: Add support for reference arguments to the numerical diff. If
         // it already correctly support reference arguments then confirm the
         // support and add tests for the same.

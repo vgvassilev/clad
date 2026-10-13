@@ -1107,8 +1107,16 @@ namespace clad {
            QT.getAsString().find("clad::array_ref") != std::string::npos;
   }
 
-  Expr* VisitorBase::GetNumDiffCallee(const FunctionDecl* FD, Expr* Callee) {
-    const FunctionDecl* Target = utils::GetNumDiffTarget(m_Sema, FD);
+  Expr* VisitorBase::GetNumDiffCallee(const FunctionDecl* FD, Expr* Callee,
+                                      const CallExpr* CE) {
+    const FunctionDecl* Target = utils::GetNumDiffTarget(m_Sema, FD, CE);
+    if (!Target && CE && FD->isVariadic() &&
+        utils::GetNumDiffTarget(m_Sema, FD, nullptr))
+      diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+           "numerical differentiation of %0 is not viable for this call: it "
+           "passes arguments past the parameters; considering its derivative "
+           "as 0")
+          << FD;
     if (Target == FD)
       return Callee;
     if (!Target)
