@@ -1332,7 +1332,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // zero when the loop body never runs. Guarding on the same comparison the
     // loop itself uses keeps the two in step; without it an empty loop would
     // wrap the subtraction around and iterate the reverse sweep forever.
-    QualType sizeTy = clad_compat::getSizeType(m_Context);
+    // The induction variable steps once per iteration within its own type, so
+    // the count fits that type's unsigned counterpart.
+    QualType sizeTy = CL.CountType = utils::getSpellableType(
+        utils::getUnsignedType(indVar->getType(), m_Context), m_Derivative,
+        m_Context);
     // A count the analysis knows -- the common `i < 3` -- is spelled out;
     // arithmetic over literals would say the same thing longer.
     if (F.Count >= 0) {
@@ -1405,7 +1409,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     beginBlock(direction::reverse);
     const LoopFacts& CLF = m_DiffReq.getLoopFacts(FS);
     CountedLoopCode CL = BuildCountedLoop(CLF);
-    LoopCounter loopCounter(*this, CL.TripCount);
+    LoopCounter loopCounter(*this, CL.TripCount, CL.CountType);
     ScopeRAII forScope(*this, Scope::DeclScope | Scope::ControlScope |
                                   Scope::BreakScope | Scope::ContinueScope);
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
@@ -4990,14 +4994,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV,
-                                               Expr* tripCount)
+                                               Expr* tripCount,
+                                               QualType countType)
       : m_RMV(RMV), m_TripCount(tripCount) {
     ASTContext& C = m_RMV.m_Context;
     if (tripCount) {
       // The forward sweep never touches this counter, so it needs no reset
       // and -- unlike a counted one -- no tape when the loop is nested: the
       // reverse loop assigns it on entry, once per enclosing iteration.
-      VarDecl* VD = m_RMV.BuildGlobalVarDecl(clad_compat::getSizeType(C), "_t");
+      assert(!countType.isNull() && "a trip count comes with its type");
+      VarDecl* VD = m_RMV.BuildGlobalVarDecl(countType, "_t");
       DeclStmt* decl = m_RMV.BuildDeclStmt(VD);
       // Declare it beside its loop, where a counted one sits. A loop below
       // function-body level is the exception: the reverse sweep runs in a

@@ -125,7 +125,7 @@ int main() {
 // CHECK-NEXT: }
 // CHECK: void nested_grad(double x, double *_d_x) {
 // CHECK-NEXT:     bool _cond0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_r = 0.;

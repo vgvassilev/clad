@@ -307,6 +307,22 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns the same type as GetValueType but without const qualifier.
     clang::QualType GetNonConstValueType(clang::QualType T);
 
+    /// The unsigned integer type that holds every value of the integer type
+    /// `T`, after integral promotion: `T` itself, as written, when unsigned --
+    /// size_t stays size_t -- and its unsigned counterpart otherwise.
+    /// References and qualifiers are dropped.
+    clang::QualType getUnsignedType(clang::QualType T,
+                                    const clang::ASTContext& C);
+
+    /// The spelling of `T` closest to how it was written that code in `Where`
+    /// can name: `T` itself, or the first of its single-step desugarings that
+    /// is nameable there, or `T` unchanged when none is. Not the canonical
+    /// type: a public typedef of a private class is nameable while the class
+    /// it names is not.
+    clang::QualType getSpellableType(clang::QualType T,
+                                     const clang::DeclContext* Where,
+                                     const clang::ASTContext& C);
+
     clang::QualType getNonConstType(clang::QualType T, clang::Sema& S);
 
     /// Builds and returns the init expression to initialise `clad::array` and

@@ -330,6 +330,65 @@ namespace clad {
       return Result;
     }
 
+    /// Whether code in `Where` can name `T` as it is spelled. decltype and
+    /// typeof sugar is spelled as its expression, whose names may resolve only
+    /// where it was written. Otherwise what has to be reachable is the head of
+    /// the spelling -- the typedef or the tag it names: not local to a
+    /// function `Where` is outside of, and, where it is a non-public member,
+    /// declared in a class enclosing `Where`. Builtin and compound types have
+    /// no such head and are always nameable.
+    static bool isSpellableFrom(QualType T, const DeclContext* Where) {
+      for (const Type* Ty = T.getTypePtr();;) {
+        if (isa<DecltypeType, TypeOfExprType>(Ty))
+          return false;
+#if CLANG_VERSION_MAJOR >= 22
+        // The size_t clang gives sizeof prints as __size_t, which no code
+        // declares (llvm/llvm-project#143653).
+        if (isa<PredefinedSugarType>(Ty))
+          return false;
+#endif
+        if (isa<TypedefType, TagType>(Ty))
+          break;
+        QualType Next = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
+        if (Next.getTypePtr() == Ty)
+          break;
+        Ty = Next.getTypePtr();
+      }
+      const NamedDecl* D = nullptr;
+      if (const auto* TT = T->getAs<TypedefType>())
+        D = TT->getDecl();
+      else
+        D = T->getAsTagDecl();
+      for (; D; D = dyn_cast<NamedDecl>(D->getDeclContext())) {
+        const DeclContext* DC = D->getDeclContext();
+        if (DC->isFunctionOrMethod() && !(Where && DC->Encloses(Where)))
+          return false;
+        AccessSpecifier AS = D->getAccess();
+        if (AS != AS_public && AS != AS_none && !(Where && DC->Encloses(Where)))
+          return false;
+      }
+      return true;
+    }
+
+    QualType getUnsignedType(QualType T, const ASTContext& C) {
+      T = T.getNonReferenceType().getUnqualifiedType();
+      if (clad_compat::isPromotableIntegerType(C, T))
+        T = C.getPromotedIntegerType(T);
+      return T->isUnsignedIntegerType() ? T : C.getCorrespondingUnsignedType(T);
+    }
+
+    QualType getSpellableType(QualType T, const DeclContext* Where,
+                              const ASTContext& C) {
+      for (QualType Cur = T;;) {
+        if (isSpellableFrom(Cur, Where))
+          return Cur;
+        QualType Next = Cur.getSingleStepDesugaredType(C);
+        if (Next == Cur)
+          return T;
+        Cur = Next;
+      }
+    }
+
     FunctionDecl* ResolveOverload(Sema& S, Expr* lookup,
                                   llvm::MutableArrayRef<Expr*> args) {
       OverloadCandidateSet Candidates(noLoc, OverloadCandidateSet::CSK_Normal);

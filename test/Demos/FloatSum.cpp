@@ -11,7 +11,7 @@
 // CHECK:    clad::tape<float> _t1 = {};
 // CHECK:    float _d_sum = 0.F;
 // CHECK:    float sum = 0.;
-// CHECK:    unsigned {{int|long|long long}} _t0;
+// CHECK:    unsigned int _t0;
 // CHECK:    for (i = 0; i < n; i++) {
 // CHECK:        clad::push(_t1, sum);
 // CHECK:        sum = sum + x;

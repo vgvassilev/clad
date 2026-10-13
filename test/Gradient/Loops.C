@@ -23,7 +23,7 @@ double f1(double x) {
 // CHECK-NEXT:     double _t1[3];
 // CHECK-NEXT:     double _d_t = 0.;
 // CHECK-NEXT:     double t = 1;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; i++) {
 // CHECK-NEXT:         _t1[i] = t;
 // CHECK-NEXT:         t *= x;
@@ -50,13 +50,13 @@ double f2(double x) {
 // CHECK: void f2_grad(double x, double *_d_x) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t1;
+// CHECK-NEXT:     unsigned int _t1;
 // CHECK-NEXT:     int _d_j = 0;
 // CHECK-NEXT:     int j = 0;
 // CHECK-NEXT:     double _t2[3][3];
 // CHECK-NEXT:     double _d_t = 0.;
 // CHECK-NEXT:     double t = 1;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; i++) {
 // CHECK-NEXT:         for (j = 0; j < 3; j++) {
 // CHECK-NEXT:             _t2[i][j] = t;
@@ -162,7 +162,7 @@ double f5(double x){
 // CHECK: void f5_grad(double x, double *_d_x) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 10; i++) {
 // CHECK-NEXT:         x++;
 // CHECK-NEXT:     }
@@ -186,7 +186,7 @@ double f_const_local(double x) {
 // CHECK-NEXT:     double n = 0.;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:         _t1[i] = n , n = x + i;
 // CHECK-NEXT:         res += x * n;
@@ -220,7 +220,7 @@ double f_sum(double *p, int n) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_s = 0.;
 // CHECK-NEXT:     double s = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < n; i++) {
 // CHECK-NEXT:         s += p[i];
 // CHECK-NEXT:     }
@@ -250,7 +250,7 @@ double f_sum_squares(double *p, int n) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_s = 0.;
 // CHECK-NEXT:     double s = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < n; i++) {
 // CHECK-NEXT:         s += sq(p[i]);
 // CHECK-NEXT:     }
@@ -384,7 +384,7 @@ double f6 (double i, double j) {
 // CHECK-NEXT:     double c = 0.;
 // CHECK-NEXT:     double _d_a = 0.;
 // CHECK-NEXT:     double a = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (counter = 0; counter < 3; ++counter) {
 // CHECK-NEXT:         b = i * i;
 // CHECK-NEXT:         c = j * j;
@@ -1260,7 +1260,7 @@ double fn19(double* arr, int n) {
 // CHECK-NEXT:     double *ref = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _d_ref = &_d_arr[i];
 // CHECK-NEXT:         clad::push(_t1, _d_ref);
@@ -1339,7 +1339,7 @@ double fn20(double *arr, int n) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         res += (arr[i] *= 5);
 // CHECK-NEXT:     }
@@ -1373,7 +1373,7 @@ double fn21(double x) {
 // CHECK-NEXT:     double arr[3] = {0};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         clad::move({1, x, 2}, arr);
 // CHECK-NEXT:         res += arr[0] + arr[1];
@@ -1410,7 +1410,7 @@ double fn22(double param) {
 // CHECK-NEXT:     double arr[1] = {0};
 // CHECK-NEXT:     double _d_out = 0.;
 // CHECK-NEXT:     double out = 0.;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 1; i++) {
 // CHECK-NEXT:         clad::move(arr, _t1[i]) , clad::move({1.}, arr);
 // CHECK-NEXT:         out += arr[0] * param;
@@ -2668,7 +2668,7 @@ double fn43(double* x, double y) {
 //CHECK-NEXT:    double t4 = 0.;
 //CHECK-NEXT:    double _d_out = 0.;
 //CHECK-NEXT:    double out = 0.;
-//CHECK-NEXT:    unsigned {{int|long}} _t0;
+//CHECK-NEXT:    unsigned int _t0;
 //CHECK-NEXT:    for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t1[i] = t4 , t4 = x[i];
 //CHECK-NEXT:        out += 1. / t4;
@@ -2747,7 +2747,7 @@ double fn45(double x, double y) {
 // CHECK-NEXT:     double t2 = 0.;
 // CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = 0;
-// CHECK-NEXT:     unsigned {{int|long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 100; ++i) {
 // CHECK-NEXT:         t1 = x;
 // CHECK-NEXT:         t2 = y / t1;
