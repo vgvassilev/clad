@@ -121,6 +121,7 @@ public:
   StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
   virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
   StmtDiff VisitStmt(const clang::Stmt* S);
+  StmtDiff VisitAttributedStmt(const clang::AttributedStmt* S);
   StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
   // Decl is not Stmt, so it cannot be visited directly.
   virtual DeclDiff<clang::VarDecl>
@@ -218,6 +219,10 @@ private:
   ///   double _d_x = 1;
   ///   double _d_y = 0;
   void GenerateSeeds(const clang::FunctionDecl* dFD);
+  /// The tangent a void-returning primal's derivative should return: the one
+  /// belonging to its sole output parameter. Null whenever the derivative
+  /// returns void, which is every other case.
+  clang::Expr* GetOutputParamTangent();
 };
 } // end namespace clad
 

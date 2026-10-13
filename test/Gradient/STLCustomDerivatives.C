@@ -585,7 +585,7 @@ int main() {
 // CHECK-NEXT:        {{.*}}fill_reverse_forw(&a, x, &_d_a, *_d_x);
 // CHECK-NEXT:        double _d_res = 0.;
 // CHECK-NEXT:        double res = 0;
-// CHECK-NEXT:        unsigned {{long|int}} _t1;
+// CHECK-NEXT:        size_t _t1;
 // CHECK-NEXT:        for (i = 0; i < a.size(); ++i) {
 // CHECK-NEXT:            res += a.at(i);
 // CHECK-NEXT:        }
@@ -837,32 +837,32 @@ int main() {
 // CHECK-NEXT:      clad::tape<std::vector<double> > _t2 = {};
 // CHECK-NEXT:      std::vector<double> ls = {};
 // CHECK-NEXT:      std::vector<double> _d_ls{};
-// CHECK-NEXT:      clad::tape<{{.*}}value_type *> _t3 = {};
-// CHECK-NEXT:      clad::tape<{{.*}}value_type> _t4 = {};
+// CHECK-NEXT:     {{.*}}value_type *_t3[3];
+// CHECK-NEXT:     {{.*}}value_type _t4[3];
 // CHECK-NEXT:      {{.*}}allocator_type alloc;
 // CHECK-NEXT:      {{.*}}allocator_type _d_alloc;
-// CHECK-NEXT:      unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:      unsigned int _t0;
 // CHECK-NEXT:      for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:          clad::push(_t1, std::move(_d_ls));
 // CHECK-NEXT:          clad::push(_t2, std::move(ls)) , ls = {u, v}, alloc;
 // CHECK-NEXT:          _d_ls = {0., 0.}, _d_alloc;
-// CHECK-NEXT:          clad::push(_t3, &ls[1]);
-// CHECK-NEXT:          clad::push(_t4, ls[1]);
-// CHECK-NEXT:          *clad::back(_t3) += ls[0];
+// CHECK-NEXT:         _t3[i] = &ls[1];
+// CHECK-NEXT:         _t4[i] = ls[1];
+// CHECK-NEXT:         *_t3[i] += ls[0];
 // CHECK-NEXT:          u = ls[1];
 // CHECK-NEXT:      }
 // CHECK-NEXT:      *_d_u += 1;
 // CHECK-NEXT:      for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NEXT:         --i;
 // CHECK-NEXT:          {
 // CHECK-NEXT:              double _r_d1 = *_d_u;
 // CHECK-NEXT:              *_d_u = 0.;
 // CHECK-NEXT:              _d_ls[1] += _r_d1;
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:              ls[1] = clad::pop(_t4);
+// CHECK-NEXT:             ls[1] = _t4[i];
 // CHECK-NEXT:              {{.*}}value_type _r_d0 = _d_ls[1];
 // CHECK-NEXT:              _d_ls[0] += _r_d0;
-// CHECK-NEXT:              clad::pop(_t3);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
 // CHECK-NEXT:              clad::array<{{double|std::vector<double, std::allocator<double> >::value_type}}> _r0 = {{2U|2UL|2ULL}};
@@ -943,30 +943,30 @@ int main() {
 // CHECK-NEXT:     clad::tape<std::vector<double> > _t2 = {};
 // CHECK-NEXT:     std::vector<double> ls = {};
 // CHECK-NEXT:     std::vector<double> _d_ls{};
-// CHECK-NEXT:     clad::tape<value_type *> _t3 = {};
-// CHECK-NEXT:     clad::tape<value_type> _t4 = {};
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     {{.*}}value_type *_t3[3];
+// CHECK-NEXT:     {{.*}}value_type _t4[3];
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:         clad::push(_t1, std::move(_d_ls));
 // CHECK-NEXT:         clad::push(_t2, std::move(ls)) , ls = {{.*{u, v}.*}};
 // CHECK-NEXT:         _d_ls = {{.*}}{0., 0.}{{.*}};
-// CHECK-NEXT:         clad::push(_t3, &ls[1]);
-// CHECK-NEXT:         clad::push(_t4, ls[1]);
-// CHECK-NEXT:         *clad::back(_t3) += ls[0];
+// CHECK-NEXT:         _t3[i] = &ls[1];
+// CHECK-NEXT:         _t4[i] = ls[1];
+// CHECK-NEXT:         *_t3[i] += ls[0];
 // CHECK-NEXT:         u = ls[1];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_u += 1;
 // CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d1 = *_d_u;
 // CHECK-NEXT:             *_d_u = 0.;
 // CHECK-NEXT:             _d_ls[1] += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             ls[1] = clad::pop(_t4);
+// CHECK-NEXT:             ls[1] = _t4[i];
 // CHECK-NEXT:             {{.*}}value_type _r_d0 = _d_ls[1];
 // CHECK-NEXT:             _d_ls[0] += _r_d0;
-// CHECK-NEXT:             clad::pop(_t3);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             clad::array<{{double|std::vector<double, std::allocator<double> >::value_type}}> _r0 = {{2U|2UL|2ULL}};
@@ -1021,13 +1021,13 @@ int main() {
 // CHECK-NEXT:     int _d_id0 = 0;
 // CHECK-NEXT:     int id0 = 0;
 // CHECK-NEXT:     const Session &sess = session[0];
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (id = 0; id < nVals; id++) {
 // CHECK-NEXT:         sess.arr[id] = tensor_x[id] * tensor_theory_params[0];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     float _d_out = 0.F;
 // CHECK-NEXT:     float out = 0.;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t1;
+// CHECK-NEXT:     unsigned int _t1;
 // CHECK-NEXT:     for (id0 = 0; id0 < nVals; id0++) {
 // CHECK-NEXT:         out += std::exp(-sess.arr[id0]);
 // CHECK-NEXT:     }
@@ -1052,7 +1052,7 @@ int main() {
 // CHECK-NEXT:     float *const &arr = sess.arr;
 // CHECK-NEXT:     float _d_out = 0.F;
 // CHECK-NEXT:     float out = 0.;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (id = 0; id < nVals; id++) {
 // CHECK-NEXT:         out += arr[id] * tensor_theory_params[0];
 // CHECK-NEXT:     }

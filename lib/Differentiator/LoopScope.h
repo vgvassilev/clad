@@ -49,6 +49,16 @@ struct ReverseModeVisitor::LoopScope {
   LoopScope* Sums;
   /// What the analysis proved about this loop, read where Sums names it.
   const LoopFacts* Facts = nullptr;
+  /// The derivative's clone of the index of a loop the analysis counted
+  /// with a literal (Facts->Count), else null. A value stored once per
+  /// iteration of such a loop takes a slot in an array of Count at
+  /// `Index - Facts->Start` instead of a push onto a tape, and the reverse
+  /// sweep reads the slot by the index it steps back. See
+  /// ReverseModeVisitor::MakeCladTapeFor.
+  clang::VarDecl* Index = nullptr;
+  /// Whether a store in this loop took such a slot, so the reverse sweep
+  /// must step Index back even where nothing else reads it.
+  bool UsesSlots = false;
   llvm::SmallVector<Accumulator, 2> Accumulators;
 
   /// The accumulator that stands in for \p Target, an adjoint subscript of

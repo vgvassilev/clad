@@ -54,6 +54,16 @@ namespace clad {
         S.Diags.getDiagnosticIDs()->getCustomDiagID(severityOf(D), textOf(D));
     return S.Diag(Loc, ID);
   }
+  const Stmt* SkipLikelihoodHints(const Stmt* S) {
+    while (const auto* AS = dyn_cast<AttributedStmt>(S)) {
+      for (const Attr* A : AS->getAttrs())
+        if (!isa<LikelyAttr, UnlikelyAttr>(A))
+          return S;
+      S = AS->getSubStmt();
+    }
+    return S;
+  }
+
     static SourceLocation noLoc{};
 
     std::string ComputeEffectiveFnName(const FunctionDecl* FD) {
@@ -318,6 +328,65 @@ namespace clad {
         Result.setNamingClass(CXXRD);
 
       return Result;
+    }
+
+    /// Whether code in `Where` can name `T` as it is spelled. decltype and
+    /// typeof sugar is spelled as its expression, whose names may resolve only
+    /// where it was written. Otherwise what has to be reachable is the head of
+    /// the spelling -- the typedef or the tag it names: not local to a
+    /// function `Where` is outside of, and, where it is a non-public member,
+    /// declared in a class enclosing `Where`. Builtin and compound types have
+    /// no such head and are always nameable.
+    static bool isSpellableFrom(QualType T, const DeclContext* Where) {
+      for (const Type* Ty = T.getTypePtr();;) {
+        if (isa<DecltypeType, TypeOfExprType>(Ty))
+          return false;
+#if CLANG_VERSION_MAJOR >= 22
+        // The size_t clang gives sizeof prints as __size_t, which no code
+        // declares (llvm/llvm-project#143653).
+        if (isa<PredefinedSugarType>(Ty))
+          return false;
+#endif
+        if (isa<TypedefType, TagType>(Ty))
+          break;
+        QualType Next = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
+        if (Next.getTypePtr() == Ty)
+          break;
+        Ty = Next.getTypePtr();
+      }
+      const NamedDecl* D = nullptr;
+      if (const auto* TT = T->getAs<TypedefType>())
+        D = TT->getDecl();
+      else
+        D = T->getAsTagDecl();
+      for (; D; D = dyn_cast<NamedDecl>(D->getDeclContext())) {
+        const DeclContext* DC = D->getDeclContext();
+        if (DC->isFunctionOrMethod() && !(Where && DC->Encloses(Where)))
+          return false;
+        AccessSpecifier AS = D->getAccess();
+        if (AS != AS_public && AS != AS_none && !(Where && DC->Encloses(Where)))
+          return false;
+      }
+      return true;
+    }
+
+    QualType getUnsignedType(QualType T, const ASTContext& C) {
+      T = T.getNonReferenceType().getUnqualifiedType();
+      if (clad_compat::isPromotableIntegerType(C, T))
+        T = C.getPromotedIntegerType(T);
+      return T->isUnsignedIntegerType() ? T : C.getCorrespondingUnsignedType(T);
+    }
+
+    QualType getSpellableType(QualType T, const DeclContext* Where,
+                              const ASTContext& C) {
+      for (QualType Cur = T;;) {
+        if (isSpellableFrom(Cur, Where))
+          return Cur;
+        QualType Next = Cur.getSingleStepDesugaredType(C);
+        if (Next == Cur)
+          return T;
+        Cur = Next;
+      }
     }
 
     FunctionDecl* ResolveOverload(Sema& S, Expr* lookup,
@@ -950,7 +1019,7 @@ namespace clad {
         auto OpKind = UO->getOpcode();
         if (OpKind == UO_Plus || OpKind == UO_Minus)
           return UsefulToStore(UO->getSubExpr());
-        return false;
+        return UO->isIncrementDecrementOp();
       }
       if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
         return UsefulToStore(ASE->getBase()) || UsefulToStore(ASE->getIdx());
@@ -1024,6 +1093,32 @@ namespace clad {
     bool isNonConstReferenceType(clang::QualType QT) {
       return QT->isReferenceType() &&
              !QT.getNonReferenceType().isConstQualified();
+    }
+
+    bool CanReturnOutputTangent(const clang::FunctionDecl* FD) {
+      if (!FD->getReturnType()->isVoidType())
+        return false;
+      const auto* MD = dyn_cast<clang::CXXMethodDecl>(FD);
+      return !MD || MD->isStatic();
+    }
+
+    void CollectOutputParams(
+        const clang::FunctionDecl* FD,
+        llvm::SmallVectorImpl<const clang::ParmVarDecl*>& outputParams) {
+      for (const clang::ParmVarDecl* PVD : FD->parameters()) {
+        clang::QualType T = PVD->getType();
+        if (!T->isLValueReferenceType() || !isNonConstReferenceType(T))
+          continue;
+        // Floating point, not isRealType: that is also true of an integer and
+        // of a complete unscoped enum, and neither is a tangent anyone asked
+        // for. Counting them costs twice. An enum is not differentiable, so no
+        // tangent is ever built for it and asking for one later finds nothing;
+        // and an `int&` a function writes its iteration count through would
+        // make an ordinary one-output function look like it has two. The
+        // traits side asks std::is_floating_point, and the two have to agree.
+        if (T.getNonReferenceType()->isRealFloatingType())
+          outputParams.push_back(PVD);
+      }
     }
 
     bool isCopyable(const clang::CXXRecordDecl* RD) {
@@ -1517,8 +1612,27 @@ namespace clad {
                       bool forCustomDerv, bool shouldUseRestoreTracker,
                       bool isForErrorEstimation) {
       ASTContext& C = S.getASTContext();
-      if (mode == DiffMode::forward)
+      if (mode == DiffMode::forward) {
+        // A function returning void leaves its result in a parameter, and the
+        // tangent of that parameter is the only thing its derivative has to
+        // give back. Returning it is what keeps the derivative reachable: the
+        // signature is otherwise the primal's, so the tangent would be a local
+        // the caller cannot read. More than one such parameter is left to the
+        // caller of this function to diagnose -- there is no way to choose.
+        if (utils::CanReturnOutputTangent(FD)) {
+          llvm::SmallVector<const clang::ParmVarDecl*, 2> outputParams;
+          utils::CollectOutputParams(FD, outputParams);
+          // getAs looks through the sugar an attributed function type adds.
+          const auto* FnProtoTy = FD->getType()->getAs<FunctionProtoType>();
+          if (outputParams.size() == 1 && FnProtoTy) {
+            QualType dRetTy = utils::getNonConstType(
+                outputParams.front()->getType().getNonReferenceType(), S);
+            return C.getFunctionType(dRetTy, FnProtoTy->getParamTypes(),
+                                     FnProtoTy->getExtProtoInfo());
+          }
+        }
         return FD->getType();
+      }
 
       QualType FnTy = FD->getType();
 

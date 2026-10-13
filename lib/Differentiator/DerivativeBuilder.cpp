@@ -91,7 +91,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     // should follow closer what clang does, namely building a
     // FunctionTemplateDecl and then we should instantiate it with the
     // particular template parameters.
-    if (R.Function && !R.Function->getPrimaryTemplate())
+    if (R.DerivedFDPrototypes.size() >= R.CurrentDerivativeOrder)
+      Previous.addDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
+    else if (R.Function && !R.Function->getPrimaryTemplate())
       S.LookupQualifiedName(Previous, dFD->getParent());
 
     // Derivatives are declared inline, but a hand-written custom derivative may
@@ -915,6 +917,14 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       utils::diag(S, CladDiag::remark_construct_cost, FS->getForLoc())
           << costOf(AnalysisDesc::CountedLoop);
       explain(AnalysisId::Loop, F.Why, F.MissedAt, FS->getForLoc());
+    }
+    for (const clang::ForStmt* FS : Finder.Loops) {
+      const LoopFacts& F = R.getLoopFacts(FS);
+      if (!F || !F.BoundsAreStable || F.Count >= 0)
+        continue;
+      utils::diag(S, CladDiag::remark_construct_cost, FS->getForLoc())
+          << costOf(AnalysisDesc::ArrayRecord);
+      explain(AnalysisId::Loop, F.ArrayWhy, F.ArrayMissedAt, FS->getForLoc());
     }
 
     llvm::ArrayRef<WrittenExtent> Extents = R.getWrittenExtents();

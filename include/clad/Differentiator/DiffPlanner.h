@@ -239,6 +239,26 @@ public:
   /// seeds no return value, so its returns skip the encoding.
   bool hasEarlyReturns() const;
 
+  /// The parameters the primal writes its result through, in parameter order:
+  /// non-const lvalue references to a floating point type. Only a function
+  /// returning void has them -- it has nowhere else to put a result -- and
+  /// only one whose derivative can carry a return type of its own, which is
+  /// what utils::CanReturnOutputTangent answers. Empty for every other
+  /// function. Reads Function's parameters directly, so a copied request
+  /// re-pointed at another Function answers for its own.
+  llvm::SmallVector<const clang::ParmVarDecl*, 2> getOutputParams() const;
+
+  /// The parameter whose tangent this request's derivative returns, or null
+  /// when the derivative keeps the primal's void return type. There is one
+  /// only when the primal writes through exactly one: forward mode hands back
+  /// a single tangent, so any choice among several would be a guess.
+  ///
+  /// utils::GetDerivativeType gives the derivative its return type by this
+  /// same rule, and ExtractDerivedFnTraitsForwMode repeats it from the header
+  /// side; where the three disagree CladFunction::execute calls through a
+  /// type whose return it has wrong.
+  const clang::ParmVarDecl* getOutputTangentParam() const;
+
   /// Whether the tangent of the primal's pointer variable \p VD may be null at
   /// run time. Clad cannot synthesize a tangent buffer for a const-qualified
   /// pointer parameter, because its size is unknown, so a pushforward call
@@ -264,10 +284,10 @@ public:
   /// belonging to a function other than this request's.
   bool writesVariable(const clang::VarDecl* VD) const;
 
-  /// What is known about \p FS as a counted loop, or an empty result when it
-  /// is not one. Reading the facts does not build anything: a caller that
-  /// wants a trip-count expression builds it from Init and Bound.
-  const LoopFacts& getLoopFacts(const clang::ForStmt* FS) const;
+  /// What is known about the loop \p S, or an empty result when nothing is.
+  /// Reading the facts does not build anything: a caller that wants a
+  /// trip-count expression builds it from Init and Bound.
+  const LoopFacts& getLoopFacts(const clang::Stmt* S) const;
 
   /// The extent each parameter of Function is written over, in parameter
   /// order, or empty when there is no Function to look at.
@@ -622,6 +642,9 @@ public:
     /// or constructor initializers. If we use Visit they would be processed
     /// under the parent DiffRequest which is not in the lambda scope.
     bool TraverseLambdaExpr(clang::LambdaExpr* LE);
+    /// Plans the requests a kernel launch contains without descending into
+    /// its execution configuration.
+    bool TraverseCUDAKernelCallExpr(clang::CUDAKernelCallExpr* KCE);
     /// Plan a lazily-scheduled nested request the static TU walk never reaches
     /// (built in DerivativeBuilder::HandleNestedDiffRequest). Currently records
     /// its early-return flag by walking the request's own body.

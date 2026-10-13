@@ -139,6 +139,8 @@ def BodyMovesIndex : Miss<"the body assigns the index too">;
 def StartNotStable : Miss<"the start value is written elsewhere in the "
                           "function">;
 def BoundNotStable : Miss<"the bound is written elsewhere in the function">;
+def CountNotLiteral : Miss<"the start or the bound is not a literal, so the "
+                           "count is not known until run time">;
 
 def ElementIsNotANumber : Miss<"one element of this is not a number, and a "
                                "register holds no more than one">;
@@ -294,6 +296,26 @@ a bound the caller can work out: another parameter, or a constant.
 }];
 }
 
+def ArrayRecord : Desc<Loop, 1005, "a loop with a literal count",
+                        "clad pushes what this loop stores onto a tape and "
+                        "pops it back, instead of keeping it in an array "
+                        "indexed by the loop"> {
+  let Misses = [CountNotLiteral];
+  let Doc = [{
+A counted loop whose start and bound are both literals::
+
+  for (int i = 0; i < 15; i++)    // fifteen iterations, known while compiling
+    t = f(x, i);                   // t's fifteen values live in an array
+
+What the body stores for the reverse sweep, one value per iteration, takes
+a slot in an array of that many at the loop's index, and the reverse sweep
+reads it back by the same index, rather than pushing it onto a tape and
+popping it. The optimiser then sees an array where it saw calls into a
+tape. A loop clad cannot count, or one whose count is known only at run
+time, keeps the tape.
+}];
+}
+
 def TransparentCall : Desc<TBR, 1004, "a call clad can look inside",
                             "clad saves every argument of this call for the "
                             "reverse sweep"> {
@@ -314,7 +336,7 @@ than through a pointer, is what lets the analysis see it.
 // What is generated, and in which order.
 def Clad {
   list<Desc> Descs = [CountedLoop, BroadcastRead, BoundedWrite,
-                      TransparentCall];
+                      TransparentCall, ArrayRecord];
   list<Diagnostic> Diagnostics = [remark_construct_cost,
                                   remark_construct_cost_for,
                                   note_construct_miss, note_construct_fix,

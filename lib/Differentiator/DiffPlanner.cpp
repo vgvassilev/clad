@@ -46,6 +46,7 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -488,6 +489,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return F.Found;
   }
 
+  llvm::SmallVector<const ParmVarDecl*, 2>
+  DiffRequest::getOutputParams() const {
+    llvm::SmallVector<const ParmVarDecl*, 2> outputParams;
+    if (Function && utils::CanReturnOutputTangent(Function))
+      utils::CollectOutputParams(Function, outputParams);
+    return outputParams;
+  }
+
+  const ParmVarDecl* DiffRequest::getOutputTangentParam() const {
+    // Every other mode either keeps the primal's return type or has somewhere
+    // of its own to put an output parameter's tangent, as a pushforward does.
+    if (Mode != DiffMode::forward)
+      return nullptr;
+    llvm::SmallVector<const ParmVarDecl*, 2> outputParams = getOutputParams();
+    if (outputParams.size() != 1)
+      return nullptr;
+    return outputParams.front();
+  }
+
   const FunctionLoopFacts& DiffRequest::getLoopFacts() const {
     // Re-run for another function: a copied request keeps the facts of the one
     // it was made for, and ProcessDiffRequest re-points a request at the
@@ -504,10 +524,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return *m_LoopFacts;
   }
 
-  const LoopFacts& DiffRequest::getLoopFacts(const clang::ForStmt* FS) const {
+  const LoopFacts& DiffRequest::getLoopFacts(const clang::Stmt* S) const {
     static const LoopFacts None;
     const auto& Loops = getLoopFacts().Loops;
-    auto it = Loops.find(FS);
+    auto it = Loops.find(S);
     return it == Loops.end() ? None : it->second;
   }
 
@@ -1016,6 +1036,18 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     public:
       VariedChecker(const DiffRequest& DR) : m_Request(DR) {}
+      // The default expression is not exposed through children().
+      bool VisitCXXDefaultArgExpr(CXXDefaultArgExpr* E) {
+        return TraverseStmt(E->getExpr());
+      }
+      bool VisitCXXDefaultInitExpr(CXXDefaultInitExpr* E) {
+        return TraverseStmt(E->getExpr());
+      }
+      bool TraverseInitListExpr(InitListExpr* E) {
+        // Default member initializers only appear in the semantic form.
+        InitListExpr* semantic = E->getSemanticForm();
+        return TraverseSynOrSemInitListExpr(semantic ? semantic : E);
+      }
       bool isVariedE(const clang::Expr* E) {
         // The call-activity pre-pass also fills the varied set, and its
         // conservative markings (an argument handed to a non-const pointer
@@ -1161,8 +1193,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::reverse;
     else
       llvm_unreachable("unknown mode");
-    // What the command line settled on for the translation unit, which the
-    // clad::opts pairs below may still override for this one request.
+      // What the command line settled on for the translation unit, which the
+      // clad::opts pairs below may still override for this one request.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     request.Enable##Id##Analysis = ReqOpts.Enable##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
@@ -1184,10 +1216,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       for (const auto& arg : TAL->get(0).pack_elements())
         bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
 
-    // What the request asks of each analysis, over the
-    // whole-translation-unit answer it already carries. Generated from the
-    // same table the command line is: an analysis that can be switched for
-    // the translation unit can be switched for one request.
+        // What the request asks of each analysis, over the
+        // whole-translation-unit answer it already carries. Generated from the
+        // same table the command line is: an analysis that can be switched for
+        // the translation unit can be switched for one request.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     const bool enable_##Legacy##_in_req =                                      \
         clad::HasOption(bitmasked_opts_value, clad::opts::enable_##Legacy);    \
@@ -1560,7 +1592,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     auto LookupOverload = [this, fnDecl, &request](NamespaceDecl* NSD,
                                                    bool* foundAnyDecl) {
       DeclContext* DC = NSD;
-      if (isa<CXXMethodDecl>(fnDecl))
+      if (isa<CXXMethodDecl>(request.Function))
         DC = utils::LookupNSD(m_Sema, "class_functions",
                               /*shouldExist=*/false, DC);
       else
@@ -1684,6 +1716,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       Checker.TraverseDecl(D);
   }
 
+  bool DiffCollector::TraverseCUDAKernelCallExpr(CUDAKernelCallExpr* KCE) {
+    return WalkUpFromCUDAKernelCallExpr(KCE) &&
+           TraverseStmt(KCE->getCallee()) &&
+           llvm::all_of(KCE->arguments(),
+                        [this](Expr* arg) { return TraverseStmt(arg); });
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     DiffRequest request;
@@ -1724,8 +1763,60 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
         return true;
 
+      // The Jacobian ABI has no return-derivative slot. Reject non-void
+      // primals before scheduling or resolving custom derivatives.
+      if (request.Mode == DiffMode::jacobian &&
+          !request.Function->getReturnType()->isVoidType()) {
+        const FunctionDecl* PrimalFD = request.Function;
+        utils::diag(
+            m_Sema, DiagnosticsEngine::Error,
+            request.CallContext->getBeginLoc(),
+            "jacobian mode currently requires function %0 to return void; "
+            "provide differentiable outputs through pointer, reference, or "
+            "array parameters")
+            << PrimalFD;
+        SourceLocation NoteLoc =
+            PrimalFD->getReturnTypeSourceRange().getBegin();
+        if (NoteLoc.isInvalid())
+          NoteLoc = PrimalFD->getLocation();
+        utils::diag(m_Sema, DiagnosticsEngine::Note, NoteLoc,
+                    "%0 declared here with return type %1")
+            << PrimalFD << PrimalFD->getReturnType();
+        return true;
+      }
+
       request.Args = E->getArg(1);
       request.UpdateDiffParamsInfo(m_Sema);
+
+      // A void-returning function's derivative returns the tangent of the one
+      // parameter it writes through. With several such parameters there is no
+      // one tangent to return, and picking one would be a guess, so say so
+      // rather than hand back a derivative whose result cannot be read.
+      // Differentiating a wrapper that returns the wanted output remains the
+      // way to ask for it.
+      if (request.Mode == DiffMode::forward) {
+        llvm::SmallVector<const ParmVarDecl*, 2> outputParams =
+            request.getOutputParams();
+        if (outputParams.size() > 1) {
+          // Point at the differentiation that asked for this, not at the
+          // function: nothing is wrong with the function, and it may live in
+          // a header the user does not own. The parameters it writes through
+          // get a note, so the reason is still reachable from the message.
+          SourceLocation outLoc = request.Args->getBeginLoc();
+          utils::diag(m_Sema, DiagnosticsEngine::Error, outLoc,
+                      "attempted to differentiate '%0', which returns void and "
+                      "writes through %1 parameters; forward mode returns a "
+                      "single tangent, so differentiate a wrapper returning "
+                      "the output you need")
+              << request.Function->getNameAsString()
+              << static_cast<unsigned>(outputParams.size()) << outLoc;
+          for (const ParmVarDecl* PVD : outputParams)
+            utils::diag(m_Sema, DiagnosticsEngine::Note, PVD->getLocation(),
+                        "'%0' is written through here")
+                << PVD->getNameAsString() << PVD->getLocation();
+          return true;
+        }
+      }
       if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis &&
           request.Args)
         seedVariedDirection(request);
@@ -1929,7 +2020,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         E->getDirectCallee();
     bool shouldUseRestoreTracker =
         utils::shouldUseRestoreTracker(request.Function);
-    bool hasCustomPullback = LookupCustomDerivativeDecl(request);
+    // Literal-only calls like log(2) are non-differentiable, so their
+    // pushforward is never called. Builtin pushforwards use floating-point
+    // types, so log<int> reports a type mismatch.
+    bool hasCustomPullback =
+        (!nonDiff || request.Mode != DiffMode::pushforward) &&
+        LookupCustomDerivativeDecl(request);
     // Share one request between early classification and final scheduling.
     DiffRequest forwPassRequest;
     if (request.Mode == DiffMode::pullback) {

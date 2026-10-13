@@ -195,6 +195,8 @@ namespace clad {
         if (m_Taken)
           return m_RMV.CloneNode(m_Seed);
         m_Taken = true;
+        if (m_Seed->HasSideEffects(m_RMV.m_Context))
+          m_Seed = m_RMV.StoreAndRef(m_Seed, direction::reverse);
         return m_Seed;
       }
       explicit operator bool() const { return m_Seed != nullptr; }
@@ -414,9 +416,12 @@ namespace clad {
       clang::Expr* Push;
       clang::Expr* Pop;
       clang::Expr* Ref;
-      /// A request to get expr accessing last element in the tape
-      /// (clad::back(Ref)). Since it is required only rarely, it is built on
-      /// demand in the method.
+      /// For a store kept in an array slot rather than on a tape, the index
+      /// of each dimension, outermost loop first. Empty for a tape.
+      llvm::SmallVector<clang::Expr*, 2> Indices;
+      /// The stored value as either sweep reads it back: `clad::back(Ref)` on
+      /// a tape, the slot itself in an array. Built on demand; every call
+      /// clones, so no two uses share a node.
       clang::Expr* Last();
     };
 
@@ -432,11 +437,25 @@ namespace clad {
     /// \param[in] type The element type of the tape; deduced from \p E when
     /// left empty.
     ///
+    /// \param[in] AllowSlots Whether the store may take an array slot
+    /// instead, when every loop around it has a literal trip count (see
+    /// loopsForSlots). A caller that builds its own pushes from \p Ref
+    /// passes false.
+    ///
     /// \returns A struct containg necessary call expressions for the built
     /// tape
     CladTapeResult MakeCladTapeFor(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
-                                   clang::QualType type = {});
+                                   clang::QualType type = {},
+                                   bool AllowSlots = true);
+    /// Whether a store of \p Type made here may live in an array slot, and
+    /// if so the loops that index it, outermost first: each counted by the
+    /// analysis with a literal, and the array a few locals' worth of frame.
+    bool loopsForSlots(clang::QualType Type,
+                       llvm::SmallVectorImpl<LoopScope*>& Loops) const;
+    /// `Array[I0][I1]...` for the indices of a slot store, every node fresh.
+    clang::Expr* BuildSlot(clang::Expr* Array,
+                           llvm::ArrayRef<clang::Expr*> Indices);
 
     /// A function to get the multi-argument "central_difference"
     /// call expression for the given arguments.
@@ -522,6 +541,7 @@ namespace clad {
     StmtDiff VisitOpaqueValueExpr(const clang::OpaqueValueExpr* OVE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
+    StmtDiff VisitAttributedStmt(const clang::AttributedStmt* S);
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff
     VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
@@ -687,7 +707,8 @@ namespace clad {
       clang::Expr* m_TripCount = nullptr;
 
     public:
-      LoopCounter(ReverseModeVisitor& RMV, clang::Expr* tripCount = nullptr);
+      LoopCounter(ReverseModeVisitor& RMV, clang::Expr* tripCount = nullptr,
+                  clang::QualType countType = {});
 
       /// Returns true if the reverse sweep computes the iteration count from
       /// the loop bounds instead of reading a count the forward sweep kept.
@@ -961,6 +982,8 @@ namespace clad {
       /// can evaluate on entry. Null when that could not be proven, in which
       /// case the forward sweep has to count them.
       clang::Expr* TripCount = nullptr;
+      /// The type TripCount and the counter that holds it are declared with.
+      clang::QualType CountType;
       /// What the induction variable holds once the loop has exited.
       clang::Expr* IndVarEnd = nullptr;
     };
