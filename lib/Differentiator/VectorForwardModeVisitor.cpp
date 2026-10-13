@@ -171,9 +171,11 @@ DerivativeAndOverload VectorForwardModeVisitor::Derive() {
     // -> clad::array<double> _d_vector_z = {0, 1};
     QualType dVectorParamType;
     if (is_array)
-      dVectorParamType = utils::GetCladMatrixOfType(m_Sema, dParamType);
+      dVectorParamType = utils::GetCladMatrixOfType(
+          m_Sema, dParamType, &m_Builder.getLookupCache());
     else
-      dVectorParamType = utils::GetCladArrayOfType(m_Sema, dParamType);
+      dVectorParamType = utils::GetCladArrayOfType(m_Sema, dParamType,
+                                                   &m_Builder.getLookupCache());
     auto dVectorParamDecl =
         BuildVarDecl(dVectorParamType, "_d_vector_" + param->getNameAsString(),
                      dVectorParam);
@@ -317,7 +319,8 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
   QualType cladArrayType =
-      utils::GetCladArrayOfType(m_Sema, utils::GetNonConstValueType(retType));
+      utils::GetCladArrayOfType(m_Sema, utils::GetNonConstValueType(retType),
+                                &m_Builder.getLookupCache());
   VarDecl* dVectorParamDecl = BuildVarDecl(cladArrayType, "_d_vector_return",
                                            derivedRetValE, /*DirectInit=*/true);
   // Create an array of statements to hold the return statement and the
@@ -381,7 +384,8 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
                                   initDiff.getExpr(), VD->isDirectInit());
   VarDecl* VDDerived =
       BuildVarDecl(utils::GetCladArrayOfType(
-                       m_Sema, utils::GetNonConstValueType(VD->getType())),
+                       m_Sema, utils::GetNonConstValueType(VD->getType()),
+                       &m_Builder.getLookupCache()),
                    "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
                    /*DirectInit=*/true);
 

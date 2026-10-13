@@ -798,7 +798,8 @@ namespace clad {
 
   TemplateDecl* VisitorBase::GetCladTapeDecl() {
 
-    NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
+    NamespaceDecl* CladNS =
+        utils::GetCladNamespace(m_Sema, &m_Builder.getLookupCache());
     IdentifierInfo& II = m_Sema.getASTContext().Idents.get("custom_tape");
     LookupResult R(m_Sema, &II, clang::SourceLocation(),
                    clang::Sema::LookupOrdinaryName);
@@ -808,21 +809,22 @@ namespace clad {
         clang::isa<clang::TemplateDecl>(R.getFoundDecl()))
       return clang::dyn_cast<clang::TemplateDecl>(R.getFoundDecl());
 
-    return utils::LookupTemplateDeclInCladNamespace(m_Sema, "tape");
+    return utils::LookupTemplateDeclInCladNamespace(
+        m_Sema, "tape", &m_Builder.getLookupCache());
   }
 
   LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
-    LookupResult R = utils::tryLookupCladMethod(m_Sema, name);
+    LookupResult R =
+        utils::tryLookupCladMethod(m_Sema, name, &m_Builder.getLookupCache());
     assert(!R.empty() && isa<FunctionTemplateDecl>(R.getRepresentativeDecl()) &&
            "cannot find requested name");
     return R;
   }
 
   LookupResult& VisitorBase::GetCladTapePush() {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("push");
-    return clad_compat::llvm_Optional_GetValue(Result);
+    if (!m_TapePushLookup)
+      m_TapePushLookup = LookupCladTapeMethod("push");
+    return clad_compat::llvm_Optional_GetValue(m_TapePushLookup);
   }
 
   Expr* VisitorBase::BuildInitList(llvm::MutableArrayRef<Expr*> Elements) {
@@ -876,28 +878,29 @@ namespace clad {
   DeclRefExpr* VisitorBase::GetCladTapePushDRE() {
     LookupResult& pushLR = GetCladTapePush();
     CXXScopeSpec CSS;
-    CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
+    CSS.Extend(m_Context,
+               utils::GetCladNamespace(m_Sema, &m_Builder.getLookupCache()),
+               noLoc, noLoc);
     DeclRefExpr* pushDRE = m_Sema.BuildDeclarationNameExpr(CSS, pushLR, false)
                                .getAs<DeclRefExpr>();
     return pushDRE;
   }
 
   LookupResult& VisitorBase::GetCladTapePop() {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("pop");
-    return clad_compat::llvm_Optional_GetValue(Result);
+    if (!m_TapePopLookup)
+      m_TapePopLookup = LookupCladTapeMethod("pop");
+    return clad_compat::llvm_Optional_GetValue(m_TapePopLookup);
   }
 
   LookupResult& VisitorBase::GetCladTapeBack() {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("back");
-    return clad_compat::llvm_Optional_GetValue(Result);
+    if (!m_TapeBackLookup)
+      m_TapeBackLookup = LookupCladTapeMethod("back");
+    return clad_compat::llvm_Optional_GetValue(m_TapeBackLookup);
   }
 
   QualType VisitorBase::GetCladTapeOfType(QualType T) {
-    return utils::InstantiateTemplate(m_Sema, GetCladTapeDecl(), {T});
+    return utils::InstantiateTemplate(m_Sema, GetCladTapeDecl(), {T},
+                                      &m_Builder.getLookupCache());
   }
 
   Expr* VisitorBase::BuildCallExprToMemFn(
@@ -1056,7 +1059,8 @@ namespace clad {
     clang::LookupResult R(m_Sema, declName, noLoc, Sema::LookupOrdinaryName);
 
     // Find function declaration
-    NamespaceDecl* CladNS = utils::GetCladNamespace(m_Sema);
+    NamespaceDecl* CladNS =
+        utils::GetCladNamespace(m_Sema, &m_Builder.getLookupCache());
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, CladNS, loc, loc);
     m_Sema.LookupQualifiedName(R, CladNS, CSS);
@@ -1408,12 +1412,14 @@ namespace clad {
   }
 
   Stmt* VisitorBase::GetCladZeroInit(llvm::MutableArrayRef<Expr*> args) {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("zero_init");
-    LookupResult& init = clad_compat::llvm_Optional_GetValue(Result);
+    if (!m_TapeZeroInitLookup)
+      m_TapeZeroInitLookup = LookupCladTapeMethod("zero_init");
+    LookupResult& init =
+        clad_compat::llvm_Optional_GetValue(m_TapeZeroInitLookup);
     CXXScopeSpec CSS;
-    CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
+    CSS.Extend(m_Context,
+               utils::GetCladNamespace(m_Sema, &m_Builder.getLookupCache()),
+               noLoc, noLoc);
     auto* pushDRE =
         m_Sema.BuildDeclarationNameExpr(CSS, init, false).getAs<DeclRefExpr>();
     return BuildCallExpr(pushDRE, args);
@@ -1454,7 +1460,8 @@ namespace clad {
     // derived function due to limitations of generating the exact derived
     // function type at the compile-time (without clad plugin help).
     QualType outputParamType =
-        vectorMode ? utils::GetCladArrayRefOfType(m_Sema, m_Context.VoidTy)
+        vectorMode ? utils::GetCladArrayRefOfType(m_Sema, m_Context.VoidTy,
+                                                  &m_Builder.getLookupCache())
                    : m_Context.getPointerType(m_Context.VoidTy);
 
     llvm::SmallVector<QualType, 16> paramTypes;
@@ -1606,7 +1613,7 @@ namespace clad {
         m_Sema, m_DiffReq.Function, m_DiffReq.Mode, diffParams,
         /*forCustomDerv=*/false,
         /*shouldUseRestoreTracker=*/m_DiffReq.UseRestoreTracker,
-        m_DiffReq.EnableErrorEstimation);
+        m_DiffReq.EnableErrorEstimation, &m_Builder.getLookupCache());
   }
 
   FunctionDecl* VisitorBase::FindDerivedFunction(DiffRequest& request) {
