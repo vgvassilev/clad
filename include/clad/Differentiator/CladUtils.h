@@ -316,14 +316,22 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     /// The spelling of `T` closest to how it was written that code in `Where`
     /// can name: `T` itself, or the first of its single-step desugarings that
-    /// is nameable there, or `T` unchanged when none is. Not the canonical
-    /// type: a public typedef of a private class is nameable while the class
-    /// it names is not.
+    /// is nameable there, or `T` unchanged when none is. The parts of a
+    /// pointer or function type are spelled the same way. Not the
+    /// canonical type: a public typedef of a private class is nameable while
+    /// the class it names is not.
     clang::QualType getSpellableType(clang::QualType T,
                                      const clang::DeclContext* Where,
                                      const clang::ASTContext& C);
 
     clang::QualType getNonConstType(clang::QualType T, clang::Sema& S);
+
+    /// A reference to what \p R found, qualified by \p SS and followed by
+    /// \p TemplateArgs when given. Null when Sema rejects it.
+    clang::Expr* BuildDeclarationNameExpr(
+        clang::Sema& S, const clang::CXXScopeSpec& SS, clang::LookupResult& R,
+        bool ADL = false,
+        const clang::TemplateArgumentListInfo* TemplateArgs = nullptr);
 
     /// Builds and returns the init expression to initialise `clad::array` and
     /// `clad::array_ref` from a constant array.
