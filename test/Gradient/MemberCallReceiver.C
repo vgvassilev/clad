@@ -17,6 +17,13 @@ struct Box {
     ++called;
     return 3 * value;
   }
+  // An opaque rvalue-only method still needs its stored receiver cast back
+  // to an rvalue. Its receiver below is constant with respect to the input.
+  __attribute__((annotate("non_differentiable")))
+  double rvalue_scaled() const && {
+    ++called;
+    return 3 * value;
+  }
   template <typename T> double convert(T factor) const {
     ++called;
     return factor * value;
@@ -75,6 +82,7 @@ void convert_pullback(const Box* self, T factor, double d_output, Box* d_self,
 } // namespace clad
 
 double temporary(double x) { return make_box(x).scaled() * x; }
+double rvalue_qualified(double x) { return make_box(2.).rvalue_scaled() * x; }
 double nested(double x) { return make_box(make_box(x).scaled()).scaled() * x; }
 double templated(double x) { return make_box(x).convert<double>(4) * x; }
 double lvalue(double x) {
@@ -107,6 +115,11 @@ double copy_only(double x) { return make_copy_only(x).read() * x; }
 // CHECK: .scaled();
 // CHECK-NOT: make_box(
 // CHECK: make_box_pullback(x,
+// CHECK-LABEL: void rvalue_qualified_grad(
+// CHECK: = clad::custom_derivatives::make_box_reverse_forw(2.,
+// CHECK-NOT: make_box(
+// CHECK: = static_cast<Box &&>({{.*}}.value).rvalue_scaled();
+// CHECK-NOT: make_box(
 // CHECK-LABEL: void lvalue_grad(
 // CHECK: make_box_pullback(x,
 // The const method adds an implicit cast around the original parentheses.
@@ -128,6 +141,8 @@ void check(const char* name, Gradient gradient, double x = 3) {
 int main() {
   check("temporary", clad::gradient(temporary));
   // CHECK-EXEC: temporary: 81 1 1
+  check("rvalue_qualified", clad::gradient(rvalue_qualified));
+  // CHECK-EXEC-NEXT: rvalue_qualified: 12 1 1
   check("nested", clad::gradient(nested));
   // The inner scaled() is replayed for the outer make_box_pullback argument;
   // both make_box receivers must still be evaluated only once.
