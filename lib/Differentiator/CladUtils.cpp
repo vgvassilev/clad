@@ -37,6 +37,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
@@ -332,13 +333,17 @@ namespace clad {
 
     /// Whether code in `Where` can name `T` as it is spelled. decltype and
     /// typeof sugar is spelled as its expression, whose names may resolve only
-    /// where it was written. Otherwise what has to be reachable is the head of
-    /// the spelling -- the typedef or the tag it names: not local to a
-    /// function `Where` is outside of, and, where it is a non-public member,
-    /// declared in a class enclosing `Where`. Builtin and compound types have
-    /// no such head and are always nameable.
+    /// where it was written. A pointer or function type is as nameable as its
+    /// parts. Otherwise what has to be reachable is the head
+    /// of the spelling -- the typedef, using declaration or tag it names: not
+    /// local to a function `Where` is outside of; where it is a non-public
+    /// member, declared in a class enclosing `Where`; and where it prints
+    /// unqualified, declared in a scope enclosing `Where`.
     static bool isSpellableFrom(QualType T, const DeclContext* Where) {
-      for (const Type* Ty = T.getTypePtr();;) {
+      const NamedDecl* D = nullptr;
+      bool Unqualified = false;
+      const Type* Ty = T.getTypePtr();
+      for (;;) {
         if (isa<DecltypeType, TypeOfExprType>(Ty))
           return false;
 #if CLANG_VERSION_MAJOR >= 22
@@ -347,18 +352,34 @@ namespace clad {
         if (isa<PredefinedSugarType>(Ty))
           return false;
 #endif
-        if (isa<TypedefType, TagType>(Ty))
+        D = clad_compat::getSpelledName(Ty, Unqualified);
+        if (D)
           break;
         QualType Next = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
         if (Next.getTypePtr() == Ty)
           break;
         Ty = Next.getTypePtr();
       }
-      const NamedDecl* D = nullptr;
-      if (const auto* TT = T->getAs<TypedefType>())
-        D = TT->getDecl();
-      else
-        D = T->getAsTagDecl();
+      auto IsSpellable = [Where](QualType P) {
+        return isSpellableFrom(P, Where);
+      };
+      if (const auto* PT = dyn_cast<PointerType>(Ty))
+        return IsSpellable(PT->getPointeeType());
+      if (const auto* FPT = dyn_cast<FunctionProtoType>(Ty))
+        return IsSpellable(FPT->getReturnType()) &&
+               llvm::all_of(FPT->param_types(), IsSpellable);
+      if (D && Unqualified) {
+        // Inline and anonymous namespaces, and linkage specifications, make
+        // their names visible in the enclosing scope.
+        const DeclContext* DC = D->getDeclContext()->getRedeclContext();
+        while (const auto* NS = dyn_cast<NamespaceDecl>(DC)) {
+          if (!NS->isInline() && !NS->isAnonymousNamespace())
+            break;
+          DC = NS->getParent()->getRedeclContext();
+        }
+        if (Where ? !DC->Encloses(Where) : !DC->isTranslationUnit())
+          return false;
+      }
       for (; D; D = dyn_cast<NamedDecl>(D->getDeclContext())) {
         const DeclContext* DC = D->getDeclContext();
         if (DC->isFunctionOrMethod() && !(Where && DC->Encloses(Where)))
@@ -368,6 +389,21 @@ namespace clad {
           return false;
       }
       return true;
+    }
+
+    Expr*
+    BuildDeclarationNameExpr(Sema& S, const CXXScopeSpec& SS, LookupResult& R,
+                             bool ADL,
+                             const TemplateArgumentListInfo* TemplateArgs) {
+      if (!TemplateArgs)
+        return S.BuildDeclarationNameExpr(SS, R, ADL).get();
+      // Clang drops, without a word, template arguments whose angle brackets
+      // have no location.
+      assert(TemplateArgs->getLAngleLoc().isValid() &&
+             "template arguments need a location");
+      return S
+          .BuildTemplateIdExpr(SS, /*TemplateKWLoc=*/{}, R, ADL, TemplateArgs)
+          .get();
     }
 
     QualType getUnsignedType(QualType T, const ASTContext& C) {
@@ -383,9 +419,26 @@ namespace clad {
         if (isSpellableFrom(Cur, Where))
           return Cur;
         QualType Next = Cur.getSingleStepDesugaredType(C);
-        if (Next == Cur)
+        if (Next != Cur) {
+          Cur = Next;
+          continue;
+        }
+        // No sugar is left to choose from: spell the parts instead.
+        auto Spell = [&](QualType P) { return getSpellableType(P, Where, C); };
+        const Type* Ty = Cur.getTypePtr();
+        QualType R;
+        if (const auto* PT = dyn_cast<PointerType>(Ty)) {
+          R = C.getPointerType(Spell(PT->getPointeeType()));
+        } else if (const auto* FPT = dyn_cast<FunctionProtoType>(Ty)) {
+          llvm::SmallVector<QualType, 4> Params;
+          for (QualType P : FPT->param_types())
+            Params.push_back(Spell(P));
+          R = C.getFunctionType(Spell(FPT->getReturnType()), Params,
+                                FPT->getExtProtoInfo());
+        } else {
           return T;
-        Cur = Next;
+        }
+        return C.getQualifiedType(R, Cur.getLocalQualifiers());
       }
     }
 
@@ -1299,8 +1352,7 @@ namespace clad {
 
           // Instantiation with the required signature succeeded.
           if (TDK == clad_compat::CLAD_COMPAT_TemplateSuccess)
-            return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false)
-                .get();
+            return BuildDeclarationNameExpr(S, SS, Overloads);
 
           FailedCandidates.addCandidate().set(
               I.getPair(), FTD->getTemplatedDecl(),
@@ -1310,15 +1362,14 @@ namespace clad {
           // deduction successful because of the auto return type.
           if (Specialization && !Specialization->isTemplated() &&
               Specialization->getReturnType()->isUndeducedAutoType())
-            return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false)
-                .get();
+            return BuildDeclarationNameExpr(S, SS, Overloads);
         }
         auto* FD = dyn_cast<FunctionDecl>(candidate);
         if (!FD)
           continue;
         // Overload is just a FunctionDecl, check if the signature matches.
         if (MatchFunctionTypeWithQualifiedParams(S, FnTy, FD->getType()))
-          return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false).get();
+          return BuildDeclarationNameExpr(S, SS, Overloads);
       }
       return nullptr;
     }
@@ -1382,8 +1433,7 @@ namespace clad {
     FunctionDecl* LookupCladZeroLike(Sema& S, Expr* value) {
       LookupResult R = tryLookupCladMethod(S, "zero_like");
       CXXScopeSpec CSS;
-      Expr* lookup =
-          S.BuildDeclarationNameExpr(CSS, R, /*NeedsADL=*/false).get();
+      Expr* lookup = BuildDeclarationNameExpr(S, CSS, R);
       llvm::SmallVector<Expr*, 1> args{value};
       return ResolveOverload(S, lookup, args);
     }
