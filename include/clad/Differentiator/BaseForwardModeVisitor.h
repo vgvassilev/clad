@@ -33,6 +33,11 @@ class BaseForwardModeVisitor
                                           clang::OMPClause*>,
       public VisitorBase {
   unsigned m_IndependentVarIndex = ~0;
+  /// How many operands evaluated only on some paths, or once per iteration
+  /// -- the branches of `?:`, the right side of `&&` and `||`, a loop's
+  /// condition -- the visitor is inside. A statement emitted for one of them
+  /// would run once, on every path.
+  unsigned m_ConditionalOperandDepth = 0;
 
 protected:
   const clang::ValueDecl* m_IndependentVar = nullptr;

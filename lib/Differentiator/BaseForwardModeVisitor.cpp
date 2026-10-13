@@ -38,6 +38,7 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constants.h"
@@ -612,8 +613,10 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
   Expr* cond = Clone(CO->getCond());
   // FIXME: fix potential side-effects from evaluating both sides of
   // conditional.
+  ++m_ConditionalOperandDepth;
   StmtDiff ifTrueDiff = Visit(CO->getTrueExpr());
   StmtDiff ifFalseDiff = Visit(CO->getFalseExpr());
+  --m_ConditionalOperandDepth;
 
   cond = StoreAndRef(cond);
   cond = m_Sema
@@ -759,7 +762,11 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
     // FIXME: Currently we only support logical and assignment operators.
     if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) ||
         condUO) {
+      // Evaluated once per iteration: a statement emitted for it would run
+      // once, before the loop.
+      ++m_ConditionalOperandDepth;
       condDiff = Visit(cond);
+      --m_ConditionalOperandDepth;
       if (condDiff.getExpr_dx() && (!isUnusedResult(condDiff.getExpr_dx())))
         cond = BuildOp(BO_Comma, BuildParens(condDiff.getExpr_dx()),
                        BuildParens(condDiff.getExpr()));
@@ -1471,6 +1478,31 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // numerical diff.
   if (!callDiff) {
     Multiplier = diffArgs.empty() ? nullptr : diffArgs[0];
+    // The primal call and the numerical derivative each evaluate the
+    // arguments, the latter several times, so an argument with side effects
+    // is evaluated once, beforehand. Where the call is evaluated only on some
+    // paths, or once per iteration, beforehand would be once on every path,
+    // and in place several times: there the call keeps its arguments and gets
+    // no numerical derivative.
+    bool NumDiffViable = utils::GetNumDiffTarget(m_Sema, FD) != nullptr;
+    auto hasEffects = [&](const Expr* Arg) {
+      return Arg->HasSideEffects(m_Context, /*IncludePossibleEffects=*/false);
+    };
+    if (NumDiffViable && llvm::any_of(CallArgs, hasEffects)) {
+      if (m_ConditionalOperandDepth) {
+        diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+             "numerical differentiation of %0 is not supported here: its "
+             "arguments have side effects, and the call is evaluated only on "
+             "some paths, or once per iteration; considering its derivative "
+             "as 0")
+            << FD;
+        NumDiffViable = false;
+      } else {
+        for (Expr*& Arg : CallArgs)
+          if (hasEffects(Arg))
+            Arg = StoreAndRef(Arg, "_t", /*forceDeclCreation=*/true);
+      }
+    }
     Expr* call =
         m_Sema
             .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), validLoc,
@@ -1480,7 +1512,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // FIXME: Extend this for multiarg support
     // Check if the function is eligible for numerical differentiation.
     Expr* fnCallee =
-        CE->getNumArgs() == 1
+        CE->getNumArgs() == 1 && NumDiffViable
             ? GetNumDiffCallee(FD, cast<CallExpr>(call)->getCallee())
             : nullptr;
     if (fnCallee)
@@ -1593,7 +1625,11 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
 StmtDiff
 BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
   StmtDiff Ldiff = Visit(BinOp->getLHS());
+  // The right side of `&&` and `||` is evaluated only on some paths.
+  bool RHSConditional = BinOp->isLogicalOp();
+  m_ConditionalOperandDepth += RHSConditional;
   StmtDiff Rdiff = Visit(BinOp->getRHS());
+  m_ConditionalOperandDepth -= RHSConditional;
 
   // Fold the derivative expression algebraically. Forward mode carries one
   // seeded direction, so most tangents reaching an operator are a constant
@@ -2153,7 +2189,11 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
     // FIXME: Currently we only support logical and assignment operators.
     if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) ||
         condUO) {
+      // Evaluated once per iteration: a statement emitted for it would run
+      // once, before the loop.
+      ++m_ConditionalOperandDepth;
       StmtDiff condDiff = Visit(cond);
+      --m_ConditionalOperandDepth;
       // After Visit(cond) is called the derivative could either be recorded in
       // condDiff.getExpr() or condDiff.getExpr_dx(), hence we should build cond
       // differently which is implemented below visiting statements like "(x=0)"
