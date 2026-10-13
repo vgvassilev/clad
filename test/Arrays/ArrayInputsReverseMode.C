@@ -633,7 +633,8 @@ double func14(const double* x, int n) {
 // CHECK-NEXT:      for (_t1 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t1; _t1--) {
 // CHECK-NEXT:          --k;
 // CHECK-NEXT:          double _r_d0 = _d_s;
-// CHECK-NEXT:          _d_k += _r_d0 * clad::pop(_t2);
+// CHECK-NEXT:          double _r0 = _r_d0 * clad::pop(_t2);
+// CHECK-NEXT:          _d_k += _r0;
 // CHECK-NEXT:          i--;
 // CHECK-NEXT:          _d_x[i] += (k + 3) * _r_d0;
 // CHECK-NEXT:      }
