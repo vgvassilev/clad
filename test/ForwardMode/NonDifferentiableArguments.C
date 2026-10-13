@@ -304,7 +304,10 @@ int main() {
 // CHECK-NEXT:     double *_d_p = _d_data.values;
 // CHECK-NEXT:     double *p = data.values;
 // CHECK-NEXT:     ignore((_d_data.flag = 0) , (data.flag = 2), 0.);
-// CHECK-NEXT:     opaque_ref((*_d_p++ = _d_x * x + x * _d_x) , (*p++ = x * x));
+// CHECK-NEXT:     opaque_ref([&]() -> double & {
+// CHECK-NEXT:         double *_t1 = _d_p++;
+// CHECK-NEXT:         return (*_t1 = _d_x * x + x * _d_x) , (*p++ = x * x);
+// CHECK-NEXT:     }());
 // CHECK-NEXT:     opaque_ref((*_d_p = _d_x) , (*p = x));
 // CHECK-NEXT:     return _d_data.values[0] + _d_data.values[1];
 // CHECK-NEXT: }

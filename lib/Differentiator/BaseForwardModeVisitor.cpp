@@ -571,7 +571,31 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
 
 StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
     const ConditionalOperator* CO) {
-  bool HasOpaqueCall = containsNonDifferentiableCall(CO);
+  bool HasOpaqueCall =
+      m_EvaluatingOpaqueOperand || containsNonDifferentiableCall(CO);
+  if (HasOpaqueCall && CO->isGLValue()) {
+    for (const Expr* Branch : {CO->getTrueExpr(), CO->getFalseExpr()}) {
+      const Expr* Temporary = Branch->skipRValueSubobjectAdjustments();
+      if (isa<MaterializeTemporaryExpr>(Temporary) &&
+          !Temporary->getType()->isScalarType()) {
+        diag(DiagnosticsEngine::Error, CO->getBeginLoc(),
+             "materialized non-scalar conditional results are not supported");
+        QualType RecoveryType = utils::GetParameterDerivativeType(
+            m_Sema, m_DiffReq.Mode, CO->getType());
+        if (m_DiffReq.Mode == DiffMode::vector_forward_mode ||
+            m_DiffReq.Mode == DiffMode::vector_pushforward ||
+            m_DiffReq.Mode == DiffMode::jacobian)
+          RecoveryType = utils::GetCladArrayOfType(
+              m_Sema, utils::GetNonConstValueType(CO->getType()));
+        Expr* Tangent =
+            BuildOp(UO_Deref, getZeroInit(m_Context.getPointerType(
+                                  RecoveryType.getNonReferenceType())));
+        if (CO->isXValue())
+          Tangent = utils::BuildStaticCastToRValue(m_Sema, Tangent);
+        return {Clone(CO), Tangent};
+      }
+    }
+  }
 
   Expr* cond =
       HasOpaqueCall ? VisitForEvaluation(CO->getCond()) : Clone(CO->getCond());
@@ -613,18 +637,51 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
         m_DiffReq.Mode == DiffMode::jacobian)
       TangentType = utils::GetCladArrayOfType(
           m_Sema, utils::GetNonConstValueType(CO->getType()));
-    if (CO->isGLValue() && !CO->refersToBitField() && ifTrueDiff.getExpr_dx() &&
-        ifTrueDiff.getExpr_dx()->isLValue() && ifFalseDiff.getExpr_dx() &&
-        ifFalseDiff.getExpr_dx()->isLValue())
-      TangentType = m_Context.getLValueReferenceType(TangentType);
+    // Writes through the result must reach the tangent the branch names, so
+    // the tangent is a reference of the result's own value category.
+    auto sameCategory = [CO](const Expr* Tangent) {
+      return Tangent && Tangent->getValueKind() == CO->getValueKind();
+    };
+    if (CO->isGLValue() && !CO->refersToBitField() &&
+        sameCategory(ifTrueDiff.getExpr_dx()) &&
+        sameCategory(ifFalseDiff.getExpr_dx()))
+      TangentType = CO->isLValue()
+                        ? m_Context.getLValueReferenceType(TangentType)
+                        : m_Context.getRValueReferenceType(TangentType);
     auto* PairTemplate =
         utils::LookupTemplateDeclInCladNamespace(m_Sema, "ValueAndPushforward");
     QualType PairType = utils::InstantiateTemplate(m_Sema, PairTemplate,
                                                    {ValueType, TangentType});
     auto buildBranch = [&](const Expr* Branch) {
+      VarDecl* ValueStorage = nullptr;
+      VarDecl* TangentStorage = nullptr;
+      if (ValueType->isReferenceType() &&
+          isa<MaterializeTemporaryExpr>(
+              Branch->skipRValueSubobjectAdjustments())) {
+        // Nested branch lambdas can return these references, so their owners
+        // belong to the derivative function.
+        auto buildStorage = [&](QualType Type, llvm::StringRef Name) {
+          Type = Type.getNonReferenceType().getUnqualifiedType();
+          SourceLocation Loc = GenLoc();
+          auto* Storage = VarDecl::Create(
+              m_Context, m_Derivative, Loc, Loc, CreateUniqueIdentifier(Name),
+              Type, m_Context.getTrivialTypeSourceInfo(Type), SC_None);
+          SetDeclInit(Storage, getZeroInit(Type));
+          m_Sema.FinalizeDeclaration(Storage);
+          m_Derivative->addDecl(Storage);
+          m_Sema.PushOnScopeChains(Storage, m_DerivativeFnScope, false);
+          addToBlock(BuildDeclStmt(Storage), m_Blocks.front());
+          return Storage;
+        };
+        ValueStorage = buildStorage(ValueType, "_cond_value");
+        if (TangentType->isReferenceType())
+          TangentStorage = buildStorage(TangentType, "_cond_tangent");
+      }
       return wrapInLambda(
           *this, m_Sema, Branch,
           [&] {
+            llvm::SaveAndRestore<bool> PreserveEffects(
+                m_EvaluatingOpaqueOperand, true);
             StmtDiff Diff = Visit(Branch);
             Expr* Tangent = Diff.getExpr_dx();
             if (!Tangent || (TangentType->isRecordType() &&
@@ -637,9 +694,24 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
                 Tangent = getZeroInit(TangentType);
               }
             }
+            if (TangentStorage) {
+              Tangent =
+                  BuildOp(BO_Assign, BuildDeclRef(TangentStorage), Tangent);
+              if (TangentType->isRValueReferenceType())
+                Tangent = utils::BuildStaticCastToRValue(m_Sema, Tangent);
+            }
             Tangent = StoreAndRef(Tangent, TangentType, getCurrentBlock(),
                                   "_d_cond", true);
+            if (TangentType->isRValueReferenceType())
+              Tangent = utils::BuildStaticCastToRValue(m_Sema, Tangent);
             Expr* Value = Diff.getExpr();
+            if (ValueStorage) {
+              addToCurrentBlock(
+                  BuildOp(BO_Assign, BuildDeclRef(ValueStorage), Value));
+              Value = BuildDeclRef(ValueStorage);
+              if (ValueType->isRValueReferenceType())
+                Value = utils::BuildStaticCastToRValue(m_Sema, Value);
+            }
             // Reference members bind to the branch lvalue or xvalue directly.
             // PerformImplicitConversion does not initialize references.
             if (!ValueType->isReferenceType())
@@ -659,9 +731,17 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
         m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, TrueValue, FalseValue)
             .get(),
         "_cond", true);
-    return {utils::BuildMemberExpr(m_Sema, getCurrentScope(), Pair, "value"),
-            utils::BuildMemberExpr(m_Sema, getCurrentScope(), CloneNode(Pair),
-                                   "pushforward")};
+    Expr* Value =
+        utils::BuildMemberExpr(m_Sema, getCurrentScope(), Pair, "value");
+    Expr* Tangent = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                           CloneNode(Pair), "pushforward");
+    // The members of a named pair are lvalues. An xvalue result moves them
+    // out again.
+    if (CO->isXValue()) {
+      Value = utils::BuildStaticCastToRValue(m_Sema, Value);
+      Tangent = utils::BuildStaticCastToRValue(m_Sema, Tangent);
+    }
+    return {Value, Tangent};
   }
 
   for (Stmt* S : TruePrelude->body())
@@ -1021,9 +1101,8 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     }
   } else if (isa<MemberExpr>(clonedBase->IgnoreParenImpCasts())) {
     auto derivedME = cloneDiff.getExpr_dx();
-    if (!isa<MemberExpr>(derivedME->IgnoreParenImpCasts())) {
+    if (!isa<MemberExpr>(derivedME->IgnoreParenImpCasts()))
       return {cloned, zero};
-    }
     auto* derivedAS = BuildArraySubscript(derivedME, derivedIndices());
     return {cloned, derivedAS};
   } else {
@@ -1202,35 +1281,19 @@ DiffMode BaseForwardModeVisitor::GetPushForwardMode() {
   return DiffMode::pushforward;
 }
 
-static tok::TokenKind getNamedCastToken(const CXXNamedCastExpr* Cast) {
-  switch (Cast->getStmtClass()) {
-  case Expr::CXXAddrspaceCastExprClass:
-    return tok::kw_addrspace_cast;
-  case Expr::CXXConstCastExprClass:
-    return tok::kw_const_cast;
-  case Expr::CXXDynamicCastExprClass:
-    return tok::kw_dynamic_cast;
-  case Expr::CXXReinterpretCastExprClass:
-    return tok::kw_reinterpret_cast;
-  case Expr::CXXStaticCastExprClass:
-    return tok::kw_static_cast;
-  default:
-    assert(0 && "Unsupported cast kind!");
-    return (tok::TokenKind)~0U;
-  }
+static tok::TokenKind getNamedCastToken(ASTContext& C,
+                                        const CXXNamedCastExpr* Cast) {
+  return C.Idents.get(Cast->getCastName()).getTokenID();
 }
 
 bool BaseForwardModeVisitor::containsNonDifferentiableCall(const Stmt* S) {
-  if (!S)
-    return false;
-  if (const auto* CE = dyn_cast<CallExpr>(S))
+  if (const auto* CE = dyn_cast_or_null<CallExpr>(S))
     if (utils::hasNonDifferentiableAttribute(CE) ||
         utils::callOperatesOnNonDifferentiableType(m_Sema, CE))
       return true;
-  for (const Stmt* Child : S->children())
-    if (containsNonDifferentiableCall(Child))
-      return true;
-  return false;
+  return S && llvm::any_of(S->children(), [this](const Stmt* Child) {
+           return containsNonDifferentiableCall(Child);
+         });
 }
 
 Expr* BaseForwardModeVisitor::VisitForEvaluation(const Expr* E) {
@@ -1249,7 +1312,8 @@ Expr* BaseForwardModeVisitor::VisitForEvaluation(const Expr* E) {
                                VisitForEvaluation(Cast->getSubExpr()));
   if (const auto* Cast = dyn_cast<CXXNamedCastExpr>(E))
     return m_Sema
-        .BuildCXXNamedCast(Cast->getBeginLoc(), getNamedCastToken(Cast),
+        .BuildCXXNamedCast(Cast->getBeginLoc(),
+                           getNamedCastToken(m_Context, Cast),
                            Cast->getTypeInfoAsWritten(),
                            VisitForEvaluation(Cast->getSubExpr()),
                            Cast->getAngleBrackets(), Cast->getSourceRange())
@@ -2237,7 +2301,7 @@ BaseForwardModeVisitor::VisitPredefinedExpr(const clang::PredefinedExpr* E) {
 StmtDiff
 BaseForwardModeVisitor::VisitCXXNamedCastExpr(const CXXNamedCastExpr* NCE) {
   StmtDiff subExprDiff = Visit(NCE->getSubExpr());
-  tok::TokenKind CastKind = getNamedCastToken(NCE);
+  tok::TokenKind CastKind = getNamedCastToken(m_Context, NCE);
 
   SourceLocation Loc = NCE->getBeginLoc();
   TypeSourceInfo* TSI = NCE->getTypeInfoAsWritten();
