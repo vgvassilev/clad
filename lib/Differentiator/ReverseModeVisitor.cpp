@@ -6252,7 +6252,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // DiffInputVarInfo to check if this is a variable we differentiate wrt.
       bool IsSelected = false;
       for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI) {
-        if (VarInfo.param == oPVD) {
+        if (utils::IsSameParam(VarInfo.param, oPVD)) {
           IsSelected = true;
           break;
         }

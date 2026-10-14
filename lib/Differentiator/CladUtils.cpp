@@ -496,6 +496,17 @@ namespace clad {
       return SL;
     }
 
+    bool IsSameParam(const ValueDecl* A, const ValueDecl* B) {
+      const auto* PA = dyn_cast_or_null<ParmVarDecl>(A);
+      const auto* PB = dyn_cast_or_null<ParmVarDecl>(B);
+      if (A == B || !PA || !PB)
+        return A == B;
+      const auto* FA = dyn_cast<FunctionDecl>(PA->getDeclContext());
+      const auto* FB = dyn_cast<FunctionDecl>(PB->getDeclContext());
+      return FA && FB && FA->getCanonicalDecl() == FB->getCanonicalDecl() &&
+             PA->getFunctionScopeIndex() == PB->getFunctionScopeIndex();
+    }
+
     bool isArrayOrPointerType(clang::QualType QT) {
       return QT->isArrayType() || QT->isPointerType();
     }
@@ -1801,7 +1812,7 @@ namespace clad {
           // DiffInputVarInfo to check if this is a variable we differentiate
           // wrt.
           for (const ValueDecl* param : diffParams)
-            if (param == FD->getParamDecl(i))
+            if (utils::IsSameParam(param, FD->getParamDecl(i)))
               FnTypes.push_back(
                   utils::GetParameterDerivativeType(S, mode, PVDTy));
         } else if (mode == DiffMode::reverse_mode_forward_pass ||

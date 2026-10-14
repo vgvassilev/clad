@@ -197,6 +197,9 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns true if `QT` is Array or Pointer Type, otherwise returns false.
     bool isArrayOrPointerType(clang::QualType QT);
 
+    /// Returns true if A and B are the same parameter, otherwise returns false.
+    bool IsSameParam(const clang::ValueDecl* A, const clang::ValueDecl* B);
+
     /// \returns whether a hessian of \p FD can be assembled from
     /// hessian-vector products rather than derived once per direction.
     ///
