@@ -4640,7 +4640,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                                      /*val=*/0);
       return {clonedME, zero};
     }
-    if (!baseDiff.getExpr_dx())
+    if (!baseDiff.getExpr_dx() ||
+        baseDiff.getExpr_dx()->getType()->isVoidType())
       return {clonedME, nullptr};
     Expr* derivedME = baseDiff.getExpr_dx();
     if (!fieldName.empty())
