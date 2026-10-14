@@ -322,6 +322,26 @@ void operator_call_pullback(const ::Kokkos::View<DataType, ViewParams...>* v,
 
 /// Kokkos functions (view utils)
 namespace Kokkos {
+/// Pushforwards for the Kokkos math functions -- without a registered
+/// derivative clad differentiates the wrapper body itself and asserts.
+/// Pushforward only, as std:: math is in BuiltinDerivatives.h: reverse mode is
+/// synthesized from it, so a hand-written _pullback would be rejected.
+template <typename T, typename dT>
+KOKKOS_INLINE_FUNCTION clad::ValueAndPushforward<T, dT>
+cos_pushforward(T x, dT d_x) {
+  return {::Kokkos::cos(x), (-1) * ::Kokkos::sin(x) * d_x};
+}
+template <typename T, typename dT>
+KOKKOS_INLINE_FUNCTION clad::ValueAndPushforward<T, dT>
+sin_pushforward(T x, dT d_x) {
+  return {::Kokkos::sin(x), ::Kokkos::cos(x) * d_x};
+}
+template <typename T, typename dT>
+KOKKOS_INLINE_FUNCTION clad::ValueAndPushforward<T, dT>
+sqrt_pushforward(T x, dT d_x) {
+  return {::Kokkos::sqrt(x), d_x / (((T)2) * ::Kokkos::sqrt(x))};
+}
+
 template <typename View1, typename View2, typename T>
 inline void deep_copy_pushforward(const View1& dst, const View2& src, T param,
                                   const View1& d_dst, const View2& d_src,
