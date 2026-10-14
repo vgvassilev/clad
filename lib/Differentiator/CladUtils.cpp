@@ -2213,8 +2213,10 @@ namespace clad {
     TypedefNameDecl* BuildTypedefNameDecl(ASTContext& C, DeclContext* DC,
                                           SourceLocation StartLoc,
                                           SourceLocation IdLoc,
-                                          const TypedefNameDecl* TND) {
-      TypeSourceInfo* TSI = TND->getTypeSourceInfo();
+                                          const TypedefNameDecl* TND,
+                                          TypeSourceInfo* TSI) {
+      // Keep aliases' written spelling: portable code selects precision,
+      // width, and index types through them.
       if (isa<TypeAliasDecl>(TND))
         return TypeAliasDecl::Create(C, DC, StartLoc, IdLoc,
                                      TND->getIdentifier(), TSI);

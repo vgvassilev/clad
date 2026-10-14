@@ -20,6 +20,7 @@
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include <unordered_map>
 
 namespace clang {
@@ -53,9 +54,9 @@ namespace utils {
     template<class StmtTy>
     StmtTy* Clone(const StmtTy* S);
 
-    /// Cloning types is necessary since VariableArrayType
-    /// store a pointer to their size expression.
+    /// Clone expressions owned by types, including nested type sugar.
     clang::QualType CloneType(clang::QualType T);
+    clang::TypeSourceInfo* CloneTypeSourceInfo(clang::TypeSourceInfo* TSI);
 
     // visitor part (not for public use)
     // Stmt.def could be used if ABSTR_STMT is introduced
@@ -162,6 +163,8 @@ namespace utils {
     const clang::FunctionDecl* m_Function; // We don't own.
     const std::unordered_map<const clang::VarDecl*, clang::VarDecl*>&
         m_DeclReplacements; // We don't own.
+    llvm::DenseSet<const clang::Type*> m_UpdatedTypes;
+
   public:
     ReferencesUpdater(
         clang::Sema& SemaRef, clang::Scope* S, const clang::FunctionDecl* FD,
@@ -169,8 +172,7 @@ namespace utils {
             DeclReplacements);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitStmt(clang::Stmt* S);
-    /// Used to update the size expression of QT
-    /// if QT is VariableArrayType.
+    /// Remap expressions owned by QT and its nested types.
     void updateType(clang::QualType QT);
   };
 } // namespace utils

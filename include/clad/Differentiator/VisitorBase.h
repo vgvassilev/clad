@@ -1028,6 +1028,7 @@ namespace clad {
     /// Cloning types is necessary since VariableArrayType
     /// store a pointer to their size expression.
     clang::QualType CloneType(clang::QualType T);
+    clang::TypeSourceInfo* CloneTypeSourceInfo(clang::TypeSourceInfo* TSI);
 
     /// Initiates the differentiation process.
     /// Returns the derivative and its overload, if any.

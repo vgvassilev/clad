@@ -137,7 +137,8 @@ Stmt* StmtClone::VisitMemberExpr(MemberExpr* Node) {
   return result;
 }
 DEFINE_CLONE_EXPR(CompoundLiteralExpr,
-                  (Node->getLParenLoc(), Node->getTypeSourceInfo(),
+                  (Node->getLParenLoc(),
+                   CloneTypeSourceInfo(Node->getTypeSourceInfo()),
                    CloneType(Node->getType()), Node->getValueKind(),
                    Clone(Node->getInitializer()), Node->isFileScope()))
 static void getCXXCastPath(CastExpr* CE, CXXCastPath& Path) {
@@ -158,8 +159,8 @@ Stmt* StmtClone::VisitCStyleCastExpr(CStyleCastExpr* Node) {
   return CStyleCastExpr::Create(
       Ctx, CloneType(Node->getType()), Node->getValueKind(),
       Node->getCastKind(), Clone(Node->getSubExpr()), &Path,
-      Node->getFPFeatures(), Node->getTypeInfoAsWritten(), Node->getLParenLoc(),
-      Node->getRParenLoc());
+      Node->getFPFeatures(), CloneTypeSourceInfo(Node->getTypeInfoAsWritten()),
+      Node->getLParenLoc(), Node->getRParenLoc());
 }
 Stmt* StmtClone::VisitCXXStaticCastExpr(CXXStaticCastExpr* Node) {
   CXXCastPath Path;
@@ -167,7 +168,7 @@ Stmt* StmtClone::VisitCXXStaticCastExpr(CXXStaticCastExpr* Node) {
   return CXXStaticCastExpr::Create(
       Ctx, CloneType(Node->getType()), Node->getValueKind(),
       Node->getCastKind(), Clone(Node->getSubExpr()), &Path,
-      Node->getTypeInfoAsWritten(), Node->getFPFeatures(),
+      CloneTypeSourceInfo(Node->getTypeInfoAsWritten()), Node->getFPFeatures(),
       Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets());
 }
 Stmt* StmtClone::VisitCXXDynamicCastExpr(CXXDynamicCastExpr* Node) {
@@ -176,7 +177,7 @@ Stmt* StmtClone::VisitCXXDynamicCastExpr(CXXDynamicCastExpr* Node) {
   return CXXDynamicCastExpr::Create(
       Ctx, CloneType(Node->getType()), Node->getValueKind(),
       Node->getCastKind(), Clone(Node->getSubExpr()), &Path,
-      Node->getTypeInfoAsWritten(), Node->getOperatorLoc(),
+      CloneTypeSourceInfo(Node->getTypeInfoAsWritten()), Node->getOperatorLoc(),
       Node->getRParenLoc(), Node->getAngleBrackets());
 }
 Stmt* StmtClone::VisitCXXReinterpretCastExpr(CXXReinterpretCastExpr* Node) {
@@ -185,12 +186,13 @@ Stmt* StmtClone::VisitCXXReinterpretCastExpr(CXXReinterpretCastExpr* Node) {
   return CXXReinterpretCastExpr::Create(
       Ctx, CloneType(Node->getType()), Node->getValueKind(),
       Node->getCastKind(), Clone(Node->getSubExpr()), &Path,
-      Node->getTypeInfoAsWritten(), Node->getOperatorLoc(),
+      CloneTypeSourceInfo(Node->getTypeInfoAsWritten()), Node->getOperatorLoc(),
       Node->getRParenLoc(), Node->getAngleBrackets());
 }
 DEFINE_CREATE_EXPR(CXXConstCastExpr,
                    (Ctx, CloneType(Node->getType()), Node->getValueKind(),
-                    Clone(Node->getSubExpr()), Node->getTypeInfoAsWritten(),
+                    Clone(Node->getSubExpr()),
+                    CloneTypeSourceInfo(Node->getTypeInfoAsWritten()),
                     Node->getOperatorLoc(), Node->getRParenLoc(),
                     Node->getAngleBrackets()))
 Stmt* StmtClone::VisitCXXConstructExpr(CXXConstructExpr* Node) {
@@ -210,9 +212,10 @@ Stmt* StmtClone::VisitCXXConstructExpr(CXXConstructExpr* Node) {
 }
 DEFINE_CREATE_EXPR(CXXFunctionalCastExpr,
                    (Ctx, CloneType(Node->getType()), Node->getValueKind(),
-                    Node->getTypeInfoAsWritten(), Node->getCastKind(),
-                    Clone(Node->getSubExpr()), nullptr, Node->getFPFeatures(),
-                    Node->getLParenLoc(), Node->getRParenLoc()))
+                    CloneTypeSourceInfo(Node->getTypeInfoAsWritten()),
+                    Node->getCastKind(), Clone(Node->getSubExpr()), nullptr,
+                    Node->getFPFeatures(), Node->getLParenLoc(),
+                    Node->getRParenLoc()))
 DEFINE_CREATE_EXPR(ExprWithCleanups, (Ctx, Clone(Node->getSubExpr()),
                                       Node->cleanupsHaveSideEffects(), {}))
 
@@ -227,9 +230,10 @@ Stmt* StmtClone::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr* Node) {
     args[i] = Clone(Node->getArg(i));
   auto* result = CXXTemporaryObjectExpr::Create(
       Ctx, Node->getConstructor(), CloneType(Node->getType()),
-      Node->getTypeSourceInfo(), args, Node->getSourceRange(),
-      Node->hadMultipleCandidates(), Node->isListInitialization(),
-      Node->isStdInitListInitialization(), Node->requiresZeroInitialization());
+      CloneTypeSourceInfo(Node->getTypeSourceInfo()), args,
+      Node->getSourceRange(), Node->hadMultipleCandidates(),
+      Node->isListInitialization(), Node->isStdInitListInitialization(),
+      Node->requiresZeroInitialization());
   clad_compat::ExprSetDeps(result, Node);
   return result;
 }
@@ -271,12 +275,13 @@ DEFINE_CLONE_EXPR(GNUNullExpr,
                   (CloneType(Node->getType()), Node->getTokenLocation()))
 DEFINE_CLONE_EXPR(VAArgExpr,
                   (Node->getBuiltinLoc(), Clone(Node->getSubExpr()),
-                   Node->getWrittenTypeInfo(), Node->getRParenLoc(),
-                   CloneType(Node->getType()),
+                   CloneTypeSourceInfo(Node->getWrittenTypeInfo()),
+                   Node->getRParenLoc(), CloneType(Node->getType()),
                    CLAD_COMPAT_CLANG23_VAArgExpr_VarArgKind_Param(Node)))
 DEFINE_CLONE_EXPR(ImplicitValueInitExpr, (CloneType(Node->getType())))
 DEFINE_CLONE_EXPR(CXXScalarValueInitExpr,
-                  (CloneType(Node->getType()), Node->getTypeSourceInfo(),
+                  (CloneType(Node->getType()),
+                   CloneTypeSourceInfo(Node->getTypeSourceInfo()),
                    Node->getRParenLoc()))
 DEFINE_CLONE_EXPR(ExtVectorElementExpr, (Node->getType(), Node->getValueKind(), Clone(Node->getBase()), Node->getAccessor(), Node->getAccessorLoc()))
 DEFINE_CLONE_EXPR(CXXBoolLiteralExpr, (Node->getValue(), Node->getType(), Node->getSourceRange().getBegin()))
@@ -535,10 +540,10 @@ Stmt* StmtClone::VisitDesignatedInitExpr(DesignatedInitExpr* Node) {
 
 Stmt* StmtClone::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr* Node) {
   if (Node->isArgumentType())
-    return new (Ctx)
-        UnaryExprOrTypeTraitExpr(Node->getKind(), Node->getArgumentTypeInfo(),
-                                 CloneType(Node->getType()),
-                                 Node->getOperatorLoc(), Node->getRParenLoc());
+    return new (Ctx) UnaryExprOrTypeTraitExpr(
+        Node->getKind(), CloneTypeSourceInfo(Node->getArgumentTypeInfo()),
+        CloneType(Node->getType()), Node->getOperatorLoc(),
+        Node->getRParenLoc());
   return new (Ctx) UnaryExprOrTypeTraitExpr(
       Node->getKind(), Clone(Node->getArgumentExpr()),
       CloneType(Node->getType()), Node->getOperatorLoc(), Node->getRParenLoc());
@@ -728,9 +733,11 @@ Decl* StmtClone::CloneDecl(Decl* Node)  {
   if (Node->getKind() == Decl::Var) {
     VarDecl* VD = static_cast<VarDecl*>(Node);
 
+    QualType ClonedType = CloneType(VD->getType());
     VarDecl* cloned_Decl = VarDecl::Create(
         Ctx, VD->getDeclContext(), VD->getLocation(), VD->getInnerLocStart(),
-        VD->getIdentifier(), CloneType(VD->getType()), VD->getTypeSourceInfo(),
+        VD->getIdentifier(), ClonedType,
+        Ctx.getTrivialTypeSourceInfo(ClonedType, VD->getLocation()),
         VD->getStorageClass());
     if (VD->getInit())
       m_Sema.AddInitializerToDecl(cloned_Decl, Clone(VD->getInit()), VD->isDirectInit());
@@ -738,12 +745,10 @@ Decl* StmtClone::CloneDecl(Decl* Node)  {
     // cloned_Decl->setDeclaredInCondition(VD->isDeclaredInCondition());
     return cloned_Decl;
   }
-  // An alias declares no storage and holds no initializer to remap, so a
-  // re-declaration of the same written type is a complete copy.
   if (auto* TND = dyn_cast<TypedefNameDecl>(Node))
-    return utils::BuildTypedefNameDecl(Ctx, TND->getDeclContext(),
-                                       TND->getBeginLoc(), TND->getLocation(),
-                                       TND);
+    return utils::BuildTypedefNameDecl(
+        Ctx, TND->getDeclContext(), TND->getBeginLoc(), TND->getLocation(), TND,
+        CloneTypeSourceInfo(TND->getTypeSourceInfo()));
   assert(0 && "other decl clones aren't supported");
   return 0;
 }
@@ -842,26 +847,155 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
 bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
   if (auto* E = dyn_cast<Expr>(S))
     updateType(E->getType());
+  if (auto* DS = dyn_cast<DeclStmt>(S))
+    for (Decl* D : DS->decls()) {
+      if (auto* VD = dyn_cast<VarDecl>(D))
+        updateType(VD->getType());
+      if (auto* TND = dyn_cast<TypedefNameDecl>(D))
+        updateType(TND->getUnderlyingType());
+    }
   return true;
 }
 
+namespace {
+struct TypeExprFinder : RecursiveASTVisitor<TypeExprFinder> {
+  ReferencesUpdater* Updater = nullptr;
+  bool TraverseStmt(Stmt* S) { return Updater ? Updater->TraverseStmt(S) : !S; }
+  bool TraverseTypedefType(TypedefType* T) {
+    return TraverseType(T->desugar());
+  }
+#if CLANG_VERSION_MAJOR >= 22
+  bool TraverseTypedefType(TypedefType* T, bool TraverseQualifier) {
+    if (TraverseQualifier && !TraverseNestedNameSpecifier(T->getQualifier()))
+      return false;
+    return TraverseTypedefType(T);
+  }
+#endif
+};
+
+bool hasTypeExpr(QualType T) {
+  TypeExprFinder Finder;
+  return !Finder.TraverseType(T);
+}
+} // namespace
+
 void ReferencesUpdater::updateType(QualType QT) {
-  if (const auto* varArrType = dyn_cast<VariableArrayType>(QT))
-    TraverseStmt(varArrType->getSizeExpr());
+  if (!QT.isNull() && m_UpdatedTypes.insert(QT.getTypePtr()).second) {
+    TypeExprFinder Visitor;
+    Visitor.Updater = this;
+    Visitor.TraverseType(QT);
+  }
 }
 
-QualType StmtClone::CloneType(const clang::QualType T) {
-  if (const auto* varArrType =
-          dyn_cast<clang::VariableArrayType>(T.getTypePtr())) {
-    auto elemType = varArrType->getElementType();
-    return Ctx.getVariableArrayType(
-        elemType, Clone(varArrType->getSizeExpr()),
-        varArrType->getSizeModifier(),
-        T.getQualifiers().getAsOpaqueValue()
-            CLAD_COMPAT_CLANG21_StringLiteralParamsRange);
-  }
+QualType StmtClone::CloneType(QualType T) {
+  if (T.isNull() || !hasTypeExpr(T))
+    return T;
 
-  return clang::QualType(T.getTypePtr(), T.getQualifiers().getAsOpaqueValue());
+  const Type* Ty = T.getTypePtr();
+  auto CloneCanonical = [&]() {
+    QualType Canonical = T.getCanonicalType();
+    if (Canonical.getTypePtr() != Ty)
+      return CloneType(Canonical);
+    utils::diag(m_Sema, DiagnosticsEngine::Error, SourceLocation(),
+                "clad cannot clone expression-bearing type '%0'")
+        << T;
+    return QualType(Ctx.IntTy);
+  };
+  QualType Result;
+  if (const auto* DT = dyn_cast<DecltypeType>(Ty))
+    Result = Ctx.getDecltypeType(Clone(DT->getUnderlyingExpr()),
+                                 CloneType(DT->getUnderlyingType()));
+  else if (const auto* TT = dyn_cast<TypeOfExprType>(Ty))
+#if CLANG_VERSION_MAJOR >= 16
+    Result =
+        Ctx.getTypeOfExprType(Clone(TT->getUnderlyingExpr()), TT->getKind());
+#else
+    Result = Ctx.getTypeOfExprType(Clone(TT->getUnderlyingExpr()));
+#endif
+  else if (const auto* PT = dyn_cast<PointerType>(Ty))
+    Result = Ctx.getPointerType(CloneType(PT->getPointeeType()));
+  else if (const auto* RT = dyn_cast<LValueReferenceType>(Ty))
+    Result = Ctx.getLValueReferenceType(CloneType(RT->getPointeeType()),
+                                        RT->isSpelledAsLValue());
+  else if (const auto* RT = dyn_cast<RValueReferenceType>(Ty))
+    Result = Ctx.getRValueReferenceType(CloneType(RT->getPointeeType()));
+  else if (const auto* AT = dyn_cast<VariableArrayType>(Ty))
+    Result = Ctx.getVariableArrayType(
+        CloneType(AT->getElementType()), Clone(AT->getSizeExpr()),
+        AT->getSizeModifier(),
+        AT->getIndexTypeCVRQualifiers()
+            CLAD_COMPAT_CLANG21_StringLiteralParamsRange);
+  else if (const auto* AT = dyn_cast<ConstantArrayType>(Ty))
+    Result = clad_compat::getConstantArrayType(
+        Ctx, CloneType(AT->getElementType()), AT->getSize(),
+        Clone(AT->getSizeExpr()), AT->getSizeModifier(),
+        AT->getIndexTypeCVRQualifiers());
+  else if (const auto* AT = dyn_cast<IncompleteArrayType>(Ty))
+    Result = Ctx.getIncompleteArrayType(CloneType(AT->getElementType()),
+                                        AT->getSizeModifier(),
+                                        AT->getIndexTypeCVRQualifiers());
+#if CLANG_VERSION_MAJOR < 22
+  else if (const auto* ET = dyn_cast<ElaboratedType>(Ty)) {
+    TypeExprFinder Finder;
+    if (!Finder.TraverseNestedNameSpecifier(ET->getQualifier()))
+      Result = CloneCanonical();
+    else
+      Result = Ctx.getElaboratedType(ET->getKeyword(), ET->getQualifier(),
+                                     CloneType(ET->getNamedType()),
+                                     ET->getOwnedTagDecl());
+  }
+#endif
+  else if (const auto* PT = dyn_cast<ParenType>(Ty))
+    Result = Ctx.getParenType(CloneType(PT->getInnerType()));
+  else if (const auto* TT = dyn_cast<TypedefType>(Ty)) {
+    if (T->isVariablyModifiedType())
+      Result = CloneCanonical();
+    else {
+#if CLANG_VERSION_MAJOR >= 22
+      TypeExprFinder Finder;
+      if (!Finder.TraverseNestedNameSpecifier(TT->getQualifier()))
+        Result = CloneCanonical();
+      else
+        Result = Ctx.getTypedefType(TT->getKeyword(), TT->getQualifier(),
+                                    TT->getDecl(), CloneType(TT->desugar()));
+#else
+      Result = Ctx.getTypedefType(TT->getDecl(), CloneType(TT->desugar()));
+#endif
+    }
+  } else if (const auto* TT = dyn_cast<TemplateSpecializationType>(Ty)) {
+    TypeExprFinder Finder;
+    if (!Finder.TraverseTemplateName(TT->getTemplateName()))
+      return Ctx.getQualifiedType(CloneCanonical(), T.getLocalQualifiers());
+    llvm::SmallVector<TemplateArgument, 4> Args;
+    for (const auto& Arg : TT->template_arguments()) {
+      if (Arg.getKind() != TemplateArgument::Type) {
+        Result = CloneCanonical();
+        break;
+      }
+      Args.emplace_back(CloneType(Arg.getAsType()));
+    }
+    if (Result.isNull())
+#if CLANG_VERSION_MAJOR >= 22
+      Result = Ctx.getTemplateSpecializationType(
+          TT->getKeyword(), TT->getTemplateName(), Args, {},
+          TT->isTypeAlias() ? CloneType(TT->getAliasedType())
+                            : T.getCanonicalType());
+#else
+      Result = Ctx.getTemplateSpecializationType(
+          TT->getTemplateName(), Args,
+          TT->isTypeAlias() ? CloneType(TT->getAliasedType())
+                            : T.getCanonicalType());
+#endif
+  } else
+    Result = CloneCanonical();
+  return Ctx.getQualifiedType(Result, T.getLocalQualifiers());
+}
+
+TypeSourceInfo* StmtClone::CloneTypeSourceInfo(TypeSourceInfo* TSI) {
+  if (!TSI)
+    return nullptr;
+  return Ctx.getTrivialTypeSourceInfo(CloneType(TSI->getType()),
+                                      TSI->getTypeLoc().getBeginLoc());
 }
 
 //---------------------------------------------------------

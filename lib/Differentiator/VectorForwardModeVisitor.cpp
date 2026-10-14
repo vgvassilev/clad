@@ -306,7 +306,7 @@ StmtDiff VectorForwardModeVisitor::VisitArraySubscriptExpr(
 
 StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   const Expr* retVal = RS->getRetValue();
-  QualType retType = retVal->getType();
+  QualType retType = CloneType(retVal->getType());
   StmtDiff retValDiff = Visit(retVal);
   Expr* derivedRetValE = retValDiff.getExpr_dx();
   // If we are in vector mode, we need to wrap the return value in a
@@ -368,13 +368,13 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
-  VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+  QualType VDType = CloneType(VD->getType());
+  VarDecl* VDClone = BuildVarDecl(VDType, VD->getNameAsString(),
                                   initDiff.getExpr(), VD->isDirectInit());
-  VarDecl* VDDerived =
-      BuildVarDecl(utils::GetCladArrayOfType(
-                       m_Sema, utils::GetNonConstValueType(VD->getType())),
-                   "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
-                   /*DirectInit=*/true);
+  VarDecl* VDDerived = BuildVarDecl(
+      utils::GetCladArrayOfType(m_Sema, utils::GetNonConstValueType(VDType)),
+      "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
+      /*DirectInit=*/true);
 
   m_Variables.emplace(VDClone, AdjointInfo{VDDerived});
   return DeclDiff<VarDecl>(VDClone, VDDerived);
