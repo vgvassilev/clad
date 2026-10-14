@@ -139,8 +139,7 @@ def fdump_analysis_EQ : Joined<["-"], "fdump-analysis=">,
 //===----------------------------------------------------------------------===//
 
 def fcustom_estimation_model : Flag<["-"], "fcustom-estimation-model">,
-  HelpText<"Deprecated; sending in a shared object as the estimation model is "
-           "no longer supported.">;
+  HelpText<"Deprecated; define `clad::getErrorVal` instead.">;
 
 def help : Flag<["-"], "help">,
   HelpText<"Prints out this screen.">;
