@@ -91,7 +91,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
     if (!utils::IsDifferentiableType(PVD->getType()))
       continue;
     auto derivedPVDName = "_d_vector_" + std::string(PVDII->getName());
-    IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
+    IdentifierInfo* derivedPVDII =
+        CreateUniqueIdentifier(derivedPVDName, /*isUserVariable=*/true);
     VarDecl* adjointDecl = nullptr;
     AdjointInfo::WrapKind wrap = AdjointInfo::Plain;
     if (utils::isArrayOrPointerType(PVD->getType())) {
