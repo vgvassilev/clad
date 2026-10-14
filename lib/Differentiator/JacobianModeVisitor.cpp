@@ -78,6 +78,8 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
   llvm::SmallVector<ParmVarDecl*, 16> derivedParams;
   llvm::SmallVector<DeclStmt*, 8> adjointDecls;
 
+  bool hasCustomDiffArgs = m_DiffReq.HasCustomDiffArgs;
+
   auto origParams = FD->parameters();
   for (size_t i = 0, e = origParams.size(); i < e; ++i) {
     const ParmVarDecl* PVD = origParams[i];
@@ -94,44 +96,137 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
     IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
     VarDecl* adjointDecl = nullptr;
     AdjointInfo::WrapKind wrap = AdjointInfo::Plain;
-    if (utils::isArrayOrPointerType(PVD->getType())) {
-      ParmVarDecl* derivedPVD =
-          utils::BuildParmVarDecl(m_Sema, m_Derivative, derivedPVDII,
-                                  utils::GetParameterDerivativeType(
-                                      m_Sema, m_DiffReq.Mode, PVD->getType()),
-                                  PVD->getStorageClass());
-      derivedParams.push_back(derivedPVD);
-      adjointDecl = derivedPVD;
-      wrap = AdjointInfo::ParenDeref;
-      Expr* getSize = BuildCallExprToMemFn(BuildDeclRef(derivedPVD),
-                                           /*MemberFunctionName=*/"rows", {});
-      llvm::StringRef PVDName = PVD->getName();
-      if (!PVDName.contains("_clad_out_")) {
-        if (!indVarCountExpr)
-          indVarCountExpr = getSize;
-        else
-          indVarCountExpr =
-              BuildOp(BinaryOperatorKind::BO_Add, indVarCountExpr, getSize);
+
+    auto diffIt = std::find_if(m_DiffReq.DVI.begin(), m_DiffReq.DVI.end(),
+                               [PVD](const DiffInputVarInfo& info) {
+                                 return info.param == PVD;
+                               });
+    bool isDiffParam = (diffIt != m_DiffReq.DVI.end());
+
+    if (hasCustomDiffArgs) {
+      if (isDiffParam) {
+        if (utils::isArrayOrPointerType(PVD->getType())) {
+          QualType valType = utils::GetNonConstValueType(PVD->getType());
+          QualType matrixType = utils::GetCladMatrixOfType(m_Sema, valType);
+          VarDecl* derivedPVD = BuildVarDecl(matrixType, derivedPVDII);
+          adjointDecls.push_back(BuildDeclStmt(derivedPVD));
+          adjointDecl = derivedPVD;
+          wrap = AdjointInfo::Plain;
+
+          size_t arrSize = 0;
+          if (diffIt->TotalCapacity > 0)
+            arrSize = diffIt->TotalCapacity;
+          else if (diffIt->paramIndexInterval.isValid())
+            arrSize = diffIt->paramIndexInterval.size();
+          else {
+            QualType pvdType = PVD->getType();
+            if (const auto* DT = dyn_cast<DecayedType>(pvdType))
+              pvdType = DT->getOriginalType();
+            if (const auto* CAT = m_Context.getAsConstantArrayType(pvdType))
+              arrSize = CAT->getSize().getZExtValue();
+          }
+          Expr* getSize = nullptr;
+          if (arrSize > 0) {
+            getSize = ConstantFolder::synthesizeLiteral(
+                m_Context.UnsignedLongTy, m_Context, arrSize);
+          } else {
+            SourceLocation L = PVD->getLocation();
+            utils::diag(m_Sema, DiagnosticsEngine::Error, L,
+                        "cannot determine size of array parameter '%0'; specify bounds like '%0[0:N]'")
+                << PVD->getName() << L;
+            return {};
+          }
+          if (!indVarCountExpr)
+            indVarCountExpr = getSize;
+          else
+            indVarCountExpr =
+                BuildOp(BinaryOperatorKind::BO_Add, indVarCountExpr, getSize);
+        } else {
+          VarDecl* derivedPVD = BuildVarDecl(
+              utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
+                                                PVD->getType())
+                  ->getPointeeType(),
+              derivedPVDII);
+          adjointDecls.push_back(BuildDeclStmt(derivedPVD));
+          adjointDecl = derivedPVD;
+          wrap = AdjointInfo::Plain;
+          nonArrayIndVarCount += 1;
+        }
+      } else {
+        // Non-independent parameter
+        if (utils::isArrayOrPointerType(PVD->getType())) {
+          if (!utils::GetValueType(PVD->getType()).isConstQualified()) {
+            ParmVarDecl* derivedPVD = utils::BuildParmVarDecl(
+                m_Sema, m_Derivative, derivedPVDII,
+                utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
+                                                  PVD->getType()),
+                PVD->getStorageClass());
+            derivedParams.push_back(derivedPVD);
+            adjointDecl = derivedPVD;
+            wrap = AdjointInfo::ParenDeref;
+          }
+        } else if (PVD->getType()->isReferenceType()) {
+          if (!utils::GetValueType(PVD->getType()).isConstQualified()) {
+            ParmVarDecl* derivedPVD = utils::BuildParmVarDecl(
+                m_Sema, m_Derivative, derivedPVDII,
+                utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
+                                                  PVD->getType()),
+                PVD->getStorageClass());
+            derivedParams.push_back(derivedPVD);
+            adjointDecl = derivedPVD;
+            wrap = AdjointInfo::Deref;
+          }
+        } else {
+          VarDecl* derivedPVD = BuildVarDecl(
+              utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
+                                                PVD->getType())
+                  ->getPointeeType(),
+              derivedPVDII);
+          adjointDecls.push_back(BuildDeclStmt(derivedPVD));
+          adjointDecl = derivedPVD;
+          wrap = AdjointInfo::Plain;
+        }
       }
-    } else if (PVD->getType()->isReferenceType()) {
-      ParmVarDecl* derivedPVD =
-          utils::BuildParmVarDecl(m_Sema, m_Derivative, derivedPVDII,
-                                  utils::GetParameterDerivativeType(
-                                      m_Sema, m_DiffReq.Mode, PVD->getType()),
-                                  PVD->getStorageClass());
-      derivedParams.push_back(derivedPVD);
-      adjointDecl = derivedPVD;
-      wrap = AdjointInfo::Deref;
-      nonArrayIndVarCount += 1;
     } else {
-      VarDecl* derivedPVD =
-          BuildVarDecl(utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
-                                                         PVD->getType())
-                           ->getPointeeType(),
-                       derivedPVDII);
-      adjointDecls.push_back(BuildDeclStmt(derivedPVD));
-      adjointDecl = derivedPVD;
-      nonArrayIndVarCount += 1;
+      if (utils::isArrayOrPointerType(PVD->getType())) {
+        ParmVarDecl* derivedPVD = utils::BuildParmVarDecl(
+            m_Sema, m_Derivative, derivedPVDII,
+            utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
+                                              PVD->getType()),
+            PVD->getStorageClass());
+        derivedParams.push_back(derivedPVD);
+        adjointDecl = derivedPVD;
+        wrap = AdjointInfo::ParenDeref;
+        Expr* getSize = BuildCallExprToMemFn(BuildDeclRef(derivedPVD),
+                                             /*MemberFunctionName=*/"rows", {});
+        llvm::StringRef PVDName = PVD->getName();
+        if (!PVDName.contains("_clad_out_")) {
+          if (!indVarCountExpr)
+            indVarCountExpr = getSize;
+          else
+            indVarCountExpr =
+                BuildOp(BinaryOperatorKind::BO_Add, indVarCountExpr, getSize);
+        }
+      } else if (PVD->getType()->isReferenceType()) {
+        ParmVarDecl* derivedPVD = utils::BuildParmVarDecl(
+            m_Sema, m_Derivative, derivedPVDII,
+            utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
+                                              PVD->getType()),
+            PVD->getStorageClass());
+        derivedParams.push_back(derivedPVD);
+        adjointDecl = derivedPVD;
+        wrap = AdjointInfo::Deref;
+        nonArrayIndVarCount += 1;
+      } else {
+        VarDecl* derivedPVD = BuildVarDecl(
+            utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
+                                              PVD->getType())
+                ->getPointeeType(),
+            derivedPVDII);
+        adjointDecls.push_back(BuildDeclStmt(derivedPVD));
+        adjointDecl = derivedPVD;
+        nonArrayIndVarCount += 1;
+      }
     }
     m_Variables[newPVD] = {adjointDecl, wrap};
   }
@@ -173,10 +268,12 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
 
   size_t numParamsOriginalFn = m_DiffReq->getNumParams();
   for (size_t i = 0; i < numParamsOriginalFn; ++i) {
+    ParmVarDecl* param = params[i];
+    if (!m_Variables[param].Decl)
+      continue;
     bool is_array =
         utils::isArrayOrPointerType(m_DiffReq->getParamDecl(i)->getType());
-    ParmVarDecl* param = params[i];
-    QualType dParamType = clad::utils::GetValueType(param->getType());
+    QualType dParamType = clad::utils::GetNonConstValueType(param->getType());
     // Desugaring the type is necessary to pass it to other templates
     dParamType = dParamType.getDesugaredType(m_Context);
     Expr* dVectorParam = nullptr;
@@ -186,15 +283,28 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
       Expr* offsetExpr = offsetTracker.buildOffset();
 
       if (is_array) {
-        // The adjoint is `(*_d_p)`; the array whose size we need is the bare
-        // `_d_p` reference (m_Variables stores its decl).
-        Expr* base = BuildDeclRef(m_Variables[param].Decl);
-        // Get size of the array.
-        Expr* getSize = BuildCallExprToMemFn(base,
-                                             /*MemberFunctionName=*/"rows", {});
-        // Create an identity matrix for the parameter,
-        // with number of rows equal to the size of the array,
-        // and number of columns equal to the number of independent variables
+        Expr* getSize = nullptr;
+        if (hasCustomDiffArgs) {
+          size_t arrSize = 0;
+          if (m_DiffReq.DVI[independentVarIndex].TotalCapacity > 0)
+            arrSize = m_DiffReq.DVI[independentVarIndex].TotalCapacity;
+          else if (m_DiffReq.DVI[independentVarIndex].paramIndexInterval.isValid())
+            arrSize = m_DiffReq.DVI[independentVarIndex].paramIndexInterval.size();
+          else {
+            QualType pvdType = param->getType();
+            if (const auto* DT = dyn_cast<DecayedType>(pvdType))
+              pvdType = DT->getOriginalType();
+            if (const auto* CAT = m_Context.getAsConstantArrayType(pvdType))
+              arrSize = CAT->getSize().getZExtValue();
+          }
+          if (arrSize > 0)
+            getSize = ConstantFolder::synthesizeLiteral(
+                m_Context.UnsignedLongTy, m_Context, arrSize);
+        }
+        if (!getSize) {
+          Expr* base = BuildDeclRef(m_Variables[param].Decl);
+          getSize = BuildCallExprToMemFn(base, "rows", {});
+        }
         llvm::SmallVector<Expr*, 3> args = {getSize, buildIndVarCountRef(),
                                             offsetExpr};
         dVectorParam = BuildIdentityMatrixExpr(dParamType, args);
@@ -220,15 +330,7 @@ DerivativeAndOverload JacobianModeVisitor::Derive() {
           BuildCallExprToCladFunction("zero_vector", {dCount}, {dParamType});
     }
 
-    // For each function arg to be differentiated, create a variable
-    // _d_vector_arg to store the vector of derivatives for that arg.
-    // for ex: double f(double x, double y, double z);
-    // and we want to differentiate w.r.t. x and z, then we will have
-    // -> clad::array<double> _d_vector_x = {1, 0};
-    // -> clad::array<double> _d_vector_y = {0, 0};
-    // -> clad::array<double> _d_vector_z = {0, 1};
-    if (utils::isArrayOrPointerType(param->getType()) ||
-        param->getType()->isReferenceType()) {
+    if (m_Variables[param].Wrap != AdjointInfo::Plain) {
       // The store target is `*_d_p`; strip the parens the ParenDeref adjoint
       // carries for element access elsewhere.
       Expr* paramAssignment =

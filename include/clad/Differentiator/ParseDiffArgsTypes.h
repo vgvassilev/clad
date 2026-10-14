@@ -31,7 +31,7 @@ namespace clad {
 
     IndexInterval(std::size_t index) : Start(index), Finish(index + 1) {}
 
-    std::size_t size() { return Finish - Start; }
+    std::size_t size() const { return Finish - Start; }
 
     bool isInInterval(std::size_t n) const { return n >= Start && n <= Finish; }
     bool isValid() const { return Start != Finish; }
