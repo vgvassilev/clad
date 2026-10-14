@@ -551,13 +551,25 @@ const elidable_reverse_forw T& operator_subscript_reverse_forw(
     const ::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
     const ::std::vector<T>* d_vec, typename ::std::vector<T>::size_type d_idx);
 
-template <typename T, typename P>
+template <typename T, typename P,
+          ::std::enable_if_t<::std::is_arithmetic<T>::value, int> = 0>
 void operator_subscript_pullback(const ::std::vector<T>* vec,
                                  typename ::std::vector<T>::size_type idx,
                                  P d_y, ::std::vector<T>* d_vec,
                                  typename ::std::vector<T>::size_type* d_idx) {
   (*d_vec)[idx] += d_y;
 }
+
+// Empty on purpose: a record element's adjoint is accumulated in place,
+// through the reference into d_vec that operator_subscript_reverse_forw hands
+// back, so adding d_y here would count it twice -- and a record need not have
+// the += the arithmetic overload uses.
+template <typename T, typename P,
+          ::std::enable_if_t<!::std::is_arithmetic<T>::value, int> = 0>
+void operator_subscript_pullback(const ::std::vector<T>* vec,
+                                 typename ::std::vector<T>::size_type idx,
+                                 P d_y, ::std::vector<T>* d_vec,
+                                 typename ::std::vector<T>::size_type* d_idx) {}
 
 template <typename T>
 void operator_subscript_pullback(::std::vector<T>* vec,

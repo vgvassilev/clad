@@ -64,8 +64,11 @@ public:
 
   /// Runs Varied analysis on the function this analyser was built for.
   void Analyze();
+  bool TraverseCXXDefaultArgExpr(clang::CXXDefaultArgExpr* E);
+  bool TraverseCXXDefaultInitExpr(clang::CXXDefaultInitExpr* E);
   bool TraverseBinaryOperator(clang::BinaryOperator* BinOp);
   bool TraverseCallExpr(clang::CallExpr* CE);
+  bool TraverseCUDAKernelCallExpr(clang::CUDAKernelCallExpr* KCE);
   bool TraverseConditionalOperator(clang::ConditionalOperator* CO);
   bool TraverseDeclRefExpr(clang::DeclRefExpr* DRE);
   bool TraverseDeclStmt(clang::DeclStmt* DS);

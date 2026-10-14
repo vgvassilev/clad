@@ -12,7 +12,7 @@ double test_1(double x){
 //CHECK: void test_1_grad(double x, double *_d_x) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = 0.;
-//CHECK-NEXT:         _r0 += 1 * numerical_diff::forward_central_difference(std::tgamma, x, 0, 0, x);
+//CHECK-NEXT:         _r0 += 1 * numerical_diff::forward_central_difference<double (*)(double){{.*}}>(std::tgamma, x, 0, 0, x);
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
@@ -28,7 +28,7 @@ double test_2(double x){
 //CHECK: double test_2_darg0(double x) {
 //CHECK-NEXT:     double _d_x = 1;
 //CHECK-NEXT:     double _t0 = std::tgamma(x);
-//CHECK-NEXT:     return _d_x * _t0 + x * (numerical_diff::forward_central_difference(std::tgamma, x, 0, 0, x) * _d_x);
+//CHECK-NEXT:     return _d_x * _t0 + x * (numerical_diff::forward_central_difference<double (*)(double){{.*}}>(std::tgamma, x, 0, 0, x) * _d_x);
 //CHECK-NEXT: }
 
 int main(){
