@@ -1,17 +1,12 @@
-// RUN: %cladclang %s -I%S/../../include -std=c++2c \
+// RUN: %cladclang %s -I%S/../../include -std=c++20 \
 // RUN:     -oConstexprReverseMode.out | %filecheck %s
 // RUN: ./ConstexprReverseMode.out | %filecheck_exec %s
 // UNSUPPORTED: clang-14, clang-15, clang-16
 
 // A reverse-mode gradient worked out while the program compiles.
 //
-// This needs C++26. Clad calls the generated gradient through a pointer whose
-// adjoint parameters are void*, from GradientDerivedFnTraits, while the
-// function itself takes double*, and a cast from void* only became a constant
-// expression in C++26. The guard below keeps the test honest on a compiler
-// that takes -std=c++2c without having that relaxation yet: the answer is
-// checked either way, only the compile-time assertion is skipped. See #2188
-// for the typing this is working around.
+// Full gradients have exact types from FullGradientDerivedFnTraits matching
+// the generated gradient, so they evaluate during compilation under C++20.
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cstdio>
@@ -48,22 +43,16 @@ constexpr double d_larger_wrt_a(double a, double b) {
 }
 
 int main() {
-#if __cpp_constexpr >= 202406L
   // Worked out during compilation: d(a*b*c)/db at (2,3,5) is a*c.
   constexpr double compiled = d_wrt_b();
   static_assert(compiled == 10., "the gradient is wrong at compile time");
   printf("%.0f\n", compiled);
-#else
-  printf("%.0f\n", d_wrt_b());
-#endif
   //CHECK-EXEC: 10
 
-#if __cpp_constexpr >= 202406L
   // Both paths of the early return, worked out during compilation: 2a on
   // the early path, b on the fall-through.
   static_assert(d_larger_wrt_a(5., 3.) == 10., "the early path is wrong");
   static_assert(d_larger_wrt_a(3., 5.) == 5., "the fall-through is wrong");
-#endif
   printf("%.0f %.0f\n", d_larger_wrt_a(5., 3.), d_larger_wrt_a(3., 5.));
   //CHECK-EXEC: 10 5
 }
