@@ -1550,10 +1550,22 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     // A subexpression without a tangent of its own (e.g. an object that does
     // not depend on the differentiation variable) yields a synthesized zero
     // init, which is an rvalue and has no address.
-    if (derivedOp && !derivedOp->getType()->isVoidType())
-      derivedOp = BuildOp(opKind, derivedOp);
-    else
+    if (derivedOp && !derivedOp->getType()->isVoidType()) {
+      auto* CO = dyn_cast<ConditionalOperator>(derivedOp->IgnoreParens());
+      Expr* read = CO ? CO->getTrueExpr()->IgnoreImpCasts() : nullptr;
+      if (CO && CO->isPRValue() && read->isLValue()) {
+        Expr* addr = BuildOp(opKind, read);
+        derivedOp = BuildParens(
+            m_Sema
+                .ActOnConditionalOp(noLoc, noLoc, CO->getCond(), addr,
+                                    getZeroInit(addr->getType()))
+                .get());
+      } else {
+        derivedOp = BuildOp(opKind, derivedOp);
+      }
+    } else {
       derivedOp = nullptr;
+    }
     return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_LNot) {
     Expr* zero = getZeroInit(UnOp->getType());
