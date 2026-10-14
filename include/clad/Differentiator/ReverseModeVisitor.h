@@ -99,6 +99,13 @@ namespace clad {
     /// that will be put immediately in the beginning of derivative function
     /// block.
     Stmts m_Globals;
+    llvm::DenseMap<const clang::VarDecl*, llvm::StringRef>
+        m_LocalStorageFailures;
+    llvm::DenseMap<const clang::VarDecl*, const clang::VarDecl*> m_KeptPrimals;
+    llvm::SmallPtrSet<const clang::VarDecl*, 8> m_UnsupportedKeptPrimals;
+    bool needsLocalStorage(const clang::VarDecl* VD, const clang::DeclStmt* DS,
+                           bool forcePromotion = false);
+    void checkKeptPrimals(clang::Stmt* Forward, clang::Stmt* Reverse);
     // Store the Tape-push operation that will be inserted at the end of the
     // OpenMP forward pass
     Stmts m_OMPBlocks;
