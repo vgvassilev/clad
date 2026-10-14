@@ -1467,6 +1467,21 @@ double matTraceSq(const double* x) {
   return r;
 }
 
+struct Pair { double a, b; };
+Pair makePair(double x) { return {x, 2 * x}; }
+// The member of a call's result is read in a reverse_forw.
+double& scaleByB(double& v, double x) {
+  v *= makePair(x).b;
+  return v;
+}
+double fnMemberOfCall(double x) {
+  double y = x;
+  return scaleByB(y, x);
+}
+
+// CHECK: scaleByB_reverse_forw(double &v, double x, double &_d_v, double _d_x
+// CHECK:     v *= makePair(x).b;
+
 int main() {
     pairdd p(3, 5), d_p;
     double i = 3, d_i, d_j;
@@ -1601,4 +1616,7 @@ int main() {
     auto matTraceSq_grad = clad::gradient(matTraceSq, "x");
     matTraceSq_grad.execute(xm, dxm);
     printf("{%.2f, %.2f, %.2f, %.2f}\n", dxm[0], dxm[1], dxm[2], dxm[3]);    // CHECK-EXEC: {2.00, 6.00, 4.00, 8.00}
+
+    INIT_GRADIENT(fnMemberOfCall);
+    TEST_GRADIENT(fnMemberOfCall, /*numOfDerivativeArgs=*/1, 3, &d_i);    // CHECK-EXEC: {12.00}
 }
