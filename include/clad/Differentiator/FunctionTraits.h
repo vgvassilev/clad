@@ -410,8 +410,7 @@ namespace clad {
   /// a T*. Otherwise it is void, i.e. the parameters are void* and the plugin's
   /// overload casts them back. The plugin makes the same decision in
   /// VisitorBase::CreateDerivativeOverload.
-  template <class T, class... Ts>
-  struct AreAllSameType : std::true_type {};
+  template <class T, class... Ts> struct AreAllSameType : std::true_type {};
   template <class T, class U, class... Ts>
   struct AreAllSameType<T, U, Ts...>
       : std::integral_constant<bool, std::is_same<T, U>::value &&
@@ -427,16 +426,17 @@ namespace clad {
   };
   template <class T, class... Rest>
   struct GradientOutputElementType<T, Rest...> {
-    using type = typename std::conditional<
-        IsGradientRealType<T>::value && AreAllSameType<T, Rest...>::value, T,
-        void>::type;
+    using type = std::conditional_t<IsGradientRealType<T>::value &&
+                                        AreAllSameType<T, Rest...>::value,
+                                    T, void>;
   };
 
   // GradientDerivedFnTraits specializations for pure function pointer types
   template <class ReturnType, class... Args>
   struct GradientDerivedFnTraits<ReturnType (*)(Args...)> {
     using OutputElementType = typename GradientOutputElementType<Args...>::type;
-    using type = void (*)(Args..., OutputParamType_t<Args, OutputElementType>...);
+    using type = void (*)(Args...,
+                          OutputParamType_t<Args, OutputElementType>...);
   };
 
   /// These macro expansions are used to cover all possible cases of

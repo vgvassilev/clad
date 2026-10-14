@@ -1,17 +1,20 @@
 // RUN: %cladclang %s -I%S/../../include -std=c++2c \
 // RUN:     -oConstexprReverseMode.out | %filecheck %s
 // RUN: ./ConstexprReverseMode.out | %filecheck_exec %s
+// RUN: %cladclang %s -I%S/../../include -std=c++20 -fsyntax-only
 // UNSUPPORTED: clang-14, clang-15, clang-16
 
 // A reverse-mode gradient worked out while the program compiles.
 //
-// This needs C++26. Clad calls the generated gradient through a pointer whose
-// adjoint parameters are void*, from GradientDerivedFnTraits, while the
-// function itself takes double*, and a cast from void* only became a constant
-// expression in C++26. The guard below keeps the test honest on a compiler
-// that takes -std=c++2c without having that relaxation yet: the answer is
-// checked either way, only the compile-time assertion is skipped. See #2188
-// for the typing this is working around.
+// When every parameter of the function has the same floating-point type, the
+// adjoints clad generates all have one pointer type whatever the argument
+// spec selects, so the gradient is stored and called with that type and no
+// cast is involved. Such a gradient is a constant expression in C++20; the
+// static_asserts on f below check that, also under -std=c++20. See #2190.
+//
+// The guards in main keep the test honest on a compiler that takes -std=c++2c
+// without having all the C++26 constexpr relaxations yet: the answer is
+// checked either way, only the compile-time assertion is skipped. See #2188.
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cstdio>
