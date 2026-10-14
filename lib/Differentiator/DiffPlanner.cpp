@@ -442,7 +442,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (E.isValid() &&
           clad_compat::SourceManager_isPointWithin(SM, Loc, B, E))
         return true;
-      else if (SM.isBeforeInTranslationUnit(B, Loc))
+      if (E.isInvalid() && SM.isBeforeInTranslationUnit(B, Loc))
         return true;
     }
     return false;
@@ -1740,14 +1740,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // In that case we should ask the enclosing ast nodes for a source
       // location and check if it is within range.
       SourceLocation endLoc = E->getEndLoc();
-      if (endLoc.isInvalid() || !isInInterval(endLoc))
-        return true;
-
       // We need to find our 'special' diff annotated such:
       // clad::differentiate(...) __attribute__((annotate("D")))
       // TODO: why not check for its name? clad::differentiate/gradient?
       if (!isCladEntryPointCall(E))
         return true;
+
+      if (endLoc.isInvalid() || !isInInterval(endLoc)) {
+        if (endLoc.isValid())
+          utils::diag(m_Sema, DiagnosticsEngine::Warning, E->getBeginLoc(),
+                      "clad differentiation call is disabled by "
+                      "'#pragma clad OFF'");
+        return true;
+      }
 
       // A call to clad::differentiate or clad::gradient was not found.
       if (!findTargetFunction(request, E, m_Sema))
