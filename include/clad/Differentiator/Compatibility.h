@@ -20,8 +20,10 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/DeclSpec.h"
+
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
+#include "llvm/Support/Casting.h"
 #if CLANG_VERSION_MAJOR > 18
 #include "clang/Sema/SemaOpenMP.h"
 #endif
@@ -184,6 +186,24 @@ inline bool isElaboratedType(clang::QualType QT) {
   return QT->getAs<clang::ElaboratedType>() != nullptr;
 }
 
+// Called on each sugar node of a spelling, outermost first: the declaration
+// a typedef, using or tag type names, or null. Pre-22 the qualifier a name is
+// written with is on the ElaboratedType around it, which sets Unqualified; a
+// name without one -- every name before clang 16, a canonical tag since --
+// prints with its full scope.
+inline const clang::NamedDecl* getSpelledName(const clang::Type* T,
+                                              bool& Unqualified) {
+  if (const auto* ET = llvm::dyn_cast<clang::ElaboratedType>(T))
+    Unqualified = !ET->getQualifier();
+  if (const auto* TT = llvm::dyn_cast<clang::TypedefType>(T))
+    return TT->getDecl();
+  if (const auto* UT = llvm::dyn_cast<clang::UsingType>(T))
+    return UT->getFoundDecl();
+  if (const auto* TT = llvm::dyn_cast<clang::TagType>(T))
+    return TT->getDecl();
+  return nullptr;
+}
+
 // Pre-22 getPrefix() worked uniformly on any NNS kind.
 inline bool hasNNSPrefix(clang::NestedNameSpecifier* NS) {
   return NS && NS->getPrefix() != nullptr;
@@ -238,6 +258,26 @@ inline bool isElaboratedType(clang::QualType QT) {
     return TT->getKeyword() != clang::ElaboratedTypeKeyword::None ||
            bool(TT->getQualifier());
   return false;
+}
+
+// Clang 22: the qualifier a name is written with is on its type. A
+// canonical tag type prints with its full scope.
+inline const clang::NamedDecl* getSpelledName(const clang::Type* T,
+                                              bool& Unqualified) {
+  if (const auto* TT = llvm::dyn_cast<clang::TypedefType>(T)) {
+    Unqualified = !hasQualifier(TT->getQualifier());
+    return TT->getDecl();
+  }
+  if (const auto* UT = llvm::dyn_cast<clang::UsingType>(T)) {
+    Unqualified = !hasQualifier(UT->getQualifier());
+    return UT->getDecl();
+  }
+  if (const auto* TT = llvm::dyn_cast<clang::TagType>(T)) {
+    Unqualified =
+        !hasQualifier(TT->getQualifier()) && !TT->isCanonicalUnqualified();
+    return TT->getDecl();
+  }
+  return nullptr;
 }
 
 // Clang 22: only Namespace-kind NNS exposes a prefix; other kinds
@@ -355,6 +395,16 @@ inline clang::QualType getTypeDeclType(clang::ASTContext& C,
 #else
   return C.getTypeDeclType(clang::ElaboratedTypeKeyword::None, std::nullopt,
                            TD);
+#endif
+}
+
+// Clang 16 moved isPromotableIntegerType from Type to ASTContext.
+inline bool isPromotableIntegerType(const clang::ASTContext& C,
+                                    clang::QualType T) {
+#if CLANG_VERSION_MAJOR < 16
+  return T->isPromotableIntegerType();
+#else
+  return C.isPromotableIntegerType(T);
 #endif
 }
 

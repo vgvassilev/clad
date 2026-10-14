@@ -18,7 +18,7 @@ double f1(double x) {
 //CHECK-NEXT:     double _t1[3];
 //CHECK-NEXT:     double _d_t = 0.;
 //CHECK-NEXT:     double t = 1;
-//CHECK-NEXT:     unsigned {{int|long}} _t0;
+//CHECK-NEXT:     unsigned int _t0;
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t1[i] = t;
 //CHECK-NEXT:         t *= x;

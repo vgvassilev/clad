@@ -91,7 +91,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     // should follow closer what clang does, namely building a
     // FunctionTemplateDecl and then we should instantiate it with the
     // particular template parameters.
-    if (R.Function && !R.Function->getPrimaryTemplate())
+    if (R.DerivedFDPrototypes.size() >= R.CurrentDerivativeOrder)
+      Previous.addDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
+    else if (R.Function && !R.Function->getPrimaryTemplate())
       S.LookupQualifiedName(Previous, dFD->getParent());
 
     // Derivatives are declared inline, but a hand-written custom derivative may
@@ -324,7 +326,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, const clang::Expr* callSite,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
-      Expr* CUDAExecConfig /*=nullptr*/) {
+      Expr* CUDAExecConfig /*=nullptr*/,
+      const TemplateArgumentListInfo* TemplateArgs /*=nullptr*/) {
     DeclContext* originalFnDC = nullptr;
 
     // FIXME: callSite must not be null but it comes when we try to build
@@ -397,8 +400,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
               .get();
         }
       }
-      Expr* UnresolvedLookup =
-          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+      Expr* UnresolvedLookup = utils::BuildDeclarationNameExpr(
+          m_Sema, SS, R, /*ADL=*/false, TemplateArgs);
 
       if (noOverloadExists(UnresolvedLookup, MARargs))
         return nullptr;

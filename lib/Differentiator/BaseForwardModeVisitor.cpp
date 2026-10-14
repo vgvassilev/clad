@@ -154,7 +154,9 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   SourceLocation validLoc{m_DiffReq->getLocation()};
   DeclarationNameInfo name(II, validLoc);
   llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
+  // Nested derivatives must not search the caller's local scopes.
+  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
+                                         getEnclosingNamespaceOrTUScope());
 
   m_Sema.CurContext = DC;
   QualType derivedFnType = GetDerivativeType();
@@ -201,6 +203,18 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
         addToCurrentBlock(S);
     else
       addToCurrentBlock(BodyDiff);
+    // The primal wrote its result through a parameter and returned nothing, so
+    // GetDerivativeType gave the derivative that parameter's tangent as its
+    // return type. Hand the tangent back; without this it stays a local the
+    // caller has no way to read.
+    // A primal that already ends in `return;` had its tangent returned by
+    // VisitReturnStmt a moment ago, and a second one here would be
+    // unreachable code in the user's translation unit.
+    if (Expr* outputTangent = GetOutputParamTangent()) {
+      Stmts& block = getCurrentBlock();
+      if (block.empty() || !isa<ReturnStmt>(block.back()))
+        addToCurrentBlock(BuildReturnStmt(outputTangent));
+    }
     Stmt* fnBody = endBlock();
     // FIXME: Enable this when we vgvassilev/clad#367 (removing goto stmts).
     // // If ActOnFinishFunctionBody should pop the current DeclContext.
@@ -307,13 +321,39 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
       continue;
 
     IdentifierInfo* II = &m_Context.Idents.get("_d_" + PVD->getNameAsString());
+    if (std::any_of(params.begin(), params.end(),
+                    [II](const ParmVarDecl* Param) {
+                      return Param->getIdentifier() == II;
+                    }))
+      II = CreateUniqueIdentifier(II->getName());
     QualType diffTy = utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
                                                         PVD->getType());
     auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, diffTy,
                                          PVD->getStorageClass());
+    m_Sema.PushOnScopeChains(dPVD, getCurrentScope(), /*AddToContext=*/false);
     params.push_back(dPVD);
     m_Variables[PVD] = {dPVD};
   }
+}
+
+Expr* BaseForwardModeVisitor::GetOutputParamTangent() {
+  // The request knows which parameter a void-returning primal writes its
+  // result through; only a derivative GetDerivativeType then gave a return
+  // type of its own has that tangent to hand back. Every other forward
+  // derivative keeps the primal's return type, and a pushforward has
+  // somewhere to put an output parameter's tangent already.
+  const ParmVarDecl* outputParam = m_DiffReq.getOutputTangentParam();
+  if (!outputParam || !m_Derivative ||
+      m_Derivative->getReturnType()->isVoidType())
+    return nullptr;
+
+  // GenerateSeeds keys the tangents by the derivative's own parameters, which
+  // SetupDerivativeParameters cloned from the primal's in order.
+  auto found = m_Variables.find(
+      m_Derivative->getParamDecl(outputParam->getFunctionScopeIndex()));
+  assert(found != m_Variables.end() && found->second.Decl &&
+         "GenerateSeeds gives a differentiable parameter a tangent");
+  return BuildDeclRef(found->second.Decl);
 }
 
 void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
@@ -464,6 +504,11 @@ StmtDiff BaseForwardModeVisitor::VisitStmt(const Stmt* S) {
   diagUnsupported(S);
   // Unknown stmt, just clone it.
   return StmtDiff(Clone(S));
+}
+
+StmtDiff BaseForwardModeVisitor::VisitAttributedStmt(const AttributedStmt* S) {
+  const Stmt* SubStmt = utils::SkipLikelihoodHints(S);
+  return SubStmt == S ? VisitStmt(S) : Visit(SubStmt);
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
@@ -785,8 +830,16 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
 
 StmtDiff BaseForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // If there is no return value, we must not attempt to differentiate
-  if (!RS->getRetValue())
+  if (!RS->getRetValue()) {
+    // Unless the derivative has a return value of its own: a void primal
+    // whose tangent is its output parameter's. Dropping the statement would
+    // not merely lose the tangent on this path, it would lose the path --
+    // the derivative would carry on and write the output the primal left
+    // alone. Return the tangent as it stands here instead.
+    if (Expr* outputTangent = GetOutputParamTangent())
+      return StmtDiff(BuildReturnStmt(outputTangent));
     return nullptr;
+  }
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Stmt* returnStmt =
@@ -2164,12 +2217,13 @@ StmtDiff BaseForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
 }
 
 /// returns first switch case label contained in the compound statement `CS`.
-static SwitchCase* getContainedSwitchCaseStmt(const CompoundStmt* CS) {
-  for (Stmt* stmt : CS->body()) {
+static const SwitchCase* getContainedSwitchCaseStmt(const CompoundStmt* CS) {
+  for (const Stmt* stmt : CS->body()) {
+    stmt = utils::SkipLikelihoodHints(stmt);
     if (auto SC = dyn_cast<SwitchCase>(stmt))
       return SC;
     else if (auto nestedCS = dyn_cast<CompoundStmt>(stmt)) {
-      if (SwitchCase* nestedRes = getContainedSwitchCaseStmt(nestedCS))
+      if (const SwitchCase* nestedRes = getContainedSwitchCaseStmt(nestedCS))
         return nestedRes;
     }
   }
@@ -2232,14 +2286,14 @@ StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
   // It will always be equal to the last visited case/default label.
   SwitchCase* activeSC = nullptr;
 
-  if (auto CS = dyn_cast<CompoundStmt>(SS->getBody())) {
+  const Stmt* SwitchBody = utils::SkipLikelihoodHints(SS->getBody());
+  if (auto CS = dyn_cast<CompoundStmt>(SwitchBody)) {
     // Visit(CS) cannot be used because then we will not be easily able to
     // determine when active switch case label should be changed.
-    for (Stmt* stmt : CS->body()) {
+    for (const Stmt* stmt : CS->body())
       activeSC = DeriveSwitchStmtBodyHelper(stmt, activeSC);
-    }
   } else {
-    activeSC = DeriveSwitchStmtBodyHelper(SS->getBody(), activeSC);
+    activeSC = DeriveSwitchStmtBodyHelper(SwitchBody, activeSC);
   }
 
   // scope and block of the last switch case label is not popped in
@@ -2271,6 +2325,7 @@ StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
 SwitchCase*
 BaseForwardModeVisitor::DeriveSwitchStmtBodyHelper(const Stmt* stmt,
                                                    SwitchCase* activeSC) {
+  stmt = utils::SkipLikelihoodHints(stmt);
   if (auto SC = dyn_cast<SwitchCase>(stmt)) {
     // New switch case label have been visited. Pop the scope and block
     // corresponding to the active switch case label, and update its

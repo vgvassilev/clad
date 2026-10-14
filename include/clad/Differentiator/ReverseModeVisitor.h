@@ -195,6 +195,8 @@ namespace clad {
         if (m_Taken)
           return m_RMV.CloneNode(m_Seed);
         m_Taken = true;
+        if (m_Seed->HasSideEffects(m_RMV.m_Context))
+          m_Seed = m_RMV.StoreAndRef(m_Seed, direction::reverse);
         return m_Seed;
       }
       explicit operator bool() const { return m_Seed != nullptr; }
@@ -539,6 +541,7 @@ namespace clad {
     StmtDiff VisitOpaqueValueExpr(const clang::OpaqueValueExpr* OVE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
+    StmtDiff VisitAttributedStmt(const clang::AttributedStmt* S);
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff
     VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
@@ -704,7 +707,8 @@ namespace clad {
       clang::Expr* m_TripCount = nullptr;
 
     public:
-      LoopCounter(ReverseModeVisitor& RMV, clang::Expr* tripCount = nullptr);
+      LoopCounter(ReverseModeVisitor& RMV, clang::Expr* tripCount = nullptr,
+                  clang::QualType countType = {});
 
       /// Returns true if the reverse sweep computes the iteration count from
       /// the loop bounds instead of reading a count the forward sweep kept.
@@ -978,6 +982,8 @@ namespace clad {
       /// can evaluate on entry. Null when that could not be proven, in which
       /// case the forward sweep has to count them.
       clang::Expr* TripCount = nullptr;
+      /// The type TripCount and the counter that holds it are declared with.
+      clang::QualType CountType;
       /// What the induction variable holds once the loop has exited.
       clang::Expr* IndVarEnd = nullptr;
     };

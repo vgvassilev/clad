@@ -144,14 +144,16 @@ struct DerivativeAndOverload {
     /// if the overload function namespace was not found. If false and
     /// the function containing namespace was not found, nullptr is returned.
     /// \param[in] CUDAExecConfig The kernel launch configuration, if any.
+    /// \param[in] TemplateArgs Template arguments written explicitly on the
+    /// callee, if any.
     ///
     /// \returns The call expression if a suitable function overload was found,
     /// null otherwise.
     clang::Expr* BuildCallToCustomDerivativeOrNumericalDiff(
         const std::string& Name, llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
         clang::Scope* S, const clang::Expr* callSite, bool forCustomDerv = true,
-        bool namespaceShouldExist = true,
-        clang::Expr* CUDAExecConfig = nullptr);
+        bool namespaceShouldExist = true, clang::Expr* CUDAExecConfig = nullptr,
+        const clang::TemplateArgumentListInfo* TemplateArgs = nullptr);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
                           llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.

@@ -805,7 +805,7 @@ namespace clad {
     /// locations of their own. Same reason as BuildCallExpr.
     clang::Expr* BuildInitList(llvm::MutableArrayRef<clang::Expr*> Elements);
 
-    clang::DeclRefExpr* GetCladTapePushDRE();
+    clang::Expr* GetCladTapePushDRE();
 
     clang::Stmt* GetCladZeroInit(llvm::MutableArrayRef<clang::Expr*> args);
 
@@ -935,6 +935,15 @@ namespace clad {
     /// captureless lambdas get a fresh closure; captured lambdas fall back to
     /// a plain clone. Inner lambda-init declarations are rebuilt recursively.
     clang::Expr* buildClonedLambda(const clang::LambdaExpr* LE);
+    /// Builds a call to the numerical_diff function \p Name, whose first
+    /// argument is the function to differentiate. That function's type is
+    /// also written as the first template argument: it was deduced from a
+    /// reference to one overload or specialization, and the name alone does
+    /// not say which.
+    clang::Expr*
+    BuildNumericalDiffCall(const std::string& Name,
+                           llvm::SmallVectorImpl<clang::Expr*>& NumDiffArgs,
+                           clang::Expr* CUDAExecConfig);
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///

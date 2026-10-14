@@ -307,7 +307,31 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns the same type as GetValueType but without const qualifier.
     clang::QualType GetNonConstValueType(clang::QualType T);
 
+    /// The unsigned integer type that holds every value of the integer type
+    /// `T`, after integral promotion: `T` itself, as written, when unsigned --
+    /// size_t stays size_t -- and its unsigned counterpart otherwise.
+    /// References and qualifiers are dropped.
+    clang::QualType getUnsignedType(clang::QualType T,
+                                    const clang::ASTContext& C);
+
+    /// The spelling of `T` closest to how it was written that code in `Where`
+    /// can name: `T` itself, or the first of its single-step desugarings that
+    /// is nameable there, or `T` unchanged when none is. The parts of a
+    /// pointer or function type are spelled the same way. Not the
+    /// canonical type: a public typedef of a private class is nameable while
+    /// the class it names is not.
+    clang::QualType getSpellableType(clang::QualType T,
+                                     const clang::DeclContext* Where,
+                                     const clang::ASTContext& C);
+
     clang::QualType getNonConstType(clang::QualType T, clang::Sema& S);
+
+    /// A reference to what \p R found, qualified by \p SS and followed by
+    /// \p TemplateArgs when given. Null when Sema rejects it.
+    clang::Expr* BuildDeclarationNameExpr(
+        clang::Sema& S, const clang::CXXScopeSpec& SS, clang::LookupResult& R,
+        bool ADL = false,
+        const clang::TemplateArgumentListInfo* TemplateArgs = nullptr);
 
     /// Builds and returns the init expression to initialise `clad::array` and
     /// `clad::array_ref` from a constant array.
@@ -446,6 +470,9 @@ clang::Sema::SemaDiagnosticBuilder diag(
     LookupTemplateDeclInCladNamespace(clang::Sema& S,
                                       llvm::StringRef ClassName);
 
+    /// Remove only likelihood hints. Semantic statement attributes remain.
+    const clang::Stmt* SkipLikelihoodHints(const clang::Stmt* S);
+
     bool hasNonDifferentiableAttribute(const clang::Decl* D);
 
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
@@ -523,6 +550,29 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     /// Returns true if QT is a non-const reference type.
     bool isNonConstReferenceType(clang::QualType QT);
+
+    /// Collects the parameters \p FD writes a result through: non-const lvalue
+    /// references to a real type. A function returning void has nowhere else
+    /// to put a result, so in forward mode these are what the derivative has
+    /// to hand back. Pointers are deliberately not counted -- how many
+    /// elements one addresses is not something the signature says.
+    void CollectOutputParams(
+        const clang::FunctionDecl* FD,
+        llvm::SmallVectorImpl<const clang::ParmVarDecl*>& outputParams);
+
+    /// Whether a forward derivative of \p FD may hand back the tangent of an
+    /// output parameter rather than returning void.
+    ///
+    /// The answer has to be the same here and in
+    /// ExtractDerivedFnTraitsForwMode, which decides the derivative's type
+    /// from the header side; where the two disagree CladFunction::execute
+    /// calls through a type whose return it has wrong, and reads a register
+    /// nothing wrote. That rules out instance member functions, whose
+    /// derivative the traits describe through a member pointer type with no
+    /// room for a changed return type. A static member function is addressed
+    /// as a plain function pointer, takes the free-function path in the
+    /// traits, and so belongs here.
+    bool CanReturnOutputTangent(const clang::FunctionDecl* FD);
 
     bool isCopyable(const clang::CXXRecordDecl* RD);
 

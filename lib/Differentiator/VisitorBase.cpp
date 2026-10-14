@@ -864,8 +864,7 @@ namespace clad {
     m_Sema.LookupQualifiedName(R, DC);
     Expr* UnresolvedLookup = nullptr;
     if (!R.empty())
-      UnresolvedLookup =
-          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL=*/false).get();
+      UnresolvedLookup = utils::BuildDeclarationNameExpr(m_Sema, SS, R);
     auto MARargs = llvm::MutableArrayRef<Expr*>(callArgs);
     SourceLocation Loc;
     return m_Sema
@@ -873,13 +872,11 @@ namespace clad {
         .get();
   }
 
-  DeclRefExpr* VisitorBase::GetCladTapePushDRE() {
+  Expr* VisitorBase::GetCladTapePushDRE() {
     LookupResult& pushLR = GetCladTapePush();
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
-    DeclRefExpr* pushDRE = m_Sema.BuildDeclarationNameExpr(CSS, pushLR, false)
-                               .getAs<DeclRefExpr>();
-    return pushDRE;
+    return utils::BuildDeclarationNameExpr(m_Sema, CSS, pushLR);
   }
 
   LookupResult& VisitorBase::GetCladTapePop() {
@@ -1126,12 +1123,26 @@ namespace clad {
     for (unsigned i = 0; i < numArgs; ++i)
       NumDiffArgs.push_back(CloneNode(args[i]));
     // Return the found overload.
-    std::string Name = "forward_central_difference";
+    return BuildNumericalDiffCall("forward_central_difference", NumDiffArgs,
+                                  CUDAExecConfig);
+  }
+
+  Expr*
+  VisitorBase::BuildNumericalDiffCall(const std::string& Name,
+                                      llvm::SmallVectorImpl<Expr*>& NumDiffArgs,
+                                      Expr* CUDAExecConfig) {
+    SourceLocation Loc = GenLoc();
+    TemplateArgumentListInfo TemplateArgs(Loc, Loc);
+    QualType FnTy = utils::getSpellableType(NumDiffArgs.front()->getType(),
+                                            m_Derivative, m_Context);
+    if (FnTy->isFunctionPointerType())
+      TemplateArgs.addArgument(
+          TemplateArgumentLoc(TemplateArgument(FnTy),
+                              m_Context.getTrivialTypeSourceInfo(FnTy, Loc)));
     return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        Name, NumDiffArgs, getCurrentScope(),
-        /*OriginalFnDC=*/nullptr,
-        /*forCustomDerv=*/false,
-        /*namespaceShouldExist=*/false, CUDAExecConfig);
+        Name, NumDiffArgs, getCurrentScope(), /*callSite=*/nullptr,
+        /*forCustomDerv=*/false, /*namespaceShouldExist=*/false, CUDAExecConfig,
+        TemplateArgs.size() ? &TemplateArgs : nullptr);
   }
 
   ParmVarDecl* VisitorBase::CloneParmVarDecl(const ParmVarDecl* PVD,
@@ -1414,9 +1425,8 @@ namespace clad {
     LookupResult& init = clad_compat::llvm_Optional_GetValue(Result);
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
-    auto* pushDRE =
-        m_Sema.BuildDeclarationNameExpr(CSS, init, false).getAs<DeclRefExpr>();
-    return BuildCallExpr(pushDRE, args);
+    Expr* initRef = utils::BuildDeclarationNameExpr(m_Sema, CSS, init);
+    return BuildCallExpr(initRef, args);
   }
 
   Expr* VisitorBase::GetCladZeroLike(Expr* value) {
