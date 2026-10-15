@@ -1653,6 +1653,16 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           GetSingleArgCentralDiffCall(fnCallee, CallArgs[0],
                                       /*targetPos=*/0, /*numArgs=*/1, CallArgs);
     if (!callDiff) {
+      // The call is active, so a zero here drops a contribution. A callee
+      // without a definition was diagnosed when requested, and after an error
+      // the derivative is unusable anyway.
+      if (FD->isDefined() && !m_Sema.getDiagnostics().hasErrorOccurred()) {
+        SourceLocation L = CE->getBeginLoc();
+        diag(DiagnosticsEngine::Warning, L,
+             "no pushforward of %0 was derived; its contribution to the "
+             "derivative is considered 0")
+            << FD << L;
+      }
       auto zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
       return StmtDiff(call, zero);
