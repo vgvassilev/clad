@@ -545,6 +545,7 @@ Stmt* StmtClone::VisitDesignatedInitExpr(DesignatedInitExpr* Node) {
 
 Stmt* StmtClone::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr* Node) {
   if (Node->isArgumentType())
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     return new (Ctx) UnaryExprOrTypeTraitExpr(
         Node->getKind(), CloneTypeSourceInfo(Node->getArgumentTypeInfo()),
         CloneType(Node->getType()), Node->getOperatorLoc(),
@@ -947,6 +948,8 @@ QualType StmtClone::CloneType(QualType T) {
     TypeExprFinder Finder;
     if (!Finder.TraverseNestedNameSpecifier(ET->getQualifier()))
       Result = CloneCanonical();
+    else if (ET->getNamedType()->isVariablyModifiedType())
+      Result = CloneType(ET->getNamedType());
     else
       Result = Ctx.getElaboratedType(ET->getKeyword(), ET->getQualifier(),
                                      CloneType(ET->getNamedType()),

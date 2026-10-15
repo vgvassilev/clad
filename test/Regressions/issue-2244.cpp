@@ -295,8 +295,8 @@ int main() {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     int _d_n = 0;
 // CHECK-NEXT:     typedef double row_t[n];
-// CHECK-NEXT:     double *_d_p[n] = nullptr;
-// CHECK-NEXT:     double *p[n] = nullptr;
+// CHECK-NEXT:     double (*_d_p)[n] = nullptr;
+// CHECK-NEXT:     double (*p)[n] = nullptr;
 // CHECK-NEXT:     return _d_x * x + x * _d_x;
 // CHECK-NEXT: }
 
