@@ -20,6 +20,7 @@
 #include "clang/Sema/Lookup.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
@@ -971,29 +972,27 @@ QualType StmtClone::CloneType(QualType T) {
     }
   } else if (const auto* TT = dyn_cast<TemplateSpecializationType>(Ty)) {
     TypeExprFinder Finder;
-    if (!Finder.TraverseTemplateName(TT->getTemplateName()))
-      return Ctx.getQualifiedType(CloneCanonical(), T.getLocalQualifiers());
-    llvm::SmallVector<TemplateArgument, 4> Args;
-    for (const auto& Arg : TT->template_arguments()) {
-      if (Arg.getKind() != TemplateArgument::Type) {
-        Result = CloneCanonical();
-        break;
-      }
-      Args.emplace_back(CloneType(Arg.getAsType()));
-    }
-    if (Result.isNull())
+    if (!Finder.TraverseTemplateName(TT->getTemplateName()) ||
+        !llvm::all_of(TT->template_arguments(),
+                      [](const TemplateArgument& Arg) {
+                        return Arg.getKind() == TemplateArgument::Type;
+                      }))
+      Result = CloneCanonical();
+    else {
+      llvm::SmallVector<TemplateArgument, 4> Args;
+      for (const auto& Arg : TT->template_arguments())
+        Args.emplace_back(CloneType(Arg.getAsType()));
       Result = clad_compat::getTemplateSpecializationType(
           Ctx, TT, Args,
           TT->isTypeAlias() ? CloneType(TT->getAliasedType())
                             : T.getCanonicalType());
+    }
   } else
     Result = CloneCanonical();
   return Ctx.getQualifiedType(Result, T.getLocalQualifiers());
 }
 
 TypeSourceInfo* StmtClone::CloneTypeSourceInfo(TypeSourceInfo* TSI) {
-  if (!TSI)
-    return nullptr;
   return Ctx.getTrivialTypeSourceInfo(CloneType(TSI->getType()),
                                       TSI->getTypeLoc().getBeginLoc());
 }

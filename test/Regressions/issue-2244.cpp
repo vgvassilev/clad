@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -Xclang -verify -o %t 2>&1 | %filecheck %s
 // RUN: %t | %filecheck_exec %s
-// expected-no-diagnostics
+// RUN: %cladclang %s -I%S/../../include -DTYPE_DIAGNOSTICS -fsyntax-only -Xclang -verify
 
 #include "clad/Differentiator/Differentiator.h"
 #include <array>
@@ -155,6 +155,29 @@ double declFunctionVLA(double x, int n) {
   return x;
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic warning "-Wvla"
+double declVLATypedef(double x, int n) { // expected-note {{declared here}}
+  typedef double row_t[n]; // expected-warning {{variable length arrays}} expected-note {{function parameter 'n'}}
+  row_t* p = nullptr;
+  (void)p;
+  return x * x;
+}
+
+#pragma clang diagnostic pop
+
+#ifdef TYPE_DIAGNOSTICS
+double declAtomicVLA(double x, int n) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvla"
+  _Atomic(double (*)[n])* p = nullptr;
+#pragma clang diagnostic pop
+  (void)p;
+  return x;
+}
+// expected-error@* 2 {{clad cannot clone expression-bearing type}}
+#endif
+
 int main() {
   double dx = 0;
   auto gA = clad::gradient(declA, "x");
@@ -234,6 +257,11 @@ int main() {
   printf("NonTypeArgument %.1f\n", fNonTypeArgument.execute(3)); // CHECK-EXEC: NonTypeArgument 6.0
   auto fFunctionVLA = clad::differentiate(declFunctionVLA, "x");
   printf("FunctionVLA %.1f\n", fFunctionVLA.execute(3, 2)); // CHECK-EXEC: FunctionVLA 1.0
+  auto fVLATypedef = clad::differentiate(declVLATypedef, "x");
+  printf("VLATypedef %.1f\n", fVLATypedef.execute(3, 2)); // CHECK-EXEC: VLATypedef 6.0
+#ifdef TYPE_DIAGNOSTICS
+  clad::differentiate(declAtomicVLA, "x");
+#endif
   auto fA = clad::differentiate(declA, "x");
   printf("fwdA %.1f\n", fA.execute(3, 4)); // CHECK-EXEC: fwdA 4.0
   auto fC = clad::differentiate(declC, "x");
@@ -260,6 +288,15 @@ int main() {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     std::array<double, 2> *_d_p = nullptr;
 // CHECK-NEXT:     std::array<double, 2> *p = nullptr;
+// CHECK-NEXT:     return _d_x * x + x * _d_x;
+// CHECK-NEXT: }
+
+// CHECK: double declVLATypedef_darg0(double x, int n) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     int _d_n = 0;
+// CHECK-NEXT:     typedef double row_t[n];
+// CHECK-NEXT:     double *_d_p[n] = nullptr;
+// CHECK-NEXT:     double *p[n] = nullptr;
 // CHECK-NEXT:     return _d_x * x + x * _d_x;
 // CHECK-NEXT: }
 

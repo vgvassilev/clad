@@ -708,8 +708,6 @@ namespace clad {
     return clonedType;
   }
   TypeSourceInfo* VisitorBase::CloneTypeSourceInfo(TypeSourceInfo* TSI) {
-    if (!TSI)
-      return nullptr;
     return m_Context.getTrivialTypeSourceInfo(CloneType(TSI->getType()),
                                               TSI->getTypeLoc().getBeginLoc());
   }
