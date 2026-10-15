@@ -48,7 +48,7 @@ template <typename T, typename U> struct ValueAndPushforward {
   // ValueAndPushforward<V, w> where V is convertible to T and W is
   // convertible to U.
   template <typename V = T, typename W = U>
-  operator ValueAndPushforward<V, W>() const {
+  CUDA_HOST_DEVICE operator ValueAndPushforward<V, W>() const {
     return {static_cast<V>(value), static_cast<W>(pushforward)};
   }
 };

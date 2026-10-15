@@ -117,8 +117,31 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     return _d_sum * i + sum * _d_i + (2 * _d_sum) * j + _t14 * _d_j;
 // CHECK-NEXT: }
 
+__global__ void convert_pushforward(double* result) {
+  clad::ValueAndPushforward<float, float> original{1.25F, 3.5F};
+  clad::ValueAndPushforward<double, double> widened = original;
+  clad::ValueAndPushforward<float, double> mixed = original;
+  result[0] = widened.value;
+  result[1] = widened.pushforward;
+  result[2] = mixed.value;
+  result[3] = mixed.pushforward;
+}
+
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
 
   TEST_DIFFERENTIATE(fn1, 3, 5);  // CHECK-EXEC: 8000.00
+
+  double* converted;
+  if (cudaMallocManaged(&converted, 4 * sizeof(double)) != cudaSuccess)
+    return 1;
+  convert_pushforward<<<1, 1>>>(converted);
+  if (cudaDeviceSynchronize() != cudaSuccess) {
+    cudaFree(converted);
+    return 1;
+  }
+  printf("pushforward conversion: %.2f,%.2f,%.2f,%.2f\n", converted[0],
+         converted[1], converted[2], converted[3]);
+  // CHECK-EXEC: pushforward conversion: 1.25,3.50,1.25,3.50
+  cudaFree(converted);
 }
