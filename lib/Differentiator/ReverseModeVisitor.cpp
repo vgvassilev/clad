@@ -5860,6 +5860,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   ReverseModeVisitor::VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE) {
     const Expr* arg = CDE->getArgument();
     StmtDiff argDiff = Visit(arg);
+    // The pointer variable's own slot is judged, not what it points to: judged
+    // as a pointer value, every local `T* p = new T[n]` would count as storage
+    // owned elsewhere and its delete would be dropped. What the slot may hold
+    // is checked below.
     if (!utils::designatesLocallyOwnedStorage(arg))
       return {nullptr, nullptr};
     if (const auto* DRE = dyn_cast<DeclRefExpr>(arg->IgnoreParenImpCasts()))
