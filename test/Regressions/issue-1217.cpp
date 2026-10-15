@@ -175,7 +175,7 @@ int main() {
 
 // CHECK-LABEL: void issue_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT: A _d_u = {0.};
-// CHECK-NEXT: unsigned long _t0 = 0;
+// CHECK-NEXT: unsigned {{int|long|long long}} _t0 = 0;
 // CHECK-NEXT: while (x)
 // CHECK-NEXT: {
 // CHECK-NEXT: _t0++;
@@ -219,13 +219,13 @@ int main() {
 // CHECK-NEXT: A _d_u = {0.};
 // CHECK-NEXT: double _d_r = 0.;
 // CHECK-NEXT: double r = 0;
-// CHECK-NEXT: unsigned int _t0;
+// CHECK-NEXT: unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT: for (i = 0; i < n; ++i) {
 // CHECK-NEXT: A u{x * i};
 // CHECK-NEXT: r += u.x * 2;
 // CHECK-NEXT: }
 // CHECK-NEXT: _d_r += 1;
-// CHECK-NEXT: for (_t0 = n > 0 ? (unsigned int)n : 0U; _t0; _t0--) {
+// CHECK-NEXT: for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT: --i;
 // CHECK-NEXT: {
 // CHECK-NEXT: double _r_d0 = _d_r;
@@ -269,13 +269,13 @@ int main() {
 // CHECK-NEXT: M m = {0.};
 // CHECK-NEXT: double _d_r = 0.;
 // CHECK-NEXT: double r = 0;
-// CHECK-NEXT: unsigned int _t0;
+// CHECK-NEXT: unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT: for (i = 0; i < n; ++i) {
 // CHECK-NEXT: m = {x * i};
 // CHECK-NEXT: r += m.x;
 // CHECK-NEXT: }
 // CHECK-NEXT: _d_r += 1;
-// CHECK-NEXT: for (_t0 = n > 0 ? (unsigned int)n : 0U; _t0; _t0--) {
+// CHECK-NEXT: for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT: --i;
 // CHECK-NEXT: {
 // CHECK-NEXT: double _r_d0 = _d_r;
@@ -297,13 +297,13 @@ int main() {
 // CHECK-NEXT: Copyable u = {0.};
 // CHECK-NEXT: double _d_r = 0.;
 // CHECK-NEXT: double r = 0;
-// CHECK-NEXT: unsigned int _t0;
+// CHECK-NEXT: unsigned {{int|long|long long}} _t0;
 // CHECK-NEXT: for (i = 0; i < n; ++i) {
 // CHECK-NEXT: clad::push(_t1, std::move(u)) , u = {x * i};
 // CHECK-NEXT: r += u.x * x;
 // CHECK-NEXT: }
 // CHECK-NEXT: _d_r += 1;
-// CHECK-NEXT: for (_t0 = n > 0 ? (unsigned int)n : 0U; _t0; _t0--) {
+// CHECK-NEXT: for (_t0 = n > 0 ? (unsigned {{int|long|long long}})n : 0{{U|UL|ULL}}; _t0; _t0--) {
 // CHECK-NEXT: --i;
 // CHECK-NEXT: {
 // CHECK-NEXT: double _r_d0 = _d_r;
