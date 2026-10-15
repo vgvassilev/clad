@@ -794,16 +794,15 @@ namespace clad {
     if (!RLoc.isValid())
       RLoc = GenLoc();
     Expr* result = Base;
-    for (Expr* I : Indices) {
-      assert(I && "subscripting with an index that failed to build");
-      // get() is null for an ill-formed subscript, and the caller then
-      // receives null.
+    // A missing index, or an ill-formed subscript (get() is null), leaves the
+    // caller with null.
+    for (Expr* I : Indices)
       if (result)
-        result = m_Sema
-                     .ActOnArraySubscriptExpr(getCurrentScope(), result, LLoc,
-                                              I, RLoc)
-                     .get();
-    }
+        result = I ? m_Sema
+                         .ActOnArraySubscriptExpr(getCurrentScope(), result,
+                                                  LLoc, I, RLoc)
+                         .get()
+                   : nullptr;
     return result;
   }
 
@@ -1673,10 +1672,8 @@ namespace clad {
           .get();
 
     if (OOK == OO_Subscript)
-      return m_Sema
-          .CreateOverloadedArraySubscriptExpr(OpLoc, OpLoc, ArgExprs[0],
-                                              ArgExprs[1])
-          .get();
+      return BuildArraySubscript(ArgExprs.front(), ArgExprs.back(), OpLoc,
+                                 OpLoc);
 
     // Now deduce the kind based on the number of args.
     // Note for debugging: if the number of args is wrong,
