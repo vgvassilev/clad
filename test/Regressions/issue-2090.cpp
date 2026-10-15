@@ -209,6 +209,74 @@ double ordinary(double x) {
   return x;
 }
 
+#if __cplusplus >= 202002L
+namespace my {
+struct strong_ordering {
+  double v;
+};
+} // namespace my
+
+double named_category(double x) {
+  my::strong_ordering a{x};
+  return a.v * x;
+}
+
+struct ArrayState {
+  double v[2];
+  bool operator<(double y) const { return v[0] < y; }
+};
+
+double array_state(double x) {
+  ArrayState a{{x, 0}};
+  return a < 1 ? x : 2 * x;
+}
+
+struct Poly {
+  double v = 0;
+  virtual double get() const { return v; }
+  bool operator<(double y) const { return v < y; }
+};
+
+double dynamic_state(double x, const Poly& p) {
+  return p < x ? x : 2 * x;
+}
+
+struct Base {
+  double* p = nullptr;
+};
+struct Derived : Base {
+  bool operator<(double y) const { return *p < y; }
+};
+
+double inherited_state(double x, const Derived& p) {
+  return p < x ? x : 2 * x;
+}
+
+struct Flag {
+  bool v;
+  bool operator==(bool b) const { return v == b; }
+};
+
+double rewritten_operand(double x) {
+  S a{x}, b{1};
+  Flag flag{true};
+  bool c = flag == (a != b);
+  return c ? x : 2 * x;
+}
+
+double unary_operand(double x) {
+  ReadOnly a{0};
+  bool c = a < x++;
+  return c ? x : 2 * x;
+}
+
+double stored_unequal(double x) {
+  S a{x}, b{1};
+  bool ne = a != b;
+  return ne ? x : 2 * x;
+}
+#endif
+
 #define TEST(F, X, Y)                                                          \
   {                                                                          \
     auto d = clad::differentiate(F, "x");                                     \
@@ -251,6 +319,26 @@ int main() {
   std::printf("category_references: %.1f / %.1f\n",
               dr.execute(0.5, std::strong_ordering::less,
                          std::weak_ordering::less), dx);
+  TEST(named_category, 2.0, 3.0);
+  TEST(array_state, 0.5, 2.0);
+  TEST(rewritten_operand, 0.5, 1.0);
+  TEST(unary_operand, 0.5, -2.0);
+  TEST(stored_unequal, 0.5, 1.0);
+  Poly p;
+  p.v = 1;
+  auto dp = clad::differentiate(dynamic_state, "x");
+  std::printf("dynamic_state: %.1f %.1f\n", dp.execute(0.5, p),
+              dp.execute(2.0, p));
+  double dy = 0;
+  double v = 1;
+  Derived q{{&v}};
+  auto db = clad::differentiate(inherited_state, "x");
+  auto gb = clad::gradient(inherited_state, "x");
+  dx = dy = 0;
+  gb.execute(0.5, q, &dx);
+  gb.execute(2.0, q, &dy);
+  std::printf("inherited_state: %.1f %.1f / %.1f %.1f\n",
+              db.execute(0.5, q), db.execute(2.0, q), dx, dy);
 #endif
 }
 
@@ -271,6 +359,13 @@ int main() {
 // CHECK-EXEC-NEXT: ordinary: 6.0 6.0 / 6.0 6.0
 // EXEC20-NEXT: category_parameter: 1.0 2.0 / 1.0
 // EXEC20-NEXT: category_references: 1.0 / 1.0
+// EXEC20-NEXT: named_category: 4.0 6.0 / 4.0 6.0
+// EXEC20-NEXT: array_state: 1.0 2.0 / 1.0 2.0
+// EXEC20-NEXT: rewritten_operand: 1.0 2.0 / 1.0 2.0
+// EXEC20-NEXT: unary_operand: 1.0 2.0 / 1.0 2.0
+// EXEC20-NEXT: stored_unequal: 1.0 2.0 / 1.0 2.0
+// EXEC20-NEXT: dynamic_state: 2.0 1.0
+// EXEC20-NEXT: inherited_state: 2.0 1.0 / 2.0 1.0
 
 // CHECK-LABEL: double defaulted_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
@@ -661,4 +756,134 @@ int main() {
 // CXX20-NEXT:         else
 // CXX20-NEXT:             *_d_x += 2 * 1;
 // CXX20-NEXT:     }
+// CXX20-NEXT: }
+
+// CXX20-LABEL: double named_category_darg0(double x) {
+// CXX20-NEXT:     double _d_x = 1;
+// CXX20-NEXT:     my::strong_ordering _d_a{_d_x};
+// CXX20-NEXT:     my::strong_ordering a{x};
+// CXX20-NEXT:     double &_t0 = a.v;
+// CXX20-NEXT:     return _d_a.v * x + _t0 * _d_x;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: void named_category_grad(double x, double *_d_x) {
+// CXX20-NEXT:     my::strong_ordering _d_a = {0.};
+// CXX20-NEXT:     my::strong_ordering a{x};
+// CXX20-NEXT:     {
+// CXX20-NEXT:         _d_a.v += 1 * x;
+// CXX20-NEXT:         *_d_x += a.v * 1;
+// CXX20-NEXT:     }
+// CXX20-NEXT:     *_d_x += _d_a.v;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: double array_state_darg0(double x) {
+// CXX20-NEXT:     double _d_x = 1;
+// CXX20-NEXT:     ArrayState _d_a{{[{][{]}}_d_x, 0}};
+// CXX20-NEXT:     ArrayState a{{[{][{]}}x, 0}};
+// CXX20-NEXT:     bool _t0 = a < 1;
+// CXX20-NEXT:     return _t0 ? _d_x : 2 * _d_x;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: void array_state_grad(double x, double *_d_x) {
+// CXX20-NEXT:     ArrayState _d_a = {{[{][{]}}0., 0}};
+// CXX20-NEXT:     ArrayState a{{[{][{]}}x, 0}};
+// CXX20-NEXT:     if (a < 1)
+// CXX20-NEXT:         *_d_x += 1;
+// CXX20-NEXT:     else
+// CXX20-NEXT:         *_d_x += 2 * 1;
+// CXX20-NEXT:     *_d_x += _d_a.v[0];
+// CXX20-NEXT: }
+
+// CXX20-LABEL: double rewritten_operand_darg0(double x) {
+// CXX20-NEXT:     double _d_x = 1;
+// CXX20-NEXT:     S _d_a{_d_x}, _d_b{0};
+// CXX20-NEXT:     S a{x}, b{1};
+// CXX20-NEXT:     Flag _d_flag{0};
+// CXX20-NEXT:     Flag flag0{true};
+// CXX20-NEXT:     clad::ValueAndPushforward<bool, bool> _t0 = flag0.operator_equal_equal_pushforward(!a == b, &_d_flag, false);
+// CXX20-NEXT:     bool _d_c = _t0.pushforward;
+// CXX20-NEXT:     bool c = _t0.value;
+// CXX20-NEXT:     return c ? _d_x : 2 * _d_x;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: void rewritten_operand_grad(double x, double *_d_x) {
+// CXX20-NEXT:     S _d_a = {0.}, _d_b = {0};
+// CXX20-NEXT:     S a{x}, b{1};
+// CXX20-NEXT:     Flag _d_flag = {false};
+// CXX20-NEXT:     Flag flag0{true};
+// CXX20-NEXT:     bool _d_c = false;
+// CXX20-NEXT:     bool c = flag0 == !a == b;
+// CXX20-NEXT:     bool _cond0 = c;
+// CXX20-NEXT:     if (_cond0)
+// CXX20-NEXT:         *_d_x += 1;
+// CXX20-NEXT:     else
+// CXX20-NEXT:         *_d_x += 2 * 1;
+// CXX20-NEXT:     *_d_x += _d_a.v;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: double unary_operand_darg0(double x) {
+// CXX20-NEXT:     double _d_x = 1;
+// CXX20-NEXT:     ReadOnly _d_a{0};
+// CXX20-NEXT:     ReadOnly a{0};
+// CXX20-NEXT:     clad::ValueAndPushforward<bool, bool> _t0 = a.operator_less_pushforward(x++, &_d_a, _d_x);
+// CXX20-NEXT:     bool _d_c = _t0.pushforward;
+// CXX20-NEXT:     bool c = _t0.value;
+// CXX20-NEXT:     return c ? _d_x : 2 * _d_x;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: void unary_operand_grad(double x, double *_d_x) {
+// CXX20-NEXT:     ReadOnly _d_a = {0};
+// CXX20-NEXT:     ReadOnly a{0};
+// CXX20-NEXT:     bool _d_c = false;
+// CXX20-NEXT:     bool c = a < x++;
+// CXX20-NEXT:     bool _cond0 = c;
+// CXX20-NEXT:     if (_cond0)
+// CXX20-NEXT:         *_d_x += 1;
+// CXX20-NEXT:     else
+// CXX20-NEXT:         *_d_x += 2 * 1;
+// CXX20-NEXT:     x--;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: double stored_unequal_darg0(double x) {
+// CXX20-NEXT:     double _d_x = 1;
+// CXX20-NEXT:     S _d_a{_d_x}, _d_b{0};
+// CXX20-NEXT:     S a{x}, b{1};
+// CXX20-NEXT:     bool _d_ne = false;
+// CXX20-NEXT:     bool ne = !a == b;
+// CXX20-NEXT:     return ne ? _d_x : 2 * _d_x;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: void stored_unequal_grad(double x, double *_d_x) {
+// CXX20-NEXT:     S _d_a = {0.}, _d_b = {0};
+// CXX20-NEXT:     S a{x}, b{1};
+// CXX20-NEXT:     bool _d_ne = false;
+// CXX20-NEXT:     bool ne = !a == b;
+// CXX20-NEXT:     bool _cond0 = ne;
+// CXX20-NEXT:     if (_cond0)
+// CXX20-NEXT:         *_d_x += 1;
+// CXX20-NEXT:     else
+// CXX20-NEXT:         *_d_x += 2 * 1;
+// CXX20-NEXT:     *_d_x += _d_a.v;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: double dynamic_state_darg0(double x, const Poly &p) {
+// CXX20-NEXT:     double _d_x = 1;
+// CXX20-NEXT:     const Poly _d_p;
+// CXX20-NEXT:     bool _t0 = p < x;
+// CXX20-NEXT:     return _t0 ? _d_x : 2 * _d_x;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: double inherited_state_darg0(double x, const Derived &p) {
+// CXX20-NEXT:     double _d_x = 1;
+// CXX20-NEXT:     const Derived _d_p;
+// CXX20-NEXT:     bool _t0 = p < x;
+// CXX20-NEXT:     return _t0 ? _d_x : 2 * _d_x;
+// CXX20-NEXT: }
+
+// CXX20-LABEL: void inherited_state_grad_0(double x, const Derived &p, double *_d_x) {
+// CXX20-NEXT:     Derived _d_p = {};
+// CXX20-NEXT:     if (p < x)
+// CXX20-NEXT:         *_d_x += 1;
+// CXX20-NEXT:     else
+// CXX20-NEXT:         *_d_x += 2 * 1;
 // CXX20-NEXT: }
