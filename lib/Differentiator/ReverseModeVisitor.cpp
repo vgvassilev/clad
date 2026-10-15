@@ -32,6 +32,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -926,6 +927,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return result;
   }
 
+  // True when S always leaves the remaining statements of its enclosing
+  // compound unexecuted (return / break / continue, or an if whose every
+  // taken branch does).
+  static bool stmtAlwaysExits(const Stmt* S) {
+    if (!S)
+      return false;
+    if (isa<ReturnStmt>(S) || isa<BreakStmt>(S) || isa<ContinueStmt>(S))
+      return true;
+    if (const auto* CS = dyn_cast<CompoundStmt>(S)) {
+      for (const Stmt* C : CS->body())
+        if (stmtAlwaysExits(C))
+          return true;
+      return false;
+    }
+    if (const auto* IS = dyn_cast<IfStmt>(S))
+      return stmtAlwaysExits(IS->getThen()) && stmtAlwaysExits(IS->getElse());
+    return false;
+  }
+
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,
@@ -935,12 +955,51 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     ScopeRAII compoundScope(*this, scopeFlags);
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
+    // After `if (c) return; stmt;`, stmt does not run on the path that
+    // returned. Its reverse must not either -- otherwise loop-iteration tapes
+    // (restore_trackers, conds) are popped on an iteration that never pushed.
+    // Several such exits accumulate: after `if (a) return; if (b) return;`,
+    // later statements run only when `!a && !b`.
+    Expr* skipRestWhen = nullptr;
+    bool skipRestAlways = false;
+    auto noteExitWhen = [&](Expr* exitWhen) {
+      skipRestWhen = skipRestWhen
+                         ? BuildOp(BinaryOperatorKind::BO_LOr,
+                                   BuildParens(CloneNode(skipRestWhen)),
+                                   BuildParens(CloneNode(exitWhen)))
+                         : exitWhen;
+    };
     for (Stmt* S : CS->body()) {
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingStmtInVisitCompoundStmt();
       StmtDiff SDiff = DifferentiateSingleStmt(S);
       addToCurrentBlock(SDiff.getStmt(), direction::forward);
-      addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
+      Stmt* rev = SDiff.getStmt_dx();
+      if (rev && skipRestAlways) {
+        rev = nullptr;
+      } else if (rev && skipRestWhen) {
+        Expr* gate = BuildOp(clang::UnaryOperatorKind::UO_LNot,
+                             BuildParens(CloneNode(skipRestWhen)));
+        rev = clad_compat::IfStmt_Create(
+            m_Context, noLoc, /*IsConstexpr=*/false, /*Init=*/nullptr,
+            /*Var=*/nullptr, gate, noLoc, noLoc, rev, noLoc, /*Else=*/nullptr);
+      }
+      addToCurrentBlock(rev, direction::reverse);
+
+      if (!skipRestAlways) {
+        if (const auto* If = dyn_cast<IfStmt>(S)) {
+          bool thenExits = stmtAlwaysExits(If->getThen());
+          bool elseExits = stmtAlwaysExits(If->getElse());
+          Expr* cond = SDiff.getRevSweepAsExpr();
+          if (thenExits && elseExits)
+            skipRestAlways = true;
+          else if (thenExits && cond)
+            noteExitWhen(cond);
+          else if (elseExits && cond)
+            noteExitWhen(BuildOp(clang::UnaryOperatorKind::UO_LNot,
+                                 BuildParens(CloneNode(cond))));
+        }
+      }
 
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingStmtInVisitCompoundStmt();
@@ -1188,8 +1247,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
-    auto* activeBreakContHandler = PushBreakContStmtHandler();
-    activeBreakContHandler->BeginCFSwitchStmtScope();
+    // DifferentiateLoopBody owns the break/continue handler. Registering a
+    // second handler here records two cases for one early return and nests
+    // duplicate labels in the same reverse switch.
     const VarDecl* LoopVD = FRS->getLoopVariable();
 
     // The range and its iterators are rebuilt in the reverse sweep rather
@@ -1246,10 +1306,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff bodyDiff =
         DifferentiateLoopBody(body, loopCounter, nullptr, nullptr,
                               /*isForLoop=*/true, FRS->getForLoc());
-
-    activeBreakContHandler->EndCFSwitchStmtScope();
-    activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
-    PopBreakContStmtHandler();
 
     StmtDiff storeLoop = StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl()));
 
@@ -1740,6 +1796,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         GetActiveBreakContStmtHandler()->m_IsInvokedBySwitchStmt)
       addToCurrentBlock(CloseReverseSwitchCaseGroup(*GetActiveSwitchStmtInfo()),
                         direction::reverse);
+    // A return mid-iteration must record a control-flow-tape case, same as
+    // continue. Otherwise a loop that also has break/continue still pops the
+    // size_t tape in reverse, but this iteration never pushed (the fallthrough
+    // push lives at the end of the body, which the return skipped).
+    for (BreakContStmtHandler& H : m_BreakContStmtHandlers) {
+      // Only a loop that breaks or continues records which way an iteration
+      // left; the return is then one more way.
+      if (H.m_IsInvokedBySwitchStmt ||
+          !m_DiffReq.hasBreakOrContinue(H.m_LoopBody))
+        continue;
+      addToCurrentBlock(H.GetNextCFCaseStmt(), direction::reverse);
+      addToCurrentBlock(H.CreateCFTapePushExprToCurrentCase(),
+                        direction::forward);
+    }
     addToCurrentBlock(Reverse, direction::reverse);
 
     Stmt* marker = m_Sema.ActOnNullStmt(noLoc).get();
@@ -4205,7 +4275,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     std::reverse(RCS->body_begin(), RCS->body_end());
     Stmt* ReverseResult = utils::unwrapIfSingleStmt(RCS);
 
-    return StmtDiff(SDiff.getStmt(), ReverseResult);
+    // Keep the if-condition used as a reverse-sweep gate so statements after
+    // `if (c) return;` can skip their reverse on the iteration that returned.
+    Stmt* revSweep = isa<IfStmt>(S) ? SDiff.getRevSweepStmt() : nullptr;
+    return StmtDiff(SDiff.getStmt(), ReverseResult, revSweep);
   }
 
   std::pair<StmtDiff, StmtDiff>
@@ -5485,6 +5558,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     Expr* counterIncrement = loopCounter.getCounterIncrement();
     auto* activeBreakContHandler = PushBreakContStmtHandler();
+    activeBreakContHandler->m_LoopBody = body;
     activeBreakContHandler->BeginCFSwitchStmtScope();
     m_LoopBlock.emplace_back();
     // differentiate loop body and add loop increment expression
@@ -5590,6 +5664,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmt* newCS =
         clad_compat::ActOnContinueStmt(m_Sema, noLoc, getCurrentScope()).get();
     auto* activeBreakContHandler = GetActiveBreakContStmtHandler();
+    // FIXME: The loop would have to record this as one of its own control-flow
+    // cases, but the case label would sit inside the reverse of the switch,
+    // which it then belongs to, so the loop's reverse never dispatches to it.
+    if (activeBreakContHandler->m_IsInvokedBySwitchStmt) {
+      diag(DiagnosticsEngine::Error, CS->getBeginLoc(),
+           "reverse-mode differentiation of a 'continue' inside a 'switch' is "
+           "not supported yet");
+      addToCurrentBlock(newCS);
+      return {endBlock(direction::forward), nullptr};
+    }
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
     Stmt* pushExprToCurrentCase = activeBreakContHandler
                                       ->CreateCFTapePushExprToCurrentCase();
