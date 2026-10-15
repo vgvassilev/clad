@@ -1342,10 +1342,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
                 Expr* safeBase = const_cast<Expr*>(arg->IgnoreParens());
 
-                // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-                Expr* subExpr = new (m_Context)
-                    ArraySubscriptExpr(safeBase, idxExpr, elemType, VK_LValue,
-                                       OK_Ordinary, CE->getBeginLoc());
+                Expr* subExpr = BuildArraySubscript(
+                    safeBase, idxExpr, CE->getBeginLoc(), CE->getBeginLoc());
 
                 StmtDiff subDiff = Visit(subExpr);
                 Expr* subDx = subDiff.getExpr_dx();
