@@ -124,7 +124,7 @@ double fn3(double i, double j) {
 
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     Tangent _d_t;
+// CHECK-NEXT:     Tangent _d_t{};
 // CHECK-NEXT:     t.data[0] = 2 * i;
 // CHECK-NEXT:     t.data[1] = 5 * i + 3 * j;
 // CHECK-NEXT:     sum_pullback(t, 1, &_d_t);
@@ -378,7 +378,7 @@ double fn11(double x, double y) {
 
 // CHECK: void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     Tangent _d_t;
+// CHECK-NEXT:     Tangent _d_t{};
 // CHECK-NEXT:     t.data[0] = -y;
 // CHECK-NEXT:     operator_plus_pullback(x, t, 1, _d_x, &_d_t);
 // CHECK-NEXT:     {
