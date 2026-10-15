@@ -12,7 +12,11 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/TemplateBase.h"
+#include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Sema/Lookup.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -860,7 +864,9 @@ bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
 namespace {
 struct TypeExprFinder : RecursiveASTVisitor<TypeExprFinder> {
   ReferencesUpdater* Updater = nullptr;
-  bool TraverseStmt(Stmt* S) { return Updater ? Updater->TraverseStmt(S) : !S; }
+  bool TraverseStmt(Stmt* S) const {
+    return Updater ? Updater->TraverseStmt(S) : !S;
+  }
   bool TraverseTypedefType(TypedefType* T) {
     return TraverseType(T->desugar());
   }
@@ -873,11 +879,12 @@ struct TypeExprFinder : RecursiveASTVisitor<TypeExprFinder> {
 #endif
 };
 
-bool hasTypeExpr(QualType T) {
+} // namespace
+
+static bool hasTypeExpr(QualType T) {
   TypeExprFinder Finder;
   return !Finder.TraverseType(T);
 }
-} // namespace
 
 void ReferencesUpdater::updateType(QualType QT) {
   if (!QT.isNull() && m_UpdatedTypes.insert(QT.getTypePtr()).second) {

@@ -15,6 +15,8 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/Sema.h"
