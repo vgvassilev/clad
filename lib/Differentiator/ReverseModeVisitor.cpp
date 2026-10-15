@@ -13,6 +13,7 @@
 #include "LoopScope.h"
 #include "TBRAnalyzer.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ExternalRMVSource.h"
@@ -58,6 +59,7 @@
 #include "clang/Sema/Template.h"
 
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -154,18 +156,18 @@ void ReverseModeVisitor::checkKeptPrimals(Stmt* Forward, Stmt* Reverse) {
   if (m_KeptPrimals.empty())
     return;
   class References : public RecursiveASTVisitor<References> {
-    const llvm::DenseMap<const VarDecl*, const VarDecl*>& Kept;
-    llvm::SmallPtrSetImpl<const VarDecl*>& Found;
+    const llvm::DenseMap<const VarDecl*, const VarDecl*>& m_Kept;
+    llvm::SmallPtrSetImpl<const VarDecl*>& m_Found;
 
   public:
     References(const llvm::DenseMap<const VarDecl*, const VarDecl*>& K,
                llvm::SmallPtrSetImpl<const VarDecl*>& F)
-        : Kept(K), Found(F) {}
-    bool shouldVisitImplicitCode() const { return true; }
+        : m_Kept(K), m_Found(F) {}
+    [[nodiscard]] static bool shouldVisitImplicitCode() { return true; }
     bool VisitDeclRefExpr(DeclRefExpr* E) {
-      auto It = Kept.find(dyn_cast<VarDecl>(E->getDecl()));
-      if (It != Kept.end())
-        Found.insert(It->second);
+      auto It = m_Kept.find(dyn_cast<VarDecl>(E->getDecl()));
+      if (It != m_Kept.end())
+        m_Found.insert(It->second);
       return true;
     }
     bool VisitCXXDefaultArgExpr(CXXDefaultArgExpr* E) {
@@ -180,17 +182,17 @@ void ReverseModeVisitor::checkKeptPrimals(Stmt* Forward, Stmt* Reverse) {
 
   // Stored addresses can hide a dead primal behind a global or taped pointer.
   class Addresses : public RecursiveASTVisitor<Addresses> {
-    const llvm::DenseMap<const VarDecl*, const VarDecl*>& Kept;
-    llvm::SmallPtrSetImpl<const VarDecl*>& Found;
+    const llvm::DenseMap<const VarDecl*, const VarDecl*>& m_Kept;
+    llvm::SmallPtrSetImpl<const VarDecl*>& m_Found;
 
   public:
     Addresses(const llvm::DenseMap<const VarDecl*, const VarDecl*>& K,
               llvm::SmallPtrSetImpl<const VarDecl*>& F)
-        : Kept(K), Found(F) {}
-    bool shouldVisitImplicitCode() const { return true; }
+        : m_Kept(K), m_Found(F) {}
+    [[nodiscard]] static bool shouldVisitImplicitCode() { return true; }
     bool VisitUnaryOperator(UnaryOperator* E) {
       if (E->getOpcode() == UO_AddrOf)
-        References(Kept, Found).TraverseStmt(E->getSubExpr());
+        References(m_Kept, m_Found).TraverseStmt(E->getSubExpr());
       return true;
     }
   };
@@ -203,23 +205,23 @@ void ReverseModeVisitor::checkKeptPrimals(Stmt* Forward, Stmt* Reverse) {
         if (const auto* VD = dyn_cast<VarDecl>(D))
           Promoted.insert(VD);
   class Escapes : public RecursiveASTVisitor<Escapes> {
-    const llvm::DenseMap<const VarDecl*, const VarDecl*>& Kept;
-    llvm::SmallPtrSetImpl<const VarDecl*>& Found;
-    const llvm::SmallPtrSetImpl<const VarDecl*>& Promoted;
+    const llvm::DenseMap<const VarDecl*, const VarDecl*>& m_Kept;
+    llvm::SmallPtrSetImpl<const VarDecl*>& m_Found;
+    const llvm::SmallPtrSetImpl<const VarDecl*>& m_Promoted;
 
-    void checkStored(Expr* E) { Addresses(Kept, Found).TraverseStmt(E); }
+    void checkStored(Expr* E) { Addresses(m_Kept, m_Found).TraverseStmt(E); }
 
   public:
     Escapes(const llvm::DenseMap<const VarDecl*, const VarDecl*>& K,
             llvm::SmallPtrSetImpl<const VarDecl*>& F,
             const llvm::SmallPtrSetImpl<const VarDecl*>& P)
-        : Kept(K), Found(F), Promoted(P) {}
-    bool shouldVisitImplicitCode() const { return true; }
+        : m_Kept(K), m_Found(F), m_Promoted(P) {}
+    [[nodiscard]] static bool shouldVisitImplicitCode() { return true; }
     bool VisitVarDecl(VarDecl* VD) {
-      if (Promoted.count(VD)) {
+      if (m_Promoted.count(VD)) {
         checkStored(VD->getInit());
         if (VD->getType()->isReferenceType())
-          References(Kept, Found).TraverseStmt(VD->getInit());
+          References(m_Kept, m_Found).TraverseStmt(VD->getInit());
       }
       return true;
     }
@@ -227,7 +229,7 @@ void ReverseModeVisitor::checkKeptPrimals(Stmt* Forward, Stmt* Reverse) {
       if (E->isAssignmentOp())
         if (const auto* L =
                 dyn_cast<DeclRefExpr>(E->getLHS()->IgnoreParenImpCasts()))
-          if (Promoted.count(dyn_cast<VarDecl>(L->getDecl())))
+          if (m_Promoted.count(dyn_cast<VarDecl>(L->getDecl())))
             checkStored(E->getRHS());
       return true;
     }
@@ -1328,7 +1330,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           cast<VarDecl>(FRS->getRangeStmt()->getSingleDecl()),
           cast<VarDecl>(FRS->getBeginStmt()->getSingleDecl()),
           cast<VarDecl>(FRS->getEndStmt()->getSingleDecl())}) {
-      if (needsLocalStorage(VD, nullptr, /*forcePromotion=*/true)) {
+      if (needsLocalStorage(VD, /*DS=*/nullptr, /*forcePromotion=*/true)) {
         diag(DiagnosticsEngine::Error, VD->getLocation(),
              "cannot differentiate local variable '%0' of type %1: "
              "range-for storage requires unavailable %2")
