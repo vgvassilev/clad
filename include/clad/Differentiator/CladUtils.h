@@ -10,6 +10,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/Diagnostic.h"
@@ -336,6 +337,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
                                      const clang::ASTContext& C);
 
     clang::QualType getNonConstType(clang::QualType T, clang::Sema& S);
+
+    /// The lambda \p VD is initialized with, through the cleanups and
+    /// conversions around it -- a lambda capturing an object with a
+    /// non-trivial destructor is wrapped -- or null.
+    const clang::LambdaExpr* getLambdaInit(const clang::VarDecl* VD);
 
     /// A reference to what \p R found, qualified by \p SS and followed by
     /// \p TemplateArgs when given. Null when Sema rejects it.

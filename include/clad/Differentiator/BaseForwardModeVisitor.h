@@ -9,6 +9,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -207,6 +208,11 @@ protected:
       const clang::CXXConstructExpr* CE,
       llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
       llvm::SmallVectorImpl<clang::Expr*>& derivedArgs);
+
+  clang::QualType GetLambdaPushforwardType(const clang::LambdaExpr* LE);
+
+  /// Builds the pushforward lambda for LE
+  clang::Expr* buildPushforwardLambda(const clang::LambdaExpr* LE);
 
 private:
   /// Prepares the derivative function parameters.
