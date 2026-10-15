@@ -322,7 +322,7 @@ int main() {
 // CXX17-NEXT:     bool _d_c = 0;
 // CXX17-NEXT:     bool c = a < b;
 // CXX17-NEXT:     return c ? _d_x : 2 * _d_x;
-// CXX20-NEXT:     std::partial_ordering c = a <=> b;
+// CXX20-NEXT:     {{(std::)*}}partial_ordering c = a <=> b;
 // CXX20-NEXT:     bool _t0 = c < 0;
 // CXX20-NEXT:     return _t0 ? _d_x : 2 * _d_x;
 // CHECK-NEXT: }
@@ -334,7 +334,7 @@ int main() {
 // CXX17-NEXT:     bool c = a < b;
 // CXX17-NEXT:     bool _cond0 = c;
 // CXX17-NEXT:     if (_cond0)
-// CXX20-NEXT:     std::partial_ordering c = a <=> b;
+// CXX20-NEXT:     {{(std::)*}}partial_ordering c = a <=> b;
 // CXX20-NEXT:     if (c < 0)
 // CHECK-NEXT:         *_d_x += 1;
 // CHECK-NEXT:     else
@@ -375,7 +375,7 @@ int main() {
 // CHECK-NEXT: }
 
 // CXX20-LABEL: inline clad::ValueAndPushforward<double, double> category_parameter_pushforward(double x, std::partial_ordering c, double _d_x) {
-// CXX20-NEXT:     std::partial_ordering local = std::partial_ordering::less;
+// CXX20-NEXT:     {{(std::)*}}partial_ordering local = std::partial_ordering::less;
 // CXX20-NEXT:     bool _t0 = c < 0;
 // CXX20-NEXT:     return {_t0 ? x : 2 * x, _t0 ? _d_x : 2 * _d_x};
 // CXX20-NEXT: }
@@ -388,7 +388,7 @@ int main() {
 // CHECK-NEXT: }
 
 // CXX20-LABEL: inline void category_parameter_pullback(double x, std::partial_ordering c, double _d_y, double *_d_x) {
-// CXX20-NEXT:     std::partial_ordering local = std::partial_ordering::less;
+// CXX20-NEXT:     {{(std::)*}}partial_ordering local = std::partial_ordering::less;
 // CXX20-NEXT:     if (c < 0)
 // CXX20-NEXT:         *_d_x += _d_y;
 // CXX20-NEXT:     else
@@ -621,13 +621,13 @@ int main() {
 
 // CXX20-LABEL: double category_parameter_darg0(double x, std::partial_ordering c) {
 // CXX20-NEXT:     double _d_x = 1;
-// CXX20-NEXT:     std::partial_ordering local = std::partial_ordering::less;
+// CXX20-NEXT:     {{(std::)*}}partial_ordering local = std::partial_ordering::less;
 // CXX20-NEXT:     bool _t0 = c < 0;
 // CXX20-NEXT:     return _t0 ? _d_x : 2 * _d_x;
 // CXX20-NEXT: }
 
 // CXX20-LABEL: void category_parameter_grad(double x, std::partial_ordering c, double *_d_x) {
-// CXX20-NEXT:     std::partial_ordering local = std::partial_ordering::less;
+// CXX20-NEXT:     {{(std::)*}}partial_ordering local = std::partial_ordering::less;
 // CXX20-NEXT:     if (c < 0)
 // CXX20-NEXT:         *_d_x += 1;
 // CXX20-NEXT:     else
@@ -636,8 +636,8 @@ int main() {
 
 // CXX20-LABEL: double category_references_darg0(double x, const std::strong_ordering &s, const std::weak_ordering &w) {
 // CXX20-NEXT:     double _d_x = 1;
-// CXX20-NEXT:     std::std::strong_ordering strong0 = s;
-// CXX20-NEXT:     std::std::weak_ordering weak = w;
+// CXX20-NEXT:     {{(std::)*}}strong_ordering strong0 = s;
+// CXX20-NEXT:     {{(std::)*}}weak_ordering weak = w;
 // CXX20-NEXT:     bool _t0 = strong0 < 0 && weak < 0;
 // CXX20-NEXT:     return _t0 ? _d_x : 2 * _d_x;
 // CXX20-NEXT: }
@@ -646,8 +646,8 @@ int main() {
 // CXX20-NEXT:     bool _cond0;
 // CXX20-NEXT:     double _d_cond0;
 // CXX20-NEXT:     _d_cond0 = 0.;
-// CXX20-NEXT:     std::std::strong_ordering strong0 = s;
-// CXX20-NEXT:     std::std::weak_ordering weak = w;
+// CXX20-NEXT:     {{(std::)*}}strong_ordering strong0 = s;
+// CXX20-NEXT:     {{(std::)*}}weak_ordering weak = w;
 // CXX20-NEXT:     if (strong0 < 0)
 // CXX20-NEXT:         _cond0 = weak < 0;
 // CXX20-NEXT:     bool _cond1 = strong0 < 0 && _cond0;
