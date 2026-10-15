@@ -29,6 +29,7 @@
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -50,6 +51,7 @@
 
 namespace clang {
 class NestedNameSpecifier;
+class LambdaExpr;
 } // namespace clang
 
 namespace llvm {
@@ -267,6 +269,11 @@ namespace clad {
     /// See the example inside ForwardModeVisitor::VisitDeclStmt.
     std::unordered_map<const clang::VarDecl*, clang::VarDecl*>
         m_DeclReplacements;
+    /// The snapshot of a by-copy capture taken where its lambda is created,
+    /// keyed by the capture's field in the closure type, which names both the
+    /// lambda and the variable: one variable captured by two lambdas has two.
+    llvm::DenseMap<const clang::FieldDecl*, clang::VarDecl*>
+        m_LambdaCaptureSnapshots;
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
@@ -354,7 +361,8 @@ namespace clad {
       /// into it. \p LE only supplies the declaration context to graft the
       /// closure onto, \p BuildParams appends the call operator's parameters.
       void start(const clang::LambdaExpr* LE, clang::QualType CallOpType,
-                 ParamBuilder BuildParams);
+                 ParamBuilder BuildParams,
+                 clang::QualType TrailingReturnType = {});
       /// Closes the scopes start() opened.
       clang::Expr* finish(clang::Stmt* Body);
     };
@@ -434,6 +442,18 @@ namespace clad {
           .get();
     }
 
+    /// Resolve a captured variable to its clone in the enclosing derivative.
+    clang::VarDecl* getEnclosingCaptureClone(const clang::VarDecl* capVD);
+    /// The field of \p LE's closure type that holds the capture of \p capVD.
+    static const clang::FieldDecl* getCaptureField(const clang::LambdaExpr* LE,
+                                                   const clang::VarDecl* capVD);
+    /// The derivative closure of the lambda \p VD holds, which the
+    /// derivative tracks as the adjoint or tangent of \p VD's clone; null
+    /// where none was built.
+    clang::Expr* getLambdaDerivative(const clang::VarDecl* VD);
+    std::pair<clang::Expr*, clang::Expr*>
+    getCaptureValueAndAdjoint(const clang::LambdaExpr* LE,
+                              const clang::VarDecl* capVD, bool isByCopy);
     /// For a qualtype QT returns if it's type is Array or Pointer Type
     static bool isArrayOrPointerType(const clang::QualType QT) {
       return utils::isArrayOrPointerType(QT);
@@ -713,6 +733,8 @@ namespace clad {
            "differentiation of indirect calls is not supported")
           << L;
     }
+
+    bool diagnoseUnsupportedLambda(const clang::LambdaExpr* LE);
 
     /// Shorthand for warning on differentiation of unsupported operators
     void unsupportedOpWarn(clang::SourceLocation loc) {
