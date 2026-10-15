@@ -975,17 +975,10 @@ QualType StmtClone::CloneType(QualType T) {
       Args.emplace_back(CloneType(Arg.getAsType()));
     }
     if (Result.isNull())
-#if CLANG_VERSION_MAJOR >= 22
-      Result = Ctx.getTemplateSpecializationType(
-          TT->getKeyword(), TT->getTemplateName(), Args, {},
+      Result = clad_compat::getTemplateSpecializationType(
+          Ctx, TT, Args,
           TT->isTypeAlias() ? CloneType(TT->getAliasedType())
                             : T.getCanonicalType());
-#else
-      Result = Ctx.getTemplateSpecializationType(
-          TT->getTemplateName(), Args,
-          TT->isTypeAlias() ? CloneType(TT->getAliasedType())
-                            : T.getCanonicalType());
-#endif
   } else
     Result = CloneCanonical();
   return Ctx.getQualifiedType(Result, T.getLocalQualifiers());

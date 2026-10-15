@@ -246,12 +246,12 @@ int main() {
 // CHECK-NEXT:     decltype(n) i = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     double _d_r = 0.;
 // CHECK-NEXT:     double r = 0;
-// CHECK-NEXT:     std::size_t _t0;
+// CHECK-NEXT:     {{std::size_t|unsigned int|unsigned long|unsigned long long}} _t0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         r += x;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_r += 1;
-// CHECK-NEXT:     for (_t0 = n > 0 ? (std::size_t)n : {{0U|0UL|0ULL}}; _t0; _t0--) {
+// CHECK-NEXT:     for (_t0 = n > 0 ? ({{std::size_t|unsigned int|unsigned long|unsigned long long}})n : {{0U|0UL|0ULL}}; _t0; _t0--) {
 // CHECK-NEXT:         *_d_x += _d_r;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

@@ -33,6 +33,22 @@ namespace clad_compat {
 using namespace clang;
 using namespace llvm;
 
+// Clang 21 separates specified and canonical arguments; 22 adds the keyword.
+inline clang::QualType getTemplateSpecializationType(
+    clang::ASTContext& C, const clang::TemplateSpecializationType* T,
+    llvm::ArrayRef<clang::TemplateArgument> Args, clang::QualType Underlying) {
+#if CLANG_VERSION_MAJOR >= 22
+  return C.getTemplateSpecializationType(T->getKeyword(), T->getTemplateName(),
+                                         Args, {}, Underlying);
+#elif CLANG_VERSION_MAJOR >= 21
+  return C.getTemplateSpecializationType(T->getTemplateName(), Args, {},
+                                         Underlying);
+#else
+  return C.getTemplateSpecializationType(T->getTemplateName(), Args,
+                                         Underlying);
+#endif
+}
+
 // clang-21
 #if CLANG_VERSION_MAJOR < 21
 #define CLAD_COMPAT_CLANG21_AtEndOfTUParam
