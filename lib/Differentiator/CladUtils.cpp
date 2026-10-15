@@ -25,6 +25,7 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
