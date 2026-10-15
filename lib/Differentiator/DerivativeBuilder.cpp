@@ -201,6 +201,10 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // We only need the keywords final and override in the tag declaration.
         if (isa<OverrideAttr>(Attr) || isa<FinalAttr>(Attr))
           continue;
+        // [[nodiscard]] describes the primal's result. Clad emits a pullback
+        // call as a statement and drops one whose result Sema calls unused.
+        if (isa<WarnUnusedResultAttr>(Attr))
+          continue;
         if (!hasAttribute(returnedFD, Attr->getKind()))
           returnedFD->addAttr(Attr->clone(m_Context));
       }
