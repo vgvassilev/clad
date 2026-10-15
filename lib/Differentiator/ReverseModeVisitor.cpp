@@ -2532,8 +2532,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // leaves the adjoint on the returned reference. Keep the call
     // differentiable so its statically scheduled pullback can propagate it
     // through the implicit object.
+    // A call that moves a derivative through a global needs its pullback.
     if (!nonDiff && !dfdx() && !utils::hasMemoryTypeParams(FD) &&
-        !needsPullbackForRefReturningInstance)
+        !needsPullbackForRefReturningInstance &&
+        !m_DiffReq.touchesActiveGlobal(CE))
       nonDiff = true;
 
     // If all arguments are constant literals, then this does not contribute to
@@ -2547,6 +2549,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           break;
         }
       }
+      // Unless a global's adjoint carries it.
+      if (m_DiffReq.touchesActiveGlobal(CE))
+        nonDiff = false;
     }
 
     QualType returnType = FD->getReturnType();
@@ -2558,7 +2563,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // If the function has a single arg and does not return a reference or
     // take arg by reference, we can request a derivative w.r.t. to this arg
     // using the forward mode.
-    bool asGrad = !utils::canUsePushforwardInRevMode(FD, CE);
+    // A pushforward cannot reach a global's adjoint.
+    bool asGrad = !utils::canUsePushforwardInRevMode(FD, CE) ||
+                  m_DiffReq.touchesActiveGlobal(CE);
 
     // Build the DiffRequest
     DiffRequest pullbackRequest{};
@@ -6058,7 +6065,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     // If all arguments are constant literals, then this does not contribute to
     // the gradient.
-    if (!nonDiff) {
+    if (!nonDiff && !m_DiffReq.touchesActiveGlobal(CE)) {
       nonDiff = true;
       for (const Expr* arg : CE->arguments()) {
         if (m_DiffReq.isVaried(arg)) {

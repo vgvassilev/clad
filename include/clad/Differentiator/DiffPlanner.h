@@ -34,6 +34,7 @@
 #include <memory>
 #include <set>
 #include <unordered_map>
+#include <vector>
 
 namespace clang {
 class CallExpr;
@@ -337,6 +338,13 @@ public:
   bool isInPlaceReallocated(const clang::VarDecl* VD) const {
     return InPlaceReallocPtrs.count(VD) != 0;
   }
+  /// The calls in this function's body that move a derivative through a
+  /// global's adjoint, whatever their arguments; only a pullback can.
+  std::set<const clang::Expr*> ActiveGlobalCalls;
+  /// Whether \p Call is one of ActiveGlobalCalls.
+  bool touchesActiveGlobal(const clang::Expr* Call) const {
+    return ActiveGlobalCalls.count(Call) != 0;
+  }
   /// Requested differentiation mode, forward or reverse.
   DiffMode Mode = DiffMode::unknown;
   /// If function appears in the call to clad::gradient/differentiate,
@@ -607,6 +615,27 @@ public:
     const Options& m_Options;
 
     llvm::DenseSet<const clang::FunctionDecl*> m_Traversed;
+
+    /// The globals a function's own body reads and assigns, and the functions
+    /// it calls directly.
+    struct GlobalAccess {
+      std::set<const clang::VarDecl*> Reads;
+      std::set<const clang::VarDecl*> Writes;
+      std::set<const clang::VarDecl*> IndirectReads;
+      std::vector<const clang::FunctionDecl*> Callees;
+    };
+    /// A std::map: references into it stay valid while it grows.
+    std::map<const clang::FunctionDecl*, GlobalAccess> m_GlobalAccess;
+    const GlobalAccess& getGlobalAccess(const clang::FunctionDecl* FD);
+    /// The union of getGlobalAccess() over the functions reachable from a
+    /// callee through direct calls, itself included.
+    std::map<const clang::FunctionDecl*, GlobalAccess> m_ReachableGlobalAccess;
+    const GlobalAccess&
+    getReachableGlobalAccess(const clang::FunctionDecl* Callee);
+    /// Whether the call \p E reads a global the differentiated code assigns,
+    /// or assigns one it reads; if so, records \p E on the parent request.
+    bool touchesActiveGlobal(const clang::Expr* E,
+                             const clang::FunctionDecl* Callee);
 
     bool m_IsTraversingTopLevelDecl = true;
 
