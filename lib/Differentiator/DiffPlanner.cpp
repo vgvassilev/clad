@@ -31,6 +31,7 @@
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/DiagnosticSema.h"
@@ -1906,9 +1907,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       QualType returnType = FD->getReturnType();
       bool hasPointerOrRefReturn = utils::isNonConstReferenceType(returnType) ||
                                    returnType->isPointerType();
+      // Such a call moves a derivative through a global, whatever its
+      // arguments.
+      bool touchesGlobal = touchesActiveGlobal(E, FD);
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
       if (!(MD && MD->isInstance()) && !hasPointerOrRefReturn &&
+          !touchesGlobal &&
           allArgumentsAreLiterals(E->arguments(), m_ParentReq))
         nonDiff = true;
       // In reverse mode, calls without memory parameters normally have no
@@ -1937,9 +1942,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       request.Function = FD;
       request.CallContext = E;
+      // A pushforward has no way to hand an adjoint to a global.
       bool canUsePushforwardInRevMode =
           m_TopMostReq->Mode == DiffMode::reverse &&
-          !request.EnableErrorEstimation &&
+          !request.EnableErrorEstimation && !touchesGlobal &&
           utils::canUsePushforwardInRevMode(FD, E);
 
       std::string FDName = FD->getNameAsString();
@@ -2279,6 +2285,181 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return true;
   }
 
+  /// Whether reverse mode can carry a derivative through a global of type
+  /// \p T: a floating-point scalar, or a plain struct made only of those.
+  /// Pointers, references and integers (counters, flags) cannot, and neither
+  /// can an array yet: reverse mode does not compile a global array's adjoint.
+  static bool isFloatingAggregate(QualType T) {
+    T = T.getCanonicalType();
+    if (T->isRealFloatingType())
+      return true;
+    if (const auto* RD = T->getAsCXXRecordDecl()) {
+      if (!RD->hasDefinition() || !RD->isAggregate() || RD->getNumBases())
+        return false;
+      return !RD->field_empty() &&
+             std::all_of(RD->field_begin(), RD->field_end(),
+                         [](const FieldDecl* F) {
+                           return isFloatingAggregate(F->getType());
+                         });
+    }
+    return false;
+  }
+
+  const DiffCollector::GlobalAccess&
+  DiffCollector::getGlobalAccess(const FunctionDecl* FD) {
+    auto found = m_GlobalAccess.find(FD);
+    if (found != m_GlobalAccess.end())
+      return found->second;
+
+    class Collector : public RecursiveASTVisitor<Collector> {
+      GlobalAccess& m_Access;
+      /// The variable an lvalue stores into: `g`, `g.v`, `g[i]`.
+      static const DeclRefExpr* assignedVar(const Expr* E) {
+        while (true) {
+          E = E->IgnoreParenImpCasts();
+          if (const auto* ME = dyn_cast<MemberExpr>(E)) {
+            if (ME->isArrow())
+              return nullptr;
+            E = ME->getBase();
+          } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+            // `p[i]` stores through a pointer, not into p.
+            E = ASE->getBase()->IgnoreParenImpCasts();
+            if (!E->getType()->isArrayType())
+              return nullptr;
+          } else
+            break;
+        }
+        return dyn_cast<DeclRefExpr>(E);
+      }
+      static bool isTracked(const DeclRefExpr* DRE) {
+        const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+        return VD && VD->isFileVarDecl() && !VD->getType().isConstQualified() &&
+               isFloatingAggregate(VD->getType());
+      }
+      /// The variables a plain assignment stores into without reading them.
+      llvm::SmallPtrSet<const DeclRefExpr*, 4> m_StoreOnly;
+      void addWrite(const DeclRefExpr* DRE) {
+        if (isTracked(DRE))
+          m_Access.Writes.insert(cast<VarDecl>(DRE->getDecl()));
+      }
+
+    public:
+      explicit Collector(GlobalAccess& A) : m_Access(A) {}
+      bool shouldVisitImplicitCode() const { return true; }
+      // `sizeof(g)` and the like read nothing.
+      bool TraverseUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr*) {
+        return true;
+      }
+      // clang-22 added a trailing bool (TraverseQualifier); a defaulted
+      // parameter matches both calls.
+      bool TraverseDecltypeTypeLoc(DecltypeTypeLoc, bool = false) {
+        return true;
+      }
+      bool VisitBinaryOperator(BinaryOperator* BO) {
+        if (!BO->isAssignmentOp())
+          return true;
+        const DeclRefExpr* DRE = assignedVar(BO->getLHS());
+        addWrite(DRE);
+        if (DRE && BO->getOpcode() == BO_Assign)
+          m_StoreOnly.insert(DRE);
+        return true;
+      }
+      bool VisitUnaryOperator(UnaryOperator* UO) {
+        if (UO->isIncrementDecrementOp())
+          addWrite(assignedVar(UO->getSubExpr()));
+        return true;
+      }
+      bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+        if (isTracked(DRE) && !m_StoreOnly.contains(DRE))
+          m_Access.Reads.insert(cast<VarDecl>(DRE->getDecl()));
+        // A global pointer or reference may alias a tracked global.
+        const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+        if (VD && VD->isFileVarDecl() &&
+            (VD->getType()->isPointerType() ||
+             VD->getType()->isReferenceType()) &&
+            VD->getType()->getPointeeType()->isRealFloatingType())
+          m_Access.IndirectReads.insert(VD);
+        return true;
+      }
+      bool VisitCallExpr(CallExpr* CE) {
+        if (const FunctionDecl* Callee = CE->getDirectCallee())
+          m_Access.Callees.push_back(Callee);
+        return true;
+      }
+      bool VisitCXXConstructExpr(CXXConstructExpr* CE) {
+        m_Access.Callees.push_back(CE->getConstructor());
+        return true;
+      }
+    };
+
+    GlobalAccess Access;
+    if (const FunctionDecl* Def = FD->getDefinition())
+      // A constructor's member initializers are part of the declaration, not
+      // of the body; traverse the whole definition.
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      Collector(Access).TraverseDecl(const_cast<FunctionDecl*>(Def));
+    return m_GlobalAccess[FD] = std::move(Access);
+  }
+
+  const DiffCollector::GlobalAccess&
+  DiffCollector::getReachableGlobalAccess(const FunctionDecl* Callee) {
+    auto found = m_ReachableGlobalAccess.find(Callee);
+    if (found != m_ReachableGlobalAccess.end())
+      return found->second;
+    GlobalAccess Reachable;
+    llvm::SmallPtrSet<const FunctionDecl*, 8> Visited;
+    llvm::SmallVector<const FunctionDecl*, 8> Worklist{Callee};
+    while (!Worklist.empty()) {
+      const FunctionDecl* FD = Worklist.pop_back_val();
+      if (!FD || !Visited.insert(FD).second)
+        continue;
+      const GlobalAccess& A = getGlobalAccess(FD);
+      Reachable.Reads.insert(A.Reads.begin(), A.Reads.end());
+      Reachable.Writes.insert(A.Writes.begin(), A.Writes.end());
+      Reachable.IndirectReads.insert(A.IndirectReads.begin(),
+                                     A.IndirectReads.end());
+      Worklist.append(A.Callees.begin(), A.Callees.end());
+    }
+    return m_ReachableGlobalAccess[Callee] = std::move(Reachable);
+  }
+
+  bool DiffCollector::touchesActiveGlobal(const Expr* E,
+                                          const FunctionDecl* Callee) {
+    // Only reverse mode gives a global an adjoint; see VisitDeclRefExpr.
+    if (!m_TopMostReq || !m_ParentReq ||
+        (m_ParentReq->Mode != DiffMode::reverse &&
+         m_ParentReq->Mode != DiffMode::pullback))
+      return false;
+    // A global is active when the differentiated function, anything it
+    // calls, or the caller assigns it, as in `set_g(x); return read_g();`.
+    const GlobalAccess& Top = getReachableGlobalAccess(m_TopMostReq->Function);
+    const GlobalAccess& Parent = getGlobalAccess(m_ParentReq->Function);
+    auto isActive = [&](const VarDecl* VD) {
+      return Top.Writes.count(VD) || Parent.Writes.count(VD);
+    };
+    auto isReadByCaller = [&](const VarDecl* VD) {
+      return Top.Reads.count(VD) || Parent.Reads.count(VD);
+    };
+    // A callee assigning a global the caller reads sends, or kills, the
+    // derivative the caller reads.
+    const GlobalAccess& Callees = getReachableGlobalAccess(Callee);
+    if (std::any_of(Callees.Reads.begin(), Callees.Reads.end(), isActive) ||
+        std::any_of(Callees.Writes.begin(), Callees.Writes.end(),
+                    isReadByCaller)) {
+      m_ParentReq->ActiveGlobalCalls.insert(E);
+      return true;
+    }
+
+    // A global pointer or reference may alias an active global.
+    if (!Callees.IndirectReads.empty() &&
+        (!Top.Writes.empty() || !Parent.Writes.empty()))
+      utils::diag(m_Sema, DiagnosticsEngine::Warning, E->getBeginLoc(),
+                  "%0 reads the global %1 through a pointer or reference; "
+                  "clad does not differentiate through it")
+          << Callee << *Callees.IndirectReads.begin();
+    return false;
+  }
+
   bool DiffCollector::VisitDeclRefExpr(DeclRefExpr* DRE) {
     // m_TopMostReq is dereferenced below; it is null when PlanNestedRequest
     // walks a lazy request's body just to record its early-return flag, and no
@@ -2353,7 +2534,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     // Don't build propagators for calls that do not contribute in
     // differentiable way to the result.
-    if (allArgumentsAreLiterals(E->arguments(), m_ParentReq))
+    if (!touchesActiveGlobal(E, CD) &&
+        allArgumentsAreLiterals(E->arguments(), m_ParentReq))
       return true;
 
     if (clad::utils::hasNonDifferentiableAttribute(CD->getParent()))
