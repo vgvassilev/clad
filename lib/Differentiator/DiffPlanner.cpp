@@ -29,6 +29,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
@@ -462,6 +463,37 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return CS->body_empty() ? nullptr
                               : dyn_cast<ReturnStmt>(*CS->body_rbegin());
     return dyn_cast<ReturnStmt>(Body);
+  }
+
+  /// Whether \p S has a `break` or `continue` of the loop whose body it is:
+  /// not one of a nested loop, nor a `break` of a switch inside it.
+  static bool loopBodyHasBreakOrContinue(const Stmt* S,
+                                         bool insideSwitch = false) {
+    if (isa<ContinueStmt>(S))
+      return true;
+    if (isa<BreakStmt>(S))
+      return !insideSwitch;
+    if (isa<ForStmt>(S) || isa<WhileStmt>(S) || isa<DoStmt>(S) ||
+        isa<CXXForRangeStmt>(S))
+      return false;
+    // A child may be absent, an omitted part of the statement.
+    if (isa<SwitchStmt>(S)) {
+      for (const Stmt* C : S->children())
+        if (C && loopBodyHasBreakOrContinue(C, /*insideSwitch=*/true))
+          return true;
+      return false;
+    }
+    for (const Stmt* C : S->children())
+      if (C && loopBodyHasBreakOrContinue(C, insideSwitch))
+        return true;
+    return false;
+  }
+
+  bool DiffRequest::hasBreakOrContinue(const Stmt* LoopBody) const {
+    auto [It, Inserted] = m_BreakOrContinueInfo.try_emplace(LoopBody, false);
+    if (Inserted)
+      It->second = loopBodyHasBreakOrContinue(LoopBody);
+    return It->second;
   }
 
   bool DiffRequest::hasEarlyReturns() const {

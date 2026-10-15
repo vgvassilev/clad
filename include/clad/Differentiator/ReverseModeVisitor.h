@@ -850,6 +850,9 @@ namespace clad {
       /// control-flow tape. Lets VisitBreakStmt pick the right handling.
       bool m_IsInvokedBySwitchStmt = false;
 
+      /// The body of the loop this handles, or null for a switch.
+      const clang::Stmt* m_LoopBody = nullptr;
+
       BreakContStmtHandler(ReverseModeVisitor& RMV, bool forSwitchStmt = false)
           : m_RMV(RMV), m_IsInvokedBySwitchStmt(forSwitchStmt) {}
 
