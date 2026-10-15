@@ -23,6 +23,7 @@
 
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Casting.h"
 #if CLANG_VERSION_MAJOR > 18
 #include "clang/Sema/SemaOpenMP.h"
