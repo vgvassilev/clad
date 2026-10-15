@@ -170,12 +170,6 @@ void ReverseModeVisitor::checkKeptPrimals(Stmt* Forward, Stmt* Reverse) {
         m_Found.insert(It->second);
       return true;
     }
-    bool VisitCXXDefaultArgExpr(CXXDefaultArgExpr* E) {
-      return TraverseStmt(E->getExpr());
-    }
-    bool VisitCXXDefaultInitExpr(CXXDefaultInitExpr* E) {
-      return TraverseStmt(E->getExpr());
-    }
   };
   References ReverseRefs(m_KeptPrimals, m_UnsupportedKeptPrimals);
   ReverseRefs.TraverseStmt(Reverse);
@@ -218,11 +212,8 @@ void ReverseModeVisitor::checkKeptPrimals(Stmt* Forward, Stmt* Reverse) {
         : m_Kept(K), m_Found(F), m_Promoted(P) {}
     [[nodiscard]] static bool shouldVisitImplicitCode() { return true; }
     bool VisitVarDecl(VarDecl* VD) {
-      if (m_Promoted.count(VD)) {
+      if (m_Promoted.count(VD))
         checkStored(VD->getInit());
-        if (VD->getType()->isReferenceType())
-          References(m_Kept, m_Found).TraverseStmt(VD->getInit());
-      }
       return true;
     }
     bool VisitBinaryOperator(BinaryOperator* E) {

@@ -19,6 +19,14 @@ struct M {
   M& operator=(M&&) = default;
 };
 
+struct CopyInit {
+  double x;
+  CopyInit() = default;
+  CopyInit(const CopyInit&) = default;
+  CopyInit& operator=(const CopyInit&) = delete;
+  CopyInit& operator=(CopyInit&&) = default;
+};
+
 struct Copyable {
   double x;
 };
@@ -77,6 +85,16 @@ double copyable(double x, int n) {
   return r;
 }
 
+double copy_init(double x) {
+  CopyInit other{x};
+  double r = 0;
+  for (int i = 0; i < 3; ++i) {
+    CopyInit m = other;
+    r += m.x;
+  }
+  return r;
+}
+
 int main() {
   auto d_issue = clad::gradient(issue);
   double dx = 0, dy = 0;
@@ -102,6 +120,10 @@ int main() {
   dx = 0;
   d_copyable.execute(3, 3, &dx);
   printf("copyable: %.1f\n", dx); // CHECK-EXEC-NEXT: copyable: 18.0
+  auto d_copy_init = clad::gradient(copy_init);
+  dx = 0;
+  d_copy_init.execute(3, &dx);
+  printf("copy_init: %.1f\n", dx); // CHECK-EXEC-NEXT: copy_init: 3.0
 }
 
 #else
@@ -317,4 +339,31 @@ int main() {
 // CHECK-NEXT: u = clad::pop(_t1);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
+// CHECK-NEXT: }
+
+// CHECK-LABEL: void copy_init_grad(double x, double *_d_x) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     CopyInit _d_m = {0.};
+// CHECK-NEXT:     CopyInit _d_other = {0.};
+// CHECK-NEXT:     CopyInit other{x};
+// CHECK-NEXT:     double _d_r = 0.;
+// CHECK-NEXT:     double r = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     for (i = 0; i < 3; ++i) {
+// CHECK-NEXT:         CopyInit m = other;
+// CHECK-NEXT:         r += m.x;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_r += 1;
+// CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r_d0 = _d_r;
+// CHECK-NEXT:             _d_m.x += _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             CopyInit::constructor_pullback(other, &_d_m, &_d_other);
+// CHECK-NEXT:             clad::zero_init(_d_m);
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += _d_other.x;
 // CHECK-NEXT: }
