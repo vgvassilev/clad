@@ -497,6 +497,13 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool callOperatesOnNonDifferentiableType(clang::Sema& S,
                                              const clang::CallExpr* CE);
 
+    /// Whether T names one of the three standard comparison-category types.
+    bool isComparisonCategory(clang::QualType T);
+
+    /// Comparisons with a discrete result, no writable inputs, and operands
+    /// whose evaluation cannot update active state can be cloned without AD.
+    bool isReadOnlyComparisonCall(clang::Sema& S, const clang::CallExpr* CE);
+
     /// Collects every DeclRefExpr, MemberExpr, ArraySubscriptExpr in an
     /// assignment operator or a ternary if operator. This is useful to when we
     /// need to decide what needs to be stored on tape in reverse mode.

@@ -603,6 +603,15 @@ Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
   return result;
 }
 
+Stmt* StmtClone::VisitCXXRewrittenBinaryOperator(
+    CXXRewrittenBinaryOperator* Node) {
+  // The syntactic operands alias the semantic form; clone only that form.
+  auto* result = new (Ctx) CXXRewrittenBinaryOperator(
+      cast<Expr>(Clone(Node->getSemanticForm())), Node->isReversed());
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
+
 Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
   llvm::SmallVector<Expr*, 4> clonedArgs;
   for (Expr* arg : Node->arguments()) {
