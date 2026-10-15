@@ -6246,6 +6246,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                            m_TrackVarDeclConstructor);
     Expr* callDiff = BuildConstructorCall(m_Sema, CE, clonedRevForwArgs,
                                           m_TrackVarDeclConstructor);
+    // An adjoint starts at zero, and `T x;` leaves the members of a class
+    // with a defaulted default constructor indeterminate: value-initialize
+    // it. An array keeps `T x[N];`, since copy-list-initializing its elements
+    // is ill-formed for an explicit default constructor.
+    if (!callDiff && !CE->getNumArgs() && !CE->getType()->isArrayType())
+      callDiff = m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
     return {callClone, callDiff};
   }
 
