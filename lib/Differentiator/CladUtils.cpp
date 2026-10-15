@@ -406,6 +406,15 @@ namespace clad {
           .get();
     }
 
+    const LambdaExpr* getLambdaInit(const VarDecl* VD) {
+      const Expr* Init = VD ? VD->getInit() : nullptr;
+      if (!Init)
+        return nullptr;
+      if (const auto* EWC = dyn_cast<ExprWithCleanups>(Init))
+        Init = EWC->getSubExpr();
+      return dyn_cast<LambdaExpr>(Init->IgnoreImplicit());
+    }
+
     QualType getUnsignedType(QualType T, const ASTContext& C) {
       T = T.getNonReferenceType().getUnqualifiedType();
       if (clad_compat::isPromotableIntegerType(C, T))
