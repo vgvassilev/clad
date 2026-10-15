@@ -1680,10 +1680,8 @@ namespace clad {
           .get();
 
     if (OOK == OO_Subscript)
-      return m_Sema
-          .CreateOverloadedArraySubscriptExpr(OpLoc, OpLoc, ArgExprs[0],
-                                              ArgExprs[1])
-          .get();
+      return BuildArraySubscript(ArgExprs.front(), ArgExprs.back(), OpLoc,
+                                 OpLoc);
 
     // Now deduce the kind based on the number of args.
     // Note for debugging: if the number of args is wrong,
