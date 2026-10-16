@@ -329,6 +329,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     clang::QualType getNonConstType(clang::QualType T, clang::Sema& S);
 
+    /// The lambda \p VD is initialized with, through the cleanups and
+    /// conversions around it -- a lambda capturing an object with a
+    /// non-trivial destructor is wrapped -- or null.
+    const clang::LambdaExpr* getLambdaInit(const clang::VarDecl* VD);
+
     /// A reference to what \p R found, qualified by \p SS and followed by
     /// \p TemplateArgs when given. Null when Sema rejects it.
     clang::Expr* BuildDeclarationNameExpr(

@@ -26,6 +26,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
@@ -44,6 +45,7 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -1226,7 +1228,8 @@ namespace clad {
 
   void VisitorBase::LambdaBuilder::start(const LambdaExpr* LE,
                                          QualType CallOpType,
-                                         ParamBuilder BuildParams) {
+                                         ParamBuilder BuildParams,
+                                         QualType TrailingReturnType) {
     DeclContext* DC = LE->getCallOperator()->getDeclContext();
 
     m_Started = true;
@@ -1262,6 +1265,14 @@ namespace clad {
     // LSI->ExplicitParams; an invalid LParen makes the lambda print without
     // its parameter list (`[]{...}` instead of `[](T x){...}`).
     SourceLocation paramListLoc = utils::GetValidSLoc(m_V.m_Sema);
+    ParsedType TrailingReturn;
+    SourceLocation TrailingReturnLoc;
+    if (!TrailingReturnType.isNull()) {
+      TrailingReturn = m_V.m_Sema.CreateParsedType(
+          TrailingReturnType, m_V.m_Context.getTrivialTypeSourceInfo(
+                                  TrailingReturnType, paramListLoc));
+      TrailingReturnLoc = paramListLoc;
+    }
     m_D.AddTypeInfo(DeclaratorChunk::getFunction(
                         /*hasProto=*/true,
                         /*isAmbiguous=*/false,
@@ -1284,8 +1295,8 @@ namespace clad {
                         /*LocalRangeBegin=*/noLoc,
                         /*LocalRangeEnd=*/noLoc,
                         /*Declarator=*/m_D,
-                        /*TrailingReturnType=*/ParsedType(),
-                        /*TrailingReturnTypeLoc=*/SourceLocation()),
+                        /*TrailingReturnType=*/TrailingReturn,
+                        /*TrailingReturnTypeLoc=*/TrailingReturnLoc),
                     /*EndLoc=*/SourceLocation());
 
     m_V.m_Sema.ActOnLambdaClosureParameters(m_V.getCurrentScope(),
@@ -1716,6 +1727,135 @@ namespace clad {
       OS << "Last forward statement ";
       m_Blocks.back().back()->printPretty(OS, /*Helper=*/nullptr, P);
     }
+  }
+
+  clang::VarDecl*
+  VisitorBase::getEnclosingCaptureClone(const clang::VarDecl* capVD) {
+    // A lambda captures a local of the function being differentiated, and
+    // every one of those is cloned before the lambda is reached.
+    auto it = m_DeclReplacements.find(capVD);
+    bool cloned = it != m_DeclReplacements.end() && it->second;
+    assert(cloned && "a captured variable has no clone in the derivative");
+    // Unreachable once the assert holds; a release build binds the variable
+    // itself rather than nothing.
+    return cloned ? it->second
+                  : const_cast<VarDecl*>(capVD); // NOLINT(*-const-cast)
+  }
+
+  const FieldDecl* VisitorBase::getCaptureField(const LambdaExpr* LE,
+                                                const VarDecl* capVD) {
+    llvm::DenseMap<const ValueDecl*, FieldDecl*> Fields;
+    FieldDecl* ThisField = nullptr;
+    LE->getLambdaClass()->getCaptureFields(Fields, ThisField);
+    return Fields.lookup(capVD);
+  }
+
+  Expr* VisitorBase::getLambdaDerivative(const VarDecl* VD) {
+    auto clone = m_DeclReplacements.find(VD);
+    if (clone == m_DeclReplacements.end())
+      return nullptr;
+    auto derived = m_Variables.find(clone->second);
+    return derived == m_Variables.end() ? nullptr
+                                        : buildAdjoint(derived->second);
+  }
+
+  std::pair<clang::Expr*, clang::Expr*> VisitorBase::getCaptureValueAndAdjoint(
+      const clang::LambdaExpr* LE, const clang::VarDecl* capVD, bool isByCopy) {
+    // A by-copy capture reads the snapshot taken where its lambda is created.
+    auto snapIt =
+        isByCopy ? m_LambdaCaptureSnapshots.find(getCaptureField(LE, capVD))
+                 : m_LambdaCaptureSnapshots.end();
+    if (snapIt != m_LambdaCaptureSnapshots.end()) {
+      VarDecl* snap = snapIt->second;
+      auto dit = m_Variables.find(snap);
+      assert(dit != m_Variables.end() && "snapshot adjoint must exist");
+      return {BuildDeclRef(snap), buildAdjoint(dit->second)};
+    }
+    VarDecl* encVD = getEnclosingCaptureClone(capVD);
+    auto it = m_Variables.find(encVD);
+    assert(it != m_Variables.end() &&
+           "captured variable has no tracked adjoint");
+    return {BuildDeclRef(encVD), buildAdjoint(it->second)};
+  }
+
+  static bool writesToAnyOf(const Stmt* S,
+                            const llvm::SmallPtrSetImpl<const VarDecl*>& Vars) {
+    auto isTarget = [&](const Expr* E) {
+      const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
+      const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+      return VD && Vars.contains(VD);
+    };
+    if (const auto* BO = dyn_cast<BinaryOperator>(S)) {
+      if (BO->isAssignmentOp() && isTarget(BO->getLHS()))
+        return true;
+    } else if (const auto* UO = dyn_cast<UnaryOperator>(S)) {
+      if (UO->isIncrementDecrementOp() && isTarget(UO->getSubExpr()))
+        return true;
+    }
+    // A child may be absent, an omitted part of the statement.
+    for (const Stmt* Child : S->children())
+      if (Child && writesToAnyOf(Child, Vars))
+        return true;
+    return false;
+  }
+
+  /// Whether \p Target is inside a loop of \p S. A lambda's body starts afresh:
+  /// a loop around the lambda runs the lambda, not the statements inside it.
+  static bool isInsideLoop(const Stmt* S, const Stmt* Target, bool InLoop) {
+    if (S == Target)
+      return InLoop;
+    bool Loop = !isa<LambdaExpr>(S) &&
+                (InLoop || isa<ForStmt, WhileStmt, DoStmt, CXXForRangeStmt>(S));
+    return llvm::any_of(S->children(), [&](const Stmt* Child) {
+      return Child && isInsideLoop(Child, Target, Loop);
+    });
+  }
+
+  bool VisitorBase::diagnoseUnsupportedLambda(const clang::LambdaExpr* LE) {
+    const CXXMethodDecl* CallOp = LE->getCallOperator();
+    if (!CallOp)
+      return false;
+    // The function, or the lambda, LE is written in.
+    const auto* Enclosing =
+        cast<FunctionDecl>(LE->getLambdaClass()->getDeclContext());
+    for (const LambdaCapture& Cap : LE->captures())
+      if (!Cap.capturesVariable()) {
+        diag(DiagnosticsEngine::Error, Cap.getLocation(),
+             "differentiation of a lambda that captures %select{'this'|a "
+             "variable-length array}0 is not supported yet")
+            << !Cap.capturesThis();
+        return true;
+      }
+    if (LE->capture_size() && m_DiffReq.Mode == DiffMode::vector_forward_mode) {
+      diag(DiagnosticsEngine::Error, CallOp->getLocation(),
+           "vector-mode differentiation of a lambda with captures is not "
+           "supported yet");
+      return true;
+    }
+    if (LE->capture_size() &&
+        isInsideLoop(Enclosing->getBody(), LE, /*InLoop=*/false)) {
+      diag(DiagnosticsEngine::Error, CallOp->getLocation(),
+           "differentiation of a lambda with captures created inside a loop is "
+           "not supported yet");
+      return true;
+    }
+    if (!CallOp->isConst()) {
+      diag(DiagnosticsEngine::Error, CallOp->getLocation(),
+           "differentiation of a mutable lambda is not supported: its captures "
+           "change between calls");
+      return true;
+    }
+    llvm::SmallPtrSet<const VarDecl*, 4> ByRef;
+    for (const LambdaCapture& Cap : LE->captures())
+      if (Cap.capturesVariable() && Cap.getCaptureKind() == LCK_ByRef)
+        ByRef.insert(cast<VarDecl>(Cap.getCapturedVar()));
+    if (!ByRef.empty() && writesToAnyOf(CallOp->getBody(), ByRef)) {
+      diag(DiagnosticsEngine::Error, CallOp->getLocation(),
+           "differentiation of a lambda that assigns to a by-reference capture "
+           "is not supported");
+      return true;
+    }
+    return false;
   }
 
 } // end namespace clad
