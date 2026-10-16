@@ -1659,7 +1659,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitCXXNullPtrLiteralExpr(
       const CXXNullPtrLiteralExpr* NPE) {
-    return StmtDiff(Clone(NPE), Clone(NPE));
+    return StmtDiff(Clone(NPE), m_Sema.ActOnCXXNullPtrLiteral(noLoc).get());
   }
 
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
@@ -2705,7 +2705,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           } else
             hasDynamicNonDiffParams = true;
         }
-      if (!m_DiffReq.CallContext || hasDynamicNonDiffParams ||
+      bool unplannedBody =
+          m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(
+              m_DiffReq.Function);
+      if (!m_DiffReq.CallContext || hasDynamicNonDiffParams || unplannedBody ||
           FD->getNameAsString() == "cudaMemcpy") {
         pullbackFD = nullptr;
         // Try to find it in builtin derivatives.

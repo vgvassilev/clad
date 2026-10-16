@@ -1443,7 +1443,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     pushforwardFnRequest.inheritAnalysesFrom(m_DiffReq);
 
     FunctionDecl* pushforwardFD = nullptr;
-    if (m_DiffReq.CurrentDerivativeOrder != 1 || !m_DiffReq.CallContext) {
+    bool unplannedBody = m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(
+        m_DiffReq.Function);
+    if (m_DiffReq.CurrentDerivativeOrder != 1 || !m_DiffReq.CallContext ||
+        unplannedBody) {
       callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
           pushforwardFnRequest.ComputeDerivativeName(), pushforwardFnArgs,
           getCurrentScope(), CE,
