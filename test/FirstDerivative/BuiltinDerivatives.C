@@ -293,6 +293,14 @@ double f14(double x) {
   return __builtin_pow(x, 3);
 }
 
+double f_builtin_sqrt(double x) {
+  return __builtin_sqrt(x);
+}
+
+double f_builtin_fabs(double x) {
+  return __builtin_fabs(x);
+}
+
 double f15(double y, double x) {
   return std::atan2(y, x);
 }
@@ -633,6 +641,12 @@ int main () { //expected-no-diagnostics
 
   auto f14_ddarg0 = clad::differentiate<2>(f14, 0);
   printf("Result is = %f\n", f14_ddarg0.execute(1)); //CHECK-EXEC: Result is = 6.000000
+
+  auto f_builtin_sqrt_darg0 = clad::differentiate(f_builtin_sqrt, 0);
+  printf("Result is = %f\n", f_builtin_sqrt_darg0.execute(4)); //CHECK-EXEC: Result is = 0.250000
+
+  auto f_builtin_fabs_darg0 = clad::differentiate(f_builtin_fabs, 0);
+  printf("Result is = %f\n", f_builtin_fabs_darg0.execute(-5)); //CHECK-EXEC: Result is = -1.000000
 
   auto f15_darg0 = clad::differentiate(f15, 0);
   printf("Result is = %f\n", f15_darg0.execute(4, 3)); //CHECK-EXEC: Result is = 0.120000
