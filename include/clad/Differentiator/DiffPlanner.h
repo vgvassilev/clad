@@ -193,6 +193,10 @@ private:
     bool HasAnalysisRun = false;
   } m_EarlyReturnInfo;
 
+  /// Cache for hasBreakOrContinue(), per loop body: asked at every return
+  /// inside the loop, so walked once.
+  mutable llvm::DenseMap<const clang::Stmt*, bool> m_BreakOrContinueInfo;
+
   /// Cache for mayHaveNullTangent(): the primal's pointer variables that may
   /// be given a null tangent. A property of the Function, computed once on
   /// demand.
@@ -258,6 +262,13 @@ public:
   /// side; where the three disagree CladFunction::execute calls through a
   /// type whose return it has wrong.
   const clang::ParmVarDecl* getOutputTangentParam() const;
+
+  /// Whether the loop whose body is \p LoopBody has a `break` or `continue`
+  /// of its own -- not one of a nested loop, nor a `break` of a switch in
+  /// it. A fact about the primal, needed before the visitor reaches the
+  /// statement: a return can come before the break or continue that makes
+  /// the loop record its control flow.
+  bool hasBreakOrContinue(const clang::Stmt* LoopBody) const;
 
   /// Whether the tangent of the primal's pointer variable \p VD may be null at
   /// run time. Clad cannot synthesize a tangent buffer for a const-qualified
