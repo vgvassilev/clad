@@ -22,6 +22,7 @@
 #include "clang/AST/OpenMPClause.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Diagnostic.h"
@@ -99,6 +100,13 @@ namespace clad {
     /// that will be put immediately in the beginning of derivative function
     /// block.
     Stmts m_Globals;
+    llvm::DenseMap<const clang::VarDecl*, llvm::StringRef>
+        m_LocalStorageFailures;
+    llvm::DenseMap<const clang::VarDecl*, const clang::VarDecl*> m_KeptPrimals;
+    llvm::SmallPtrSet<const clang::VarDecl*, 8> m_UnsupportedKeptPrimals;
+    bool needsLocalStorage(const clang::VarDecl* VD, const clang::DeclStmt* DS,
+                           bool forcePromotion = false);
+    void checkKeptPrimals(clang::Stmt* Forward, clang::Stmt* Reverse);
     // Store the Tape-push operation that will be inserted at the end of the
     // OpenMP forward pass
     Stmts m_OMPBlocks;
