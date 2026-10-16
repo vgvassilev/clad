@@ -3951,14 +3951,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDCloneType = m_Context.getPointerType(VDCloneType.getNonReferenceType());
     if (promoteToFnScope)
       VDCloneType.removeLocalConst();
-    // A variable-array type carries its size in a stored expression, so the
-    // primal and adjoint declarations would otherwise share it. Re-clone the
-    // type for such adjoints; other types keep the (possibly promoted)
-    // VDCloneType so the reference/const handling above is preserved.
+    // Primal and adjoint declarations must own separate type expressions.
     QualType VDDerivedType =
-        isa<VariableArrayType>(VDType)
-            ? utils::getNonConstType(CloneType(VDType), m_Sema)
-            : utils::getNonConstType(VDCloneType, m_Sema);
+        utils::getNonConstType(CloneType(VDCloneType), m_Sema);
 
     bool isRefType = VDType->isLValueReferenceType();
     bool isPointerType = VDType->isPointerType();
@@ -4502,12 +4497,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff ReverseModeVisitor::VisitCXXFunctionalCastExpr(
       const clang::CXXFunctionalCastExpr* FCE) {
     StmtDiff castExprDiff = Visit(FCE->getSubExpr(), dfdx());
-    castExprDiff.updateStmt(m_Sema
-                                .BuildCXXFunctionalCastExpr(
-                                    FCE->getTypeInfoAsWritten(), FCE->getType(),
-                                    FCE->getBeginLoc(), castExprDiff.getExpr(),
-                                    FCE->getEndLoc())
-                                .get());
+    castExprDiff.updateStmt(
+        m_Sema
+            .BuildCXXFunctionalCastExpr(
+                CloneTypeSourceInfo(FCE->getTypeInfoAsWritten()),
+                CloneType(FCE->getType()), FCE->getBeginLoc(),
+                castExprDiff.getExpr(), FCE->getEndLoc())
+            .get());
     return castExprDiff;
   }
 
@@ -4515,14 +4511,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff subExprDiff = Visit(CSCE->getSubExpr(), dfdx());
     Expr* castExpr = m_Sema
                          .BuildCStyleCastExpr(
-                             CSCE->getLParenLoc(), CSCE->getTypeInfoAsWritten(),
+                             CSCE->getLParenLoc(),
+                             CloneTypeSourceInfo(CSCE->getTypeInfoAsWritten()),
                              CSCE->getRParenLoc(), subExprDiff.getExpr())
                          .get();
     Expr* castExprDiff = subExprDiff.getExpr_dx();
     if (castExprDiff != nullptr)
       castExprDiff = m_Sema
                          .BuildCStyleCastExpr(
-                             CSCE->getLParenLoc(), CSCE->getTypeInfoAsWritten(),
+                             CSCE->getLParenLoc(),
+                             CloneTypeSourceInfo(CSCE->getTypeInfoAsWritten()),
                              CSCE->getRParenLoc(), subExprDiff.getExpr_dx())
                          .get();
     return {castExpr, castExprDiff};
@@ -4533,7 +4531,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff subExprDiff = Visit(NCE->getSubExpr(), dfdx());
 
     // Reconstruct the cast
-    TypeSourceInfo* TSI = NCE->getTypeInfoAsWritten();
+    TypeSourceInfo* TSI = CloneTypeSourceInfo(NCE->getTypeInfoAsWritten());
     SourceLocation KWLoc = NCE->getOperatorLoc();
     SourceRange Brackets = NCE->getAngleBrackets();
     SourceRange Range = NCE->getSourceRange();
@@ -5794,16 +5792,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       derivedArraySizeE = Clone(clonedArraySizeE);
     }
     Expr* clonedNewE = utils::BuildCXXNewExpr(
-        m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
-        initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo());
+        m_Sema, CloneType(CNE->getAllocatedType()), clonedArraySizeE,
+        initializerDiff.getExpr(),
+        CloneTypeSourceInfo(CNE->getAllocatedTypeSourceInfo()));
     Expr* diffInit = initializerDiff.getExpr_dx();
     if (!diffInit) {
       // we should initialize it implicitly using ParenListExpr.
       diffInit = m_Sema.ActOnParenListExpr(noLoc, noLoc, {}).get();
     }
     Expr* derivedNewE = utils::BuildCXXNewExpr(
-        m_Sema, CNE->getAllocatedType(), derivedArraySizeE, diffInit,
-        CNE->getAllocatedTypeSourceInfo());
+        m_Sema, CloneType(CNE->getAllocatedType()), derivedArraySizeE, diffInit,
+        CloneTypeSourceInfo(CNE->getAllocatedTypeSourceInfo()));
     return {clonedNewE, derivedNewE};
   }
 

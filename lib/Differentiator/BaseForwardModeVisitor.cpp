@@ -1813,11 +1813,11 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
 
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
-  VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+  QualType VDType = CloneType(VD->getType());
+  VarDecl* VDClone = BuildVarDecl(VDType, VD->getNameAsString(),
                                   initDiff.getExpr(), VD->isDirectInit());
   // FIXME: Create unique identifier for derivative.
   Expr* initDx = initDiff.getExpr_dx();
-  QualType VDType = VD->getType();
   // A reference tangent needs an lvalue to bind to; the literal 0 that e.g.
   // `const double& r = 5.;` derives to is not one.
   if (VDType->isLValueReferenceType() && initDx && !initDx->isLValue())
@@ -1840,8 +1840,8 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   }
   VarDecl* VDDerived = nullptr;
   if (m_DiffReq.shouldHaveAdjointForw(VD) && (initDx || !isAlias))
-    VDDerived = BuildVarDecl(VDType, "_d_" + VD->getNameAsString(), initDx,
-                             VD->isDirectInit());
+    VDDerived = BuildVarDecl(CloneType(VDType), "_d_" + VD->getNameAsString(),
+                             initDx, VD->isDirectInit());
 
   if (VDDerived)
     m_Variables.emplace(VDClone, AdjointInfo{VDDerived});
@@ -1899,9 +1899,9 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
         } else {
           Expr* clonedInit =
               VDecl->getInit() ? Clone(VDecl->getInit()) : nullptr;
-          VarDecl* copyVD =
-              BuildVarDecl(VDecl->getType(), VDecl->getNameAsString(),
-                           clonedInit, VDecl->isDirectInit());
+          VarDecl* copyVD = BuildVarDecl(CloneType(VDecl->getType()),
+                                         VDecl->getNameAsString(), clonedInit,
+                                         VDecl->isDirectInit());
           m_DeclReplacements[VDecl] = copyVD;
           decls.push_back(copyVD);
         }
@@ -1977,10 +1977,12 @@ BaseForwardModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
 StmtDiff BaseForwardModeVisitor::VisitCXXFunctionalCastExpr(
     const clang::CXXFunctionalCastExpr* FCE) {
   StmtDiff castExprDiff = Visit(FCE->getSubExpr());
-  Expr* clonedFCE = BuildFunctionalCast(FCE->getTypeInfoAsWritten(),
-                                        FCE->getType(), castExprDiff.getExpr());
-  Expr* derivedFCE = BuildFunctionalCast(
-      FCE->getTypeInfoAsWritten(), FCE->getType(), castExprDiff.getExpr_dx());
+  Expr* clonedFCE =
+      BuildFunctionalCast(CloneTypeSourceInfo(FCE->getTypeInfoAsWritten()),
+                          CloneType(FCE->getType()), castExprDiff.getExpr());
+  Expr* derivedFCE =
+      BuildFunctionalCast(CloneTypeSourceInfo(FCE->getTypeInfoAsWritten()),
+                          CloneType(FCE->getType()), castExprDiff.getExpr_dx());
   return {clonedFCE, derivedFCE};
 }
 
@@ -1991,14 +1993,16 @@ BaseForwardModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
   // as the original one.
   Expr* castExpr = m_Sema
                        .BuildCStyleCastExpr(
-                           CSCE->getLParenLoc(), CSCE->getTypeInfoAsWritten(),
+                           CSCE->getLParenLoc(),
+                           CloneTypeSourceInfo(CSCE->getTypeInfoAsWritten()),
                            CSCE->getRParenLoc(), subExprDiff.getExpr())
                        .get();
   Expr* castExprDiff =
       m_Sema
-          .BuildCStyleCastExpr(CSCE->getLParenLoc(),
-                               CSCE->getTypeInfoAsWritten(),
-                               CSCE->getRParenLoc(), subExprDiff.getExpr_dx())
+          .BuildCStyleCastExpr(
+              CSCE->getLParenLoc(),
+              CloneTypeSourceInfo(CSCE->getTypeInfoAsWritten()),
+              CSCE->getRParenLoc(), subExprDiff.getExpr_dx())
           .get();
   return StmtDiff(castExpr, castExprDiff);
 }
@@ -2044,7 +2048,7 @@ BaseForwardModeVisitor::VisitCXXNamedCastExpr(const CXXNamedCastExpr* NCE) {
   }
 
   SourceLocation Loc = NCE->getBeginLoc();
-  TypeSourceInfo* TSI = NCE->getTypeInfoAsWritten();
+  TypeSourceInfo* TSI = CloneTypeSourceInfo(NCE->getTypeInfoAsWritten());
   SourceRange Brackets = NCE->getAngleBrackets();
   SourceRange Range = NCE->getSourceRange();
   Expr* castExpr =
@@ -2546,11 +2550,13 @@ StmtDiff BaseForwardModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
     derivedArraySizeE = Clone(clonedArraySizeE);
   }
   Expr* clonedNewE = utils::BuildCXXNewExpr(
-      m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
-      initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo());
+      m_Sema, CloneType(CNE->getAllocatedType()), clonedArraySizeE,
+      initializerDiff.getExpr(),
+      CloneTypeSourceInfo(CNE->getAllocatedTypeSourceInfo()));
   Expr* derivedNewE = utils::BuildCXXNewExpr(
-      m_Sema, CNE->getAllocatedType(), derivedArraySizeE,
-      initializerDiff.getExpr_dx(), CNE->getAllocatedTypeSourceInfo());
+      m_Sema, CloneType(CNE->getAllocatedType()), derivedArraySizeE,
+      initializerDiff.getExpr_dx(),
+      CloneTypeSourceInfo(CNE->getAllocatedTypeSourceInfo()));
   return {clonedNewE, derivedNewE};
 }
 

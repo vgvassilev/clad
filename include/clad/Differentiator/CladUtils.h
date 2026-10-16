@@ -653,15 +653,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// variable and replace E's further usage by a reference to that variable
     /// to avoid recomputation.
     bool UsefulToStore(const clang::Expr* E);
-    /// Re-declares \p TND in \p DC, keeping the type as it was written rather
-    /// than what it resolves to. An alias is where portable code picks a
-    /// precision, a width or an index type, so resolving it would pin the copy
-    /// to the answer one platform gave.
-    clang::TypedefNameDecl*
-    BuildTypedefNameDecl(clang::ASTContext& C, clang::DeclContext* DC,
-                         clang::SourceLocation StartLoc,
-                         clang::SourceLocation IdLoc,
-                         const clang::TypedefNameDecl* TND);
+    /// Re-declare \p TND in \p DC with the caller's cloned written type.
+    clang::TypedefNameDecl* BuildTypedefNameDecl(
+        clang::ASTContext& C, clang::DeclContext* DC,
+        clang::SourceLocation StartLoc, clang::SourceLocation IdLoc,
+        const clang::TypedefNameDecl* TND, clang::TypeSourceInfo* TSI);
     /// Builds a reference to one of Enzyme's activity markers, the globals it
     /// matches by name to decide which arguments are differentiated.
     /// They are declared in EnzymeBuiltins.h, which Differentiator.h
