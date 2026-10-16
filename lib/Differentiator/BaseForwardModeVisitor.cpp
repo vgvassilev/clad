@@ -566,7 +566,9 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
   //   _d_y += _d_x
   //   if (y += x) {...}
   // }
-  Expr* cond = Clone(If->getCond());
+  Expr* cond = containsNonDifferentiableCall(If->getCond())
+                   ? VisitForEvaluation(If->getCond())
+                   : Clone(If->getCond());
 
   auto VisitBranch = [this](const Stmt* Branch) -> Stmt* {
     if (!Branch)
@@ -609,11 +611,183 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
 
 StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
     const ConditionalOperator* CO) {
-  Expr* cond = Clone(CO->getCond());
-  // FIXME: fix potential side-effects from evaluating both sides of
-  // conditional.
+  bool HasOpaqueCall =
+      m_EvaluatingOpaqueOperand || containsNonDifferentiableCall(CO);
+  if (HasOpaqueCall && CO->isGLValue()) {
+    for (const Expr* Branch : {CO->getTrueExpr(), CO->getFalseExpr()}) {
+      const Expr* Temporary = Branch->skipRValueSubobjectAdjustments();
+      if (isa<MaterializeTemporaryExpr>(Temporary) &&
+          !Temporary->getType()->isScalarType()) {
+        diag(DiagnosticsEngine::Error, CO->getBeginLoc(),
+             "materialized non-scalar conditional results are not supported");
+        QualType RecoveryType = utils::GetParameterDerivativeType(
+            m_Sema, m_DiffReq.Mode, CO->getType());
+        if (m_DiffReq.Mode == DiffMode::vector_forward_mode ||
+            m_DiffReq.Mode == DiffMode::vector_pushforward ||
+            m_DiffReq.Mode == DiffMode::jacobian)
+          RecoveryType = utils::GetCladArrayOfType(
+              m_Sema, utils::GetNonConstValueType(CO->getType()));
+        Expr* Tangent =
+            BuildOp(UO_Deref, getZeroInit(m_Context.getPointerType(
+                                  RecoveryType.getNonReferenceType())));
+        if (CO->isXValue())
+          Tangent = utils::BuildStaticCastToRValue(m_Sema, Tangent);
+        return {Clone(CO), Tangent};
+      }
+    }
+  }
+
+  Expr* cond =
+      HasOpaqueCall ? VisitForEvaluation(CO->getCond()) : Clone(CO->getCond());
+  beginBlock();
   StmtDiff ifTrueDiff = Visit(CO->getTrueExpr());
+  CompoundStmt* TruePrelude = endBlock();
+  beginBlock();
   StmtDiff ifFalseDiff = Visit(CO->getFalseExpr());
+  CompoundStmt* FalsePrelude = endBlock();
+  if (HasOpaqueCall &&
+      (!ifTrueDiff.getExpr_dx() || !ifFalseDiff.getExpr_dx()) &&
+      utils::IsZeroOrNullValue(ifTrueDiff.getExpr_dx()) &&
+      utils::IsZeroOrNullValue(ifFalseDiff.getExpr_dx()))
+    return {m_Sema
+                .ActOnConditionalOp(noLoc, noLoc, cond,
+                                    VisitForEvaluation(CO->getTrueExpr()),
+                                    VisitForEvaluation(CO->getFalseExpr()))
+                .get(),
+            nullptr};
+  if (HasOpaqueCall &&
+      (TruePrelude->size() || FalsePrelude->size() ||
+       !ifTrueDiff.getExpr_dx() || !ifFalseDiff.getExpr_dx())) {
+    if (CO->getType()->isVoidType())
+      return {m_Sema
+                  .ActOnConditionalOp(noLoc, noLoc, cond,
+                                      VisitForEvaluation(CO->getTrueExpr()),
+                                      VisitForEvaluation(CO->getFalseExpr()))
+                  .get(),
+              nullptr};
+    QualType ValueType = CO->getType();
+    if (CO->isLValue() && !CO->refersToBitField())
+      ValueType = m_Context.getLValueReferenceType(ValueType);
+    else if (CO->isXValue())
+      ValueType = m_Context.getRValueReferenceType(ValueType);
+    QualType TangentType = utils::GetParameterDerivativeType(
+        m_Sema, m_DiffReq.Mode, CO->getType());
+    if (m_DiffReq.Mode == DiffMode::vector_forward_mode ||
+        m_DiffReq.Mode == DiffMode::vector_pushforward ||
+        m_DiffReq.Mode == DiffMode::jacobian)
+      TangentType = utils::GetCladArrayOfType(
+          m_Sema, utils::GetNonConstValueType(CO->getType()));
+    // Writes through the result must reach the tangent the branch names, so
+    // the tangent is a reference of the result's own value category.
+    auto sameCategory = [CO](const Expr* Tangent) {
+      return Tangent && Tangent->getValueKind() == CO->getValueKind();
+    };
+    if (CO->isGLValue() && !CO->refersToBitField() &&
+        sameCategory(ifTrueDiff.getExpr_dx()) &&
+        sameCategory(ifFalseDiff.getExpr_dx()))
+      TangentType = CO->isLValue()
+                        ? m_Context.getLValueReferenceType(TangentType)
+                        : m_Context.getRValueReferenceType(TangentType);
+    auto* PairTemplate =
+        utils::LookupTemplateDeclInCladNamespace(m_Sema, "ValueAndPushforward");
+    QualType PairType = utils::InstantiateTemplate(m_Sema, PairTemplate,
+                                                   {ValueType, TangentType});
+    auto buildBranch = [&](const Expr* Branch) {
+      VarDecl* ValueStorage = nullptr;
+      VarDecl* TangentStorage = nullptr;
+      if (ValueType->isReferenceType() &&
+          isa<MaterializeTemporaryExpr>(
+              Branch->skipRValueSubobjectAdjustments())) {
+        // Nested branch lambdas can return these references, so their owners
+        // belong to the derivative function.
+        auto buildStorage = [&](QualType Type, llvm::StringRef Name) {
+          Type = Type.getNonReferenceType().getUnqualifiedType();
+          SourceLocation Loc = GenLoc();
+          auto* Storage = VarDecl::Create(
+              m_Context, m_Derivative, Loc, Loc, CreateUniqueIdentifier(Name),
+              Type, m_Context.getTrivialTypeSourceInfo(Type), SC_None);
+          SetDeclInit(Storage, getZeroInit(Type));
+          m_Sema.FinalizeDeclaration(Storage);
+          m_Derivative->addDecl(Storage);
+          m_Sema.PushOnScopeChains(Storage, m_DerivativeFnScope, false);
+          addToBlock(BuildDeclStmt(Storage), m_Blocks.front());
+          return Storage;
+        };
+        ValueStorage = buildStorage(ValueType, "_cond_value");
+        if (TangentType->isReferenceType())
+          TangentStorage = buildStorage(TangentType, "_cond_tangent");
+      }
+      return wrapInLambda(
+          *this, m_Sema, Branch,
+          [&] {
+            llvm::SaveAndRestore<bool> PreserveEffects(
+                m_EvaluatingOpaqueOperand, true);
+            StmtDiff Diff = Visit(Branch);
+            Expr* Tangent = Diff.getExpr_dx();
+            if (!Tangent || (TangentType->isRecordType() &&
+                             utils::IsZeroOrNullValue(Tangent))) {
+              if (isCladArrayType(TangentType)) {
+                auto* Zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                               m_Context, 0);
+                Tangent = Visit(Zero).getExpr_dx();
+              } else {
+                Tangent = getZeroInit(TangentType);
+              }
+            }
+            if (TangentStorage) {
+              Tangent =
+                  BuildOp(BO_Assign, BuildDeclRef(TangentStorage), Tangent);
+              if (TangentType->isRValueReferenceType())
+                Tangent = utils::BuildStaticCastToRValue(m_Sema, Tangent);
+            }
+            Tangent = StoreAndRef(Tangent, TangentType, getCurrentBlock(),
+                                  "_d_cond", true);
+            if (TangentType->isRValueReferenceType())
+              Tangent = utils::BuildStaticCastToRValue(m_Sema, Tangent);
+            Expr* Value = Diff.getExpr();
+            if (ValueStorage) {
+              addToCurrentBlock(
+                  BuildOp(BO_Assign, BuildDeclRef(ValueStorage), Value));
+              Value = BuildDeclRef(ValueStorage);
+              if (ValueType->isRValueReferenceType())
+                Value = utils::BuildStaticCastToRValue(m_Sema, Value);
+            }
+            // Reference members bind to the branch lvalue or xvalue directly.
+            // PerformImplicitConversion does not initialize references.
+            if (!ValueType->isReferenceType())
+              Value = m_Sema
+                          .PerformImplicitConversion(
+                              Value, ValueType,
+                              CLAD_COMPAT_CLANG20_SemaAAConverting)
+                          .get();
+            llvm::SmallVector<Expr*, 2> Values{Value, Tangent};
+            addToCurrentBlock(BuildReturnStmt(BuildInitList(Values)));
+          },
+          PairType);
+    };
+    Expr* TrueValue = buildBranch(CO->getTrueExpr());
+    Expr* FalseValue = buildBranch(CO->getFalseExpr());
+    Expr* Pair = StoreAndRef(
+        m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, TrueValue, FalseValue)
+            .get(),
+        "_cond", true);
+    Expr* Value =
+        utils::BuildMemberExpr(m_Sema, getCurrentScope(), Pair, "value");
+    Expr* Tangent = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                           CloneNode(Pair), "pushforward");
+    // The members of a named pair are lvalues. An xvalue result moves them
+    // out again.
+    if (CO->isXValue()) {
+      Value = utils::BuildStaticCastToRValue(m_Sema, Value);
+      Tangent = utils::BuildStaticCastToRValue(m_Sema, Tangent);
+    }
+    return {Value, Tangent};
+  }
+
+  for (Stmt* S : TruePrelude->body())
+    addToCurrentBlock(S);
+  for (Stmt* S : FalsePrelude->body())
+    addToCurrentBlock(S);
 
   cond = StoreAndRef(cond);
   cond = m_Sema
@@ -631,10 +805,23 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
     return StmtDiff(condExpr, nullptr);
   // cond is already used by the value conditional above; clone it for the
   // derivative conditional so the two do not share the stored condition.
+  auto normalizeZero = [&](Expr* Tangent) {
+    if (HasOpaqueCall && utils::IsZeroOrNullValue(Tangent) &&
+        (m_DiffReq.Mode == DiffMode::vector_forward_mode ||
+         m_DiffReq.Mode == DiffMode::vector_pushforward ||
+         m_DiffReq.Mode == DiffMode::jacobian)) {
+      QualType ZeroType =
+          CO->getType()->isFloatingType() ? CO->getType() : m_Context.IntTy;
+      auto* Zero = ConstantFolder::synthesizeLiteral(ZeroType, m_Context, 0);
+      return Visit(Zero).getExpr_dx();
+    }
+    return Tangent;
+  };
   Expr* condExprDiff =
       m_Sema
           .ActOnConditionalOp(noLoc, noLoc, CloneNode(cond),
-                              ifTrueDiff.getExpr_dx(), ifFalseDiff.getExpr_dx())
+                              normalizeZero(ifTrueDiff.getExpr_dx()),
+                              normalizeZero(ifFalseDiff.getExpr_dx()))
           .get();
 
   return StmtDiff(condExpr, condExprDiff);
@@ -746,7 +933,12 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
 
   // Condition differentiation.
   // This adds support for assignments in conditions.
-  if (cond) {
+  if (containsNonDifferentiableCall(FS->getCond()) ||
+      (FS->getConditionVariable() &&
+       containsNonDifferentiableCall(FS->getConditionVariable()->getInit()))) {
+    cond =
+        VisitForEvaluation(FS->getConditionVariable() ? cond : FS->getCond());
+  } else if (cond) {
     cond = cond->IgnoreParenImpCasts();
     // If it's a supported differentiable operator we wrap it back into
     // parentheses and then visit. To ensure the correctness, a comma operator
@@ -874,11 +1066,15 @@ StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
   } else {
     auto zero =
         ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 0);
-    if (clad::utils::hasNonDifferentiableAttribute(ME))
-      return {clonedME, zero};
     auto baseDiff = Visit(ME->getBase());
-    // No derivative found for base. Therefore, derivative is 0.
-    if (baseDiff.getExpr_dx()->getType()->isVoidType())
+    clonedME =
+        utils::BuildMemberExpr(m_Sema, getCurrentScope(), baseDiff.getExpr(),
+                               ME->getMemberDecl()->getName());
+    Expr* Tangent = baseDiff.getExpr_dx();
+    if (utils::hasNonDifferentiableAttribute(ME) || !Tangent ||
+        Tangent->getType()->isVoidType() ||
+        (!Tangent->getType()->isRecordType() &&
+         !Tangent->getType()->isPointerType()))
       return {clonedME, zero};
 
     auto field = ME->getMemberDecl();
@@ -953,9 +1149,8 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     }
   } else if (isa<MemberExpr>(clonedBase->IgnoreParenImpCasts())) {
     auto derivedME = cloneDiff.getExpr_dx();
-    if (!isa<MemberExpr>(derivedME->IgnoreParenImpCasts())) {
+    if (!isa<MemberExpr>(derivedME->IgnoreParenImpCasts()))
       return {cloned, zero};
-    }
     auto* derivedAS = BuildArraySubscript(derivedME, derivedIndices());
     return {cloned, derivedAS};
   } else {
@@ -1134,6 +1329,104 @@ DiffMode BaseForwardModeVisitor::GetPushForwardMode() {
   return DiffMode::pushforward;
 }
 
+static tok::TokenKind getNamedCastToken(ASTContext& C,
+                                        const CXXNamedCastExpr* Cast) {
+  return C.Idents.get(Cast->getCastName()).getTokenID();
+}
+
+bool BaseForwardModeVisitor::containsNonDifferentiableCall(const Stmt* S) {
+  if (const auto* CE = dyn_cast_or_null<CallExpr>(S))
+    if (utils::hasNonDifferentiableAttribute(CE) ||
+        utils::callOperatesOnNonDifferentiableType(m_Sema, CE))
+      return true;
+  return S && llvm::any_of(S->children(), [this](const Stmt* Child) {
+           return containsNonDifferentiableCall(Child);
+         });
+}
+
+Expr* BaseForwardModeVisitor::VisitForEvaluation(const Expr* E) {
+  // An opaque result has no tangent, but evaluating its operands can update
+  // active variables. Keep those updates and their temporaries on the path
+  // that evaluates the operand, including nested lazy expressions.
+  E = E->IgnoreParens();
+  if (const auto* Cast = dyn_cast<CStyleCastExpr>(E))
+    return m_Sema
+        .BuildCStyleCastExpr(Cast->getLParenLoc(), Cast->getTypeInfoAsWritten(),
+                             Cast->getRParenLoc(),
+                             VisitForEvaluation(Cast->getSubExpr()))
+        .get();
+  if (const auto* Cast = dyn_cast<CXXFunctionalCastExpr>(E))
+    return BuildFunctionalCast(Cast->getTypeInfoAsWritten(), Cast->getType(),
+                               VisitForEvaluation(Cast->getSubExpr()));
+  if (const auto* Cast = dyn_cast<CXXNamedCastExpr>(E))
+    return m_Sema
+        .BuildCXXNamedCast(Cast->getBeginLoc(),
+                           getNamedCastToken(m_Context, Cast),
+                           Cast->getTypeInfoAsWritten(),
+                           VisitForEvaluation(Cast->getSubExpr()),
+                           Cast->getAngleBrackets(), Cast->getSourceRange())
+        .get();
+  if (const auto* Conditional =
+          dyn_cast<ConditionalOperator>(E->IgnoreParenImpCasts()))
+    return m_Sema
+        .ActOnConditionalOp(noLoc, noLoc,
+                            VisitForEvaluation(Conditional->getCond()),
+                            VisitForEvaluation(Conditional->getTrueExpr()),
+                            VisitForEvaluation(Conditional->getFalseExpr()))
+        .get();
+  if (const auto* BO = dyn_cast<BinaryOperator>(E->IgnoreParenImpCasts()))
+    if (BO->isLogicalOp() || BO->getOpcode() == BO_Comma)
+      return BuildOp(BO->getOpcode(),
+                     BuildParens(VisitForEvaluation(BO->getLHS())),
+                     BuildParens(VisitForEvaluation(BO->getRHS())));
+  auto evaluate = [&] {
+    llvm::SaveAndRestore<bool> PreserveEffects(m_EvaluatingOpaqueOperand, true);
+    StmtDiff Diff = Visit(E);
+    Expr* Value = Diff.getExpr();
+    if (Expr* Tangent = Diff.getExpr_dx()) {
+      while (const auto* Comma =
+                 dyn_cast<BinaryOperator>(Tangent->IgnoreParenImpCasts())) {
+        if (Comma->getOpcode() != BO_Comma ||
+            Comma->getRHS()->HasSideEffects(m_Context))
+          break;
+        Tangent = Comma->getLHS();
+      }
+      if (Tangent->HasSideEffects(m_Context))
+        Value = BuildOp(BO_Comma, BuildParens(Tangent), BuildParens(Value));
+    }
+    if (E->isXValue() && Value->isLValue() && !Value->refersToBitField())
+      Value = utils::BuildStaticCastToRValue(m_Sema, Value);
+    return Value;
+  };
+  Expr* Value = nullptr;
+  CompoundStmt* Prelude = nullptr;
+  {
+    ScopeRAII EvaluationScope(*this, Scope::DeclScope);
+    beginBlock();
+    Value = evaluate();
+    Prelude = endBlock();
+  }
+  if (!Prelude->size())
+    return Value;
+  QualType ReturnType = E->getType();
+  // A materialized temporary rebuilt as a pushforward member must leave the
+  // lambda by value, rather than a reference into its local pushforward.
+  bool IsTemporary =
+      isa<MaterializeTemporaryExpr>(E->skipRValueSubobjectAdjustments());
+  if (!E->refersToBitField() && !IsTemporary) {
+    if (E->isLValue())
+      ReturnType = m_Context.getLValueReferenceType(ReturnType);
+    else if (E->isXValue())
+      ReturnType = m_Context.getRValueReferenceType(ReturnType);
+  }
+  Expr* Result = wrapInLambda(
+      *this, m_Sema, E, [&] { addToCurrentBlock(BuildReturnStmt(evaluate())); },
+      ReturnType);
+  if (IsTemporary && E->isXValue())
+    Result = utils::BuildStaticCastToRValue(m_Sema, Result);
+  return Result;
+}
+
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
@@ -1150,24 +1443,36 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
     CUDAExecConfig = Clone(KCE->getConfig());
 
-  // If the function is non_differentiable, return zero derivative.
-  if (clad::utils::hasNonDifferentiableAttribute(CE)) {
-    // Calling the function without computing derivatives
-    llvm::SmallVector<Expr*, 4> ClonedArgs;
-    for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i)
-      ClonedArgs.push_back(Clone(CE->getArg(i)));
-
-    Expr* Call =
-        m_Sema
-            .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), validLoc,
-                           ClonedArgs, validLoc, CUDAExecConfig)
-            .get();
-    // Creating a zero derivative
-    auto* zero =
+  if (utils::hasNonDifferentiableAttribute(CE) ||
+      utils::callOperatesOnNonDifferentiableType(m_Sema, CE)) {
+    llvm::SmallVector<Expr*, 4> Args;
+    for (const Expr* Arg : CE->arguments())
+      Args.push_back(VisitForEvaluation(Arg));
+    Expr* Call = nullptr;
+    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+      Call = BuildOperatorCall(OCE->getOperator(), Args, validLoc);
+    } else {
+      Expr* Callee = Clone(CE->getCallee());
+      if (auto* Member = dyn_cast<MemberExpr>(Callee->IgnoreParenImpCasts())) {
+        const auto* Original =
+            cast<MemberExpr>(CE->getCallee()->IgnoreParenImpCasts());
+        Member->setBase(VisitForEvaluation(Original->getBase()));
+      }
+      Call = m_Sema
+                 .ActOnCallExpr(getCurrentScope(), Callee, validLoc, Args,
+                                validLoc, CUDAExecConfig)
+                 .get();
+    }
+    auto* Zero =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-
-    // Returning the function call and zero derivative
-    return StmtDiff(Call, zero);
+    if (m_DiffReq.Mode == DiffMode::vector_forward_mode ||
+        m_DiffReq.Mode == DiffMode::vector_pushforward ||
+        m_DiffReq.Mode == DiffMode::jacobian) {
+      if (CE->getType()->isFloatingType())
+        Zero = ConstantFolder::synthesizeLiteral(CE->getType(), m_Context, 0);
+      return {Call, Visit(Zero).getExpr_dx()};
+    }
+    return {Call, Zero};
   }
 
   // Find the built-in derivatives namespace.
@@ -1406,7 +1711,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         !needsForwPass) {
       // The planner's varied analysis already knows whether any argument of
       // the call depends on the direction being differentiated.
-      bool contributes = m_DiffReq.shouldHavePushforward(CE);
+      // Opaque operands can contain active assignments that the call-activity
+      // cache missed. Their emitted argument tangents are the deciding inputs.
+      bool contributes =
+          m_EvaluatingOpaqueOperand || m_DiffReq.shouldHavePushforward(CE);
       // Activity is tracked per variable: seeding p[1] leaves the whole of p
       // varied, but the tangents are built with the seeded index in hand and
       // still recognize `f(p[0])` as inactive.
@@ -1575,6 +1883,12 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
 
 StmtDiff
 BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
+  if (BinOp->isLogicalOp() && containsNonDifferentiableCall(BinOp)) {
+    auto* Zero =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    return {VisitForEvaluation(BinOp), Visit(Zero).getExpr_dx()};
+  }
+
   StmtDiff Ldiff = Visit(BinOp->getLHS());
   StmtDiff Rdiff = Visit(BinOp->getRHS());
 
@@ -1818,6 +2132,18 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   // FIXME: Create unique identifier for derivative.
   Expr* initDx = initDiff.getExpr_dx();
   QualType VDType = VD->getType();
+  // Split loop conditions use this overload rather than vector mode's
+  // declaration visitor. Their adjoint must still have the vector type.
+  if (ignoreInit && containsNonDifferentiableCall(init) &&
+      (m_DiffReq.Mode == DiffMode::vector_forward_mode ||
+       m_DiffReq.Mode == DiffMode::vector_pushforward ||
+       m_DiffReq.Mode == DiffMode::jacobian)) {
+    QualType ElementType = utils::GetNonConstValueType(VDType);
+    VDType = utils::GetCladArrayOfType(m_Sema, ElementType);
+    auto* Zero =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    initDx = Visit(Zero).getExpr_dx();
+  }
   // A reference tangent needs an lvalue to bind to; the literal 0 that e.g.
   // `const double& r = 5.;` derives to is not one.
   if (VDType->isLValueReferenceType() && initDx && !initDx->isLValue())
@@ -2021,27 +2347,7 @@ BaseForwardModeVisitor::VisitPredefinedExpr(const clang::PredefinedExpr* E) {
 StmtDiff
 BaseForwardModeVisitor::VisitCXXNamedCastExpr(const CXXNamedCastExpr* NCE) {
   StmtDiff subExprDiff = Visit(NCE->getSubExpr());
-  tok::TokenKind CastKind = (tok::TokenKind)~0U;
-  switch (NCE->getStmtClass()) {
-  case Expr::CXXAddrspaceCastExprClass:
-    CastKind = tok::kw_addrspace_cast;
-    break;
-  case Expr::CXXConstCastExprClass:
-    CastKind = tok::kw_const_cast;
-    break;
-  case Expr::CXXDynamicCastExprClass:
-    CastKind = tok::kw_dynamic_cast;
-    break;
-  case Expr::CXXReinterpretCastExprClass:
-    CastKind = tok::kw_reinterpret_cast;
-    break;
-  case Expr::CXXStaticCastExprClass:
-    CastKind = tok::kw_static_cast;
-    break;
-  default:
-    assert(0 && "Unsupported cast kind!");
-    break;
-  }
+  tok::TokenKind CastKind = getNamedCastToken(m_Context, NCE);
 
   SourceLocation Loc = NCE->getBeginLoc();
   TypeSourceInfo* TSI = NCE->getTypeInfoAsWritten();
@@ -2129,7 +2435,10 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
     addToCurrentBlock(BuildDeclStmt(condVarClone));
   }
   // Assignments in the condition are allowed, differentiate.
-  if (cond) {
+  if (containsNonDifferentiableCall(WS->getCond()) ||
+      (condVar && containsNonDifferentiableCall(condVar->getInit()))) {
+    cond = VisitForEvaluation(condVar ? cond : WS->getCond());
+  } else if (cond) {
     cond = cond->IgnoreParenImpCasts();
     auto* condBO = dyn_cast<BinaryOperator>(cond);
     auto* condUO = dyn_cast<UnaryOperator>(cond);
@@ -2189,7 +2498,11 @@ BaseForwardModeVisitor::VisitContinueStmt(const ContinueStmt* ContStmt) {
 StmtDiff BaseForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
   // Scope for the whole do-while statement.
   ScopeRAII doScope(*this, Scope::ContinueScope | Scope::BreakScope);
-  Expr* clonedCond = DS->getCond() ? Clone(DS->getCond()) : nullptr;
+  Expr* clonedCond = DS->getCond()
+                         ? (containsNonDifferentiableCall(DS->getCond())
+                                ? VisitForEvaluation(DS->getCond())
+                                : Clone(DS->getCond()))
+                         : nullptr;
   const Stmt* body = DS->getBody();
 
   Stmt* bodyResult = nullptr;
@@ -2253,7 +2566,11 @@ StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
 
   // TODO: we can check if expr is null in `VisitorBase::Clone`, if it is
   // null then it can be safely returned without any cloning.
-  Expr* clonedCond = (SS->getCond() ? Clone(SS->getCond()) : nullptr);
+  Expr* clonedCond = SS->getCond()
+                         ? (containsNonDifferentiableCall(SS->getCond())
+                                ? VisitForEvaluation(SS->getCond())
+                                : Clone(SS->getCond()))
+                         : nullptr;
 
   Sema::ConditionResult condResult;
   if (condVarClone)
