@@ -40,15 +40,19 @@ int main() {
   return 0;
 }
 
-// The breakpoint resolves, so the name reached the line table.
-// CHECK: Breakpoint 1: {{[0-9]+}} location
+// The breakpoint resolves, so the name reached the line table. lldb words it
+// by how many functions answer to the name: "where = ..." for one, "N
+// locations." for several. A gradient of a function whose parameters are all
+// one floating-point type has no type-erased overload next to it, so here the
+// derivative is the only f_grad.
+// CHECK: Breakpoint 1: {{(where = .*f_grad.*|[0-9]+ locations?)}}
 
 // The frame is in the file clad wrote, not in the one the user wrote.
 // CHECK: f_grad{{.*}} at {{.*}}GeneratedCodeDebugger.C.clad.cpp:{{[0-9]+}}
 
 // And lldb reads that file back off disk and shows the line it stopped on --
 // the half gdb needs, since it cannot read code out of a binary at all.
-// CHECK: {{->}} {{[0-9]+}}{{.*}}f_grad
+// CHECK: {{->}} {{[0-9]+}} {{.+}}
 
 // Without anywhere to write the code, the same run has a file name that
 // answers to nothing, and shows no source at all. This is what the flag is

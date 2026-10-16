@@ -9,6 +9,7 @@
 #include "ConstantFolder.h"
 
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
@@ -1447,6 +1448,34 @@ namespace clad {
     return BuildCallExpr(BuildDeclRef(zeroLike), args);
   }
 
+  /// Returns T if the gradient of the function in \p R is a free function
+  /// whose parameters all have the same floating-point type T, so that every
+  /// derivative output parameter is a T* whatever the argument spec selects.
+  /// Returns a null type otherwise. Must agree with GradientDerivedFnTraits in
+  /// FunctionTraits.h, which is why it looks at the parameter types of the
+  /// function type (top-level qualifiers dropped), not at the ParmVarDecls.
+  static QualType GetUniformGradientElementType(const DiffRequest& R) {
+    if (R.Mode != DiffMode::reverse || R.EnableErrorEstimation || R.Functor)
+      return {};
+    const FunctionDecl* FD = R.Function;
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
+      if (!utils::IsStaticMethod(MD))
+        return {};
+    const auto* FPT = FD->getType()->getAs<FunctionProtoType>();
+    if (!FPT || FPT->isVariadic() || FPT->getNumParams() == 0)
+      return {};
+    QualType T = FPT->getParamType(0).getCanonicalType().getUnqualifiedType();
+    const auto* BT = dyn_cast<BuiltinType>(T);
+    if (!BT || (BT->getKind() != BuiltinType::Float &&
+                BT->getKind() != BuiltinType::Double &&
+                BT->getKind() != BuiltinType::LongDouble))
+      return {};
+    for (QualType PT : FPT->param_types())
+      if (PT.getCanonicalType().getUnqualifiedType() != T)
+        return {};
+    return T;
+  }
+
   FunctionDecl* VisitorBase::CreateDerivativeOverload(FunctionDecl* derivative,
                                                       OverloadKind kind) {
     const bool vectorMode = kind == OverloadKind::VectorMode;
@@ -1476,6 +1505,20 @@ namespace clad {
     QualType outputParamType =
         vectorMode ? utils::GetCladArrayRefOfType(m_Sema, m_Context.VoidTy)
                    : m_Context.getPointerType(m_Context.VoidTy);
+    // When all the parameters are the same floating-point type T, the type of
+    // every derivative is T* and does not depend on the argument spec, so the
+    // overload can spell it. This must match GradientDerivedFnTraits.
+    if (!vectorMode) {
+      QualType elementTy = GetUniformGradientElementType(m_DiffReq);
+      if (!elementTy.isNull()) {
+        outputParamType = m_Context.getPointerType(elementTy);
+        // If every parameter is differentiated, the overload would have the
+        // very signature of the derivative; the derivative is enough.
+        if (diffParams.size() ==
+            m_DiffReq->getNumParams() + numOfDerivativeParams)
+          return nullptr;
+      }
+    }
 
     llvm::SmallVector<QualType, 16> paramTypes;
 
