@@ -243,6 +243,14 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// returns a real number.
     bool IsRealFunction(const clang::FunctionDecl* FD);
 
+    /// The function the numerical-diff fallback passes as a pointer to
+    /// differentiate \p FD: FD itself, or, for a builtin whose address cannot
+    /// be taken, the library function it stands for (`exp` for
+    /// `__builtin_exp`). Null when there is none, or FD is not a real
+    /// function.
+    const clang::FunctionDecl* GetNumDiffTarget(clang::Sema& S,
+                                                const clang::FunctionDecl* FD);
+
     /// Returns true if `arg` is an argument passed by reference or is of
     /// pointer/array type.
     ///

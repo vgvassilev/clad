@@ -621,6 +621,34 @@ namespace clad {
       return true;
     }
 
+    const FunctionDecl* GetNumDiffTarget(Sema& S, const FunctionDecl* FD) {
+      if (!IsRealFunction(FD))
+        return nullptr;
+      const Builtin::Context& BI = S.getASTContext().BuiltinInfo;
+      auto addressable = [&](const FunctionDecl* F) {
+        unsigned ID = F->getBuiltinID();
+        return !ID || clad_compat::isDirectlyAddressable(BI, ID);
+      };
+      if (addressable(FD))
+        return FD;
+      // A builtin with no `__builtin_` prefix names itself, which the lookup
+      // below finds and skips as unaddressable.
+      StringRef Name = FD->getName();
+      Name.consume_front("__builtin_");
+      LookupResult R(S, &S.getASTContext().Idents.get(Name), noLoc,
+                     Sema::LookupOrdinaryName);
+      S.LookupQualifiedName(R, S.getASTContext().getTranslationUnitDecl());
+      // The library function itself, as clang knows it, not some other
+      // function that happens to share its name.
+      for (const NamedDecl* D : R) {
+        const auto* Lib = dyn_cast<FunctionDecl>(D->getUnderlyingDecl());
+        if (Lib && Lib->getBuiltinID() && addressable(Lib) &&
+            Lib->getNumParams() == FD->getNumParams())
+          return Lib;
+      }
+      return nullptr;
+    }
+
     bool IsReferenceOrPointerArg(const Expr* arg) {
       // The argument is passed by reference if it's an L-value
       // and the parameter type is L-value too.

@@ -668,7 +668,9 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
             if (request.CallContext)
               L = request.CallContext->getBeginLoc();
             diagnoseUndefinedFunction(
-                FD, L, /*numDiffViable=*/utils::IsRealFunction(FD));
+                FD, L,
+                /*numDiffViable=*/utils::GetNumDiffTarget(m_Sema, FD) !=
+                    nullptr);
           }
           return {};
         }
