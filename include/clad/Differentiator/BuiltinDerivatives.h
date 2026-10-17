@@ -192,6 +192,8 @@ template <typename... Args>
 unsigned __cudaPushCallConfiguration_reverse_forw(Args...);
 #endif
 
+// NOLINTBEGIN(bugprone-reserved-identifier)
+// NOLINTBEGIN(readability-identifier-naming)
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
 __builtin_logf_pushforward(float x, float d_x) {
   return {__builtin_logf(x), (1.F / x) * d_x};
@@ -259,7 +261,69 @@ CUDA_HOST_DEVICE inline void __builtin_powf_pullback(float x, float exponent,
   *d_exponent += t.pushforward * d_y;
 }
 
-// FIXME: Add the rest of the __builtin_ routines for log, sqrt, abs, etc.
+CUDA_HOST_DEVICE inline void __builtin_log_pullback(double x, double d_y,
+                                                    double* d_x) {
+  *d_x += (1.0 / x) * d_y;
+}
+
+CUDA_HOST_DEVICE inline void __builtin_logf_pullback(float x, float d_y,
+                                                     float* d_x) {
+  *d_x += (1.F / x) * d_y;
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
+__builtin_sqrt_pushforward(double x, double d_x) {
+  return {__builtin_sqrt(x), (1.0 / (2.0 * __builtin_sqrt(x))) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+__builtin_sqrtf_pushforward(float x, float d_x) {
+  return {__builtin_sqrtf(x), (1.F / (2.F * __builtin_sqrtf(x))) * d_x};
+}
+
+CUDA_HOST_DEVICE inline void __builtin_sqrt_pullback(double x, double d_y,
+                                                     double* d_x) {
+  *d_x += (1.0 / (2.0 * __builtin_sqrt(x))) * d_y;
+}
+
+CUDA_HOST_DEVICE inline void __builtin_sqrtf_pullback(float x, float d_y,
+                                                      float* d_x) {
+  *d_x += (1.F / (2.F * __builtin_sqrtf(x))) * d_y;
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
+__builtin_fabs_pushforward(double x, double d_x) {
+  if (x >= 0)
+    return {__builtin_fabs(x), d_x};
+  return {__builtin_fabs(x), -d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+__builtin_fabsf_pushforward(float x, float d_x) {
+  if (x >= 0)
+    return {__builtin_fabsf(x), d_x};
+  return {__builtin_fabsf(x), -d_x};
+}
+
+CUDA_HOST_DEVICE inline void __builtin_fabs_pullback(double x, double d_y,
+                                                     double* d_x) {
+  if (x >= 0)
+    *d_x += d_y;
+  else
+    *d_x -= d_y;
+}
+
+CUDA_HOST_DEVICE inline void __builtin_fabsf_pullback(float x, float d_y,
+                                                      float* d_x) {
+  if (x >= 0)
+    *d_x += d_y;
+  else
+    *d_x -= d_y;
+}
+
+// FIXME: Add the rest of the __builtin_ routines.
+// NOLINTEND(readability-identifier-naming)
+// NOLINTEND(bugprone-reserved-identifier)
 
 namespace std {
 
