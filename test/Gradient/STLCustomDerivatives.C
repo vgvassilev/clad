@@ -1028,7 +1028,8 @@ int main() {
 // CHECK-NEXT:         u = clad::pop(_t3);
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_sum;
-// CHECK-NEXT:             _d_u += _r_d0 * clad::pop(_t2);
+// CHECK-NEXT:             double _r1 = clad::pop(_t2);
+// CHECK-NEXT:             _d_u += _r_d0 * _r1;
 // CHECK-NEXT:             * _d_it += u * _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
