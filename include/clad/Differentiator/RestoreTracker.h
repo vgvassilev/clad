@@ -8,8 +8,6 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-#include <map>
-#include <utility>
 #include <vector>
 #ifndef Max_Records
 #define Max_Records 64
@@ -72,36 +70,65 @@ public:
   // block-local tracker declaration used to (re-)initialize the tracker.
   CUDA_HOST_DEVICE void clear() { m_cnt = m_off = 0; }
 #else
-  using RawMemory = std::vector<uint8_t>;
   using Address = char*;
-  std::map<const Address, RawMemory> m_data;
+
+  // Store addresses, sizes, and original bytes in one contiguous buffer.
+  std::vector<uint8_t> m_data;
 
 public:
-  // Store the value and the address of `val`.
   template <typename T> void store(const T& val) {
-    // If a variable is stored multiple times, we should only take the first
-    // value into consideration:
-    // _tracker.store(x); // stored
-    // ...
-    // _tracker.store(x); // ignored
-    if (m_data.find((char*)&val) != m_data.end())
-      return;
-    std::vector<uint8_t> buffer(sizeof(T));
-    std::memcpy(buffer.data(), &val, sizeof(T));
-    m_data.emplace((char*)&val, std::move(buffer));
+    const Address addr = (char*)&val;
+    size_t offset = 0;
+
+    // Preserve the first value stored for each address.
+    while (offset < m_data.size()) {
+      Address storedAddr;
+      size_t storedSize;
+
+      std::memcpy(&storedAddr, m_data.data() + offset, sizeof(storedAddr));
+      offset += sizeof(storedAddr);
+
+      std::memcpy(&storedSize, m_data.data() + offset, sizeof(storedSize));
+      offset += sizeof(storedSize);
+
+      if (storedAddr == addr)
+        return;
+
+      offset += storedSize;
+    }
+
+    const size_t oldSize = m_data.size();
+    const size_t valueSize = sizeof(T);
+    const size_t recordSize =
+        sizeof(addr) + sizeof(valueSize) + valueSize;
+
+    m_data.resize(oldSize + recordSize);
+
+    std::memcpy(m_data.data() + oldSize, &addr, sizeof(addr));
+    std::memcpy(m_data.data() + oldSize + sizeof(addr), &valueSize,
+                sizeof(valueSize));
+    std::memcpy(m_data.data() + oldSize + sizeof(addr) + sizeof(valueSize),
+                &val, valueSize);
   }
-  // Set all stored addresses to the corresponding values bitwise. Keeps the
-  // stored values: the reverse sweep restores the same state again after the
-  // pullback's forward replay re-mutates it.
+
   void restore() {
-    for (std::pair<const Address, RawMemory>& pair : m_data) {
-      std::vector<uint8_t>& buffer = pair.second;
-      std::memcpy(pair.first, buffer.data(), buffer.size());
+    size_t offset = 0;
+
+    while (offset < m_data.size()) {
+      Address addr;
+      size_t size;
+
+      std::memcpy(&addr, m_data.data() + offset, sizeof(addr));
+      offset += sizeof(addr);
+
+      std::memcpy(&size, m_data.data() + offset, sizeof(size));
+      offset += sizeof(size);
+
+      std::memcpy(addr, m_data.data() + offset, size);
+      offset += size;
     }
   }
 
-  // Drop all records without writing anything back. Emitted where a
-  // block-local tracker declaration used to (re-)initialize the tracker.
   void clear() { m_data.clear(); }
 #endif
 };
