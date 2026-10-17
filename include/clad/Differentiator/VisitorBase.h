@@ -949,6 +949,12 @@ namespace clad {
     BuildNumericalDiffCall(const std::string& Name,
                            llvm::SmallVectorImpl<clang::Expr*>& NumDiffArgs,
                            clang::Expr* CUDAExecConfig);
+    /// The callee the numerical-diff fallback passes to differentiate a call
+    /// to \p FD made through \p Callee: Callee itself, or a reference to the
+    /// library function a builtin stands for (see utils::GetNumDiffTarget).
+    /// Null when numerical differentiation is not viable for FD.
+    clang::Expr* GetNumDiffCallee(const clang::FunctionDecl* FD,
+                                  clang::Expr* Callee);
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///

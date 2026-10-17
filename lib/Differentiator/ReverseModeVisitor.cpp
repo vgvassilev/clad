@@ -2812,7 +2812,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                     /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(pullbackCallArgs),
                     /*RParenLoc=*/m_DiffReq->getLocation(), CUDAExecConfig)
                 .get();
-      } else if (utils::IsRealFunction(FD)) {
+      } else if (Expr* NumDiffCallee =
+                     GetNumDiffCallee(FD, Clone(CE->getCallee()))) {
         // FIXME: Add support for reference arguments to the numerical diff. If
         // it already correctly support reference arguments then confirm the
         // support and add tests for the same.
@@ -2820,16 +2821,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // Clad failed to derive it. Try numerically deriving it.
         if (NArgs == 1) {
           OverloadedDerivedFn = GetSingleArgCentralDiffCall(
-              Clone(CE->getCallee()), pullbackCallArgs[0],
+              NumDiffCallee, pullbackCallArgs.front(),
               /*targetPos=*/0,
               /*numArgs=*/1, pullbackCallArgs, CUDAExecConfig);
           asGrad = !OverloadedDerivedFn;
         } else {
           auto CEType = utils::getNonConstType(CE->getType(), m_Sema);
-          GetMultiArgCentralDiffCall(
-              Clone(CE->getCallee()), CEType.getCanonicalType(),
-              CE->getNumArgs(), dfdx(), PreCallStmts, pullbackCallArgs,
-              CallArgDx, CUDAExecConfig);
+          GetMultiArgCentralDiffCall(NumDiffCallee, CEType.getCanonicalType(),
+                                     CE->getNumArgs(), dfdx(), PreCallStmts,
+                                     pullbackCallArgs, CallArgDx,
+                                     CUDAExecConfig);
         }
       }
       // If the derivative is called through _darg0 instead of _grad.

@@ -1106,6 +1106,17 @@ namespace clad {
            QT.getAsString().find("clad::array_ref") != std::string::npos;
   }
 
+  Expr* VisitorBase::GetNumDiffCallee(const FunctionDecl* FD, Expr* Callee) {
+    const FunctionDecl* Target = utils::GetNumDiffTarget(m_Sema, FD);
+    if (Target == FD)
+      return Callee;
+    if (!Target)
+      return nullptr;
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    auto* TargetFD = const_cast<FunctionDecl*>(Target);
+    return m_Sema.DefaultFunctionArrayConversion(BuildDeclRef(TargetFD)).get();
+  }
+
   Expr* VisitorBase::GetSingleArgCentralDiffCall(
       Expr* targetFuncCall, Expr* targetArg, unsigned targetPos,
       unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args,
