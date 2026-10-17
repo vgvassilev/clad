@@ -192,6 +192,8 @@ template <typename... Args>
 unsigned __cudaPushCallConfiguration_reverse_forw(Args...);
 #endif
 
+// NOLINTBEGIN(bugprone-reserved-identifier)
+// NOLINTBEGIN(readability-identifier-naming)
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
 __builtin_logf_pushforward(float x, float d_x) {
   return {__builtin_logf(x), (1.F / x) * d_x};
@@ -320,6 +322,8 @@ CUDA_HOST_DEVICE inline void __builtin_fabsf_pullback(float x, float d_y,
 }
 
 // FIXME: Add the rest of the __builtin_ routines.
+// NOLINTEND(readability-identifier-naming)
+// NOLINTEND(bugprone-reserved-identifier)
 
 namespace std {
 
