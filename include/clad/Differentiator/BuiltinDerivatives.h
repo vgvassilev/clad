@@ -1277,6 +1277,116 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
 lgammal_pushforward(T x, dT d_x) noexcept {
   return lgamma_pushforward(x, d_x);
 }
+
+#ifdef __cpp_lib_math_special_functions
+// Cylindrical Bessel functions (J, I, K). Differentiation is supported with
+// respect to x for fixed non-negative order nu (with x > 0 for K).
+// Differentiation with respect to the order nu is not supported.
+// At x == 0, retain x-dependent J/I formulas for higher-order AD.
+// For 0 < nu < 1, the origin result represents a divergent right-hand limit.
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+cyl_bessel_j_pushforward(T nu, T x, dT /*d_nu*/, dT d_x) {
+  T j_nu = ::std::cyl_bessel_j(nu, x);
+  T derivative;
+  if (nu == T(0)) {
+    derivative = -::std::cyl_bessel_j(T(1), x);
+  } else if (x == T(0) && nu > T(0)) {
+    if (nu >= T(1)) {
+      derivative = T(0.5) * (::std::cyl_bessel_j(nu - T(1), x) -
+                             ::std::cyl_bessel_j(nu + T(1), x));
+    } else {
+      derivative = ::std::numeric_limits<T>::infinity();
+    }
+  } else {
+    derivative = -::std::cyl_bessel_j(nu + T(1), x) + (nu / x) * j_nu;
+  }
+  return {j_nu, derivative * d_x};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void cyl_bessel_j_pullback(T nu, T x, U d_z, T* /*d_nu*/,
+                                            T* d_x) {
+  if (d_x) {
+    T j_nu = ::std::cyl_bessel_j(nu, x);
+    T derivative;
+    if (nu == T(0)) {
+      derivative = -::std::cyl_bessel_j(T(1), x);
+    } else if (x == T(0) && nu > T(0)) {
+      if (nu >= T(1)) {
+        derivative = T(0.5) * (::std::cyl_bessel_j(nu - T(1), x) -
+                               ::std::cyl_bessel_j(nu + T(1), x));
+      } else {
+        derivative = ::std::numeric_limits<T>::infinity();
+      }
+    } else {
+      derivative = -::std::cyl_bessel_j(nu + T(1), x) + (nu / x) * j_nu;
+    }
+    *d_x += derivative * d_z;
+  }
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+cyl_bessel_i_pushforward(T nu, T x, dT /*d_nu*/, dT d_x) {
+  T i_nu = ::std::cyl_bessel_i(nu, x);
+  T derivative;
+  if (nu == T(0)) {
+    derivative = ::std::cyl_bessel_i(T(1), x);
+  } else if (x == T(0) && nu > T(0)) {
+    if (nu >= T(1)) {
+      derivative = T(0.5) * (::std::cyl_bessel_i(nu - T(1), x) +
+                             ::std::cyl_bessel_i(nu + T(1), x));
+    } else {
+      derivative = ::std::numeric_limits<T>::infinity();
+    }
+  } else {
+    derivative = ::std::cyl_bessel_i(nu + T(1), x) + (nu / x) * i_nu;
+  }
+  return {i_nu, derivative * d_x};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void cyl_bessel_i_pullback(T nu, T x, U d_z, T* /*d_nu*/,
+                                            T* d_x) {
+  if (d_x) {
+    T i_nu = ::std::cyl_bessel_i(nu, x);
+    T derivative;
+    if (nu == T(0)) {
+      derivative = ::std::cyl_bessel_i(T(1), x);
+    } else if (x == T(0) && nu > T(0)) {
+      if (nu >= T(1)) {
+        derivative = T(0.5) * (::std::cyl_bessel_i(nu - T(1), x) +
+                               ::std::cyl_bessel_i(nu + T(1), x));
+      } else {
+        derivative = ::std::numeric_limits<T>::infinity();
+      }
+    } else {
+      derivative = ::std::cyl_bessel_i(nu + T(1), x) + (nu / x) * i_nu;
+    }
+    *d_x += derivative * d_z;
+  }
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+cyl_bessel_k_pushforward(T nu, T x, dT /*d_nu*/, dT d_x) {
+  T k_nu = ::std::cyl_bessel_k(nu, x);
+  T derivative = -::std::cyl_bessel_k(nu + T(1), x) + (nu / x) * k_nu;
+  return {k_nu, derivative * d_x};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void cyl_bessel_k_pullback(T nu, T x, U d_z, T* /*d_nu*/,
+                                            T* d_x) {
+  if (d_x) {
+    T k_nu = ::std::cyl_bessel_k(nu, x);
+    T derivative = -::std::cyl_bessel_k(nu + T(1), x) + (nu / x) * k_nu;
+    *d_x += derivative * d_z;
+  }
+}
+
+#endif
 #endif
 
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
@@ -1635,6 +1745,15 @@ using std::beta_pushforward;
 using std::lgamma_pushforward;
 using std::lgammaf_pushforward;
 using std::lgammal_pushforward;
+
+#ifdef __cpp_lib_math_special_functions
+using std::cyl_bessel_i_pullback;
+using std::cyl_bessel_i_pushforward;
+using std::cyl_bessel_j_pullback;
+using std::cyl_bessel_j_pushforward;
+using std::cyl_bessel_k_pullback;
+using std::cyl_bessel_k_pushforward;
+#endif
 #endif
 
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
