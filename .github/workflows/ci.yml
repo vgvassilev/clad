@@ -183,13 +183,6 @@ jobs:
           - { name: win-msvc-runtime23, os: windows-2022, compiler: msvc, clang-runtime: '23' }
 
           # --- CUSTOM: Debug, coverage, benchmarks, static analysis ---
-          - name: ubu24-clang20-runtime22-debug
-            os: ubuntu-24.04
-            compiler: clang-20
-            clang-runtime: '22'
-            debug_build: true
-            flavor: debug
-
           - name: ubu24-gcc13-runtime20-benchmarks
             os: ubuntu-24.04
             compiler: gcc-13
@@ -763,6 +756,36 @@ jobs:
             use-recipe: 'true'
     steps: *build_steps
 
+  # A debug build of clad against a debug LLVM finds what assertions find --
+  # an AST clad builds that clang would never accept -- but it is the slowest
+  # Linux row by a wide margin, and almost always agrees with the release rows
+  # a pull request already waits on. So, like Valgrind, it waits for the merge
+  # and reports through post-merge-report; a pull request that touches the AST
+  # builders can still ask for it with the run-post-merge label. Step list
+  # shared via the &build_steps anchor.
+  build-debug:
+    if: ${{ github.event_name == 'push'
+        || contains(github.event.pull_request.labels.*.name,
+                    'run-post-merge') }}
+    timeout-minutes: 600
+    # A literal rather than ${{ matrix.name }}: this job is skipped on a pull
+    # request that does not ask for it, and a skipped job's name is resolved
+    # before the matrix expands, so the expression form reports as a check
+    # called `matrix.name`. Holds while the matrix has the one row below.
+    name: ubu24-clang20-runtime22-debug
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubu24-clang20-runtime22-debug
+            os: ubuntu-24.04
+            compiler: clang-20
+            clang-runtime: '22'
+            debug_build: true
+            flavor: debug
+    steps: *build_steps
+
   # ROOT ships clad linked into cling, where it runs under an interpreter
   # rather than a compiler. This job builds that pairing and runs the tests
   # that need it. Like Valgrind it waits for the merge: building cling costs a
@@ -989,7 +1012,7 @@ jobs:
           --target clad-tblgen clad-tables
 
   post-merge-report:
-    needs: [build-valgrind, build-cling]
+    needs: [build-valgrind, build-debug, build-cling]
     # Only after a merge, even though the gates above now also run on a
     # labelled pull request: this reports against head_commit, which a pull
     # request event does not carry, and the author of a branch watching its
@@ -1003,12 +1026,14 @@ jobs:
       uses: actions/github-script@v9
       with:
         script: |
-          // A row of its own for each gate, so that a red Valgrind and a red
-          // cling are two threads rather than one confusing one. Reporting
+          // A row of its own for each gate, so that a red Valgrind, debug build
+          // and cling are separate threads rather than one confusing one. Reporting
           // is per label from here on; a job that ran and passed is skipped.
           const gates = [
             { label: 'valgrind', what: 'Valgrind',
               result: '${{ needs.build-valgrind.result }}' },
+            { label: 'debug-build', what: 'The debug build',
+              result: '${{ needs.build-debug.result }}' },
             { label: 'cling', what: 'Clad inside cling',
               result: '${{ needs.build-cling.result }}' },
           ];
