@@ -11,7 +11,8 @@ inline double diff_subpixel_jitter(double r) {
 
 inline double diff_objective_pixel(int pixel_x, int pixel_y, int samps,
                                    double cam_x, double cam_y, double cam_z,
-                                   double light_y, double mirror_x) {
+                                   double light_y, double mirror_x,
+                                   double light_e = kDefaultLightE) {
   const int w = 512;
   const int h = 384;
 
@@ -46,7 +47,7 @@ inline double diff_objective_pixel(int pixel_x, int pixel_y, int samps,
         Vec offset = d * 140;
         Vec origin = cam_pos + offset;
         Ray ray(origin, d);
-        Vec L = diff_radiance(ray, 0, Xi, light_y, mirror_x);
+        Vec L = diff_radiance(ray, 0, Xi, light_y, mirror_x, light_e);
         double sample_avg = vec_avg(L);
         subpix_sum = subpix_sum + sample_avg * inv_samps;
       }
@@ -58,14 +59,14 @@ inline double diff_objective_pixel(int pixel_x, int pixel_y, int samps,
 
 inline double diff_objective_demo_aa(double cam_x, double cam_y, double cam_z) {
   return diff_objective_pixel(256, 192, 1, cam_x, cam_y, cam_z, kDefaultLightY,
-                              kDefaultMirrorX);
+                              kDefaultMirrorX, kDefaultLightE);
 }
 
 inline double diff_objective_pixel_aa_samps(int pixel_x, int pixel_y,
                                             double cam_x, double cam_y,
                                             double cam_z, int samps) {
   return diff_objective_pixel(pixel_x, pixel_y, samps, cam_x, cam_y, cam_z,
-                              kDefaultLightY, kDefaultMirrorX);
+                              kDefaultLightY, kDefaultMirrorX, kDefaultLightE);
 }
 
 inline double diff_objective_patch_mean(double cam_x, double cam_y,
@@ -85,14 +86,70 @@ inline double diff_objective_patch_mean(double cam_x, double cam_y,
 
 inline double diff_objective_light_y(double light_y) {
   return diff_objective_pixel(256, 192, 1, 50.0, 52.0, 295.6, light_y,
-                              kDefaultMirrorX);
+                              kDefaultMirrorX, kDefaultLightE);
+}
+
+inline double diff_objective_pixel_aa_samps_light_y(int pixel_x, int pixel_y,
+                                                    double light_y, int samps) {
+  return diff_objective_pixel(pixel_x, pixel_y, samps, 50.0, 52.0, 295.6,
+                              light_y, kDefaultMirrorX, kDefaultLightE);
+}
+
+inline double diff_objective_patch_light_y(double light_y, int x0, int y0,
+                                           int patch_w, int patch_h,
+                                           int samps) {
+  double sum = 0;
+  int count = patch_w * patch_h;
+  for (int py = y0; py < y0 + patch_h; ++py) {
+    for (int px = x0; px < x0 + patch_w; ++px) {
+      double pix =
+          diff_objective_pixel_aa_samps_light_y(px, py, light_y, samps);
+      sum = sum + pix;
+    }
+  }
+  return sum / count;
+}
+
+inline double diff_objective_pixel_aa_samps_light_e(int pixel_x, int pixel_y,
+                                                    double light_e, int samps) {
+  return diff_objective_pixel(pixel_x, pixel_y, samps, 50.0, 52.0, 295.6,
+                              kDefaultLightY, kDefaultMirrorX, light_e);
+}
+
+inline double diff_objective_patch_light_e(double light_e, int x0, int y0,
+                                           int patch_w, int patch_h,
+                                           int samps) {
+  double sum = 0;
+  int count = patch_w * patch_h;
+  for (int py = y0; py < y0 + patch_h; ++py) {
+    for (int px = x0; px < x0 + patch_w; ++px) {
+      double pix =
+          diff_objective_pixel_aa_samps_light_e(px, py, light_e, samps);
+      sum = sum + pix;
+    }
+  }
+  return sum / count;
+}
+
+inline double diff_pixel_loss_light_e(double light_e, int pixel_x, int pixel_y,
+                                      int samps, double target) {
+  double rendered =
+      diff_objective_pixel_aa_samps_light_e(pixel_x, pixel_y, light_e, samps);
+  double diff = rendered - target;
+  return diff * diff;
+}
+
+inline double diff_objective_light_e(double light_e) {
+  return diff_objective_pixel(kLightEmitPatchX0, kLightEmitPatchY0, 1, 50.0,
+                              52.0, 295.6, kDefaultLightY, kDefaultMirrorX,
+                              light_e);
 }
 
 inline double diff_objective_pixel_aa_samps_mirror_x(int pixel_x, int pixel_y,
                                                      double mirror_x,
                                                      int samps) {
   return diff_objective_pixel(pixel_x, pixel_y, samps, 50.0, 52.0, 295.6,
-                              kDefaultLightY, mirror_x);
+                              kDefaultLightY, mirror_x, kDefaultLightE);
 }
 
 inline double diff_objective_patch_mirror_x(double mirror_x, int x0, int y0,
