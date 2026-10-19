@@ -193,6 +193,8 @@ template <typename... Args>
 unsigned __cudaPushCallConfiguration_reverse_forw(Args...);
 #endif
 
+// NOLINTBEGIN(bugprone-reserved-identifier)
+// NOLINTBEGIN(readability-identifier-naming)
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
 __builtin_logf_pushforward(float x, float d_x) {
   return {__builtin_logf(x), (1.F / x) * d_x};
@@ -260,7 +262,41 @@ CUDA_HOST_DEVICE inline void __builtin_powf_pullback(float x, float exponent,
   *d_exponent += t.pushforward * d_y;
 }
 
-// FIXME: Add the rest of the __builtin_ routines for log, sqrt, abs, etc.
+namespace std {
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sqrt_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fabs_pushforward(T x, dT d_x);
+} // namespace std
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sqrt_pushforward(T x, dT d_x) {
+  return std::sqrt_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sqrtf_pushforward(T x, dT d_x) {
+  return std::sqrt_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fabs_pushforward(T x, dT d_x) {
+  return std::fabs_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fabsf_pushforward(T x, dT d_x) {
+  return std::fabs_pushforward(x, d_x);
+}
+
+// FIXME: Add the rest of the __builtin_ routines.
+// NOLINTEND(readability-identifier-naming)
+// NOLINTEND(bugprone-reserved-identifier)
 
 namespace std {
 
