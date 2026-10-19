@@ -6,9 +6,10 @@
 #include "clad/Differentiator/CladConfig.h" // IWYU pragma: keep
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 #ifndef Max_Records
 #define Max_Records 64
@@ -47,8 +48,13 @@ public:
   CUDA_HOST_DEVICE restore_tracker() = default;
 
   template <typename T> CUDA_HOST_DEVICE void store(const T& val) {
+    // Skip the store only if a record already covers all of val: a member
+    // stored before the object around it shares the object's address but
+    // not its size.
+    auto* addr = (char*)&val;
     for (size_t i = 0; i < m_cnt; ++i)
-      if (m_meta[i].addr == (char*)&val)
+      if (addr >= m_meta[i].addr &&
+          addr + sizeof(T) <= m_meta[i].addr + m_meta[i].size)
         return;
 
     if (m_cnt >= Max_Records || m_off + sizeof(T) > Max_Bytes) {
@@ -80,7 +86,13 @@ public:
   };
   std::vector<Record> m_meta;
   std::vector<uint8_t> m_buf;
-  std::unordered_set<Address> m_index;
+  // The widest store made at each stored address. A member stored before the
+  // object around it shares the object's address but not its size, so the
+  // address alone would take the object for a repeat and drop the rest of
+  // it. A store that starts inside an earlier record is recorded again; that
+  // costs a record, not correctness, since restore() writes the older copy
+  // last.
+  std::unordered_map<Address, std::size_t> m_index;
 
 public:
   // Store the value and the address of `val`.
@@ -91,8 +103,12 @@ public:
     // ...
     // _tracker.store(x); // ignored
     Address addr = (char*)&val;
-    if (!m_index.insert(addr).second)
-      return;
+    auto ins = m_index.emplace(addr, sizeof(T));
+    if (!ins.second) {
+      if (sizeof(T) <= ins.first->second)
+        return;
+      ins.first->second = sizeof(T);
+    }
     std::size_t off = m_buf.size();
     m_buf.resize(off + sizeof(T));
     std::memcpy(m_buf.data() + off, &val, sizeof(T));
