@@ -957,8 +957,22 @@ StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
     if (clad::utils::hasNonDifferentiableAttribute(ME))
       return {clonedME, zero};
     auto baseDiff = Visit(ME->getBase());
+    Expr* baseDx = baseDiff.getExpr_dx();
+    // A base without a tangent, such as a global pointer, leaves its member
+    // without one: a scalar reads as 0, anything else stays without. The base
+    // may alias varied data, so warn once per chain of members.
+    if (!baseDx) {
+      if (!isa<MemberExpr>(ME->getBase()->IgnoreParenImpCasts())) {
+        SourceLocation L = ME->getBeginLoc();
+        diag(DiagnosticsEngine::Warning, L,
+             "'%0' is accessed through an expression without a derivative; "
+             "its derivative is treated as 0")
+            << ME->getMemberDecl()->getName() << L;
+      }
+      return {clonedME, ME->getType()->isArithmeticType() ? zero : nullptr};
+    }
     // No derivative found for base. Therefore, derivative is 0.
-    if (baseDiff.getExpr_dx()->getType()->isVoidType())
+    if (baseDx->getType()->isVoidType())
       return {clonedME, zero};
 
     auto field = ME->getMemberDecl();
@@ -1033,9 +1047,9 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     }
   } else if (isa<MemberExpr>(clonedBase->IgnoreParenImpCasts())) {
     auto derivedME = cloneDiff.getExpr_dx();
-    if (!isa<MemberExpr>(derivedME->IgnoreParenImpCasts())) {
+    // A member of a base without a tangent has none either.
+    if (!derivedME || !isa<MemberExpr>(derivedME->IgnoreParenImpCasts()))
       return {cloned, zero};
-    }
     auto* derivedAS = BuildArraySubscript(derivedME, derivedIndices());
     return {cloned, derivedAS};
   } else {
