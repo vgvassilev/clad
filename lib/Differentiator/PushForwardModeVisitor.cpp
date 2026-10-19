@@ -31,12 +31,23 @@ StmtDiff PushForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Expr* retVal = retValDiff.getExpr();
   Expr* retVal_dx = retValDiff.getExpr_dx();
-  if (!m_Context.hasSameUnqualifiedType(retVal->getType(),
-                                        m_DiffReq->getReturnType())) {
+  QualType RetTy = m_DiffReq->getReturnType();
+  // A non-const reference return needs a tangent to refer to; a value without
+  // a derivative has at most the literal 0, which nothing can bind.
+  if (RetTy->isLValueReferenceType() &&
+      !RetTy.getNonReferenceType().isConstQualified() &&
+      (!retVal_dx || !retVal_dx->isLValue())) {
+    SourceLocation L = RS->getRetValue()->getBeginLoc();
+    diag(DiagnosticsEngine::Error, L,
+         "cannot differentiate '%0': the returned reference refers to a value "
+         "without a derivative")
+        << m_DiffReq->getNameAsString() << L;
+    return {};
+  }
+  if (!m_Context.hasSameUnqualifiedType(retVal->getType(), RetTy)) {
     // Check if implficit cast would work.
     // Add a cast to the return type.
-    TypeSourceInfo* TSI =
-        m_Context.getTrivialTypeSourceInfo(m_DiffReq->getReturnType());
+    TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(RetTy);
     retVal = m_Sema
                  .BuildCStyleCastExpr(RS->getBeginLoc(), TSI, RS->getEndLoc(),
                                       BuildParens(retVal))
