@@ -643,8 +643,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// \param E the expression to judge.
     /// \param asPointerValue E is a pointer rvalue passed to a callee, so
     /// the pointee is judged rather than the pointer variable's own slot.
+    /// \param followLocalReferences judge a local reference by what it is
+    /// bound to: right for lifetime, not for aliasing.
     bool designatesLocallyOwnedStorage(const clang::Expr* E,
-                                       bool asPointerValue = false);
+                                       bool asPointerValue = false,
+                                       bool followLocalReferences = false);
 
     bool IsDifferentiableType(clang::QualType T);
 

@@ -278,7 +278,9 @@ StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(clang::Expr* E,
     return {};
   // Storage owned by this function's locals is gone by the time the caller
   // restores the tracker; recording it would replay bytes into freed memory.
-  if (utils::designatesLocallyOwnedStorage(E))
+  // A local reference bound to such storage is no different.
+  if (utils::designatesLocallyOwnedStorage(E, /*asPointerValue=*/false,
+                                           /*followLocalReferences=*/true))
     return {};
   // Clone both the tracker base (reused across every store call) and the stored
   // expression E (the caller passes the same node it emits into the primal), so
