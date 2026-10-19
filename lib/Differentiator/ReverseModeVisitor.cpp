@@ -782,6 +782,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return StmtDiff();
   }
 
+  // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+  StmtDiff ReverseModeVisitor::VisitCXXThrowExpr(const CXXThrowExpr* TE) {
+    return StmtDiff(Clone(TE));
+  }
+
   StmtDiff ReverseModeVisitor::DifferentiateCtorInit(CXXCtorInitializer* CI,
                                                      Expr* thisExpr) {
     // If we're dealing with a delegating constructor or a
