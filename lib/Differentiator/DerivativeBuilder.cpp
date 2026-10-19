@@ -609,13 +609,19 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           // Build ``nullptr``
           Expr* dummy = utils::getZeroInit(ptrType, m_Sema);
           // Build ``*nullptr``
-          dummy = m_Sema.BuildUnaryOp(nullptr, {}, UO_Deref, dummy).get();
+          // A real location: converting the argument to a class-typed
+          // parameter may instantiate the class there for the first time,
+          // and an invalid point of instantiation trips clang's assertions.
+          SourceLocation DummyLoc = GenLoc();
+          dummy =
+              m_Sema.BuildUnaryOp(nullptr, DummyLoc, UO_Deref, dummy).get();
           // Build ``static_cast<parTy>(*nullptr)``
           dummy =
               m_Sema
                   .BuildCStyleCastExpr(
                       GenLoc(),
-                      m_Sema.getASTContext().getTrivialTypeSourceInfo(parTy),
+                      m_Sema.getASTContext().getTrivialTypeSourceInfo(
+                          parTy, DummyLoc),
                       GenLoc(), dummy)
                   .get();
           Inits.push_back(dummy);
