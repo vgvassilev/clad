@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
@@ -1279,111 +1280,164 @@ lgammal_pushforward(T x, dT d_x) noexcept {
 }
 
 #ifdef __cpp_lib_math_special_functions
-// Cylindrical Bessel functions (J, I, K). Differentiation is supported with
-// respect to x for fixed non-negative order nu (with x > 0 for K).
-// Differentiation with respect to the order nu is not supported.
-// At x == 0, retain x-dependent J/I formulas for higher-order AD.
+// Cylindrical Bessel functions (J, I, K) of non-negative order nu (with x > 0
+// for K). At x == 0, retain x-dependent J/I formulas for higher-order AD.
 // For 0 < nu < 1, the origin result represents a divergent right-hand limit.
+// d/dx of J_nu, I_nu and K_nu, given the function's value at (nu, x). The
+// pushforward and the pullback of each function share it.
+template <typename T>
+CUDA_HOST_DEVICE T clad_cyl_bessel_j_dx(T nu, T x, T j_nu) {
+  if (nu == T(0))
+    return -::std::cyl_bessel_j(T(1), x);
+  if (x == T(0) && nu > T(0)) {
+    if (nu >= T(1))
+      return T(0.5) * (::std::cyl_bessel_j(nu - T(1), x) -
+                       ::std::cyl_bessel_j(nu + T(1), x));
+    return ::std::numeric_limits<T>::infinity();
+  }
+  return -::std::cyl_bessel_j(nu + T(1), x) + (nu / x) * j_nu;
+}
+
+template <typename T>
+CUDA_HOST_DEVICE T clad_cyl_bessel_i_dx(T nu, T x, T i_nu) {
+  if (nu == T(0))
+    return ::std::cyl_bessel_i(T(1), x);
+  if (x == T(0) && nu > T(0)) {
+    if (nu >= T(1))
+      return T(0.5) * (::std::cyl_bessel_i(nu - T(1), x) +
+                       ::std::cyl_bessel_i(nu + T(1), x));
+    return ::std::numeric_limits<T>::infinity();
+  }
+  return ::std::cyl_bessel_i(nu + T(1), x) + (nu / x) * i_nu;
+}
+
+template <typename T>
+CUDA_HOST_DEVICE T clad_cyl_bessel_k_dx(T nu, T x, T k_nu) {
+  return -::std::cyl_bessel_k(nu + T(1), x) + (nu / x) * k_nu;
+}
+
+// Whether a tangent carries no direction, so the nu term can be skipped. A
+// vector-mode tangent is an array, zero only if every element is: multiplying
+// it by the term instead would turn a NaN for an unsupported order into NaN in
+// every direction, x's included.
+template <typename T> CUDA_HOST_DEVICE bool clad_tangent_is_zero(T d) {
+  return d == T(0);
+}
+template <typename T>
+CUDA_HOST_DEVICE bool clad_tangent_is_zero(const clad::array<T>& d) {
+  for (::std::size_t i = 0; i < d.size(); ++i)
+    if (d[i] != 0)
+      return false;
+  return true;
+}
+
+// d/dnu of J_nu, I_nu and K_nu. No identity in the order exists the way the
+// recurrences give d/dx, so an integer order nu = n uses the closed forms of
+// DLMF 10.15.3 and 10.38.4-5, in which the sums run over orders k < n:
+//   dJ/dnu = pi/2 Y_n + S(J),   dI/dnu = (-1)^(n+1) K_n + S'(I),
+//   dK/dnu = S(K),   S(B) = n!/2 (x/2)^-n sum_k (x/2)^k B_k / ((n - k) k!),
+// with S' carrying (-1)^(n-k). Any other order takes a central difference in
+// nu, which CLAD_NO_NUM_DIFF turns into NaN rather than a silent zero. The
+// general analytic form is tracked in vgvassilev/clad#2270; the
+// order-derivative is only defined here for x > 0.
+template <typename T> CUDA_HOST_DEVICE T clad_cyl_bessel(int kind, T nu, T x) {
+  if (kind == 0)
+    return ::std::cyl_bessel_j(nu, x);
+  if (kind == 1)
+    return ::std::cyl_bessel_i(nu, x);
+  return ::std::cyl_bessel_k(nu, x);
+}
+
+template <typename T>
+CUDA_HOST_DEVICE T clad_cyl_bessel_dnu(int kind, T nu, T x) {
+  if (!(x > T(0)))
+    return ::std::numeric_limits<T>::quiet_NaN();
+  const int max_closed_order = 64;
+  if (nu >= T(0) && nu <= T(max_closed_order) && nu == ::std::floor(nu)) {
+    int n = static_cast<int>(nu);
+    T half = x / T(2);
+    // r holds n!/k! (x/2)^(k-n), built down from k = n to stay in range.
+    T r = T(1);
+    T sum = T(0);
+    for (int k = n - 1; k >= 0; --k) {
+      r *= T(k + 1) / half;
+      T term = r / T(n - k) * clad_cyl_bessel(kind, T(k), x);
+      sum += (kind == 1 && (n - k) % 2) ? -term : term;
+    }
+    sum /= T(2);
+    if (kind == 0)
+      return T(1.57079632679489661923132169163975144) *
+                 ::std::cyl_neumann(nu, x) +
+             sum;
+    if (kind == 1)
+      return (n % 2 ? T(1) : T(-1)) * ::std::cyl_bessel_k(nu, x) + sum;
+    return sum;
+  }
+#ifdef CLAD_NO_NUM_DIFF
+  return ::std::numeric_limits<T>::quiet_NaN();
+#else
+  T h = ::std::cbrt(::std::numeric_limits<T>::epsilon()) *
+        (nu > T(1) ? nu : T(1));
+  if (nu - h < T(0))
+    return (clad_cyl_bessel(kind, nu + h, x) - clad_cyl_bessel(kind, nu, x)) /
+           h;
+  return (clad_cyl_bessel(kind, nu + h, x) - clad_cyl_bessel(kind, nu - h, x)) /
+         (T(2) * h);
+#endif
+}
+
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
-cyl_bessel_j_pushforward(T nu, T x, dT /*d_nu*/, dT d_x) {
+cyl_bessel_j_pushforward(T nu, T x, dT d_nu, dT d_x) {
   T j_nu = ::std::cyl_bessel_j(nu, x);
-  T derivative;
-  if (nu == T(0)) {
-    derivative = -::std::cyl_bessel_j(T(1), x);
-  } else if (x == T(0) && nu > T(0)) {
-    if (nu >= T(1)) {
-      derivative = T(0.5) * (::std::cyl_bessel_j(nu - T(1), x) -
-                             ::std::cyl_bessel_j(nu + T(1), x));
-    } else {
-      derivative = ::std::numeric_limits<T>::infinity();
-    }
-  } else {
-    derivative = -::std::cyl_bessel_j(nu + T(1), x) + (nu / x) * j_nu;
-  }
-  return {j_nu, derivative * d_x};
+  dT d = clad_cyl_bessel_j_dx(nu, x, j_nu) * d_x;
+  if (!clad_tangent_is_zero(d_nu))
+    d += clad_cyl_bessel_dnu(0, nu, x) * d_nu;
+  return {j_nu, d};
 }
 
 template <typename T, typename U>
-CUDA_HOST_DEVICE void cyl_bessel_j_pullback(T nu, T x, U d_z, T* /*d_nu*/,
-                                            T* d_x) {
-  if (d_x) {
-    T j_nu = ::std::cyl_bessel_j(nu, x);
-    T derivative;
-    if (nu == T(0)) {
-      derivative = -::std::cyl_bessel_j(T(1), x);
-    } else if (x == T(0) && nu > T(0)) {
-      if (nu >= T(1)) {
-        derivative = T(0.5) * (::std::cyl_bessel_j(nu - T(1), x) -
-                               ::std::cyl_bessel_j(nu + T(1), x));
-      } else {
-        derivative = ::std::numeric_limits<T>::infinity();
-      }
-    } else {
-      derivative = -::std::cyl_bessel_j(nu + T(1), x) + (nu / x) * j_nu;
-    }
-    *d_x += derivative * d_z;
-  }
+CUDA_HOST_DEVICE void cyl_bessel_j_pullback(T nu, T x, U d_z, T* d_nu, T* d_x) {
+  if (d_x)
+    *d_x += clad_cyl_bessel_j_dx(nu, x, ::std::cyl_bessel_j(nu, x)) * d_z;
+  if (d_nu)
+    *d_nu += clad_cyl_bessel_dnu(0, nu, x) * d_z;
 }
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
-cyl_bessel_i_pushforward(T nu, T x, dT /*d_nu*/, dT d_x) {
+cyl_bessel_i_pushforward(T nu, T x, dT d_nu, dT d_x) {
   T i_nu = ::std::cyl_bessel_i(nu, x);
-  T derivative;
-  if (nu == T(0)) {
-    derivative = ::std::cyl_bessel_i(T(1), x);
-  } else if (x == T(0) && nu > T(0)) {
-    if (nu >= T(1)) {
-      derivative = T(0.5) * (::std::cyl_bessel_i(nu - T(1), x) +
-                             ::std::cyl_bessel_i(nu + T(1), x));
-    } else {
-      derivative = ::std::numeric_limits<T>::infinity();
-    }
-  } else {
-    derivative = ::std::cyl_bessel_i(nu + T(1), x) + (nu / x) * i_nu;
-  }
-  return {i_nu, derivative * d_x};
+  dT d = clad_cyl_bessel_i_dx(nu, x, i_nu) * d_x;
+  if (!clad_tangent_is_zero(d_nu))
+    d += clad_cyl_bessel_dnu(1, nu, x) * d_nu;
+  return {i_nu, d};
 }
 
 template <typename T, typename U>
-CUDA_HOST_DEVICE void cyl_bessel_i_pullback(T nu, T x, U d_z, T* /*d_nu*/,
-                                            T* d_x) {
-  if (d_x) {
-    T i_nu = ::std::cyl_bessel_i(nu, x);
-    T derivative;
-    if (nu == T(0)) {
-      derivative = ::std::cyl_bessel_i(T(1), x);
-    } else if (x == T(0) && nu > T(0)) {
-      if (nu >= T(1)) {
-        derivative = T(0.5) * (::std::cyl_bessel_i(nu - T(1), x) +
-                               ::std::cyl_bessel_i(nu + T(1), x));
-      } else {
-        derivative = ::std::numeric_limits<T>::infinity();
-      }
-    } else {
-      derivative = ::std::cyl_bessel_i(nu + T(1), x) + (nu / x) * i_nu;
-    }
-    *d_x += derivative * d_z;
-  }
+CUDA_HOST_DEVICE void cyl_bessel_i_pullback(T nu, T x, U d_z, T* d_nu, T* d_x) {
+  if (d_x)
+    *d_x += clad_cyl_bessel_i_dx(nu, x, ::std::cyl_bessel_i(nu, x)) * d_z;
+  if (d_nu)
+    *d_nu += clad_cyl_bessel_dnu(1, nu, x) * d_z;
 }
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
-cyl_bessel_k_pushforward(T nu, T x, dT /*d_nu*/, dT d_x) {
+cyl_bessel_k_pushforward(T nu, T x, dT d_nu, dT d_x) {
   T k_nu = ::std::cyl_bessel_k(nu, x);
-  T derivative = -::std::cyl_bessel_k(nu + T(1), x) + (nu / x) * k_nu;
-  return {k_nu, derivative * d_x};
+  dT d = clad_cyl_bessel_k_dx(nu, x, k_nu) * d_x;
+  if (!clad_tangent_is_zero(d_nu))
+    d += clad_cyl_bessel_dnu(2, nu, x) * d_nu;
+  return {k_nu, d};
 }
 
 template <typename T, typename U>
-CUDA_HOST_DEVICE void cyl_bessel_k_pullback(T nu, T x, U d_z, T* /*d_nu*/,
-                                            T* d_x) {
-  if (d_x) {
-    T k_nu = ::std::cyl_bessel_k(nu, x);
-    T derivative = -::std::cyl_bessel_k(nu + T(1), x) + (nu / x) * k_nu;
-    *d_x += derivative * d_z;
-  }
+CUDA_HOST_DEVICE void cyl_bessel_k_pullback(T nu, T x, U d_z, T* d_nu, T* d_x) {
+  if (d_x)
+    *d_x += clad_cyl_bessel_k_dx(nu, x, ::std::cyl_bessel_k(nu, x)) * d_z;
+  if (d_nu)
+    *d_nu += clad_cyl_bessel_dnu(2, nu, x) * d_z;
 }
 
 #endif
