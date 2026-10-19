@@ -2980,7 +2980,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (argIdx >= CE->getNumArgs() ||
           !utils::designatesLocallyOwnedStorage(
               CE->getArg(argIdx),
-              /*asPointerValue=*/parTy->isPointerType())) {
+              /*asPointerValue=*/parTy->isPointerType(),
+              /*followLocalReferences=*/true)) {
         mutatesOnlyOwnLocals = false;
         break;
       }

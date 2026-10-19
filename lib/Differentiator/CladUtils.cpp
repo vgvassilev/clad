@@ -1530,14 +1530,17 @@ namespace clad {
     }
 
     bool designatesLocallyOwnedStorage(const clang::Expr* E,
-                                       bool asPointerValue) {
+                                       bool asPointerValue,
+                                       bool followLocalReferences) {
       bool peeled = asPointerValue;
       if (asPointerValue) {
         // `&lvalue` passed as a pointer designates that lvalue directly.
         const auto* UO =
             dyn_cast<clang::UnaryOperator>(E->IgnoreParenImpCasts());
         if (UO && UO->getOpcode() == clang::UO_AddrOf)
-          return designatesLocallyOwnedStorage(UO->getSubExpr());
+          return designatesLocallyOwnedStorage(UO->getSubExpr(),
+                                               /*asPointerValue=*/false,
+                                               followLocalReferences);
       }
       while (true) {
         E = E->IgnoreParenImpCasts();
@@ -1564,6 +1567,15 @@ namespace clad {
       }
       const auto* DRE = dyn_cast<clang::DeclRefExpr>(E);
       const auto* VD = DRE ? dyn_cast<clang::VarDecl>(DRE->getDecl()) : nullptr;
+      // A local reference (not a parameter) designates whatever its
+      // initializer does: `int& r = i;` names i's storage. What was peeled
+      // off the reference applies to the initializer.
+      if (followLocalReferences && VD && VD->getType()->isReferenceType() &&
+          VD->hasLocalStorage() && !isa<clang::ParmVarDecl>(VD) &&
+          VD->getInit())
+        return designatesLocallyOwnedStorage(VD->getInit(),
+                                             /*asPointerValue=*/peeled,
+                                             followLocalReferences);
       if (!VD || !VD->hasLocalStorage() || VD->getType()->isReferenceType())
         return false;
       // The variable's own slot (no indirection peeled) always has automatic
