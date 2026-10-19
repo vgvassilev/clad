@@ -105,9 +105,9 @@
 // DS cyl_bessel_j/ f / l       (C++17) cylindrical Bessel functions (1st kind)
 // DS cyl_bessel_k/ f / l       (C++17) modified cylindrical Bessel (irregular)
 // D cyl_neumann/ f / l        (C++17) cylindrical Neumann functions
-// D ellint_1/ f / l           (C++17) incomplete elliptic integral (1st kind)
-// D ellint_2/ f / l           (C++17) incomplete elliptic integral (2nd kind)
-// D ellint_3/ f / l           (C++17) incomplete elliptic integral (3rd kind)
+// DS ellint_1/ f / l           (C++17) incomplete elliptic integral (1st kind)
+// DS ellint_2/ f / l           (C++17) incomplete elliptic integral (2nd kind)
+// DS ellint_3/ f / l           (C++17) incomplete elliptic integral (3rd kind)
 // DS expint/ expintf/ expintl  (C++17) exponential integral
 // D hermite/ hermitef/ hermitel (C++17) Hermite polynomials
 // D legendre/ legendref/ legendrel (C++17) Legendre polynomials

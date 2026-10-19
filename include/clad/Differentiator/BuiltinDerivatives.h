@@ -1435,7 +1435,14 @@ comp_ellint_3_pushforward(T1 k, T2 nu, dT1 d_k, dT2 d_nu) {
     grad_k = (k / (k2 - static_cast<T_out>(nu))) * (term_k - Pi);
   }
   T_out grad_nu = 0.0;
-  if (nu != 0.0 && nu != 1.0 && k2 != static_cast<T_out>(nu)) {
+  // nu = 0 is a removable singularity of the closed form below; the limit
+  // is the integral of sin^2 / sqrt(1 - k^2 sin^2) over [0, pi/2].
+  if (nu == 0.0) {
+    if (k2 == 0.0)
+      grad_nu = K / 2;
+    else
+      grad_nu = (K - E) / k2;
+  } else if (nu != 1.0 && k2 != static_cast<T_out>(nu)) {
     T_out p2 = ((k2 - static_cast<T_out>(nu)) / static_cast<T_out>(nu)) * K;
     T_out p3 = ((static_cast<T_out>(nu) * static_cast<T_out>(nu) - k2) /
                 static_cast<T_out>(nu)) *
@@ -1448,22 +1455,252 @@ comp_ellint_3_pushforward(T1 k, T2 nu, dT1 d_k, dT2 d_nu) {
                   (static_cast<dT_out>(d_nu) * grad_nu)};
 }
 
-template <typename T1, typename T2, typename T3>
+// Mirrors comp_ellint_3_pushforward in T_out, so that forward and reverse
+// mode agree bitwise.
+template <typename T1, typename T2, typename T3,
+          typename T_out = decltype(::std::comp_ellint_3(T1(), T2()))>
 CUDA_HOST_DEVICE void comp_ellint_3_pullback(T1 k, T2 nu, T3 d_out, T1* d_k,
                                              T2* d_nu) {
-  auto K = ::std::comp_ellint_1(k);
-  auto E = ::std::comp_ellint_2(k);
-  auto Pi = ::std::comp_ellint_3(k, nu);
-  auto k2 = k * k;
-  auto one = 1.0;
-  if (k2 != nu && k != 0.0 && k2 < 1.0) {
-    auto term_k = E / (one - k2);
-    *d_k += d_out * ((k / (k2 - nu)) * (term_k - Pi));
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out Pi = ::std::comp_ellint_3(k, nu);
+  T_out k2 = k * k;
+  T_out nu_out = static_cast<T_out>(nu);
+  T_out one = 1.0;
+  if (k2 != nu_out && k != 0.0 && k2 < 1.0) {
+    T_out term_k = E / (one - k2);
+    *d_k += d_out * ((k / (k2 - nu_out)) * (term_k - Pi));
   }
-  if (nu != 0.0 && nu != one && k2 != nu) {
-    auto p2 = ((k2 - nu) / nu) * K;
-    auto p3 = ((nu * nu - k2) / nu) * Pi;
-    *d_nu += d_out * ((one / (2.0 * (nu - one) * (k2 - nu))) * (E + p2 + p3));
+  if (nu == 0.0) {
+    if (k2 == 0.0)
+      *d_nu += d_out * (K / 2);
+    else
+      *d_nu += d_out * ((K - E) / k2);
+  } else if (nu != 1.0 && k2 != nu_out) {
+    T_out p2 = ((k2 - nu_out) / nu_out) * K;
+    T_out p3 = ((nu_out * nu_out - k2) / nu_out) * Pi;
+    T_out grad_nu =
+        (one / (2.0 * (nu_out - one) * (k2 - nu_out))) * (E + p2 + p3);
+    *d_nu += d_out * grad_nu;
+  }
+}
+
+// Incomplete elliptic integrals. std::ellint_N(k, ...) takes the modulus k
+// first; F(phi, k) = ellint_1(k, phi), E(phi, k) = ellint_2(k, phi) and
+// Pi(nu; phi, k) = ellint_3(k, nu, phi). The partial derivatives follow
+// DLMF 19.4 (https://dlmf.nist.gov/19.4) extended to the incomplete case:
+//   dF/dphi = 1 / sqrt(1 - k^2 sin^2(phi))
+//   dF/dk   = E / (k (1 - k^2)) - F / k
+//             - k sin(phi) cos(phi) / ((1 - k^2) sqrt(1 - k^2 sin^2(phi)))
+// At k = 0 the k-derivative has the limit 0, which the guard below encodes,
+// matching the comp_ellint_1 pushforward above.
+// The pullbacks compute in T_out with the same expressions as the
+// pushforwards, so that forward and reverse mode agree bitwise.
+template <typename T1, typename T2, typename dT1, typename dT2,
+          typename T_out = decltype(::std::ellint_1(T1(), T2())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+ellint_1_pushforward(T1 k, T2 phi, dT1 d_k, dT2 d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out k2 = k * k;
+  T_out s = ::std::sin(phi);
+  T_out c = ::std::cos(phi);
+  T_out s2 = s * s;
+  T_out one = 1;
+  T_out delta = ::std::sqrt(one - k2 * s2);
+  T_out grad_phi = 0;
+  if (k2 * s2 < one)
+    grad_phi = one / delta;
+  T_out grad_k = 0;
+  if (k != 0 && k2 < one && k2 * s2 < one)
+    grad_k = E / (k * (one - k2)) - F / k - k * s * c / ((one - k2) * delta);
+  return {F, (static_cast<dT_out>(d_k) * grad_k) +
+                 (static_cast<dT_out>(d_phi) * grad_phi)};
+}
+
+template <typename T1, typename T2, typename T3,
+          typename T_out = decltype(::std::ellint_1(T1(), T2()))>
+CUDA_HOST_DEVICE void ellint_1_pullback(T1 k, T2 phi, T3 d_out, T1* d_k,
+                                        T2* d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out k2 = k * k;
+  T_out s = ::std::sin(phi);
+  T_out c = ::std::cos(phi);
+  T_out s2 = s * s;
+  T_out one = 1;
+  T_out delta = ::std::sqrt(one - k2 * s2);
+  if (k2 * s2 < one)
+    *d_phi += d_out * (one / delta);
+  if (k != 0 && k2 < one && k2 * s2 < one)
+    *d_k += d_out *
+            (E / (k * (one - k2)) - F / k - k * s * c / ((one - k2) * delta));
+}
+
+// Incomplete elliptic integral of the second kind (DLMF 19.4):
+//   dE/dphi = sqrt(1 - k^2 sin^2(phi))
+//   dE/dk   = (E - F) / k, with limit 0 at k = 0.
+template <typename T1, typename T2, typename dT1, typename dT2,
+          typename T_out = decltype(::std::ellint_2(T1(), T2())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+ellint_2_pushforward(T1 k, T2 phi, dT1 d_k, dT2 d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out k2 = k * k;
+  T_out s = ::std::sin(phi);
+  T_out one = 1;
+  T_out grad_phi = ::std::sqrt(one - k2 * s * s);
+  T_out grad_k = 0;
+  if (k != 0)
+    grad_k = (E - F) / k;
+  return {E, (static_cast<dT_out>(d_k) * grad_k) +
+                 (static_cast<dT_out>(d_phi) * grad_phi)};
+}
+
+template <typename T1, typename T2, typename T3,
+          typename T_out = decltype(::std::ellint_2(T1(), T2()))>
+CUDA_HOST_DEVICE void ellint_2_pullback(T1 k, T2 phi, T3 d_out, T1* d_k,
+                                        T2* d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out k2 = k * k;
+  T_out s = ::std::sin(phi);
+  T_out one = 1;
+  *d_phi += d_out * ::std::sqrt(one - k2 * s * s);
+  if (k != 0)
+    *d_k += d_out * ((E - F) / k);
+}
+
+// Incomplete elliptic integral of the third kind. With s = sin(phi),
+// c = cos(phi), Delta = sqrt(1 - k^2 s^2), the partials extend the
+// complete-case formulas used in comp_ellint_3_pullback by boundary terms
+// in s c, which vanish at phi = pi/2:
+//   dPi/dphi = 1 / ((1 - nu s^2) Delta)
+//   dPi/dk   = (k / (k^2 - nu)) (E / (1 - k^2) - Pi
+//              - k^2 s c / ((1 - k^2) Delta))
+//   dPi/dnu  = (E + ((k^2 - nu) / nu) F + ((nu^2 - k^2) / nu) Pi
+//              - nu Delta s c / (1 - nu s^2)) / (2 (nu - 1) (k^2 - nu))
+// The closed forms divide by nu, nu - 1 and k^2 - nu, but Pi is smooth there
+// as long as nu s^2 != 1, so those points take the limits instead:
+//   nu = 0:   dPi/dnu = (F - E) / k^2, or (phi - s c) / 2 at k = 0
+//   nu = 1:   dPi/dnu = ((1 + k^2) Pi - k^2 F - Delta s / c^3)
+//                       / (3 (k^2 - 1))
+//   nu = k^2: dPi/dnu = J and dPi/dk = k J, where J is the integral of
+//             s^2 / Delta^5, J = (k^2 s c / Delta^3 - (1 + k^2) I3 + F)
+//                               / (3 k^2 (k^2 - 1)),
+//             I3 = (E - k^2 s c / Delta) / (1 - k^2)
+template <typename T1, typename T2, typename T3, typename dT1, typename dT2,
+          typename dT3,
+          typename T_out = decltype(::std::ellint_3(T1(), T2(), T3())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+ellint_3_pushforward(T1 k, T2 nu, T3 phi, dT1 d_k, dT2 d_nu, dT3 d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out Pi = ::std::ellint_3(k, nu, phi);
+  T_out k2 = k * k;
+  T_out nu_out = static_cast<T_out>(nu);
+  T_out s = ::std::sin(phi);
+  T_out c = ::std::cos(phi);
+  T_out s2 = s * s;
+  T_out one = 1;
+  T_out three = 3;
+  T_out delta = ::std::sqrt(one - k2 * s2);
+  T_out J = 0;
+  if (k2 == nu_out && k2 != 0 && k2 < one) {
+    T_out I3 = (E - k2 * s * c / delta) / (one - k2);
+    J = (k2 * s * c / (delta * delta * delta) - (one + k2) * I3 + F) /
+        (three * k2 * (k2 - one));
+  }
+  T_out grad_phi = 0;
+  if (nu_out * s2 != one && k2 * s2 < one)
+    grad_phi = one / ((one - nu_out * s2) * delta);
+  T_out grad_k = 0;
+  if (k != 0 && k2 < one && k2 * s2 < one) {
+    if (k2 == nu_out)
+      grad_k = k * J;
+    else
+      grad_k = (k / (k2 - nu_out)) *
+               (E / (one - k2) - Pi - k2 * s * c / ((one - k2) * delta));
+  }
+  T_out grad_nu = 0;
+  if (nu_out * s2 != one && k2 * s2 < one) {
+    if (nu_out == 0) {
+      if (k2 == 0)
+        grad_nu = (F - s * c) / 2;
+      else
+        grad_nu = (F - E) / k2;
+    } else if (nu_out == one) {
+      if (k2 < one)
+        grad_nu = ((one + k2) * Pi - k2 * F - delta * s / (c * c * c)) /
+                  (three * (k2 - one));
+    } else if (k2 == nu_out) {
+      grad_nu = J;
+    } else {
+      T_out p2 = ((k2 - nu_out) / nu_out) * F;
+      T_out p3 = ((nu_out * nu_out - k2) / nu_out) * Pi;
+      T_out p4 = nu_out * delta * s * c / (one - nu_out * s2);
+      grad_nu =
+          (one / (2 * (nu_out - one) * (k2 - nu_out))) * (E + p2 + p3 - p4);
+    }
+  }
+  return {Pi, (static_cast<dT_out>(d_k) * grad_k) +
+                  (static_cast<dT_out>(d_nu) * grad_nu) +
+                  (static_cast<dT_out>(d_phi) * grad_phi)};
+}
+
+template <typename T1, typename T2, typename T3, typename T4,
+          typename T_out = decltype(::std::ellint_3(T1(), T2(), T3()))>
+CUDA_HOST_DEVICE void ellint_3_pullback(T1 k, T2 nu, T3 phi, T4 d_out, T1* d_k,
+                                        T2* d_nu, T3* d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out Pi = ::std::ellint_3(k, nu, phi);
+  T_out k2 = k * k;
+  T_out nu_out = static_cast<T_out>(nu);
+  T_out s = ::std::sin(phi);
+  T_out c = ::std::cos(phi);
+  T_out s2 = s * s;
+  T_out one = 1;
+  T_out three = 3;
+  T_out delta = ::std::sqrt(one - k2 * s2);
+  T_out J = 0;
+  if (k2 == nu_out && k2 != 0 && k2 < one) {
+    T_out I3 = (E - k2 * s * c / delta) / (one - k2);
+    J = (k2 * s * c / (delta * delta * delta) - (one + k2) * I3 + F) /
+        (three * k2 * (k2 - one));
+  }
+  if (nu_out * s2 != one && k2 * s2 < one)
+    *d_phi += d_out * (one / ((one - nu_out * s2) * delta));
+  if (k != 0 && k2 < one && k2 * s2 < one) {
+    if (k2 == nu_out)
+      *d_k += d_out * (k * J);
+    else
+      *d_k +=
+          d_out * ((k / (k2 - nu_out)) *
+                   (E / (one - k2) - Pi - k2 * s * c / ((one - k2) * delta)));
+  }
+  if (nu_out * s2 != one && k2 * s2 < one) {
+    if (nu_out == 0) {
+      if (k2 == 0)
+        *d_nu += d_out * ((F - s * c) / 2);
+      else
+        *d_nu += d_out * ((F - E) / k2);
+    } else if (nu_out == one) {
+      if (k2 < one)
+        *d_nu += d_out * (((one + k2) * Pi - k2 * F - delta * s / (c * c * c)) /
+                          (three * (k2 - one)));
+    } else if (k2 == nu_out) {
+      *d_nu += d_out * J;
+    } else {
+      T_out p2 = ((k2 - nu_out) / nu_out) * F;
+      T_out p3 = ((nu_out * nu_out - k2) / nu_out) * Pi;
+      T_out p4 = nu_out * delta * s * c / (one - nu_out * s2);
+      *d_nu += d_out * ((one / (2 * (nu_out - one) * (k2 - nu_out))) *
+                        (E + p2 + p3 - p4));
+    }
   }
 }
 #endif
@@ -1762,6 +1999,12 @@ using std::comp_ellint_1_pushforward;
 using std::comp_ellint_2_pushforward;
 using std::comp_ellint_3_pullback;
 using std::comp_ellint_3_pushforward;
+using std::ellint_1_pullback;
+using std::ellint_1_pushforward;
+using std::ellint_2_pullback;
+using std::ellint_2_pushforward;
+using std::ellint_3_pullback;
+using std::ellint_3_pushforward;
 #endif
 
 namespace class_functions {
