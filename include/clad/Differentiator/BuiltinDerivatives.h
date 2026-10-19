@@ -17,6 +17,7 @@
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <type_traits>
 
 #define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
 
@@ -603,7 +604,8 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expl_pushforward(T x, dT d_x) {
 // 2.2 exp2, exp2f, exp2l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp2_pushforward(T x, dT d_x) {
-  T dexp2 = ::std::exp2(x) * ::std::log(2);
+  using W = ::std::common_type_t<T, double>;
+  T dexp2 = ::std::exp2(x) * ::std::log(static_cast<W>(2));
   return {::std::exp2(x), dexp2 * d_x};
 }
 
@@ -703,7 +705,8 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, T> logl_pushforward(T x, T d_x) {
 // 3.2 log10, log10f, log10l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10_pushforward(T x, dT d_x) {
-  T dlog10 = 1.0 / (x * ::std::log(10));
+  using W = ::std::common_type_t<T, double>;
+  T dlog10 = 1.0 / (x * ::std::log(static_cast<W>(10)));
   return {::std::log10(x), dlog10 * d_x};
 }
 
@@ -721,7 +724,8 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10l_pushforward(T x, dT d_x) {
 // 3.3 log2, log2f, log2l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2_pushforward(T x, dT d_x) {
-  T dlog2 = 1.0 / (x * ::std::log(2));
+  using W = ::std::common_type_t<T, double>;
+  T dlog2 = 1.0 / (x * ::std::log(static_cast<W>(2)));
   return {::std::log2(x), dlog2 * d_x};
 }
 
@@ -1005,7 +1009,9 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atanhl_pushforward(T x, dT d_x) {
 // 6.1 erf, erff, erfl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erf_pushforward(T x, dT d_x) {
-  T derf = (2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x);
+  using W = ::std::common_type_t<T, double>;
+  T derf =
+      (2 / ::std::sqrt(::std::acos(static_cast<W>(-1)))) * ::std::exp(-x * x);
   return {::std::erf(x), derf * d_x};
 }
 
@@ -1023,7 +1029,10 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfl_pushforward(T x, dT d_x) {
 // 6.2 erfc, erfcf, erfcl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfc_pushforward(T x, dT d_x) {
-  return {::std::erfc(x), (-2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x) * d_x};
+  using W = ::std::common_type_t<T, double>;
+  T derfc =
+      (-2 / ::std::sqrt(::std::acos(static_cast<W>(-1)))) * ::std::exp(-x * x);
+  return {::std::erfc(x), derfc * d_x};
 }
 
 // pushforward for erfcf, erfcl
