@@ -109,6 +109,10 @@ double fn_with_Complex_type_param(Complex c) {
   return c.real + c.im;
 }
 
+double fn_with_Complex_ref_param(Complex& c) {
+  return c.real + c.im;
+}
+
 struct ComplexPair {
   Complex c1, c2;
 };
@@ -172,7 +176,7 @@ int main () {
   clad::differentiate(f_2, one); // expected-error {{failed to parse the parameters, must be string or numeric literal}}
 
   clad::differentiate(f_no_definition, 0); // expected-warning {{attempted differentiation of function 'f_no_definition' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
-  //expected-note@174 {{the numerical-diff fallback is off for this request; considering 'f_no_definition' as 0}}
+  //expected-note@178 {{the numerical-diff fallback is off for this request; considering 'f_no_definition' as 0}}
   clad::differentiate(f_redeclared, 0);
 
   clad::differentiate(f_try_catch, 0);
@@ -194,6 +198,7 @@ int main () {
   clad::differentiate(fn_with_ComplexPair_type_param, "cp.c1");         // expected-error {{attempted differentiation w.r.t. parameter 'cp.c1' which is not of real type}}
   clad::differentiate(fn_with_Complex_type_param, "c.getReal");         // expected-error {{path specified by fields in 'c.getReal' is invalid}}
   clad::differentiate(fn_with_Complex_type_param, "c.invalidField");    // expected-error {{path specified by fields in 'c.invalidField' is invalid}}
+  clad::differentiate(fn_with_Complex_ref_param, "c.invalidField");     // expected-error {{path specified by fields in 'c.invalidField' is invalid}}
   clad::differentiate(fn_with_func_param_call);
   return 0;
 }
