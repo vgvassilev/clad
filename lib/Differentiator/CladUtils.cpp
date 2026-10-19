@@ -252,6 +252,14 @@ namespace clad {
       return QT;
     }
 
+    const DeclContext* GetCustomDerivativeLookupContext(const Decl* Found) {
+      const DeclContext* DC = Found->getDeclContext();
+      if (DC->isFunctionOrMethod())
+        if (const auto* ND = dyn_cast<NamedDecl>(Found))
+          DC = ND->getUnderlyingDecl()->getDeclContext();
+      return DC;
+    }
+
     DeclContext* FindDeclContext(clang::Sema& semaRef, clang::DeclContext* DC1,
                                  const clang::DeclContext* DC2) {
       llvm::SmallVector<const clang::DeclContext*, 4> contexts;

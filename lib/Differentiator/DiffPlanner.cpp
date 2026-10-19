@@ -1629,7 +1629,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         DC = utils::LookupNSD(m_Sema, "class_functions",
                               /*shouldExist=*/false, DC);
       else
-        DC = utils::FindDeclContext(m_Sema, DC, fnDecl->getDeclContext());
+        DC = utils::FindDeclContext(
+            m_Sema, DC, utils::GetCustomDerivativeLookupContext(fnDecl));
       if (!DC)
         return static_cast<Expr*>(nullptr);
       return getOverloadExpr(m_Sema, DC, request, foundAnyDecl);

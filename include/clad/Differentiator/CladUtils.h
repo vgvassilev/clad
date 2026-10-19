@@ -130,6 +130,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// \returns  type with namespace specifier added.
     clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext& C, clang::QualType QT);
 
+    /// The context to look up the custom derivative of a call in: that of the
+    /// declaration the call found, or, for a block-scope using-declaration,
+    /// that of the declaration it names.
+    const clang::DeclContext*
+    GetCustomDerivativeLookupContext(const clang::Decl* Found);
     /// Finds declaration context associated with the DC1::DC2, but doesn't
     /// replicate the common part of the declaration contexts.
     /// For example, consider DC1 corresponds to the following declaration
