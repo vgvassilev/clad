@@ -90,8 +90,8 @@ def fno_validate_clang_version : Flag<["-"], "fno-validate-clang-version">,
   MarshallingInfoNegativeFlag<CladOpt<"ValidateClangVersion">>;
 
 def fprint_num_diff_errors : Flag<["-"], "fprint-num-diff-errors">,
-  HelpText<"Prints the calculated numerical diff errors; overridden by "
-           "-DCLAD_NO_NUM_DIFF.">,
+  HelpText<"Prints the calculated numerical diff errors; has no effect "
+           "where -fno-numerical-diff-fallback turns the fallback off.">,
   MarshallingInfoFlag<CladOpt<"PrintNumDiffErrorInfo">>;
 
 def fclad_porting_hints : Flag<["-"], "fclad-porting-hints">,

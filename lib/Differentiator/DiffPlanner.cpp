@@ -1209,6 +1209,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     request.Remark##Id##Analysis = ReqOpts.Remark##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
+    // So is every fallback: error estimation can reach a call clad cannot
+    // differentiate too.
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                \
+    request.Enable##Id##Fallback = ReqOpts.Enable##Id##Fallback;
+#include "clad/Differentiator/Analyses.def"
+    request.FallbacksSeeded = true;
     if (Annotation == "E") {
       // Error estimation has no options yet.
       request.Mode = DiffMode::reverse;
@@ -1267,6 +1273,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     }                                                                          \
     if (enable_##Legacy##_in_req || disable_##Legacy##_in_req)                 \
       request.Enable##Id##Analysis = enable_##Legacy##_in_req;
+#include "clad/Differentiator/Analyses.def"
+
+        // And of each fallback, the same way.
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                \
+    {                                                                          \
+      const bool Enable =                                                      \
+          clad::HasOption(bitmasked_opts_value, clad::opts::enable_##Opt);     \
+      const bool Disable =                                                     \
+          clad::HasOption(bitmasked_opts_value, clad::opts::disable_##Opt);    \
+      if (Enable && Disable) {                                                 \
+        utils::diag(S, DiagnosticsEngine::Error, BeginLoc,                     \
+                    "both clad::opts::enable_" #Opt                            \
+                    " and clad::opts::disable_" #Opt " are specified")         \
+            << BeginLoc;                                                       \
+        return true;                                                           \
+      }                                                                        \
+      if (Enable || Disable)                                                   \
+        request.Enable##Id##Fallback = Enable;                                 \
+    }
 #include "clad/Differentiator/Analyses.def"
 
     if (enable_tbr_in_req && request.Mode == DiffMode::forward) {

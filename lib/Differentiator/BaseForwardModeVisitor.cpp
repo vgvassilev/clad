@@ -1617,25 +1617,33 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // paths, or once per iteration, beforehand would be once on every path,
     // and in place several times: there the call keeps its arguments and gets
     // no numerical derivative.
+    bool Enabled = m_DiffReq.EnableNumericalDiffFallback;
     bool NumDiffViable = utils::GetNumDiffTarget(m_Sema, FD, CE) != nullptr;
     auto hasEffects = [&](const Expr* Arg) {
       return Arg->HasSideEffects(m_Context, /*IncludePossibleEffects=*/false);
     };
     if (NumDiffViable && llvm::any_of(CallArgs, hasEffects)) {
       if (m_ConditionalOperandDepth) {
-        diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
-             "numerical differentiation of %0 is not supported here: its "
-             "arguments have side effects, and the call is evaluated only on "
-             "some paths, or once per iteration; considering its derivative "
-             "as 0")
-            << FD;
+        if (Enabled)
+          diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+               "numerical differentiation of %0 is not supported here: its "
+               "arguments have side effects, and the call is evaluated only "
+               "on some paths, or once per iteration; considering its "
+               "derivative as 0")
+              << FD;
         NumDiffViable = false;
-      } else {
+      } else if (Enabled) {
         for (Expr*& Arg : CallArgs)
           if (hasEffects(Arg))
             Arg = StoreAndRef(Arg, "_t", /*forceDeclCreation=*/true);
       }
     }
+    // Where the call would fall back, the derivative depends on whether it
+    // does, off as well as on: a request asking the other way must not reuse
+    // it.
+    if (NumDiffViable && CE->getNumArgs() == 1)
+      m_Builder.noteFallbackDecision();
+    NumDiffViable = NumDiffViable && Enabled;
     Expr* call =
         m_Sema
             .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), validLoc,

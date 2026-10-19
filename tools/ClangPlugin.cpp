@@ -56,6 +56,8 @@
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Lex/LexDiagnostic.h"
+#include "clang/Lex/MacroInfo.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/ParsedAttr.h"
@@ -188,6 +190,11 @@ void InitTimers();
     // doesn't throw an error.
     auto predefines = m_CI.getPreprocessor().getPredefines();
     predefines.append("#define __CLAD__ 1\n");
+    // A header cannot see clad's flags, and a built-in derivative that
+    // approximates by itself has to know when the fallback is off. It is the
+    // translation unit's setting; a request's own cannot reach a macro.
+    if (!m_DO.EnableNumericalDiffFallback)
+      predefines.append("#define CLAD_NUMERICAL_DIFF_FALLBACK_OFF 1\n");
     m_CI.getPreprocessor().setPredefines(predefines);
   }
 
@@ -810,6 +817,7 @@ void InitTimers();
                                              1);
         auto DFI = getScheduler().getDerivedFns().Find(request);
         if (DFI.IsValid()) {
+          m_DerivativeBuilder->diagnoseFallbackConflict(request, DFI);
           DerivativeDecl = DFI.DerivedFn();
           OverloadedDerivativeDecl = DFI.OverloadedDerivedFn();
           alreadyDerived = true;
@@ -1036,6 +1044,17 @@ void InitTimers();
     }
 
     void CladPlugin::HandleTranslationUnit(ASTContext& C) {
+      // The fallback is a flag now: the macro that turned it off, ignored,
+      // would turn it back on without a word.
+      Preprocessor& PP = m_CI.getPreprocessor();
+      // Unless the fallback is off anyway: then the macro asks for what
+      // -fno-numerical-diff-fallback gives, and one build line can serve both
+      // a clad that knows the flag and one that only knew the macro.
+      const MacroInfo* MI =
+          PP.getMacroInfo(PP.getIdentifierInfo("CLAD_NO_NUM_DIFF"));
+      if (MI && m_DO.EnableNumericalDiffFallback)
+        utils::diag(m_CI.getSema(), CladDiag::err_no_num_diff_macro,
+                    MI->getDefinitionLoc());
       // In case of diagnostics, don't bother, just let the compiler finish.
       if (!m_CI.getDiagnostics().hasErrorOccurred()) {
         // Traverse all collected DeclGroupRef only once to create the static

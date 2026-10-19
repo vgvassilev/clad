@@ -23,6 +23,10 @@
 // What it does not give you is anything that runs the analysis: that is code,
 // and each analysis is different.
 //
+// A fallback -- what clad does where it cannot differentiate something -- is
+// written the same way, with a Fallback def, and takes a pair of positions
+// from the same space.
+//
 // The number is a position, not a value, and the only part to choose. The
 // defs below are written in position order and say where the free ones start;
 // put the new one there, in order. A number that is already spoken for, by an
@@ -74,6 +78,29 @@ class Analysis<string name, string legacy, bit onByDefault, int requestBit,
   string Summary = summary;
 }
 
+// Something clad can do where it cannot differentiate a call: a function with
+// no body, say. Unlike an analysis a fallback changes the values a derivative
+// computes -- it is an approximation, or the decision not to make one -- so it
+// is never folded into -fdisable-analysis=all, and is switched on its own:
+//
+//   -f<name> / -fno-<name>                  the command line, the last decides
+//   clad::opts::enable_<opt> / disable_<opt> one request
+//   Options::Enable<Id>Fallback             what was asked for
+//   DiffRequest::Enable<Id>Fallback         what a request carries
+//
+// where <opt> is <name> with its dashes made underscores.
+class Fallback<string name, bit onByDefault, int requestBit, string summary> {
+  // How the command line spells it, after -f and -fno-.
+  string Name = name;
+  // Whether clad falls back when no switch says otherwise.
+  bit Default = onByDefault;
+  // Where clad::opts::enable_<opt> sits, as an analysis' RequestBit does;
+  // disable_<opt> takes the bit above it.
+  int RequestBit = requestBit;
+  // One line for -help: what clad does when it falls back.
+  string Summary = summary;
+}
+
 // A clad::opts bit that something other than an analysis has taken. These
 // four are generated into the enum like the analyses are, and are here for
 // the same reason: so a position is spoken for in one place, and so the check
@@ -107,7 +134,11 @@ def Loop : Analysis</*name=*/"loop", /*legacy=*/"loop", /*onByDefault=*/1,
                     "proves what a function's counted loops allow: a trip "
                     "count the reverse sweep recomputes, and the range of a "
                     "pointer parameter the body writes">;
-// 13 and up are free.
+def NumericalDiff : Fallback</*name=*/"numerical-diff-fallback", /*onByDefault=*/1,
+                             /*requestBit=*/13,
+                             "approximates the callee's derivative by "
+                             "central differences">;
+// 15 and up are free.
 
 // One way an input can miss a construct. Detail says what the code does instead,
 // in one short sentence about that code -- not about the analysis, which the
@@ -193,6 +224,38 @@ def note_derivative_requested :
     Diagnostic<"Note", "in the derivative of '%0' requested here">;
 def note_kept_value_is :
     Diagnostic<"Note", "the value kept is the one this expression had">;
+
+// A call to a function clad cannot differentiate, and what it does instead.
+def warn_undefined_function :
+    Diagnostic<"Warning", "attempted differentiation of function %0 without "
+                          "definition and no suitable overload was found in "
+                          "namespace 'custom_derivatives'">;
+def note_numdiff_not_viable :
+    Diagnostic<"Note", "numerical differentiation is not viable for %0; "
+                       "considering %0 as 0">;
+def note_numdiff_fallback :
+    Diagnostic<"Note", "falling back to numerical differentiation for %0 "
+                       "since no suitable overload was found and clad could "
+                       "not derive it; -fno-numerical-diff-fallback turns this off">;
+def note_numdiff_off :
+    Diagnostic<"Note", "the numerical-diff fallback is off for this request; "
+                       "considering %0 as 0">;
+// Two requests for one derivative that disagree on a fallback. Clad names a
+// derivative after the function and the mode alone, so it cannot generate
+// both -- and a function reached from several requests, a helper they share,
+// gets one derivative that all of them use.
+def err_fallback_conflict :
+    Diagnostic<"Error", "the derivative of %0 is already generated with %1 "
+                        "%select{off|on}2; every request that reaches %0 "
+                        "uses that one derivative, so they have to ask for "
+                        "the fallback the same way">;
+// The macro that used to turn the numerical-diff fallback off. Ignored, it
+// would turn it back on without a word.
+def err_no_num_diff_macro :
+    Diagnostic<"Error", "CLAD_NO_NUM_DIFF no longer turns the numerical-diff "
+                        "fallback off; pass -fno-numerical-diff-fallback to clad "
+                        "instead (-Xclang -plugin-arg-clad -Xclang "
+                        "-fno-numerical-diff-fallback)">;
 
 // A construct an analysis can act on.
 class Desc<Analysis analysis, int number, string name, string cost> {
@@ -343,7 +406,11 @@ def Clad {
                                   note_analysis_off, remark_value_kept,
                                   note_tbr_could_not_prove, note_tbr_disabled,
                                   note_derivative_requested,
-                                  note_kept_value_is];
+                                  note_kept_value_is, warn_undefined_function,
+                                  note_numdiff_not_viable,
+                                  note_numdiff_fallback, note_numdiff_off,
+                                  err_fallback_conflict,
+                                  err_no_num_diff_macro];
   string Title = "What the analyses look for";
   string Overview = [{
 Clad generates a correct derivative for any code it can differentiate. How

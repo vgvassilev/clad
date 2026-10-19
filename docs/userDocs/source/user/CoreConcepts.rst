@@ -529,8 +529,8 @@ is used in Clad's reverse mode. The signature of the method is as follows::
   }
 
 The above uses functions from the standard math library and so is required
-to link against the same. To avoid this (and disable numerical differentiation)
-use `-DCLAD_NO_NUM_DIFF` at the target program's compile time.
+to link against the same. Clad's own fallback to it is turned off with
+`-fno-numerical-diff-fallback`, passed to the plugin.
 
 
 Implementation Details
