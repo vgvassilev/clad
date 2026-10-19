@@ -1,4 +1,3 @@
-#ifndef CLAD_NO_NUM_DIFF
 #ifndef CLAD_NUMERICAL_DIFF_H
 #define CLAD_NUMERICAL_DIFF_H
 
@@ -562,4 +561,3 @@ namespace numerical_diff {
 } // namespace numerical_diff
 
 #endif // CLAD_NUMERICAL_DIFF_H
-#endif // CLAD_NO_NUM_DIFF

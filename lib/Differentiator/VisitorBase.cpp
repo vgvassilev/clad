@@ -1130,6 +1130,9 @@ namespace clad {
       Expr* targetFuncCall, Expr* targetArg, unsigned targetPos,
       unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args,
       Expr* CUDAExecConfig /*=nullptr*/) {
+    m_Builder.noteFallbackDecision();
+    if (!m_DiffReq.EnableNumericalDiffFallback)
+      return nullptr;
     QualType argType = targetArg->getType();
     int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
     bool isSupported = argType->isArithmeticType();

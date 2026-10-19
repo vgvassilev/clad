@@ -3364,6 +3364,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       llvm::SmallVectorImpl<Expr*>& args,
       llvm::SmallVectorImpl<Expr*>& outputArgs,
       Expr* CUDAExecConfig /*=nullptr*/) {
+    m_Builder.noteFallbackDecision();
+    // Off, the adjoints keep the zero they were declared with.
+    if (!m_DiffReq.EnableNumericalDiffFallback)
+      return;
     int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
     llvm::SmallVector<Expr*, 16U> NumDiffArgs = {};
     NumDiffArgs.push_back(targetFuncCall);
@@ -6146,6 +6150,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
         pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
         pullbackRequest.EnableLoopAnalysis = m_DiffReq.EnableLoopAnalysis;
+        pullbackRequest.inheritFallbacksFrom(m_DiffReq);
         for (size_t i = 0, e = CD->getNumParams(); i < e; ++i)
           if (adjointArgs[i])
             pullbackRequest.DVI.push_back(CD->getParamDecl(i));

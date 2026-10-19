@@ -1407,9 +1407,10 @@ CUDA_HOST_DEVICE bool clad_tangent_is_zero(const clad::array<T>& d) {
 //   dJ/dnu = pi/2 Y_n + S(J),   dI/dnu = (-1)^(n+1) K_n + S'(I),
 //   dK/dnu = S(K),   S(B) = n!/2 (x/2)^-n sum_k (x/2)^k B_k / ((n - k) k!),
 // with S' carrying (-1)^(n-k). Any other order takes a central difference in
-// nu, which CLAD_NO_NUM_DIFF turns into NaN rather than a silent zero. The
-// general analytic form is tracked in vgvassilev/clad#2270; the
-// order-derivative is only defined here for x > 0.
+// nu, which -fno-numerical-diff-fallback turns into NaN rather than a silent
+// zero (clad defines CLAD_NUMERICAL_DIFF_FALLBACK_OFF then). The general
+// analytic form is tracked in vgvassilev/clad#2270; the order-derivative is
+// only defined here for x > 0.
 template <typename T> CUDA_HOST_DEVICE T clad_cyl_bessel(int kind, T nu, T x) {
   if (kind == 0)
     return ::std::cyl_bessel_j(nu, x);
@@ -1443,7 +1444,7 @@ CUDA_HOST_DEVICE T clad_cyl_bessel_dnu(int kind, T nu, T x) {
       return (n % 2 ? T(1) : T(-1)) * ::std::cyl_bessel_k(nu, x) + sum;
     return sum;
   }
-#ifdef CLAD_NO_NUM_DIFF
+#ifdef CLAD_NUMERICAL_DIFF_FALLBACK_OFF
   return ::std::numeric_limits<T>::quiet_NaN();
 #else
   T h = ::std::cbrt(::std::numeric_limits<T>::epsilon()) *

@@ -1,4 +1,4 @@
-// RUN: %cladclang -I%S/../../include -DCLAD_NO_NUM_DIFF %s 2>&1 | %filecheck %s
+// RUN: %cladclang -I%S/../../include %s 2>&1 | %filecheck %s
 
 #include "clad/Differentiator/Differentiator.h"
 

@@ -476,35 +476,18 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     return derivative;
   }
 
-  void
-  DerivativeBuilder::diagnoseUndefinedFunction(const clang::FunctionDecl* FD,
-                                               SourceLocation srcLoc,
-                                               bool numDiffViable) {
-    bool NumDiffEnabled =
-        !m_Sema.getPreprocessor().isMacroDefined("CLAD_NO_NUM_DIFF");
-    diag(DiagnosticsEngine::Warning, srcLoc,
-         "attempted differentiation of function %0 without definition "
-         "and no suitable overload was found in "
-         "namespace 'custom_derivatives'")
+  void DerivativeBuilder::diagnoseUndefinedFunction(const FunctionDecl* FD,
+                                                    SourceLocation srcLoc,
+                                                    bool numDiffViable,
+                                                    bool numDiffEnabled) {
+    utils::diag(m_Sema, CladDiag::warn_undefined_function, srcLoc)
         << FD << srcLoc;
-    if (!numDiffViable) {
-      diag(
-          DiagnosticsEngine::Note, srcLoc,
-          "numerical differentiation is not viable for %0; considering %0 as 0")
-          << FD << srcLoc;
-    } else if (NumDiffEnabled) {
-      diag(DiagnosticsEngine::Note, srcLoc,
-           "falling back to numerical differentiation for %0 since no "
-           "suitable overload was found and clad could not derive it; "
-           "to disable this feature, compile your programs with "
-           "-DCLAD_NO_NUM_DIFF")
-          << FD << srcLoc;
-    } else {
-      diag(DiagnosticsEngine::Note, srcLoc,
-           "fallback to numerical differentiation is disabled by the "
-           "'CLAD_NO_NUM_DIFF' macro; considering %0 as 0")
-          << FD << srcLoc;
-    }
+    CladDiag Note = CladDiag::note_numdiff_off;
+    if (!numDiffViable)
+      Note = CladDiag::note_numdiff_not_viable;
+    else if (numDiffEnabled)
+      Note = CladDiag::note_numdiff_fallback;
+    utils::diag(m_Sema, Note, srcLoc) << FD << srcLoc;
   }
 
   void DerivativeBuilder::EmitPortingHint(const DiffRequest& request) {
@@ -578,6 +561,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   DerivativeAndOverload
   DerivativeBuilder::Derive(const DiffRequest& request) {
     TimedGenerationRegion G([&request]() { return (std::string)request; });
+    // A request derived while building this one keeps its own account.
+    llvm::SaveAndRestore<bool> SaveReachedFallback(m_ReachedFallback, false);
     GeneratedCodeDiagnostics HoldDiags(*m_GeneratedCode,
                                        m_Sema.getDiagnostics(), request);
     EmitPortingHint(request);
@@ -682,7 +667,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
                 /*numDiffViable=*/
                 // One request serves every call to FD, so this asks about FD;
                 // a call passing more than its parameters is refused there.
-                utils::GetNumDiffTarget(m_Sema, FD, /*CE=*/nullptr) != nullptr);
+                utils::GetNumDiffTarget(m_Sema, FD, /*CE=*/nullptr) != nullptr,
+                /*numDiffEnabled=*/request.EnableNumericalDiffFallback);
           }
           return {};
         }
@@ -871,6 +857,11 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
     if (request.Mode == DiffMode::reverse || request.Mode == DiffMode::pullback)
       emitAnalysisMissRemarks(request);
 
+    if (m_ReachedFallback)
+      if (const auto* Derivative =
+              dyn_cast_or_null<FunctionDecl>(result.derivative))
+        m_FallbackDependent.insert(Derivative);
+
     return result;
   }
 
@@ -963,9 +954,26 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
   FunctionDecl*
   DerivativeBuilder::FindDerivedFunction(const DiffRequest& request) {
     auto DFI = m_Scheduler.getDerivedFns().Find(request);
-    if (DFI.IsValid())
-      return DFI.DerivedFn();
-    return nullptr;
+    if (!DFI.IsValid())
+      return nullptr;
+    diagnoseFallbackConflict(request, DFI);
+    return DFI.DerivedFn();
+  }
+
+  void DerivativeBuilder::diagnoseFallbackConflict(const DiffRequest& request,
+                                                   const DerivedFnInfo& DFI) {
+    // A derivative that never reached a fallback is the same either way.
+    if (!m_FallbackDependent.contains(DFI.DerivedFn()))
+      return;
+    bool Taken = false;
+    const char* Flag = DFI.DisagreeingFallback(request, Taken);
+    if (!Flag)
+      return;
+    SourceLocation Loc;
+    if (request.CallContext)
+      Loc = request.CallContext->getBeginLoc();
+    utils::diag(m_Sema, CladDiag::err_fallback_conflict, Loc)
+        << request.Function << Flag << Taken;
   }
 
   void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& request,

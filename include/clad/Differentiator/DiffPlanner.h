@@ -364,6 +364,15 @@ public:
   bool Remark##Id##Analysis = false;
 #include "clad/Differentiator/Analyses.def"
 
+  /// Fall back the way \p Other does: a nested call falls back the way the
+  /// outer one was asked to.
+  void inheritFallbacksFrom(const DiffRequest& Other) {
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  Enable##Id##Fallback = Other.Enable##Id##Fallback;
+#include "clad/Differentiator/Analyses.def"
+    FallbacksSeeded = Other.FallbacksSeeded;
+  }
+
   /// Run the same analyses \p Other runs. A derived request -- the pullback of
   /// a callee, the pushforward of a nested call -- covers a different
   /// function, but the user asked for the analyses once, for the whole
@@ -375,6 +384,7 @@ public:
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
   Remark##Id##Analysis = Other.Remark##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
+    inheritFallbacksFrom(Other);
   }
   /// A flag to emit porting-hint remarks (-fclad-porting-hints) when a function
   /// defined outside the main source file is differentiated by cloning its
@@ -454,6 +464,18 @@ public:
   /// This will be particularly useful for pushforward and pullback functions.
   bool DeclarationOnly = false;
 
+  /// Whether clad takes each fallback for this request. One member per
+  /// Fallback in Analyses.td, spelled Enable\<Id\>Fallback. A request nobody
+  /// seeded falls back as clad does by default.
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  bool Enable##Id##Fallback = Default;
+#include "clad/Differentiator/Analyses.def"
+  /// Whether the fallbacks above say what the user asked for: set where a
+  /// request is read off its call and carried to the requests derived from it.
+  /// A request built only to look a derivative up leaves it unset and takes
+  /// whichever derivative there is.
+  bool FallbacksSeeded = false;
+
   clang::AnalysisDeclContext* m_AnalysisDC = nullptr;
 
   /// Recomputes `DiffInputVarsInfo` using the current values of data members.
@@ -481,6 +503,19 @@ public:
   [[nodiscard]] DiffRequest
   pushforwardRequestForHessian(clang::Sema& semaRef) const;
 
+  /// Whether \p Other takes the same fallbacks. A fallback changes the values
+  /// a derivative computes, so two requests that differ in one are two
+  /// derivatives; one nobody seeded asks nothing of them.
+  bool takesSameFallbacks(const DiffRequest& Other) const {
+    if (!FallbacksSeeded || !Other.FallbacksSeeded)
+      return true;
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  if (Enable##Id##Fallback != Other.Enable##Id##Fallback)                      \
+    return false;
+#include "clad/Differentiator/Analyses.def"
+    return true;
+  }
+
   /// Allow comparing DiffRequests.
   bool operator==(const DiffRequest& other) const {
     // Note that CallContext is always different and we should ignore it.
@@ -501,7 +536,8 @@ public:
            EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
            EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
-           DVI == other.DVI && use_enzyme == other.use_enzyme &&
+           takesSameFallbacks(other) && DVI == other.DVI &&
+           use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
            CUDAGlobalArgsIndexes == other.CUDAGlobalArgsIndexes;
   }
