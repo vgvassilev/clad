@@ -258,7 +258,7 @@ DEFINE_FUNCTIONS(cosh)  // x in (-inf,+inf)
 DEFINE_FUNCTIONS(tanh)  // x in (-inf,+inf)
 DEFINE_FUNCTIONS(asinh) // x in (-inf,+inf)
 DEFINE_FUNCTIONS(acosh) // x in [1,inf)
-DEFINE_FUNCTIONS(atanh) // x in [-1,1]
+DEFINE_FUNCTIONS(atanh) // x in (-1,1)
 //
 //------------------------ Error / Gamma functions -----------------------------
 //
@@ -323,10 +323,12 @@ int main() {
   CHECK_ALL_RANGE(expint, {-2.0, -1.0, -0.5, 0.5, 1.0, 2.0, 3.0});
   #endif
 
-  CHECK_ALL(log);
-  CHECK_ALL(log10);
-  CHECK_ALL(log2);
-  CHECK_ALL(log1p);
+  // x in (0,+inf)
+  CHECK_ALL_RANGE(log, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 10.0});
+  CHECK_ALL_RANGE(log10, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 10.0});
+  CHECK_ALL_RANGE(log2, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 10.0});
+  // x in (-1,+inf)
+  CHECK_ALL_RANGE(log1p, {-0.9, -0.5, 0.0, 0.5, 1.0, 2.0, 10.0});
 
   // Power / Roots
   CHECK_ALL(pow);
@@ -356,11 +358,11 @@ int main() {
   CHECK_ALL(tanh);
   CHECK_ALL(asinh);
 
-  // x in [1,inf)
-  CHECK_RANGE(acosh, {1.0, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0});
-  //CHECK_RANGE_F(acoshf, {1.01, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0});
-  //CHECK_RANGE_LD(acoshl, {1.01, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0});
-  CHECK_ALL(atanh);
+  // x in (1,inf): the derivative is infinite at 1, where a difference
+  // stencil leaves the domain.
+  CHECK_ALL_RANGE(acosh, {1.01, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0});
+  // x in (-1,1)
+  CHECK_ALL_RANGE(atanh, {-0.9, -0.5, -0.1, 0.0, 0.1, 0.5, 0.9});
 
   // Error / Gamma functions / Special functions
   CHECK_ALL(erf);
