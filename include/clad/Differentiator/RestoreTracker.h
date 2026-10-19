@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <unordered_map>
 #include <vector>
 #ifndef Max_Records
@@ -86,13 +87,55 @@ public:
   };
   std::vector<Record> m_meta;
   std::vector<uint8_t> m_buf;
-  // The widest store made at each stored address. A member stored before the
-  // object around it shares the object's address but not its size, so the
-  // address alone would take the object for a repeat and drop the rest of
-  // it. A store that starts inside an earlier record is recorded again; that
-  // costs a record, not correctness, since restore() writes the older copy
-  // last.
+  // Past kScanLimit records, the widest store made at each address the index
+  // knows: every record's start when it is built, and every store looked up
+  // after that. A member stored before the object around it shares the
+  // object's address but not its size, so the address alone would take the
+  // object for a repeat and drop the rest of it.
   std::unordered_map<Address, std::size_t> m_index;
+  static constexpr std::size_t kScanLimit = 16;
+
+  // Is all of [addr, addr + size) recorded already? While the records are
+  // few this is exact. Past them, a store that starts inside a record but at
+  // none of the addresses the index knows is recorded again. That costs a
+  // record, not correctness: restore() writes the records newest first, so
+  // every byte ends with the oldest value stored for it.
+  bool known(Address addr, std::size_t size) {
+    if (m_meta.size() <= kScanLimit) {
+      std::less<> before;
+      for (const Record& r : m_meta)
+        if (!before(addr, r.addr) && !before(r.addr + r.size, addr + size))
+          return true;
+      return false;
+    }
+    // emplace rather than operator[]: clang 17 cannot instantiate the tuple
+    // operator[] builds with libstdc++ 14 in C++23.
+    if (m_index.empty())
+      for (const Record& r : m_meta) {
+        std::size_t& widest = m_index.emplace(r.addr, 0).first->second;
+        widest = widest < r.size ? r.size : widest;
+      }
+    std::size_t& widest = m_index.emplace(addr, 0).first->second;
+    if (size <= widest)
+      return true;
+    widest = size;
+    return false;
+  }
+
+  CLAD_NOINLINE void storeSlow(Address addr, std::size_t size) {
+    if (known(addr, size))
+      return;
+    std::size_t off = m_buf.size();
+    m_buf.resize(off + size);
+    std::memcpy(m_buf.data() + off, addr, size);
+    // A callee that overwrites a buffer stores it one element at a time, in
+    // order: grow the last record rather than adding one per element.
+    if (!m_meta.empty() && m_meta.back().addr + m_meta.back().size == addr) {
+      m_meta.back().size += size;
+      return;
+    }
+    m_meta.push_back({addr, size, off});
+  }
 
 public:
   // Store the value and the address of `val`.
@@ -103,16 +146,16 @@ public:
     // ...
     // _tracker.store(x); // ignored
     Address addr = (char*)&val;
-    auto ins = m_index.emplace(addr, sizeof(T));
-    if (!ins.second) {
-      if (sizeof(T) <= ins.first->second)
-        return;
-      ins.first->second = sizeof(T);
+    // The common case, inline: a single record so far, and val starts right
+    // after it, so no record can cover it yet.
+    if (m_meta.size() == 1 && m_meta[0].addr + m_meta[0].size == addr) {
+      std::size_t off = m_buf.size();
+      m_buf.resize(off + sizeof(T));
+      std::memcpy(m_buf.data() + off, addr, sizeof(T));
+      m_meta[0].size += sizeof(T);
+      return;
     }
-    std::size_t off = m_buf.size();
-    m_buf.resize(off + sizeof(T));
-    std::memcpy(m_buf.data() + off, &val, sizeof(T));
-    m_meta.push_back({addr, sizeof(T), off});
+    storeSlow(addr, sizeof(T));
   }
   // Set all stored addresses to the corresponding values bitwise. Keeps the
   // stored values: the reverse sweep restores the same state again after the
