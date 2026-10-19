@@ -767,10 +767,30 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
   falseDx = ifFalseDiff.getExpr_dx();
   if (!trueDx && !falseDx)
     return StmtDiff(condExpr, nullptr);
-  if (!trueDx)
-    trueDx = getZeroInit(falseDx->getType());
-  if (!falseDx)
-    falseDx = getZeroInit(trueDx->getType());
+  if (!trueDx) {
+    if (isa_and_nonnull<CXXThrowExpr>(CO->getTrueExpr()->IgnoreParenCasts()) ||
+        (ifTrueDiff.getExpr() &&
+         isa<CXXThrowExpr>(ifTrueDiff.getExpr()->IgnoreParenCasts()))) {
+      trueDx = CloneNode(ifTrueDiff.getExpr());
+    } else {
+      QualType zeroTy = falseDx && !falseDx->getType()->isVoidType()
+                            ? falseDx->getType()
+                            : CO->getType();
+      trueDx = getZeroInit(zeroTy);
+    }
+  }
+  if (!falseDx) {
+    if (isa_and_nonnull<CXXThrowExpr>(CO->getFalseExpr()->IgnoreParenCasts()) ||
+        (ifFalseDiff.getExpr() &&
+         isa<CXXThrowExpr>(ifFalseDiff.getExpr()->IgnoreParenCasts()))) {
+      falseDx = CloneNode(ifFalseDiff.getExpr());
+    } else {
+      QualType zeroTy = trueDx && !trueDx->getType()->isVoidType()
+                            ? trueDx->getType()
+                            : CO->getType();
+      falseDx = getZeroInit(zeroTy);
+    }
+  }
   // cond is already used by the value conditional above; clone it for the
   // derivative conditional so the two do not share the stored condition.
   Expr* condExprDiff =
@@ -3368,6 +3388,11 @@ BaseForwardModeVisitor::VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE) {
                           argDiff.getExpr_dx())
           .get();
   return {clonedDeleteE, derivedDeleteE};
+}
+
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+StmtDiff BaseForwardModeVisitor::VisitCXXThrowExpr(const CXXThrowExpr* TE) {
+  return StmtDiff(Clone(TE));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCXXBindTemporaryExpr(
