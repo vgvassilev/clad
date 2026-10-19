@@ -344,8 +344,8 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       } else if (const auto* CE = dyn_cast<CallExpr>(callSite)) {
         const Expr* Callee = CE->getCallee()->IgnoreParenCasts();
         if (const auto* DRE = dyn_cast<DeclRefExpr>(Callee))
-          originalFnDC =
-              const_cast<DeclContext*>(DRE->getFoundDecl()->getDeclContext());
+          originalFnDC = const_cast<DeclContext*>(
+              utils::GetCustomDerivativeLookupContext(DRE->getFoundDecl()));
         else if (const auto* MemberE = dyn_cast<MemberExpr>(Callee))
           originalFnDC = MemberE->getFoundDecl().getDecl()->getDeclContext();
       } else if (const auto* CtorExpr = dyn_cast<CXXConstructExpr>(callSite)) {
