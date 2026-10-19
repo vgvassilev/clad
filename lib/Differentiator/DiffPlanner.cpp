@@ -2244,12 +2244,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // TBR can prove that no state needs restoring, so refresh this before
       // scheduling the request.
       forwPassRequest.UseRestoreTracker = shouldUseRestoreTracker;
-      QualType returnType = request->getReturnType();
       bool hasCustomReverseForw = LookupCustomDerivativeDecl(forwPassRequest);
 
       if (hasCustomReverseForw ||
           (!hasCustomPullback &&
-           (utils::returnsAdjoint(returnType) || shouldUseRestoreTracker ||
+           (utils::needsReverseForw(request.Function) ||
+            shouldUseRestoreTracker ||
             utils::allocatesIntoRecordParam(request.Function)))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
       }
