@@ -58,6 +58,7 @@
 #include "clang/Lex/LexDiagnostic.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -71,6 +72,7 @@
 #include "clad/Differentiator/DiffMode.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdlib>  // for getenv
 #include <iostream> // for std::cerr
@@ -1153,6 +1155,47 @@ X("clad", "Produces derivatives or arbitrary functions");
 
 static PragmaHandlerRegistry::Add<CladPragmaHandler>
     Y("clad", "Clad pragma directives handler.");
+
+namespace {
+/// [[clad::NAME]] attaches the annotation clad looks for to the declaration it
+/// appertains to; see CLAD_ELIDABLE_REVERSE_FORW in BuiltinDerivatives.h.
+class CladAttrInfo : public clang::ParsedAttrInfo {
+  const char* m_Annotation;
+
+protected:
+  CladAttrInfo(llvm::ArrayRef<Spelling> S, const char* Annotation)
+      : m_Annotation(Annotation) {
+    Spellings = S;
+  }
+
+public:
+  AttrHandling handleDeclAttribute(clang::Sema& S, clang::Decl* D,
+                                   const clang::ParsedAttr& A) const override {
+    D->addAttr(clang::AnnotateAttr::Create(S.Context, m_Annotation, nullptr, 0,
+                                           A.getRange()));
+    return AttributeApplied;
+  }
+};
+
+struct NonDifferentiableAttrInfo : CladAttrInfo {
+  static constexpr std::array<Spelling, 1> S = {
+      {{clang::ParsedAttr::AS_CXX11, "clad::non_differentiable"}}};
+  NonDifferentiableAttrInfo()
+      : CladAttrInfo(S, /*Annotation=*/"non_differentiable") {}
+};
+
+struct ElidableReverseForwAttrInfo : CladAttrInfo {
+  static constexpr std::array<Spelling, 1> S = {
+      {{clang::ParsedAttr::AS_CXX11, "clad::elidable_reverse_forw"}}};
+  ElidableReverseForwAttrInfo()
+      : CladAttrInfo(S, /*Annotation=*/"elidable_reverse_forw") {}
+};
+} // namespace
+
+static const clang::ParsedAttrInfoRegistry::Add<NonDifferentiableAttrInfo>
+    NonDifferentiableAttr("clad-non-differentiable", "");
+static const clang::ParsedAttrInfoRegistry::Add<ElidableReverseForwAttrInfo>
+    ElidableReverseForwAttr("clad-elidable-reverse-forw", "");
 
 // Attach the backend plugin.
 #include "ClangBackendPlugin.h"

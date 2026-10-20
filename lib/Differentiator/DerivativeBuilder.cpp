@@ -567,7 +567,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       diag(DiagnosticsEngine::Note, Loc,
            "or, if its reverse-forward pass is a no-op (e.g. a shallow copy "
            "that shares its adjoint), declare %0 with signature %1 and mark it "
-           "elidable_reverse_forw")
+           "CLAD_ELIDABLE_REVERSE_FORW")
           << request.ComputeDerivativeName() << DerivativeType;
   }
 

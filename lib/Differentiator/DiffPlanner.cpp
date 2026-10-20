@@ -1967,7 +1967,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
       }
 
-      // FIXME: Use elidable_reverse_forw
+      // FIXME: Use CLAD_ELIDABLE_REVERSE_FORW
       if (request.Mode == DiffMode::pullback &&
           (FDName == "cudaMemcpy" || FDName == "begin" || FDName == "end"))
         return true;
