@@ -688,6 +688,48 @@ Since numerical differentiation is only a way to estimate the derivative, it is 
 errors. Error estimates from numerical differentiation calls can be printed to stdout using the `-fprint-num-diff-errors` 
 compilation flag. This flag is overridden by the `-DCLAD_NO_NUM_DIFF` flag.
 
+Checking Derivatives Against Finite Differences
+=================================================
+
+Porting a code base to AD leaves one question open at every call site: whether
+the derivative Clad produced is the derivative of the primal as written. The
+numerical differentiation above answers it approximately -- run both on the
+same inputs and compare:
+
+.. literalinclude:: ../../../../test/Documentation/UsingClad/CheckDerivatives.cpp
+   :language: cpp
+   :start-after: docs-begin-check-derivatives
+   :end-before: docs-end-check-derivatives
+
+``clad::check_gradient(f, df, args...)`` runs ``df.execute`` and
+``numerical_diff::central_difference`` on the same inputs and compares each
+input's derivative against a combined tolerance,
+``|ad - fd| <= abs_tolerance + rel_tolerance * |fd|``. The defaults are
+``1e-6`` and ``1e-5``, and a ``clad::check_options`` passed as the first
+argument overrides them. ``clad::check_derivative(f, df, args...)`` does the
+same for a forward-mode derivative; ``options.wrt`` says which input the
+derivative is of, and defaults to the first, as ``clad::differentiate(f)``
+does.
+
+An array input is passed as ``clad::array_ref<T>(ptr, n)``, which is what tells
+the check how many derivatives that input has. Every input is taken by value,
+since the stencil calls the primal several times per input and one call's
+writes must not reach the next; a primal that takes an input by non-const
+reference cannot be checked this way, and says so.
+
+A disagreement is a reason to look rather than a proof of a wrong derivative.
+Finite differences are known to disagree with a correct derivative:
+
+- where the primal is not smooth: ``abs``, ``min``, ``max``, a branch, or
+  ``floor`` and ``round`` near a step;
+- where an input is badly scaled, so that a fixed step loses accuracy;
+- where the primal has state or side effects, since the stencil calls it
+  several times.
+
+An integer or enum input takes no small step at all, so there is no finite
+difference to compare its derivative against; those are carried in the report
+as unchecked rather than counted as failures.
+
 Error Estimation
 ======================
 
