@@ -2,7 +2,8 @@
 // RUN: ./CladAttributes.out | %filecheck_exec %s
 
 // Clad's attributes in their [[clad::...]] spelling. The elidable reverse_forw
-// is only declared: linking succeeds only if clad omits the call to it.
+// and the no-op pullback are only declared: linking succeeds only if clad
+// omits the calls to them.
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cstdio>
@@ -24,13 +25,24 @@ constructor_reverse_forw(clad::Tag<S>, double x, double* y, double d_x,
 } // namespace custom_derivatives
 } // namespace clad
 
+double log_value(double x, double y);
+namespace clad {
+namespace custom_derivatives {
+[[clad::noop_derivative]] void log_value_pullback(double x, double y,
+                                                  double d_out, double* d_x,
+                                                  double* d_y);
+} // namespace custom_derivatives
+} // namespace clad
+double log_value(double x, double y) { return x + y; }
+
 double f(double x, double y) {
   S s(x, &y);
-  return scale(x) * x;
+  return scale(x) * x + log_value(x, y);
 }
 
 // CHECK: void f_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NOT: constructor_reverse_forw
+// CHECK-NOT: log_value_pullback
 
 int main() {
   double dx = 0, dy = 0;

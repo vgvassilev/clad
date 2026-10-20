@@ -30,6 +30,14 @@
   __attribute__((annotate("elidable_reverse_forw")))
 #endif
 
+/// Marks a pullback that does nothing; clad omits calls to it.
+/// A declaration without a body is otherwise taken to be defined elsewhere.
+#ifdef __CLAD__
+#define CLAD_NOOP_DERIVATIVE [[clad::noop_derivative]]
+#else
+#define CLAD_NOOP_DERIVATIVE __attribute__((annotate("noop_derivative")))
+#endif
+
 namespace clad {
 template <typename T, typename U> struct ValueAndPushforward {
   T value;
@@ -196,13 +204,16 @@ cudaMalloc_reverse_forw(T** devPtr, size_t sz, T** d_devPtr, size_t d_sz)
     __attribute__((host));
 
 template <typename T>
-void cudaMalloc_pullback(T** devPtr, size_t sz, cudaError_t d_ret, T** d_devPtr,
-                         size_t* d_sz) __attribute__((host));
+CLAD_NOOP_DERIVATIVE void cudaMalloc_pullback(T** devPtr, size_t sz,
+                                              cudaError_t d_ret, T** d_devPtr,
+                                              size_t* d_sz)
+    __attribute__((host));
 
 CLAD_ELIDABLE_REVERSE_FORW cudaError_t cudaFree_reverse_forw(void* ptr,
                                                              void* d_ptr);
 
-void cudaFree_pullback(void* ptr, cudaError_t d_ret, void* d_ptr);
+CLAD_NOOP_DERIVATIVE void cudaFree_pullback(void* ptr, cudaError_t d_ret,
+                                            void* d_ptr);
 
 template <typename... Args>
 unsigned __cudaPushCallConfiguration_reverse_forw(Args...);
@@ -1934,12 +1945,14 @@ memset_reverse_forw(void* ptr, int val, size_t sz, void* d_ptr, int d_val,
 
 CLAD_ELIDABLE_REVERSE_FORW void free_reverse_forw(void* ptr, void* d_ptr);
 
-void realloc_pullback(void* ptr, size_t sz, void* d_ptr, size_t* d_sz);
+CLAD_NOOP_DERIVATIVE void realloc_pullback(void* ptr, size_t sz, void* d_ptr,
+                                           size_t* d_sz);
 
-void memset_pullback(void* ptr, int val, size_t sz, void* d_ptr, int* d_val,
-                     size_t* d_sz);
+CLAD_NOOP_DERIVATIVE void memset_pullback(void* ptr, int val, size_t sz,
+                                          void* d_ptr, int* d_val,
+                                          size_t* d_sz);
 
-void free_pullback(void* ptr, void* d_ptr);
+CLAD_NOOP_DERIVATIVE void free_pullback(void* ptr, void* d_ptr);
 // NOLINTEND(cppcoreguidelines-owning-memory)
 // NOLINTEND(cppcoreguidelines-no-malloc)
 
