@@ -609,7 +609,7 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// it. This holds for a trivial copy/move constructor (a shallow share of
     /// pointer/handle members), an aggregate, and a memberwise zero-or-copy
     /// initializer. A non-trivial constructor can additionally opt in with the
-    /// elidable_reverse_forw attribute on its custom reverse_forw (see
+    /// CLAD_ELIDABLE_REVERSE_FORW attribute on its custom reverse_forw (see
     /// hasElidableReverseForwAttribute) -- both paths are combined where the
     /// propagator is consumed.
     bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,

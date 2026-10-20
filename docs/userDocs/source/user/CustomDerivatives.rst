@@ -315,6 +315,24 @@ Some important things to note here:
 - The reverse-forward custom derivative function must return a ``clad::ValueAndAdjoint``
   object. This object contains both the primal value and the adjoint.
 
+Some reverse-forward passes need no code of their own: calling the original
+function on the arguments and again on their adjoints already yields the value
+and the adjoint, as for element access (``arr.at(i)`` and ``d_arr.at(i)``).
+Declare such a reverse-forward function without a body and mark it
+``CLAD_ELIDABLE_REVERSE_FORW``, written before the declaration; Clad then makes
+those two calls instead of calling it. The macro expands to
+``[[clad::elidable_reverse_forw]]`` when the Clad plugin is loaded. Clad's own
+``std::array::at`` is declared this way:
+
+.. code-block:: cpp
+
+   namespace clad::custom_derivatives::class_functions {
+   template <typename T, ::std::size_t N>
+   CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&> at_reverse_forw(
+       ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
+       ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type d_idx);
+   }
+
 Member functions custom derivatives
 =====================================
 
@@ -468,8 +486,8 @@ Each remark gives you the ways to resolve the boundary:
   the thing to mark.
 - **Elide its reverse-forward pass.** For a reverse-forward-pass boundary whose
   pass is a no-op (e.g. a shallow copy that shares its adjoint), declare the
-  printed ``..._reverse_forw`` and mark it ``elidable_reverse_forw``;
-  Clad then skips the call instead of cloning a body.
+  printed ``..._reverse_forw`` and mark it ``CLAD_ELIDABLE_REVERSE_FORW``, written
+  before the declaration; Clad then skips the call instead of cloning a body.
 
 Only functions outside the main file are reported, so differentiating your own
 code stays quiet; the remarks focus on the library edge you are porting. The

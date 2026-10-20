@@ -19,7 +19,16 @@
 #include <limits>
 #include <type_traits>
 
-#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
+/// Marks a reverse_forw that clad need not call: it calls the primal on the
+/// arguments and again on their adjoints instead. Write it before the
+/// declaration. Clad's attributes are spelled [[clad::...]] when the plugin,
+/// which defines __CLAD__, registers them, and as annotate without it.
+#ifdef __CLAD__
+#define CLAD_ELIDABLE_REVERSE_FORW [[clad::elidable_reverse_forw]]
+#else
+#define CLAD_ELIDABLE_REVERSE_FORW                                             \
+  __attribute__((annotate("elidable_reverse_forw")))
+#endif
 
 namespace clad {
 template <typename T, typename U> struct ValueAndPushforward {
@@ -91,7 +100,11 @@ template <class T> class Tag {};
 /// clones its body to synthesize a derivative. Apply at the declaration of a
 /// variable, member, function, or type you own, e.g.
 ///   struct CLAD_NONDIFFERENTIABLE Handle { double* data; };
+#ifdef __CLAD__
+#define CLAD_NONDIFFERENTIABLE [[clad::non_differentiable]]
+#else
 #define CLAD_NONDIFFERENTIABLE __attribute__((annotate("non_differentiable")))
+#endif
 
 /// Marks a type you do NOT own -- a library type you cannot annotate at its own
 /// declaration -- non-differentiable, by specializing clad::Tag for it. Use at
@@ -178,15 +191,16 @@ void cudaMemcpy_pullback(T* destPtr, const T* srcPtr, size_t count,
 }
 
 template <typename T>
-cudaError_t cudaMalloc_reverse_forw(T** devPtr, size_t sz, T** d_devPtr,
-                                    size_t d_sz)
-    __attribute__((host)) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW cudaError_t
+cudaMalloc_reverse_forw(T** devPtr, size_t sz, T** d_devPtr, size_t d_sz)
+    __attribute__((host));
 
 template <typename T>
 void cudaMalloc_pullback(T** devPtr, size_t sz, cudaError_t d_ret, T** d_devPtr,
                          size_t* d_sz) __attribute__((host));
 
-cudaError_t cudaFree_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW cudaError_t cudaFree_reverse_forw(void* ptr,
+                                                             void* d_ptr);
 
 void cudaFree_pullback(void* ptr, cudaError_t d_ret, void* d_ptr);
 
@@ -1905,22 +1919,20 @@ inline void free_pushforward(void* ptr, void* d_ptr) {
   free(d_ptr);
 }
 
-ValueAndAdjoint<void*, void*>
-malloc_reverse_forw(size_t sz, size_t d_sz) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<void*, void*>
+malloc_reverse_forw(size_t sz, size_t d_sz);
 
-ValueAndAdjoint<void*, void*>
-calloc_reverse_forw(size_t n, size_t sz, size_t d_n,
-                    size_t d_sz) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<void*, void*>
+calloc_reverse_forw(size_t n, size_t sz, size_t d_n, size_t d_sz);
 
-ValueAndAdjoint<void*, void*>
-realloc_reverse_forw(void* ptr, size_t sz, void* d_ptr,
-                     size_t d_sz) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<void*, void*>
+realloc_reverse_forw(void* ptr, size_t sz, void* d_ptr, size_t d_sz);
 
-ValueAndAdjoint<void*, void*>
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<void*, void*>
 memset_reverse_forw(void* ptr, int val, size_t sz, void* d_ptr, int d_val,
-                    size_t d_sz) elidable_reverse_forw;
+                    size_t d_sz);
 
-void free_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW void free_reverse_forw(void* ptr, void* d_ptr);
 
 void realloc_pullback(void* ptr, size_t sz, void* d_ptr, size_t* d_sz);
 
