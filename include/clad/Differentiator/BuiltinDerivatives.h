@@ -294,6 +294,45 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sqrt_pushforward(T x, dT d_x);
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fabs_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sin_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cos_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tan_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asin_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acos_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atan_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sinh_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cosh_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanh_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cbrt_pushforward(T x, dT d_x);
 } // namespace std
 
 template <typename T, typename dT>
@@ -310,6 +349,12 @@ __builtin_sqrtf_pushforward(T x, dT d_x) {
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sqrtl_pushforward(T x, dT d_x) {
+  return std::sqrt_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
 __builtin_fabs_pushforward(T x, dT d_x) {
   return std::fabs_pushforward(x, d_x);
 }
@@ -318,6 +363,246 @@ template <typename T, typename dT>
 CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
 __builtin_fabsf_pushforward(T x, dT d_x) {
   return std::fabs_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fabsl_pushforward(T x, dT d_x) {
+  return std::fabs_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sin_pushforward(T x, dT d_x) {
+  return std::sin_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sinf_pushforward(T x, dT d_x) {
+  return std::sin_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sinl_pushforward(T x, dT d_x) {
+  return std::sin_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_cos_pushforward(T x, dT d_x) {
+  return std::cos_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_cosf_pushforward(T x, dT d_x) {
+  return std::cos_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_cosl_pushforward(T x, dT d_x) {
+  return std::cos_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_tan_pushforward(T x, dT d_x) {
+  return std::tan_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_tanf_pushforward(T x, dT d_x) {
+  return std::tan_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_tanl_pushforward(T x, dT d_x) {
+  return std::tan_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_asin_pushforward(T x, dT d_x) {
+  return std::asin_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_asinf_pushforward(T x, dT d_x) {
+  return std::asin_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_asinl_pushforward(T x, dT d_x) {
+  return std::asin_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_acos_pushforward(T x, dT d_x) {
+  return std::acos_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_acosf_pushforward(T x, dT d_x) {
+  return std::acos_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_acosl_pushforward(T x, dT d_x) {
+  return std::acos_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_atan_pushforward(T x, dT d_x) {
+  return std::atan_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_atanf_pushforward(T x, dT d_x) {
+  return std::atan_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_atanl_pushforward(T x, dT d_x) {
+  return std::atan_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_exp_pushforward(T x, dT d_x) {
+  return std::exp_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_expf_pushforward(T x, dT d_x) {
+  return std::exp_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_expl_pushforward(T x, dT d_x) {
+  return std::exp_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_log10_pushforward(T x, dT d_x) {
+  return std::log10_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_log10f_pushforward(T x, dT d_x) {
+  return std::log10_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_log10l_pushforward(T x, dT d_x) {
+  return std::log10_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_log2_pushforward(T x, dT d_x) {
+  return std::log2_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_log2f_pushforward(T x, dT d_x) {
+  return std::log2_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_log2l_pushforward(T x, dT d_x) {
+  return std::log2_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sinh_pushforward(T x, dT d_x) {
+  return std::sinh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sinhf_pushforward(T x, dT d_x) {
+  return std::sinh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sinhl_pushforward(T x, dT d_x) {
+  return std::sinh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_cosh_pushforward(T x, dT d_x) {
+  return std::cosh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_coshf_pushforward(T x, dT d_x) {
+  return std::cosh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_coshl_pushforward(T x, dT d_x) {
+  return std::cosh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_tanh_pushforward(T x, dT d_x) {
+  return std::tanh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_tanhf_pushforward(T x, dT d_x) {
+  return std::tanh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_tanhl_pushforward(T x, dT d_x) {
+  return std::tanh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_cbrt_pushforward(T x, dT d_x) {
+  return std::cbrt_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_cbrtf_pushforward(T x, dT d_x) {
+  return std::cbrt_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_cbrtl_pushforward(T x, dT d_x) {
+  return std::cbrt_pushforward(x, d_x);
 }
 
 // FIXME: Add the rest of the __builtin_ routines.
