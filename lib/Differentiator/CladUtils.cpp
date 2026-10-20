@@ -169,16 +169,18 @@ namespace clad {
       return CS;
     }
 
-    bool hasEmptyBody(const clang::FunctionDecl* FD) {
+    bool isNoopDerivative(const clang::FunctionDecl* FD) {
       FD = FD->getCanonicalDecl();
       if (const FunctionDecl* TIP = FD->getTemplateInstantiationPattern())
         FD = TIP;
-      // Derivatives with real locations are user-provided ones. If a
-      // user-provided derivative doesn't have a body at this point, we consider
-      // it to be empty.
-      if (!FD->hasBody())
-        return FD->getLocation().isValid();
-      return utils::unwrapIfSingleStmt(FD->getBody()) == nullptr;
+      for (const auto* A :
+           FD->getMostRecentDecl()->specific_attrs<clang::AnnotateAttr>())
+        if (A->getAnnotation() == "noop_derivative")
+          return true;
+      // A derivative without a body is defined elsewhere, e.g. in another
+      // translation unit, and has to be called.
+      Stmt* Body = FD->getBody();
+      return Body && utils::unwrapIfSingleStmt(Body) == nullptr;
     }
 
     CompoundStmt* PrependAndCreateCompoundStmt(ASTContext& C, Stmt* initial,

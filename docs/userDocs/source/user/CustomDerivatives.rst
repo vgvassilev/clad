@@ -263,6 +263,18 @@ Some important things to note here:
   then followed by the partial derivatives of the functions' arguments. The order of the
   arguments must be the same as in the original function.
 
+- A pullback may be only declared and defined in another translation unit; Clad
+  calls it and the linker resolves it. Clad omits the call to a pullback whose
+  body is empty, or to one declared without a body and marked
+  ``CLAD_NOOP_DERIVATIVE``, written before the declaration. The macro expands
+  to ``[[clad::noop_derivative]]`` when the Clad plugin is loaded:
+
+  .. code-block:: cpp
+
+     namespace clad::custom_derivatives {
+     CLAD_NOOP_DERIVATIVE void free_pullback(void* ptr, void* d_ptr);
+     }
+
 Reverse-forward custom derivatives
 ====================================
 

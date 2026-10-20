@@ -2595,7 +2595,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
       }
       pullbackFD = FindDerivedFunction(pullbackRequest);
-      if (pullbackFD && utils::hasEmptyBody(pullbackFD) &&
+      if (pullbackFD && utils::isNoopDerivative(pullbackFD) &&
           !needsPullbackForRefReturningInstance)
         nonDiff = true;
       // Custom elidable reverse_forw helpers propagate their adjoint directly

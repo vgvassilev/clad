@@ -821,7 +821,7 @@ void InitTimers();
           // accidental numerical diff.
           if (isa<CXXConstructorDecl>(FD) &&
               (request.Mode == DiffMode::pullback) &&
-              utils::hasEmptyBody(DerivativeDecl))
+              utils::isNoopDerivative(DerivativeDecl))
             return nullptr;
           if (DerivativeDecl)
             getScheduler().getDerivedFns().Add(DerivedFnInfo(
@@ -1190,12 +1190,21 @@ struct ElidableReverseForwAttrInfo : CladAttrInfo {
   ElidableReverseForwAttrInfo()
       : CladAttrInfo(S, /*Annotation=*/"elidable_reverse_forw") {}
 };
+
+struct NoopDerivativeAttrInfo : CladAttrInfo {
+  static constexpr std::array<Spelling, 1> S = {
+      {{clang::ParsedAttr::AS_CXX11, "clad::noop_derivative"}}};
+  NoopDerivativeAttrInfo()
+      : CladAttrInfo(S, /*Annotation=*/"noop_derivative") {}
+};
 } // namespace
 
 static const clang::ParsedAttrInfoRegistry::Add<NonDifferentiableAttrInfo>
     NonDifferentiableAttr("clad-non-differentiable", "");
 static const clang::ParsedAttrInfoRegistry::Add<ElidableReverseForwAttrInfo>
     ElidableReverseForwAttr("clad-elidable-reverse-forw", "");
+static const clang::ParsedAttrInfoRegistry::Add<NoopDerivativeAttrInfo>
+    NoopDerivativeAttr("clad-noop-derivative", "");
 
 // Attach the backend plugin.
 #include "ClangBackendPlugin.h"
