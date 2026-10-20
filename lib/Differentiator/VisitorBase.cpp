@@ -1126,6 +1126,32 @@ namespace clad {
     return m_Sema.DefaultFunctionArrayConversion(BuildDeclRef(TargetFD)).get();
   }
 
+  void VisitorBase::diagNumDiffNotDifferentiable(const CallExpr* CE) {
+    // Name the function being differentiated numerically rather than the
+    // helper doing it: the helper is clad's, and the user never wrote it.
+    // numerical_diff takes it as the first argument of every call.
+    const FunctionDecl* target = nullptr;
+    if (CE->getNumArgs() != 0)
+      if (const auto* DRE =
+              dyn_cast<DeclRefExpr>(CE->getArg(0)->IgnoreParenImpCasts()))
+        target = dyn_cast<FunctionDecl>(DRE->getDecl());
+    const NamedDecl* named = target ? target : CE->getDirectCallee();
+    assert(named && "a numerical-diff call has a direct callee");
+    // The call itself is generated and carries no location of the user's.
+    // The function being differentiated is theirs, and is where the
+    // derivative that cannot be differentiated again was asked for.
+    SourceLocation L = m_DiffReq->getLocation();
+    diag(DiagnosticsEngine::Warning, L,
+         "the numerical derivative of %0 cannot be differentiated again: "
+         "numerical differentiation has no derivative of its own; considering "
+         "this derivative as 0")
+        << named << L;
+    diag(DiagnosticsEngine::Note, L,
+         "a custom derivative for %0 is differentiated as many times as it is "
+         "asked for")
+        << named << L;
+  }
+
   Expr* VisitorBase::GetSingleArgCentralDiffCall(
       Expr* targetFuncCall, Expr* targetArg, unsigned targetPos,
       unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args,

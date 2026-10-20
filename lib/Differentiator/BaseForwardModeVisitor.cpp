@@ -1557,7 +1557,16 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     }
   }
 
-  if (!callDiff) {
+  // A call clad's own fallback synthesized has no derivative to find: its
+  // body is a template over a function pointer and a parameter pack, and
+  // deriving it is what produced code that did not compile. Say so and let
+  // the call fall through to the fallback, which has nothing to offer for it
+  // either, so the derivative is zero -- as it is for any call clad can
+  // neither differentiate nor numerically differentiate.
+  const bool isNumDiffCall = utils::IsNumericalDiffFunction(FD);
+  if (!callDiff && isNumDiffCall)
+    diagNumDiffNotDifferentiable(CE);
+  else if (!callDiff) {
     // Overloaded derivative was not found, request the CladPlugin to
     // derive the called function.
     DiffRequest pushforwardFnRequest;

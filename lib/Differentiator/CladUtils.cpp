@@ -1194,6 +1194,16 @@ namespace clad {
       return FD->getBuiltinID() == Builtin::ID::BIfree;
     }
 
+    bool IsNumericalDiffFunction(const clang::FunctionDecl* FD) {
+      // A top level namespace, not clad::numerical_diff: the lookup in
+      // DerivativeBuilder::LookupCustomDerivativeOrNumericalDiff says the
+      // same, and carries the FIXME about it.
+      const auto* NSD = dyn_cast<clang::NamespaceDecl>(FD->getDeclContext());
+      return NSD && NSD->getIdentifier() &&
+             NSD->getName() == "numerical_diff" &&
+             NSD->getDeclContext()->isTranslationUnit();
+    }
+
     bool isNonConstReferenceType(clang::QualType QT) {
       return QT->isReferenceType() &&
              !QT.getNonReferenceType().isConstQualified();
