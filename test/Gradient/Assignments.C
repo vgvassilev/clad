@@ -139,6 +139,7 @@ double f5(double x, double y) {
 //CHECK-NEXT:         }
 //CHECK-NEXT:         _d_t += 1;
 //CHECK-NEXT:     });
+//CHECK-NEXT:     if (!_cond0)
 //CHECK-NEXT:     if (_cond1) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             double _r_d1 = _d_t;
@@ -199,6 +200,7 @@ double f6(double x, double y) {
 //CHECK-NEXT:         }
 //CHECK-NEXT:         _d_t += 1;
 //CHECK-NEXT:     });
+//CHECK-NEXT:     if (!_cond0)
 //CHECK-NEXT:     if (_cond1) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             double _r_d1 = _d_t;

@@ -29,6 +29,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
@@ -462,6 +463,37 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return CS->body_empty() ? nullptr
                               : dyn_cast<ReturnStmt>(*CS->body_rbegin());
     return dyn_cast<ReturnStmt>(Body);
+  }
+
+  /// Whether \p S has a `break` or `continue` of the loop whose body it is:
+  /// not one of a nested loop, nor a `break` of a switch inside it.
+  static bool loopBodyHasBreakOrContinue(const Stmt* S,
+                                         bool insideSwitch = false) {
+    if (isa<ContinueStmt>(S))
+      return true;
+    if (isa<BreakStmt>(S))
+      return !insideSwitch;
+    if (isa<ForStmt>(S) || isa<WhileStmt>(S) || isa<DoStmt>(S) ||
+        isa<CXXForRangeStmt>(S))
+      return false;
+    // A child may be absent, an omitted part of the statement.
+    if (isa<SwitchStmt>(S)) {
+      for (const Stmt* C : S->children())
+        if (C && loopBodyHasBreakOrContinue(C, /*insideSwitch=*/true))
+          return true;
+      return false;
+    }
+    for (const Stmt* C : S->children())
+      if (C && loopBodyHasBreakOrContinue(C, insideSwitch))
+        return true;
+    return false;
+  }
+
+  bool DiffRequest::hasBreakOrContinue(const Stmt* LoopBody) const {
+    auto [It, Inserted] = m_BreakOrContinueInfo.try_emplace(LoopBody, false);
+    if (Inserted)
+      It->second = loopBodyHasBreakOrContinue(LoopBody);
+    return It->second;
   }
 
   bool DiffRequest::hasEarlyReturns() const {
@@ -1377,7 +1409,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // user-prodived to handle builtin derivatives. If found, we have to change
     // the mode of the request.
     if (R.EnableErrorEstimation && R.Mode == DiffMode::pullback &&
-        utils::canUsePushforwardInRevMode(R.Function)) {
+        utils::canUsePushforwardInRevMode(
+            R.Function, dyn_cast_or_null<CallExpr>(R.CallContext))) {
       R.Mode = DiffMode::pushforward;
       R.EnableErrorEstimation = false;
       if (Expr* overload = getOverloadExpr(S, DC, R, foundAnyDecl)) {
@@ -1867,6 +1900,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           request.EnableVariedAnalysis = false;
           return true;
         }
+        // Captured lambda pushforward is built directly
+        if (isLambdaCallOperator(MD) && !MD->getParent()->field_empty() &&
+            (m_TopMostReq->Mode == DiffMode::forward ||
+             m_TopMostReq->Mode == DiffMode::vector_forward_mode))
+          return true;
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD))
           nonDiff = true;
@@ -1909,7 +1947,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       bool canUsePushforwardInRevMode =
           m_TopMostReq->Mode == DiffMode::reverse &&
           !request.EnableErrorEstimation &&
-          utils::canUsePushforwardInRevMode(FD);
+          utils::canUsePushforwardInRevMode(FD, E);
 
       std::string FDName = FD->getNameAsString();
 #if CLANG_VERSION_MAJOR < 16
@@ -1937,7 +1975,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
       }
 
-      // FIXME: Use elidable_reverse_forw
+      // FIXME: Use CLAD_ELIDABLE_REVERSE_FORW
       if (request.Mode == DiffMode::pullback &&
           (FDName == "cudaMemcpy" || FDName == "begin" || FDName == "end"))
         return true;

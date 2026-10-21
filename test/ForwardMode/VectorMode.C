@@ -310,6 +310,15 @@ double f9(double x, double y) {
 // CHECK-NEXT:   *d_y += 1;
 // CHECK-NEXT: }
 
+double nondiff(double x) __attribute__((annotate("another_attribute"), annotate("non_differentiable")));
+double nondiff(double x) { return x * x; }
+
+// Only a call clad does not differentiate: the derivative is a zero vector.
+double f10(double x, double y) { return nondiff(x); }
+
+// CHECK: void f10_dvec(double x, double y, double *_d_x, double *_d_y) {
+// CHECK:   clad::array<double> _d_vector_return(clad::zero_vector(indepVarCount));
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -377,4 +386,9 @@ int main() {
   double dx = 0, dy = 0;
   f9_dvec.execute(1, 2, &dx, &dy);
   printf("Result is = {%.2f, %.2f}\n", dx, dy); // CHECK-EXEC: Result is = {1.00, 1.00}
+
+  auto f10_dvec = clad::differentiate<clad::opts::vector_mode>(f10);
+  dx = -1, dy = -1;
+  f10_dvec.execute(1, 2, &dx, &dy);
+  printf("Result is = {%.2f, %.2f}\n", dx, dy); // CHECK-EXEC: Result is = {0.00, 0.00}
 }

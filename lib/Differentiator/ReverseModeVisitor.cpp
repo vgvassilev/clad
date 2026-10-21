@@ -32,6 +32,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -931,6 +932,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return result;
   }
 
+  // True when S always leaves the remaining statements of its enclosing
+  // compound unexecuted (return / break / continue, or an if whose every
+  // taken branch does).
+  static bool stmtAlwaysExits(const Stmt* S) {
+    if (!S)
+      return false;
+    if (isa<ReturnStmt>(S) || isa<BreakStmt>(S) || isa<ContinueStmt>(S))
+      return true;
+    if (const auto* CS = dyn_cast<CompoundStmt>(S)) {
+      for (const Stmt* C : CS->body())
+        if (stmtAlwaysExits(C))
+          return true;
+      return false;
+    }
+    if (const auto* IS = dyn_cast<IfStmt>(S))
+      return stmtAlwaysExits(IS->getThen()) && stmtAlwaysExits(IS->getElse());
+    return false;
+  }
+
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,
@@ -940,12 +960,51 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     ScopeRAII compoundScope(*this, scopeFlags);
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
+    // After `if (c) return; stmt;`, stmt does not run on the path that
+    // returned. Its reverse must not either -- otherwise loop-iteration tapes
+    // (restore_trackers, conds) are popped on an iteration that never pushed.
+    // Several such exits accumulate: after `if (a) return; if (b) return;`,
+    // later statements run only when `!a && !b`.
+    Expr* skipRestWhen = nullptr;
+    bool skipRestAlways = false;
+    auto noteExitWhen = [&](Expr* exitWhen) {
+      skipRestWhen = skipRestWhen
+                         ? BuildOp(BinaryOperatorKind::BO_LOr,
+                                   BuildParens(CloneNode(skipRestWhen)),
+                                   BuildParens(CloneNode(exitWhen)))
+                         : exitWhen;
+    };
     for (Stmt* S : CS->body()) {
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingStmtInVisitCompoundStmt();
       StmtDiff SDiff = DifferentiateSingleStmt(S);
       addToCurrentBlock(SDiff.getStmt(), direction::forward);
-      addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
+      Stmt* rev = SDiff.getStmt_dx();
+      if (rev && skipRestAlways) {
+        rev = nullptr;
+      } else if (rev && skipRestWhen) {
+        Expr* gate = BuildOp(clang::UnaryOperatorKind::UO_LNot,
+                             BuildParens(CloneNode(skipRestWhen)));
+        rev = clad_compat::IfStmt_Create(
+            m_Context, noLoc, /*IsConstexpr=*/false, /*Init=*/nullptr,
+            /*Var=*/nullptr, gate, noLoc, noLoc, rev, noLoc, /*Else=*/nullptr);
+      }
+      addToCurrentBlock(rev, direction::reverse);
+
+      if (!skipRestAlways) {
+        if (const auto* If = dyn_cast<IfStmt>(S)) {
+          bool thenExits = stmtAlwaysExits(If->getThen());
+          bool elseExits = stmtAlwaysExits(If->getElse());
+          Expr* cond = SDiff.getRevSweepAsExpr();
+          if (thenExits && elseExits)
+            skipRestAlways = true;
+          else if (thenExits && cond)
+            noteExitWhen(cond);
+          else if (elseExits && cond)
+            noteExitWhen(BuildOp(clang::UnaryOperatorKind::UO_LNot,
+                                 BuildParens(CloneNode(cond))));
+        }
+      }
 
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingStmtInVisitCompoundStmt();
@@ -1193,8 +1252,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
-    auto* activeBreakContHandler = PushBreakContStmtHandler();
-    activeBreakContHandler->BeginCFSwitchStmtScope();
+    // DifferentiateLoopBody owns the break/continue handler. Registering a
+    // second handler here records two cases for one early return and nests
+    // duplicate labels in the same reverse switch.
     const VarDecl* LoopVD = FRS->getLoopVariable();
 
     // The range and its iterators are rebuilt in the reverse sweep rather
@@ -1251,10 +1311,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff bodyDiff =
         DifferentiateLoopBody(body, loopCounter, nullptr, nullptr,
                               /*isForLoop=*/true, FRS->getForLoc());
-
-    activeBreakContHandler->EndCFSwitchStmtScope();
-    activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
-    PopBreakContStmtHandler();
 
     StmtDiff storeLoop = StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl()));
 
@@ -1664,7 +1720,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitCXXNullPtrLiteralExpr(
       const CXXNullPtrLiteralExpr* NPE) {
-    return StmtDiff(Clone(NPE), Clone(NPE));
+    return StmtDiff(Clone(NPE), m_Sema.ActOnCXXNullPtrLiteral(noLoc).get());
   }
 
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
@@ -1745,6 +1801,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         GetActiveBreakContStmtHandler()->m_IsInvokedBySwitchStmt)
       addToCurrentBlock(CloseReverseSwitchCaseGroup(*GetActiveSwitchStmtInfo()),
                         direction::reverse);
+    // A return mid-iteration must record a control-flow-tape case, same as
+    // continue. Otherwise a loop that also has break/continue still pops the
+    // size_t tape in reverse, but this iteration never pushed (the fallthrough
+    // push lives at the end of the body, which the return skipped).
+    for (BreakContStmtHandler& H : m_BreakContStmtHandlers) {
+      // Only a loop that breaks or continues records which way an iteration
+      // left; the return is then one more way.
+      if (H.m_IsInvokedBySwitchStmt ||
+          !m_DiffReq.hasBreakOrContinue(H.m_LoopBody))
+        continue;
+      addToCurrentBlock(H.GetNextCFCaseStmt(), direction::reverse);
+      addToCurrentBlock(H.CreateCFTapePushExprToCurrentCase(),
+                        direction::forward);
+    }
     addToCurrentBlock(Reverse, direction::reverse);
 
     Stmt* marker = m_Sema.ActOnNullStmt(noLoc).get();
@@ -2267,6 +2337,30 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const LambdaExpr* LE) {
+    // Snapshot by value captures at creation; the reverse sweep
+    // feeds the snapshot adjoint back into the capture
+    for (const LambdaCapture& Capture : LE->captures()) {
+      if (!Capture.capturesVariable() || Capture.getCaptureKind() != LCK_ByCopy)
+        continue;
+      auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+      const FieldDecl* field = getCaptureField(LE, capVD);
+      if (m_LambdaCaptureSnapshots.contains(field))
+        continue;
+      VarDecl* encVD = getEnclosingCaptureClone(capVD);
+      QualType ty = utils::getNonConstType(
+          capVD->getType().getNonReferenceType(), m_Sema);
+      VarDecl* snap = BuildVarDecl(ty, "_t", BuildDeclRef(encVD));
+      addToCurrentBlock(BuildDeclStmt(snap), direction::forward);
+      VarDecl* dsnap = BuildVarDecl(ty, "_d_t", getZeroInit(ty));
+      AddToGlobalBlock(BuildDeclStmt(dsnap));
+      m_Variables[snap] = {dsnap};
+      auto it = m_Variables.find(encVD);
+      if (it != m_Variables.end())
+        addToCurrentBlock(BuildOp(BO_AddAssign, buildAdjoint(it->second),
+                                  BuildDeclRef(dsnap)),
+                          direction::reverse);
+      m_LambdaCaptureSnapshots.try_emplace(field, snap);
+    }
     DiffRequest LambdaReq = m_DiffReq;
     LambdaReq.Function = LE->getCallOperator();
     LambdaReq.Functor = LE->getLambdaClass();
@@ -2298,6 +2392,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     Expr* LambdaCallOpExpr = nullptr;
+    const LambdaExpr* calledLambda = nullptr;
     if (MD) {
       if (isLambdaCallOperator(MD)) {
         const auto* CallE = CE->getArg(0)->IgnoreParenImpCasts();
@@ -2312,18 +2407,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
         if (const auto* DRE = llvm::dyn_cast<DeclRefExpr>(CallE)) {
           const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
-          for (auto* D : m_Derivative->decls())
-            if (auto* lookupVD = dyn_cast<VarDecl>(D))
-              if (lookupVD->getNameAsString() ==
-                  "_d_" + VD->getNameAsString()) {
-                CXXScopeSpec SS;
-                LambdaCallOpExpr = DeclRefExpr::Create(
-                    m_Context, NestedNameSpecifierLoc(), SourceLocation(),
-                    lookupVD,
-                    /*RefersToEnclosingVariableOrCapture=*/false, noLoc,
-                    lookupVD->getType(), VK_LValue);
-              }
+          calledLambda = utils::getLambdaInit(VD);
+          LambdaCallOpExpr = getLambdaDerivative(VD);
         }
+        // A capturing lambda with no derivative was refused; any other lambda
+        // is differentiated like a call to its operator().
+        if (!LambdaCallOpExpr && calledLambda && calledLambda->capture_size())
+          return getZeroInit(CE->getType());
       }
     }
 
@@ -2479,7 +2569,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // If the function has a single arg and does not return a reference or
     // take arg by reference, we can request a derivative w.r.t. to this arg
     // using the forward mode.
-    bool asGrad = !utils::canUsePushforwardInRevMode(FD);
+    bool asGrad = !utils::canUsePushforwardInRevMode(FD, CE);
 
     // Build the DiffRequest
     DiffRequest pullbackRequest{};
@@ -2716,7 +2806,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           } else
             hasDynamicNonDiffParams = true;
         }
-      if (!m_DiffReq.CallContext || hasDynamicNonDiffParams ||
+      bool unplannedBody =
+          m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(
+              m_DiffReq.Function);
+      if (!m_DiffReq.CallContext || hasDynamicNonDiffParams || unplannedBody ||
           FD->getNameAsString() == "cudaMemcpy") {
         pullbackFD = nullptr;
         // Try to find it in builtin derivatives.
@@ -2741,6 +2834,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         OverloadedDerivedFn = BuildCallExprToFunction(
             pullbackFD, pullbackCallArgs, CUDAExecConfig);
       } else if (MD && isLambdaCallOperator(MD)) {
+        if (calledLambda) {
+          for (const LambdaCapture& Capture : calledLambda->captures()) {
+            auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+            auto [val, adjoint] = getCaptureValueAndAdjoint(
+                calledLambda, capVD, Capture.getCaptureKind() == LCK_ByCopy);
+            pullbackCallArgs.push_back(val);
+            pullbackCallArgs.push_back(BuildOp(UO_AddrOf, adjoint));
+          }
+        }
         OverloadedDerivedFn =
             m_Sema
                 .ActOnCallExpr(
@@ -2750,7 +2852,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                     /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(pullbackCallArgs),
                     /*RParenLoc=*/m_DiffReq->getLocation(), CUDAExecConfig)
                 .get();
-      } else if (utils::IsRealFunction(FD)) {
+      } else if (Expr* NumDiffCallee =
+                     GetNumDiffCallee(FD, Clone(CE->getCallee()), CE)) {
         // FIXME: Add support for reference arguments to the numerical diff. If
         // it already correctly support reference arguments then confirm the
         // support and add tests for the same.
@@ -2758,16 +2861,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // Clad failed to derive it. Try numerically deriving it.
         if (NArgs == 1) {
           OverloadedDerivedFn = GetSingleArgCentralDiffCall(
-              Clone(CE->getCallee()), pullbackCallArgs[0],
+              NumDiffCallee, pullbackCallArgs.front(),
               /*targetPos=*/0,
               /*numArgs=*/1, pullbackCallArgs, CUDAExecConfig);
           asGrad = !OverloadedDerivedFn;
         } else {
           auto CEType = utils::getNonConstType(CE->getType(), m_Sema);
-          GetMultiArgCentralDiffCall(
-              Clone(CE->getCallee()), CEType.getCanonicalType(),
-              CE->getNumArgs(), dfdx(), PreCallStmts, pullbackCallArgs,
-              CallArgDx, CUDAExecConfig);
+          GetMultiArgCentralDiffCall(NumDiffCallee, CEType.getCanonicalType(),
+                                     CE->getNumArgs(), dfdx(), PreCallStmts,
+                                     pullbackCallArgs, CallArgDx,
+                                     CUDAExecConfig);
         }
       }
       // If the derivative is called through _darg0 instead of _grad.
@@ -4220,7 +4323,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     std::reverse(RCS->body_begin(), RCS->body_end());
     Stmt* ReverseResult = utils::unwrapIfSingleStmt(RCS);
 
-    return StmtDiff(SDiff.getStmt(), ReverseResult);
+    // Keep the if-condition used as a reverse-sweep gate so statements after
+    // `if (c) return;` can skip their reverse on the iteration that returned.
+    Stmt* revSweep = isa<IfStmt>(S) ? SDiff.getRevSweepStmt() : nullptr;
+    return StmtDiff(SDiff.getStmt(), ReverseResult, revSweep);
   }
 
   std::pair<StmtDiff, StmtDiff>
@@ -4254,6 +4360,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+    // Refuse an unsupported lambda before building any derivative for it.
+    for (const Decl* D : DS->decls())
+      if (const auto* VD = dyn_cast<VarDecl>(D))
+        if (const LambdaExpr* LE = utils::getLambdaInit(VD))
+          if (diagnoseUnsupportedLambda(LE))
+            return {};
+
     llvm::SmallVector<Stmt*, 16> inits;
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
@@ -5500,6 +5613,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     Expr* counterIncrement = loopCounter.getCounterIncrement();
     auto* activeBreakContHandler = PushBreakContStmtHandler();
+    activeBreakContHandler->m_LoopBody = body;
     activeBreakContHandler->BeginCFSwitchStmtScope();
     m_LoopBlock.emplace_back();
     // differentiate loop body and add loop increment expression
@@ -5605,6 +5719,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmt* newCS =
         clad_compat::ActOnContinueStmt(m_Sema, noLoc, getCurrentScope()).get();
     auto* activeBreakContHandler = GetActiveBreakContStmtHandler();
+    // FIXME: The loop would have to record this as one of its own control-flow
+    // cases, but the case label would sit inside the reverse of the switch,
+    // which it then belongs to, so the loop's reverse never dispatches to it.
+    if (activeBreakContHandler->m_IsInvokedBySwitchStmt) {
+      diag(DiagnosticsEngine::Error, CS->getBeginLoc(),
+           "reverse-mode differentiation of a 'continue' inside a 'switch' is "
+           "not supported yet");
+      addToCurrentBlock(newCS);
+      return {endBlock(direction::forward), nullptr};
+    }
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
     Stmt* pushExprToCurrentCase = activeBreakContHandler
                                       ->CreateCFTapePushExprToCurrentCase();
@@ -6268,7 +6392,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // DiffInputVarInfo to check if this is a variable we differentiate wrt.
       bool IsSelected = false;
       for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI) {
-        if (VarInfo.param == oPVD) {
+        if (utils::IsSameParam(VarInfo.param, oPVD)) {
           IsSelected = true;
           break;
         }
@@ -6300,6 +6424,32 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
 
       params.push_back(dPVD);
+    }
+
+    if (LE && LE->capture_size()) {
+      for (const LambdaCapture& Capture : LE->captures()) {
+        auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+        QualType valTy = utils::getNonConstType(
+            capVD->getType().getNonReferenceType(), m_Sema);
+        auto* valPVD = utils::BuildParmVarDecl(
+            m_Sema, m_Derivative,
+            CreateUniqueIdentifier(capVD->getNameAsString()), valTy);
+        m_Sema.PushOnScopeChains(valPVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+        params.push_back(valPVD);
+        m_DeclReplacements[capVD] = valPVD;
+        auto* adjPVD = utils::BuildParmVarDecl(
+            m_Sema, m_Derivative,
+            CreateUniqueIdentifier("_d_" + capVD->getNameAsString()),
+            m_Context.getPointerType(valTy));
+        m_Sema.PushOnScopeChains(adjPVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+        params.push_back(adjPVD);
+        AdjointInfo::WrapKind wrap = valTy->isRecordType()
+                                         ? AdjointInfo::ParenDeref
+                                         : AdjointInfo::Deref;
+        m_Variables[valPVD] = {adjPVD, wrap};
+      }
     }
   }
   void ReverseModeVisitor::MarkDeclThreadPrivate(VarDecl* decl) {

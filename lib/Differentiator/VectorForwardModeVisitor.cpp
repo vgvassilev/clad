@@ -309,6 +309,13 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   QualType retType = retVal->getType();
   StmtDiff retValDiff = Visit(retVal);
   Expr* derivedRetValE = retValDiff.getExpr_dx();
+  // A call clad does not differentiate leaves a scalar zero, which would
+  // size the vector rather than fill it.
+  if (utils::IsZeroOrNullValue(derivedRetValE)) {
+    Expr* dCount = buildIndVarCountRef();
+    derivedRetValE = BuildCallExprToCladFunction(
+        "zero_vector", {dCount}, {utils::GetNonConstValueType(retType)});
+  }
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
   QualType cladArrayType =

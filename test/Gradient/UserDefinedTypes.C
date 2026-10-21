@@ -941,8 +941,8 @@ struct ptrClass {
 namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
-::clad::ValueAndAdjoint<ptrClass, ptrClass>
-constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW ::clad::ValueAndAdjoint<ptrClass, ptrClass>
+constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr);
 }}}
 
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this) {
