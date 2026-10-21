@@ -651,6 +651,10 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     bool IsDifferentiableType(clang::QualType T);
 
+    /// If \p CE is a memcpy or memmove whose destination or source, before
+    /// its conversion to `void*`, holds floating-point data, that type.
+    clang::QualType GetByteCopiedFloatingType(const clang::CallExpr* CE);
+
     bool hasElidableReverseForwAttribute(const clang::Decl* D);
 
     /// Returns true if FD can be differentiated as a pushforward

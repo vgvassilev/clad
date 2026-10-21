@@ -673,6 +673,10 @@ public:
     bool touchesActiveGlobal(const clang::Expr* E,
                              const clang::FunctionDecl* Callee);
 
+    /// Reports \p E if it is an active byte copy of floating-point values,
+    /// which has no derivative; true if so.
+    bool diagnoseByteCopy(const clang::CallExpr* E);
+
     bool m_IsTraversingTopLevelDecl = true;
 
     /// The function whose body the traversal is currently inside, or null at
