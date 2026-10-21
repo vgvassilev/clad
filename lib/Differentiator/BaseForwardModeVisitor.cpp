@@ -320,7 +320,8 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
   for (size_t i = 0, e = params.size() - HasThis; i < e; ++i) {
     const ParmVarDecl* PVD = params[i];
 
-    if (!utils::IsDifferentiableType(PVD->getType()))
+    if (utils::isComparisonCategory(PVD->getType()) ||
+        !utils::IsDifferentiableType(PVD->getType()))
       continue;
 
     IdentifierInfo* II = &m_Context.Idents.get("_d_" + PVD->getNameAsString());
@@ -439,7 +440,8 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
     // non-reference type for creating the derivatives.
     QualType dParamType = param->getType().getNonReferenceType();
     Expr* dParam = nullptr;
-    if (!utils::IsDifferentiableType(dParamType))
+    if (utils::isComparisonCategory(dParamType) ||
+        !utils::IsDifferentiableType(dParamType))
       continue;
     // If the parameter type decayed const array type, we can still initialize
     // it. Therefore, we don't have to produce the error.
@@ -1276,6 +1278,9 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
     CUDAExecConfig = Clone(KCE->getConfig());
 
+  if (utils::isReadOnlyComparisonCall(m_Sema, CE))
+    return {Clone(CE), getZeroInit(m_Context.IntTy)};
+
   // If the function is non_differentiable, return zero derivative.
   if (clad::utils::hasNonDifferentiableAttribute(CE)) {
     // Calling the function without computing derivatives
@@ -1378,7 +1383,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   Expr* Multiplier = nullptr;
   for (size_t i = skipFirstArg, e = CE->getNumArgs(); i < e; ++i) {
     const Expr* arg = CE->getArg(i);
-    StmtDiff argDiff = Visit(arg);
+    StmtDiff argDiff = utils::isComparisonCategory(arg->getType()) &&
+                               !arg->HasSideEffects(m_Context)
+                           ? StmtDiff(Clone(arg))
+                           : Visit(arg);
 
     // If original argument is an RValue and function expects an RValue
     // parameter, then convert the cloned argument and the corresponding
@@ -1393,14 +1401,15 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         Expr* castE = utils::BuildStaticCastToRValue(m_Sema, argDiff.getExpr());
         argDiff.updateStmt(castE);
       }
-      if (!utils::IsRValue(argDiff.getExpr_dx())) {
+      if (argDiff.getExpr_dx() && !utils::IsRValue(argDiff.getExpr_dx())) {
         Expr* castE =
             utils::BuildStaticCastToRValue(m_Sema, argDiff.getExpr_dx());
         argDiff.updateStmtDx(castE);
       }
     }
     CallArgs.push_back(argDiff.getExpr());
-    if (utils::IsDifferentiableType(arg->getType())) {
+    if (!utils::isComparisonCategory(arg->getType()) &&
+        utils::IsDifferentiableType(arg->getType())) {
       Expr* dArg = argDiff.getExpr_dx();
 
       const Expr* cleanDArg = dArg;
@@ -1658,6 +1667,11 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   Expr* pushforward = utils::BuildMemberExpr(
       m_Sema, getCurrentScope(), CloneNode(valueAndPushforward), "pushforward");
   return StmtDiff(returnValue, pushforward);
+}
+
+StmtDiff BaseForwardModeVisitor::VisitCXXRewrittenBinaryOperator(
+    const CXXRewrittenBinaryOperator* E) {
+  return Visit(E->getSemanticForm());
 }
 
 StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
@@ -1977,7 +1991,8 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   StmtDiff initDiff{};
   const Expr* init = VD->getInit();
   if (init) {
-    if (!ignoreInit)
+    if (!ignoreInit && !(utils::isComparisonCategory(VD->getType()) &&
+                         !init->HasSideEffects(m_Context)))
       initDiff = Visit(init);
     else
       initDiff = StmtDiff(Clone(init));

@@ -1022,6 +1022,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   bool DiffRequest::shouldHaveAdjointForw(const VarDecl* VD) const {
+    if (VD->isLocalVarDeclOrParm() &&
+        utils::isComparisonCategory(VD->getType()))
+      return false;
     if (!EnableUsefulAnalysis)
       return true;
     auto found = m_UsefulRunInfo.UsefulDecls.find(VD);
@@ -1035,6 +1038,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return found != m_ActivityRunInfo.VariedS.end();
   }
   bool DiffRequest::shouldHaveAdjoint(const clang::VarDecl* VD) const {
+    if (VD->isLocalVarDeclOrParm() &&
+        utils::isComparisonCategory(VD->getType()))
+      return false;
     if (!EnableVariedAnalysis)
       return true;
     return getVariedDecls().find(VD) != getVariedDecls().end();
@@ -1877,6 +1883,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // (sentry/streambuf/scope_guard/char_traits). The primal call is emitted
       // as-is in the derivative.
       if (clad::utils::callOperatesOnNonDifferentiableType(m_Sema, E))
+        return true;
+      if (utils::isReadOnlyComparisonCall(m_Sema, E))
         return true;
 
       request.VerboseDiags = false;

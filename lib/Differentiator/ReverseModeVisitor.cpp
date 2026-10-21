@@ -904,6 +904,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return Visit(OVE->getSourceExpr(), dfdx());
   }
 
+  StmtDiff ReverseModeVisitor::VisitCXXRewrittenBinaryOperator(
+      const CXXRewrittenBinaryOperator* E) {
+    return Visit(E->getSemanticForm(), dfdx());
+  }
+
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
     diagUnsupported(S);
     // Unknown stmt, just clone it.
@@ -2111,7 +2116,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (isNAT(arg->getType()))
       return {};
 
-    if (clad::utils::hasNonDifferentiableAttribute(arg))
+    bool isCategory = utils::isComparisonCategory(param->getType());
+    if (clad::utils::hasNonDifferentiableAttribute(arg) || isCategory)
       isNonDiff = true;
     // We do not need to create result arg for arguments passed by reference
     // because the derivatives of arguments passed by reference are directly
@@ -2230,6 +2236,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     if (argDiff.getExpr_dx())
       result.updateRevSweep(argDiff.getExpr_dx());
+    else if (isCategory)
+      result.updateRevSweep(CloneNode(argDiff.getExpr()));
     else
       result.updateRevSweep(getZeroInit(arg->getType()));
     if (isNonDiff)
@@ -2378,6 +2386,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       diagUnsupportedIndirectCalls(CE);
       return StmtDiff(Clone(CE));
     }
+
+    if (utils::isReadOnlyComparisonCall(m_Sema, CE))
+      return StmtDiff(Clone(CE));
 
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     Expr* LambdaCallOpExpr = nullptr;
@@ -4132,7 +4143,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             BuildOp(UnaryOperatorKind::UO_Deref, BuildDeclRef(VDDerived));
       llvm::SaveAndRestore<bool> saveTrackVarDecl(m_TrackVarDeclConstructor,
                                                   true);
-      initDiff = Visit(init, derivedE);
+      if (utils::isComparisonCategory(VDType) &&
+          !init->HasSideEffects(m_Context))
+        initDiff = StmtDiff(Clone(init));
+      else
+        initDiff = Visit(init, derivedE);
 
       if (isLambdaDS) {
         QualType AutoQT = m_Context.getAutoDeductType();
@@ -6368,7 +6383,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
          ++i) {
       const ParmVarDecl* oPVD = FD->getParamDecl(i);
 
-      if (clad::utils::hasNonDifferentiableAttribute(oPVD))
+      if (clad::utils::hasNonDifferentiableAttribute(oPVD) ||
+          utils::isComparisonCategory(oPVD->getType()))
         continue;
       // FIXME: We can't use std::find(DVI.begin(), DVI.end()) because the
       // operator== considers params and intervals as different entities and

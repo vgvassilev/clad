@@ -25,6 +25,7 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
@@ -993,6 +994,109 @@ namespace clad {
       return false;
     }
 
+    bool isComparisonCategory(QualType T) {
+      const auto* RD = T.getNonReferenceType()->getAsCXXRecordDecl();
+      if (!RD)
+        return false;
+      const DeclContext* DC = RD->getDeclContext();
+      while (const auto* NS = dyn_cast<NamespaceDecl>(DC)) {
+        if (!NS->isInline())
+          break;
+        DC = NS->getParent();
+      }
+      if (!DC->isStdNamespace())
+        return false;
+      StringRef Name = RD->getName();
+      return Name == "strong_ordering" || Name == "weak_ordering" ||
+             Name == "partial_ordering";
+    }
+
+    bool isReadOnlyComparisonCall(Sema& S, const CallExpr* CE) {
+      const FunctionDecl* FD = CE->getDirectCallee();
+      if (!FD)
+        return false;
+
+      QualType Result = FD->getReturnType();
+      bool IsComparison = false;
+      if (FD->isOverloadedOperator()) {
+        switch (FD->getOverloadedOperator()) {
+        case OO_EqualEqual:
+        case OO_ExclaimEqual:
+        case OO_Less:
+        case OO_Greater:
+        case OO_LessEqual:
+        case OO_GreaterEqual:
+          IsComparison = Result->isBooleanType();
+          break;
+        case OO_Spaceship:
+          IsComparison = isComparisonCategory(Result);
+          break;
+        default:
+          break;
+        }
+      } else if (const auto* CD = dyn_cast<CXXConversionDecl>(FD)) {
+        IsComparison = isComparisonCategory(Result) &&
+                       isComparisonCategory(clad_compat::getRecordType(
+                           S.getASTContext(), CD->getParent()));
+      }
+      if (!IsComparison || hasMemoryTypeParams(FD))
+        return false;
+
+      auto HasWritableState = [&](QualType T, auto&& Self) -> bool {
+        T = T.getCanonicalType();
+        if (T->isAnyPointerType() || T->isReferenceType() ||
+            T->isMemberPointerType())
+          return true;
+        if (const auto* AT = S.getASTContext().getAsArrayType(T))
+          return Self(AT->getElementType(), Self);
+        if (const auto* RD = T->getAsCXXRecordDecl()) {
+          RD = RD->getDefinition();
+          if (!RD || RD->isDynamicClass())
+            return true;
+          for (const auto* Field : RD->fields())
+            if (Field->isMutable() || Self(Field->getType(), Self))
+              return true;
+          for (const auto& Base : RD->bases())
+            if (Self(Base.getType(), Self))
+              return true;
+          return false;
+        }
+        return !T->isScalarType();
+      };
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(FD))
+        if (HasWritableState(
+                clad_compat::getRecordType(S.getASTContext(), MD->getParent()),
+                HasWritableState))
+          return false;
+      for (const ParmVarDecl* Param : FD->parameters())
+        if (HasWritableState(Param->getType().getNonReferenceType(),
+                             HasWritableState))
+          return false;
+
+      auto HasSafeEvaluation = [&](const Expr* E, auto&& Self) -> bool {
+        // Constant evaluation also admits constexpr category sentinels.
+        if (!E->HasSideEffects(S.getASTContext()) ||
+            E->isCXX11ConstantExpr(S.getASTContext()))
+          return true;
+        E = E->IgnoreParenImpCasts();
+        if (const auto* Cast = dyn_cast<CastExpr>(E))
+          return Self(Cast->getSubExpr(), Self);
+        if (const auto* Call = dyn_cast<CallExpr>(E))
+          return isReadOnlyComparisonCall(S, Call);
+        if (const auto* Rewritten = dyn_cast<CXXRewrittenBinaryOperator>(E))
+          return Self(Rewritten->getSemanticForm(), Self);
+        return false;
+      };
+      if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
+        if (!HasSafeEvaluation(MCE->getImplicitObjectArgument(),
+                               HasSafeEvaluation))
+          return false;
+      for (const Expr* Arg : CE->arguments())
+        if (!HasSafeEvaluation(Arg, HasSafeEvaluation))
+          return false;
+      return true;
+    }
+
     bool hasElidableReverseForwAttribute(const clang::Decl* D) {
       for (auto* Attr : D->specific_attrs<clang::AnnotateAttr>())
         if (Attr->getAnnotation() == "elidable_reverse_forw")
@@ -1840,6 +1944,8 @@ namespace clad {
         if (isNAT(FnProtoTy->getParamType(i)))
           break;
         QualType PVDTy = FnTypes[i];
+        if (isComparisonCategory(PVDTy))
+          continue;
         if (mode == DiffMode::jacobian &&
             !(utils::isArrayOrPointerType(PVDTy) || PVDTy->isReferenceType()))
           continue;

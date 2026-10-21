@@ -61,6 +61,7 @@ namespace utils {
     // Stmt.def could be used if ABSTR_STMT is introduced
 #define DECLARE_CLONE_FN(CLASS) clang::Stmt* Visit ## CLASS(clang::CLASS *Node);
     DECLARE_CLONE_FN(BinaryOperator)
+    DECLARE_CLONE_FN(CXXRewrittenBinaryOperator)
     DECLARE_CLONE_FN(UnaryOperator)
     DECLARE_CLONE_FN(ReturnStmt)
     DECLARE_CLONE_FN(GotoStmt)

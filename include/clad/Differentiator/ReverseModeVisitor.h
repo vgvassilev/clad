@@ -541,6 +541,8 @@ namespace clad {
     StmtDiff VisitArrayInitLoopExpr(const clang::ArrayInitLoopExpr* AILE);
     StmtDiff VisitArrayInitIndexExpr(const clang::ArrayInitIndexExpr* AIIE);
     StmtDiff VisitOpaqueValueExpr(const clang::OpaqueValueExpr* OVE);
+    StmtDiff
+    VisitCXXRewrittenBinaryOperator(const clang::CXXRewrittenBinaryOperator* E);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
     StmtDiff VisitAttributedStmt(const clang::AttributedStmt* S);
