@@ -10,6 +10,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/Diagnostic.h"
@@ -197,6 +198,9 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns true if `QT` is Array or Pointer Type, otherwise returns false.
     bool isArrayOrPointerType(clang::QualType QT);
 
+    /// Returns true if A and B are the same parameter, otherwise returns false.
+    bool IsSameParam(const clang::ValueDecl* A, const clang::ValueDecl* B);
+
     /// \returns whether a hessian of \p FD can be assembled from
     /// hessian-vector products rather than derived once per direction.
     ///
@@ -237,8 +241,21 @@ clang::Sema::SemaDiagnosticBuilder diag(
                                    const clang::LookupResult& Overloads);
 
     /// Returns true if the function has only real non-reference parameters and
-    /// returns a real number.
-    bool IsRealFunction(const clang::FunctionDecl* FD);
+    /// returns a real number. A variadic function counts unless the call \p CE
+    /// passes something past its parameters: numerical_diff, like a
+    /// pushforward, calls it through them, and would drop the rest. A null CE
+    /// asks about the function, for its declared parameters.
+    bool IsRealFunction(const clang::FunctionDecl* FD,
+                        const clang::CallExpr* CE);
+
+    /// The function the numerical-diff fallback passes as a pointer to
+    /// differentiate \p FD: FD itself, or, for a builtin whose address cannot
+    /// be taken, the library function it stands for (`exp` for
+    /// `__builtin_exp`). Null when there is none, or FD is not a real
+    /// function for the call \p CE (see IsRealFunction).
+    const clang::FunctionDecl* GetNumDiffTarget(clang::Sema& S,
+                                                const clang::FunctionDecl* FD,
+                                                const clang::CallExpr* CE);
 
     /// Returns true if `arg` is an argument passed by reference or is of
     /// pointer/array type.
@@ -325,6 +342,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
                                      const clang::ASTContext& C);
 
     clang::QualType getNonConstType(clang::QualType T, clang::Sema& S);
+
+    /// The lambda \p VD is initialized with, through the cleanups and
+    /// conversions around it -- a lambda capturing an object with a
+    /// non-trivial destructor is wrapped -- or null.
+    const clang::LambdaExpr* getLambdaInit(const clang::VarDecl* VD);
 
     /// A reference to what \p R found, qualified by \p SS and followed by
     /// \p TemplateArgs when given. Null when Sema rejects it.
@@ -587,7 +609,7 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// it. This holds for a trivial copy/move constructor (a shallow share of
     /// pointer/handle members), an aggregate, and a memberwise zero-or-copy
     /// initializer. A non-trivial constructor can additionally opt in with the
-    /// elidable_reverse_forw attribute on its custom reverse_forw (see
+    /// CLAD_ELIDABLE_REVERSE_FORW attribute on its custom reverse_forw (see
     /// hasElidableReverseForwAttribute) -- both paths are combined where the
     /// propagator is consumed.
     bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
@@ -625,7 +647,8 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     /// Returns true if FD can be differentiated as a pushforward
     /// And be used in the reverse mode.
-    bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD);
+    bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD,
+                                    const clang::CallExpr* CE);
 
     ///\returns a fully qualified type that is as close as coders would write.
     clang::QualType makeTypeReadable(clang::Sema& S, clang::QualType Ty);
@@ -641,8 +664,9 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isInjective(const clang::Expr* E, clang::AnalysisDeclContext* ADC);
     /// Checks if the return value of the given CallExpr is unused.
     bool hasUnusedReturnValue(clang::ASTContext& C, const clang::CallExpr* CE);
-    /// Returns true if the function is empty
-    bool hasEmptyBody(const clang::FunctionDecl* FD);
+    /// Whether the derivative \p FD does nothing: it is marked
+    /// CLAD_NOOP_DERIVATIVE or its body is empty.
+    bool isNoopDerivative(const clang::FunctionDecl* FD);
     /// For an expr E, decides if we should recompute it or store it.
     /// This is the central point for checkpointing.
     bool ShouldRecompute(const clang::Expr* E, const clang::ASTContext& C);

@@ -77,7 +77,7 @@ INCLUDE_PATH           = @clad_srcdir@/include \
 # Attribute macros, which doxygen otherwise reads as part of the declaration
 # and then cannot parse what follows.
 PREDEFINED             = CLAD_NONDIFFERENTIABLE= \
-                         elidable_reverse_forw= \
+                         CLAD_ELIDABLE_REVERSE_FORW= \
                          CUDA_HOST_DEVICE= \
                          __attribute__(x)=
 

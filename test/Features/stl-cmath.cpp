@@ -101,13 +101,13 @@
 // DS comp_ellint_1/ f / l      (C++17) complete elliptic integral (1st kind)
 // DS comp_ellint_2/ f / l      (C++17) complete elliptic integral (2nd kind)
 // DS comp_ellint_3/ f / l      (C++17) complete elliptic integral (3rd kind)
-// D cyl_bessel_i/ f / l       (C++17) modified cylindrical Bessel (regular)
-// D cyl_bessel_j/ f / l       (C++17) cylindrical Bessel functions (1st kind)
-// D cyl_bessel_k/ f / l       (C++17) modified cylindrical Bessel (irregular)
+// DS cyl_bessel_i/ f / l       (C++17) modified cylindrical Bessel (regular)
+// DS cyl_bessel_j/ f / l       (C++17) cylindrical Bessel functions (1st kind)
+// DS cyl_bessel_k/ f / l       (C++17) modified cylindrical Bessel (irregular)
 // D cyl_neumann/ f / l        (C++17) cylindrical Neumann functions
-// D ellint_1/ f / l           (C++17) incomplete elliptic integral (1st kind)
-// D ellint_2/ f / l           (C++17) incomplete elliptic integral (2nd kind)
-// D ellint_3/ f / l           (C++17) incomplete elliptic integral (3rd kind)
+// DS ellint_1/ f / l           (C++17) incomplete elliptic integral (1st kind)
+// DS ellint_2/ f / l           (C++17) incomplete elliptic integral (2nd kind)
+// DS ellint_3/ f / l           (C++17) incomplete elliptic integral (3rd kind)
 // DS expint/ expintf/ expintl  (C++17) exponential integral
 // D hermite/ hermitef/ hermitel (C++17) Hermite polynomials
 // D legendre/ legendref/ legendrel (C++17) Legendre polynomials
@@ -124,6 +124,7 @@
 #include <iomanip>
 #if !defined(__cpp_lib_math_special_functions)
 namespace std {
+  // std::beta mock for osx systems
   template <typename T>
   inline T beta(T x, T y) {
     return std::tgamma(x) * std::tgamma(y) / std::tgamma(x + y);
@@ -257,7 +258,7 @@ DEFINE_FUNCTIONS(cosh)  // x in (-inf,+inf)
 DEFINE_FUNCTIONS(tanh)  // x in (-inf,+inf)
 DEFINE_FUNCTIONS(asinh) // x in (-inf,+inf)
 DEFINE_FUNCTIONS(acosh) // x in [1,inf)
-DEFINE_FUNCTIONS(atanh) // x in [-1,1]
+DEFINE_FUNCTIONS(atanh) // x in (-1,1)
 //
 //------------------------ Error / Gamma functions -----------------------------
 //
@@ -267,6 +268,21 @@ DEFINE_FUNCTIONS(lgamma) // x not a negative integer or 0
 template<typename T> T f_beta(T x){ return std::beta(x,(T)2.0); } // x in (0, +inf)
 inline float f_betaf(float x){ return std::beta(x, 2.0f); }
 inline long double f_betal(long double x){ return std::beta(x, 2.0L); }
+
+//----------------------- Mathematical special functions -----------------------
+#if defined(__cpp_lib_math_special_functions)
+template<typename T> T f_cyl_bessel_j(T x){ return std::cyl_bessel_j((T)1.0, x); }
+inline float f_cyl_bessel_jf(float x){ return std::cyl_bessel_j(1.0f, x); }
+inline long double f_cyl_bessel_jl(long double x){ return std::cyl_bessel_j(1.0L, x); }
+
+template<typename T> T f_cyl_bessel_i(T x){ return std::cyl_bessel_i((T)1.0, x); }
+inline float f_cyl_bessel_if(float x){ return std::cyl_bessel_i(1.0f, x); }
+inline long double f_cyl_bessel_il(long double x){ return std::cyl_bessel_i(1.0L, x); }
+
+template<typename T> T f_cyl_bessel_k(T x){ return std::cyl_bessel_k((T)1.0, x); }
+inline float f_cyl_bessel_kf(float x){ return std::cyl_bessel_k(1.0f, x); }
+inline long double f_cyl_bessel_kl(long double x){ return std::cyl_bessel_k(1.0L, x); }
+#endif
 
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) || defined(__STDCPP_MATH_SPEC_FUNCS__))
 //------------------------ Elliptic integrals -----------------------------
@@ -307,10 +323,12 @@ int main() {
   CHECK_ALL_RANGE(expint, {-2.0, -1.0, -0.5, 0.5, 1.0, 2.0, 3.0});
   #endif
 
-  CHECK_ALL(log);
-  CHECK_ALL(log10);
-  CHECK_ALL(log2);
-  CHECK_ALL(log1p);
+  // x in (0,+inf)
+  CHECK_ALL_RANGE(log, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 10.0});
+  CHECK_ALL_RANGE(log10, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 10.0});
+  CHECK_ALL_RANGE(log2, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 10.0});
+  // x in (-1,+inf)
+  CHECK_ALL_RANGE(log1p, {-0.9, -0.5, 0.0, 0.5, 1.0, 2.0, 10.0});
 
   // Power / Roots
   CHECK_ALL(pow);
@@ -340,13 +358,13 @@ int main() {
   CHECK_ALL(tanh);
   CHECK_ALL(asinh);
 
-  // x in [1,inf)
-  CHECK_RANGE(acosh, {1.0, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0});
-  //CHECK_RANGE_F(acoshf, {1.01, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0});
-  //CHECK_RANGE_LD(acoshl, {1.01, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0});
-  CHECK_ALL(atanh);
+  // x in (1,inf): the derivative is infinite at 1, where a difference
+  // stencil leaves the domain.
+  CHECK_ALL_RANGE(acosh, {1.01, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0});
+  // x in (-1,1)
+  CHECK_ALL_RANGE(atanh, {-0.9, -0.5, -0.1, 0.0, 0.1, 0.5, 0.9});
 
-  // Error / Gamma functions
+  // Error / Gamma functions / Special functions
   CHECK_ALL(erf);
   CHECK_ALL_RANGE(beta, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
   CHECK_ALL_RANGE(lgamma, {0.1, 0.5, 1.2, 1.5, 2.0, 3.0, 4.0});
@@ -356,6 +374,12 @@ int main() {
   CHECK_ALL_RANGE(comp_ellint_1, {-0.9, -0.6, -0.3, 0.0, 0.3, 0.6, 0.9});
   CHECK_ALL_RANGE(comp_ellint_2, {-0.9, -0.6, -0.3, 0.0, 0.3, 0.6, 0.9});
   CHECK_ALL_RANGE(comp_ellint_3, {-0.9, -0.6, -0.3, 0.0, 0.3, 0.6, 0.9});
+  #endif
+
+  #if defined(__cpp_lib_math_special_functions)
+  CHECK_ALL_RANGE(cyl_bessel_j, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
+  CHECK_ALL_RANGE(cyl_bessel_i, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
+  CHECK_ALL_RANGE(cyl_bessel_k, {0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0});
   #endif
 
   return 0;

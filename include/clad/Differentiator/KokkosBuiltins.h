@@ -94,7 +94,7 @@ constructor_reverse_forw(
               idx5, idx6, idx7)};
 }
 template <class DataType, size_t N, class... ViewParams>
-void constructor_pullback(
+CLAD_NOOP_DERIVATIVE void constructor_pullback(
     const char (&name)[N], const size_t idx0, const size_t idx1,
     const size_t idx2, const size_t idx3, const size_t idx4, const size_t idx5,
     const size_t idx6, const size_t idx7,
@@ -547,7 +547,8 @@ void resize_reverse_forw(
   ::Kokkos::resize(arg, v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(arg, d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
-template <class... Args> void resize_pullback(Args... /*args*/);
+template <class... Args>
+CLAD_NOOP_DERIVATIVE void resize_pullback(Args... /*args*/);
 
 /// Fence
 template <typename S> void fence_pushforward(const S& s, const S& /*d_s*/) {

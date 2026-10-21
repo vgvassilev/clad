@@ -5,8 +5,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
-
 class SimpleFunctions {
 public:
   SimpleFunctions(double p_x = 0, double p_y = 0) : x(p_x), y(p_y) {}
@@ -557,11 +555,11 @@ class SafeTestClass {
 namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
-    clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
-    constructor_reverse_forw(clad::Tag<SafeTestClass>, double x, double* y, double d_x, double* d_y) elidable_reverse_forw;
+    CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
+    constructor_reverse_forw(clad::Tag<SafeTestClass>, double x, double* y, double d_x, double* d_y);
     
-    clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
-    constructor_reverse_forw(clad::Tag<SafeTestClass>, double &x, double &d_x) elidable_reverse_forw;
+    CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
+    constructor_reverse_forw(clad::Tag<SafeTestClass>, double &x, double &d_x);
 
     clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
     constructor_reverse_forw(clad::Tag<SafeTestClass>) {

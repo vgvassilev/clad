@@ -201,6 +201,10 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
         // We only need the keywords final and override in the tag declaration.
         if (isa<OverrideAttr>(Attr) || isa<FinalAttr>(Attr))
           continue;
+        // [[nodiscard]] describes the primal's result. Clad emits a pullback
+        // call as a statement and drops one whose result Sema calls unused.
+        if (isa<WarnUnusedResultAttr>(Attr))
+          continue;
         if (!hasAttribute(returnedFD, Attr->getKind()))
           returnedFD->addAttr(Attr->clone(m_Context));
       }
@@ -567,7 +571,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
       diag(DiagnosticsEngine::Note, Loc,
            "or, if its reverse-forward pass is a no-op (e.g. a shallow copy "
            "that shares its adjoint), declare %0 with signature %1 and mark it "
-           "elidable_reverse_forw")
+           "CLAD_ELIDABLE_REVERSE_FORW")
           << request.ComputeDerivativeName() << DerivativeType;
   }
 
@@ -609,13 +613,19 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           // Build ``nullptr``
           Expr* dummy = utils::getZeroInit(ptrType, m_Sema);
           // Build ``*nullptr``
-          dummy = m_Sema.BuildUnaryOp(nullptr, {}, UO_Deref, dummy).get();
+          // A real location: converting the argument to a class-typed
+          // parameter may instantiate the class there for the first time,
+          // and an invalid point of instantiation trips clang's assertions.
+          SourceLocation DummyLoc = GenLoc();
+          dummy =
+              m_Sema.BuildUnaryOp(nullptr, DummyLoc, UO_Deref, dummy).get();
           // Build ``static_cast<parTy>(*nullptr)``
           dummy =
               m_Sema
                   .BuildCStyleCastExpr(
                       GenLoc(),
-                      m_Sema.getASTContext().getTrivialTypeSourceInfo(parTy),
+                      m_Sema.getASTContext().getTrivialTypeSourceInfo(
+                          parTy, DummyLoc),
                       GenLoc(), dummy)
                   .get();
           Inits.push_back(dummy);
@@ -668,7 +678,11 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
             if (request.CallContext)
               L = request.CallContext->getBeginLoc();
             diagnoseUndefinedFunction(
-                FD, L, /*numDiffViable=*/utils::IsRealFunction(FD));
+                FD, L,
+                /*numDiffViable=*/
+                // One request serves every call to FD, so this asks about FD;
+                // a call passing more than its parameters is refused there.
+                utils::GetNumDiffTarget(m_Sema, FD, /*CE=*/nullptr) != nullptr);
           }
           return {};
         }
