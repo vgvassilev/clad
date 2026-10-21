@@ -787,10 +787,12 @@ public:
   }
 
 #ifndef __CUDA_ARCH__
+private:
   // The work std::async runs is a member function, not a lambda: std::async
   // keeps what it calls in a std::tuple, and libstdc++ 14's C++23 tuple does
-  // not compile with a lambda in it under clang 17, which every tape that pops
-  // instantiates.
+  // not compile with a lambda in it under clang 17. Every tape that pops
+  // instantiates the prefetch; every offloading tape that pushes, the write
+  // as well.
 
   /// Writes \p data, a slab's elements, through \p dm on a worker thread.
   static void write_slab_async(detail::DiskManager<T, SLAB_SIZE>* dm, T* data,
@@ -829,6 +831,7 @@ public:
   }
 #endif
 
+public:
   /// Remove the last value from the tape.
   CUDA_HOST_DEVICE void pop_back() {
     assert(m_size);
