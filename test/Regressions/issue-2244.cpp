@@ -175,7 +175,7 @@ double declAtomicVLA(double x, int n) {
   (void)p;
   return x;
 }
-// expected-error@* 2 {{clad cannot clone expression-bearing type}}
+// expected-error@* {{clad cannot clone expression-bearing type}}
 #endif
 
 int main() {
