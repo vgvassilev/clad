@@ -35,7 +35,18 @@ using namespace clang;
 
 namespace clad {
 
-void TBRAnalyzer::markLocation(const clang::Stmt* S) { m_TBRLocs.insert(S); }
+void TBRAnalyzer::markLocation(const clang::Stmt* S) {
+  // The CFG splits `double a = .., b = ..;` into one synthetic DeclStmt per
+  // declarator, and that is what the analysis walks. The reverse-mode visitor
+  // asks about the statement as written, so record that one.
+  if (const auto* DS = dyn_cast<DeclStmt>(S))
+    for (const auto& SynthAndSource : m_AnalysisDC->getCFG()->synthetic_stmts())
+      if (SynthAndSource.first == DS) {
+        S = SynthAndSource.second;
+        break;
+      }
+  m_TBRLocs.insert(S);
+}
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   llvm::SmallVector<ProfileID, 2> IDSequence;
