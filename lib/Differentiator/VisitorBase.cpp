@@ -186,7 +186,9 @@ namespace clad {
   VisitorBase::BuildTypedefNameDecl(const TypedefNameDecl* TND) {
     SourceLocation Loc = GenLoc();
     TypedefNameDecl* Clone = utils::BuildTypedefNameDecl(
-        m_Context, m_Sema.CurContext, Loc, Loc, TND);
+        m_Context, m_Sema.CurContext, Loc, Loc, TND,
+        m_Context.getTrivialTypeSourceInfo(CloneType(TND->getUnderlyingType()),
+                                           Loc));
     // The derivative's own statements look the name up, so registering it is
     // what makes the alias usable rather than merely present.
     m_Sema.PushOnScopeChains(Clone, getCurrentScope());
@@ -705,6 +707,10 @@ namespace clad {
                                 m_DeclReplacements);
     up.updateType(clonedType);
     return clonedType;
+  }
+  TypeSourceInfo* VisitorBase::CloneTypeSourceInfo(TypeSourceInfo* TSI) {
+    return m_Context.getTrivialTypeSourceInfo(CloneType(TSI->getType()),
+                                              TSI->getTypeLoc().getBeginLoc());
   }
   Expr* VisitorBase::BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E,
                              clang::SourceLocation OpLoc) {
