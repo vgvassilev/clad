@@ -734,6 +734,10 @@ namespace clad {
           << L;
     }
 
+    /// Report that the numerically computed derivative \p CE stands for
+    /// cannot be differentiated again, and counts as zero.
+    void diagNumDiffNotDifferentiable(const clang::CallExpr* CE);
+
     bool diagnoseUnsupportedLambda(const clang::LambdaExpr* LE);
 
     /// Shorthand for warning on differentiation of unsupported operators

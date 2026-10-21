@@ -570,6 +570,18 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);
 
+    /// Whether \p FD is one of clad's own numerical differentiation helpers,
+    /// the functions the fallback synthesizes a call to.
+    ///
+    /// Differentiating a derivative brings those calls back as input: a
+    /// hessian, a second order request and a pushforward of an already
+    /// numerically differentiated call all reach one. Their definitions are
+    /// templates over a function pointer and a parameter pack, which clad
+    /// cannot derive -- what it emitted instead did not compile -- so the
+    /// numerical fallback applies to them as it does to a function with no
+    /// definition at all.
+    bool IsNumericalDiffFunction(const clang::FunctionDecl* FD);
+
     /// Returns true if QT is a non-const reference type.
     bool isNonConstReferenceType(clang::QualType QT);
 

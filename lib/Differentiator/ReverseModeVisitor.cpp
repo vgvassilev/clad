@@ -2568,7 +2568,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     pullbackRequest.Function = FD;
     pullbackRequest.inheritAnalysesFrom(m_DiffReq);
     FunctionDecl* pullbackFD = nullptr;
-    if (!nonDiff) {
+    // A call clad's own fallback synthesized has no derivative to find: its
+    // body is a template over a function pointer and a parameter pack, and
+    // deriving it is what produced code that did not compile. Say so and
+    // leave the adjoint alone, as a call clad can neither differentiate nor
+    // numerically differentiate does.
+    const bool isNumDiffCall = utils::IsNumericalDiffFunction(FD);
+    if (!nonDiff && isNumDiffCall)
+      diagNumDiffNotDifferentiable(CE);
+    if (!nonDiff && !isNumDiffCall) {
       pullbackRequest.BaseFunctionName =
           clad::utils::ComputeEffectiveFnName(FD);
       pullbackRequest.Mode =
@@ -2798,8 +2806,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       bool unplannedBody =
           m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(
               m_DiffReq.Function);
-      if (!m_DiffReq.CallContext || hasDynamicNonDiffParams || unplannedBody ||
-          FD->getNameAsString() == "cudaMemcpy") {
+      if (!isNumDiffCall &&
+          (!m_DiffReq.CallContext || hasDynamicNonDiffParams || unplannedBody ||
+           FD->getNameAsString() == "cudaMemcpy")) {
         pullbackFD = nullptr;
         // Try to find it in builtin derivatives.
         std::string customPullback = pullbackRequest.ComputeDerivativeName();
