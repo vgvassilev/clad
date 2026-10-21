@@ -91,6 +91,14 @@ directly in ``clad::custom_derivatives::class_functions`` regardless of the clas
 
 .. note::
 
+  Once ``clad::custom_derivatives::A`` exists, an unqualified ``A::`` written
+  anywhere inside ``clad::custom_derivatives`` names that nested namespace,
+  not the global ``A``: ordinary C++ name lookup finds the innermost ``A``
+  first. Refer to the primal's entities from a custom derivative with a fully
+  qualified name, such as ``::A::B::C::fn`` or ``::A::Matrix``.
+
+.. note::
+
   Non-templated free functions defined in a header file need to be marked ``inline``
   to avoid issues with symbol duplication just like any other C++ entity defined in a header file.
 
