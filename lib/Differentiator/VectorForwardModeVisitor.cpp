@@ -298,13 +298,8 @@ StmtDiff VectorForwardModeVisitor::VisitArraySubscriptExpr(
   Expr* target = BaseDiff.getExpr_dx();
   if (target) {
     // Clone the index: it is already consumed by the primal subscript above,
-    // so the derivative subscript needs its own node. Bind to a local lvalue --
-    // the MultiExprArg param's one-element ctor takes a reference.
-    Expr* dIndex = CloneNode(clonedIndices.front());
-    diffExpr = m_Sema
-                   .ActOnArraySubscriptExpr(getCurrentScope(), target,
-                                            target->getExprLoc(), dIndex, noLoc)
-                   .get();
+    // so the derivative subscript needs its own node.
+    diffExpr = BuildArraySubscript(target, CloneNode(clonedIndices.front()));
   }
   return StmtDiff(cloned, diffExpr);
 }
@@ -314,6 +309,13 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   QualType retType = retVal->getType();
   StmtDiff retValDiff = Visit(retVal);
   Expr* derivedRetValE = retValDiff.getExpr_dx();
+  // A call clad does not differentiate leaves a scalar zero, which would
+  // size the vector rather than fill it.
+  if (utils::IsZeroOrNullValue(derivedRetValE)) {
+    Expr* dCount = buildIndVarCountRef();
+    derivedRetValE = BuildCallExprToCladFunction(
+        "zero_vector", {dCount}, {utils::GetNonConstValueType(retType)});
+  }
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
   QualType cladArrayType =
@@ -350,11 +352,7 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
 
       offsetTracker.advanceByArray(getSize);
     } else {
-      dParamValue = m_Sema
-                        .ActOnArraySubscriptExpr(
-                            getCurrentScope(), CloneNode(dVectorRef),
-                            dVectorRef->getExprLoc(), offsetExpr, noLoc)
-                        .get();
+      dParamValue = BuildArraySubscript(CloneNode(dVectorRef), offsetExpr);
       offsetTracker.advanceByScalar();
     }
     // Create an assignment expression to assign the ith element of the

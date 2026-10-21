@@ -29,6 +29,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
@@ -442,7 +443,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (E.isValid() &&
           clad_compat::SourceManager_isPointWithin(SM, Loc, B, E))
         return true;
-      else if (SM.isBeforeInTranslationUnit(B, Loc))
+      if (E.isInvalid() && SM.isBeforeInTranslationUnit(B, Loc))
         return true;
     }
     return false;
@@ -462,6 +463,37 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return CS->body_empty() ? nullptr
                               : dyn_cast<ReturnStmt>(*CS->body_rbegin());
     return dyn_cast<ReturnStmt>(Body);
+  }
+
+  /// Whether \p S has a `break` or `continue` of the loop whose body it is:
+  /// not one of a nested loop, nor a `break` of a switch inside it.
+  static bool loopBodyHasBreakOrContinue(const Stmt* S,
+                                         bool insideSwitch = false) {
+    if (isa<ContinueStmt>(S))
+      return true;
+    if (isa<BreakStmt>(S))
+      return !insideSwitch;
+    if (isa<ForStmt>(S) || isa<WhileStmt>(S) || isa<DoStmt>(S) ||
+        isa<CXXForRangeStmt>(S))
+      return false;
+    // A child may be absent, an omitted part of the statement.
+    if (isa<SwitchStmt>(S)) {
+      for (const Stmt* C : S->children())
+        if (C && loopBodyHasBreakOrContinue(C, /*insideSwitch=*/true))
+          return true;
+      return false;
+    }
+    for (const Stmt* C : S->children())
+      if (C && loopBodyHasBreakOrContinue(C, insideSwitch))
+        return true;
+    return false;
+  }
+
+  bool DiffRequest::hasBreakOrContinue(const Stmt* LoopBody) const {
+    auto [It, Inserted] = m_BreakOrContinueInfo.try_emplace(LoopBody, false);
+    if (Inserted)
+      It->second = loopBodyHasBreakOrContinue(LoopBody);
+    return It->second;
   }
 
   bool DiffRequest::hasEarlyReturns() const {
@@ -487,6 +519,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     F.TraverseStmt(Def->getBody());
     m_EarlyReturnInfo = {F.Found, /*HasAnalysisRun=*/true};
     return F.Found;
+  }
+
+  llvm::SmallVector<const ParmVarDecl*, 2>
+  DiffRequest::getOutputParams() const {
+    llvm::SmallVector<const ParmVarDecl*, 2> outputParams;
+    if (Function && utils::CanReturnOutputTangent(Function))
+      utils::CollectOutputParams(Function, outputParams);
+    return outputParams;
+  }
+
+  const ParmVarDecl* DiffRequest::getOutputTangentParam() const {
+    // Every other mode either keeps the primal's return type or has somewhere
+    // of its own to put an output parameter's tangent, as a pushforward does.
+    if (Mode != DiffMode::forward)
+      return nullptr;
+    llvm::SmallVector<const ParmVarDecl*, 2> outputParams = getOutputParams();
+    if (outputParams.size() != 1)
+      return nullptr;
+    return outputParams.front();
   }
 
   const FunctionLoopFacts& DiffRequest::getLoopFacts() const {
@@ -1174,8 +1225,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::reverse;
     else
       llvm_unreachable("unknown mode");
-    // What the command line settled on for the translation unit, which the
-    // clad::opts pairs below may still override for this one request.
+      // What the command line settled on for the translation unit, which the
+      // clad::opts pairs below may still override for this one request.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     request.Enable##Id##Analysis = ReqOpts.Enable##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
@@ -1197,10 +1248,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       for (const auto& arg : TAL->get(0).pack_elements())
         bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
 
-    // What the request asks of each analysis, over the
-    // whole-translation-unit answer it already carries. Generated from the
-    // same table the command line is: an analysis that can be switched for
-    // the translation unit can be switched for one request.
+        // What the request asks of each analysis, over the
+        // whole-translation-unit answer it already carries. Generated from the
+        // same table the command line is: an analysis that can be switched for
+        // the translation unit can be switched for one request.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     const bool enable_##Legacy##_in_req =                                      \
         clad::HasOption(bitmasked_opts_value, clad::opts::enable_##Legacy);    \
@@ -1352,7 +1403,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // user-prodived to handle builtin derivatives. If found, we have to change
     // the mode of the request.
     if (R.EnableErrorEstimation && R.Mode == DiffMode::pullback &&
-        utils::canUsePushforwardInRevMode(R.Function)) {
+        utils::canUsePushforwardInRevMode(
+            R.Function, dyn_cast_or_null<CallExpr>(R.CallContext))) {
       R.Mode = DiffMode::pushforward;
       R.EnableErrorEstimation = false;
       if (Expr* overload = getOverloadExpr(S, DC, R, foundAnyDecl)) {
@@ -1721,14 +1773,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // In that case we should ask the enclosing ast nodes for a source
       // location and check if it is within range.
       SourceLocation endLoc = E->getEndLoc();
-      if (endLoc.isInvalid() || !isInInterval(endLoc))
-        return true;
-
       // We need to find our 'special' diff annotated such:
       // clad::differentiate(...) __attribute__((annotate("D")))
       // TODO: why not check for its name? clad::differentiate/gradient?
       if (!isCladEntryPointCall(E))
         return true;
+
+      if (endLoc.isInvalid() || !isInInterval(endLoc)) {
+        if (endLoc.isValid())
+          utils::diag(m_Sema, DiagnosticsEngine::Warning, E->getBeginLoc(),
+                      "clad differentiation call is disabled by "
+                      "'#pragma clad OFF'");
+        return true;
+      }
 
       // A call to clad::differentiate or clad::gradient was not found.
       if (!findTargetFunction(request, E, m_Sema))
@@ -1768,6 +1825,36 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       request.Args = E->getArg(1);
       request.UpdateDiffParamsInfo(m_Sema);
+
+      // A void-returning function's derivative returns the tangent of the one
+      // parameter it writes through. With several such parameters there is no
+      // one tangent to return, and picking one would be a guess, so say so
+      // rather than hand back a derivative whose result cannot be read.
+      // Differentiating a wrapper that returns the wanted output remains the
+      // way to ask for it.
+      if (request.Mode == DiffMode::forward) {
+        llvm::SmallVector<const ParmVarDecl*, 2> outputParams =
+            request.getOutputParams();
+        if (outputParams.size() > 1) {
+          // Point at the differentiation that asked for this, not at the
+          // function: nothing is wrong with the function, and it may live in
+          // a header the user does not own. The parameters it writes through
+          // get a note, so the reason is still reachable from the message.
+          SourceLocation outLoc = request.Args->getBeginLoc();
+          utils::diag(m_Sema, DiagnosticsEngine::Error, outLoc,
+                      "attempted to differentiate '%0', which returns void and "
+                      "writes through %1 parameters; forward mode returns a "
+                      "single tangent, so differentiate a wrapper returning "
+                      "the output you need")
+              << request.Function->getNameAsString()
+              << static_cast<unsigned>(outputParams.size()) << outLoc;
+          for (const ParmVarDecl* PVD : outputParams)
+            utils::diag(m_Sema, DiagnosticsEngine::Note, PVD->getLocation(),
+                        "'%0' is written through here")
+                << PVD->getNameAsString() << PVD->getLocation();
+          return true;
+        }
+      }
       if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis &&
           request.Args)
         seedVariedDirection(request);
@@ -1805,6 +1892,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           request.EnableVariedAnalysis = false;
           return true;
         }
+        // Captured lambda pushforward is built directly
+        if (isLambdaCallOperator(MD) && !MD->getParent()->field_empty() &&
+            (m_TopMostReq->Mode == DiffMode::forward ||
+             m_TopMostReq->Mode == DiffMode::vector_forward_mode))
+          return true;
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD))
           nonDiff = true;
@@ -1847,7 +1939,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       bool canUsePushforwardInRevMode =
           m_TopMostReq->Mode == DiffMode::reverse &&
           !request.EnableErrorEstimation &&
-          utils::canUsePushforwardInRevMode(FD);
+          utils::canUsePushforwardInRevMode(FD, E);
 
       std::string FDName = FD->getNameAsString();
 #if CLANG_VERSION_MAJOR < 16
@@ -1875,7 +1967,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
       }
 
-      // FIXME: Use elidable_reverse_forw
+      // FIXME: Use CLAD_ELIDABLE_REVERSE_FORW
       if (request.Mode == DiffMode::pullback &&
           (FDName == "cudaMemcpy" || FDName == "begin" || FDName == "end"))
         return true;
@@ -2157,7 +2249,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       if (hasCustomReverseForw ||
           (!hasCustomPullback &&
-           (utils::returnsAdjoint(returnType) || shouldUseRestoreTracker))) {
+           (utils::returnsAdjoint(returnType) || shouldUseRestoreTracker ||
+            utils::allocatesIntoRecordParam(request.Function)))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
       }
     }

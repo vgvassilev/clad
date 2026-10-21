@@ -37,6 +37,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
@@ -168,16 +169,18 @@ namespace clad {
       return CS;
     }
 
-    bool hasEmptyBody(const clang::FunctionDecl* FD) {
+    bool isNoopDerivative(const clang::FunctionDecl* FD) {
       FD = FD->getCanonicalDecl();
       if (const FunctionDecl* TIP = FD->getTemplateInstantiationPattern())
         FD = TIP;
-      // Derivatives with real locations are user-provided ones. If a
-      // user-provided derivative doesn't have a body at this point, we consider
-      // it to be empty.
-      if (!FD->hasBody())
-        return FD->getLocation().isValid();
-      return utils::unwrapIfSingleStmt(FD->getBody()) == nullptr;
+      for (const auto* A :
+           FD->getMostRecentDecl()->specific_attrs<clang::AnnotateAttr>())
+        if (A->getAnnotation() == "noop_derivative")
+          return true;
+      // A derivative without a body is defined elsewhere, e.g. in another
+      // translation unit, and has to be called.
+      Stmt* Body = FD->getBody();
+      return Body && utils::unwrapIfSingleStmt(Body) == nullptr;
     }
 
     CompoundStmt* PrependAndCreateCompoundStmt(ASTContext& C, Stmt* initial,
@@ -330,6 +333,126 @@ namespace clad {
       return Result;
     }
 
+    /// Whether code in `Where` can name `T` as it is spelled. decltype and
+    /// typeof sugar is spelled as its expression, whose names may resolve only
+    /// where it was written. A pointer or function type is as nameable as its
+    /// parts. Otherwise what has to be reachable is the head
+    /// of the spelling -- the typedef, using declaration or tag it names: not
+    /// local to a function `Where` is outside of; where it is a non-public
+    /// member, declared in a class enclosing `Where`; and where it prints
+    /// unqualified, declared in a scope enclosing `Where`.
+    static bool isSpellableFrom(QualType T, const DeclContext* Where) {
+      const NamedDecl* D = nullptr;
+      bool Unqualified = false;
+      const Type* Ty = T.getTypePtr();
+      for (;;) {
+        if (isa<DecltypeType, TypeOfExprType>(Ty))
+          return false;
+#if CLANG_VERSION_MAJOR >= 22
+        // The size_t clang gives sizeof prints as __size_t, which no code
+        // declares (llvm/llvm-project#143653).
+        if (isa<PredefinedSugarType>(Ty))
+          return false;
+#endif
+        D = clad_compat::getSpelledName(Ty, Unqualified);
+        if (D)
+          break;
+        QualType Next = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
+        if (Next.getTypePtr() == Ty)
+          break;
+        Ty = Next.getTypePtr();
+      }
+      auto IsSpellable = [Where](QualType P) {
+        return isSpellableFrom(P, Where);
+      };
+      if (const auto* PT = dyn_cast<PointerType>(Ty))
+        return IsSpellable(PT->getPointeeType());
+      if (const auto* FPT = dyn_cast<FunctionProtoType>(Ty))
+        return IsSpellable(FPT->getReturnType()) &&
+               llvm::all_of(FPT->param_types(), IsSpellable);
+      if (D && Unqualified) {
+        // Inline and anonymous namespaces, and linkage specifications, make
+        // their names visible in the enclosing scope.
+        const DeclContext* DC = D->getDeclContext()->getRedeclContext();
+        while (const auto* NS = dyn_cast<NamespaceDecl>(DC)) {
+          if (!NS->isInline() && !NS->isAnonymousNamespace())
+            break;
+          DC = NS->getParent()->getRedeclContext();
+        }
+        if (Where ? !DC->Encloses(Where) : !DC->isTranslationUnit())
+          return false;
+      }
+      for (; D; D = dyn_cast<NamedDecl>(D->getDeclContext())) {
+        const DeclContext* DC = D->getDeclContext();
+        if (DC->isFunctionOrMethod() && !(Where && DC->Encloses(Where)))
+          return false;
+        AccessSpecifier AS = D->getAccess();
+        if (AS != AS_public && AS != AS_none && !(Where && DC->Encloses(Where)))
+          return false;
+      }
+      return true;
+    }
+
+    Expr*
+    BuildDeclarationNameExpr(Sema& S, const CXXScopeSpec& SS, LookupResult& R,
+                             bool ADL,
+                             const TemplateArgumentListInfo* TemplateArgs) {
+      if (!TemplateArgs)
+        return S.BuildDeclarationNameExpr(SS, R, ADL).get();
+      // Clang drops, without a word, template arguments whose angle brackets
+      // have no location.
+      assert(TemplateArgs->getLAngleLoc().isValid() &&
+             "template arguments need a location");
+      return S
+          .BuildTemplateIdExpr(SS, /*TemplateKWLoc=*/{}, R, ADL, TemplateArgs)
+          .get();
+    }
+
+    const LambdaExpr* getLambdaInit(const VarDecl* VD) {
+      const Expr* Init = VD ? VD->getInit() : nullptr;
+      if (!Init)
+        return nullptr;
+      if (const auto* EWC = dyn_cast<ExprWithCleanups>(Init))
+        Init = EWC->getSubExpr();
+      return dyn_cast<LambdaExpr>(Init->IgnoreImplicit());
+    }
+
+    QualType getUnsignedType(QualType T, const ASTContext& C) {
+      T = T.getNonReferenceType().getUnqualifiedType();
+      if (clad_compat::isPromotableIntegerType(C, T))
+        T = C.getPromotedIntegerType(T);
+      return T->isUnsignedIntegerType() ? T : C.getCorrespondingUnsignedType(T);
+    }
+
+    QualType getSpellableType(QualType T, const DeclContext* Where,
+                              const ASTContext& C) {
+      for (QualType Cur = T;;) {
+        if (isSpellableFrom(Cur, Where))
+          return Cur;
+        QualType Next = Cur.getSingleStepDesugaredType(C);
+        if (Next != Cur) {
+          Cur = Next;
+          continue;
+        }
+        // No sugar is left to choose from: spell the parts instead.
+        auto Spell = [&](QualType P) { return getSpellableType(P, Where, C); };
+        const Type* Ty = Cur.getTypePtr();
+        QualType R;
+        if (const auto* PT = dyn_cast<PointerType>(Ty)) {
+          R = C.getPointerType(Spell(PT->getPointeeType()));
+        } else if (const auto* FPT = dyn_cast<FunctionProtoType>(Ty)) {
+          llvm::SmallVector<QualType, 4> Params;
+          for (QualType P : FPT->param_types())
+            Params.push_back(Spell(P));
+          R = C.getFunctionType(Spell(FPT->getReturnType()), Params,
+                                FPT->getExtProtoInfo());
+        } else {
+          return T;
+        }
+        return C.getQualifiedType(R, Cur.getLocalQualifiers());
+      }
+    }
+
     FunctionDecl* ResolveOverload(Sema& S, Expr* lookup,
                                   llvm::MutableArrayRef<Expr*> args) {
       OverloadCandidateSet Candidates(noLoc, OverloadCandidateSet::CSK_Normal);
@@ -382,6 +505,17 @@ namespace clad {
           /*Kind=*/clad_compat::StringLiteralKind_Ordinary,
           /*Pascal=*/false, StrTy, noLoc);
       return SL;
+    }
+
+    bool IsSameParam(const ValueDecl* A, const ValueDecl* B) {
+      const auto* PA = dyn_cast_or_null<ParmVarDecl>(A);
+      const auto* PB = dyn_cast_or_null<ParmVarDecl>(B);
+      if (A == B || !PA || !PB)
+        return A == B;
+      const auto* FA = dyn_cast<FunctionDecl>(PA->getDeclContext());
+      const auto* FB = dyn_cast<FunctionDecl>(PB->getDeclContext());
+      return FA && FB && FA->getCanonicalDecl() == FB->getCanonicalDecl() &&
+             PA->getFunctionScopeIndex() == PB->getFunctionScopeIndex();
     }
 
     bool isArrayOrPointerType(clang::QualType QT) {
@@ -488,14 +622,45 @@ namespace clad {
       return DeclarationNameInfo(II, noLoc);
     }
 
-    bool IsRealFunction(const clang::FunctionDecl* FD) {
+    bool IsRealFunction(const clang::FunctionDecl* FD, const CallExpr* CE) {
       if (isa<CXXMethodDecl>(FD) || !FD->getReturnType()->isRealType())
+        return false;
+      if (FD->isVariadic() && CE && CE->getNumArgs() > FD->getNumParams())
         return false;
       for (auto PVD : FD->parameters()) {
         if (!PVD->getType()->isRealType())
           return false;
       }
       return true;
+    }
+
+    const FunctionDecl* GetNumDiffTarget(Sema& S, const FunctionDecl* FD,
+                                         const CallExpr* CE) {
+      if (!IsRealFunction(FD, CE))
+        return nullptr;
+      const Builtin::Context& BI = S.getASTContext().BuiltinInfo;
+      auto addressable = [&](const FunctionDecl* F) {
+        unsigned ID = F->getBuiltinID();
+        return !ID || clad_compat::isDirectlyAddressable(BI, ID);
+      };
+      if (addressable(FD))
+        return FD;
+      // A builtin with no `__builtin_` prefix names itself, which the lookup
+      // below finds and skips as unaddressable.
+      StringRef Name = FD->getName();
+      Name.consume_front("__builtin_");
+      LookupResult R(S, &S.getASTContext().Idents.get(Name), noLoc,
+                     Sema::LookupOrdinaryName);
+      S.LookupQualifiedName(R, S.getASTContext().getTranslationUnitDecl());
+      // The library function itself, as clang knows it, not some other
+      // function that happens to share its name.
+      for (const NamedDecl* D : R) {
+        const auto* Lib = dyn_cast<FunctionDecl>(D->getUnderlyingDecl());
+        if (Lib && Lib->getBuiltinID() && addressable(Lib) &&
+            Lib->getNumParams() == FD->getNumParams())
+          return Lib;
+      }
+      return nullptr;
     }
 
     bool IsReferenceOrPointerArg(const Expr* arg) {
@@ -1036,6 +1201,32 @@ namespace clad {
              !QT.getNonReferenceType().isConstQualified();
     }
 
+    bool CanReturnOutputTangent(const clang::FunctionDecl* FD) {
+      if (!FD->getReturnType()->isVoidType())
+        return false;
+      const auto* MD = dyn_cast<clang::CXXMethodDecl>(FD);
+      return !MD || MD->isStatic();
+    }
+
+    void CollectOutputParams(
+        const clang::FunctionDecl* FD,
+        llvm::SmallVectorImpl<const clang::ParmVarDecl*>& outputParams) {
+      for (const clang::ParmVarDecl* PVD : FD->parameters()) {
+        clang::QualType T = PVD->getType();
+        if (!T->isLValueReferenceType() || !isNonConstReferenceType(T))
+          continue;
+        // Floating point, not isRealType: that is also true of an integer and
+        // of a complete unscoped enum, and neither is a tangent anyone asked
+        // for. Counting them costs twice. An enum is not differentiable, so no
+        // tangent is ever built for it and asking for one later finds nothing;
+        // and an `int&` a function writes its iteration count through would
+        // make an ordinary one-output function look like it has two. The
+        // traits side asks std::is_floating_point, and the two have to agree.
+        if (T.getNonReferenceType()->isRealFloatingType())
+          outputParams.push_back(PVD);
+      }
+    }
+
     bool isCopyable(const clang::CXXRecordDecl* RD) {
       if (RD->defaultedCopyConstructorIsDeleted())
         return false;
@@ -1214,8 +1405,7 @@ namespace clad {
 
           // Instantiation with the required signature succeeded.
           if (TDK == clad_compat::CLAD_COMPAT_TemplateSuccess)
-            return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false)
-                .get();
+            return BuildDeclarationNameExpr(S, SS, Overloads);
 
           FailedCandidates.addCandidate().set(
               I.getPair(), FTD->getTemplatedDecl(),
@@ -1225,15 +1415,14 @@ namespace clad {
           // deduction successful because of the auto return type.
           if (Specialization && !Specialization->isTemplated() &&
               Specialization->getReturnType()->isUndeducedAutoType())
-            return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false)
-                .get();
+            return BuildDeclarationNameExpr(S, SS, Overloads);
         }
         auto* FD = dyn_cast<FunctionDecl>(candidate);
         if (!FD)
           continue;
         // Overload is just a FunctionDecl, check if the signature matches.
         if (MatchFunctionTypeWithQualifiedParams(S, FnTy, FD->getType()))
-          return S.BuildDeclarationNameExpr(SS, Overloads, /*ADL=*/false).get();
+          return BuildDeclarationNameExpr(S, SS, Overloads);
       }
       return nullptr;
     }
@@ -1268,6 +1457,9 @@ namespace clad {
     bool returnsAdjoint(QualType T) {
       if (T->isPointerType())
         return true;
+      if (T->isLValueReferenceType() &&
+          T.getNonReferenceType()->isRealFloatingType())
+        return true;
       return isMemoryType(T);
     }
 
@@ -1297,8 +1489,7 @@ namespace clad {
     FunctionDecl* LookupCladZeroLike(Sema& S, Expr* value) {
       LookupResult R = tryLookupCladMethod(S, "zero_like");
       CXXScopeSpec CSS;
-      Expr* lookup =
-          S.BuildDeclarationNameExpr(CSS, R, /*NeedsADL=*/false).get();
+      Expr* lookup = BuildDeclarationNameExpr(S, CSS, R);
       llvm::SmallVector<Expr*, 1> args{value};
       return ResolveOverload(S, lookup, args);
     }
@@ -1378,6 +1569,21 @@ namespace clad {
       if (!peeled)
         return true;
       return !VD->getType()->isPointerType();
+    }
+
+    bool allocatesIntoRecordParam(const FunctionDecl* FD) {
+      for (const ParmVarDecl* PVD : FD->parameters()) {
+        QualType T = PVD->getType().getCanonicalType();
+        if (T->isPointerType() || T->isReferenceType()) {
+          QualType pointee = T->isPointerType() ? T->getPointeeType()
+                                                : T.getNonReferenceType();
+          if (pointee.isConstQualified())
+            continue;
+          if (pointee->getAs<RecordType>() && isMemoryType(pointee))
+            return true;
+        }
+      }
+      return false;
     }
 
     bool hasMemoryTypeParams(const FunctionDecl* FD) {
@@ -1527,8 +1733,27 @@ namespace clad {
                       bool forCustomDerv, bool shouldUseRestoreTracker,
                       bool isForErrorEstimation) {
       ASTContext& C = S.getASTContext();
-      if (mode == DiffMode::forward)
+      if (mode == DiffMode::forward) {
+        // A function returning void leaves its result in a parameter, and the
+        // tangent of that parameter is the only thing its derivative has to
+        // give back. Returning it is what keeps the derivative reachable: the
+        // signature is otherwise the primal's, so the tangent would be a local
+        // the caller cannot read. More than one such parameter is left to the
+        // caller of this function to diagnose -- there is no way to choose.
+        if (utils::CanReturnOutputTangent(FD)) {
+          llvm::SmallVector<const clang::ParmVarDecl*, 2> outputParams;
+          utils::CollectOutputParams(FD, outputParams);
+          // getAs looks through the sugar an attributed function type adds.
+          const auto* FnProtoTy = FD->getType()->getAs<FunctionProtoType>();
+          if (outputParams.size() == 1 && FnProtoTy) {
+            QualType dRetTy = utils::getNonConstType(
+                outputParams.front()->getType().getNonReferenceType(), S);
+            return C.getFunctionType(dRetTy, FnProtoTy->getParamTypes(),
+                                     FnProtoTy->getExtProtoInfo());
+          }
+        }
         return FD->getType();
+      }
 
       QualType FnTy = FD->getType();
 
@@ -1629,7 +1854,7 @@ namespace clad {
           // DiffInputVarInfo to check if this is a variable we differentiate
           // wrt.
           for (const ValueDecl* param : diffParams)
-            if (param == FD->getParamDecl(i))
+            if (utils::IsSameParam(param, FD->getParamDecl(i)))
               FnTypes.push_back(
                   utils::GetParameterDerivativeType(S, mode, PVDTy));
         } else if (mode == DiffMode::reverse_mode_forward_pass ||
@@ -1682,8 +1907,9 @@ namespace clad {
       return BuildDefaultConstructExpr(S, utils::GetCladTagOfType(S, T));
     }
 
-    bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
-      return FD->getNumParams() == 1 && utils::IsRealFunction(FD);
+    bool canUsePushforwardInRevMode(const FunctionDecl* FD,
+                                    const CallExpr* CE) {
+      return FD->getNumParams() == 1 && utils::IsRealFunction(FD, CE);
     }
 
     QualType makeTypeReadable(Sema& S, QualType Ty) {

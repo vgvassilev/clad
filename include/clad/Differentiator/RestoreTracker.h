@@ -8,8 +8,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-#include <map>
-#include <utility>
+#include <unordered_set>
 #include <vector>
 #ifndef Max_Records
 #define Max_Records 64
@@ -33,7 +32,7 @@ namespace clad {
 /// We use it when we have to pass information between nested calls and
 /// clad::tape is not viable.
 class restore_tracker {
-  // m_data consists of pairs of memory addresses and bitwise values
+  // m_meta holds each stored address with its size and offset into m_buf.
 #ifdef __CUDACC__
   struct MetaData {
     char* addr;
@@ -63,8 +62,9 @@ public:
     m_cnt++;
   }
 
+  // Newest first, so where records overlap the oldest snapshot wins.
   CUDA_HOST_DEVICE void restore() {
-    for (size_t i = 0; i < m_cnt; ++i)
+    for (size_t i = m_cnt; i-- > 0;)
       std::memcpy(m_meta[i].addr, m_buf + m_meta[i].off, m_meta[i].size);
   }
 
@@ -72,9 +72,15 @@ public:
   // block-local tracker declaration used to (re-)initialize the tracker.
   CUDA_HOST_DEVICE void clear() { m_cnt = m_off = 0; }
 #else
-  using RawMemory = std::vector<uint8_t>;
   using Address = char*;
-  std::map<const Address, RawMemory> m_data;
+  struct Record {
+    Address addr;
+    std::size_t size;
+    std::size_t off;
+  };
+  std::vector<Record> m_meta;
+  std::vector<uint8_t> m_buf;
+  std::unordered_set<Address> m_index;
 
 public:
   // Store the value and the address of `val`.
@@ -84,25 +90,30 @@ public:
     // _tracker.store(x); // stored
     // ...
     // _tracker.store(x); // ignored
-    if (m_data.find((char*)&val) != m_data.end())
+    Address addr = (char*)&val;
+    if (!m_index.insert(addr).second)
       return;
-    std::vector<uint8_t> buffer(sizeof(T));
-    std::memcpy(buffer.data(), &val, sizeof(T));
-    m_data.emplace((char*)&val, std::move(buffer));
+    std::size_t off = m_buf.size();
+    m_buf.resize(off + sizeof(T));
+    std::memcpy(m_buf.data() + off, &val, sizeof(T));
+    m_meta.push_back({addr, sizeof(T), off});
   }
   // Set all stored addresses to the corresponding values bitwise. Keeps the
   // stored values: the reverse sweep restores the same state again after the
-  // pullback's forward replay re-mutates it.
+  // pullback's forward replay re-mutates it. Newest first, so where records
+  // overlap the oldest snapshot wins.
   void restore() {
-    for (std::pair<const Address, RawMemory>& pair : m_data) {
-      std::vector<uint8_t>& buffer = pair.second;
-      std::memcpy(pair.first, buffer.data(), buffer.size());
-    }
+    for (auto it = m_meta.rbegin(); it != m_meta.rend(); ++it)
+      std::memcpy(it->addr, m_buf.data() + it->off, it->size);
   }
 
   // Drop all records without writing anything back. Emitted where a
   // block-local tracker declaration used to (re-)initialize the tracker.
-  void clear() { m_data.clear(); }
+  void clear() {
+    m_meta.clear();
+    m_buf.clear();
+    m_index.clear();
+  }
 #endif
 };
 } // namespace clad

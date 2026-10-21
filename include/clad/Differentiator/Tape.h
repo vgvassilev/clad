@@ -544,9 +544,8 @@ protected:
             T* data = candidate->elements();
 
             async_state->m_AsyncWrite =
-                std::async(std::launch::async, [dm, data, candidate]() {
-                  candidate->disk_offset = dm->write_slab(data);
-                });
+                std::async(std::launch::async, &tape_impl::write_slab_async, dm,
+                           data, candidate);
           }
         }
 #endif
@@ -788,32 +787,51 @@ public:
   }
 
 #ifndef __CUDA_ARCH__
+private:
+  // The work std::async runs is a member function, not a lambda: std::async
+  // keeps what it calls in a std::tuple, and libstdc++ 14's C++23 tuple does
+  // not compile with a lambda in it under clang 17. Every tape that pops
+  // instantiates the prefetch; every offloading tape that pushes, the write
+  // as well.
+
+  /// Writes \p data, a slab's elements, through \p dm on a worker thread.
+  static void write_slab_async(detail::DiskManager<T, SLAB_SIZE>* dm, T* data,
+                               Slab* candidate) {
+    candidate->disk_offset = dm->write_slab(data);
+  }
+
+  /// Reads back the slabs below the tail that were spilled to disk, as many
+  /// as there is room for in RAM.
+  void reverse_prefetch() {
+    DiskInfo& info = getDiskInfo();
+
+    std::size_t slabs_to_fetch = info.m_MaxRamSlabs - info.m_ActiveSlabs;
+    Slab* current = m_tail;
+
+    while (current && slabs_to_fetch > 0) {
+      if (current->is_on_disk) {
+        current->allocate();
+        info.m_DiskManager->read_slab(current->elements(),
+                                      current->disk_offset);
+        current->is_on_disk = false;
+
+        info.m_ActiveSlabs++;
+        slabs_to_fetch--;
+      }
+      current = current->prev;
+    }
+  }
+
   void trigger_reverse_prefetch() {
     DiskInfo& out_info = getDiskInfo();
     auto* async_state = static_cast<HostAsyncState*>(out_info.m_AsyncState);
 
-    async_state->m_AsyncRead = std::async(std::launch::async, [this]() {
-      DiskInfo& info = getDiskInfo();
-
-      std::size_t slabs_to_fetch = info.m_MaxRamSlabs - info.m_ActiveSlabs;
-      Slab* current = m_tail;
-
-      while (current && slabs_to_fetch > 0) {
-        if (current->is_on_disk) {
-          current->allocate();
-          info.m_DiskManager->read_slab(current->elements(),
-                                        current->disk_offset);
-          current->is_on_disk = false;
-
-          info.m_ActiveSlabs++;
-          slabs_to_fetch--;
-        }
-        current = current->prev;
-      }
-    });
+    async_state->m_AsyncRead =
+        std::async(std::launch::async, &tape_impl::reverse_prefetch, this);
   }
 #endif
 
+public:
   /// Remove the last value from the tape.
   CUDA_HOST_DEVICE void pop_back() {
     assert(m_size);
