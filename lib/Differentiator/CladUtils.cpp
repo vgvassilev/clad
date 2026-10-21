@@ -2368,6 +2368,16 @@ namespace clad {
                         llvm::ArrayRef<Expr*>(CE->getArgs(), CE->getNumArgs()));
           return true;
         }
+
+        /// `int& r = i;` lets every later write to `r` write `i`, which no
+        /// visit above sees under `i`'s name.
+        bool VisitVarDecl(VarDecl* VD) {
+          QualType T = VD->getType();
+          if (VD->getInit() && T->isReferenceType() &&
+              !T.getNonReferenceType().isConstQualified())
+            mark(VD->getInit());
+          return true;
+        }
       };
       WrittenVarCollector Collector(Written);
       Collector.TraverseStmt(S);
