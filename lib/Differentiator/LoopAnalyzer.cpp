@@ -607,40 +607,31 @@ private:
   }
 };
 
-/// Whether a loop's body changes what its header promised: assigning to the
-/// induction variable or the bound, stepping either itself, or taking an
-/// address through which something else could.
-///
-/// recogniseCountedForLoop reads the header alone, deliberately, and leaves
-/// this to whoever acts on the result. An extent has to add it twice over: an
-/// index the body moves need not stay under the bound, and a bound the body
-/// raises is not the value a caller substituting its argument would get.
-class LoopShapeBreaker : public RecursiveASTVisitor<LoopShapeBreaker> {
-  const VarDecl* m_IndVar;
-  const VarDecl* m_Bound;
-  bool m_Broken = false;
-
-  bool isWatched(const Expr* E) const {
-    const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
-    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
-    return VD && (VD == m_IndVar || VD == m_Bound);
-  }
+/// The variables a statement only ever reads: every mention of one is
+/// loaded as a value on the spot. A mention that is assigned, stepped, has its
+/// address taken, is bound to a reference or is in an unevaluated operand is
+/// not such a load, and disqualifies the variable.
+class ReadOnlyVars : public RecursiveASTVisitor<ReadOnlyVars> {
+  llvm::DenseMap<const VarDecl*, std::pair<unsigned, unsigned>> m_Uses;
 
 public:
-  LoopShapeBreaker(const VarDecl* IndVar, const VarDecl* Bound)
-      : m_IndVar(IndVar), m_Bound(Bound) {}
-  [[nodiscard]] bool broken() const { return m_Broken; }
-
-  bool VisitBinaryOperator(BinaryOperator* BO) {
-    if (BO->isAssignmentOp() && isWatched(BO->getLHS()))
-      m_Broken = true;
+  explicit ReadOnlyVars(const Stmt* S) { TraverseStmt(const_cast<Stmt*>(S)); }
+  bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+    if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+      m_Uses[VD].first++;
     return true;
   }
-  bool VisitUnaryOperator(UnaryOperator* UO) {
-    if ((UO->isIncrementDecrementOp() || UO->getOpcode() == UO_AddrOf) &&
-        isWatched(UO->getSubExpr()))
-      m_Broken = true;
+  bool VisitImplicitCastExpr(ImplicitCastExpr* ICE) {
+    if (ICE->getCastKind() == CK_LValueToRValue)
+      if (const auto* DRE =
+              dyn_cast<DeclRefExpr>(ICE->getSubExpr()->IgnoreParens()))
+        if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+          m_Uses[VD].second++;
     return true;
+  }
+  [[nodiscard]] bool onlyRead(const VarDecl* VD) const {
+    auto it = m_Uses.find(VD);
+    return it == m_Uses.end() || it->second.first == it->second.second;
   }
 };
 
@@ -652,14 +643,15 @@ class ExtentVisitor : public RecursiveASTVisitor<ExtentVisitor> {
   /// The first write this analysis could not attribute; the later ones say
   /// nothing more, since every parameter is already reported unbounded.
   clang::SourceLocation m_OpaqueAt;
-  const Stmt* m_FnBody;
   const ASTContext& m_Context;
+  /// The variables the function never writes after their initialiser.
+  ReadOnlyVars m_ReadOnly;
 
 public:
   ExtentVisitor(const FunctionDecl* FD,
                 llvm::SmallVectorImpl<WrittenExtent>& Extents)
-      : m_Extents(Extents), m_FnBody(FD->getBody()),
-        m_Context(FD->getASTContext()) {
+      : m_Extents(Extents), m_Context(FD->getASTContext()),
+        m_ReadOnly(FD->getBody()) {
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i)
       m_ParamIdx[FD->getParamDecl(i)] = i;
   }
@@ -736,7 +728,10 @@ public:
 
   /// Whether acting on \p FS's recognised construct would be unsound here.
   ///
-  /// The index and the bound are watched over different reaches. The index
+  /// recogniseCountedForLoop reads the header alone. An index the body moves
+  /// need not stay under the bound, and a bound the function changes is not
+  /// the value a caller substitutes. The two are watched over different
+  /// reaches. The index
   /// only has to hold still while the loop runs. The bound has to hold still
   /// for the whole call, because a call site works the range out from the
   /// argument it passed and reads it much later.
@@ -745,18 +740,14 @@ public:
     if (!V)
       return false; // Not recognised anyway; nothing to break.
     const LoopFacts& L = *V;
-    LoopShapeBreaker InLoop(L.IndVar, /*Bound=*/nullptr);
-    InLoop.TraverseStmt(const_cast<Stmt*>(cast<Stmt>(FS->getBody())));
-    if (InLoop.broken())
+    // Only a read keeps a variable still; a reference or address handed on,
+    // e.g. to a callee taking `int&`, can move it.
+    if (!ReadOnlyVars(FS->getBody()).onlyRead(L.IndVar))
       return true;
     const auto* BoundDRE = dyn_cast<DeclRefExpr>(L.Bound);
     const auto* BoundVD =
         BoundDRE ? dyn_cast<VarDecl>(BoundDRE->getDecl()) : nullptr;
-    if (!BoundVD)
-      return false;
-    LoopShapeBreaker InFn(/*IndVar=*/nullptr, BoundVD);
-    InFn.TraverseStmt(const_cast<Stmt*>(m_FnBody));
-    return InFn.broken();
+    return BoundVD && !m_ReadOnly.onlyRead(BoundVD);
   }
 
   [[nodiscard]] bool sawOpaqueWrite() const { return m_Opaque; }
