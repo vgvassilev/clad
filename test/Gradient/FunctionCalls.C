@@ -1373,6 +1373,30 @@ double fn36(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double mul_defined_later(double x, double y);
+
+double fn37(double x, double y) {
+    return mul_defined_later(x, y);
+}
+
+// CHECK: void mul_defined_later_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_y0 * y * x;
+// CHECK-NEXT:         *_d_x += x * _d_y0 * y;
+// CHECK-NEXT:         *_d_y += x * x * _d_y0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void fn37_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         mul_defined_later_pullback(x, y, 1, &_r0, &_r1);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         *_d_y += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main() {
   double result[7];
   float fresult[7];
@@ -1499,10 +1523,17 @@ int main() {
   TEST2(fnIdLoop, 2, 5);  // CHECK-EXEC: {3.00, 1.00}
   INIT(fn36);
   TEST2(fn36, 3, 5);  // CHECK-EXEC: {0.69, 8.00}
+
+  INIT(fn37);
+  TEST2(fn37, 3, 2);  // CHECK-EXEC: {12.00, 9.00}
 }
 
 double sq_defined_later(double x) {
     return x*x;
+}
+
+double mul_defined_later(double x, double y) {
+    return x * x * y;
 }
 
 double fn25_defined_later(double x) {

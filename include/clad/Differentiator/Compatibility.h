@@ -16,6 +16,7 @@
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/Version.h"
@@ -837,6 +838,18 @@ static inline const DeclSpec& Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
 #else
 #define CLAD_COMPAT_TemplateSuccess Sema::TDK_Success
 #endif
+
+// Clang 15 added isDirectlyAddressable, for builtins in namespace std; before
+// it, the predefined library functions are the ones whose address can be
+// taken.
+static inline bool isDirectlyAddressable(const clang::Builtin::Context& BI,
+                                         unsigned ID) {
+#if CLANG_VERSION_MAJOR >= 15
+  return BI.isDirectlyAddressable(ID);
+#else
+  return BI.isPredefinedLibFunction(ID);
+#endif
+}
 
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY

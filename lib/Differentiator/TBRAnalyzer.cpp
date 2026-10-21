@@ -16,11 +16,13 @@
 #include "clang/AST/Stmt.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/Lambda.h"
 
 #include "AnalysisBase.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
@@ -424,6 +426,21 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
       TraverseStmt(arg);
     resetMode();
     return false;
+  }
+  // A lambda reads what it captures by reference when it is called, not where
+  // it is created: mark those variables used here, as if passed by reference.
+  if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+    const auto* DRE =
+        dyn_cast<DeclRefExpr>(OCE->getArg(0)->IgnoreParenImpCasts());
+    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+    if (const LambdaExpr* LE = utils::getLambdaInit(VD)) {
+      setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
+      for (auto [Cap, Init] : llvm::zip(LE->captures(), LE->capture_inits()))
+        if (Cap.getCaptureKind() == LCK_ByRef)
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          TraverseStmt(const_cast<Expr*>(Init));
+      resetMode();
+    }
   }
   // Use information about parameters assuming the analysis was performed.
   bool shouldAnalyzeParams = m_ModifiedParams && (m_ModifiedParams->find(FD) !=

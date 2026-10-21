@@ -12,12 +12,23 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <type_traits>
 
-#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
+/// Marks a reverse_forw that clad need not call: it calls the primal on the
+/// arguments and again on their adjoints instead. Write it before the
+/// declaration. Clad's attributes are spelled [[clad::...]] when the plugin,
+/// which defines __CLAD__, registers them, and as annotate without it.
+#ifdef __CLAD__
+#define CLAD_ELIDABLE_REVERSE_FORW [[clad::elidable_reverse_forw]]
+#else
+#define CLAD_ELIDABLE_REVERSE_FORW                                             \
+  __attribute__((annotate("elidable_reverse_forw")))
+#endif
 
 namespace clad {
 template <typename T, typename U> struct ValueAndPushforward {
@@ -89,7 +100,11 @@ template <class T> class Tag {};
 /// clones its body to synthesize a derivative. Apply at the declaration of a
 /// variable, member, function, or type you own, e.g.
 ///   struct CLAD_NONDIFFERENTIABLE Handle { double* data; };
+#ifdef __CLAD__
+#define CLAD_NONDIFFERENTIABLE [[clad::non_differentiable]]
+#else
 #define CLAD_NONDIFFERENTIABLE __attribute__((annotate("non_differentiable")))
+#endif
 
 /// Marks a type you do NOT own -- a library type you cannot annotate at its own
 /// declaration -- non-differentiable, by specializing clad::Tag for it. Use at
@@ -176,15 +191,16 @@ void cudaMemcpy_pullback(T* destPtr, const T* srcPtr, size_t count,
 }
 
 template <typename T>
-cudaError_t cudaMalloc_reverse_forw(T** devPtr, size_t sz, T** d_devPtr,
-                                    size_t d_sz)
-    __attribute__((host)) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW cudaError_t
+cudaMalloc_reverse_forw(T** devPtr, size_t sz, T** d_devPtr, size_t d_sz)
+    __attribute__((host));
 
 template <typename T>
 void cudaMalloc_pullback(T** devPtr, size_t sz, cudaError_t d_ret, T** d_devPtr,
                          size_t* d_sz) __attribute__((host));
 
-cudaError_t cudaFree_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW cudaError_t cudaFree_reverse_forw(void* ptr,
+                                                             void* d_ptr);
 
 void cudaFree_pullback(void* ptr, cudaError_t d_ret, void* d_ptr);
 
@@ -192,6 +208,8 @@ template <typename... Args>
 unsigned __cudaPushCallConfiguration_reverse_forw(Args...);
 #endif
 
+// NOLINTBEGIN(bugprone-reserved-identifier)
+// NOLINTBEGIN(readability-identifier-naming)
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
 __builtin_logf_pushforward(float x, float d_x) {
   return {__builtin_logf(x), (1.F / x) * d_x};
@@ -259,7 +277,41 @@ CUDA_HOST_DEVICE inline void __builtin_powf_pullback(float x, float exponent,
   *d_exponent += t.pushforward * d_y;
 }
 
-// FIXME: Add the rest of the __builtin_ routines for log, sqrt, abs, etc.
+namespace std {
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sqrt_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fabs_pushforward(T x, dT d_x);
+} // namespace std
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sqrt_pushforward(T x, dT d_x) {
+  return std::sqrt_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_sqrtf_pushforward(T x, dT d_x) {
+  return std::sqrt_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fabs_pushforward(T x, dT d_x) {
+  return std::fabs_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fabsf_pushforward(T x, dT d_x) {
+  return std::fabs_pushforward(x, d_x);
+}
+
+// FIXME: Add the rest of the __builtin_ routines.
+// NOLINTEND(readability-identifier-naming)
+// NOLINTEND(bugprone-reserved-identifier)
 
 namespace std {
 
@@ -566,7 +618,8 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> expl_pushforward(T x, dT d_x) {
 // 2.2 exp2, exp2f, exp2l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp2_pushforward(T x, dT d_x) {
-  T dexp2 = ::std::exp2(x) * ::std::log(2);
+  using W = ::std::common_type_t<T, double>;
+  T dexp2 = ::std::exp2(x) * ::std::log(static_cast<W>(2));
   return {::std::exp2(x), dexp2 * d_x};
 }
 
@@ -666,7 +719,8 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, T> logl_pushforward(T x, T d_x) {
 // 3.2 log10, log10f, log10l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10_pushforward(T x, dT d_x) {
-  T dlog10 = 1.0 / (x * ::std::log(10));
+  using W = ::std::common_type_t<T, double>;
+  T dlog10 = 1.0 / (x * ::std::log(static_cast<W>(10)));
   return {::std::log10(x), dlog10 * d_x};
 }
 
@@ -684,7 +738,8 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10l_pushforward(T x, dT d_x) {
 // 3.3 log2, log2f, log2l
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2_pushforward(T x, dT d_x) {
-  T dlog2 = 1.0 / (x * ::std::log(2));
+  using W = ::std::common_type_t<T, double>;
+  T dlog2 = 1.0 / (x * ::std::log(static_cast<W>(2)));
   return {::std::log2(x), dlog2 * d_x};
 }
 
@@ -968,7 +1023,9 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atanhl_pushforward(T x, dT d_x) {
 // 6.1 erf, erff, erfl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erf_pushforward(T x, dT d_x) {
-  T derf = (2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x);
+  using W = ::std::common_type_t<T, double>;
+  T derf =
+      (2 / ::std::sqrt(::std::acos(static_cast<W>(-1)))) * ::std::exp(-x * x);
   return {::std::erf(x), derf * d_x};
 }
 
@@ -986,7 +1043,10 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfl_pushforward(T x, dT d_x) {
 // 6.2 erfc, erfcf, erfcl
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfc_pushforward(T x, dT d_x) {
-  return {::std::erfc(x), (-2 / ::std::sqrt(M_PI)) * ::std::exp(-x * x) * d_x};
+  using W = ::std::common_type_t<T, double>;
+  T derfc =
+      (-2 / ::std::sqrt(::std::acos(static_cast<W>(-1)))) * ::std::exp(-x * x);
+  return {::std::erfc(x), derfc * d_x};
 }
 
 // pushforward for erfcf, erfcl
@@ -1277,6 +1337,169 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
 lgammal_pushforward(T x, dT d_x) noexcept {
   return lgamma_pushforward(x, d_x);
 }
+
+#ifdef __cpp_lib_math_special_functions
+// Cylindrical Bessel functions (J, I, K) of non-negative order nu (with x > 0
+// for K). At x == 0, retain x-dependent J/I formulas for higher-order AD.
+// For 0 < nu < 1, the origin result represents a divergent right-hand limit.
+// d/dx of J_nu, I_nu and K_nu, given the function's value at (nu, x). The
+// pushforward and the pullback of each function share it.
+template <typename T>
+CUDA_HOST_DEVICE T clad_cyl_bessel_j_dx(T nu, T x, T j_nu) {
+  if (nu == T(0))
+    return -::std::cyl_bessel_j(T(1), x);
+  if (x == T(0) && nu > T(0)) {
+    if (nu >= T(1))
+      return T(0.5) * (::std::cyl_bessel_j(nu - T(1), x) -
+                       ::std::cyl_bessel_j(nu + T(1), x));
+    return ::std::numeric_limits<T>::infinity();
+  }
+  return -::std::cyl_bessel_j(nu + T(1), x) + (nu / x) * j_nu;
+}
+
+template <typename T>
+CUDA_HOST_DEVICE T clad_cyl_bessel_i_dx(T nu, T x, T i_nu) {
+  if (nu == T(0))
+    return ::std::cyl_bessel_i(T(1), x);
+  if (x == T(0) && nu > T(0)) {
+    if (nu >= T(1))
+      return T(0.5) * (::std::cyl_bessel_i(nu - T(1), x) +
+                       ::std::cyl_bessel_i(nu + T(1), x));
+    return ::std::numeric_limits<T>::infinity();
+  }
+  return ::std::cyl_bessel_i(nu + T(1), x) + (nu / x) * i_nu;
+}
+
+template <typename T>
+CUDA_HOST_DEVICE T clad_cyl_bessel_k_dx(T nu, T x, T k_nu) {
+  return -::std::cyl_bessel_k(nu + T(1), x) + (nu / x) * k_nu;
+}
+
+// Whether a tangent carries no direction, so the nu term can be skipped. A
+// vector-mode tangent is an array, zero only if every element is: multiplying
+// it by the term instead would turn a NaN for an unsupported order into NaN in
+// every direction, x's included.
+template <typename T> CUDA_HOST_DEVICE bool clad_tangent_is_zero(T d) {
+  return d == T(0);
+}
+template <typename T>
+CUDA_HOST_DEVICE bool clad_tangent_is_zero(const clad::array<T>& d) {
+  for (::std::size_t i = 0; i < d.size(); ++i)
+    if (d[i] != 0)
+      return false;
+  return true;
+}
+
+// d/dnu of J_nu, I_nu and K_nu. No identity in the order exists the way the
+// recurrences give d/dx, so an integer order nu = n uses the closed forms of
+// DLMF 10.15.3 and 10.38.4-5, in which the sums run over orders k < n:
+//   dJ/dnu = pi/2 Y_n + S(J),   dI/dnu = (-1)^(n+1) K_n + S'(I),
+//   dK/dnu = S(K),   S(B) = n!/2 (x/2)^-n sum_k (x/2)^k B_k / ((n - k) k!),
+// with S' carrying (-1)^(n-k). Any other order takes a central difference in
+// nu, which CLAD_NO_NUM_DIFF turns into NaN rather than a silent zero. The
+// general analytic form is tracked in vgvassilev/clad#2270; the
+// order-derivative is only defined here for x > 0.
+template <typename T> CUDA_HOST_DEVICE T clad_cyl_bessel(int kind, T nu, T x) {
+  if (kind == 0)
+    return ::std::cyl_bessel_j(nu, x);
+  if (kind == 1)
+    return ::std::cyl_bessel_i(nu, x);
+  return ::std::cyl_bessel_k(nu, x);
+}
+
+template <typename T>
+CUDA_HOST_DEVICE T clad_cyl_bessel_dnu(int kind, T nu, T x) {
+  if (!(x > T(0)))
+    return ::std::numeric_limits<T>::quiet_NaN();
+  const int max_closed_order = 64;
+  if (nu >= T(0) && nu <= T(max_closed_order) && nu == ::std::floor(nu)) {
+    int n = static_cast<int>(nu);
+    T half = x / T(2);
+    // r holds n!/k! (x/2)^(k-n), built down from k = n to stay in range.
+    T r = T(1);
+    T sum = T(0);
+    for (int k = n - 1; k >= 0; --k) {
+      r *= T(k + 1) / half;
+      T term = r / T(n - k) * clad_cyl_bessel(kind, T(k), x);
+      sum += (kind == 1 && (n - k) % 2) ? -term : term;
+    }
+    sum /= T(2);
+    if (kind == 0)
+      return T(1.57079632679489661923132169163975144) *
+                 ::std::cyl_neumann(nu, x) +
+             sum;
+    if (kind == 1)
+      return (n % 2 ? T(1) : T(-1)) * ::std::cyl_bessel_k(nu, x) + sum;
+    return sum;
+  }
+#ifdef CLAD_NO_NUM_DIFF
+  return ::std::numeric_limits<T>::quiet_NaN();
+#else
+  T h = ::std::cbrt(::std::numeric_limits<T>::epsilon()) *
+        (nu > T(1) ? nu : T(1));
+  if (nu - h < T(0))
+    return (clad_cyl_bessel(kind, nu + h, x) - clad_cyl_bessel(kind, nu, x)) /
+           h;
+  return (clad_cyl_bessel(kind, nu + h, x) - clad_cyl_bessel(kind, nu - h, x)) /
+         (T(2) * h);
+#endif
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+cyl_bessel_j_pushforward(T nu, T x, dT d_nu, dT d_x) {
+  T j_nu = ::std::cyl_bessel_j(nu, x);
+  dT d = clad_cyl_bessel_j_dx(nu, x, j_nu) * d_x;
+  if (!clad_tangent_is_zero(d_nu))
+    d += clad_cyl_bessel_dnu(0, nu, x) * d_nu;
+  return {j_nu, d};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void cyl_bessel_j_pullback(T nu, T x, U d_z, T* d_nu, T* d_x) {
+  if (d_x)
+    *d_x += clad_cyl_bessel_j_dx(nu, x, ::std::cyl_bessel_j(nu, x)) * d_z;
+  if (d_nu)
+    *d_nu += clad_cyl_bessel_dnu(0, nu, x) * d_z;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+cyl_bessel_i_pushforward(T nu, T x, dT d_nu, dT d_x) {
+  T i_nu = ::std::cyl_bessel_i(nu, x);
+  dT d = clad_cyl_bessel_i_dx(nu, x, i_nu) * d_x;
+  if (!clad_tangent_is_zero(d_nu))
+    d += clad_cyl_bessel_dnu(1, nu, x) * d_nu;
+  return {i_nu, d};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void cyl_bessel_i_pullback(T nu, T x, U d_z, T* d_nu, T* d_x) {
+  if (d_x)
+    *d_x += clad_cyl_bessel_i_dx(nu, x, ::std::cyl_bessel_i(nu, x)) * d_z;
+  if (d_nu)
+    *d_nu += clad_cyl_bessel_dnu(1, nu, x) * d_z;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+cyl_bessel_k_pushforward(T nu, T x, dT d_nu, dT d_x) {
+  T k_nu = ::std::cyl_bessel_k(nu, x);
+  dT d = clad_cyl_bessel_k_dx(nu, x, k_nu) * d_x;
+  if (!clad_tangent_is_zero(d_nu))
+    d += clad_cyl_bessel_dnu(2, nu, x) * d_nu;
+  return {k_nu, d};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void cyl_bessel_k_pullback(T nu, T x, U d_z, T* d_nu, T* d_x) {
+  if (d_x)
+    *d_x += clad_cyl_bessel_k_dx(nu, x, ::std::cyl_bessel_k(nu, x)) * d_z;
+  if (d_nu)
+    *d_nu += clad_cyl_bessel_dnu(2, nu, x) * d_z;
+}
+
+#endif
 #endif
 
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
@@ -1325,7 +1548,14 @@ comp_ellint_3_pushforward(T1 k, T2 nu, dT1 d_k, dT2 d_nu) {
     grad_k = (k / (k2 - static_cast<T_out>(nu))) * (term_k - Pi);
   }
   T_out grad_nu = 0.0;
-  if (nu != 0.0 && nu != 1.0 && k2 != static_cast<T_out>(nu)) {
+  // nu = 0 is a removable singularity of the closed form below; the limit
+  // is the integral of sin^2 / sqrt(1 - k^2 sin^2) over [0, pi/2].
+  if (nu == 0.0) {
+    if (k2 == 0.0)
+      grad_nu = K / 2;
+    else
+      grad_nu = (K - E) / k2;
+  } else if (nu != 1.0 && k2 != static_cast<T_out>(nu)) {
     T_out p2 = ((k2 - static_cast<T_out>(nu)) / static_cast<T_out>(nu)) * K;
     T_out p3 = ((static_cast<T_out>(nu) * static_cast<T_out>(nu) - k2) /
                 static_cast<T_out>(nu)) *
@@ -1338,22 +1568,252 @@ comp_ellint_3_pushforward(T1 k, T2 nu, dT1 d_k, dT2 d_nu) {
                   (static_cast<dT_out>(d_nu) * grad_nu)};
 }
 
-template <typename T1, typename T2, typename T3>
+// Mirrors comp_ellint_3_pushforward in T_out, so that forward and reverse
+// mode agree bitwise.
+template <typename T1, typename T2, typename T3,
+          typename T_out = decltype(::std::comp_ellint_3(T1(), T2()))>
 CUDA_HOST_DEVICE void comp_ellint_3_pullback(T1 k, T2 nu, T3 d_out, T1* d_k,
                                              T2* d_nu) {
-  auto K = ::std::comp_ellint_1(k);
-  auto E = ::std::comp_ellint_2(k);
-  auto Pi = ::std::comp_ellint_3(k, nu);
-  auto k2 = k * k;
-  auto one = 1.0;
-  if (k2 != nu && k != 0.0 && k2 < 1.0) {
-    auto term_k = E / (one - k2);
-    *d_k += d_out * ((k / (k2 - nu)) * (term_k - Pi));
+  T_out K = ::std::comp_ellint_1(k);
+  T_out E = ::std::comp_ellint_2(k);
+  T_out Pi = ::std::comp_ellint_3(k, nu);
+  T_out k2 = k * k;
+  T_out nu_out = static_cast<T_out>(nu);
+  T_out one = 1.0;
+  if (k2 != nu_out && k != 0.0 && k2 < 1.0) {
+    T_out term_k = E / (one - k2);
+    *d_k += d_out * ((k / (k2 - nu_out)) * (term_k - Pi));
   }
-  if (nu != 0.0 && nu != one && k2 != nu) {
-    auto p2 = ((k2 - nu) / nu) * K;
-    auto p3 = ((nu * nu - k2) / nu) * Pi;
-    *d_nu += d_out * ((one / (2.0 * (nu - one) * (k2 - nu))) * (E + p2 + p3));
+  if (nu == 0.0) {
+    if (k2 == 0.0)
+      *d_nu += d_out * (K / 2);
+    else
+      *d_nu += d_out * ((K - E) / k2);
+  } else if (nu != 1.0 && k2 != nu_out) {
+    T_out p2 = ((k2 - nu_out) / nu_out) * K;
+    T_out p3 = ((nu_out * nu_out - k2) / nu_out) * Pi;
+    T_out grad_nu =
+        (one / (2.0 * (nu_out - one) * (k2 - nu_out))) * (E + p2 + p3);
+    *d_nu += d_out * grad_nu;
+  }
+}
+
+// Incomplete elliptic integrals. std::ellint_N(k, ...) takes the modulus k
+// first; F(phi, k) = ellint_1(k, phi), E(phi, k) = ellint_2(k, phi) and
+// Pi(nu; phi, k) = ellint_3(k, nu, phi). The partial derivatives follow
+// DLMF 19.4 (https://dlmf.nist.gov/19.4) extended to the incomplete case:
+//   dF/dphi = 1 / sqrt(1 - k^2 sin^2(phi))
+//   dF/dk   = E / (k (1 - k^2)) - F / k
+//             - k sin(phi) cos(phi) / ((1 - k^2) sqrt(1 - k^2 sin^2(phi)))
+// At k = 0 the k-derivative has the limit 0, which the guard below encodes,
+// matching the comp_ellint_1 pushforward above.
+// The pullbacks compute in T_out with the same expressions as the
+// pushforwards, so that forward and reverse mode agree bitwise.
+template <typename T1, typename T2, typename dT1, typename dT2,
+          typename T_out = decltype(::std::ellint_1(T1(), T2())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+ellint_1_pushforward(T1 k, T2 phi, dT1 d_k, dT2 d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out k2 = k * k;
+  T_out s = ::std::sin(phi);
+  T_out c = ::std::cos(phi);
+  T_out s2 = s * s;
+  T_out one = 1;
+  T_out delta = ::std::sqrt(one - k2 * s2);
+  T_out grad_phi = 0;
+  if (k2 * s2 < one)
+    grad_phi = one / delta;
+  T_out grad_k = 0;
+  if (k != 0 && k2 < one && k2 * s2 < one)
+    grad_k = E / (k * (one - k2)) - F / k - k * s * c / ((one - k2) * delta);
+  return {F, (static_cast<dT_out>(d_k) * grad_k) +
+                 (static_cast<dT_out>(d_phi) * grad_phi)};
+}
+
+template <typename T1, typename T2, typename T3,
+          typename T_out = decltype(::std::ellint_1(T1(), T2()))>
+CUDA_HOST_DEVICE void ellint_1_pullback(T1 k, T2 phi, T3 d_out, T1* d_k,
+                                        T2* d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out k2 = k * k;
+  T_out s = ::std::sin(phi);
+  T_out c = ::std::cos(phi);
+  T_out s2 = s * s;
+  T_out one = 1;
+  T_out delta = ::std::sqrt(one - k2 * s2);
+  if (k2 * s2 < one)
+    *d_phi += d_out * (one / delta);
+  if (k != 0 && k2 < one && k2 * s2 < one)
+    *d_k += d_out *
+            (E / (k * (one - k2)) - F / k - k * s * c / ((one - k2) * delta));
+}
+
+// Incomplete elliptic integral of the second kind (DLMF 19.4):
+//   dE/dphi = sqrt(1 - k^2 sin^2(phi))
+//   dE/dk   = (E - F) / k, with limit 0 at k = 0.
+template <typename T1, typename T2, typename dT1, typename dT2,
+          typename T_out = decltype(::std::ellint_2(T1(), T2())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+ellint_2_pushforward(T1 k, T2 phi, dT1 d_k, dT2 d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out k2 = k * k;
+  T_out s = ::std::sin(phi);
+  T_out one = 1;
+  T_out grad_phi = ::std::sqrt(one - k2 * s * s);
+  T_out grad_k = 0;
+  if (k != 0)
+    grad_k = (E - F) / k;
+  return {E, (static_cast<dT_out>(d_k) * grad_k) +
+                 (static_cast<dT_out>(d_phi) * grad_phi)};
+}
+
+template <typename T1, typename T2, typename T3,
+          typename T_out = decltype(::std::ellint_2(T1(), T2()))>
+CUDA_HOST_DEVICE void ellint_2_pullback(T1 k, T2 phi, T3 d_out, T1* d_k,
+                                        T2* d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out k2 = k * k;
+  T_out s = ::std::sin(phi);
+  T_out one = 1;
+  *d_phi += d_out * ::std::sqrt(one - k2 * s * s);
+  if (k != 0)
+    *d_k += d_out * ((E - F) / k);
+}
+
+// Incomplete elliptic integral of the third kind. With s = sin(phi),
+// c = cos(phi), Delta = sqrt(1 - k^2 s^2), the partials extend the
+// complete-case formulas used in comp_ellint_3_pullback by boundary terms
+// in s c, which vanish at phi = pi/2:
+//   dPi/dphi = 1 / ((1 - nu s^2) Delta)
+//   dPi/dk   = (k / (k^2 - nu)) (E / (1 - k^2) - Pi
+//              - k^2 s c / ((1 - k^2) Delta))
+//   dPi/dnu  = (E + ((k^2 - nu) / nu) F + ((nu^2 - k^2) / nu) Pi
+//              - nu Delta s c / (1 - nu s^2)) / (2 (nu - 1) (k^2 - nu))
+// The closed forms divide by nu, nu - 1 and k^2 - nu, but Pi is smooth there
+// as long as nu s^2 != 1, so those points take the limits instead:
+//   nu = 0:   dPi/dnu = (F - E) / k^2, or (phi - s c) / 2 at k = 0
+//   nu = 1:   dPi/dnu = ((1 + k^2) Pi - k^2 F - Delta s / c^3)
+//                       / (3 (k^2 - 1))
+//   nu = k^2: dPi/dnu = J and dPi/dk = k J, where J is the integral of
+//             s^2 / Delta^5, J = (k^2 s c / Delta^3 - (1 + k^2) I3 + F)
+//                               / (3 k^2 (k^2 - 1)),
+//             I3 = (E - k^2 s c / Delta) / (1 - k^2)
+template <typename T1, typename T2, typename T3, typename dT1, typename dT2,
+          typename dT3,
+          typename T_out = decltype(::std::ellint_3(T1(), T2(), T3())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+ellint_3_pushforward(T1 k, T2 nu, T3 phi, dT1 d_k, dT2 d_nu, dT3 d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out Pi = ::std::ellint_3(k, nu, phi);
+  T_out k2 = k * k;
+  T_out nu_out = static_cast<T_out>(nu);
+  T_out s = ::std::sin(phi);
+  T_out c = ::std::cos(phi);
+  T_out s2 = s * s;
+  T_out one = 1;
+  T_out three = 3;
+  T_out delta = ::std::sqrt(one - k2 * s2);
+  T_out J = 0;
+  if (k2 == nu_out && k2 != 0 && k2 < one) {
+    T_out I3 = (E - k2 * s * c / delta) / (one - k2);
+    J = (k2 * s * c / (delta * delta * delta) - (one + k2) * I3 + F) /
+        (three * k2 * (k2 - one));
+  }
+  T_out grad_phi = 0;
+  if (nu_out * s2 != one && k2 * s2 < one)
+    grad_phi = one / ((one - nu_out * s2) * delta);
+  T_out grad_k = 0;
+  if (k != 0 && k2 < one && k2 * s2 < one) {
+    if (k2 == nu_out)
+      grad_k = k * J;
+    else
+      grad_k = (k / (k2 - nu_out)) *
+               (E / (one - k2) - Pi - k2 * s * c / ((one - k2) * delta));
+  }
+  T_out grad_nu = 0;
+  if (nu_out * s2 != one && k2 * s2 < one) {
+    if (nu_out == 0) {
+      if (k2 == 0)
+        grad_nu = (F - s * c) / 2;
+      else
+        grad_nu = (F - E) / k2;
+    } else if (nu_out == one) {
+      if (k2 < one)
+        grad_nu = ((one + k2) * Pi - k2 * F - delta * s / (c * c * c)) /
+                  (three * (k2 - one));
+    } else if (k2 == nu_out) {
+      grad_nu = J;
+    } else {
+      T_out p2 = ((k2 - nu_out) / nu_out) * F;
+      T_out p3 = ((nu_out * nu_out - k2) / nu_out) * Pi;
+      T_out p4 = nu_out * delta * s * c / (one - nu_out * s2);
+      grad_nu =
+          (one / (2 * (nu_out - one) * (k2 - nu_out))) * (E + p2 + p3 - p4);
+    }
+  }
+  return {Pi, (static_cast<dT_out>(d_k) * grad_k) +
+                  (static_cast<dT_out>(d_nu) * grad_nu) +
+                  (static_cast<dT_out>(d_phi) * grad_phi)};
+}
+
+template <typename T1, typename T2, typename T3, typename T4,
+          typename T_out = decltype(::std::ellint_3(T1(), T2(), T3()))>
+CUDA_HOST_DEVICE void ellint_3_pullback(T1 k, T2 nu, T3 phi, T4 d_out, T1* d_k,
+                                        T2* d_nu, T3* d_phi) {
+  T_out F = ::std::ellint_1(k, phi);
+  T_out E = ::std::ellint_2(k, phi);
+  T_out Pi = ::std::ellint_3(k, nu, phi);
+  T_out k2 = k * k;
+  T_out nu_out = static_cast<T_out>(nu);
+  T_out s = ::std::sin(phi);
+  T_out c = ::std::cos(phi);
+  T_out s2 = s * s;
+  T_out one = 1;
+  T_out three = 3;
+  T_out delta = ::std::sqrt(one - k2 * s2);
+  T_out J = 0;
+  if (k2 == nu_out && k2 != 0 && k2 < one) {
+    T_out I3 = (E - k2 * s * c / delta) / (one - k2);
+    J = (k2 * s * c / (delta * delta * delta) - (one + k2) * I3 + F) /
+        (three * k2 * (k2 - one));
+  }
+  if (nu_out * s2 != one && k2 * s2 < one)
+    *d_phi += d_out * (one / ((one - nu_out * s2) * delta));
+  if (k != 0 && k2 < one && k2 * s2 < one) {
+    if (k2 == nu_out)
+      *d_k += d_out * (k * J);
+    else
+      *d_k +=
+          d_out * ((k / (k2 - nu_out)) *
+                   (E / (one - k2) - Pi - k2 * s * c / ((one - k2) * delta)));
+  }
+  if (nu_out * s2 != one && k2 * s2 < one) {
+    if (nu_out == 0) {
+      if (k2 == 0)
+        *d_nu += d_out * ((F - s * c) / 2);
+      else
+        *d_nu += d_out * ((F - E) / k2);
+    } else if (nu_out == one) {
+      if (k2 < one)
+        *d_nu += d_out * (((one + k2) * Pi - k2 * F - delta * s / (c * c * c)) /
+                          (three * (k2 - one)));
+    } else if (k2 == nu_out) {
+      *d_nu += d_out * J;
+    } else {
+      T_out p2 = ((k2 - nu_out) / nu_out) * F;
+      T_out p3 = ((nu_out * nu_out - k2) / nu_out) * Pi;
+      T_out p4 = nu_out * delta * s * c / (one - nu_out * s2);
+      *d_nu += d_out * ((one / (2 * (nu_out - one) * (k2 - nu_out))) *
+                        (E + p2 + p3 - p4));
+    }
   }
 }
 #endif
@@ -1459,22 +1919,20 @@ inline void free_pushforward(void* ptr, void* d_ptr) {
   free(d_ptr);
 }
 
-ValueAndAdjoint<void*, void*>
-malloc_reverse_forw(size_t sz, size_t d_sz) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<void*, void*>
+malloc_reverse_forw(size_t sz, size_t d_sz);
 
-ValueAndAdjoint<void*, void*>
-calloc_reverse_forw(size_t n, size_t sz, size_t d_n,
-                    size_t d_sz) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<void*, void*>
+calloc_reverse_forw(size_t n, size_t sz, size_t d_n, size_t d_sz);
 
-ValueAndAdjoint<void*, void*>
-realloc_reverse_forw(void* ptr, size_t sz, void* d_ptr,
-                     size_t d_sz) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<void*, void*>
+realloc_reverse_forw(void* ptr, size_t sz, void* d_ptr, size_t d_sz);
 
-ValueAndAdjoint<void*, void*>
+CLAD_ELIDABLE_REVERSE_FORW ValueAndAdjoint<void*, void*>
 memset_reverse_forw(void* ptr, int val, size_t sz, void* d_ptr, int d_val,
-                    size_t d_sz) elidable_reverse_forw;
+                    size_t d_sz);
 
-void free_reverse_forw(void* ptr, void* d_ptr) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW void free_reverse_forw(void* ptr, void* d_ptr);
 
 void realloc_pullback(void* ptr, size_t sz, void* d_ptr, size_t* d_sz);
 
@@ -1635,6 +2093,15 @@ using std::beta_pushforward;
 using std::lgamma_pushforward;
 using std::lgammaf_pushforward;
 using std::lgammal_pushforward;
+
+#ifdef __cpp_lib_math_special_functions
+using std::cyl_bessel_i_pullback;
+using std::cyl_bessel_i_pushforward;
+using std::cyl_bessel_j_pullback;
+using std::cyl_bessel_j_pushforward;
+using std::cyl_bessel_k_pullback;
+using std::cyl_bessel_k_pushforward;
+#endif
 #endif
 
 #if __cplusplus >= 201703L && (defined(__cpp_lib_math_special_funcs) ||        \
@@ -1643,6 +2110,12 @@ using std::comp_ellint_1_pushforward;
 using std::comp_ellint_2_pushforward;
 using std::comp_ellint_3_pullback;
 using std::comp_ellint_3_pushforward;
+using std::ellint_1_pullback;
+using std::ellint_1_pushforward;
+using std::ellint_2_pullback;
+using std::ellint_2_pushforward;
+using std::ellint_3_pullback;
+using std::ellint_3_pushforward;
 #endif
 
 namespace class_functions {

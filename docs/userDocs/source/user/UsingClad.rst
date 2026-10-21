@@ -553,11 +553,12 @@ limitations will be removed soon.
 The ``non_differentiable`` Attribute
 ------------------------------------
 
-Occasionally, you may want to skip differentiating a specific variable or function call. For example, some variables might be used purely for logging, as constants, or as standalone metrics. Clad provides the ``non_differentiable`` annotation attribute to safely omit generating derivatives for these components.
+Occasionally, you may want to skip differentiating a specific variable or function call. For example, some variables might be used purely for logging, as constants, or as standalone metrics. Clad provides the ``[[clad::non_differentiable]]`` attribute to safely omit generating derivatives for these components.
 
 Clad ships the ``CLAD_NONDIFFERENTIABLE`` macro (defined in
 ``clad/Differentiator/BuiltinDerivatives.h``, pulled in by ``Differentiator.h``)
-for this; it expands to ``__attribute__((annotate("non_differentiable")))``.
+for this; it expands to ``[[clad::non_differentiable]]`` when the Clad plugin
+is loaded and to ``__attribute__((annotate("non_differentiable")))`` otherwise.
 
 If ``CLAD_NONDIFFERENTIABLE`` is applied to a variable, Clad skips generating a
 derivative counterpart for it:

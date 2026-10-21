@@ -406,6 +406,15 @@ namespace clad {
           .get();
     }
 
+    const LambdaExpr* getLambdaInit(const VarDecl* VD) {
+      const Expr* Init = VD ? VD->getInit() : nullptr;
+      if (!Init)
+        return nullptr;
+      if (const auto* EWC = dyn_cast<ExprWithCleanups>(Init))
+        Init = EWC->getSubExpr();
+      return dyn_cast<LambdaExpr>(Init->IgnoreImplicit());
+    }
+
     QualType getUnsignedType(QualType T, const ASTContext& C) {
       T = T.getNonReferenceType().getUnqualifiedType();
       if (clad_compat::isPromotableIntegerType(C, T))
@@ -494,6 +503,17 @@ namespace clad {
           /*Kind=*/clad_compat::StringLiteralKind_Ordinary,
           /*Pascal=*/false, StrTy, noLoc);
       return SL;
+    }
+
+    bool IsSameParam(const ValueDecl* A, const ValueDecl* B) {
+      const auto* PA = dyn_cast_or_null<ParmVarDecl>(A);
+      const auto* PB = dyn_cast_or_null<ParmVarDecl>(B);
+      if (A == B || !PA || !PB)
+        return A == B;
+      const auto* FA = dyn_cast<FunctionDecl>(PA->getDeclContext());
+      const auto* FB = dyn_cast<FunctionDecl>(PB->getDeclContext());
+      return FA && FB && FA->getCanonicalDecl() == FB->getCanonicalDecl() &&
+             PA->getFunctionScopeIndex() == PB->getFunctionScopeIndex();
     }
 
     bool isArrayOrPointerType(clang::QualType QT) {
@@ -600,14 +620,45 @@ namespace clad {
       return DeclarationNameInfo(II, noLoc);
     }
 
-    bool IsRealFunction(const clang::FunctionDecl* FD) {
+    bool IsRealFunction(const clang::FunctionDecl* FD, const CallExpr* CE) {
       if (isa<CXXMethodDecl>(FD) || !FD->getReturnType()->isRealType())
+        return false;
+      if (FD->isVariadic() && CE && CE->getNumArgs() > FD->getNumParams())
         return false;
       for (auto PVD : FD->parameters()) {
         if (!PVD->getType()->isRealType())
           return false;
       }
       return true;
+    }
+
+    const FunctionDecl* GetNumDiffTarget(Sema& S, const FunctionDecl* FD,
+                                         const CallExpr* CE) {
+      if (!IsRealFunction(FD, CE))
+        return nullptr;
+      const Builtin::Context& BI = S.getASTContext().BuiltinInfo;
+      auto addressable = [&](const FunctionDecl* F) {
+        unsigned ID = F->getBuiltinID();
+        return !ID || clad_compat::isDirectlyAddressable(BI, ID);
+      };
+      if (addressable(FD))
+        return FD;
+      // A builtin with no `__builtin_` prefix names itself, which the lookup
+      // below finds and skips as unaddressable.
+      StringRef Name = FD->getName();
+      Name.consume_front("__builtin_");
+      LookupResult R(S, &S.getASTContext().Idents.get(Name), noLoc,
+                     Sema::LookupOrdinaryName);
+      S.LookupQualifiedName(R, S.getASTContext().getTranslationUnitDecl());
+      // The library function itself, as clang knows it, not some other
+      // function that happens to share its name.
+      for (const NamedDecl* D : R) {
+        const auto* Lib = dyn_cast<FunctionDecl>(D->getUnderlyingDecl());
+        if (Lib && Lib->getBuiltinID() && addressable(Lib) &&
+            Lib->getNumParams() == FD->getNumParams())
+          return Lib;
+      }
+      return nullptr;
     }
 
     bool IsReferenceOrPointerArg(const Expr* arg) {
@@ -1801,7 +1852,7 @@ namespace clad {
           // DiffInputVarInfo to check if this is a variable we differentiate
           // wrt.
           for (const ValueDecl* param : diffParams)
-            if (param == FD->getParamDecl(i))
+            if (utils::IsSameParam(param, FD->getParamDecl(i)))
               FnTypes.push_back(
                   utils::GetParameterDerivativeType(S, mode, PVDTy));
         } else if (mode == DiffMode::reverse_mode_forward_pass ||
@@ -1854,8 +1905,9 @@ namespace clad {
       return BuildDefaultConstructExpr(S, utils::GetCladTagOfType(S, T));
     }
 
-    bool canUsePushforwardInRevMode(const FunctionDecl* FD) {
-      return FD->getNumParams() == 1 && utils::IsRealFunction(FD);
+    bool canUsePushforwardInRevMode(const FunctionDecl* FD,
+                                    const CallExpr* CE) {
+      return FD->getNumParams() == 1 && utils::IsRealFunction(FD, CE);
     }
 
     QualType makeTypeReadable(Sema& S, QualType Ty) {
