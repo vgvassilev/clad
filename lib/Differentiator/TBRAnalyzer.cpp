@@ -296,14 +296,19 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     if (nonLinear)
       startNonLinearMode();
 
+    // The reverse sweep reads a stored operand's copy, so the operation needs
+    // none of its operands. It still differentiates through the operand,
+    // though, and the operand's own non-linear subexpressions read theirs:
+    // keep marking on and drop only the non-linear bit. The same holds for a
+    // stored numerator or denominator below.
     if (LHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(L);
     if (LHSIsStored)
       resetMode();
 
     if (RHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(R);
     if (RHSIsStored)
       resetMode();
@@ -321,13 +326,13 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     bool LHSIsStored =
         !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
     if (LHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(L);
     if (LHSIsStored)
       resetMode();
     bool RHSIsStored = utils::UsefulToStore(R);
     if (RHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(R);
     if (RHSIsStored)
       resetMode();
