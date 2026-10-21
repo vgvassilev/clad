@@ -4,18 +4,51 @@
 #include <array>
 #include <clad/Differentiator/Array.h>
 #include <clad/Differentiator/BuiltinDerivatives.h>
+#include <clad/Differentiator/Differentiator.h>
 #include <clad/Differentiator/FunctionTraits.h>
 #include <functional>
 #include <initializer_list>
 #include <iosfwd>
 #include <iterator>
 #include <memory>
+#if __cplusplus >= 201703L
+#include <optional>
+#endif
 #include <string>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace clad {
+
+#if __cplusplus >= 201703L
+// nullopt_t has no default constructor; its zero adjoint is the sentinel.
+inline ::std::nullopt_t zero_like(const ::std::nullopt_t&) {
+  return ::std::nullopt;
+}
+#endif
+
+namespace zero_like_detail {
+template <class T, class = void> struct result {};
+} // namespace zero_like_detail
+
+template <class T1, class T2>
+auto zero_like(const ::std::pair<T1, T2>& value)
+    -> decltype(::std::pair<T1, T2>{
+        ::std::declval<typename zero_like_detail::result<T1>::type>(),
+        ::std::declval<typename zero_like_detail::result<T2>::type>()}) {
+  return {zero_like(value.first), zero_like(value.second)};
+}
+
+namespace zero_like_detail {
+// Define this after the pair overload so nested pairs participate in lookup.
+template <class T>
+struct result<T, decltype(static_cast<void>(
+                     zero_like(::std::declval<const T&>())))> {
+  using type = decltype(zero_like(::std::declval<const T&>()));
+};
+} // namespace zero_like_detail
 
 // zero_init specializations
 
@@ -100,6 +133,17 @@ struct is_std_smart_ptr<
 } // namespace helpers
 
 namespace class_functions {
+
+#if __cplusplus >= 201703L
+// Copying nullopt or constructing an empty optional carries no gradient.
+inline void constructor_pullback(const ::std::nullopt_t&,
+                                 ::std::nullopt_t* /*d_this*/,
+                                 ::std::nullopt_t* /*d_nullopt*/) {}
+
+template <typename T>
+void constructor_pullback(::std::nullopt_t, ::std::optional<T>* /*d_this*/,
+                          ::std::nullopt_t* /*d_nullopt*/) {}
+#endif
 
 // vector forward mode
 
