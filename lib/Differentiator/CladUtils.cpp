@@ -1653,6 +1653,51 @@ namespace clad {
       return utils::InstantiateTemplate(S, arrayDecl, {T});
     }
 
+    // Whether T holds floating-point data, directly, in an array, or in a
+    // field or base.
+    static bool holdsFloatingData(QualType T) {
+      T = T.getCanonicalType();
+      if (const Type* Elem = T->getBaseElementTypeUnsafe())
+        T = QualType(Elem, 0);
+      if (T->isRealFloatingType() || T->isAnyComplexType())
+        return true;
+      const auto* RD = T->getAsCXXRecordDecl();
+      if (!RD || !RD->hasDefinition())
+        return false;
+      for (const FieldDecl* FD : RD->fields())
+        if (holdsFloatingData(FD->getType()))
+          return true;
+      for (const CXXBaseSpecifier& B : RD->bases())
+        if (holdsFloatingData(B.getType()))
+          return true;
+      return false;
+    }
+
+    QualType GetByteCopiedFloatingType(const CallExpr* CE) {
+      const FunctionDecl* FD = CE ? CE->getDirectCallee() : nullptr;
+      if (!FD || CE->getNumArgs() < 2)
+        return {};
+      switch (FD->getBuiltinID()) {
+      case Builtin::BImemcpy:
+      case Builtin::BI__builtin_memcpy:
+      case Builtin::BImemmove:
+      case Builtin::BI__builtin_memmove:
+        break;
+      default:
+        return {};
+      }
+      // The destination, then the source, as written, before either decayed
+      // or converted to `void*`.
+      for (unsigned i = 0; i < 2; ++i) {
+        QualType T = CE->getArg(i)->IgnoreParenImpCasts()->getType();
+        if (T->isPointerType())
+          T = T->getPointeeType();
+        if (holdsFloatingData(T))
+          return T;
+      }
+      return {};
+    }
+
     bool IsDifferentiableType(QualType T) {
       QualType origType = T;
       T = T.getCanonicalType();

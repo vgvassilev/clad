@@ -1906,6 +1906,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (clad::utils::callOperatesOnNonDifferentiableType(m_Sema, E))
         return true;
 
+      if (diagnoseByteCopy(E))
+        return true;
+
       request.VerboseDiags = false;
       request.inheritAnalysesFrom(*m_TopMostReq);
       request.EmitPortingHints = m_TopMostReq->EmitPortingHints;
@@ -2295,6 +2298,49 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       m_Traversed.clear();
     }
 
+    return true;
+  }
+
+  bool DiffCollector::diagnoseByteCopy(const CallExpr* E) {
+    QualType copied = utils::GetByteCopiedFloatingType(E);
+    if (copied.isNull() || !m_ParentReq)
+      return false;
+    // A defaulted assignment copies an array member this way; point at the
+    // assignment that called it.
+    const auto* MD = dyn_cast<CXXMethodDecl>(m_ParentReq->Function);
+    bool defaultedAssign =
+        MD && MD->isDefaulted() &&
+        (MD->isCopyAssignmentOperator() || MD->isMoveAssignmentOperator());
+    const Expr* site = defaultedAssign && m_ParentReq->CallContext
+                           ? m_ParentReq->CallContext
+                           : E;
+    SourceLocation L = site->getBeginLoc();
+    if (defaultedAssign) {
+      DiffMode mode = m_ParentReq->Mode;
+      bool forward = mode == DiffMode::forward ||
+                     mode == DiffMode::pushforward ||
+                     mode == DiffMode::vector_forward_mode ||
+                     mode == DiffMode::vector_pushforward;
+      utils::diag(m_Sema, DiagnosticsEngine::Error, L,
+                  "cannot differentiate the defaulted %select{copy|move}0 "
+                  "assignment of %1: it copies %2 with %3, which has no "
+                  "derivative")
+          << MD->isMoveAssignmentOperator() << MD->getParent() << copied
+          << E->getDirectCallee();
+      utils::diag(m_Sema, DiagnosticsEngine::Note, L,
+                  "provide custom %select{'operator_equal_reverse_forw' and "
+                  "'operator_equal_pullback'|'operator_equal_pushforward'}0 "
+                  "for %1")
+          << forward << MD->getParent();
+      return true;
+    }
+    utils::diag(m_Sema, DiagnosticsEngine::Error, L,
+                "cannot differentiate %0 copying %1, which holds "
+                "floating-point values; its derivative would be zero")
+        << E->getDirectCallee() << copied;
+    utils::diag(m_Sema, DiagnosticsEngine::Note, L,
+                "copy the values with assignments, which clad can "
+                "differentiate");
     return true;
   }
 
