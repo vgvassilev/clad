@@ -1499,7 +1499,17 @@ namespace clad {
       CXXScopeSpec CSS;
       Expr* lookup = BuildDeclarationNameExpr(S, CSS, R);
       llvm::SmallVector<Expr*, 1> args{value};
-      return ResolveOverload(S, lookup, args);
+      FunctionDecl* FD = ResolveOverload(S, lookup, args);
+      // A function template's deduced return type may still need instantiation.
+      if (FD && FD->getReturnType()->isUndeducedType() &&
+          S.DeduceReturnType(FD, value->getExprLoc(), /*Diagnose=*/false))
+        return nullptr;
+      // An implicit conversion can make an unrelated zero_like overload
+      // viable. Adjoint construction requires a new value of the primal type.
+      if (!FD || !S.Context.hasSameUnqualifiedType(FD->getReturnType(),
+                                                   value->getType()))
+        return nullptr;
+      return FD;
     }
 
     bool shouldUseRestoreTracker(const FunctionDecl* FD) {

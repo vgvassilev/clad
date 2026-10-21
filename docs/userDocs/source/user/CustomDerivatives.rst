@@ -117,7 +117,9 @@ for this purpose:
 - ``clad::zero_like(x)`` constructs and returns a new zero adjoint with the
   same relevant runtime structure as the primal ``x``. Conceptually, it
   returns a value structurally like ``x`` with ``zero_init`` applied.
-  This is the primary extension point for adjoint construction.
+  This is the primary extension point for adjoint construction. The overload
+  must return the primal type by value; returning a reference would alias
+  existing storage instead of constructing a new adjoint.
 
 The default ``zero_like`` implementation value-initializes arithmetic and
 enum types. For resizable ranges, it resizes an empty result to the primal size

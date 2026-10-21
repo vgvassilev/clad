@@ -1,5 +1,11 @@
 // RUN: %cladclang %s -I%S/../../include -o %t 2>&1 | %filecheck %s
 // RUN: %t | %filecheck_exec %s
+// RUN: %cladclang %s -DWRONG_ZERO_LIKE -I%S/../../include -o %t 2>&1 | %filecheck %s
+// RUN: %t | %filecheck_exec %s
+// RUN: %cladclang %s -DREFERENCE_ZERO_LIKE -I%S/../../include -o %t 2>&1 | %filecheck %s
+// RUN: %t | %filecheck_exec %s
+// RUN: %cladclang %s -DCONVERTING_ZERO_LIKE -I%S/../../include -o %t 2>&1 | %filecheck %s
+// RUN: %t | %filecheck_exec %s
 // RUN: %cladclang %s -DDELETED_ZERO_LIKE -I%S/../../include -o %t 2>&1 | %filecheck %s
 // RUN: %t | %filecheck_exec %s
 // RUN: %cladclang %s -DAMBIGUOUS_ZERO_LIKE -I%S/../../include -o %t 2>&1 | %filecheck %s
@@ -72,6 +78,15 @@ FallbackMemoryValue zero_like(const FallbackMemoryValue&) = delete;
 #elif defined(AMBIGUOUS_ZERO_LIKE)
 FallbackMemoryValue zero_like(const FallbackMemoryValue&, int = 0);
 FallbackMemoryValue zero_like(const FallbackMemoryValue&, long = 0);
+#elif defined(WRONG_ZERO_LIKE)
+double zero_like(const FallbackMemoryValue&) { return 0.; }
+#elif defined(REFERENCE_ZERO_LIKE)
+FallbackMemoryValue& zero_like(FallbackMemoryValue& value) { return value; }
+#elif defined(CONVERTING_ZERO_LIKE)
+struct Unrelated {
+  Unrelated(const FallbackMemoryValue&) {}
+};
+Unrelated zero_like(const Unrelated& value) { return value; }
 #endif
 
 } // namespace clad
@@ -185,6 +200,12 @@ double fallback_operator_loss(double input) {
 double const_memory_loss(double input) {
   auto value = make_const_memory_value(input);
   return value.value;
+}
+
+// Overload validation also applies to non-independent parameter adjoints.
+double fallback_parameter_loss(FallbackMemoryValue values, double input) {
+  values.value = input;
+  return values.value * values.value;
 }
 
 // CHECK: clad::ValueAndAdjoint<MemoryValue, MemoryValue> direct_memory_value_reverse_forw(double input, double _d_input) {
@@ -319,4 +340,10 @@ int main() {
   constGradient.execute(3.0, &constDerivative);
   printf("%.1f %d %d %d\n", constDerivative, primalCalls, zeroLikeCalls,
          mutableZeroLikeCalls); // CHECK-EXEC-NEXT: 6.0 1 1 1
+
+  double parameterDerivative = 0.0;
+  auto parameterGradient = clad::gradient(fallback_parameter_loss, "input");
+  parameterGradient.execute(FallbackMemoryValue{10.0, nullptr}, 3.0,
+                            &parameterDerivative);
+  printf("parameter=%.1f\n", parameterDerivative); // CHECK-EXEC-NEXT: parameter=6.0
 }

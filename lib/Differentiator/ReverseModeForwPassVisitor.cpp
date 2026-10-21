@@ -378,13 +378,14 @@ ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   StmtDiff initDiff;
   if (const Expr* init = VD->getInit())
     initDiff = Visit(init);
-  // Adjoints should always be initialized
-  if (!initDiff.getExpr_dx()) {
-    Expr* zero = getZeroInit(DerivedType);
-    initDiff.updateStmtDx(zero);
-  }
   auto* VDCloned = BuildGlobalVarDecl(DerivedType, VD->getNameAsString(),
                                       initDiff.getExpr(), VD->isDirectInit());
+  // Adjoints should always be initialized
+  if (!initDiff.getExpr_dx()) {
+    Expr* value = VD->hasInit() ? BuildDeclRef(VDCloned) : nullptr;
+    Expr* zero = BuildZeroAdjoint(value, DerivedType);
+    initDiff.updateStmtDx(zero);
+  }
   auto* VDDerived =
       BuildGlobalVarDecl(DerivedType, "_d_" + VD->getNameAsString(),
                          initDiff.getExpr_dx(), VD->isDirectInit());
