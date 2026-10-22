@@ -852,6 +852,45 @@ private:
     }
   }
 
+  /// Whether \p E names storage inside one of this function's own automatic
+  /// objects, reached without loading a pointer on the way: subscripts of
+  /// arrays that decay in place, and members reached with `.`.
+  ///
+  /// Narrower than utils::designatesLocallyOwnedStorage on purpose. That one
+  /// peels any subscript, so it would also accept `ptrs[0][1]` for a local
+  /// array of pointers, which writes wherever `ptrs[0]` points -- possibly a
+  /// parameter's buffer. Here every subscript's base has to be an array.
+  static bool isInsideLocalObject(const Expr* E) {
+    E = E->IgnoreParens();
+    while (true) {
+      const Expr* Arr = nullptr;
+      if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+        Arr = ASE->getBase();
+      else if (const auto* UO = dyn_cast<UnaryOperator>(E);
+               UO && UO->getOpcode() == UO_Deref)
+        Arr = UO->getSubExpr();
+      else if (const auto* ME = dyn_cast<MemberExpr>(E)) {
+        if (ME->isArrow())
+          return false;
+        E = ME->getBase()->IgnoreParens();
+        continue;
+      } else
+        break;
+      // `a[i]` and `*a` stay inside `a` only when `a` is an array in place,
+      // not a pointer value that was loaded from somewhere.
+      const auto* ICE = dyn_cast<ImplicitCastExpr>(Arr->IgnoreParens());
+      if (!ICE || ICE->getCastKind() != CK_ArrayToPointerDecay)
+        return false;
+      E = ICE->getSubExpr()->IgnoreParens();
+    }
+    const auto* DRE = dyn_cast<DeclRefExpr>(E);
+    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+    // A by-value parameter is a local too, but an array parameter is a
+    // pointer, and a reference names someone else's object.
+    return VD && VD->hasLocalStorage() && !isa<ParmVarDecl>(VD) &&
+           !VD->getType()->isReferenceType();
+  }
+
   /// Attributes a write to a parameter and classifies the range it covers.
   void recordWrite(const Expr* LHS) {
     LHS = LHS->IgnoreParenImpCasts();
@@ -896,12 +935,13 @@ private:
     }
 
     // Reached through a pointer, but not one of this function's parameters:
-    // it may alias any of them, and nothing here rules that out.
+    // it may alias any of them, and nothing here rules that out -- unless the
+    // pointer is a local array decaying, which is storage of this frame.
     const auto* DRE = dyn_cast<DeclRefExpr>(Base->IgnoreParenImpCasts());
     const auto* PVD = DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
     auto it = PVD ? m_ParamIdx.find(PVD) : m_ParamIdx.end();
     if (it == m_ParamIdx.end()) {
-      if (Base->getType()->isPointerType()) {
+      if (Base->getType()->isPointerType() && !isInsideLocalObject(LHS)) {
         m_Opaque = true;
         if (m_OpaqueAt.isInvalid())
           m_OpaqueAt = LHS->getBeginLoc();
