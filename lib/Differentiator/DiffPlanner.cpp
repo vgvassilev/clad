@@ -501,7 +501,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     if (m_EarlyReturnInfo.HasAnalysisRun)
       return m_EarlyReturnInfo.HasEarlyReturns;
     const FunctionDecl* Def = Function ? Function->getDefinition() : nullptr;
-    if (!Def || !Def->hasBody() || Def->getReturnType()->isVoidType())
+    if (!Def || !Def->hasBody())
       return false;
     // An early-return body has a return that is not the tail return. Returns
     // inside a nested lambda belong to that lambda's own function, so do not

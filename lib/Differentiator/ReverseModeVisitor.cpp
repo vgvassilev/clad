@@ -30,6 +30,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
@@ -946,6 +947,27 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return false;
   }
 
+  static bool branchHasReturn(const Stmt* S) {
+    if (!S)
+      return false;
+    if (isa<ReturnStmt>(S))
+      return true;
+    if (!isa<CompoundStmt>(S) && !isa<IfStmt>(S))
+      return false;
+    return llvm::any_of(S->children(), branchHasReturn);
+  }
+
+  static bool loopHasPartialReturn(const Stmt* S) {
+    if (const auto* IS = dyn_cast<IfStmt>(S)) {
+      if ((!stmtAlwaysExits(IS->getThen()) && branchHasReturn(IS->getThen())) ||
+          (!stmtAlwaysExits(IS->getElse()) && branchHasReturn(IS->getElse())))
+        return true;
+    } else if (!isa<CompoundStmt>(S)) {
+      return false;
+    }
+    return llvm::any_of(S->children(), loopHasPartialReturn);
+  }
+
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,
@@ -1343,7 +1365,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         m_Sema.getASTContext(), bodyDiff.getStmt(), LoopVDForwardDiff);
 
     beginBlock(direction::forward);
-    addToCurrentBlock(d_decBegin);
+    Stmt* reverseIncrement = d_decBegin;
+    if (m_CurrentBreakFlagExpr) {
+      Expr* counter = loopCounter.getCounterConditionResult().get().second;
+      Expr* didIncrement =
+          BuildOp(BO_LOr,
+                  BuildOp(BO_NE, counter,
+                          BuildDeclRef(loopCounter.getNumRevIterations())),
+                  BuildParens(CloneNode(m_CurrentBreakFlagExpr)));
+      reverseIncrement = clad_compat::IfStmt_Create(
+          m_Context, noLoc, false, nullptr, nullptr, didIncrement, noLoc, noLoc,
+          d_decBegin, noLoc, nullptr);
+    }
+    addToCurrentBlock(reverseIncrement);
     addToCurrentBlock(storeLoop.getStmt_dx());
     addToCurrentBlock(storeAdjLoop.getStmt_dx());
     CompoundStmt* LoopVDReverseDiff = endBlock(direction::forward);
@@ -1364,8 +1398,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     addToCurrentBlock(Reverse, direction::reverse);
     Reverse = endBlock(direction::reverse);
 
+    Stmt* revInit = nullptr;
+    if (loopCounter.getNumRevIterations())
+      revInit = BuildDeclStmt(loopCounter.getNumRevIterations());
     Reverse = new (m_Context)
-        ForStmt(m_Context, /*Init=*/nullptr, counterCondition,
+        ForStmt(m_Context, revInit, counterCondition,
                 /*CondVar=*/nullptr, counterDecrement, Reverse,
                 FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
     addToCurrentBlock(Reverse, direction::reverse);
@@ -1720,10 +1757,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     // Initially, df/df = 1.
-    if (m_DiffReq->getReturnType()->isVoidType())
-      return {nullptr, nullptr};
     const Expr* value = RS->getRetValue();
-    QualType type = value->getType();
+    QualType type = value ? value->getType() : m_Context.VoidTy;
     Expr* dfdf = nullptr;
     // m_Pullback.back() is a single template node shared by every return in the
     // function; each return needs its own seed subtree, because once a seed is
@@ -1731,7 +1766,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // The literal seed (df/df = 1) is re-synthesized fresh rather than cloned,
     // so no intermediate clone is orphaned when the seed is dropped; other
     // seeds (e.g. a pullback parameter reference) are cloned.
-    if (!m_Pullback.empty()) {
+    if (value && !m_Pullback.empty()) {
       Expr* pullback = m_Pullback.back();
       if (const auto* IL = dyn_cast<IntegerLiteral>(pullback))
         dfdf = ConstantFolder::synthesizeLiteral(IL->getType(), m_Context,
@@ -1747,19 +1782,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                     m_Sema.PrepareScalarCast(tmp, type))
                  .get();
     }
-    auto ReturnResult = DifferentiateSingleExpr(value, dfdf);
+    auto ReturnResult = value ? DifferentiateSingleExpr(value, dfdf)
+                              : std::pair<StmtDiff, StmtDiff>{};
     StmtDiff ReturnDiff = ReturnResult.first;
     StmtDiff ExprDiff = ReturnResult.second;
     Stmt* Reverse = ReturnDiff.getStmt_dx();
-    for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
-      addToCurrentBlock(S, direction::forward);
+    if (const auto* CS = dyn_cast_or_null<CompoundStmt>(ReturnDiff.getStmt()))
+      for (Stmt* S : CS->body())
+        addToCurrentBlock(S, direction::forward);
 
     // FIXME: When the return type of a function is a class, ExprDiff.getExpr()
     // returns nullptr, which is a bug. For the time being, the only use case of
     // a return type being class is in pushforwards. Hence a special case has
     // been made to to not do the StoreAndRef operation when return type is
     // ValueAndPushforward.
-    if (!utils::IsCladValueAndPushforwardType(type)) {
+    if (value && !utils::IsCladValueAndPushforwardType(type)) {
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeFinalizingVisitReturnStmt(ExprDiff);
     }
@@ -1796,19 +1833,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         GetActiveBreakContStmtHandler()->m_IsInvokedBySwitchStmt)
       addToCurrentBlock(CloseReverseSwitchCaseGroup(*GetActiveSwitchStmtInfo()),
                         direction::reverse);
-    // A return mid-iteration must record a control-flow-tape case, same as
-    // continue. Otherwise a loop that also has break/continue still pops the
-    // size_t tape in reverse, but this iteration never pushed (the fallthrough
-    // push lives at the end of the body, which the return skipped).
+    // Partially exiting branches need a case for every return in the loop.
     for (BreakContStmtHandler& H : m_BreakContStmtHandlers) {
-      // Only a loop that breaks or continues records which way an iteration
-      // left; the return is then one more way.
-      if (H.m_IsInvokedBySwitchStmt ||
-          !m_DiffReq.hasBreakOrContinue(H.m_LoopBody))
+      if (H.m_IsInvokedBySwitchStmt)
+        continue;
+      const auto& parents = m_Context.getParents(*H.m_LoopBody);
+      bool isRangeLoop = !parents.empty() && parents[0].get<CXXForRangeStmt>();
+      if (!m_DiffReq.hasBreakOrContinue(H.m_LoopBody) && !isRangeLoop &&
+          !loopHasPartialReturn(H.m_LoopBody))
         continue;
       addToCurrentBlock(H.GetNextCFCaseStmt(), direction::reverse);
       addToCurrentBlock(H.CreateCFTapePushExprToCurrentCase(),
                         direction::forward);
+      if (isRangeLoop) {
+        Expr* didNotReturn = H.CreateCFTapeBackExprForCurrentCase();
+        m_CurrentBreakFlagExpr =
+            m_CurrentBreakFlagExpr
+                ? BuildOp(BO_LAnd, m_CurrentBreakFlagExpr, didNotReturn)
+                : didNotReturn;
+      }
     }
     addToCurrentBlock(Reverse, direction::reverse);
 
