@@ -48,7 +48,43 @@ void TBRAnalyzer::markLocation(const clang::Stmt* S) {
   m_TBRLocs.insert(S);
 }
 
+/// Whether \p E stores through a pointer loaded from anything but a pointer
+/// variable, such as `ptrs[0][1]` or `h.p[1]`. The variable data follows a
+/// pointer variable to what it points to, but not a pointer kept in an array
+/// or a struct, so such a store may land in any parameter.
+static bool storesThroughLoadedPointer(const Expr* E) {
+  while (true) {
+    E = E->IgnoreParens();
+    const Expr* Base = nullptr;
+    if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+      Base = ASE->getBase();
+    else if (const auto* ME = dyn_cast<MemberExpr>(E))
+      Base = ME->getBase();
+    else if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+      if (UO->getOpcode() != UO_Deref)
+        return false;
+      Base = UO->getSubExpr();
+    } else
+      return false;
+    Base = Base->IgnoreParens();
+    if (const auto* ICE = dyn_cast<ImplicitCastExpr>(Base))
+      if (ICE->getCastKind() == CK_LValueToRValue &&
+          ICE->getType()->isPointerType() &&
+          !isa<DeclRefExpr>(ICE->getSubExpr()->IgnoreParens()))
+        return true;
+    E = Base->IgnoreParenImpCasts();
+  }
+}
+
+void TBRAnalyzer::markAllMemoryParamsModified() {
+  for (const ParmVarDecl* PVD : m_Function->parameters())
+    if (utils::isMemoryType(PVD->getType()))
+      (*m_ModifiedParams)[m_Function].insert(PVD);
+}
+
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
+  if (!isReq && m_ModifiedParams && storesThroughLoadedPointer(E))
+    markAllMemoryParamsModified();
   llvm::SmallVector<ProfileID, 2> IDSequence;
   const VarDecl* VD = nullptr;
   bool sequenceFound = getIDSequence(E, VD, IDSequence);
@@ -408,6 +444,8 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
     if (findReq(E))
       markLocation(E);
     if (m_ModifiedParams) {
+      if (storesThroughLoadedPointer(E))
+        markAllMemoryParamsModified();
       std::set<const clang::VarDecl*> vars;
       getDependencySet(E, vars);
       for (const VarDecl* VD : vars) {

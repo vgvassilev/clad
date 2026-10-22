@@ -1543,6 +1543,14 @@ namespace clad {
                                                followLocalReferences);
       }
       while (true) {
+        E = E->IgnoreParens();
+        // A pointer loaded from anything but a variable of its own, such as
+        // `ptrs[0]` or `h.p`, may point anywhere.
+        if (const auto* ICE = dyn_cast<clang::ImplicitCastExpr>(E))
+          if (ICE->getCastKind() == clang::CK_LValueToRValue &&
+              ICE->getType()->isPointerType() &&
+              !isa<clang::DeclRefExpr>(ICE->getSubExpr()->IgnoreParens()))
+            return false;
         E = E->IgnoreParenImpCasts();
         if (const auto* UO = dyn_cast<clang::UnaryOperator>(E)) {
           peeled |= UO->getOpcode() == clang::UO_Deref;

@@ -61,6 +61,8 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   /// required/not required. For isReq==true, checks if the current mode is
   /// markingMode and nonLinearMode. E could be DeclRefExpr,
   /// ArraySubscriptExpr or MemberExpr.
+  /// Records every pointer or reference parameter as modified.
+  void markAllMemoryParamsModified();
   void setIsRequired(const clang::Expr* E, bool isReq = true);
 
   //// Modes Setters
