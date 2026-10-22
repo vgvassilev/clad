@@ -29,7 +29,9 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/DiagnosticSema.h"
@@ -46,6 +48,7 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -441,7 +444,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (E.isValid() &&
           clad_compat::SourceManager_isPointWithin(SM, Loc, B, E))
         return true;
-      else if (SM.isBeforeInTranslationUnit(B, Loc))
+      if (E.isInvalid() && SM.isBeforeInTranslationUnit(B, Loc))
         return true;
     }
     return false;
@@ -461,6 +464,37 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return CS->body_empty() ? nullptr
                               : dyn_cast<ReturnStmt>(*CS->body_rbegin());
     return dyn_cast<ReturnStmt>(Body);
+  }
+
+  /// Whether \p S has a `break` or `continue` of the loop whose body it is:
+  /// not one of a nested loop, nor a `break` of a switch inside it.
+  static bool loopBodyHasBreakOrContinue(const Stmt* S,
+                                         bool insideSwitch = false) {
+    if (isa<ContinueStmt>(S))
+      return true;
+    if (isa<BreakStmt>(S))
+      return !insideSwitch;
+    if (isa<ForStmt>(S) || isa<WhileStmt>(S) || isa<DoStmt>(S) ||
+        isa<CXXForRangeStmt>(S))
+      return false;
+    // A child may be absent, an omitted part of the statement.
+    if (isa<SwitchStmt>(S)) {
+      for (const Stmt* C : S->children())
+        if (C && loopBodyHasBreakOrContinue(C, /*insideSwitch=*/true))
+          return true;
+      return false;
+    }
+    for (const Stmt* C : S->children())
+      if (C && loopBodyHasBreakOrContinue(C, insideSwitch))
+        return true;
+    return false;
+  }
+
+  bool DiffRequest::hasBreakOrContinue(const Stmt* LoopBody) const {
+    auto [It, Inserted] = m_BreakOrContinueInfo.try_emplace(LoopBody, false);
+    if (Inserted)
+      It->second = loopBodyHasBreakOrContinue(LoopBody);
+    return It->second;
   }
 
   bool DiffRequest::hasEarlyReturns() const {
@@ -486,6 +520,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     F.TraverseStmt(Def->getBody());
     m_EarlyReturnInfo = {F.Found, /*HasAnalysisRun=*/true};
     return F.Found;
+  }
+
+  llvm::SmallVector<const ParmVarDecl*, 2>
+  DiffRequest::getOutputParams() const {
+    llvm::SmallVector<const ParmVarDecl*, 2> outputParams;
+    if (Function && utils::CanReturnOutputTangent(Function))
+      utils::CollectOutputParams(Function, outputParams);
+    return outputParams;
+  }
+
+  const ParmVarDecl* DiffRequest::getOutputTangentParam() const {
+    // Every other mode either keeps the primal's return type or has somewhere
+    // of its own to put an output parameter's tangent, as a pushforward does.
+    if (Mode != DiffMode::forward)
+      return nullptr;
+    llvm::SmallVector<const ParmVarDecl*, 2> outputParams = getOutputParams();
+    if (outputParams.size() != 1)
+      return nullptr;
+    return outputParams.front();
   }
 
   const FunctionLoopFacts& DiffRequest::getLoopFacts() const {
@@ -1016,6 +1069,18 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     public:
       VariedChecker(const DiffRequest& DR) : m_Request(DR) {}
+      // The default expression is not exposed through children().
+      bool VisitCXXDefaultArgExpr(CXXDefaultArgExpr* E) {
+        return TraverseStmt(E->getExpr());
+      }
+      bool VisitCXXDefaultInitExpr(CXXDefaultInitExpr* E) {
+        return TraverseStmt(E->getExpr());
+      }
+      bool TraverseInitListExpr(InitListExpr* E) {
+        // Default member initializers only appear in the semantic form.
+        InitListExpr* semantic = E->getSemanticForm();
+        return TraverseSynOrSemInitListExpr(semantic ? semantic : E);
+      }
       bool isVariedE(const clang::Expr* E) {
         // The call-activity pre-pass also fills the varied set, and its
         // conservative markings (an argument handed to a non-const pointer
@@ -1161,8 +1226,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.Mode = DiffMode::reverse;
     else
       llvm_unreachable("unknown mode");
-    // What the command line settled on for the translation unit, which the
-    // clad::opts pairs below may still override for this one request.
+      // What the command line settled on for the translation unit, which the
+      // clad::opts pairs below may still override for this one request.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     request.Enable##Id##Analysis = ReqOpts.Enable##Id##Analysis;
 #include "clad/Differentiator/Analyses.def"
@@ -1184,10 +1249,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       for (const auto& arg : TAL->get(0).pack_elements())
         bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
 
-    // What the request asks of each analysis, over the
-    // whole-translation-unit answer it already carries. Generated from the
-    // same table the command line is: an analysis that can be switched for
-    // the translation unit can be switched for one request.
+        // What the request asks of each analysis, over the
+        // whole-translation-unit answer it already carries. Generated from the
+        // same table the command line is: an analysis that can be switched for
+        // the translation unit can be switched for one request.
 #define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)             \
     const bool enable_##Legacy##_in_req =                                      \
         clad::HasOption(bitmasked_opts_value, clad::opts::enable_##Legacy);    \
@@ -1339,7 +1404,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // user-prodived to handle builtin derivatives. If found, we have to change
     // the mode of the request.
     if (R.EnableErrorEstimation && R.Mode == DiffMode::pullback &&
-        utils::canUsePushforwardInRevMode(R.Function)) {
+        utils::canUsePushforwardInRevMode(
+            R.Function, dyn_cast_or_null<CallExpr>(R.CallContext))) {
       R.Mode = DiffMode::pushforward;
       R.EnableErrorEstimation = false;
       if (Expr* overload = getOverloadExpr(S, DC, R, foundAnyDecl)) {
@@ -1560,11 +1626,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     auto LookupOverload = [this, fnDecl, &request](NamespaceDecl* NSD,
                                                    bool* foundAnyDecl) {
       DeclContext* DC = NSD;
-      if (isa<CXXMethodDecl>(fnDecl))
+      if (isa<CXXMethodDecl>(request.Function))
         DC = utils::LookupNSD(m_Sema, "class_functions",
                               /*shouldExist=*/false, DC);
       else
-        DC = utils::FindDeclContext(m_Sema, DC, fnDecl->getDeclContext());
+        DC = utils::FindDeclContext(
+            m_Sema, DC, utils::GetCustomDerivativeLookupContext(fnDecl));
       if (!DC)
         return static_cast<Expr*>(nullptr);
       return getOverloadExpr(m_Sema, DC, request, foundAnyDecl);
@@ -1684,6 +1751,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       Checker.TraverseDecl(D);
   }
 
+  bool DiffCollector::TraverseCUDAKernelCallExpr(CUDAKernelCallExpr* KCE) {
+    return WalkUpFromCUDAKernelCallExpr(KCE) &&
+           TraverseStmt(KCE->getCallee()) &&
+           llvm::all_of(KCE->arguments(),
+                        [this](Expr* arg) { return TraverseStmt(arg); });
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     DiffRequest request;
@@ -1701,14 +1775,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // In that case we should ask the enclosing ast nodes for a source
       // location and check if it is within range.
       SourceLocation endLoc = E->getEndLoc();
-      if (endLoc.isInvalid() || !isInInterval(endLoc))
-        return true;
-
       // We need to find our 'special' diff annotated such:
       // clad::differentiate(...) __attribute__((annotate("D")))
       // TODO: why not check for its name? clad::differentiate/gradient?
       if (!isCladEntryPointCall(E))
         return true;
+
+      if (endLoc.isInvalid() || !isInInterval(endLoc)) {
+        if (endLoc.isValid())
+          utils::diag(m_Sema, DiagnosticsEngine::Warning, E->getBeginLoc(),
+                      "clad differentiation call is disabled by "
+                      "'#pragma clad OFF'");
+        return true;
+      }
 
       // A call to clad::differentiate or clad::gradient was not found.
       if (!findTargetFunction(request, E, m_Sema))
@@ -1724,8 +1803,60 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
         return true;
 
+      // The Jacobian ABI has no return-derivative slot. Reject non-void
+      // primals before scheduling or resolving custom derivatives.
+      if (request.Mode == DiffMode::jacobian &&
+          !request.Function->getReturnType()->isVoidType()) {
+        const FunctionDecl* PrimalFD = request.Function;
+        utils::diag(
+            m_Sema, DiagnosticsEngine::Error,
+            request.CallContext->getBeginLoc(),
+            "jacobian mode currently requires function %0 to return void; "
+            "provide differentiable outputs through pointer, reference, or "
+            "array parameters")
+            << PrimalFD;
+        SourceLocation NoteLoc =
+            PrimalFD->getReturnTypeSourceRange().getBegin();
+        if (NoteLoc.isInvalid())
+          NoteLoc = PrimalFD->getLocation();
+        utils::diag(m_Sema, DiagnosticsEngine::Note, NoteLoc,
+                    "%0 declared here with return type %1")
+            << PrimalFD << PrimalFD->getReturnType();
+        return true;
+      }
+
       request.Args = E->getArg(1);
       request.UpdateDiffParamsInfo(m_Sema);
+
+      // A void-returning function's derivative returns the tangent of the one
+      // parameter it writes through. With several such parameters there is no
+      // one tangent to return, and picking one would be a guess, so say so
+      // rather than hand back a derivative whose result cannot be read.
+      // Differentiating a wrapper that returns the wanted output remains the
+      // way to ask for it.
+      if (request.Mode == DiffMode::forward) {
+        llvm::SmallVector<const ParmVarDecl*, 2> outputParams =
+            request.getOutputParams();
+        if (outputParams.size() > 1) {
+          // Point at the differentiation that asked for this, not at the
+          // function: nothing is wrong with the function, and it may live in
+          // a header the user does not own. The parameters it writes through
+          // get a note, so the reason is still reachable from the message.
+          SourceLocation outLoc = request.Args->getBeginLoc();
+          utils::diag(m_Sema, DiagnosticsEngine::Error, outLoc,
+                      "attempted to differentiate '%0', which returns void and "
+                      "writes through %1 parameters; forward mode returns a "
+                      "single tangent, so differentiate a wrapper returning "
+                      "the output you need")
+              << request.Function->getNameAsString()
+              << static_cast<unsigned>(outputParams.size()) << outLoc;
+          for (const ParmVarDecl* PVD : outputParams)
+            utils::diag(m_Sema, DiagnosticsEngine::Note, PVD->getLocation(),
+                        "'%0' is written through here")
+                << PVD->getNameAsString() << PVD->getLocation();
+          return true;
+        }
+      }
       if (request.Mode == DiffMode::reverse && request.EnableVariedAnalysis &&
           request.Args)
         seedVariedDirection(request);
@@ -1763,6 +1894,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           request.EnableVariedAnalysis = false;
           return true;
         }
+        // Captured lambda pushforward is built directly
+        if (isLambdaCallOperator(MD) && !MD->getParent()->field_empty() &&
+            (m_TopMostReq->Mode == DiffMode::forward ||
+             m_TopMostReq->Mode == DiffMode::vector_forward_mode))
+          return true;
         const CXXRecordDecl* CD = MD->getParent();
         if (clad::utils::hasNonDifferentiableAttribute(CD))
           nonDiff = true;
@@ -1771,9 +1907,13 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       QualType returnType = FD->getReturnType();
       bool hasPointerOrRefReturn = utils::isNonConstReferenceType(returnType) ||
                                    returnType->isPointerType();
+      // Such a call moves a derivative through a global, whatever its
+      // arguments.
+      bool touchesGlobal = touchesActiveGlobal(E, FD);
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
       if (!(MD && MD->isInstance()) && !hasPointerOrRefReturn &&
+          !touchesGlobal &&
           allArgumentsAreLiterals(E->arguments(), m_ParentReq))
         nonDiff = true;
       // In reverse mode, calls without memory parameters normally have no
@@ -1802,10 +1942,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       request.Function = FD;
       request.CallContext = E;
+      // A pushforward has no way to hand an adjoint to a global.
       bool canUsePushforwardInRevMode =
           m_TopMostReq->Mode == DiffMode::reverse &&
-          !request.EnableErrorEstimation &&
-          utils::canUsePushforwardInRevMode(FD);
+          !request.EnableErrorEstimation && !touchesGlobal &&
+          utils::canUsePushforwardInRevMode(FD, E);
 
       std::string FDName = FD->getNameAsString();
 #if CLANG_VERSION_MAJOR < 16
@@ -1833,7 +1974,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         return true;
       }
 
-      // FIXME: Use elidable_reverse_forw
+      // FIXME: Use CLAD_ELIDABLE_REVERSE_FORW
       if (request.Mode == DiffMode::pullback &&
           (FDName == "cudaMemcpy" || FDName == "begin" || FDName == "end"))
         return true;
@@ -1929,7 +2070,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         E->getDirectCallee();
     bool shouldUseRestoreTracker =
         utils::shouldUseRestoreTracker(request.Function);
-    bool hasCustomPullback = LookupCustomDerivativeDecl(request);
+    // Literal-only calls like log(2) are non-differentiable, so their
+    // pushforward is never called. Builtin pushforwards use floating-point
+    // types, so log<int> reports a type mismatch.
+    bool hasCustomPullback =
+        (!nonDiff || request.Mode != DiffMode::pushforward) &&
+        LookupCustomDerivativeDecl(request);
     // Share one request between early classification and final scheduling.
     DiffRequest forwPassRequest;
     if (request.Mode == DiffMode::pullback) {
@@ -2110,7 +2256,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       if (hasCustomReverseForw ||
           (!hasCustomPullback &&
-           (utils::returnsAdjoint(returnType) || shouldUseRestoreTracker))) {
+           (utils::returnsAdjoint(returnType) || shouldUseRestoreTracker ||
+            utils::allocatesIntoRecordParam(request.Function)))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
       }
     }
@@ -2136,6 +2283,181 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                                  .getInPlaceReallocPtr(BO->getLHS()))
         m_ParentReq->InPlaceReallocPtrs.insert(p);
     return true;
+  }
+
+  /// Whether reverse mode can carry a derivative through a global of type
+  /// \p T: a floating-point scalar, or a plain struct made only of those.
+  /// Pointers, references and integers (counters, flags) cannot, and neither
+  /// can an array yet: reverse mode does not compile a global array's adjoint.
+  static bool isFloatingAggregate(QualType T) {
+    T = T.getCanonicalType();
+    if (T->isRealFloatingType())
+      return true;
+    if (const auto* RD = T->getAsCXXRecordDecl()) {
+      if (!RD->hasDefinition() || !RD->isAggregate() || RD->getNumBases())
+        return false;
+      return !RD->field_empty() &&
+             std::all_of(RD->field_begin(), RD->field_end(),
+                         [](const FieldDecl* F) {
+                           return isFloatingAggregate(F->getType());
+                         });
+    }
+    return false;
+  }
+
+  const DiffCollector::GlobalAccess&
+  DiffCollector::getGlobalAccess(const FunctionDecl* FD) {
+    auto found = m_GlobalAccess.find(FD);
+    if (found != m_GlobalAccess.end())
+      return found->second;
+
+    class Collector : public RecursiveASTVisitor<Collector> {
+      GlobalAccess& m_Access;
+      /// The variable an lvalue stores into: `g`, `g.v`, `g[i]`.
+      static const DeclRefExpr* assignedVar(const Expr* E) {
+        while (true) {
+          E = E->IgnoreParenImpCasts();
+          if (const auto* ME = dyn_cast<MemberExpr>(E)) {
+            if (ME->isArrow())
+              return nullptr;
+            E = ME->getBase();
+          } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+            // `p[i]` stores through a pointer, not into p.
+            E = ASE->getBase()->IgnoreParenImpCasts();
+            if (!E->getType()->isArrayType())
+              return nullptr;
+          } else
+            break;
+        }
+        return dyn_cast<DeclRefExpr>(E);
+      }
+      static bool isTracked(const DeclRefExpr* DRE) {
+        const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+        return VD && VD->isFileVarDecl() && !VD->getType().isConstQualified() &&
+               isFloatingAggregate(VD->getType());
+      }
+      /// The variables a plain assignment stores into without reading them.
+      llvm::SmallPtrSet<const DeclRefExpr*, 4> m_StoreOnly;
+      void addWrite(const DeclRefExpr* DRE) {
+        if (isTracked(DRE))
+          m_Access.Writes.insert(cast<VarDecl>(DRE->getDecl()));
+      }
+
+    public:
+      explicit Collector(GlobalAccess& A) : m_Access(A) {}
+      bool shouldVisitImplicitCode() const { return true; }
+      // `sizeof(g)` and the like read nothing.
+      bool TraverseUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr*) {
+        return true;
+      }
+      // clang-22 added a trailing bool (TraverseQualifier); a defaulted
+      // parameter matches both calls.
+      bool TraverseDecltypeTypeLoc(DecltypeTypeLoc, bool = false) {
+        return true;
+      }
+      bool VisitBinaryOperator(BinaryOperator* BO) {
+        if (!BO->isAssignmentOp())
+          return true;
+        const DeclRefExpr* DRE = assignedVar(BO->getLHS());
+        addWrite(DRE);
+        if (DRE && BO->getOpcode() == BO_Assign)
+          m_StoreOnly.insert(DRE);
+        return true;
+      }
+      bool VisitUnaryOperator(UnaryOperator* UO) {
+        if (UO->isIncrementDecrementOp())
+          addWrite(assignedVar(UO->getSubExpr()));
+        return true;
+      }
+      bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+        if (isTracked(DRE) && !m_StoreOnly.contains(DRE))
+          m_Access.Reads.insert(cast<VarDecl>(DRE->getDecl()));
+        // A global pointer or reference may alias a tracked global.
+        const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+        if (VD && VD->isFileVarDecl() &&
+            (VD->getType()->isPointerType() ||
+             VD->getType()->isReferenceType()) &&
+            VD->getType()->getPointeeType()->isRealFloatingType())
+          m_Access.IndirectReads.insert(VD);
+        return true;
+      }
+      bool VisitCallExpr(CallExpr* CE) {
+        if (const FunctionDecl* Callee = CE->getDirectCallee())
+          m_Access.Callees.push_back(Callee);
+        return true;
+      }
+      bool VisitCXXConstructExpr(CXXConstructExpr* CE) {
+        m_Access.Callees.push_back(CE->getConstructor());
+        return true;
+      }
+    };
+
+    GlobalAccess Access;
+    if (const FunctionDecl* Def = FD->getDefinition())
+      // A constructor's member initializers are part of the declaration, not
+      // of the body; traverse the whole definition.
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      Collector(Access).TraverseDecl(const_cast<FunctionDecl*>(Def));
+    return m_GlobalAccess[FD] = std::move(Access);
+  }
+
+  const DiffCollector::GlobalAccess&
+  DiffCollector::getReachableGlobalAccess(const FunctionDecl* Callee) {
+    auto found = m_ReachableGlobalAccess.find(Callee);
+    if (found != m_ReachableGlobalAccess.end())
+      return found->second;
+    GlobalAccess Reachable;
+    llvm::SmallPtrSet<const FunctionDecl*, 8> Visited;
+    llvm::SmallVector<const FunctionDecl*, 8> Worklist{Callee};
+    while (!Worklist.empty()) {
+      const FunctionDecl* FD = Worklist.pop_back_val();
+      if (!FD || !Visited.insert(FD).second)
+        continue;
+      const GlobalAccess& A = getGlobalAccess(FD);
+      Reachable.Reads.insert(A.Reads.begin(), A.Reads.end());
+      Reachable.Writes.insert(A.Writes.begin(), A.Writes.end());
+      Reachable.IndirectReads.insert(A.IndirectReads.begin(),
+                                     A.IndirectReads.end());
+      Worklist.append(A.Callees.begin(), A.Callees.end());
+    }
+    return m_ReachableGlobalAccess[Callee] = std::move(Reachable);
+  }
+
+  bool DiffCollector::touchesActiveGlobal(const Expr* E,
+                                          const FunctionDecl* Callee) {
+    // Only reverse mode gives a global an adjoint; see VisitDeclRefExpr.
+    if (!m_TopMostReq || !m_ParentReq ||
+        (m_ParentReq->Mode != DiffMode::reverse &&
+         m_ParentReq->Mode != DiffMode::pullback))
+      return false;
+    // A global is active when the differentiated function, anything it
+    // calls, or the caller assigns it, as in `set_g(x); return read_g();`.
+    const GlobalAccess& Top = getReachableGlobalAccess(m_TopMostReq->Function);
+    const GlobalAccess& Parent = getGlobalAccess(m_ParentReq->Function);
+    auto isActive = [&](const VarDecl* VD) {
+      return Top.Writes.count(VD) || Parent.Writes.count(VD);
+    };
+    auto isReadByCaller = [&](const VarDecl* VD) {
+      return Top.Reads.count(VD) || Parent.Reads.count(VD);
+    };
+    // A callee assigning a global the caller reads sends, or kills, the
+    // derivative the caller reads.
+    const GlobalAccess& Callees = getReachableGlobalAccess(Callee);
+    if (std::any_of(Callees.Reads.begin(), Callees.Reads.end(), isActive) ||
+        std::any_of(Callees.Writes.begin(), Callees.Writes.end(),
+                    isReadByCaller)) {
+      m_ParentReq->ActiveGlobalCalls.insert(E);
+      return true;
+    }
+
+    // A global pointer or reference may alias an active global.
+    if (!Callees.IndirectReads.empty() &&
+        (!Top.Writes.empty() || !Parent.Writes.empty()))
+      utils::diag(m_Sema, DiagnosticsEngine::Warning, E->getBeginLoc(),
+                  "%0 reads the global %1 through a pointer or reference; "
+                  "clad does not differentiate through it")
+          << Callee << *Callees.IndirectReads.begin();
+    return false;
   }
 
   bool DiffCollector::VisitDeclRefExpr(DeclRefExpr* DRE) {
@@ -2212,7 +2534,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
     // Don't build propagators for calls that do not contribute in
     // differentiable way to the result.
-    if (allArgumentsAreLiterals(E->arguments(), m_ParentReq))
+    if (!touchesActiveGlobal(E, CD) &&
+        allArgumentsAreLiterals(E->arguments(), m_ParentReq))
       return true;
 
     if (clad::utils::hasNonDifferentiableAttribute(CD->getParent()))

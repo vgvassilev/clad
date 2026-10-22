@@ -30,11 +30,7 @@ void VectorPushForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
   } else {
     auto* zero =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-    Expr* arraySubscriptExpr =
-        m_Sema
-            .ActOnArraySubscriptExpr(getCurrentScope(), lastParamExpr,
-                                     lastParamExpr->getExprLoc(), zero, noLoc)
-            .get();
+    Expr* arraySubscriptExpr = BuildArraySubscript(lastParamExpr, zero);
     lastParamSizeExpr = BuildArrayRefSizeExpr(arraySubscriptExpr);
   }
 

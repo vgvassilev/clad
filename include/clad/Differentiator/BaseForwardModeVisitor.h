@@ -9,6 +9,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -33,6 +34,11 @@ class BaseForwardModeVisitor
                                           clang::OMPClause*>,
       public VisitorBase {
   unsigned m_IndependentVarIndex = ~0;
+  /// How many operands evaluated only on some paths, or once per iteration
+  /// -- the branches of `?:`, the right side of `&&` and `||`, a loop's
+  /// condition -- the visitor is inside. A statement emitted for one of them
+  /// would run once, on every path.
+  unsigned m_ConditionalOperandDepth = 0;
 
 protected:
   const clang::ValueDecl* m_IndependentVar = nullptr;
@@ -121,6 +127,7 @@ public:
   StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
   virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
   StmtDiff VisitStmt(const clang::Stmt* S);
+  StmtDiff VisitAttributedStmt(const clang::AttributedStmt* S);
   StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
   // Decl is not Stmt, so it cannot be visited directly.
   virtual DeclDiff<clang::VarDecl>
@@ -207,6 +214,11 @@ protected:
       llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
       llvm::SmallVectorImpl<clang::Expr*>& derivedArgs);
 
+  clang::QualType GetLambdaPushforwardType(const clang::LambdaExpr* LE);
+
+  /// Builds the pushforward lambda for LE
+  clang::Expr* buildPushforwardLambda(const clang::LambdaExpr* LE);
+
 private:
   /// Prepares the derivative function parameters.
   void
@@ -218,6 +230,10 @@ private:
   ///   double _d_x = 1;
   ///   double _d_y = 0;
   void GenerateSeeds(const clang::FunctionDecl* dFD);
+  /// The tangent a void-returning primal's derivative should return: the one
+  /// belonging to its sole output parameter. Null whenever the derivative
+  /// returns void, which is every other case.
+  clang::Expr* GetOutputParamTangent();
 };
 } // end namespace clad
 

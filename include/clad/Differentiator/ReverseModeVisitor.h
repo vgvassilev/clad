@@ -24,6 +24,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
@@ -34,6 +35,7 @@
 #include "llvm/ADT/STLExtras.h" // IWYU pragma: keep -- function_ref on LLVM<14
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
 
 #include <array>
 #include <functional>
@@ -195,6 +197,8 @@ namespace clad {
         if (m_Taken)
           return m_RMV.CloneNode(m_Seed);
         m_Taken = true;
+        if (m_Seed->HasSideEffects(m_RMV.m_Context))
+          m_Seed = m_RMV.StoreAndRef(m_Seed, direction::reverse);
         return m_Seed;
       }
       explicit operator bool() const { return m_Seed != nullptr; }
@@ -539,6 +543,7 @@ namespace clad {
     StmtDiff VisitOpaqueValueExpr(const clang::OpaqueValueExpr* OVE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
+    StmtDiff VisitAttributedStmt(const clang::AttributedStmt* S);
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff
     VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
@@ -704,7 +709,8 @@ namespace clad {
       clang::Expr* m_TripCount = nullptr;
 
     public:
-      LoopCounter(ReverseModeVisitor& RMV, clang::Expr* tripCount = nullptr);
+      LoopCounter(ReverseModeVisitor& RMV, clang::Expr* tripCount = nullptr,
+                  clang::QualType countType = {});
 
       /// Returns true if the reverse sweep computes the iteration count from
       /// the loop bounds instead of reading a count the forward sweep kept.
@@ -846,6 +852,9 @@ namespace clad {
       /// control-flow tape. Lets VisitBreakStmt pick the right handling.
       bool m_IsInvokedBySwitchStmt = false;
 
+      /// The body of the loop this handles, or null for a switch.
+      const clang::Stmt* m_LoopBody = nullptr;
+
       BreakContStmtHandler(ReverseModeVisitor& RMV, bool forSwitchStmt = false)
           : m_RMV(RMV), m_IsInvokedBySwitchStmt(forSwitchStmt) {}
 
@@ -905,11 +914,28 @@ namespace clad {
       for (const auto* param : FD->parameters())
         diffParams.push_back(param);
 
-      return utils::GetDerivativeType(m_Sema, FD, DiffMode::pullback,
-                                      diffParams,
-                                      /*forCustomDerv=*/false,
-                                      /*shouldUseRestoreTracker=*/false);
+      clang::QualType baseTy =
+          utils::GetDerivativeType(m_Sema, FD, DiffMode::pullback, diffParams,
+                                   /*forCustomDerv=*/false,
+                                   /*shouldUseRestoreTracker=*/false);
+      if (LE->capture_size() == 0)
+        return baseTy;
+      clang::ASTContext& C = m_Sema.getASTContext();
+      const auto* FPT = baseTy->castAs<clang::FunctionProtoType>();
+      llvm::SmallVector<clang::QualType, 8> paramTypes(
+          FPT->param_types().begin(), FPT->param_types().end());
+      for (const clang::LambdaCapture& Capture : LE->captures()) {
+        const auto* capVD =
+            llvm::cast<clang::VarDecl>(Capture.getCapturedVar());
+        clang::QualType valTy = utils::getNonConstType(
+            capVD->getType().getNonReferenceType(), m_Sema);
+        paramTypes.push_back(valTy);
+        paramTypes.push_back(C.getPointerType(valTy));
+      }
+      return C.getFunctionType(FPT->getReturnType(), paramTypes,
+                               FPT->getExtProtoInfo());
     }
+    /// Builds the pullback lambda for LE
     clang::Expr* buildDerivedLambda(const clang::LambdaExpr* LE);
     /// Builds and returns the sequence of derived function parameters.
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,
@@ -978,6 +1004,8 @@ namespace clad {
       /// can evaluate on entry. Null when that could not be proven, in which
       /// case the forward sweep has to count them.
       clang::Expr* TripCount = nullptr;
+      /// The type TripCount and the counter that holds it are declared with.
+      clang::QualType CountType;
       /// What the induction variable holds once the loop has exited.
       clang::Expr* IndVarEnd = nullptr;
     };

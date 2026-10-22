@@ -29,6 +29,7 @@
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -50,6 +51,7 @@
 
 namespace clang {
 class NestedNameSpecifier;
+class LambdaExpr;
 } // namespace clang
 
 namespace llvm {
@@ -267,6 +269,11 @@ namespace clad {
     /// See the example inside ForwardModeVisitor::VisitDeclStmt.
     std::unordered_map<const clang::VarDecl*, clang::VarDecl*>
         m_DeclReplacements;
+    /// The snapshot of a by-copy capture taken where its lambda is created,
+    /// keyed by the capture's field in the closure type, which names both the
+    /// lambda and the variable: one variable captured by two lambdas has two.
+    llvm::DenseMap<const clang::FieldDecl*, clang::VarDecl*>
+        m_LambdaCaptureSnapshots;
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
@@ -354,7 +361,8 @@ namespace clad {
       /// into it. \p LE only supplies the declaration context to graft the
       /// closure onto, \p BuildParams appends the call operator's parameters.
       void start(const clang::LambdaExpr* LE, clang::QualType CallOpType,
-                 ParamBuilder BuildParams);
+                 ParamBuilder BuildParams,
+                 clang::QualType TrailingReturnType = {});
       /// Closes the scopes start() opened.
       clang::Expr* finish(clang::Stmt* Body);
     };
@@ -434,6 +442,18 @@ namespace clad {
           .get();
     }
 
+    /// Resolve a captured variable to its clone in the enclosing derivative.
+    clang::VarDecl* getEnclosingCaptureClone(const clang::VarDecl* capVD);
+    /// The field of \p LE's closure type that holds the capture of \p capVD.
+    static const clang::FieldDecl* getCaptureField(const clang::LambdaExpr* LE,
+                                                   const clang::VarDecl* capVD);
+    /// The derivative closure of the lambda \p VD holds, which the
+    /// derivative tracks as the adjoint or tangent of \p VD's clone; null
+    /// where none was built.
+    clang::Expr* getLambdaDerivative(const clang::VarDecl* VD);
+    std::pair<clang::Expr*, clang::Expr*>
+    getCaptureValueAndAdjoint(const clang::LambdaExpr* LE,
+                              const clang::VarDecl* capVD, bool isByCopy);
     /// For a qualtype QT returns if it's type is Array or Pointer Type
     static bool isArrayOrPointerType(const clang::QualType QT) {
       return utils::isArrayOrPointerType(QT);
@@ -714,6 +734,8 @@ namespace clad {
           << L;
     }
 
+    bool diagnoseUnsupportedLambda(const clang::LambdaExpr* LE);
+
     /// Shorthand for warning on differentiation of unsupported operators
     void unsupportedOpWarn(clang::SourceLocation loc) {
       diag(clang::DiagnosticsEngine::Warning, loc,
@@ -751,17 +773,22 @@ namespace clad {
     std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>
     SplitArraySubscript(const clang::Expr* ASE);
 
-    /// Build an array subscript expression with a given base expression and
-    /// a sequence of indices.
-    clang::Expr*
-    BuildArraySubscript(clang::Expr* Base,
-                        const llvm::SmallVectorImpl<clang::Expr*>& IS);
+    /// Build `Base[I0][I1]...` through Sema's subscript action, so a class's
+    /// operator[] is used as well as builtin subscripting. The brackets are
+    /// not ones the user wrote unless their locations are given, and a
+    /// subscript may instantiate operator[]'s return type, which needs a valid
+    /// location: so they default to GenLoc(). Null if a subscript is
+    /// ill-formed.
+    clang::Expr* BuildArraySubscript(
+        clang::Expr* Base, const llvm::SmallVectorImpl<clang::Expr*>& IS,
+        clang::SourceLocation LLoc = {}, clang::SourceLocation RLoc = {});
 
-    /// Build an array subscript expression with a given base expression and
-    /// one index.
-    clang::Expr* BuildArraySubscript(clang::Expr* Base, clang::Expr*& Idx) {
+    /// Build `Base[Idx]`, likewise.
+    clang::Expr* BuildArraySubscript(clang::Expr* Base, clang::Expr* Idx,
+                                     clang::SourceLocation LLoc = {},
+                                     clang::SourceLocation RLoc = {}) {
       llvm::SmallVector<clang::Expr*, 1> IS = {Idx};
-      return BuildArraySubscript(Base, IS);
+      return BuildArraySubscript(Base, IS, LLoc, RLoc);
     }
     /// Find declaration of clad::tape templated type.
     clang::TemplateDecl* GetCladTapeDecl();
@@ -805,7 +832,7 @@ namespace clad {
     /// locations of their own. Same reason as BuildCallExpr.
     clang::Expr* BuildInitList(llvm::MutableArrayRef<clang::Expr*> Elements);
 
-    clang::DeclRefExpr* GetCladTapePushDRE();
+    clang::Expr* GetCladTapePushDRE();
 
     clang::Stmt* GetCladZeroInit(llvm::MutableArrayRef<clang::Expr*> args);
 
@@ -935,6 +962,22 @@ namespace clad {
     /// captureless lambdas get a fresh closure; captured lambdas fall back to
     /// a plain clone. Inner lambda-init declarations are rebuilt recursively.
     clang::Expr* buildClonedLambda(const clang::LambdaExpr* LE);
+    /// Builds a call to the numerical_diff function \p Name, whose first
+    /// argument is the function to differentiate. That function's type is
+    /// also written as the first template argument: it was deduced from a
+    /// reference to one overload or specialization, and the name alone does
+    /// not say which.
+    clang::Expr*
+    BuildNumericalDiffCall(const std::string& Name,
+                           llvm::SmallVectorImpl<clang::Expr*>& NumDiffArgs,
+                           clang::Expr* CUDAExecConfig);
+    /// The callee the numerical-diff fallback passes to differentiate a call
+    /// to \p FD made through \p Callee: Callee itself, or a reference to the
+    /// library function a builtin stands for (see utils::GetNumDiffTarget).
+    /// Null when numerical differentiation is not viable for FD.
+    clang::Expr* GetNumDiffCallee(const clang::FunctionDecl* FD,
+                                  clang::Expr* Callee,
+                                  const clang::CallExpr* CE);
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///

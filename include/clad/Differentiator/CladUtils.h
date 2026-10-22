@@ -10,6 +10,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/Diagnostic.h"
@@ -129,6 +130,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// \returns  type with namespace specifier added.
     clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext& C, clang::QualType QT);
 
+    /// The context to look up the custom derivative of a call in: that of the
+    /// declaration the call found, or, for a block-scope using-declaration,
+    /// that of the declaration it names.
+    const clang::DeclContext*
+    GetCustomDerivativeLookupContext(const clang::Decl* Found);
     /// Finds declaration context associated with the DC1::DC2, but doesn't
     /// replicate the common part of the declaration contexts.
     /// For example, consider DC1 corresponds to the following declaration
@@ -197,6 +203,9 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns true if `QT` is Array or Pointer Type, otherwise returns false.
     bool isArrayOrPointerType(clang::QualType QT);
 
+    /// Returns true if A and B are the same parameter, otherwise returns false.
+    bool IsSameParam(const clang::ValueDecl* A, const clang::ValueDecl* B);
+
     /// \returns whether a hessian of \p FD can be assembled from
     /// hessian-vector products rather than derived once per direction.
     ///
@@ -237,8 +246,21 @@ clang::Sema::SemaDiagnosticBuilder diag(
                                    const clang::LookupResult& Overloads);
 
     /// Returns true if the function has only real non-reference parameters and
-    /// returns a real number.
-    bool IsRealFunction(const clang::FunctionDecl* FD);
+    /// returns a real number. A variadic function counts unless the call \p CE
+    /// passes something past its parameters: numerical_diff, like a
+    /// pushforward, calls it through them, and would drop the rest. A null CE
+    /// asks about the function, for its declared parameters.
+    bool IsRealFunction(const clang::FunctionDecl* FD,
+                        const clang::CallExpr* CE);
+
+    /// The function the numerical-diff fallback passes as a pointer to
+    /// differentiate \p FD: FD itself, or, for a builtin whose address cannot
+    /// be taken, the library function it stands for (`exp` for
+    /// `__builtin_exp`). Null when there is none, or FD is not a real
+    /// function for the call \p CE (see IsRealFunction).
+    const clang::FunctionDecl* GetNumDiffTarget(clang::Sema& S,
+                                                const clang::FunctionDecl* FD,
+                                                const clang::CallExpr* CE);
 
     /// Returns true if `arg` is an argument passed by reference or is of
     /// pointer/array type.
@@ -307,7 +329,36 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns the same type as GetValueType but without const qualifier.
     clang::QualType GetNonConstValueType(clang::QualType T);
 
+    /// The unsigned integer type that holds every value of the integer type
+    /// `T`, after integral promotion: `T` itself, as written, when unsigned --
+    /// size_t stays size_t -- and its unsigned counterpart otherwise.
+    /// References and qualifiers are dropped.
+    clang::QualType getUnsignedType(clang::QualType T,
+                                    const clang::ASTContext& C);
+
+    /// The spelling of `T` closest to how it was written that code in `Where`
+    /// can name: `T` itself, or the first of its single-step desugarings that
+    /// is nameable there, or `T` unchanged when none is. The parts of a
+    /// pointer or function type are spelled the same way. Not the
+    /// canonical type: a public typedef of a private class is nameable while
+    /// the class it names is not.
+    clang::QualType getSpellableType(clang::QualType T,
+                                     const clang::DeclContext* Where,
+                                     const clang::ASTContext& C);
+
     clang::QualType getNonConstType(clang::QualType T, clang::Sema& S);
+
+    /// The lambda \p VD is initialized with, through the cleanups and
+    /// conversions around it -- a lambda capturing an object with a
+    /// non-trivial destructor is wrapped -- or null.
+    const clang::LambdaExpr* getLambdaInit(const clang::VarDecl* VD);
+
+    /// A reference to what \p R found, qualified by \p SS and followed by
+    /// \p TemplateArgs when given. Null when Sema rejects it.
+    clang::Expr* BuildDeclarationNameExpr(
+        clang::Sema& S, const clang::CXXScopeSpec& SS, clang::LookupResult& R,
+        bool ADL = false,
+        const clang::TemplateArgumentListInfo* TemplateArgs = nullptr);
 
     /// Builds and returns the init expression to initialise `clad::array` and
     /// `clad::array_ref` from a constant array.
@@ -446,6 +497,9 @@ clang::Sema::SemaDiagnosticBuilder diag(
     LookupTemplateDeclInCladNamespace(clang::Sema& S,
                                       llvm::StringRef ClassName);
 
+    /// Remove only likelihood hints. Semantic statement attributes remain.
+    const clang::Stmt* SkipLikelihoodHints(const clang::Stmt* S);
+
     bool hasNonDifferentiableAttribute(const clang::Decl* D);
 
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
@@ -524,6 +578,29 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns true if QT is a non-const reference type.
     bool isNonConstReferenceType(clang::QualType QT);
 
+    /// Collects the parameters \p FD writes a result through: non-const lvalue
+    /// references to a real type. A function returning void has nowhere else
+    /// to put a result, so in forward mode these are what the derivative has
+    /// to hand back. Pointers are deliberately not counted -- how many
+    /// elements one addresses is not something the signature says.
+    void CollectOutputParams(
+        const clang::FunctionDecl* FD,
+        llvm::SmallVectorImpl<const clang::ParmVarDecl*>& outputParams);
+
+    /// Whether a forward derivative of \p FD may hand back the tangent of an
+    /// output parameter rather than returning void.
+    ///
+    /// The answer has to be the same here and in
+    /// ExtractDerivedFnTraitsForwMode, which decides the derivative's type
+    /// from the header side; where the two disagree CladFunction::execute
+    /// calls through a type whose return it has wrong, and reads a register
+    /// nothing wrote. That rules out instance member functions, whose
+    /// derivative the traits describe through a member pointer type with no
+    /// room for a changed return type. A static member function is addressed
+    /// as a plain function pointer, takes the free-function path in the
+    /// traits, and so belongs here.
+    bool CanReturnOutputTangent(const clang::FunctionDecl* FD);
+
     bool isCopyable(const clang::CXXRecordDecl* RD);
 
     bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
@@ -537,7 +614,7 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// it. This holds for a trivial copy/move constructor (a shallow share of
     /// pointer/handle members), an aggregate, and a memberwise zero-or-copy
     /// initializer. A non-trivial constructor can additionally opt in with the
-    /// elidable_reverse_forw attribute on its custom reverse_forw (see
+    /// CLAD_ELIDABLE_REVERSE_FORW attribute on its custom reverse_forw (see
     /// hasElidableReverseForwAttribute) -- both paths are combined where the
     /// propagator is consumed.
     bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
@@ -554,6 +631,10 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
 
+    /// Whether FD writes into a record argument that owns memory, whose adjoint
+    /// only its reverse_forw can shape.
+    bool allocatesIntoRecordParam(const clang::FunctionDecl* FD);
+
     bool shouldUseRestoreTracker(const clang::FunctionDecl* FD);
     /// Returns true when E designates storage with automatic storage
     /// duration in the current function, reached through subscripts,
@@ -562,8 +643,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// \param E the expression to judge.
     /// \param asPointerValue E is a pointer rvalue passed to a callee, so
     /// the pointee is judged rather than the pointer variable's own slot.
+    /// \param followLocalReferences judge a local reference by what it is
+    /// bound to: right for lifetime, not for aliasing.
     bool designatesLocallyOwnedStorage(const clang::Expr* E,
-                                       bool asPointerValue = false);
+                                       bool asPointerValue = false,
+                                       bool followLocalReferences = false);
 
     bool IsDifferentiableType(clang::QualType T);
 
@@ -571,7 +655,8 @@ clang::Sema::SemaDiagnosticBuilder diag(
 
     /// Returns true if FD can be differentiated as a pushforward
     /// And be used in the reverse mode.
-    bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD);
+    bool canUsePushforwardInRevMode(const clang::FunctionDecl* FD,
+                                    const clang::CallExpr* CE);
 
     ///\returns a fully qualified type that is as close as coders would write.
     clang::QualType makeTypeReadable(clang::Sema& S, clang::QualType Ty);
@@ -587,8 +672,9 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isInjective(const clang::Expr* E, clang::AnalysisDeclContext* ADC);
     /// Checks if the return value of the given CallExpr is unused.
     bool hasUnusedReturnValue(clang::ASTContext& C, const clang::CallExpr* CE);
-    /// Returns true if the function is empty
-    bool hasEmptyBody(const clang::FunctionDecl* FD);
+    /// Whether the derivative \p FD does nothing: it is marked
+    /// CLAD_NOOP_DERIVATIVE or its body is empty.
+    bool isNoopDerivative(const clang::FunctionDecl* FD);
     /// For an expr E, decides if we should recompute it or store it.
     /// This is the central point for checkpointing.
     bool ShouldRecompute(const clang::Expr* E, const clang::ASTContext& C);

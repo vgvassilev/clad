@@ -34,6 +34,7 @@
 #include <memory>
 #include <set>
 #include <unordered_map>
+#include <vector>
 
 namespace clang {
 class CallExpr;
@@ -193,6 +194,10 @@ private:
     bool HasAnalysisRun = false;
   } m_EarlyReturnInfo;
 
+  /// Cache for hasBreakOrContinue(), per loop body: asked at every return
+  /// inside the loop, so walked once.
+  mutable llvm::DenseMap<const clang::Stmt*, bool> m_BreakOrContinueInfo;
+
   /// Cache for mayHaveNullTangent(): the primal's pointer variables that may
   /// be given a null tangent. A property of the Function, computed once on
   /// demand.
@@ -238,6 +243,33 @@ public:
   /// lambdas belong to their own function and are skipped). A void function
   /// seeds no return value, so its returns skip the encoding.
   bool hasEarlyReturns() const;
+
+  /// The parameters the primal writes its result through, in parameter order:
+  /// non-const lvalue references to a floating point type. Only a function
+  /// returning void has them -- it has nowhere else to put a result -- and
+  /// only one whose derivative can carry a return type of its own, which is
+  /// what utils::CanReturnOutputTangent answers. Empty for every other
+  /// function. Reads Function's parameters directly, so a copied request
+  /// re-pointed at another Function answers for its own.
+  llvm::SmallVector<const clang::ParmVarDecl*, 2> getOutputParams() const;
+
+  /// The parameter whose tangent this request's derivative returns, or null
+  /// when the derivative keeps the primal's void return type. There is one
+  /// only when the primal writes through exactly one: forward mode hands back
+  /// a single tangent, so any choice among several would be a guess.
+  ///
+  /// utils::GetDerivativeType gives the derivative its return type by this
+  /// same rule, and ExtractDerivedFnTraitsForwMode repeats it from the header
+  /// side; where the three disagree CladFunction::execute calls through a
+  /// type whose return it has wrong.
+  const clang::ParmVarDecl* getOutputTangentParam() const;
+
+  /// Whether the loop whose body is \p LoopBody has a `break` or `continue`
+  /// of its own -- not one of a nested loop, nor a `break` of a switch in
+  /// it. A fact about the primal, needed before the visitor reaches the
+  /// statement: a return can come before the break or continue that makes
+  /// the loop record its control flow.
+  bool hasBreakOrContinue(const clang::Stmt* LoopBody) const;
 
   /// Whether the tangent of the primal's pointer variable \p VD may be null at
   /// run time. Clad cannot synthesize a tangent buffer for a const-qualified
@@ -305,6 +337,13 @@ public:
   /// Whether VD is reallocated in place somewhere in this function.
   bool isInPlaceReallocated(const clang::VarDecl* VD) const {
     return InPlaceReallocPtrs.count(VD) != 0;
+  }
+  /// The calls in this function's body that move a derivative through a
+  /// global's adjoint, whatever their arguments; only a pullback can.
+  std::set<const clang::Expr*> ActiveGlobalCalls;
+  /// Whether \p Call is one of ActiveGlobalCalls.
+  bool touchesActiveGlobal(const clang::Expr* Call) const {
+    return ActiveGlobalCalls.count(Call) != 0;
   }
   /// Requested differentiation mode, forward or reverse.
   DiffMode Mode = DiffMode::unknown;
@@ -577,6 +616,27 @@ public:
 
     llvm::DenseSet<const clang::FunctionDecl*> m_Traversed;
 
+    /// The globals a function's own body reads and assigns, and the functions
+    /// it calls directly.
+    struct GlobalAccess {
+      std::set<const clang::VarDecl*> Reads;
+      std::set<const clang::VarDecl*> Writes;
+      std::set<const clang::VarDecl*> IndirectReads;
+      std::vector<const clang::FunctionDecl*> Callees;
+    };
+    /// A std::map: references into it stay valid while it grows.
+    std::map<const clang::FunctionDecl*, GlobalAccess> m_GlobalAccess;
+    const GlobalAccess& getGlobalAccess(const clang::FunctionDecl* FD);
+    /// The union of getGlobalAccess() over the functions reachable from a
+    /// callee through direct calls, itself included.
+    std::map<const clang::FunctionDecl*, GlobalAccess> m_ReachableGlobalAccess;
+    const GlobalAccess&
+    getReachableGlobalAccess(const clang::FunctionDecl* Callee);
+    /// Whether the call \p E reads a global the differentiated code assigns,
+    /// or assigns one it reads; if so, records \p E on the parent request.
+    bool touchesActiveGlobal(const clang::Expr* E,
+                             const clang::FunctionDecl* Callee);
+
     bool m_IsTraversingTopLevelDecl = true;
 
     /// The function whose body the traversal is currently inside, or null at
@@ -622,6 +682,9 @@ public:
     /// or constructor initializers. If we use Visit they would be processed
     /// under the parent DiffRequest which is not in the lambda scope.
     bool TraverseLambdaExpr(clang::LambdaExpr* LE);
+    /// Plans the requests a kernel launch contains without descending into
+    /// its execution configuration.
+    bool TraverseCUDAKernelCallExpr(clang::CUDAKernelCallExpr* KCE);
     /// Plan a lazily-scheduled nested request the static TU walk never reaches
     /// (built in DerivativeBuilder::HandleNestedDiffRequest). Currently records
     /// its early-return flag by walking the request's own body.

@@ -16,11 +16,13 @@
 #include "clang/AST/Stmt.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/Lambda.h"
 
 #include "AnalysisBase.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
@@ -33,7 +35,18 @@ using namespace clang;
 
 namespace clad {
 
-void TBRAnalyzer::markLocation(const clang::Stmt* S) { m_TBRLocs.insert(S); }
+void TBRAnalyzer::markLocation(const clang::Stmt* S) {
+  // The CFG splits `double a = .., b = ..;` into one synthetic DeclStmt per
+  // declarator, and that is what the analysis walks. The reverse-mode visitor
+  // asks about the statement as written, so record that one.
+  if (const auto* DS = dyn_cast<DeclStmt>(S))
+    for (const auto& SynthAndSource : m_AnalysisDC->getCFG()->synthetic_stmts())
+      if (SynthAndSource.first == DS) {
+        S = SynthAndSource.second;
+        break;
+      }
+  m_TBRLocs.insert(S);
+}
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   llvm::SmallVector<ProfileID, 2> IDSequence;
@@ -283,14 +296,19 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     if (nonLinear)
       startNonLinearMode();
 
+    // The reverse sweep reads a stored operand's copy, so the operation needs
+    // none of its operands. It still differentiates through the operand,
+    // though, and the operand's own non-linear subexpressions read theirs:
+    // keep marking on and drop only the non-linear bit. The same holds for a
+    // stored numerator or denominator below.
     if (LHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(L);
     if (LHSIsStored)
       resetMode();
 
     if (RHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(R);
     if (RHSIsStored)
       resetMode();
@@ -308,13 +326,13 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     bool LHSIsStored =
         !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
     if (LHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(L);
     if (LHSIsStored)
       resetMode();
     bool RHSIsStored = utils::UsefulToStore(R);
     if (RHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(R);
     if (RHSIsStored)
       resetMode();
@@ -424,6 +442,21 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
       TraverseStmt(arg);
     resetMode();
     return false;
+  }
+  // A lambda reads what it captures by reference when it is called, not where
+  // it is created: mark those variables used here, as if passed by reference.
+  if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+    const auto* DRE =
+        dyn_cast<DeclRefExpr>(OCE->getArg(0)->IgnoreParenImpCasts());
+    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+    if (const LambdaExpr* LE = utils::getLambdaInit(VD)) {
+      setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
+      for (auto [Cap, Init] : llvm::zip(LE->captures(), LE->capture_inits()))
+        if (Cap.getCaptureKind() == LCK_ByRef)
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          TraverseStmt(const_cast<Expr*>(Init));
+      resetMode();
+    }
   }
   // Use information about parameters assuming the analysis was performed.
   bool shouldAnalyzeParams = m_ModifiedParams && (m_ModifiedParams->find(FD) !=

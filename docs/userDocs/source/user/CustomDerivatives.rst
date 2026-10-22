@@ -44,6 +44,23 @@ a pointer type. This case will be explained in more detail later.
 .. _pushforward: https://en.wikipedia.org/wiki/Pushforward_(differential)
 .. _pullback: https://en.wikipedia.org/wiki/Pullback_(differential_geometry)
 
+.. note::
+
+   A custom ``_darg`` derivative is matched on its whole signature, return type
+   included. A function returning ``void`` that writes its result through a
+   single non-const reference to a floating point type has a derivative
+   returning that parameter's tangent, so a custom derivative for it returns
+   the tangent rather than ``void``:
+
+   .. literalinclude:: ../../../../test/Documentation/CustomDerivatives/OutputParameter.cpp
+      :language: cpp
+      :start-after: docs-begin-output-parameter
+      :end-before: docs-end-output-parameter
+
+   A custom derivative still written as ``void`` is not silently ignored --
+   Clad reports that one was provided but not used, and names the signature it
+   expected.
+
 
 Clad internally automatically differentiates functions using these same flavours.
 If Clad needs to differentiate a function ``fn`` that has a custom derivative
@@ -71,6 +88,14 @@ under ``clad::custom_derivatives``, that is, ``clad::custom_derivatives::A::B::C
 The custom derivatives under ``clad::custom_derivatives::class_functions`` do not
 follow this rule. The custom derivatives for the class functions must all be defined
 directly in ``clad::custom_derivatives::class_functions`` regardless of the class's namespace.
+
+.. note::
+
+  Once ``clad::custom_derivatives::A`` exists, an unqualified ``A::`` written
+  anywhere inside ``clad::custom_derivatives`` names that nested namespace,
+  not the global ``A``: ordinary C++ name lookup finds the innermost ``A``
+  first. Refer to the primal's entities from a custom derivative with a fully
+  qualified name, such as ``::A::B::C::fn`` or ``::A::Matrix``.
 
 .. note::
 
@@ -246,6 +271,18 @@ Some important things to note here:
   then followed by the partial derivatives of the functions' arguments. The order of the
   arguments must be the same as in the original function.
 
+- A pullback may be only declared and defined in another translation unit; Clad
+  calls it and the linker resolves it. Clad omits the call to a pullback whose
+  body is empty, or to one declared without a body and marked
+  ``CLAD_NOOP_DERIVATIVE``, written before the declaration. The macro expands
+  to ``[[clad::noop_derivative]]`` when the Clad plugin is loaded:
+
+  .. code-block:: cpp
+
+     namespace clad::custom_derivatives {
+     CLAD_NOOP_DERIVATIVE void free_pullback(void* ptr, void* d_ptr);
+     }
+
 Reverse-forward custom derivatives
 ====================================
 
@@ -297,6 +334,24 @@ Some important things to note here:
 
 - The reverse-forward custom derivative function must return a ``clad::ValueAndAdjoint``
   object. This object contains both the primal value and the adjoint.
+
+Some reverse-forward passes need no code of their own: calling the original
+function on the arguments and again on their adjoints already yields the value
+and the adjoint, as for element access (``arr.at(i)`` and ``d_arr.at(i)``).
+Declare such a reverse-forward function without a body and mark it
+``CLAD_ELIDABLE_REVERSE_FORW``, written before the declaration; Clad then makes
+those two calls instead of calling it. The macro expands to
+``[[clad::elidable_reverse_forw]]`` when the Clad plugin is loaded. Clad's own
+``std::array::at`` is declared this way:
+
+.. code-block:: cpp
+
+   namespace clad::custom_derivatives::class_functions {
+   template <typename T, ::std::size_t N>
+   CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&> at_reverse_forw(
+       ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
+       ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type d_idx);
+   }
 
 Member functions custom derivatives
 =====================================
@@ -451,8 +506,8 @@ Each remark gives you the ways to resolve the boundary:
   the thing to mark.
 - **Elide its reverse-forward pass.** For a reverse-forward-pass boundary whose
   pass is a no-op (e.g. a shallow copy that shares its adjoint), declare the
-  printed ``..._reverse_forw`` and mark it ``elidable_reverse_forw``;
-  Clad then skips the call instead of cloning a body.
+  printed ``..._reverse_forw`` and mark it ``CLAD_ELIDABLE_REVERSE_FORW``, written
+  before the declaration; Clad then skips the call instead of cloning a body.
 
 Only functions outside the main file are reported, so differentiating your own
 code stays quiet; the remarks focus on the library edge you are porting. The

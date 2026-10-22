@@ -1,4 +1,4 @@
-# Two checks are off for reasons that outlive any one patch:
+# Three checks are off for reasons that outlive any one patch:
 #
 # llvm-header-guard derives the expected guard from the absolute path, so for
 # the 28 headers outside include/ it asks for the checkout directory and no
@@ -11,6 +11,13 @@
 # value types: they are short-lived objects holding references to compiler
 # state that outlives them, 38 such members across VisitorBase,
 # DerivativeBuilder, DiffPlanner and the rest.
+#
+# readability-convert-member-functions-to-static flags the hooks of every
+# RecursiveASTVisitor: shouldVisitImplicitCode and the Traverse/Visit methods
+# hide the base's members, which it calls through getDerived(), and rarely use
+# `this`. They are 17 of its 22 findings in lib/ and tools/. The check has no
+# option to skip methods that hide a base-class member
+# (llvm/llvm-project#42347).
 Checks: >
   -*,
   bugprone-*,
@@ -48,6 +55,7 @@ Checks: >
   -clang-analyzer-cplusplus.NewDeleteLeaks,
   -llvm-header-guard,
   -cppcoreguidelines-avoid-const-or-ref-data-members,
+  -readability-convert-member-functions-to-static,
 
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase

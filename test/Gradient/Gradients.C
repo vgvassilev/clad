@@ -647,7 +647,7 @@ float running_sum(float* p, int n) {
 // CHECK: void running_sum_grad(float *p, int n, float *_d_p, int *_d_n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 1; i < n; i++) {
 // CHECK-NEXT:         p[i] += p[i - 1];
 // CHECK-NEXT:     }
