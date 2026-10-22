@@ -531,6 +531,13 @@ namespace clad {
       bool shouldVisitImplicitCode() const { return true; }
       bool VisitStmt(Stmt* P) {
         for (Stmt*& Child : P->children()) {
+          // `this` too is captured only where it is named; in a member
+          // function's closure it was built outside it.
+          if (auto* This = dyn_cast_or_null<CXXThisExpr>(Child)) {
+            Child = Caps.m_V.m_Sema.BuildCXXThisExpr(
+                This->getLocation(), This->getType(), This->isImplicit());
+            continue;
+          }
           auto* DRE = dyn_cast_or_null<DeclRefExpr>(Child);
           if (!DRE)
             continue;
