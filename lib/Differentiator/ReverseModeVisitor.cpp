@@ -3642,7 +3642,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     } else if (opCode == UnaryOperatorKind::UO_AddrOf) {
       diff = Visit(E);
-      Expr* cloneE = BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr());
+      Expr* cloneE = RebuildAddrOf(diff.getExpr());
       Expr* derivedE = BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr_dx());
       return {cloneE, derivedE};
     } else if (opCode == UnaryOperatorKind::UO_Deref) {

@@ -533,6 +533,9 @@ namespace clad {
     /// operand in null.
     clang::Expr* BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E,
                          clang::SourceLocation OpLoc = noLoc);
+    /// Rebuilds `&E`. Clang's implicit move assignment takes the address of an
+    /// xvalue, which Sema refuses to build, so that one is created directly.
+    clang::Expr* RebuildAddrOf(clang::Expr* E);
     /// A shorthand to simplify syntax for creation of new expressions.
     /// This function uses m_Sema.BuildBin internally to build binary
     /// operations. A typical usage of this function looks like the following:
