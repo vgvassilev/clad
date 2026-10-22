@@ -20,6 +20,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/MathExtras.h"
 
 #include <cassert>
 #include <cstdint>
@@ -635,6 +636,20 @@ public:
   }
 };
 
+/// An integer index as `C + sum(a_k * v_k)`, with constant `C` and `a_k`, and
+/// each `v_k` the index of an enclosing counted loop with constant bounds.
+/// Such loops range over a product of intervals, so the extremes of the sum
+/// are the corners: no interval arithmetic guesses, and the bound computed is
+/// a value the index really takes.
+struct AffineIndex {
+  llvm::SmallVector<std::pair<const VarDecl*, int64_t>, 4> Terms;
+  int64_t C = 0;
+};
+
+/// Each coefficient and constant is kept below this, so no sum or product of
+/// two of them overflows int64_t on the way to the next check.
+constexpr int64_t AffineLimit = int64_t(1) << 40;
+
 class ExtentVisitor : public RecursiveASTVisitor<ExtentVisitor> {
   llvm::SmallVectorImpl<WrittenExtent>& m_Extents;
   llvm::DenseMap<const ParmVarDecl*, unsigned> m_ParamIdx;
@@ -646,6 +661,16 @@ class ExtentVisitor : public RecursiveASTVisitor<ExtentVisitor> {
   const ASTContext& m_Context;
   /// The variables the function never writes after their initialiser.
   ReadOnlyVars m_ReadOnly;
+  /// The enclosing loops whose index takes every value of a constant
+  /// interval, innermost last.
+  struct IndexRange {
+    const VarDecl* Var;
+    int64_t Lo, Hi;
+  };
+  llvm::SmallVector<IndexRange, 4> m_Ranges;
+  /// A local the function never writes again, as an affine form of the loop
+  /// indices around its declaration, which are still around every use of it.
+  llvm::DenseMap<const VarDecl*, AffineIndex> m_LocalForms;
 
 public:
   ExtentVisitor(const FunctionDecl* FD,
@@ -658,9 +683,23 @@ public:
 
   bool TraverseForStmt(ForStmt* FS) {
     bool Entered = !breaksShape(FS) && m_Loops.enter(FS);
+    bool Ranged = Entered && pushIndexRange(FS);
     bool res = RecursiveASTVisitor::TraverseForStmt(FS);
+    if (Ranged)
+      m_Ranges.pop_back();
     m_Loops.leave(Entered);
     return res;
+  }
+
+  bool VisitVarDecl(VarDecl* VD) {
+    if (isa<ParmVarDecl>(VD) || !VD->hasLocalStorage() || !VD->getInit() ||
+        !VD->getType()->isIntegerType() ||
+        VD->getType().isVolatileQualified() || !m_ReadOnly.onlyRead(VD))
+      return true;
+    AffineIndex F;
+    if (affineOf(VD->getInit(), F) && fits(F, VD->getType()))
+      m_LocalForms[VD] = F;
+    return true;
   }
 
   bool VisitBinaryOperator(BinaryOperator* BO) {
@@ -756,6 +795,188 @@ public:
   }
 
 private:
+  /// \p V as an int64_t inside AffineLimit, or false.
+  static bool toSmall(const llvm::APSInt& V, int64_t& Out) {
+    if (V.isSigned() ? !V.isSignedIntN(41) : !V.isIntN(40))
+      return false;
+    Out = V.getExtValue();
+    return Out > -AffineLimit && Out < AffineLimit;
+  }
+
+  /// Pushes the interval \p FS's index takes every value of, in order, when
+  /// there is one: the loop declares the index, so nothing before it can hold
+  /// its address; both ends fold to constants, so the interval does not move
+  /// with an enclosing loop; it runs at least once; nothing leaves the body
+  /// early; and the body only reads the index. Returns whether it pushed.
+  bool pushIndexRange(const ForStmt* FS) {
+    Proven<LoopFacts> V = recogniseCountedForLoop(FS);
+    if (!V || !isa_and_nonnull<DeclStmt>(FS->getInit()) ||
+        findEarlyExit(FS->getBody()))
+      return false;
+    const LoopFacts& L = *V;
+    Expr::EvalResult Start;
+    Expr::EvalResult Bound;
+    int64_t Lo = 0;
+    int64_t Hi = 0;
+    if (!L.Init->EvaluateAsInt(Start, m_Context) ||
+        !L.Bound->EvaluateAsInt(Bound, m_Context) ||
+        !toSmall(Start.Val.getInt(), Lo) || !toSmall(Bound.Val.getInt(), Hi))
+      return false;
+    if (!L.Inclusive)
+      --Hi;
+    if (Lo > Hi || !ReadOnlyVars(FS->getBody()).onlyRead(L.IndVar))
+      return false;
+    m_Ranges.push_back({L.IndVar, Lo, Hi});
+    return true;
+  }
+
+  /// The least and the greatest value \p F takes, or false if it names a
+  /// variable whose interval is not known here or the values do not stay
+  /// inside AffineLimit.
+  bool rangeOf(const AffineIndex& F, int64_t& Lo, int64_t& Hi) const {
+    Lo = Hi = F.C;
+    for (const auto& T : F.Terms) {
+      const auto* R = llvm::find_if(
+          m_Ranges, [&](const IndexRange& IR) { return IR.Var == T.first; });
+      if (R == m_Ranges.end())
+        return false;
+      int64_t A = T.second;
+      int64_t L = A > 0 ? R->Lo : R->Hi;
+      int64_t H = A > 0 ? R->Hi : R->Lo;
+      // Each factor is inside AffineLimit, so the products cannot overflow.
+      Lo += A * L;
+      Hi += A * H;
+      if (Lo <= -AffineLimit || Hi >= AffineLimit || Lo >= AffineLimit ||
+          Hi <= -AffineLimit)
+        return false;
+    }
+    return true;
+  }
+
+  /// Whether every value \p F takes is representable in \p Ty, so the
+  /// expression computed it without wrapping and means what the sum says.
+  bool fits(const AffineIndex& F, QualType Ty) const {
+    int64_t Lo = 0;
+    int64_t Hi = 0;
+    if (!Ty->isIntegerType() || !rangeOf(F, Lo, Hi))
+      return false;
+    unsigned W = m_Context.getIntWidth(Ty);
+    if (W >= 64)
+      return Ty->isSignedIntegerOrEnumerationType() || Lo >= 0;
+    if (!Ty->isSignedIntegerOrEnumerationType())
+      return Lo >= 0 && Hi < (int64_t(1) << W);
+    return Lo >= -(int64_t(1) << (W - 1)) && Hi < (int64_t(1) << (W - 1));
+  }
+
+  /// `F += K * G`, or false if a coefficient leaves AffineLimit.
+  static bool addScaled(AffineIndex& F, const AffineIndex& G, int64_t K) {
+    auto mulAdd = [K](int64_t& Acc, int64_t X) {
+      int64_t P = 0;
+      if (llvm::MulOverflow(X, K, P) || llvm::AddOverflow(Acc, P, Acc))
+        return false;
+      return Acc > -AffineLimit && Acc < AffineLimit;
+    };
+    if (!mulAdd(F.C, G.C))
+      return false;
+    for (const auto& T : G.Terms) {
+      auto* It = llvm::find_if(
+          F.Terms, [&](const auto& FT) { return FT.first == T.first; });
+      if (It == F.Terms.end()) {
+        F.Terms.emplace_back(T.first, 0);
+        It = &F.Terms.back();
+      }
+      if (!mulAdd(It->second, T.second))
+        return false;
+    }
+    llvm::erase_if(F.Terms, [](const auto& T) { return T.second == 0; });
+    return true;
+  }
+
+  /// Reads \p E as an AffineIndex. A whitelist: integer constants, `+`, `-`,
+  /// a product with a constant, value-preserving integer conversions, the
+  /// index of a loop on m_Ranges, and a local in m_LocalForms. Every
+  /// intermediate value has to fit its own type, which is what rules out a
+  /// wrap the sum would not see.
+  bool affineOf(const Expr* E, AffineIndex& F) const {
+    E = E->IgnoreParens();
+    if (E->isValueDependent() || !E->getType()->isIntegerType())
+      return false;
+    Expr::EvalResult R;
+    if (!E->HasSideEffects(m_Context) && E->EvaluateAsInt(R, m_Context)) {
+      F = AffineIndex();
+      return toSmall(R.Val.getInt(), F.C);
+    }
+    if (const auto* ICE = dyn_cast<ImplicitCastExpr>(E)) {
+      CastKind K = ICE->getCastKind();
+      if (K != CK_LValueToRValue && K != CK_IntegralCast && K != CK_NoOp)
+        return false;
+      return affineOf(ICE->getSubExpr(), F) && fits(F, E->getType());
+    }
+    if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+      UnaryOperatorKind Op = UO->getOpcode();
+      AffineIndex G;
+      if ((Op != UO_Plus && Op != UO_Minus) || !affineOf(UO->getSubExpr(), G))
+        return false;
+      F = AffineIndex();
+      return addScaled(F, G, Op == UO_Minus ? -1 : 1) && fits(F, E->getType());
+    }
+    if (const auto* BO = dyn_cast<BinaryOperator>(E)) {
+      BinaryOperatorKind Op = BO->getOpcode();
+      AffineIndex L;
+      AffineIndex Rt;
+      if ((Op != BO_Add && Op != BO_Sub && Op != BO_Mul) ||
+          !affineOf(BO->getLHS(), L) || !affineOf(BO->getRHS(), Rt))
+        return false;
+      F = AffineIndex();
+      bool OK = false;
+      if (Op != BO_Mul)
+        OK = addScaled(F, L, 1) && addScaled(F, Rt, Op == BO_Sub ? -1 : 1);
+      else if (L.Terms.empty())
+        OK = addScaled(F, Rt, L.C);
+      else if (Rt.Terms.empty())
+        OK = addScaled(F, L, Rt.C);
+      return OK && fits(F, E->getType());
+    }
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
+      const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+      if (!VD)
+        return false;
+      F = AffineIndex();
+      if (llvm::any_of(m_Ranges,
+                       [&](const IndexRange& IR) { return IR.Var == VD; }))
+        F.Terms.push_back({VD, 1});
+      else {
+        auto It = m_LocalForms.find(VD);
+        if (It == m_LocalForms.end())
+          return false;
+        F = It->second;
+      }
+      return fits(F, E->getType());
+    }
+    return false;
+  }
+
+  /// Records in \p E what an index read by affineOf covers: the element, if
+  /// it takes one value, and otherwise `[0, Hi]`. Leaves \p E alone and
+  /// returns false when the index is not affine or can go below zero.
+  bool classifyAffine(const Expr* Idx, WrittenExtent& E) const {
+    AffineIndex F;
+    int64_t Lo = 0;
+    int64_t Hi = 0;
+    if (!affineOf(Idx, F) || !rangeOf(F, Lo, Hi) || Lo < 0)
+      return false;
+    E.Why = AnalysisMiss::None;
+    if (Lo == Hi) {
+      E.K = WrittenExtent::Kind::Element;
+      E.Offset = static_cast<uint64_t>(Lo);
+    } else {
+      E.K = WrittenExtent::Kind::Range;
+      E.BoundIsParam = false;
+      E.BoundConst = static_cast<uint64_t>(Hi) + 1;
+    }
+    return true;
+  }
+
   /// Records `[0, Bound)` in \p E when a call site can work Bound out for
   /// itself -- when it folds to a constant, or names a by-value parameter it
   /// passed. Marks \p E BoundNotReadable otherwise, leaving it Unknown.
@@ -917,7 +1138,11 @@ private:
         // Not Inclusive: `i <= d` reaches out[d], which [0, d) excludes.
         if (L && L->InitIsNonNegative && !L->Inclusive)
           classifyBound(L->Bound, E);
-      } else {
+        // A variable that is not, or not usably, a loop's own index may still
+        // be one with constant bounds, or a local computed from such.
+        if (E.K == WrittenExtent::Kind::Unknown)
+          classifyAffine(Idx, E);
+      } else if (!classifyAffine(Idx, E)) {
         E.K = WrittenExtent::Kind::Unknown;
         E.Why = AnalysisMiss::IndexNotUnderstood;
         E.RefusedAt = Idx->getBeginLoc();
