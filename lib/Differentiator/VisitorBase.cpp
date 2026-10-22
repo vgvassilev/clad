@@ -734,6 +734,15 @@ namespace clad {
       return ResolveUnaryMinus(E->IgnoreCasts(), OpLoc);
     return m_Sema.BuildUnaryOp(nullptr, OpLoc, OpCode, E).get();
   }
+  Expr* VisitorBase::RebuildAddrOf(Expr* E) {
+    if (!E || !E->isXValue())
+      return BuildOp(UO_AddrOf, E);
+    return UnaryOperator::Create(
+        m_Context, E, UO_AddrOf, m_Context.getPointerType(E->getType()),
+        CLAD_COMPAT_ExprValueKind_R_or_PR_Value, OK_Ordinary, GenLoc(),
+        /*CanOverflow=*/false, FPOptionsOverride());
+  }
+
   Expr* VisitorBase::ResolveUnaryMinus(Expr* E, SourceLocation OpLoc) {
     if (auto* UO = llvm::dyn_cast<clang::UnaryOperator>(E)) {
       if (UO->getOpcode() == clang::UO_Minus)

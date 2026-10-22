@@ -1695,7 +1695,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
   StmtDiff diff = Visit(UnOp->getSubExpr());
   auto opKind = UnOp->getOpcode();
-  Expr* op = BuildOp(opKind, diff.getExpr());
+  Expr* op = opKind == UO_AddrOf ? RebuildAddrOf(diff.getExpr())
+                                 : BuildOp(opKind, diff.getExpr());
   // If opKind is unary plus or minus, apply that op to derivative.
   // Otherwise, the derivative is 0.
   // FIXME: add support for other unary operators
@@ -1749,7 +1750,7 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
                                     getZeroInit(addr->getType()))
                 .get());
       } else {
-        derivedOp = BuildOp(opKind, derivedOp);
+        derivedOp = RebuildAddrOf(derivedOp);
       }
     } else {
       derivedOp = nullptr;
