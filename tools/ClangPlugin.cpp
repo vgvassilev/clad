@@ -106,7 +106,15 @@ void InitTimers();
         assert(II->isStr("clad"));
 #endif
 
-        PP.Lex(PragmaTok);
+        PP.LexUnexpandedToken(PragmaTok);
+        if (PragmaTok.isNot(tok::identifier)) {
+          PP.Diag(
+              PragmaTok.getLocation(),
+              PP.getDiagnostics().getCustomDiagID(
+                  DiagnosticsEngine::Error,
+                  "expected 'ON', 'OFF', 'DEFAULT', or `checkpoint` in pragma"));
+          return;
+        }
         llvm::StringRef OptionName = PragmaTok.getIdentifierInfo()->getName();
         SourceLocation TokLoc = PragmaTok.getLocation();
         // Handle #pragma clad ON
@@ -128,7 +136,7 @@ void InitTimers();
         }
         // Handle #pragma clad checkpoint loop
         if (OptionName == "checkpoint") {
-          PP.Lex(PragmaTok);
+          PP.LexUnexpandedToken(PragmaTok);
           // Ensure the next token is `loop`
           if (PragmaTok.isNot(tok::identifier) ||
               PragmaTok.getIdentifierInfo()->getName() != "loop") {
