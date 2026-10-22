@@ -593,6 +593,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
+    if (m_DiffReq.hasEarlyReturns())
+      numberUngatedReturns(m_DiffReq->getBody());
+
     // Start the visitation process which outputs the statements in the
     // current block.
     StmtDiff BodyDiff = Visit(m_DiffReq->getBody());
@@ -946,6 +949,92 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return false;
   }
 
+  // Appends the returns of S to Out, in the order they appear, but not those
+  // of a lambda in it: they leave the lambda only.
+  static void collectReturns(const Stmt* S,
+                             llvm::SmallVectorImpl<const ReturnStmt*>& Out) {
+    if (!S || isa<LambdaExpr>(S))
+      return;
+    if (const auto* RS = dyn_cast<ReturnStmt>(S)) {
+      Out.push_back(RS);
+      return;
+    }
+    for (const Stmt* C : S->children())
+      collectReturns(C, Out);
+  }
+
+  // Appends the returns of S after which VisitCompoundStmt cannot gate the
+  // rest of the block on the condition of S: those of S unless S is an `if`
+  // and they are in a branch that always exits. After an S that always exits
+  // nothing of the block runs at all.
+  static void
+  collectUngatedReturns(const Stmt* S,
+                        llvm::SmallVectorImpl<const ReturnStmt*>& Out) {
+    if (stmtAlwaysExits(S))
+      return;
+    if (const auto* If = dyn_cast<IfStmt>(S)) {
+      if (!stmtAlwaysExits(If->getThen()))
+        collectReturns(If->getThen(), Out);
+      if (!stmtAlwaysExits(If->getElse()))
+        collectReturns(If->getElse(), Out);
+      return;
+    }
+    collectReturns(S, Out);
+  }
+
+  void ReverseModeVisitor::numberUngatedReturns(const Stmt* Body) {
+    // Each block whose statements come after an ungated return, and these
+    // returns. The body of a switch is left alone: its reverse is entered at
+    // the case labels, which a guard around a statement would hide.
+    struct Finder : RecursiveASTVisitor<Finder> {
+      llvm::SmallPtrSet<const Stmt*, 4> SwitchBodies;
+      llvm::SmallPtrSet<const ReturnStmt*, 4> Ungated;
+      llvm::SmallPtrSetImpl<const CompoundStmt*>& Blocks;
+      const ReturnStmt* Tail;
+      Finder(llvm::SmallPtrSetImpl<const CompoundStmt*>& B, const ReturnStmt* T)
+          : Blocks(B), Tail(T) {}
+      static bool TraverseLambdaExpr(LambdaExpr*) { return true; }
+      bool VisitSwitchStmt(SwitchStmt* SS) {
+        SwitchBodies.insert(SS->getBody());
+        return true;
+      }
+      bool VisitCompoundStmt(CompoundStmt* CS) {
+        // The tail return has no reverse of its own to skip: its seed is the
+        // last statement of the forward sweep.
+        size_t N = CS->size();
+        if (N && CS->body_back() == Tail)
+          --N;
+        if (N < 2 || SwitchBodies.count(CS))
+          return true;
+        llvm::SmallVector<const ReturnStmt*, 4> Rets;
+        for (const Stmt* S : llvm::ArrayRef<Stmt*>(CS->body_begin(), N - 1))
+          collectUngatedReturns(S, Rets);
+        if (Rets.empty())
+          return true;
+        Blocks.insert(CS);
+        Ungated.insert(Rets.begin(), Rets.end());
+        return true;
+      }
+    } F(m_ReturnGuardedBlocks, m_DiffReq.getTailReturn());
+    F.TraverseStmt(const_cast<Stmt*>(Body));
+    if (F.Ungated.empty())
+      return;
+    // Numbered in the order they appear: a later statement of a block skips
+    // its reverse when the return taken is numbered no higher than the last
+    // ungated one before it.
+    llvm::SmallVector<const ReturnStmt*, 8> All;
+    collectReturns(Body, All);
+    for (const ReturnStmt* RS : All)
+      if (F.Ungated.count(RS))
+        m_ReturnIds[RS] = m_ReturnIds.size() + 1;
+    // Above every number: no return was taken.
+    m_ReturnedAt = BuildGlobalVarDecl(
+        m_Context.IntTy, "_returnedAt",
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                          m_ReturnIds.size() + 1));
+    addToBlock(BuildDeclStmt(m_ReturnedAt), m_Globals);
+  }
+
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,
@@ -969,6 +1058,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                    BuildParens(CloneNode(exitWhen)))
                          : exitWhen;
     };
+    // After `if (c) { if (d) return; }`, or a loop that returns, there is no
+    // condition to gate on: the forward sweep records which return it took.
+    // `lastUngated` is the number of the last such return so far.
+    bool guardReturns = m_ReturnGuardedBlocks.count(CS);
+    int lastUngated = 0;
     for (Stmt* S : CS->body()) {
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingStmtInVisitCompoundStmt();
@@ -984,7 +1078,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             m_Context, noLoc, /*IsConstexpr=*/false, /*Init=*/nullptr,
             /*Var=*/nullptr, gate, noLoc, noLoc, rev, noLoc, /*Else=*/nullptr);
       }
+      if (rev && lastUngated && !isa<NullStmt>(rev)) {
+        Expr* reached = BuildOp(BO_LT,
+                                ConstantFolder::synthesizeLiteral(
+                                    m_Context.IntTy, m_Context, lastUngated),
+                                BuildDeclRef(m_ReturnedAt));
+        rev = clad_compat::IfStmt_Create(
+            m_Context, noLoc, /*IsConstexpr=*/false, /*Init=*/nullptr,
+            /*Var=*/nullptr, reached, noLoc, noLoc, rev, noLoc,
+            /*Else=*/nullptr);
+      }
       addToCurrentBlock(rev, direction::reverse);
+      if (guardReturns) {
+        llvm::SmallVector<const ReturnStmt*, 4> Rets;
+        collectUngatedReturns(S, Rets);
+        for (const ReturnStmt* RS : Rets)
+          lastUngated = std::max(lastUngated, m_ReturnIds.lookup(RS));
+      }
 
       if (!skipRestAlways) {
         if (const auto* If = dyn_cast<IfStmt>(S)) {
@@ -1719,9 +1829,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
+    // A void function seeds nothing. Its tail return falls through into the
+    // reverse sweep; an early one leaves the forward sweep like any other.
+    if (m_DiffReq->getReturnType()->isVoidType()) {
+      if (RS == m_DiffReq.getTailReturn() || !m_DiffReq.hasEarlyReturns())
+        return {nullptr, nullptr};
+      return markEarlyReturn(RS, m_Sema.ActOnNullStmt(noLoc).get());
+    }
     // Initially, df/df = 1.
-    if (m_DiffReq->getReturnType()->isVoidType())
-      return {nullptr, nullptr};
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
     Expr* dfdf = nullptr;
@@ -1788,7 +1903,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // return from the forward-sweep closure.
     if (!Reverse)
       Reverse = m_Sema.ActOnNullStmt(noLoc).get();
+    return markEarlyReturn(RS, Reverse);
+  }
 
+  Stmt* ReverseModeVisitor::markEarlyReturn(const ReturnStmt* RS,
+                                            Stmt* Reverse) {
     // A return inside a switch case terminates that case's fall-through group,
     // exactly like a break. Close the group so the reverse switch enters only
     // this case's adjoint; the entry label must precede the adjoint it guards.
@@ -1811,6 +1930,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                         direction::forward);
     }
     addToCurrentBlock(Reverse, direction::reverse);
+    // Record the return for the statements after it (VisitCompoundStmt), and
+    // forget it once the reverse sweep reaches it: an earlier iteration of a
+    // loop around it did not take it.
+    if (int Id = m_ReturnIds.lookup(RS)) {
+      auto setReturnedAt = [&](int V) {
+        return BuildOp(
+            BO_Assign, BuildDeclRef(m_ReturnedAt),
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, V));
+      };
+      addToCurrentBlock(setReturnedAt(Id), direction::forward);
+      addToCurrentBlock(setReturnedAt(m_ReturnIds.size() + 1),
+                        direction::reverse);
+    }
 
     Stmt* marker = m_Sema.ActOnNullStmt(noLoc).get();
     m_EarlyReturnMarkers.insert(marker);

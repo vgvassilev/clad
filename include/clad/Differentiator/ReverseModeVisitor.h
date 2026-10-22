@@ -31,6 +31,7 @@
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h" // IWYU pragma: keep -- function_ref on LLVM<14
 #include "llvm/ADT/SmallPtrSet.h"
@@ -85,6 +86,14 @@ namespace clad {
     /// Markers emitted at early-return sites in the forward block, patched
     /// at finalization with a return from the forward-sweep closure.
     llvm::SmallPtrSet<clang::Stmt*, 4> m_EarlyReturnMarkers;
+    /// The early returns that the reverse sweep cannot tell were taken from
+    /// the condition of an enclosing `if`, numbered in the order they appear,
+    /// and the blocks whose statements come after one of them. The forward
+    /// sweep stores the number of such a return in m_ReturnedAt when it takes
+    /// it; the reverse sweep skips what came after.
+    llvm::DenseMap<const clang::ReturnStmt*, int> m_ReturnIds;
+    llvm::SmallPtrSet<const clang::CompoundStmt*, 4> m_ReturnGuardedBlocks;
+    clang::VarDecl* m_ReturnedAt = nullptr;
     /// Storing expressions to delete/free memory in the reverse pass.
     Stmts m_DeallocExprs;
     /// A dfdx seed: eager expression, or a deferred builder materialized on
@@ -157,6 +166,15 @@ namespace clad {
     /// forward sweep is fully assembled and before the body is handed to Sema.
     void
     patchEarlyReturnMarkers(llvm::function_ref<clang::Stmt*()> MakeReplacement);
+    /// Numbers the early returns of \p Body that a later statement of their
+    /// block does not see in the condition of an enclosing `if`, and declares
+    /// m_ReturnedAt if there are any.
+    void numberUngatedReturns(const clang::Stmt* Body);
+    /// Puts \p Reverse, the adjoint seed of the early return \p RS, into the
+    /// reverse sweep and returns the marker that patchEarlyReturnMarkers turns
+    /// into a return from the forward-sweep closure.
+    clang::Stmt* markEarlyReturn(const clang::ReturnStmt* RS,
+                                 clang::Stmt* Reverse);
 
   public:
     using direction = rmv::direction;
