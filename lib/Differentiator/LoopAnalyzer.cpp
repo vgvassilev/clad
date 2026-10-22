@@ -792,8 +792,9 @@ private:
   }
 
   /// Widens the recorded extent for `Idx` so it also covers `New`. Two
-  /// descriptions that are not identical widen to Unknown rather than to a
-  /// guessed union: a wrong union would under-record.
+  /// descriptions widen to the larger only when it provably contains the
+  /// other, and to Unknown otherwise rather than to a guessed union: a wrong
+  /// union would under-record.
   void widen(unsigned Idx, const WrittenExtent& New) {
     WrittenExtent& Cur = m_Extents[Idx];
     if (Cur.K == WrittenExtent::Kind::None) {
@@ -820,7 +821,31 @@ private:
                                : Cur.BoundIsParam == New.BoundIsParam &&
                                      Cur.BoundParamIdx == New.BoundParamIdx &&
                                      Cur.BoundConst == New.BoundConst);
-    if (!same) {
+    if (same)
+      return;
+    // With the bound a constant it is known, and every range starts at zero,
+    // so of a range and anything inside it the range is the exact union:
+    // `[0, 36)` followed by `[7]` is still `[0, 36)`, and two constant ranges
+    // always nest. Two separate elements do not make a range, and neither
+    // does an element past the range's end; the hull of either would claim
+    // elements nothing writes.
+    auto constRange = [](const WrittenExtent& W) {
+      return W.K == WrittenExtent::Kind::Range && !W.BoundIsParam;
+    };
+    auto contains = [&](const WrittenExtent& Outer, const WrittenExtent& In) {
+      if (!constRange(Outer))
+        return false;
+      if (In.K == WrittenExtent::Kind::Element)
+        return In.Offset < Outer.BoundConst;
+      return constRange(In) && In.BoundConst <= Outer.BoundConst;
+    };
+    if (contains(Cur, New))
+      return;
+    if (contains(New, Cur)) {
+      Cur = New;
+      return;
+    }
+    {
       Cur.K = WrittenExtent::Kind::Unknown;
       Cur.Why = AnalysisMiss::WritesDisagree;
       Cur.RefusedAt = New.RefusedAt;
