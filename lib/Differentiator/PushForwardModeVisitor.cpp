@@ -24,9 +24,14 @@ PushForwardModeVisitor::PushForwardModeVisitor(DerivativeBuilder& builder,
 PushForwardModeVisitor::~PushForwardModeVisitor() = default;
 
 StmtDiff PushForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
-  // If there is no return value, we must not attempt to differentiate
-  if (!RS->getRetValue())
-    return nullptr;
+  // A pushforward of a void function returns void as well. An early return
+  // in it must still leave: the primal does not run what follows it, so
+  // neither its value nor its tangent may be computed.
+  if (!RS->getRetValue()) {
+    if (RS == m_DiffReq.getTailReturn())
+      return nullptr;
+    return StmtDiff(BuildReturnStmt(nullptr));
+  }
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Expr* retVal = retValDiff.getExpr();
