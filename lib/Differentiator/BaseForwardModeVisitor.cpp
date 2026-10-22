@@ -2680,6 +2680,125 @@ StmtDiff BaseForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
   return StmtDiff(Clone(stmt));
 }
 
+/// Whether a value of type \p T holds nothing a derivative could flow
+/// through: no floating-point data, directly or behind a pointer.
+static bool
+holdsNoDifferentiableData(QualType T,
+                          llvm::SmallPtrSetImpl<const RecordDecl*>& Visited) {
+  T = T.getNonReferenceType().getCanonicalType();
+  while (utils::isArrayOrPointerType(T))
+    T = utils::GetValueType(T).getCanonicalType();
+  if (T->isIntegralOrEnumerationType())
+    return true;
+  const auto* RD = T->getAsCXXRecordDecl();
+  if (!RD || !RD->hasDefinition())
+    return false;
+  // A type reached again through a pointer is judged by its first visit.
+  if (!Visited.insert(RD).second)
+    return true;
+  for (const CXXBaseSpecifier& B : RD->bases())
+    if (!holdsNoDifferentiableData(B.getType(), Visited))
+      return false;
+  for (const FieldDecl* FD : RD->fields())
+    if (!holdsNoDifferentiableData(FD->getType(), Visited))
+      return false;
+  return true;
+}
+
+static bool holdsNoDifferentiableData(QualType T) {
+  llvm::SmallPtrSet<const RecordDecl*, 4> Visited;
+  return holdsNoDifferentiableData(T, Visited);
+}
+
+Expr* BaseForwardModeVisitor::FillMissingCtorTangents(
+    const Expr* E, llvm::ArrayRef<const Expr*> args,
+    llvm::ArrayRef<Expr*> clonedArgs,
+    llvm::MutableArrayRef<Expr*> derivedArgs) {
+  if (llvm::all_of(derivedArgs, [](const Expr* dArg) { return dArg; }))
+    return nullptr;
+  // Built only from data without a derivative, e.g. std::string(const char*),
+  // the object has the zero one. Building it from tangents instead would run
+  // the constructor on whatever stands in for the missing ones.
+  bool inert = llvm::all_of(args, [](const Expr* arg) {
+    return holdsNoDifferentiableData(arg->getType());
+  });
+  const CXXRecordDecl* ObjRD = E->getType()->getAsCXXRecordDecl();
+  if (inert && ObjRD && ObjRD->hasDefinition() && !ObjRD->isAbstract() &&
+      (ObjRD->isAggregate() || ObjRD->hasDefaultConstructor()))
+    return m_Sema
+        .ActOnCXXTypeConstructExpr(
+            OpaquePtr<QualType>::make(E->getType().getUnqualifiedType()),
+            GenLoc(), {}, GenLoc(), /*ListInitialization=*/true)
+        .get();
+
+  for (unsigned i = 0, e = args.size(); i < e; ++i) {
+    if (derivedArgs[i])
+      continue;
+    const Expr* arg = args[i];
+    QualType T = arg->getType().getNonReferenceType();
+    SourceLocation L = arg->getBeginLoc();
+    if (T->isPointerType() || T->isArrayType()) {
+      // Next to arguments that do carry a derivative, a pointer to data
+      // without one keeps its primal value: unlike a pushforward, a
+      // constructor does not null check what it gets.
+      if (holdsNoDifferentiableData(T)) {
+        // Unless the construction is rejected below anyway. Through a
+        // pointer to non-const the constructor could change what the
+        // program sees, twice, so that is an error.
+        if (!inert) {
+          bool readOnly = utils::GetValueType(T).isConstQualified();
+          diag(readOnly ? DiagnosticsEngine::Warning : DiagnosticsEngine::Error,
+               L,
+               "the derivative of this construction is built on the same "
+               "pointer; what its constructor and destructor do through it "
+               "happens twice%select{; pass a pointer to const if it only "
+               "reads through it|}0")
+              << readOnly << L;
+        }
+        derivedArgs[i] = Clone(clonedArgs[i]);
+        continue;
+      }
+      // A pointer to differentiable data has a tangent clad cannot invent:
+      // neither null nor the primal pointer would be right.
+      diag(DiagnosticsEngine::Error, L,
+           "cannot derive this construction: the pointer argument has no "
+           "derivative")
+          << L;
+      // Only to keep building without cascading errors.
+      derivedArgs[i] = Clone(clonedArgs[i]);
+      continue;
+    }
+    // An object gets a zero one of its own, which also binds to a reference
+    // parameter.
+    if (const CXXRecordDecl* RD = T->getAsCXXRecordDecl()) {
+      T = T.getUnqualifiedType();
+      if (!RD->hasDefinition() || RD->isAbstract() ||
+          !(RD->isAggregate() || RD->hasDefaultConstructor())) {
+        diag(DiagnosticsEngine::Error, L,
+             "cannot derive this construction: the argument has no "
+             "derivative and %0 has no zero value")
+            << T << L;
+        derivedArgs[i] = Clone(clonedArgs[i]);
+        continue;
+      }
+      VarDecl* Zero = BuildVarDecl(T, "_d_arg", getZeroInit(T));
+      addToCurrentBlock(BuildDeclStmt(Zero));
+      derivedArgs[i] = BuildDeclRef(Zero);
+      continue;
+    }
+    derivedArgs[i] = getZeroInit(T);
+  }
+  if (inert) {
+    // The object has no zero value to stand for its derivative.
+    SourceLocation L = E->getBeginLoc();
+    diag(DiagnosticsEngine::Error, L,
+         "cannot derive this construction: its arguments have no derivative "
+         "and %0 has no zero value")
+        << E->getType().getUnqualifiedType() << L;
+  }
+  return nullptr;
+}
+
 StmtDiff
 BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
   llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
@@ -2688,9 +2807,14 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
+  llvm::SmallVector<const Expr*, 4> origArgs(CE->arguments());
+  Expr* zeroObj =
+      FillMissingCtorTangents(CE, origArgs, clonedArgs, derivedArgs);
 
   Expr* pushforwardCall =
-      BuildCustomDerivativeConstructorPFCall(CE, clonedArgs, derivedArgs);
+      zeroObj
+          ? nullptr
+          : BuildCustomDerivativeConstructorPFCall(CE, clonedArgs, derivedArgs);
   if (pushforwardCall) {
     auto valueAndPushforwardE = StoreAndRef(pushforwardCall);
     Expr* valueE = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
@@ -2728,11 +2852,11 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
       // flexible in terms of conversions and other similar scenarios where a
       // constructor is called implicitly.
       clonedArgsE = BuildInitList(clonedArgs);
-      derivedArgsE = BuildInitList(derivedArgs);
+      derivedArgsE = zeroObj ? zeroObj : BuildInitList(derivedArgs);
     }
   } else {
     clonedArgsE = clonedArgs[0];
-    derivedArgsE = derivedArgs[0];
+    derivedArgsE = zeroObj ? zeroObj : derivedArgs[0];
   }
   // `CXXConstructExpr` node will be created automatically by passing these
   // initialiser to higher level `ActOn`/`Build` Sema functions.
@@ -2767,6 +2891,9 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
+  llvm::SmallVector<const Expr*, 4> origArgs(TOE->arguments());
+  Expr* zeroObj =
+      FillMissingCtorTangents(TOE, origArgs, clonedArgs, derivedArgs);
 
   // Sema takes the arguments of a list-initialized temporary as one braced
   // list, the way the parser hands them over.
@@ -2781,7 +2908,7 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
         .get();
   };
   Expr* clonedTOE = buildTOE(clonedArgs);
-  Expr* derivedTOE = buildTOE(derivedArgs);
+  Expr* derivedTOE = zeroObj ? zeroObj : buildTOE(derivedArgs);
   return {clonedTOE, derivedTOE};
 }
 

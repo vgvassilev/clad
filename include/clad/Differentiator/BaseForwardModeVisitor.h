@@ -219,6 +219,17 @@ protected:
   /// Builds the pushforward lambda for LE
   clang::Expr* buildPushforwardLambda(const clang::LambdaExpr* LE);
 
+  /// Handles the arguments of the construction \p E that have no tangent.
+  ///
+  /// \return The zero object of E's type when no argument carries anything
+  /// to differentiate; otherwise null, with the slots of \p derivedArgs that
+  /// were null filled in so the derived object can be built at all.
+  clang::Expr*
+  FillMissingCtorTangents(const clang::Expr* E,
+                          llvm::ArrayRef<const clang::Expr*> args,
+                          llvm::ArrayRef<clang::Expr*> clonedArgs,
+                          llvm::MutableArrayRef<clang::Expr*> derivedArgs);
+
 private:
   /// Prepares the derivative function parameters.
   void
