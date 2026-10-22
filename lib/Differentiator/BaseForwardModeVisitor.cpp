@@ -2768,17 +2768,20 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
 
-  Expr* clonedTOE = m_Sema
-                        .ActOnCXXTypeConstructExpr(
-                            OpaquePtr<QualType>::make(TOE->getType()), GenLoc(),
-                            clonedArgs, GenLoc(), TOE->isListInitialization())
-                        .get();
-  Expr* derivedTOE =
-      m_Sema
-          .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
-                                     GenLoc(), derivedArgs, GenLoc(),
-                                     TOE->isListInitialization())
-          .get();
+  // Sema takes the arguments of a list-initialized temporary as one braced
+  // list, the way the parser hands them over.
+  auto buildTOE = [&](llvm::MutableArrayRef<Expr*> args) {
+    llvm::SmallVector<Expr*, 4> exprs(args.begin(), args.end());
+    if (TOE->isListInitialization() && !args.empty())
+      exprs = {BuildInitList(args)};
+    return m_Sema
+        .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
+                                   GenLoc(), exprs, GenLoc(),
+                                   TOE->isListInitialization())
+        .get();
+  };
+  Expr* clonedTOE = buildTOE(clonedArgs);
+  Expr* derivedTOE = buildTOE(derivedArgs);
   return {clonedTOE, derivedTOE};
 }
 
