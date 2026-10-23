@@ -294,6 +294,55 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sqrt_pushforward(T x, dT d_x);
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fabs_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmax_pushforward(T x, T y, dT d_x,
+                                                             dT d_y);
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmax_pullback(T x, T y, U d_z, T* d_x, T* d_y);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmin_pushforward(T x, T y, dT d_x,
+                                                             dT d_y);
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmin_pullback(T x, T y, U d_z, T* d_x, T* d_y);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fdim_pushforward(T x, T y, dT d_x,
+                                                             dT d_y);
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fdim_pullback(T x, T y, U d_z, T* d_x, T* d_y);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmod_pushforward(T x, T y, dT d_x,
+                                                             dT d_y);
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void fmod_pullback(T x, T y, U d_z, T* d_x, T* d_y);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
+remainder_pushforward(T x, T y, dT d_x, dT d_y);
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void remainder_pullback(T x, T y, U d_z, T* d_x, T* d_y);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> hypot_pushforward(T x, T y, dT d_x,
+                                                              dT d_y);
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void hypot_pullback(T x, T y, U d_z, T* d_x, T* d_y);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atan2_pushforward(T y, T x, dT d_y,
+                                                              dT d_x);
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void atan2_pullback(T y, T x, U d_z, T* d_y, T* d_x);
 } // namespace std
 
 template <typename T, typename dT>
@@ -318,6 +367,258 @@ template <typename T, typename dT>
 CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
 __builtin_fabsf_pushforward(T x, dT d_x) {
   return std::fabs_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fmax_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fmax_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fmaxf_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fmax_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fmaxl_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fmax_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fmax_pullback(T x, T y, U d_z, T* d_x,
+                                                     T* d_y) {
+  std::fmax_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fmaxf_pullback(T x, T y, U d_z, T* d_x,
+                                                      T* d_y) {
+  std::fmax_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fmaxl_pullback(T x, T y, U d_z, T* d_x,
+                                                      T* d_y) {
+  std::fmax_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fmin_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fmin_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fminf_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fmin_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fminl_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fmin_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fmin_pullback(T x, T y, U d_z, T* d_x,
+                                                     T* d_y) {
+  std::fmin_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fminf_pullback(T x, T y, U d_z, T* d_x,
+                                                      T* d_y) {
+  std::fmin_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fminl_pullback(T x, T y, U d_z, T* d_x,
+                                                      T* d_y) {
+  std::fmin_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fdim_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fdim_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fdimf_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fdim_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fdiml_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fdim_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fdim_pullback(T x, T y, U d_z, T* d_x,
+                                                     T* d_y) {
+  std::fdim_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fdimf_pullback(T x, T y, U d_z, T* d_x,
+                                                      T* d_y) {
+  std::fdim_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fdiml_pullback(T x, T y, U d_z, T* d_x,
+                                                      T* d_y) {
+  std::fdim_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fmod_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fmod_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fmodf_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fmod_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fmodl_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::fmod_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fmod_pullback(T x, T y, U d_z, T* d_x,
+                                                     T* d_y) {
+  std::fmod_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fmodf_pullback(T x, T y, U d_z, T* d_x,
+                                                      T* d_y) {
+  std::fmod_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_fmodl_pullback(T x, T y, U d_z, T* d_x,
+                                                      T* d_y) {
+  std::fmod_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_remainder_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::remainder_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_remainderf_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::remainder_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_remainderl_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::remainder_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_remainder_pullback(T x, T y, U d_z,
+                                                          T* d_x, T* d_y) {
+  std::remainder_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_remainderf_pullback(T x, T y, U d_z,
+                                                           T* d_x, T* d_y) {
+  std::remainder_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_remainderl_pullback(T x, T y, U d_z,
+                                                           T* d_x, T* d_y) {
+  std::remainder_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_hypot_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::hypot_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_hypotf_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::hypot_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_hypotl_pushforward(T x, T y, dT d_x, dT d_y) {
+  return std::hypot_pushforward(x, y, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_hypot_pullback(T x, T y, U d_z, T* d_x,
+                                                      T* d_y) {
+  std::hypot_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_hypotf_pullback(T x, T y, U d_z, T* d_x,
+                                                       T* d_y) {
+  std::hypot_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_hypotl_pullback(T x, T y, U d_z, T* d_x,
+                                                       T* d_y) {
+  std::hypot_pullback(x, y, d_z, d_x, d_y);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_atan2_pushforward(T y, T x, dT d_y, dT d_x) {
+  return std::atan2_pushforward(y, x, d_y, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_atan2f_pushforward(T y, T x, dT d_y, dT d_x) {
+  return std::atan2_pushforward(y, x, d_y, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_atan2l_pushforward(T y, T x, dT d_y, dT d_x) {
+  return std::atan2_pushforward(y, x, d_y, d_x);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_atan2_pullback(T y, T x, U d_z, T* d_y,
+                                                      T* d_x) {
+  std::atan2_pullback(y, x, d_z, d_y, d_x);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_atan2f_pullback(T y, T x, U d_z, T* d_y,
+                                                       T* d_x) {
+  std::atan2_pullback(y, x, d_z, d_y, d_x);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void __builtin_atan2l_pullback(T y, T x, U d_z, T* d_y,
+                                                       T* d_x) {
+  std::atan2_pullback(y, x, d_z, d_y, d_x);
 }
 
 // FIXME: Add the rest of the __builtin_ routines.
