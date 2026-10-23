@@ -1480,7 +1480,7 @@ namespace clad {
   VisitorBase::BuildZeroAdjoint(Expr* Value, QualType T,
                                 llvm::function_ref<Expr*(Expr*)> StoreValue) {
     if (Value && T->isRecordType() &&
-        m_Context.hasSameUnqualifiedType(T, Value->getType())) {
+        clang::ASTContext::hasSameUnqualifiedType(T, Value->getType())) {
       bool needsStore = StoreValue && Value->HasSideEffects(m_Context);
       // Match the lvalue returned by StoreValue before emitting any stores.
       QualType storedType =
