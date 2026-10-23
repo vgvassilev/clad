@@ -12,6 +12,9 @@
 #include "BuiltinDerivatives.h"
 #ifdef __CUDACC__
 #include "BuiltinDerivativesCUDA.cuh"
+#include <cuda_runtime_api.h>
+#include <driver_types.h>
+#include <vector_types.h>
 #endif
 #include "CladConfig.h"
 // Declares the Enzyme activity markers and gradient carrier that clad
@@ -31,6 +34,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
+#include <memory>
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -507,6 +511,23 @@ template <class T> std::false_type is_range(...);
   }
   // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+  template <class F, class... Args>
+  inline void launch_cuda_kernel(F f, dim3 grid, dim3 block,
+                                 std::size_t shared_mem, cudaStream_t stream,
+                                 Args... args) {
+    // cudaLaunchKernel requires non-const pointers to copy argument values.
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-const-cast)
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
+    std::array<void*, sizeof...(Args)> argPtrs = {{const_cast<void*>(
+        reinterpret_cast<const volatile void*>(std::addressof(args)))...}};
+    cudaLaunchKernel(reinterpret_cast<const void*>(f), grid, block,
+                     argPtrs.data(), shared_mem, stream);
+    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
+    // NOLINTEND(cppcoreguidelines-pro-type-const-cast)
+  }
+#endif
+
   /// Pad the args supplied with nullptr(s) or zeros to match the the num of
   /// params of the function and then execute the function using the padded args
   /// i.e. we are adding default arguments as we cannot do that with
@@ -533,16 +554,9 @@ template <class T> std::false_type is_range(...);
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
-      constexpr size_t totalArgs = sizeof...(args) + sizeof...(Rest);
-      std::array<void*, totalArgs> argPtrs = {(void*)(&args)...,
-                                              static_cast<Rest>(nullptr)...};
-
-      void* null_param = nullptr;
-      for (size_t i = sizeof...(args); i < totalArgs; ++i)
-        argPtrs[i] = &null_param;
-
-      cudaLaunchKernel((void*)f, grid, block, argPtrs.data(), shared_mem,
-                       stream);
+      launch_cuda_kernel<F, fArgTypes..., Rest...>(
+          f, grid, block, shared_mem, stream, std::forward<Args>(args)...,
+          static_cast<Rest>(nullptr)...);
       return return_type_t<F>();
     } else {
       return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
@@ -560,8 +574,8 @@ template <class T> std::false_type is_range(...);
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
-      void* argPtrs[] = {(void*)&args...};
-      cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
+      launch_cuda_kernel<F, fArgTypes...>(f, grid, block, shared_mem, stream,
+                                          std::forward<Args>(args)...);
       return return_type_t<F>();
     }
     return f(static_cast<Args>(args)...);
