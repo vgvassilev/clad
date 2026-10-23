@@ -46,6 +46,7 @@
 #include "clang/Sema/Template.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -1480,7 +1481,7 @@ namespace clad {
   VisitorBase::BuildZeroAdjoint(Expr* Value, QualType T,
                                 llvm::function_ref<Expr*(Expr*)> StoreValue) {
     if (Value && T->isRecordType() &&
-        clang::ASTContext::hasSameUnqualifiedType(T, Value->getType())) {
+        clad_compat::hasSameUnqualifiedType(m_Context, T, Value->getType())) {
       bool needsStore = StoreValue && Value->HasSideEffects(m_Context);
       // Match the lvalue returned by StoreValue before emitting any stores.
       QualType storedType =
