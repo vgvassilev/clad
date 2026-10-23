@@ -2000,11 +2000,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (ILEType->isArrayType()) {
           elemDfDx = BuildArraySubscript(CloneNode(dfdx()), I);
         } else if (ILEType->isRecordType()) {
-          auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
-          std::advance(field_iterator, i);
-          elemDfDx = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                            CloneNode(dfdx()),
-                                            (*field_iterator)->getName());
+          // An aggregate initializes its bases first, then its fields.
+          const auto* RD = ILEType->getAsCXXRecordDecl();
+          unsigned numBases = RD->getNumBases();
+          if (i < numBases) {
+            QualType baseTy = m_Context.getLValueReferenceType(
+                (RD->bases_begin() + i)->getType());
+            elemDfDx = m_Sema
+                           .BuildCXXNamedCast(
+                               noLoc, tok::TokenKind::kw_static_cast,
+                               m_Context.getTrivialTypeSourceInfo(baseTy),
+                               CloneNode(dfdx()), noLoc, noLoc)
+                           .get();
+          } else {
+            auto field_iterator = RD->field_begin();
+            std::advance(field_iterator, i - numBases);
+            elemDfDx = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                              CloneNode(dfdx()),
+                                              (*field_iterator)->getName());
+          }
         }
       }
       StmtDiff elemDiff = Visit(ILE->getInit(i), elemDfDx);
