@@ -72,6 +72,21 @@ public:
 
   virtual void ExecuteInsidePushforwardFunctionBlock() {}
 
+  /// Gives the derivatives of the two branches of a ?: of type \p T the same
+  /// form. Nothing to do here; vector mode turns a scalar zero beside a vector
+  /// of tangents into a vector of zeros.
+  virtual void matchBranchTangents(StmtDiff& /*TrueDiff*/,
+                                   StmtDiff& /*FalseDiff*/,
+                                   clang::QualType /*T*/) {}
+
+  /// The tangent of \p Cast, whose operand's tangent is \p Dx, where it is
+  /// not \p Dx cast the same way; null otherwise. Vector mode does not cast a
+  /// vector of tangents to a number.
+  virtual clang::Expr* castTangent(clang::Expr* /*Dx*/,
+                                   const clang::CastExpr* /*Cast*/) {
+    return nullptr;
+  }
+
   /// \returns \p read, the derivative expression dereferencing \p tangent,
   /// wrapped so that it evaluates to \p zero instead of dereferencing a null
   /// \p tangent. \p ptr is the primal pointer expression \p tangent is the

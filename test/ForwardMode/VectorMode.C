@@ -319,6 +319,78 @@ double f10(double x, double y) { return nondiff(x); }
 // CHECK: void f10_dvec(double x, double y, double *_d_x, double *_d_y) {
 // CHECK:   clad::array<double> _d_vector_return(clad::zero_vector(indepVarCount));
 
+// A derivative clad leaves at zero, in each place a scalar zero used to size
+// a vector rather than fill it: an initializer, a negation, a cast, a branch
+// of ?:, and the pushforward of a callee.
+double zeroInit(double x, double y) {
+  double t = nondiff(x);
+  return t + y;
+}
+double zeroNeg(double x, double y) { return -nondiff(x) + y; }
+double zeroCast(double x, double y) { return (double)nondiff(x) + y; }
+double zeroBranch(double x, double y) { return (x > 0 ? nondiff(x) : y) + y; }
+double zeroBothBranches(double x, double y) {
+  double t = x > 0 ? nondiff(x) : nondiff(y);
+  return t + y;
+}
+double zeroCallee(double x, double y) { return nondiff(x); }
+double viaCallee(double x, double y) { return zeroCallee(x, y) + y; }
+
+// A cast to a number leaves each tangent as it is.
+double castActive(double x, double y) {
+  return (double)(x * y) + double(x) + static_cast<double>(y);
+}
+
+// Tangents that are not themselves vectors keep their value: a braced
+// initializer or return holds one.
+double bracedInit(double x, double y) {
+  double t{x * y};
+  return t;
+}
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wbraced-scalar-init"
+double bracedReturn(double x, double y) { return {x * y}; }
+#pragma clang diagnostic pop
+
+// A cast to an integer has no derivative, beside a branch that has none either.
+double intCastBranch(double x, double y) {
+  int n = x > 0 ? (int)x : 0;
+  return n * y;
+}
+// Nor has one of an expression.
+double intCastOfExpr(double x, double y) {
+  int n = (int)(x * y);
+  return n + y;
+}
+
+// A zero reached through what changes a variable keeps the change.
+double zeroAfterEffect(double x, double y) {
+  double t = (x = x * 2, nondiff(y));
+  return t + x * y;
+}
+double intCastOfEffect(double x, double y) {
+  int n = (int)(x *= 2);
+  return n + x * y;
+}
+// Its zero is a vector wherever it lands: assigned, or passed on.
+double intCastAssigned(double x, double y) {
+  double t = x;
+  t = -(int)x;
+  return t + y;
+}
+double addBoth(double a, double b) { return a + b; }
+double intCastPassed(double x, double y) { return addBoth((int)x, y); }
+// Returned by a callee that returns void.
+void twice(double& v) { v *= 2; }
+void viaTwice(double& v) { return twice(v); }
+double voidReturned(double x, double y) {
+  viaTwice(x);
+  return x * y;
+}
+// Returned by a callee whose result is a double.
+double truncated(double x) { return (int)x; }
+double intCastReturned(double x, double y) { return truncated(x) * y; }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -391,4 +463,30 @@ int main() {
   dx = -1, dy = -1;
   f10_dvec.execute(1, 2, &dx, &dy);
   printf("Result is = {%.2f, %.2f}\n", dx, dy); // CHECK-EXEC: Result is = {0.00, 0.00}
+
+  // Each is y plus a part with no derivative.
+  TEST(zeroInit, 1, 2);   // CHECK-EXEC: Result is = {0.00, 1.00}
+  TEST(zeroNeg, 1, 2);    // CHECK-EXEC: Result is = {0.00, 1.00}
+  TEST(zeroCast, 1, 2);   // CHECK-EXEC: Result is = {0.00, 1.00}
+  TEST(zeroBranch, 1, 2); // CHECK-EXEC: Result is = {0.00, 1.00}
+  TEST(zeroBothBranches, 1, 2); // CHECK-EXEC: Result is = {0.00, 1.00}
+  TEST(viaCallee, 1, 2);  // CHECK-EXEC: Result is = {0.00, 1.00}
+  // x * y + x + y at (1, 2): {y + 1, x + 1}.
+  TEST(castActive, 1, 2); // CHECK-EXEC: Result is = {3.00, 2.00}
+  // x * y at (1, 2): {y, x}.
+  TEST(bracedInit, 1, 2);   // CHECK-EXEC: Result is = {2.00, 1.00}
+  TEST(bracedReturn, 1, 2); // CHECK-EXEC: Result is = {2.00, 1.00}
+  // n * y with n = 1 held: {0, n}.
+  TEST(intCastBranch, 1, 2); // CHECK-EXEC: Result is = {0.00, 1.00}
+  TEST(intCastOfExpr, 1, 2); // CHECK-EXEC: Result is = {0.00, 1.00}
+  // 2 x y plus a part with no derivative: {2 y, 2 x}.
+  TEST(zeroAfterEffect, 1, 2); // CHECK-EXEC: Result is = {4.00, 2.00}
+  TEST(intCastOfEffect, 1, 2); // CHECK-EXEC: Result is = {4.00, 2.00}
+  // y plus a part with no derivative.
+  TEST(intCastAssigned, 1, 2); // CHECK-EXEC: Result is = {0.00, 1.00}
+  TEST(intCastPassed, 1, 2);   // CHECK-EXEC: Result is = {0.00, 1.00}
+  // n * y with n = 1 held: {0, n}.
+  TEST(intCastReturned, 1, 2); // CHECK-EXEC: Result is = {0.00, 1.00}
+  // 2 x y: {2 y, 2 x}.
+  TEST(voidReturned, 1, 2); // CHECK-EXEC: Result is = {4.00, 2.00}
 }
