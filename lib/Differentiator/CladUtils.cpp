@@ -1506,7 +1506,7 @@ namespace clad {
         return nullptr;
       // An implicit conversion can make an unrelated zero_like overload
       // viable. Adjoint construction requires a new value of the primal type.
-      if (!FD || !S.Context.hasSameUnqualifiedType(FD->getReturnType(),
+      if (!FD || !clang::ASTContext::hasSameUnqualifiedType(FD->getReturnType(),
                                                    value->getType()))
         return nullptr;
       return FD;
