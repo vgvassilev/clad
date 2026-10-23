@@ -1038,6 +1038,10 @@ namespace clad {
     /// differentiated several calls down, with no parameter of its own to
     /// carry this; set only while that one statement is being visited.
     const clang::VarDecl* m_UnsavedLoopIndex = nullptr;
+    void HandleCUDASharedMemoryDecl(
+        const clang::VarDecl* VD, clang::VarDecl* VDForward,
+        clang::VarDecl* VDDerived,
+        llvm::SmallVectorImpl<clang::Stmt*>& memsetCalls);
   };
 } // end namespace clad
 
