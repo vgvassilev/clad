@@ -281,8 +281,12 @@ include_directories(BEFORE SYSTEM
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   )
 
+# The headers, the tables they expand and AddClad.cmake are installed with
+# the plugin, so installing that component alone -- install-clad in a build
+# inside LLVM's -- gives a clad that something can be compiled against.
 install(DIRECTORY include/
   DESTINATION include
+  COMPONENT clad
   FILES_MATCHING
   PATTERN "*.def"
   PATTERN "*.h"
@@ -291,12 +295,14 @@ install(DIRECTORY include/
 
 install(DIRECTORY tools/
   DESTINATION include/clad/tools
+  COMPONENT clad
   FILES_MATCHING
   PATTERN "*.h"
 )
 
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/
   DESTINATION include
+  COMPONENT clad
   FILES_MATCHING
   PATTERN "CMakeFiles" EXCLUDE
   PATTERN "*.inc"
@@ -307,6 +313,7 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/
 
 install(FILES cmake/modules/AddClad.cmake
   DESTINATION lib/cmake/clad
+  COMPONENT clad
   )
 
 add_definitions( -D_GNU_SOURCE
