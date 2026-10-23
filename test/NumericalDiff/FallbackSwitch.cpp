@@ -65,6 +65,12 @@ double noFallback(double x) {
   double y = x;
   return x > 0 ? std::tgamma(y++) : 0.;
 }
+
+// A call of several arguments falls back in forward mode too.
+// expected-warning@+3 2 {{attempted differentiation of function 'copysign'}}
+// expected-note@+2 {{falling back to numerical differentiation for 'copysign'}}
+// expected-note@+1 {{the numerical-diff fallback is off for this request; considering 'copysign' as 0}}
+double twoArgs(double x, double y) { return std::copysign(x, y) * x; }
 #endif
 
 void request() {
@@ -83,6 +89,9 @@ void request() {
   clad::differentiate<clad::opts::enable_numerical_diff_fallback>(offFirst, "x");
   clad::differentiate<clad::opts::disable_numerical_diff_fallback>(noFallback, "x");
   clad::differentiate<clad::opts::enable_numerical_diff_fallback>(noFallback, "x");
+  clad::differentiate<clad::opts::enable_numerical_diff_fallback>(twoArgs, "x");
+  // expected-error@+1 {{the derivative of 'twoArgs' is already generated with numerical-diff-fallback on;}}
+  clad::differentiate<clad::opts::disable_numerical_diff_fallback>(twoArgs, "x");
 #if __clang_major__ >= 17
   clad::gradient<clad::opts::enable_numerical_diff_fallback>(inLambda);
   // expected-error@+1 {{the derivative of 'inLambda' is already generated with numerical-diff-fallback on;}}
@@ -119,13 +128,13 @@ double askedOff(double x) { return std::tgamma(x); }
 double inner(double x) { return std::tgamma(x); }
 double outer(double x) { return inner(x); }
 
-// Several arguments go through central_difference, in reverse mode only.
-// expected-warning@+1 {{attempted differentiation of function 'copysign'}}
+// Several arguments go through central_difference, in either mode.
+// expected-warning@+1 2 {{attempted differentiation of function 'copysign'}}
 double twoArgs(double x, double y) { return std::copysign(x, y) * x; }
 #ifdef TU_OFF
-// expected-note@-2 {{the numerical-diff fallback is off for this request; considering 'copysign' as 0}}
+// expected-note@-2 2 {{the numerical-diff fallback is off for this request; considering 'copysign' as 0}}
 #else
-// expected-note@-4 {{falling back to numerical differentiation for 'copysign'}}
+// expected-note@-4 2 {{falling back to numerical differentiation for 'copysign'}}
 #endif
 
 // Off, the call contributes nothing and leaves nothing behind.
@@ -168,5 +177,9 @@ int main() {
   printf("twoArgs %.2f %.2f\n", dx2, dy2);
   // CHECK-EXEC-OFF: twoArgs 2.00 0.00
   // CHECK-EXEC-ON: twoArgs 4.00 0.00
+  auto twoFwd = clad::differentiate(twoArgs, "x");
+  printf("twoArgs fwd %.2f\n", twoFwd.execute(2, 3));
+  // CHECK-EXEC-OFF: twoArgs fwd 2.00
+  // CHECK-EXEC-ON: twoArgs fwd 4.00
 }
 #endif
