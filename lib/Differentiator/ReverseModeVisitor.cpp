@@ -4212,9 +4212,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // be split for the early-return lambda, change its type to make it
     // reassignable. The split drops its own const, once it knows it happens;
     // the pointer has to be decided here, as it changes how uses are spelled.
+    // A reference that owns its temporary is moved as the value it holds.
     if ((promoteToFnScope || mayBeSplitForEarlyReturn) &&
         VDCloneType->isReferenceType())
-      VDCloneType = m_Context.getPointerType(VDCloneType.getNonReferenceType());
+      VDCloneType =
+          bindsTemporary
+              ? VDCloneType.getNonReferenceType()
+              : m_Context.getPointerType(VDCloneType.getNonReferenceType());
     if (promoteToFnScope)
       VDCloneType.removeLocalConst();
     // A variable-array type carries its size in a stored expression, so the
@@ -4226,7 +4230,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             ? utils::getNonConstType(CloneType(VDType), m_Sema)
             : utils::getNonConstType(VDCloneType, m_Sema);
 
-    bool isRefType = VDType->isLValueReferenceType();
+    // A reference bound to a temporary owns it, so its adjoint is a value of
+    // its own, as for a variable.
+    if (bindsTemporary)
+      VDDerivedType =
+          utils::getNonConstType(VDType.getNonReferenceType(), m_Sema);
+    bool isRefType = VDType->isLValueReferenceType() && !bindsTemporary;
     bool isPointerType = VDType->isPointerType();
 
     bool isConstructInit =
