@@ -2169,10 +2169,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           it = m_Variables.emplace(VD, adjointInfoFrom(foundExpr)).first;
           // On the start of computing every derivative, we have to reset the
           // global adjoint to zero in case it was used by another gradient.
+          // An array cannot be assigned, so zero it element by element.
           if (m_DiffReq.Mode == DiffMode::reverse) {
-            Expr* assignToZero = BuildOp(BO_Assign, Clone(foundExpr),
-                                         getZeroInit(foundExpr->getType()));
-            addToBlock(assignToZero, m_Globals);
+            if (foundExpr->getType()->isArrayType()) {
+              Expr* adjoint = Clone(foundExpr);
+              addToBlock(GetCladZeroInit(adjoint), m_Globals);
+            } else
+              addToBlock(BuildOp(BO_Assign, Clone(foundExpr),
+                                 getZeroInit(foundExpr->getType())),
+                         m_Globals);
           }
         } else
           // Is not an independent variable, ignored.
