@@ -30,6 +30,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
@@ -993,6 +994,13 @@ namespace clad {
     clang::Expr* GetNumDiffCallee(const clang::FunctionDecl* FD,
                                   clang::Expr* Callee,
                                   const clang::CallExpr* CE);
+    /// Warns at \p CE where it calls the term clad wrote to approximate a call
+    /// it could not differentiate: a derivative of the code it is in takes no
+    /// part from it, which would take derivatives of that call again. Once
+    /// for each call it approximated, in each derivative.
+    void warnIfNumDiffDerivative(const clang::CallExpr* CE);
+    /// Where warnIfNumDiffDerivative has warned.
+    llvm::DenseSet<clang::SourceLocation> m_NumDiffDerivativeWarned;
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///
@@ -1002,12 +1010,17 @@ namespace clad {
     /// \param[in] numArgs The total number of 'args'.
     /// \param[in] args All the arguments to the target function.
     /// \param[in] CUDAExecConfig The kernel launch configuration, if any.
+    /// \param[in] targetTangent The tangent of 'targetArg', if the call is to
+    /// give the partial derivative times it rather than the partial alone. A
+    /// vector of tangents still gets the partial alone, zero where each of
+    /// them is, for the caller to multiply.
     ///
     /// \returns The derivative function call.
     clang::Expr* GetSingleArgCentralDiffCall(
         clang::Expr* targetFuncCall, clang::Expr* targetArg, unsigned targetPos,
         unsigned numArgs, llvm::SmallVectorImpl<clang::Expr*>& args,
-        clang::Expr* CUDAExecConfig = nullptr);
+        clang::Expr* CUDAExecConfig = nullptr,
+        clang::Expr* targetTangent = nullptr);
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
     /// Find the derived function if present in the DerivedFnCollector.

@@ -1149,10 +1149,21 @@ namespace clad {
     return m_Sema.DefaultFunctionArrayConversion(BuildDeclRef(TargetFD)).get();
   }
 
+  void VisitorBase::warnIfNumDiffDerivative(const CallExpr* CE) {
+    const FunctionDecl* Callee = CE->getDirectCallee();
+    if (Callee &&
+        Callee->getQualifiedNameAsString() ==
+            "numerical_diff::forward_central_difference_tangent" &&
+        m_NumDiffDerivativeWarned.insert(CE->getBeginLoc()).second)
+      diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+           "the derivative of a numerically differentiated call is not "
+           "computed; considering it as 0");
+  }
+
   Expr* VisitorBase::GetSingleArgCentralDiffCall(
       Expr* targetFuncCall, Expr* targetArg, unsigned targetPos,
       unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args,
-      Expr* CUDAExecConfig /*=nullptr*/) {
+      Expr* CUDAExecConfig /*=nullptr*/, Expr* targetTangent /*=nullptr*/) {
     m_Builder.noteFallbackDecision();
     if (!m_DiffReq.EnableNumericalDiffFallback)
       return nullptr;
@@ -1167,6 +1178,8 @@ namespace clad {
     // embedded in the numerical-diff call.
     llvm::SmallVector<Expr*, 16U> NumDiffArgs;
     NumDiffArgs.push_back(CloneNode(targetFuncCall));
+    if (targetTangent)
+      NumDiffArgs.push_back(targetTangent);
     // targetArg is also the value passed through `args` below (and embedded in
     // targetFuncCall); clone it so the numerical-diff call does not share it.
     NumDiffArgs.push_back(CloneNode(targetArg));
@@ -1179,8 +1192,14 @@ namespace clad {
     for (unsigned i = 0; i < numArgs; ++i)
       NumDiffArgs.push_back(CloneNode(args[i]));
     // Return the found overload.
-    return BuildNumericalDiffCall("forward_central_difference", NumDiffArgs,
-                                  CUDAExecConfig);
+    // A vector of tangents gets the partial alone, which the caller multiplies
+    // by it.
+    const char* Name = "forward_central_difference";
+    if (targetTangent)
+      Name = targetTangent->getType()->isRecordType()
+                 ? "forward_central_difference_partial"
+                 : "forward_central_difference_tangent";
+    return BuildNumericalDiffCall(Name, NumDiffArgs, CUDAExecConfig);
   }
 
   Expr*
