@@ -660,13 +660,17 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fabsl_pushforward(T x, dT d_x) {
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fmod_pushforward(T x, T y, dT d_x,
                                                              dT d_y) {
-  return {::std::fmod(x, y), d_x - d_y * ::std::floor(x / y)};
+  // fmod(x, y) = x - n * y with n the quotient truncated toward zero. It is
+  // taken from the remainder rather than as trunc(x / y), which can round
+  // across an integer that fmod's exact computation did not.
+  T r = ::std::fmod(x, y);
+  return {r, d_x - d_y * ::std::round((x - r) / y)};
 }
 
 template <typename T, typename U>
 CUDA_HOST_DEVICE void fmod_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   *d_x += d_z;
-  *d_y -= d_z * ::std::floor(x / y);
+  *d_y -= d_z * ::std::round((x - ::std::fmod(x, y)) / y);
 }
 
 // pushforward for fmodf, fmodl
@@ -697,13 +701,15 @@ CUDA_HOST_DEVICE void fmodl_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT>
 remainder_pushforward(T x, T y, dT d_x, dT d_y) {
-  return {::std::remainder(x, y), d_x - d_y * ::std::floor(x / y)};
+  // As for fmod, but n is x / y rounded to the nearest integer, ties to even.
+  T r = ::std::remainder(x, y);
+  return {r, d_x - d_y * ::std::round((x - r) / y)};
 }
 
 template <typename T, typename U>
 CUDA_HOST_DEVICE void remainder_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
   *d_x += d_z;
-  *d_y -= d_z * ::std::floor(x / y);
+  *d_y -= d_z * ::std::round((x - ::std::remainder(x, y)) / y);
 }
 
 // pushforward for remainderf, remainderl
