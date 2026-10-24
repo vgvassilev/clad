@@ -68,13 +68,6 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 #define CUDA_REST_ARGS
 #endif
 
-/// Tape type used for storing values in reverse-mode AD inside loops.
-template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          bool is_multithread = false, bool DiskOffload = false,
-          bool GpuOffload = false>
-using tape =
-    tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload, GpuOffload>;
-
 /// The attributes on clad::forward_sweep. A derivative whose primal returns
 /// before its tail runs its forward sweep as a closure handed to
 /// forward_sweep, and the derivative's locals are that closure's captures:
@@ -195,9 +188,9 @@ void pop(tape<T[N], SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true, DiskOffload,
 
   /// Access return the last value in the tape.
 template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          bool DiskOffload = false>
-T& back(
-    tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true, DiskOffload>& of) {
+          bool DiskOffload = false, bool GpuOffload = false>
+T& back(tape<T, SBO_SIZE, SLAB_SIZE, /*is_multithreaded=*/true, DiskOffload,
+             GpuOffload>& of) {
   std::lock_guard<std::mutex> lock(of.mutex());
   return of.back();
 }
