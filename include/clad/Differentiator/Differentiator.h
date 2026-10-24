@@ -13,6 +13,12 @@
 #ifdef __CUDACC__
 #include "BuiltinDerivativesCUDA.cuh"
 #endif
+// Puts clad::check_gradient and clad::check_derivative in scope for everyone
+// who includes clad, the way the entry points beside them are. Empty without
+// the numerical differentiation they compare against, and not used by this
+// header itself.
+// NOLINTNEXTLINE(misc-include-cleaner)
+#include "CheckDerivatives.h"
 #include "CladConfig.h"
 // Declares the Enzyme activity markers and gradient carrier that clad
 // refers to from the code it generates, so every user of the Enzyme
@@ -67,13 +73,6 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 #define CUDA_ARGS
 #define CUDA_REST_ARGS
 #endif
-
-/// Tape type used for storing values in reverse-mode AD inside loops.
-template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
-          bool is_multithread = false, bool DiskOffload = false,
-          bool GpuOffload = false>
-using tape =
-    tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload, GpuOffload>;
 
 /// The attributes on clad::forward_sweep. A derivative whose primal returns
 /// before its tail runs its forward sweep as a closure handed to

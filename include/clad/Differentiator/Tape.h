@@ -1011,8 +1011,13 @@ private:
       (*arr)[i].~ElTy();
   }
 };
-template <typename T, std::size_t SBO_SIZE, std::size_t SLAB_SIZE,
-          bool is_multithread, bool DiskOffload, bool GpuOffload>
+/// Tape type used for storing values in reverse-mode AD inside loops.
+///
+/// The defaults live here, with the alias, so that a header which needs a
+/// tape does not have to be included after the one that used to carry them.
+template <typename T, std::size_t SBO_SIZE = 64, std::size_t SLAB_SIZE = 1024,
+          bool is_multithread = false, bool DiskOffload = false,
+          bool GpuOffload = false>
 using tape =
     tape_impl<T, SBO_SIZE, SLAB_SIZE, is_multithread, DiskOffload, GpuOffload>;
 } // namespace clad
