@@ -117,6 +117,11 @@ public:
   clang::Expr* KeepTangentNullness(const clang::Expr* ptr,
                                    clang::Expr* tangent);
 
+  /// Adds statement and its derivative to the current block, interleaving
+  /// multi-declarator declarations so each declarator's tangent and primal
+  /// precede any subsequent declarator's tangent.
+  void ProcessBlockStmt(const clang::Stmt* S);
+
   virtual StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
