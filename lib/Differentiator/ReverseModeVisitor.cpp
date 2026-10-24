@@ -118,7 +118,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   Expr* ReverseModeVisitor::CladTapeResult::Last() {
     if (!Indices.empty())
       return V.BuildSlot(Ref, Indices);
-    LookupResult& Back = V.GetCladTapeBack();
+    LookupResult Back = V.GetCladTapeBack();
     CXXScopeSpec CSS;
     CSS.Extend(V.m_Context, utils::GetCladNamespace(V.m_Sema), noLoc, noLoc);
     Expr* BackDRE = utils::BuildDeclarationNameExpr(V.m_Sema, CSS, Back);
@@ -208,8 +208,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return Slots;
     }
     QualType TapeType = GetCladTapeOfType(type);
-    LookupResult& Push = GetCladTapePush();
-    LookupResult& Pop = GetCladTapePop();
+    LookupResult Push = GetCladTapePush();
+    LookupResult Pop = GetCladTapePop();
 
     // Threadprivate tapes must be static
     StorageClass SC = isInsideOMPBlock ? SC_Static : SC_None;

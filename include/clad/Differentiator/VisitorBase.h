@@ -801,9 +801,9 @@ namespace clad {
     /// Perform lookup into clad namespace for push/pop/back. Returns
     /// LookupResult, which is will be resolved later (which is handy since they
     /// are templates).
-    clang::LookupResult& GetCladTapePush();
-    clang::LookupResult& GetCladTapePop();
-    clang::LookupResult& GetCladTapeBack();
+    clang::LookupResult GetCladTapePush();
+    clang::LookupResult GetCladTapePop();
+    clang::LookupResult GetCladTapeBack();
     /// Instantiate clad::tape\<T\> type.
     clang::QualType GetCladTapeOfType(clang::QualType T);
 
