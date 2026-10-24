@@ -626,7 +626,7 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool returnsAdjoint(clang::QualType T);
 
     /// Resolve clad::zero_like(value), returning null without diagnostics
-    /// when no usable overload exists.
+    /// when no usable overload returns the primal type by value.
     clang::FunctionDecl* LookupCladZeroLike(clang::Sema& S, clang::Expr* value);
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);

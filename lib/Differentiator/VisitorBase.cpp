@@ -46,6 +46,7 @@
 #include "clang/Sema/Template.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -1484,6 +1485,31 @@ namespace clad {
       return nullptr;
     llvm::SmallVector<Expr*, 1> args{value};
     return BuildCallExpr(BuildDeclRef(zeroLike), args);
+  }
+
+  Expr*
+  VisitorBase::BuildZeroAdjoint(Expr* Value, QualType T,
+                                llvm::function_ref<Expr*(Expr*)> StoreValue) {
+    if (Value && T->isRecordType() &&
+        clad_compat::hasSameUnqualifiedType(m_Context, T, Value->getType())) {
+      bool needsStore = StoreValue && Value->HasSideEffects(m_Context);
+      // Match the lvalue returned by StoreValue before emitting any stores.
+      QualType storedType =
+          Value->isGLValue()
+              ? Value->getType()
+              : utils::getNonConstType(
+                    clad_compat::stripPredefinedSugar(Value->getType()),
+                    m_Sema);
+      OpaqueValueExpr stored(Value->getExprLoc(), storedType, VK_LValue);
+      if (FunctionDecl* zeroLike =
+              utils::LookupCladZeroLike(m_Sema, needsStore ? &stored : Value)) {
+        if (needsStore)
+          Value = StoreValue(Value);
+        llvm::SmallVector<Expr*, 1> args{CloneNode(Value)};
+        return BuildCallExpr(BuildDeclRef(zeroLike), args);
+      }
+    }
+    return getZeroInit(T);
   }
 
   FunctionDecl* VisitorBase::CreateDerivativeOverload(FunctionDecl* derivative,

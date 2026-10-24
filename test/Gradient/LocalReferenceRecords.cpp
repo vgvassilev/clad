@@ -37,6 +37,7 @@ void bumpIndex(double* out) {
 
 // CHECK: inline void bumpIndex_reverse_forw(double *out, double *_d_out, clad::restore_tracker &_tracker0) {
 // CHECK:          int &r = i;
+// CHECK-NEXT:     int &_d_r = _d_i;
 // CHECK-NEXT:     r += 2;
 // CHECK-NEXT:     _tracker0.store(out[i]);
 // CHECK-NEXT:     out[i] = out[i] * out[i];

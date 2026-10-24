@@ -30,13 +30,13 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/PrettyStackTrace.h"
 
 // For the LambdaBuilder
 #if CLANG_VERSION_MAJOR > 16
-#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/Support/SaveAndRestore.h"
 #endif // CLANG_VERSION_MAJOR > 16
 
@@ -840,6 +840,18 @@ namespace clad {
     /// Returns null when the customization point is not implemented for the
     /// value's type.
     clang::Expr* GetCladZeroLike(clang::Expr* value);
+
+    /// Build a default zero adjoint of type T. Prefer zero_like for records
+    /// with a matching primal type; otherwise preserve type-based zero init.
+    /// StoreValue, if provided, stores side-effecting values used by zero_like
+    /// and returns an accessible lvalue. It preserves glvalues' cv-qualifiers
+    /// and removes top-level const when storing prvalues.
+    /// Otherwise Value must already be safe to reuse at that point.
+    /// The returned expression owns a clone of Value.
+    /// Scalar zeros remain literals so constant folding can recognize them.
+    clang::Expr* BuildZeroAdjoint(
+        clang::Expr* Value, clang::QualType T,
+        llvm::function_ref<clang::Expr*(clang::Expr*)> StoreValue = nullptr);
 
     /// Assigns the Init expression to VD after performing the necessary
     /// implicit conversion. This is required as clang doesn't add implicit

@@ -2360,10 +2360,29 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           SetDeclInit(dArgDecl, getZeroInit(dArgTy));
       }
     }
+    // The adjoint can also initialize a reverse-sweep argument temporary.
+    // Give the reverse-forward argument its own expression tree.
     if (argDiff.getExpr_dx())
-      result.updateRevSweep(argDiff.getExpr_dx());
+      result.updateRevSweep(CloneNode(argDiff.getExpr_dx()));
     else
-      result.updateRevSweep(getZeroInit(arg->getType()));
+      result.updateRevSweep(BuildZeroAdjoint(
+          argDiff.getExpr(), arg->getType(), [this, &argDiff](Expr* value) {
+            // Both sweeps can need the primal. Store glvalues by address to
+            // preserve identity, and let GlobalStoreAndRef handle loop tapes.
+            if (value->isGLValue()) {
+              value = StoreAndRef(
+                  value, m_Context.getReferenceQualifiedType(value),
+                  direction::forward, "_ref", /*forceDeclCreation=*/true);
+              llvm::SmallVector<Expr*, 1> args{value};
+              Expr* address = GetFunctionCall("clad_addressof", "", args);
+              value = BuildOp(UO_Deref,
+                              GlobalStoreAndRef(address, address->getType(),
+                                                "_t", /*force=*/true));
+            } else
+              value = GlobalStoreAndRef(value, "_t", /*force=*/true);
+            argDiff.updateStmt(value);
+            return value;
+          }));
     if (isNonDiff)
       result.updateStmtDx(nullptr);
     QualType paramTy = param->getType();
@@ -4624,6 +4643,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmt* DSClone = nullptr;
     if (!decls.empty())
       DSClone = BuildDeclStmt(decls);
+    // A reverse-forward adjoint initializer can read the primal via zero_like.
+    if (m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass) {
+      addToCurrentBlock(DSClone, direction::forward);
+      DSClone = nullptr;
+    }
     if (!declsDiff.empty()) {
       Stmt* DSDiff = BuildDeclStmt(declsDiff);
       Stmts& block =
