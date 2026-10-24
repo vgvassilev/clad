@@ -4954,6 +4954,31 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                Brackets, Range)
             .get();
     subExprDiff.updateStmt(castExpr);
+    // A cast to another class, as static_cast<D*> from a B*, gives the adjoint
+    // that class too. It stays writable whatever the cast says about const or
+    // value category.
+    if (Expr* dx = subExprDiff.getExpr_dx()) {
+      QualType T = NCE->getType();
+      QualType dxT = dx->getType().getNonReferenceType();
+      QualType adjT;
+      if (T->isPointerType() && dxT->isPointerType()) {
+        QualType pointee = T->getPointeeType().getUnqualifiedType();
+        if (!clad_compat::hasSameUnqualifiedType(m_Context, pointee,
+                                                 dxT->getPointeeType()))
+          adjT = m_Context.getPointerType(pointee);
+      } else if (NCE->isGLValue() && T->isRecordType() &&
+                 !clad_compat::hasSameUnqualifiedType(m_Context, T, dxT)) {
+        // An lvalue even for a cast to D&&: the adjoint is written through.
+        adjT = m_Context.getLValueReferenceType(T.getUnqualifiedType());
+      }
+      if (!adjT.isNull())
+        subExprDiff.updateStmtDx(
+            m_Sema
+                .BuildCXXNamedCast(KWLoc, CastKind,
+                                   m_Context.getTrivialTypeSourceInfo(adjT), dx,
+                                   Brackets, Range)
+                .get());
+    }
 
     return subExprDiff;
   }
