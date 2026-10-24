@@ -382,9 +382,12 @@ namespace clad {
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
                                    bool force = false, bool zeroInit = false);
-    virtual StmtDiff StoreAndRestore(clang::Expr* E,
-                                     llvm::StringRef prefix = "_t",
-                                     bool moveToTape = false);
+    /// With \p restoreAgain, the restore leaves the record in place, and the
+    /// statements added to \p restoreAgain restore E from it once more and
+    /// then drop it.
+    virtual StmtDiff StoreAndRestore(
+        clang::Expr* E, llvm::StringRef prefix = "_t", bool moveToTape = false,
+        llvm::SmallVectorImpl<clang::Stmt*>* restoreAgain = nullptr);
 
     /// Build element-wise move between 2 arrays, e.g.
     /// `std::move(std::begin(from), std::end(from), std::begin(to));`
@@ -695,14 +698,19 @@ namespace clad {
     /// \param[in] isCUDAKernel true if the call being differentiated is a
     /// kernel launch
     ///
+    /// \param[out] PostCallStmts If not null, the caller restores the
+    /// argument's writes itself: the restore before the pullback call keeps
+    /// the record, and the statements that restore the argument once more and
+    /// then drop the record are added here, to follow the pullback call.
+    ///
     /// \returns A triplet of differentiated arguments, i.e. ``{<original arg>,
     /// <arg for pullback>, <reverse_forw arg>}``. In practice, it will look
     /// somewhat like ``{x, &_r0, _d_x}``.
-    StmtDiff
-    DifferentiateCallArg(const clang::Expr* arg,
-                         const clang::ParmVarDecl* param,
-                         llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
-                         bool isNonDiff, bool isCUDAKernel = false);
+    StmtDiff DifferentiateCallArg(
+        const clang::Expr* arg, const clang::ParmVarDecl* param,
+        llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts, bool isNonDiff,
+        bool isCUDAKernel = false,
+        llvm::SmallVectorImpl<clang::Stmt*>* PostCallStmts = nullptr);
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop.
