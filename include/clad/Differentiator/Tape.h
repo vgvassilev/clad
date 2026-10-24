@@ -642,7 +642,12 @@ public:
   using const_iterator = tape_iterator<const T, SBO_SIZE, SLAB_SIZE,
                                        is_multithread, DiskOffload, GpuOffload>;
 
-  CUDA_HOST_DEVICE tape_impl() = default;
+  // Not defaulted: clad declares its tapes as `clad::tape<T> _t = {};`, and
+  // value-initializing a class whose default constructor is not
+  // user-provided zero-fills it first, inline buffer included. Every member
+  // that needs a value has an initializer of its own.
+  // NOLINTNEXTLINE(modernize-use-equals-default)
+  CUDA_HOST_DEVICE tape_impl() {}
 
   CUDA_HOST_DEVICE ~tape_impl() { clear(); }
 

@@ -3,6 +3,8 @@
 #include "gtest/gtest.h"
 
 #include <cstddef>
+#include <cstring>
+#include <new>
 
 // A tape small enough for a handful of pushes to cross several slabs: four
 // elements inline, four per slab.
@@ -89,4 +91,28 @@ TEST(Tape, NoMutexUnlessMultithreaded) {
   // The lock lives in the multithreaded instantiation only.
   EXPECT_LT(sizeof(clad::tape<double>),
             sizeof(clad::tape<double, 64, 1024, /*is_multithread=*/true>));
+}
+
+// Filled and counted out of line, so that the compiler cannot drop the fill
+// as a store to an object whose lifetime has not begun yet.
+using DoubleTape = clad::tape<double>;
+alignas(DoubleTape) static unsigned char raw[sizeof(DoubleTape)];
+__attribute__((noinline)) static void fillRaw() {
+  std::memset(raw, 0x5a, sizeof raw);
+}
+__attribute__((noinline)) static std::size_t countUntouched() {
+  std::size_t n = 0;
+  for (unsigned char b : raw)
+    n += b == 0x5a;
+  return n;
+}
+
+TEST(Tape, ValueInitLeavesInlineBufferAlone) {
+  // Generated code value-initializes every tape it declares. The inline
+  // buffer must not be zero-filled for that: it is written by the pushes.
+  fillRaw();
+  auto* t = new (raw) DoubleTape{};
+  EXPECT_GE(countUntouched(), 64 * sizeof(double));
+  EXPECT_EQ(t->size(), 0u);
+  t->~DoubleTape();
 }
