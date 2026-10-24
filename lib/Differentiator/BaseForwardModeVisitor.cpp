@@ -456,6 +456,10 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
       int dValue = (param == m_IndependentVar);
       dParam =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, dValue);
+    } else if (dParamType->isRecordType()) {
+      // Zero, so that only the field the request names is seeded below; a
+      // default-initialized tangent would leave the other fields indeterminate.
+      dParam = getZeroInit(dParamType);
     } else if (utils::isArrayOrPointerType(dParamType)) {
       // We cannot initialize a pointer array adjoint ourselves.
       // Produce an error.

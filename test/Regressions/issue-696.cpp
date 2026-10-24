@@ -20,7 +20,7 @@ double byValue(T t) { return t.x * t.x; }
 double byRef(T& t) { return t.x * t.x; }
 
 // CHECK: double byRef_darg0_x(T &t) {
-// CHECK-NEXT:     T _d_t;
+// CHECK-NEXT:     T _d_t = {0.};
 // CHECK-NEXT:     _d_t.x = 1;
 // CHECK-NEXT:     double &_t0 = t.x;
 // CHECK-NEXT:     double &_t1 = t.x;
@@ -30,7 +30,7 @@ double byRef(T& t) { return t.x * t.x; }
 double nestedByRef(Outer& o) { return o.t.x * o.t.x; }
 
 // CHECK: double nestedByRef_darg0_t_x(Outer &o) {
-// CHECK-NEXT:     Outer _d_o;
+// CHECK-NEXT:     Outer _d_o = {{[{][{]}}0.{{[}][}]}};
 // CHECK-NEXT:     _d_o.t.x = 1;
 
 int main() {
