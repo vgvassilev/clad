@@ -390,8 +390,16 @@ namespace clad {
   template <size_t N, typename F>
   using TakeNFirstArgs_t = decltype(TakeNFirstArgs<N>(argument_types_t<F>{}));
 
+  // The adjoint type of a parameter of type R, mirroring
+  // utils::GetParameterDerivativeType: a pointer to the pointee (for pointers)
+  // or the referenced type (for references), without const. For example,
+  // `const double*` and `double&` give `double*`; `double*&` gives `double**`.
+  // R = void gives `void*`.
   template <class T, class R> struct OutputParamType {
-    using type = typename std::remove_pointer<R>::type*;
+    using ValueType = std::remove_reference_t<R>;
+    using type = std::remove_const_t<std::conditional_t<
+        std::is_reference<R>::value, ValueType,
+        std::remove_pointer_t<std::remove_cv_t<ValueType>>>>*;
   };
 
   template <class T, class R>
