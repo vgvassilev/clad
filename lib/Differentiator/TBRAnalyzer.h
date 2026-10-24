@@ -63,6 +63,9 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer>,
   /// ArraySubscriptExpr or MemberExpr.
   /// Records every pointer or reference parameter as modified.
   void markAllMemoryParamsModified();
+  /// Records that the function writes PVD, unless its caller cannot see the
+  /// write. A null PVD stands for the object or a target not known.
+  void markParamModified(const clang::ParmVarDecl* PVD);
   void setIsRequired(const clang::Expr* E, bool isReq = true);
 
   //// Modes Setters
