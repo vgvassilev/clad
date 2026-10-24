@@ -2248,7 +2248,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff ReverseModeVisitor::DifferentiateCallArg(
       const Expr* arg, const ParmVarDecl* param,
       llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts, bool isNonDiff,
-      bool isCUDAKernel) {
+      bool isCUDAKernel, llvm::SmallVectorImpl<clang::Stmt*>* PostCallStmts) {
     // Constructors inside arguments do not directly initialize a variable,
     // even when the enclosing call does.
     llvm::SaveAndRestore<bool> saveTrackVarDecl(m_TrackVarDeclConstructor,
@@ -2453,7 +2453,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (passByRef && m_DiffReq.shouldBeRecorded(arg)) {
       // argDiff.getExpr() is also returned below as the call argument; clone
       // it for the store/restore so the node is not shared with the call.
-      StmtDiff pushPop = StoreAndRestore(CloneNode(argDiff.getExpr()));
+      StmtDiff pushPop =
+          StoreAndRestore(CloneNode(argDiff.getExpr()), "_t",
+                          /*moveToTape=*/false, /*restoreAgain=*/PostCallStmts);
       addToCurrentBlock(pushPop.getStmt());
       PreCallStmts.push_back(pushPop.getStmt_dx());
     }
@@ -2536,6 +2538,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {buildClonedLambda(LE), lambdaE};
   }
 #endif // CLANG_VERSION_MAJOR
+  /// Whether a copy of an object of type \p T holds everything a function can
+  /// change through a reference to it: \p T reaches no other memory.
+  static bool reachesNoOtherMemory(const ASTContext& C, QualType T) {
+    T = C.getBaseElementType(T);
+    if (T->isArithmeticType() || T->isEnumeralType())
+      return true;
+    const auto* RD = T->getAsCXXRecordDecl();
+    return RD && RD->hasDefinition() && !RD->getNumBases() && !RD->isUnion() &&
+           !RD->isPolymorphic() &&
+           llvm::all_of(RD->fields(), [&C](const FieldDecl* F) {
+             return reachesNoOtherMemory(C, F->getType());
+           });
+  }
+
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // FIXME: Add general support for non-direct calls
     const Expr* callee = CE->getCallee();
@@ -2875,6 +2891,39 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
+    // A restore_tracker gives the pullback the state from before the call,
+    // and gives it back once more after the pullback, whose replay changes it
+    // again. Where the callee writes only into objects passed by reference
+    // that hold no pointer, and this function stores each of them anyway, the
+    // stored copies do both: restore them before the pullback as usual, and
+    // once more after it. The forward sweep then calls the primal.
+    llvm::SmallVector<Stmt*, 4> PostCallStmts;
+    bool callerRestoresWrites = false;
+    if (!nonDiff && usingRestoreTracker && !m_RestoreTracker &&
+        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass &&
+        !needsForwPass && pullbackStateType.isNull() &&
+        !isa<CUDAKernelCallExpr>(CE)) {
+      ParamInfo& modified = m_DiffReq.getModifiedParams();
+      auto found = modified.find(FD);
+      callerRestoresWrites = found != modified.end() && !found->second.empty();
+      if (callerRestoresWrites)
+        for (const ParmVarDecl* PVD : found->second) {
+          std::size_t argIdx = isMethodOperatorCall;
+          if (PVD)
+            argIdx += PVD->getFunctionScopeIndex();
+          QualType parTy = PVD ? PVD->getType() : QualType();
+          if (!PVD || !parTy->isLValueReferenceType() ||
+              parTy.getNonReferenceType().isConstQualified() ||
+              parTy.getNonReferenceType()->isArrayType() ||
+              !reachesNoOtherMemory(m_Context, parTy.getNonReferenceType()) ||
+              argIdx >= CE->getNumArgs() ||
+              !m_DiffReq.shouldBeRecorded(CE->getArg(argIdx))) {
+            callerRestoresWrites = false;
+            break;
+          }
+        }
+    }
+
     for (std::size_t skip_this = static_cast<std::size_t>(isMethodOperatorCall),
                      i = skip_this, e = CE->getNumArgs();
          i != e; ++i) {
@@ -2886,7 +2935,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       const auto* PVD = FD->getParamDecl(i - skip_this);
       StmtDiff argDiff =
           DifferentiateCallArg(arg, PVD, PreCallStmts, /*isNonDiff=*/nonDiff,
-                               isa<CUDAKernelCallExpr>(CE));
+                               isa<CUDAKernelCallExpr>(CE),
+                               callerRestoresWrites ? &PostCallStmts : nullptr);
 
       Expr* finalArg = argDiff.getExpr();
       if (const auto* ICE = dyn_cast<ImplicitCastExpr>(arg)) {
@@ -3176,7 +3226,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SmallVector<RecordedRange, 4> recordedRanges;
     bool useRangeRecords = false;
     if (usingRestoreTracker && !m_RestoreTracker && hasStoredParams &&
-        !needsForwPass && pullbackStateType.isNull() && !isMethodOperatorCall) {
+        !needsForwPass && pullbackStateType.isNull() && !isMethodOperatorCall &&
+        !callerRestoresWrites) {
       llvm::ArrayRef<WrittenExtent> extents =
           pullbackRequest.getWrittenExtents();
       // Empty where the loop analysis did not run, and there is then nothing
@@ -3283,10 +3334,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass && MD &&
         MD->isInstance() && !MD->isConst() &&
         utils::isMemoryType(MD->getThisType()->getPointeeType());
+    if (callerRestoresWrites) {
+      Stmts& block = getCurrentBlock(direction::reverse);
+      std::size_t postPullback =
+          insertionPoint + PreCallStmts.size() + (OverloadedDerivedFn ? 1 : 0);
+      block.insert(std::begin(block) + postPullback, PostCallStmts.begin(),
+                   PostCallStmts.end());
+    }
+
     if (!useRangeRecords && calleeFnForwPassFD &&
         (!hasDynamicNonDiffParams || !needsForwPass) &&
-        ((hasStoredParams && !recordsAreDead) || needsForwPass ||
-         !pullbackStateType.isNull() || inReverseForw)) {
+        ((hasStoredParams && !recordsAreDead && !callerRestoresWrites) ||
+         needsForwPass || !pullbackStateType.isNull() || inReverseForw)) {
       if (const auto* CD = dyn_cast<CXXConversionDecl>(FD))
         CallArgs.push_back(
             utils::GetCladTagExpr(m_Sema, CD->getConversionType()));
@@ -5119,9 +5178,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         prefix, force, zeroInit);
   }
 
-  StmtDiff ReverseModeVisitor::StoreAndRestore(clang::Expr* E,
-                                               llvm::StringRef prefix,
-                                               bool moveToTape) {
+  StmtDiff ReverseModeVisitor::StoreAndRestore(
+      clang::Expr* E, llvm::StringRef prefix, bool moveToTape,
+      llvm::SmallVectorImpl<clang::Stmt*>* restoreAgain) {
     assert(E && "must be provided");
     QualType Type = clad_compat::stripPredefinedSugar(E->getType());
 
@@ -5161,6 +5220,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* moveCall = BuildArrayAssignment(Clone(E), Ref, direction::reverse);
       addToCurrentBlock(moveCall, direction::reverse);
       Restore = Pop;
+    } else if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid &&
+               restoreAgain) {
+      // Read the record twice and drop it after the second read.
+      Restore = BuildOp(BO_Assign, Clone(E), Ref);
+      restoreAgain->push_back(BuildOp(BO_Assign, Clone(E), Clone(Ref)));
+      if (isInsideLoop())
+        restoreAgain->push_back(Pop);
     } else if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid) {
       if (isInsideLoop() && Type->isRecordType() && !moveToTape) {
         // The restore must pair with the push: clad::pop moves the element
