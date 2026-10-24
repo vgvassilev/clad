@@ -86,6 +86,21 @@ double f_sin(double x, double y) {
 // CHECK-NEXT:     return _d_xt + _d_yt;
 // CHECK-NEXT: }
 
+double f_multi_decl(double x, double y) {
+  double p = x * y, q = p * x;
+  return q;
+}
+
+// CHECK: double f_multi_decl_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     double _d_p = _d_x * y + x * _d_y;
+// CHECK-NEXT:     double p = x * y;
+// CHECK-NEXT:     double _d_q = _d_p * x + p * _d_x;
+// CHECK-NEXT:     double q = p * x;
+// CHECK-NEXT:     return _d_q;
+// CHECK-NEXT: }
+
 double f_string(double x) {
   const char *s = "string literal";
   return x;
@@ -153,6 +168,10 @@ int main() {
   clad::differentiate(f_ops1, 0);
   clad::differentiate(f_ops2, 0);
   clad::differentiate(f_sin, 0);
+  auto df_multi_decl = clad::differentiate(f_multi_decl, 0);
+  std::cout << df_multi_decl.execute(2, 3) << '\n'; // CHECK-EXEC: 12
+  auto df_multi_decl_y = clad::differentiate(f_multi_decl, 1);
+  std::cout << df_multi_decl_y.execute(2, 3) << '\n'; // CHECK-EXEC: 4
   clad::differentiate(f_string, 0);
   clad::differentiate(f_string_call, 0);
   auto df_stdstring = clad::differentiate(f_stdstring, 0);
