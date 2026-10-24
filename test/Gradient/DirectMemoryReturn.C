@@ -288,8 +288,10 @@ int main() {
   double d_input = 0.0;
   gradient.execute(3.0, &d_input);
   printf("%.1f\n", d_input); // CHECK-EXEC: 6.0
+  // The pullback replays the primal, but the gradient leaves the counter as
+  // the function itself would: one call.
   printf("%d %d\n", primalCalls,
-         zeroLikeCalls); // CHECK-EXEC-NEXT: 2 2
+         zeroLikeCalls); // CHECK-EXEC-NEXT: 1 2
 
   double fallbackDerivative = 0.0;
   auto fallbackGradient = clad::gradient(fallback_memory_loss);
