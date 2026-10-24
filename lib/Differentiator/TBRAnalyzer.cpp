@@ -82,6 +82,14 @@ void TBRAnalyzer::markAllMemoryParamsModified() {
       (*m_ModifiedParams)[m_Function].insert(PVD);
 }
 
+void TBRAnalyzer::markParamModified(const clang::ParmVarDecl* PVD) {
+  // A number passed by value is the callee's own copy: its caller never sees
+  // the write, and has nothing to restore.
+  if (PVD && PVD->getType()->isArithmeticType())
+    return;
+  (*m_ModifiedParams)[m_Function].insert(PVD);
+}
+
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   if (!isReq && m_ModifiedParams && storesThroughLoadedPointer(E))
     markAllMemoryParamsModified();
@@ -101,7 +109,7 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
     const auto* PVD = dyn_cast_or_null<ParmVarDecl>(iterVD);
     if (m_ModifiedParams && (!iterVD || PVD)) {
       if (!isReq)
-        (*m_ModifiedParams)[m_Function].insert(PVD);
+        markParamModified(PVD);
       else if (m_ModeStack.back() & Mode::kMarkingMode)
         (*m_UsedParams)[m_Function].insert(PVD);
     }
@@ -451,7 +459,7 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
       for (const VarDecl* VD : vars) {
         const auto* PVD = dyn_cast_or_null<ParmVarDecl>(VD);
         if (!VD || PVD)
-          (*m_ModifiedParams)[m_Function].insert(PVD);
+          markParamModified(PVD);
       }
     }
   }
