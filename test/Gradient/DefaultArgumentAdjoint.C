@@ -229,7 +229,7 @@ double f4(double x) {
 // It must not inherit the local variable's constructor context.
 double f5(double x) {
   global_default = x;
-  double a = f1(x, (global_default *= 2, defaultFactor));
+  double a = f1(x, (global_default *= 2, defaultFactor)); // expected-warning {{clad evaluates this argument more than once, and repeats what it writes each time}}
   return a + global_default;
 }
 

@@ -341,6 +341,18 @@ public:
   /// The calls in this function's body that move a derivative through a
   /// global's adjoint, whatever their arguments; only a pullback can.
   std::set<const clang::Expr*> ActiveGlobalCalls;
+  /// The arguments of the calls in this function's body that write
+  /// something, and that the reverse sweep evaluates once: with the writes
+  /// they make, outermost first, for one bound to a reference, and none for a
+  /// number passed by value, which is kept.
+  std::map<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 2>>
+      ArgWrites;
+  /// The writes of \p Arg, if it is one of ArgWrites; null otherwise.
+  const llvm::SmallVectorImpl<const clang::Expr*>*
+  argWrites(const clang::Expr* Arg) const {
+    auto found = ArgWrites.find(Arg);
+    return found == ArgWrites.end() ? nullptr : &found->second;
+  }
   /// Whether \p Call is one of ActiveGlobalCalls.
   bool touchesActiveGlobal(const clang::Expr* Call) const {
     return ActiveGlobalCalls.count(Call) != 0;
