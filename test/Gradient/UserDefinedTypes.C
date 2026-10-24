@@ -1208,9 +1208,9 @@ double fn33(double x) {
 // CHECK-NEXT:         _d_tmp4 += 2 * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     (PIBase *)this->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
-// CHECK-NEXT:     dynamic_cast<PIBase *>(this)->getPi_pullback(_d_tmp3, _d_this);
-// CHECK-NEXT:     reinterpret_cast<PIBase *>(this)->getPi_pullback(_d_tmp2, _d_this);
-// CHECK-NEXT:     static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, _d_this);
+// CHECK-NEXT:     dynamic_cast<PIBase *>(this)->getPi_pullback(_d_tmp3, dynamic_cast<PIBase *>(_d_this));
+// CHECK-NEXT:     reinterpret_cast<PIBase *>(this)->getPi_pullback(_d_tmp2, reinterpret_cast<PIBase *>(_d_this));
+// CHECK-NEXT:     static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, static_cast<PIBase *>(_d_this));
 // CHECK-NEXT: }
 // CHECK-NEXT:void fn33_grad(double x, double *_d_x) {
 // CHECK-NEXT:    PI _d_pi = {};
