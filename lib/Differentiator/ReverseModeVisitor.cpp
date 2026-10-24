@@ -3417,8 +3417,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             anyRef |= FD->getType()->isReferenceType();
             allRefs &= FD->getType()->isReferenceType();
           }
-        bool tapeStore = isInsideLoop() || m_DiffReq.hasEarlyReturns();
-        if (!tapeStore &&
+        // Outside a loop, pointers to the referents need no tape, early
+        // returns or not: a pointer can be declared unset. (A reverse_forw
+        // has no reverse sweep to read them; it keeps the result local.)
+        bool hoistPointers =
+            !isInsideLoop() && anyRef && allRefs &&
+            m_DiffReq.hasEarlyReturns() &&
+            m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass;
+        bool tapeStore =
+            isInsideLoop() || (m_DiffReq.hasEarlyReturns() && !hoistPointers);
+        if (!tapeStore && !hoistPointers &&
             (getCurrentScope()->isFunctionScope() || (anyRef && !allRefs)))
           callRes = StoreAndRef(call);
         else if (tapeStore || !anyRef)
