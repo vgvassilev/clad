@@ -2379,6 +2379,33 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           SetDeclInit(dArgDecl, getZeroInit(dArgTy));
       }
     }
+    // An argument that writes something, such as `a[i++]` or `x + i++`, has
+    // to be evaluated once, though the call, the stores around it and its
+    // pullback each use it. The planner lists its writes. A number passed by
+    // value: keep it. Passed by reference, keep the addresses of the object
+    // and its adjoint, taken through their reverse-sweep forms, which read the
+    // state from before the writes; then make the writes, once.
+    if (const auto* writes = isNonDiff ? nullptr : m_DiffReq.argWrites(arg)) {
+      auto keepAddress = [this](Expr* E) {
+        llvm::SmallVector<Expr*, 1> args{E};
+        Expr* address = GetFunctionCall("clad_addressof", "", args);
+        return BuildOp(UO_Deref, GlobalStoreAndRef(address, address->getType(),
+                                                   "_t", /*force=*/true));
+      };
+      if (param->getType()->isReferenceType()) {
+        Expr* object = keepAddress(argDiff.getRevSweepAsExpr());
+        if (Expr* adjoint = argDiff.getExpr_dx()) {
+          Expr* kept = keepAddress(adjoint);
+          argDiff.updateStmtDx(kept);
+          result.updateStmtDx(CloneNode(kept));
+        }
+        for (const Expr* write : *writes)
+          addToCurrentBlock(Clone(write), direction::forward);
+        argDiff.updateStmt(object);
+      } else
+        argDiff.updateStmt(
+            GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/true));
+    }
     // The adjoint can also initialize a reverse-sweep argument temporary.
     // Give the reverse-forward argument its own expression tree.
     if (argDiff.getExpr_dx())

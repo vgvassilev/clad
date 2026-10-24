@@ -1459,6 +1459,70 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
            !Caller.shouldHaveAdjoint(VD);
   }
 
+  /// The assignments, increments and decrements in \p E, outermost first, in
+  /// the order it reads them.
+  static llvm::SmallVector<const Expr*, 2> writesIn(const Expr* E) {
+    class Finder : public RecursiveASTVisitor<Finder> {
+    public:
+      llvm::SmallVector<const Expr*, 2> Writes;
+      bool TraverseBinaryOperator(BinaryOperator* BO) {
+        if (BO->getOpcode() != BO_Assign)
+          return RecursiveASTVisitor::TraverseBinaryOperator(BO);
+        Writes.push_back(BO);
+        return true;
+      }
+      // `+=` and its kind are not traversed as a BinaryOperator.
+      bool TraverseCompoundAssignOperator(CompoundAssignOperator* CAO) {
+        Writes.push_back(CAO);
+        return true;
+      }
+      bool TraverseUnaryOperator(UnaryOperator* UO) {
+        if (!UO->isIncrementDecrementOp())
+          return RecursiveASTVisitor::TraverseUnaryOperator(UO);
+        Writes.push_back(UO);
+        return true;
+      }
+    } F;
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    F.TraverseStmt(const_cast<Expr*>(E));
+    return F.Writes;
+  }
+
+  /// Whether the index \p Idx writes nothing, or steps an integer variable
+  /// once, as `i++`, `--i`, `i = e` and `i += e` do: reverse mode then has the
+  /// index from before the write.
+  static bool isIndexStep(const Expr* Idx) {
+    Idx = Idx->IgnoreParenImpCasts();
+    if (writesIn(Idx).empty())
+      return true;
+    const Expr* Target = nullptr;
+    const Expr* Value = nullptr;
+    if (const auto* UO = dyn_cast<UnaryOperator>(Idx)) {
+      if (UO->isIncrementDecrementOp())
+        Target = UO->getSubExpr();
+    } else if (const auto* BO = dyn_cast<BinaryOperator>(Idx)) {
+      if (BO->getOpcode() == BO_Assign || BO->getOpcode() == BO_AddAssign) {
+        Target = BO->getLHS();
+        Value = BO->getRHS();
+      }
+    }
+    const auto* DRE =
+        Target ? dyn_cast<DeclRefExpr>(Target->IgnoreParens()) : nullptr;
+    return DRE && DRE->getType()->isIntegerType() &&
+           (!Value || writesIn(Value).empty());
+  }
+
+  /// Whether every write in the lvalue \p E steps one of its array indices,
+  /// as in `a[i++]`: reverse mode then has its address from before them.
+  static bool writesOnlyIndices(const Expr* E) {
+    E = E->IgnoreParenImpCasts();
+    if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+      return isIndexStep(ASE->getIdx()) && writesOnlyIndices(ASE->getBase());
+    if (const auto* ME = dyn_cast<MemberExpr>(E))
+      return writesOnlyIndices(ME->getBase());
+    return writesIn(E).empty();
+  }
+
   static bool allArgumentsAreLiterals(const CallExpr::arg_range& args,
                                       const DiffRequest* request) {
     return std::none_of(args.begin(), args.end(), [&request](const Expr* A) {
@@ -2339,6 +2403,35 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
            (utils::returnsAdjoint(returnType) || shouldUseRestoreTracker ||
             utils::allocatesIntoRecordParam(request.Function)))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+      }
+    }
+
+    // The call, the stores around it and its pullback each use an argument.
+    // One that writes something is evaluated once: record its writes for the
+    // caller, and say so where reverse mode cannot keep it from before them.
+    if (!nonDiff && Saved.get() &&
+        (Saved.get()->Mode == DiffMode::reverse ||
+         Saved.get()->Mode == DiffMode::pullback ||
+         Saved.get()->Mode == DiffMode::jacobian)) {
+      const FunctionDecl* Callee = request.Function;
+      std::size_t skip =
+          isa<CXXOperatorCallExpr>(E) && isa<CXXMethodDecl>(Callee);
+      for (std::size_t i = skip, e = E->getNumArgs();
+           i < e && i - skip < Callee->getNumParams(); ++i) {
+        const Expr* Arg = E->getArg(i);
+        llvm::SmallVector<const Expr*, 2> Writes = writesIn(Arg);
+        if (Writes.empty())
+          continue;
+        QualType T = Callee->getParamDecl(i - skip)->getType();
+        if (T->isReferenceType() && Arg->isGLValue() && writesOnlyIndices(Arg))
+          Saved.get()->ArgWrites[Arg] = std::move(Writes);
+        else if (!T->isReferenceType() && Arg->getType()->isScalarType())
+          Saved.get()->ArgWrites[Arg] = {};
+        else
+          utils::diag(m_Sema, DiagnosticsEngine::Warning, Arg->getBeginLoc(),
+                      "clad evaluates this argument more than once, and "
+                      "repeats what it writes each time")
+              << Arg->getSourceRange();
       }
     }
 
