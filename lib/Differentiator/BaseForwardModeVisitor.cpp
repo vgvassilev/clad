@@ -2985,6 +2985,11 @@ BaseForwardModeVisitor::VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE) {
   return {clonedDeleteE, derivedDeleteE};
 }
 
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+StmtDiff BaseForwardModeVisitor::VisitCXXThrowExpr(const CXXThrowExpr* TE) {
+  return StmtDiff(Clone(TE));
+}
+
 StmtDiff BaseForwardModeVisitor::VisitCXXBindTemporaryExpr(
     const clang::CXXBindTemporaryExpr* BTE) {
   // `CXXBindTemporaryExpr` node will be created automatically, if it is
