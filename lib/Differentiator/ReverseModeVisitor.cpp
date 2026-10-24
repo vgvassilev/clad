@@ -1036,7 +1036,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingStmtInVisitCompoundStmt();
       StmtDiff SDiff = DifferentiateSingleStmt(S);
-      addToCurrentBlock(SDiff.getStmt(), direction::forward);
+      // A call whose results nothing reads need not run: its reverse puts
+      // back what it changed.
+      if (!m_DiffReq.isUnreadCall(S))
+        addToCurrentBlock(SDiff.getStmt(), direction::forward);
       Stmt* rev = SDiff.getStmt_dx();
       if (rev && skipRestAlways) {
         rev = nullptr;

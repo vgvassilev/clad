@@ -213,6 +213,13 @@ private:
     bool HasAnalysisRun = false;
   } m_WrittenVarInfo;
 
+  /// The calls of the primal's body whose results nothing reads. A property
+  /// of the Function, so worked out once and kept.
+  mutable struct UnreadCallInfo {
+    std::set<const clang::Stmt*> Unread;
+    bool HasAnalysisRun = false;
+  } m_UnreadCallInfo;
+
   /// What the loop analysis proved about the primal, worked out once on first
   /// use. Held by pointer: a request is copied often, and every copy of a
   /// function has the same facts.
@@ -296,6 +303,11 @@ public:
   /// belonging to a function other than this request's.
   bool writesVariable(const clang::VarDecl* VD) const;
 
+  /// Whether \p S, a statement of the primal's body, is a call whose results
+  /// nothing reads, so the forward sweep need not run it. False where the
+  /// liveness analysis is off.
+  bool isUnreadCall(const clang::Stmt* S) const;
+
   /// What is known about the loop \p S, or an empty result when nothing is.
   /// Reading the facts does not build anything: a caller that wants a
   /// trip-count expression builds it from Init and Bound.
@@ -353,6 +365,11 @@ public:
     auto found = ArgWrites.find(Arg);
     return found == ArgWrites.end() ? nullptr : &found->second;
   }
+  /// The calls in this function's body whose pullback needs nothing from the
+  /// forward sweep beyond the arguments: they have a pullback, and their
+  /// reverse_forw hands it no pullback_state and shapes no adjoint buffer. The
+  /// forward sweep may leave such a call out when nothing reads its results.
+  std::set<const clang::Expr*> ReplayableCalls;
   /// Whether \p Call is one of ActiveGlobalCalls.
   bool touchesActiveGlobal(const clang::Expr* Call) const {
     return ActiveGlobalCalls.count(Call) != 0;

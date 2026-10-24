@@ -6,6 +6,7 @@
 #include "TBRAnalyzer.h"
 #include "UsefulAnalyzer.h"
 
+#include "LivenessAnalyzer.h"
 #include "LoopAnalyzer.h"
 #include "clad/Differentiator/CladConfig.h"
 
@@ -615,6 +616,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       m_WrittenVarInfo.HasAnalysisRun = true;
     }
     return m_WrittenVarInfo.Written.count(VD) != 0;
+  }
+
+  bool DiffRequest::isUnreadCall(const Stmt* S) const {
+    // Only a sweep that goes on into its own reverse can leave work out: a
+    // reverse_forw hands its results to its caller, a jacobian its output.
+    if (!EnableLivenessAnalysis ||
+        (Mode != DiffMode::reverse && Mode != DiffMode::pullback))
+      return false;
+    if (!m_UnreadCallInfo.HasAnalysisRun) {
+      findUnreadCalls(*this, m_UnreadCallInfo.Unread);
+      m_UnreadCallInfo.HasAnalysisRun = true;
+    }
+    return m_UnreadCallInfo.Unread.count(S) != 0;
   }
 
   namespace {
@@ -2427,6 +2441,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             utils::allocatesIntoRecordParam(request.Function)))) {
         m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
       }
+      if (!nonDiff && Saved.get() && request.PullbackStateParam.isNull() &&
+          forwPassRequest.PullbackStateParam.isNull() &&
+          !utils::allocatesIntoRecordParam(request.Function))
+        Saved.get()->ReplayableCalls.insert(E);
     }
 
     // The call, the stores around it and its pullback each use an argument.
