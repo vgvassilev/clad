@@ -390,12 +390,11 @@ namespace clad {
   template <size_t N, typename F>
   using TakeNFirstArgs_t = decltype(TakeNFirstArgs<N>(argument_types_t<F>{}));
 
-  // The type of the adjoint clad generates for a parameter of type R, as
-  // utils::GetParameterDerivativeType builds it: a pointer to the value type,
-  // which is the pointee of a pointer and otherwise the referenced type, with
-  // its const dropped. A `const double*` has a `double*` adjoint, a `double&`
-  // has a `double*` one and a `double*&` has a `double**` one. R = void, as the
-  // gradient and Jacobian traits pass, gives void*.
+  // The adjoint type of a parameter of type R, mirroring
+  // utils::GetParameterDerivativeType: a pointer to the pointee (for pointers)
+  // or the referenced type (for references), without const. For example,
+  // `const double*` and `double&` give `double*`; `double*&` gives `double**`.
+  // R = void gives `void*`.
   template <class T, class R> struct OutputParamType {
     using ValueType = std::remove_reference_t<R>;
     using type = std::remove_const_t<std::conditional_t<
