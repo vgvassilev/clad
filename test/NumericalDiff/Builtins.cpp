@@ -11,7 +11,7 @@ double fexpm1(double x) { return __builtin_expm1(x); } // expected-warning 2{{at
 // expected-note@-1 2{{falling back to numerical differentiation for '__builtin_expm1'}}
 
 // CHECK: double fexpm1_darg0(double x) {
-// CHECK:     return numerical_diff::forward_central_difference<{{.*}}>(expm1, x, 0, 0, x) * _d_x;
+// CHECK:     return numerical_diff::forward_central_difference_tangent<{{.*}}>(expm1, _d_x, x, 0, 0, x);
 
 // CHECK: void fexpm1_grad(double x, double *_d_x) {
 // CHECK:     numerical_diff::forward_central_difference<{{.*}}>(expm1, x, 0, 0, x)

@@ -20,6 +20,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
@@ -1235,6 +1236,43 @@ DiffMode BaseForwardModeVisitor::GetPushForwardMode() {
   return DiffMode::pushforward;
 }
 
+/// The element type of the vector of tangents \p T: a clad::array<E>, or an
+/// expression of them, whose widest floating element type gives it; the
+/// first element type, if none is floating. Null where T is neither.
+static QualType tangentElementType(QualType T) {
+  T = T.getNonReferenceType().getUnqualifiedType();
+  const auto* Spec = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+      T->getAsCXXRecordDecl());
+  if (!Spec)
+    return {};
+  if (Spec->getQualifiedNameAsString() == "clad::array")
+    return Spec->getTemplateArgs().get(0).getAsType();
+  QualType Found;
+  for (const TemplateArgument& Arg : Spec->getTemplateArgs().asArray()) {
+    QualType E = Arg.getKind() == TemplateArgument::Type
+                     ? tangentElementType(Arg.getAsType())
+                     : QualType();
+    if (E.isNull())
+      continue;
+    if (Found.isNull() ||
+        (E->isRealFloatingType() &&
+         (!Found->isRealFloatingType() ||
+          Spec->getASTContext().getFloatingTypeOrder(E, Found) > 0)))
+      Found = E;
+  }
+  return Found;
+}
+
+/// Whether \p dE is a tangent that is zero by its spelling: a literal zero,
+/// or in vector mode a vector of them.
+static bool isZeroTangent(const Expr* dE) {
+  if (utils::IsZeroOrNullValue(dE))
+    return true;
+  const auto* CE = dyn_cast<CallExpr>(dE->IgnoreImplicit());
+  const FunctionDecl* FD = CE ? CE->getDirectCallee() : nullptr;
+  return FD && FD->getQualifiedNameAsString() == "clad::zero_vector";
+}
+
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
@@ -1295,6 +1333,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 
   // If the function is non_differentiable, return zero derivative.
   if (clad::utils::hasNonDifferentiableAttribute(CE)) {
+    warnIfNumDiffDerivative(CE);
     // Calling the function without computing derivatives
     llvm::SmallVector<Expr*, 4> ClonedArgs;
     for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i)
@@ -1392,7 +1431,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 
   // For f(g(x)) = f'(x) * g'(x)
   std::size_t numParams = FD->getNumParams();
-  Expr* Multiplier = nullptr;
   for (size_t i = skipFirstArg, e = CE->getNumArgs(); i < e; ++i) {
     const Expr* arg = CE->getArg(i);
     StmtDiff argDiff = Visit(arg);
@@ -1613,7 +1651,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // If clad failed to derive it, try finding its derivative using
   // numerical diff.
   if (!callDiff) {
-    Multiplier = diffArgs.empty() ? nullptr : diffArgs[0];
     // The primal call and the numerical derivative each evaluate the
     // arguments, the latter several times, so an argument with side effects
     // is evaluated once, beforehand. Where the call is evaluated only on some
@@ -1622,29 +1659,153 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // no numerical derivative.
     bool Enabled = m_DiffReq.EnableNumericalDiffFallback;
     bool NumDiffViable = utils::GetNumDiffTarget(m_Sema, FD, CE) != nullptr;
+    // Refused for this call alone, which passes arguments past the
+    // parameters: GetNumDiffCallee says so.
+    if (!NumDiffViable && Enabled)
+      GetNumDiffCallee(FD, /*Callee=*/nullptr, CE);
     auto hasEffects = [&](const Expr* Arg) {
       return Arg->HasSideEffects(m_Context, /*IncludePossibleEffects=*/false);
     };
-    if (NumDiffViable && llvm::any_of(CallArgs, hasEffects)) {
-      if (m_ConditionalOperandDepth) {
-        if (Enabled)
-          diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
-               "numerical differentiation of %0 is not supported here: its "
-               "arguments have side effects, and the call is evaluated only "
-               "on some paths, or once per iteration; considering its "
-               "derivative as 0")
-              << FD;
-        NumDiffViable = false;
-      } else if (Enabled) {
-        for (Expr*& Arg : CallArgs)
-          if (hasEffects(Arg))
-            Arg = StoreAndRef(Arg, "_t", /*forceDeclCreation=*/true);
+    // Which arguments get a term: one of a differentiable type, whose tangent
+    // may not be zero, passed to a parameter of a real floating type. An
+    // inactive argument adds nothing, and stepping it could reach a value
+    // where the function is not defined; a tangent that is zero only when the
+    // code runs -- a parameter not differentiated, a local held at a constant
+    // -- is left to the term, which then takes no step. An integer parameter
+    // cannot take the step at all: it rounds to a whole one. diffArgs holds a
+    // tangent for each argument of a differentiable type.
+    struct ArgTerm {
+      Expr** Tangent = nullptr; ///< In diffArgs, if it has one.
+      QualType SteppedAs;       ///< Its parameter's type, if it gets a term.
+    };
+    llvm::SmallVector<ArgTerm, 4> Terms(CallArgs.size());
+    bool AnyTerm = false;
+    {
+      llvm::MutableArrayRef<Expr*> Tangents = diffArgs;
+      // The index and the value of each, rather than a binding of the pair:
+      // LLVM before 16 has none for it.
+      for (auto E : llvm::enumerate(Terms)) {
+        std::size_t Pos = E.index();
+        ArgTerm& T = E.value();
+        if (Tangents.empty())
+          break;
+        if (!utils::IsDifferentiableType(CE->getArg(Pos)->getType()))
+          continue;
+        T.Tangent = &Tangents.front();
+        Tangents = Tangents.drop_front();
+        // An enumeration's tangent is not a number the partial can scale, nor
+        // a vector of them -- an expression of one with others is.
+        QualType dTy = (*T.Tangent)->getType();
+        if (const auto* Spec =
+                dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+                    dTy->getAsCXXRecordDecl());
+            Spec && Spec->getQualifiedNameAsString() == "clad::array")
+          dTy = Spec->getTemplateArgs().get(0).getAsType();
+        if (Pos >= FD->getNumParams() || isZeroTangent(*T.Tangent) ||
+            dTy->isEnumeralType())
+          continue;
+        QualType ParamTy = FD->getParamDecl(Pos)
+                               ->getType()
+                               .getNonReferenceType()
+                               .getUnqualifiedType();
+        if (!ParamTy->isRealFloatingType())
+          continue;
+        T.SteppedAs = ParamTy;
+        AnyTerm = true;
+      }
+    }
+    // The call and each term evaluate the arguments, the terms several times
+    // over, so one with side effects is evaluated once, beforehand, and so is
+    // one that calls something, which may change what it gives. Where the
+    // call is evaluated only on some paths, or once per iteration, beforehand
+    // would be once on every path: there one with side effects gets no
+    // numerical derivative, and one that calls something is evaluated in
+    // place.
+    auto callsSomething = [](const Expr* E) {
+      llvm::SmallVector<const Stmt*, 8> Work = {E};
+      while (!Work.empty()) {
+        const Stmt* S = Work.pop_back_val();
+        if (isa<CallExpr, CXXConstructExpr, CXXBindTemporaryExpr>(S))
+          return true;
+        for (const Stmt* Child : S->children())
+          if (Child)
+            Work.push_back(Child);
+      }
+      return false;
+    };
+    auto onceBeforehand = [&](const Expr* Arg) {
+      return hasEffects(Arg) || (AnyTerm && callsSomething(Arg));
+    };
+    // In place, an argument that calls something would be evaluated again by
+    // every term, and a call of several arguments has several.
+    auto unsupportedInPlace = [&](const Expr* Arg) {
+      return hasEffects(Arg) ||
+             (CallArgs.size() > 1 && AnyTerm && callsSomething(Arg));
+    };
+    // A braced argument has no type to be stored as.
+    auto braced = [](const Expr* Arg) {
+      return isa<InitListExpr>(Arg->IgnoreImplicit());
+    };
+    // Off, the call gets no numerical derivative either way, and is not
+    // told why.
+    if (NumDiffViable && m_ConditionalOperandDepth &&
+        llvm::any_of(CallArgs, unsupportedInPlace)) {
+      if (Enabled)
+        diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+             "numerical differentiation of %0 is not supported here: its "
+             "arguments %select{call something|have side effects}1, and the "
+             "call is evaluated only on some paths, or once per iteration; "
+             "considering its derivative as 0")
+            << FD << llvm::any_of(CallArgs, hasEffects);
+      NumDiffViable = false;
+    } else if (NumDiffViable && llvm::any_of(CallArgs, braced) &&
+               llvm::any_of(CallArgs, onceBeforehand)) {
+      // Evaluating the arguments beforehand would store each of them.
+      if (Enabled)
+        diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+             "numerical differentiation of %0 is not supported here: its "
+             "arguments %select{call something|have side effects}1, so they "
+             "are evaluated beforehand, which a braced one cannot be; "
+             "considering its derivative as 0")
+            << FD << llvm::any_of(CallArgs, hasEffects);
+      NumDiffViable = false;
+    } else if (NumDiffViable && Enabled && !m_ConditionalOperandDepth &&
+               llvm::any_of(CallArgs, onceBeforehand)) {
+      // Every argument is then evaluated beforehand, in order and by value,
+      // as the call would: one left in place would read what a later one
+      // changes. So is its tangent, before it, as for a statement: it reads
+      // the values its argument changes. In vector mode a tangent is kept as
+      // a vector: an expression of vectors refers to temporaries that would
+      // be gone.
+      for (auto E : llvm::enumerate(llvm::zip(CallArgs, Terms))) {
+        std::size_t Pos = E.index();
+        auto [Arg, T] = E.value();
+        if (Expr** dArg = T.Tangent; dArg && !isZeroTangent(*dArg) &&
+                                     !(*dArg)->isEvaluatable(m_Context)) {
+          QualType dTy = (*dArg)->getType();
+          if (dTy->isRecordType() && Pos < FD->getNumParams())
+            *dArg = StoreAndRef(
+                *dArg,
+                utils::GetCladArrayOfType(
+                    m_Sema, utils::GetNonConstValueType(
+                                FD->getParamDecl(Pos)->getType())),
+                getCurrentBlock(), "_t", /*forceDeclCreation=*/true);
+          else
+            *dArg = StoreAndRef(
+                *dArg, clad_compat::stripPredefinedSugar((*dArg)->getType()),
+                getCurrentBlock(), "_t", /*forceDeclCreation=*/true);
+        }
+        if (onceBeforehand(Arg) || !Arg->isEvaluatable(m_Context))
+          Arg = StoreAndRef(Arg,
+                            clad_compat::stripPredefinedSugar(Arg->getType()),
+                            getCurrentBlock(), "_t",
+                            /*forceDeclCreation=*/true);
       }
     }
     // Where the call would fall back, the derivative depends on whether it
     // does, off as well as on: a request asking the other way must not reuse
     // it.
-    if (NumDiffViable && CE->getNumArgs() == 1)
+    if (NumDiffViable)
       m_Builder.noteFallbackDecision();
     NumDiffViable = NumDiffViable && Enabled;
     Expr* call =
@@ -1653,16 +1814,84 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                            llvm::MutableArrayRef<Expr*>(CallArgs), validLoc,
                            CUDAExecConfig)
             .get();
-    // FIXME: Extend this for multiarg support
-    // Check if the function is eligible for numerical differentiation.
-    Expr* fnCallee =
-        CE->getNumArgs() == 1 && NumDiffViable
-            ? GetNumDiffCallee(FD, cast<CallExpr>(call)->getCallee(), CE)
-            : nullptr;
-    if (fnCallee)
-      callDiff =
-          GetSingleArgCentralDiffCall(fnCallee, CallArgs[0],
-                                      /*targetPos=*/0, /*numArgs=*/1, CallArgs);
+    // The tangent of the call is each partial derivative times the tangent of
+    // its argument, summed over the arguments that have one.
+    if (NumDiffViable) {
+      Expr* fnCallee =
+          GetNumDiffCallee(FD, cast<CallExpr>(call)->getCallee(), CE);
+      for (auto E : llvm::enumerate(llvm::zip(CallArgs, Terms))) {
+        std::size_t Pos = E.index();
+        auto [Arg, T] = E.value();
+        if (T.SteppedAs.isNull())
+          continue;
+        // Stepped as the parameter it is passed to: an integer passed to a
+        // double is a double there, in the arguments the step is taken among
+        // too.
+        Expr* Stepped = Arg;
+        if (!clad_compat::hasSameUnqualifiedType(m_Context, Arg->getType(),
+                                                 T.SteppedAs))
+          Stepped =
+              m_Sema
+                  .BuildCStyleCastExpr(
+                      noLoc, m_Context.getTrivialTypeSourceInfo(T.SteppedAs),
+                      noLoc, BuildParens(Arg))
+                  .get();
+        llvm::SmallVector<Expr*, 4> TermArgs;
+        for (auto Other : llvm::enumerate(CallArgs))
+          TermArgs.push_back(Other.index() == Pos ? Stepped : Other.value());
+        Expr* term = GetSingleArgCentralDiffCall(
+            fnCallee, Stepped, Pos, /*numArgs=*/TermArgs.size(), TermArgs,
+            /*CUDAExecConfig=*/nullptr, /*targetTangent=*/*T.Tangent);
+        // Off, or not numbers: no part of the call has a derivative.
+        if (!term) {
+          callDiff = nullptr;
+          break;
+        }
+        // In vector mode the partial times the vector of tangents, left as an
+        // expression of them: it converts to whatever vector the code around
+        // it has.
+        if ((*T.Tangent)->getType()->isRecordType())
+          term = BuildOp(BO_Mul, term, BuildParens(Clone(*T.Tangent)));
+        callDiff = callDiff ? BuildOp(BO_Add, callDiff, term) : term;
+      }
+      // In scalar mode the call's tangent is of the call's type, as the code
+      // around it expects: a float or an integer callee's does not narrow in
+      // a braced pushforward, and an integer one's is truncated as clad's own
+      // derivative of such a function would be. In vector mode a call of one
+      // argument has its term left an expression, as it was: it converts to
+      // whatever vector the code around it has. One of several has it built
+      // into a vector of the widest floating type the arguments' tangents
+      // hold: an expression refers to the partials, which would be gone where
+      // clad stores it, as for a compound assignment.
+      QualType RetTy = utils::GetNonConstValueType(FD->getReturnType());
+      if (callDiff && callDiff->getType()->isRecordType()) {
+        if (CallArgs.size() > 1) {
+          QualType Elem;
+          for (const ArgTerm& T : Terms) {
+            if (T.SteppedAs.isNull())
+              continue;
+            QualType E = tangentElementType((*T.Tangent)->getType());
+            if (!E.isNull() && E->isRealFloatingType() &&
+                (Elem.isNull() || m_Context.getFloatingTypeOrder(E, Elem) > 0))
+              Elem = E;
+          }
+          if (Elem.isNull())
+            Elem = m_Context.DoubleTy;
+          QualType ArrTy = utils::GetCladArrayOfType(m_Sema, Elem);
+          callDiff = BuildFunctionalCast(
+              m_Context.getTrivialTypeSourceInfo(ArrTy), ArrTy, callDiff);
+        }
+      } else if (callDiff && RetTy->isArithmeticType() &&
+                 !RetTy->isEnumeralType() &&
+                 !clad_compat::hasSameUnqualifiedType(
+                     m_Context, callDiff->getType(), RetTy)) {
+        callDiff = m_Sema
+                       .BuildCStyleCastExpr(
+                           noLoc, m_Context.getTrivialTypeSourceInfo(RetTy),
+                           noLoc, BuildParens(callDiff))
+                       .get();
+      }
+    }
     if (!callDiff) {
       // The call is active, so a zero here drops a contribution. A callee
       // without a definition was diagnosed when requested, and after an error
@@ -1678,8 +1907,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
       return StmtDiff(call, zero);
     }
-    if (Multiplier)
-      callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
     return {call, callDiff};
   }
 
@@ -1935,7 +2162,32 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       // the ordering of the stored references is the point here.)
       auto LdiffExprDx = StoreAndRef(Ldiff.getExpr_dx());
       Ldiff = {StoreAndRef(Ldiff.getExpr()), LdiffExprDx};
-      auto RdiffExprDx = StoreAndRef(Rdiff.getExpr_dx());
+      // In vector mode an expression of vectors may refer to temporaries, as
+      // a numerically differentiated call's partials: stored, it is kept as a
+      // vector, of the wider floating type of the two sides' tangents, as the
+      // primal's product is; double where neither is floating.
+      Expr* RdiffExprDx = nullptr;
+      QualType RdxTy = Rdiff.getExpr_dx()->getType();
+      QualType RdxElem = tangentElementType(RdxTy);
+      if (!RdxElem.isNull()) {
+        QualType LElem = tangentElementType(Ldiff.getExpr_dx()->getType());
+        if (!RdxElem->isRealFloatingType())
+          RdxElem = QualType();
+        if (!LElem.isNull() && LElem->isRealFloatingType() &&
+            (RdxElem.isNull() ||
+             m_Context.getFloatingTypeOrder(LElem, RdxElem) > 0))
+          RdxElem = LElem;
+        if (RdxElem.isNull())
+          RdxElem = m_Context.DoubleTy;
+      }
+      const auto* RdxRD = RdxTy->getAsCXXRecordDecl();
+      if (!RdxElem.isNull() && RdxRD &&
+          RdxRD->getQualifiedNameAsString() != "clad::array")
+        RdiffExprDx = StoreAndRef(
+            Rdiff.getExpr_dx(), utils::GetCladArrayOfType(m_Sema, RdxElem),
+            getCurrentBlock(), "_t", /*forceDeclCreation=*/true);
+      else
+        RdiffExprDx = StoreAndRef(Rdiff.getExpr_dx());
       Rdiff = {StoreAndRef(Rdiff.getExpr()), RdiffExprDx};
       // deriveMul/deriveDiv reuse Ldiff.getExpr_dx() (the stored derivative
       // ref) on the right-hand side; clone it for the assignment target so the

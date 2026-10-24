@@ -18,8 +18,9 @@ double sideEffect(double x) {
 }
 
 // CHECK: double sideEffect_darg0(double x) {
-// CHECK: double _t0 = y++;
-// CHECK: forward_central_difference<double (*)(double){{.*}}>(std::tgamma, _t0, 0, 0, _t0)
+// CHECK: double _t0 = _d_y;
+// CHECK-NEXT: double _t1 = y++;
+// CHECK: forward_central_difference_tangent<double (*)(double){{.*}}>(std::tgamma, _t0, _t1, 0, 0, _t1)
 
 // The call runs only when x > 10. Evaluated beforehand, y++ would run on
 // every path, and in place, as often as the derivative calls tgamma: the call

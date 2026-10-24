@@ -2686,6 +2686,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // FIXME: consider moving non-diff analysis to DiffPlanner.
     bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE) ||
                    clad::utils::callOperatesOnNonDifferentiableType(m_Sema, CE);
+    if (nonDiff)
+      warnIfNumDiffDerivative(CE);
     // If the result does not depend on the result of the call, just clone
     // the call and visit arguments (since they may contain side-effects like
     // f(x = y))
