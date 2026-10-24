@@ -271,9 +271,9 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
   return params;
 }
 
-StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(clang::Expr* E,
-                                                     llvm::StringRef prefix,
-                                                     bool moveToTape) {
+StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(
+    clang::Expr* E, llvm::StringRef prefix, bool moveToTape,
+    llvm::SmallVectorImpl<clang::Stmt*>* /*restoreAgain*/) {
   if (!m_RestoreTracker)
     return {};
   // Storage owned by this function's locals is gone by the time the caller
