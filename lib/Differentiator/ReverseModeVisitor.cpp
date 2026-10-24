@@ -13,6 +13,7 @@
 #include "LoopScope.h"
 #include "TBRAnalyzer.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ExternalRMVSource.h"
@@ -47,6 +48,7 @@
 #include "clang/Basic/TypeTraits.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Ownership.h"
@@ -100,6 +102,145 @@ ReverseModeVisitor::LoopScope::~LoopScope() { m_V.m_CurrentLoop = m_Enclosing; }
 
 bool ReverseModeVisitor::isInsideLoop() const {
   return m_CurrentLoop && m_CurrentLoop->Tapes;
+}
+
+bool ReverseModeVisitor::needsLocalStorage(const VarDecl* VD,
+                                           const DeclStmt* DS,
+                                           bool forcePromotion) {
+  if ((!forcePromotion && getCurrentScope()->isFunctionScope()) ||
+      m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass ||
+      !VD->getType()->isRecordType())
+    return false;
+  QualType Type = VD->getType();
+  Type.removeLocalConst();
+  auto canAssign = [&](QualType ArgType, ExprValueKind Kind) {
+    Sema::SFINAETrap Trap(m_Sema, /*AccessCheckingSFINAE=*/true);
+    OpaqueValueExpr LHS(VD->getLocation(), Type, VK_LValue);
+    OpaqueValueExpr RHS(VD->getLocation(), ArgType, Kind);
+    ExprResult Result = m_Sema.BuildBinOp(getCurrentScope(), VD->getLocation(),
+                                          BO_Assign, &LHS, &RHS);
+    return !Result.isInvalid() && !Trap.hasErrorOccurred();
+  };
+  llvm::StringRef Failure;
+  if (!canAssign(Type, VK_PRValue))
+    Failure = "assignment from an rvalue";
+  const Expr* Init = VD->getInit();
+  if (const auto* CE = dyn_cast_or_null<CXXConstructExpr>(
+          Init ? Init->IgnoreImplicit() : nullptr))
+    if (CE->getConstructor()->isCopyConstructor() && CE->getNumArgs())
+      Init = CE->getArg(0)->IgnoreImplicit();
+  if (Failure.empty() && Init && Init->isLValue() &&
+      !canAssign(Init->getType(), VK_LValue))
+    Failure = "copy assignment";
+  if (Failure.empty() && DS && VD->getInit() && isInsideLoop() &&
+      m_DiffReq.shouldBeRecorded(DS)) {
+    Sema::SFINAETrap Trap(m_Sema, /*AccessCheckingSFINAE=*/true);
+    OpaqueValueExpr Source(VD->getLocation(), Type, VK_LValue);
+    ExprResult Result = m_Sema.PerformCopyInitialization(
+        InitializedEntity::InitializeTemporary(Type), VD->getLocation(),
+        &Source);
+    if (Result.isInvalid() || Trap.hasErrorOccurred())
+      Failure = "copy construction";
+  }
+  if (Failure.empty())
+    return false;
+  m_LocalStorageFailures[VD] = Failure;
+  if (!VD->getType()->getAsCXXRecordDecl()->isAggregate() ||
+      (DS && VD->getInit() && isInsideLoop() && m_DiffReq.EnableTBRAnalysis &&
+       m_DiffReq.shouldBeRecorded(DS)))
+    m_UnsupportedKeptPrimals.insert(VD);
+  return true;
+}
+
+void ReverseModeVisitor::checkKeptPrimals(Stmt* Forward, Stmt* Reverse) {
+  if (m_KeptPrimals.empty())
+    return;
+  class References : public RecursiveASTVisitor<References> {
+    const llvm::DenseMap<const VarDecl*, const VarDecl*>& m_Kept;
+    llvm::SmallPtrSetImpl<const VarDecl*>& m_Found;
+
+  public:
+    References(const llvm::DenseMap<const VarDecl*, const VarDecl*>& K,
+               llvm::SmallPtrSetImpl<const VarDecl*>& F)
+        : m_Kept(K), m_Found(F) {}
+    [[nodiscard]] static bool shouldVisitImplicitCode() { return true; }
+    bool VisitDeclRefExpr(DeclRefExpr* E) {
+      auto It = m_Kept.find(dyn_cast<VarDecl>(E->getDecl()));
+      if (It != m_Kept.end())
+        m_Found.insert(It->second);
+      return true;
+    }
+  };
+  References ReverseRefs(m_KeptPrimals, m_UnsupportedKeptPrimals);
+  ReverseRefs.TraverseStmt(Reverse);
+
+  // Stored addresses can hide a dead primal behind a global or taped pointer.
+  class Addresses : public RecursiveASTVisitor<Addresses> {
+    const llvm::DenseMap<const VarDecl*, const VarDecl*>& m_Kept;
+    llvm::SmallPtrSetImpl<const VarDecl*>& m_Found;
+
+  public:
+    Addresses(const llvm::DenseMap<const VarDecl*, const VarDecl*>& K,
+              llvm::SmallPtrSetImpl<const VarDecl*>& F)
+        : m_Kept(K), m_Found(F) {}
+    [[nodiscard]] static bool shouldVisitImplicitCode() { return true; }
+    bool VisitUnaryOperator(UnaryOperator* E) {
+      if (E->getOpcode() == UO_AddrOf)
+        References(m_Kept, m_Found).TraverseStmt(E->getSubExpr());
+      return true;
+    }
+  };
+  llvm::SmallPtrSet<const VarDecl*, 16> Promoted;
+  for (const ParmVarDecl* VD : m_Derivative->parameters())
+    Promoted.insert(VD);
+  for (Stmt* S : m_Globals)
+    if (const auto* DS = dyn_cast<DeclStmt>(S))
+      for (Decl* D : DS->decls())
+        if (const auto* VD = dyn_cast<VarDecl>(D))
+          Promoted.insert(VD);
+  class Escapes : public RecursiveASTVisitor<Escapes> {
+    const llvm::DenseMap<const VarDecl*, const VarDecl*>& m_Kept;
+    llvm::SmallPtrSetImpl<const VarDecl*>& m_Found;
+    const llvm::SmallPtrSetImpl<const VarDecl*>& m_Promoted;
+
+    void checkStored(Expr* E) { Addresses(m_Kept, m_Found).TraverseStmt(E); }
+
+  public:
+    Escapes(const llvm::DenseMap<const VarDecl*, const VarDecl*>& K,
+            llvm::SmallPtrSetImpl<const VarDecl*>& F,
+            const llvm::SmallPtrSetImpl<const VarDecl*>& P)
+        : m_Kept(K), m_Found(F), m_Promoted(P) {}
+    [[nodiscard]] static bool shouldVisitImplicitCode() { return true; }
+    bool VisitVarDecl(VarDecl* VD) {
+      if (m_Promoted.count(VD))
+        checkStored(VD->getInit());
+      return true;
+    }
+    bool VisitBinaryOperator(BinaryOperator* E) {
+      if (E->isAssignmentOp())
+        if (const auto* L =
+                dyn_cast<DeclRefExpr>(E->getLHS()->IgnoreParenImpCasts()))
+          if (m_Promoted.count(dyn_cast<VarDecl>(L->getDecl())))
+            checkStored(E->getRHS());
+      return true;
+    }
+    bool VisitCallExpr(CallExpr* E) {
+      const FunctionDecl* FD = E->getDirectCallee();
+      if (FD && FD->getQualifiedNameAsString() == "clad::push")
+        for (Expr* Arg : E->arguments())
+          checkStored(Arg);
+      return true;
+    }
+  };
+  Escapes EscapeRefs(m_KeptPrimals, m_UnsupportedKeptPrimals, Promoted);
+  EscapeRefs.TraverseStmt(Forward);
+  for (Stmt* S : m_Globals)
+    EscapeRefs.TraverseStmt(S);
+  for (const VarDecl* VD : m_UnsupportedKeptPrimals)
+    diag(DiagnosticsEngine::Error, VD->getLocation(),
+         "cannot differentiate local variable '%0' of type %1: reverse "
+         "storage requires unavailable %2")
+        << VD->getName() << VD->getType() << m_LocalStorageFailures.lookup(VD);
 }
 
 Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
@@ -601,6 +742,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     StmtDiff BodyDiff = Visit(m_DiffReq->getBody());
     Stmt* Forward = BodyDiff.getStmt();
     Stmt* Reverse = BodyDiff.getStmt_dx();
+    checkKeptPrimals(Forward, Reverse);
     // Create the body of the function.
     // Firstly, all "global" Stmts are put into fn's body.
     for (Stmt* S : m_Globals)
@@ -1342,6 +1484,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff
   ReverseModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
+    for (const VarDecl* VD :
+         {FRS->getLoopVariable(),
+          cast<VarDecl>(FRS->getRangeStmt()->getSingleDecl()),
+          cast<VarDecl>(FRS->getBeginStmt()->getSingleDecl()),
+          cast<VarDecl>(FRS->getEndStmt()->getSingleDecl())}) {
+      if (needsLocalStorage(VD, /*DS=*/nullptr, /*forcePromotion=*/true)) {
+        diag(DiagnosticsEngine::Error, VD->getLocation(),
+             "cannot differentiate local variable '%0' of type %1: "
+             "range-for storage requires unavailable %2")
+            << VD->getName() << VD->getType()
+            << m_LocalStorageFailures.lookup(VD);
+        return StmtDiff();
+      }
+    }
     const auto* RangeDecl = cast<VarDecl>(FRS->getRangeStmt()->getSingleDecl());
     const auto* BeginDecl = cast<VarDecl>(FRS->getBeginStmt()->getSingleDecl());
     DeclDiff<VarDecl> VisitRange =
@@ -4189,6 +4345,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   DeclDiff<VarDecl> ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
                                                              bool keepLocal) {
+    bool keepPrimal = m_LocalStorageFailures.count(VD);
+    keepLocal |= keepPrimal;
     // Local declarations are promoted to the function global scope. This
     // procedure is done to make declarations visible in the reverse sweep.
     // The reverse_mode_forward_pass mode does not have a reverse pass so
@@ -4338,7 +4496,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         !isPointerType) {
       Stmt* assignToZero = nullptr;
       Expr* declRef = BuildDeclRef(VDDerived);
-      if (isa<ArrayType>(VDDerivedType))
+      if (isa<ArrayType>(VDDerivedType) || keepPrimal)
         assignToZero = GetCladZeroInit(declRef);
       else if (!isNonAggrClass)
         assignToZero = BuildOp(BinaryOperatorKind::BO_Assign, declRef,
@@ -4349,7 +4507,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         addToCurrentBlock(pushPop.getStmt(), direction::forward);
         addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
       }
-      if (!keepLocal)
+      if (!keepLocal || keepPrimal)
         addToCurrentBlock(assignToZero, direction::reverse);
     }
 
@@ -4397,9 +4555,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDCloneTSI = m_Context.getTrivialTypeSourceInfo(VDCloneType, noLoc);
     }
 
-    VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
+    VDClone = keepPrimal
+                  ? BuildVarDecl(VDCloneType, VD->getNameAsString(),
                                  initDiff.getExpr(), VD->isDirectInit(),
-                                 VDCloneTSI, SC);
+                                 VDCloneTSI, SC)
+                  : BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
+                                       initDiff.getExpr(), VD->isDirectInit(),
+                                       VDCloneTSI, SC);
+    if (keepPrimal)
+      m_KeptPrimals[VDClone] = VD;
 
     // The choice of isDirectInit is mostly stylistic.
     bool isRealConstArray = false;
@@ -4417,6 +4581,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Update the initializer
     if (VDDerived)
       SetDeclInit(VDDerived, initDiff.getExpr_dx(), isDirectInit);
+    if (VDDerived && keepPrimal)
+      SetDeclInit(VDDerived, getZeroInit(VDDerivedType));
 
     // FIXME: Currently, we handle promoteToFnScope for objects in
     // VisitDeclStmts. For other types, we do it in DifferentiateVarDecl. We
@@ -4529,6 +4695,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           if (diagnoseUnsupportedLambda(LE))
             return {};
 
+    bool hasKeptPrimal = false;
     llvm::SmallVector<Stmt*, 16> inits;
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
@@ -4547,7 +4714,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     for (auto* D : DS->decls()) {
       if (auto* VD = dyn_cast<VarDecl>(D)) {
         DeclDiff<VarDecl> VDDiff;
-
+        bool keepPrimal = needsLocalStorage(VD, DS);
+        hasKeptPrimal |= keepPrimal;
+        if (keepPrimal && !VD->getType()->getAsCXXRecordDecl()->isAggregate()) {
+          diag(DiagnosticsEngine::Error, VD->getLocation(),
+               "cannot differentiate local variable '%0' of type %1: "
+               "non-aggregate storage requires unavailable %2")
+              << VD->getName() << VD->getType()
+              << m_LocalStorageFailures.lookup(VD);
+          m_UnsupportedKeptPrimals.erase(VD);
+          return StmtDiff(Clone(DS));
+        }
         VDDiff = DifferentiateVarDecl(VD);
 
         // Here, we move the declaration to the function global scope.
@@ -4565,7 +4742,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // while (cond) {
         //   clad::push(_t0, x), x = k * n;
         // ...
-        if (promoteToFnScope) {
+        if (promoteToFnScope && !keepPrimal) {
           auto* decl = VDDiff.getDecl();
           if (VD->getInit()) {
             auto* declRef = BuildDeclRef(decl);
@@ -4601,7 +4778,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           }
         }
 
-        decls.push_back(VDDiff.getDecl());
+        if (keepPrimal)
+          inits.push_back(BuildDeclStmt(VDDiff.getDecl()));
+        else
+          decls.push_back(VDDiff.getDecl());
         if (VDDiff.getDecl_dx()) {
           const CXXRecordDecl* RD = VD->getType()->getAsCXXRecordDecl();
           bool isNonAggrClass = RD && !RD->isAggregate();
@@ -4701,9 +4881,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (isInsideOMPBlock)
           MarkDeclThreadPrivate(cast<VarDecl>(decl));
       }
-      Stmt* initAssignments = MakeCompoundStmt(inits);
-      initAssignments = utils::unwrapIfSingleStmt(initAssignments);
-      DSClone = initAssignments;
+      if (hasKeptPrimal) {
+        // A wrapper block would end the kept declaration's lifetime too early.
+        for (Stmt* Init : inits)
+          addToCurrentBlock(Init, direction::forward);
+        DSClone = nullptr;
+      } else {
+        Stmt* initAssignments = MakeCompoundStmt(inits);
+        initAssignments = utils::unwrapIfSingleStmt(initAssignments);
+        DSClone = initAssignments;
+      }
     }
 
     if (!declsToZeroInit.empty()) {
