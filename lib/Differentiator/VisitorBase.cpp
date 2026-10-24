@@ -852,11 +852,8 @@ namespace clad {
     return R;
   }
 
-  LookupResult& VisitorBase::GetCladTapePush() {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("push");
-    return clad_compat::llvm_Optional_GetValue(Result);
+  LookupResult VisitorBase::GetCladTapePush() {
+    return LookupCladTapeMethod("push");
   }
 
   Expr* VisitorBase::BuildInitList(llvm::MutableArrayRef<Expr*> Elements) {
@@ -907,24 +904,18 @@ namespace clad {
   }
 
   Expr* VisitorBase::GetCladTapePushDRE() {
-    LookupResult& pushLR = GetCladTapePush();
+    LookupResult pushLR = GetCladTapePush();
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
     return utils::BuildDeclarationNameExpr(m_Sema, CSS, pushLR);
   }
 
-  LookupResult& VisitorBase::GetCladTapePop() {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("pop");
-    return clad_compat::llvm_Optional_GetValue(Result);
+  LookupResult VisitorBase::GetCladTapePop() {
+    return LookupCladTapeMethod("pop");
   }
 
-  LookupResult& VisitorBase::GetCladTapeBack() {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("back");
-    return clad_compat::llvm_Optional_GetValue(Result);
+  LookupResult VisitorBase::GetCladTapeBack() {
+    return LookupCladTapeMethod("back");
   }
 
   QualType VisitorBase::GetCladTapeOfType(QualType T) {
@@ -1503,10 +1494,7 @@ namespace clad {
   }
 
   Stmt* VisitorBase::GetCladZeroInit(llvm::MutableArrayRef<Expr*> args) {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("zero_init");
-    LookupResult& init = clad_compat::llvm_Optional_GetValue(Result);
+    LookupResult init = LookupCladTapeMethod("zero_init");
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, utils::GetCladNamespace(m_Sema), noLoc, noLoc);
     Expr* initRef = utils::BuildDeclarationNameExpr(m_Sema, CSS, init);
