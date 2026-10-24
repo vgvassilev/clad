@@ -571,6 +571,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     for (Stmt* S : m_Globals)
       addToCurrentBlock(S, direction::forward);
 
+    // The reverse sweep puts back the globals the calls it replays assign. A
+    // gradient keeps what the forward sweep left in them, and leaves them so:
+    // as the function itself would.
+    llvm::SmallVector<std::pair<VarDecl*, VarDecl*>, 4> FinalGlobals;
+    auto keepFinalGlobals = [&]() {
+      if (m_DiffReq.Mode != DiffMode::reverse)
+        return;
+      for (const VarDecl* G : m_ReplayedGlobals) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        auto* Global = const_cast<VarDecl*>(G);
+        VarDecl* Final = BuildVarDecl(Global->getType().getUnqualifiedType(),
+                                      "_final", BuildDeclRef(Global));
+        addToCurrentBlock(BuildDeclStmt(Final), direction::forward);
+        FinalGlobals.emplace_back(Global, Final);
+      }
+    };
+
     if (!m_DiffReq.hasEarlyReturns()) {
       // Forward pass.
       if (auto* CS = dyn_cast_or_null<CompoundStmt>(Forward))
@@ -578,6 +595,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           addToCurrentBlock(S, direction::forward);
       else
         addToCurrentBlock(Forward, direction::forward);
+      keepFinalGlobals();
       // Reverse pass.
       if (auto* RCS = dyn_cast_or_null<CompoundStmt>(Reverse))
         for (Stmt* S : RCS->body())
@@ -681,6 +699,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // The tail-return seed is the closure's last statement
       // (VisitReturnStmt), so it runs on fall-through only; the reverse
       // follows the call.
+      keepFinalGlobals();
       for (Stmt* S : ReverseBody)
         for (Stmt* SS : cast<CompoundStmt>(S)->body())
           addToCurrentBlock(SS, direction::forward);
@@ -694,6 +713,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           addToCurrentBlock(S, direction::forward);
       else
         addToCurrentBlock(S, direction::forward);
+    for (auto& [Global, Final] : FinalGlobals)
+      addToCurrentBlock(
+          BuildOp(BO_Assign, BuildDeclRef(Global), BuildDeclRef(Final)),
+          direction::forward);
 
     // For early-return functions the epilogue was already folded into the
     // lambda (above) so it runs on every return path; emit it at the tail
@@ -2957,6 +2980,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         hasStoredParams = true;
     }
 
+    // The pullback replays the globals the call assigns. Put them back before
+    // it, as the call found them, and once more after it, for the reverse of
+    // what came before the call.
+    auto writtenGlobals = m_DiffReq.CalleeGlobalWrites.find(CE);
+    if (!nonDiff && m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass &&
+        writtenGlobals != m_DiffReq.CalleeGlobalWrites.end())
+      for (const VarDecl* VD : writtenGlobals->second) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        StmtDiff pushPop = StoreAndRestore(
+            BuildDeclRef(const_cast<VarDecl*>(VD)), "_t", /*moveToTape=*/false,
+            /*restoreAgain=*/&PostCallStmts);
+        addToCurrentBlock(pushPop.getStmt());
+        PreCallStmts.push_back(pushPop.getStmt_dx());
+        m_ReplayedGlobals.insert(VD);
+      }
+
     Expr* OverloadedDerivedFn = nullptr;
     bool hasDynamicNonDiffParams = false;
     if (!nonDiff && m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass) {
@@ -3323,7 +3362,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass && MD &&
         MD->isInstance() && !MD->isConst() &&
         utils::isMemoryType(MD->getThisType()->getPointeeType());
-    if (callerRestoresWrites) {
+    if (!PostCallStmts.empty()) {
       Stmts& block = getCurrentBlock(direction::reverse);
       std::size_t postPullback =
           insertionPoint + PreCallStmts.size() + (OverloadedDerivedFn ? 1 : 0);
@@ -5264,7 +5303,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Read the record twice and drop it after the second read.
       Restore = BuildOp(BO_Assign, Clone(E), Ref);
       restoreAgain->push_back(BuildOp(BO_Assign, Clone(E), Clone(Ref)));
-      if (isInsideLoop())
+      // A record kept in an array indexed by the loop has nothing to drop.
+      if (isInsideLoop() && isa<CallExpr>(Pop))
         restoreAgain->push_back(Pop);
     } else if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid) {
       if (isInsideLoop() && Type->isRecordType() && !moveToTape) {

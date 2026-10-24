@@ -370,6 +370,12 @@ public:
   /// reverse_forw hands it no pullback_state and shapes no adjoint buffer. The
   /// forward sweep may leave such a call out when nothing reads its results.
   std::set<const clang::Expr*> ReplayableCalls;
+  /// The globals each call in this function's body assigns, directly or
+  /// through what it calls. Its pullback replays those assignments, so the
+  /// reverse sweep puts the globals back around it, as it does for the
+  /// arguments the call changes.
+  std::map<const clang::Expr*, std::vector<const clang::VarDecl*>>
+      CalleeGlobalWrites;
   /// Whether \p Call is one of ActiveGlobalCalls.
   bool touchesActiveGlobal(const clang::Expr* Call) const {
     return ActiveGlobalCalls.count(Call) != 0;
@@ -693,6 +699,11 @@ public:
     struct GlobalAccess {
       std::set<const clang::VarDecl*> Reads;
       std::set<const clang::VarDecl*> Writes;
+      /// Every global the body assigns, and every global it reads, of any
+      /// type a caller can copy aside: what a caller may have to put back
+      /// around a replay of it.
+      std::set<const clang::VarDecl*> AnyWrites;
+      std::set<const clang::VarDecl*> AnyReads;
       std::set<const clang::VarDecl*> IndirectReads;
       std::vector<const clang::FunctionDecl*> Callees;
     };

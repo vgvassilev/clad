@@ -1161,12 +1161,14 @@ double f_reuse_global(double x, double t) {
 //CHECK: void f_reuse_global_grad(double x, double t, double *_d_x, double *_d_t) {
 //CHECK-NEXT:     _d_glob1 = 0.;
 //CHECK-NEXT:     double _t0 = t;
-//CHECK-NEXT:     t = g(t, x);
 //CHECK-NEXT:     double _t1 = glob1;
+//CHECK-NEXT:     t = g(t, x);
+//CHECK-NEXT:     double _t2 = glob1;
 //CHECK-NEXT:     glob1 *= t;
+//CHECK-NEXT:     double _final0 = glob1;
 //CHECK-NEXT:     _d_glob1 += -1;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         glob1 = _t1;
+//CHECK-NEXT:         glob1 = _t2;
 //CHECK-NEXT:         double _r_d1 = _d_glob1;
 //CHECK-NEXT:         _d_glob1 = 0.;
 //CHECK-NEXT:         _d_glob1 += _r_d1 * t;
@@ -1178,10 +1180,13 @@ double f_reuse_global(double x, double t) {
 //CHECK-NEXT:         *_d_t = 0.;
 //CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         double _r1 = 0.;
+//CHECK-NEXT:         glob1 = _t1;
 //CHECK-NEXT:         g_pullback(t, x, _r_d0, &_r0, &_r1);
+//CHECK-NEXT:         glob1 = _t1;
 //CHECK-NEXT:         *_d_t += _r0;
 //CHECK-NEXT:         *_d_x += _r1;
 //CHECK-NEXT:     }
+//CHECK-NEXT:     glob1 = _final0;
 //CHECK-NEXT: }
 
 double f_static_assert(double x, double y) {

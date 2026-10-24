@@ -396,11 +396,12 @@ namespace clad {
   void VisitorBase::LambdaCaptures::orderCaptureDecls(
       llvm::SmallVectorImpl<Stmt*>& Prefix,
       llvm::SmallVectorImpl<Stmt*>& Suffix) {
-    // A decl moves whole only when its initializer reads no local and no
-    // parameter: a zero, a literal, a global. Anything else is computed in
-    // place, because moving it would run it on a path that returns before
-    // it -- past a guard the original put in front of it -- and would read
-    // its operands before the forward sweep has written them.
+    // A decl moves whole only when its initializer reads no local, no
+    // parameter and no global the program can change: a zero, a literal, a
+    // constant. Anything else is computed in place, because moving it would
+    // run it on a path that returns before it -- past a guard the original
+    // put in front of it -- and would read its operands before the forward
+    // sweep has written them.
     auto selfContained = [&](const VarDecl* VD) {
       const Expr* Init = VD->getInit();
       if (!Init)
@@ -411,7 +412,8 @@ namespace clad {
         bool* Ok = nullptr;
         bool VisitDeclRefExpr(DeclRefExpr* DRE) const {
           auto* RVD = dyn_cast<VarDecl>(DRE->getDecl());
-          if (RVD && (RVD->isLocalVarDecl() || isa<ParmVarDecl>(RVD))) {
+          if (RVD && (RVD->isLocalVarDecl() || isa<ParmVarDecl>(RVD) ||
+                      !RVD->getType().isConstQualified())) {
             *Ok = false;
             return false;
           }

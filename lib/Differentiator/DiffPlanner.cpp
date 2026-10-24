@@ -20,6 +20,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclTemplate.h"
@@ -2476,6 +2477,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
     }
 
+    // The pullback replays the globals the call assigns: the caller puts them
+    // back around it, in the order they are declared. Only those something
+    // reads: the callee, or the caller. A custom pullback replays nothing.
+    if (!nonDiff && !hasCustomPullback && request.Mode == DiffMode::pullback &&
+        Saved.get()) {
+      const GlobalAccess& Callee = getReachableGlobalAccess(request.Function);
+      const GlobalAccess& Caller =
+          getReachableGlobalAccess(Saved.get()->Function);
+      std::vector<const VarDecl*> Globals;
+      for (const VarDecl* VD : Callee.AnyWrites)
+        if (Callee.AnyReads.count(VD) || Caller.AnyReads.count(VD))
+          Globals.push_back(VD);
+      llvm::sort(Globals, [](const VarDecl* L, const VarDecl* R) {
+        return L->getLocation() < R->getLocation();
+      });
+      if (!Globals.empty())
+        Saved.get()->CalleeGlobalWrites[E] = std::move(Globals);
+    }
+
     if (!nonDiff && request.Mode != DiffMode::unknown)
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
@@ -2595,9 +2615,23 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
       /// The variables a plain assignment stores into without reading them.
       llvm::SmallPtrSet<const DeclRefExpr*, 4> m_StoreOnly;
+      /// A global the caller can copy aside and assign back: not an array,
+      /// an atomic, or memory that lives on a device.
+      static bool isCopyableGlobal(const DeclRefExpr* DRE) {
+        const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+        return VD && (VD->isFileVarDecl() || VD->isStaticDataMember()) &&
+               !VD->getType().isConstQualified() &&
+               !VD->getType()->isArrayType() &&
+               VD->getType().isTriviallyCopyableType(VD->getASTContext()) &&
+               !VD->hasAttr<CUDADeviceAttr>() &&
+               !VD->hasAttr<CUDASharedAttr>() &&
+               !VD->hasAttr<CUDAConstantAttr>();
+      }
       void addWrite(const DeclRefExpr* DRE) {
         if (isTracked(DRE))
           m_Access.Writes.insert(cast<VarDecl>(DRE->getDecl()));
+        if (isCopyableGlobal(DRE))
+          m_Access.AnyWrites.insert(cast<VarDecl>(DRE->getDecl()));
       }
 
     public:
@@ -2629,6 +2663,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       bool VisitDeclRefExpr(DeclRefExpr* DRE) {
         if (isTracked(DRE) && !m_StoreOnly.contains(DRE))
           m_Access.Reads.insert(cast<VarDecl>(DRE->getDecl()));
+        if (isCopyableGlobal(DRE) && !m_StoreOnly.contains(DRE))
+          m_Access.AnyReads.insert(cast<VarDecl>(DRE->getDecl()));
         // A global pointer or reference may alias a tracked global.
         const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
         if (VD && VD->isFileVarDecl() &&
@@ -2673,6 +2709,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       const GlobalAccess& A = getGlobalAccess(FD);
       Reachable.Reads.insert(A.Reads.begin(), A.Reads.end());
       Reachable.Writes.insert(A.Writes.begin(), A.Writes.end());
+      Reachable.AnyWrites.insert(A.AnyWrites.begin(), A.AnyWrites.end());
+      Reachable.AnyReads.insert(A.AnyReads.begin(), A.AnyReads.end());
       Reachable.IndirectReads.insert(A.IndirectReads.begin(),
                                      A.IndirectReads.end());
       Worklist.append(A.Callees.begin(), A.Callees.end());

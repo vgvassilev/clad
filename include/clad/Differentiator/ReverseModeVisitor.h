@@ -34,6 +34,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h" // IWYU pragma: keep -- function_ref on LLVM<14
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
@@ -94,6 +95,8 @@ namespace clad {
     llvm::DenseMap<const clang::ReturnStmt*, int> m_ReturnIds;
     llvm::SmallPtrSet<const clang::CompoundStmt*, 4> m_ReturnGuardedBlocks;
     clang::VarDecl* m_ReturnedAt = nullptr;
+    /// The globals the reverse sweep puts back around the calls it replays.
+    llvm::SetVector<const clang::VarDecl*> m_ReplayedGlobals;
     /// Storing expressions to delete/free memory in the reverse pass.
     Stmts m_DeallocExprs;
     /// A dfdx seed: eager expression, or a deferred builder materialized on
