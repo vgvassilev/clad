@@ -1591,6 +1591,9 @@ namespace clad {
           peeled = true;
           E = MCE->getImplicitObjectArgument();
         } else if (const auto* ME = dyn_cast<clang::MemberExpr>(E)) {
+          // A reference member, such as `h.r`, may be bound anywhere.
+          if (ME->getMemberDecl()->getType()->isReferenceType())
+            return false;
           peeled |= ME->isArrow();
           E = ME->getBase();
         } else {

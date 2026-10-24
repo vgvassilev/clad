@@ -3340,7 +3340,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Every mutable argument is storage owned by one of this function's own
     // locals. Their addresses die with this frame, so nothing outlives it to
     // restore them and the callee's records are never read.
-    bool mutatesOnlyOwnLocals = true;
+    // A struct passed by value can hold a pointer or a reference into the
+    // caller's memory. Where the callee writes through one, only its
+    // reverse_forw records what it changed there.
+    bool writesThroughValueArg = m_DiffReq.writesThroughValueParam(FD);
+    bool mutatesOnlyOwnLocals = !writesThroughValueArg;
     for (std::size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
       QualType parTy = FD->getParamDecl(i)->getType();
       bool mayWrite = (parTy->isPointerType() &&
@@ -3497,7 +3501,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (!useRangeRecords && calleeFnForwPassFD &&
         (!hasDynamicNonDiffParams || !needsForwPass) &&
-        ((hasStoredParams && !recordsAreDead && !callerRestoresWrites) ||
+        (((hasStoredParams || writesThroughValueArg) && !recordsAreDead &&
+          !callerRestoresWrites) ||
          needsForwPass || !pullbackStateType.isNull() || inReverseForw)) {
       if (const auto* CD = dyn_cast<CXXConversionDecl>(FD))
         CallArgs.push_back(
