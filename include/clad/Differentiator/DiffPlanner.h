@@ -616,6 +616,11 @@ public:
   /// \p CE writes: the callee writes only into objects passed by non-const
   /// reference that reach no other memory, and each of them is recorded.
   bool restoresCallWrites(const clang::CallExpr* CE) const;
+  /// Whether the callee \p FD may write through a struct passed by value,
+  /// which can hold a pointer or a reference into the caller's memory: the
+  /// to-be-recorded analysis lists such a parameter as written, or, without
+  /// its summary of \p FD, any such parameter counts.
+  bool writesThroughValueParam(const clang::FunctionDecl* FD) const;
   void addFunctionModifiedParams(const clang::FunctionDecl* FD,
                                  const ParamSet& params) {
     m_TbrRunInfo.m_ModifiedParams[FD] = params;

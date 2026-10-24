@@ -1238,6 +1238,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     });
   }
 
+  bool DiffRequest::writesThroughValueParam(const FunctionDecl* FD) const {
+    auto throughValue = [](const ParmVarDecl* PVD) {
+      QualType T = PVD ? PVD->getType() : QualType();
+      return PVD && !T->isReferenceType() && !T->isPointerType() &&
+             utils::isMemoryType(T);
+    };
+    ParamInfo& modified = getModifiedParams();
+    auto found = modified.find(FD);
+    if (found != modified.end())
+      return llvm::any_of(found->second, throughValue);
+    return llvm::any_of(FD->parameters(), throughValue);
+  }
+
   bool DiffRequest::HasIndependentParameter(const ParmVarDecl* PVD) const {
     // FIXME: We store the original function's params in DVI and here we need to
     // compare with the cloned ones by name. We can compare the pointers instead
