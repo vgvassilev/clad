@@ -481,9 +481,15 @@ namespace clad {
         // Splitting needs a whole-object assignment, which an array type has
         // no spelling for; an element-wise copy would need
         // ReverseModeVisitor::BuildArrayAssignment, out of this shared
-        // VisitorBase utility's reach. Keep the decl -- findUseBeforeDecl
-        // still reports it if it really was captured.
-        if (!Hoistable || isa<ArrayType>(VD->getType())) {
+        // VisitorBase utility's reach. A record with a reference member has
+        // none either: its assignment is deleted. Keep the decl --
+        // findUseBeforeDecl still reports it if it really was captured.
+        const auto* RD = VD ? VD->getType()->getAsCXXRecordDecl() : nullptr;
+        bool HoldsReference =
+            RD && llvm::any_of(RD->fields(), [](const FieldDecl* F) {
+              return F->getType()->isReferenceType();
+            });
+        if (!Hoistable || isa<ArrayType>(VD->getType()) || HoldsReference) {
           KeptHere.push_back(D);
           continue;
         }
