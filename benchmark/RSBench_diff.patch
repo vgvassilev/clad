@@ -1,0 +1,104 @@
+diff --git a/RSBench/rsbench.cuh b/RSBench/rsbench.cuh
+index 8d2eeab..cfdc309 100644
+--- a/RSBench/rsbench.cuh
++++ b/RSBench/rsbench.cuh
+@@ -9,7 +9,14 @@
+ #include<assert.h>
+ #include<cuda.h>
+ #include <thrust/reduce.h>
++#include <thrust/count.h>
++#include <thrust/sort.h>
+ #include <chrono> 
++#ifdef USE_CLAD
++#define CLAD_NON_DIFF __attribute__((annotate("non_differentiable")))
++#else
++#define CLAD_NON_DIFF
++#endif
+ 
+ #define PI 3.14159265359
+ 
+@@ -49,7 +56,7 @@ typedef struct{
+ 	int particles;
+ 	int simulation_method;
+ 	int kernel_id;
+-} Input;
++} CLAD_NON_DIFF Input;
+ 
+ typedef struct{
+ 	RSComplex MP_EA;
+@@ -130,7 +137,7 @@ double get_time(void);
+ void run_event_based_simulation(Input input, SimulationData data, SimulationData SD, unsigned long * vhash_result );
+ void run_event_based_simulation_optimization_1(Input in, SimulationData GSD, unsigned long * vhash_result);
+ __global__ void xs_lookup_kernel_baseline(Input in, SimulationData GSD );
+-__device__ void calculate_macro_xs( double * macro_xs, int mat, double E, Input input, int * num_nucs, int * mats, int max_num_nucs, double * concs, int * n_windows, double * pseudo_K0Rs, Window * windows, Pole * poles, int max_num_windows, int max_num_poles );
++__device__ void calculate_macro_xs( double * macro_xs, int mat, double E, Input input, CLAD_NON_DIFF int * num_nucs, CLAD_NON_DIFF int * mats, int max_num_nucs, CLAD_NON_DIFF double * concs, CLAD_NON_DIFF int * n_windows, CLAD_NON_DIFF double * pseudo_K0Rs, CLAD_NON_DIFF Window * windows, Pole * poles, int max_num_windows, int max_num_poles );
+ __device__ void calculate_micro_xs( double * micro_xs, int nuc, double E, Input input, int * n_windows, double * pseudo_K0RS, Window * windows, Pole * poles, int max_num_windows, int max_num_poles);
+ __device__ void calculate_micro_xs_doppler( double * micro_xs, int nuc, double E, Input input, int * n_windows, double * pseudo_K0RS, Window * windows, Pole * poles, int max_num_windows, int max_num_poles );
+ __device__ int pick_mat( uint64_t * seed );
+diff --git a/RSBench/simulation.cu b/RSBench/simulation.cu
+index 9420608..865ae5b 100644
+--- a/RSBench/simulation.cu
++++ b/RSBench/simulation.cu
+@@ -1,4 +1,7 @@
+ #include "rsbench.cuh"
++#ifdef USE_CLAD
++#include "clad/Differentiator/Differentiator.h"
++#endif
+ 
+ ////////////////////////////////////////////////////////////////////////////////////
+ // BASELINE FUNCTIONS
+@@ -12,11 +15,13 @@
+ // line argument.
+ ////////////////////////////////////////////////////////////////////////////////////
+ 
++#ifndef USE_CLAD
+ template<typename... Args>
+ __device__ 
+ void __enzyme_autodiff(void*, Args...);
+ 
+ __device__ int enzyme_dup, enzyme_const, enzyme_active;
++#endif
+ 
+ void run_event_based_simulation(Input input, SimulationData GSD, SimulationData SD, unsigned long * vhash_result )
+ {
+@@ -106,6 +111,12 @@ __global__ void xs_lookup_kernel_baseline(Input in, SimulationData GSD )
+ 	double d_macro_xs[4] = {0};
+ 	d_macro_xs[0] = 1.0;
+ 
++	#ifdef USE_CLAD
++	clad::gradient(calculate_macro_xs, "macro_xs, poles")
++		.execute(macro_xs, mat, E, in, GSD.num_nucs, GSD.mats, GSD.max_num_nucs,
++			GSD.concs, GSD.n_windows, GSD.pseudo_K0RS, GSD.windows, GSD.poles,
++			GSD.max_num_windows, GSD.max_num_poles, d_macro_xs, GSD.d_poles);
++	#else
+ 	__enzyme_autodiff((void*)calculate_macro_xs,
+ 				enzyme_dup,   macro_xs, d_macro_xs,
+ 				enzyme_const, mat,
+@@ -123,6 +134,7 @@ __global__ void xs_lookup_kernel_baseline(Input in, SimulationData GSD )
+ 				enzyme_const, GSD.max_num_windows, 
+ 				enzyme_const, GSD.max_num_poles
+ 			);
++	#endif
+     #endif
+ 
+ 	// For verification, and to prevent the compiler from optimizing
+@@ -356,7 +368,9 @@ __device__ void calculate_sig_T( int nuc, double E, Input input, double * pseudo
+ {
+ 	double phi;
+ 
++#ifndef USE_CLAD
+ 	#pragma unroll
++#endif
+ 	for( int i = 0; i < 4; i++ )
+ 	{
+ 		phi = pseudo_K0RS[nuc * input.numL + i] * sqrt(E);
+@@ -431,7 +445,9 @@ __device__ RSComplex fast_nuclear_W( RSComplex Z )
+ 		RSComplex one = {1, 0};
+ 		RSComplex W = c_div(c_mul(i, ( c_sub(one, fast_cexp(c_mul(t1, Z))) )) , c_mul(t2, Z));
+ 		RSComplex sum = {0,0};
++#ifndef USE_CLAD
+ 		#pragma unroll
++#endif
+ 		for( int n = 0; n < 10; n++ )
+ 		{
+ 			RSComplex t3 = {neg_1n[n], 0};
