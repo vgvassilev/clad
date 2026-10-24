@@ -12,6 +12,7 @@
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffRequest.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/StmtClone.h"

@@ -1,0 +1,670 @@
+#ifndef CLAD_DIFFERENTIATOR_DIFFREQUEST_H
+#define CLAD_DIFFERENTIATOR_DIFFREQUEST_H
+
+#include "clad/Differentiator/DiffMode.h"
+#include "clad/Differentiator/Options.h"
+#include "clad/Differentiator/ParseDiffArgsTypes.h"
+
+#include "clang/AST/Decl.h"
+#include "clang/AST/DeclBase.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/Stmt.h"
+#include "clang/AST/Type.h"
+#include "clang/Basic/SourceLocation.h"
+
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
+#include <vector>
+
+namespace clang {
+class AnalysisDeclContext;
+class CallExpr;
+class CompilerInstance;
+class Expr;
+class ForStmt;
+class FunctionDecl;
+class ParmVarDecl;
+class Sema;
+class Type;
+class VarDecl;
+} // namespace clang
+
+namespace clad {
+/// The loop analysis lives in lib/, so a request names its results without
+/// seeing how they are built.
+struct FunctionLoopFacts;
+/// The analyses describe what they look for in lib/Differentiator, and a
+/// request only names their verdicts: the enumerators have a fixed underlying
+/// type so that naming them here needs no definition.
+enum class AnalysisMiss : std::uint8_t;
+struct AnalysisMissRecord;
+struct AnalysisMisses;
+struct LoopFacts;
+struct WrittenExtent;
+
+using ParamSet = std::set<const clang::ParmVarDecl*>;
+using ParamInfo = std::map<const clang::FunctionDecl*, ParamSet>;
+
+/// A read-only, AD-oriented view over the primal being differentiated: it
+/// wraps the primal FunctionDecl and surfaces the AD-relevant facts the
+/// FunctionDecl itself does not. Recording such facts here, rather than
+/// rediscovering them inside a visitor, keeps them available to every visitor
+/// and correct after a request is copied and re-pointed at another Function.
+/// \ingroup pipeline
+struct DiffRequest {
+  /// Recognises a C heap-memory builtin call and centralises the invariants
+  /// reverse mode must preserve for it, so all memory-op reasoning goes through
+  /// one place instead of ad-hoc name checks scattered across the code base.
+  /// The planner uses it to record which pointers are reallocated in place; the
+  /// reverse-mode visitor uses it to emit and undo the resize.
+  class AllocCallInfo {
+  public:
+    enum class Kind : std::uint8_t { None, Malloc, Calloc, Realloc, Free };
+
+    AllocCallInfo() = default;
+
+    // Recognise E as a memory builtin; Kind::None if it is not one. Strips the
+    // C-style cast that wraps the call (e.g. `(double*)realloc(...)`), so
+    // IgnoreParenCasts, not IgnoreParenImpCasts, is required here.
+    [[nodiscard]] static AllocCallInfo recognize(clang::Expr* E) {
+      auto* CE = llvm::dyn_cast_or_null<clang::CallExpr>(
+          E ? E->IgnoreParenCasts() : nullptr);
+      if (!CE)
+        return {};
+      const clang::FunctionDecl* FD = CE->getDirectCallee();
+      // getName() asserts on non-identifier names (operators, constructors),
+      // which vector/STL code produces; the builtins are plain identifiers.
+      if (!FD || !FD->getDeclName().isIdentifier())
+        return {};
+      Kind k = llvm::StringSwitch<Kind>(FD->getName())
+                   .Case("malloc", Kind::Malloc)
+                   .Case("calloc", Kind::Calloc)
+                   .Case("realloc", Kind::Realloc)
+                   .Case("free", Kind::Free)
+                   .Default(Kind::None);
+      return AllocCallInfo(k, CE);
+    }
+
+    [[nodiscard]] Kind getKind() const { return m_Kind; }
+    [[nodiscard]] clang::CallExpr* getCall() const { return m_Call; }
+
+    // The number-of-bytes operand that a following memset must zero:
+    // malloc(n) -> n, realloc(p, n) -> n. calloc self-zeroes and needs no
+    // memset, so it (and free/none) report null here.
+    [[nodiscard]] clang::Expr* memsetByteSize() const {
+      switch (m_Kind) {
+      case Kind::Malloc:
+        return m_Call->getArg(/*Arg=*/0);
+      case Kind::Realloc:
+        return m_Call->getArg(/*Arg=*/1);
+      default:
+        return nullptr;
+      }
+    }
+
+    // True for an in-place `p = realloc(p, n)`: the LHS is realloc's own
+    // pointer argument. Only then may the reallocated pointer be kept across
+    // the call (realloc frees the old block, so a saved pointer would dangle).
+    [[nodiscard]] bool isInPlaceRealloc(const clang::Expr* LHS) const {
+      if (m_Kind != Kind::Realloc || m_Call->getNumArgs() == 0)
+        return false;
+      const auto* LDRE =
+          llvm::dyn_cast<clang::DeclRefExpr>(LHS->IgnoreParenCasts());
+      const auto* ArgDRE = llvm::dyn_cast<clang::DeclRefExpr>(
+          m_Call->getArg(/*Arg=*/0)->IgnoreParenCasts());
+      return LDRE && ArgDRE && LDRE->getDecl() == ArgDRE->getDecl();
+    }
+
+    // The pointer variable of an in-place `p = realloc(p, n)`, or null.
+    [[nodiscard]] const clang::VarDecl*
+    getInPlaceReallocPtr(const clang::Expr* LHS) const {
+      if (!isInPlaceRealloc(LHS))
+        return nullptr;
+      return llvm::dyn_cast<clang::VarDecl>(
+          llvm::cast<clang::DeclRefExpr>(LHS->IgnoreParenCasts())->getDecl());
+    }
+
+  private:
+    AllocCallInfo(Kind k, clang::CallExpr* c) : m_Kind(k), m_Call(c) {}
+    Kind m_Kind = Kind::None;
+    clang::CallExpr* m_Call = nullptr;
+  };
+
+private:
+  /// Based on To-Be-Recorded analysis performed before differentiation, tells
+  /// UsefulToStoreGlobal whether a variable with a given SourceLocation has to
+  /// be stored before being changed or not.
+  mutable struct TbrRunInfo {
+    std::set<const clang::Stmt*> ToBeRecorded;
+    ParamInfo m_ModifiedParams;
+    ParamInfo m_UsedParams;
+    bool HasAnalysisRun = false;
+  } m_TbrRunInfo;
+
+  mutable struct ActivityRunInfo {
+    std::set<const clang::VarDecl*> VariedDecls;
+    std::set<const clang::Stmt*> VariedS;
+    /// Whether a call of the primal has a varied argument. Only filled for
+    /// requests varied analysis has run on; see shouldHavePushforward().
+    llvm::DenseMap<const clang::CallExpr*, bool> VariedCalls;
+    bool HasAnalysisRun = false;
+  } m_ActivityRunInfo;
+
+  mutable struct UsefulRunInfo {
+    std::set<const clang::VarDecl*> UsefulDecls;
+    bool HasAnalysisRun = false;
+  } m_UsefulRunInfo;
+
+  /// Cache for hasEarlyReturns(): whether the primal body has a return that is
+  /// not in tail position. A property of the Function, computed once on demand.
+  mutable struct EarlyReturnInfo {
+    bool HasEarlyReturns = false;
+    bool HasAnalysisRun = false;
+  } m_EarlyReturnInfo;
+
+  /// Cache for hasBreakOrContinue(), per loop body: asked at every return
+  /// inside the loop, so walked once.
+  mutable llvm::DenseMap<const clang::Stmt*, bool> m_BreakOrContinueInfo;
+
+  /// Cache for mayHaveNullTangent(): the primal's pointer variables that may
+  /// be given a null tangent. A property of the Function, computed once on
+  /// demand.
+  mutable struct NullTangentInfo {
+    std::set<const clang::VarDecl*> MaybeNullPtrs;
+    bool HasAnalysisRun = false;
+  } m_NullTangentInfo;
+
+  /// The primal's local variables and parameters it may write. A property of
+  /// the Function, so worked out once and kept.
+  mutable struct WrittenVarInfo {
+    std::set<const clang::VarDecl*> Written;
+    bool HasAnalysisRun = false;
+  } m_WrittenVarInfo;
+
+  /// The calls of the primal's body whose results nothing reads. A property
+  /// of the Function, so worked out once and kept.
+  mutable struct UnreadCallInfo {
+    std::set<const clang::Stmt*> Unread;
+    bool HasAnalysisRun = false;
+  } m_UnreadCallInfo;
+
+  /// What the loop analysis proved about the primal, worked out once on first
+  /// use. Held by pointer: a request is copied often, and every copy of a
+  /// function has the same facts.
+  mutable std::shared_ptr<const FunctionLoopFacts> m_LoopFacts;
+
+  /// Runs the loop analysis on first use and hands back what it proved.
+  const FunctionLoopFacts& getLoopFacts() const;
+
+  /// What an analysis looked for in this function and did not find.
+  ///
+  /// An analysis with a result of its own keeps its misses there, beside the
+  /// facts they explain. A data-flow analysis has no such result, so it files
+  /// them here. Held by pointer, and defined where the analyses are, so this
+  /// header does not carry the table with it.
+  mutable std::shared_ptr<AnalysisMisses> m_Misses;
+
+public:
+  /// The primal body's tail-position return -- the one an early-return encoder
+  /// lets control fall through to, as opposed to an early return that needs a
+  /// jump/call. Null when the body does not end in a return. O(1): reads
+  /// Function's body directly, so a copied request re-pointed at a new Function
+  /// (a lambda's operator(), a pullback callee) answers for its own Function.
+  const clang::ReturnStmt* getTailReturn() const;
+
+  /// Whether the primal body has a return that is not the tail return -- one
+  /// the reverse mode must encode with the early-return lambda. A fact about
+  /// the primal, read directly off Function's body (returns inside nested
+  /// lambdas belong to their own function and are skipped). A void function
+  /// seeds no return value, so its returns skip the encoding.
+  bool hasEarlyReturns() const;
+
+  /// The parameters the primal writes its result through, in parameter order:
+  /// non-const lvalue references to a floating point type. Only a function
+  /// returning void has them -- it has nowhere else to put a result -- and
+  /// only one whose derivative can carry a return type of its own, which is
+  /// what utils::CanReturnOutputTangent answers. Empty for every other
+  /// function. Reads Function's parameters directly, so a copied request
+  /// re-pointed at another Function answers for its own.
+  llvm::SmallVector<const clang::ParmVarDecl*, 2> getOutputParams() const;
+
+  /// The parameter whose tangent this request's derivative returns, or null
+  /// when the derivative keeps the primal's void return type. There is one
+  /// only when the primal writes through exactly one: forward mode hands back
+  /// a single tangent, so any choice among several would be a guess.
+  ///
+  /// utils::GetDerivativeType gives the derivative its return type by this
+  /// same rule, and ExtractDerivedFnTraitsForwMode repeats it from the header
+  /// side; where the three disagree CladFunction::execute calls through a
+  /// type whose return it has wrong.
+  const clang::ParmVarDecl* getOutputTangentParam() const;
+
+  /// Whether the loop whose body is \p LoopBody has a `break` or `continue`
+  /// of its own -- not one of a nested loop, nor a `break` of a switch in
+  /// it. A fact about the primal, needed before the visitor reaches the
+  /// statement: a return can come before the break or continue that makes
+  /// the loop record its control flow.
+  bool hasBreakOrContinue(const clang::Stmt* LoopBody) const;
+
+  /// Whether the tangent of the primal's pointer variable \p VD may be null at
+  /// run time. Clad cannot synthesize a tangent buffer for a const-qualified
+  /// pointer parameter, because its size is unknown, so a pushforward call
+  /// receives a null tangent for it, spelling "the derivative of this argument
+  /// is identically zero". A pointer of the body derived from such a parameter
+  /// -- and one clad has no tangent to give at all -- inherits that, so forward
+  /// mode has to guard the reads through their tangents. Every other tangent is
+  /// either a buffer clad allocated or a pointer the caller has to provide, and
+  /// is therefore never null. Answers false for a non-pointer, and for a
+  /// variable belonging to a function other than this request's.
+  bool mayHaveNullTangent(const clang::VarDecl* VD) const;
+
+  /// Whether the primal may write the local variable or parameter \p VD.
+  /// "Write" is meant broadly, as anything that can change the value between
+  /// two points of the body: an assignment, an increment, a taken address, or
+  /// a bind to a non-const reference. A variable this answers false for holds
+  /// the same value throughout the call, so the reverse sweep may read it and
+  /// see what the forward sweep saw -- which is what lets a loop's iteration
+  /// count be recomputed from its bounds rather than counted.
+  ///
+  /// Answers true, conservatively, for anything it cannot see through: a
+  /// variable with static or external storage (a callee may write it), and one
+  /// belonging to a function other than this request's.
+  bool writesVariable(const clang::VarDecl* VD) const;
+
+  /// Whether \p S, a statement of the primal's body, is a call whose results
+  /// nothing reads, so the forward sweep need not run it. False where the
+  /// liveness analysis is off.
+  bool isUnreadCall(const clang::Stmt* S) const;
+
+  /// What is known about the loop \p S, or an empty result when nothing is.
+  /// Reading the facts does not build anything: a caller that wants a
+  /// trip-count expression builds it from Init and Bound.
+  const LoopFacts& getLoopFacts(const clang::Stmt* S) const;
+
+  /// The extent each parameter of Function is written over, in parameter
+  /// order, or empty when there is no Function to look at.
+  llvm::ArrayRef<WrittenExtent> getWrittenExtents() const;
+
+  /// Files what an analysis looked for at \p At and did not find.
+  ///
+  /// The same record twice is a data-flow analysis reaching the same
+  /// statement again, not two things to report, so the second is dropped.
+  void recordMiss(AnalysisMiss M, clang::SourceLocation At) const;
+  llvm::ArrayRef<AnalysisMissRecord> getAnalysisMisses() const;
+
+  /// Function to be differentiated.
+  const clang::FunctionDecl* Function = nullptr;
+  /// Name of the base function to be differentiated. Can be different from
+  /// function->getNameAsString() when higher-order derivatives are computed.
+  std::string BaseFunctionName;
+  /// Current derivative order to be computed.
+  unsigned CurrentDerivativeOrder = 1;
+  /// Highest requested derivative order.
+  unsigned RequestedDerivativeOrder = 1;
+  /// Context in which the function is being called, or a call to
+  /// clad::gradient/differentiate, where function is the first arg.
+  clang::Expr* CallContext = nullptr;
+  /// Args provided to the call to clad::gradient/differentiate.
+  const clang::Expr* Args = nullptr;
+  /// Indexes of global GPU args of function as a subset of Args.
+  std::vector<size_t> CUDAGlobalArgsIndexes;
+  /// Pointer variables that are the target of an in-place `p = realloc(p, n)`
+  /// in this function, collected by DiffCollector during planning. Reverse
+  /// mode gives exactly these an allocation-size shadow so the realloc can be
+  /// undone; other allocated pointers get none. Empty unless the body
+  /// reallocates in place.
+  std::set<const clang::VarDecl*> InPlaceReallocPtrs;
+  /// Whether VD is reallocated in place somewhere in this function.
+  bool isInPlaceReallocated(const clang::VarDecl* VD) const {
+    return InPlaceReallocPtrs.count(VD) != 0;
+  }
+  /// The calls in this function's body that move a derivative through a
+  /// global's adjoint, whatever their arguments; only a pullback can.
+  std::set<const clang::Expr*> ActiveGlobalCalls;
+  /// The arguments of the calls in this function's body that write
+  /// something, and that the reverse sweep evaluates once: with the writes
+  /// they make, outermost first, for one bound to a reference, and none for a
+  /// number passed by value, which is kept.
+  std::map<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 2>>
+      ArgWrites;
+  /// The writes of \p Arg, if it is one of ArgWrites; null otherwise.
+  const llvm::SmallVectorImpl<const clang::Expr*>*
+  argWrites(const clang::Expr* Arg) const {
+    auto found = ArgWrites.find(Arg);
+    return found == ArgWrites.end() ? nullptr : &found->second;
+  }
+  /// The calls in this function's body whose pullback needs nothing from the
+  /// forward sweep beyond the arguments: they have a pullback, and their
+  /// reverse_forw hands it no pullback_state and shapes no adjoint buffer. The
+  /// forward sweep may leave such a call out when nothing reads its results.
+  std::set<const clang::Expr*> ReplayableCalls;
+  /// The globals each call in this function's body assigns, directly or
+  /// through what it calls. Its pullback replays those assignments, so the
+  /// reverse sweep puts the globals back around it, as it does for the
+  /// arguments the call changes.
+  std::map<const clang::Expr*, std::vector<const clang::VarDecl*>>
+      CalleeGlobalWrites;
+  /// Whether \p Call is one of ActiveGlobalCalls.
+  bool touchesActiveGlobal(const clang::Expr* Call) const {
+    return ActiveGlobalCalls.count(Call) != 0;
+  }
+  /// Requested differentiation mode, forward or reverse.
+  DiffMode Mode = DiffMode::unknown;
+  /// If function appears in the call to clad::gradient/differentiate,
+  /// the call must be updated and the first arg replaced by the derivative.
+  bool CallUpdateRequired = false;
+  /// A flag to enable/disable diag warnings/errors during differentiation.
+  bool VerboseDiags = false;
+  /// Whether each analysis runs for this request. One member per entry in
+  /// Analyses.td, spelled Enable\<Id\>Analysis.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  bool Enable##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
+  /// Whether the user asked to hear what each analysis left behind
+  /// (-Rclad-analysis=\<name\>). Diagnostic-only, like EmitPortingHints, and
+  /// therefore excluded from request equality.
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  bool Remark##Id##Analysis = false;
+#include "clad/Differentiator/Analyses.def"
+
+  /// Fall back the way \p Other does: a nested call falls back the way the
+  /// outer one was asked to.
+  void inheritFallbacksFrom(const DiffRequest& Other) {
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  Enable##Id##Fallback = Other.Enable##Id##Fallback;
+#include "clad/Differentiator/Analyses.def"
+    FallbacksSeeded = Other.FallbacksSeeded;
+  }
+
+  /// Run the same analyses \p Other runs. A derived request -- the pullback of
+  /// a callee, the pushforward of a nested call -- covers a different
+  /// function, but the user asked for the analyses once, for the whole
+  /// differentiation.
+  void inheritAnalysesFrom(const DiffRequest& Other) {
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  Enable##Id##Analysis = Other.Enable##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+#define CLAD_ANALYSIS(Id, Name, Legacy, Default, FirstBit, Desc)               \
+  Remark##Id##Analysis = Other.Remark##Id##Analysis;
+#include "clad/Differentiator/Analyses.def"
+    inheritFallbacksFrom(Other);
+  }
+  /// A flag to emit porting-hint remarks (-fclad-porting-hints) when a function
+  /// defined outside the main source file is differentiated by cloning its
+  /// definition. Diagnostic-only; it does not affect the generated derivative
+  /// and is therefore excluded from request equality.
+  bool EmitPortingHints = false;
+  /// A flag to request a clad::restore_tracker parameter in the generated
+  /// _reverse_forw function.
+  bool UseRestoreTracker = false;
+  /// The function whose body holds the call asking for this derivative, or
+  /// null at namespace scope. Read from where the call is, not from anything
+  /// a user asks for; what it means for scheduling is decided in one place,
+  /// CladPlugin::HandleTopLevelDeclForClad.
+  const clang::FunctionDecl* ImmediateContext = nullptr;
+  /// A flag specifying whether this differentiation is to be used
+  /// for error estimation.
+  bool EnableErrorEstimation = false;
+  /// Assemble the hessian from hessian-vector products -- one pushforward of
+  /// the function and one pullback of it -- instead of one second-order
+  /// function per direction. The planner decides this (and schedules the
+  /// pushforward); HessianModeVisitor only consumes the decision. Derived
+  /// from Function, Mode and Args, so excluded from request equality.
+  bool UseHessianVectorProducts = false;
+  /// Puts the derived function and its code in the diff call
+  void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
+                  clang::Sema& SemaRef);
+  /// Functor type to be differentiated, if any.
+  ///
+  /// It is required because we cannot always determine if we are
+  /// differentiating a call operator using the function to be
+  /// differentiated, for example, when we are computing higher
+  /// order derivatives.
+  const clang::CXXRecordDecl* Functor = nullptr;
+  /// Stores loop checkpoint pragma locations and attached loop locations.
+  /// Key: pragma location; value: attached loop location, if any.
+  /// The key order is reversed to simplify location range lookups.
+  mutable std::map<clang::SourceLocation, clang::SourceLocation, std::greater<>>
+      m_CladLoopCheckpoints;
+
+  /// Global VarDecl to differentiate, if any.
+  ///
+  /// DiffRequests are also used to differentiate global variables.
+  const clang::VarDecl* Global = nullptr;
+
+  /// Stores differentiation parameters information. Stored information
+  /// includes info on indices range for array parameters, and nested data
+  /// member information for record (class) type parameters.
+  DiffInputVarsInfo DVI;
+
+  // A flag to enable the use of enzyme for backend instead of clad
+  bool use_enzyme = false;
+
+  /// UnresolvedLookupExpr or DeclRefExpr representing the custom derivative
+  /// overload
+  clang::Expr* CustomDerivative = nullptr;
+
+  /// The trailing clad::pullback_state\<S\> parameter a custom reverse_forw /
+  /// pullback carries, already in argument form (by reference for a
+  /// reverse_forw, by value for a pullback), or null when none. clad does not
+  /// synthesize this parameter, so it is appended to the expected derivative
+  /// signature when matching the overload and when building its overload call.
+  clang::QualType PullbackStateParam;
+  // FIXME: First per-request fact communicated across the request graph. The
+  // finer call-site activity that would let a pullback early-exit inactive
+  // branches or narrow toward a directional call wants the same channel: rework
+  // DVI and the varied/useful structs into one composable, finer-grained
+  // activity model on the request (on the AST), propagated down each subgraph.
+
+  /// A pointer to keep track of the prototype of the derived functions.
+  /// For higher order derivatives, we store the entire sequence of
+  /// prototypes declared for all orders of derivatives.
+  /// This will be useful for forward declaration of the derived functions.
+  llvm::SmallVector<clang::FunctionDecl*, 2> DerivedFDPrototypes;
+
+  /// A boolean to indicate if only the declaration of the derived function
+  /// is required (and not the definition or body).
+  /// This will be particularly useful for pushforward and pullback functions.
+  bool DeclarationOnly = false;
+
+  /// Whether clad takes each fallback for this request. One member per
+  /// Fallback in Analyses.td, spelled Enable\<Id\>Fallback. A request nobody
+  /// seeded falls back as clad does by default.
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  bool Enable##Id##Fallback = Default;
+#include "clad/Differentiator/Analyses.def"
+  /// Whether the fallbacks above say what the user asked for: set where a
+  /// request is read off its call and carried to the requests derived from it.
+  /// A request built only to look a derivative up leaves it unset and takes
+  /// whichever derivative there is.
+  bool FallbacksSeeded = false;
+
+  clang::AnalysisDeclContext* m_AnalysisDC = nullptr;
+
+  /// Recomputes `DiffInputVarsInfo` using the current values of data members.
+  ///
+  /// Differentiation parameters info is computed by parsing the argument
+  /// expression for the clad differentiation function calls. The argument is
+  /// used to specify independent parameter(s) for differentiation. There are
+  /// three valid options for the argument expression:
+  ///   1) A string literal, containing comma-separated names of function's
+  ///      parameters, as defined in function's definition. If any of the
+  ///      parameters are of array or pointer type the indexes of the array
+  ///      that needs to be differentiated can also be specified, e.g.
+  ///      "arr[1]" or "arr[2:5]". The function will be differentiated w.r.t.
+  ///      all the specified parameters.
+  ///   2) A numeric literal. The function will be differentiated w.r.t. to
+  ///      the parameter corresponding to literal's value index.
+  ///   3) If no argument is provided, a default argument is used. The
+  ///      function will be differentiated w.r.t. to its every parameter.
+  void UpdateDiffParamsInfo(clang::Sema& semaRef);
+
+  /// Apply translation-unit defaults and optional invocation options.
+  /// A null invocation preserves the selected mode. Returns true on error.
+  bool UpdateDiffOptions(clang::Sema& S, clang::SourceLocation Loc,
+                         const Options& Opts,
+                         const clang::FunctionDecl* Invocation = nullptr);
+
+  /// The pushforward request a hessian assembled from hessian-vector products
+  /// consumes. One factory serves both sides: the planner schedules the
+  /// request this builds, and HessianModeVisitor builds it again to find that
+  /// scheduled derivative, so the two must stay structurally identical.
+  [[nodiscard]] DiffRequest
+  pushforwardRequestForHessian(clang::Sema& semaRef) const;
+
+  /// Whether \p Other takes the same fallbacks. A fallback changes the values
+  /// a derivative computes, so two requests that differ in one are two
+  /// derivatives; one nobody seeded asks nothing of them.
+  bool takesSameFallbacks(const DiffRequest& Other) const {
+    if (!FallbacksSeeded || !Other.FallbacksSeeded)
+      return true;
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  if (Enable##Id##Fallback != Other.Enable##Id##Fallback)                      \
+    return false;
+#include "clad/Differentiator/Analyses.def"
+    return true;
+  }
+
+  /// Allow comparing DiffRequests.
+  bool operator==(const DiffRequest& other) const {
+    // Note that CallContext is always different and we should ignore it.
+    // CustomDerivative is an Expr* and is not always equal even if
+    // the set of overloads is the same.
+    // Including AnalysisDC would complicate constructing requests to find the
+    // existing once.
+    return Function == other.Function &&
+           BaseFunctionName == other.BaseFunctionName &&
+           CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
+           RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
+           Args == other.Args && Mode == other.Mode &&
+           // Written out rather than expanded from the table, so that the loop
+           // analysis can be left out: a pullback does not inherit it, so
+           // comparing it would make the request that looks a derivative up
+           // differ from the one that generated it, and clad would call a
+           // signature it never wrote. #2145 is the inheritance this waits on.
+           EnableTBRAnalysis == other.EnableTBRAnalysis &&
+           EnableVariedAnalysis == other.EnableVariedAnalysis &&
+           EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
+           takesSameFallbacks(other) && DVI == other.DVI &&
+           use_enzyme == other.use_enzyme &&
+           DeclarationOnly == other.DeclarationOnly && Global == other.Global &&
+           CUDAGlobalArgsIndexes == other.CUDAGlobalArgsIndexes;
+  }
+
+  const clang::FunctionDecl* operator->() const { return Function; }
+
+  operator std::string() const {
+    std::string res;
+    llvm::raw_string_ostream s(res);
+    print(s);
+    s.flush();
+    return res;
+  }
+  void print(llvm::raw_ostream& Out) const;
+  LLVM_DUMP_METHOD void dump() const { print(llvm::errs()); }
+
+  bool shouldBeRecorded(const clang::Stmt* S) const;
+  bool shouldHaveAdjoint(const clang::Stmt* S) const;
+  bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
+  bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
+  bool isVaried(const clang::Expr* E) const;
+  /// Whether forward mode has to differentiate through the call \p CE. False
+  /// only when varied analysis proved that no argument of the call depends on
+  /// the direction this request differentiates along. A call the analysis
+  /// never saw answers true.
+  [[nodiscard]] bool shouldHavePushforward(const clang::CallExpr* CE) const;
+  /// Select zero_like for this call's default adjoint, or null if inapplicable.
+  /// nonDiff is the visitor's final call-activity result.
+  clang::FunctionDecl* getDefaultAdjoint(clang::Sema& S,
+                                         const clang::CallExpr* CE,
+                                         bool nonDiff) const;
+  std::string ComputeDerivativeName() const;
+  bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
+
+  std::set<const clang::Stmt*>& getToBeRecorded() const {
+    m_TbrRunInfo.HasAnalysisRun = true;
+    return m_TbrRunInfo.ToBeRecorded;
+  }
+  ParamInfo& getModifiedParams() const { return m_TbrRunInfo.m_ModifiedParams; }
+  /// Whether the stores this function makes anyway hold everything the call
+  /// \p CE writes: the callee writes only into objects passed by non-const
+  /// reference that reach no other memory, and each of them is recorded.
+  bool restoresCallWrites(const clang::CallExpr* CE) const;
+  void addFunctionModifiedParams(const clang::FunctionDecl* FD,
+                                 const ParamSet& params) {
+    m_TbrRunInfo.m_ModifiedParams[FD] = params;
+  }
+  ParamInfo& getUsedParams() const { return m_TbrRunInfo.m_UsedParams; }
+  void addFunctionUsedParams(const clang::FunctionDecl* FD,
+                             const ParamSet& params) {
+    m_TbrRunInfo.m_UsedParams[FD] = params;
+  }
+  void addVariedDecl(const clang::VarDecl* init) {
+    m_ActivityRunInfo.VariedDecls.insert(init);
+  }
+
+  /// Records whether varied analysis found a varied argument of the call
+  /// \p CE. Only a forward-mode request is analyzed along exactly the
+  /// direction it differentiates; other -enable-va runs are unseeded or
+  /// seeded for a caller, and their verdicts must not drop pushforwards.
+  /// Monotone, because a loop body is passed over more than once and a later
+  /// pass may find an argument varied.
+  void recordCallActivity(const clang::CallExpr* CE, bool isVaried) const {
+    if (Mode == DiffMode::forward)
+      m_ActivityRunInfo.VariedCalls[CE] |= isVaried;
+  }
+
+  /// Drops the result of a previous varied-analysis run. A request reused for
+  /// another direction -- as the hessian reuses one forward request per row --
+  /// has to be analyzed from scratch.
+  void resetActivityInfo() const { m_ActivityRunInfo = ActivityRunInfo(); }
+  std::set<const clang::VarDecl*>& getVariedDecls() const {
+    return m_ActivityRunInfo.VariedDecls;
+  }
+
+  std::set<const clang::Stmt*>& getVariedStmt() const {
+    return m_ActivityRunInfo.VariedS;
+  }
+
+  void addUsefulDecl(const clang::VarDecl* init) {
+    m_UsefulRunInfo.UsefulDecls.insert(init);
+  }
+  std::set<const clang::VarDecl*>& getUsefulDecls() const {
+    return m_UsefulRunInfo.UsefulDecls;
+  }
+  bool HasTbrAnalysisRun() const { return m_TbrRunInfo.HasAnalysisRun; }
+};
+} // namespace clad
+
+// Define the hash function for DiffRequest.
+/// \cond DOXYGEN_CANNOT_PARSE_THIS
+template <> struct std::hash<clad::DiffRequest> {
+  std::size_t operator()(const clad::DiffRequest& DR) const {
+    const clang::Decl* D = nullptr;
+    if (DR.Function)
+      D = DR.Function;
+    else
+      D = DR.Global;
+    // Use the function pointer as the hash of the DiffRequest, it
+    // is sufficient to break a reasonable number of collisions.
+    if (D->getPreviousDecl())
+      return std::hash<const void*>{}(D->getPreviousDecl());
+    return std::hash<const void*>{}(D);
+  }
+};
+
+/// \endcond
+
+#endif // CLAD_DIFFERENTIATOR_DIFFREQUEST_H

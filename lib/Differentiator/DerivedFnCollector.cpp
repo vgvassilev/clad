@@ -1,5 +1,5 @@
 #include "clad/Differentiator/DerivedFnCollector.h"
-#include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffRequest.h"
 
 #include "clang/AST/Decl.h"
 

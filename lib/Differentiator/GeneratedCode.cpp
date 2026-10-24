@@ -1,6 +1,6 @@
 #include "GeneratedCode.h"
 
-#include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffRequest.h"
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"

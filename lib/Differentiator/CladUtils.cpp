@@ -27,6 +27,7 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -41,6 +42,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
+#include <cassert>
 #include <memory>
 #include <set>
 #include <vector>
@@ -814,6 +816,24 @@ namespace clad {
     clang::SourceRange GetValidSRange(clang::Sema& semaRef) {
       SourceLocation validSL = GetValidSLoc(semaRef);
       return SourceRange(validSL, validSL);
+    }
+
+    bool isInCladInterval(const SourceManager& SM,
+                          llvm::ArrayRef<SourceRange> Intervals,
+                          SourceLocation Loc) {
+      for (const SourceRange& Range : Intervals) {
+        SourceLocation B = Range.getBegin();
+        SourceLocation E = Range.getEnd();
+        assert((&Range == &Intervals.back() || E.isValid()) &&
+               "Unexpected open interval");
+        assert(E.isInvalid() || SM.isBeforeInTranslationUnit(B, E));
+        if (E.isValid() &&
+            clad_compat::SourceManager_isPointWithin(SM, Loc, B, E))
+          return true;
+        if (E.isInvalid() && SM.isBeforeInTranslationUnit(B, Loc))
+          return true;
+      }
+      return false;
     }
 
     CXXNewExpr* BuildCXXNewExpr(Sema& semaRef, QualType qType,

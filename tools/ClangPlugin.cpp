@@ -6,12 +6,15 @@
 
 #include "ClangPlugin.h"
 
+#include "clad/Differentiator/CladInvocationVisitor.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffRequest.h"
 #include "clad/Differentiator/Options.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
+
 #include "../lib/Differentiator/Analyses.h"
 #include "../lib/Differentiator/DerivativePrinter.h"
 #include "../lib/Differentiator/Diagnostics.h"
@@ -66,6 +69,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -238,7 +242,7 @@ void InitTimers();
       // Before anything else, and whether or not an error has already been
       // reported: a call clad cannot reach in time still deserves an
       // explanation. See DiagnoseConstantInitRequests.
-      DiagnoseConstantInitRequests(m_CI.getSema(), CladEnabledRange, DGR);
+      DiagnoseConstantInitRequests(m_CI.getSema(), getScheduler(), DGR);
 #if CLANG_VERSION_MAJOR > 16
       // Traverse all constexpr FunctionDecls for the static graph only once to
       // differentiate them immeditely.
@@ -249,7 +253,7 @@ void InitTimers();
             continue;
           auto* FD = cast<FunctionDecl>(D);
           if (FD->isConstexpr() || !m_Multiplexer) {
-            getScheduler().Plan(DGR);
+            getCladInvocations().Walk(DGR);
             break;
           }
         }
@@ -258,9 +262,9 @@ void InitTimers();
       // This handler can be re-entered while a planning traversal is on the
       // stack: a lookup issued by the traversal makes the ASTReader
       // deserialize pending module decls and pass them to the consumers. The
-      // Plan call above then defers the group; processing requests here would
-      // interleave with the outer traversal (and clobber its current
-      // processing node), so leave them to the outer caller.
+      // visitor can collect another root, but its planning waits until the
+      // current root finishes. Leave derivative generation to the outer caller
+      // so it does not interleave with the active scan or planning operation.
       //
       // It is re-entered while a request is being built, too: Sema hands the
       // consumers every function it instantiates on the spot, and a constexpr
@@ -269,7 +273,8 @@ void InitTimers();
       // so processing the graph here would build it a second time, and a
       // third, without end. Leave the graph to the outer call, as
       // FinalizeTranslationUnit does.
-      if (!getScheduler().isTraversalInFlight() &&
+      if (!getCladInvocations().isTraversing() &&
+          !getScheduler().isPlanning() &&
           !getScheduler().getGraph().isProcessingNode())
         for (DiffRequest& request : getScheduler().getGraph().getNodes()) {
           // Both halves matter. A derivative is needed this early only when
@@ -292,7 +297,8 @@ void InitTimers();
       // call is final. That would still have vgvassilev/clad#248 unresolved.
       // Not on re-entry (see above): the outer traversal finalizes.
       if (!m_CI.getDiagnostics().hasErrorOccurred() &&
-          !getScheduler().isTraversalInFlight() && !m_Multiplexer)
+          !getCladInvocations().isTraversing() &&
+          !getScheduler().isPlanning() && !m_Multiplexer)
         FinalizeTranslationUnit();
     }
 
@@ -1005,9 +1011,16 @@ void InitTimers();
 
     DiffScheduler& CladPlugin::getScheduler() {
       if (!m_Scheduler)
-        m_Scheduler = std::make_unique<DiffScheduler>(m_CI.getSema(), m_DO,
-                                                      CladEnabledRange);
+        m_Scheduler =
+            std::make_unique<DiffScheduler>(m_CI.getSema(), CladEnabledRange);
       return *m_Scheduler;
+    }
+
+    CladInvocationVisitor& CladPlugin::getCladInvocations() {
+      if (!m_CladInvocations)
+        m_CladInvocations = std::make_unique<CladInvocationVisitor>(
+            m_CI.getSema(), getScheduler(), m_DO);
+      return *m_CladInvocations;
     }
 
     void CladPlugin::FinalizeTranslationUnit() {
@@ -1070,7 +1083,7 @@ void InitTimers();
             if (const auto* FD = dyn_cast<FunctionDecl>(D))
               if (FD->isConstexpr())
                 continue;
-            getScheduler().Plan(DCI.m_DGR);
+            getCladInvocations().Walk(DCI.m_DGR);
             break;
           }
         }

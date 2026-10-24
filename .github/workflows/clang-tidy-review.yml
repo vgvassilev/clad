@@ -41,6 +41,9 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_CXX_FLAGS=-fexceptions
 
+      - name: Generate the table headers clang-tidy parses
+        run: cmake --build build --target clad-tables
+
       - name: Run clang-tidy
         uses: ZedThree/clang-tidy-review@v0.23.1
         id: review

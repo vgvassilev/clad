@@ -3,7 +3,7 @@
 #include "Analyses.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffRequest.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"

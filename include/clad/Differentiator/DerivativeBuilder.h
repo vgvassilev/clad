@@ -13,7 +13,7 @@
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DerivedFnInfo.h"
 #include "clad/Differentiator/DiffPlanner.h"
-#include "clad/Differentiator/DiffScheduler.h"
+#include "clad/Differentiator/DiffRequest.h"
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"

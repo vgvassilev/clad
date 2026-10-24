@@ -29,6 +29,7 @@
 namespace clang {
   class ASTContext;
   class FunctionDecl;
+  class SourceManager;
   class StringLiteral;
 }
 
@@ -383,6 +384,16 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Returns a valid `SourceRange` to be used in places where clang
     /// requires a valid `SourceRange`.
     clang::SourceRange GetValidSRange(clang::Sema& semaRef);
+
+    /// Whether Loc is in a `#pragma clad ON` interval. Only the last interval
+    /// may have an invalid end location, meaning it remains open.
+    /// The scheduler queries the root invocation's location, not the target
+    /// function's declaration. Do not use this to prune AST subtrees: an
+    /// enabled call can have an enclosing declaration or a callee outside
+    /// these intervals.
+    bool isInCladInterval(const clang::SourceManager& SM,
+                          llvm::ArrayRef<clang::SourceRange> Intervals,
+                          clang::SourceLocation Loc);
 
     /// Builds and returns `new` expression.
     ///

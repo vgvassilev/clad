@@ -20,7 +20,7 @@
 
 #include "AnalysisBase.h"
 #include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DiffRequest.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -663,5 +663,4 @@ bool TBRAnalyzer::TraverseInitListExpr(clang::InitListExpr* ILE) {
   resetMode();
   return false;
 }
-// NOLINTEND(cppcoreguidelines-pro-type-union-access)
 } // end namespace clad

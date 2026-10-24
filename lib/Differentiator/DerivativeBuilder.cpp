@@ -20,7 +20,7 @@
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
-#include "clad/Differentiator/DiffScheduler.h"
+#include "clad/Differentiator/DiffRequest.h"
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/HessianModeVisitor.h"

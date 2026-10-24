@@ -24,6 +24,7 @@
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/Frontend/OpenMP/OMP.h.inc>
 #include <llvm/Support/ErrorHandling.h>
+#include <llvm/Support/SaveAndRestore.h>
 
 #include <array>
 #include <cassert>
