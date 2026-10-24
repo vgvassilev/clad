@@ -713,12 +713,20 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
           .get();
   if (condExpr->getType()->isVoidType())
     return StmtDiff(condExpr, nullptr);
+  // A branch without a tangent, such as a variable the useful analysis left
+  // without one, contributes zero.
+  Expr* trueDx = ifTrueDiff.getExpr_dx();
+  Expr* falseDx = ifFalseDiff.getExpr_dx();
+  if (!trueDx && !falseDx)
+    return StmtDiff(condExpr, nullptr);
+  if (!trueDx)
+    trueDx = getZeroInit(falseDx->getType());
+  if (!falseDx)
+    falseDx = getZeroInit(trueDx->getType());
   // cond is already used by the value conditional above; clone it for the
   // derivative conditional so the two do not share the stored condition.
   Expr* condExprDiff =
-      m_Sema
-          .ActOnConditionalOp(noLoc, noLoc, CloneNode(cond),
-                              ifTrueDiff.getExpr_dx(), ifFalseDiff.getExpr_dx())
+      m_Sema.ActOnConditionalOp(noLoc, noLoc, CloneNode(cond), trueDx, falseDx)
           .get();
 
   return StmtDiff(condExpr, condExprDiff);
