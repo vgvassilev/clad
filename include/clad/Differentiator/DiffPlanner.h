@@ -673,6 +673,8 @@ public:
     bool touchesActiveGlobal(const clang::Expr* E,
                              const clang::FunctionDecl* Callee);
 
+    /// Whether the body being walked is replaced by a custom derivative.
+    bool m_BodyIsReplaced = false;
     /// Reports \p E if it is an active byte copy of floating-point values,
     /// which has no derivative; true if so.
     bool diagnoseByteCopy(const clang::CallExpr* E);

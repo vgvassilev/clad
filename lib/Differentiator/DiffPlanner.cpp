@@ -2163,7 +2163,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       m_AllAnalysisDC.push_back(std::move(AnalysisDC));
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
-      //  Recurse into call graph.
+      //  Recurse into call graph. With a custom derivative the body is walked
+      // for TBR alone and never differentiated.
+      llvm::SaveAndRestore<bool> SavedReplaced(m_BodyIsReplaced,
+                                               hasCustomPullback || nonDiff);
       TraverseFunctionDeclOnce(request.Function);
 
       if (requestTBR) {
@@ -2303,7 +2306,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
   bool DiffCollector::diagnoseByteCopy(const CallExpr* E) {
     QualType copied = utils::GetByteCopiedFloatingType(E);
-    if (copied.isNull() || !m_ParentReq)
+    if (copied.isNull() || !m_ParentReq || m_BodyIsReplaced)
       return false;
     // A defaulted assignment copies an array member this way; point at the
     // assignment that called it.
