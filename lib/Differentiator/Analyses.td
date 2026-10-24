@@ -124,8 +124,10 @@ def : Reserved</*firstBit=*/4, /*name=*/"diagonal_only">;
 def Varied : Analysis</*name=*/"activity", /*legacy=*/"va", /*onByDefault=*/0,
                       /*requestBit=*/5,
                       "skips the adjoint of a value no input can vary">;
-// 7 and 8 are free: 7 was clad::immediate_mode, which clad now works out for
-// itself, and an analysis needs two in a row, which these are.
+// 7 was clad::immediate_mode, which clad now works out for itself.
+def Liveness : Analysis</*name=*/"liveness", /*legacy=*/"liveness",
+                        /*onByDefault=*/1, /*requestBit=*/7,
+                        "skips forward work whose result nothing reads">;
 def Useful : Analysis</*name=*/"useful", /*legacy=*/"ua", /*onByDefault=*/0,
                       /*requestBit=*/9,
                       "skips the adjoint of a value no output depends on">;
@@ -187,6 +189,22 @@ def IndexIsWritten : Miss<"the index reads a variable the loop writes, so it "
 def CalleeHasNoBody : Miss<"this function has no body in this file, so there "
                            "is nothing to read to find out which arguments it "
                            "reads">;
+
+def UnreadCalleeHasNoBody : Miss<"the callee has no body in this file, so "
+                                 "what else it changes is not known">;
+def WrittenObjectEscapes : Miss<"the function takes the address of something "
+                                "this call writes, so a read through it cannot "
+                                "be ruled out">;
+def WrittenObjectHoldsPointer : Miss<"this call writes into an object that holds "
+                                     "a pointer, so it may change memory outside "
+                                     "it">;
+def CalleeWritesThroughPointer : Miss<"the callee writes through a pointer "
+                                      "argument">;
+def CalleeWritesGlobal : Miss<"the callee, or a function it calls, writes a "
+                              "global">;
+def CalleeCallsIndirectly : Miss<"the callee, or a function it calls, calls "
+                                 "through a pointer, so what it writes is not "
+                                 "known">;
 
 // One message clad emits. The wording is user-facing: worth reviewing on its
 // own, worth quoting in the documentation without drifting, and worth finding
@@ -396,10 +414,40 @@ than through a pointer, is what lets the analysis see it.
 }];
 }
 
+def UnreadCall : Desc<Liveness, 1006, "a call whose results nothing reads",
+                      "clad runs this call in the forward sweep, although "
+                      "nothing reads what it computes there"> {
+  let Misses = [UnreadCalleeHasNoBody, WrittenObjectEscapes,
+                WrittenObjectHoldsPointer, CalleeWritesThroughPointer,
+                CalleeWritesGlobal, CalleeCallsIndirectly];
+  let Doc = [{
+A call, as a statement of its own, that changes only variables of the
+function passed to it by reference, none of which a later statement reads::
+
+  void twice(State& s, double k) {
+    step(s, k);
+    step(s, k);   // nothing reads s after this call
+  }
+
+The reverse sweep puts back what such a call changed before it runs the
+call's pullback, and the pullback works out again whatever it needs. So the
+forward sweep has no reason to run the call: clad leaves it out.
+
+Clad has to be sure nothing else sees the call's effects. A call stays when
+it has no body in this file, writes through a pointer, writes a global, or
+writes into an object that holds a pointer, or when the function takes the
+address of what the call writes. A call that changes none of the function's
+variables stays too: what it is for, such as printing, is not something clad
+can see. For the functions such a call calls in turn, clad assumes, as the
+to-be-recorded analysis does, that a function without a body writes only
+through its arguments.
+}];
+}
+
 // What is generated, and in which order.
 def Clad {
   list<Desc> Descs = [CountedLoop, BroadcastRead, BoundedWrite,
-                      TransparentCall, ArrayRecord];
+                      TransparentCall, ArrayRecord, UnreadCall];
   list<Diagnostic> Diagnostics = [remark_construct_cost,
                                   remark_construct_cost_for,
                                   note_construct_miss, note_construct_fix,

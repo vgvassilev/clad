@@ -738,7 +738,6 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      a.setData(u);
 // CHECK-NEXT:      res += a.data * v;
 // CHECK-NEXT:      _tracker0.clear();
-// CHECK-NEXT:      a.increment_reverse_forw(&_d_a, _tracker0);
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _tracker0.restore();

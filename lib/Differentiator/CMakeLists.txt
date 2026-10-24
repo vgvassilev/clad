@@ -71,6 +71,7 @@ llvm_add_library(cladDifferentiator
   VectorPushForwardModeVisitor.cpp
   Version.cpp
   VisitorBase.cpp
+  LivenessAnalyzer.cpp
   LoopAnalyzer.cpp
   ${version_inc}
   )

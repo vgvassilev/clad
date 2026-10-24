@@ -24,6 +24,7 @@
 // Every analysis clad knows about is listed, with the default it runs at.
 // CHECK_HELP: -enable-tbr / -disable-tbr {{.*}} Default: on.
 // CHECK_HELP-NEXT: -enable-va / -disable-va {{.*}} Default: off.
+// CHECK_HELP-NEXT: -enable-liveness / -disable-liveness {{.*}} Default: on.
 // CHECK_HELP-NEXT: -enable-ua / -disable-ua {{.*}} Default: off.
 // CHECK_HELP-NEXT: -enable-loop / -disable-loop {{.*}} Default: on.
 
@@ -68,7 +69,7 @@
 // An analysis has to be one clad has; the message names the ones it does.
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
 // RUN:  -Xclang -fdisable-analysis=nosuch %s 2>&1 | FileCheck --check-prefix=CHECK_NO_SUCH %s
-// CHECK_NO_SUCH: unknown analysis 'nosuch'; known: tbr activity useful
+// CHECK_NO_SUCH: unknown analysis 'nosuch'; known: tbr activity liveness useful
 
 // The same holds for the flag that asks an analysis to report itself.
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad \
