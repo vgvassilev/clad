@@ -333,6 +333,30 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanh_pushforward(T x, dT d_x);
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cbrt_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asinh_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acosh_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atanh_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erf_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfc_pushforward(T x, dT d_x);
+
+template <typename T1, typename T2, typename T3>
+CUDA_HOST_DEVICE ValueAndPushforward<decltype(::std::fma(T1(), T2(), T3())),
+                                     decltype(::std::fma(T1(), T2(), T3()))>
+fma_pushforward(T1 a, T2 b, T3 c, T1 d_a, T2 d_b, T3 d_c);
+
+template <typename T1, typename T2, typename T3, typename T4>
+CUDA_HOST_DEVICE void fma_pullback(T1 a, T2 b, T3 c, T4 d_y, T1* d_a, T2* d_b,
+                                   T3* d_c);
 } // namespace std
 
 template <typename T, typename dT>
@@ -603,6 +627,134 @@ template <typename T, typename dT>
 CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
 __builtin_cbrtl_pushforward(T x, dT d_x) {
   return std::cbrt_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_asinh_pushforward(T x, dT d_x) {
+  return std::asinh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_asinhf_pushforward(T x, dT d_x) {
+  return std::asinh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_asinhl_pushforward(T x, dT d_x) {
+  return std::asinh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_acosh_pushforward(T x, dT d_x) {
+  return std::acosh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_acoshf_pushforward(T x, dT d_x) {
+  return std::acosh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_acoshl_pushforward(T x, dT d_x) {
+  return std::acosh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_atanh_pushforward(T x, dT d_x) {
+  return std::atanh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_atanhf_pushforward(T x, dT d_x) {
+  return std::atanh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_atanhl_pushforward(T x, dT d_x) {
+  return std::atanh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erf_pushforward(T x, dT d_x) {
+  return std::erf_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erff_pushforward(T x, dT d_x) {
+  return std::erf_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erfl_pushforward(T x, dT d_x) {
+  return std::erf_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erfc_pushforward(T x, dT d_x) {
+  return std::erfc_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erfcf_pushforward(T x, dT d_x) {
+  return std::erfc_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erfcl_pushforward(T x, dT d_x) {
+  return std::erfc_pushforward(x, d_x);
+}
+
+template <typename T1, typename T2, typename T3, typename dT1, typename dT2,
+          typename dT3>
+CUDA_HOST_DEVICE inline auto
+__builtin_fma_pushforward(T1 a, T2 b, T3 c, dT1 d_a, dT2 d_b, dT3 d_c)
+    -> decltype(std::fma_pushforward(a, b, c, d_a, d_b, d_c)) {
+  return std::fma_pushforward(a, b, c, d_a, d_b, d_c);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fmaf_pushforward(T a, T b, T c, dT d_a, dT d_b, dT d_c) {
+  return std::fma_pushforward(a, b, c, d_a, d_b, d_c);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_fmal_pushforward(T a, T b, T c, dT d_a, dT d_b, dT d_c) {
+  return std::fma_pushforward(a, b, c, d_a, d_b, d_c);
+}
+
+template <typename T1, typename T2, typename T3, typename T4>
+CUDA_HOST_DEVICE inline void
+__builtin_fma_pullback(T1 a, T2 b, T3 c, T4 d_y, T1* d_a, T2* d_b, T3* d_c) {
+  std::fma_pullback(a, b, c, d_y, d_a, d_b, d_c);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void
+__builtin_fmaf_pullback(T x, T y, T z, U d_w, T* d_x, T* d_y, T* d_z) {
+  std::fma_pullback(x, y, z, d_w, d_x, d_y, d_z);
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE inline void
+__builtin_fmal_pullback(T x, T y, T z, U d_w, T* d_x, T* d_y, T* d_z) {
+  std::fma_pullback(x, y, z, d_w, d_x, d_y, d_z);
 }
 
 // FIXME: Add the rest of the __builtin_ routines.
