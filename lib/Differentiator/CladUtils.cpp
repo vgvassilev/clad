@@ -169,7 +169,7 @@ namespace clad {
       return CS;
     }
 
-    bool isNoopDerivative(const clang::FunctionDecl* FD) {
+    bool hasNoopDerivativeAttribute(const clang::FunctionDecl* FD) {
       FD = FD->getCanonicalDecl();
       if (const FunctionDecl* TIP = FD->getTemplateInstantiationPattern())
         FD = TIP;
@@ -177,6 +177,15 @@ namespace clad {
            FD->getMostRecentDecl()->specific_attrs<clang::AnnotateAttr>())
         if (A->getAnnotation() == "noop_derivative")
           return true;
+      return false;
+    }
+
+    bool isNoopDerivative(const clang::FunctionDecl* FD) {
+      if (hasNoopDerivativeAttribute(FD))
+        return true;
+      FD = FD->getCanonicalDecl();
+      if (const FunctionDecl* TIP = FD->getTemplateInstantiationPattern())
+        FD = TIP;
       // A derivative without a body is defined elsewhere, e.g. in another
       // translation unit, and has to be called.
       Stmt* Body = FD->getBody();
