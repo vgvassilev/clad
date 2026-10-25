@@ -23,6 +23,82 @@ double parenthesizedMember(double x) {
   return (*p).x * x;
 }
 
+struct PointerMember { double x; };
+
+double steppedMember(double x) {
+  PointerMember arr[2] = {{0.}, {x * x}};
+  PointerMember* p = arr;
+  return (++p)->x * x;
+}
+
+double steppedMemberDecrement(double x) {
+  PointerMember arr[2] = {{x * x}, {0.}};
+  PointerMember* p = arr + 1;
+  return (--p)->x * x;
+}
+
+double steppedPointer(double x) {
+  double arr[2] = {0., x * x};
+  double* p = arr;
+  return *(++p) * x;
+}
+
+double steppedMemberTwice(double x) {
+  PointerMember arr[3] = {{0.}, {0.}, {x * x}};
+  PointerMember* p = arr;
+  ++p;
+  return (++p)->x * x;
+}
+
+double steppedSubscript(double x) {
+  double arr[2] = {0., x * x};
+  double* p = arr;
+  return p++[1] * x;
+}
+
+double steppedPreSubscript(double x) {
+  double arr[2] = {0., x * x};
+  double* p = arr;
+  return (++p)[0] * x;
+}
+
+double readStepped(const double* r) { return *r; }
+
+double steppedPostDeref(double x) {
+  double arr[2] = {x * x, 0.};
+  double* p = arr;
+  return *p++ * x;
+}
+
+double steppedPostDecrement(double x) {
+  double arr[2] = {0., x * x};
+  double* p = arr + 1;
+  return *p-- * x;
+}
+
+double steppedPostCopy(double x) {
+  double arr[2] = {x * x, 0.};
+  double* p = arr;
+  double* q = p++;
+  return *q * x;
+}
+
+double steppedPostCall(double x) {
+  double arr[2] = {x * x, 0.};
+  double* p = arr;
+  return readStepped(p++) * x;
+}
+
+double steppedInLoop(double x) {
+  double arr[3] = {x, x * x, 2 * x};
+  double s = 0;
+  for (int i = 0; i < 3; ++i) {
+    double* q = arr + i;
+    s += *q++ * x;
+  }
+  return s;
+}
+
 double minimalPointer(double x) {
   double* const p = &x;
   *p = (*p)*(*p);
@@ -340,12 +416,43 @@ double placementNewPointer(double x) {
 // CHECK-NEXT:         *_d_x += buf[0] * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
+// CHECK-NEXT:         *(double *)_t0 = _t1;
+// CHECK-NEXT:         double _r_d0 = *(double *)(_d_p - 1);
+// CHECK-NEXT:         *(double *)(_d_p - 1) = 0.;
+// CHECK-NEXT:         _d_buf[0] += _r_d0 * x;
+// CHECK-NEXT:         *_d_x += buf[0] * _r_d0;
 // CHECK-NEXT:         _d_p--;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += _d_buf[0];
+// CHECK-NEXT: }
+
+double placementNewSteppedPointer(double x) {
+  double buf[2] = {x, 0.};
+  double* p = buf;
+  new (++p) double(buf[0] * x);
+  return buf[1] * x;
+}
+
+// CHECK: void placementNewSteppedPointer_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_buf[2] = {0};
+// CHECK-NEXT:     double buf[2] = {x, 0.};
+// CHECK-NEXT:     double *_d_p = _d_buf;
+// CHECK-NEXT:     double *p = buf;
+// CHECK-NEXT:     ++_d_p;
+// CHECK-NEXT:     double *_t0 = ++p;
+// CHECK-NEXT:     double _t1 = *(double *)_t0;
+// CHECK-NEXT:     new (_t0) double(buf[0] * x);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_buf[1] += 1 * x;
+// CHECK-NEXT:         *_d_x += buf[1] * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
 // CHECK-NEXT:         *(double *)_t0 = _t1;
 // CHECK-NEXT:         double _r_d0 = *(double *)_d_p;
 // CHECK-NEXT:         *(double *)_d_p = 0.;
 // CHECK-NEXT:         _d_buf[0] += _r_d0 * x;
 // CHECK-NEXT:         *_d_x += buf[0] * _r_d0;
+// CHECK-NEXT:         --_d_p;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_x += _d_buf[0];
 // CHECK-NEXT: }
@@ -736,6 +843,12 @@ int main() {
   d_placementNewPointer.execute(3, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 27.00
 
+  auto d_placementNewSteppedPointer =
+      clad::gradient(placementNewSteppedPointer);
+  d_x = 0;
+  d_placementNewSteppedPointer.execute(3, &d_x);
+  printf("%.2f\n", d_x); // CHECK-EXEC: 27.00
+
   auto d_assignedNewPointer = clad::gradient(assignedNewPointer);
   d_x = 0;
   d_assignedNewPointer.execute(5, &d_x);
@@ -783,6 +896,61 @@ int main() {
   double d_a = 0, d_k = 0;
   clad::gradient(callScale).execute(2, 3, &d_a, &d_k);
   printf("%.2f %.2f\n", d_a, d_k); // CHECK-EXEC: 36.00 24.00
+
+  auto d_steppedMember = clad::gradient(steppedMember);
+  double d_stepped_x = 0;
+  d_steppedMember.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedMemberDecrement = clad::gradient(steppedMemberDecrement);
+  d_stepped_x = 0;
+  d_steppedMemberDecrement.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedPointer = clad::gradient(steppedPointer);
+  d_stepped_x = 0;
+  d_steppedPointer.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedMemberTwice = clad::gradient(steppedMemberTwice);
+  d_stepped_x = 0;
+  d_steppedMemberTwice.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedSubscript = clad::gradient(steppedSubscript);
+  d_stepped_x = 0;
+  d_steppedSubscript.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedPreSubscript = clad::gradient(steppedPreSubscript);
+  d_stepped_x = 0;
+  d_steppedPreSubscript.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedPostDeref = clad::gradient(steppedPostDeref);
+  d_stepped_x = 0;
+  d_steppedPostDeref.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedPostDecrement = clad::gradient(steppedPostDecrement);
+  d_stepped_x = 0;
+  d_steppedPostDecrement.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedPostCopy = clad::gradient(steppedPostCopy);
+  d_stepped_x = 0;
+  d_steppedPostCopy.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedPostCall = clad::gradient(steppedPostCall);
+  d_stepped_x = 0;
+  d_steppedPostCall.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedInLoop = clad::gradient(steppedInLoop);
+  d_stepped_x = 0;
+  d_steppedInLoop.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 24.00
 }
 
 // CHECK: void parenthesizedMember_grad(double x, double *_d_x) {
@@ -798,3 +966,214 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void scaleBy_reverse_forw(double *x, double _d_x, double *_d_x0, double _d__d_x, clad::restore_tracker &_tracker0) {
+
+// CHECK: void steppedMember_grad(double x, double *_d_x) {
+// CHECK-NEXT:     PointerMember _d_arr{{.*}};
+// CHECK-NEXT:     PointerMember arr{{.*}};
+// CHECK-NEXT:     PointerMember *_d_p = _d_arr;
+// CHECK-NEXT:     PointerMember *p = arr;
+// CHECK-NEXT:     ++_d_p;
+// CHECK-NEXT:     double _t0 = (++p)->x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_p->x += 1 * x;
+// CHECK-NEXT:         --_d_p;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[1].x * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[1].x;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedMemberDecrement_grad(double x, double *_d_x) {
+// CHECK-NEXT:     PointerMember _d_arr{{.*}};
+// CHECK-NEXT:     PointerMember arr{{.*}};
+// CHECK-NEXT:     PointerMember *_d_p = _d_arr + 1;
+// CHECK-NEXT:     PointerMember *p = arr + 1;
+// CHECK-NEXT:     --_d_p;
+// CHECK-NEXT:     double _t0 = (--p)->x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_p->x += 1 * x;
+// CHECK-NEXT:         ++_d_p;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[0].x * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[0].x;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedPointer_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_arr[2] = {0};
+// CHECK-NEXT:     double arr[2] = {0., x * x};
+// CHECK-NEXT:     double *_d_p = _d_arr;
+// CHECK-NEXT:     double *p = arr;
+// CHECK-NEXT:     ++_d_p;
+// CHECK-NEXT:     double _t0 = *++p;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_p += 1 * x;
+// CHECK-NEXT:         --_d_p;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[1] * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[1];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedMemberTwice_grad(double x, double *_d_x) {
+// CHECK-NEXT:     PointerMember _d_arr{{.*}};
+// CHECK-NEXT:     PointerMember arr{{.*}};
+// CHECK-NEXT:     PointerMember *_d_p = _d_arr;
+// CHECK-NEXT:     PointerMember *p = arr;
+// CHECK-NEXT:     ++_d_p;
+// CHECK-NEXT:     ++p;
+// CHECK-NEXT:     ++_d_p;
+// CHECK-NEXT:     double _t0 = (++p)->x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_p->x += 1 * x;
+// CHECK-NEXT:         --_d_p;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     --_d_p;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[2].x * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[2].x;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedSubscript_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_arr[2] = {0};
+// CHECK-NEXT:     double arr[2] = {0., x * x};
+// CHECK-NEXT:     double *_d_p = _d_arr;
+// CHECK-NEXT:     double *p = arr;
+// CHECK-NEXT:     _d_p++;
+// CHECK-NEXT:     double _t0 = p++[1];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         (_d_p - 1)[1] += 1 * x;
+// CHECK-NEXT:         _d_p--;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[1] * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[1];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedPostDeref_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_arr[2] = {0};
+// CHECK-NEXT:     double arr[2] = {x * x, 0.};
+// CHECK-NEXT:     double *_d_p = _d_arr;
+// CHECK-NEXT:     double *p = arr;
+// CHECK-NEXT:     _d_p++;
+// CHECK-NEXT:     double _t0 = *p++;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *(_d_p - 1) += 1 * x;
+// CHECK-NEXT:         _d_p--;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[0] * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[0];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedPostDecrement_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_arr[2] = {0};
+// CHECK-NEXT:     double arr[2] = {0., x * x};
+// CHECK-NEXT:     double *_d_p = _d_arr + 1;
+// CHECK-NEXT:     double *p = arr + 1;
+// CHECK-NEXT:     _d_p--;
+// CHECK-NEXT:     double _t0 = *p--;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *(_d_p + 1) += 1 * x;
+// CHECK-NEXT:         _d_p++;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[1] * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[1];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedPostCopy_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_arr[2] = {0};
+// CHECK-NEXT:     double arr[2] = {x * x, 0.};
+// CHECK-NEXT:     double *_d_p = _d_arr;
+// CHECK-NEXT:     double *p = arr;
+// CHECK-NEXT:     _d_p++;
+// CHECK-NEXT:     double *_d_q = (_d_p - 1);
+// CHECK-NEXT:     double *q = p++;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_q += 1 * x;
+// CHECK-NEXT:         *_d_x += *q * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_p--;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[0] * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[0];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: inline void readStepped_pullback(const double *r, double _d_y, double *_d_r) {
+// CHECK-NEXT:     *_d_r += _d_y;
+// CHECK-NEXT: }
+
+// CHECK: void steppedPostCall_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_arr[2] = {0};
+// CHECK-NEXT:     double arr[2] = {x * x, 0.};
+// CHECK-NEXT:     double *_d_p = _d_arr;
+// CHECK-NEXT:     double *p = arr;
+// CHECK-NEXT:     _d_p++;
+// CHECK-NEXT:     double *_t0 = p++;
+// CHECK-NEXT:     double _t1 = readStepped(_t0);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         readStepped_pullback(_t0, 1 * x, (_d_p - 1));
+// CHECK-NEXT:         p--;
+// CHECK-NEXT:         _d_p--;
+// CHECK-NEXT:         *_d_x += _t1 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[0] * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[0];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedInLoop_grad(double x, double *_d_x) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     double *_t1[3];
+// CHECK-NEXT:     double *_d_q = nullptr;
+// CHECK-NEXT:     double *q = nullptr;
+// CHECK-NEXT:     double _t2[3];
+// CHECK-NEXT:     double _d_arr[3] = {0};
+// CHECK-NEXT:     double arr[3] = {x, x * x, 2 * x};
+// CHECK-NEXT:     double _d_s = 0.;
+// CHECK-NEXT:     double s = 0;
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     for (i = 0; i < 3; ++i) {
+// CHECK-NEXT:         _t1[i] = _d_q;
+// CHECK-NEXT:         _d_q = _d_arr + i;
+// CHECK-NEXT:         q = arr + i;
+// CHECK-NEXT:         _d_q++;
+// CHECK-NEXT:         _t2[i] = *q++;
+// CHECK-NEXT:         s += _t2[i] * x;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_s += 1;
+// CHECK-NEXT:     for (_t0 = 3U; _t0; _t0--) {
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r_d0 = _d_s;
+// CHECK-NEXT:             *(_d_q - 1) += _r_d0 * x;
+// CHECK-NEXT:             _d_q--;
+// CHECK-NEXT:             *_d_x += _t2[i] * _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _d_q = _t1[i];
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[0];
+// CHECK-NEXT:         *_d_x += _d_arr[1] * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[1];
+// CHECK-NEXT:         *_d_x += 2 * _d_arr[2];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
