@@ -134,6 +134,11 @@ namespace clad {
     /// break. It is used to determine whether to run the loop cond
     /// differentiation. One additional time.
     clang::Expr* m_CurrentBreakFlagExpr;
+    /// For each enclosing loop, innermost last, its adjoint iterator if it is
+    /// a range-for and null otherwise. Leaving an iteration by break or return
+    /// advances the iterator as finishing it would, so that the reverse sweep
+    /// steps it back once for every iteration the forward sweep entered.
+    llvm::SmallVector<clang::Expr*, 4> m_LoopAdjointIterators;
 
     clang::Expr* m_RestoreTracker = nullptr;
     /// A never-restored tracker handed to nested reverse_forw calls that only
