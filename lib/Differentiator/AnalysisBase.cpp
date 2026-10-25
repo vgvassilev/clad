@@ -38,6 +38,14 @@ void AnalysisBase::addVar(const clang::VarDecl* VD, bool forceInit) {
   if (utils::IsAutoOrAutoPtrType(varType))
     varType = VD->getInit()->getType();
 
+  // A T&& bound to an xvalue, as std::move(x) is, refers to x as a T& would;
+  // only one bound to a prvalue owns what it refers to.
+  const Expr* init = VD->getInit();
+  if (varType->isRValueReferenceType() && !isa<ParmVarDecl>(VD) && init &&
+      !init->IgnoreImplicit()->isPRValue())
+    varType = VD->getASTContext().getLValueReferenceType(
+        varType.getNonReferenceType());
+
   curBranch[VD] = VarData(varType, forceInit);
 }
 
@@ -182,7 +190,7 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
       if (!VD)
         return false;
       QualType VDType = VD->getType();
-      if (VDType->isLValueReferenceType() || VDType->isPointerType()) {
+      if (VDType->isReferenceType() || VDType->isPointerType()) {
         VarData* refData = getVarDataFromDecl(VD);
         // Globals and other untracked declarations have no VarData.
         if (!refData) {
