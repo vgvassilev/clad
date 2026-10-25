@@ -1200,6 +1200,29 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return BaseFunctionName + "_d" + s + "arg" + argInfo;
   }
 
+  bool DiffRequest::restoresCallWrites(const CallExpr* CE) const {
+    const FunctionDecl* FD = CE->getDirectCallee();
+    assert(FD && "Reverse mode asks only about a call to a known function");
+    ParamInfo& modified = getModifiedParams();
+    auto found = modified.find(FD);
+    if (found == modified.end() || found->second.empty())
+      return false;
+    // A method operator takes its object as the first argument.
+    std::size_t skip = isa<CXXOperatorCallExpr>(CE) && isa<CXXMethodDecl>(FD);
+    const ASTContext& C = FD->getASTContext();
+    return llvm::all_of(found->second, [&](const ParmVarDecl* PVD) {
+      if (!PVD)
+        return false;
+      QualType T = PVD->getType();
+      std::size_t argIdx = skip + PVD->getFunctionScopeIndex();
+      return T->isLValueReferenceType() &&
+             !T.getNonReferenceType().isConstQualified() &&
+             !T.getNonReferenceType()->isArrayType() &&
+             utils::reachesNoOtherMemory(C, T.getNonReferenceType()) &&
+             argIdx < CE->getNumArgs() && shouldBeRecorded(CE->getArg(argIdx));
+    });
+  }
+
   bool DiffRequest::HasIndependentParameter(const ParmVarDecl* PVD) const {
     // FIXME: We store the original function's params in DVI and here we need to
     // compare with the cloned ones by name. We can compare the pointers instead

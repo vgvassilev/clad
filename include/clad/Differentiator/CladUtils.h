@@ -602,6 +602,9 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool CanReturnOutputTangent(const clang::FunctionDecl* FD);
 
     bool isCopyable(const clang::CXXRecordDecl* RD);
+    /// Whether a copy of an object of type \p T holds everything a function
+    /// can change through a reference to it: \p T reaches no other memory.
+    bool reachesNoOtherMemory(const clang::ASTContext& C, clang::QualType T);
 
     bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
 

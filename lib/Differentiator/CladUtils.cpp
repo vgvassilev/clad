@@ -1235,6 +1235,18 @@ namespace clad {
       }
     }
 
+    bool reachesNoOtherMemory(const ASTContext& C, QualType T) {
+      T = C.getBaseElementType(T);
+      if (T->isArithmeticType() || T->isEnumeralType())
+        return true;
+      const auto* RD = T->getAsCXXRecordDecl();
+      return RD && RD->hasDefinition() && !RD->getNumBases() &&
+             !RD->isUnion() && !RD->isPolymorphic() &&
+             llvm::all_of(RD->fields(), [&C](const FieldDecl* F) {
+               return reachesNoOtherMemory(C, F->getType());
+             });
+    }
+
     bool isCopyable(const clang::CXXRecordDecl* RD) {
       if (RD->defaultedCopyConstructorIsDeleted())
         return false;

@@ -2538,20 +2538,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {buildClonedLambda(LE), lambdaE};
   }
 #endif // CLANG_VERSION_MAJOR
-  /// Whether a copy of an object of type \p T holds everything a function can
-  /// change through a reference to it: \p T reaches no other memory.
-  static bool reachesNoOtherMemory(const ASTContext& C, QualType T) {
-    T = C.getBaseElementType(T);
-    if (T->isArithmeticType() || T->isEnumeralType())
-      return true;
-    const auto* RD = T->getAsCXXRecordDecl();
-    return RD && RD->hasDefinition() && !RD->getNumBases() && !RD->isUnion() &&
-           !RD->isPolymorphic() &&
-           llvm::all_of(RD->fields(), [&C](const FieldDecl* F) {
-             return reachesNoOtherMemory(C, F->getType());
-           });
-  }
-
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // FIXME: Add general support for non-direct calls
     const Expr* callee = CE->getCallee();
@@ -2904,27 +2890,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!nonDiff && usingRestoreTracker && !m_RestoreTracker &&
         m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass &&
         !needsForwPass && pullbackStateType.isNull() &&
-        !isa<CUDAKernelCallExpr>(CE)) {
-      ParamInfo& modified = m_DiffReq.getModifiedParams();
-      auto found = modified.find(FD);
-      callerRestoresWrites = found != modified.end() && !found->second.empty();
-      if (callerRestoresWrites)
-        for (const ParmVarDecl* PVD : found->second) {
-          std::size_t argIdx = isMethodOperatorCall;
-          if (PVD)
-            argIdx += PVD->getFunctionScopeIndex();
-          QualType parTy = PVD ? PVD->getType() : QualType();
-          if (!PVD || !parTy->isLValueReferenceType() ||
-              parTy.getNonReferenceType().isConstQualified() ||
-              parTy.getNonReferenceType()->isArrayType() ||
-              !reachesNoOtherMemory(m_Context, parTy.getNonReferenceType()) ||
-              argIdx >= CE->getNumArgs() ||
-              !m_DiffReq.shouldBeRecorded(CE->getArg(argIdx))) {
-            callerRestoresWrites = false;
-            break;
-          }
-        }
-    }
+        !isa<CUDAKernelCallExpr>(CE))
+      callerRestoresWrites = m_DiffReq.restoresCallWrites(CE);
 
     for (std::size_t skip_this = static_cast<std::size_t>(isMethodOperatorCall),
                      i = skip_this, e = CE->getNumArgs();
