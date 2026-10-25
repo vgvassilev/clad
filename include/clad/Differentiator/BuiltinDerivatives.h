@@ -30,7 +30,8 @@
   __attribute__((annotate("elidable_reverse_forw")))
 #endif
 
-/// Marks a pullback that does nothing; clad omits calls to it.
+/// Marks a pullback or a pushforward that does nothing; clad omits calls to
+/// it, and to a pushforward of a function call gives the call a zero tangent.
 /// A declaration without a body is otherwise taken to be defined elsewhere.
 #ifdef __CLAD__
 #define CLAD_NOOP_DERIVATIVE [[clad::noop_derivative]]

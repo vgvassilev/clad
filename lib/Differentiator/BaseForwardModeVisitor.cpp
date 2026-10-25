@@ -1652,6 +1652,20 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     } else
       // Request the derivative
       pushforwardFD = FindDerivedFunction(pushforwardFnRequest);
+    // A custom pushforward marked CLAD_NOOP_DERIVATIVE says that the call has
+    // no tangent; it needs no definition and is not called.
+    if (pushforwardFD && utils::hasNoopDerivativeAttribute(pushforwardFD) &&
+        !isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE)) {
+      Expr* call =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                             validLoc, llvm::MutableArrayRef<Expr*>(CallArgs),
+                             validLoc, CUDAExecConfig)
+              .get();
+      if (CE->getType()->isVoidType())
+        return StmtDiff(call);
+      return StmtDiff(call, getZeroInit(CE->getType()));
+    }
     if (pushforwardFD) {
       if (Expr* baseE = baseDiff.getExpr())
         pushforwardFnArgs.insert(pushforwardFnArgs.begin(), baseE);
