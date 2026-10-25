@@ -1569,6 +1569,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           }
         }
       }
+      bool hasNoTangent = !dArg;
       if (!dArg) {
         QualType zeroTy = arg->getType();
         if (zeroTy->isPointerType()) {
@@ -1578,6 +1579,15 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         }
         // A class keeps its structure in its zero tangent: clad::zero_like.
         dArg = BuildZeroAdjoint(CloneNode(argDiff.getExpr()), zeroTy);
+      }
+      // A parameter taken by non-const reference binds its tangent to a
+      // variable: give the zero tangent one of its own.
+      if (hasNoTangent && paramType->isLValueReferenceType() &&
+          !paramType.getNonReferenceType().isConstQualified()) {
+        VarDecl* zero =
+            BuildVarDecl(paramType.getNonReferenceType(), "_t", dArg);
+        addToCurrentBlock(BuildDeclStmt(zero));
+        dArg = BuildDeclRef(zero);
       }
       // The callee null checks the tangent it is handed.
       dArg = KeepTangentNullness(arg, dArg);
