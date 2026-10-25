@@ -381,6 +381,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return true;
   }
 
+  bool DiffCollector::TraverseFunctionDeclOnce(const DiffRequest& request) {
+    llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
+    if (llvm::is_contained(m_Traversed, request))
+      return true;
+    const FunctionDecl* FD = request.Function;
+    bool walked = llvm::any_of(
+        m_Traversed, [FD](const DiffRequest& R) { return R.Function == FD; });
+    m_Traversed.push_back(request);
+    // The first walk of the function reported what is wrong with its body.
+    DiagnosticsEngine& Diags = m_Sema.getDiagnostics();
+    bool suppressed = Diags.getSuppressAllDiagnostics();
+    Diags.setSuppressAllDiagnostics(suppressed || walked);
+    TimedAnalysisRegion R(FD->getNameAsString());
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    bool result = TraverseDecl(const_cast<FunctionDecl*>(FD));
+    Diags.setSuppressAllDiagnostics(suppressed);
+    return result;
+  }
+
   bool DiffCollector::PlanNestedRequest(DiffRequest& request) {
     // Lazily-scheduled requests (pushforward/pullback/higher-order, built in
     // DerivativeBuilder::HandleNestedDiffRequest) never pass through the static
@@ -1416,6 +1435,30 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     runVariedAnalysis(request, AnalysisDC);
   }
 
+  /// Whether the argument of the call \p E for its parameter \p i is passed
+  /// by reference or pointer and names a variable of \p Caller that activity
+  /// analysis leaves without an adjoint: a local it gives none, or, in a
+  /// pullback it planned without a parameter, that parameter. Reverse mode
+  /// has none to pass for it.
+  static bool passesNoAdjoint(const CallExpr* E, std::size_t i,
+                              const DiffRequest& Caller) {
+    if (!Caller.EnableVariedAnalysis)
+      return false;
+    const auto* MD = dyn_cast<CXXMethodDecl>(E->getDirectCallee());
+    if (isa<CXXOperatorCallExpr>(E) && MD && MD->isInstance())
+      ++i;
+    if (i >= E->getNumArgs() || !utils::IsReferenceOrPointerArg(E->getArg(i)))
+      return false;
+    const auto* DRE =
+        dyn_cast<DeclRefExpr>(E->getArg(i)->IgnoreParenImpCasts());
+    const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
+    if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(VD))
+      return Caller.Mode == DiffMode::pullback &&
+             !Caller.HasIndependentParameter(PVD);
+    return VD && VD->hasLocalStorage() && !VD->getType()->isReferenceType() &&
+           !Caller.shouldHaveAdjoint(VD);
+  }
+
   static bool allArgumentsAreLiterals(const CallExpr::arg_range& args,
                                       const DiffRequest* request) {
     return std::none_of(args.begin(), args.end(), [&request](const Expr* A) {
@@ -2018,7 +2061,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           if (clad::utils::hasNonDifferentiableAttribute(paramDecl))
             continue;
 
-          // FIXME: Attach Activity Analysis here.
+          // Reverse mode asks for the pullback without a parameter it has no
+          // adjoint to pass for. Plan that pullback, not one it never calls.
+          if (passesNoAdjoint(E, i, *m_ParentReq))
+            continue;
+
           // If a parameter is non-differentiable, don't include
           // it in the DVI to avoid dynamic partial derivatives.
           const ParmVarDecl* PVD = nullptr;
@@ -2169,7 +2216,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // for TBR alone and never differentiated.
       llvm::SaveAndRestore<bool> SavedReplaced(m_BodyIsReplaced,
                                                hasCustomPullback || nonDiff);
-      TraverseFunctionDeclOnce(request.Function);
+      TraverseFunctionDeclOnce(request);
 
       if (requestTBR) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
@@ -2658,7 +2705,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       request.m_AnalysisDC = m_AllAnalysisDC.back().get();
 
       // Recurse into call graph.
-      TraverseFunctionDeclOnce(request.Function);
+      TraverseFunctionDeclOnce(request);
     }
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
