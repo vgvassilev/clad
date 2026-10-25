@@ -19,7 +19,7 @@
 #include "clang/Basic/SourceLocation.h"
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Casting.h"
@@ -650,7 +650,10 @@ public:
 
     const Options& m_Options;
 
-    llvm::DenseSet<const clang::FunctionDecl*> m_Traversed;
+    /// The requests whose bodies the planner has walked. Two requests for the
+    /// same function, such as two pullbacks that take different parameters,
+    /// each get a walk: what it records goes to the request walked.
+    std::vector<DiffRequest> m_Traversed;
 
     /// The globals a function's own body reads and assigns, and the functions
     /// it calls directly.
@@ -731,14 +734,8 @@ public:
     /// (built in DerivativeBuilder::HandleNestedDiffRequest). Currently records
     /// its early-return flag by walking the request's own body.
     bool PlanNestedRequest(DiffRequest& request);
-    bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
-      llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
-      if (m_Traversed.count(FD))
-        return true;
-      m_Traversed.insert(FD);
-      TimedAnalysisRegion R(FD->getNameAsString());
-      return TraverseDecl(const_cast<clang::FunctionDecl*>(FD));
-    }
+    /// Walks the body of the function of \p request, once for each request.
+    bool TraverseFunctionDeclOnce(const DiffRequest& request);
     /// Looks up if the user has defined a custom derivative for the given
     /// derivative function. If found, it is automatically attached to the
     /// request in derived function collector.
