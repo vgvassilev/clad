@@ -558,7 +558,7 @@ complexD fn9(double i, complexD c) {
 
 // CHECK: complexD fn9_darg0(double i, complexD c) {
 // CHECK-NEXT:     double _d_i = 1;
-// CHECK-NEXT:     complexD _d_c = {};
+// CHECK-NEXT:     complexD _d_c = clad::zero_like(c);
 // CHECK-NEXT:     complexD _d_r{0., 0.};
 // CHECK-NEXT:     complexD r{0., 0.};
 // CHECK-NEXT:     c.real_pushforward(i * i, &_d_c, _d_i * i + i * _d_i);
@@ -1162,9 +1162,9 @@ double fn15(pairdd u, pairdd v) {
 }
 
 // CHECK: double fn15_darg0_first(pairdd u, pairdd v) {
-// CHECK-NEXT:     pairdd _d_u = {};
+// CHECK-NEXT:     pairdd _d_u = clad::zero_like(u);
 // CHECK-NEXT:     _d_u.first = 1;
-// CHECK-NEXT:     pairdd _d_v = {};
+// CHECK-NEXT:     pairdd _d_v = clad::zero_like(v);
 // CHECK-NEXT:     return _d_u.first + 2 * _d_v.first;
 // CHECK-NEXT: }
 
@@ -1173,8 +1173,8 @@ double fn16(pair_of_pairdd u, pair_of_pairdd v) {
 }
 
 // CHECK: double fn16_darg1_second_second(pair_of_pairdd u, pair_of_pairdd v) {
-// CHECK-NEXT:     pair_of_pairdd _d_u = {};
-// CHECK-NEXT:     pair_of_pairdd _d_v = {};
+// CHECK-NEXT:     pair_of_pairdd _d_u = clad::zero_like(u);
+// CHECK-NEXT:     pair_of_pairdd _d_v = clad::zero_like(v);
 // CHECK-NEXT:     _d_v.second.second = 1;
 // CHECK-NEXT:     return _d_u.first.first + 2 * _d_v.second.second;
 // CHECK-NEXT: }
@@ -1195,8 +1195,8 @@ double fn17(A a, B b) {
 }
 
 // CHECK: double fn17_darg1_mem(A a, B b) {
-// CHECK-NEXT:     A _d_a = {};
-// CHECK-NEXT:     B _d_b = {};
+// CHECK-NEXT:     A _d_a = clad::zero_like(a);
+// CHECK-NEXT:     B _d_b = clad::zero_like(b);
 // CHECK-NEXT:     _d_b.mem = 1;
 // CHECK-NEXT:     double &_t0 = a.mem;
 // CHECK-NEXT:     double &_t1 = b.mem;

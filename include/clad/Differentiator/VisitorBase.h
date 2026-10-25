@@ -849,8 +849,8 @@ namespace clad {
     /// with a matching primal type; otherwise preserve type-based zero init.
     /// StoreValue, if provided, stores side-effecting values used by zero_like
     /// and returns an accessible lvalue. It preserves glvalues' cv-qualifiers
-    /// and removes top-level const when storing prvalues.
-    /// Otherwise Value must already be safe to reuse at that point.
+    /// and removes top-level const when storing prvalues. Without it, a
+    /// side-effecting Value gets the type-based zero instead.
     /// The returned expression owns a clone of Value.
     /// Scalar zeros remain literals so constant folding can recognize them.
     clang::Expr* BuildZeroAdjoint(

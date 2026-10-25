@@ -32,8 +32,8 @@ auto has_zero_like(int)
     -> decltype(clad::zero_like(std::declval<const T&>()), std::true_type{});
 template <class T> std::false_type has_zero_like(...);
 
-static_assert(!decltype(has_zero_like<std::pair<CopyFallback, double>>(0))::value,
-              "Unsupported members must preserve the copy-and-zero fallback");
+static_assert(decltype(has_zero_like<std::pair<CopyFallback, double>>(0))::value,
+              "A class with no default constructor is copied and zeroed");
 static_assert(!decltype(has_zero_like<std::pair<double&, double&>>(0))::value,
               "A new adjoint must not borrow the primal's storage");
 
@@ -51,8 +51,7 @@ double replace_fallback(std::pair<CopyFallback, double> values, double x) {
 }
 
 // CHECK: void replace_fallback_grad_1(std::pair<CopyFallback, double> values, double x, double *_d_x) {
-// CHECK-NEXT:     std::pair<CopyFallback, double> _d_values(values);
-// CHECK-NEXT:     clad::zero_init(_d_values);
+// CHECK-NEXT:     std::pair<CopyFallback, double> _d_values(clad::zero_like(values));
 
 int main() {
   std::pair<std::pair<double, double>, std::vector<double>> nested{

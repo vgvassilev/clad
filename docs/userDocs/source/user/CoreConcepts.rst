@@ -472,10 +472,11 @@ caller passes ``&d_p`` and afterwards reads the derivative with respect to
 
 Two things need saying for this to work. The first is how an adjoint object
 starts: it must be zero, and what zero means for a type is the type's own
-business, so Clad value-initialises by default and lets a type say otherwise
-through ``clad::zero_init`` or ``clad::zero_like``. The second is what a
-constructor contributes, since a constructor is where a member first gets its
-value from the arguments; Clad generates or looks up
+business, so Clad builds it with ``clad::zero_like``, which by default
+value-initialises an aggregate and copies and zeroes another class, and lets a
+type say otherwise through ``clad::zero_init`` or ``clad::zero_like``. The
+second is what a constructor contributes, since a constructor is where a
+member first gets its value from the arguments; Clad generates or looks up
 ``constructor_pushforward`` and ``constructor_pullback`` for that, and
 :doc:`Custom derivatives <CustomDerivatives>` shows how to write them.
 

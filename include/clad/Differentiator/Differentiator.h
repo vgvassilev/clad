@@ -411,6 +411,33 @@ template <class T> std::false_type is_range(...);
   }
 
   namespace zero_like_detail {
+  template <class T> struct is_pair : std::false_type {};
+  template <class T1, class T2>
+  struct is_pair<std::pair<T1, T2>> : std::true_type {};
+  } // namespace zero_like_detail
+
+  /// Default zero_like for any other class that is not an aggregate: copy the
+  /// primal, then zero it, as for a copyable range. A class with no default
+  /// constructor gets a zero adjoint this way too. An aggregate is
+  /// value-initialized instead, and a pair is zeroed member by member, so that
+  /// a pair of references never borrows the primal's storage. A class with a
+  /// reference or const member, which cannot be assigned, has no default: its
+  /// bytes must not be zeroed.
+  template <class T,
+            std::enable_if_t<std::is_class<T>::value && !is_range<T>::value &&
+                                 !zero_like_detail::is_pair<T>::value &&
+                                 !__is_aggregate(T) &&
+                                 std::is_copy_constructible<T>::value &&
+                                 std::is_copy_assignable<T>::value &&
+                                 std::is_trivially_destructible<T>::value,
+                             int> = 0>
+  CUDA_HOST_DEVICE T zero_like(const T& value) {
+    T result(value);
+    zero_init(result);
+    return result;
+  }
+
+  namespace zero_like_detail {
   template <class ResultRange, class PrimalRange>
   void resize_and_zero(ResultRange& result, const PrimalRange& value) {
     result.resize(value.size());

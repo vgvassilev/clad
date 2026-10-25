@@ -508,28 +508,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
         auto VDDerivedType = utils::getNonConstType(paramTy, m_Sema);
         VDDerivedType = VDDerivedType.getNonReferenceType();
-        Expr* initExpr = nullptr;
-        // We initialize adjoints with original variables as part of
-        // the strategy to maintain the structure of the original variable.
-        // After that, we'll zero-initialize the adjoint. e.g.
-        // ```
-        // std::vector<...> v{x, y, z};
-        // std::vector<...> _d_v{v}; // The length of the vector is preserved
-        // clad::zero_init(_d_v);
-        // ```
-        // Also, if the original is initialized with a zero-constructor, it can
-        // be used for the adjoint as well.
-        const CXXRecordDecl* RD = VDDerivedType->getAsCXXRecordDecl();
-        bool isNonAggrClass = RD && !RD->isAggregate();
-        auto hasDangerousFields = [](const CXXRecordDecl* Record) {
-          bool result = false;
-          for (const clang::FieldDecl* FD : Record->fields())
-            result = result || FD->getType()->isPointerType() ||
-                     FD->getType()->isReferenceType();
-          return result;
-        };
-        bool isDirectInit = false;
-        bool needsZeroInit = false;
         ParmVarDecl* newFuncParam = nullptr;
         for (auto* p : m_Derivative->parameters()) {
           if (p->getName() == param->getName()) {
@@ -539,32 +517,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
         assert(newFuncParam &&
                "Could not find corresponding parameter in derivative function");
-
-        Expr* zeroLike = nullptr;
-        if (RD)
-          zeroLike =
+        // A class keeps its structure in its adjoint: clad::zero_like.
+        Expr* initExpr = nullptr;
+        if (VDDerivedType->isRecordType())
+          initExpr =
               GetCladZeroLike(BuildDeclRef(newFuncParam->getDefinition()));
-        if (zeroLike) {
-          initExpr = zeroLike;
-          isDirectInit = true;
-        } else if (isNonAggrClass && utils::isCopyable(RD) &&
-                   !hasDangerousFields(RD)) {
-          initExpr = BuildDeclRef(newFuncParam->getDefinition());
-          isDirectInit = true;
-          needsZeroInit = true;
-        } else {
-          // Preserve the legacy value-initialization fallback.
+        bool isDirectInit = initExpr;
+        if (!initExpr)
           initExpr = getZeroInit(VDDerivedType);
-        }
         auto* VDDerived = BuildGlobalVarDecl(
             VDDerivedType, "_d_" + param->getName().ltrim('_').str(), initExpr,
             isDirectInit);
         m_Variables[param] = {VDDerived};
         addToBlock(BuildDeclStmt(VDDerived), m_Globals);
-        if (needsZeroInit) {
-          Expr* derivedRef = BuildDeclRef(VDDerived);
-          addToBlock(GetCladZeroInit(derivedRef), m_Globals);
-        }
       }
     }
 
@@ -2876,8 +2841,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             dBaseTy = dBaseTy->getPointeeType();
           dBaseTy =
               utils::getNonConstType(dBaseTy.getNonReferenceType(), m_Sema);
+          Expr* baseValue = CloneNode(baseDiff.getExpr());
+          if (baseValue->getType()->isPointerType())
+            baseValue = BuildOp(UO_Deref, baseValue);
           VarDecl* dBaseDecl =
-              BuildVarDecl(dBaseTy, "_r", getZeroInit(dBaseTy));
+              BuildVarDecl(dBaseTy, "_r", BuildZeroAdjoint(baseValue, dBaseTy));
           PreCallStmts.push_back(BuildDeclStmt(dBaseDecl));
           baseDerivative = BuildDeclRef(dBaseDecl);
         }

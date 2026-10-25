@@ -105,9 +105,9 @@ directly in ``clad::custom_derivatives::class_functions`` regardless of the clas
 Adjoint construction and initialization
 ========================================
 
-Reverse-mode differentiation sometimes needs to construct an internal adjoint
-from an existing primal value. Clad provides two related customization points
-for this purpose:
+Differentiation sometimes needs to construct an internal adjoint, or a zero
+tangent, from an existing primal value. Clad provides two related
+customization points for this purpose:
 
 - ``clad::zero_init(x)`` resets values in an already constructed adjoint in
   place. Use it when the adjoint's required structure and storage already
@@ -124,9 +124,12 @@ for this purpose:
 The default ``zero_like`` implementation value-initializes arithmetic and
 enum types. For resizable ranges, it resizes an empty result to the primal size
 and recursively resizes nested ranges directly in their corresponding result
-elements. Other copyable ranges use copy-then-zero to preserve their structure.
-Provide a type-specific ``zero_like`` overload when neither strategy can
-create an independent, structurally correct adjoint. Common examples include
+elements. Other copyable ranges use copy-then-zero to preserve their
+structure, and so does any other class that is not an aggregate, which covers a
+class with no default constructor. Aggregates are value-initialized. A class
+with a reference or ``const`` member gets no default, since its bytes must not
+be zeroed. Provide a type-specific ``zero_like`` overload when none of these
+can create an independent, structurally correct adjoint. Common examples include
 owning or reference-counted storage, views that alias the primal, device memory,
 and types whose extents, allocator, device, or other runtime metadata require
 special handling.
