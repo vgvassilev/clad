@@ -2605,8 +2605,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     SourceLocation Loc = CE->getExprLoc();
     bool shouldWrapInStdMove = false;
     bool isCastSem = false;
+    // std::forward and the one-argument std::move are casts: the adjoint of
+    // the result is the adjoint of the argument.
     if (clang::AnalysisDeclContext::isInStdNamespace(FD) &&
-        FDName == "forward") {
+        (FDName == "forward" ||
+         (FDName == "move" && FD->getNumParams() == 1))) {
       isCastSem = true;
       if (!FD->getReturnType()->isLValueReferenceType())
         shouldWrapInStdMove = true;
@@ -4261,9 +4264,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // a reference binding a temporary: the pointer that makes a reference
     // reassignable has no lvalue to point at (clad supports neither encoding
     // of one anyway).
+    // A reference bound to an xvalue, as std::move(x) is, refers to x as one
+    // bound to an lvalue does; only a prvalue gives it a temporary of its own.
     bool bindsTemporary =
-        VDType->isLValueReferenceType() &&
-        (!VD->getInit() || !VD->getInit()->IgnoreImplicit()->isLValue());
+        VDType->isReferenceType() &&
+        (!VD->getInit() || VD->getInit()->IgnoreImplicit()->isPRValue());
     bool mayBeSplitForEarlyReturn =
         !promoteToFnScope && m_DiffReq.hasEarlyReturns() &&
         getCurrentScope()->isFunctionScope() &&
@@ -4295,9 +4300,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // A reference bound to a temporary owns it, so its adjoint is a value of
     // its own, as for a variable.
     if (bindsTemporary)
-      VDDerivedType =
-          utils::getNonConstType(VDType.getNonReferenceType(), m_Sema);
-    bool isRefType = VDType->isLValueReferenceType() && !bindsTemporary;
+      VDDerivedType = utils::getNonConstType(
+          CloneType(VDType.getNonReferenceType()), m_Sema);
+    bool isRefType = VDType->isReferenceType() && !bindsTemporary;
+    // The adjoint is written through, so it is an lvalue reference even for a
+    // T&& variable.
+    if (isRefType && VDCloneType->isRValueReferenceType())
+      VDDerivedType = m_Context.getLValueReferenceType(VDDerivedType);
     bool isPointerType = VDType->isPointerType();
 
     bool isConstructInit =
@@ -4442,7 +4451,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (isRefType && (promoteToFnScope || mayBeSplitForEarlyReturn)) {
       // FIXME: Add extra parantheses if derived variable pointer is pointing to
       // a class type object.
-      initDiff = {BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),
+      Expr* init = initDiff.getExpr();
+      // An xvalue, as std::move(x) is, has no address to take; the same
+      // object as an lvalue does.
+      if (init->isXValue()) {
+        QualType T =
+            m_Context.getLValueReferenceType(VDType.getNonReferenceType());
+        init = m_Sema
+                   .BuildCXXNamedCast(noLoc, tok::kw_reinterpret_cast,
+                                      m_Context.getTrivialTypeSourceInfo(T),
+                                      init, SourceRange(), SourceRange())
+                   .get();
+      }
+      initDiff = {BuildOp(UnaryOperatorKind::UO_AddrOf, init),
                   BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr_dx())};
       valueDx = BuildOp(UnaryOperatorKind::UO_Deref, derivedVDE);
       isPointerType = true;
