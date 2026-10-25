@@ -2207,6 +2207,7 @@ double fn35(double x, double y){
 // CHECK-NEXT:                     if (clad::back(_cond1)) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:                             clad::push(_t2, {{1U|1UL}});
+// CHECK-NEXT:                             ++_d_begin2;
 // CHECK-NEXT:                             break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }

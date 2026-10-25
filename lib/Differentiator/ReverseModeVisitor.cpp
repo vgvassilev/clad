@@ -1378,6 +1378,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* d_decBegin = BuildOp(UO_PostDec, CloneNode(d_beginDeclRef));
     Expr* forwardCond = BuildOp(BO_NE, CloneNode(beginDeclRef), endExpr);
     const Stmt* body = FRS->getBody();
+    llvm::SaveAndRestore<llvm::SmallVector<Expr*, 4>> SaveLoopAdjointIterators(
+        m_LoopAdjointIterators);
+    m_LoopAdjointIterators.push_back(d_beginDeclRef);
     StmtDiff bodyDiff =
         DifferentiateLoopBody(body, loopCounter, nullptr, nullptr,
                               /*isForLoop=*/true, FRS->getForLoc());
@@ -1551,6 +1554,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
+    llvm::SaveAndRestore<llvm::SmallVector<Expr*, 4>> SaveLoopAdjointIterators(
+        m_LoopAdjointIterators);
+    m_LoopAdjointIterators.push_back(nullptr);
     const Stmt* init = FS->getInit();
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeDifferentiatingLoopInitStmt();
@@ -1895,6 +1901,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                         direction::forward);
     }
     addToCurrentBlock(Reverse, direction::reverse);
+    for (Expr* It : m_LoopAdjointIterators)
+      if (It)
+        addToCurrentBlock(BuildOp(UO_PreInc, CloneNode(It)),
+                          direction::forward);
     // Record the return for the statements after it (VisitCompoundStmt), and
     // forget it once the reverse sweep reaches it: an earlier iteration of a
     // loop around it did not take it.
@@ -5491,6 +5501,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
+    llvm::SaveAndRestore<llvm::SmallVector<Expr*, 4>> SaveLoopAdjointIterators(
+        m_LoopAdjointIterators);
+    m_LoopAdjointIterators.push_back(nullptr);
 
     Expr* condClone = (WS->getCond() ? Clone(WS->getCond()) : nullptr);
     const VarDecl* condVarDecl = WS->getConditionVariable();
@@ -5559,6 +5572,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
+    llvm::SaveAndRestore<llvm::SmallVector<Expr*, 4>> SaveLoopAdjointIterators(
+        m_LoopAdjointIterators);
+    m_LoopAdjointIterators.push_back(nullptr);
 
     Expr* clonedCond = (DS->getCond() ? Clone(DS->getCond()) : nullptr);
 
@@ -6047,6 +6063,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
     addToCurrentBlock(pushExprToCurrentCase);
+    if (Expr* It = m_LoopAdjointIterators.back())
+      addToCurrentBlock(BuildOp(UO_PreInc, CloneNode(It)));
     addToCurrentBlock(newBS);
     return {endBlock(direction::forward), CFCaseStmt};
   }
