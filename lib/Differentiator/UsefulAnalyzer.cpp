@@ -16,6 +16,13 @@ using namespace clang;
 
 namespace clad {
 
+/// Whether something can be written through a variable of type \p T: a
+/// reference or pointer to non-const.
+static bool writesThrough(QualType T) {
+  return (T->isReferenceType() || T->isPointerType()) &&
+         !T->getPointeeType().isConstQualified();
+}
+
 void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
   m_Function = FD;
   if (!m_AnalysisDC->getCFG())
@@ -28,12 +35,25 @@ void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
   // What a function writes into a parameter passed by non-const reference or
   // pointer, its caller reads: such a parameter is an output, as the return
   // value is.
-  for (const ParmVarDecl* PVD : FD->parameters()) {
-    QualType T = PVD->getType();
-    if ((T->isReferenceType() || T->isPointerType()) &&
-        !T->getPointeeType().isConstQualified())
+  for (const ParmVarDecl* PVD : FD->parameters())
+    if (writesThrough(PVD->getType()))
       markUseful(PVD);
-  }
+  // A local reference or pointer may stand for such a parameter, as
+  // `double& r = out` does: what is written through it may be an output too.
+  class Aliases : public RecursiveASTVisitor<Aliases> {
+  public:
+    llvm::SmallVector<const VarDecl*, 4> Found;
+    bool VisitVarDecl(VarDecl* VD) {
+      if (!isa<ParmVarDecl>(VD) && VD->hasLocalStorage() &&
+          writesThrough(VD->getType()))
+        Found.push_back(VD);
+      return true;
+    }
+  } A;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  A.TraverseStmt(const_cast<Stmt*>(FD->getBody()));
+  for (const VarDecl* VD : A.Found)
+    markUseful(VD);
   // Add the exit block to the queue.
   m_CFGQueue.insert(m_CurBlockID);
 

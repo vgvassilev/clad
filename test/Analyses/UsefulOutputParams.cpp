@@ -85,6 +85,31 @@ double sum(double s) {
 // CHECK-NEXT: double t = s * 2;
 // CHECK-NEXT: a.add_pushforward(t, &_d_a, _d_t);
 
+// A local reference or pointer may stand for an output.
+void viaAlias(double a, double& out) {
+  double& r = out;
+  double t = a * 3;
+  r = t;
+}
+
+double alias(double a) {
+  double o = 0;
+  viaAlias(a, o);
+  return o;
+}
+
+double viaPointer(double k, double c) {
+  Element e{k};
+  Element* p = &e;
+  scale(*p, c);
+  return c;
+}
+
+// CHECK: void viaAlias_pushforward(double a, double &out, double _d_a, double &_d_out) {
+// CHECK-NEXT: double &_d_r = _d_out;
+// CHECK-NEXT: double &r = out;
+// CHECK-NEXT: double _d_t = _d_a * 3;
+
 int main() {
   auto d = clad::differentiate<clad::opts::enable_ua>(f, "a");
   printf("%.2f\n", d.execute(3, 2)); // CHECK-EXEC: 1.00
@@ -94,4 +119,8 @@ int main() {
   printf("%.2f\n", ds.execute(3)); // CHECK-EXEC: 2.00
   auto dsum = clad::differentiate<clad::opts::enable_ua>(sum, "s");
   printf("%.2f\n", dsum.execute(3)); // CHECK-EXEC: 2.00
+  auto dalias = clad::differentiate<clad::opts::enable_ua>(alias, "a");
+  printf("%.2f\n", dalias.execute(1)); // CHECK-EXEC: 3.00
+  auto dp = clad::differentiate<clad::opts::enable_ua>(viaPointer, "k");
+  printf("%.2f\n", dp.execute(2, 3)); // CHECK-EXEC: 3.00
 }
