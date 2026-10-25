@@ -577,6 +577,10 @@ public:
     return m_TbrRunInfo.ToBeRecorded;
   }
   ParamInfo& getModifiedParams() const { return m_TbrRunInfo.m_ModifiedParams; }
+  /// Whether the stores this function makes anyway hold everything the call
+  /// \p CE writes: the callee writes only into objects passed by non-const
+  /// reference that reach no other memory, and each of them is recorded.
+  bool restoresCallWrites(const clang::CallExpr* CE) const;
   void addFunctionModifiedParams(const clang::FunctionDecl* FD,
                                  const ParamSet& params) {
     m_TbrRunInfo.m_ModifiedParams[FD] = params;
