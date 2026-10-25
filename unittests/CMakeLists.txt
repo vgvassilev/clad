@@ -23,6 +23,10 @@ endif()
 function(add_clad_unittest test_dirname)
 
   add_unittest(CladUnitTests ${test_dirname} ${ARGN})
+  if (TARGET clad)
+    set(CLAD_SO_PATH "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/clad${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    set_source_files_properties(${ARGN} PROPERTIES OBJECT_DEPENDS "${CLAD_SO_PATH}")
+  endif()
 
   # Remove the llvm_gtest_* coming from add_unittest.
   get_target_property(GTEST_LINKED_LIBS ${test_dirname} LINK_LIBRARIES)
