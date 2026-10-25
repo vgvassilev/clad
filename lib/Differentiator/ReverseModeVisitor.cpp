@@ -806,7 +806,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                   getZeroInit(memberDiff->getType()));
       addToCurrentBlock(assign_zero, direction::reverse);
     }
-    StmtDiff initDiff = Visit(CI->getInit(), memberDiff);
+    // A reference member is bound rather than given a value. The adjoint
+    // object is built the same way, so its member already refers to the
+    // adjoint of what this one refers to, and nothing flows back here.
+    StmtDiff initDiff = Visit(
+        CI->getInit(), memberTy->isReferenceType() ? nullptr : memberDiff);
     addToCurrentBlock(initDiff.getStmt_dx(), direction::reverse);
     Stmt* init = nullptr;
     Stmt* initDx = nullptr;
@@ -1990,9 +1994,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           } else {
             auto field_iterator = RD->field_begin();
             std::advance(field_iterator, i - numBases);
-            elemDfDx = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                              CloneNode(dfdx()),
-                                              (*field_iterator)->getName());
+            // A reference field of the adjoint refers to the adjoint of what
+            // this one refers to, so nothing flows back through it.
+            if ((*field_iterator)->getType()->isReferenceType())
+              elemDfDx = nullptr;
+            else
+              elemDfDx = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                                CloneNode(dfdx()),
+                                                (*field_iterator)->getName());
           }
         }
       }
@@ -4344,7 +4353,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* dummyInit = nullptr;
     // FIXME: We need to have a more general way of determining this.
     const auto* CAT = dyn_cast<ConstantArrayType>(VDDerivedType);
-    if (shouldCopyInitialize || isRefType ||
+    // Nor can a class with a reference member that has no initializer of its
+    // own: it has no default constructor.
+    bool noDefaultCtor =
+        RD && RD->hasDefinition() &&
+        llvm::any_of(RD->fields(), [](const FieldDecl* F) {
+          return F->getType()->isReferenceType() && !F->hasInClassInitializer();
+        });
+    if (shouldCopyInitialize || isRefType || noDefaultCtor ||
         (CAT && CAT->getElementType()->isRecordType())) {
       QualType dummyTy = VDDerivedType;
       if (CAT)
