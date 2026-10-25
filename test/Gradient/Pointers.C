@@ -23,6 +23,33 @@ double parenthesizedMember(double x) {
   return (*p).x * x;
 }
 
+struct PointerMember { double x; };
+
+double steppedMember(double x) {
+  PointerMember arr[2] = {{0.}, {x * x}};
+  PointerMember* p = arr;
+  return (++p)->x * x;
+}
+
+double steppedMemberDecrement(double x) {
+  PointerMember arr[2] = {{x * x}, {0.}};
+  PointerMember* p = arr + 1;
+  return (--p)->x * x;
+}
+
+double steppedPointer(double x) {
+  double arr[2] = {0., x * x};
+  double* p = arr;
+  return *(++p) * x;
+}
+
+double steppedMemberTwice(double x) {
+  PointerMember arr[3] = {{0.}, {0.}, {x * x}};
+  PointerMember* p = arr;
+  ++p;
+  return (++p)->x * x;
+}
+
 double minimalPointer(double x) {
   double* const p = &x;
   *p = (*p)*(*p);
@@ -693,6 +720,25 @@ int main() {
   double d_parenthesized_x = 0;
   d_parenthesizedMember.execute(2, &d_parenthesized_x);
   printf("%.2f\n", d_parenthesized_x); // CHECK-EXEC: 4.00
+  auto d_steppedMember = clad::gradient(steppedMember);
+  double d_stepped_x = 0;
+  d_steppedMember.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedMemberDecrement = clad::gradient(steppedMemberDecrement);
+  d_stepped_x = 0;
+  d_steppedMemberDecrement.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedPointer = clad::gradient(steppedPointer);
+  d_stepped_x = 0;
+  d_steppedPointer.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
+
+  auto d_steppedMemberTwice = clad::gradient(steppedMemberTwice);
+  d_stepped_x = 0;
+  d_steppedMemberTwice.execute(2, &d_stepped_x);
+  printf("%.2f\n", d_stepped_x); // CHECK-EXEC: 12.00
 }
 
 // CHECK: void parenthesizedMember_grad(double x, double *_d_x) {
@@ -705,4 +751,79 @@ int main() {
 // CHECK-NEXT:         *_d_x += (*p).x * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_x += _d_s.x;
+// CHECK-NEXT: }
+
+// CHECK: void steppedMember_grad(double x, double *_d_x) {
+// CHECK-NEXT:     PointerMember _d_arr{{.*}};
+// CHECK-NEXT:     PointerMember arr{{.*}};
+// CHECK-NEXT:     PointerMember *_d_p = _d_arr;
+// CHECK-NEXT:     PointerMember *p = arr;
+// CHECK-NEXT:     ++_d_p;
+// CHECK-NEXT:     double _t0 = (++p)->x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_p->x += 1 * x;
+// CHECK-NEXT:         --_d_p;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[1].x * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[1].x;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedMemberDecrement_grad(double x, double *_d_x) {
+// CHECK-NEXT:     PointerMember _d_arr{{.*}};
+// CHECK-NEXT:     PointerMember arr{{.*}};
+// CHECK-NEXT:     PointerMember *_d_p = _d_arr + 1;
+// CHECK-NEXT:     PointerMember *p = arr + 1;
+// CHECK-NEXT:     --_d_p;
+// CHECK-NEXT:     double _t0 = (--p)->x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_p->x += 1 * x;
+// CHECK-NEXT:         ++_d_p;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[0].x * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[0].x;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedPointer_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_arr[2] = {0};
+// CHECK-NEXT:     double arr[2] = {0., x * x};
+// CHECK-NEXT:     double *_d_p = _d_arr;
+// CHECK-NEXT:     double *p = arr;
+// CHECK-NEXT:     ++_d_p;
+// CHECK-NEXT:     double _t0 = *++p;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_p += 1 * x;
+// CHECK-NEXT:         --_d_p;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[1] * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[1];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void steppedMemberTwice_grad(double x, double *_d_x) {
+// CHECK-NEXT:     PointerMember _d_arr{{.*}};
+// CHECK-NEXT:     PointerMember arr{{.*}};
+// CHECK-NEXT:     PointerMember *_d_p = _d_arr;
+// CHECK-NEXT:     PointerMember *p = arr;
+// CHECK-NEXT:     ++_d_p;
+// CHECK-NEXT:     ++p;
+// CHECK-NEXT:     ++_d_p;
+// CHECK-NEXT:     double _t0 = (++p)->x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_p->x += 1 * x;
+// CHECK-NEXT:         --_d_p;
+// CHECK-NEXT:         *_d_x += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     --_d_p;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[2].x * x;
+// CHECK-NEXT:         *_d_x += x * _d_arr[2].x;
+// CHECK-NEXT:     }
 // CHECK-NEXT: }

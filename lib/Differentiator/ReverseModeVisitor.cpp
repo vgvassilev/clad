@@ -3927,6 +3927,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         addToCurrentBlock(BuildOp(op, CloneNode(diff_dx)), direction::reverse);
 
       ResultRef = diff_dx;
+      // p++ yields p from before the step, so its derivative is the adjoint
+      // pointer from before its step: what is read through it belongs there.
+      if (isPointerOp)
+        ResultRef = BuildParens(BuildOp(
+            opCode == UO_PostInc ? BO_Sub : BO_Add, CloneNode(diff_dx),
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1)));
       valueForRevPass = diff.getRevSweepAsExpr();
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeFinalizingPostIncDecOp(diff);
@@ -3942,8 +3948,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (m_DiffReq.shouldBeRecorded(E))
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
-      if (isPointerOp)
+      if (isPointerOp) {
         addToCurrentBlock(BuildOp(op, CloneNode(diff_dx)), direction::reverse);
+        // ++p yields p itself, so its derivative is the stepped adjoint
+        // pointer, which a member access or dereference of it writes through.
+        ResultRef = diff_dx;
+      }
       auto binOp = opCode == UO_PreInc ? BinaryOperatorKind::BO_Add
                                        : BinaryOperatorKind::BO_Sub;
       auto* sum = BuildOp(
@@ -5296,19 +5306,32 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return {clonedME, derivedME};
     }
 
+    // The base's reverse statements undo what evaluating it did, such as
+    // stepping a pointer or running an assignment's pullback. The member's
+    // adjoint must be added before them, while the base still denotes the
+    // object the member was read from.
+    beginBlock(direction::reverse);
     auto baseDiff = Visit(base);
+    Stmts baseRevBlock = EndBlockWithoutCreatingCS(direction::reverse);
+    auto addBaseRevBlock = [&]() {
+      for (Stmt* S : baseRevBlock)
+        addToCurrentBlock(S, direction::reverse);
+    };
     Expr* clonedME = baseDiff.getExpr();
     if (clonedME && !fieldName.empty())
       clonedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(), clonedME,
                                         fieldName);
     if (nonDiffMember) {
+      addBaseRevBlock();
       auto* zero = ConstantFolder::synthesizeLiteral(ME->getType(), m_Context,
                                                      /*val=*/0);
       return {clonedME, zero};
     }
     if (!baseDiff.getExpr_dx() ||
-        baseDiff.getExpr_dx()->getType()->isVoidType())
+        baseDiff.getExpr_dx()->getType()->isVoidType()) {
+      addBaseRevBlock();
       return {clonedME, nullptr};
+    }
     Expr* derivedME = baseDiff.getExpr_dx();
     if (!fieldName.empty())
       derivedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
@@ -5335,6 +5358,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                 CloneNode(dfdx()));
       addToCurrentBlock(addAssign, direction::reverse);
     }
+    addBaseRevBlock();
     return {clonedME, derivedME};
   }
 
