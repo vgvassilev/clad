@@ -1514,7 +1514,11 @@ namespace clad {
                                 llvm::function_ref<Expr*(Expr*)> StoreValue) {
     if (Value && T->isRecordType() &&
         clad_compat::hasSameUnqualifiedType(m_Context, T, Value->getType())) {
-      bool needsStore = StoreValue && Value->HasSideEffects(m_Context);
+      bool needsStore = Value->HasSideEffects(m_Context);
+      // Without a place to keep it, a value with side effects is not
+      // evaluated again.
+      if (needsStore && !StoreValue)
+        return getZeroInit(T);
       // Match the lvalue returned by StoreValue before emitting any stores.
       QualType storedType =
           Value->isGLValue()

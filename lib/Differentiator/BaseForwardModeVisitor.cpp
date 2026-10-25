@@ -460,7 +460,10 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
     } else if (dParamType->isRecordType()) {
       // Zero, so that only the field the request names is seeded below; a
       // default-initialized tangent would leave the other fields indeterminate.
-      dParam = getZeroInit(dParamType);
+      // A class keeps its structure in its zero tangent: clad::zero_like.
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      dParam = BuildZeroAdjoint(BuildDeclRef(const_cast<ParmVarDecl*>(param)),
+                                dParamType);
     } else if (utils::isArrayOrPointerType(dParamType)) {
       // We cannot initialize a pointer array adjoint ourselves.
       // Produce an error.
@@ -1573,7 +1576,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           if (pointeeTy.isConstQualified())
             zeroTy = m_Context.getPointerType(pointeeTy.getUnqualifiedType());
         }
-        dArg = getZeroInit(zeroTy);
+        // A class keeps its structure in its zero tangent: clad::zero_like.
+        dArg = BuildZeroAdjoint(CloneNode(argDiff.getExpr()), zeroTy);
       }
       // The callee null checks the tangent it is handed.
       dArg = KeepTangentNullness(arg, dArg);
