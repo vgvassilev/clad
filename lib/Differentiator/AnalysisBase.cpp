@@ -171,6 +171,9 @@ CFGBlock* AnalysisBase::getCFGBlockByID(AnalysisDeclContext* ADC, unsigned ID) {
 bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
                                  llvm::SmallVectorImpl<ProfileID>& IDSequence) {
   // Unwrap the given expression to a vector of indices and fields.
+  // Whether the last id was added for going through a pointer (`->` or `*`),
+  // which an address-of right below undoes.
+  bool lastIsPointee = false;
   while (true) {
     E = E->IgnoreParenCasts();
     if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
@@ -178,12 +181,14 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
         IDSequence.push_back(getProfileID(IL, m_AnalysisDC->getASTContext()));
       else
         IDSequence.push_back(ProfileID());
+      lastIsPointee = false;
       E = ASE->getBase();
     } else if (const auto* ME = dyn_cast<clang::MemberExpr>(E)) {
       if (const auto* FD = dyn_cast<clang::FieldDecl>(ME->getMemberDecl()))
         IDSequence.push_back(getProfileID(FD));
       E = ME->getBase();
-      if (E->getType()->isPointerType())
+      lastIsPointee = E->getType()->isPointerType();
+      if (lastIsPointee)
         IDSequence.push_back(ProfileID());
     } else if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E)) {
       VD = dyn_cast<VarDecl>(DRE->getDecl());
@@ -223,8 +228,15 @@ bool AnalysisBase::getIDSequence(const clang::Expr* E, const VarDecl*& VD,
       // not an arbitrary element which is denoted be ProfileID().
       // This is done because it's unclear how to get a 0 literal
       // to generate the ProfileID.
-      if (opCode == UO_Deref)
+      if (opCode == UO_Deref) {
         IDSequence.push_back(ProfileID());
+        lastIsPointee = true;
+      } else if (opCode == UO_AddrOf && lastIsPointee) {
+        // `(&s)->x` and `(*&s).x` are `s.x`: taking the address undoes the
+        // step through the pointer.
+        IDSequence.pop_back();
+        lastIsPointee = false;
+      }
       E = UO->getSubExpr();
     } else {
       IDSequence.clear();
