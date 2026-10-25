@@ -638,6 +638,11 @@ bool TBRAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
 }
 
 bool TBRAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
+  // As for a subscript, the base itself is not read, but what it is built of
+  // can be: the reverse sweep needs `i` in `arr[i].x`.
+  setMode(/*mode=*/0);
+  TraverseStmt(ME->getBase());
+  resetMode();
   setIsRequired(ME);
   return false;
 }

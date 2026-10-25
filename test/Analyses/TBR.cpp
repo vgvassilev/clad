@@ -329,6 +329,43 @@ double f8(double x) {
 //CHECK-NEXT:     *_d_x += _d_t;
 //CHECK-NEXT: }
 
+struct Indexed {
+  double x;
+};
+
+double memberSubscript(double a) {
+  Indexed arr[3] = {{a}, {a * a}, {1.}};
+  double sum = 0;
+  for (int i = 0; i < 3; ++i)
+    sum += arr[i].x * a;
+  return sum;
+}
+
+//CHECK: void memberSubscript_grad(double a, double *_d_a) {
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
+//CHECK-NEXT:     Indexed _d_arr[3] = {{[{]}}{0.}, {0.}, {0.}};
+//CHECK-NEXT:     Indexed arr[3] = {{[{]}}{a}, {a * a}, {1.}};
+//CHECK-NEXT:     double _d_sum = 0.;
+//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     unsigned int _t0;
+//CHECK-NEXT:     for (i = 0; i < 3; ++i) {
+//CHECK-NEXT:         sum += arr[i].x * a;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_sum += 1;
+//CHECK-NEXT:     for (_t0 = 3{{U|UL|ULL}}; _t0; _t0--) {
+//CHECK-NEXT:         --i;
+//CHECK-NEXT:         double _r_d0 = _d_sum;
+//CHECK-NEXT:         _d_arr[i].x += _r_d0 * a;
+//CHECK-NEXT:         *_d_a += arr[i].x * _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_a += _d_arr[0].x;
+//CHECK-NEXT:         *_d_a += _d_arr[1].x * a;
+//CHECK-NEXT:         *_d_a += a * _d_arr[1].x;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_tbr>(F);\
@@ -353,4 +390,5 @@ int main() {
   TEST2(f6, 5, 2) // CHECK-EXEC: {2.00, 5.00}
   TEST(f7, 2); // CHECK-EXEC: {7.00}
   TEST(f8, 2); // CHECK-EXEC: {5.00}
+  TEST(memberSubscript, 2); // CHECK-EXEC: {17.00}
 }
