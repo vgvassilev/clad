@@ -2575,6 +2575,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {buildClonedLambda(LE), lambdaE};
   }
 #endif // CLANG_VERSION_MAJOR
+  /// Whether \p FD is declared in clad::custom_derivatives, as a user's
+  /// derivative is.
+  static bool isInCustomDerivatives(const FunctionDecl* FD) {
+    for (const DeclContext* DC = FD->getDeclContext(); DC; DC = DC->getParent())
+      if (const auto* NS = dyn_cast<NamespaceDecl>(DC))
+        if (NS->getName() == "custom_derivatives")
+          return true;
+    return false;
+  }
+
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // FIXME: Add general support for non-direct calls
     const Expr* callee = CE->getCallee();
@@ -3065,6 +3075,67 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                 CUDAExecConfig);
         if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))
           pullbackFD = foundCE->getDirectCallee();
+
+        // A user's pullback takes every parameter: hand it a zero adjoint for
+        // an argument passed by reference that has none.
+        if (!pullbackFD && hasDynamicNonDiffParams && asGrad &&
+            !getPullbackStateRef()) {
+          llvm::SmallVector<Expr*, 16> fullArgs;
+          llvm::SmallVector<Stmt*, 4> zeros;
+          for (Expr* arg : CallArgs)
+            fullArgs.push_back(CloneNode(arg));
+          if (!(utils::isNonConstReferenceType(returnType) ||
+                returnType->isPointerType() || returnType->isVoidType()))
+            fullArgs.push_back(dfdx() ? CloneNode(dfdx())
+                                      : getZeroInit(returnType));
+          size_t offset =
+              (bool)MD && MD->isInstance() && !isLambdaCallOperator(MD);
+          for (Expr* dx : llvm::ArrayRef<Expr*>(CallArgDx).take_front(offset))
+            if (dx)
+              fullArgs.push_back(CloneNode(dx));
+          bool complete = true;
+          for (size_t i = 0, e = FD->getNumParams(); i < e && complete; ++i) {
+            if (Expr* dx = CallArgDx[i + offset]) {
+              fullArgs.push_back(CloneNode(dx));
+              continue;
+            }
+            QualType T = FD->getParamDecl(i)->getType();
+            complete = T->isReferenceType();
+            if (!complete)
+              break;
+            QualType dT =
+                utils::getNonConstType(T.getNonReferenceType(), m_Sema);
+            Expr* value = CloneNode(CallArgs[i + offset]);
+            VarDecl* zero = BuildVarDecl(dT, "_r", BuildZeroAdjoint(value, dT));
+            zeros.push_back(BuildDeclStmt(zero));
+            fullArgs.push_back(BuildOp(UO_AddrOf, BuildDeclRef(zero)));
+          }
+          if (complete) {
+            DiffRequest fullRequest = pullbackRequest;
+            fullRequest.DVI.clear();
+            for (const ParmVarDecl* PVD : FD->parameters())
+              fullRequest.DVI.push_back(PVD);
+            // The one the planner found, which a method's pullback needs to
+            // be called with its object; else look it up by name.
+            FunctionDecl* fullFD = FindDerivedFunction(fullRequest);
+            if (fullFD && !isInCustomDerivatives(fullFD))
+              fullFD = nullptr;
+            if (!fullFD) {
+              OverloadedDerivedFn =
+                  m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+                      fullRequest.ComputeDerivativeName(), fullArgs,
+                      getCurrentScope(), CE, /*forCustomDerv=*/true,
+                      /*namespaceShouldExist=*/true, CUDAExecConfig);
+              if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))
+                fullFD = foundCE->getDirectCallee();
+            }
+            if (fullFD) {
+              pullbackFD = fullFD;
+              PreCallStmts.append(zeros.begin(), zeros.end());
+              pullbackCallArgs = fullArgs;
+            }
+          }
+        }
 
         // Derivative was not found, request differentiation
         if (!pullbackFD)

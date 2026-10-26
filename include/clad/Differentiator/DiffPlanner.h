@@ -784,8 +784,11 @@ public:
     /// derivative function. If found, it is automatically attached to the
     /// request in derived function collector.
     /// \param[in] request The request for the derivative to lookup.
+    /// \param[out] foundAnyDecl If given, the lookup reports nothing, and is
+    /// told whether a declaration of the derivative's name exists at all.
     /// \returns true if a custom derivative was found, false otherwise
-    bool LookupCustomDerivativeDecl(DiffRequest& request);
+    bool LookupCustomDerivativeDecl(DiffRequest& request,
+                                    bool* foundAnyDecl = nullptr);
 
   private:
     bool isInInterval(clang::SourceLocation Loc) const;
