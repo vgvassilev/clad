@@ -1502,6 +1502,88 @@ double fnMemberOfCall(double x) {
 // CHECK: scaleByB_reverse_forw(double &v, double x, double &_d_v, double _d_x
 // CHECK:     v *= makePair(x).b;
 
+struct NonAssignable {
+  double x;
+  NonAssignable operator=(const NonAssignable&) = delete;
+};
+
+double unusedNonAssignable(double x, double y) {
+  while (x) {
+    NonAssignable u;
+  }
+  return x;
+}
+// CHECK-LABEL: void unusedNonAssignable_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     NonAssignable _d_u = {0.};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     while (x)
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         NonAssignable u;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += 1;
+// CHECK-NEXT:     while (_t0)
+// CHECK-NEXT:     {
+// CHECK-NEXT:         {
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0--;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double twoDecls(double x) {
+  while (x) {
+    NonAssignable u, v;
+  }
+  return x;
+}
+// CHECK-LABEL: void twoDecls_grad(double x, double *_d_x) {
+// CHECK-NEXT:     NonAssignable _d_u = {0.}, _d_v = {0.};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     while (x)
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             NonAssignable u;
+// CHECK-NEXT:             NonAssignable v;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += 1;
+// CHECK-NEXT:     while (_t0)
+// CHECK-NEXT:     {
+// CHECK-NEXT:         {
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0--;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+struct Assignable {
+  double x;
+};
+
+double unusedAssignable(double x) {
+  while (x) {
+    Assignable u;
+  }
+  return x;
+}
+// CHECK-LABEL: void unusedAssignable_grad(double x, double *_d_x) {
+// CHECK-NEXT:     Assignable _d_u = {0.};
+// CHECK-NEXT:     Assignable u = {0.};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = 0;
+// CHECK-NEXT:     while (x)
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         u = {0.};
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += 1;
+// CHECK-NEXT:     while (_t0)
+// CHECK-NEXT:     {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _d_u = {0.};
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0--;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 int main() {
     pairdd p(3, 5), d_p;
     double i = 3, d_i, d_j;
@@ -1643,4 +1725,13 @@ int main() {
 
     INIT_GRADIENT(fnMemberOfCall);
     TEST_GRADIENT(fnMemberOfCall, /*numOfDerivativeArgs=*/1, 3, &d_i);    // CHECK-EXEC: {12.00}
+
+    INIT_GRADIENT(unusedNonAssignable);
+    TEST_GRADIENT(unusedNonAssignable, /*numOfDerivativeArgs=*/2, 0, 1, &d_i, &d_j); // CHECK-EXEC: {1.00, 0.00}
+
+    INIT_GRADIENT(twoDecls);
+    TEST_GRADIENT(twoDecls, /*numOfDerivativeArgs=*/1, 0, &d_i); // CHECK-EXEC: {1.00}
+
+    INIT_GRADIENT(unusedAssignable);
+    TEST_GRADIENT(unusedAssignable, /*numOfDerivativeArgs=*/1, 0, &d_i); // CHECK-EXEC: {1.00}
 }

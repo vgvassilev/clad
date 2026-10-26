@@ -4678,10 +4678,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* declRef = BuildDeclRef(VDDerived);
       if (isa<ArrayType>(VDDerivedType))
         assignToZero = GetCladZeroInit(declRef);
-      else if (!isNonAggrClass)
-        assignToZero = BuildOp(BinaryOperatorKind::BO_Assign, declRef,
-                               getZeroInit(VDDerivedType));
-      else {
+      else if (!isNonAggrClass) {
+        if (!keepLocal)
+          assignToZero = BuildOp(BinaryOperatorKind::BO_Assign, declRef,
+                                 getZeroInit(VDDerivedType));
+      } else {
         StmtDiff pushPop = StoreAndRestore(
             BuildDeclRef(VDDerived), /*prefix=*/"_t", /*moveToTape=*/true);
         addToCurrentBlock(pushPop.getStmt(), direction::forward);
@@ -4896,9 +4897,49 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // double _d_y = _d_x; double y = x;
     for (auto* D : DS->decls()) {
       if (auto* VD = dyn_cast<VarDecl>(D)) {
+        bool keepLocal = false;
+        if (promoteToFnScope && VD->hasInit()) {
+          if (const auto* RD = VD->getType()->getAsCXXRecordDecl()) {
+            QualType Type = VD->getType();
+            Type.removeLocalConst();
+            bool canAssign = false;
+            {
+              Sema::SFINAETrap Trap(m_Sema, /*AccessCheckingSFINAE=*/true);
+              m_Sema.PushExpressionEvaluationContext(
+                  Sema::ExpressionEvaluationContext::Unevaluated);
+              OpaqueValueExpr LHS(VD->getLocation(), Type, VK_LValue);
+              OpaqueValueExpr RHS(VD->getLocation(), Type, VK_PRValue);
+              ExprResult Assignment = m_Sema.BuildBinOp(
+                  getCurrentScope(), VD->getLocation(), BO_Assign, &LHS, &RHS);
+              m_Sema.PopExpressionEvaluationContext();
+              canAssign = !Assignment.isInvalid() && !Trap.hasErrorOccurred();
+            }
+            if (!canAssign) {
+              // Only inactive trivial locals can be kept without retaining
+              // their value for the reverse sweep.
+              if (VD->isReferenced() || Type.isVolatileQualified() ||
+                  !RD->isAggregate() || !RD->hasTrivialDefaultConstructor() ||
+                  !RD->hasTrivialDestructor() ||
+                  VD->getInit()->HasSideEffects(m_Context)) {
+                diag(DiagnosticsEngine::Error, VD->getLocation(),
+                     "cannot differentiate local variable '%0' of type %1: "
+                     "reverse-mode promotion requires an unavailable "
+                     "assignment operator")
+                    << VD->getName() << VD->getType();
+                auto* Local = BuildVarDecl(
+                    CloneType(VD->getType()), VD->getNameAsString(),
+                    Clone(VD->getInit()), VD->isDirectInit());
+                m_DeclReplacements[VD] = Local;
+                inits.push_back(BuildDeclStmt(Local));
+                continue;
+              }
+              keepLocal = true;
+            }
+          }
+        }
         DeclDiff<VarDecl> VDDiff;
 
-        VDDiff = DifferentiateVarDecl(VD);
+        VDDiff = DifferentiateVarDecl(VD, keepLocal);
 
         // Here, we move the declaration to the function global scope.
         // Initialization is replaced with an assignment operation at the same
@@ -4915,7 +4956,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // while (cond) {
         //   clad::push(_t0, x), x = k * n;
         // ...
-        if (promoteToFnScope) {
+        if (promoteToFnScope && !keepLocal) {
           auto* decl = VDDiff.getDecl();
           if (VD->getInit()) {
             auto* declRef = BuildDeclRef(decl);
@@ -4951,7 +4992,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           }
         }
 
-        decls.push_back(VDDiff.getDecl());
+        if (keepLocal)
+          inits.push_back(BuildDeclStmt(VDDiff.getDecl()));
+        else
+          decls.push_back(VDDiff.getDecl());
         if (VDDiff.getDecl_dx()) {
           const CXXRecordDecl* RD = VD->getType()->getAsCXXRecordDecl();
           bool isNonAggrClass = RD && !RD->isAggregate();
