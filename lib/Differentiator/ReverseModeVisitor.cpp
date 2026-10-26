@@ -4091,8 +4091,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       } else if (opCode == BO_SubAssign) {
         Rdiff = Visit(R, BuildOp(UO_Minus, oldValue));
         if (!isPointerOp)
-          valueForRevPass = BuildOp(BO_Sub, Rdiff.getRevSweepAsExpr(),
-                                    Ldiff.getRevSweepAsExpr());
+          valueForRevPass = BuildOp(BO_Sub, Ldiff.getRevSweepAsExpr(),
+                                    BuildParens(Rdiff.getRevSweepAsExpr()));
       } else if (opCode == BO_MulAssign) {
         // Create a reference variable to keep the result of LHS, since it
         // must be used on 2 places: when storing to a global variable
@@ -4171,8 +4171,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // Parenthesize: either side can be a compound expr, which would
         // mis-associate under the division when the derivative is printed.
         valueForRevPass =
-            BuildOp(BO_Div, BuildParens(Rdiff.getRevSweepAsExpr()),
-                    BuildParens(Ldiff.getRevSweepAsExpr()));
+            BuildOp(BO_Div, BuildParens(Ldiff.getRevSweepAsExpr()),
+                    BuildParens(Rdiff.getRevSweepAsExpr()));
         std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, RResult);
       } else
         llvm_unreachable("unknown assignment opCode");
