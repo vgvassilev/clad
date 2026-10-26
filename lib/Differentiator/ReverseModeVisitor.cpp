@@ -5949,9 +5949,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     SSData->cases.push_back(newSC);
     addToCurrentBlock(ifBreakExpr, direction::reverse);
     addToCurrentBlock(newSC, direction::forward);
-    auto diff = DifferentiateSingleStmt(CS->getSubStmt());
-    utils::SetSwitchCaseSubStmt(newSC, diff.getStmt());
-    addToCurrentBlock(diff.getStmt_dx(), direction::reverse);
+    DifferentiateSwitchCaseBody(newSC, CS->getSubStmt());
     return {endBlock(direction::forward), endBlock(direction::reverse)};
   }
 
@@ -5970,10 +5968,26 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     SSData->defaultIfBreakExpr = cast<IfStmt>(ifBreakExpr);
     addToCurrentBlock(ifBreakExpr, direction::reverse);
     addToCurrentBlock(newDefaultStmt, direction::forward);
-    auto diff = DifferentiateSingleStmt(DS->getSubStmt());
-    utils::SetSwitchCaseSubStmt(newDefaultStmt, diff.getStmt());
-    addToCurrentBlock(diff.getStmt_dx(), direction::reverse);
+    DifferentiateSwitchCaseBody(newDefaultStmt, DS->getSubStmt());
     return {endBlock(direction::forward), endBlock(direction::reverse)};
+  }
+
+  void ReverseModeVisitor::DifferentiateSwitchCaseBody(SwitchCase* SC,
+                                                       const Stmt* Sub) {
+    // What the statement needs before it, such as storing the value an
+    // assignment overwrites, is added to the current block as it is built.
+    beginBlock(direction::forward);
+    StmtDiff diff = DifferentiateSingleStmt(Sub);
+    addToCurrentBlock(diff.getStmt(), direction::forward);
+    CompoundStmt* forward = endBlock(direction::forward);
+    llvm::SmallVector<Stmt*, 4> body(forward->body());
+    // A declaration moved out of a loop leaves nothing behind for the label.
+    if (body.empty())
+      body.push_back(m_Sema.ActOnNullStmt(noLoc).get());
+    utils::SetSwitchCaseSubStmt(SC, body.front());
+    for (Stmt* S : llvm::drop_begin(body))
+      addToCurrentBlock(S, direction::forward);
+    addToCurrentBlock(diff.getStmt_dx(), direction::reverse);
   }
 
   Stmt*

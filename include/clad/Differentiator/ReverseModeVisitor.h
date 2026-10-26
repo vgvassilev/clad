@@ -1013,6 +1013,13 @@ namespace clad {
     /// returns the label chain to prepend before the group's adjoint replay.
     clang::Stmt* CloseReverseSwitchCaseGroup(SwitchStmtInfo& SSData);
 
+    /// Differentiates \p Sub, the statement a case label of the original
+    /// labels, and labels its forward code with \p SC. The label takes the
+    /// first of the statements that code is made of and the rest follow it,
+    /// so a value stored before the statement is stored before it runs.
+    void DifferentiateSwitchCaseBody(clang::SwitchCase* SC,
+                                     const clang::Stmt* Sub);
+
   private:
     // When differentiating ArrayInitLoopExpr, we need to replace
     // ArrayInitIndexExpr with real indices. We need to both add and pop them in
