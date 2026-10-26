@@ -2047,7 +2047,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           }
         }
       }
+      // A reference field bound to a temporary refers to an object no
+      // variable names, so the temporary is given an adjoint of its own, for
+      // the adjoint's field to refer to and to flow back from.
+      Expr* tempAdjoint = nullptr;
+      if (dfdx() && ILEType->isRecordType() &&
+          isa<MaterializeTemporaryExpr>(ILE->getInit(i)->IgnoreParens())) {
+        QualType tempTy = ILE->getInit(i)->getType().getUnqualifiedType();
+        VarDecl* tempAdjointVD =
+            BuildGlobalVarDecl(tempTy, "_d_tmp", getZeroInit(tempTy));
+        addToBlock(BuildDeclStmt(tempAdjointVD), m_Globals);
+        tempAdjoint = BuildDeclRef(tempAdjointVD);
+        elemDfDx = CloneNode(tempAdjoint);
+      }
       StmtDiff elemDiff = Visit(ILE->getInit(i), elemDfDx);
+      if (tempAdjoint)
+        elemDiff = StmtDiff(elemDiff.getExpr(), tempAdjoint);
       clonedExprs[i] = elemDiff.getExpr();
       if (elemDiff.getExpr_dx())
         exprsDiff[i] = elemDiff.getExpr_dx();
@@ -5196,6 +5211,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!fieldName.empty())
       derivedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                          baseDiff.getExpr_dx(), fieldName);
+    // A reference member of the adjoint refers to the adjoint of what the
+    // original one refers to, which is never const, even when the member
+    // only reads through it.
+    QualType fieldTy = field->getType();
+    if (fieldTy->isReferenceType() &&
+        fieldTy.getNonReferenceType().isConstQualified()) {
+      QualType writable = m_Context.getLValueReferenceType(
+          fieldTy.getNonReferenceType().getUnqualifiedType());
+      derivedME =
+          m_Sema
+              .BuildCXXNamedCast(noLoc, tok::kw_const_cast,
+                                 m_Context.getTrivialTypeSourceInfo(writable),
+                                 derivedME, noLoc, noLoc)
+              .get();
+    }
     if (dfdx() && clonedME->getType()->isRealType()) {
       // Clone the seed: sibling member accesses (e.g. this->x and this->y from
       // the same expression) are each visited with the same dfdx() node.
