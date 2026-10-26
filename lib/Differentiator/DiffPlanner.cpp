@@ -22,6 +22,7 @@
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/CXXInheritance.h"
+#include "clang/AST/ComparisonCategories.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
@@ -1952,6 +1953,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                         [this](Expr* arg) { return TraverseStmt(arg); });
   }
 
+  /// Whether \p E yields a comparison category (`a <=> b`) or tests one
+  /// (`ordering < 0`) without writing through its parameters. Neither has a
+  /// derivative, and differentiating it would descend into the standard
+  /// library's private comparison machinery.
+  static bool isComparisonCategoryCall(const CallExpr* E) {
+    const FunctionDecl* FD = E->getDirectCallee();
+    if (!FD || utils::hasMemoryTypeParams(FD))
+      return false;
+    const ComparisonCategories& Categories = FD->getASTContext().CompCategories;
+    QualType Result = FD->getReturnType();
+    if (Categories.lookupInfoForType(Result))
+      return true;
+    return Result->isBooleanType() &&
+           llvm::any_of(FD->parameters(), [&](const ParmVarDecl* PVD) {
+             return Categories.lookupInfoForType(
+                 PVD->getType().getNonReferenceType());
+           });
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     DiffRequest request;
@@ -2073,6 +2093,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       // (sentry/streambuf/scope_guard/char_traits). The primal call is emitted
       // as-is in the derivative.
       if (clad::utils::callOperatesOnNonDifferentiableType(m_Sema, E))
+        return true;
+      if (isComparisonCategoryCall(E))
         return true;
 
       // A byte copy of floating-point data is differentiated as the

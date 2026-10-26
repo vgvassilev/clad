@@ -533,6 +533,8 @@ namespace clad {
     DerivativeAndOverload Derive() override;
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
+    StmtDiff VisitCXXRewrittenBinaryOperator(
+        const clang::CXXRewrittenBinaryOperator* RBO);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
     virtual StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);

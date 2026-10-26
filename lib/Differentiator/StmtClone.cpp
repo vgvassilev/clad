@@ -655,6 +655,16 @@ Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
   return result;
 }
 
+Stmt* StmtClone::VisitCXXRewrittenBinaryOperator(
+    CXXRewrittenBinaryOperator* Node) {
+  // The operands are reached through the semantic form, so clone only that.
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  auto* result = new (Ctx) CXXRewrittenBinaryOperator(
+      cast<Expr>(Clone(Node->getSemanticForm())), Node->isReversed());
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
+
 Stmt* StmtClone::VisitCXXMemberCallExpr(CXXMemberCallExpr * Node) {
   llvm::SmallVector<Expr*, 4> clonedArgs;
   for (Expr* arg : Node->arguments())
