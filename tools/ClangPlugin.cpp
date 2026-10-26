@@ -737,17 +737,18 @@ void InitTimers();
             *it, getAttachedLoopLoc(request.Function, *it, SM));
     }
 
-    static void diagnoseUnusedPragma(Sema& S, DiffRequest& request) {
+    static void
+    diagnoseUnusedPragma(Sema& S, DiffRequest& request,
+                         std::set<SourceLocation>& DiagnosedCheckpoints) {
       if (request.Mode != DiffMode::reverse &&
           request.Mode != DiffMode::pullback)
         return;
 
-      static std::set<clang::SourceLocation> DiagnosedCladLoopCheckpoints;
       for (const auto& pair : request.m_CladLoopCheckpoints) {
         if (pair.second.isValid())
           continue;
 
-        if (!DiagnosedCladLoopCheckpoints.insert(pair.first).second)
+        if (!DiagnosedCheckpoints.insert(pair.first).second)
           continue;
 
         unsigned diagID = S.Diags.getCustomDiagID(
@@ -839,7 +840,7 @@ void InitTimers();
       }
 
       // Propagate relevant pragmas to diffrequests
-      diagnoseUnusedPragma(S, request);
+      diagnoseUnusedPragma(S, request, m_DiagnosedLoopCheckpoints);
 
       if (OverloadedDerivativeDecl) {
         S.MarkFunctionReferenced(SourceLocation(), OverloadedDerivativeDecl);

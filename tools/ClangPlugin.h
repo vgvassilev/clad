@@ -19,6 +19,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Version.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
@@ -31,6 +32,7 @@
 
 #include <cassert>
 #include <deque>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -87,6 +89,10 @@ class CladExternalSource : public clang::ExternalSemaSource {
     /// Built on first use; a run that reports nothing never renders anything.
     /// Reach it through getDerivativePrinter().
     std::unique_ptr<DerivativePrinter> m_DerivativePrinter;
+    /// The misplaced `#pragma clad checkpoint loop`s already reported, so that
+    /// each is reported once however many derivatives of its function are
+    /// asked for.
+    std::set<clang::SourceLocation> m_DiagnosedLoopCheckpoints;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,
