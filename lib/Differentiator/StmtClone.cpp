@@ -848,9 +848,16 @@ bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
 void ReferencesUpdater::updateType(QualType QT) {
   if (const auto* varArrType = dyn_cast<VariableArrayType>(QT))
     TraverseStmt(varArrType->getSizeExpr());
+  else if (const auto* DT = dyn_cast<DecltypeType>(QT))
+    TraverseStmt(DT->getUnderlyingExpr());
 }
 
 QualType StmtClone::CloneType(const clang::QualType T) {
+  if (const auto* DT = dyn_cast<DecltypeType>(T.getTypePtr()))
+    return Ctx.getQualifiedType(
+        Ctx.getDecltypeType(Clone(DT->getUnderlyingExpr()),
+                            DT->getUnderlyingType()),
+        T.getLocalQualifiers());
   if (const auto* varArrType =
           dyn_cast<clang::VariableArrayType>(T.getTypePtr())) {
     auto elemType = varArrType->getElementType();
