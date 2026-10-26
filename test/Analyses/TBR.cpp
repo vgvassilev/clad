@@ -288,6 +288,47 @@ double f7(double x) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+struct Wrapper {
+  double val;
+  Wrapper(const double& v) : val(v) {}
+};
+
+double f8(double x) {
+  double t = x;
+  double s = t * t;
+  Wrapper w(t); // `w` only reads `t`
+  s += w.val;
+  t = 5; // `t` should be stored because `t * t` uses it
+  return s; // x^2 + x
+}
+
+//CHECK: void f8_grad(double x, double *_d_x) {
+//CHECK-NEXT:     double _d_t = 0.;
+//CHECK-NEXT:     double t = x;
+//CHECK-NEXT:     double _d_s = 0.;
+//CHECK-NEXT:     double s = t * t;
+//CHECK-NEXT:     Wrapper w(t);
+//CHECK-NEXT:     Wrapper _d_w(_d_t);
+//CHECK-NEXT:     s += w.val;
+//CHECK-NEXT:     double _t0 = t;
+//CHECK-NEXT:     t = 5;
+//CHECK-NEXT:     _d_s += 1;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         t = _t0;
+//CHECK-NEXT:         _d_t = 0.;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         double _r_d0 = _d_s;
+//CHECK-NEXT:         _d_w.val += _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     Wrapper::constructor_pullback(t, &_d_w, &_d_t);
+//CHECK-NEXT:     {
+//CHECK-NEXT:         _d_t += _d_s * t;
+//CHECK-NEXT:         _d_t += t * _d_s;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     *_d_x += _d_t;
+//CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_tbr>(F);\
@@ -311,4 +352,5 @@ int main() {
   TEST2(f5, 8, 3) // CHECK-EXEC: {3.00, 7.00}
   TEST2(f6, 5, 2) // CHECK-EXEC: {2.00, 5.00}
   TEST(f7, 2); // CHECK-EXEC: {7.00}
+  TEST(f8, 2); // CHECK-EXEC: {5.00}
 }

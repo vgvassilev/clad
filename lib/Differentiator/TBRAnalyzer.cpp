@@ -617,7 +617,9 @@ bool TBRAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
   for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
     auto* arg = CE->getArg(i);
-    bool passByRef = FD->getParamDecl(i)->getType()->isReferenceType();
+    QualType paramTy = FD->getParamDecl(i)->getType();
+    // A constructor cannot write through a const reference.
+    bool passByRef = utils::isNonConstReferenceType(paramTy);
     setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
     TraverseStmt(arg);
     resetMode();
