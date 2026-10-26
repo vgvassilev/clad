@@ -6433,7 +6433,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitCXXTemporaryObjectExpr(
       const clang::CXXTemporaryObjectExpr* TOE) {
-    return Clone(TOE);
+    // Without arguments, as in a default `std::allocator<T>()` argument, or
+    // without an adjoint, the temporary passes nothing back.
+    if (!TOE->getNumArgs() || !dfdx())
+      return Clone(TOE);
+    return VisitCXXConstructExpr(TOE);
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXBindTemporaryExpr(
@@ -6555,6 +6559,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   static Expr* BuildConstructorCall(Sema& S, const CXXConstructExpr* callsite,
                                     llvm::SmallVectorImpl<clang::Expr*>& args,
                                     bool isDeclInit) {
+    // `T(a, b)` and `T{a}` build a temporary wherever they appear.
+    if (const auto* TOE = dyn_cast<CXXTemporaryObjectExpr>(callsite)) {
+      llvm::SmallVector<Expr*, 4> exprs(args.begin(), args.end());
+      if (TOE->isListInitialization())
+        exprs = {S.ActOnInitList(noLoc, args, noLoc).get()};
+      return S
+          .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
+                                     noLoc, exprs, noLoc,
+                                     TOE->isListInitialization())
+          .get();
+    }
     unsigned NArgs = callsite->getNumArgs();
     if (NArgs == 1)
       return args[0];
