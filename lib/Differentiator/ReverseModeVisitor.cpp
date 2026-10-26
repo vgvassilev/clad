@@ -30,6 +30,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
@@ -1453,7 +1454,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         m_Sema.getASTContext(), bodyDiff.getStmt(), LoopVDForwardDiff);
 
     beginBlock(direction::forward);
-    addToCurrentBlock(d_decBegin);
+    Stmt* reverseIncrement = d_decBegin;
+    if (m_CurrentBreakFlagExpr) {
+      Expr* counter = loopCounter.getCounterConditionResult().get().second;
+      Expr* didIncrement =
+          BuildOp(BO_LOr,
+                  BuildOp(BO_NE, counter,
+                          BuildDeclRef(loopCounter.getNumRevIterations())),
+                  BuildParens(CloneNode(m_CurrentBreakFlagExpr)));
+      reverseIncrement = clad_compat::IfStmt_Create(
+          m_Context, noLoc, false, nullptr, nullptr, didIncrement, noLoc, noLoc,
+          d_decBegin, noLoc, nullptr);
+    }
+    addToCurrentBlock(reverseIncrement);
     addToCurrentBlock(storeLoop.getStmt_dx());
     addToCurrentBlock(storeAdjLoop.getStmt_dx());
     CompoundStmt* LoopVDReverseDiff = endBlock(direction::forward);
@@ -1474,8 +1487,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     addToCurrentBlock(Reverse, direction::reverse);
     Reverse = endBlock(direction::reverse);
 
+    Stmt* revInit = nullptr;
+    if (loopCounter.getNumRevIterations())
+      revInit = BuildDeclStmt(loopCounter.getNumRevIterations());
     Reverse = new (m_Context)
-        ForStmt(m_Context, /*Init=*/nullptr, counterCondition,
+        ForStmt(m_Context, revInit, counterCondition,
                 /*CondVar=*/nullptr, counterDecrement, Reverse,
                 FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
     addToCurrentBlock(Reverse, direction::reverse);
@@ -1920,14 +1936,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // size_t tape in reverse, but this iteration never pushed (the fallthrough
     // push lives at the end of the body, which the return skipped).
     for (BreakContStmtHandler& H : m_BreakContStmtHandlers) {
+      if (H.m_IsInvokedBySwitchStmt)
+        continue;
       // Only a loop that breaks or continues records which way an iteration
-      // left; the return is then one more way.
-      if (H.m_IsInvokedBySwitchStmt ||
-          !m_DiffReq.hasBreakOrContinue(H.m_LoopBody))
+      // left; the return is then one more way. A range-for records it too: an
+      // iteration that returns skips the iterator increment.
+      const auto& parents = m_Context.getParents(*H.m_LoopBody);
+      bool isRangeLoop = !parents.empty() && parents[0].get<CXXForRangeStmt>();
+      if (!m_DiffReq.hasBreakOrContinue(H.m_LoopBody) && !isRangeLoop)
         continue;
       addToCurrentBlock(H.GetNextCFCaseStmt(), direction::reverse);
       addToCurrentBlock(H.CreateCFTapePushExprToCurrentCase(),
                         direction::forward);
+      if (isRangeLoop) {
+        Expr* didNotReturn = H.CreateCFTapeBackExprForCurrentCase();
+        m_CurrentBreakFlagExpr =
+            m_CurrentBreakFlagExpr
+                ? BuildOp(BO_LAnd, m_CurrentBreakFlagExpr, didNotReturn)
+                : didNotReturn;
+      }
     }
     addToCurrentBlock(Reverse, direction::reverse);
     // Record the return for the statements after it (VisitCompoundStmt), and

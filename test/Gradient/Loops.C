@@ -2224,10 +2224,11 @@ double fn35(double x, double y){
 // CHECK-NEXT:                 _d_i = clad::pop(_t6);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:                 for (; clad::back(_t1); clad::back(_t1)--) {
+// CHECK-NEXT:                 for (unsigned {{int|long|long long}} _numRevIterations0 = clad::back(_t1); clad::back(_t1); clad::back(_t1)--) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:         {
-// CHECK-NEXT:                             _d_begin2--;
+// CHECK-NEXT:                             if (clad::back(_t1) != _numRevIterations0 || (clad::back(_t2) != 1))
+// CHECK-NEXT:                                 _d_begin2--;
 // CHECK-NEXT:                             j = clad::pop(_t3);
 // CHECK-NEXT:                             _d_j = clad::pop(_t4);
 // CHECK-NEXT:         }
