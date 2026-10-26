@@ -1346,6 +1346,25 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
     CUDAExecConfig = Clone(KCE->getConfig());
 
+  // std::move and the one-argument std::forward only cast their argument, and
+  // the tangent of what they return is the same cast of the argument's.
+  if (FD->isInStdNamespace() && FD->getNumParams() == 1 &&
+      FD->getDeclName().isIdentifier() &&
+      (FD->getName() == "move" || FD->getName() == "forward")) {
+    StmtDiff argDiff = Visit(CE->getArg(0));
+    llvm::SmallVector<Expr*, 1> args{argDiff.getExpr()};
+    Expr* call = m_Sema
+                     .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                    validLoc, args, validLoc)
+                     .get();
+    Expr* callDx = argDiff.getExpr_dx();
+    if (CE->isXValue() && callDx->isGLValue()) {
+      llvm::SmallVector<Expr*, 1> dxArgs{callDx};
+      callDx = GetFunctionCall("move", "std", dxArgs);
+    }
+    return StmtDiff(call, callDx);
+  }
+
   // If the function is non_differentiable, return zero derivative.
   if (clad::utils::hasNonDifferentiableAttribute(CE)) {
     warnIfNumDiffDerivative(CE);
@@ -2318,9 +2337,10 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   // FIXME: Create unique identifier for derivative.
   Expr* initDx = initDiff.getExpr_dx();
   QualType VDType = VD->getType();
-  // A reference tangent needs an lvalue to bind to; the literal 0 that e.g.
-  // `const double& r = 5.;` derives to is not one.
-  if (VDType->isLValueReferenceType() && initDx && !initDx->isLValue())
+  // A reference tangent needs an object to bind to; the literal 0 that e.g.
+  // `const double& r = 5.;` derives to is not one, but the std::move of a
+  // tangent that `const double& r = std::move(y);` derives to is.
+  if (VDType->isLValueReferenceType() && initDx && !initDx->isGLValue())
     initDx = nullptr;
   // The tangent outlives the initializer that built it.
   if (init && initDx)
