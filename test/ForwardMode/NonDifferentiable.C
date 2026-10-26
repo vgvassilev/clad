@@ -76,6 +76,29 @@ double fn_non_diff_call(double i, double j) {
   return fn_non_diff(i, j) + i * j;
 }
 
+double assignedArguments(double u, double v) {
+  double r = 0, s = 0;
+  fn_non_diff(r = u * v, s = u + v);
+  return r + s;
+}
+
+int argumentCalls = 0;
+double bumpArgument(double x) {
+  ++argumentCalls;
+  return x * x;
+}
+
+non_differentiable double opaqueArgument(double x) { return x; }
+
+double lazyArguments(double x, bool enabled) {
+  double r = 0;
+  bool unused = enabled && opaqueArgument(r = bumpArgument(x));
+  int i = 0;
+  while (i++ < 1 && enabled && opaqueArgument(r = bumpArgument(x))) {
+  }
+  return r;
+}
+
 #define INIT_EXPR(classname)                                                   \
   classname expr_1(2, 3);                                                      \
   classname expr_2(3, 5);
@@ -119,6 +142,16 @@ int main() {
   TEST_FUNC(fn_s2_operator, 3, 5) // CHECK-EXEC: 0.00
 
   TEST_FUNC(fn_non_diff_call, 3, 5) // CHECK-EXEC: 5.00
+
+  auto assigned = clad::differentiate(assignedArguments, "u");
+  printf("%.2f\n", assigned.execute(2, 3)); // CHECK-EXEC: 4.00
+  auto lazy = clad::differentiate(lazyArguments, "x");
+  argumentCalls = 0;
+  double result = lazy.execute(2, false);
+  printf("%.2f %d\n", result, argumentCalls); // CHECK-EXEC: 0.00 0
+  argumentCalls = 0;
+  result = lazy.execute(2, true);
+  printf("%.2f %d\n", result, argumentCalls); // CHECK-EXEC: 0.00 2
 
   // CHECK: double mem_fn_1_darg0(double i, double j) {
   // CHECK-NEXT:     double _d_i = 1;
@@ -226,3 +259,32 @@ int main() {
   // CHECK-NEXT:     return _d_i * j + i * _d_j;
   // CHECK-NEXT: }
 }
+
+// CHECK-LABEL: double assignedArguments_darg0(double u, double v) {
+// CHECK-NEXT: double _d_u = 1;
+// CHECK-NEXT: double _d_v = 0;
+// CHECK-NEXT: double _d_r = 0, _d_s = 0;
+// CHECK-NEXT: double r = 0, s = 0;
+// CHECK-NEXT: fn_non_diff(((_d_r = _d_u * v + u * _d_v) , (r = u * v)), ((_d_s = _d_u + _d_v) , (s = u + v)));
+// CHECK-NEXT: return _d_r + _d_s;
+// CHECK-NEXT: }
+
+// CHECK-LABEL: inline clad::ValueAndPushforward<double, double> bumpArgument_pushforward(double x, double _d_x) {
+// CHECK-NEXT: ++argumentCalls;
+// CHECK-NEXT: return {x * x, _d_x * x + x * _d_x};
+// CHECK-NEXT: }
+
+// CHECK-LABEL: double lazyArguments_darg0(double x, bool enabled) {
+// CHECK-NEXT: double _d_x = 1;
+// CHECK-NEXT: bool _d_enabled = 0;
+// CHECK-NEXT: double _d_r = 0;
+// CHECK-NEXT: double r = 0;
+// CHECK-NEXT: bool _d_unused = false;
+// CHECK-NEXT: bool unused = enabled && opaqueArgument(r = bumpArgument(x));
+// CHECK-NEXT: int _d_i = 0;
+// CHECK-NEXT: int i = 0;
+// CHECK-NEXT: while (((i++ < 1) && enabled) && opaqueArgument(r = bumpArgument(x)))
+// CHECK-NEXT: {
+// CHECK-NEXT: }
+// CHECK-NEXT: return _d_r;
+// CHECK-NEXT: }
