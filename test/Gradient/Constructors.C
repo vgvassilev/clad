@@ -740,6 +740,75 @@ double fn14(double x, double y) {
 
 // CHECK: void fn14_grad(double x, double y, double *_d_x, double *_d_y) {
 
+double fn15(double x, double y) {
+  Point p = Point(x, x * y);
+  return p.y;
+} // x * y
+
+// CHECK: void fn15_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     Point p = Point(x, x * y);
+// CHECK-NEXT:     Point _d_p = Point(0., 0.);
+// CHECK-NEXT:     _d_p.y += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         Point::constructor_pullback(x, x * y, &_d_p, &_r0, &_r1);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         *_d_x += _r1 * y;
+// CHECK-NEXT:         *_d_y += x * _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+struct NoDefaultPoint {
+  double a, b;
+  NoDefaultPoint(double a_, double b_) : a(a_), b(b_) {}
+};
+
+double fn16(double x, double y) {
+  NoDefaultPoint p = NoDefaultPoint(x, x * y);
+  NoDefaultPoint q = NoDefaultPoint{x * y, y};
+  NoDefaultPoint r(NoDefaultPoint(x * y, y));
+  return p.b + q.a + r.a;
+}
+
+// CHECK: void fn16_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     NoDefaultPoint p = NoDefaultPoint(x, x * y);
+// CHECK-NEXT:     NoDefaultPoint _d_p = NoDefaultPoint(0., 0.);
+// CHECK-NEXT:     NoDefaultPoint q = NoDefaultPoint{x * y, y};
+// CHECK-NEXT:     NoDefaultPoint _d_q = NoDefaultPoint{0., 0.};
+// CHECK-NEXT:     NoDefaultPoint r(NoDefaultPoint(x * y, y));
+// CHECK-NEXT:     NoDefaultPoint _d_r(NoDefaultPoint(0., 0.));
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_p.b += 1;
+// CHECK-NEXT:         _d_q.a += 1;
+// CHECK-NEXT:         _d_r.a += 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r4 = 0.;
+// CHECK-NEXT:         double _r5 = 0.;
+// CHECK-NEXT:         NoDefaultPoint::constructor_pullback(x * y, y, &_d_r, &_r4, &_r5);
+// CHECK-NEXT:         *_d_x += _r4 * y;
+// CHECK-NEXT:         *_d_y += x * _r4;
+// CHECK-NEXT:         *_d_y += _r5;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r2 = 0.;
+// CHECK-NEXT:         double _r3 = 0.;
+// CHECK-NEXT:         NoDefaultPoint::constructor_pullback(x * y, y, &_d_q, &_r2, &_r3);
+// CHECK-NEXT:         *_d_x += _r2 * y;
+// CHECK-NEXT:         *_d_y += x * _r2;
+// CHECK-NEXT:         *_d_y += _r3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         NoDefaultPoint::constructor_pullback(x, x * y, &_d_p, &_r0, &_r1);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         *_d_x += _r1 * y;
+// CHECK-NEXT:         *_d_y += x * _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main() {
     double d_i, d_j;
 
@@ -787,4 +856,10 @@ int main() {
 
     INIT_GRADIENT(fn14);
     TEST_GRADIENT(fn14, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
+
+    INIT_GRADIENT(fn15);
+    TEST_GRADIENT(fn15, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {4.00, 3.00}
+
+    INIT_GRADIENT(fn16);
+    TEST_GRADIENT(fn16, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {12.00, 9.00}
 }
