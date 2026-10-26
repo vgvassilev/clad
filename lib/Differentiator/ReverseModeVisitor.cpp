@@ -1334,6 +1334,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // duplicate labels in the same reverse switch.
     const VarDecl* LoopVD = FRS->getLoopVariable();
 
+    // Whether an enclosing loop runs this one more than once and tapes what
+    // changes from one of its iterations to the next.
+    bool inTapedLoop = isInsideLoop();
+    Stmt* restoreEnd = nullptr;
     // The range and its iterators are rebuilt in the reverse sweep rather
     // than taped, so nothing declared for them is stored per iteration.
     LoopScope Loop(*this);
@@ -1354,8 +1358,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // where the adjoint range it reads is in scope.
     if (VarDecl* DBegin = VisitBegin.getDecl_dx()) {
       Expr* Init = DBegin->getInit();
-      DBegin->setInit(nullptr);
+      DBegin->setInit(inTapedLoop ? getZeroInit(DBegin->getType()) : nullptr);
       addToBlock(BuildDeclStmt(DBegin), m_Globals);
+      // Each run of this loop leaves the adjoint iterator at the end of the
+      // range, where its reverse sweep starts. When an enclosing loop runs it
+      // again, the next run starts the iterator over, so the end the earlier
+      // run left has to be put back once this run's reverse sweep is done.
+      if (Init && inTapedLoop) {
+        llvm::SaveAndRestore<bool> SaveTapes(Loop.Tapes, true);
+        StmtDiff StoreEnd = StoreAndRestore(BuildDeclRef(DBegin));
+        addToCurrentBlock(StoreEnd.getStmt());
+        restoreEnd = StoreEnd.getStmt_dx();
+      }
       if (Init)
         addToCurrentBlock(BuildOp(BO_Assign, BuildDeclRef(DBegin), Init));
     }
@@ -1453,6 +1467,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         ForStmt(m_Context, /*Init=*/nullptr, counterCondition,
                 /*CondVar=*/nullptr, counterDecrement, Reverse,
                 FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
+    // The reverse block runs bottom-up: the restore follows the loop.
+    addToCurrentBlock(restoreEnd, direction::reverse);
     addToCurrentBlock(Reverse, direction::reverse);
     Reverse = endBlock(direction::reverse);
 

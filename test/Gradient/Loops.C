@@ -2154,16 +2154,17 @@ double fn35(double x, double y){
 // CHECK: void fn35_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     double *_d_begin1;
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
-// CHECK-NEXT:     double *_d_begin2;
+// CHECK-NEXT:     double *_d_begin2 = nullptr;
+// CHECK-NEXT:     clad::tape<double *> _t2 = {};
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<bool> _cond1 = {};
-// CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t2 = {};
-// CHECK-NEXT:     clad::tape<double *> _t3 = {};
+// CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t3 = {};
 // CHECK-NEXT:     clad::tape<double *> _t4 = {};
+// CHECK-NEXT:     clad::tape<double *> _t5 = {};
 // CHECK-NEXT:         double *_d_j = nullptr;
 // CHECK-NEXT:         double *j = nullptr;
-// CHECK-NEXT:     clad::tape<double *> _t5 = {};
 // CHECK-NEXT:     clad::tape<double *> _t6 = {};
+// CHECK-NEXT:     clad::tape<double *> _t7 = {};
 // CHECK-NEXT:     double *_d_i = nullptr;
 // CHECK-NEXT:     double *i = nullptr;
 // CHECK-NEXT:     double _d_r = 0.;
@@ -2180,22 +2181,23 @@ double fn35(double x, double y){
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _d_i = _d_begin1;
 // CHECK-NEXT:             i = __begin1;
-// CHECK-NEXT:             clad::push(_t5, i);
-// CHECK-NEXT:             clad::push(_t6, _d_i);
+// CHECK-NEXT:             clad::push(_t6, i);
+// CHECK-NEXT:             clad::push(_t7, _d_i);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, 0);
 // CHECK-NEXT:         double (&__range2)[3] = a;
 // CHECK-NEXT:         double (&_d_range2)[3] = _d_a;
 // CHECK-NEXT:         double *__begin2 = __range2;
+// CHECK-NEXT:         clad::push(_t2, _d_begin2);
 // CHECK-NEXT:         _d_begin2 = _d_range2;
 // CHECK-NEXT:         double *__end2 = __range2 + {{3|3L}};
 // CHECK-NEXT:         for (; __begin2 != __end2; ++__begin2 , ++_d_begin2) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:                 _d_j = _d_begin2;
 // CHECK-NEXT:                 j = __begin2;
-// CHECK-NEXT:                 clad::push(_t3, j);
-// CHECK-NEXT:                 clad::push(_t4, _d_j);
+// CHECK-NEXT:                 clad::push(_t4, j);
+// CHECK-NEXT:                 clad::push(_t5, _d_j);
 // CHECK-NEXT:         }
 // CHECK-NEXT:             clad::back(_t1)++;
 // CHECK-NEXT:         {
@@ -2206,14 +2208,14 @@ double fn35(double x, double y){
 // CHECK-NEXT:                     clad::push(_cond1, r > x * x);
 // CHECK-NEXT:                     if (clad::back(_cond1)) {
 // CHECK-NEXT:         {
-// CHECK-NEXT:                             clad::push(_t2, {{1U|1UL}});
+// CHECK-NEXT:                             clad::push(_t3, {{1U|1UL}});
 // CHECK-NEXT:                             ++_d_begin2;
 // CHECK-NEXT:                             break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
-// CHECK-NEXT:             clad::push(_t2, {{2U|2UL}});
+// CHECK-NEXT:             clad::push(_t3, {{2U|2UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     _d_r += 1;
@@ -2221,18 +2223,18 @@ double fn35(double x, double y){
 // CHECK-NEXT:         {
 // CHECK-NEXT:         {
 // CHECK-NEXT:                 _d_begin1--;
-// CHECK-NEXT:                 i = clad::pop(_t5);
-// CHECK-NEXT:                 _d_i = clad::pop(_t6);
+// CHECK-NEXT:                 i = clad::pop(_t6);
+// CHECK-NEXT:                 _d_i = clad::pop(_t7);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:                 for (; clad::back(_t1); clad::back(_t1)--) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:         {
 // CHECK-NEXT:                             _d_begin2--;
-// CHECK-NEXT:                             j = clad::pop(_t3);
-// CHECK-NEXT:                             _d_j = clad::pop(_t4);
+// CHECK-NEXT:                             j = clad::pop(_t4);
+// CHECK-NEXT:                             _d_j = clad::pop(_t5);
 // CHECK-NEXT:         }
-// CHECK-NEXT:                         switch (clad::pop(_t2)) {
+// CHECK-NEXT:                         switch (clad::pop(_t3)) {
 // CHECK-NEXT:                           case {{2U|2UL}}:
 // CHECK-NEXT:                             ;
 // CHECK-NEXT:         {
@@ -2254,6 +2256,7 @@ double fn35(double x, double y){
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
+// CHECK-NEXT:                 _d_begin2 = clad::pop(_t2);
 // CHECK-NEXT:                 clad::pop(_t1);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
