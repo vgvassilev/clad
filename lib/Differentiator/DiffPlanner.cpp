@@ -1554,7 +1554,8 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
   }
 
   static Expr* getOverloadExpr(Sema& S, DeclContext* DC, DiffRequest& R,
-                               bool* foundAnyDecl = nullptr) {
+                               bool* foundAnyDecl = nullptr,
+                               bool quiet = false) {
     if (foundAnyDecl)
       *foundAnyDecl = false;
     // Error estimation only uses forward mode derivatives if they are
@@ -1565,7 +1566,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             R.Function, dyn_cast_or_null<CallExpr>(R.CallContext))) {
       R.Mode = DiffMode::pushforward;
       R.EnableErrorEstimation = false;
-      if (Expr* overload = getOverloadExpr(S, DC, R, foundAnyDecl)) {
+      if (Expr* overload = getOverloadExpr(S, DC, R, foundAnyDecl, quiet)) {
         R.DVI.clear();
         return overload;
       }
@@ -1583,9 +1584,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // etc. If we turn it on, every such operator will trigger diagnostics
     // because of our STL and Kokkos custom derivatives.
     // FIXME: Add a way to silence the diagnostics.
-    bool enableDiagnostics =
-        !isa<CXXMethodDecl>(R.Function) && !R->isOverloadedOperator() &&
-        R.BaseFunctionName != "forward" && !R.EnableErrorEstimation;
+    bool enableDiagnostics = !quiet && !isa<CXXMethodDecl>(R.Function) &&
+                             !R->isOverloadedOperator() &&
+                             R.BaseFunctionName != "forward" &&
+                             !R.EnableErrorEstimation;
 
     ASTContext& C = S.getASTContext();
     auto LookupPropagator = [&C, &S, &DC](const std::string& Name) {
@@ -1726,7 +1728,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return nullptr;
   }
 
-  bool DiffCollector::LookupCustomDerivativeDecl(DiffRequest& request) {
+  bool DiffCollector::LookupCustomDerivativeDecl(DiffRequest& request,
+                                                 bool* foundAnyDecl) {
+    if (foundAnyDecl)
+      *foundAnyDecl = false;
     NamespaceDecl* cladNS =
         utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
     NamespaceDecl* customDerNS = utils::LookupNSD(
@@ -1780,8 +1785,9 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     assert(request.Mode != DiffMode::unknown &&
            "Called lookup without specified DiffMode");
 
-    auto LookupOverload = [this, fnDecl, &request](NamespaceDecl* NSD,
-                                                   bool* foundAnyDecl) {
+    auto LookupOverload = [this, fnDecl, &request,
+                           quiet = foundAnyDecl != nullptr](NamespaceDecl* NSD,
+                                                            bool* foundDecl) {
       DeclContext* DC = NSD;
       if (isa<CXXMethodDecl>(request.Function))
         DC = utils::LookupNSD(m_Sema, "class_functions",
@@ -1791,7 +1797,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
             m_Sema, DC, utils::GetCustomDerivativeLookupContext(fnDecl));
       if (!DC)
         return static_cast<Expr*>(nullptr);
-      return getOverloadExpr(m_Sema, DC, request, foundAnyDecl);
+      return getOverloadExpr(m_Sema, DC, request, foundDecl, quiet);
     };
 
     // Look for the user overrides namespace nested inside custom_derivatives
@@ -1809,12 +1815,15 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       }
       // Overrides declaration found but signature mismatch; do not fall back to
       // builtin.
-      if (foundOverridesDecl)
+      if (foundOverridesDecl) {
+        if (foundAnyDecl)
+          *foundAnyDecl = true;
         return false;
+      }
     }
 
     // clad::custom_derivatives (builtins, fallback).
-    if (Expr* overload = LookupOverload(customDerNS, nullptr)) {
+    if (Expr* overload = LookupOverload(customDerNS, foundAnyDecl)) {
       // Overload found. Mark the request as custom derivative and save
       // the set of overloads to process later.
       request.CustomDerivative = overload;
@@ -2143,34 +2152,56 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
           request.Mode != DiffMode::vector_pushforward) {
         // CUDA device function call in global kernel gradient
         bool useCUDA = !m_TopMostReq->CUDAGlobalArgsIndexes.empty();
-        for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
-          const auto* paramDecl = FD->getParamDecl(i);
-          if (clad::utils::hasNonDifferentiableAttribute(paramDecl))
-            continue;
+        bool droppedNoAdjoint = false;
+        auto planParams = [&](DiffRequest& R, bool dropNoAdjoint) {
+          R.DVI.clear();
+          R.CUDAGlobalArgsIndexes.clear();
+          for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
+            const auto* paramDecl = FD->getParamDecl(i);
+            if (clad::utils::hasNonDifferentiableAttribute(paramDecl))
+              continue;
 
-          // Reverse mode asks for the pullback without a parameter it has no
-          // adjoint to pass for. Plan that pullback, not one it never calls.
-          if (passesNoAdjoint(E, i, *m_ParentReq))
-            continue;
+            // Reverse mode asks for the pullback without a parameter it has
+            // no adjoint to pass for. Plan that pullback, not one it never
+            // calls.
+            if (dropNoAdjoint && passesNoAdjoint(E, i, *m_ParentReq)) {
+              droppedNoAdjoint = true;
+              continue;
+            }
 
-          // If a parameter is non-differentiable, don't include
-          // it in the DVI to avoid dynamic partial derivatives.
-          const ParmVarDecl* PVD = nullptr;
-          Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
-          if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE))
-            PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
-          bool IsDifferentiableArg =
-              !PVD || m_ParentReq->HasIndependentParameter(PVD);
+            // If a parameter is non-differentiable, don't include
+            // it in the DVI to avoid dynamic partial derivatives.
+            const ParmVarDecl* PVD = nullptr;
+            Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
+            if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE))
+              PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
+            bool IsDifferentiableArg =
+                !PVD || m_ParentReq->HasIndependentParameter(PVD);
 
-          if (!utils::isArrayOrPointerType(paramDecl->getType()) ||
-              IsDifferentiableArg)
-            request.DVI.push_back(paramDecl);
-          // FIXME: If we cannot deduce whether the argument is
-          // differentiable, we should still add it to CUDAGlobalArgsIndexes.
-          // i.e. remove `&& PVD`.
-          // We know we should use atomic ops here
-          if (useCUDA && PVD && IsDifferentiableArg)
-            request.CUDAGlobalArgsIndexes.push_back(i);
+            if (!utils::isArrayOrPointerType(paramDecl->getType()) ||
+                IsDifferentiableArg)
+              R.DVI.push_back(paramDecl);
+            // FIXME: If we cannot deduce whether the argument is
+            // differentiable, we should still add it to CUDAGlobalArgsIndexes.
+            // i.e. remove `&& PVD`.
+            // We know we should use atomic ops here
+            if (useCUDA && PVD && IsDifferentiableArg)
+              R.CUDAGlobalArgsIndexes.push_back(i);
+          }
+        };
+        planParams(request, /*dropNoAdjoint=*/true);
+        // A user's pullback takes every parameter. Where there is one, plan it,
+        // and reverse mode passes a zero adjoint for what activity analysis
+        // leaves without one: every call then uses the user's derivative. A
+        // pullback whose signature is wrong is then reported against the one
+        // the user has to write.
+        if (droppedNoAdjoint) {
+          DiffRequest full = request;
+          planParams(full, /*dropNoAdjoint=*/false);
+          full.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
+          bool declared = false;
+          if (LookupCustomDerivativeDecl(full, &declared) || declared)
+            planParams(request, /*dropNoAdjoint=*/false);
         }
       }
 
