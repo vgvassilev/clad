@@ -59,7 +59,7 @@ double sum(Tangent& t) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         res += t.data[i];
 // CHECK-NEXT:     }
@@ -83,7 +83,7 @@ double sum(double *data) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         res += data[i];
 // CHECK-NEXT:     }
@@ -124,7 +124,7 @@ double fn3(double i, double j) {
 
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     Tangent _d_t;
+// CHECK-NEXT:     Tangent _d_t{};
 // CHECK-NEXT:     t.data[0] = 2 * i;
 // CHECK-NEXT:     t.data[1] = 5 * i + 3 * j;
 // CHECK-NEXT:     sum_pullback(t, 1, &_d_t);
@@ -281,7 +281,7 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _t1[5];
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t1[i] = this->data[i];
 // CHECK-NEXT:         this->data[i] = d;
@@ -320,7 +320,7 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     double _t1[5];
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         res += c.real() + 2 * (_t1[i] = c.imag());
 // CHECK-NEXT:     }
@@ -378,7 +378,7 @@ double fn11(double x, double y) {
 
 // CHECK: void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     Tangent _d_t;
+// CHECK-NEXT:     Tangent _d_t{};
 // CHECK-NEXT:     t.data[0] = -y;
 // CHECK-NEXT:     operator_plus_pullback(x, t, 1, _d_x, &_d_t);
 // CHECK-NEXT:     {
@@ -941,8 +941,8 @@ struct ptrClass {
 namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
-::clad::ValueAndAdjoint<ptrClass, ptrClass>
-constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW ::clad::ValueAndAdjoint<ptrClass, ptrClass>
+constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr);
 }}}
 
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this) {
@@ -1076,13 +1076,13 @@ float fn29(float *input, Session const *session) {
 // CHECK-NEXT:      float buffer[5]{0., 0., 0., 0., 0};
 // CHECK-NEXT:      size_t _d_n = {{0U|0UL|0ULL}};
 // CHECK-NEXT:      const size_t n = 5;
-// CHECK-NEXT:      unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:      size_t _t0;
 // CHECK-NEXT:      for (id = 0; id < n; id++) {
 // CHECK-NEXT:          buffer[id] = sess.factors[id] * input[id];
 // CHECK-NEXT:      }
 // CHECK-NEXT:      float _d_out = 0.F;
 // CHECK-NEXT:      float out = 0.;
-// CHECK-NEXT:      unsigned {{int|long|long long}} _t1;
+// CHECK-NEXT:      size_t _t1;
 // CHECK-NEXT:      for (id0 = 0; id0 < n; id0++) {
 // CHECK-NEXT:          out += input[id0];
 // CHECK-NEXT:      }
@@ -1208,9 +1208,9 @@ double fn33(double x) {
 // CHECK-NEXT:         _d_tmp4 += 2 * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     (PIBase *)this->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
-// CHECK-NEXT:     dynamic_cast<PIBase *>(this)->getPi_pullback(_d_tmp3, _d_this);
-// CHECK-NEXT:     reinterpret_cast<PIBase *>(this)->getPi_pullback(_d_tmp2, _d_this);
-// CHECK-NEXT:     static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, _d_this);
+// CHECK-NEXT:     dynamic_cast<PIBase *>(this)->getPi_pullback(_d_tmp3, dynamic_cast<PIBase *>(_d_this));
+// CHECK-NEXT:     reinterpret_cast<PIBase *>(this)->getPi_pullback(_d_tmp2, reinterpret_cast<PIBase *>(_d_this));
+// CHECK-NEXT:     static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, static_cast<PIBase *>(_d_this));
 // CHECK-NEXT: }
 // CHECK-NEXT:void fn33_grad(double x, double *_d_x) {
 // CHECK-NEXT:    PI _d_pi = {};
@@ -1384,6 +1384,104 @@ void printArray(T* arr, int size) {
   printf("}\n");
 }
 
+class Matrix {
+public:
+  Matrix() : owner_(true), nrows(0), ncols(0), data(nullptr) {}
+  Matrix(int r, int c) : owner_(true), nrows(r), ncols(c) {
+    data = new double[r * c];
+  }
+  Matrix(const Matrix& o) : owner_(true), nrows(0), ncols(0), data(nullptr) {
+    resize(o.nrows, o.ncols);
+    for (int i = 0; i < nrows * ncols; ++i)
+      data[i] = o.data[i];
+  }
+  Matrix& operator=(const Matrix& o) {
+    if (this != &o) {
+      delete[] data;
+      nrows = o.nrows;
+      ncols = o.ncols;
+      data = o.data ? new double[nrows * ncols] : nullptr;
+      for (int i = 0; i < nrows * ncols; ++i)
+        data[i] = o.data[i];
+    }
+    return *this;
+  }
+  ~Matrix() { delete[] data; }
+  void resize(int r, int c) {
+    if (nrows * ncols != r * c) {
+      if (r * c > 0)
+        data = new double[r * c];
+      else
+        data = nullptr;
+    }
+    nrows = r;
+    ncols = c;
+  }
+  double& operator()(int i, int j) { return data[j * nrows + i]; }
+  const double& operator()(int i, int j) const { return data[j * nrows + i]; }
+  const double* col(int j) const { return &((*this)(0, j)); }
+  bool owner_;
+  int nrows, ncols;
+  double* data;
+};
+
+void mat_mult(const Matrix& lhs, const Matrix& rhs, Matrix* out) {
+  out->resize(lhs.nrows, rhs.ncols);
+  for (int i = 0; i < lhs.nrows; ++i)
+    for (int k = 0; k < rhs.ncols; ++k) {
+      (*out)(i, k) = 0;
+      for (int j = 0; j < lhs.ncols; ++j)
+        (*out)(i, k) += lhs(i, j) * rhs(j, k);
+    }
+}
+
+void fill(const double* const x, Matrix* pm) {
+  Matrix& m = *pm;
+  m.resize(2, 2);
+  m(0, 0) = x[0];
+  m(1, 0) = x[1];
+  m(0, 1) = x[2];
+  m(1, 1) = x[3];
+}
+
+void square(const Matrix& A, Matrix* out) {
+  Matrix T(2, 2);
+  for (int i = 0; i < 2; ++i)
+    for (int j = 0; j < 2; ++j)
+      T(i, j) = A(i, j);
+  mat_mult(T, T, out);
+}
+
+void trace_sq(const double* const x, double* out) {
+  Matrix A;
+  fill(x, &A);
+  Matrix B;
+  square(A, &B);
+  const double* c1 = B.col(1);
+  *out = B(0, 0) + c1[1];
+}
+
+double matTraceSq(const double* x) {
+  double r = 0;
+  trace_sq(x, &r);
+  return r;
+}
+
+struct Pair { double a, b; };
+Pair makePair(double x) { return {x, 2 * x}; }
+// The member of a call's result is read in a reverse_forw.
+double& scaleByB(double& v, double x) {
+  v *= makePair(x).b;
+  return v;
+}
+double fnMemberOfCall(double x) {
+  double y = x;
+  return scaleByB(y, x);
+}
+
+// CHECK: scaleByB_reverse_forw(double &v, double x, double &_d_v, double _d_x
+// CHECK:     v *= makePair(x).b;
+
 int main() {
     pairdd p(3, 5), d_p;
     double i = 3, d_i, d_j;
@@ -1513,4 +1611,12 @@ int main() {
     auto fn_nested_grad = clad::gradient(fn_nested);
     fn_nested_grad.execute(nested_o, &d_nested_o);
     printf("{%.2f}\n", d_nested_o.inner.i);    // CHECK-EXEC: {6.00}
+
+    double xm[4] = {1, 2, 3, 4}, dxm[4] = {0, 0, 0, 0};
+    auto matTraceSq_grad = clad::gradient(matTraceSq, "x");
+    matTraceSq_grad.execute(xm, dxm);
+    printf("{%.2f, %.2f, %.2f, %.2f}\n", dxm[0], dxm[1], dxm[2], dxm[3]);    // CHECK-EXEC: {2.00, 6.00, 4.00, 8.00}
+
+    INIT_GRADIENT(fnMemberOfCall);
+    TEST_GRADIENT(fnMemberOfCall, /*numOfDerivativeArgs=*/1, 3, &d_i);    // CHECK-EXEC: {12.00}
 }

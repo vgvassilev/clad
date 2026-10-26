@@ -24,16 +24,19 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h" // IWYU pragma: keep -- function_ref on LLVM<14
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
 
 #include <array>
 #include <functional>
@@ -83,6 +86,14 @@ namespace clad {
     /// Markers emitted at early-return sites in the forward block, patched
     /// at finalization with a return from the forward-sweep closure.
     llvm::SmallPtrSet<clang::Stmt*, 4> m_EarlyReturnMarkers;
+    /// The early returns that the reverse sweep cannot tell were taken from
+    /// the condition of an enclosing `if`, numbered in the order they appear,
+    /// and the blocks whose statements come after one of them. The forward
+    /// sweep stores the number of such a return in m_ReturnedAt when it takes
+    /// it; the reverse sweep skips what came after.
+    llvm::DenseMap<const clang::ReturnStmt*, int> m_ReturnIds;
+    llvm::SmallPtrSet<const clang::CompoundStmt*, 4> m_ReturnGuardedBlocks;
+    clang::VarDecl* m_ReturnedAt = nullptr;
     /// Storing expressions to delete/free memory in the reverse pass.
     Stmts m_DeallocExprs;
     /// A dfdx seed: eager expression, or a deferred builder materialized on
@@ -123,6 +134,11 @@ namespace clad {
     /// break. It is used to determine whether to run the loop cond
     /// differentiation. One additional time.
     clang::Expr* m_CurrentBreakFlagExpr;
+    /// For each enclosing loop, innermost last, its adjoint iterator if it is
+    /// a range-for and null otherwise. Leaving an iteration by break or return
+    /// advances the iterator as finishing it would, so that the reverse sweep
+    /// steps it back once for every iteration the forward sweep entered.
+    llvm::SmallVector<clang::Expr*, 4> m_LoopAdjointIterators;
 
     clang::Expr* m_RestoreTracker = nullptr;
     /// A never-restored tracker handed to nested reverse_forw calls that only
@@ -155,6 +171,15 @@ namespace clad {
     /// forward sweep is fully assembled and before the body is handed to Sema.
     void
     patchEarlyReturnMarkers(llvm::function_ref<clang::Stmt*()> MakeReplacement);
+    /// Numbers the early returns of \p Body that a later statement of their
+    /// block does not see in the condition of an enclosing `if`, and declares
+    /// m_ReturnedAt if there are any.
+    void numberUngatedReturns(const clang::Stmt* Body);
+    /// Puts \p Reverse, the adjoint seed of the early return \p RS, into the
+    /// reverse sweep and returns the marker that patchEarlyReturnMarkers turns
+    /// into a return from the forward-sweep closure.
+    clang::Stmt* markEarlyReturn(const clang::ReturnStmt* RS,
+                                 clang::Stmt* Reverse);
 
   public:
     using direction = rmv::direction;
@@ -195,6 +220,8 @@ namespace clad {
         if (m_Taken)
           return m_RMV.CloneNode(m_Seed);
         m_Taken = true;
+        if (m_Seed->HasSideEffects(m_RMV.m_Context))
+          m_Seed = m_RMV.StoreAndRef(m_Seed, direction::reverse);
         return m_Seed;
       }
       explicit operator bool() const { return m_Seed != nullptr; }
@@ -360,9 +387,12 @@ namespace clad {
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
                                    bool force = false, bool zeroInit = false);
-    virtual StmtDiff StoreAndRestore(clang::Expr* E,
-                                     llvm::StringRef prefix = "_t",
-                                     bool moveToTape = false);
+    /// With \p restoreAgain, the restore leaves the record in place, and the
+    /// statements added to \p restoreAgain restore E from it once more and
+    /// then drop it.
+    virtual StmtDiff StoreAndRestore(
+        clang::Expr* E, llvm::StringRef prefix = "_t", bool moveToTape = false,
+        llvm::SmallVectorImpl<clang::Stmt*>* restoreAgain = nullptr);
 
     /// Build element-wise move between 2 arrays, e.g.
     /// `std::move(std::begin(from), std::end(from), std::begin(to));`
@@ -539,6 +569,7 @@ namespace clad {
     StmtDiff VisitOpaqueValueExpr(const clang::OpaqueValueExpr* OVE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
+    StmtDiff VisitAttributedStmt(const clang::AttributedStmt* S);
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff
     VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
@@ -672,14 +703,19 @@ namespace clad {
     /// \param[in] isCUDAKernel true if the call being differentiated is a
     /// kernel launch
     ///
+    /// \param[out] PostCallStmts If not null, the caller restores the
+    /// argument's writes itself: the restore before the pullback call keeps
+    /// the record, and the statements that restore the argument once more and
+    /// then drop the record are added here, to follow the pullback call.
+    ///
     /// \returns A triplet of differentiated arguments, i.e. ``{<original arg>,
     /// <arg for pullback>, <reverse_forw arg>}``. In practice, it will look
     /// somewhat like ``{x, &_r0, _d_x}``.
-    StmtDiff
-    DifferentiateCallArg(const clang::Expr* arg,
-                         const clang::ParmVarDecl* param,
-                         llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
-                         bool isNonDiff, bool isCUDAKernel = false);
+    StmtDiff DifferentiateCallArg(
+        const clang::Expr* arg, const clang::ParmVarDecl* param,
+        llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts, bool isNonDiff,
+        bool isCUDAKernel = false,
+        llvm::SmallVectorImpl<clang::Stmt*>* PostCallStmts = nullptr);
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop.
@@ -704,7 +740,8 @@ namespace clad {
       clang::Expr* m_TripCount = nullptr;
 
     public:
-      LoopCounter(ReverseModeVisitor& RMV, clang::Expr* tripCount = nullptr);
+      LoopCounter(ReverseModeVisitor& RMV, clang::Expr* tripCount = nullptr,
+                  clang::QualType countType = {});
 
       /// Returns true if the reverse sweep computes the iteration count from
       /// the loop bounds instead of reading a count the forward sweep kept.
@@ -846,6 +883,9 @@ namespace clad {
       /// control-flow tape. Lets VisitBreakStmt pick the right handling.
       bool m_IsInvokedBySwitchStmt = false;
 
+      /// The body of the loop this handles, or null for a switch.
+      const clang::Stmt* m_LoopBody = nullptr;
+
       BreakContStmtHandler(ReverseModeVisitor& RMV, bool forSwitchStmt = false)
           : m_RMV(RMV), m_IsInvokedBySwitchStmt(forSwitchStmt) {}
 
@@ -905,11 +945,28 @@ namespace clad {
       for (const auto* param : FD->parameters())
         diffParams.push_back(param);
 
-      return utils::GetDerivativeType(m_Sema, FD, DiffMode::pullback,
-                                      diffParams,
-                                      /*forCustomDerv=*/false,
-                                      /*shouldUseRestoreTracker=*/false);
+      clang::QualType baseTy =
+          utils::GetDerivativeType(m_Sema, FD, DiffMode::pullback, diffParams,
+                                   /*forCustomDerv=*/false,
+                                   /*shouldUseRestoreTracker=*/false);
+      if (LE->capture_size() == 0)
+        return baseTy;
+      clang::ASTContext& C = m_Sema.getASTContext();
+      const auto* FPT = baseTy->castAs<clang::FunctionProtoType>();
+      llvm::SmallVector<clang::QualType, 8> paramTypes(
+          FPT->param_types().begin(), FPT->param_types().end());
+      for (const clang::LambdaCapture& Capture : LE->captures()) {
+        const auto* capVD =
+            llvm::cast<clang::VarDecl>(Capture.getCapturedVar());
+        clang::QualType valTy = utils::getNonConstType(
+            capVD->getType().getNonReferenceType(), m_Sema);
+        paramTypes.push_back(valTy);
+        paramTypes.push_back(C.getPointerType(valTy));
+      }
+      return C.getFunctionType(FPT->getReturnType(), paramTypes,
+                               FPT->getExtProtoInfo());
     }
+    /// Builds the pullback lambda for LE
     clang::Expr* buildDerivedLambda(const clang::LambdaExpr* LE);
     /// Builds and returns the sequence of derived function parameters.
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,
@@ -978,6 +1035,8 @@ namespace clad {
       /// can evaluate on entry. Null when that could not be proven, in which
       /// case the forward sweep has to count them.
       clang::Expr* TripCount = nullptr;
+      /// The type TripCount and the counter that holds it are declared with.
+      clang::QualType CountType;
       /// What the induction variable holds once the loop has exited.
       clang::Expr* IndVarEnd = nullptr;
     };

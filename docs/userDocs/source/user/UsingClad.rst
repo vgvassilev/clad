@@ -553,11 +553,12 @@ limitations will be removed soon.
 The ``non_differentiable`` Attribute
 ------------------------------------
 
-Occasionally, you may want to skip differentiating a specific variable or function call. For example, some variables might be used purely for logging, as constants, or as standalone metrics. Clad provides the ``non_differentiable`` annotation attribute to safely omit generating derivatives for these components.
+Occasionally, you may want to skip differentiating a specific variable or function call. For example, some variables might be used purely for logging, as constants, or as standalone metrics. Clad provides the ``[[clad::non_differentiable]]`` attribute to safely omit generating derivatives for these components.
 
 Clad ships the ``CLAD_NONDIFFERENTIABLE`` macro (defined in
 ``clad/Differentiator/BuiltinDerivatives.h``, pulled in by ``Differentiator.h``)
-for this; it expands to ``__attribute__((annotate("non_differentiable")))``.
+for this; it expands to ``[[clad::non_differentiable]]`` when the Clad plugin
+is loaded and to ``__attribute__((annotate("non_differentiable")))`` otherwise.
 
 If ``CLAD_NONDIFFERENTIABLE`` is applied to a variable, Clad skips generating a
 derivative counterpart for it:
@@ -680,12 +681,19 @@ numerically differentiate the function. Clad uses the `Five-Point Stencil Method
 with support for differentiating most scalar or array (pointer) types. For a comprehensive demo on numerically 
 differentiating custom/user-defined types, you can checkout the following `demo <https://github.com/vgvassilev/clad/blob/master/demos/CustomTypeNumDiff.cpp>`__.
 
-This default behavior can be disabled by passing the `-DCLAD_NO_NUM_DIFF` flag during the compilation of 
-your programs. This will cause Clad to fail and error out if it encounters something non-differentiable. 
-Another interesting bit of information that can be solicited from numerical differentiation calls is error information. 
-Since numerical differentiation is only a way to estimate the derivative, it is essential to keep track of any associated 
-errors. Error estimates from numerical differentiation calls can be printed to stdout using the `-fprint-num-diff-errors` 
-compilation flag. This flag is overridden by the `-DCLAD_NO_NUM_DIFF` flag.
+This default behavior can be turned off with the `-fno-numerical-diff-fallback` plugin option, and back on with
+`-fnumerical-diff-fallback`; the last one given decides. Off, Clad warns about the call and treats its derivative as zero.
+One request can decide for itself with `clad::opts::disable_numerical_diff_fallback` or
+`clad::opts::enable_numerical_diff_fallback`, e.g. `clad::gradient<clad::opts::disable_numerical_diff_fallback>(f)`.
+Every request that reaches a function shares one derivative of it, so where that derivative could fall back, the
+requests have to ask for the fallback the same way; Clad reports the one that does not as an error.
+A built-in derivative that approximates by itself, such as that of a Bessel function in its order, follows
+the translation unit's setting only: it reads it from the `CLAD_NUMERICAL_DIFF_FALLBACK_OFF` macro clad defines
+when the fallback is off, and a request's own switch cannot reach a macro.
+Another interesting bit of information that can be solicited from numerical differentiation calls is error information.
+Since numerical differentiation is only a way to estimate the derivative, it is essential to keep track of any associated
+errors. Error estimates from numerical differentiation calls can be printed to stdout using the `-fprint-num-diff-errors`
+compilation flag, which has no effect where the fallback is off.
 
 Error Estimation
 ======================

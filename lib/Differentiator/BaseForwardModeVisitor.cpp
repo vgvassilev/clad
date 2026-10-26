@@ -14,17 +14,20 @@
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/PushForwardModeVisitor.h"
 #include "clad/Differentiator/VisitorBase.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/Lambda.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
@@ -38,6 +41,7 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constants.h"
@@ -127,7 +131,9 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
     } else {
       QualType T = m_IndependentVar->getType();
       bool isField = false;
-      if (auto* RD = diffVarInfo.param->getType()->getAsCXXRecordDecl()) {
+      if (auto* RD = diffVarInfo.param->getType()
+                         .getNonReferenceType()
+                         ->getAsCXXRecordDecl()) {
         llvm::SmallVector<llvm::StringRef, 4> ref(diffVarInfo.fields.begin(),
                                                   diffVarInfo.fields.end());
         T = utils::ComputeMemExprPathType(m_Sema, RD, ref);
@@ -154,7 +160,9 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   SourceLocation validLoc{m_DiffReq->getLocation()};
   DeclarationNameInfo name(II, validLoc);
   llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
+  // Nested derivatives must not search the caller's local scopes.
+  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
+                                         getEnclosingNamespaceOrTUScope());
 
   m_Sema.CurContext = DC;
   QualType derivedFnType = GetDerivativeType();
@@ -201,6 +209,18 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
         addToCurrentBlock(S);
     else
       addToCurrentBlock(BodyDiff);
+    // The primal wrote its result through a parameter and returned nothing, so
+    // GetDerivativeType gave the derivative that parameter's tangent as its
+    // return type. Hand the tangent back; without this it stays a local the
+    // caller has no way to read.
+    // A primal that already ends in `return;` had its tangent returned by
+    // VisitReturnStmt a moment ago, and a second one here would be
+    // unreachable code in the user's translation unit.
+    if (Expr* outputTangent = GetOutputParamTangent()) {
+      Stmts& block = getCurrentBlock();
+      if (block.empty() || !isa<ReturnStmt>(block.back()))
+        addToCurrentBlock(BuildReturnStmt(outputTangent));
+    }
     Stmt* fnBody = endBlock();
     // FIXME: Enable this when we vgvassilev/clad#367 (removing goto stmts).
     // // If ActOnFinishFunctionBody should pop the current DeclContext.
@@ -307,14 +327,111 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
       continue;
 
     IdentifierInfo* II = &m_Context.Idents.get("_d_" + PVD->getNameAsString());
+    if (std::any_of(params.begin(), params.end(),
+                    [II](const ParmVarDecl* Param) {
+                      return Param->getIdentifier() == II;
+                    }))
+      II = CreateUniqueIdentifier(II->getName());
     QualType diffTy = utils::GetParameterDerivativeType(m_Sema, m_DiffReq.Mode,
                                                         PVD->getType());
     auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, II, diffTy,
                                          PVD->getStorageClass());
+    m_Sema.PushOnScopeChains(dPVD, getCurrentScope(), /*AddToContext=*/false);
     params.push_back(dPVD);
     m_Variables[PVD] = {dPVD};
   }
 }
+
+Expr* BaseForwardModeVisitor::GetOutputParamTangent() {
+  // The request knows which parameter a void-returning primal writes its
+  // result through; only a derivative GetDerivativeType then gave a return
+  // type of its own has that tangent to hand back. Every other forward
+  // derivative keeps the primal's return type, and a pushforward has
+  // somewhere to put an output parameter's tangent already.
+  const ParmVarDecl* outputParam = m_DiffReq.getOutputTangentParam();
+  if (!outputParam || !m_Derivative ||
+      m_Derivative->getReturnType()->isVoidType())
+    return nullptr;
+
+  // GenerateSeeds keys the tangents by the derivative's own parameters, which
+  // SetupDerivativeParameters cloned from the primal's in order.
+  auto found = m_Variables.find(
+      m_Derivative->getParamDecl(outputParam->getFunctionScopeIndex()));
+  assert(found != m_Variables.end() && found->second.Decl &&
+         "GenerateSeeds gives a differentiable parameter a tangent");
+  return BuildDeclRef(found->second.Decl);
+}
+
+clang::QualType
+BaseForwardModeVisitor::GetLambdaPushforwardType(const LambdaExpr* LE) {
+  FunctionDecl* FD = LE->getCallOperator();
+  llvm::SmallVector<const ValueDecl*, 4> diffParams;
+  for (const auto* param : FD->parameters())
+    diffParams.push_back(param);
+  QualType baseTy =
+      utils::GetDerivativeType(m_Sema, FD, DiffMode::pushforward, diffParams,
+                               /*forCustomDerv=*/false,
+                               /*shouldUseRestoreTracker=*/false);
+  const auto* FPT = baseTy->castAs<FunctionProtoType>();
+  llvm::SmallVector<QualType, 8> paramTypes(FPT->param_types().begin(),
+                                            FPT->param_types().end());
+  for (const LambdaCapture& Capture : LE->captures()) {
+    const auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+    QualType valTy =
+        utils::getNonConstType(capVD->getType().getNonReferenceType(), m_Sema);
+    paramTypes.push_back(valTy);
+    paramTypes.push_back(utils::GetParameterDerivativeType(
+        m_Sema, DiffMode::pushforward, valTy));
+  }
+  return m_Context.getFunctionType(FPT->getReturnType(), paramTypes,
+                                   FPT->getExtProtoInfo());
+}
+
+#if CLANG_VERSION_MAJOR > 16
+clang::Expr*
+BaseForwardModeVisitor::buildPushforwardLambda(const LambdaExpr* LE) {
+  QualType dFnType = GetLambdaPushforwardType(LE);
+  // auto cannot deduce the return type from a braced init list, so we set it.
+  QualType retTy = dFnType->castAs<FunctionProtoType>()->getReturnType();
+
+  LambdaBuilder LBuilder(*this);
+  LBuilder.start(
+      LE, dFnType,
+      [&](llvm::SmallVectorImpl<ParmVarDecl*>& params) {
+        SetupDerivativeParameters(params);
+        for (const LambdaCapture& Capture : LE->captures()) {
+          auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+          QualType valTy = utils::getNonConstType(
+              capVD->getType().getNonReferenceType(), m_Sema);
+          auto* valPVD = utils::BuildParmVarDecl(
+              m_Sema, m_Derivative,
+              CreateUniqueIdentifier(capVD->getNameAsString()), valTy);
+          m_Sema.PushOnScopeChains(valPVD, getCurrentScope(),
+                                   /*AddToContext=*/false);
+          params.push_back(valPVD);
+          m_DeclReplacements[capVD] = valPVD;
+          auto* dPVD = utils::BuildParmVarDecl(
+              m_Sema, m_Derivative,
+              CreateUniqueIdentifier("_d_" + capVD->getNameAsString()),
+              utils::GetParameterDerivativeType(m_Sema, DiffMode::pushforward,
+                                                valTy));
+          m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
+                                   /*AddToContext=*/false);
+          params.push_back(dPVD);
+          m_Variables[valPVD] = {dPVD};
+        }
+      },
+      retTy);
+
+  beginBlock();
+  StmtDiff bodyDiff = Visit(LE->getCallOperator()->getBody());
+  for (auto* S : cast<CompoundStmt>(bodyDiff.getStmt())->body())
+    addToCurrentBlock(S);
+  CompoundStmt* body = endBlock();
+
+  return LBuilder.finish(body);
+}
+#endif // CLANG_VERSION_MAJOR
 
 void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
   // For each function parameter variable, store its derivative value.
@@ -340,6 +457,13 @@ void BaseForwardModeVisitor::GenerateSeeds(const clang::FunctionDecl* dFD) {
       int dValue = (param == m_IndependentVar);
       dParam =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, dValue);
+    } else if (dParamType->isRecordType()) {
+      // Zero, so that only the field the request names is seeded below; a
+      // default-initialized tangent would leave the other fields indeterminate.
+      // A class keeps its structure in its zero tangent: clad::zero_like.
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      dParam = BuildZeroAdjoint(BuildDeclRef(const_cast<ParmVarDecl*>(param)),
+                                dParamType);
     } else if (utils::isArrayOrPointerType(dParamType)) {
       // We cannot initialize a pointer array adjoint ourselves.
       // Produce an error.
@@ -466,6 +590,11 @@ StmtDiff BaseForwardModeVisitor::VisitStmt(const Stmt* S) {
   return StmtDiff(Clone(S));
 }
 
+StmtDiff BaseForwardModeVisitor::VisitAttributedStmt(const AttributedStmt* S) {
+  const Stmt* SubStmt = utils::SkipLikelihoodHints(S);
+  return SubStmt == S ? VisitStmt(S) : Visit(SubStmt);
+}
+
 StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
   ScopeRAII compoundScope(*this, Scope::DeclScope);
   beginBlock();
@@ -567,8 +696,11 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
   Expr* cond = Clone(CO->getCond());
   // FIXME: fix potential side-effects from evaluating both sides of
   // conditional.
+  ++m_ConditionalOperandDepth;
   StmtDiff ifTrueDiff = Visit(CO->getTrueExpr());
   StmtDiff ifFalseDiff = Visit(CO->getFalseExpr());
+  --m_ConditionalOperandDepth;
+  matchBranchTangents(ifTrueDiff, ifFalseDiff, CO->getType());
 
   cond = StoreAndRef(cond);
   cond = m_Sema
@@ -584,12 +716,20 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
           .get();
   if (condExpr->getType()->isVoidType())
     return StmtDiff(condExpr, nullptr);
+  // A branch without a tangent, such as a variable the useful analysis left
+  // without one, contributes zero.
+  Expr* trueDx = ifTrueDiff.getExpr_dx();
+  Expr* falseDx = ifFalseDiff.getExpr_dx();
+  if (!trueDx && !falseDx)
+    return StmtDiff(condExpr, nullptr);
+  if (!trueDx)
+    trueDx = getZeroInit(falseDx->getType());
+  if (!falseDx)
+    falseDx = getZeroInit(trueDx->getType());
   // cond is already used by the value conditional above; clone it for the
   // derivative conditional so the two do not share the stored condition.
   Expr* condExprDiff =
-      m_Sema
-          .ActOnConditionalOp(noLoc, noLoc, CloneNode(cond),
-                              ifTrueDiff.getExpr_dx(), ifFalseDiff.getExpr_dx())
+      m_Sema.ActOnConditionalOp(noLoc, noLoc, CloneNode(cond), trueDx, falseDx)
           .get();
 
   return StmtDiff(condExpr, condExprDiff);
@@ -714,7 +854,11 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
     // FIXME: Currently we only support logical and assignment operators.
     if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) ||
         condUO) {
+      // Evaluated once per iteration: a statement emitted for it would run
+      // once, before the loop.
+      ++m_ConditionalOperandDepth;
       condDiff = Visit(cond);
+      --m_ConditionalOperandDepth;
       if (condDiff.getExpr_dx() && (!isUnusedResult(condDiff.getExpr_dx())))
         cond = BuildOp(BO_Comma, BuildParens(condDiff.getExpr_dx()),
                        BuildParens(condDiff.getExpr()));
@@ -785,8 +929,16 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
 
 StmtDiff BaseForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // If there is no return value, we must not attempt to differentiate
-  if (!RS->getRetValue())
+  if (!RS->getRetValue()) {
+    // Unless the derivative has a return value of its own: a void primal
+    // whose tangent is its output parameter's. Dropping the statement would
+    // not merely lose the tangent on this path, it would lose the path --
+    // the derivative would carry on and write the output the primal left
+    // alone. Return the tangent as it stands here instead.
+    if (Expr* outputTangent = GetOutputParamTangent())
+      return StmtDiff(BuildReturnStmt(outputTangent));
     return nullptr;
+  }
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Stmt* returnStmt =
@@ -824,8 +976,22 @@ StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
     if (clad::utils::hasNonDifferentiableAttribute(ME))
       return {clonedME, zero};
     auto baseDiff = Visit(ME->getBase());
+    Expr* baseDx = baseDiff.getExpr_dx();
+    // A base without a tangent, such as a global pointer, leaves its member
+    // without one: a scalar reads as 0, anything else stays without. The base
+    // may alias varied data, so warn once per chain of members.
+    if (!baseDx) {
+      if (!isa<MemberExpr>(ME->getBase()->IgnoreParenImpCasts())) {
+        SourceLocation L = ME->getBeginLoc();
+        diag(DiagnosticsEngine::Warning, L,
+             "'%0' is accessed through an expression without a derivative; "
+             "its derivative is treated as 0")
+            << ME->getMemberDecl()->getName() << L;
+      }
+      return {clonedME, ME->getType()->isArithmeticType() ? zero : nullptr};
+    }
     // No derivative found for base. Therefore, derivative is 0.
-    if (baseDiff.getExpr_dx()->getType()->isVoidType())
+    if (baseDx->getType()->isVoidType())
       return {clonedME, zero};
 
     auto field = ME->getMemberDecl();
@@ -900,9 +1066,9 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     }
   } else if (isa<MemberExpr>(clonedBase->IgnoreParenImpCasts())) {
     auto derivedME = cloneDiff.getExpr_dx();
-    if (!isa<MemberExpr>(derivedME->IgnoreParenImpCasts())) {
+    // A member of a base without a tangent has none either.
+    if (!derivedME || !isa<MemberExpr>(derivedME->IgnoreParenImpCasts()))
       return {cloned, zero};
-    }
     auto* derivedAS = BuildArraySubscript(derivedME, derivedIndices());
     return {cloned, derivedAS};
   } else {
@@ -1014,10 +1180,14 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   // the derivative
   if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
     auto it = m_DeclReplacements.find(VD);
-    if (it != std::end(m_DeclReplacements))
+    if (it != std::end(m_DeclReplacements)) {
       clonedDRE = BuildDeclRef(it->second);
-    else
+      // Still where the user wrote it: diagnostics about the derivative point
+      // back through it.
+      clonedDRE->setLocation(DRE->getLocation());
+    } else {
       clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+    }
     // If current context is different than the context of the original
     // declaration (e.g. we are inside lambda), rebuild the DeclRefExpr
     // with Sema::BuildDeclRefExpr. This is required in some cases, e.g.
@@ -1081,6 +1251,43 @@ DiffMode BaseForwardModeVisitor::GetPushForwardMode() {
   return DiffMode::pushforward;
 }
 
+/// The element type of the vector of tangents \p T: a clad::array<E>, or an
+/// expression of them, whose widest floating element type gives it; the
+/// first element type, if none is floating. Null where T is neither.
+static QualType tangentElementType(QualType T) {
+  T = T.getNonReferenceType().getUnqualifiedType();
+  const auto* Spec = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+      T->getAsCXXRecordDecl());
+  if (!Spec)
+    return {};
+  if (Spec->getQualifiedNameAsString() == "clad::array")
+    return Spec->getTemplateArgs().get(0).getAsType();
+  QualType Found;
+  for (const TemplateArgument& Arg : Spec->getTemplateArgs().asArray()) {
+    QualType E = Arg.getKind() == TemplateArgument::Type
+                     ? tangentElementType(Arg.getAsType())
+                     : QualType();
+    if (E.isNull())
+      continue;
+    if (Found.isNull() ||
+        (E->isRealFloatingType() &&
+         (!Found->isRealFloatingType() ||
+          Spec->getASTContext().getFloatingTypeOrder(E, Found) > 0)))
+      Found = E;
+  }
+  return Found;
+}
+
+/// Whether \p dE is a tangent that is zero by its spelling: a literal zero,
+/// or in vector mode a vector of them.
+static bool isZeroTangent(const Expr* dE) {
+  if (utils::IsZeroOrNullValue(dE))
+    return true;
+  const auto* CE = dyn_cast<CallExpr>(dE->IgnoreImplicit());
+  const FunctionDecl* FD = CE ? CE->getDirectCallee() : nullptr;
+  return FD && FD->getQualifiedNameAsString() == "clad::zero_vector";
+}
+
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
@@ -1093,12 +1300,55 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // Calls to lambda functions are processed differently
   bool isLambda = isLambdaCallOperator(FD);
 
+#if CLANG_VERSION_MAJOR > 16
+  // Bind the captured values and derivatives to lambda's extra parameters.
+  if (isLambda) {
+    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+      const Expr* origCallee = OCE->getArg(0)->IgnoreParenImpCasts();
+      const VarDecl* lambdaVD = nullptr;
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(origCallee))
+        lambdaVD = dyn_cast<VarDecl>(DRE->getDecl());
+      const LambdaExpr* calledLambda = utils::getLambdaInit(lambdaVD);
+      if (calledLambda && calledLambda->capture_size() && lambdaVD) {
+        if (Expr* dgRef = getLambdaDerivative(lambdaVD)) {
+          llvm::SmallVector<Expr*, 8> args;
+          llvm::SmallVector<Expr*, 8> derivs;
+          for (unsigned i = 1, e = CE->getNumArgs(); i < e; ++i) {
+            StmtDiff argDiff = Visit(CE->getArg(i));
+            args.push_back(argDiff.getExpr());
+            derivs.push_back(argDiff.getExpr_dx());
+          }
+          args.append(derivs.begin(), derivs.end());
+          for (const LambdaCapture& Capture : calledLambda->captures()) {
+            auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+            auto [val, adjoint] = getCaptureValueAndAdjoint(
+                calledLambda, capVD, Capture.getCaptureKind() == LCK_ByCopy);
+            args.push_back(val);
+            args.push_back(adjoint);
+          }
+          Expr* call = m_Sema
+                           .ActOnCallExpr(getCurrentScope(), dgRef, validLoc,
+                                          args, validLoc)
+                           .get();
+          Expr* vap = StoreAndRef(call, "_t", /*forceDeclCreation=*/true);
+          Expr* value =
+              utils::BuildMemberExpr(m_Sema, getCurrentScope(), vap, "value");
+          Expr* pushforward = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                                     vap, "pushforward");
+          return StmtDiff(value, pushforward);
+        }
+      }
+    }
+  }
+#endif // CLANG_VERSION_MAJOR
+
   Expr* CUDAExecConfig = nullptr;
   if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
     CUDAExecConfig = Clone(KCE->getConfig());
 
   // If the function is non_differentiable, return zero derivative.
   if (clad::utils::hasNonDifferentiableAttribute(CE)) {
+    warnIfNumDiffDerivative(CE);
     // Calling the function without computing derivatives
     llvm::SmallVector<Expr*, 4> ClonedArgs;
     for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i)
@@ -1196,7 +1446,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 
   // For f(g(x)) = f'(x) * g'(x)
   std::size_t numParams = FD->getNumParams();
-  Expr* Multiplier = nullptr;
   for (size_t i = skipFirstArg, e = CE->getNumArgs(); i < e; ++i) {
     const Expr* arg = CE->getArg(i);
     StmtDiff argDiff = Visit(arg);
@@ -1280,10 +1529,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
                 Expr* safeBase = const_cast<Expr*>(arg->IgnoreParens());
 
-                // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-                Expr* subExpr = new (m_Context)
-                    ArraySubscriptExpr(safeBase, idxExpr, elemType, VK_LValue,
-                                       OK_Ordinary, CE->getBeginLoc());
+                Expr* subExpr = BuildArraySubscript(
+                    safeBase, idxExpr, CE->getBeginLoc(), CE->getBeginLoc());
 
                 StmtDiff subDiff = Visit(subExpr);
                 Expr* subDx = subDiff.getExpr_dx();
@@ -1329,7 +1576,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           if (pointeeTy.isConstQualified())
             zeroTy = m_Context.getPointerType(pointeeTy.getUnqualifiedType());
         }
-        dArg = getZeroInit(zeroTy);
+        // A class keeps its structure in its zero tangent: clad::zero_like.
+        dArg = BuildZeroAdjoint(CloneNode(argDiff.getExpr()), zeroTy);
       }
       // The callee null checks the tangent it is handed.
       dArg = KeepTangentNullness(arg, dArg);
@@ -1392,7 +1640,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     pushforwardFnRequest.inheritAnalysesFrom(m_DiffReq);
 
     FunctionDecl* pushforwardFD = nullptr;
-    if (m_DiffReq.CurrentDerivativeOrder != 1 || !m_DiffReq.CallContext) {
+    bool unplannedBody = m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(
+        m_DiffReq.Function);
+    if (m_DiffReq.CurrentDerivativeOrder != 1 || !m_DiffReq.CallContext ||
+        unplannedBody) {
       callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
           pushforwardFnRequest.ComputeDerivativeName(), pushforwardFnArgs,
           getCurrentScope(), CE,
@@ -1405,6 +1656,20 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     } else
       // Request the derivative
       pushforwardFD = FindDerivedFunction(pushforwardFnRequest);
+    // A custom pushforward marked CLAD_NOOP_DERIVATIVE says that the call has
+    // no tangent; it needs no definition and is not called.
+    if (pushforwardFD && utils::hasNoopDerivativeAttribute(pushforwardFD) &&
+        !isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE)) {
+      Expr* call =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                             validLoc, llvm::MutableArrayRef<Expr*>(CallArgs),
+                             validLoc, CUDAExecConfig)
+              .get();
+      if (CE->getType()->isVoidType())
+        return StmtDiff(call);
+      return StmtDiff(call, getZeroInit(CE->getType()));
+    }
     if (pushforwardFD) {
       if (Expr* baseE = baseDiff.getExpr())
         pushforwardFnArgs.insert(pushforwardFnArgs.begin(), baseE);
@@ -1416,28 +1681,262 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // If clad failed to derive it, try finding its derivative using
   // numerical diff.
   if (!callDiff) {
-    Multiplier = diffArgs.empty() ? nullptr : diffArgs[0];
+    // The primal call and the numerical derivative each evaluate the
+    // arguments, the latter several times, so an argument with side effects
+    // is evaluated once, beforehand. Where the call is evaluated only on some
+    // paths, or once per iteration, beforehand would be once on every path,
+    // and in place several times: there the call keeps its arguments and gets
+    // no numerical derivative.
+    bool Enabled = m_DiffReq.EnableNumericalDiffFallback;
+    bool NumDiffViable = utils::GetNumDiffTarget(m_Sema, FD, CE) != nullptr;
+    // Refused for this call alone, which passes arguments past the
+    // parameters: GetNumDiffCallee says so.
+    if (!NumDiffViable && Enabled)
+      GetNumDiffCallee(FD, /*Callee=*/nullptr, CE);
+    auto hasEffects = [&](const Expr* Arg) {
+      return Arg->HasSideEffects(m_Context, /*IncludePossibleEffects=*/false);
+    };
+    // Which arguments get a term: one of a differentiable type, whose tangent
+    // may not be zero, passed to a parameter of a real floating type. An
+    // inactive argument adds nothing, and stepping it could reach a value
+    // where the function is not defined; a tangent that is zero only when the
+    // code runs -- a parameter not differentiated, a local held at a constant
+    // -- is left to the term, which then takes no step. An integer parameter
+    // cannot take the step at all: it rounds to a whole one. diffArgs holds a
+    // tangent for each argument of a differentiable type.
+    struct ArgTerm {
+      Expr** Tangent = nullptr; ///< In diffArgs, if it has one.
+      QualType SteppedAs;       ///< Its parameter's type, if it gets a term.
+    };
+    llvm::SmallVector<ArgTerm, 4> Terms(CallArgs.size());
+    bool AnyTerm = false;
+    {
+      llvm::MutableArrayRef<Expr*> Tangents = diffArgs;
+      // The index and the value of each, rather than a binding of the pair:
+      // LLVM before 16 has none for it.
+      for (auto E : llvm::enumerate(Terms)) {
+        std::size_t Pos = E.index();
+        ArgTerm& T = E.value();
+        if (Tangents.empty())
+          break;
+        if (!utils::IsDifferentiableType(CE->getArg(Pos)->getType()))
+          continue;
+        T.Tangent = &Tangents.front();
+        Tangents = Tangents.drop_front();
+        // An enumeration's tangent is not a number the partial can scale, nor
+        // a vector of them -- an expression of one with others is.
+        QualType dTy = (*T.Tangent)->getType();
+        if (const auto* Spec =
+                dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+                    dTy->getAsCXXRecordDecl());
+            Spec && Spec->getQualifiedNameAsString() == "clad::array")
+          dTy = Spec->getTemplateArgs().get(0).getAsType();
+        if (Pos >= FD->getNumParams() || isZeroTangent(*T.Tangent) ||
+            dTy->isEnumeralType())
+          continue;
+        QualType ParamTy = FD->getParamDecl(Pos)
+                               ->getType()
+                               .getNonReferenceType()
+                               .getUnqualifiedType();
+        if (!ParamTy->isRealFloatingType())
+          continue;
+        T.SteppedAs = ParamTy;
+        AnyTerm = true;
+      }
+    }
+    // The call and each term evaluate the arguments, the terms several times
+    // over, so one with side effects is evaluated once, beforehand, and so is
+    // one that calls something, which may change what it gives. Where the
+    // call is evaluated only on some paths, or once per iteration, beforehand
+    // would be once on every path: there one with side effects gets no
+    // numerical derivative, and one that calls something is evaluated in
+    // place.
+    auto callsSomething = [](const Expr* E) {
+      llvm::SmallVector<const Stmt*, 8> Work = {E};
+      while (!Work.empty()) {
+        const Stmt* S = Work.pop_back_val();
+        if (isa<CallExpr, CXXConstructExpr, CXXBindTemporaryExpr>(S))
+          return true;
+        for (const Stmt* Child : S->children())
+          if (Child)
+            Work.push_back(Child);
+      }
+      return false;
+    };
+    auto onceBeforehand = [&](const Expr* Arg) {
+      return hasEffects(Arg) || (AnyTerm && callsSomething(Arg));
+    };
+    // In place, an argument that calls something would be evaluated again by
+    // every term, and a call of several arguments has several.
+    auto unsupportedInPlace = [&](const Expr* Arg) {
+      return hasEffects(Arg) ||
+             (CallArgs.size() > 1 && AnyTerm && callsSomething(Arg));
+    };
+    // A braced argument has no type to be stored as.
+    auto braced = [](const Expr* Arg) {
+      return isa<InitListExpr>(Arg->IgnoreImplicit());
+    };
+    // Off, the call gets no numerical derivative either way, and is not
+    // told why.
+    if (NumDiffViable && m_ConditionalOperandDepth &&
+        llvm::any_of(CallArgs, unsupportedInPlace)) {
+      if (Enabled)
+        diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+             "numerical differentiation of %0 is not supported here: its "
+             "arguments %select{call something|have side effects}1, and the "
+             "call is evaluated only on some paths, or once per iteration; "
+             "considering its derivative as 0")
+            << FD << llvm::any_of(CallArgs, hasEffects);
+      NumDiffViable = false;
+    } else if (NumDiffViable && llvm::any_of(CallArgs, braced) &&
+               llvm::any_of(CallArgs, onceBeforehand)) {
+      // Evaluating the arguments beforehand would store each of them.
+      if (Enabled)
+        diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+             "numerical differentiation of %0 is not supported here: its "
+             "arguments %select{call something|have side effects}1, so they "
+             "are evaluated beforehand, which a braced one cannot be; "
+             "considering its derivative as 0")
+            << FD << llvm::any_of(CallArgs, hasEffects);
+      NumDiffViable = false;
+    } else if (NumDiffViable && Enabled && !m_ConditionalOperandDepth &&
+               llvm::any_of(CallArgs, onceBeforehand)) {
+      // Every argument is then evaluated beforehand, in order and by value,
+      // as the call would: one left in place would read what a later one
+      // changes. So is its tangent, before it, as for a statement: it reads
+      // the values its argument changes. In vector mode a tangent is kept as
+      // a vector: an expression of vectors refers to temporaries that would
+      // be gone.
+      for (auto E : llvm::enumerate(llvm::zip(CallArgs, Terms))) {
+        std::size_t Pos = E.index();
+        auto [Arg, T] = E.value();
+        if (Expr** dArg = T.Tangent; dArg && !isZeroTangent(*dArg) &&
+                                     !(*dArg)->isEvaluatable(m_Context)) {
+          QualType dTy = (*dArg)->getType();
+          if (dTy->isRecordType() && Pos < FD->getNumParams())
+            *dArg = StoreAndRef(
+                *dArg,
+                utils::GetCladArrayOfType(
+                    m_Sema, utils::GetNonConstValueType(
+                                FD->getParamDecl(Pos)->getType())),
+                getCurrentBlock(), "_t", /*forceDeclCreation=*/true);
+          else
+            *dArg = StoreAndRef(
+                *dArg, clad_compat::stripPredefinedSugar((*dArg)->getType()),
+                getCurrentBlock(), "_t", /*forceDeclCreation=*/true);
+        }
+        if (onceBeforehand(Arg) || !Arg->isEvaluatable(m_Context))
+          Arg = StoreAndRef(Arg,
+                            clad_compat::stripPredefinedSugar(Arg->getType()),
+                            getCurrentBlock(), "_t",
+                            /*forceDeclCreation=*/true);
+      }
+    }
+    // Where the call would fall back, the derivative depends on whether it
+    // does, off as well as on: a request asking the other way must not reuse
+    // it.
+    if (NumDiffViable)
+      m_Builder.noteFallbackDecision();
+    NumDiffViable = NumDiffViable && Enabled;
     Expr* call =
         m_Sema
             .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), validLoc,
                            llvm::MutableArrayRef<Expr*>(CallArgs), validLoc,
                            CUDAExecConfig)
             .get();
-    // FIXME: Extend this for multiarg support
-    // Check if the function is eligible for numerical differentiation.
-    if (CE->getNumArgs() == 1 && utils::IsRealFunction(FD)) {
-      Expr* fnCallee = cast<CallExpr>(call)->getCallee();
-      callDiff =
-          GetSingleArgCentralDiffCall(fnCallee, CallArgs[0],
-                                      /*targetPos=*/0, /*numArgs=*/1, CallArgs);
+    // The tangent of the call is each partial derivative times the tangent of
+    // its argument, summed over the arguments that have one.
+    if (NumDiffViable) {
+      Expr* fnCallee =
+          GetNumDiffCallee(FD, cast<CallExpr>(call)->getCallee(), CE);
+      for (auto E : llvm::enumerate(llvm::zip(CallArgs, Terms))) {
+        std::size_t Pos = E.index();
+        auto [Arg, T] = E.value();
+        if (T.SteppedAs.isNull())
+          continue;
+        // Stepped as the parameter it is passed to: an integer passed to a
+        // double is a double there, in the arguments the step is taken among
+        // too.
+        Expr* Stepped = Arg;
+        if (!clad_compat::hasSameUnqualifiedType(m_Context, Arg->getType(),
+                                                 T.SteppedAs))
+          Stepped =
+              m_Sema
+                  .BuildCStyleCastExpr(
+                      noLoc, m_Context.getTrivialTypeSourceInfo(T.SteppedAs),
+                      noLoc, BuildParens(Arg))
+                  .get();
+        llvm::SmallVector<Expr*, 4> TermArgs;
+        for (auto Other : llvm::enumerate(CallArgs))
+          TermArgs.push_back(Other.index() == Pos ? Stepped : Other.value());
+        Expr* term = GetSingleArgCentralDiffCall(
+            fnCallee, Stepped, Pos, /*numArgs=*/TermArgs.size(), TermArgs,
+            /*CUDAExecConfig=*/nullptr, /*targetTangent=*/*T.Tangent);
+        // Off, or not numbers: no part of the call has a derivative.
+        if (!term) {
+          callDiff = nullptr;
+          break;
+        }
+        // In vector mode the partial times the vector of tangents, left as an
+        // expression of them: it converts to whatever vector the code around
+        // it has.
+        if ((*T.Tangent)->getType()->isRecordType())
+          term = BuildOp(BO_Mul, term, BuildParens(Clone(*T.Tangent)));
+        callDiff = callDiff ? BuildOp(BO_Add, callDiff, term) : term;
+      }
+      // In scalar mode the call's tangent is of the call's type, as the code
+      // around it expects: a float or an integer callee's does not narrow in
+      // a braced pushforward, and an integer one's is truncated as clad's own
+      // derivative of such a function would be. In vector mode a call of one
+      // argument has its term left an expression, as it was: it converts to
+      // whatever vector the code around it has. One of several has it built
+      // into a vector of the widest floating type the arguments' tangents
+      // hold: an expression refers to the partials, which would be gone where
+      // clad stores it, as for a compound assignment.
+      QualType RetTy = utils::GetNonConstValueType(FD->getReturnType());
+      if (callDiff && callDiff->getType()->isRecordType()) {
+        if (CallArgs.size() > 1) {
+          QualType Elem;
+          for (const ArgTerm& T : Terms) {
+            if (T.SteppedAs.isNull())
+              continue;
+            QualType E = tangentElementType((*T.Tangent)->getType());
+            if (!E.isNull() && E->isRealFloatingType() &&
+                (Elem.isNull() || m_Context.getFloatingTypeOrder(E, Elem) > 0))
+              Elem = E;
+          }
+          if (Elem.isNull())
+            Elem = m_Context.DoubleTy;
+          QualType ArrTy = utils::GetCladArrayOfType(m_Sema, Elem);
+          callDiff = BuildFunctionalCast(
+              m_Context.getTrivialTypeSourceInfo(ArrTy), ArrTy, callDiff);
+        }
+      } else if (callDiff && RetTy->isArithmeticType() &&
+                 !RetTy->isEnumeralType() &&
+                 !clad_compat::hasSameUnqualifiedType(
+                     m_Context, callDiff->getType(), RetTy)) {
+        callDiff = m_Sema
+                       .BuildCStyleCastExpr(
+                           noLoc, m_Context.getTrivialTypeSourceInfo(RetTy),
+                           noLoc, BuildParens(callDiff))
+                       .get();
+      }
     }
     if (!callDiff) {
+      // The call is active, so a zero here drops a contribution. A callee
+      // without a definition was diagnosed when requested, and after an error
+      // the derivative is unusable anyway.
+      if (FD->isDefined() && !m_Sema.getDiagnostics().hasErrorOccurred()) {
+        SourceLocation L = CE->getBeginLoc();
+        diag(DiagnosticsEngine::Warning, L,
+             "no pushforward of %0 was derived; its contribution to the "
+             "derivative is considered 0")
+            << FD << L;
+      }
       auto zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
       return StmtDiff(call, zero);
     }
-    if (Multiplier)
-      callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
     return {call, callDiff};
   }
 
@@ -1456,7 +1955,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
   StmtDiff diff = Visit(UnOp->getSubExpr());
   auto opKind = UnOp->getOpcode();
-  Expr* op = BuildOp(opKind, diff.getExpr());
+  Expr* op = opKind == UO_AddrOf ? RebuildAddrOf(diff.getExpr())
+                                 : BuildOp(opKind, diff.getExpr());
   // If opKind is unary plus or minus, apply that op to derivative.
   // Otherwise, the derivative is 0.
   // FIXME: add support for other unary operators
@@ -1499,10 +1999,22 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     // A subexpression without a tangent of its own (e.g. an object that does
     // not depend on the differentiation variable) yields a synthesized zero
     // init, which is an rvalue and has no address.
-    if (derivedOp && !derivedOp->getType()->isVoidType())
-      derivedOp = BuildOp(opKind, derivedOp);
-    else
+    if (derivedOp && !derivedOp->getType()->isVoidType()) {
+      auto* CO = dyn_cast<ConditionalOperator>(derivedOp->IgnoreParens());
+      Expr* read = CO ? CO->getTrueExpr()->IgnoreImpCasts() : nullptr;
+      if (CO && CO->isPRValue() && read->isLValue()) {
+        Expr* addr = BuildOp(opKind, read);
+        derivedOp = BuildParens(
+            m_Sema
+                .ActOnConditionalOp(noLoc, noLoc, CO->getCond(), addr,
+                                    getZeroInit(addr->getType()))
+                .get());
+      } else {
+        derivedOp = RebuildAddrOf(derivedOp);
+      }
+    } else {
       derivedOp = nullptr;
+    }
     return StmtDiff(op, derivedOp);
   } else if (opKind == UnaryOperatorKind::UO_LNot) {
     Expr* zero = getZeroInit(UnOp->getType());
@@ -1525,7 +2037,11 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
 StmtDiff
 BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
   StmtDiff Ldiff = Visit(BinOp->getLHS());
+  // The right side of `&&` and `||` is evaluated only on some paths.
+  bool RHSConditional = BinOp->isLogicalOp();
+  m_ConditionalOperandDepth += RHSConditional;
   StmtDiff Rdiff = Visit(BinOp->getRHS());
+  m_ConditionalOperandDepth -= RHSConditional;
 
   // Fold the derivative expression algebraically. Forward mode carries one
   // seeded direction, so most tangents reaching an operator are a constant
@@ -1676,7 +2192,32 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       // the ordering of the stored references is the point here.)
       auto LdiffExprDx = StoreAndRef(Ldiff.getExpr_dx());
       Ldiff = {StoreAndRef(Ldiff.getExpr()), LdiffExprDx};
-      auto RdiffExprDx = StoreAndRef(Rdiff.getExpr_dx());
+      // In vector mode an expression of vectors may refer to temporaries, as
+      // a numerically differentiated call's partials: stored, it is kept as a
+      // vector, of the wider floating type of the two sides' tangents, as the
+      // primal's product is; double where neither is floating.
+      Expr* RdiffExprDx = nullptr;
+      QualType RdxTy = Rdiff.getExpr_dx()->getType();
+      QualType RdxElem = tangentElementType(RdxTy);
+      if (!RdxElem.isNull()) {
+        QualType LElem = tangentElementType(Ldiff.getExpr_dx()->getType());
+        if (!RdxElem->isRealFloatingType())
+          RdxElem = QualType();
+        if (!LElem.isNull() && LElem->isRealFloatingType() &&
+            (RdxElem.isNull() ||
+             m_Context.getFloatingTypeOrder(LElem, RdxElem) > 0))
+          RdxElem = LElem;
+        if (RdxElem.isNull())
+          RdxElem = m_Context.DoubleTy;
+      }
+      const auto* RdxRD = RdxTy->getAsCXXRecordDecl();
+      if (!RdxElem.isNull() && RdxRD &&
+          RdxRD->getQualifiedNameAsString() != "clad::array")
+        RdiffExprDx = StoreAndRef(
+            Rdiff.getExpr_dx(), utils::GetCladArrayOfType(m_Sema, RdxElem),
+            getCurrentBlock(), "_t", /*forceDeclCreation=*/true);
+      else
+        RdiffExprDx = StoreAndRef(Rdiff.getExpr_dx());
       Rdiff = {StoreAndRef(Rdiff.getExpr()), RdiffExprDx};
       // deriveMul/deriveDiv reuse Ldiff.getExpr_dx() (the stored derivative
       // ref) on the right-hand side; clone it for the assignment target so the
@@ -1823,6 +2364,67 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       // operator() body -- into the derivative. Rebuild it with a fresh closure
       // instead; the call's pushforward is regenerated for that closure in
       // VisitCallExpr, so it still resolves.
+#if CLANG_VERSION_MAJOR > 16
+      // Synthesize a captureless primal and its pushforward.
+      if (typeDecl->isLambda() &&
+          !clad::utils::hasNonDifferentiableAttribute(typeDecl)) {
+        const LambdaExpr* LE = utils::getLambdaInit(VD);
+        if (LE && diagnoseUnsupportedLambda(LE))
+          return {};
+        if (LE && LE->capture_size()) {
+          // Snapshot each by value capture at creation so a later mutation of
+          // the enclosing variable is not observed.
+          llvm::SmallVector<Decl*, 4> lambdaDecls;
+          for (const LambdaCapture& Capture : LE->captures()) {
+            if (!Capture.capturesVariable() ||
+                Capture.getCaptureKind() != LCK_ByCopy)
+              continue;
+            auto* capVD = cast<VarDecl>(Capture.getCapturedVar());
+            const FieldDecl* field = getCaptureField(LE, capVD);
+            if (m_LambdaCaptureSnapshots.contains(field))
+              continue;
+            VarDecl* encVD = getEnclosingCaptureClone(capVD);
+            QualType valTy = utils::getNonConstType(
+                capVD->getType().getNonReferenceType(), m_Sema);
+            VarDecl* snap = BuildVarDecl(valTy, "_t", BuildDeclRef(encVD));
+            Expr* encDx = nullptr;
+            auto vit = m_Variables.find(encVD);
+            if (vit != m_Variables.end())
+              encDx = buildAdjoint(vit->second);
+            VarDecl* dsnap =
+                BuildVarDecl(valTy, "_d_t", encDx ? encDx : getZeroInit(valTy));
+            m_Variables[snap] = {dsnap};
+            m_LambdaCaptureSnapshots.try_emplace(field, snap);
+            lambdaDecls.push_back(snap);
+            lambdaDecls.push_back(dsnap);
+          }
+
+          DiffRequest lambdaReq = m_DiffReq;
+          lambdaReq.Function = LE->getCallOperator();
+          lambdaReq.Functor = LE->getLambdaClass();
+
+          Expr* primalE = buildClonedLambda(LE);
+          QualType AutoTy = m_Context.getAutoDeductType();
+          TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(AutoTy);
+          VarDecl* g = BuildVarDecl(AutoTy, VD->getNameAsString(), primalE,
+                                    VD->isDirectInit(), TSI);
+          m_DeclReplacements[VD] = g;
+
+          DiffRequest pushforwardReq = lambdaReq;
+          pushforwardReq.Mode = GetPushForwardMode();
+          PushForwardModeVisitor PushforwardVisitor(m_Builder, pushforwardReq);
+          Expr* pushforwardE = PushforwardVisitor.buildPushforwardLambda(LE);
+          VarDecl* dg = BuildVarDecl(pushforwardE->getType(),
+                                     "_d_" + VD->getNameAsString(),
+                                     pushforwardE, VD->isDirectInit());
+          m_Variables[g] = {dg};
+
+          lambdaDecls.push_back(g);
+          lambdaDecls.push_back(dg);
+          return StmtDiff(BuildDeclStmt(lambdaDecls), nullptr);
+        }
+      }
+#endif // CLANG_VERSION_MAJOR
       for (auto* D : DS->decls()) {
         assert(isa<VarDecl>(D) && "Mixed decl types in a single decl stmt is "
                                   "not standard c++ syntax");
@@ -1886,8 +2488,9 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       //   double _d_y = x; // copied from original funcion, collides with
       //   _d_y
       // }
-      if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
-        m_DeclReplacements[VD] = VDDiff.getDecl();
+      // Recorded whether or not the name changed, as reverse mode does: a
+      // lambda capturing the variable finds its clone here.
+      m_DeclReplacements[VD] = VDDiff.getDecl();
       decls.push_back(VDDiff.getDecl());
       if (VDDiff.getDecl_dx())
         declsDiff.push_back(VDDiff.getDecl_dx());
@@ -1928,8 +2531,11 @@ StmtDiff BaseForwardModeVisitor::VisitCXXFunctionalCastExpr(
   StmtDiff castExprDiff = Visit(FCE->getSubExpr());
   Expr* clonedFCE = BuildFunctionalCast(FCE->getTypeInfoAsWritten(),
                                         FCE->getType(), castExprDiff.getExpr());
-  Expr* derivedFCE = BuildFunctionalCast(
-      FCE->getTypeInfoAsWritten(), FCE->getType(), castExprDiff.getExpr_dx());
+  Expr* dx = castExprDiff.getExpr_dx();
+  if (Expr* castDx = castTangent(dx, FCE))
+    return {clonedFCE, castDx};
+  Expr* derivedFCE =
+      BuildFunctionalCast(FCE->getTypeInfoAsWritten(), FCE->getType(), dx);
   return {clonedFCE, derivedFCE};
 }
 
@@ -1943,6 +2549,8 @@ BaseForwardModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
                            CSCE->getLParenLoc(), CSCE->getTypeInfoAsWritten(),
                            CSCE->getRParenLoc(), subExprDiff.getExpr())
                        .get();
+  if (Expr* castDx = castTangent(subExprDiff.getExpr_dx(), CSCE))
+    return StmtDiff(castExpr, castDx);
   Expr* castExprDiff =
       m_Sema
           .BuildCStyleCastExpr(CSCE->getLParenLoc(),
@@ -2004,6 +2612,8 @@ BaseForwardModeVisitor::VisitCXXNamedCastExpr(const CXXNamedCastExpr* NCE) {
   // A subexpression without a tangent (e.g. the address of an object that
   // does not depend on the differentiation variable) has nothing to cast.
   Expr* subExprDx = subExprDiff.getExpr_dx();
+  if (Expr* castDx = castTangent(subExprDx, NCE))
+    return StmtDiff(castExpr, castDx);
   Expr* castExprDiff = nullptr;
   if (subExprDx && !subExprDx->getType()->isVoidType())
     castExprDiff =
@@ -2085,7 +2695,11 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
     // FIXME: Currently we only support logical and assignment operators.
     if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) ||
         condUO) {
+      // Evaluated once per iteration: a statement emitted for it would run
+      // once, before the loop.
+      ++m_ConditionalOperandDepth;
       StmtDiff condDiff = Visit(cond);
+      --m_ConditionalOperandDepth;
       // After Visit(cond) is called the derivative could either be recorded in
       // condDiff.getExpr() or condDiff.getExpr_dx(), hence we should build cond
       // differently which is implemented below visiting statements like "(x=0)"
@@ -2164,12 +2778,13 @@ StmtDiff BaseForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
 }
 
 /// returns first switch case label contained in the compound statement `CS`.
-static SwitchCase* getContainedSwitchCaseStmt(const CompoundStmt* CS) {
-  for (Stmt* stmt : CS->body()) {
+static const SwitchCase* getContainedSwitchCaseStmt(const CompoundStmt* CS) {
+  for (const Stmt* stmt : CS->body()) {
+    stmt = utils::SkipLikelihoodHints(stmt);
     if (auto SC = dyn_cast<SwitchCase>(stmt))
       return SC;
     else if (auto nestedCS = dyn_cast<CompoundStmt>(stmt)) {
-      if (SwitchCase* nestedRes = getContainedSwitchCaseStmt(nestedCS))
+      if (const SwitchCase* nestedRes = getContainedSwitchCaseStmt(nestedCS))
         return nestedRes;
     }
   }
@@ -2232,14 +2847,14 @@ StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
   // It will always be equal to the last visited case/default label.
   SwitchCase* activeSC = nullptr;
 
-  if (auto CS = dyn_cast<CompoundStmt>(SS->getBody())) {
+  const Stmt* SwitchBody = utils::SkipLikelihoodHints(SS->getBody());
+  if (auto CS = dyn_cast<CompoundStmt>(SwitchBody)) {
     // Visit(CS) cannot be used because then we will not be easily able to
     // determine when active switch case label should be changed.
-    for (Stmt* stmt : CS->body()) {
+    for (const Stmt* stmt : CS->body())
       activeSC = DeriveSwitchStmtBodyHelper(stmt, activeSC);
-    }
   } else {
-    activeSC = DeriveSwitchStmtBodyHelper(SS->getBody(), activeSC);
+    activeSC = DeriveSwitchStmtBodyHelper(SwitchBody, activeSC);
   }
 
   // scope and block of the last switch case label is not popped in
@@ -2271,6 +2886,7 @@ StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
 SwitchCase*
 BaseForwardModeVisitor::DeriveSwitchStmtBodyHelper(const Stmt* stmt,
                                                    SwitchCase* activeSC) {
+  stmt = utils::SkipLikelihoodHints(stmt);
   if (auto SC = dyn_cast<SwitchCase>(stmt)) {
     // New switch case label have been visited. Pop the scope and block
     // corresponding to the active switch case label, and update its
@@ -2365,6 +2981,131 @@ StmtDiff BaseForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
   return StmtDiff(Clone(stmt));
 }
 
+/// Whether a value of type \p T holds nothing a derivative could flow
+/// through: no floating-point data, directly or behind a pointer.
+static bool
+holdsNoDifferentiableData(QualType T,
+                          llvm::SmallPtrSetImpl<const RecordDecl*>& Visited) {
+  T = T.getNonReferenceType().getCanonicalType();
+  while (utils::isArrayOrPointerType(T))
+    T = utils::GetValueType(T).getCanonicalType();
+  if (T->isIntegralOrEnumerationType())
+    return true;
+  const auto* RD = T->getAsCXXRecordDecl();
+  if (!RD || !RD->hasDefinition())
+    return false;
+  // A type reached again through a pointer is judged by its first visit.
+  if (!Visited.insert(RD).second)
+    return true;
+  for (const CXXBaseSpecifier& B : RD->bases())
+    if (!holdsNoDifferentiableData(B.getType(), Visited))
+      return false;
+  for (const FieldDecl* FD : RD->fields())
+    if (!holdsNoDifferentiableData(FD->getType(), Visited))
+      return false;
+  return true;
+}
+
+static bool holdsNoDifferentiableData(QualType T) {
+  llvm::SmallPtrSet<const RecordDecl*, 4> Visited;
+  return holdsNoDifferentiableData(T, Visited);
+}
+
+Expr* BaseForwardModeVisitor::FillMissingCtorTangents(
+    const Expr* E, llvm::ArrayRef<const Expr*> args,
+    llvm::ArrayRef<Expr*> clonedArgs,
+    llvm::MutableArrayRef<Expr*> derivedArgs) {
+  if (llvm::all_of(derivedArgs, [](const Expr* dArg) { return dArg; }))
+    return nullptr;
+  // Vector mode's tangent of an object is a vector of them, which none of the
+  // stand-ins below is: there an object built from one without a tangent has
+  // none.
+  if (m_DiffReq.Mode == DiffMode::vector_forward_mode ||
+      m_DiffReq.Mode == DiffMode::vector_pushforward)
+    return nullptr;
+  // Built only from data without a derivative, e.g. std::string(const char*),
+  // the object has the zero one. Building it from tangents instead would run
+  // the constructor on whatever stands in for the missing ones.
+  bool inert = llvm::all_of(args, [](const Expr* arg) {
+    return holdsNoDifferentiableData(arg->getType());
+  });
+  const CXXRecordDecl* ObjRD = E->getType()->getAsCXXRecordDecl();
+  if (inert && ObjRD && ObjRD->hasDefinition() && !ObjRD->isAbstract() &&
+      (ObjRD->isAggregate() || ObjRD->hasDefaultConstructor()))
+    return m_Sema
+        .ActOnCXXTypeConstructExpr(
+            OpaquePtr<QualType>::make(E->getType().getUnqualifiedType()),
+            GenLoc(), {}, GenLoc(), /*ListInitialization=*/true)
+        .get();
+
+  for (unsigned i = 0, e = args.size(); i < e; ++i) {
+    if (derivedArgs[i])
+      continue;
+    const Expr* arg = args[i];
+    QualType T = arg->getType().getNonReferenceType();
+    SourceLocation L = arg->getBeginLoc();
+    if (T->isPointerType() || T->isArrayType()) {
+      // Next to arguments that do carry a derivative, a pointer to data
+      // without one keeps its primal value: unlike a pushforward, a
+      // constructor does not null check what it gets.
+      if (holdsNoDifferentiableData(T)) {
+        // Unless the construction is rejected below anyway. Through a
+        // pointer to non-const the constructor could change what the
+        // program sees, twice, so that is an error.
+        if (!inert) {
+          bool readOnly = utils::GetValueType(T).isConstQualified();
+          diag(readOnly ? DiagnosticsEngine::Warning : DiagnosticsEngine::Error,
+               L,
+               "the derivative of this construction is built on the same "
+               "pointer; what its constructor and destructor do through it "
+               "happens twice%select{; pass a pointer to const if it only "
+               "reads through it|}0")
+              << readOnly << L;
+        }
+        derivedArgs[i] = Clone(clonedArgs[i]);
+        continue;
+      }
+      // A pointer to differentiable data has a tangent clad cannot invent:
+      // neither null nor the primal pointer would be right.
+      diag(DiagnosticsEngine::Error, L,
+           "cannot derive this construction: the pointer argument has no "
+           "derivative")
+          << L;
+      // Only to keep building without cascading errors.
+      derivedArgs[i] = Clone(clonedArgs[i]);
+      continue;
+    }
+    // An object gets a zero one of its own, which also binds to a reference
+    // parameter.
+    if (const CXXRecordDecl* RD = T->getAsCXXRecordDecl()) {
+      T = T.getUnqualifiedType();
+      if (!RD->hasDefinition() || RD->isAbstract() ||
+          !(RD->isAggregate() || RD->hasDefaultConstructor())) {
+        diag(DiagnosticsEngine::Error, L,
+             "cannot derive this construction: the argument has no "
+             "derivative and %0 has no zero value")
+            << T << L;
+        derivedArgs[i] = Clone(clonedArgs[i]);
+        continue;
+      }
+      VarDecl* Zero = BuildVarDecl(T, "_d_arg", getZeroInit(T));
+      addToCurrentBlock(BuildDeclStmt(Zero));
+      derivedArgs[i] = BuildDeclRef(Zero);
+      continue;
+    }
+    derivedArgs[i] = getZeroInit(T);
+  }
+  if (inert) {
+    // The object has no zero value to stand for its derivative.
+    SourceLocation L = E->getBeginLoc();
+    diag(DiagnosticsEngine::Error, L,
+         "cannot derive this construction: its arguments have no derivative "
+         "and %0 has no zero value")
+        << E->getType().getUnqualifiedType() << L;
+  }
+  return nullptr;
+}
+
 StmtDiff
 BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
   llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
@@ -2373,9 +3114,14 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
+  llvm::SmallVector<const Expr*, 4> origArgs(CE->arguments());
+  Expr* zeroObj =
+      FillMissingCtorTangents(CE, origArgs, clonedArgs, derivedArgs);
 
   Expr* pushforwardCall =
-      BuildCustomDerivativeConstructorPFCall(CE, clonedArgs, derivedArgs);
+      zeroObj
+          ? nullptr
+          : BuildCustomDerivativeConstructorPFCall(CE, clonedArgs, derivedArgs);
   if (pushforwardCall) {
     auto valueAndPushforwardE = StoreAndRef(pushforwardCall);
     Expr* valueE = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
@@ -2413,11 +3159,11 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
       // flexible in terms of conversions and other similar scenarios where a
       // constructor is called implicitly.
       clonedArgsE = BuildInitList(clonedArgs);
-      derivedArgsE = BuildInitList(derivedArgs);
+      derivedArgsE = zeroObj ? zeroObj : BuildInitList(derivedArgs);
     }
   } else {
     clonedArgsE = clonedArgs[0];
-    derivedArgsE = derivedArgs[0];
+    derivedArgsE = zeroObj ? zeroObj : derivedArgs[0];
   }
   // `CXXConstructExpr` node will be created automatically by passing these
   // initialiser to higher level `ActOn`/`Build` Sema functions.
@@ -2452,18 +3198,24 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
+  llvm::SmallVector<const Expr*, 4> origArgs(TOE->arguments());
+  Expr* zeroObj =
+      FillMissingCtorTangents(TOE, origArgs, clonedArgs, derivedArgs);
 
-  Expr* clonedTOE = m_Sema
-                        .ActOnCXXTypeConstructExpr(
-                            OpaquePtr<QualType>::make(TOE->getType()), GenLoc(),
-                            clonedArgs, GenLoc(), TOE->isListInitialization())
-                        .get();
-  Expr* derivedTOE =
-      m_Sema
-          .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
-                                     GenLoc(), derivedArgs, GenLoc(),
-                                     TOE->isListInitialization())
-          .get();
+  // Sema takes the arguments of a list-initialized temporary as one braced
+  // list, the way the parser hands them over.
+  auto buildTOE = [&](llvm::MutableArrayRef<Expr*> args) {
+    llvm::SmallVector<Expr*, 4> exprs(args.begin(), args.end());
+    if (TOE->isListInitialization() && !args.empty())
+      exprs = {BuildInitList(args)};
+    return m_Sema
+        .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
+                                   GenLoc(), exprs, GenLoc(),
+                                   TOE->isListInitialization())
+        .get();
+  };
+  Expr* clonedTOE = buildTOE(clonedArgs);
+  Expr* derivedTOE = zeroObj ? zeroObj : buildTOE(derivedArgs);
   return {clonedTOE, derivedTOE};
 }
 

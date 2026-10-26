@@ -6,11 +6,19 @@
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclTemplate.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateName.h"
+#include "clang/Basic/LLVM.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Sema/Lookup.h"
 
 #include "llvm/Support/SaveAndRestore.h"
+
+#include <algorithm>
+#include <cstdint>
 
 using namespace clang;
 
@@ -298,13 +306,8 @@ StmtDiff VectorForwardModeVisitor::VisitArraySubscriptExpr(
   Expr* target = BaseDiff.getExpr_dx();
   if (target) {
     // Clone the index: it is already consumed by the primal subscript above,
-    // so the derivative subscript needs its own node. Bind to a local lvalue --
-    // the MultiExprArg param's one-element ctor takes a reference.
-    Expr* dIndex = CloneNode(clonedIndices.front());
-    diffExpr = m_Sema
-                   .ActOnArraySubscriptExpr(getCurrentScope(), target,
-                                            target->getExprLoc(), dIndex, noLoc)
-                   .get();
+    // so the derivative subscript needs its own node.
+    diffExpr = BuildArraySubscript(target, CloneNode(clonedIndices.front()));
   }
   return StmtDiff(cloned, diffExpr);
 }
@@ -314,6 +317,7 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   QualType retType = retVal->getType();
   StmtDiff retValDiff = Visit(retVal);
   Expr* derivedRetValE = retValDiff.getExpr_dx();
+  derivedRetValE = asTangentVector(derivedRetValE, retType);
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
   QualType cladArrayType =
@@ -350,11 +354,7 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
 
       offsetTracker.advanceByArray(getSize);
     } else {
-      dParamValue = m_Sema
-                        .ActOnArraySubscriptExpr(
-                            getCurrentScope(), CloneNode(dVectorRef),
-                            dVectorRef->getExprLoc(), offsetExpr, noLoc)
-                        .get();
+      dParamValue = BuildArraySubscript(CloneNode(dVectorRef), offsetExpr);
       offsetTracker.advanceByScalar();
     }
     // Create an assignment expression to assign the ith element of the
@@ -379,11 +379,13 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   // This may not necessarily be true in the future.
   VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
                                   initDiff.getExpr(), VD->isDirectInit());
-  VarDecl* VDDerived =
-      BuildVarDecl(utils::GetCladArrayOfType(
-                       m_Sema, utils::GetNonConstValueType(VD->getType())),
-                   "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
-                   /*DirectInit=*/true);
+  Expr* initDx = initDiff.getExpr_dx();
+  if (VD->getInit())
+    initDx = asTangentVector(initDx, VD->getType());
+  VarDecl* VDDerived = BuildVarDecl(
+      utils::GetCladArrayOfType(m_Sema,
+                                utils::GetNonConstValueType(VD->getType())),
+      "_d_vector_" + VD->getNameAsString(), initDx, /*DirectInit=*/true);
 
   m_Variables.emplace(VDClone, AdjointInfo{VDDerived});
   return DeclDiff<VarDecl>(VDClone, VDDerived);
@@ -395,6 +397,157 @@ StmtDiff VectorForwardModeVisitor::VisitFloatingLiteral(
   auto* zero_vec =
       BuildCallExprToCladFunction("zero_vector", {dCount}, {FL->getType()});
   return StmtDiff(Clone(FL), zero_vec);
+}
+
+/// Whether \p E is a vector of tangents, one per independent variable: a
+/// clad::array or an expression of them. By the declaration: the type of a
+/// call such as clad::zero_vector prints without its namespace.
+static bool isTangentVector(const Expr* E) {
+  const auto* RD = E ? E->getType()->getAsCXXRecordDecl() : nullptr;
+  if (!RD)
+    return false;
+  std::string Name = RD->getQualifiedNameAsString();
+  return Name == "clad::array" || Name == "clad::array_expression";
+}
+
+/// Whether evaluating \p E changes something: an assignment or increment,
+/// through an operator of clad::array too, which HasSideEffects counts only
+/// with every other call.
+static bool changesState(const Expr* E, const ASTContext& C) {
+  const auto* OCE = dyn_cast<CXXOperatorCallExpr>(E);
+  if (E->HasSideEffects(C, /*IncludePossibleEffects=*/false) ||
+      (OCE && (OCE->isAssignmentOp() || OCE->getOperator() == OO_PlusPlus ||
+               OCE->getOperator() == OO_MinusMinus)))
+    return true;
+  for (const Stmt* Child : E->children())
+    if (const auto* CE = dyn_cast_or_null<Expr>(Child))
+      if (changesState(CE, C))
+        return true;
+  return false;
+}
+
+/// The type of the tangents in the vector \p E where it is a clad::array<T>;
+/// \p Fallback where it is an expression of them.
+static QualType tangentElementType(const Expr* E, QualType Fallback) {
+  const auto* Spec = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+      E->getType()->getAsCXXRecordDecl());
+  if (Spec && Spec->getQualifiedNameAsString() == "clad::array")
+    return Spec->getTemplateArgs().get(0).getAsType();
+  return Fallback;
+}
+
+/// How \p Dx is a number that is zero whenever the code runs: what a
+/// derivative clad leaves at zero becomes, through a negation, a cast or a
+/// ?:. Every tangent that may not be zero is a vector, or holds one.
+namespace {
+enum class ScalarZero : std::uint8_t { No, Pure, WithEffects };
+} // namespace
+static ScalarZero isScalarZero(const Expr* Dx, ASTContext& C) {
+  if (!Dx || !Dx->getType()->isArithmeticType() || Dx->isValueDependent())
+    return ScalarZero::No;
+  // A ?: of two zeros is one whichever way its condition, a variable, goes.
+  if (const auto* CO = dyn_cast<ConditionalOperator>(Dx->IgnoreParens())) {
+    // No, Pure and WithEffects are ordered: the lesser says whether both
+    // are zeros, the greater whether either keeps an effect.
+    ScalarZero T = isScalarZero(CO->getTrueExpr(), C);
+    ScalarZero F = isScalarZero(CO->getFalseExpr(), C);
+    return std::min(T, F) == ScalarZero::No ? ScalarZero::No : std::max(T, F);
+  }
+  Expr::EvalResult R;
+  bool Zero = Dx->EvaluateAsRValue(R, C) &&
+              ((R.Val.isInt() && R.Val.getInt().isZero()) ||
+               (R.Val.isFloat() && R.Val.getFloat().isZero()));
+  // `(x = x * 2, 0)` is zero, but replaced would drop the assignment.
+  if (!Zero)
+    return ScalarZero::No;
+  return R.HasSideEffects ? ScalarZero::WithEffects : ScalarZero::Pure;
+}
+
+/// Whether \p Dx is a call to clad::zero_vector: the tangent vector mode
+/// gives a literal.
+static bool isZeroVectorCall(const Expr* Dx) {
+  const auto* CE = Dx ? dyn_cast<CallExpr>(Dx->IgnoreImplicit()) : nullptr;
+  const FunctionDecl* FD = CE ? CE->getDirectCallee() : nullptr;
+  return FD && FD->getQualifiedNameAsString() == "clad::zero_vector";
+}
+
+Expr* VectorForwardModeVisitor::asTangentVector(Expr* Dx, QualType T) {
+  // No tangent at all -- an indirect call, an unsupported statement -- is a
+  // zero too, where it is one of numbers: one of an object, or of a pointer
+  // or reference to one, has nothing to fill.
+  if (!Dx && utils::GetNonConstValueType(T)->isRecordType())
+    return Dx;
+  ScalarZero Z = Dx ? isScalarZero(Dx, m_Context) : ScalarZero::Pure;
+  if (Z == ScalarZero::No)
+    return Dx;
+  Expr* dCount = buildIndVarCountRef();
+  Expr* Zeros = BuildCallExprToCladFunction("zero_vector", {dCount},
+                                            {utils::GetNonConstValueType(T)});
+  // Keep what the zero's evaluation changes.
+  if (Z == ScalarZero::WithEffects)
+    return keepEffects(Dx, Zeros);
+  return Zeros;
+}
+
+Expr* VectorForwardModeVisitor::keepEffects(Expr* E, Expr* Value) {
+  // Discarded explicitly: what is left of an effect, such as the negation in
+  // `-(x = 2 * x, 0)`, would warn as a value with no use.
+  auto* VoidTSI = m_Context.getTrivialTypeSourceInfo(m_Context.VoidTy);
+  Expr* Discarded =
+      m_Sema.BuildCStyleCastExpr(noLoc, VoidTSI, noLoc, BuildParens(E)).get();
+  return BuildParens(BuildOp(BO_Comma, Discarded, Value));
+}
+
+void VectorForwardModeVisitor::matchBranchTangents(StmtDiff& TrueDiff,
+                                                   StmtDiff& FalseDiff,
+                                                   QualType T) {
+  // A branch that does not depend on the independent variables has a zero:
+  // a scalar, which beside the other's vector of tangents would become a
+  // vector of its own size, or a vector of zeros of the branch's type, which
+  // the other's vector may not convert to. Give it the other's type.
+  auto isZero = [this](const Expr* Dx) {
+    return isScalarZero(Dx, m_Context) != ScalarZero::No ||
+           isZeroVectorCall(Dx);
+  };
+  auto match = [&](StmtDiff& Vector, StmtDiff& Zero) {
+    if (!isTangentVector(Vector.getExpr_dx()) || !isZero(Zero.getExpr_dx()))
+      return false;
+    QualType Elem =
+        tangentElementType(Vector.getExpr_dx(), utils::GetNonConstValueType(T));
+    Expr* ZeroDx = Zero.getExpr_dx();
+    // A vector of zeros of another type is rebuilt; a scalar one, with
+    // whatever its evaluation changes kept.
+    if (isZeroVectorCall(ZeroDx))
+      ZeroDx = nullptr;
+    Zero.updateStmtDx(asTangentVector(ZeroDx, Elem));
+    return true;
+  };
+  if (!match(TrueDiff, FalseDiff))
+    match(FalseDiff, TrueDiff);
+}
+
+Expr* VectorForwardModeVisitor::castTangent(Expr* Dx, const CastExpr* Cast) {
+  // A vector of tangents is one tangent per independent variable, which a
+  // cast to a number would not convert but collapse. A cast to a floating
+  // type has the derivative of what it casts; one to an integer, a bool or
+  // an unscoped enumeration, zero wherever it has one. Scalar mode casts its
+  // tangent instead, truncating it. A cast to a reference names what it
+  // casts, tangent and all, and is left alone.
+  QualType To = Cast->getType();
+  // A complex number is not one: its tangent is not the real one's.
+  if (Cast->isGLValue() || !To->isRealType() || !isTangentVector(Dx))
+    return nullptr;
+  if (To->isRealFloatingType())
+    return Dx;
+  // The tangents of an expression of type From are a vector of From.
+  QualType From = utils::GetNonConstValueType(Cast->getSubExpr()->getType());
+  Expr* dCount = buildIndVarCountRef();
+  Expr* Zeros = BuildCallExprToCladFunction("zero_vector", {dCount},
+                                            {tangentElementType(Dx, From)});
+  // What the operand's tangent changes, as in `(int)(x *= 2)`, is kept.
+  if (changesState(Dx, m_Context))
+    return keepEffects(Dx, Zeros);
+  return Zeros;
 }
 
 StmtDiff

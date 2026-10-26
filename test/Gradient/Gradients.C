@@ -536,6 +536,7 @@ double f_decls3(double x, double y) {
 
 void f_decls3_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK:   void f_decls3_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     int _returnedAt0 = 2;
 //CHECK-NEXT:     bool _cond0 = false;
 //CHECK-NEXT:     bool _cond1 = false;
 //CHECK-NEXT:     double _d_a = 0.;
@@ -551,21 +552,26 @@ void f_decls3_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK-NEXT:                 return;
 //CHECK-NEXT:             else {
 //CHECK-NEXT:                 _cond1 = x < -1;
-//CHECK-NEXT:                 if (_cond1)
+//CHECK-NEXT:                 if (_cond1) {
+//CHECK-NEXT:                     _returnedAt0 = 1;
 //CHECK-NEXT:                     return;
+//CHECK-NEXT:                 }
 //CHECK-NEXT:             }
 //CHECK-NEXT:         }
 //CHECK-NEXT:         b = a * a;
 //CHECK-NEXT:         _d_b += 1;
 //CHECK-NEXT:     });
-//CHECK-NEXT:     {
-//CHECK-NEXT:         _d_a += _d_b * a;
-//CHECK-NEXT:         _d_a += a * _d_b;
-//CHECK-NEXT:     }
+//CHECK-NEXT:     if (1 < _returnedAt0)
+//CHECK-NEXT:         if (!_cond0) {
+//CHECK-NEXT:             _d_a += _d_b * a;
+//CHECK-NEXT:             _d_a += a * _d_b;
+//CHECK-NEXT:         }
 //CHECK-NEXT:     if (_cond0)
 //CHECK-NEXT:         _d_a += 2 * 1;
-//CHECK-NEXT:     else if (_cond1)
+//CHECK-NEXT:     else if (_cond1) {
 //CHECK-NEXT:         _d_a += -2 * 1;
+//CHECK-NEXT:         _returnedAt0 = 2;
+//CHECK-NEXT:     }
 //CHECK-NEXT:     *_d_y += 333 * _d_c;
 //CHECK-NEXT:     *_d_x += 3 * _d_a;
 //CHECK-NEXT: }
@@ -647,7 +653,7 @@ float running_sum(float* p, int n) {
 // CHECK: void running_sum_grad(float *p, int n, float *_d_p, int *_d_n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 1; i < n; i++) {
 // CHECK-NEXT:         p[i] += p[i - 1];
 // CHECK-NEXT:     }

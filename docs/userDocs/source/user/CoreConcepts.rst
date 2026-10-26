@@ -472,10 +472,11 @@ caller passes ``&d_p`` and afterwards reads the derivative with respect to
 
 Two things need saying for this to work. The first is how an adjoint object
 starts: it must be zero, and what zero means for a type is the type's own
-business, so Clad value-initialises by default and lets a type say otherwise
-through ``clad::zero_init`` or ``clad::zero_like``. The second is what a
-constructor contributes, since a constructor is where a member first gets its
-value from the arguments; Clad generates or looks up
+business, so Clad builds it with ``clad::zero_like``, which by default
+value-initialises an aggregate and copies and zeroes another class, and lets a
+type say otherwise through ``clad::zero_init`` or ``clad::zero_like``. The
+second is what a constructor contributes, since a constructor is where a
+member first gets its value from the arguments; Clad generates or looks up
 ``constructor_pushforward`` and ``constructor_pullback`` for that, and
 :doc:`Custom derivatives <CustomDerivatives>` shows how to write them.
 
@@ -529,8 +530,8 @@ is used in Clad's reverse mode. The signature of the method is as follows::
   }
 
 The above uses functions from the standard math library and so is required
-to link against the same. To avoid this (and disable numerical differentiation)
-use `-DCLAD_NO_NUM_DIFF` at the target program's compile time.
+to link against the same. Clad's own fallback to it is turned off with
+`-fno-numerical-diff-fallback`, passed to the plugin.
 
 
 Implementation Details

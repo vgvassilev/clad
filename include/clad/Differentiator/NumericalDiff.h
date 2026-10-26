@@ -1,4 +1,3 @@
-#ifndef CLAD_NO_NUM_DIFF
 #ifndef CLAD_NUMERICAL_DIFF_H
 #define CLAD_NUMERICAL_DIFF_H
 
@@ -9,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 namespace numerical_diff {
@@ -173,7 +173,8 @@ namespace numerical_diff {
   /// \param[in] i The specific index to get the adjusted h for. NOOP here.
   ///
   /// \returns The updated argument.
-  template <typename T, typename std::enable_if<!std::is_pointer<T>::value,
+  template <typename T, typename std::enable_if<!std::is_pointer<T>::value &&
+                                                    !std::is_enum<T>::value,
                                                 bool>::type = true>
   T updateIndexParamValue(T arg, std::size_t idx, std::size_t currIdx,
                           int multiplier, precision& h_val, std::size_t n = 0,
@@ -182,6 +183,15 @@ namespace numerical_diff {
       h_val = (h_val == 0) ? get_h(arg) : h_val;
       return arg + h_val * multiplier;
     }
+    return arg;
+  }
+
+  /// An enumeration takes no step: it is passed through unchanged.
+  template <typename T,
+            typename std::enable_if<std::is_enum<T>::value, bool>::type = true>
+  T updateIndexParamValue(T arg, std::size_t /*idx*/, std::size_t /*currIdx*/,
+                          int /*multiplier*/, precision& /*h_val*/,
+                          std::size_t /*n*/ = 0, std::size_t /*i*/ = 0) {
     return arg;
   }
 
@@ -559,7 +569,79 @@ namespace numerical_diff {
                                                  Args)>{},
                                              std::forward<Args>(args)...);
   }
+
+  /// Whether the tangent \p d is zero. In vector mode it is a vector of
+  /// tangents -- a clad::array, or an expression of them -- zero when each of
+  /// them is.
+  template <typename D, typename std::enable_if<std::is_arithmetic<D>::value,
+                                                bool>::type = true>
+  bool is_zero_tangent(D d) {
+    return d == 0;
+  }
+  template <typename D, typename std::enable_if<!std::is_arithmetic<D>::value,
+                                                bool>::type = true>
+  bool is_zero_tangent(const D& d) {
+    for (std::size_t i = 0; i < d.size(); ++i)
+      if (d[i] != 0)
+        return false;
+    return true;
+  }
+
+  /// The part of the tangent of a call to \p f that comes from its argument
+  /// \p arg, at position \p n: the partial derivative with respect to it times
+  /// \p dArg, its tangent. An argument whose tangent is zero, which forward
+  /// mode cannot always tell from the code, adds nothing and takes no step:
+  /// stepping it could leave where \p f is defined, and a partial that is not
+  /// a number would make the whole tangent one.
+  ///
+  /// The call is clad's own: a derivative of the code it is in has no part
+  /// from it, as one through the partial alone has none. Its result type is
+  /// spelled out, as clad prints it in the code it generates; clad converts
+  /// the call's tangent to the type of the call.
+  ///
+  /// \param[in] f The target function to numerically differentiate.
+  /// \param[in] dArg The tangent of 'arg'.
+  /// \param[in] arg The argument with respect to which differentiation is
+  /// requested.
+  /// \param[in] n The positional value of 'arg'.
+  /// \param[in] printErrors A flag to decide if we want to print numerical
+  /// diff errors estimates.
+  /// \param[in] args The arguments to the function to differentiate.
+  ///
+  /// \returns The partial derivative times 'dArg'.
+  template <
+      typename F, typename D, typename T, typename... Args,
+      typename std::enable_if<std::is_arithmetic<D>::value, bool>::type = true>
+#ifdef __CLAD__
+  // Spelled as the annotation: a program may define non_differentiable.
+  __attribute__((annotate("non_differentiable")))
+#endif
+  typename std::common_type<double, D>::type
+  forward_central_difference_tangent(F f, D dArg, T arg, std::size_t n,
+                                     bool printErrors, Args&&... args) {
+    if (is_zero_tangent(dArg))
+      return 0;
+    return forward_central_difference(f, arg, n, printErrors,
+                                      std::forward<Args>(args)...) *
+           dArg;
+  }
+  /// In vector mode: the partial derivative alone, to be multiplied by the
+  /// vector of tangents \p dArg -- a clad::array, or an expression of them --
+  /// where it is used, so the product keeps the tangents' type. Zero, with no
+  /// step taken, where each of the tangents is.
+  template <typename F, typename D, typename T, typename... Args>
+#ifdef __CLAD__
+  // Spelled as the annotation: a program may define non_differentiable.
+  __attribute__((annotate("non_differentiable")))
+#endif
+  double
+  forward_central_difference_partial(F f, const D& dArg, T arg, std::size_t n,
+                                     bool printErrors, Args&&... args) {
+    if (is_zero_tangent(dArg))
+      return 0;
+    return forward_central_difference(f, arg, n, printErrors,
+                                      std::forward<Args>(args)...);
+  }
 } // namespace numerical_diff
 
 #endif // CLAD_NUMERICAL_DIFF_H
-#endif // CLAD_NO_NUM_DIFF

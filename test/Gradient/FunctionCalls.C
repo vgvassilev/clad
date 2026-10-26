@@ -146,11 +146,12 @@ float sum(double* arr, int n) {
 }
 
 // CHECK: float sum_reverse_forw(double *arr, int n, double *_d_arr, int _d_n, clad::restore_tracker &_tracker0) {
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
-// CHECK-NEXT:     float _d_res = 0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     float res = 0;
+// CHECK-NEXT:     float _d_res = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     int _d_i = 0;
-// CHECK-NEXT:     for (int i = 0; i < n; ++i) {
+// CHECK-NEXT:     for (; i < n; ++i) {
 // CHECK-NEXT:         res += arr[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _tracker0.store(arr[0]);
@@ -163,7 +164,7 @@ float sum(double* arr, int n) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     float _d_res = 0.F;
 // CHECK-NEXT:     float res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         res += arr[i];
 // CHECK-NEXT:     }
@@ -213,7 +214,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     clad::record_range(_rec0, arr, 1UL);
 // CHECK-NEXT:     res += sum(arr, n);
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         clad::push(_t1, arr[i]);
 // CHECK-NEXT:         twice(arr[i]);
@@ -328,8 +329,8 @@ double fn7(double i, double j) {
 
 // CHECK: clad::ValueAndAdjoint<double &, double &> identity_reverse_forw(double &i, double &_d_i) {
 // CHECK-NEXT:     MyStruct::myFunction();
-// CHECK-NEXT:     double _d__d_i = 0.;
 // CHECK-NEXT:     double _d_i0 = i;
+// CHECK-NEXT:     double _d__d_i = 0.;
 // CHECK-NEXT:     _d_i0 += 1;
 // CHECK-NEXT:     return {i, _d_i};
 // CHECK-NEXT: }
@@ -569,7 +570,7 @@ double fn13(double* x, const double* w) {
 // CHECK-NEXT:     std::size_t i = {{0U|0UL}};
 // CHECK-NEXT:     double _d_wCopy[2] = {0};
 // CHECK-NEXT:     double wCopy[2];
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     std::size_t _t0;
 // CHECK-NEXT:     for (i = 0; i < 2; ++i) {
 // CHECK-NEXT:         wCopy[i] = w[i];
 // CHECK-NEXT:     }
@@ -893,9 +894,10 @@ void mult(double* x, double y) {
 }
 
 // CHECK: void mult_reverse_forw(double *x, double y, double *_d_x, double _d_y, clad::restore_tracker &_tracker0) {
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     int _d_i = 0;
-// CHECK-NEXT:     for (int i = 0; i < 3; ++i) {
+// CHECK-NEXT:     for (; i < 3; ++i) {
 // CHECK-NEXT:         _tracker0.store(x[i]);
 // CHECK-NEXT:         x[i] *= y;
 // CHECK-NEXT:     }
@@ -905,7 +907,7 @@ void mult(double* x, double y) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     double _t1[3];
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     unsigned int _t0;
 // CHECK-NEXT:     for (i = 0; i < 3; ++i) {
 // CHECK-NEXT:         _t1[i] = x[i];
 // CHECK-NEXT:         x[i] *= y;
@@ -1090,7 +1092,7 @@ inline double flexibleInterp(double const *params, const double *high) {
 // CHECK-NEXT:     std::size_t i = {{0U|0UL}};
 // CHECK-NEXT:     double _d_total = 0.;
 // CHECK-NEXT:     double total = 1.;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     std::size_t _t0;
 // CHECK-NEXT:     for (i = 0; i < 1; ++i) {
 // CHECK-NEXT:         total += params[i];
 // CHECK-NEXT:     }
@@ -1150,12 +1152,12 @@ void fast_interp(double const *coefs, double const *sum_param, double const *dif
 }
 
 // CHECK: void fast_interp_reverse_forw(const double *coefs, const double *sum_param, const double *diff_param, double *out, {{(const )?}}double *_d_coefs, {{(const )?}}double *_d_sum_param, {{(const )?}}double *_d_diff_param, double *_d_out, clad::restore_tracker &_tracker0) {
-// CHECK-NEXT:     const double *_d_sum = _d_sum_param;
 // CHECK-NEXT:     const double *sum0 = sum_param;
-// CHECK-NEXT:     const double *_d_diff = _d_diff_param;
+// CHECK-NEXT:     const double *_d_sum = _d_sum_param;
 // CHECK-NEXT:     const double *diff = diff_param;
-// CHECK-NEXT:     double _d_x = 0.;
+// CHECK-NEXT:     const double *_d_diff = _d_diff_param;
 // CHECK-NEXT:     double x = coefs[0];
+// CHECK-NEXT:     double _d_x = 0.;
 // CHECK-NEXT:     _tracker0.store(out[0]);
 // CHECK-NEXT:     out[0] += x * (diff[0] + x * sum0[0]);
 // CHECK-NEXT: }
@@ -1211,8 +1213,8 @@ void inner_fn(double const *coefs, double *out) {
 }
 
 // CHECK: void inner_fn_reverse_forw(const double *coefs, double *out, {{(const )?}}double *_d_coefs, double *_d_out, clad::restore_tracker &_tracker0) {
-// CHECK-NEXT:     double _d_b = 0.;
 // CHECK-NEXT:     double b = iden_func(coefs[0]);
+// CHECK-NEXT:     double _d_b = 0.;
 // CHECK-NEXT:     _tracker0.store(out[0]);
 // CHECK-NEXT:     out[0] = b;
 // CHECK-NEXT: }
@@ -1360,6 +1362,43 @@ double fnIdLoop(double x, double y) {
 // CHECK-LABEL: void fnIdLoop_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK: clad::push(_t{{[0-9]+}}, identity_reverse_forw(a, _d_a));
 
+double fn36(double x, double y) {
+  return x * std::log(2) + std::pow(2, 3) * y;
+}
+
+// CHECK: void fn36_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     {{.*}} _t0 = std::log(2);
+// CHECK-NEXT:     {{.*}} _t1 = std::pow(2, 3);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += 1 * _t0;
+// CHECK-NEXT:         *_d_y += _t1 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double mul_defined_later(double x, double y);
+
+double fn37(double x, double y) {
+    return mul_defined_later(x, y);
+}
+
+// CHECK: void mul_defined_later_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_y0 * y * x;
+// CHECK-NEXT:         *_d_x += x * _d_y0 * y;
+// CHECK-NEXT:         *_d_y += x * x * _d_y0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void fn37_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         mul_defined_later_pullback(x, y, 1, &_r0, &_r1);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         *_d_y += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main() {
   double result[7];
   float fresult[7];
@@ -1484,10 +1523,19 @@ int main() {
   TEST2(fn35, 10, 1);  // CHECK-EXEC: {-3.00, 2.00}
   INIT(fnIdLoop);
   TEST2(fnIdLoop, 2, 5);  // CHECK-EXEC: {3.00, 1.00}
+  INIT(fn36);
+  TEST2(fn36, 3, 5);  // CHECK-EXEC: {0.69, 8.00}
+
+  INIT(fn37);
+  TEST2(fn37, 3, 2);  // CHECK-EXEC: {12.00, 9.00}
 }
 
 double sq_defined_later(double x) {
     return x*x;
+}
+
+double mul_defined_later(double x, double y) {
+    return x * x * y;
 }
 
 double fn25_defined_later(double x) {
@@ -1506,7 +1554,7 @@ double fn25_defined_later(double x) {
 // CHECK-NEXT:     std::size_t i = {{0U|0UL}};
 // CHECK-NEXT:     double _d_total = 0.;
 // CHECK-NEXT:     double total = 1.;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0;
+// CHECK-NEXT:     std::size_t _t0;
 // CHECK-NEXT:     for (i = 0; i < 1; ++i) {
 // CHECK-NEXT:         total += params[i];
 // CHECK-NEXT:     }

@@ -28,7 +28,7 @@ void wrapper1_grad(double *params, double *_d_params) {
     const double ix = 1 + params[0];
     {
         double _grad0[4] = {0};
-        numerical_diff::central_difference(foo, _grad0, 0, 10., ix, 1., 0);
+        numerical_diff::central_difference<double (*)(double, double, double, double)>(foo, _grad0, 0, 10., ix, 1., 0);
         double _r0 = 1 * _grad0[0];
         double _r1 = 1 * _grad0[1];
         double _r2 = 1 * _grad0[2];
@@ -40,6 +40,52 @@ void wrapper1_grad(double *params, double *_d_params) {
 
 )";
   EXPECT_EQ(actual, expected);
+}
+
+namespace M {
+using Real = double;
+// Instantiated in Defs.cpp.
+template <typename T> Real cube(T x);
+} // namespace M
+
+double wrapper3(double x) { return M::cube(x); }
+
+// Defined in Defs.cpp. An inline namespace makes Ratio a name of the file
+// scope, and the using declaration makes M::Real one, so both stay as written;
+// before clang 16 the latter prints with the scope of what it names.
+inline namespace V {
+using Ratio = double;
+} // namespace V
+using M::Real;
+Ratio scale(Real x);
+
+double wrapper4(double x) { return scale(x); }
+
+TEST(CallDeclOnly, CheckNumDiffNames) {
+  auto d = clad::differentiate(wrapper4, "x");
+  testing::internal::CaptureStdout();
+  d.dump();
+  std::string actual = testing::internal::GetCapturedStdout();
+  std::regex expected(
+      R"(forward_central_difference_tangent<Ratio \(\*\)\((M::)?Real\)>\(scale, _d_x, x)");
+  EXPECT_TRUE(std::regex_search(actual, expected)) << actual;
+  EXPECT_NEAR(d.execute(2.0), 3.0, 1e-6);
+}
+
+TEST(CallDeclOnly, CheckNumDiffTemplate) {
+  auto d = clad::differentiate(wrapper3, "x");
+  testing::internal::CaptureStdout();
+  d.dump();
+  std::string actual = testing::internal::GetCapturedStdout();
+  // The template argument picks the specialization `M::cube` alone does not
+  // name, and spells `Real` as code outside of `M` can. Before clang 22 the
+  // instantiated type prints with its scope; from 22 on it prints as written,
+  // and is spelled as what it names.
+  std::regex expected(
+      R"(return numerical_diff::forward_central_difference_tangent<)"
+      R"((M::Real|double) \(\*\)\(double\)>\(M::cube, _d_x, x, 0, 0, x\))");
+  EXPECT_TRUE(std::regex_search(actual, expected)) << actual;
+  EXPECT_NEAR(d.execute(2.0), 12.0, 1e-6);
 }
 
 namespace clad {
@@ -89,4 +135,12 @@ TEST(CallDeclOnly, CheckCustomDiff2) {
   EXPECT_FLOAT_EQ(result[1], 0.0);
   EXPECT_FLOAT_EQ(result[2], 0.0);
   EXPECT_FLOAT_EQ(result[3], exp(y));
+}
+
+// A tangent that is zero only when the code runs takes no step.
+double wrapper5(double x) { return scale(x - x) + x; }
+
+TEST(CallDeclOnly, CheckNumDiffZeroTangent) {
+  auto d = clad::differentiate(wrapper5, "x");
+  EXPECT_NEAR(d.execute(2.0), 1.0, 1e-6);
 }

@@ -95,8 +95,8 @@ Clad what the derivative of that function is -- see
 :doc:`Custom derivatives <CustomDerivatives>`; the ``-fclad-porting-hints``
 flag makes Clad name the signature it is looking for. Or leave it, and let
 Clad fall back to numerical differentiation, which is what it does by default;
-compiling with ``-DCLAD_NO_NUM_DIFF`` turns the fallback off and makes the
-missing definition an error.
+``-fno-numerical-diff-fallback`` turns the fallback off, and Clad then treats the
+call's derivative as zero, with a warning saying so.
 
 How do I see the code Clad generated?
 ======================================

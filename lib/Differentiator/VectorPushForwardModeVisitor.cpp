@@ -2,8 +2,13 @@
 
 #include "ConstantFolder.h"
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 
+#include "clang/AST/Expr.h"
+#include "clang/Basic/LLVM.h"
+
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/SaveAndRestore.h"
 
 using namespace clang;
@@ -30,11 +35,7 @@ void VectorPushForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
   } else {
     auto* zero =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-    Expr* arraySubscriptExpr =
-        m_Sema
-            .ActOnArraySubscriptExpr(getCurrentScope(), lastParamExpr,
-                                     lastParamExpr->getExprLoc(), zero, noLoc)
-            .get();
+    Expr* arraySubscriptExpr = BuildArraySubscript(lastParamExpr, zero);
     lastParamSizeExpr = BuildArrayRefSizeExpr(arraySubscriptExpr);
   }
 
@@ -59,8 +60,30 @@ VectorPushForwardModeVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
     return nullptr;
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
-  llvm::SmallVector<Expr*, 2> returnValues = {retValDiff.getExpr(),
-                                              retValDiff.getExpr_dx()};
+  Expr* retVal = retValDiff.getExpr();
+  // `return g(x);` in a function returning void returns what g's derivative
+  // does: nothing, so there is no value or tangent to pair. Only for a call:
+  // what another void expression changes may be in its tangent alone.
+  if (RS->getRetValue()->getType()->isVoidType() &&
+      isa<CallExpr>(RS->getRetValue()->IgnoreParens()) &&
+      !retValDiff.getExpr_dx())
+    return StmtDiff(BuildReturnStmt(retVal));
+  // As in scalar mode: the value member has the function's return type, and
+  // a braced list does not narrow to it.
+  QualType RetTy = m_DiffReq->getReturnType();
+  if (!clad_compat::hasSameUnqualifiedType(m_Context, retVal->getType(),
+                                           RetTy)) {
+    auto* TSI = m_Context.getTrivialTypeSourceInfo(RetTy);
+    retVal = m_Sema
+                 .BuildCStyleCastExpr(RS->getBeginLoc(), TSI, RS->getEndLoc(),
+                                      BuildParens(retVal))
+                 .get();
+  }
+  // The pushforward member is a vector of tangents; a constant zero would
+  // size it rather than fill it.
+  llvm::SmallVector<Expr*, 2> returnValues = {
+      retVal,
+      asTangentVector(retValDiff.getExpr_dx(), RS->getRetValue()->getType())};
   Expr* initList = BuildInitList(returnValues);
   Stmt* returnStmt = BuildReturnStmt(initList);
   return StmtDiff(returnStmt);

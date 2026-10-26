@@ -125,7 +125,8 @@ function(CB_ADD_GBENCHMARK benchmark)
   target_compile_options(${benchmark} PUBLIC -O3)
 
   # Turn off numerical diff fallback.
-  target_compile_definitions(${benchmark} PUBLIC CLAD_NO_NUM_DIFF)
+  target_compile_options(${benchmark} PUBLIC
+    "SHELL:-Xclang -plugin-arg-clad -Xclang -fno-numerical-diff-fallback")
 
   target_link_libraries(${benchmark} PUBLIC ${ARG_LIBRARIES} gbenchmark)
   if (NOT APPLE)

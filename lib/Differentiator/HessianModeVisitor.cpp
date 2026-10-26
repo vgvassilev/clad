@@ -82,6 +82,7 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
       IndependentArgRequest.EnableTBRAnalysis;
   ReverseModeRequest.EnableLoopAnalysis =
       IndependentArgRequest.EnableLoopAnalysis;
+  ReverseModeRequest.inheritFallbacksFrom(IndependentArgRequest);
 
   FunctionDecl* secondDerivative =
       Builder.HandleNestedDiffRequest(ReverseModeRequest);
@@ -125,6 +126,7 @@ HessianModeVisitor::DeriveVectorProductFunctions(const DiffParams& args) {
   pullbackReq.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
   pullbackReq.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
   pullbackReq.EnableLoopAnalysis = m_DiffReq.EnableLoopAnalysis;
+  pullbackReq.inheritFallbacksFrom(m_DiffReq);
   // The user's checkpointing pragmas address the reverse pass, which in this
   // scheme is the pullback; the per-direction scheme forwarded them to its
   // reverse requests just the same.

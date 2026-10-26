@@ -1,22 +1,60 @@
 #include "UsefulAnalyzer.h"
 
+#include "AnalysisBase.h"
+
+#include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
+
+#include <cstddef>
+
+#include <memory>
 
 using namespace clang;
 
 namespace clad {
 
+/// Whether something can be written through a variable of type \p T: a
+/// reference or pointer to non-const.
+static bool writesThrough(QualType T) {
+  return (T->isReferenceType() || T->isPointerType()) &&
+         !T->getPointeeType().isConstQualified();
+}
+
 void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
+  m_Function = FD;
   if (!m_AnalysisDC->getCFG())
     return;
-  // Build the CFG (control-flow graph) of FD.
   m_BlockData.resize(m_AnalysisDC->getCFG()->size());
-  m_LoopMem.resize(m_AnalysisDC->getCFG()->size());
-  // Set current block ID to the ID of entry the block.
+  // Useful analysis starts at the exit and propagates to predecessors.
   CFGBlock& exit = m_AnalysisDC->getCFG()->getExit();
   m_CurBlockID = exit.getBlockID();
-  m_BlockData[m_CurBlockID] = createNewVarsData({});
-  // Add the entry block to the queue.
+  m_BlockData[m_CurBlockID] = std::make_unique<VarsData>();
+  // What a function writes into a parameter passed by non-const reference or
+  // pointer, its caller reads: such a parameter is an output, as the return
+  // value is.
+  for (const ParmVarDecl* PVD : FD->parameters())
+    if (writesThrough(PVD->getType()))
+      markUseful(PVD);
+  // A local reference or pointer may stand for such a parameter, as
+  // `double& r = out` does: what is written through it may be an output too.
+  class Aliases : public RecursiveASTVisitor<Aliases> {
+  public:
+    llvm::SmallVector<const VarDecl*, 4> Found;
+    bool VisitVarDecl(VarDecl* VD) {
+      if (!isa<ParmVarDecl>(VD) && VD->hasLocalStorage() &&
+          writesThrough(VD->getType()))
+        Found.push_back(VD);
+      return true;
+    }
+  } A;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  A.TraverseStmt(const_cast<Stmt*>(FD->getBody()));
+  for (const VarDecl* VD : A.Found)
+    markUseful(VD);
+  // Add the exit block to the queue.
   m_CFGQueue.insert(m_CurBlockID);
 
   // Visit CFG blocks in the queue until it's empty.
@@ -24,30 +62,20 @@ void UsefulAnalyzer::Analyze(const FunctionDecl* FD) {
     auto IDIter = m_CFGQueue.begin();
     m_CurBlockID = *IDIter;
     m_CFGQueue.erase(IDIter);
-    CFGBlock& nextBlock = *getCFGBlockByID(m_CurBlockID);
+    CFGBlock& nextBlock = *getCFGBlockByID(m_AnalysisDC, m_CurBlockID);
     AnalyzeCFGBlock(nextBlock);
   }
 }
 
-CFGBlock* UsefulAnalyzer::getCFGBlockByID(unsigned ID) {
-  return *(m_AnalysisDC->getCFG()->begin() + ID);
+bool UsefulAnalyzer::isUseful(const VarDecl* VD) {
+  return getVarDataFromDecl(VD) != nullptr;
 }
 
-bool UsefulAnalyzer::isUseful(const VarDecl* VD) const {
-  const VarsData& curBranch = getCurBlockVarsData();
-  return curBranch.find(VD) != curBranch.end();
-}
-
-void UsefulAnalyzer::copyVarToCurBlock(const clang::VarDecl* VD) {
-  VarsData& curBranch = getCurBlockVarsData();
-  curBranch.insert(VD);
-}
-
-static void mergeVarsData(std::set<const clang::VarDecl*>* targetData,
-                          std::set<const clang::VarDecl*>* mergeData) {
-  for (const clang::VarDecl* i : *mergeData)
-    targetData->insert(i);
-  *mergeData = *targetData;
+void UsefulAnalyzer::markUseful(const clang::VarDecl* VD) {
+  // A useful declaration needs one leaf, not its field or pointee state.
+  if (!getVarDataFromDecl(VD))
+    getCurBlockVarsData()[VD] = VarData(m_AnalysisDC->getASTContext().BoolTy);
+  m_UsefulDecls.insert(VD);
 }
 
 void UsefulAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
@@ -65,24 +93,16 @@ void UsefulAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
     if (!pred)
       continue;
     auto& predData = m_BlockData[pred->getBlockID()];
-    if (!predData)
-      predData = createNewVarsData(*m_BlockData[block.getBlockID()]);
-
-    bool shouldPushPred = true;
-    if (pred->getBlockID() < block.getBlockID()) {
-      if (m_LoopMem[block.getBlockID()] == *m_BlockData[block.getBlockID()])
-        shouldPushPred = false;
-      m_LoopMem[block.getBlockID()] = *m_BlockData[block.getBlockID()];
+    auto* currentData = m_BlockData[block.getBlockID()].get();
+    if (!predData) {
+      predData = std::make_unique<VarsData>();
+      predData->m_Prev = currentData;
     }
 
-    if (shouldPushPred)
+    // Discovery links form a forest. Other edges require a growing merge.
+    if (predData->m_Prev == currentData || merge(predData.get(), currentData))
       m_CFGQueue.insert(pred->getBlockID());
-
-    mergeVarsData(predData.get(), m_BlockData[block.getBlockID()].get());
   }
-
-  for (const VarDecl* i : *m_BlockData[block.getBlockID()])
-    m_UsefulDecls.insert(i);
 }
 
 bool UsefulAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
@@ -130,6 +150,89 @@ bool UsefulAnalyzer::VisitReturnStmt(ReturnStmt* RS) {
 
 bool UsefulAnalyzer::VisitCallExpr(CallExpr* CE) { return true; }
 
+bool UsefulAnalyzer::namesUseful(const Expr* E) {
+  class Finder : public RecursiveASTVisitor<Finder> {
+    UsefulAnalyzer& m_UA;
+
+  public:
+    bool Found = false;
+    explicit Finder(UsefulAnalyzer& UA) : m_UA(UA) {}
+    bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+      if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
+        Found |= m_UA.isUseful(VD);
+      return !Found;
+    }
+  } F(*this);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  F.TraverseStmt(const_cast<Expr*>(E));
+  return F.Found;
+}
+
+bool UsefulAnalyzer::writesUseful(const CallExpr* CE) {
+  const FunctionDecl* FD = CE->getDirectCallee();
+  std::size_t skip = 0;
+  if (const auto* MD = dyn_cast_or_null<CXXMethodDecl>(FD))
+    if (MD->isInstance()) {
+      const Expr* Obj = nullptr;
+      if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
+        Obj = MCE->getImplicitObjectArgument();
+      else if (isa<CXXOperatorCallExpr>(CE)) {
+        Obj = CE->getArg(0);
+        skip = 1;
+      }
+      if (Obj && !MD->isConst() && namesUseful(Obj))
+        return true;
+    }
+  for (std::size_t i = skip, e = CE->getNumArgs(); i != e; ++i) {
+    // Without a declaration to read the parameter from, any argument may be
+    // written.
+    bool mayWrite = true;
+    if (FD && i - skip < FD->getNumParams()) {
+      QualType T = FD->getParamDecl(i - skip)->getType();
+      mayWrite = (T->isReferenceType() || T->isPointerType()) &&
+                 !T->getPointeeType().isConstQualified();
+    }
+    if (mayWrite && namesUseful(CE->getArg(i)))
+      return true;
+  }
+  return false;
+}
+
+template <class F>
+bool UsefulAnalyzer::traverseCall(const CallExpr* CE, F Base) {
+  // Otherwise the call is read as any other expression is: the left side of
+  // an assignment finds out through it whether it writes a useful variable.
+  if (!writesUseful(CE)) {
+    Base();
+    return true;
+  }
+  // The call writes something useful, and so does an assignment to what it
+  // returns, as `r(1) = t` does: m_Useful stays set for the assignment to see.
+  m_Useful = true;
+  bool savedMarking = m_Marking;
+  m_Marking = true;
+  Base();
+  m_Marking = savedMarking;
+  return true;
+}
+
+bool UsefulAnalyzer::TraverseCallExpr(CallExpr* CE) {
+  return traverseCall(
+      CE, [&] { RecursiveASTVisitor<UsefulAnalyzer>::TraverseCallExpr(CE); });
+}
+
+bool UsefulAnalyzer::TraverseCXXMemberCallExpr(CXXMemberCallExpr* CE) {
+  return traverseCall(CE, [&] {
+    RecursiveASTVisitor<UsefulAnalyzer>::TraverseCXXMemberCallExpr(CE);
+  });
+}
+
+bool UsefulAnalyzer::TraverseCXXOperatorCallExpr(CXXOperatorCallExpr* CE) {
+  return traverseCall(CE, [&] {
+    RecursiveASTVisitor<UsefulAnalyzer>::TraverseCXXOperatorCallExpr(CE);
+  });
+}
+
 bool UsefulAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
   auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
   if (!VD)
@@ -139,7 +242,7 @@ bool UsefulAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
     m_Useful = true;
 
   if (m_Useful && m_Marking)
-    copyVarToCurBlock(VD);
+    markUseful(VD);
 
   return true;
 }

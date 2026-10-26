@@ -503,8 +503,7 @@ void ErrorEstimationHandler::LookupCustomErrorFunction() {
     // namespace specifier. Here, we rebuild manually.
     CXXScopeSpec SS;
     SS.Extend(C, cladNS, noLoc, noLoc);
-    m_CustomErrorFunction =
-        S.BuildDeclarationNameExpr(SS, R, /*ADL=*/false).get();
+    m_CustomErrorFunction = utils::BuildDeclarationNameExpr(S, SS, R);
     return;
   }
 

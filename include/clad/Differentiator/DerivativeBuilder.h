@@ -11,6 +11,7 @@
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
+#include "clad/Differentiator/DerivedFnInfo.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/DiffScheduler.h"
 
@@ -20,6 +21,8 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Sema.h"
+
+#include "llvm/ADT/DenseSet.h"
 
 #include <array>
 #include <memory>
@@ -124,6 +127,10 @@ struct DerivativeAndOverload {
     /// A flag to keep track of whether error diagnostics are requested by user
     /// for numerical differentiation.
     bool m_PrintNumericalDiffErrorDiag = false;
+    /// The derivatives whose building reached a fallback decision.
+    llvm::DenseSet<const clang::FunctionDecl*> m_FallbackDependent;
+    /// Whether the derivative Derive is building has reached one.
+    bool m_ReachedFallback = false;
     ClonedFunction cloneFunction(const clang::FunctionDecl* FD,
                                  clad::VisitorBase& VB, clang::DeclContext* DC,
                                  clang::SourceLocation& noLoc,
@@ -144,14 +151,16 @@ struct DerivativeAndOverload {
     /// if the overload function namespace was not found. If false and
     /// the function containing namespace was not found, nullptr is returned.
     /// \param[in] CUDAExecConfig The kernel launch configuration, if any.
+    /// \param[in] TemplateArgs Template arguments written explicitly on the
+    /// callee, if any.
     ///
     /// \returns The call expression if a suitable function overload was found,
     /// null otherwise.
     clang::Expr* BuildCallToCustomDerivativeOrNumericalDiff(
         const std::string& Name, llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
         clang::Scope* S, const clang::Expr* callSite, bool forCustomDerv = true,
-        bool namespaceShouldExist = true,
-        clang::Expr* CUDAExecConfig = nullptr);
+        bool namespaceShouldExist = true, clang::Expr* CUDAExecConfig = nullptr,
+        const clang::TemplateArgumentListInfo* TemplateArgs = nullptr);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
                           llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.
@@ -229,6 +238,15 @@ struct DerivativeAndOverload {
     ///
     /// \returns The derived function if found, nullptr otherwise.
     clang::FunctionDecl* FindDerivedFunction(const DiffRequest& request);
+    /// Diagnoses \p request where it differs from the derivative \p DFI
+    /// found for it only in a fallback, which clad cannot generate apart.
+    void diagnoseFallbackConflict(const DiffRequest& request,
+                                  const DerivedFnInfo& DFI);
+    /// Records that the derivative being built reached a call clad could only
+    /// fall back on: only such a derivative differs with the fallback. Derive
+    /// files it under the request's derivative, so a call reached inside a
+    /// lambda counts for the function the lambda is in.
+    void noteFallbackDecision() { m_ReachedFallback = true; }
     /// Add edge from current request to the given request in the DiffRequest
     /// graph.
     ///
@@ -251,9 +269,10 @@ struct DerivativeAndOverload {
     /// \param[in] srcLoc Any associated source location information.
     /// \param[in] numDiffViable whether numerical differentiation could stand
     /// in for the missing definition.
+    /// \param[in] numDiffEnabled whether the request falls back to it.
     void diagnoseUndefinedFunction(const clang::FunctionDecl* FD,
                                    clang::SourceLocation srcLoc,
-                                   bool numDiffViable);
+                                   bool numDiffViable, bool numDiffEnabled);
   };
 
 } // end namespace clad
