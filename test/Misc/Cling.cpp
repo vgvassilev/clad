@@ -13,9 +13,10 @@ extern "C" int printf(const char*, ...);
 #pragma clad OFF
 
 double h(double x) { return x * x * x; }
-struct B { double v; };
-struct D : B {};
-double f(double x) { D d; d.v = x; B* b = &d; D* p = static_cast<D*>(b); return p->v; }
+// Neither copyable nor default-constructible, so clad has no way to declare
+// its adjoint and Sema rejects the declaration clad writes.
+struct Uncopyable { double v; Uncopyable(double v) : v(v) {} Uncopyable(const Uncopyable&) = delete; };
+double f(double x) { Uncopyable u(x); u.v = u.v * x; return u.v; }
 
 #pragma clad ON
 void h_req() { clad::gradient(h); }
@@ -30,7 +31,7 @@ void f_req() { clad::gradient(f); }
 #pragma clad OFF
 // The code the error is about is generated and has not been printed, so it
 // has no line of its own to point at.
-// CHECK: {{^}}error: cannot initialize a variable of type 'D *' with an lvalue of type 'B *'
+// CHECK: {{^}}error: no matching constructor for initialization of 'Uncopyable'
 // CHECK-NEXT: {{^input_line_[0-9]+}}:1:{{[0-9]+}}: note: in the code clad generated for this statement
 // CHECK-NEXT: double f(double x) {{.*}}
 // CHECK-NEXT: {{^ +\^~+$}}
