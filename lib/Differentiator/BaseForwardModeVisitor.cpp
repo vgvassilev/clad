@@ -2021,9 +2021,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
              "derivative is considered 0")
             << FD << L;
       }
-      auto zero =
-          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-      return StmtDiff(call, zero);
+      return StmtDiff(call, getZeroInit(CE->getType()));
     }
     return {call, callDiff};
   }
