@@ -14,8 +14,13 @@
 ///
 /// - \ref pipeline decides \em what to differentiate. Clang hands each group
 ///   of declarations to clad::plugin::CladPlugin, which defers them; once the
-///   unit is parsed, clad::DiffScheduler walks it with clad::DiffCollector,
-///   which records a clad::DiffRequest for every \c clad:: call it finds.
+///   unit is parsed, clad::CladInvocationVisitor finds the differentiation
+///   calls and submits each clad::DiffRequest to clad::DiffScheduler::PlanRoot.
+///   The scheduler checks the invocation's location against the pragma
+///   intervals before preparing or planning the request. Entry visitors walk
+///   declarations regardless of pragma state; they do not keep interval data.
+///   For enabled roots, clad::DiffCollector plans the target function's
+///   dependencies, including functions defined outside enabled intervals.
 ///   The requests live in a clad::DynamicGraph, which is drained one node at
 ///   a time -- and grows while it drains, because deriving one function
 ///   discovers the calls it makes.

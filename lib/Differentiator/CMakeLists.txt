@@ -45,12 +45,14 @@ llvm_add_library(cladDifferentiator
   AnalysisBase.cpp
   BaseForwardModeVisitor.cpp
   BaseForwardModeVisitorOpenMP.cpp
+  CladInvocationVisitor.cpp
   CladUtils.cpp
   ConstantFolder.cpp
   DerivativeBuilder.cpp
   DerivedFnCollector.cpp
   DerivedFnInfo.cpp
   DiffPlanner.cpp
+  DiffRequest.cpp
   ErrorEstimator.cpp
   DerivativePrinter.cpp
   GeneratedCode.cpp

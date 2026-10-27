@@ -78,8 +78,10 @@ graph it is draining.
      CAC["Action::CreateASTConsumer<br/>builds the CladPlugin consumer"]
      HTLD["HandleTopLevelDecl<br/>defers each declaration group"]
      HTU["HandleTranslationUnit<br/>the unit is parsed;<br/>both passes run here"]
-     PLAN["DiffScheduler::Plan<br/>DiffCollector walks the groups"]
-     VCE["DiffCollector::VisitCallExpr<br/>spots the clad:: calls"]
+     PLAN["CladInvocationVisitor::Walk<br/>walks the declaration groups"]
+     VCE["CladInvocationVisitor::VisitCallExpr<br/>spots the clad:: calls"]
+     ROOT["DiffScheduler::PlanRoot<br/>filters enabled root calls"]
+     COLLECT["DiffCollector::PlanRequest<br/>plans dependencies"]
      GRAPH[("DynamicGraph of DiffRequest<br/>one node per derivative")]
      FIN["FinalizeTranslationUnit<br/>takes the next node"]
      PDR["ProcessDiffRequest<br/>one request at a time"]
@@ -91,7 +93,7 @@ graph it is draining.
 
      CAC --> HTLD --> HTU
      HTU -- "pass 1: plan" --> PLAN --> VCE
-     VCE -- "records a request" --> GRAPH
+     VCE -- "submits a request" --> ROOT --> COLLECT --> GRAPH
      GRAPH -- "pass 2: derive" --> FIN
      FIN -- "for each node" --> PDR --> DERIVE --> VISIT --> UPDATE
      VISIT -. "a nested call" .-> GRAPH
@@ -104,19 +106,68 @@ exception is a ``constexpr`` function differentiated from inside another
 ``constexpr`` function, which is planned and derived as its group arrives so
 that the derivative exists if the compiler evaluates the call. The walk that
 finds every other request runs once the whole unit is parsed, from
-``HandleTranslationUnit()``. It uses ``DiffCollector``, a
+``HandleTranslationUnit()``. It uses ``CladInvocationVisitor``, a
 ``RecursiveASTVisitor``, which reaches nodes through the corresponding
 ``Visit()`` functions -- a call expression, which corresponds to a function call
 node, through ``VisitCallExpr()``, and so on. Clad distinguishes the functions
 related to a differentiation request by annotating a compiler attribute that
 matches the first letter of the differentiation method to be used (e.g. “G” for
 gradient function). This way, when ``VisitCallExpr()`` is called upon those
-nodes, the differentiation request is identified, initialised and added to the
-request graph.
+nodes, the differentiation request is identified and submitted to
+``DiffScheduler::PlanRoot()``. The scheduler checks whether the invocation is
+enabled, then calls the visitor's request preparation to resolve the target
+and options. ``DiffCollector`` plans the accepted request's dependencies and
+records the requests in the graph.
 Similarly, any statement supported by Clad has a corresponding ``Visit()`` 
 method. An if statement would be visited by ``VisitIfStmt()``, a return 
 statement by ``VisitReturnStmt()``, etc. The general rule is that the ``Visit``
 method is called ``Visit+the name of the statement in Clang``.
+
+Pragma scope
+------------
+``#pragma clad ON`` and ``#pragma clad OFF`` control whether a root request is
+planned. Entry visitors traverse declarations and identify their own entry
+calls without storing or checking pragma intervals. They submit requests to
+``DiffScheduler::PlanRoot()``, which checks the end location of each request's
+``CallContext``. Including ``clad/Differentiator/Differentiator.h`` switches
+Clad on; without any enabled interval, no root requests are planned.
+
+The scheduler owns the shared interval reference and uses
+``utils::isInCladInterval()`` for the location check. An optional synchronous
+preparation callback lets a frontend resolve its target and options only
+after that check. Disabled calls therefore keep the usual disabled-call
+warning without triggering Clad's target- or option-specific diagnostics.
+
+The visitor still traverses enclosing declarations outside those intervals:
+an enabled call can be nested inside one. The target function and its
+dependencies can also be defined outside an enabled interval. For example:
+
+.. code-block:: cpp
+
+   #include "clad/Differentiator/Differentiator.h"
+
+   #pragma clad OFF
+   double square(double x) { return x * x; }
+
+   int main() {
+   #pragma clad ON
+     auto grad = clad::gradient(square);
+   #pragma clad OFF
+     double dx = 0;
+     grad.execute(3., &dx); // dx is 6.
+     return dx != 6.;
+   }
+
+Both ``square`` and the enclosing ``main`` begin outside an enabled interval,
+but the gradient request is enabled. Executing the generated derivative does
+not require Clad to be switched on at that location.
+
+Other frontends and external compiler clients submit roots through the same
+``PlanRoot()`` API and provide the invocation in ``CallContext``. The scheduler
+applies the same pragma policy to all of them. Once a root is accepted,
+``DiffCollector`` traverses its target and derivative dependencies independently
+of the pragma intervals; lazily scheduled nested requests also bypass the root
+filter.
 
 Code generation and insertion
 ===============================

@@ -7,13 +7,15 @@
 #ifndef CLAD_CLANG_PLUGIN
 #define CLAD_CLANG_PLUGIN
 
+#include "clad/Differentiator/CladInvocationVisitor.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
-#include "clad/Differentiator/DiffScheduler.h"
+#include "clad/Differentiator/DiffRequest.h"
 #include "clad/Differentiator/Options.h"
 #include "clad/Differentiator/Version.h"
+
 #include "../lib/Differentiator/DerivativePrinter.h"
 
 #include "clang/AST/Decl.h"
@@ -84,6 +86,7 @@ class CladExternalSource : public clang::ExternalSemaSource {
     /// Lazily constructed because it needs Sema, which is not available
     /// until InitializeSema; reach it through getScheduler().
     std::unique_ptr<DiffScheduler> m_Scheduler;
+    std::unique_ptr<CladInvocationVisitor> m_CladInvocations;
     /// Built on first use; a run that reports nothing never renders anything.
     /// Reach it through getDerivativePrinter().
     std::unique_ptr<DerivativePrinter> m_DerivativePrinter;
@@ -257,6 +260,7 @@ class CladExternalSource : public clang::ExternalSemaSource {
 
   private:
     DiffScheduler& getScheduler();
+    CladInvocationVisitor& getCladInvocations();
     DerivativePrinter& getDerivativePrinter();
     /// Says, once, that nothing will be able to show the generated code, and
     /// what to add. Only when debug information was asked for and neither way
