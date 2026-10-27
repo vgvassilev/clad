@@ -694,13 +694,58 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
 StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
     const ConditionalOperator* CO) {
   Expr* cond = Clone(CO->getCond());
-  // FIXME: fix potential side-effects from evaluating both sides of
-  // conditional.
+  // Each arm may need statements before its value, e.g. the call to the
+  // pushforward of a callee. Those must run only when their arm is taken:
+  // run unconditionally, a recursive call in the untaken arm never stops.
   ++m_ConditionalOperandDepth;
+  beginBlock();
   StmtDiff ifTrueDiff = Visit(CO->getTrueExpr());
+  CompoundStmt* trueStmts = endBlock();
+  beginBlock();
   StmtDiff ifFalseDiff = Visit(CO->getFalseExpr());
+  CompoundStmt* falseStmts = endBlock();
   --m_ConditionalOperandDepth;
   matchBranchTangents(ifTrueDiff, ifFalseDiff, CO->getType());
+
+  QualType valueTy = CO->getType();
+  Expr* trueDx = ifTrueDiff.getExpr_dx();
+  Expr* falseDx = ifFalseDiff.getExpr_dx();
+  if ((!trueStmts->body_empty() || !falseStmts->body_empty()) &&
+      CO->isPRValue() && valueTy->isArithmeticType() && trueDx && falseDx &&
+      trueDx->getType()->isArithmeticType() &&
+      falseDx->getType()->isArithmeticType()) {
+    // Lower to `if (cond) { ...; _t0 = a; _t1 = da; } else { ... }`.
+    valueTy = valueTy.getUnqualifiedType();
+    VarDecl* value = BuildVarDecl(valueTy, "_t", getZeroInit(valueTy));
+    VarDecl* tangent = BuildVarDecl(valueTy, "_t", getZeroInit(valueTy));
+    addToCurrentBlock(BuildDeclStmt(value));
+    addToCurrentBlock(BuildDeclStmt(tangent));
+    auto buildArm = [&](CompoundStmt* stmts, Expr* E, Expr* dE) {
+      beginBlock();
+      for (Stmt* S : stmts->body())
+        addToCurrentBlock(S);
+      addToCurrentBlock(BuildOp(BO_Assign, BuildDeclRef(value), E));
+      addToCurrentBlock(BuildOp(BO_Assign, BuildDeclRef(tangent), dE));
+      return endBlock();
+    };
+    Stmt* thenS = buildArm(trueStmts, ifTrueDiff.getExpr(), trueDx);
+    Stmt* elseS = buildArm(falseStmts, ifFalseDiff.getExpr(), falseDx);
+    Expr* ifCond = m_Sema
+                       .ActOnCondition(getCurrentScope(), noLoc, cond,
+                                       Sema::ConditionKind::Boolean)
+                       .get()
+                       .second;
+    addToCurrentBlock(clad_compat::IfStmt_Create(
+        m_Context, noLoc, /*IsConstexpr=*/false, /*Init=*/nullptr,
+        /*Var=*/nullptr, ifCond, noLoc, noLoc, thenS, noLoc, elseS));
+    return StmtDiff(BuildDeclRef(value), BuildDeclRef(tangent));
+  }
+  // FIXME: an arm whose statements cannot be lowered as above still runs
+  // them whichever way the condition goes.
+  for (Stmt* S : trueStmts->body())
+    addToCurrentBlock(S);
+  for (Stmt* S : falseStmts->body())
+    addToCurrentBlock(S);
 
   cond = StoreAndRef(cond);
   cond = m_Sema
@@ -718,8 +763,8 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
     return StmtDiff(condExpr, nullptr);
   // A branch without a tangent, such as a variable the useful analysis left
   // without one, contributes zero.
-  Expr* trueDx = ifTrueDiff.getExpr_dx();
-  Expr* falseDx = ifFalseDiff.getExpr_dx();
+  trueDx = ifTrueDiff.getExpr_dx();
+  falseDx = ifFalseDiff.getExpr_dx();
   if (!trueDx && !falseDx)
     return StmtDiff(condExpr, nullptr);
   if (!trueDx)
