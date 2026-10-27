@@ -9,7 +9,7 @@ double func(double x) { return std::tgamma(x); } // expected-warning 2{{attempte
 
 //CHECK: double func_darg0(double x) {
 //CHECK-NEXT:     double _d_x = 1;
-//CHECK-NEXT:     return 0;
+//CHECK-NEXT:     return 0.;
 //CHECK-NEXT: }
 
 //CHECK: void func_grad(double x, double *_d_x) {
