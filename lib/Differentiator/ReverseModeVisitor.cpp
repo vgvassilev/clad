@@ -35,6 +35,7 @@
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
+#include "clang/Analysis/Analyses/ExprMutationAnalyzer.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
 #include "clang/Basic/LLVM.h" // for clang::isa
@@ -485,13 +486,38 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
-    if (m_DiffReq.Mode == DiffMode::reverse && !m_ExternalSource) {
+    // A pullback takes no adjoint for a parameter outside its request, as the
+    // pullback of a hessian's pushforward does for every parameter the hessian
+    // is not taken with respect to. A parameter passed by value is the
+    // pullback's own copy, though, and can still come to depend on the
+    // requested ones (`cm.a[0] *= k`): it needs an adjoint all the same, local
+    // like the copy. The adjoint of anything passed by address belongs to the
+    // caller, which did not provide one.
+    bool isPullback = m_DiffReq.Mode == DiffMode::pullback;
+    if ((m_DiffReq.Mode == DiffMode::reverse || isPullback) &&
+        !m_ExternalSource) {
       // create derived variables for parameters which are not part of
       // independent variables (args).
       for (const ParmVarDecl* param : m_NonIndepParams) {
         QualType paramTy = param->getType();
         if (const auto* DT = dyn_cast<DecayedType>(paramTy))
           paramTy = DT->getOriginalType();
+        if (isPullback) {
+          if (paramTy->isReferenceType() ||
+              utils::isArrayOrPointerType(paramTy) ||
+              !utils::IsDifferentiableType(paramTy))
+            continue;
+          // A copy the body never writes keeps the caller's value, which the
+          // requested parameters do not reach.
+          const ParmVarDecl* orig = nullptr;
+          for (const ParmVarDecl* P : m_DiffReq->parameters())
+            if (P->getName() == param->getName())
+              orig = P;
+          const Stmt* body = m_DiffReq->getBody();
+          if (!orig || !body ||
+              !ExprMutationAnalyzer(*body, m_Context).isMutated(orig))
+            continue;
+        }
         if (utils::isArrayOrPointerType(paramTy) &&
             !paramTy->isConstantArrayType()) {
           // We cannot initialize derived variable for pointer types because
