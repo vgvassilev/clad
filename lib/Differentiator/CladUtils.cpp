@@ -2302,6 +2302,12 @@ namespace clad {
       const Expr* E = CE;
       do {
         const auto& parents = C.getParents(*E);
+        // The parent map is built once, the first time it is asked for, so a
+        // call in a body that came into being after that -- one clad
+        // generated, or a template instantiated for a custom derivative --
+        // has no entry. Treat its value as used.
+        if (parents.empty())
+          return false;
         assert(parents.size() == 1 && "One parent stmt is expected.");
         const Stmt* S = parents[0].get<Stmt>();
         // If the parent is a Stmt but not an Expr, then the result is not used.
