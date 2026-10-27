@@ -2759,8 +2759,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (!calleeFnForwPassFD->parameters().empty()) {
         QualType lastParamType =
             calleeFnForwPassFD->parameters().back()->getType();
-        usingRestoreTracker =
-            (utils::GetValueType(lastParamType) == trackerType);
+        usingRestoreTracker = clad_compat::hasSameUnqualifiedType(
+            m_Context, utils::GetValueType(lastParamType), trackerType);
       }
     }
 
@@ -2892,6 +2892,41 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         nonDiff = true;
     }
 
+    // A request scheduled on the fly (the pullback of a hessian's pushforward,
+    // and everything it calls) never went through the planner, which is what
+    // schedules the reverse_forw of a callee that may write through its
+    // arguments. Without one nothing restores what the callee overwrote, so
+    // each pullback in the reverse sweep reads the state left by the last
+    // call instead of the state its own call saw. Ask for the reverse_forw
+    // here, under the same condition the planner uses.
+    bool forwRequestedHere = false;
+    // FIXME: A callee returning a struct of references, such as the
+    // pushforward of an accessor (ValueAndPushforward<T&, T&>), would need a
+    // reverse_forw returning ValueAndAdjoint of such structs, which clad can
+    // neither declare nor tape. Such a callee is left as it was.
+    auto returnsReferenceFields = [](QualType T) {
+      if (const auto* RD = T->getAsCXXRecordDecl())
+        return llvm::any_of(RD->fields(), [](const FieldDecl* F) {
+          return F->getType()->isReferenceType();
+        });
+      return false;
+    };
+    if (!nonDiff && asGrad && !calleeFnForwPassFD && !m_DiffReq.CallContext &&
+        !isCastSem && FD->isDefined() && utils::shouldUseRestoreTracker(FD) &&
+        !returnsReferenceFields(FD->getReturnType())) {
+      calleeFnForwPassReq.UseRestoreTracker = true;
+      calleeFnForwPassReq.EnableLoopAnalysis = m_DiffReq.EnableLoopAnalysis;
+      calleeFnForwPassFD =
+          m_Builder.HandleNestedDiffRequest(calleeFnForwPassReq);
+      forwRequestedHere = calleeFnForwPassFD != nullptr;
+      if (calleeFnForwPassFD && !calleeFnForwPassFD->parameters().empty())
+        usingRestoreTracker = clad_compat::hasSameUnqualifiedType(
+            m_Context,
+            utils::GetValueType(
+                calleeFnForwPassFD->parameters().back()->getType()),
+            trackerType);
+    }
+
     llvm::SmallVector<Stmt*, 16> PreCallStmts{};
     // Save current index in the current block, to potentially put some
     // statements there later.
@@ -2994,9 +3029,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // once more after it. The forward sweep then calls the primal.
     llvm::SmallVector<Stmt*, 4> PostCallStmts;
     bool callerRestoresWrites = false;
+    // A reverse_forw asked for here takes the tracker it was asked with.
     if (!nonDiff && usingRestoreTracker && !m_RestoreTracker &&
         m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass &&
-        !needsForwPass && pullbackStateType.isNull() &&
+        !needsForwPass && pullbackStateType.isNull() && !forwRequestedHere &&
         !isa<CUDAKernelCallExpr>(CE))
       callerRestoresWrites = m_DiffReq.restoresCallWrites(CE);
 
@@ -3616,8 +3652,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             forwRetTy->getAsCXXRecordDecl() &&
             forwRetTy->getAsCXXRecordDecl()->getName() == "ValueAndAdjoint";
         if (!needsForwPass || !forwReturnsPair ||
-            (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE)))
-          return StmtDiff(call);
+            (!dfdx() && utils::hasUnusedReturnValue(m_Context, CE))) {
+          // The result is returned by value and its adjoint arrives through
+          // dfdx(); like the plain call below, hand back a zero to start a
+          // declaration's adjoint from, rather than leaving it uninitialized.
+          if (isa<CXXOperatorCallExpr>(CE) || call->getType()->isVoidType() ||
+              call->getType()->isReferenceType() || !call->isPRValue())
+            return StmtDiff(call);
+          return StmtDiff(call, getZeroInit(call->getType()));
+        }
         Expr* callRes = nullptr;
         Expr* resValue = nullptr;
         Expr* resAdjoint = nullptr;
