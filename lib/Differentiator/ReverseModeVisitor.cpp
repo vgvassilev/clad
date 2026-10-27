@@ -4392,8 +4392,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         Expr* derivedL = nullptr;
         Expr* derivedR = nullptr;
         ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
-        if (derivedR == Rdiff.getExpr())
+        // The adjoint of a nested assignment, as in `q = p = x + 1`, is the
+        // left-hand side the inner assignment already wrote into, and this
+        // assignment's own left-hand side is handed back as its result: both
+        // already have parents.
+        const auto* nestedAssign =
+            dyn_cast<BinaryOperator>(R->IgnoreParenImpCasts());
+        if (derivedR == Rdiff.getExpr() ||
+            (derivedR && nestedAssign && nestedAssign->isAssignmentOp() &&
+             derivedR == Rdiff.getExpr_dx()))
           derivedR = CloneNode(derivedR);
+        if (derivedL && derivedL == ResultRef)
+          derivedL = CloneNode(derivedL);
         addToCurrentBlock(BuildOp(opCode, derivedL, derivedR),
                           direction::forward);
         if (opCode == BO_Assign && derivedL && derivedR)
