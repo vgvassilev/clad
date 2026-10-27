@@ -145,8 +145,18 @@ void AnalysisBase::getDependencySet(const clang::Expr* E,
     // just this subtree (see clang/AST/RecursiveASTVisitor.h); returning true
     // without calling the base skips only this node's children.
     bool TraverseDeclRefExpr(DeclRefExpr* DRE) {
-      if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
-        vars.insert(VD);
+      if (auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+        bool isCUDABuiltin = false;
+        if (const clang::IdentifierInfo* II = VD->getIdentifier()) {
+          llvm::StringRef Name = II->getName();
+          isCUDABuiltin =
+              (Name == "blockIdx" || Name == "blockDim" ||
+               Name == "threadIdx" || Name == "gridDim" || Name == "warpSize");
+        }
+
+        if (!isCUDABuiltin)
+          vars.insert(VD);
+      }
       return true;
     }
     bool TraverseArraySubscriptExpr(ArraySubscriptExpr* ASE) {

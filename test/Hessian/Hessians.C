@@ -168,6 +168,17 @@ double fn_def_arg(double i=0, double j=0) {
 
 void fn_def_arg_hessian(double, double, double*);
 
+// A class taken by value that the hessian is not taken with respect to gets
+// no adjoint from the caller of the pullback, but the body makes it depend on
+// the parameters: it has an adjoint of its own.
+struct M2 { double a[2]; };
+void scaleAt(M2& m, double k) { m.a[1] *= k; }
+double byValue(M2 m, double k1, double k2) {
+  m.a[0] *= k1;
+  scaleAt(m, k2);
+  return m.a[0] * m.a[1];
+}
+
 #define TEST1(F, x) { \
   result[0] = 0;\
   auto h = clad::hessian(F);\
@@ -217,6 +228,10 @@ int main() {
   TEST3(&Widget::memFn_1, W, 7, 9); // CHECK-EXEC: Result is = {0.00, 15.00, 15.00, 0.00}
   TEST3(&Widget::memFn_2, W, 7, 9); // CHECK-EXEC: Result is = {5400.00, 4200.00, 4200.00, 0.00}
   TEST2(fn_def_arg, 3, 5);  // CHECK-EXEC: Result is = {0.00, 2.00, 2.00, 0.00}
+  M2 m2{{1, 2}};
+  result[0] = result[1] = result[2] = result[3] = 0;
+  clad::hessian(byValue, "k1, k2").execute(m2, 3, 5, result);
+  printf("Result is = {%.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3]); // CHECK-EXEC: Result is = {0.00, 2.00, 2.00, 0.00}
 
 //CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_pushforward_pullback(double a, double b, double _d_a, double _d_b, clad::ValueAndPushforward<double, double> _d_y, double *_d_a0, double *_d_b0){{[ __attribute__((always_inline))]*}} {
 //CHECK-NEXT:    double _d_t0 = 0.;

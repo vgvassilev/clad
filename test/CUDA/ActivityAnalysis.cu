@@ -84,6 +84,21 @@ double func2(double* in) {
 // CHECK-NEXT:     square_pullback<<<1, 1>>>(tmp, in, _d_tmp, _d_in);
 // CHECK-NEXT: }
 
+__global__ void rows(double* out, const double* in) {
+    double* row = out + blockIdx.x * blockDim.x;
+    const double* irow = in + blockIdx.x * blockDim.x;
+    row[threadIdx.x] = irow[threadIdx.x] * irow[threadIdx.x];
+}
+
+// CHECK: void rows_grad(double *out, const double *in, double *_d_out, double *_d_in) {
+// CHECK-NEXT:     double *_d_row = _d_out + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     double *row = out + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     double *_d_irow = _d_in + blockIdx.x * blockDim.x;
+// CHECK-NEXT:     const double *irow = in + blockIdx.x * blockDim.x;
+// CHECK:          row[threadIdx.x] = _t1 * _t0;
+// CHECK:          _d_irow[threadIdx.x] += _r_d0 * _t0;
+// CHECK-NEXT:     _d_irow[threadIdx.x] += _t1 * _r_d0;
+
 int main() {
     double *d_out, *d_out_d, *d_x;
     cudaMalloc(&d_out, sizeof(double) * 2);
@@ -99,6 +114,7 @@ int main() {
     auto df = clad::gradient(func);
     auto d_func1 = clad::gradient(func1);
     auto d_func2 = clad::gradient(func2);
+    auto d_rows = clad::gradient(rows);
     df.execute_kernel(dim3(1), dim3(2), d_out, 5.0, d_out_d, d_x);
     cudaDeviceSynchronize();
 
