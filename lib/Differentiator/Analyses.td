@@ -243,6 +243,25 @@ def note_derivative_requested :
 def note_kept_value_is :
     Diagnostic<"Note", "the value kept is the one this expression had">;
 
+// Where a hand-written derivative would do much less work (-Rclad-perf).
+def remark_perf_replay :
+    Diagnostic<"Remark", "the pullback of %0 runs its forward work again, about "
+                         "%1%% of the work of the gradient of %2">;
+def note_perf_replayed : Diagnostic<"Note", "it runs %0 again">;
+def note_perf_replayed_body :
+    Diagnostic<"Note", "it runs the loops and arithmetic of its own body again">;
+def note_perf_split :
+    Diagnostic<"Note", "a hand-written '%0_reverse_forw' that hands its "
+                       "pullback what it needs through clad::pullback_state "
+                       "runs it once">;
+def remark_perf_structure :
+    Diagnostic<"Remark", "%0 is constant except %1 of its %2 entries, which its "
+                         "derivative treats as all varying, about %3%% of the "
+                         "work of the gradient of %4">;
+def note_perf_structure :
+    Diagnostic<"Note", "a hand-written pullback of %0 that touches only those "
+                       "entries skips the rest">;
+
 // A call to a function clad cannot differentiate, and what it does instead.
 def warn_undefined_function :
     Diagnostic<"Warning", "attempted differentiation of function %0 without "
@@ -454,7 +473,11 @@ def Clad {
                                   note_analysis_off, remark_value_kept,
                                   note_tbr_could_not_prove, note_tbr_disabled,
                                   note_derivative_requested,
-                                  note_kept_value_is, warn_undefined_function,
+                                  note_kept_value_is, remark_perf_replay,
+                                  note_perf_replayed, note_perf_replayed_body,
+                                  note_perf_split,
+                                  remark_perf_structure, note_perf_structure,
+                                  warn_undefined_function,
                                   note_numdiff_not_viable,
                                   note_numdiff_fallback, note_numdiff_off,
                                   err_fallback_conflict,

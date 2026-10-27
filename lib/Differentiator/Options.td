@@ -129,6 +129,16 @@ def Rclad_analysis_EQ : Joined<["-"], "Rclad-analysis=">,
 pointed at the generated code itself. The analogue of -Rpass-missed, which
 cannot reach an AST-level plugin.}]>;
 
+def Rclad_perf : Flag<["-"], "Rclad-perf">,
+  HelpText<"Reports where a hand-written derivative would do much less work "
+           "than the generated one.">,
+  DocBrief<[{Reports, as remarks on the functions differentiated, where a large
+share of a gradient's estimated work goes to what a hand-written derivative
+would not do: a pullback running its forward work again, or an object that is
+constant except for a few entries treated as wholly varying. Each remark says
+what to write instead.}]>,
+  MarshallingInfoFlag<CladOpt<"RemarkPerf">>;
+
 def fdump_analysis_EQ : Joined<["-"], "fdump-analysis=">,
   MetaVarName<"<name>">,
   HelpText<"Prints what the named analysis concluded, per function "

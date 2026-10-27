@@ -773,6 +773,31 @@ never ran.
 
 Run ``-plugin-arg-clad -help`` for the analysis names this accepts.
 
+``-Rclad-perf``
+--------------------------------
+
+Reports where a large share of a gradient's work goes to what a hand-written
+derivative would not do, and what to write instead. Clad estimates the work of
+every derivative it generated, weighted by how often the gradient runs it, and
+remarks on the functions that account for at least 5% of it:
+
+* a pullback that runs its function's forward work again before running it
+  backwards. A hand-written ``<f>_reverse_forw`` that hands the pullback what
+  it needs through ``clad::pullback_state`` runs it once.
+* an object that is constant except for a few entries, such as a matrix built
+  as ``Identity()`` with three entries set, which the derivative treats as
+  wholly varying. A hand-written pullback that touches only those entries skips
+  the rest.
+
+.. code-block:: none
+
+   push.cpp:12:6: remark: the pullback of 'push' runs its forward work again,
+   about 10% of the work of the gradient of 'track'
+   push.cpp:12:6: note: it runs 'mul', 'transpose', 'drift' again
+
+The estimate counts operations, not time, and takes a loop whose trip count is
+not a constant to run 10 times, so read the percentages as a ranking.
+
 ``-fgenerated-source-dir=<dir>``
 --------------------------------
 

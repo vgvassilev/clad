@@ -9,6 +9,7 @@
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/Options.h"
+#include "clad/Differentiator/PerfAdvisor.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
@@ -856,6 +857,7 @@ void InitTimers();
           Generated G;
           G.Derivative = DerivativeDecl;
           G.AnalysisRan = request.EnableTBRAnalysis;
+          G.Mode = request.Mode;
           // Where a user asked for this derivative, when one did. Clad asks
           // for some itself -- the second derivative a hessian needs -- and
           // those were written on no line at all.
@@ -1082,6 +1084,13 @@ void InitTimers();
         }
 
         FinalizeTranslationUnit();
+        if (m_DO.RemarkPerf) {
+          llvm::SmallVector<AdvisedDerivative, 16> Advised;
+          for (const Generated& G : m_Generated)
+            if (G.Derivative->doesThisDeclarationHaveABody())
+              Advised.push_back({G.Derivative, G.Original, G.Mode});
+          adviseOnPerformance(m_CI.getSema(), Advised);
+        }
         // Before the multiplexer: this is the last point at which every
         // derivative exists and none has reached code generation.
         materializeGeneratedCode();
