@@ -174,10 +174,18 @@ float f_call_inline_fxn(float *params, float const *obs, float const *xlArr) {
 // CHECK-NEXT:     double _t0 = (high - low);
 // CHECK-NEXT:     double _d_binWidth = ((_d_high - _d_low) * numBins - _t0 * _d_numBins) / (numBins * numBins);
 // CHECK-NEXT:     double binWidth = _t0 / numBins;
-// CHECK-NEXT:     double _t1 = (val - low);
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<double, double> _t2 = clad::custom_derivatives::std::abs_pushforward(_t1 / binWidth, ((_d_val - _d_low) * binWidth - _t1 * _d_binWidth) / (binWidth * binWidth));
-// CHECK-NEXT:     bool _t3 = val >= high;
-// CHECK-NEXT:     return {(unsigned int)(_t3 ? numBins - 1 : _t2.value), (unsigned int)(_t3 ? _d_numBins - 0 : _t2.pushforward)};
+// CHECK-NEXT:     double _t3 = 0.;
+// CHECK-NEXT:     double _t4 = 0.;
+// CHECK-NEXT:     if (val >= high) {
+// CHECK-NEXT:         _t3 = numBins - 1;
+// CHECK-NEXT:         _t4 = _d_numBins - 0;
+// CHECK-NEXT:     } else {
+// CHECK-NEXT:         double _t1 = (val - low);
+// CHECK-NEXT:         {{(clad::)?}}ValueAndPushforward<double, double> _t2 = clad::custom_derivatives::std::abs_pushforward(_t1 / binWidth, ((_d_val - _d_low) * binWidth - _t1 * _d_binWidth) / (binWidth * binWidth));
+// CHECK-NEXT:         _t3 = _t2.value;
+// CHECK-NEXT:         _t4 = _t2.pushforward;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return {(unsigned int)_t3, (unsigned int)_t4};
 // CHECK-NEXT: }
 
 // CHECK: float f_call_inline_fxn_darg0_0(float *params, const float *obs, const float *xlArr) {
