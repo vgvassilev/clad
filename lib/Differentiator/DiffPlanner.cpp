@@ -2063,8 +2063,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
       const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       if (MD) {
+        // Reverse mode differentiates a lambda's body where it is called. A
+        // pushforward, even one a gradient uses, needs one planned for it.
         if (isLambdaCallOperator(MD) &&
-            m_TopMostReq->Mode == DiffMode::reverse) {
+            m_TopMostReq->Mode == DiffMode::reverse &&
+            m_ParentReq->Mode != DiffMode::pushforward) {
           request.EnableVariedAnalysis = false;
           return true;
         }
@@ -2133,8 +2136,12 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (m_ParentReq->CustomDerivative ||
           m_ParentReq->Mode == DiffMode::unknown)
         request.Mode = DiffMode::unknown;
+      // A pushforward calls pushforwards, whatever the top-most request is: a
+      // gradient differentiates a real function of one real argument through
+      // its pushforward, and every callee of that pushforward needs one too.
       else if (m_TopMostReq->Mode == DiffMode::forward ||
                m_TopMostReq->Mode == DiffMode::hessian ||
+               m_ParentReq->Mode == DiffMode::pushforward ||
                canUsePushforwardInRevMode)
         request.Mode = DiffMode::pushforward;
       else if (m_TopMostReq->Mode == DiffMode::reverse)
