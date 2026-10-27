@@ -1288,6 +1288,20 @@ static bool isZeroTangent(const Expr* dE) {
   return FD && FD->getQualifiedNameAsString() == "clad::zero_vector";
 }
 
+StmtDiff
+BaseForwardModeVisitor::VisitCXXMemberCallExpr(const CXXMemberCallExpr* CE) {
+  StmtDiff Res = VisitCallExpr(CE);
+  // Same for an accessor, a member function of no arguments returning an
+  // integer by value: what it reads is an integer member (see
+  // VisitImplicitCastExpr). One computing an integer from its arguments is
+  // differentiated as such.
+  if (CE->getType()->isIntegralOrEnumerationType() && CE->isPRValue() &&
+      CE->getNumArgs() == 0 && Res.getExpr_dx())
+    Res.updateStmtDx(
+        ConstantFolder::synthesizeLiteral(CE->getType(), m_Context, /*val=*/0));
+  return Res;
+}
+
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
@@ -2551,6 +2565,16 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
 StmtDiff
 BaseForwardModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
   StmtDiff subExprDiff = Visit(ICE->getSubExpr());
+  // An integer member's tangent is not a derivative: clad's own integer
+  // tangents are zero, but an integer member of a tangent object holds
+  // whatever keeps the object valid (a slice count, say). Read it as zero.
+  if (ICE->getCastKind() == CK_LValueToRValue &&
+      ICE->getType()->isIntegralOrEnumerationType() &&
+      isa<MemberExpr>(ICE->getSubExpr()->IgnoreParens()) &&
+      subExprDiff.getExpr_dx())
+    return StmtDiff(subExprDiff.getExpr(),
+                    ConstantFolder::synthesizeLiteral(ICE->getType(), m_Context,
+                                                      /*val=*/0));
   // Casts should be handled automatically when the result is used by
   // Sema::ActOn.../Build...
   return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
