@@ -151,6 +151,7 @@ class CladExternalSource : public clang::ExternalSemaSource {
       /// Whether the to-be-recorded analysis ran, which decides the reason a
       /// remark gives for a value being kept.
       bool AnalysisRan = false;
+      DiffMode Mode = DiffMode::unknown;
     };
 
     /// The derivatives produced here, in the order they were produced.

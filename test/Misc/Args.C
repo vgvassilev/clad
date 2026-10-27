@@ -4,6 +4,7 @@
 // takes is on it and the header is a line of its own.
 // CHECK_HELP: Options specific to Clad (preceded by -plugin-arg-clad):
 // CHECK_HELP-NEXT: -Rclad-analysis=<name>
+// CHECK_HELP-NEXT: -Rclad-perf
 // CHECK_HELP-NEXT: -fclad-porting-hints
 // CHECK_HELP-NEXT: -fcustom-estimation-model
 // CHECK_HELP-NEXT: -fdisable-analysis=<name>
