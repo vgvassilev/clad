@@ -171,17 +171,17 @@ void fn_def_arg_hessian(double, double, double*);
 // A class taken by value that the hessian is not taken with respect to gets
 // no adjoint from the caller of the pullback, but the body makes it depend on
 // the parameters: it has an adjoint of its own.
-struct M2 { double a[2]; };
+struct M2 { double a[2]; void scale(double k) { a[1] *= k; } };
 void scaleAt(M2& m, double k) { m.a[1] *= k; }
 double byValue(M2 m, double k1, double k2) {
   m.a[0] *= k1;
   scaleAt(m, k2);
   return m.a[0] * m.a[1];
 }
-// Written only through its members, it is written all the same.
+// Written only through its members and methods, it is written all the same.
 double byValueMembers(M2 m, double k1, double k2) {
   m.a[0] *= k1;
-  m.a[1] *= k2;
+  m.scale(k2);
   return m.a[0] * m.a[1];
 }
 
