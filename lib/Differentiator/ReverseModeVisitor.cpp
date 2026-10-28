@@ -3042,6 +3042,27 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       CallArgDx.push_back(argDiff.getExpr_dx());
       if (m_DiffReq.shouldBeRecorded(arg))
         hasStoredParams = true;
+
+      // A pointer to non-const lets the callee write what it points to. The
+      // restore_tracker of a reverse_forw puts that back. A call without one,
+      // such as `m.scale_pushforward(k, &_d_m, _d_k)` in a pullback, needs
+      // the variable it takes the address of stored, as the object of a
+      // method is.
+      const auto* addrOf = dyn_cast<UnaryOperator>(finalArg->IgnoreImpCasts());
+      QualType pointee = PVD->getType()->getPointeeType();
+      if (!nonDiff && !usingRestoreTracker &&
+          m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass &&
+          !pointee.isNull() && !pointee.isConstQualified() && addrOf &&
+          addrOf->getOpcode() == UO_AddrOf &&
+          isa<DeclRefExpr>(addrOf->getSubExpr()) &&
+          utils::reachesNoOtherMemory(m_Context, pointee) &&
+          m_DiffReq.shouldBeRecorded(arg)) {
+        StmtDiff pushPop = StoreAndRestore(
+            CloneNode(addrOf->getSubExpr()), "_t", /*moveToTape=*/false,
+            /*restoreAgain=*/callerRestoresWrites ? &PostCallStmts : nullptr);
+        addToCurrentBlock(pushPop.getStmt());
+        PreCallStmts.push_back(pushPop.getStmt_dx());
+      }
     }
 
     // The pullback replays the globals the call assigns. Put them back before
