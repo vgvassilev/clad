@@ -928,6 +928,27 @@ double fn25(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct UnaryMinusMember {
+  double x;
+  UnaryMinusMember operator-() const { return UnaryMinusMember{-x}; }
+};
+
+double unaryMinusMember(double a) {
+  UnaryMinusMember v{a};
+  return (-v).x * a;
+}
+// CHECK: void unaryMinusMember_grad(double a, double *_d_a) {
+// CHECK-NEXT:     UnaryMinusMember _d_v = {0.};
+// CHECK-NEXT:     UnaryMinusMember v{a};
+// CHECK-NEXT:     double _t0 = (- v).x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         UnaryMinusMember _r0 = {0.};
+// CHECK-NEXT:         _r0.x += 1 * a;
+// CHECK-NEXT:         v.operator_minus_pullback(_r0, &_d_v);
+// CHECK-NEXT:         *_d_a += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_a += _d_v.x;
+// CHECK-NEXT: }
 struct ptrClass {
   double* ptr = nullptr;
   ptrClass() = default;
@@ -1206,7 +1227,7 @@ double fn33(double x) {
 // CHECK-NEXT:         _d_tmp3 += 2 * _d_y;
 // CHECK-NEXT:         _d_tmp4 += 2 * _d_y;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     (PIBase *)this->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
+// CHECK-NEXT:     ((PIBase *)this)->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
 // CHECK-NEXT:     dynamic_cast<PIBase *>(this)->getPi_pullback(_d_tmp3, dynamic_cast<PIBase *>(_d_this));
 // CHECK-NEXT:     reinterpret_cast<PIBase *>(this)->getPi_pullback(_d_tmp2, reinterpret_cast<PIBase *>(_d_this));
 // CHECK-NEXT:     static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, static_cast<PIBase *>(_d_this));
@@ -1565,6 +1586,10 @@ int main() {
     INIT_GRADIENT(fn25);
     TEST_GRADIENT(fn25, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {-1.00, 0.00}
 
+    auto unaryMinusMember_grad = clad::gradient(unaryMinusMember);
+    double d_unaryMinusMember = 0;
+    unaryMinusMember_grad.execute(2, &d_unaryMinusMember);
+    printf("{%.2f}\n", d_unaryMinusMember); // CHECK-EXEC: {-4.00}
     INIT_GRADIENT(fn26);
     TEST_GRADIENT(fn26, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
 

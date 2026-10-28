@@ -700,6 +700,7 @@ namespace clad {
       id.setIdentifier(GetIdentifierInfo(semaRef, memberName), noLoc);
       CXXScopeSpec SS;
       bool isArrow = base->getType()->isPointerType();
+      base = ParenthesizeMemberBase(semaRef, base);
       auto ME =
           semaRef
               .ActOnMemberAccessExpr(S, base, noLoc,
@@ -717,6 +718,23 @@ namespace clad {
 
     clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef, clang::Expr* E) {
       return semaRef.ActOnParenExpr(noLoc, noLoc, E).getAs<ParenExpr>();
+    }
+
+    Expr* ParenthesizeMemberBase(Sema& semaRef, Expr* base) {
+      // A member access binds tighter than a prefix, binary or conditional
+      // operator, a C-style cast or a new-expression, so such a base needs
+      // parentheses to print back the same expression: `(&f)->x`, not `&f->x`.
+      const Expr* B = base->IgnoreImplicit();
+      const auto* UO = dyn_cast<UnaryOperator>(B);
+      const auto* OCE = dyn_cast<CXXOperatorCallExpr>(B);
+      bool postfixOCE = OCE && (OCE->getOperator() == OO_Call ||
+                                OCE->getOperator() == OO_Subscript ||
+                                OCE->getOperator() == OO_Arrow);
+      if ((UO && !UO->isPostfix()) || (OCE && !postfixOCE) ||
+          isa<BinaryOperator, AbstractConditionalOperator, CStyleCastExpr,
+              CXXNewExpr>(B))
+        return BuildParenExpr(semaRef, base);
+      return base;
     }
 
     clang::IdentifierInfo* GetIdentifierInfo(Sema& semaRef,

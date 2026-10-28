@@ -287,6 +287,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// `(E)`.
     clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef, clang::Expr* E);
 
+    /// Returns `base` wrapped in a `ParenExpr` if it needs parentheses to be
+    /// printed as the base of a member access, e.g. `(*p).x`; otherwise
+    /// returns `base`.
+    clang::Expr* ParenthesizeMemberBase(clang::Sema& semaRef,
+                                        clang::Expr* base);
+
     /// Returns `IdentifierInfo` that represents the value in the `identifier`
     /// parameter.
     clang::IdentifierInfo* GetIdentifierInfo(clang::Sema& semaRef,
