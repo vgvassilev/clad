@@ -35,7 +35,6 @@
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
-#include "clang/Analysis/Analyses/ExprMutationAnalyzer.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
 #include "clang/Basic/LLVM.h" // for clang::isa
@@ -513,9 +512,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           for (const ParmVarDecl* P : m_DiffReq->parameters())
             if (P->getName() == param->getName())
               orig = P;
-          const Stmt* body = m_DiffReq->getBody();
-          if (!orig || !body ||
-              !ExprMutationAnalyzer(*body, m_Context).isMutated(orig))
+          if (!orig || !m_DiffReq.writesVariable(orig))
             continue;
         }
         if (utils::isArrayOrPointerType(paramTy) &&

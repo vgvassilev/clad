@@ -2395,7 +2395,26 @@ namespace clad {
         std::set<const VarDecl*>* m_Written;
 
         void mark(const Expr* E) {
-          if (const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts()))
+          // A member is part of the object it is taken of, and so is an
+          // element of a member array: `m.a[0] *= k` writes `m`. One reached
+          // through a pointer is not. An element of an array variable is
+          // left to the extents the loop analyses track for it.
+          while (true) {
+            E = E->IgnoreParenImpCasts();
+            if (const auto* ME = dyn_cast<MemberExpr>(E)) {
+              if (ME->isArrow())
+                return;
+              E = ME->getBase();
+            } else if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+              const Expr* Base = ASE->getBase()->IgnoreParenImpCasts();
+              if (!Base->getType()->isArrayType() || !isa<MemberExpr>(Base))
+                return;
+              E = Base;
+            } else {
+              break;
+            }
+          }
+          if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
             if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl()))
               m_Written->insert(VD);
         }
@@ -2448,6 +2467,14 @@ namespace clad {
                             isa_and_nonnull<CXXMethodDecl>(FD);
           llvm::ArrayRef<Expr*> Args(CE->getArgs(), CE->getNumArgs());
           markByRefArgs(FD, Args.drop_front(Offset));
+          // A method that is not const may write the object it is called on.
+          const auto* MD = dyn_cast_or_null<CXXMethodDecl>(FD);
+          if (MD && MD->isInstance() && !MD->isConst()) {
+            if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
+              mark(MCE->getImplicitObjectArgument());
+            else if (Offset)
+              mark(Args.front());
+          }
           return true;
         }
 

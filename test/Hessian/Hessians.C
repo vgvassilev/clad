@@ -178,6 +178,12 @@ double byValue(M2 m, double k1, double k2) {
   scaleAt(m, k2);
   return m.a[0] * m.a[1];
 }
+// Written only through its members, it is written all the same.
+double byValueMembers(M2 m, double k1, double k2) {
+  m.a[0] *= k1;
+  m.a[1] *= k2;
+  return m.a[0] * m.a[1];
+}
 
 #define TEST1(F, x) { \
   result[0] = 0;\
@@ -231,6 +237,9 @@ int main() {
   M2 m2{{1, 2}};
   result[0] = result[1] = result[2] = result[3] = 0;
   clad::hessian(byValue, "k1, k2").execute(m2, 3, 5, result);
+  printf("Result is = {%.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3]); // CHECK-EXEC: Result is = {0.00, 2.00, 2.00, 0.00}
+  result[0] = result[1] = result[2] = result[3] = 0;
+  clad::hessian(byValueMembers, "k1, k2").execute(m2, 3, 5, result);
   printf("Result is = {%.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3]); // CHECK-EXEC: Result is = {0.00, 2.00, 2.00, 0.00}
 
 //CHECK:{{[__attribute__((always_inline)) ]*}}inline void f_cubed_add1_pushforward_pullback(double a, double b, double _d_a, double _d_b, clad::ValueAndPushforward<double, double> _d_y, double *_d_a0, double *_d_b0){{[ __attribute__((always_inline))]*}} {
