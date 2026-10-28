@@ -389,6 +389,7 @@ static void registerDerivative(Decl* D, Sema& S, const DiffRequest& R) {
           UnqualifiedId Member;
           Member.setIdentifier(&m_Context.Idents.get(Name), Loc);
           bool isArrow = Base->getType()->isPointerType();
+          Base = utils::ParenthesizeMemberBase(m_Sema, Base);
           // FIXME: update SS here?
           auto* ME =
               m_Sema

@@ -15,6 +15,14 @@ double nonMemFn(double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+struct ParenthesizedMember { double x; };
+
+double parenthesizedMember(double x) {
+  ParenthesizedMember s{x};
+  ParenthesizedMember* p = &s;
+  return (*p).x * x;
+}
+
 double minimalPointer(double x) {
   double* const p = &x;
   *p = (*p)*(*p);
@@ -359,7 +367,7 @@ double structPointer (double x) {
 // CHECK-NEXT:     double res = t->x;
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     _d_t->x += _d_res;
-// CHECK-NEXT:     *_d_x += *_d_t.x;
+// CHECK-NEXT:     *_d_x += (*_d_t).x;
 // CHECK-NEXT:     delete t;
 // CHECK-NEXT:     delete _d_t;
 // CHECK-NEXT: }
@@ -680,4 +688,21 @@ int main() {
   double d_x_1750 = 0;
   d_ptrAliasing.execute(5.0, &d_x_1750);
   printf("%.2f\n", d_x_1750); // CHECK-EXEC: 3.00
+
+  auto d_parenthesizedMember = clad::gradient(parenthesizedMember);
+  double d_parenthesized_x = 0;
+  d_parenthesizedMember.execute(2, &d_parenthesized_x);
+  printf("%.2f\n", d_parenthesized_x); // CHECK-EXEC: 4.00
 }
+
+// CHECK: void parenthesizedMember_grad(double x, double *_d_x) {
+// CHECK-NEXT:     ParenthesizedMember _d_s = {0.};
+// CHECK-NEXT:     ParenthesizedMember s{x};
+// CHECK-NEXT:     ParenthesizedMember *_d_p = &_d_s;
+// CHECK-NEXT:     ParenthesizedMember *p = &s;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         (*_d_p).x += 1 * x;
+// CHECK-NEXT:         *_d_x += (*p).x * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += _d_s.x;
+// CHECK-NEXT: }

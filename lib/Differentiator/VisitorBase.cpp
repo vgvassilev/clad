@@ -942,6 +942,7 @@ namespace clad {
       Loc = m_DiffReq->getLocation();
     CXXScopeSpec SS;
     bool isArrow = Base->getType()->isPointerType();
+    Base = utils::ParenthesizeMemberBase(m_Sema, Base);
     auto ME = m_Sema
                   .ActOnMemberAccessExpr(getCurrentScope(), Base, Loc,
                                          isArrow ? tok::TokenKind::arrow

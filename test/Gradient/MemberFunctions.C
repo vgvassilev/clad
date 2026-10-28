@@ -659,7 +659,7 @@ double fn9(double x, double y) {
 // CHECK-NEXT:      double res = s->getVal();
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      s->getVal_pullback(_d_res, _d_s);
-// CHECK-NEXT:      *_d_x += *_d_s.val;
+// CHECK-NEXT:      *_d_x += (*_d_s).val;
 // CHECK-NEXT:      delete s;
 // CHECK-NEXT:      delete _d_s;
 // CHECK-NEXT:  }
