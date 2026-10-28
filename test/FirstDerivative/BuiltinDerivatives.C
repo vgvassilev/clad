@@ -628,6 +628,13 @@ double f_lgamma(double x) { return std::lgamma(x); }
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
+double f_builtin_lgamma(double x) { return __builtin_lgamma(x); }
+// CHECK: double f_builtin_lgamma_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}__builtin_lgamma_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
 double f_cyl_bessel_j(double nu, double x) { return std::cyl_bessel_j(nu, x); }
 // CHECK: double f_cyl_bessel_j_darg1(double nu, double x) {
 // CHECK-NEXT:      double _d_nu = 0;
@@ -983,6 +990,9 @@ int main () { //expected-no-diagnostics
 
   auto d_lgamma = clad::differentiate(f_lgamma, 0);
   printf("Result is = %.6f\n", d_lgamma.execute(0.5)); // CHECK-EXEC: Result is = -1.963510
+
+  auto d_builtin_lgamma = clad::differentiate(f_builtin_lgamma, 0);
+  printf("Result is = %.6f\n", d_builtin_lgamma.execute(0.5)); // CHECK-EXEC: Result is = -1.963510
 
   auto d_bessel_j = clad::differentiate(f_cyl_bessel_j, 1);
   auto d_bessel_i = clad::differentiate(f_cyl_bessel_i, 1);
