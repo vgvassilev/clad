@@ -89,7 +89,7 @@ double fn_sizeof_opaque(double x) {
 // CHECK: double fn_sizeof_opaque_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     unsigned {{(int|long)}} _t0 = sizeof(double);
-// CHECK-NEXT:     return _d_x * _t0 + x * sizeof(double);
+// CHECK-NEXT:     return _d_x * _t0;
 // CHECK-NEXT: }
 
 // Same for the identity rules: sizeof(char) evaluates to 1 on the host, but
@@ -100,7 +100,7 @@ double fn_sizeof_one(double x) {
 // CHECK: double fn_sizeof_one_darg0(double x) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     unsigned {{(int|long)}} _t0 = sizeof(char);
-// CHECK-NEXT:     return _d_x * _t0 + x * sizeof(char);
+// CHECK-NEXT:     return _d_x * _t0;
 // CHECK-NEXT: }
 
 // A type trait is a constant with a zero derivative.
@@ -160,10 +160,10 @@ int main() {
   printf("{%.2f}\n", d_cond.execute(5, false)); // CHECK-EXEC: {0.00}
 
   auto d_sizeof = clad::differentiate(fn_sizeof_opaque, "x");
-  printf("{%.2f}\n", d_sizeof.execute(5)); // CHECK-EXEC: {48.00}
+  printf("{%.2f}\n", d_sizeof.execute(5)); // CHECK-EXEC: {8.00}
 
   auto d_sizeof_one = clad::differentiate(fn_sizeof_one, "x");
-  printf("{%.2f}\n", d_sizeof_one.execute(5)); // CHECK-EXEC: {6.00}
+  printf("{%.2f}\n", d_sizeof_one.execute(5)); // CHECK-EXEC: {1.00}
 
   auto d_trait = clad::differentiate(fn_type_trait, "x");
   printf("{%.2f}\n", d_trait.execute(5)); // CHECK-EXEC: {1.00}
