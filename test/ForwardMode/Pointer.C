@@ -168,14 +168,14 @@ double fn7(double i) {
 // CHECK-NEXT:     double *p = (double *)_t0.value;
 // CHECK-NEXT:     *_d_p = _d_i;
 // CHECK-NEXT:     *p = i;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t1 = clad::custom_derivatives::calloc_pushforward(1, sizeof(T), 0, sizeof(T));
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t1 = clad::custom_derivatives::calloc_pushforward(1, sizeof(T), 0, 0U{{L?}});
 // CHECK-NEXT:     T *_d_t = (T *)_t1.pushforward;
 // CHECK-NEXT:     T *t = (T *)_t1.value;
 // CHECK-NEXT:     _d_t->i = _d_i;
 // CHECK-NEXT:     t->i = i;
 // CHECK-NEXT:     double _d_res = *_d_p + _d_t->i;
 // CHECK-NEXT:     double res = *p + t->i;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t2 = clad::custom_derivatives::realloc_pushforward(p, 2 * sizeof(double), _d_p, 2 * sizeof(double));
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t2 = clad::custom_derivatives::realloc_pushforward(p, 2 * sizeof(double), _d_p, 0U{{L?}});
 // CHECK-NEXT:     _d_p = (double *)_t2.pushforward;
 // CHECK-NEXT:     p = (double *)_t2.value;
 // CHECK-NEXT:     _d_p[1] = 2 * _d_i;

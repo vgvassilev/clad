@@ -3381,7 +3381,8 @@ StmtDiff BaseForwardModeVisitor::VisitCXXNullPtrLiteralExpr(
 
 StmtDiff BaseForwardModeVisitor::VisitUnaryExprOrTypeTraitExpr(
     const clang::UnaryExprOrTypeTraitExpr* UE) {
-  return {Clone(UE), Clone(UE)};
+  // sizeof and alignof are constants.
+  return {Clone(UE), getZeroInit(UE->getType())};
 }
 
 StmtDiff BaseForwardModeVisitor::VisitPseudoObjectExpr(
