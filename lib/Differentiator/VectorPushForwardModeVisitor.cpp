@@ -41,8 +41,8 @@ void VectorPushForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
 
   // Create a variable to store the total number of independent variables.
   Expr* indVarCountExpr = lastParamSizeExpr;
-  auto* totalIndVars =
-      BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount", indVarCountExpr);
+  auto* totalIndVars = BuildVarDecl(utils::GetSizeTType(m_Sema),
+                                    "indepVarCount", indVarCountExpr);
   addToCurrentBlock(BuildDeclStmt(totalIndVars));
   m_IndVarCountDecl = totalIndVars;
 

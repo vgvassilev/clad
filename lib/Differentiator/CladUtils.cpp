@@ -1334,6 +1334,16 @@ namespace clad {
           S.getASTContext(), clad_compat::ElaboratedTypeKeyword_None, NS, TT);
     }
 
+    clang::QualType GetSizeTType(clang::Sema& S) {
+      NamespaceDecl* Std = LookupNSD(S, "std", /*shouldExist=*/true);
+      LookupResult R = LookupQualifiedName("size_t", S, Std);
+      assert(R.isSingleResult() && "cannot find std::size_t");
+      // libc++ brings it into std with a using-declaration.
+      const auto* TD =
+          cast<TypedefNameDecl>(R.getFoundDecl()->getUnderlyingDecl());
+      return clad_compat::getTypeDeclType(S.getASTContext(), TD);
+    }
+
     clang::QualType GetRestoreTrackerType(clang::Sema& S) {
       NamespaceDecl* CladNS = GetCladNamespace(S);
       CXXScopeSpec CSS;
