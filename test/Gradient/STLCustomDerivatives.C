@@ -1114,7 +1114,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_x_ptr, _d_x);
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(clad::Tag<double>(), x, _d_x_ptr, _d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1143,7 +1143,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(x, _d_s_ptr, _d_x);
+// CHECK-NEXT:         clad::custom_derivatives::std::make_shared_pullback(clad::Tag<double>(), x, _d_s_ptr, _d_x);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

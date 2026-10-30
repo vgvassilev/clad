@@ -410,6 +410,30 @@ inline clang::QualType getTypeDeclType(clang::ASTContext& C,
 #endif
 }
 
+// The argument the default of \p Param gives, after the arguments
+// \p Converted of the parameters before it; null if it has none. Clang 16
+// split the converted arguments into sugared and canonical ones; clang 22
+// added the location of the template keyword.
+inline clang::TemplateArgumentLoc SubstDefaultTemplateArgument(
+    clang::Sema& S, clang::TemplateDecl* TD, clang::NamedDecl* Param,
+    llvm::ArrayRef<clang::TemplateArgument> Converted) {
+  clang::SourceLocation Loc = TD->getLocation();
+  bool HasDefault = false;
+#if CLANG_VERSION_MAJOR < 16
+  llvm::SmallVector<clang::TemplateArgument, 4> C(Converted.begin(),
+                                                  Converted.end());
+  return S.SubstDefaultTemplateArgumentIfAvailable(TD, Loc, Loc, Param, C,
+                                                   HasDefault);
+#elif CLANG_VERSION_MAJOR < 22
+  return S.SubstDefaultTemplateArgumentIfAvailable(
+      TD, Loc, Loc, Param, Converted, Converted, HasDefault);
+#else
+  return S.SubstDefaultTemplateArgumentIfAvailable(
+      TD, /*TemplateKWLoc=*/clang::SourceLocation(), Loc, Loc, Param, Converted,
+      Converted, HasDefault);
+#endif
+}
+
 // Clang 16 moved isPromotableIntegerType from Type to ASTContext.
 inline bool isPromotableIntegerType(const clang::ASTContext& C,
                                     clang::QualType T) {
