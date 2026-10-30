@@ -840,7 +840,7 @@ as ``t * t`` is reported inside the statement containing it; one that cannot
 be measured that way, such as a compound statement, reports only where it
 begins.
 
-This is not ``-fgenerate-source-file``, which appends each derivative to
+This is not ``-fgenerate-source-file``, which writes the derivatives to
 ``Derivatives.cpp`` for reading. This one reports where each statement *sits*,
 which is what a diagnostic needs in order to point at it.
 

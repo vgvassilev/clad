@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 
 #include "ClangPlugin.h"
+#include "GeneratedSourceFile.h"
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
@@ -655,7 +656,8 @@ void InitTimers();
     }
 
     static void printDerivative(clang::Decl* D, bool DeclarationOnly,
-                                const Options& DO) {
+                                const Options& DO,
+                                GeneratedSourceFile* Source) {
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
@@ -672,16 +674,9 @@ void InitTimers();
       if (DO.DumpDerivedAST)
         D->dumpColor();
 
-      // if enabled, print the derivatives in a file
-      if (DO.GenerateSourceFile) {
-        std::error_code err;
-        llvm::raw_fd_ostream f("Derivatives.cpp", err,
-                               CLAD_COMPAT_llvm_sys_fs_Append);
-        D->print(f, Policy);
-        if (DeclarationOnly)
-          f << ";\n";
-        f.flush();
-      }
+      // if enabled, gather the derivatives for the source file.
+      if ((DO.GenerateSourceFile || DO.GeneratedSourceFile) && Source)
+        Source->add(D, DeclarationOnly);
     }
 
     class AttachedLoopStmtFinder
@@ -777,7 +772,8 @@ void InitTimers();
         auto* VDDiff = cast_or_null<VarDecl>(deriveResult.derivative);
         ProcessTopLevelDecl(VDDiff);
         // Dump the declaration if requested.
-        printDerivative(VDDiff, request.DeclarationOnly, m_DO);
+        printDerivative(VDDiff, request.DeclarationOnly, m_DO,
+                        &m_GeneratedSource);
         return nullptr;
       }
 
@@ -869,7 +865,10 @@ void InitTimers();
             G.RequestedAt = request.CallContext->getBeginLoc();
           }
           m_Generated.push_back(G);
-          printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
+          // A custom derivative is the user's, already in their source.
+          printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO,
+                          request.CustomDerivative ? nullptr
+                                                   : &m_GeneratedSource);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
           // We ideally should not call `HandleTopLevelDecl` for declarations
@@ -1097,6 +1096,10 @@ void InitTimers();
         // Before the multiplexer: this is the last point at which every
         // derivative exists and none has reached code generation.
         materializeGeneratedCode();
+        if (m_DO.GenerateSourceFile || m_DO.GeneratedSourceFile)
+          m_GeneratedSource.write(m_CI, m_DO.GeneratedSourceFile
+                                            ? *m_DO.GeneratedSourceFile
+                                            : "Derivatives.cpp");
         SendToMultiplexer();
       }
       if (m_Multiplexer)
