@@ -1,11 +1,10 @@
 // RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1
 //
 // A byte copy of floating-point data moves values clad has to differentiate,
-// through `void*`. Reduced from ImpactX's SmallMatrix, which holds its elements
-// in a C array.
+// through `void*`. One between arrays of the same floating-point type is
+// differentiated as an element-wise copy; any other is reported.
 
 #include "clad/Differentiator/Differentiator.h"
-#include <array>
 #include <cstring>
 
 // A copy of integers has no derivative to lose and is not reported.
@@ -17,23 +16,18 @@ double int_memcpy(double k) {
   return k;
 }
 
-struct V { double m[2]; };
+struct P { double x, y; };
+
+// The defaulted assignment copies an array of P the same way.
+struct V { P m[2]; };
 
 double copy_assign(double k) {
   V a{};
-  a.m[0] = k;
+  a.m[0].x = k;
   V b{};
-  b = a; // expected-error {{cannot differentiate the defaulted copy assignment of 'V': it copies 'double[2]' with '__builtin_memcpy', which has no derivative}} \
+  b = a; // expected-error {{cannot differentiate the defaulted copy assignment of 'V': it copies 'P[2]' with '__builtin_memcpy', which has no derivative}} \
          // expected-note {{provide custom 'operator_equal_reverse_forw' and 'operator_equal_pullback' for 'V'}}
-  return b.m[0];
-}
-
-// std::array's assignment copies its elements the same way.
-double std_array(double k) {
-  std::array<double, 2> a{k, 2 * k}, b{};
-  b = a; // expected-error {{cannot differentiate the defaulted copy assignment of 'array<double, 2>'}} \
-         // expected-note {{provide custom 'operator_equal_reverse_forw' and 'operator_equal_pullback' for 'array<double, 2>'}}
-  return k;
+  return b.m[0].x;
 }
 
 // The double may sit in a base class.
@@ -45,15 +39,6 @@ double from_base(double k) {
                                          // expected-note {{copy the values with assignments}}
   return k;
 }
-
-double builtin_memcpy(double k) {
-  double a[2] = {k, 2 * k}, b[2];
-  __builtin_memcpy(b, a, sizeof a); // expected-error {{cannot differentiate '__builtin_memcpy' copying 'double[2]', which holds floating-point values; its derivative would be zero}} \
-                                    // expected-note {{copy the values with assignments, which clad can differentiate}}
-  return b[0] + b[1];
-}
-
-struct P { double x, y; };
 
 double user_memcpy(double k) {
   P a[2] = {{k, k}, {k, k}};
@@ -77,9 +62,7 @@ double through_bytes(double x) {
 int main() {
   clad::gradient(int_memcpy);
   clad::gradient(copy_assign);
-  clad::gradient(std_array);
   clad::gradient(from_base);
-  clad::gradient(builtin_memcpy);
   clad::gradient(user_memcpy);
   clad::gradient(through_bytes);
 }

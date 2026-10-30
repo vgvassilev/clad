@@ -337,6 +337,22 @@ template <class T> std::false_type is_range(...);
 
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t) { zero_impl(t); }
 
+  /// memmove(dst, src, n) for a dst and src that hold n bytes of T, as the
+  /// element-wise copy clad can differentiate. Clad calls it in place of a
+  /// memcpy or memmove of floating-point data.
+  template <class T> void* byte_copy(T* dst, const T* src, std::size_t n) {
+    std::size_t N = n / sizeof(T);
+    // Copy away from the overlap, as memmove does. Ranges that overlap are in
+    // one array, which orders them; for any others either direction will do.
+    if (dst < src)
+      for (std::size_t i = 0; i < N; ++i)
+        dst[i] = src[i];
+    else
+      for (std::size_t i = N; i > 0; --i)
+        dst[i - 1] = src[i - 1];
+    return dst;
+  }
+
   /// Construct a zero adjoint with the same relevant structure as \p value.
   ///
   /// Conceptually, zero_like(value) returns a value structurally like value

@@ -664,6 +664,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// its conversion to `void*`, holds floating-point data, that type.
     clang::QualType GetByteCopiedFloatingType(const clang::CallExpr* CE);
 
+    /// If \p CE is a memcpy or memmove from an array of a real floating type
+    /// to an array of the same type, a call to clad::byte_copy that copies
+    /// the same elements. Null otherwise.
+    clang::CallExpr* BuildTypedByteCopy(clang::Sema& S,
+                                        const clang::CallExpr* CE);
+
     bool hasElidableReverseForwAttribute(const clang::Decl* D);
 
     /// Returns true if FD can be differentiated as a pushforward

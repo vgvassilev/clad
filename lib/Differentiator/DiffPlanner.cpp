@@ -2075,6 +2075,10 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       if (clad::utils::callOperatesOnNonDifferentiableType(m_Sema, E))
         return true;
 
+      // A byte copy of floating-point data is differentiated as the
+      // element-wise copy it stands for.
+      if (CallExpr* typed = utils::BuildTypedByteCopy(m_Sema, E))
+        return VisitCallExpr(typed);
       if (diagnoseByteCopy(E))
         return true;
 

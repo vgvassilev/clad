@@ -2,8 +2,7 @@
 // RUN: ./ByteCopyCustomAssign.out | %filecheck_exec %s
 
 // The default assignment of a class with an array member copies it with
-// memcpy, which clad refuses. Custom derivatives for the assignment replace
-// that body, so it is not an error.
+// memcpy. Custom derivatives for the assignment replace that body.
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cstdio>

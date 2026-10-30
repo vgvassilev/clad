@@ -2651,6 +2651,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       diagUnsupportedIndirectCalls(CE);
       return StmtDiff(Clone(CE));
     }
+    if (CallExpr* typed = utils::BuildTypedByteCopy(m_Sema, CE))
+      return Visit(typed);
 
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     Expr* LambdaCallOpExpr = nullptr;

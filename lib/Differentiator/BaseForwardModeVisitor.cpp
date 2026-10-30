@@ -1353,6 +1353,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     diagUnsupportedIndirectCalls(CE);
     return StmtDiff(Clone(CE));
   }
+  if (CallExpr* typed = utils::BuildTypedByteCopy(m_Sema, CE))
+    return Visit(typed);
 
   SourceLocation validLoc{CE->getBeginLoc()};
 

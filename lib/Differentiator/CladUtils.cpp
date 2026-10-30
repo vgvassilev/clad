@@ -1739,6 +1739,60 @@ namespace clad {
       return {};
     }
 
+    CallExpr* BuildTypedByteCopy(Sema& S, const CallExpr* CE) {
+      if (GetByteCopiedFloatingType(CE).isNull())
+        return nullptr;
+      ASTContext& C = S.getASTContext();
+      // The argument as written, before its conversion to `void*`, and the
+      // type of its elements. A defaulted assignment copies an array member
+      // through a pointer to the array; copy the array's elements.
+      auto typedArg = [&](const Expr* E, QualType& elem) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        auto* arg = const_cast<Expr*>(E->IgnoreParenImpCasts());
+        QualType T = arg->getType();
+        if (T->isPointerType())
+          T = T->getPointeeType();
+        else if (const ArrayType* AT = C.getAsArrayType(T))
+          T = AT->getElementType();
+        if (C.getAsArrayType(T)) {
+          T = C.getBaseElementType(T);
+          // Unqualified, so that the adjoint the cast is cloned onto, which is
+          // never const, converts as well.
+          TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(
+              C.getPointerType(T.getUnqualifiedType()));
+          arg = S.BuildCStyleCastExpr(noLoc, TSI, noLoc, arg).get();
+        }
+        elem = T.getCanonicalType().getUnqualifiedType();
+        return arg;
+      };
+      QualType dstElem;
+      QualType srcElem;
+      Expr* dst = typedArg(CE->getArg(0), dstElem);
+      Expr* src = typedArg(CE->getArg(1), srcElem);
+      if (!dstElem->isRealFloatingType() || dstElem != srcElem)
+        return nullptr;
+
+      NamespaceDecl* CladNS = GetCladNamespace(S);
+      CXXScopeSpec SS;
+      SS.Extend(C, CladNS, noLoc, noLoc);
+      LookupResult R(S, &C.Idents.get("byte_copy"), noLoc,
+                     Sema::LookupOrdinaryName);
+      S.LookupQualifiedName(R, CladNS);
+      // T is deduced from the destination and the source, which hold it.
+      Expr* Callee = BuildDeclarationNameExpr(S, SS, R);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      auto* size = const_cast<Expr*>(CE->getArg(2));
+      llvm::SmallVector<Expr*, 3> args{dst, src, size};
+      auto* call = cast_or_null<CallExpr>(
+          S.ActOnCallExpr(/*Scope=*/nullptr, Callee, noLoc, args, noLoc).get());
+      // Clad may build the call after Sema instantiated what the translation
+      // unit uses, and differentiates byte_copy from its body.
+      if (FunctionDecl* FD = call ? call->getDirectCallee() : nullptr)
+        if (!FD->isDefined())
+          S.InstantiateFunctionDefinition(noLoc, FD, /*Recursive=*/true);
+      return call;
+    }
+
     bool IsDifferentiableType(QualType T) {
       QualType origType = T;
       T = T.getCanonicalType();
