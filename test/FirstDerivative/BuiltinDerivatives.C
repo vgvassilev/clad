@@ -368,6 +368,14 @@ float f_builtin_sinhf(float x) {
   return __builtin_sinhf(x);
 }
 
+double f_builtin_erf(double x) {
+  return __builtin_erf(x);
+}
+
+double f_builtin_erfc(double x) {
+  return __builtin_erfc(x);
+}
+
 double f15(double y, double x) {
   return std::atan2(y, x);
 }
@@ -875,6 +883,12 @@ int main () { //expected-no-diagnostics
   auto f_builtin_sinhf_grad = clad::gradient(f_builtin_sinhf);
   f_builtin_sinhf_grad.execute(0.F, &f_result[0]);
   printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_erf_darg0 = clad::differentiate(f_builtin_erf, 0);
+  printf("Result is = %.6f\n", f_builtin_erf_darg0.execute(0.5)); //CHECK-EXEC: Result is = 0.878783
+
+  auto f_builtin_erfc_darg0 = clad::differentiate(f_builtin_erfc, 0);
+  printf("Result is = %.6f\n", f_builtin_erfc_darg0.execute(0.5)); //CHECK-EXEC: Result is = -0.878783
 
   auto f15_darg0 = clad::differentiate(f15, 0);
   printf("Result is = %f\n", f15_darg0.execute(4, 3)); //CHECK-EXEC: Result is = 0.120000
