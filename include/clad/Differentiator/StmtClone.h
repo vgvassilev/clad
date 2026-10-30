@@ -134,7 +134,6 @@ namespace utils {
     DECLARE_CLONE_FN(SubstNonTypeTemplateParmExpr)
     DECLARE_CLONE_FN(CXXScalarValueInitExpr)
     DECLARE_CLONE_FN(ConstantExpr)
-    DECLARE_CLONE_FN(ValueStmt)
     DECLARE_CLONE_FN(LambdaExpr)
     DECLARE_CLONE_FN(BinaryConditionalOperator)
     DECLARE_CLONE_FN(AttributedStmt)
