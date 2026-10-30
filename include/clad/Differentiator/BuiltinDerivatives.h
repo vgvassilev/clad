@@ -333,6 +333,12 @@ template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanh_pushforward(T x, dT d_x);
 
 template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erf_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> erfc_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cbrt_pushforward(T x, dT d_x);
 } // namespace std
 
@@ -586,6 +592,42 @@ template <typename T, typename dT>
 CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
 __builtin_tanhl_pushforward(T x, dT d_x) {
   return std::tanh_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erf_pushforward(T x, dT d_x) {
+  return std::erf_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erff_pushforward(T x, dT d_x) {
+  return std::erf_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erfl_pushforward(T x, dT d_x) {
+  return std::erf_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erfc_pushforward(T x, dT d_x) {
+  return std::erfc_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erfcf_pushforward(T x, dT d_x) {
+  return std::erfc_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_erfcl_pushforward(T x, dT d_x) {
+  return std::erfc_pushforward(x, d_x);
 }
 
 template <typename T, typename dT>
