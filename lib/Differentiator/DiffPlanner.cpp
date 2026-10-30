@@ -1957,7 +1957,7 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     DiffRequest request;
 
     FunctionDecl* FD = E->getDirectCallee();
-    if (!FD)
+    if (!FD || utils::isNoOpDestructorCall(E))
       return true;
 
     bool nonDiff = false;

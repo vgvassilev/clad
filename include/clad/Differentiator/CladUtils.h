@@ -617,6 +617,10 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
 
+    /// Whether \p CE destroys an object without running any code: a pseudo
+    /// destructor call on a scalar, or a call to a trivial destructor.
+    bool isNoOpDestructorCall(const clang::CallExpr* CE);
+
     /// Returns true if the reverse-forward propagator for constructor \p CD is
     /// structurally elidable -- clad need not synthesize one because the plain
     /// construction plus the normal member-wise adjoint handling already covers
