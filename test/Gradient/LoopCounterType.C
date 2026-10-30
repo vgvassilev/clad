@@ -69,7 +69,7 @@ double decl(double x) {
   return r;
 }
 // CHECK-LABEL: void decl_grad(double x, double *_d_x) {
-// CHECK: std::size_t _t0;
+// CHECK: {{(std::)?}}size_t _t0;
 
 // Nor can the code name the size_t clang itself gives sizeof, so that one is
 // the target's own unsigned type.
@@ -88,8 +88,8 @@ double declParam(double x, std::size_t n) {
     r += x;
   return r;
 }
-// CHECK-LABEL: void declParam_grad_0(double x, std::size_t n, double *_d_x) {
-// CHECK-NEXT:     std::size_t _d_n = {{0U|0UL|0ULL}};
+// CHECK-LABEL: void declParam_grad_0(double x, {{(std::)?}}size_t n, double *_d_x) {
+// CHECK-NEXT:     {{(std::)?}}size_t _d_n = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     decltype(n) _d_i = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     decltype(n) i = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     double _d_r = 0.;

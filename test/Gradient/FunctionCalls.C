@@ -567,11 +567,11 @@ double fn13(double* x, const double* w) {
 }
 
 // CHECK: void fn13_grad_0(double *x, const double *w, double *_d_x) {
-// CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
-// CHECK-NEXT:     std::size_t i = {{0U|0UL}};
+// CHECK-NEXT:     {{(std::)?}}size_t _d_i = {{0U|0UL}};
+// CHECK-NEXT:     {{(std::)?}}size_t i = {{0U|0UL}};
 // CHECK-NEXT:     double _d_wCopy[2] = {0};
 // CHECK-NEXT:     double wCopy[2];
-// CHECK-NEXT:     std::size_t _t0;
+// CHECK-NEXT:     {{(std::)?}}size_t _t0;
 // CHECK-NEXT:     for (i = 0; i < 2; ++i) {
 // CHECK-NEXT:         wCopy[i] = w[i];
 // CHECK-NEXT:     }
@@ -1122,11 +1122,11 @@ double fn30(double *params, const double *xlArr) {
 }
 
 // CHECK: inline void flexibleInterp_pullback(const double *params, const double *high, double _d_y, double *_d_params) {
-// CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
-// CHECK-NEXT:     std::size_t i = {{0U|0UL}};
+// CHECK-NEXT:     {{(std::)?}}size_t _d_i = {{0U|0UL}};
+// CHECK-NEXT:     {{(std::)?}}size_t i = {{0U|0UL}};
 // CHECK-NEXT:     double _d_total = 0.;
 // CHECK-NEXT:     double total = 1.;
-// CHECK-NEXT:     std::size_t _t0;
+// CHECK-NEXT:     {{(std::)?}}size_t _t0;
 // CHECK-NEXT:     for (i = 0; i < 1; ++i) {
 // CHECK-NEXT:         total += params[i];
 // CHECK-NEXT:     }
