@@ -183,6 +183,39 @@ namespace clad {
     return VD;
   }
 
+  Decl* VisitorBase::BuildUsing(const Decl* D) {
+    SourceLocation Loc = GenLoc();
+    DeclContext* DC = m_Sema.CurContext;
+    if (const auto* UD = dyn_cast<UsingDirectiveDecl>(D)) {
+      // Lookup treats the names as declared in the nearest context that
+      // encloses both the derivative and the namespace, as Sema does.
+      DeclContext* Common = DC;
+      while (!Common->Encloses(UD->getNominatedNamespace()))
+        Common = Common->getParent();
+      auto* Clone = UsingDirectiveDecl::Create(
+          m_Context, DC, Loc, Loc, UD->getQualifierLoc(), Loc,
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          const_cast<NamedDecl*>(UD->getNominatedNamespaceAsWritten()), Common);
+      DC->addDecl(Clone);
+      getCurrentScope()->PushUsingDirective(Clone);
+      return Clone;
+    }
+    const auto* UD = cast<UsingDecl>(D);
+    auto* Clone = UsingDecl::Create(m_Context, DC, Loc, UD->getQualifierLoc(),
+                                    DeclarationNameInfo(UD->getDeclName(), Loc),
+                                    UD->hasTypename());
+    DC->addDecl(Clone);
+    for (const UsingShadowDecl* Shadow : UD->shadows()) {
+      auto* ShadowClone =
+          UsingShadowDecl::Create(m_Context, DC, Loc, UD->getDeclName(), Clone,
+                                  Shadow->getTargetDecl());
+      Clone->addShadowDecl(ShadowClone);
+      m_Sema.PushOnScopeChains(ShadowClone, getCurrentScope(),
+                               /*AddToContext=*/false);
+    }
+    return Clone;
+  }
+
   TypedefNameDecl*
   VisitorBase::BuildTypedefNameDecl(const TypedefNameDecl* TND) {
     SourceLocation Loc = GenLoc();
