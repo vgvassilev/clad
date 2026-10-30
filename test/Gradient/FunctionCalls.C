@@ -733,7 +733,7 @@ T templated_fn(double x) {
   return x;
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> templated_fn_pushforward(double x, double _d_x) {
+// CHECK: clad::ValueAndPushforward<double, double> templated_fn_pushforward(clad::Tag<double>, double x, double _d_x) {
 // CHECK-NEXT:     return {x, _d_x};
 // CHECK-NEXT: }
 
@@ -744,7 +744,7 @@ double fn19(double x) {
 // CHECK: void fn19_grad(double x, double *_d_x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         _r0 += 1 * templated_fn_pushforward(x, 1.).pushforward;
+// CHECK-NEXT:         _r0 += 1 * templated_fn_pushforward(clad::Tag<double>(), x, 1.).pushforward;
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

@@ -181,6 +181,7 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
 
   llvm::SmallVector<ParmVarDecl*, 16> params;
   SetupDerivativeParameters(params);
+  PrependTemplateTagParams(params);
 
   utils::SetParams(m_Derivative, params);
   m_Derivative->setBody(nullptr);
@@ -1682,6 +1683,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                            CallArgs.end());
   pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
                            diffArgs.end());
+  // The template tags come first, after the object a member's is called on.
+  InsertTemplateTagArgs(FD, pushforwardFnArgs, /*Pos=*/0);
 
   Expr* callDiff = nullptr;
 

@@ -419,6 +419,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
+    PrependTemplateTagParams(params);
 
     utils::SetParams(m_Derivative, params);
     m_Derivative->setBody(nullptr);
@@ -3137,6 +3138,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       llvm::SmallVector<Expr*, 16> pullbackCallArgs;
       for (Expr* arg : CallArgs)
         pullbackCallArgs.push_back(CloneNode(arg));
+      // The arguments of a call to a derivative: the template tags first,
+      // after the object a member's is called on. Not those of a numerical
+      // derivative, which calls the function itself.
+      auto withTemplateTags = [&](llvm::ArrayRef<Expr*> Args) {
+        llvm::SmallVector<Expr*, 16> Tagged(Args.begin(), Args.end());
+        InsertTemplateTagArgs(FD, Tagged,
+                              (bool)MD && MD->isInstance() &&
+                                  !isLambdaCallOperator(MD));
+        return Tagged;
+      };
       if (!(utils::isNonConstReferenceType(returnType) ||
             returnType->isPointerType() || returnType->isVoidType())) {
         if (Expr* pullback = dfdx())
@@ -3188,9 +3199,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         pullbackFD = nullptr;
         // Try to find it in builtin derivatives.
         std::string customPullback = pullbackRequest.ComputeDerivativeName();
+        llvm::SmallVector<Expr*, 16> taggedArgs =
+            withTemplateTags(pullbackCallArgs);
         OverloadedDerivedFn =
             m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-                customPullback, pullbackCallArgs, getCurrentScope(), CE,
+                customPullback, taggedArgs, getCurrentScope(), CE,
                 /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
                 CUDAExecConfig);
         if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))
@@ -3241,9 +3254,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             if (fullFD && !isInCustomDerivatives(fullFD))
               fullFD = nullptr;
             if (!fullFD) {
+              llvm::SmallVector<Expr*, 16> taggedFullArgs =
+                  withTemplateTags(fullArgs);
               OverloadedDerivedFn =
                   m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-                      fullRequest.ComputeDerivativeName(), fullArgs,
+                      fullRequest.ComputeDerivativeName(), taggedFullArgs,
                       getCurrentScope(), CE, /*forCustomDerv=*/true,
                       /*namespaceShouldExist=*/true, CUDAExecConfig);
               if (auto* foundCE = cast_or_null<CallExpr>(OverloadedDerivedFn))
@@ -3263,11 +3278,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
 
       if (pullbackFD) {
-        if (m_ExternalSource &&
-            pullbackCallArgs.size() != pullbackFD->getNumParams())
-          m_ExternalSource->ActBeforeDifferentiatingCallExpr(pullbackCallArgs);
-        OverloadedDerivedFn = BuildCallExprToFunction(
-            pullbackFD, pullbackCallArgs, CUDAExecConfig);
+        llvm::SmallVector<Expr*, 16> taggedArgs =
+            withTemplateTags(pullbackCallArgs);
+        if (m_ExternalSource && taggedArgs.size() != pullbackFD->getNumParams())
+          m_ExternalSource->ActBeforeDifferentiatingCallExpr(taggedArgs);
+        OverloadedDerivedFn =
+            BuildCallExprToFunction(pullbackFD, taggedArgs, CUDAExecConfig);
       } else if (MD && isLambdaCallOperator(MD)) {
         if (calledLambda) {
           for (const LambdaCapture& Capture : calledLambda->captures()) {
@@ -3570,6 +3586,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         (((hasStoredParams || writesThroughValueArg) && !recordsAreDead &&
           !callerRestoresWrites) ||
          needsForwPass || !pullbackStateType.isNull() || inReverseForw)) {
+      InsertTemplateTagArgs(FD, CallArgs,
+                            (bool)MD && MD->isInstance() &&
+                                !isLambdaCallOperator(MD));
       if (const auto* CD = dyn_cast<CXXConversionDecl>(FD))
         CallArgs.push_back(
             utils::GetCladTagExpr(m_Sema, CD->getConversionType()));
@@ -7075,8 +7094,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (LE)
       FnType = cast<FunctionProtoType>(GetLambdaDerivativeType(LE));
 
-    for (size_t i = 0, s = params.size(), p = s; i < s - HasThis - HasRet;
-         ++i) {
+    // The derivative's type starts with its template tags, which are added
+    // to params last.
+    for (size_t i = 0, s = params.size(),
+                p = s + (LE ? 0 : getNumTemplateTags());
+         i < s - HasThis - HasRet; ++i) {
       const ParmVarDecl* oPVD = FD->getParamDecl(i);
 
       if (clad::utils::hasNonDifferentiableAttribute(oPVD))

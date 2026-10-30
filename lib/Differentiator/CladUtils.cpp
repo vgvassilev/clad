@@ -38,9 +38,11 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
+#include <algorithm>
 #include <memory>
 #include <set>
 #include <vector>
@@ -2076,6 +2078,14 @@ namespace clad {
           FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
       }
 
+      // First, as a constructor's clad::Tag is; after the object, when it is
+      // a parameter.
+      if (TakesTemplateTags(mode)) {
+        llvm::SmallVector<QualType, 2> Tags;
+        GetTemplateTagTypes(S, FD, Tags);
+        FnTypes.insert(FnTypes.begin(), Tags.begin(), Tags.end());
+      }
+
       if (forCustomDerv && !thisTy.isNull()) {
         FnTypes.insert(FnTypes.begin(), thisTy);
         EPI.TypeQuals.removeConst();
@@ -2118,6 +2128,119 @@ namespace clad {
 
     Expr* GetCladTagExpr(Sema& S, QualType T) {
       return BuildDefaultConstructExpr(S, utils::GetCladTagOfType(S, T));
+    }
+
+    bool TakesTemplateTags(DiffMode Mode) {
+      return Mode == DiffMode::pushforward || Mode == DiffMode::pullback ||
+             Mode == DiffMode::vector_pushforward ||
+             Mode == DiffMode::reverse_mode_forward_pass;
+    }
+
+    /// Whether argument \p I of \p Args is what the default argument of its
+    /// parameter in \p FTD gives, the arguments before it as they are.
+    static bool IsDefaultArgument(Sema& S, const FunctionTemplateDecl* FTD,
+                                  unsigned I,
+                                  llvm::ArrayRef<TemplateArgument> Args) {
+      // A default that does not substitute was not what the call used.
+      Sema::SFINAETrap Trap(S);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      auto* TD = const_cast<FunctionTemplateDecl*>(FTD);
+      TemplateArgument Default =
+          clad_compat::SubstDefaultTemplateArgument(
+              S, TD, TD->getTemplateParameters()->getParam(I),
+              Args.take_front(I))
+              .getArgument();
+      const TemplateArgument& Arg = Args[I];
+      if (Trap.hasErrorOccurred() || Default.isNull())
+        return false;
+      ASTContext& C = S.getASTContext();
+      if (Default.getKind() == TemplateArgument::Type)
+        return Arg.getKind() == TemplateArgument::Type &&
+               C.hasSameType(Default.getAsType(), Arg.getAsType());
+      if (Default.getKind() == TemplateArgument::Expression &&
+          Arg.getKind() == TemplateArgument::Integral) {
+        Expr::EvalResult R;
+        return Default.getAsExpr()->EvaluateAsInt(R, C) &&
+               llvm::APSInt::isSameValue(R.Val.getInt(), Arg.getAsIntegral());
+      }
+      return Default.structurallyEquals(Arg);
+    }
+
+    /// std::integral_constant\<T, V\> for the value \p Arg.
+    static QualType
+    GetIntegralConstantType(Sema& S, const TemplateArgument& Arg, QualType T) {
+      ASTContext& C = S.getASTContext();
+      NamespaceDecl* Std = S.getStdNamespace();
+      if (!Std)
+        return {};
+      LookupResult R(S, &C.Idents.get("integral_constant"), noLoc,
+                     Sema::LookupOrdinaryName);
+      S.LookupQualifiedName(R, Std);
+      auto* TD = R.getAsSingle<ClassTemplateDecl>();
+      if (!TD)
+        return {};
+      SourceLocation Loc = GetValidSLoc(S);
+      TemplateArgumentListInfo TLI(Loc, Loc);
+      TLI.addArgument(TemplateArgumentLoc(TemplateArgument(T),
+                                          C.getTrivialTypeSourceInfo(T)));
+      // Already converted, as a specialization's arguments are: Sema takes it
+      // as it is.
+      TLI.addArgument(S.getTrivialTemplateArgumentLoc(Arg, T, Loc));
+      QualType TT =
+          clad_compat::CheckTemplateIdType(S, TemplateName(TD), Loc, TLI);
+      CXXScopeSpec CSS;
+      CSS.Extend(C, Std, Loc, Loc);
+      return clad_compat::getElaboratedType(
+          C, clad_compat::ElaboratedTypeKeyword_None, CSS.getScopeRep(), TT);
+    }
+
+    bool GetTemplateTagTypes(Sema& S, const FunctionDecl* FD,
+                             llvm::SmallVectorImpl<QualType>& Tags) {
+      const FunctionTemplateDecl* FTD = FD->getPrimaryTemplate();
+      if (!FTD)
+        return true;
+      bool Complete = true;
+      ASTContext& C = S.getASTContext();
+      llvm::SmallBitVector Deduced;
+      Sema::MarkDeducedTemplateParameters(C, FTD, Deduced);
+      const TemplateArgumentList* Args = FD->getTemplateSpecializationArgs();
+      auto AddTag = [&](const TemplateArgument& Arg) {
+        switch (Arg.getKind()) {
+        case TemplateArgument::Type:
+          Tags.push_back(GetCladTagOfType(S, Arg.getAsType()));
+          break;
+        case TemplateArgument::Integral:
+          Tags.push_back(
+              GetIntegralConstantType(S, Arg, Arg.getIntegralType()));
+          break;
+        case TemplateArgument::NullPtr:
+          Tags.push_back(GetIntegralConstantType(S, Arg, Arg.getNullPtrType()));
+          break;
+        case TemplateArgument::Declaration:
+          Tags.push_back(
+              GetIntegralConstantType(S, Arg, Arg.getParamTypeForDecl()));
+          break;
+        default:
+          Complete = false;
+          break;
+        }
+      };
+      for (unsigned I = 0, E = Args->size(); I != E; ++I) {
+        const TemplateArgument& Arg = Args->get(I);
+        if (Deduced[I] || IsDefaultArgument(S, FTD, I, Args->asArray()))
+          continue;
+        if (Arg.getKind() == TemplateArgument::Pack)
+          for (const TemplateArgument& Elt : Arg.pack_elements())
+            AddTag(Elt);
+        else
+          AddTag(Arg);
+      }
+      if (llvm::is_contained(Tags, QualType()))
+        Complete = false;
+      Tags.erase(std::remove_if(Tags.begin(), Tags.end(),
+                                [](QualType T) { return T.isNull(); }),
+                 Tags.end());
+      return Complete;
     }
 
     bool canUsePushforwardInRevMode(const FunctionDecl* FD,
