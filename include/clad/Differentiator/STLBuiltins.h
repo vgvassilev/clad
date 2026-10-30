@@ -11,6 +11,7 @@
 #include <iosfwd>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #if __cplusplus >= 201703L
 #include <optional>
 #endif
@@ -954,6 +955,49 @@ CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&>
 conversion_operator_reverse_forw(clad::Tag<T&>,
                                  const ::std::reference_wrapper<T>* x,
                                  const ::std::reference_wrapper<T>* dx);
+// std::mutex custom derivatives. Sync only; the adjoint mutex is unused.
+// Its default constructor has no differentiable state, and mutex cannot move.
+CLAD_ELIDABLE_REVERSE_FORW
+clad::ValueAndAdjoint<::std::mutex, ::std::mutex>
+    constructor_reverse_forw(clad::Tag<::std::mutex>);
+
+inline void lock_pushforward(::std::mutex* m, ::std::mutex* /*d_m*/) {
+  m->lock();
+}
+
+inline void unlock_pushforward(::std::mutex* m,
+                               ::std::mutex* /*d_m*/) noexcept {
+  m->unlock();
+}
+
+inline clad::ValueAndPushforward<bool, bool>
+try_lock_pushforward(::std::mutex* m, ::std::mutex* /*d_m*/) noexcept {
+  return {m->try_lock(), false};
+}
+
+inline void lock_reverse_forw(::std::mutex* m, ::std::mutex* /*d_m*/) {
+  m->lock();
+}
+
+inline void lock_pullback(::std::mutex* /*m*/, ::std::mutex* /*d_m*/) noexcept {
+}
+
+inline void unlock_reverse_forw(::std::mutex* m,
+                                ::std::mutex* /*d_m*/) noexcept {
+  m->unlock();
+}
+
+inline void unlock_pullback(::std::mutex* /*m*/,
+                            ::std::mutex* /*d_m*/) noexcept {}
+
+inline bool try_lock_reverse_forw(::std::mutex* m,
+                                  ::std::mutex* /*d_m*/) noexcept {
+  return m->try_lock();
+}
+
+inline void try_lock_pullback(::std::mutex* /*m*/, bool /*d_y*/,
+                              ::std::mutex* /*d_m*/) noexcept {}
+
 } // namespace class_functions
 
 namespace std {
