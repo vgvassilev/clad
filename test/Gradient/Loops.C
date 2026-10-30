@@ -2968,6 +2968,46 @@ double fn48(double x, double y, int n) {
     printf("{%.2f, %.2f}\n", result[0], result[1]);                            \
   }
 
+// A member calls begin() and end() on this.
+struct Buf {
+  double d[2];
+  double* begin() { return d; }
+  double* end() { return d + 2; }
+  double sum() {
+    double s = 0;
+    for (double* p = begin(); p != end(); ++p)
+      s += *p;
+    return s;
+  }
+};
+
+double fn49(double x, double y) {
+  Buf b{{x, x * y}};
+  return b.sum();
+}
+
+//CHECK: inline void sum_pullback(double _d_y, Buf *_d_this) {
+//CHECK-NEXT:     double *_d_p = nullptr;
+//CHECK-NEXT:     double *p = nullptr;
+//CHECK-NEXT:     double _d_s = 0.;
+//CHECK-NEXT:     double s = 0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
+//CHECK-NEXT:     _d_p = std::begin(*_d_this);
+//CHECK-NEXT:     for (p = std::begin(*this); p != std::end(*this); ++_d_p , ++p) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         s += *p;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_s += _d_y;
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             --p;
+//CHECK-NEXT:             --_d_p;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         double _r_d0 = _d_s;
+//CHECK-NEXT:         *_d_p += _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 int main() {
   double result[5] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
@@ -3072,4 +3112,6 @@ int main() {
   result[0] = result[1] = 0;
   d_fn48.execute(1, 0.5, 3, result, result + 1);
   printf("{%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: {1.00, 1.26}
+
+  TEST_2(fn49, 2, 3); // CHECK-EXEC: {4.00, 2.00}
 }
