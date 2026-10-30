@@ -220,6 +220,33 @@ DEFINE_CREATE_EXPR(ConstantExpr, (Ctx, Clone(Node->getSubExpr()),
                                   Node->getResultStorageKind(),
                                   Node->isImmediateInvocation()))
 
+Stmt* StmtClone::VisitCXXNewExpr(CXXNewExpr* Node) {
+  llvm::SmallVector<Expr*, 2> placementArgs;
+  for (Expr* arg : Node->placement_arguments())
+    placementArgs.push_back(Clone(arg));
+  clad_compat::llvm_Optional<Expr*> arraySize;
+  const CXXNewExpr* constNode = Node;
+  if (Node->isArray())
+    arraySize =
+        Clone(clad_compat::ArraySize_GetValue(constNode->getArraySize()));
+  Expr* init = Clone(Node->getInitializer());
+  // Sema reads `()` from an empty parenthesized list, not from the
+  // ImplicitValueInitExpr it turns that into.
+  if (llvm::isa_and_nonnull<ImplicitValueInitExpr>(init))
+    init = m_Sema
+               .ActOnParenListExpr(Node->getDirectInitRange().getBegin(),
+                                   Node->getDirectInitRange().getEnd(), {})
+               .get();
+  // The node keeps no location for the placement parentheses.
+  SourceLocation L = Node->getBeginLoc();
+  return m_Sema
+      .BuildCXXNew(Node->getSourceRange(), Node->isGlobalNew(), L,
+                   placementArgs, L, Node->getTypeIdParens(),
+                   Node->getAllocatedType(), Node->getAllocatedTypeSourceInfo(),
+                   arraySize, Node->getDirectInitRange(), init)
+      .get();
+}
+
 Stmt* StmtClone::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr* Node) {
   // Clone the arguments so the copy does not share them with the source.
   llvm::SmallVector<Expr*, 8> args(Node->getNumArgs());
