@@ -518,6 +518,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isNonDifferentiableType(clang::Sema& S,
                                  const clang::CXXRecordDecl* RD);
 
+    /// Whether a type explicitly opts out of saving its pre-call value when
+    /// passed through a mutable reference. The marker may be on the type or
+    /// its clad::Tag specialization.
+    bool hasNoPrimalTapeAttribute(clang::Sema& S,
+                                  const clang::CXXRecordDecl* RD);
+
     /// Returns true if the type \p CE fundamentally operates on -- the object
     /// of a member call, or the first argument of a free operator (`os << x`)
     /// -- is non-differentiable (Tag-aware, so it honors clad::Tag\<T\>

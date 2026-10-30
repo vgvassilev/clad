@@ -2541,7 +2541,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // FIXME: Improve TBR to handle these stores.
     bool passByRef = paramTy->isLValueReferenceType() &&
                      !paramTy.getNonReferenceType().isConstQualified();
-    if (passByRef && m_DiffReq.shouldBeRecorded(arg)) {
+    const CXXRecordDecl* argRD =
+        arg->getType().getNonReferenceType()->getAsCXXRecordDecl();
+    if (passByRef && m_DiffReq.shouldBeRecorded(arg) &&
+        !utils::hasNoPrimalTapeAttribute(m_Sema, argRD)) {
       // argDiff.getExpr() is also returned below as the call argument; clone
       // it for the store/restore so the node is not shared with the call.
       StmtDiff pushPop =

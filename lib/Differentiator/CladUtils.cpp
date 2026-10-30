@@ -1021,6 +1021,25 @@ namespace clad {
       return TagRD && hasNonDifferentiableAttribute(TagRD);
     }
 
+    bool hasNoPrimalTapeAttribute(clang::Sema& S,
+                                  const clang::CXXRecordDecl* RD) {
+      if (!RD)
+        return false;
+      auto hasMarker = [](const CXXRecordDecl* Record) {
+        for (const auto* Attr : Record->specific_attrs<AnnotateAttr>())
+          if (Attr->getAnnotation() == "no_primal_tape")
+            return true;
+        return false;
+      };
+      if (hasMarker(RD))
+        return true;
+      QualType TagTy = GetCladTagOfType(
+          S, clad_compat::getRecordType(S.getASTContext(), RD));
+      S.isCompleteType(GetValidSLoc(S), TagTy);
+      const auto* TagRD = TagTy->getAsCXXRecordDecl();
+      return TagRD && hasMarker(TagRD);
+    }
+
     bool callOperatesOnNonDifferentiableType(clang::Sema& S,
                                              const clang::CallExpr* CE) {
       // Extract the type the call operates on -- the declaring class of a
