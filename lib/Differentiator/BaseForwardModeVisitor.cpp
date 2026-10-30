@@ -3388,6 +3388,12 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryExprOrTypeTraitExpr(
   return {Clone(UE), Clone(UE)};
 }
 
+StmtDiff
+BaseForwardModeVisitor::VisitTypeTraitExpr(const clang::TypeTraitExpr* TTE) {
+  // A property of types, a constant.
+  return {Clone(TTE), getZeroInit(TTE->getType())};
+}
+
 StmtDiff BaseForwardModeVisitor::VisitPseudoObjectExpr(
     const clang::PseudoObjectExpr* POE) {
   return {Clone(POE),

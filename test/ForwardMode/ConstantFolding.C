@@ -103,6 +103,16 @@ double fn_sizeof_one(double x) {
 // CHECK-NEXT:     return _d_x * _t0 + x * sizeof(char);
 // CHECK-NEXT: }
 
+// A type trait is a constant with a zero derivative.
+double fn_type_trait(double x) {
+  return x * __is_trivially_copyable(double);
+}
+// CHECK: double fn_type_trait_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     bool _t0 = __is_trivially_copyable(double);
+// CHECK-NEXT:     return _d_x * _t0;
+// CHECK-NEXT: }
+
 // A literal operand keeps its source spelling: re-synthesizing it at the
 // implicitly converted type would print `x *= 2` as `x *= 2.`.
 double fn_keep_literal_spelling(double x) {
@@ -154,6 +164,9 @@ int main() {
 
   auto d_sizeof_one = clad::differentiate(fn_sizeof_one, "x");
   printf("{%.2f}\n", d_sizeof_one.execute(5)); // CHECK-EXEC: {6.00}
+
+  auto d_trait = clad::differentiate(fn_type_trait, "x");
+  printf("{%.2f}\n", d_trait.execute(5)); // CHECK-EXEC: {1.00}
 
   auto d_literal = clad::differentiate(fn_keep_literal_spelling, "x");
   printf("{%.2f}\n", d_literal.execute(5)); // CHECK-EXEC: {2.00}

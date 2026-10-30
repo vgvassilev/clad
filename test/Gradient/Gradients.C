@@ -1201,6 +1201,23 @@ double f_static_assert(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+// A type trait is a constant.
+double f_type_trait(double x, double y) {
+  bool trivial = __is_trivially_copyable(double);
+  return trivial ? x * y : x;
+}
+
+//CHECK: void f_type_trait_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     bool _d_trivial = false;
+//CHECK-NEXT:     bool trivial = __is_trivially_copyable(double);
+//CHECK-NEXT:     bool _cond0 = trivial;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         *_d_x += 1 * y;
+//CHECK-NEXT:         *_d_y += x * 1;
+//CHECK-NEXT:     } else
+//CHECK-NEXT:         *_d_x += 1;
+//CHECK-NEXT: }
+
 double f_infinity(double x, double y) {
   constexpr double inf = std::numeric_limits<double>::infinity();
   if (x < inf)
@@ -1335,6 +1352,8 @@ int main() {
 
   INIT_GRADIENT(f_static_assert);
   TEST_GRADIENT(f_static_assert, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
+  INIT_GRADIENT(f_type_trait);
+  TEST_GRADIENT(f_type_trait, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {4.00, -3.00}
 
   INIT_GRADIENT(f_infinity);
   TEST_GRADIENT(f_infinity, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {0.00, 1.00}

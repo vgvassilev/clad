@@ -173,6 +173,7 @@ public:
   StmtDiff VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPL);
   StmtDiff
   VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
+  StmtDiff VisitTypeTraitExpr(const clang::TypeTraitExpr* TTE);
   StmtDiff VisitPseudoObjectExpr(const clang::PseudoObjectExpr* POE);
   StmtDiff VisitSubstNonTypeTemplateParmExpr(
       const clang::SubstNonTypeTemplateParmExpr* NTTP);
