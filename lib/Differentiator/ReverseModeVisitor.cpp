@@ -2691,13 +2691,21 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     std::string FDName = FD->getNameAsString();
     if (FDName == "begin" || FDName == "end") {
       const Expr* arg = nullptr;
-      if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
+      const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE);
+      if (MCE)
         arg = MCE->getImplicitObjectArgument();
       else
         arg = CE->getArg(0);
       if (const auto* CXXCE = dyn_cast<CXXConstructExpr>(arg))
         arg = CXXCE->getArg(0);
       StmtDiff argDiff = Visit(arg);
+      // A member called through a pointer, as `end()` is on `this` inside
+      // another member: std::end takes the object.
+      if (MCE && arg->getType()->isPointerType()) {
+        argDiff.updateStmt(BuildOp(UO_Deref, argDiff.getExpr()));
+        if (Expr* dx = argDiff.getExpr_dx())
+          argDiff.updateStmtDx(BuildOp(UO_Deref, dx));
+      }
 
       llvm::SmallVector<Expr*, 1> params{argDiff.getExpr()};
       Expr* call = GetFunctionCall(FDName, "std", params);
