@@ -6896,6 +6896,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {Clone(UE), Clone(UE)};
   }
 
+  StmtDiff
+  ReverseModeVisitor::VisitTypeTraitExpr(const clang::TypeTraitExpr* TTE) {
+    // A property of types, a constant.
+    return {Clone(TTE), getZeroInit(TTE->getType())};
+  }
+
   DeclDiff<StaticAssertDecl> ReverseModeVisitor::DifferentiateStaticAssertDecl(
       const clang::StaticAssertDecl* SAD) {
     return DeclDiff<StaticAssertDecl>(nullptr, nullptr);

@@ -576,6 +576,7 @@ namespace clad {
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff
     VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
+    StmtDiff VisitTypeTraitExpr(const clang::TypeTraitExpr* TTE);
     StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
     /// Decl is not Stmt, so it cannot be visited directly.
     StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);

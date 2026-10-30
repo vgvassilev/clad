@@ -544,6 +544,14 @@ Stmt* StmtClone::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr* Node) {
       CloneType(Node->getType()), Node->getOperatorLoc(), Node->getRParenLoc());
 }
 
+Stmt* StmtClone::VisitTypeTraitExpr(TypeTraitExpr* Node) {
+  // The arguments are types; Sema evaluates the trait on them again.
+  return m_Sema
+      .BuildTypeTrait(Node->getTrait(), Node->getBeginLoc(), Node->getArgs(),
+                      Node->getEndLoc())
+      .get();
+}
+
 Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
   llvm::SmallVector<Expr*, 4> clonedArgs;
   for (Expr* arg : Node->arguments())

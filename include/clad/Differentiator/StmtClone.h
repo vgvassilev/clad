@@ -106,6 +106,7 @@ namespace utils {
     DECLARE_CLONE_FN(ImplicitValueInitExpr)
     DECLARE_CLONE_FN(ExtVectorElementExpr)
     DECLARE_CLONE_FN(UnaryExprOrTypeTraitExpr)
+    DECLARE_CLONE_FN(TypeTraitExpr)
     DECLARE_CLONE_FN(CallExpr)
     DECLARE_CLONE_FN(CUDAKernelCallExpr)
     DECLARE_CLONE_FN(ShuffleVectorExpr)
