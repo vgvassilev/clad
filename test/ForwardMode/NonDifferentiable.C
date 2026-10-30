@@ -5,6 +5,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#include <new>
+
 extern "C" int printf(const char* fmt, ...);
 
 class SimpleFunctions1 {
@@ -76,6 +78,14 @@ double fn_non_diff_call(double i, double j) {
   return fn_non_diff(i, j) + i * j;
 }
 
+non_differentiable void release(int* p) { delete p; }
+
+// The arguments of a non-differentiable call are cloned as written.
+double fn_non_diff_new(double i, double j) {
+  release(new (std::nothrow) int(1));
+  return i * j;
+}
+
 #define INIT_EXPR(classname)                                                   \
   classname expr_1(2, 3);                                                      \
   classname expr_2(3, 5);
@@ -119,6 +129,8 @@ int main() {
   TEST_FUNC(fn_s2_operator, 3, 5) // CHECK-EXEC: 0.00
 
   TEST_FUNC(fn_non_diff_call, 3, 5) // CHECK-EXEC: 5.00
+
+  TEST_FUNC(fn_non_diff_new, 3, 5) // CHECK-EXEC: 5.00
 
   // CHECK: double mem_fn_1_darg0(double i, double j) {
   // CHECK-NEXT:     double _d_i = 1;
@@ -223,6 +235,13 @@ int main() {
   // CHECK: double fn_non_diff_call_darg0(double i, double j) {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     return _d_i * j + i * _d_j;
+  // CHECK-NEXT: }
+
+  // CHECK: double fn_non_diff_new_darg0(double i, double j) {
+  // CHECK-NEXT:     double _d_i = 1;
+  // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     release(new (std::nothrow) int(1));
   // CHECK-NEXT:     return _d_i * j + i * _d_j;
   // CHECK-NEXT: }
 }

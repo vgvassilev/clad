@@ -809,6 +809,28 @@ double fn16(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// A member initialized by a new-expression, which the derivatives of the
+// constructor clone.
+struct HeapBuf {
+  double* p;
+  HeapBuf(int k, double v) : p(new double[k]()) { p[0] = v; }
+};
+
+// CHECK: static inline clad::ValueAndAdjoint<HeapBuf, HeapBuf> constructor_reverse_forw(clad::Tag<HeapBuf>, int k, double v, int _d_k, double _d_v) {
+// CHECK-NEXT:     HeapBuf *_this = (HeapBuf *)malloc(sizeof(HeapBuf));
+// CHECK-NEXT:     HeapBuf *_d_this = (HeapBuf *)malloc(sizeof(HeapBuf));
+// CHECK-NEXT:     memset(_d_this, 0, sizeof(HeapBuf));
+// CHECK-NEXT:     _this->p = new double [k](/*implicit*/(double[])0);
+// CHECK-NEXT:     _d_this->p = new double [k](/*implicit*/(double[])0);
+// CHECK-NEXT:     _this->p[0] = v;
+
+double fn17(double x, double y) {
+  HeapBuf b(2, x);
+  double r = b.p[0] * y;
+  delete[] b.p;
+  return r;
+}
+
 int main() {
     double d_i, d_j;
 
@@ -862,4 +884,7 @@ int main() {
 
     INIT_GRADIENT(fn16);
     TEST_GRADIENT(fn16, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {12.00, 9.00}
+
+    // Not run: clad drops the delete of a member, so both buffers would leak.
+    INIT_GRADIENT(fn17);
 }
