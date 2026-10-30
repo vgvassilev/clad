@@ -115,6 +115,18 @@ template <class T> class Tag {};
 #define CLAD_NONDIFFERENTIABLE __attribute__((annotate("non_differentiable")))
 #endif
 
+/// Opt out of copying a type before a call through a mutable reference.
+/// Use only when reverse propagation never needs the type's pre-call state.
+/// A derivative that needs the old state must save it explicitly.
+#define CLAD_NO_PRIMAL_TAPE __attribute__((annotate("no_primal_tape")))
+
+/// Mark a library type that cannot be annotated at its own declaration. If
+/// Tag<T> is already specialized, add the attribute to that specialization.
+#define CLAD_NO_PRIMAL_TAPE_TYPE(...)                                          \
+  namespace clad {                                                             \
+  template <> class CLAD_NO_PRIMAL_TAPE Tag<__VA_ARGS__> {};                   \
+  }
+
 /// Marks a type you do NOT own -- a library type you cannot annotate at its own
 /// declaration -- non-differentiable, by specializing clad::Tag for it. Use at
 /// global scope. The type may contain commas, e.g.
