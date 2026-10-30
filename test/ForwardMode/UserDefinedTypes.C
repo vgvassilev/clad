@@ -1218,6 +1218,31 @@ double fn18(double i, double j) {
 // CHECK-NEXT:     return _d_v[0].mem;
 // CHECK-NEXT: }
 
+struct MoveOnly {
+  double value;
+
+  explicit MoveOnly(double x) : value(x) {}
+  MoveOnly(const MoveOnly&) = delete;
+  MoveOnly(MoveOnly&&) = default;
+};
+
+namespace clad::custom_derivatives::class_functions {
+clad::ValueAndPushforward<MoveOnly, MoveOnly>
+constructor_pushforward(clad::Tag<MoveOnly>, double x, double d_x) {
+  return {MoveOnly(x), MoveOnly(d_x)};
+}
+} // namespace clad::custom_derivatives::class_functions
+
+double moveOnlySquare(double x) {
+  MoveOnly object(x);
+  return object.value * object.value;
+}
+
+// CHECK: double moveOnlySquare_darg0(double x) {
+// CHECK: constructor_pushforward
+// CHECK: MoveOnly _d_object(static_cast<MoveOnly &&>(_t0.pushforward));
+// CHECK: MoveOnly object(static_cast<MoveOnly &&>(_t0.value));
+
 template<unsigned N>
 void print(const Tensor<double, N>& t) {
   for (int i=0; i<N; ++i) {
@@ -1246,6 +1271,7 @@ int main() {
   INIT_DIFFERENTIATE(fn16, "v.second.second");
   INIT_DIFFERENTIATE(fn17, "b.mem");
   INIT_DIFFERENTIATE(fn18, "i");
+  auto d_move_only = clad::differentiate(moveOnlySquare, "x");
 
   TensorD5 t;
   t.updateTo(5);
@@ -1269,4 +1295,5 @@ int main() {
   TEST_DIFFERENTIATE(fn16, pair_of_pairdd(), pair_of_pairdd());   // CHECK-EXEC: {2.00}
   TEST_DIFFERENTIATE(fn17, A(3.00), B(5.00));   // CHECK-EXEC: {3.00}
   TEST_DIFFERENTIATE(fn18, 7, 3);   // CHECK-EXEC: {9.00}
+  printf("move-only: %.4f\n", d_move_only.execute(3.0)); // CHECK-EXEC: move-only: 6.0000
 }
