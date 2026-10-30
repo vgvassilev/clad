@@ -20,6 +20,7 @@
 #include "clang/AST/Attrs.inc"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
@@ -362,6 +363,20 @@ namespace clad {
       CSS.MakeTrivial(m_Context, NNS, GenLoc());
     QualType T = D->getType();
     T = T.getNonReferenceType();
+    // A specialization of a variable template is named with its arguments:
+    // `c_v<double>`, since `c_v` alone names the template, not a variable.
+    if (const auto* VTSD = dyn_cast<VarTemplateSpecializationDecl>(D)) {
+      SourceLocation Loc = GenLoc();
+      TemplateArgumentListInfo TALI(Loc, Loc);
+      for (const TemplateArgument& TA : VTSD->getTemplateArgs().asArray())
+        TALI.addArgument(m_Sema.getTrivialTemplateArgumentLoc(
+            TA, TA.getNonTypeTemplateArgumentType(), Loc));
+      return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
+          m_Sema.BuildDeclRefExpr(D, T, VK,
+                                  DeclarationNameInfo(D->getDeclName(), Loc),
+                                  &CSS, /*FoundD=*/nullptr,
+                                  /*TemplateKWLoc=*/SourceLocation(), &TALI)));
+    }
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
         m_Sema.BuildDeclRefExpr(D, T, VK, GenLoc(), &CSS)));
   }
