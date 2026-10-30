@@ -334,6 +334,10 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanh_pushforward(T x, dT d_x);
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cbrt_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> lgamma_pushforward(T x,
+                                                               dT d_x) noexcept;
 } // namespace std
 
 template <typename T, typename dT>
@@ -604,6 +608,24 @@ template <typename T, typename dT>
 CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
 __builtin_cbrtl_pushforward(T x, dT d_x) {
   return std::cbrt_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_lgamma_pushforward(T x, dT d_x) noexcept {
+  return std::lgamma_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_lgammaf_pushforward(T x, dT d_x) noexcept {
+  return std::lgamma_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_lgammal_pushforward(T x, dT d_x) noexcept {
+  return std::lgamma_pushforward(x, d_x);
 }
 
 // FIXME: Add the rest of the __builtin_ routines.
