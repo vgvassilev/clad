@@ -3227,6 +3227,10 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     Expr* pushforwardE =
         utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                CloneNode(valueAndPushforwardE), "pushforward");
+    if (!utils::isCopyable(CE->getConstructor()->getParent())) {
+      valueE = utils::BuildStaticCastToRValue(m_Sema, valueE);
+      pushforwardE = utils::BuildStaticCastToRValue(m_Sema, pushforwardE);
+    }
     return StmtDiff(valueE, pushforwardE);
   }
 
