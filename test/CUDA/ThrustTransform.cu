@@ -33,13 +33,13 @@ void transform_negate(const thrust::device_vector<double>& vec, thrust::device_v
     thrust::transform(vec.begin(), vec.end(), output.begin(), thrust::negate<double>());
 }
 // CHECK: void transform_negate_grad(const thrust::device_vector<double> &vec, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec), std::end(vec), std::begin(output), thrust::negate<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_output)), {});
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(output), thrust::negate<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     iterator _r2 = std::begin((*_d_output));
 // CHECK-NEXT:     thrust::negate<double> _r3 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(vec), std::end(vec), std::begin(output), thrust::negate<double>(), {}, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(output), thrust::negate<double>(), {}, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -47,13 +47,13 @@ void transform_identity(const thrust::device_vector<double>& vec, thrust::device
     thrust::transform(vec.begin(), vec.end(), output.begin(), thrust::identity<double>());
 }
 // CHECK: void transform_identity_grad(const thrust::device_vector<double> &vec, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec), std::end(vec), std::begin(output), thrust::identity<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_output)), {});
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(output), thrust::identity<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     iterator _r2 = std::begin((*_d_output));
 // CHECK-NEXT:     thrust::identity<double> _r3 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(vec), std::end(vec), std::begin(output), thrust::identity<double>(), {}, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(output), thrust::identity<double>(), {}, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -61,14 +61,14 @@ void transform_plus(const thrust::device_vector<double>& vec1, const thrust::dev
     thrust::transform(vec1.begin(), vec1.end(), vec2.begin(), output.begin(), thrust::plus<double>());
 }
 // CHECK: void transform_plus_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::plus<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::plus<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r2 = std::begin((*_d_vec2));
 // CHECK-NEXT:     iterator _r3 = std::begin((*_d_output));
 // CHECK-NEXT:     thrust::plus<double> _r4 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -76,14 +76,14 @@ void transform_minus(const thrust::device_vector<double>& vec1, const thrust::de
     thrust::transform(vec1.begin(), vec1.end(), vec2.begin(), output.begin(), thrust::minus<double>());
 }
 // CHECK: void transform_minus_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::minus<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::minus<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r2 = std::begin((*_d_vec2));
 // CHECK-NEXT:     iterator _r3 = std::begin((*_d_output));
 // CHECK-NEXT:     thrust::minus<double> _r4 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::minus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::minus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -91,14 +91,14 @@ void transform_multiplies(const thrust::device_vector<double>& vec1, const thrus
     thrust::transform(vec1.begin(), vec1.end(), vec2.begin(), output.begin(), thrust::multiplies<double>());
 }
 // CHECK: void transform_multiplies_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::multiplies<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::multiplies<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r2 = std::begin((*_d_vec2));
 // CHECK-NEXT:     iterator _r3 = std::begin((*_d_output));
 // CHECK-NEXT:     thrust::multiplies<double> _r4 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::multiplies<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::multiplies<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -106,14 +106,14 @@ void transform_divides(const thrust::device_vector<double>& vec1, const thrust::
     thrust::transform(vec1.begin(), vec1.end(), vec2.begin(), output.begin(), thrust::divides<double>());
 }
 // CHECK: void transform_divides_grad(const thrust::device_vector<double> &vec1, const thrust::device_vector<double> &vec2, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec1, thrust::device_vector<double> *_d_vec2, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::divides<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::divides<double>(), std::begin((*_d_vec1)), std::end((*_d_vec1)), std::begin((*_d_vec2)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r2 = std::begin((*_d_vec2));
 // CHECK-NEXT:     iterator _r3 = std::begin((*_d_output));
 // CHECK-NEXT:     thrust::divides<double> _r4 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::divides<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), std::begin(output), thrust::divides<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -143,13 +143,13 @@ void apply_affine(const thrust::device_vector<double>& v,
     thrust::transform(v.begin(), v.end(), out.begin(), op);
 }
 // CHECK: void apply_affine_grad(const thrust::device_vector<double> &v, thrust::device_vector<double> &out, Affine op, thrust::device_vector<double> *_d_v, thrust::device_vector<double> *_d_out, Affine *_d_op) {
-// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(v), std::end(v), std::begin(out), op, std::begin((*_d_v)), std::end((*_d_v)), std::begin((*_d_out)), (*_d_op));
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw{{(<.*>)?}}(std::begin(v), std::end(v), std::begin(out), op, std::begin((*_d_v)), std::end((*_d_v)), std::begin((*_d_out)), (*_d_op));
 // CHECK-NEXT: {
 // CHECK-NEXT:     {{.*}}const_iterator _r0 = std::begin((*_d_v));
 // CHECK-NEXT:     {{.*}}const_iterator _r1 = std::end((*_d_v));
 // CHECK-NEXT:     {{.*}}iterator _r2 = std::begin((*_d_out));
 // CHECK-NEXT:     Affine _r3 = (*_d_op);
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(v), std::end(v), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback{{(<.*>)?}}(std::begin(v), std::end(v), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT:     Affine::constructor_pullback(op, &_r3, _d_op);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
@@ -172,13 +172,13 @@ void apply_spb(const thrust::device_vector<double>& v,
     thrust::transform(v.begin(), v.end(), out.begin(), op);
 }
 // CHECK: void apply_spb_grad(const thrust::device_vector<double> &v, thrust::device_vector<double> &out, SquarePlusBias op, thrust::device_vector<double> *_d_v, thrust::device_vector<double> *_d_out, SquarePlusBias *_d_op) {
-// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(v), std::end(v), std::begin(out), op, std::begin((*_d_v)), std::end((*_d_v)), std::begin((*_d_out)), (*_d_op));
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw{{(<.*>)?}}(std::begin(v), std::end(v), std::begin(out), op, std::begin((*_d_v)), std::end((*_d_v)), std::begin((*_d_out)), (*_d_op));
 // CHECK-NEXT: {
 // CHECK-NEXT:     {{.*}}const_iterator _r0 = std::begin((*_d_v));
 // CHECK-NEXT:     {{.*}}const_iterator _r1 = std::end((*_d_v));
 // CHECK-NEXT:     {{.*}}iterator _r2 = std::begin((*_d_out));
 // CHECK-NEXT:     SquarePlusBias _r3 = (*_d_op);
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(v), std::end(v), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback{{(<.*>)?}}(std::begin(v), std::end(v), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT:     SquarePlusBias::constructor_pullback(op, &_r3, _d_op);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
@@ -204,14 +204,14 @@ void apply_bilinear(const thrust::device_vector<double>& v1,
     thrust::transform(v1.begin(), v1.end(), v2.begin(), out.begin(), op);
 }
 // CHECK: void apply_bilinear_grad(const thrust::device_vector<double> &v1, const thrust::device_vector<double> &v2, thrust::device_vector<double> &out, Bilinear op, thrust::device_vector<double> *_d_v1, thrust::device_vector<double> *_d_v2, thrust::device_vector<double> *_d_out, Bilinear *_d_op) {
-// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(v1), std::end(v1), std::begin(v2), std::begin(out), op, std::begin((*_d_v1)), std::end((*_d_v1)), std::begin((*_d_v2)), std::begin((*_d_out)), (*_d_op));
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw{{(<.*>)?}}(std::begin(v1), std::end(v1), std::begin(v2), std::begin(out), op, std::begin((*_d_v1)), std::end((*_d_v1)), std::begin((*_d_v2)), std::begin((*_d_out)), (*_d_op));
 // CHECK-NEXT: {
 // CHECK-NEXT:     {{.*}}const_iterator _r0 = std::begin((*_d_v1));
 // CHECK-NEXT:     {{.*}}const_iterator _r1 = std::end((*_d_v1));
 // CHECK-NEXT:     {{.*}}const_iterator _r2 = std::begin((*_d_v2));
 // CHECK-NEXT:     {{.*}}iterator _r3 = std::begin((*_d_out));
 // CHECK-NEXT:     Bilinear _r4 = (*_d_op);
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(v1), std::end(v1), std::begin(v2), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback{{(<.*>)?}}(std::begin(v1), std::end(v1), std::begin(v2), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT:     Bilinear::constructor_pullback(op, &_r4, _d_op);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
@@ -240,14 +240,14 @@ void apply_mix(const thrust::device_vector<double>& v1,
     thrust::transform(v1.begin(), v1.end(), v2.begin(), out.begin(), op);
 }
 // CHECK: void apply_mix_grad(const thrust::device_vector<double> &v1, const thrust::device_vector<double> &v2, thrust::device_vector<double> &out, MixOp op, thrust::device_vector<double> *_d_v1, thrust::device_vector<double> *_d_v2, thrust::device_vector<double> *_d_out, MixOp *_d_op) {
-// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw(std::begin(v1), std::end(v1), std::begin(v2), std::begin(out), op, std::begin((*_d_v1)), std::end((*_d_v1)), std::begin((*_d_v2)), std::begin((*_d_out)), (*_d_op));
+// CHECK-NEXT: {{.*}}thrust::transform_reverse_forw{{(<.*>)?}}(std::begin(v1), std::end(v1), std::begin(v2), std::begin(out), op, std::begin((*_d_v1)), std::end((*_d_v1)), std::begin((*_d_v2)), std::begin((*_d_out)), (*_d_op));
 // CHECK-NEXT: {
 // CHECK-NEXT:     {{.*}}const_iterator _r0 = std::begin((*_d_v1));
 // CHECK-NEXT:     {{.*}}const_iterator _r1 = std::end((*_d_v1));
 // CHECK-NEXT:     {{.*}}const_iterator _r2 = std::begin((*_d_v2));
 // CHECK-NEXT:     {{.*}}iterator _r3 = std::begin((*_d_out));
 // CHECK-NEXT:     MixOp _r4 = (*_d_op);
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback(std::begin(v1), std::end(v1), std::begin(v2), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_pullback{{(<.*>)?}}(std::begin(v1), std::end(v1), std::begin(v2), std::begin(out), op, {}, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT:     MixOp::constructor_pullback(op, &_r4, _d_op);
 // CHECK-NEXT: }
 // CHECK-NEXT: }

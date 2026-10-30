@@ -26,13 +26,13 @@ void adj_diff_default(const thrust::device_vector<double>& vec,
   thrust::adjacent_difference(vec.begin(), vec.end(), out.begin(), thrust::minus<double>());
 }
 // CHECK: void adj_diff_default_grad(const thrust::device_vector<double> &vec, thrust::device_vector<double> &out, thrust::device_vector<double> *_d_vec, thrust::device_vector<double> *_d_out) {
-// CHECK-NEXT: {{.*}}thrust::adjacent_difference_reverse_forw(std::begin(vec), std::end(vec), std::begin(out), thrust::minus<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_out)), {});
+// CHECK-NEXT: {{.*}}thrust::adjacent_difference_reverse_forw{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(out), thrust::minus<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_out)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     thrust::detail::vector_base<double, thrust::device_allocator<double> >::const_iterator _r0 = std::begin((*_d_vec));
 // CHECK-NEXT:     thrust::detail::vector_base<double, thrust::device_allocator<double> >::const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     thrust::detail::vector_base<double, thrust::device_allocator<double> >::iterator _r2 = std::begin((*_d_out));
 // CHECK-NEXT:   thrust::minus<double> _r3 = {};
-// CHECK-NEXT:   clad::custom_derivatives::thrust::adjacent_difference_pullback(std::begin(vec), std::end(vec), std::begin(out), thrust::minus<double>(), {}, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:   clad::custom_derivatives::thrust::adjacent_difference_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(out), thrust::minus<double>(), {}, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -41,13 +41,13 @@ void adj_diff_plus(const thrust::device_vector<double>& vec,
   thrust::adjacent_difference(vec.begin(), vec.end(), out.begin(), thrust::plus<double>());
 }
 // CHECK: void adj_diff_plus_grad(const thrust::device_vector<double> &vec, thrust::device_vector<double> &out, thrust::device_vector<double> *_d_vec, thrust::device_vector<double> *_d_out) {
-// CHECK-NEXT: {{.*}}thrust::adjacent_difference_reverse_forw(std::begin(vec), std::end(vec), std::begin(out), thrust::plus<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_out)), {});
+// CHECK-NEXT: {{.*}}thrust::adjacent_difference_reverse_forw{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(out), thrust::plus<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_out)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     thrust::detail::vector_base<double, thrust::device_allocator<double> >::const_iterator _r0 = std::begin((*_d_vec));
 // CHECK-NEXT:     thrust::detail::vector_base<double, thrust::device_allocator<double> >::const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     thrust::detail::vector_base<double, thrust::device_allocator<double> >::iterator _r2 = std::begin((*_d_out));
 // CHECK-NEXT:   thrust::plus<double> _r3 = {};
-// CHECK-NEXT:   clad::custom_derivatives::thrust::adjacent_difference_pullback(std::begin(vec), std::end(vec), std::begin(out), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:   clad::custom_derivatives::thrust::adjacent_difference_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(out), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 

@@ -15,9 +15,9 @@ template <typename T> struct Experiment {
 
 // CHECK: void operator_call_jac(double i, double j, double *_clad_out_output, clad::matrix<double> *_d_vector__clad_out_output) {
 // CHECK-NEXT:     unsigned long indepVarCount = {{2U|2UL|2ULL}};
-// CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
-// CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
-// CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
+// CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector<double>(indepVarCount, {{0U|0UL|0ULL}});
+// CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector<double>(indepVarCount, {{1U|1UL|1ULL}});
+// CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix<double>(_d_vector__clad_out_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
 // CHECK-NEXT:     double _t0 = this->x * this->y;
 // CHECK-NEXT:     double _t1 = _t0 * i;
 // CHECK-NEXT:     (*_d_vector__clad_out_output)[0] = (_t0 * _d_vector_i) * j + _t1 * _d_vector_j;
@@ -26,7 +26,7 @@ template <typename T> struct Experiment {
 // CHECK-NEXT:     double &_t3 = this->y;
 // CHECK-NEXT:     double _t4 = 2 * _t2 * _t3;
 // CHECK-NEXT:     double _t5 = _t4 * i;
-// CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((((clad::zero_vector(indepVarCount)) * _t2) * _t3) * i + _t4 * _d_vector_i) * j + _t5 * _d_vector_j;
+// CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = ((((clad::zero_vector<int>(indepVarCount)) * _t2) * _t3) * i + _t4 * _d_vector_i) * j + _t5 * _d_vector_j;
 // CHECK-NEXT:     _clad_out_output[1] = _t5 * j;
 // CHECK-NEXT: }
 
@@ -42,9 +42,9 @@ template <> struct Experiment<long double> {
 
 // CHECK: void operator_call_jac(long double i, long double j, long double *_clad_out_output, clad::matrix<long double> *_d_vector__clad_out_output) {
 // CHECK-NEXT:     unsigned long indepVarCount = {{2U|2UL|2ULL}};
-// CHECK-NEXT:     clad::array<long double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
-// CHECK-NEXT:     clad::array<long double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
-// CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix(_d_vector__clad_out_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
+// CHECK-NEXT:     clad::array<long double> _d_vector_i = clad::one_hot_vector<long double>(indepVarCount, {{0U|0UL|0ULL}});
+// CHECK-NEXT:     clad::array<long double> _d_vector_j = clad::one_hot_vector<long double>(indepVarCount, {{1U|1UL|1ULL}});
+// CHECK-NEXT:     *_d_vector__clad_out_output = clad::identity_matrix<long double>(_d_vector__clad_out_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
 // CHECK-NEXT:     long double _t0 = this->x * this->y;
 // CHECK-NEXT:     long double _t1 = _t0 * i;
 // CHECK-NEXT:     long double _t2 = _t1 * i;
@@ -55,7 +55,7 @@ template <> struct Experiment<long double> {
 // CHECK-NEXT:     long double _t5 = 2 * _t3 * _t4;
 // CHECK-NEXT:     long double _t6 = _t5 * i;
 // CHECK-NEXT:     long double _t7 = _t6 * i;
-// CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = (((((clad::zero_vector(indepVarCount)) * _t3) * _t4) * i + _t5 * _d_vector_i) * i + _t6 * _d_vector_i) * j + _t7 * _d_vector_j;
+// CHECK-NEXT:     (*_d_vector__clad_out_output)[1] = (((((clad::zero_vector<int>(indepVarCount)) * _t3) * _t4) * i + _t5 * _d_vector_i) * i + _t6 * _d_vector_i) * j + _t7 * _d_vector_j;
 // CHECK-NEXT:     _clad_out_output[1] = _t7 * j;
 // CHECK-NEXT: }
 

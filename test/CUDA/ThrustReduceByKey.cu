@@ -30,14 +30,14 @@ void reduce_by_key_simple(const thrust::device_vector<int>& keys,
 }
 
 // CHECK: void reduce_by_key_simple_grad(const thrust::device_vector<int> &keys, const thrust::device_vector<double> &vals, thrust::device_vector<int> &keys_out, thrust::device_vector<double> &vals_out, thrust::device_vector<int> *_d_keys, thrust::device_vector<double> *_d_vals, thrust::device_vector<int> *_d_keys_out, thrust::device_vector<double> *_d_vals_out) {
-// CHECK-NEXT: {{.*}}clad::custom_derivatives::thrust::reduce_by_key_reverse_forw(std::begin(keys), std::end(keys), std::begin(vals), std::begin(keys_out), std::begin(vals_out), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_vals)), std::begin((*_d_keys_out)), std::begin((*_d_vals_out)));
+// CHECK-NEXT: {{.*}}clad::custom_derivatives::thrust::reduce_by_key_reverse_forw{{(<.*>)?}}(std::begin(keys), std::end(keys), std::begin(vals), std::begin(keys_out), std::begin(vals_out), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_vals)), std::begin((*_d_keys_out)), std::begin((*_d_vals_out)));
 // CHECK-NEXT: {
 // CHECK-NEXT:     thrust::detail::vector_base<int, thrust::device_allocator<int> >::const_iterator _r0 = std::begin((*_d_keys));
 // CHECK-NEXT:     thrust::detail::vector_base<int, thrust::device_allocator<int> >::const_iterator _r1 = std::end((*_d_keys));
 // CHECK-NEXT:     thrust::detail::vector_base<double, thrust::device_allocator<double> >::const_iterator _r2 = std::begin((*_d_vals));
 // CHECK-NEXT:     thrust::detail::vector_base<int, thrust::device_allocator<int> >::iterator _r3 = std::begin((*_d_keys_out));
 // CHECK-NEXT:     thrust::detail::vector_base<double, thrust::device_allocator<double> >::iterator _r4 = std::begin((*_d_vals_out));
-// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_by_key_pullback(std::begin(keys), std::end(keys), std::begin(vals), std::begin(keys_out), std::begin(vals_out), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_by_key_pullback{{(<.*>)?}}(std::begin(keys), std::end(keys), std::begin(vals), std::begin(keys_out), std::begin(vals_out), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT: }
 
 // reduce_by_key with explicit predicate/op (equal_to, plus)
@@ -51,7 +51,7 @@ void reduce_by_key_custom_op(const thrust::device_vector<int>& keys,
 }
 
 // CHECK: void reduce_by_key_custom_op_grad(const thrust::device_vector<int> &keys, const thrust::device_vector<double> &vals, thrust::device_vector<int> &keys_out, thrust::device_vector<double> &vals_out, thrust::device_vector<int> *_d_keys, thrust::device_vector<double> *_d_vals, thrust::device_vector<int> *_d_keys_out, thrust::device_vector<double> *_d_vals_out) {
-// CHECK-NEXT: {{.*}}clad::custom_derivatives::thrust::reduce_by_key_reverse_forw(std::begin(keys), std::end(keys), std::begin(vals), std::begin(keys_out), std::begin(vals_out), thrust::equal_to<int>(), thrust::plus<double>(), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_vals)), std::begin((*_d_keys_out)), std::begin((*_d_vals_out)), {}, {});
+// CHECK-NEXT: {{.*}}clad::custom_derivatives::thrust::reduce_by_key_reverse_forw{{(<.*>)?}}(std::begin(keys), std::end(keys), std::begin(vals), std::begin(keys_out), std::begin(vals_out), thrust::equal_to<int>(), thrust::plus<double>(), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_vals)), std::begin((*_d_keys_out)), std::begin((*_d_vals_out)), {}, {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     thrust::detail::vector_base<int, thrust::device_allocator<int> >::const_iterator _r0 = std::begin((*_d_keys));
 // CHECK-NEXT:     thrust::detail::vector_base<int, thrust::device_allocator<int> >::const_iterator _r1 = std::end((*_d_keys));
@@ -60,7 +60,7 @@ void reduce_by_key_custom_op(const thrust::device_vector<int>& keys,
 // CHECK-NEXT:     thrust::detail::vector_base<double, thrust::device_allocator<double> >::iterator _r4 = std::begin((*_d_vals_out));
 // CHECK-NEXT:     thrust::equal_to<int> _r5 = {};
 // CHECK-NEXT:     thrust::plus<double> _r6 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_by_key_pullback(std::begin(keys), std::end(keys), std::begin(vals), std::begin(keys_out), std::begin(vals_out), thrust::equal_to<int>(), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5, &_r6);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_by_key_pullback{{(<.*>)?}}(std::begin(keys), std::end(keys), std::begin(vals), std::begin(keys_out), std::begin(vals_out), thrust::equal_to<int>(), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5, &_r6);
 // CHECK-NEXT: }
 
 int main() {

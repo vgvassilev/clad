@@ -1130,8 +1130,8 @@ int main() {
 
 // CHECK: void fn21_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _t0 = x;
-// CHECK-NEXT:     std::shared_ptr<double> x_ptr = std::make_shared(x);
-// CHECK-NEXT:     std::shared_ptr<double> _d_x_ptr = std::make_shared(*_d_x);
+// CHECK-NEXT:     std::shared_ptr<double> x_ptr = std::make_shared<double>(x);
+// CHECK-NEXT:     std::shared_ptr<double> _d_x_ptr = std::make_shared<double>(*_d_x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         std::shared_ptr<double> _r0 = _d_x_ptr;
 // CHECK-NEXT:         simple_func_pullback(x_ptr, 1, &_r0);
@@ -1157,8 +1157,8 @@ int main() {
 
 // CHECK: void fn22_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _t0 = x;
-// CHECK-NEXT:     std::shared_ptr<double> s_ptr = std::make_shared(x);
-// CHECK-NEXT:     std::shared_ptr<double> _d_s_ptr = std::make_shared(*_d_x);
+// CHECK-NEXT:     std::shared_ptr<double> s_ptr = std::make_shared<double>(x);
+// CHECK-NEXT:     std::shared_ptr<double> _d_s_ptr = std::make_shared<double>(*_d_x);
 // CHECK-NEXT:     std::weak_ptr<double> w_ptr{{ = |\(}}s_ptr{{\)?}};
 // CHECK-NEXT:     std::weak_ptr<double> _d_w_ptr{{ = |\(}}_d_s_ptr{{\)?}};
 // CHECK-NEXT:     {
