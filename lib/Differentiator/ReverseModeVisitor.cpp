@@ -5152,6 +5152,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                     FCE->getBeginLoc(), castExprDiff.getExpr(),
                                     FCE->getEndLoc())
                                 .get());
+    // Cast the derivative of a scalar too, as a C-style cast does: it
+    // initializes an adjoint of the cast type, which may be an enumeration.
+    Expr* dx = castExprDiff.getExpr_dx();
+    if (dx && !FCE->getType()->isRecordType())
+      castExprDiff.updateStmtDx(
+          m_Sema
+              .BuildCXXFunctionalCastExpr(FCE->getTypeInfoAsWritten(),
+                                          FCE->getType(), FCE->getBeginLoc(),
+                                          dx, FCE->getEndLoc())
+              .get());
     return castExprDiff;
   }
 
