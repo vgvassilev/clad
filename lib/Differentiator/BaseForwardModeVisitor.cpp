@@ -1348,6 +1348,10 @@ BaseForwardModeVisitor::VisitCXXMemberCallExpr(const CXXMemberCallExpr* CE) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
+  // Pseudo and trivial destructors do nothing and there is no need to
+  // differentiate or clone them.
+  if (utils::isNoOpDestructorCall(CE))
+    return {};
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
     diagUnsupportedIndirectCalls(CE);

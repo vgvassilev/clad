@@ -1256,30 +1256,74 @@ void destroy(T* p) {
 // CHECK: void destroy_pullback(int *p, int *_d_p) {
 // CHECK-NEXT: }
 
+struct TrivialDtor {
+  double v;
+  TrivialDtor(double x) : v(x) {}
+};
+
 double fn34(double x, double y) {
   int* a = new int(x + y);
   destroy(a);
-  double res = *a;
-  // int has a trivial destructor, so destroy() above only ran a no-op and the
+  TrivialDtor t(x);
+  destroy(&t);
+  double res = *a * t.v;
+  // Both destructors are trivial, so destroy() above only ran no-ops and the
   // storage is still ours to release.
   delete a;
   return res;
 }
 
+// CHECK: void destroy_pullback(TrivialDtor *p, TrivialDtor *_d_p) {
+// CHECK-NEXT: }
+
 // CHECK: void fn34_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     int *_d_a = new int(0.);
 // CHECK-NEXT:     int *a = new int(x + y);
 // CHECK-NEXT:     destroy(a);
+// CHECK-NEXT:     TrivialDtor t(x);
+// CHECK-NEXT:     TrivialDtor _d_t(0.);
+// CHECK-NEXT:     destroy(&t);
 // CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = *a;
+// CHECK-NEXT:     double res = *a * t.v;
 // CHECK-NEXT:     _d_res += 1;
-// CHECK-NEXT:     *_d_a += _d_res;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_a += _d_res * t.v;
+// CHECK-NEXT:         _d_t.v += *a * _d_res;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         TrivialDtor::constructor_pullback(x, &_d_t, &_r0);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_x += *_d_a;
 // CHECK-NEXT:         *_d_y += *_d_a;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     delete a;
 // CHECK-NEXT:     delete _d_a;
+// CHECK-NEXT: }
+
+// CHECK: void destroy_pushforward(int *p, int *_d_p) {
+// CHECK-NEXT: }
+
+// CHECK: void destroy_pushforward(TrivialDtor *p, TrivialDtor *_d_p) {
+// CHECK-NEXT: }
+
+// CHECK: double fn34_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     int *_d_a = new int(_d_x + _d_y);
+// CHECK-NEXT:     int *a = new int(x + y);
+// CHECK-NEXT:     destroy_pushforward(a, _d_a);
+// CHECK-NEXT:     TrivialDtor _d_t(_d_x);
+// CHECK-NEXT:     TrivialDtor t(x);
+// CHECK-NEXT:     destroy_pushforward(&t, &_d_t);
+// CHECK-NEXT:     double &_t0 = t.v;
+// CHECK-NEXT:     double _d_res = *_d_a * _t0 + *a * _d_t.v;
+// CHECK-NEXT:     double res = *a * _t0;
+// CHECK-NEXT:     delete _d_a;
+// CHECK-NEXT:     delete a;
+// CHECK-NEXT:     return _d_res;
 // CHECK-NEXT: }
 
 double fn35(double x, double y) {
@@ -1517,7 +1561,9 @@ int main() {
   printf("{%.2f, %.2f}\n", x_output[0], x_output[1]);  // CHECK-EXEC: {1.00, 0.00}
 
   INIT(fn34);
-  TEST2(fn34, 2, 1);  // CHECK-EXEC: {1.00, 1.00}
+  TEST2(fn34, 2, 1);  // CHECK-EXEC: {5.00, 2.00}
+  auto d_fn34 = clad::differentiate(fn34, "x");
+  printf("%.2f\n", d_fn34.execute(2, 1)); // CHECK-EXEC: 5.00
 
   INIT(fn35);
   TEST2(fn35, 10, 1);  // CHECK-EXEC: {-3.00, 2.00}

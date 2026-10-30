@@ -583,6 +583,16 @@ namespace clad {
       return true;
     }
 
+    bool isNoOpDestructorCall(const clang::CallExpr* CE) {
+      if (isa<CXXPseudoDestructorExpr>(CE->getCallee()))
+        return true;
+      // A trivial destructor runs no code; Sema does not even define one
+      // unless it is exported.
+      const auto* DD =
+          dyn_cast_or_null<CXXDestructorDecl>(CE->getDirectCallee());
+      return DD && DD->isTrivial();
+    }
+
     bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
                                           const clang::ASTContext& C) {
       const CXXRecordDecl* RD = CD->getParent();
