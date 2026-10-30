@@ -8,8 +8,8 @@ double f1(double x, double y) {
 
 // CHECK: void f1_dvec(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:   unsigned {{int|long|long long}} indepVarCount = {{2U|2UL|2ULL}};
-// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
-// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector<double>(indepVarCount, {{0U|0UL|0ULL}});
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector<double>(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return(_d_vector_x * y + x * _d_vector_y);
 // CHECK-NEXT:     *_d_x = _d_vector_return[{{0U|0UL|0ULL}}];
@@ -24,8 +24,8 @@ double f2(double x, double y) {
 
 // CHECK: void f2_dvec(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:   unsigned {{int|long|long long}} indepVarCount = {{2U|2UL|2ULL}};
-// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
-// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector<double>(indepVarCount, {{0U|0UL|0ULL}});
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector<double>(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return(_d_vector_x + _d_vector_y);
 // CHECK-NEXT:     *_d_x = _d_vector_return[{{0U|0UL|0ULL}}];
@@ -44,8 +44,8 @@ double f_try_catch(double x, double y)
 
 // CHECK: void f_try_catch_dvec(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:   unsigned {{int|long|long long}} indepVarCount = {{2U|2UL|2ULL}};
-// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
-// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector<double>(indepVarCount, {{0U|0UL|0ULL}});
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector<double>(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:    try {
 // CHECK-NEXT:        return x;
 // CHECK-NEXT:    } catch (int) {

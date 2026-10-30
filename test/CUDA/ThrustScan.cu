@@ -27,13 +27,13 @@ void inclusive_scan_plus(const thrust::device_vector<double>& vec, thrust::devic
     thrust::inclusive_scan(vec.begin(), vec.end(), output.begin(), thrust::plus<double>());
 }
 // CHECK: void inclusive_scan_plus_grad(const thrust::device_vector<double> &vec, thrust::device_vector<double> &output, thrust::device_vector<double> *_d_vec, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT: {{.*}}thrust::inclusive_scan_reverse_forw(std::begin(vec), std::end(vec), std::begin(output), thrust::plus<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_output)), {});
+// CHECK-NEXT: {{.*}}thrust::inclusive_scan_reverse_forw{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(output), thrust::plus<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_output)), {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     iterator _r2 = std::begin((*_d_output));
 // CHECK-NEXT:     thrust::plus<double> _r3 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::inclusive_scan_pullback(std::begin(vec), std::end(vec), std::begin(output), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::inclusive_scan_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(output), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -41,14 +41,14 @@ void exclusive_scan_plus(const thrust::device_vector<double>& vec, thrust::devic
     thrust::exclusive_scan(vec.begin(), vec.end(), output.begin(), init, thrust::plus<double>());
 }
 // CHECK: void exclusive_scan_plus_grad(const thrust::device_vector<double> &vec, thrust::device_vector<double> &output, double init, thrust::device_vector<double> *_d_vec, thrust::device_vector<double> *_d_output, double *_d_init) {
-// CHECK-NEXT: {{.*}}thrust::exclusive_scan_reverse_forw(std::begin(vec), std::end(vec), std::begin(output), init, thrust::plus<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_output)), 0., {});
+// CHECK-NEXT: {{.*}}thrust::exclusive_scan_reverse_forw{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(output), init, thrust::plus<double>(), std::begin((*_d_vec)), std::end((*_d_vec)), std::begin((*_d_output)), 0., {});
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     iterator _r2 = std::begin((*_d_output));
 // CHECK-NEXT:     double _r3 = 0.;
 // CHECK-NEXT:     thrust::plus<double> _r4 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::exclusive_scan_pullback(std::begin(vec), std::end(vec), std::begin(output), init, thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::exclusive_scan_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), std::begin(output), init, thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT:     *_d_init += _r3;
 // CHECK-NEXT: }
 // CHECK-NEXT: }

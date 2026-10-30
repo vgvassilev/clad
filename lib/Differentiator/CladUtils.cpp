@@ -2357,6 +2357,82 @@ namespace clad {
       return Default.structurallyEquals(Arg);
     }
 
+    /// Whether \p Args, read back as the arguments of a call to the template of
+    /// \p FD, deduce its template arguments at all: the parameters of the type
+    /// of one template parameter, or of a pointer to it, take it from their
+    /// arguments as written, without the conversions Sema added, which must
+    /// agree, as 1 and x in `maxOf<double>(1, x)` do not. An argument that
+    /// deduces another specialization on its own, as 1 for a `T d_y`, still
+    /// compiles and is left as it is. A forwarding reference or a pack
+    /// deduces what it was given.
+    static bool ArgumentsDeduceSpecialization(const FunctionDecl* FD,
+                                              llvm::ArrayRef<Expr*> Args) {
+      const FunctionDecl* Pattern =
+          FD->getPrimaryTemplate()->getTemplatedDecl();
+      const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
+      unsigned N = std::min<unsigned>(Pattern->getNumParams(), Args.size());
+      llvm::SmallVector<QualType, 4> Seen(TAL->size());
+      for (unsigned I = 0; I < N; ++I) {
+        QualType PT = Pattern->getParamDecl(I)->getType();
+        // A braced list deduces nothing ([temp.deduct.call]/1).
+        if (PT->isRValueReferenceType() ||
+            isa<InitListExpr>(Args[I]->IgnoreImplicit()))
+          continue;
+        QualType ArgT = Args[I]->IgnoreImpCasts()->getType();
+        // A `T*` takes T from the pointee of its argument, as for `&_r1`.
+        PT = PT.getNonReferenceType();
+        while (PT->isPointerType() && ArgT->isPointerType()) {
+          PT = PT->getPointeeType();
+          ArgT = ArgT->getPointeeType();
+        }
+        const auto* TTP = PT->getAs<TemplateTypeParmType>();
+        if (!TTP || TTP->getDepth() != 0 || TTP->isParameterPack() ||
+            TTP->getIndex() >= TAL->size())
+          continue;
+        const TemplateArgument& TA = TAL->get(TTP->getIndex());
+        if (TA.getKind() != TemplateArgument::Type || ArgT->isArrayType() ||
+            ArgT->isFunctionType())
+          continue;
+        QualType& First = Seen[TTP->getIndex()];
+        if (First.isNull())
+          First = ArgT;
+        else if (First.getCanonicalType().getUnqualifiedType() !=
+                 ArgT.getCanonicalType().getUnqualifiedType())
+          return false;
+      }
+      return true;
+    }
+
+    llvm::ArrayRef<TemplateArgument>
+    GetWrittenTemplateArgs(Sema& S, const FunctionDecl* FD,
+                           llvm::ArrayRef<Expr*> CallArgs) {
+      const FunctionTemplateDecl* FTD = FD->getPrimaryTemplate();
+      if (!FTD || FD->isOverloadedOperator() || isa<CXXConversionDecl>(FD))
+        return {};
+      llvm::ArrayRef<TemplateArgument> All =
+          FD->getTemplateSpecializationArgs()->asArray();
+      llvm::SmallBitVector Deduced;
+      if (ArgumentsDeduceSpecialization(FD, CallArgs))
+        Sema::MarkDeducedTemplateParameters(S.getASTContext(), FTD, Deduced);
+      Deduced.resize(All.size());
+      unsigned N = All.size();
+      while (N && (Deduced[N - 1] || IsDefaultArgument(S, FTD, N - 1, All)))
+        --N;
+      return All.take_front(N);
+    }
+
+    void AddTemplateArgs(Sema& S, llvm::ArrayRef<TemplateArgument> Args,
+                         TemplateArgumentListInfo& TALI) {
+      SourceLocation Loc = TALI.getLAngleLoc();
+      for (const TemplateArgument& TA : Args)
+        for (const TemplateArgument& Elt :
+             TA.getKind() == TemplateArgument::Pack
+                 ? TA.pack_elements()
+                 : llvm::ArrayRef<TemplateArgument>(TA))
+          TALI.addArgument(S.getTrivialTemplateArgumentLoc(
+              Elt, Elt.getNonTypeTemplateArgumentType(), Loc));
+    }
+
     /// std::integral_constant\<T, V\> for the value \p Arg.
     static QualType
     GetIntegralConstantType(Sema& S, const TemplateArgument& Arg, QualType T) {

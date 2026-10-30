@@ -38,7 +38,7 @@ double transform_reduce_plus_negate(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     thrust::negate<double> _r2 = {};
 // CHECK-NEXT:     double _r3 = 0.;
 // CHECK-NEXT:     thrust::plus<double> _r4 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_reduce_pullback(std::begin(vec), std::end(vec), thrust::negate<double>(), 0., thrust::plus<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), thrust::negate<double>(), 0., thrust::plus<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -52,7 +52,7 @@ double transform_reduce_max_negate(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     thrust::negate<double> _r2 = {};
 // CHECK-NEXT:     double _r3 = 0.;
 // CHECK-NEXT:     thrust::maximum<double> _r4 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_reduce_pullback(std::begin(vec), std::end(vec), thrust::negate<double>(), 0., thrust::maximum<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), thrust::negate<double>(), 0., thrust::maximum<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -66,7 +66,7 @@ double transform_reduce_plus_identity(const thrust::device_vector<double>& vec) 
 // CHECK-NEXT:     thrust::identity<double> _r2 = {};
 // CHECK-NEXT:     double _r3 = 0.;
 // CHECK-NEXT:     thrust::plus<double> _r4 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_reduce_pullback(std::begin(vec), std::end(vec), thrust::identity<double>(), 0., thrust::plus<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), thrust::identity<double>(), 0., thrust::plus<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -80,7 +80,7 @@ double transform_reduce_max_identity(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     thrust::identity<double> _r2 = {};
 // CHECK-NEXT:     double _r3 = 0.;
 // CHECK-NEXT:     thrust::maximum<double> _r4 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_reduce_pullback(std::begin(vec), std::end(vec), thrust::identity<double>(), 0., thrust::maximum<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), thrust::identity<double>(), 0., thrust::maximum<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -94,7 +94,7 @@ double transform_reduce_min_negate(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     thrust::negate<double> _r2 = {};
 // CHECK-NEXT:     double _r3 = 0.;
 // CHECK-NEXT:     thrust::minimum<double> _r4 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_reduce_pullback(std::begin(vec), std::end(vec), thrust::negate<double>(), 100., thrust::minimum<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::transform_reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), thrust::negate<double>(), 100., thrust::minimum<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 

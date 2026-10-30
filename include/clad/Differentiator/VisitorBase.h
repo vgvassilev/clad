@@ -738,11 +738,14 @@ namespace clad {
     /// \param[in] D The declaration to build a DeclRefExpr for.
     /// \param[in] NNS The nested name specifier to qualify the reference with.
     /// \param[in] VK The value kind of the reference.
+    /// \param[in] CallArgs The arguments of a call to \p D, which decide which
+    /// of its template arguments the reference must name.
     /// \returns the DeclRefExpr for the given declaration.
     clang::DeclRefExpr* BuildDeclRef(
         clang::DeclaratorDecl* D,
         clad_compat::NestedNameSpecifierTy NNS = clad_compat::nullNNS(),
-        clang::ExprValueKind VK = clang::VK_LValue);
+        clang::ExprValueKind VK = clang::VK_LValue,
+        llvm::ArrayRef<clang::Expr*> CallArgs = {});
 
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.

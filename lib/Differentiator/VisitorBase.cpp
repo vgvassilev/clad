@@ -382,7 +382,8 @@ namespace clad {
 
   DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
                                          clad_compat::NestedNameSpecifierTy NNS,
-                                         ExprValueKind VK /*=VK_LValue*/) {
+                                         ExprValueKind VK /*=VK_LValue*/,
+                                         llvm::ArrayRef<Expr*> CallArgs) {
     CXXScopeSpec CSS;
 
     // A local variable or parameter is never name-qualified: `NS::local` does
@@ -429,14 +430,19 @@ namespace clad {
       CSS.MakeTrivial(m_Context, NNS, GenLoc());
     QualType T = D->getType();
     T = T.getNonReferenceType();
-    // A specialization of a variable template is named with its arguments:
-    // `c_v<double>`, since `c_v` alone names the template, not a variable.
-    if (const auto* VTSD = dyn_cast<VarTemplateSpecializationDecl>(D)) {
+    // A specialization is named with the arguments its name needs: all of a
+    // variable template's, since `c_v` alone names the template, and those of
+    // a function template its call does not deduce (utils::
+    // GetWrittenTemplateArgs).
+    llvm::ArrayRef<TemplateArgument> Args;
+    if (const auto* VTSD = dyn_cast<VarTemplateSpecializationDecl>(D))
+      Args = VTSD->getTemplateArgs().asArray();
+    else if (const auto* FD = dyn_cast<FunctionDecl>(D))
+      Args = utils::GetWrittenTemplateArgs(m_Sema, FD, CallArgs);
+    if (!Args.empty()) {
       SourceLocation Loc = GenLoc();
       TemplateArgumentListInfo TALI(Loc, Loc);
-      for (const TemplateArgument& TA : VTSD->getTemplateArgs().asArray())
-        TALI.addArgument(m_Sema.getTrivialTemplateArgumentLoc(
-            TA, TA.getNonTypeTemplateArgumentType(), Loc));
+      utils::AddTemplateArgs(m_Sema, Args, TALI);
       return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
           m_Sema.BuildDeclRefExpr(D, T, VK,
                                   DeclarationNameInfo(D->getDeclName(), Loc),
@@ -923,7 +929,10 @@ namespace clad {
           FD->getParamDecl(0)->getType()->isPointerType() &&
           !utils::isArrayOrPointerType(argExprs[0]->getType()))
         argExprs[0] = BuildOp(UnaryOperatorKind::UO_AddrOf, argExprs[0]);
-      Expr* exprFunc = BuildDeclRef(const_cast<FunctionDecl*>(FD));
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      Expr* exprFunc =
+          BuildDeclRef(const_cast<FunctionDecl*>(FD), clad_compat::nullNNS(),
+                       VK_LValue, argExprs);
       call = m_Sema
                  .ActOnCallExpr(
                      getCurrentScope(),

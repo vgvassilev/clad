@@ -97,6 +97,62 @@ double viaTypedef(double x) {
 // CHECK: void viaTypedef_grad(double x, double *_d_x)
 // CHECK: lib::Pair::value_type _t0 = lib::first(p);
 
+// Vector mode seeds its tangents with function templates whose argument the
+// call cannot deduce: the call names it.
+double twoArgs(double x, double y) { return x * y; }
+
+// CHECK: void twoArgs_dvec(double x, double y, double *_d_x, double *_d_y)
+// CHECK: clad::one_hot_vector<double>(indepVarCount, 0UL);
+
+// A call that had to name its template argument, as 1 and x deduce int and
+// double, has its derivatives named with it too.
+template <class T> T maxOf(T a, T b) { return a > b ? a : b; }
+namespace clad {
+namespace custom_derivatives {
+template <class T> void maxOf_pullback(T a, T b, T d_y, T* d_a, T* d_b) {
+  if (a > b)
+    *d_a += d_y;
+  else
+    *d_b += d_y;
+}
+template <class T>
+ValueAndPushforward<T, T> maxOf_pushforward(T a, T b, T d_a, T d_b) {
+  return a > b ? ValueAndPushforward<T, T>{a, d_a}
+               : ValueAndPushforward<T, T>{b, d_b};
+}
+} // namespace custom_derivatives
+} // namespace clad
+double viaMax(double x) { return maxOf<double>(1, x) * x; }
+
+// CHECK: void viaMax_grad(double x, double *_d_x)
+// CHECK: clad::custom_derivatives::maxOf_pullback<double>(1, x,
+// CHECK: double viaMax_darg0(double x)
+// CHECK: clad::custom_derivatives::maxOf_pushforward<double>(1, x,
+
+// The same for a function that is not a template: its pullback takes T from
+// x and from the seed 1, and U from 2 and, through a pointer, from &_r1.
+double scaleBy(double x, double k) { return x * k; }
+double scaleOnly(double x, double k) { return x * k; }
+namespace clad {
+namespace custom_derivatives {
+template <class T, class U>
+void scaleBy_pullback(T x, U k, T d_y, T* d_x, U* d_k) {
+  *d_x += d_y * k;
+  *d_k += d_y * x;
+}
+template <class U>
+void scaleOnly_pullback(double x, U k, double d_y, double* d_x, U* d_k) {
+  *d_x += d_y * k;
+  *d_k += d_y * x;
+}
+} // namespace custom_derivatives
+} // namespace clad
+double viaScale(double x) { return scaleBy(x, 2) + scaleOnly(x, 2); }
+
+// CHECK: void viaScale_grad(double x, double *_d_x)
+// CHECK: clad::custom_derivatives::scaleBy_pullback<double, double>(x, 2,
+// CHECK: clad::custom_derivatives::scaleOnly_pullback<double>(x, 2,
+
 #ifdef ERROR
 double broken(double x) { return undeclared(x); }
 #endif
@@ -106,3 +162,7 @@ auto g_f = clad::gradient(f);
 auto d_userWrote = clad::differentiate(userWrote, "x");
 auto g_timesScale = clad::gradient(timesScale);
 auto g_viaTypedef = clad::gradient(viaTypedef);
+auto d_twoArgs = clad::differentiate<clad::opts::vector_mode>(twoArgs, "x,y");
+auto g_viaMax = clad::gradient(viaMax);
+auto d_viaMax = clad::differentiate(viaMax, "x");
+auto g_viaScale = clad::gradient(viaScale);

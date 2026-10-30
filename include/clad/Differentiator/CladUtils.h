@@ -570,6 +570,18 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// argument.
     bool GetTemplateTagTypes(clang::Sema& S, const clang::FunctionDecl* FD,
                              llvm::SmallVectorImpl<clang::QualType>& Tags);
+    /// The template arguments a call to the specialization \p FD names it with:
+    /// all up to the last one that is neither defaulted nor deduced, as in
+    /// clad::one_hot_vector<double>(...). A deducible argument counts as
+    /// deduced only if \p CallArgs, read back as source, deduce it without
+    /// conflict: `maxOf<double>(1, x)` names its argument.
+    llvm::ArrayRef<clang::TemplateArgument>
+    GetWrittenTemplateArgs(clang::Sema& S, const clang::FunctionDecl* FD,
+                           llvm::ArrayRef<clang::Expr*> CallArgs = {});
+    /// Adds \p Args to \p TALI, the elements of a pack one by one.
+    void AddTemplateArgs(clang::Sema& S,
+                         llvm::ArrayRef<clang::TemplateArgument> Args,
+                         clang::TemplateArgumentListInfo& TALI);
 
     clang::QualType GetParameterDerivativeType(clang::Sema& S, DiffMode Mode,
                                                clang::QualType Type);

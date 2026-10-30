@@ -34,7 +34,7 @@ double sum_array(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     double _r2 = 0.;
 // CHECK-NEXT:     thrust::plus<double> _r3 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback(std::begin(vec), std::end(vec), 0., thrust::plus<double>(), 1, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), 0., thrust::plus<double>(), 1, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -47,7 +47,7 @@ double max_array(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     double _r2 = 0.;
 // CHECK-NEXT:     thrust::maximum<double> _r3 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback(std::begin(vec), std::end(vec), 0., thrust::maximum<double>(), 1, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), 0., thrust::maximum<double>(), 1, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -60,7 +60,7 @@ double min_array(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     double _r2 = 0.;
 // CHECK-NEXT:     thrust::minimum<double> _r3 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback(std::begin(vec), std::end(vec), 100., thrust::minimum<double>(), 1, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), 100., thrust::minimum<double>(), 1, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -73,7 +73,7 @@ double product_array(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     double _r2 = 0.;
 // CHECK-NEXT:     thrust::multiplies<double> _r3 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback(std::begin(vec), std::end(vec), 1., thrust::multiplies<double>(), 1, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), 1., thrust::multiplies<double>(), 1, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -86,7 +86,7 @@ double product_array_init_zero(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     double _r2 = 0.;
 // CHECK-NEXT:     thrust::multiplies<double> _r3 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback(std::begin(vec), std::end(vec), 0., thrust::multiplies<double>(), 1, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), 0., thrust::multiplies<double>(), 1, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -98,7 +98,7 @@ double sum_array_init(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
 // CHECK-NEXT:     double _r2 = 0.;
-// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback(std::begin(vec), std::end(vec), 10., 1, &_r0, &_r1, &_r2);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), 10., 1, &_r0, &_r1, &_r2);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -109,7 +109,7 @@ double sum_array_no_init(const thrust::device_vector<double>& vec) {
 // CHECK-NEXT: {
 // CHECK-NEXT:     const_iterator _r0 = std::begin((*_d_vec));
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec));
-// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback(std::begin(vec), std::end(vec), 1, &_r0, &_r1);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::reduce_pullback{{(<.*>)?}}(std::begin(vec), std::end(vec), 1, &_r0, &_r1);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -122,7 +122,7 @@ double inner_product_array(const thrust::device_vector<double>& vec1, const thru
 // CHECK-NEXT:     const_iterator _r1 = std::end((*_d_vec1));
 // CHECK-NEXT:     const_iterator _r2 = std::begin((*_d_vec2));
 // CHECK-NEXT:     double _r3 = 0.;
-// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., 1, &_r0, &_r1, &_r2, &_r3);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., 1, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -137,7 +137,7 @@ double inner_product_array_6args(const thrust::device_vector<double>& vec1, cons
 // CHECK-NEXT:     double _r3 = 0.;
 // CHECK-NEXT:     thrust::plus<double> _r4 = {};
 // CHECK-NEXT:     thrust::multiplies<double> _r5 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., thrust::plus<double>(), thrust::multiplies<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., thrust::plus<double>(), thrust::multiplies<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -152,7 +152,7 @@ double inner_product_plus_plus(const thrust::device_vector<double>& vec1, const 
 // CHECK-NEXT:     double _r3 = 0.;
 // CHECK-NEXT:     thrust::plus<double> _r4 = {};
 // CHECK-NEXT:     thrust::plus<double> _r5 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., thrust::plus<double>(), thrust::plus<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., thrust::plus<double>(), thrust::plus<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
@@ -167,7 +167,7 @@ double inner_product_plus_minus(const thrust::device_vector<double>& vec1, const
 // CHECK-NEXT:     double _r3 = 0.;
 // CHECK-NEXT:     thrust::plus<double> _r4 = {};
 // CHECK-NEXT:     thrust::minus<double> _r5 = {};
-// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., thrust::plus<double>(), thrust::minus<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
+// CHECK-NEXT:     clad::custom_derivatives::thrust::inner_product_pullback{{(<.*>)?}}(std::begin(vec1), std::end(vec1), std::begin(vec2), 0., thrust::plus<double>(), thrust::minus<double>(), 1, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 

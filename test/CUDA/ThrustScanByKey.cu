@@ -28,7 +28,7 @@ void inclusive_scan_by_key_plus(const thrust::device_vector<int>& keys,
                                 thrust::plus<double>());
 }
 // CHECK: void inclusive_scan_by_key_plus_grad(const thrust::device_vector<int> &keys, const thrust::device_vector<double> &values, thrust::device_vector<double> &output, thrust::device_vector<int> *_d_keys, thrust::device_vector<double> *_d_values, thrust::device_vector<double> *_d_output) {
-// CHECK-NEXT:     clad::custom_derivatives::thrust::inclusive_scan_by_key_reverse_forw(std::begin(keys), std::end(keys), std::begin(values), std::begin(output), thrust::equal_to<int>(), thrust::plus<double>(), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_values)), std::begin((*_d_output)), {}, {});
+// CHECK-NEXT:     clad::custom_derivatives::thrust::inclusive_scan_by_key_reverse_forw{{(<.*>)?}}(std::begin(keys), std::end(keys), std::begin(values), std::begin(output), thrust::equal_to<int>(), thrust::plus<double>(), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_values)), std::begin((*_d_output)), {}, {});
 // CHECK-NEXT:     {
 // CHECK-NEXT:         thrust::detail::vector_base<int, thrust::device_allocator<int> >::const_iterator _r0 = std::begin((*_d_keys));
 // CHECK-NEXT:         thrust::detail::vector_base<int, thrust::device_allocator<int> >::const_iterator _r1 = std::end((*_d_keys));
@@ -36,7 +36,7 @@ void inclusive_scan_by_key_plus(const thrust::device_vector<int>& keys,
 // CHECK-NEXT:         thrust::detail::vector_base<double, thrust::device_allocator<double> >::iterator _r3 = std::begin((*_d_output));
 // CHECK-NEXT:         thrust::equal_to<int> _r4 = {};
 // CHECK-NEXT:         thrust::plus<double> _r5 = {};
-// CHECK-NEXT:         clad::custom_derivatives::thrust::inclusive_scan_by_key_pullback(std::begin(keys), std::end(keys), std::begin(values), std::begin(output), thrust::equal_to<int>(), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
+// CHECK-NEXT:         clad::custom_derivatives::thrust::inclusive_scan_by_key_pullback{{(<.*>)?}}(std::begin(keys), std::end(keys), std::begin(values), std::begin(output), thrust::equal_to<int>(), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -49,7 +49,7 @@ void exclusive_scan_by_key_plus(const thrust::device_vector<int>& keys,
                                 thrust::plus<double>());
 }
 // CHECK: void exclusive_scan_by_key_plus_grad(const thrust::device_vector<int> &keys, const thrust::device_vector<double> &values, thrust::device_vector<double> &output, double init, thrust::device_vector<int> *_d_keys, thrust::device_vector<double> *_d_values, thrust::device_vector<double> *_d_output, double *_d_init) {
-// CHECK-NEXT:     clad::custom_derivatives::thrust::exclusive_scan_by_key_reverse_forw(std::begin(keys), std::end(keys), std::begin(values), std::begin(output), init, thrust::equal_to<int>(), thrust::plus<double>(), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_values)), std::begin((*_d_output)), 0., {}, {});
+// CHECK-NEXT:     clad::custom_derivatives::thrust::exclusive_scan_by_key_reverse_forw{{(<.*>)?}}(std::begin(keys), std::end(keys), std::begin(values), std::begin(output), init, thrust::equal_to<int>(), thrust::plus<double>(), std::begin((*_d_keys)), std::end((*_d_keys)), std::begin((*_d_values)), std::begin((*_d_output)), 0., {}, {});
 // CHECK-NEXT:     {
 // CHECK-NEXT:         thrust::detail::vector_base<int, thrust::device_allocator<int> >::const_iterator _r0 = std::begin((*_d_keys));
 // CHECK-NEXT:         thrust::detail::vector_base<int, thrust::device_allocator<int> >::const_iterator _r1 = std::end((*_d_keys));
@@ -58,7 +58,7 @@ void exclusive_scan_by_key_plus(const thrust::device_vector<int>& keys,
 // CHECK-NEXT:         double _r4 = 0.;
 // CHECK-NEXT:         thrust::equal_to<int> _r5 = {};
 // CHECK-NEXT:         thrust::plus<double> _r6 = {};
-// CHECK-NEXT:         clad::custom_derivatives::thrust::exclusive_scan_by_key_pullback(std::begin(keys), std::end(keys), std::begin(values), std::begin(output), init, thrust::equal_to<int>(), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5, &_r6);
+// CHECK-NEXT:         clad::custom_derivatives::thrust::exclusive_scan_by_key_pullback{{(<.*>)?}}(std::begin(keys), std::end(keys), std::begin(values), std::begin(output), init, thrust::equal_to<int>(), thrust::plus<double>(), {}, &_r0, &_r1, &_r2, &_r3, &_r4, &_r5, &_r6);
 // CHECK-NEXT:         *_d_init += _r4;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
