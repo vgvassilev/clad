@@ -24,6 +24,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
@@ -42,6 +43,7 @@
 #include "clang/Sema/Template.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constants.h"
@@ -595,14 +597,55 @@ StmtDiff BaseForwardModeVisitor::VisitAttributedStmt(const AttributedStmt* S) {
   return SubStmt == S ? VisitStmt(S) : Visit(SubStmt);
 }
 
+static bool referencesAnyDecl(const Stmt* S,
+                              const llvm::SmallPtrSetImpl<const Decl*>& Decls) {
+  if (!S)
+    return false;
+  if (const auto* DRE = dyn_cast<DeclRefExpr>(S))
+    if (Decls.contains(DRE->getDecl()))
+      return true;
+  for (const Stmt* Child : S->children())
+    if (Child && referencesAnyDecl(Child, Decls))
+      return true;
+  return false;
+}
+
+static bool HasInterDeclaratorDependency(const DeclStmt* DS) {
+  llvm::SmallPtrSet<const Decl*, 4> PriorDecls;
+  for (const Decl* D : DS->decls()) {
+    if (const auto* VD = dyn_cast<VarDecl>(D)) {
+      if (const Expr* Init = VD->getInit()) {
+        if (referencesAnyDecl(Init, PriorDecls))
+          return true;
+      }
+    }
+    PriorDecls.insert(D);
+  }
+  return false;
+}
+
+void BaseForwardModeVisitor::ProcessBlockStmt(const Stmt* S) {
+  if (const auto* DS = dyn_cast<DeclStmt>(S)) {
+    if (!DS->isSingleDecl() && HasInterDeclaratorDependency(DS)) {
+      for (Decl* D : DS->decls()) {
+        DeclStmt SingleDS(DeclGroupRef(D), DS->getBeginLoc(), DS->getEndLoc());
+        StmtDiff SDiff = Visit(&SingleDS);
+        addToCurrentBlock(SDiff.getStmt_dx());
+        addToCurrentBlock(SDiff.getStmt());
+      }
+      return;
+    }
+  }
+  StmtDiff SDiff = Visit(S);
+  addToCurrentBlock(SDiff.getStmt_dx());
+  addToCurrentBlock(SDiff.getStmt());
+}
+
 StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
   ScopeRAII compoundScope(*this, Scope::DeclScope);
   beginBlock();
-  for (Stmt* S : CS->body()) {
-    StmtDiff SDiff = Visit(S);
-    addToCurrentBlock(SDiff.getStmt_dx());
-    addToCurrentBlock(SDiff.getStmt());
-  }
+  for (Stmt* S : CS->body())
+    ProcessBlockStmt(S);
   CompoundStmt* Result = endBlock();
   // Differentation of CompundStmt produces another CompoundStmt with both
   // original and derived statements, i.e. Stmt() is Result and Stmt_dx() is
@@ -3069,9 +3112,7 @@ BaseForwardModeVisitor::DeriveSwitchStmtBodyHelper(const Stmt* stmt,
         return activeSC;
       }
     }
-    StmtDiff stmtRes = Visit(stmt);
-    addToCurrentBlock(stmtRes.getStmt_dx());
-    addToCurrentBlock(stmtRes.getStmt());
+    ProcessBlockStmt(stmt);
     return activeSC;
   }
 }
