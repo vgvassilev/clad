@@ -95,7 +95,8 @@ To compile using Clang < 20 , for example with clang-19, use:
 
    clang-19 -I /full/path/to/include/  -x c++ -std=c++17 -fplugin=/full/path/to/lib/clad.so SourceFile.cpp -o sourcefile -lstdc++ -lm
 
-To save the Clad generated derivative code to `Derivatives.cpp` add:
+To save the Clad generated derivative code to `Derivatives.cpp` (or to a file of
+your choosing with ``-fgenerate-source-file=<file>``) add:
 
 .. code-block:: bash
 

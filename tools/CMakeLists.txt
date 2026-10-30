@@ -4,6 +4,7 @@ endif()
 
 set(CLAD_PLUGIN_SRC
   ClangPlugin.cpp
+  GeneratedSourceFile.cpp
   ClangBackendPlugin.cpp
   RequiredSymbols.cpp
 )

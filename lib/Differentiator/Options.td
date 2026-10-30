@@ -78,8 +78,16 @@ read.}]>,
   MarshallingInfoOptionalString<CladOpt<"GeneratedSourceDir">>;
 
 def fgenerate_source_file : Flag<["-"], "fgenerate-source-file">,
-  HelpText<"Produces a file containing the derivatives.">,
+  HelpText<"Writes the derivatives to Derivatives.cpp.">,
   MarshallingInfoFlag<CladOpt<"GenerateSourceFile">>;
+
+def fgenerate_source_file_EQ : Joined<["-"], "fgenerate-source-file=">,
+  MetaVarName<"<file>">,
+  HelpText<"Writes the derivatives to <file>.">,
+  DocBrief<[{Writes every derivative clad generated for the translation unit to
+<file>, once, at its end. A custom derivative, already in the user's source, is
+not written, and nothing is written after an error.}]>,
+  MarshallingInfoOptionalString<CladOpt<"GeneratedSourceFile">>;
 
 //===----------------------------------------------------------------------===//
 // The rest

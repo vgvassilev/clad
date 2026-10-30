@@ -411,6 +411,7 @@ namespace clad {
       for (DeclContext* DC : llvm::reverse(DCs)) {
         if (auto* ND = dyn_cast<NamespaceDecl>(DC)) {
           // An inline or an anonymous namespace adds nothing to the name.
+          // Neither can be spelled in a qualifier.
           if (!ND->isInline() && !ND->isAnonymousNamespace())
             NNS = clad_compat::makeNNSNamespace(m_Context, NNS, ND);
         } else if (auto* TD = dyn_cast<TagDecl>(DC)) {
