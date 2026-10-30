@@ -209,8 +209,8 @@ StmtDiff ReverseModeVisitor::DifferentiateCanonicalLoop(const ForStmt* S) {
   // Create forward sweep loop: for (i = threadlo; i <= threadhi; i += stride)
   // Use unique identifier to avoid conflicts when differentiating multiple
   // times
-  IdentifierInfo* FwdLoopVarII =
-      CreateUniqueIdentifier(LoopVarDecl->getNameAsString());
+  IdentifierInfo* FwdLoopVarII = CreateUniqueIdentifier(
+      LoopVarDecl->getNameAsString(), /*isUserVariable=*/true);
   VarDecl* FwdLoopVar = BuildVarDecl(LoopVarDecl->getType(), FwdLoopVarII,
                                      BuildDeclRef(ThreadLoDecl));
 
