@@ -5,6 +5,8 @@
 
 #include "GeneratedSourceFile.h"
 
+#include "clang/AST/Decl.h"
+#include "clang/AST/DeclBase.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
@@ -18,6 +20,17 @@
 using namespace clang;
 
 namespace clad {
+/// What to print for \p D: the outermost namespace clad declared it in, a
+/// clone of its function's own that holds only \p D, or \p D itself.
+static const Decl* outermostNamespace(const Decl* D) {
+  const Decl* Top = D;
+  for (const DeclContext* DC = D->getLexicalDeclContext();
+       DC && isa<NamespaceDecl>(DC);
+       DC = cast<NamespaceDecl>(DC)->getLexicalDeclContext())
+    Top = cast<NamespaceDecl>(DC);
+  return Top;
+}
+
 void GeneratedSourceFile::write(CompilerInstance& CI, llvm::StringRef Path) {
   // What a translation unit that did not compile made is not worth writing.
   if (m_Entries.empty() || CI.getDiagnostics().hasErrorOccurred()) {
@@ -39,9 +52,11 @@ void GeneratedSourceFile::write(CompilerInstance& CI, llvm::StringRef Path) {
   PrintingPolicy Policy(LangOpts);
   Policy.Bool = true;
   for (const Entry& E : m_Entries) {
-    E.D->print(Out, Policy);
-    if (E.DeclarationOnly)
-      Out << ";\n";
+    const Decl* Top = outermostNamespace(E.D);
+    Top->print(Out, Policy);
+    if (Top == E.D && E.DeclarationOnly)
+      Out << ";";
+    Out << "\n";
   }
   m_Entries.clear();
 }

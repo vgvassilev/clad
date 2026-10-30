@@ -1,11 +1,17 @@
 // -fgenerate-source-file writes the derivatives clad generates for the
 // translation unit to a file, once, at its end. A custom derivative, already
 // in the user's source, is not written, and nothing is written after an error.
+// Each derivative is printed inside the namespaces clad declared it in, so
+// that included after the source, the file compiles with plain clang.
 //
 // RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -plugin-arg-clad \
 // RUN:   -Xclang -fgenerate-source-file=%t.derivatives.cpp > /dev/null 2>&1
 // RUN: FileCheck --input-file=%t.derivatives.cpp \
 // RUN:   --implicit-check-not=userWrote_darg0 %s
+// RUN: echo '#include "%s"' > %t.harness.cpp
+// RUN: echo '#include "%t.derivatives.cpp"' >> %t.harness.cpp
+// RUN: clang++ -std=c++17 -fsyntax-only -D__CLAD__=1 -Wno-unknown-attributes \
+// RUN:   -I%S/../../include -I%clad_gen_incl %t.harness.cpp
 // RUN: rm -f %t.error.cpp
 // RUN: not %cladclang %s -I%S/../../include -fsyntax-only -DERROR \
 // RUN:   -Xclang -plugin-arg-clad -Xclang -fgenerate-source-file=%t.error.cpp \
@@ -51,6 +57,11 @@ double f(double x, double y) {
   return geo::detail::norm2(x, y) + sq(x) * 2.0_k + scaled(3, y);
 }
 
+// CHECK: namespace geo {
+// CHECK-NEXT: namespace detail {
+// CHECK-NEXT: norm2_pushforward(double x, double y, double _d_x, double _d_y)
+// CHECK: namespace {
+// CHECK-NEXT: scaled_pushforward(double k, double x, double _d_k, double _d_x)
 // CHECK: f_darg0(double x, double y)
 // CHECK: f_grad(double x, double y, double *_d_x, double *_d_y)
 
