@@ -5083,6 +5083,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // use it are promoted there too, and an alias reads no variable that
         // would keep it from moving.
         AddToGlobalBlock(BuildDeclStmt(BuildTypedefNameDecl(TND)));
+      } else if (isa<UsingDirectiveDecl>(D) || isa<UsingDecl>(D)) {
+        // Keep it, so the derivative read back as source finds the same
+        // names. At the top, like an alias: what uses it moves there too.
+        AddToGlobalBlock(BuildDeclStmt(BuildUsing(D)));
       } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
         DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
         if (SADDiff.getDecl())

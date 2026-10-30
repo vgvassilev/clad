@@ -2597,6 +2597,9 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       // An alias carries no value and so no derivative, but the statements
       // after it go on naming the type by it.
       decls.push_back(BuildTypedefNameDecl(TND));
+    } else if (isa<UsingDirectiveDecl>(D) || isa<UsingDecl>(D)) {
+      // Keep it, so the derivative read back as source finds the same names.
+      decls.push_back(BuildUsing(D));
     } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
       DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
       if (SADDiff.getDecl())
