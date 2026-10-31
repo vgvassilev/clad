@@ -366,6 +366,11 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
                                             returnDiff.getExpr_dx()};
   if (!returnArgs[1])
     return {nullptr, nullptr};
+  // An rvalue reference is initialized by an xvalue, the adjoint as the value.
+  if (m_DiffReq->getReturnType()->isRValueReferenceType())
+    for (Expr*& Arg : returnArgs)
+      if (!Arg->isXValue())
+        Arg = utils::BuildStaticCastToRValue(m_Sema, Arg);
   Expr* returnInitList =
       m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
   Stmt* newRS = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();

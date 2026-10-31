@@ -3315,7 +3315,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (OverloadedDerivedFn && !asGrad) {
         if (utils::IsCladValueAndPushforwardType(
                 OverloadedDerivedFn->getType()))
-          OverloadedDerivedFn = utils::BuildMemberExpr(
+          OverloadedDerivedFn = utils::BuildResultMember(
               m_Sema, getCurrentScope(), OverloadedDerivedFn, "pushforward");
         Expr* d = BuildOp(BO_Mul, CloneNode(dfdx()), OverloadedDerivedFn);
         auto* UnOp = cast<UnaryOperator>(CallArgDx[0]);
@@ -3742,8 +3742,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         else {
           callRes = StoreAndRef(call);
           Expr* valueAddr = BuildOp(
-              UO_AddrOf, utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                                callRes, "value"));
+              UO_AddrOf, utils::BuildResultMember(m_Sema, getCurrentScope(),
+                                                  callRes, "value"));
           Expr* adjointAddr = BuildOp(
               UO_AddrOf, utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                                 CloneNode(callRes), "adjoint"));
@@ -3756,8 +3756,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                                            /*force=*/true));
         }
         if (!resValue) {
-          resValue = utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes,
-                                            "value");
+          resValue = utils::BuildResultMember(m_Sema, getCurrentScope(),
+                                              callRes, "value");
           // Clone the base so `_t0.value` and `_t0.adjoint` own distinct
           // nodes.
           resAdjoint = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
@@ -6860,7 +6860,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         callRes = StoreAndRef(customReverseForwFnCall);
       }
       Expr* val =
-          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
+          utils::BuildResultMember(m_Sema, getCurrentScope(), callRes, "value");
       // Clone the base so `_t0.value` and `_t0.adjoint` own distinct nodes.
       Expr* adjoint = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                              CloneNode(callRes), "adjoint");

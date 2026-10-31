@@ -908,6 +908,14 @@ namespace clad {
       return rvalueCastE;
     }
 
+    Expr* BuildResultMember(Sema& S, Scope* Sc, Expr* Base,
+                            llvm::StringRef Name) {
+      MemberExpr* ME = BuildMemberExpr(S, Sc, Base, Name);
+      if (ME && ME->getMemberDecl()->getType()->isRValueReferenceType())
+        return BuildStaticCastToRValue(S, ME);
+      return ME;
+    }
+
     bool IsRValue(const clang::Expr* E) {
       return clad_compat::IsPRValue(E) || E->isXValue();
     }
@@ -1989,8 +1997,13 @@ namespace clad {
         if (returnsAdjoint(oRetTy) || isa<CXXConstructorDecl>(FD)) {
           TemplateDecl* valAndAdjointTempDecl =
               utils::LookupTemplateDeclInCladNamespace(S, "ValueAndAdjoint");
-          dRetTy = utils::InstantiateTemplate(
-              S, valAndAdjointTempDecl, {oRetTy, getNonConstType(oRetTy, S)});
+          // The adjoint of an rvalue reference is one too, into the adjoint
+          // of what the value refers to, as for an lvalue reference.
+          QualType AdjointTy = getNonConstType(oRetTy, S);
+          if (oRetTy->isRValueReferenceType())
+            AdjointTy = C.getRValueReferenceType(AdjointTy);
+          dRetTy = utils::InstantiateTemplate(S, valAndAdjointTempDecl,
+                                              {oRetTy, AdjointTy});
         } else {
           dRetTy = oRetTy;
         }
