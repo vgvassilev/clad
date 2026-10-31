@@ -465,16 +465,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           R.empty() ? nullptr : dyn_cast<FunctionDecl>(R.front());
       if (!RD->isLambda() && !R.empty() &&
           !m_Builder.m_Scheduler.getDerivedFns().IsCladDerivative(FoundFD)) {
-        Sema::NestedNameSpecInfo IdInfo(RD->getIdentifier(), noLoc, noLoc,
-                                        /*ObjectType=*/nullptr);
-        // FIXME: Address nested classes where SS should be set.
+        // Define it at global scope, which encloses the class as the
+        // definition must ([class.mfct]), qualified through the scopes
+        // around the class: its name alone is not found from there.
         CXXScopeSpec SS;
-        m_Sema.BuildCXXNestedNameSpecifier(getCurrentScope(), IdInfo,
-                                           /*EnteringContext=*/true, SS,
-                                           /*ScopeLookupResult=*/nullptr,
-                                           /*ErrorRecoveryLookup=*/false);
+        utils::BuildNNS(m_Sema, RD, SS);
         m_Derivative->setQualifierInfo(SS.getWithLocInContext(m_Context));
-        m_Derivative->setLexicalDeclContext(RD->getParent());
+        m_Derivative->setLexicalDeclContext(m_Context.getTranslationUnitDecl());
       }
     }
 
