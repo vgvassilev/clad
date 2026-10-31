@@ -142,6 +142,26 @@ double t10(const double* x) {
   return t1 + t2;
 }
 
+// A recursive function reads its index list through a non-const operator[]
+// that writes nothing. The pullback comes from the request planned at the
+// recursive call, which must still know that: else every read stores ix.
+struct Idx {
+  int v[3];
+  int& operator[](int i) { return v[i]; }
+};
+
+double rec(const double* x, Idx& ix, int n) {
+  if (n == 0)
+    return 1;
+  int k = ix[n - 1];
+  return x[k] * rec(x, ix, n - 1);
+}
+
+double t11(const double* x) {
+  Idx ix{{0, 1, 1}};
+  return rec(x, ix, 3);
+}
+
 // Nothing is read nonlinearly, so no pre-call state may be stored.
 double t7(const double* x) {
   double buf[2];
@@ -176,6 +196,12 @@ double t7(const double* x) {
 // CHECK: diffem_pullback(2, x, m + 2 * k, &
 // CHECK-NEXT: clad::peek_range(_rec0, &buf[0], 2UL);
 // CHECK-NEXT: clad::drop_range(_rec0, 2UL);
+
+// CHECK: void rec_pullback(const double *x, Idx &ix, int n, double _d_y, double *_d_x, Idx *_d_ix, int *_d_n) {
+// CHECK-NOT: Idx _t
+// CHECK: rec_pullback(x, ix, n - 1, x[k] * _d_y, _d_x, _d_ix, &_r1);
+// CHECK-NOT: ix = _t
+// CHECK: ix.operator_subscript_pullback(n - 1, _d_ix, &_r0);
 
 int main() {
   double x[2] = {1, 2};
@@ -212,4 +238,6 @@ int main() {
   }
   // f = |x|^2 + |x^2|^2 => df/dx_i = 2 x_i + 4 x_i^3
   TEST(t10); // CHECK-EXEC: t10: dx={6.00, 36.00}
+  // f = x0 x1^2 => df/dx0 = x1^2, df/dx1 = 2 x0 x1
+  TEST(t11); // CHECK-EXEC: t11: dx={4.00, 4.00}
 }

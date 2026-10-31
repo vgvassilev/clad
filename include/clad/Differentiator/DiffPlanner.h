@@ -699,6 +699,14 @@ public:
     /// each get a walk: what it records goes to the request walked.
     std::vector<DiffRequest> m_Traversed;
 
+    /// What each function TBR analysed so far writes and reads of its
+    /// parameters. That depends on the function alone, and a request that
+    /// was not walked -- a recursive call met inside the walk of an equal
+    /// request -- has no other way to learn it of the functions it calls:
+    /// each analysis starts from those of its direct callees.
+    ParamInfo m_ModifiedSummaries;
+    ParamInfo m_UsedSummaries;
+
     /// The globals a function's own body reads and assigns, and the functions
     /// it calls directly.
     struct GlobalAccess {
