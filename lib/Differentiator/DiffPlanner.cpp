@@ -2387,9 +2387,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
         ParamInfo& modifiedParams = request.getModifiedParams();
         ParamInfo& usedParams = request.getUsedParams();
+        for (const FunctionDecl* Callee : getGlobalAccess(FD).Callees) {
+          auto modified = m_ModifiedSummaries.find(Callee);
+          if (modified != m_ModifiedSummaries.end())
+            modifiedParams.insert(*modified);
+          auto used = m_UsedSummaries.find(Callee);
+          if (used != m_UsedSummaries.end())
+            usedParams.insert(*used);
+        }
         TBRAnalyzer analyzer(request.m_AnalysisDC, request.getToBeRecorded(),
                              &modifiedParams, &usedParams);
         analyzer.Analyze(request);
+        m_ModifiedSummaries[FD] = modifiedParams[FD];
+        m_UsedSummaries[FD] = usedParams[FD];
         if (modifiedParams[FD].empty())
           shouldUseRestoreTracker = false;
         Saved.get()->addFunctionModifiedParams(FD, modifiedParams[FD]);
