@@ -191,9 +191,8 @@ double f5(double x){
   return g;
 }
 // CHECK: void f5_grad(double x, double *_d_x) {
-// CHECK-NEXT:     bool _cond0 = x;
 // CHECK-NEXT:     double _d_g = 0.;
-// CHECK-NEXT:     double g = _cond0 ? 1 : 2;
+// CHECK-NEXT:     double g = x ? 1 : 2;
 // CHECK-NEXT:     _d_g += 1;
 // CHECK-NEXT: }
 

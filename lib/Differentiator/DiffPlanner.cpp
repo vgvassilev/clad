@@ -630,6 +630,29 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     return m_WrittenVarInfo.Written.count(VD) != 0;
   }
 
+  bool DiffRequest::readsOnlyUnwrittenParams(const Expr* E) const {
+    E = E->IgnoreParens();
+    if (isa<IntegerLiteral, FloatingLiteral, CXXBoolLiteralExpr,
+            CXXNullPtrLiteralExpr>(E))
+      return true;
+    if (const auto* CE = dyn_cast<CastExpr>(E)) {
+      if (CE->getCastKind() != CK_LValueToRValue)
+        return readsOnlyUnwrittenParams(CE->getSubExpr());
+      const auto* DRE = dyn_cast<DeclRefExpr>(CE->getSubExpr()->IgnoreParens());
+      const auto* PVD = DRE ? dyn_cast<ParmVarDecl>(DRE->getDecl()) : nullptr;
+      return PVD && !writesVariable(PVD);
+    }
+    if (const auto* UO = dyn_cast<UnaryOperator>(E))
+      return (UO->getOpcode() == UO_LNot || UO->getOpcode() == UO_Minus) &&
+             readsOnlyUnwrittenParams(UO->getSubExpr());
+    if (const auto* BO = dyn_cast<BinaryOperator>(E))
+      return (BO->isComparisonOp() || BO->isLogicalOp() || BO->isAdditiveOp() ||
+              BO->isMultiplicativeOp()) &&
+             readsOnlyUnwrittenParams(BO->getLHS()) &&
+             readsOnlyUnwrittenParams(BO->getRHS());
+    return false;
+  }
+
   bool DiffRequest::isUnreadCall(const Stmt* S) const {
     // Only a sweep that goes on into its own reverse can leave work out: a
     // reverse_forw hands its results to its caller, a jacobian its output.

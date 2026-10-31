@@ -8,9 +8,14 @@
 #include "clad/Differentiator/Differentiator.h"
 #include <cstdio>
 
-double f(double x, const char *s) { return s ? x * x : x; }
+// The condition reads a local copy, so it is stored. A condition on an
+// unwritten parameter would be re-evaluated instead.
+double f(double x, const char *s) {
+  const char *t = s;
+  return t ? x * x : x;
+}
 
-// CHECK: bool _cond0 = s;
+// CHECK: bool _cond0 = t;
 
 int main() {
   auto g = clad::gradient(f, "x");

@@ -300,9 +300,8 @@ double condNewPointer(double x, int n) {
 
 // CHECK: void condNewPointer_grad_0(double x, int n, double *_d_x) {
 // CHECK-NEXT:     int _d_n = 0;
-// CHECK-NEXT:     bool _cond0 = n > 0;
-// CHECK-NEXT:     double *_d_p = _cond0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
-// CHECK-NEXT:     double *p = _cond0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
+// CHECK-NEXT:     double *_d_p = n > 0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
+// CHECK-NEXT:     double *p = n > 0 ? new double [n](/*implicit*/(double{{[ ]?}}[])0) : nullptr;
 // CHECK-NEXT:     p[0] = x * x;
 // CHECK-NEXT:     double _d_r = 0.;
 // CHECK-NEXT:     double r = p[0];
@@ -401,9 +400,8 @@ double condPointerToPointer(double x, int c) {
 // CHECK-NEXT:     double *p = &y;
 // CHECK-NEXT:     double *_d_q = &_d_y;
 // CHECK-NEXT:     double *q = &y;
-// CHECK-NEXT:     bool _cond0 = c;
-// CHECK-NEXT:     double **_d_r = _cond0 ? &_d_p : &_d_q;
-// CHECK-NEXT:     double **r = _cond0 ? &p : &q;
+// CHECK-NEXT:     double **_d_r = c ? &_d_p : &_d_q;
+// CHECK-NEXT:     double **r = c ? &p : &q;
 // CHECK-NEXT:     **r = x * x;
 // CHECK-NEXT:     _d_y += 1;
 // CHECK-NEXT:     {
