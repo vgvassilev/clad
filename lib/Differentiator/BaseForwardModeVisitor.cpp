@@ -1433,8 +1433,24 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     warnIfNumDiffDerivative(CE);
     // Calling the function without computing derivatives
     llvm::SmallVector<Expr*, 4> ClonedArgs;
-    for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i)
-      ClonedArgs.push_back(Clone(CE->getArg(i)));
+    for (const Expr* Arg : CE->arguments()) {
+      ScopeRAII ArgScope(*this, Scope::DeclScope);
+      llvm::SaveAndRestore<decltype(m_idCtr)> SavedIds(m_idCtr);
+      beginBlock();
+      StmtDiff ArgDiff = Visit(Arg);
+      CompoundStmt* Prelude = endBlock();
+      if (!Prelude->body_empty()) {
+        // Keep operands needing statements on their original evaluation path.
+        ClonedArgs.push_back(Clone(Arg));
+        continue;
+      }
+      Expr* Value = ArgDiff.getExpr();
+      Expr* Tangent = ArgDiff.getExpr_dx();
+      if (Tangent && Tangent->HasSideEffects(m_Context))
+        Value = BuildParens(
+            BuildOp(BO_Comma, BuildParens(Tangent), BuildParens(Value)));
+      ClonedArgs.push_back(Value);
+    }
 
     Expr* Call =
         m_Sema
