@@ -380,6 +380,20 @@ public:
   /// arguments the call changes.
   std::map<const clang::Expr*, std::vector<const clang::VarDecl*>>
       CalleeGlobalWrites;
+  /// The variables each lambda in this function's body captures by reference
+  /// and may write, in capture order. The pullback of a call to it reads them
+  /// as they were before the call, so the reverse sweep puts them back around
+  /// it, as it does for the arguments the call changes.
+  std::map<const clang::LambdaExpr*, std::vector<const clang::VarDecl*>>
+      LambdaCaptureWrites;
+  /// The by-reference captures \p LE may write; empty if none.
+  llvm::ArrayRef<const clang::VarDecl*>
+  lambdaCaptureWrites(const clang::LambdaExpr* LE) const {
+    auto found = LambdaCaptureWrites.find(LE);
+    if (found == LambdaCaptureWrites.end())
+      return {};
+    return found->second;
+  }
   /// Whether \p Call is one of ActiveGlobalCalls.
   bool touchesActiveGlobal(const clang::Expr* Call) const {
     return ActiveGlobalCalls.count(Call) != 0;

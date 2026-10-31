@@ -2470,6 +2470,14 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
         const LambdaExpr* LE = utils::getLambdaInit(VD);
         if (LE && diagnoseUnsupportedLambda(LE))
           return {};
+        // The pushforward takes the captures by value, so it would lose what
+        // the body writes through a by-reference one.
+        if (LE && !m_DiffReq.lambdaCaptureWrites(LE).empty()) {
+          diag(DiagnosticsEngine::Error, LE->getCallOperator()->getLocation(),
+               "forward-mode differentiation of a lambda that assigns to a "
+               "by-reference capture is not supported yet");
+          return {};
+        }
         if (LE && LE->capture_size()) {
           // Snapshot each by value capture at creation so a later mutation of
           // the enclosing variable is not observed.
