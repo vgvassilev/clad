@@ -2827,8 +2827,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // differentiable so its statically scheduled pullback can propagate it
     // through the implicit object.
     // A call that moves a derivative through a global needs its pullback.
+    // A lambda that captures by reference may write through its captures what
+    // a function writes through its reference parameters.
+    bool capturesByRef =
+        calledLambda &&
+        llvm::any_of(calledLambda->captures(), [](const LambdaCapture& C) {
+          return C.capturesVariable() && C.getCaptureKind() == LCK_ByRef;
+        });
     if (!nonDiff && !dfdx() && !utils::hasMemoryTypeParams(FD) &&
-        !needsPullbackForRefReturningInstance &&
+        !needsPullbackForRefReturningInstance && !capturesByRef &&
         !m_DiffReq.touchesActiveGlobal(CE))
       nonDiff = true;
 
@@ -3116,6 +3123,19 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         PreCallStmts.push_back(pushPop.getStmt_dx());
       }
     }
+
+    // The pullback of a lambda reads its by-reference captures as they were
+    // before the call, which may write them: store those it writes and put
+    // them back before the pullback, as for an argument passed by reference.
+    if (capturesByRef && !nonDiff &&
+        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass)
+      for (const VarDecl* capVD : m_DiffReq.lambdaCaptureWrites(calledLambda)) {
+        StmtDiff pushPop =
+            StoreAndRestore(BuildDeclRef(getEnclosingCaptureClone(capVD)), "_t",
+                            /*moveToTape=*/false);
+        addToCurrentBlock(pushPop.getStmt());
+        PreCallStmts.push_back(pushPop.getStmt_dx());
+      }
 
     // The pullback replays the globals the call assigns. Put them back before
     // it, as the call found them, and once more after it, for the reverse of

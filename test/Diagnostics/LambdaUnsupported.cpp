@@ -17,19 +17,7 @@ double mutable_reverse(double x) {
 
 double byref_write_forward(double x) {
   double c = 2.0;
-  auto g = [&c](double t) { c = c * t; return c; }; // expected-error {{differentiation of a lambda that assigns to a by-reference capture is not supported}}
-  return g(x);
-}
-
-double byref_write_reverse(double x) {
-  double c = 2.0;
-  auto g = [&c](double t) { c = c * t; return c; }; // expected-error {{differentiation of a lambda that assigns to a by-reference capture is not supported}}
-  return g(x);
-}
-
-double byref_incr_reverse(double x) {
-  double c = 2.0;
-  auto g = [&c](double t) { c++; return t * c; }; // expected-error {{differentiation of a lambda that assigns to a by-reference capture is not supported}}
+  auto g = [&c](double t) { c = c * t; return c; }; // expected-error {{forward-mode differentiation of a lambda that assigns to a by-reference capture is not supported yet}}
   return g(x);
 }
 
@@ -78,6 +66,4 @@ int main() {
   clad::gradient(in_loop_reverse);
   clad::gradient(mutable_reverse);
   clad::differentiate(byref_write_forward, 0);
-  clad::gradient(byref_write_reverse);
-  clad::gradient(byref_incr_reverse);
 }

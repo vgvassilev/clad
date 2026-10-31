@@ -1402,6 +1402,12 @@ namespace clad {
   }
 
   Expr* VisitorBase::LambdaBuilder::finish(Stmt* Body) {
+    // clad builds the body's statements without ActOnFinishFullExpr, so a
+    // temporary in one of them, such as an argument bound to an rvalue
+    // reference, leaves a cleanup pending. ActOnLambdaExpr finishes the
+    // closure body and asserts there is none; clad's other derived functions
+    // are not finished through Sema and never check.
+    m_V.m_Sema.DiscardCleanupsInEvaluationContext();
     Expr* lambda =
         m_V.m_Sema
             .ActOnLambdaExpr(
@@ -1897,27 +1903,6 @@ namespace clad {
     return {BuildDeclRef(encVD), buildAdjoint(it->second)};
   }
 
-  static bool writesToAnyOf(const Stmt* S,
-                            const llvm::SmallPtrSetImpl<const VarDecl*>& Vars) {
-    auto isTarget = [&](const Expr* E) {
-      const auto* DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
-      const auto* VD = DRE ? dyn_cast<VarDecl>(DRE->getDecl()) : nullptr;
-      return VD && Vars.contains(VD);
-    };
-    if (const auto* BO = dyn_cast<BinaryOperator>(S)) {
-      if (BO->isAssignmentOp() && isTarget(BO->getLHS()))
-        return true;
-    } else if (const auto* UO = dyn_cast<UnaryOperator>(S)) {
-      if (UO->isIncrementDecrementOp() && isTarget(UO->getSubExpr()))
-        return true;
-    }
-    // A child may be absent, an omitted part of the statement.
-    for (const Stmt* Child : S->children())
-      if (Child && writesToAnyOf(Child, Vars))
-        return true;
-    return false;
-  }
-
   /// Whether \p Target is inside a loop of \p S. A lambda's body starts afresh:
   /// a loop around the lambda runs the lambda, not the statements inside it.
   static bool isInsideLoop(const Stmt* S, const Stmt* Target, bool InLoop) {
@@ -1962,16 +1947,6 @@ namespace clad {
       diag(DiagnosticsEngine::Error, CallOp->getLocation(),
            "differentiation of a mutable lambda is not supported: its captures "
            "change between calls");
-      return true;
-    }
-    llvm::SmallPtrSet<const VarDecl*, 4> ByRef;
-    for (const LambdaCapture& Cap : LE->captures())
-      if (Cap.capturesVariable() && Cap.getCaptureKind() == LCK_ByRef)
-        ByRef.insert(cast<VarDecl>(Cap.getCapturedVar()));
-    if (!ByRef.empty() && writesToAnyOf(CallOp->getBody(), ByRef)) {
-      diag(DiagnosticsEngine::Error, CallOp->getLocation(),
-           "differentiation of a lambda that assigns to a by-reference capture "
-           "is not supported");
       return true;
     }
     return false;
