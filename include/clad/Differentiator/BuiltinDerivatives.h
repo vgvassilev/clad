@@ -346,6 +346,18 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tanh_pushforward(T x, dT d_x);
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cbrt_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> floor_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> ceil_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> trunc_pushforward(T x, dT d_x);
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> round_pushforward(T x, dT d_x);
 } // namespace std
 
 template <typename T, typename dT>
@@ -616,6 +628,78 @@ template <typename T, typename dT>
 CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
 __builtin_cbrtl_pushforward(T x, dT d_x) {
   return std::cbrt_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_floor_pushforward(T x, dT d_x) {
+  return std::floor_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_floorf_pushforward(T x, dT d_x) {
+  return std::floor_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_floorl_pushforward(T x, dT d_x) {
+  return std::floor_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_ceil_pushforward(T x, dT d_x) {
+  return std::ceil_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_ceilf_pushforward(T x, dT d_x) {
+  return std::ceil_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_ceill_pushforward(T x, dT d_x) {
+  return std::ceil_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_trunc_pushforward(T x, dT d_x) {
+  return std::trunc_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_truncf_pushforward(T x, dT d_x) {
+  return std::trunc_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_truncl_pushforward(T x, dT d_x) {
+  return std::trunc_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_round_pushforward(T x, dT d_x) {
+  return std::round_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_roundf_pushforward(T x, dT d_x) {
+  return std::round_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE inline ValueAndPushforward<T, dT>
+__builtin_roundl_pushforward(T x, dT d_x) {
+  return std::round_pushforward(x, d_x);
 }
 
 // FIXME: Add the rest of the __builtin_ routines.
@@ -1380,14 +1464,24 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sqrt_pushforward(T x, dT d_x) {
   return {::std::sqrt(x), (((T)1) / (((T)2) * ::std::sqrt(x))) * d_x};
 }
 
-template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<T, T> floor_pushforward(T x, T /*d_x*/) {
-  return {::std::floor(x), (T)0};
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> floor_pushforward(T x, dT /*d_x*/) {
+  return {::std::floor(x), (dT)0};
 }
 
-template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<T, T> ceil_pushforward(T x, T /*d_x*/) {
-  return {::std::ceil(x), (T)0};
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> ceil_pushforward(T x, dT /*d_x*/) {
+  return {::std::ceil(x), (dT)0};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> trunc_pushforward(T x, dT /*d_x*/) {
+  return {::std::trunc(x), (dT)0};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> round_pushforward(T x, dT /*d_x*/) {
+  return {::std::round(x), (dT)0};
 }
 
 template <typename T, typename dT> struct AdjOutType {
@@ -2402,7 +2496,9 @@ using std::min_pullback;
 using std::min_pushforward;
 using std::pow_pullback;
 using std::pow_pushforward;
+using std::round_pushforward;
 using std::sqrt_pushforward;
+using std::trunc_pushforward;
 
 // 7. Special Functions
 #if __cplusplus >= 201703L

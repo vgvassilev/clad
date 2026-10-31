@@ -368,6 +368,38 @@ float f_builtin_sinhf(float x) {
   return __builtin_sinhf(x);
 }
 
+double f_builtin_floor(double x) {
+  return __builtin_floor(x);
+}
+
+float f_builtin_floorf(float x) {
+  return __builtin_floorf(x);
+}
+
+double f_builtin_ceil(double x) {
+  return __builtin_ceil(x);
+}
+
+float f_builtin_ceilf(float x) {
+  return __builtin_ceilf(x);
+}
+
+double f_builtin_trunc(double x) {
+  return __builtin_trunc(x);
+}
+
+float f_builtin_truncf(float x) {
+  return __builtin_truncf(x);
+}
+
+double f_builtin_round(double x) {
+  return __builtin_round(x);
+}
+
+float f_builtin_roundf(float x) {
+  return __builtin_roundf(x);
+}
+
 double f15(double y, double x) {
   return std::atan2(y, x);
 }
@@ -875,6 +907,38 @@ int main () { //expected-no-diagnostics
   auto f_builtin_sinhf_grad = clad::gradient(f_builtin_sinhf);
   f_builtin_sinhf_grad.execute(0.F, &f_result[0]);
   printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  auto d_bfloor = clad::differentiate(f_builtin_floor, 0);
+  printf("Result is = %f\n",
+         d_bfloor.execute(3.5)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_bfloorf = clad::differentiate(f_builtin_floorf, 0);
+  printf("Result is = %f\n",
+         d_bfloorf.execute(3.5F)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_bceil = clad::differentiate(f_builtin_ceil, 0);
+  printf("Result is = %f\n",
+         d_bceil.execute(3.5)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_bceilf = clad::differentiate(f_builtin_ceilf, 0);
+  printf("Result is = %f\n",
+         d_bceilf.execute(3.5F)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_btrunc = clad::differentiate(f_builtin_trunc, 0);
+  printf("Result is = %f\n",
+         d_btrunc.execute(3.5)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_btruncf = clad::differentiate(f_builtin_truncf, 0);
+  printf("Result is = %f\n",
+         d_btruncf.execute(3.5F)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_bround = clad::differentiate(f_builtin_round, 0);
+  printf("Result is = %f\n",
+         d_bround.execute(3.5)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_broundf = clad::differentiate(f_builtin_roundf, 0);
+  printf("Result is = %f\n",
+         d_broundf.execute(3.5F)); // CHECK-EXEC: Result is = 0.000000
 
   auto f15_darg0 = clad::differentiate(f15, 0);
   printf("Result is = %f\n", f15_darg0.execute(4, 3)); //CHECK-EXEC: Result is = 0.120000
