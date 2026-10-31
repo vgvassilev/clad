@@ -302,6 +302,11 @@ public:
   /// variable with static or external storage (a callee may write it), and one
   /// belonging to a function other than this request's.
   bool writesVariable(const clang::VarDecl* VD) const;
+  /// Whether \p E uses only parameters that the function never writes,
+  /// combined with arithmetic, comparison and logical operators. Such an
+  /// expression has the same value anywhere in the body. Globals do not
+  /// qualify: a callee can write them without the body showing it.
+  bool readsOnlyUnwrittenParams(const clang::Expr* E) const;
 
   /// Whether \p S, a statement of the primal's body, is a call whose results
   /// nothing reads, so the forward sweep need not run it. False where the

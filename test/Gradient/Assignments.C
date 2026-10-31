@@ -423,22 +423,21 @@ double f12(double x, double y) {
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double _d_t = 0.;
 //CHECK-NEXT:       double t;
-//CHECK-NEXT:       bool _cond0 = x > y;
-//CHECK-NEXT:       if (_cond0)
+//CHECK-NEXT:     if (x > y)
 //CHECK-NEXT:           _t0 = t;
 //CHECK-NEXT:       else
 //CHECK-NEXT:           _t1 = t;
-//CHECK-NEXT:       double *_t2 = &(_cond0 ? (t = x) : (t = y));
+//CHECK-NEXT:     double *_t2 = &(x > y ? (t = x) : (t = y));
 //CHECK-NEXT:       double _t3 = *_t2;
 //CHECK-NEXT:       *_t2 *= y;
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_t2 = _t3;
-//CHECK-NEXT:           double _r_d0 = (_cond0 ? _d_t : _d_t);
-//CHECK-NEXT:           (_cond0 ? _d_t : _d_t) = 0.;
-//CHECK-NEXT:           (_cond0 ? _d_t : _d_t) += _r_d0 * y;
+//CHECK-NEXT:         double _r_d0 = (x > y ? _d_t : _d_t);
+//CHECK-NEXT:         (x > y ? _d_t : _d_t) = 0.;
+//CHECK-NEXT:         (x > y ? _d_t : _d_t) += _r_d0 * y;
 //CHECK-NEXT:           *_d_y += *_t2 * _r_d0;
-//CHECK-NEXT:           if (_cond0) {
+//CHECK-NEXT:         if (x > y) {
 //CHECK-NEXT:               t = _t0;
 //CHECK-NEXT:               *_d_x += _d_t;
 //CHECK-NEXT:               _d_t = 0.;

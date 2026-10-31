@@ -1261,9 +1261,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // raw operand would drop qualifiers, e.g. a `const char*` condition (as in
     // libstdc++'s basic_string(const char*) constructor) becomes an ill-formed
     // `char* _cond = <const char*>`.
+    // A condition on parameters the function never writes, such as a null
+    // check of an adjoint pointer, is re-evaluated instead of stored.
     Expr* condStored =
-        GlobalStoreAndRef(condDiff.getExpr(), m_Context.BoolTy, "_cond",
-                          /*force=*/false, m_DiffReq.hasEarlyReturns());
+        m_DiffReq.readsOnlyUnwrittenParams(CO->getCond())
+            ? condDiff.getExpr()
+            : GlobalStoreAndRef(condDiff.getExpr(), m_Context.BoolTy, "_cond",
+                                /*force=*/false, m_DiffReq.hasEarlyReturns());
     // Convert cond to boolean condition.
     condStored = m_Sema
                      .ActOnCondition(getCurrentScope(), noLoc, condStored,

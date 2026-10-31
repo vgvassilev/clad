@@ -3089,6 +3089,33 @@ double fn51_const_call(double x) {
 //CHECK-NEXT:     *_d_x += _d_v;
 //CHECK-NEXT: }
 
+// w is never written, so `w ? ...` has the same value in every iteration.
+// The reverse pass evaluates it again instead of pushing it on a tape.
+double fn52(double x, const double* w) {
+  double r = 0;
+  for (int i = 0; i < 2; i++)
+    r += (w ? w[i] : 1.) * x * x;
+  return r;
+}
+
+//CHECK: void fn52_grad_0(double x, const double *w, double *_d_x) {
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
+//CHECK-NEXT:     double _d_r = 0.;
+//CHECK-NEXT:     double r = 0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
+//CHECK-NEXT:     for (i = 0; i < 2; i++) {
+//CHECK-NEXT:         r += (w ? w[i] : 1.) * x * x;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_r += 1;
+//CHECK-NEXT:     for (_t0 = 2{{U|UL|ULL}}; _t0; _t0--) {
+//CHECK-NEXT:         i--;
+//CHECK-NEXT:         double _r_d0 = _d_r;
+//CHECK-NEXT:         *_d_x += (w ? w[i] : 1.) * _r_d0 * x;
+//CHECK-NEXT:         *_d_x += (w ? w[i] : 1.) * x * _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 int main() {
   double result[5] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
@@ -3212,4 +3239,10 @@ int main() {
   result[0] = 0;
   d_fn51_const_call.execute(2, result);
   printf("{%.2f}\n", result[0]); // CHECK-EXEC: {103.00}
+
+  double w52[2] = {1, 2};
+  auto d_fn52 = clad::gradient(fn52, "x");
+  result[0] = 0;
+  d_fn52.execute(3, w52, result);
+  printf("{%.2f}\n", result[0]); // CHECK-EXEC: {18.00}
 }
