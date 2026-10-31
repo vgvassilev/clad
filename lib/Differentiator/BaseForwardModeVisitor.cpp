@@ -3253,6 +3253,11 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
       // ParenList is empty -- default initialisation.
       // Passing empty parenList here will silently cause 'most vexing
       // parse' issue.
+      // The tangent of an aggregate starts at zero, every member of it: its
+      // default member initializers give the value, not the tangent.
+      const CXXRecordDecl* RD = CE->getType()->getAsCXXRecordDecl();
+      if (RD && RD->isAggregate() && !CE->getType()->isArrayType())
+        return StmtDiff(nullptr, getZeroInit(CE->getType()));
       return StmtDiff();
     } else {
       // Rely on the initializer list expressions as they seem to be more

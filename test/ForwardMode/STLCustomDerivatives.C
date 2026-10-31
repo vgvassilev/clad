@@ -329,7 +329,7 @@ double fnArr1(double x) {
 
 //CHECK:     double fnArr1_darg0(double x) {
 //CHECK-NEXT:         double _d_x = 1;
-//CHECK-NEXT:         std::array<double, 3> _d_a;
+//CHECK-NEXT:         std::array<double, 3> _d_a{{[{][{]0?[}][}]}};
 //CHECK-NEXT:         std::array<double, 3> a;
 //CHECK-NEXT:         clad::custom_derivatives::class_functions::fill_pushforward(&a, x, &_d_a, _d_x);
 //CHECK-NEXT:         {
