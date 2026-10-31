@@ -162,6 +162,23 @@ double t11(const double* x) {
   return rec(x, ix, 3);
 }
 
+// recw writes p[0] only after its recursive call. At that call TBR reads
+// what recw writes from the summary it is still building of recw: unless it
+// runs again, the call seems to write nothing and p[0] is not restored.
+double recw(double* p, int n) {
+  if (n == 0)
+    return p[0];
+  double a = recw(p, n - 1);
+  double r = a * p[0];
+  p[0] = p[0] * p[0];
+  return r;
+}
+
+double t12(const double* x) {
+  double p[1] = {x[1]};
+  return recw(p, 3);
+}
+
 // Nothing is read nonlinearly, so no pre-call state may be stored.
 double t7(const double* x) {
   double buf[2];
@@ -240,4 +257,6 @@ int main() {
   TEST(t10); // CHECK-EXEC: t10: dx={6.00, 36.00}
   // f = x0 x1^2 => df/dx0 = x1^2, df/dx1 = 2 x0 x1
   TEST(t11); // CHECK-EXEC: t11: dx={4.00, 4.00}
+  // f = x1^8 => df/dx1 = 8 x1^7
+  TEST(t12); // CHECK-EXEC: t12: dx={0.00, 1024.00}
 }
