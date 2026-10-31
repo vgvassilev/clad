@@ -292,9 +292,8 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
     if (PVD == m_IndependentVar)
       m_IndependentVar = newPVD;
 
-    // We can't use lookup-based replacements
-    if (PVD->getDeclName() != newPVD->getDeclName())
-      m_DeclReplacements[PVD] = newPVD;
+    // Captures need the clone even when the parameter's name is unchanged.
+    m_DeclReplacements[PVD] = newPVD;
 
     params.push_back(newPVD);
   }
@@ -637,6 +636,7 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
   if (const VarDecl* condVarDecl = If->getConditionVariable()) {
     DeclDiff<VarDecl> condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
     condVarClone = condVarDeclDiff.getDecl();
+    m_DeclReplacements[condVarDecl] = condVarClone;
     if (condVarDeclDiff.getDecl_dx())
       addToCurrentBlock(BuildDeclStmt(condVarDeclDiff.getDecl_dx()));
   }
