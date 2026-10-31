@@ -281,16 +281,13 @@ class CladExternalSource : public clang::ExternalSemaSource {
               m_CI.getPreprocessor().isIncrementalProcessingEnabled()) &&
              "Must start from index 0!");
       m_DelayedCalls.push_back(DCI);
-#if CLANG_VERSION_MAJOR < 22
       // If we are in repl mode we might have an error or an undo operation
       // which discards the set of declarations that were collected already.
       // Clad should discard them, too, or it would replay them to the
-      // multiplexer over a broken AST. Clang >= 22 is not affected
-      // (llvm/llvm-project#182044).
+      // multiplexer over a broken AST.
       if (m_CI.getPreprocessor().isIncrementalProcessingEnabled() &&
           m_CI.getDiagnostics().hasErrorOccurred())
         m_MultiplexerProcessedDelayedCallsIdx = m_DelayedCalls.size();
-#endif
     }
     void FinalizeTranslationUnit();
     void SendToMultiplexer();
