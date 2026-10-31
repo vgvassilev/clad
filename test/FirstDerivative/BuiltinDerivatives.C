@@ -651,6 +651,15 @@ double f_cyl_bessel_k(double nu, double x) { return std::cyl_bessel_k(nu, x); }
 // CHECK-NEXT:      {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}cyl_bessel_k_pushforward(nu, x, _d_nu, _d_x);
 // CHECK-NEXT:      return _t0.pushforward;
 // CHECK-NEXT: }
+// sincos, a GNU extension, writes sin(x) and cos(x) through its pointers.
+#if defined(__GLIBC__)
+double f_sincos(double x) {
+  double s, c;
+  sincos(x, &s, &c);
+  return s * c;
+}
+#endif
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -997,5 +1006,15 @@ int main () { //expected-no-diagnostics
   printf("Result i is = 1.484267\n");
   printf("Result k is = -0.183827\n");
 #endif
+
+#if defined(__GLIBC__)
+  auto d_sincos = clad::differentiate(f_sincos, 0);
+  double dsincos = 0;
+  clad::gradient(f_sincos).execute(0.3, &dsincos);
+  printf("Result sincos is = %.6f %.6f\n", d_sincos.execute(0.3), dsincos);
+#else
+  printf("Result sincos is = 0.825336 0.825336\n");
+#endif
+  // CHECK-EXEC: Result sincos is = 0.825336 0.825336
   return 0;
 }
