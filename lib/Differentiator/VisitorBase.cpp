@@ -1300,8 +1300,11 @@ namespace clad {
   }
 
   void VisitorBase::LambdaBuilder::cloneCaptures(const LambdaExpr* LE) {
-    m_Intro.Default = LE->getCaptureDefault();
-    for (const clang::LambdaCapture& Cap : LE->explicit_captures())
+    // Every capture is spelled out, an implicit one too: the body is rebuilt
+    // from references made outside the new closure, from which Sema infers no
+    // capture for a capture-default to cover.
+    m_Intro.Default = clang::LCD_None;
+    for (const clang::LambdaCapture& Cap : LE->captures())
       m_Intro.addCapture(Cap.getCaptureKind(), Cap.getLocation(),
                          Cap.getCapturedVar()->getIdentifier(), /*EllipsisLoc=*/
                          noLoc, clang::LambdaCaptureInitKind::NoInit,
@@ -1426,17 +1429,17 @@ namespace clad {
     // original closure, so two clones share the operator() body -- both a
     // one-parent-per-node violation and a node shared with the primal lambda.
     //
-    // We reproduce only explicit by-copy/by-ref captures of a named variable
-    // (each re-resolves by name against the derivative's in-scope copy). Fall
-    // back to a plain clone for the kinds we do not model -- this-capture,
-    // init-capture, and packs.
+    // We reproduce by-copy/by-ref captures of a named variable, implicit ones
+    // spelled out (each re-resolves by name against the derivative's in-scope
+    // copy). Fall back to a plain clone for the kinds we do not model --
+    // this-capture, init-capture, and packs.
 #if CLANG_VERSION_MAJOR < 17
     // Lambda differentiation is unsupported below clang-17 (Lambdas.C is
     // UNSUPPORTED there) and the Sema lambda-introduction entry points used
     // below do not exist yet. Never reached; keep the source compilable.
     return cast<Expr>(Clone(LE));
 #else
-    for (const clang::LambdaCapture& Cap : LE->explicit_captures())
+    for (const clang::LambdaCapture& Cap : LE->captures())
       if (!Cap.capturesVariable() ||
           (Cap.getCaptureKind() != clang::LCK_ByCopy &&
            Cap.getCaptureKind() != clang::LCK_ByRef))
