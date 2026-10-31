@@ -4123,14 +4123,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // is designed to work with the reversed order of statements
       // in the reverse sweep and in RMV::VisitBinaryOperator
       // the order is not reversed.
+      // Only the derivative with respect to the denominator reads the
+      // numerator, and a constant denominator has none.
+      Expr::EvalResult dummy;
+      bool diffR =
+          !R->EvaluateAsConstantExpr(dummy, m_Context) || RDelayed.needsUpdate;
       beginBlock(direction::reverse);
-      if (!utils::ShouldRecompute(LStored.getExpr(), m_Context))
+      if (diffR && !utils::ShouldRecompute(LStored.getExpr(), m_Context))
         LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
                                     /*force=*/true);
       Stmt* LPop = endBlock(direction::reverse);
-      Expr::EvalResult dummy;
-      if (!R->EvaluateAsConstantExpr(dummy, m_Context) ||
-          RDelayed.needsUpdate) {
+      if (diffR) {
         // dxi/xr = -xl / (xr * xr)
         // df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
         // Wrap R * R in parentheses: (R * R). otherwise code like 1 / R * R is
