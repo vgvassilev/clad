@@ -1193,6 +1193,12 @@ namespace clad {
       }
       if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
         return UsefulToStore(ASE->getBase()) || UsefulToStore(ASE->getIdx());
+      // A conversion between scalars, such as `double(2)`, costs no more than
+      // its operand.
+      if (const auto* CE = dyn_cast<CastExpr>(E))
+        if (CE->getType()->isScalarType() &&
+            CE->getSubExpr()->getType()->isScalarType())
+          return UsefulToStore(CE->getSubExpr());
       return true;
     }
 
