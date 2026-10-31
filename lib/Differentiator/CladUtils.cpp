@@ -1540,8 +1540,9 @@ namespace clad {
     bool returnsAdjoint(QualType T) {
       if (T->isPointerType())
         return true;
-      if (T->isLValueReferenceType() &&
-          T.getNonReferenceType()->isRealFloatingType())
+      // A reference to a real refers to storage the adjoint of which the
+      // caller writes, const or not, lvalue or rvalue.
+      if (T->isReferenceType() && T.getNonReferenceType()->isRealFloatingType())
         return true;
       return isMemoryType(T);
     }
@@ -2072,8 +2073,25 @@ namespace clad {
               FnTypes.push_back(
                   utils::GetParameterDerivativeType(S, mode, PVDTy));
         } else if (mode == DiffMode::reverse_mode_forward_pass ||
-                   utils::IsDifferentiableType(PVDTy))
-          FnTypes.push_back(utils::GetParameterDerivativeType(S, mode, PVDTy));
+                   utils::IsDifferentiableType(PVDTy)) {
+          QualType dPVDTy = utils::GetParameterDerivativeType(S, mode, PVDTy);
+          // The reference to a const real a reverse_forw returns may refer
+          // into a const parameter; its adjoint refers into the adjoint of
+          // that parameter, which it must be able to write through, as a
+          // pullback does through its pointer.
+          QualType Referee = oRetTy.getNonReferenceType();
+          if (mode == DiffMode::reverse_mode_forward_pass &&
+              oRetTy->isReferenceType() && Referee.isConstQualified() &&
+              Referee->isRealFloatingType() && dPVDTy->isReferenceType() &&
+              dPVDTy.getNonReferenceType().isConstQualified()) {
+            QualType NonConst = dPVDTy.getNonReferenceType();
+            NonConst.removeLocalConst();
+            dPVDTy = dPVDTy->isLValueReferenceType()
+                         ? C.getLValueReferenceType(NonConst)
+                         : C.getRValueReferenceType(NonConst);
+          }
+          FnTypes.push_back(dPVDTy);
+        }
       }
 
       if (forCustomDerv && !thisTy.isNull()) {
