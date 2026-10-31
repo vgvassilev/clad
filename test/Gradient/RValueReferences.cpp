@@ -46,6 +46,15 @@ double inLoop(double x) {
   return s;
 }
 
+// A call returning an rvalue reference returns one to the adjoint too.
+double&& first(D&& d) { return static_cast<double&&>(d.v); }
+double fromCall(double x) {
+  D d;
+  d.v = x;
+  double&& r = first(std::move(d));
+  return r * x;
+}
+
 int main() {
   double dx = 0;
   clad::gradient(moved).execute(3, &dx);
@@ -59,4 +68,8 @@ int main() {
   dx = 0;
   clad::gradient(inLoop).execute(3, &dx);
   printf("%.2f\n", dx); // CHECK-EXEC: 30.00
+  dx = 0;
+  clad::gradient(fromCall).execute(3, &dx);
+  printf("%.2f %.2f\n", dx, clad::differentiate(fromCall, 0).execute(3));
+  // CHECK-EXEC: 6.00 6.00
 }

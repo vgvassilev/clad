@@ -408,6 +408,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     // static_cast<T&&>(E)
     // ```
     clang::Expr* BuildStaticCastToRValue(clang::Sema& semaRef, clang::Expr* E);
+    /// The member \p Name of \p Base, a clad::ValueAndPushforward or
+    /// clad::ValueAndAdjoint: an xvalue when declared as an rvalue reference,
+    /// as the call that returned it was.
+    clang::Expr* BuildResultMember(clang::Sema& S, clang::Scope* Sc,
+                                   clang::Expr* Base, llvm::StringRef Name);
 
     /// Returns true if expression `E` is PRValue or XValue.
     bool IsRValue(const clang::Expr* E);

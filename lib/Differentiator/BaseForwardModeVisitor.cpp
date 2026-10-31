@@ -1397,9 +1397,9 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                            .get();
           Expr* vap = StoreAndRef(call, "_t", /*forceDeclCreation=*/true);
           Expr* value =
-              utils::BuildMemberExpr(m_Sema, getCurrentScope(), vap, "value");
-          Expr* pushforward = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                                     vap, "pushforward");
+              utils::BuildResultMember(m_Sema, getCurrentScope(), vap, "value");
+          Expr* pushforward = utils::BuildResultMember(
+              m_Sema, getCurrentScope(), vap, "pushforward");
           return StmtDiff(value, pushforward);
         }
       }
@@ -2036,10 +2036,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     return StmtDiff(callDiff, nullptr);
   auto valueAndPushforward =
       StoreAndRef(callDiff, "_t", /*forceDeclCreation=*/true);
-  Expr* returnValue = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                             valueAndPushforward, "value");
+  Expr* returnValue = utils::BuildResultMember(m_Sema, getCurrentScope(),
+                                               valueAndPushforward, "value");
   // Clone the base so `.value` and `.pushforward` own distinct nodes.
-  Expr* pushforward = utils::BuildMemberExpr(
+  Expr* pushforward = utils::BuildResultMember(
       m_Sema, getCurrentScope(), CloneNode(valueAndPushforward), "pushforward");
   return StmtDiff(returnValue, pushforward);
 }
@@ -3227,12 +3227,12 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
           : BuildCustomDerivativeConstructorPFCall(CE, clonedArgs, derivedArgs);
   if (pushforwardCall) {
     auto valueAndPushforwardE = StoreAndRef(pushforwardCall);
-    Expr* valueE = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                          valueAndPushforwardE, "value");
+    Expr* valueE = utils::BuildResultMember(m_Sema, getCurrentScope(),
+                                            valueAndPushforwardE, "value");
     // Clone the base so `.value` and `.pushforward` own distinct nodes.
-    Expr* pushforwardE =
-        utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                               CloneNode(valueAndPushforwardE), "pushforward");
+    Expr* pushforwardE = utils::BuildResultMember(
+        m_Sema, getCurrentScope(), CloneNode(valueAndPushforwardE),
+        "pushforward");
     return StmtDiff(valueE, pushforwardE);
   }
 
