@@ -1271,6 +1271,12 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   return StmtDiff(clonedDRE, getZeroInit(clonedDRE->getType()));
 }
 
+StmtDiff BaseForwardModeVisitor::VisitConstantExpr(const ConstantExpr* CE) {
+  // A constant, such as the condition of an `if constexpr`, whose discarded
+  // branch is not in the instantiation: its derivative is 0.
+  return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
+}
+
 StmtDiff BaseForwardModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
   QualType T = IL->getType();
   llvm::APInt zero(m_Context.getIntWidth(T), /*value*/ 0);

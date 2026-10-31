@@ -1,5 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oSpecializationDerivatives.out 2>&1 | %filecheck %s
 // RUN: ./SpecializationDerivatives.out | %filecheck_exec %s
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify
 
 // pick<0> and pick<1> are two functions to C++, told apart by a template
 // argument the call does not deduce. Their derivatives are not templates: they
@@ -9,6 +10,8 @@
 #include "clad/Differentiator/Differentiator.h"
 #include <cstdio>
 #include <type_traits>
+
+// expected-no-diagnostics
 
 template <int I> double pick(double x) { return I == 0 ? x * x : 3. * x; }
 
@@ -145,6 +148,21 @@ double usesDeduced(double x) {
 // CHECK: inline clad::ValueAndPushforward<double, double> scaleN_pushforward(std::integral_constant<int, 4>, double x, double _d_x) {
 // CHECK: inline clad::ValueAndPushforward<double, double> scaleN_pushforward(double x, double _d_x) {
 
+// The condition of an `if constexpr` is a constant once the class template is
+// instantiated; the instantiation keeps only the branch it takes.
+template <int Base> struct Offset {
+  double v[2];
+  double at(int i) const {
+    if constexpr (Base == 1)
+      --i;
+    return v[i];
+  }
+};
+double usesOffset(double x) {
+  Offset<1> o{{x, 2 * x}};
+  return o.at(2);
+}
+
 int main() {
   double d = 0, dx = 0, dy = 0;
   auto g = clad::gradient(usesPicks);
@@ -191,6 +209,11 @@ int main() {
   clad::gradient(usesDeduced).execute(1, &d);
   // 2x^2 + x^3 + 5x + 4x + 8x: 4x + 3x^2 + 5 + 12
   std::printf("%g\n", d); // CHECK-EXEC: 24
+
+  d = 0;
+  clad::gradient(usesOffset).execute(1, &d);
+  std::printf("%g %g\n", d, clad::differentiate(usesOffset, "x").execute(1));
+  // CHECK-EXEC: 2 2
 }
 
 // RUN: not %cladclang %s -I%S/../../include -fsyntax-only -DNOTYET 2>&1 \

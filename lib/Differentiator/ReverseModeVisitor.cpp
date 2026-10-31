@@ -1860,6 +1860,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return Clone(CL);
   }
 
+  StmtDiff ReverseModeVisitor::VisitConstantExpr(const ConstantExpr* CE) {
+    // A constant, such as the condition of an `if constexpr`, whose discarded
+    // branch is not in the instantiation: its derivative is 0.
+    return StmtDiff(Clone(CE), getZeroInit(CE->getType()));
+  }
+
   StmtDiff ReverseModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
     return StmtDiff(
         Clone(SL),
