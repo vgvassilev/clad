@@ -4178,6 +4178,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
       }
 
+      // `%=`, `&=`, `|=`, `^=`, `<<=` and `>>=` act on integers and their
+      // result is piecewise constant in both operands.
+      BinaryOperatorKind baseOp =
+          BinOp->isCompoundAssignmentOp()
+              ? BinaryOperator::getOpForCompoundAssignment(opCode)
+              : opCode;
+      bool isDiscreteAssign = baseOp == BO_Rem ||
+                              BinaryOperator::isBitwiseOp(baseOp) ||
+                              BinaryOperator::isShiftOp(baseOp);
+
       bool indepSides = false;
       if (opCode == BO_Assign || opCode == BO_AddAssign ||
           opCode == BO_SubAssign) {
@@ -4311,9 +4321,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // ResultRef is returned as the adjoint and, for nested compound
       // assignments, reused as the next level's ResultRef; clone it for the
       // old-value store so the stores do not share the node.
+      // A discrete assignment passes nothing on, so it needs no old value.
       if (indepSides)
         oldValue = CloneNode(ResultRef);
-      else if (!isPointerOp)
+      else if (!isPointerOp && !isDiscreteAssign)
         oldValue = StoreAndRef(CloneNode(ResultRef), direction::reverse, "_r_d",
                                /*forceDeclCreation=*/true);
       if (opCode == BO_Assign) {
@@ -4419,6 +4430,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             BuildOp(BO_Div, BuildParens(Ldiff.getRevSweepAsExpr()),
                     BuildParens(Rdiff.getRevSweepAsExpr()));
         std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, RResult);
+      } else if (isDiscreteAssign) {
+        // The overwritten value's adjoint is used up, and nothing flows to R:
+        // `dl = 0;`, with R visited for its side effects only.
+        Expr* zero = getZeroInit(ResultRef->getType());
+        addToCurrentBlock(BuildOp(BO_Assign, CloneNode(ResultRef), zero),
+                          direction::reverse);
+        Rdiff = Visit(R);
+        // Without a value of its own the reverse sweep would fall back to the
+        // forward expression and assign a second time. Read the left side
+        // instead, which holds the result there.
+        valueForRevPass = CloneNode(LCloned);
       } else
         llvm_unreachable("unknown assignment opCode");
       if (m_ExternalSource)
