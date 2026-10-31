@@ -1118,6 +1118,34 @@ namespace clad {
     return BuildCallExprToMemFn(Base, /*MemberFunctionName=*/"slice", Args);
   }
 
+  llvm::SmallVector<Expr*, 1> VisitorBase::BuildDerivedPlacementArgs(
+      const CXXNewExpr* CNE, llvm::MutableArrayRef<StmtDiff> argDiffs) {
+    llvm::SmallVector<Expr*, 1> derivedArgs;
+    if (argDiffs.empty())
+      return derivedArgs;
+    auto isStorage = [](const Expr* E) {
+      return E && (E->getType()->isPointerType() ||
+                   (E->getType()->isArrayType() && E->isGLValue()));
+    };
+    // An address first is the storage to reuse, whether the operator is the
+    // reserved `operator new(size_t, void*)` or a class's own, which may take
+    // more arguments. Anything else, such as std::nothrow, is passed as is.
+    if (!isStorage(CNE->getPlacementArg(0)->IgnoreParenCasts())) {
+      for (StmtDiff& argDiff : argDiffs)
+        derivedArgs.push_back(Clone(argDiff.getExpr()));
+      return derivedArgs;
+    }
+    // Its derivative must be an address too: not, say, the zero a global or
+    // an integer converted to a pointer has.
+    Expr* dStorage = argDiffs.front().getExpr_dx();
+    if (isStorage(dStorage)) {
+      derivedArgs.push_back(dStorage);
+      for (StmtDiff& argDiff : argDiffs.drop_front())
+        derivedArgs.push_back(Clone(argDiff.getExpr()));
+    }
+    return derivedArgs;
+  }
+
   bool VisitorBase::isCladArrayType(QualType QT) {
     // FIXME: Replace this check with a clang decl check
     return QT.getAsString().find("clad::array") != std::string::npos ||

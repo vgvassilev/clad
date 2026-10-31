@@ -950,6 +950,17 @@ namespace clad {
         llvm::StringRef name, llvm::MutableArrayRef<clang::Expr*> argExprs,
         llvm::ArrayRef<clang::TemplateArgument> templateArgs);
 
+    /// Builds the placement arguments of the derivative of \p CNE from its
+    /// differentiated placement arguments \p argDiffs. The derivative of
+    /// `new (p, ...) T(...)` is placed in the derivative of the storage it
+    /// reuses, `new (_d_p, ...) T(...)`; placement arguments that are not
+    /// storage, such as std::nothrow, are passed unchanged. Returns no
+    /// arguments, so that the derivative is allocated instead, when the
+    /// storage has no derivative to hold it.
+    llvm::SmallVector<clang::Expr*, 1>
+    BuildDerivedPlacementArgs(const clang::CXXNewExpr* CNE,
+                              llvm::MutableArrayRef<StmtDiff> argDiffs);
+
     /// Checks if the type is of clad::array\<T\> or clad::array_ref\<T\> type
     bool isCladArrayType(clang::QualType QT);
 

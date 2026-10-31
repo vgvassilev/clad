@@ -318,6 +318,37 @@ double condNewPointer(double x, int n) {
 // CHECK-NEXT:     delete [] _d_p;
 // CHECK-NEXT: }
 
+double placementNewPointer(double x) {
+  double buf[1] = {x};
+  double* p = buf;
+  new (p++) double(buf[0] * x);
+  return buf[0] * x;
+}
+
+// CHECK: void placementNewPointer_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_buf[1] = {0};
+// CHECK-NEXT:     double buf[1] = {x};
+// CHECK-NEXT:     double *_d_p = _d_buf;
+// CHECK-NEXT:     double *p = buf;
+// CHECK-NEXT:     _d_p++;
+// CHECK-NEXT:     double *_t0 = p++;
+// CHECK-NEXT:     double _t1 = *(double *)_t0;
+// CHECK-NEXT:     new (_t0) double(buf[0] * x);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_buf[0] += 1 * x;
+// CHECK-NEXT:         *_d_x += buf[0] * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_p--;
+// CHECK-NEXT:         *(double *)_t0 = _t1;
+// CHECK-NEXT:         double _r_d0 = *(double *)_d_p;
+// CHECK-NEXT:         *(double *)_d_p = 0.;
+// CHECK-NEXT:         _d_buf[0] += _r_d0 * x;
+// CHECK-NEXT:         *_d_x += buf[0] * _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_x += _d_buf[0];
+// CHECK-NEXT: }
+
 double condPointerToPointer(double x, int c) {
   double y = 0;
   double* p = &y;
@@ -655,6 +686,11 @@ int main() {
   double d_x = 0;
   d_condNewPointer.execute(5, 2, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 10.00
+
+  auto d_placementNewPointer = clad::gradient(placementNewPointer);
+  d_x = 0;
+  d_placementNewPointer.execute(3, &d_x);
+  printf("%.2f\n", d_x); // CHECK-EXEC: 27.00
 
   auto d_condPointerToPointer = clad::gradient(condPointerToPointer, "x");
   d_x = 0;

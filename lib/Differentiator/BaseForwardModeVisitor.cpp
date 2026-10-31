@@ -3328,6 +3328,15 @@ BaseForwardModeVisitor::VisitCXXThisExpr(const clang::CXXThisExpr* CTE) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
+  llvm::SmallVector<Expr*, 1> placementArgs;
+  llvm::SmallVector<StmtDiff, 1> placementArgDiffs;
+  for (const Expr* arg : CNE->placement_arguments()) {
+    placementArgDiffs.push_back(Visit(arg));
+    placementArgs.push_back(placementArgDiffs.back().getExpr());
+  }
+  llvm::SmallVector<Expr*, 1> derivedPlacementArgs =
+      BuildDerivedPlacementArgs(CNE, placementArgDiffs);
+
   StmtDiff initializerDiff;
   if (CNE->hasInitializer())
     initializerDiff = Visit(CNE->getInitializer());
@@ -3344,12 +3353,14 @@ StmtDiff BaseForwardModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
     // should be used in both the cloned and the derived statements.
     derivedArraySizeE = Clone(clonedArraySizeE);
   }
-  Expr* clonedNewE = utils::BuildCXXNewExpr(
-      m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
-      initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo());
+  Expr* clonedNewE =
+      utils::BuildCXXNewExpr(m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
+                             initializerDiff.getExpr(),
+                             CNE->getAllocatedTypeSourceInfo(), placementArgs);
   Expr* derivedNewE = utils::BuildCXXNewExpr(
       m_Sema, CNE->getAllocatedType(), derivedArraySizeE,
-      initializerDiff.getExpr_dx(), CNE->getAllocatedTypeSourceInfo());
+      initializerDiff.getExpr_dx(), CNE->getAllocatedTypeSourceInfo(),
+      derivedPlacementArgs);
   return {clonedNewE, derivedNewE};
 }
 
