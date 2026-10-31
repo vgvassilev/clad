@@ -4192,7 +4192,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       beginBlock(direction::reverse);
       Ldiff = Visit(L, dfdx());
 
-      if (L->HasSideEffects(m_Context)) {
+      // Re-evaluate the element access in the reverse pass, as for an array
+      // subscript, instead of storing its address.
+      if (L->HasSideEffects(m_Context) &&
+          !(utils::isPureElementAccess(L, m_Context) &&
+            utils::isPureElementAccess(Ldiff.getExpr(), m_Context))) {
         Expr* E = Ldiff.getExpr();
         llvm::SmallVector<Expr*, 4> returnExprs;
         utils::GetInnermostReturnExpr(E, returnExprs);

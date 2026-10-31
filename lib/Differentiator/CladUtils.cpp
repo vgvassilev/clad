@@ -1327,6 +1327,26 @@ namespace clad {
              });
     }
 
+    bool hasElementAccessor(const CXXRecordDecl* RD) {
+      RD = RD->getDefinition();
+      return llvm::any_of(RD->methods(), [](const CXXMethodDecl* MD) {
+        return MD->getOverloadedOperator() == OO_Subscript && MD->isConst() &&
+               MD->getReturnType()->isLValueReferenceType();
+      });
+    }
+
+    bool isPureElementAccess(const Expr* E, const ASTContext& C) {
+      const auto* OCE = dyn_cast<CXXOperatorCallExpr>(E->IgnoreParens());
+      if (!OCE || OCE->getOperator() != OO_Subscript)
+        return false;
+      const auto* MD = dyn_cast_or_null<CXXMethodDecl>(OCE->getDirectCallee());
+      return MD && MD->getReturnType()->isLValueReferenceType() &&
+             hasElementAccessor(MD->getParent()) &&
+             llvm::none_of(OCE->arguments(), [&C](const Expr* A) {
+               return A->HasSideEffects(C);
+             });
+    }
+
     bool isCopyable(const clang::CXXRecordDecl* RD) {
       if (RD->defaultedCopyConstructorIsDeleted())
         return false;
