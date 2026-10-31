@@ -360,8 +360,9 @@ double fn5(double x, double y) {
 // CHECK-NEXT:  }
 
 // CHECK:  void fn5_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:      argByValWrapper g(x);
-// CHECK-NEXT:      argByValWrapper _d_g(0.);
+// CHECK-NEXT:      clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = argByValWrapper::constructor_reverse_forw(clad::Tag<argByValWrapper>(), x, 0.);
+// CHECK-NEXT:      argByValWrapper g(_t0.value);
+// CHECK-NEXT:      argByValWrapper _d_g(_t0.adjoint);
 // CHECK-NEXT:      y = x;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          *_d_y += 1;
@@ -387,7 +388,8 @@ double fn6(double x, double y) {
 // CHECK-NEXT:     argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     argByValWrapper *_d_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
 // CHECK-NEXT:     memset(_d_this, 0, sizeof(argByValWrapper));
-// CHECK-NEXT:     new (_this) argByValWrapper(v);
+// CHECK-NEXT:     clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = argByValWrapper::constructor_reverse_forw(clad::Tag<argByValWrapper>(), v, 0.);
+// CHECK-NEXT:     new (_this) argByValWrapper(_t0.value);
 // CHECK-NEXT:     _this->z = _this->y * u;
 // CHECK-NEXT:     clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _ret0 = {*_this, *_d_this};
 // CHECK-NEXT:     free(_this);
@@ -397,7 +399,8 @@ double fn6(double x, double y) {
 
 // CHECK:  static inline void constructor_pullback(double v, double u, argByValWrapper *_d_this, double *_d_v, double *_d_u) {
 // CHECK-NEXT:      argByValWrapper *_this = (argByValWrapper *)malloc(sizeof(argByValWrapper));
-// CHECK-NEXT:      new (_this) argByValWrapper(v);
+// CHECK-NEXT:      clad::ValueAndAdjoint<argByValWrapper, argByValWrapper> _t0 = argByValWrapper::constructor_reverse_forw(clad::Tag<argByValWrapper>(), v, 0.);
+// CHECK-NEXT:      new (_this) argByValWrapper(_t0.value);
 // CHECK-NEXT:      _this->z = _this->y * u;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r_d0 = _d_this->z;
@@ -831,6 +834,25 @@ double fn17(double x, double y) {
   return r;
 }
 
+// A base built by a constructor that does more than copy its arguments: the
+// adjoint of the object is not built by running it again on zero adjoints,
+// which here would divide by zero.
+struct Sliced {
+  double ds;
+  int nslice;
+  double inv;
+  Sliced(double d, int n) : ds(d), nslice(n) { inv = 1. / nslice; }
+};
+struct ShiftedSlices : Sliced {
+  double dx;
+  ShiftedSlices(double d, int n, double x) : Sliced(d, n), dx(x) {}
+  double step() const { return ds * inv + dx; }
+};
+double fn18(double i, double j) {
+  ShiftedSlices s(i, 4, j);
+  return s.step() * i;
+}
+
 int main() {
     double d_i, d_j;
 
@@ -887,4 +909,7 @@ int main() {
 
     // Not run: clad drops the delete of a member, so both buffers would leak.
     INIT_GRADIENT(fn17);
+
+    INIT_GRADIENT(fn18);
+    TEST_GRADIENT(fn18, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {5.50, 3.00}
 }

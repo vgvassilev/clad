@@ -622,8 +622,16 @@ namespace clad {
             isZero = val->getFloat().isZero();
         }
 
-        if (!(isa<DeclRefExpr>(init) || isa<CXXConstructExpr>(init) ||
-              isZero)) {
+        // A base or member built by a constructor that does more than copy
+        // its arguments, such as check them, cannot be built again from
+        // zero adjoints either.
+        const auto* CCE = dyn_cast<CXXConstructExpr>(init);
+        if (CCE &&
+            !constructorReverseForwIsElidable(CCE->getConstructor(), C)) {
+          isZeroOrCopyCtor = false;
+          break;
+        }
+        if (!(isa<DeclRefExpr>(init) || CCE || isZero)) {
           isZeroOrCopyCtor = false;
           break;
         }

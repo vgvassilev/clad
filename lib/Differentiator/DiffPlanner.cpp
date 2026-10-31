@@ -2914,9 +2914,44 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
     // body.
     bool cloneBodyUnsafe =
         utils::isNonDifferentiableType(m_Sema, CD->getParent());
-    if (LookupCustomDerivativeDecl(forwPassRequest) ||
-        (!elideRevForw && !cloneBodyUnsafe))
+    bool hasCustomRevForw = LookupCustomDerivativeDecl(forwPassRequest);
+    if (hasCustomRevForw || (!elideRevForw && !cloneBodyUnsafe)) {
+      // A reverse_forw clad clones builds the bases and members in place,
+      // each with the reverse_forw of its constructor where it cannot be
+      // elided either. Requests run in the order they are added, so those go
+      // first, the innermost first.
+      llvm::SmallVector<DiffRequest, 4> Subs;
+      llvm::SmallVector<const CXXConstructorDecl*, 4> Worklist;
+      if (!hasCustomRevForw)
+        Worklist.push_back(CD);
+      llvm::SmallPtrSet<const CXXConstructorDecl*, 4> Seen{CD};
+      while (!Worklist.empty()) {
+        const CXXConstructorDecl* Ctor = Worklist.pop_back_val();
+        for (const CXXCtorInitializer* Init : Ctor->inits()) {
+          const auto* InitCE = dyn_cast_or_null<CXXConstructExpr>(
+              Init->getInit() ? Init->getInit()->IgnoreImplicit() : nullptr);
+          const CXXConstructorDecl* Sub =
+              InitCE ? InitCE->getConstructor() : nullptr;
+          if (!Sub || !Seen.insert(Sub).second ||
+              utils::constructorReverseForwIsElidable(Sub,
+                                                      m_Sema.getASTContext()) ||
+              utils::isNonDifferentiableType(m_Sema, Sub->getParent()))
+            continue;
+          DiffRequest SubReq = forwPassRequest;
+          SubReq.Function = Sub;
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          SubReq.CallContext = const_cast<CXXConstructExpr*>(InitCE);
+          // A custom one is called as it is; it builds nothing more.
+          if (LookupCustomDerivativeDecl(SubReq))
+            continue;
+          Subs.push_back(SubReq);
+          Worklist.push_back(Sub);
+        }
+      }
+      for (const DiffRequest& SubReq : llvm::reverse(Subs))
+        m_DiffRequestGraph.addNode(SubReq, /*isSource=*/true);
       m_DiffRequestGraph.addNode(forwPassRequest, /*isSource=*/true);
+    }
 
     // Don't build propagators for calls that do not contribute in
     // differentiable way to the result.
