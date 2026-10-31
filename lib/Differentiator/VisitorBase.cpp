@@ -97,10 +97,10 @@ namespace clad {
     return true;
   }
 
-  ALLOW_ACCESS(Sema, CurScope, Scope*);
+  CLAD_ALLOW_ACCESS(Sema, CurScope, Scope*);
 
   clang::Scope*& VisitorBase::getCurrentScope() {
-    return ACCESS(m_Sema, CurScope);
+    return CLAD_ACCESS(m_Sema, CurScope);
   }
 
   void VisitorBase::setCurrentScope(clang::Scope* S) {
