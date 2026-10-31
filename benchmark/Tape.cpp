@@ -75,4 +75,32 @@ static void BM_TapePushPop(benchmark::State& state) {
 }
 BENCHMARK(BM_TapePushPop)->RangeMultiplier(8)->Range(1 << 12, 1 << 18);
 
+// Calls a derivative that tapes n values: t is overwritten nonlinearly in
+// each iteration. The measured time includes building and destroying the
+// tapes.
+static double overwrites(const double* x, int n) {
+  double s = 0;
+  double t = 1;
+  for (int i = 0; i < n; ++i) {
+    t = t * x[i % 4];
+    s += t * t;
+  }
+  return s;
+}
+
+static void BM_GradientRebuildsTapes(benchmark::State& state) {
+  const int n = static_cast<int>(state.range(0));
+  auto grad = clad::gradient(overwrites, "x");
+  double x[4] = {1.0001, 0.9999, 1.0002, 0.9998};
+  for (auto _ : state) {
+    double dx[4] = {0, 0, 0, 0};
+    grad.execute(x, n, dx);
+    benchmark::DoNotOptimize(dx[0]);
+  }
+  state.SetItemsProcessed(state.iterations() * n);
+}
+BENCHMARK(BM_GradientRebuildsTapes)
+    ->RangeMultiplier(8)
+    ->Range(1 << 12, 1 << 21);
+
 BENCHMARK_MAIN();
