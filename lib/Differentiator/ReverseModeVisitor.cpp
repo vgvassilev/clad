@@ -6541,9 +6541,49 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
+    llvm::SmallVector<Expr*, 1> placementArgs;
+    llvm::SmallVector<StmtDiff, 1> placementArgDiffs;
+    for (const Expr* arg : CNE->placement_arguments()) {
+      placementArgDiffs.push_back(Visit(arg));
+      placementArgs.push_back(placementArgDiffs.back().getExpr());
+    }
+    llvm::SmallVector<Expr*, 1> derivedPlacementArgs =
+        BuildDerivedPlacementArgs(CNE, placementArgDiffs);
+
+    // Placing a scalar is assigning it, `*(T*)p = init`: the old value is
+    // restored for the reverse pass, and the derivative is taken from the
+    // adjoint of the storage, which also holds any adjoint of the result.
+    Expr* initDfdx = dfdx();
+    QualType allocTy = CNE->getAllocatedType();
+    if (!derivedPlacementArgs.empty() &&
+        CNE->getOperatorNew()->isReservedGlobalPlacementOperator() &&
+        !CNE->isArray() && allocTy->isRealType()) {
+      TypeSourceInfo* ptrTSI = m_Context.getTrivialTypeSourceInfo(
+          m_Context.getPointerType(allocTy.getUnqualifiedType()));
+      auto deref = [&](Expr* E) {
+        return BuildOp(
+            UO_Deref,
+            m_Sema.BuildCStyleCastExpr(noLoc, ptrTSI, noLoc, Clone(E)).get());
+      };
+      // The storage is read for the save, used by the placement and written
+      // by the restore: an address like `p++` must be computed once.
+      if (placementArgs.front()->HasSideEffects(m_Context))
+        placementArgs.front() =
+            GlobalStoreAndRef(placementArgs.front(), "_t", /*force=*/true);
+      StmtDiff pushPop = StoreAndRestore(deref(placementArgs.front()));
+      addToCurrentBlock(pushPop.getStmt(), direction::forward);
+      addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
+      Expr* storage = deref(derivedPlacementArgs.front());
+      initDfdx = StoreAndRef(Clone(storage), direction::reverse, "_r_d",
+                             /*forceDeclCreation=*/true);
+      addToCurrentBlock(
+          BuildOp(BO_Assign, storage, getZeroInit(storage->getType())),
+          direction::reverse);
+    }
+
     StmtDiff initializerDiff;
     if (CNE->hasInitializer())
-      initializerDiff = Visit(CNE->getInitializer(), dfdx());
+      initializerDiff = Visit(CNE->getInitializer(), initDfdx);
 
     Expr* clonedArraySizeE = nullptr;
     Expr* derivedArraySizeE = nullptr;
@@ -6556,7 +6596,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     Expr* clonedNewE = utils::BuildCXXNewExpr(
         m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
-        initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo());
+        initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo(),
+        placementArgs);
     Expr* diffInit = initializerDiff.getExpr_dx();
     if (!diffInit) {
       // we should initialize it implicitly using ParenListExpr.
@@ -6564,7 +6605,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     Expr* derivedNewE = utils::BuildCXXNewExpr(
         m_Sema, CNE->getAllocatedType(), derivedArraySizeE, diffInit,
-        CNE->getAllocatedTypeSourceInfo());
+        CNE->getAllocatedTypeSourceInfo(), derivedPlacementArgs);
     return {clonedNewE, derivedNewE};
   }
 
