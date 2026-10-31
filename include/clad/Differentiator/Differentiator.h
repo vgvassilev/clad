@@ -16,6 +16,12 @@
 #include <driver_types.h>
 #include <vector_types.h>
 #endif
+// Puts clad::check_gradient and clad::check_derivative in scope for everyone
+// who includes clad, the way the entry points beside them are. Empty without
+// the numerical differentiation they compare against, and not used by this
+// header itself.
+// NOLINTNEXTLINE(misc-include-cleaner)
+#include "CheckDerivatives.h"
 #include "CladConfig.h"
 // Declares the Enzyme activity markers and gradient carrier that clad
 // refers to from the code it generates, so every user of the Enzyme

@@ -46,6 +46,11 @@ Error Estimation
 
 Misc
 ----
+* `clad::check_gradient(f, df, args...)` and `clad::check_derivative(f, df,
+  args...)` compare a derivative clad generated against central differences of
+  the primal at the same inputs, and hand back a `clad::check_report` naming
+  the inputs that disagree. Tolerances come from `clad::check_options`; an
+  array input is passed as `clad::array_ref<T>(ptr, n)`.
 * `clad::immediate_mode` is gone. Clad decides for itself whether a derivative
   is needed while the program compiles, from where the call to
   `clad::differentiate` sits, so code passing the option should simply drop it.
