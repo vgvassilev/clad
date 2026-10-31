@@ -202,8 +202,8 @@ void InitTimers();
 
     CladPlugin::~CladPlugin() {}
 
-    ALLOW_ACCESS(MultiplexConsumer, Consumers,
-                 std::vector<std::unique_ptr<ASTConsumer>>);
+    CLAD_ALLOW_ACCESS(MultiplexConsumer, Consumers,
+                      std::vector<std::unique_ptr<ASTConsumer>>);
 
     void CladPlugin::Initialize(clang::ASTContext& C) {
       // We know we have a multiplexer. We commit a sin here by stealing it and
@@ -211,7 +211,7 @@ void InitTimers();
       // until clad is happy.
 
       auto& MultiplexC = cast<MultiplexConsumer>(m_CI.getASTConsumer());
-      auto& RobbedCs = ACCESS(MultiplexC, Consumers);
+      auto& RobbedCs = CLAD_ACCESS(MultiplexC, Consumers);
       assert(RobbedCs.back().get() == this && "Clad is not the last consumer");
 
       const auto& Macros = m_CI.getPreprocessorOpts().Macros;
