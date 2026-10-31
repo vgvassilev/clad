@@ -366,6 +366,37 @@ double memberSubscript(double a) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+struct Addressed {
+  double x;
+};
+
+double addressOfMember(double a) {
+  Addressed s{a};
+  double y = (&s)->x * a;
+  (&s)->x = 0;
+  return y;
+}
+
+//CHECK: void addressOfMember_grad(double a, double *_d_a) {
+//CHECK-NEXT:     Addressed _d_s = {0.};
+//CHECK-NEXT:     Addressed s{a};
+//CHECK-NEXT:     double _d_y = 0.;
+//CHECK-NEXT:     double y = (&s)->x * a;
+//CHECK-NEXT:     double _t0 = (&s)->x;
+//CHECK-NEXT:     (&s)->x = 0;
+//CHECK-NEXT:     _d_y += 1;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         (&s)->x = _t0;
+//CHECK-NEXT:         double _r_d0 = (&_d_s)->x;
+//CHECK-NEXT:         (&_d_s)->x = 0.;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         (&_d_s)->x += _d_y * a;
+//CHECK-NEXT:         *_d_a += (&s)->x * _d_y;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     *_d_a += _d_s.x;
+//CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_tbr>(F);\
@@ -391,4 +422,5 @@ int main() {
   TEST(f7, 2); // CHECK-EXEC: {7.00}
   TEST(f8, 2); // CHECK-EXEC: {5.00}
   TEST(memberSubscript, 2); // CHECK-EXEC: {17.00}
+  TEST(addressOfMember, 2); // CHECK-EXEC: {4.00}
 }
