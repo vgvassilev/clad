@@ -124,7 +124,7 @@ double fn3(double i, double j) {
 
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     Tangent _d_t;
+// CHECK-NEXT:     Tangent _d_t{};
 // CHECK-NEXT:     t.data[0] = 2 * i;
 // CHECK-NEXT:     t.data[1] = 5 * i + 3 * j;
 // CHECK-NEXT:     sum_pullback(t, 1, &_d_t);
@@ -378,7 +378,7 @@ double fn11(double x, double y) {
 
 // CHECK: void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     Tangent _d_t;
+// CHECK-NEXT:     Tangent _d_t{};
 // CHECK-NEXT:     t.data[0] = -y;
 // CHECK-NEXT:     operator_plus_pullback(x, t, 1, _d_x, &_d_t);
 // CHECK-NEXT:     {
@@ -711,7 +711,6 @@ void fn20(MyStruct s) {
 // CHECK: void fn20_grad(MyStruct s, MyStruct *_d_s) {
 // CHECK-NEXT:     clad::restore_tracker _tracker0 = {};
 // CHECK-NEXT:     _tracker0.clear();
-// CHECK-NEXT:     s.operator_equal_reverse_forw({2 * s.a, 2 * s.b + 2}, _d_s, {0., 0.}, _tracker0);
 // CHECK-NEXT:    {
 // CHECK-NEXT:        _tracker0.restore();
 // CHECK-NEXT:        MyStruct _r0 = {0., 0.};
@@ -929,6 +928,27 @@ double fn25(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct UnaryMinusMember {
+  double x;
+  UnaryMinusMember operator-() const { return UnaryMinusMember{-x}; }
+};
+
+double unaryMinusMember(double a) {
+  UnaryMinusMember v{a};
+  return (-v).x * a;
+}
+// CHECK: void unaryMinusMember_grad(double a, double *_d_a) {
+// CHECK-NEXT:     UnaryMinusMember _d_v = {0.};
+// CHECK-NEXT:     UnaryMinusMember v{a};
+// CHECK-NEXT:     double _t0 = (- v).x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         UnaryMinusMember _r0 = {0.};
+// CHECK-NEXT:         _r0.x += 1 * a;
+// CHECK-NEXT:         v.operator_minus_pullback(_r0, &_d_v);
+// CHECK-NEXT:         *_d_a += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_a += _d_v.x;
+// CHECK-NEXT: }
 struct ptrClass {
   double* ptr = nullptr;
   ptrClass() = default;
@@ -941,8 +961,8 @@ struct ptrClass {
 namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
-::clad::ValueAndAdjoint<ptrClass, ptrClass>
-constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW ::clad::ValueAndAdjoint<ptrClass, ptrClass>
+constructor_reverse_forw(::clad::Tag<ptrClass>, double* mptr, double* d_mptr);
 }}}
 
 // CHECK:  clad::ValueAndAdjoint<double &, double &> operator_star_reverse_forw(ptrClass *_d_this) {
@@ -1207,10 +1227,10 @@ double fn33(double x) {
 // CHECK-NEXT:         _d_tmp3 += 2 * _d_y;
 // CHECK-NEXT:         _d_tmp4 += 2 * _d_y;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     (PIBase *)this->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
-// CHECK-NEXT:     dynamic_cast<PIBase *>(this)->getPi_pullback(_d_tmp3, _d_this);
-// CHECK-NEXT:     reinterpret_cast<PIBase *>(this)->getPi_pullback(_d_tmp2, _d_this);
-// CHECK-NEXT:     static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, _d_this);
+// CHECK-NEXT:     ((PIBase *)this)->getPi_pullback(_d_tmp4, (PIBase *)_d_this);
+// CHECK-NEXT:     dynamic_cast<PIBase *>(this)->getPi_pullback(_d_tmp3, dynamic_cast<PIBase *>(_d_this));
+// CHECK-NEXT:     reinterpret_cast<PIBase *>(this)->getPi_pullback(_d_tmp2, reinterpret_cast<PIBase *>(_d_this));
+// CHECK-NEXT:     static_cast<PIBase *>(this)->getPi_pullback(_d_tmp1, static_cast<PIBase *>(_d_this));
 // CHECK-NEXT: }
 // CHECK-NEXT:void fn33_grad(double x, double *_d_x) {
 // CHECK-NEXT:    PI _d_pi = {};
@@ -1566,6 +1586,10 @@ int main() {
     INIT_GRADIENT(fn25);
     TEST_GRADIENT(fn25, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {-1.00, 0.00}
 
+    auto unaryMinusMember_grad = clad::gradient(unaryMinusMember);
+    double d_unaryMinusMember = 0;
+    unaryMinusMember_grad.execute(2, &d_unaryMinusMember);
+    printf("{%.2f}\n", d_unaryMinusMember); // CHECK-EXEC: {-4.00}
     INIT_GRADIENT(fn26);
     TEST_GRADIENT(fn26, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
 

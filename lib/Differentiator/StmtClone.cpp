@@ -220,6 +220,33 @@ DEFINE_CREATE_EXPR(ConstantExpr, (Ctx, Clone(Node->getSubExpr()),
                                   Node->getResultStorageKind(),
                                   Node->isImmediateInvocation()))
 
+Stmt* StmtClone::VisitCXXNewExpr(CXXNewExpr* Node) {
+  llvm::SmallVector<Expr*, 2> placementArgs;
+  for (Expr* arg : Node->placement_arguments())
+    placementArgs.push_back(Clone(arg));
+  clad_compat::llvm_Optional<Expr*> arraySize;
+  const CXXNewExpr* constNode = Node;
+  if (Node->isArray())
+    arraySize =
+        Clone(clad_compat::ArraySize_GetValue(constNode->getArraySize()));
+  Expr* init = Clone(Node->getInitializer());
+  // Sema reads `()` from an empty parenthesized list, not from the
+  // ImplicitValueInitExpr it turns that into.
+  if (llvm::isa_and_nonnull<ImplicitValueInitExpr>(init))
+    init = m_Sema
+               .ActOnParenListExpr(Node->getDirectInitRange().getBegin(),
+                                   Node->getDirectInitRange().getEnd(), {})
+               .get();
+  // The node keeps no location for the placement parentheses.
+  SourceLocation L = Node->getBeginLoc();
+  return m_Sema
+      .BuildCXXNew(Node->getSourceRange(), Node->isGlobalNew(), L,
+                   placementArgs, L, Node->getTypeIdParens(),
+                   Node->getAllocatedType(), Node->getAllocatedTypeSourceInfo(),
+                   arraySize, Node->getDirectInitRange(), init)
+      .get();
+}
+
 Stmt* StmtClone::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr* Node) {
   // Clone the arguments so the copy does not share them with the source.
   llvm::SmallVector<Expr*, 8> args(Node->getNumArgs());
@@ -544,6 +571,14 @@ Stmt* StmtClone::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr* Node) {
       CloneType(Node->getType()), Node->getOperatorLoc(), Node->getRParenLoc());
 }
 
+Stmt* StmtClone::VisitTypeTraitExpr(TypeTraitExpr* Node) {
+  // The arguments are types; Sema evaluates the trait on them again.
+  return m_Sema
+      .BuildTypeTrait(Node->getTrait(), Node->getBeginLoc(), Node->getArgs(),
+                      Node->getEndLoc())
+      .get();
+}
+
 Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
   llvm::SmallVector<Expr*, 4> clonedArgs;
   for (Expr* arg : Node->arguments())
@@ -690,8 +725,6 @@ DEFINE_CLONE_STMT(BreakStmt, (clad_compat::getBreakLoc(Node)))
 DEFINE_CLONE_STMT(CXXCatchStmt, (Node->getCatchLoc(),
                                  CloneDeclOrNull(Node->getExceptionDecl()),
                                  Clone(Node->getHandlerBlock())))
-
-DEFINE_CLONE_STMT(ValueStmt, (Node->getStmtClass()))
 
 Stmt* StmtClone::VisitCXXTryStmt(CXXTryStmt* Node) {
   llvm::SmallVector<Stmt*, 4> CatchStmts(std::max(1u, Node->getNumHandlers()));
@@ -848,9 +881,16 @@ bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
 void ReferencesUpdater::updateType(QualType QT) {
   if (const auto* varArrType = dyn_cast<VariableArrayType>(QT))
     TraverseStmt(varArrType->getSizeExpr());
+  else if (const auto* DT = dyn_cast<DecltypeType>(QT))
+    TraverseStmt(DT->getUnderlyingExpr());
 }
 
 QualType StmtClone::CloneType(const clang::QualType T) {
+  if (const auto* DT = dyn_cast<DecltypeType>(T.getTypePtr()))
+    return Ctx.getQualifiedType(
+        Ctx.getDecltypeType(Clone(DT->getUnderlyingExpr()),
+                            DT->getUnderlyingType()),
+        T.getLocalQualifiers());
   if (const auto* varArrType =
           dyn_cast<clang::VariableArrayType>(T.getTypePtr())) {
     auto elemType = varArrType->getElementType();

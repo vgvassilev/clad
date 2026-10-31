@@ -536,6 +536,7 @@ double f_decls3(double x, double y) {
 
 void f_decls3_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK:   void f_decls3_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     int _returnedAt0 = 2;
 //CHECK-NEXT:     bool _cond0 = false;
 //CHECK-NEXT:     bool _cond1 = false;
 //CHECK-NEXT:     double _d_a = 0.;
@@ -551,21 +552,26 @@ void f_decls3_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK-NEXT:                 return;
 //CHECK-NEXT:             else {
 //CHECK-NEXT:                 _cond1 = x < -1;
-//CHECK-NEXT:                 if (_cond1)
+//CHECK-NEXT:                 if (_cond1) {
+//CHECK-NEXT:                     _returnedAt0 = 1;
 //CHECK-NEXT:                     return;
+//CHECK-NEXT:                 }
 //CHECK-NEXT:             }
 //CHECK-NEXT:         }
 //CHECK-NEXT:         b = a * a;
 //CHECK-NEXT:         _d_b += 1;
 //CHECK-NEXT:     });
-//CHECK-NEXT:     {
-//CHECK-NEXT:         _d_a += _d_b * a;
-//CHECK-NEXT:         _d_a += a * _d_b;
-//CHECK-NEXT:     }
+//CHECK-NEXT:     if (1 < _returnedAt0)
+//CHECK-NEXT:         if (!_cond0) {
+//CHECK-NEXT:             _d_a += _d_b * a;
+//CHECK-NEXT:             _d_a += a * _d_b;
+//CHECK-NEXT:         }
 //CHECK-NEXT:     if (_cond0)
 //CHECK-NEXT:         _d_a += 2 * 1;
-//CHECK-NEXT:     else if (_cond1)
+//CHECK-NEXT:     else if (_cond1) {
 //CHECK-NEXT:         _d_a += -2 * 1;
+//CHECK-NEXT:         _returnedAt0 = 2;
+//CHECK-NEXT:     }
 //CHECK-NEXT:     *_d_y += 333 * _d_c;
 //CHECK-NEXT:     *_d_x += 3 * _d_a;
 //CHECK-NEXT: }
@@ -1155,12 +1161,14 @@ double f_reuse_global(double x, double t) {
 //CHECK: void f_reuse_global_grad(double x, double t, double *_d_x, double *_d_t) {
 //CHECK-NEXT:     _d_glob1 = 0.;
 //CHECK-NEXT:     double _t0 = t;
-//CHECK-NEXT:     t = g(t, x);
 //CHECK-NEXT:     double _t1 = glob1;
+//CHECK-NEXT:     t = g(t, x);
+//CHECK-NEXT:     double _t2 = glob1;
 //CHECK-NEXT:     glob1 *= t;
+//CHECK-NEXT:     double _final0 = glob1;
 //CHECK-NEXT:     _d_glob1 += -1;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         glob1 = _t1;
+//CHECK-NEXT:         glob1 = _t2;
 //CHECK-NEXT:         double _r_d1 = _d_glob1;
 //CHECK-NEXT:         _d_glob1 = 0.;
 //CHECK-NEXT:         _d_glob1 += _r_d1 * t;
@@ -1172,10 +1180,13 @@ double f_reuse_global(double x, double t) {
 //CHECK-NEXT:         *_d_t = 0.;
 //CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         double _r1 = 0.;
+//CHECK-NEXT:         glob1 = _t1;
 //CHECK-NEXT:         g_pullback(t, x, _r_d0, &_r0, &_r1);
+//CHECK-NEXT:         glob1 = _t1;
 //CHECK-NEXT:         *_d_t += _r0;
 //CHECK-NEXT:         *_d_x += _r1;
 //CHECK-NEXT:     }
+//CHECK-NEXT:     glob1 = _final0;
 //CHECK-NEXT: }
 
 double f_static_assert(double x, double y) {
@@ -1188,6 +1199,23 @@ double f_static_assert(double x, double y) {
 //CHECK-NEXT:         *_d_x += 1;
 //CHECK-NEXT:         *_d_y += 1;
 //CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+// A type trait is a constant.
+double f_type_trait(double x, double y) {
+  bool trivial = __is_trivially_copyable(double);
+  return trivial ? x * y : x;
+}
+
+//CHECK: void f_type_trait_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     bool _d_trivial = false;
+//CHECK-NEXT:     bool trivial = __is_trivially_copyable(double);
+//CHECK-NEXT:     bool _cond0 = trivial;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         *_d_x += 1 * y;
+//CHECK-NEXT:         *_d_y += x * 1;
+//CHECK-NEXT:     } else
+//CHECK-NEXT:         *_d_x += 1;
 //CHECK-NEXT: }
 
 double f_infinity(double x, double y) {
@@ -1324,6 +1352,8 @@ int main() {
 
   INIT_GRADIENT(f_static_assert);
   TEST_GRADIENT(f_static_assert, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
+  INIT_GRADIENT(f_type_trait);
+  TEST_GRADIENT(f_type_trait, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {4.00, -3.00}
 
   INIT_GRADIENT(f_infinity);
   TEST_GRADIENT(f_infinity, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {0.00, 1.00}

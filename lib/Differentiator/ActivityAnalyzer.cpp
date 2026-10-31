@@ -249,8 +249,7 @@ bool VariedAnalyzer::TraverseCUDAKernelCallExpr(CUDAKernelCallExpr* KCE) {
 }
 
 bool VariedAnalyzer::TraverseCallExpr(CallExpr* CE) {
-  Expr* callee = CE->getCallee();
-  if (isa<CXXPseudoDestructorExpr>(callee))
+  if (utils::isNoOpDestructorCall(CE))
     return false;
 
   bool variedBefore = m_Varied;

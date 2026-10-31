@@ -12,13 +12,31 @@ DerivedFnInfo::DerivedFnInfo(const DiffRequest& request,
       m_DiffVarsInfo(request.DVI),
       m_CUDAGlobalArgsIndexes(request.CUDAGlobalArgsIndexes),
       m_UsesEnzyme(request.use_enzyme),
-      m_DeclarationOnly(request.DeclarationOnly) {}
+      m_DeclarationOnly(request.DeclarationOnly),
+      m_FallbacksSeeded(request.FallbacksSeeded) {
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  m_Enable##Id##Fallback = request.Enable##Id##Fallback;
+#include "clad/Differentiator/Analyses.def"
+}
 
 bool DerivedFnInfo::SatisfiesRequest(const DiffRequest& request) const {
   return (request.Function == m_OriginalFn && request.Mode == m_Mode &&
           request.DVI == m_DiffVarsInfo && request.use_enzyme == m_UsesEnzyme &&
           request.DeclarationOnly == m_DeclarationOnly &&
           request.CUDAGlobalArgsIndexes == m_CUDAGlobalArgsIndexes);
+}
+
+const char* DerivedFnInfo::DisagreeingFallback(const DiffRequest& request,
+                                               bool& Taken) const {
+  if (!m_FallbacksSeeded || !request.FallbacksSeeded)
+    return nullptr;
+#define CLAD_FALLBACK(Id, Opt, Flag, Default, FirstBit, Desc)                  \
+  if (m_Enable##Id##Fallback != request.Enable##Id##Fallback) {                \
+    Taken = m_Enable##Id##Fallback;                                            \
+    return Flag;                                                               \
+  }
+#include "clad/Differentiator/Analyses.def"
+  return nullptr;
 }
 
 bool DerivedFnInfo::IsValid() const { return m_OriginalFn && m_DerivedFn; }

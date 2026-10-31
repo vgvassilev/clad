@@ -30,13 +30,14 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/PrettyStackTrace.h"
 
 // For the LambdaBuilder
 #if CLANG_VERSION_MAJOR > 16
-#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/Support/SaveAndRestore.h"
 #endif // CLANG_VERSION_MAJOR > 16
 
@@ -533,6 +534,9 @@ namespace clad {
     /// operand in null.
     clang::Expr* BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E,
                          clang::SourceLocation OpLoc = noLoc);
+    /// Rebuilds `&E`. Clang's implicit move assignment takes the address of an
+    /// xvalue, which Sema refuses to build, so that one is created directly.
+    clang::Expr* RebuildAddrOf(clang::Expr* E);
     /// A shorthand to simplify syntax for creation of new expressions.
     /// This function uses m_Sema.BuildBin internally to build binary
     /// operations. A typical usage of this function looks like the following:
@@ -797,9 +801,9 @@ namespace clad {
     /// Perform lookup into clad namespace for push/pop/back. Returns
     /// LookupResult, which is will be resolved later (which is handy since they
     /// are templates).
-    clang::LookupResult& GetCladTapePush();
-    clang::LookupResult& GetCladTapePop();
-    clang::LookupResult& GetCladTapeBack();
+    clang::LookupResult GetCladTapePush();
+    clang::LookupResult GetCladTapePop();
+    clang::LookupResult GetCladTapeBack();
     /// Instantiate clad::tape\<T\> type.
     clang::QualType GetCladTapeOfType(clang::QualType T);
 
@@ -840,6 +844,18 @@ namespace clad {
     /// Returns null when the customization point is not implemented for the
     /// value's type.
     clang::Expr* GetCladZeroLike(clang::Expr* value);
+
+    /// Build a default zero adjoint of type T. Prefer zero_like for records
+    /// with a matching primal type; otherwise preserve type-based zero init.
+    /// StoreValue, if provided, stores side-effecting values used by zero_like
+    /// and returns an accessible lvalue. It preserves glvalues' cv-qualifiers
+    /// and removes top-level const when storing prvalues. Without it, a
+    /// side-effecting Value gets the type-based zero instead.
+    /// The returned expression owns a clone of Value.
+    /// Scalar zeros remain literals so constant folding can recognize them.
+    clang::Expr* BuildZeroAdjoint(
+        clang::Expr* Value, clang::QualType T,
+        llvm::function_ref<clang::Expr*(clang::Expr*)> StoreValue = nullptr);
 
     /// Assigns the Init expression to VD after performing the necessary
     /// implicit conversion. This is required as clang doesn't add implicit
@@ -978,6 +994,13 @@ namespace clad {
     clang::Expr* GetNumDiffCallee(const clang::FunctionDecl* FD,
                                   clang::Expr* Callee,
                                   const clang::CallExpr* CE);
+    /// Warns at \p CE where it calls the term clad wrote to approximate a call
+    /// it could not differentiate: a derivative of the code it is in takes no
+    /// part from it, which would take derivatives of that call again. Once
+    /// for each call it approximated, in each derivative.
+    void warnIfNumDiffDerivative(const clang::CallExpr* CE);
+    /// Where warnIfNumDiffDerivative has warned.
+    llvm::DenseSet<clang::SourceLocation> m_NumDiffDerivativeWarned;
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///
@@ -987,12 +1010,17 @@ namespace clad {
     /// \param[in] numArgs The total number of 'args'.
     /// \param[in] args All the arguments to the target function.
     /// \param[in] CUDAExecConfig The kernel launch configuration, if any.
+    /// \param[in] targetTangent The tangent of 'targetArg', if the call is to
+    /// give the partial derivative times it rather than the partial alone. A
+    /// vector of tangents still gets the partial alone, zero where each of
+    /// them is, for the caller to multiply.
     ///
     /// \returns The derivative function call.
     clang::Expr* GetSingleArgCentralDiffCall(
         clang::Expr* targetFuncCall, clang::Expr* targetArg, unsigned targetPos,
         unsigned numArgs, llvm::SmallVectorImpl<clang::Expr*>& args,
-        clang::Expr* CUDAExecConfig = nullptr);
+        clang::Expr* CUDAExecConfig = nullptr,
+        clang::Expr* targetTangent = nullptr);
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
     /// Find the derived function if present in the DerivedFnCollector.

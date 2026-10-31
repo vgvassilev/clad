@@ -2154,16 +2154,17 @@ double fn35(double x, double y){
 // CHECK: void fn35_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     double *_d_begin1;
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
-// CHECK-NEXT:     double *_d_begin2;
+// CHECK-NEXT:     double *_d_begin2 = nullptr;
+// CHECK-NEXT:     clad::tape<double *> _t2 = {};
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<bool> _cond1 = {};
-// CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t2 = {};
-// CHECK-NEXT:     clad::tape<double *> _t3 = {};
+// CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t3 = {};
 // CHECK-NEXT:     clad::tape<double *> _t4 = {};
+// CHECK-NEXT:     clad::tape<double *> _t5 = {};
 // CHECK-NEXT:         double *_d_j = nullptr;
 // CHECK-NEXT:         double *j = nullptr;
-// CHECK-NEXT:     clad::tape<double *> _t5 = {};
 // CHECK-NEXT:     clad::tape<double *> _t6 = {};
+// CHECK-NEXT:     clad::tape<double *> _t7 = {};
 // CHECK-NEXT:     double *_d_i = nullptr;
 // CHECK-NEXT:     double *i = nullptr;
 // CHECK-NEXT:     double _d_r = 0.;
@@ -2180,22 +2181,23 @@ double fn35(double x, double y){
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _d_i = _d_begin1;
 // CHECK-NEXT:             i = __begin1;
-// CHECK-NEXT:             clad::push(_t5, i);
-// CHECK-NEXT:             clad::push(_t6, _d_i);
+// CHECK-NEXT:             clad::push(_t6, i);
+// CHECK-NEXT:             clad::push(_t7, _d_i);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, 0);
 // CHECK-NEXT:         double (&__range2)[3] = a;
 // CHECK-NEXT:         double (&_d_range2)[3] = _d_a;
 // CHECK-NEXT:         double *__begin2 = __range2;
+// CHECK-NEXT:         clad::push(_t2, _d_begin2);
 // CHECK-NEXT:         _d_begin2 = _d_range2;
 // CHECK-NEXT:         double *__end2 = __range2 + {{3|3L}};
 // CHECK-NEXT:         for (; __begin2 != __end2; ++__begin2 , ++_d_begin2) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:                 _d_j = _d_begin2;
 // CHECK-NEXT:                 j = __begin2;
-// CHECK-NEXT:                 clad::push(_t3, j);
-// CHECK-NEXT:                 clad::push(_t4, _d_j);
+// CHECK-NEXT:                 clad::push(_t4, j);
+// CHECK-NEXT:                 clad::push(_t5, _d_j);
 // CHECK-NEXT:         }
 // CHECK-NEXT:             clad::back(_t1)++;
 // CHECK-NEXT:         {
@@ -2206,13 +2208,14 @@ double fn35(double x, double y){
 // CHECK-NEXT:                     clad::push(_cond1, r > x * x);
 // CHECK-NEXT:                     if (clad::back(_cond1)) {
 // CHECK-NEXT:         {
-// CHECK-NEXT:                             clad::push(_t2, {{1U|1UL}});
+// CHECK-NEXT:                             clad::push(_t3, {{1U|1UL}});
+// CHECK-NEXT:                             ++_d_begin2;
 // CHECK-NEXT:                             break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
-// CHECK-NEXT:             clad::push(_t2, {{2U|2UL}});
+// CHECK-NEXT:             clad::push(_t3, {{2U|2UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     _d_r += 1;
@@ -2220,18 +2223,18 @@ double fn35(double x, double y){
 // CHECK-NEXT:         {
 // CHECK-NEXT:         {
 // CHECK-NEXT:                 _d_begin1--;
-// CHECK-NEXT:                 i = clad::pop(_t5);
-// CHECK-NEXT:                 _d_i = clad::pop(_t6);
+// CHECK-NEXT:                 i = clad::pop(_t6);
+// CHECK-NEXT:                 _d_i = clad::pop(_t7);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:                 for (; clad::back(_t1); clad::back(_t1)--) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:         {
 // CHECK-NEXT:                             _d_begin2--;
-// CHECK-NEXT:                             j = clad::pop(_t3);
-// CHECK-NEXT:                             _d_j = clad::pop(_t4);
+// CHECK-NEXT:                             j = clad::pop(_t4);
+// CHECK-NEXT:                             _d_j = clad::pop(_t5);
 // CHECK-NEXT:         }
-// CHECK-NEXT:                         switch (clad::pop(_t2)) {
+// CHECK-NEXT:                         switch (clad::pop(_t3)) {
 // CHECK-NEXT:                           case {{2U|2UL}}:
 // CHECK-NEXT:                             ;
 // CHECK-NEXT:         {
@@ -2253,6 +2256,7 @@ double fn35(double x, double y){
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
+// CHECK-NEXT:                 _d_begin2 = clad::pop(_t2);
 // CHECK-NEXT:                 clad::pop(_t1);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
@@ -2964,6 +2968,73 @@ double fn48(double x, double y, int n) {
     printf("{%.2f, %.2f}\n", result[0], result[1]);                            \
   }
 
+// A member calls begin() and end() on this.
+struct Buf {
+  double d[2];
+  double* begin() { return d; }
+  double* end() { return d + 2; }
+  double sum() {
+    double s = 0;
+    for (double* p = begin(); p != end(); ++p)
+      s += *p;
+    return s;
+  }
+};
+
+double fn49(double x, double y) {
+  Buf b{{x, x * y}};
+  return b.sum();
+}
+
+//CHECK: inline void sum_pullback(double _d_y, Buf *_d_this) {
+//CHECK-NEXT:     double *_d_p = nullptr;
+//CHECK-NEXT:     double *p = nullptr;
+//CHECK-NEXT:     double _d_s = 0.;
+//CHECK-NEXT:     double s = 0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = 0;
+//CHECK-NEXT:     _d_p = std::begin(*_d_this);
+//CHECK-NEXT:     for (p = std::begin(*this); p != std::end(*this); ++_d_p , ++p) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         s += *p;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_s += _d_y;
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             --p;
+//CHECK-NEXT:             --_d_p;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         double _r_d0 = _d_s;
+//CHECK-NEXT:         *_d_p += _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+// A constant denominator is not stored, nor is the numerator: only the
+// derivative with respect to the denominator would read it.
+double fn50(double x, double y) {
+  double r = 0;
+  for (int i = 0; i < 2; i++)
+    r += std::sin(x * y) / double(2);
+  return r;
+}
+
+//CHECK: void fn50_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
+//CHECK-NEXT:     double _d_r = 0.;
+//CHECK-NEXT:     double r = 0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
+//CHECK-NEXT:     for (i = 0; i < 2; i++) {
+//CHECK-NEXT:         r += std::sin(x * y) / double(2);
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_r += 1;
+//CHECK-NEXT:     for (_t0 = 2U; _t0; _t0--) {
+//CHECK-NEXT:         double _r0 = 0.;
+//CHECK-NEXT:         _r0 += _d_r / double(2) * clad::custom_derivatives::std::sin_pushforward(x * y, 1.).pushforward;
+//CHECK-NEXT:         *_d_x += _r0 * y;
+//CHECK-NEXT:         *_d_y += x * _r0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 int main() {
   double result[5] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
@@ -3068,4 +3139,7 @@ int main() {
   result[0] = result[1] = 0;
   d_fn48.execute(1, 0.5, 3, result, result + 1);
   printf("{%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: {1.00, 1.26}
+
+  TEST_2(fn49, 2, 3); // CHECK-EXEC: {4.00, 2.00}
+  TEST_2(fn50, 1, 2); // CHECK-EXEC: {-0.83, -0.42}
 }

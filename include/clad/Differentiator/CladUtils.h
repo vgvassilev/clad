@@ -130,6 +130,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// \returns  type with namespace specifier added.
     clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext& C, clang::QualType QT);
 
+    /// The context to look up the custom derivative of a call in: that of the
+    /// declaration the call found, or, for a block-scope using-declaration,
+    /// that of the declaration it names.
+    const clang::DeclContext*
+    GetCustomDerivativeLookupContext(const clang::Decl* Found);
     /// Finds declaration context associated with the DC1::DC2, but doesn't
     /// replicate the common part of the declaration contexts.
     /// For example, consider DC1 corresponds to the following declaration
@@ -281,6 +286,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// Given an expression `E`, this function builds and returns the expression
     /// `(E)`.
     clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef, clang::Expr* E);
+
+    /// Returns `base` wrapped in a `ParenExpr` if it needs parentheses to be
+    /// printed as the base of a member access, e.g. `(*p).x`; otherwise
+    /// returns `base`.
+    clang::Expr* ParenthesizeMemberBase(clang::Sema& semaRef,
+                                        clang::Expr* base);
 
     /// Returns `IdentifierInfo` that represents the value in the `identifier`
     /// parameter.
@@ -507,6 +518,12 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isNonDifferentiableType(clang::Sema& S,
                                  const clang::CXXRecordDecl* RD);
 
+    /// Whether a type explicitly opts out of saving its pre-call value when
+    /// passed through a mutable reference. The marker may be on the type or
+    /// its clad::Tag specialization.
+    bool hasNoPrimalTapeAttribute(clang::Sema& S,
+                                  const clang::CXXRecordDecl* RD);
+
     /// Returns true if the type \p CE fundamentally operates on -- the object
     /// of a member call, or the first argument of a free operator (`os << x`)
     /// -- is non-differentiable (Tag-aware, so it honors clad::Tag\<T\>
@@ -597,11 +614,18 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool CanReturnOutputTangent(const clang::FunctionDecl* FD);
 
     bool isCopyable(const clang::CXXRecordDecl* RD);
+    /// Whether a copy of an object of type \p T holds everything a function
+    /// can change through a reference to it: \p T reaches no other memory.
+    bool reachesNoOtherMemory(const clang::ASTContext& C, clang::QualType T);
 
     bool exprDependsOnVarDecl(const clang::Expr* E, const clang::VarDecl* VD);
 
     bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
                              const clang::ASTContext& C);
+
+    /// Whether \p CE destroys an object without running any code: a pseudo
+    /// destructor call on a scalar, or a call to a trivial destructor.
+    bool isNoOpDestructorCall(const clang::CallExpr* CE);
 
     /// Returns true if the reverse-forward propagator for constructor \p CD is
     /// structurally elidable -- clad need not synthesize one because the plain
@@ -609,7 +633,7 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// it. This holds for a trivial copy/move constructor (a shallow share of
     /// pointer/handle members), an aggregate, and a memberwise zero-or-copy
     /// initializer. A non-trivial constructor can additionally opt in with the
-    /// elidable_reverse_forw attribute on its custom reverse_forw (see
+    /// CLAD_ELIDABLE_REVERSE_FORW attribute on its custom reverse_forw (see
     /// hasElidableReverseForwAttribute) -- both paths are combined where the
     /// propagator is consumed.
     bool constructorReverseForwIsElidable(const clang::CXXConstructorDecl* CD,
@@ -621,7 +645,7 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool returnsAdjoint(clang::QualType T);
 
     /// Resolve clad::zero_like(value), returning null without diagnostics
-    /// when no usable overload exists.
+    /// when no usable overload returns the primal type by value.
     clang::FunctionDecl* LookupCladZeroLike(clang::Sema& S, clang::Expr* value);
 
     bool hasMemoryTypeParams(const clang::FunctionDecl* FD);
@@ -638,10 +662,23 @@ clang::Sema::SemaDiagnosticBuilder diag(
     /// \param E the expression to judge.
     /// \param asPointerValue E is a pointer rvalue passed to a callee, so
     /// the pointee is judged rather than the pointer variable's own slot.
+    /// \param followLocalReferences judge a local reference by what it is
+    /// bound to: right for lifetime, not for aliasing.
     bool designatesLocallyOwnedStorage(const clang::Expr* E,
-                                       bool asPointerValue = false);
+                                       bool asPointerValue = false,
+                                       bool followLocalReferences = false);
 
     bool IsDifferentiableType(clang::QualType T);
+
+    /// If \p CE is a memcpy or memmove whose destination or source, before
+    /// its conversion to `void*`, holds floating-point data, that type.
+    clang::QualType GetByteCopiedFloatingType(const clang::CallExpr* CE);
+
+    /// If \p CE is a memcpy or memmove from an array of a real floating type
+    /// to an array of the same type, a call to clad::byte_copy that copies
+    /// the same elements. Null otherwise.
+    clang::CallExpr* BuildTypedByteCopy(clang::Sema& S,
+                                        const clang::CallExpr* CE);
 
     bool hasElidableReverseForwAttribute(const clang::Decl* D);
 
@@ -664,8 +701,11 @@ clang::Sema::SemaDiagnosticBuilder diag(
     bool isInjective(const clang::Expr* E, clang::AnalysisDeclContext* ADC);
     /// Checks if the return value of the given CallExpr is unused.
     bool hasUnusedReturnValue(clang::ASTContext& C, const clang::CallExpr* CE);
-    /// Returns true if the function is empty
-    bool hasEmptyBody(const clang::FunctionDecl* FD);
+    /// Whether the derivative \p FD is marked CLAD_NOOP_DERIVATIVE.
+    bool hasNoopDerivativeAttribute(const clang::FunctionDecl* FD);
+    /// Whether the derivative \p FD does nothing: it is marked
+    /// CLAD_NOOP_DERIVATIVE or its body is empty.
+    bool isNoopDerivative(const clang::FunctionDecl* FD);
     /// For an expr E, decides if we should recompute it or store it.
     /// This is the central point for checkpointing.
     bool ShouldRecompute(const clang::Expr* E, const clang::ASTContext& C);

@@ -4,20 +4,51 @@
 #include <array>
 #include <clad/Differentiator/Array.h>
 #include <clad/Differentiator/BuiltinDerivatives.h>
+#include <clad/Differentiator/Differentiator.h>
 #include <clad/Differentiator/FunctionTraits.h>
 #include <functional>
 #include <initializer_list>
 #include <iosfwd>
 #include <iterator>
 #include <memory>
+#if __cplusplus >= 201703L
+#include <optional>
+#endif
 #include <string>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
-#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
-
 namespace clad {
+
+#if __cplusplus >= 201703L
+// nullopt_t has no default constructor; its zero adjoint is the sentinel.
+inline ::std::nullopt_t zero_like(const ::std::nullopt_t&) {
+  return ::std::nullopt;
+}
+#endif
+
+namespace zero_like_detail {
+template <class T, class = void> struct result {};
+} // namespace zero_like_detail
+
+template <class T1, class T2>
+auto zero_like(const ::std::pair<T1, T2>& value)
+    -> decltype(::std::pair<T1, T2>{
+        ::std::declval<typename zero_like_detail::result<T1>::type>(),
+        ::std::declval<typename zero_like_detail::result<T2>::type>()}) {
+  return {zero_like(value.first), zero_like(value.second)};
+}
+
+namespace zero_like_detail {
+// Define this after the pair overload so nested pairs participate in lookup.
+template <class T>
+struct result<T, decltype(static_cast<void>(
+                     zero_like(::std::declval<const T&>())))> {
+  using type = decltype(zero_like(::std::declval<const T&>()));
+};
+} // namespace zero_like_detail
 
 // zero_init specializations
 
@@ -102,6 +133,17 @@ struct is_std_smart_ptr<
 } // namespace helpers
 
 namespace class_functions {
+
+#if __cplusplus >= 201703L
+// Copying nullopt or constructing an empty optional carries no gradient.
+inline void constructor_pullback(const ::std::nullopt_t&,
+                                 ::std::nullopt_t* /*d_this*/,
+                                 ::std::nullopt_t* /*d_nullopt*/) {}
+
+template <typename T>
+void constructor_pullback(::std::nullopt_t, ::std::optional<T>* /*d_this*/,
+                          ::std::nullopt_t* /*d_nullopt*/) {}
+#endif
 
 // vector forward mode
 
@@ -494,19 +536,19 @@ size_pushforward(const ::std::array<T, N>* a,
 // more can be found in tests: test/Gradient/STLCustomDerivatives.C
 
 template <typename T, typename... Args>
-clad::ValueAndAdjoint<::std::vector<T>, ::std::vector<T>>
-constructor_reverse_forw(clad::Tag<::std::vector<T>>,
-                         Args...) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW
+    clad::ValueAndAdjoint<::std::vector<T>, ::std::vector<T>>
+    constructor_reverse_forw(clad::Tag<::std::vector<T>>, Args...);
 
 template <typename T, typename... Args>
-clad::ValueAndAdjoint<::std::allocator<T>, ::std::allocator<T>>
-constructor_reverse_forw(clad::Tag<::std::allocator<T>>,
-                         Args...) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW
+    clad::ValueAndAdjoint<::std::allocator<T>, ::std::allocator<T>>
+    constructor_reverse_forw(clad::Tag<::std::allocator<T>>, Args...);
 
 template <typename T, typename U, typename... Args>
-clad::ValueAndAdjoint<::std::pair<T, U>, ::std::pair<T, U>>
-constructor_reverse_forw(clad::Tag<::std::pair<T, U>>,
-                         Args...) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW
+    clad::ValueAndAdjoint<::std::pair<T, U>, ::std::pair<T, U>>
+    constructor_reverse_forw(clad::Tag<::std::pair<T, U>>, Args...);
 
 template <typename T, typename U, typename pU>
 void push_back_reverse_forw(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
@@ -540,14 +582,14 @@ void resize_pullback(::std::vector<T>* v,
 }
 
 template <typename T>
-elidable_reverse_forw clad::ValueAndAdjoint<T&, T&>
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&>
 operator_subscript_reverse_forw(::std::vector<T>* vec,
                                 typename ::std::vector<T>::size_type idx,
                                 ::std::vector<T>* d_vec,
                                 typename ::std::vector<T>::size_type d_idx);
 
 template <typename T>
-const elidable_reverse_forw T& operator_subscript_reverse_forw(
+CLAD_ELIDABLE_REVERSE_FORW const T& operator_subscript_reverse_forw(
     const ::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
     const ::std::vector<T>* d_vec, typename ::std::vector<T>::size_type d_idx);
 
@@ -572,15 +614,15 @@ void operator_subscript_pullback(const ::std::vector<T>* vec,
                                  typename ::std::vector<T>::size_type* d_idx) {}
 
 template <typename T>
-void operator_subscript_pullback(::std::vector<T>* vec,
-                                 typename ::std::vector<T>::size_type idx,
-                                 ::std::vector<T>* d_vec,
-                                 typename ::std::vector<T>::size_type* d_idx);
+CLAD_NOOP_DERIVATIVE void operator_subscript_pullback(
+    ::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
+    ::std::vector<T>* d_vec, typename ::std::vector<T>::size_type* d_idx);
 
 template <typename T>
-clad::ValueAndAdjoint<T&, T&> elidable_reverse_forw at_reverse_forw(
-    ::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
-    ::std::vector<T>* d_vec, typename ::std::vector<T>::size_type d_idx);
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&>
+at_reverse_forw(::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
+                ::std::vector<T>* d_vec,
+                typename ::std::vector<T>::size_type d_idx);
 
 template <typename T, typename P>
 void at_pullback(const ::std::vector<T>* vec,
@@ -591,10 +633,10 @@ void at_pullback(const ::std::vector<T>* vec,
 }
 
 template <typename T>
-void at_pullback(::std::vector<T>* vec,
-                 typename ::std::vector<T>::size_type idx,
-                 ::std::vector<T>* d_vec,
-                 typename ::std::vector<T>::size_type* d_idx);
+CLAD_NOOP_DERIVATIVE void
+at_pullback(::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
+            ::std::vector<T>* d_vec,
+            typename ::std::vector<T>::size_type* d_idx);
 
 template <typename T, typename U>
 void constructor_pullback(
@@ -643,14 +685,15 @@ void assign_pullback(::std::vector<T>* v,
 }
 
 template <typename T>
-void reserve_pullback(::std::vector<T>* v,
-                      typename ::std::vector<T>::size_type n,
-                      ::std::vector<T>* d_v,
-                      typename ::std::vector<T>::size_type* /*d_n*/) noexcept;
+CLAD_NOOP_DERIVATIVE void
+reserve_pullback(::std::vector<T>* v, typename ::std::vector<T>::size_type n,
+                 ::std::vector<T>* d_v,
+                 typename ::std::vector<T>::size_type* /*d_n*/) noexcept;
 
 template <typename T>
-void shrink_to_fit_pullback(::std::vector<T>* /*v*/,
-                            ::std::vector<T>* /*d_v*/) noexcept;
+CLAD_NOOP_DERIVATIVE void
+shrink_to_fit_pullback(::std::vector<T>* /*v*/,
+                       ::std::vector<T>* /*d_v*/) noexcept;
 
 template <typename T>
 void shrink_to_fit_reverse_forw(::std::vector<T>* v,
@@ -664,17 +707,19 @@ void shrink_to_fit_reverse_forw(::std::vector<T>* v,
 // size()/capacity(), which is pointer arithmetic over the internal members and
 // whose pullback is only empty by accident of how the header is written.
 template <typename T, typename P>
-void size_pullback(const ::std::vector<T>* /*v*/, P /*d_y*/,
-                   ::std::vector<T>* /*d_v*/) noexcept;
+CLAD_NOOP_DERIVATIVE void size_pullback(const ::std::vector<T>* /*v*/,
+                                        P /*d_y*/,
+                                        ::std::vector<T>* /*d_v*/) noexcept;
 
 template <typename T, typename P>
-void capacity_pullback(const ::std::vector<T>* /*v*/, P /*d_y*/,
-                       ::std::vector<T>* /*d_v*/) noexcept;
+CLAD_NOOP_DERIVATIVE void capacity_pullback(const ::std::vector<T>* /*v*/,
+                                            P /*d_y*/,
+                                            ::std::vector<T>* /*d_v*/) noexcept;
 
 // array reverse mode
 
 template <typename T, ::std::size_t N>
-elidable_reverse_forw clad::ValueAndAdjoint<T&, T&>
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&>
 operator_subscript_reverse_forw(::std::array<T, N>* arr,
                                 typename ::std::array<T, N>::size_type idx,
                                 ::std::array<T, N>* d_arr,
@@ -688,12 +733,11 @@ void operator_subscript_pullback(
   (*d_arr)[idx] += d_y;
 }
 template <typename T, ::std::size_t N>
-void operator_subscript_pullback(::std::array<T, N>* arr,
-                                 typename ::std::array<T, N>::size_type idx,
-                                 ::std::array<T, N>* d_arr,
-                                 typename ::std::array<T, N>::size_type* d_idx);
+CLAD_NOOP_DERIVATIVE void operator_subscript_pullback(
+    ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
+    ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type* d_idx);
 template <typename T, ::std::size_t N>
-elidable_reverse_forw clad::ValueAndAdjoint<T&, T&> at_reverse_forw(
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&> at_reverse_forw(
     ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
     ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type d_idx);
 
@@ -705,10 +749,10 @@ void at_pullback(const ::std::array<T, N>* arr,
   (*d_arr)[idx] += d_y;
 }
 template <typename T, ::std::size_t N>
-void at_pullback(::std::array<T, N>* arr,
-                 typename ::std::array<T, N>::size_type idx,
-                 ::std::array<T, N>* d_arr,
-                 typename ::std::array<T, N>::size_type* d_idx);
+CLAD_NOOP_DERIVATIVE void
+at_pullback(::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
+            ::std::array<T, N>* d_arr,
+            typename ::std::array<T, N>::size_type* d_idx);
 template <typename T, ::std::size_t N>
 void fill_reverse_forw(::std::array<T, N>* a,
                        const typename ::std::array<T, N>::value_type& u,
@@ -729,7 +773,7 @@ void fill_pullback(::std::array<T, N>* arr,
   }
 }
 template <typename T, ::std::size_t N>
-clad::ValueAndAdjoint<T&, T&> elidable_reverse_forw
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&>
 back_reverse_forw(::std::array<T, N>* arr, ::std::array<T, N>* d_arr) noexcept;
 
 template <typename T, ::std::size_t N>
@@ -739,9 +783,10 @@ void back_pullback(const ::std::array<T, N>* arr,
   (*d_arr)[d_arr->size() - 1] += d_u;
 }
 template <typename T, ::std::size_t N>
-void back_pullback(::std::array<T, N>* arr, ::std::array<T, N>* d_arr) noexcept;
+CLAD_NOOP_DERIVATIVE void back_pullback(::std::array<T, N>* arr,
+                                        ::std::array<T, N>* d_arr) noexcept;
 template <typename T, ::std::size_t N>
-clad::ValueAndAdjoint<T&, T&> elidable_reverse_forw
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&>
 front_reverse_forw(::std::array<T, N>* arr, ::std::array<T, N>* d_arr) noexcept;
 template <typename T, ::std::size_t N>
 void front_pullback(const ::std::array<T, N>* arr,
@@ -786,16 +831,17 @@ operator_equal_pushforward(::std::tuple<Args1...>* tu,
 
 // std::unique_ptr<T> custom derivatives...
 template <typename T, typename U>
-clad::ValueAndAdjoint<::std::unique_ptr<T>, ::std::unique_ptr<T>>
-constructor_reverse_forw(clad::Tag<::std::unique_ptr<T>>, U* p,
-                         U* d_p) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW
+    clad::ValueAndAdjoint<::std::unique_ptr<T>, ::std::unique_ptr<T>>
+    constructor_reverse_forw(clad::Tag<::std::unique_ptr<T>>, U* p, U* d_p);
 
 template <typename T>
-void constructor_pullback(T* p, ::std::unique_ptr<T>* dthis, T* dp) noexcept;
+CLAD_NOOP_DERIVATIVE void
+constructor_pullback(T* p, ::std::unique_ptr<T>* dthis, T* dp) noexcept;
 
 // operator* custom derivatives
 template <typename T>
-elidable_reverse_forw
+CLAD_ELIDABLE_REVERSE_FORW
     clad::ValueAndAdjoint<decltype(*(T{}))&, decltype(*(T{}))&>
     operator_star_reverse_forw(
         const ::std::enable_if_t<helpers::is_std_smart_ptr<T>::value ||
@@ -807,9 +853,8 @@ elidable_reverse_forw
 template <
     typename It,
     typename ::clad::custom_derivatives::helpers::is_iterator<It>::type = 1>
-clad::ValueAndAdjoint<It, It>
-constructor_reverse_forw(clad::Tag<It>, const It& it,
-                         const It& d_it) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<It, It>
+constructor_reverse_forw(clad::Tag<It>, const It& it, const It& d_it);
 
 template <
     typename It,
@@ -845,61 +890,70 @@ void operator_plus_plus_pullback(It* it, int, It pullback, It* d_it, int*) {
 
 // std::shared_ptr<T> custom derivatives...
 template <typename T>
-clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
-constructor_reverse_forw(clad::Tag<::std::shared_ptr<T>>,
-                         const ::std::shared_ptr<T>& p,
-                         const ::std::shared_ptr<T>& d_p) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW
+    clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
+    constructor_reverse_forw(clad::Tag<::std::shared_ptr<T>>,
+                             const ::std::shared_ptr<T>& p,
+                             const ::std::shared_ptr<T>& d_p);
 
 template <typename T>
-void constructor_pullback(::std::shared_ptr<T>&& p, ::std::shared_ptr<T>* dthis,
-                          ::std::shared_ptr<T>* dp) noexcept;
+CLAD_NOOP_DERIVATIVE void
+constructor_pullback(::std::shared_ptr<T>&& p, ::std::shared_ptr<T>* dthis,
+                     ::std::shared_ptr<T>* dp) noexcept;
 
 template <typename T>
-void constructor_pullback(const ::std::shared_ptr<T>& p,
-                          ::std::shared_ptr<T>* dthis,
-                          ::std::shared_ptr<T>* dp) noexcept;
+CLAD_NOOP_DERIVATIVE void
+constructor_pullback(const ::std::shared_ptr<T>& p, ::std::shared_ptr<T>* dthis,
+                     ::std::shared_ptr<T>* dp) noexcept;
 
 template <typename T, typename U>
-void constructor_pullback(const ::std::shared_ptr<T>& p, U*,
-                          ::std::weak_ptr<T>* dthis, ::std::shared_ptr<T>* dp,
-                          U*) noexcept;
+CLAD_NOOP_DERIVATIVE void constructor_pullback(const ::std::shared_ptr<T>& p,
+                                               U*, ::std::weak_ptr<T>* dthis,
+                                               ::std::shared_ptr<T>* dp,
+                                               U*) noexcept;
 
 // std::weak_ptr<T> custom derivatives...
 template <typename T, typename U>
-clad::ValueAndAdjoint<::std::weak_ptr<T>, ::std::weak_ptr<T>>
-constructor_reverse_forw(clad::Tag<::std::weak_ptr<T>>, U p,
-                         U d_p) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW
+    clad::ValueAndAdjoint<::std::weak_ptr<T>, ::std::weak_ptr<T>>
+    constructor_reverse_forw(clad::Tag<::std::weak_ptr<T>>, U p, U d_p);
 template <typename T, typename U>
-void constructor_pullback(U&& p, ::std::weak_ptr<T>* dthis, U* dp) noexcept;
+CLAD_NOOP_DERIVATIVE void constructor_pullback(U&& p, ::std::weak_ptr<T>* dthis,
+                                               U* dp) noexcept;
 
 template <typename T, typename U>
-void constructor_pullback(const U& p, ::std::weak_ptr<T>* dthis,
-                          U* dp) noexcept;
+CLAD_NOOP_DERIVATIVE void
+constructor_pullback(const U& p, ::std::weak_ptr<T>* dthis, U* dp) noexcept;
 
 template <typename T>
-clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
-    elidable_reverse_forw lock_reverse_forw(
-        const ::std::weak_ptr<T>* p, const ::std::weak_ptr<T>* dp) noexcept;
+CLAD_ELIDABLE_REVERSE_FORW
+    clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
+    lock_reverse_forw(const ::std::weak_ptr<T>* p,
+                      const ::std::weak_ptr<T>* dp) noexcept;
 
 template <typename T>
-void lock_pullback(const ::std::weak_ptr<T>* p, ::std::shared_ptr<T> dthis,
-                   ::std::weak_ptr<T>* dp) noexcept;
+CLAD_NOOP_DERIVATIVE void lock_pullback(const ::std::weak_ptr<T>* p,
+                                        ::std::shared_ptr<T> dthis,
+                                        ::std::weak_ptr<T>* dp) noexcept;
 
 // std::reference_wrapper custom derivatives
 template <typename T, typename U>
-clad::ValueAndAdjoint<::std::reference_wrapper<T>, ::std::reference_wrapper<T>>
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<::std::reference_wrapper<T>,
+                                                 ::std::reference_wrapper<T>>
 constructor_reverse_forw(
     clad::ConstructorReverseForwTag<::std::reference_wrapper<T>>, U&& p,
-    U&& d_p) elidable_reverse_forw;
+    U&& d_p);
 
 template <typename T, typename U>
-void constructor_pullback(U& /*p*/, ::std::reference_wrapper<T>* /*dthis*/,
-                          U* /*d_p*/);
+CLAD_NOOP_DERIVATIVE void
+constructor_pullback(U& /*p*/, ::std::reference_wrapper<T>* /*dthis*/,
+                     U* /*d_p*/);
 
 template <typename T>
-clad::ValueAndAdjoint<T&, T&> conversion_operator_reverse_forw(
-    clad::Tag<T&>, const ::std::reference_wrapper<T>* x,
-    const ::std::reference_wrapper<T>* dx) elidable_reverse_forw;
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&>
+conversion_operator_reverse_forw(clad::Tag<T&>,
+                                 const ::std::reference_wrapper<T>* x,
+                                 const ::std::reference_wrapper<T>* dx);
 } // namespace class_functions
 
 namespace std {
@@ -970,12 +1024,12 @@ template <typename... Args> auto make_tuple_pushforward(Args... args) noexcept {
 
 // std::forward custom derivatives
 template <class T>
-clad::ValueAndAdjoint<T&&, T&&>
-    elidable_reverse_forw forward_reverse_forw(T&& t, T&& dt);
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&&, T&&>
+forward_reverse_forw(T&& t, T&& dt);
 
 template <class T>
-clad::ValueAndAdjoint<T&, T&> elidable_reverse_forw forward_reverse_forw(T& t,
-                                                                         T& dt);
+CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<T&, T&>
+forward_reverse_forw(T& t, T& dt);
 
 template <class T>
 constexpr void forward_pullback(T&& t, T dy, T* dt) noexcept {
@@ -984,7 +1038,7 @@ constexpr void forward_pullback(T&& t, T dy, T* dt) noexcept {
 
 // std::make_shared<T> custom derivatives...
 template <typename T>
-elidable_reverse_forw
+CLAD_ELIDABLE_REVERSE_FORW
     clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
     make_shared_reverse_forw(T& x, T& dx) {
   return {::std::make_shared<T>(x), ::std::make_shared<T>(dx)};

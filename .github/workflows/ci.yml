@@ -161,13 +161,14 @@ jobs:
           - { name: ubu24-clang20-runtime23, os: ubuntu-24.04, compiler: clang-20, clang-runtime: '23', use-recipe: 'true' }
           - { name: ubu24-clang22-runtime23-asan, os: ubuntu-24.04, compiler: clang-22, clang-runtime: '23', flavor: asan, extra_cmake_options: '-DLLVM_USE_SANITIZER=Address' }
           # --- MACOS: Last 5 Runtimes (19-23) ---
-          # macOS ARM (standard) throughout; the oldest runtime runs on Intel
-          # for x86 sanity. brew has llvm@19 through llvm@22 but no llvm@23,
-          # so that row takes the published llvm-release cell instead. The
-          # Intel row stays on macos-15-intel because it needs no cell; the
-          # ones that are built are for macos-26-intel.
-          - { name: osx-intel-runtime19, os: macos-15-intel, compiler: clang, clang-runtime: '19' }
-          - { name: osx-arm-runtime20, os: macos-26, compiler: clang, clang-runtime: '20' }
+          # macOS ARM (standard) throughout, with one runtime on Intel for
+          # x86 sanity. brew has llvm@19 through llvm@22 but no llvm@23, so
+          # that row takes the published llvm-release cell instead. On Intel,
+          # where Homebrew has no bottles left to upgrade to, setup-llvm uses
+          # what the image carries rather than install: llvm@20 on
+          # macos-26-intel, the newest of them.
+          - { name: osx-arm-runtime19, os: macos-26, compiler: clang, clang-runtime: '19' }
+          - { name: osx-intel-runtime20, os: macos-26-intel, compiler: clang, clang-runtime: '20' }
           - { name: osx-arm-runtime21, os: macos-26, compiler: clang, clang-runtime: '21' }
           - { name: osx-arm-runtime22, os: macos-26, compiler: clang, clang-runtime: '22' }
           - { name: osx-arm-runtime23, os: macos-26, compiler: clang, clang-runtime: '23', use-recipe: 'true' }

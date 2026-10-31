@@ -72,6 +72,21 @@ public:
 
   virtual void ExecuteInsidePushforwardFunctionBlock() {}
 
+  /// Gives the derivatives of the two branches of a ?: of type \p T the same
+  /// form. Nothing to do here; vector mode turns a scalar zero beside a vector
+  /// of tangents into a vector of zeros.
+  virtual void matchBranchTangents(StmtDiff& /*TrueDiff*/,
+                                   StmtDiff& /*FalseDiff*/,
+                                   clang::QualType /*T*/) {}
+
+  /// The tangent of \p Cast, whose operand's tangent is \p Dx, where it is
+  /// not \p Dx cast the same way; null otherwise. Vector mode does not cast a
+  /// vector of tangents to a number.
+  virtual clang::Expr* castTangent(clang::Expr* /*Dx*/,
+                                   const clang::CastExpr* /*Cast*/) {
+    return nullptr;
+  }
+
   /// \returns \p read, the derivative expression dereferencing \p tangent,
   /// wrapped so that it evaluates to \p zero instead of dereferencing a null
   /// \p tangent. \p ptr is the primal pointer expression \p tangent is the
@@ -106,6 +121,7 @@ public:
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
+  StmtDiff VisitCXXMemberCallExpr(const clang::CXXMemberCallExpr* CE);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
   StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
@@ -157,6 +173,7 @@ public:
   StmtDiff VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPL);
   StmtDiff
   VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
+  StmtDiff VisitTypeTraitExpr(const clang::TypeTraitExpr* TTE);
   StmtDiff VisitPseudoObjectExpr(const clang::PseudoObjectExpr* POE);
   StmtDiff VisitSubstNonTypeTemplateParmExpr(
       const clang::SubstNonTypeTemplateParmExpr* NTTP);
@@ -218,6 +235,17 @@ protected:
 
   /// Builds the pushforward lambda for LE
   clang::Expr* buildPushforwardLambda(const clang::LambdaExpr* LE);
+
+  /// Handles the arguments of the construction \p E that have no tangent.
+  ///
+  /// \return The zero object of E's type when no argument carries anything
+  /// to differentiate; otherwise null, with the slots of \p derivedArgs that
+  /// were null filled in so the derived object can be built at all.
+  clang::Expr*
+  FillMissingCtorTangents(const clang::Expr* E,
+                          llvm::ArrayRef<const clang::Expr*> args,
+                          llvm::ArrayRef<clang::Expr*> clonedArgs,
+                          llvm::MutableArrayRef<clang::Expr*> derivedArgs);
 
 private:
   /// Prepares the derivative function parameters.

@@ -4,7 +4,7 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oEllipticIntegrals.out
 // RUN: ./EllipticIntegrals.out | %filecheck_exec %s
 
-// %cladclang compiles with -DCLAD_NO_NUM_DIFF, so a numerical-differentiation
+// %cladclang compiles with -fno-numerical-diff-fallback, so a numerical-differentiation
 // fallback would emit a warning and fail %filecheck: every derivative below is
 // forced through the builtin pushforwards and pullbacks.
 //

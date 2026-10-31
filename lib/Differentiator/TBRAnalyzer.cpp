@@ -35,9 +35,64 @@ using namespace clang;
 
 namespace clad {
 
-void TBRAnalyzer::markLocation(const clang::Stmt* S) { m_TBRLocs.insert(S); }
+void TBRAnalyzer::markLocation(const clang::Stmt* S) {
+  // The CFG splits `double a = .., b = ..;` into one synthetic DeclStmt per
+  // declarator, and that is what the analysis walks. The reverse-mode visitor
+  // asks about the statement as written, so record that one.
+  if (const auto* DS = dyn_cast<DeclStmt>(S))
+    for (const auto& SynthAndSource : m_AnalysisDC->getCFG()->synthetic_stmts())
+      if (SynthAndSource.first == DS) {
+        S = SynthAndSource.second;
+        break;
+      }
+  m_TBRLocs.insert(S);
+}
+
+/// Whether \p E stores through a pointer loaded from anything but a pointer
+/// variable, such as `ptrs[0][1]` or `h.p[1]`. The variable data follows a
+/// pointer variable to what it points to, but not a pointer kept in an array
+/// or a struct, so such a store may land in any parameter.
+static bool storesThroughLoadedPointer(const Expr* E) {
+  while (true) {
+    E = E->IgnoreParens();
+    const Expr* Base = nullptr;
+    if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(E))
+      Base = ASE->getBase();
+    else if (const auto* ME = dyn_cast<MemberExpr>(E))
+      Base = ME->getBase();
+    else if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+      if (UO->getOpcode() != UO_Deref)
+        return false;
+      Base = UO->getSubExpr();
+    } else
+      return false;
+    Base = Base->IgnoreParens();
+    if (const auto* ICE = dyn_cast<ImplicitCastExpr>(Base))
+      if (ICE->getCastKind() == CK_LValueToRValue &&
+          ICE->getType()->isPointerType() &&
+          !isa<DeclRefExpr>(ICE->getSubExpr()->IgnoreParens()))
+        return true;
+    E = Base->IgnoreParenImpCasts();
+  }
+}
+
+void TBRAnalyzer::markAllMemoryParamsModified() {
+  for (const ParmVarDecl* PVD : m_Function->parameters())
+    if (utils::isMemoryType(PVD->getType()))
+      (*m_ModifiedParams)[m_Function].insert(PVD);
+}
+
+void TBRAnalyzer::markParamModified(const clang::ParmVarDecl* PVD) {
+  // A number passed by value is the callee's own copy: its caller never sees
+  // the write, and has nothing to restore.
+  if (PVD && PVD->getType()->isArithmeticType())
+    return;
+  (*m_ModifiedParams)[m_Function].insert(PVD);
+}
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
+  if (!isReq && m_ModifiedParams && storesThroughLoadedPointer(E))
+    markAllMemoryParamsModified();
   llvm::SmallVector<ProfileID, 2> IDSequence;
   const VarDecl* VD = nullptr;
   bool sequenceFound = getIDSequence(E, VD, IDSequence);
@@ -54,7 +109,7 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
     const auto* PVD = dyn_cast_or_null<ParmVarDecl>(iterVD);
     if (m_ModifiedParams && (!iterVD || PVD)) {
       if (!isReq)
-        (*m_ModifiedParams)[m_Function].insert(PVD);
+        markParamModified(PVD);
       else if (m_ModeStack.back() & Mode::kMarkingMode)
         (*m_UsedParams)[m_Function].insert(PVD);
     }
@@ -285,14 +340,19 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     if (nonLinear)
       startNonLinearMode();
 
+    // The reverse sweep reads a stored operand's copy, so the operation needs
+    // none of its operands. It still differentiates through the operand,
+    // though, and the operand's own non-linear subexpressions read theirs:
+    // keep marking on and drop only the non-linear bit. The same holds for a
+    // stored numerator or denominator below.
     if (LHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(L);
     if (LHSIsStored)
       resetMode();
 
     if (RHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(R);
     if (RHSIsStored)
       resetMode();
@@ -310,13 +370,13 @@ bool TBRAnalyzer::TraverseBinaryOperator(BinaryOperator* BinOp) {
     bool LHSIsStored =
         !utils::ShouldRecompute(L, m_AnalysisDC->getASTContext());
     if (LHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(L);
     if (LHSIsStored)
       resetMode();
     bool RHSIsStored = utils::UsefulToStore(R);
     if (RHSIsStored)
-      setMode(/*mode=*/0);
+      setMode(m_ModeStack.back() & ~Mode::kNonLinearMode);
     TraverseStmt(R);
     if (RHSIsStored)
       resetMode();
@@ -392,12 +452,14 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
     if (findReq(E))
       markLocation(E);
     if (m_ModifiedParams) {
+      if (storesThroughLoadedPointer(E))
+        markAllMemoryParamsModified();
       std::set<const clang::VarDecl*> vars;
       getDependencySet(E, vars);
       for (const VarDecl* VD : vars) {
         const auto* PVD = dyn_cast_or_null<ParmVarDecl>(VD);
         if (!VD || PVD)
-          (*m_ModifiedParams)[m_Function].insert(PVD);
+          markParamModified(PVD);
       }
     }
   }
@@ -409,9 +471,8 @@ bool TBRAnalyzer::TraverseUnaryOperator(clang::UnaryOperator* UnOp) {
 }
 
 bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
-  Expr* callee = CE->getCallee();
-  // Pseudo destructors don't contribute to TBR information.
-  if (isa<CXXPseudoDestructorExpr>(callee))
+  // Pseudo and trivial destructors don't contribute to TBR information.
+  if (utils::isNoOpDestructorCall(CE))
     return false;
   // FIXME: Currently TBR analysis just stops here and assumes that all the
   // variables passed by value/reference are used/used and changed. Analysis
@@ -555,7 +616,9 @@ bool TBRAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
   for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
     auto* arg = CE->getArg(i);
-    bool passByRef = FD->getParamDecl(i)->getType()->isReferenceType();
+    QualType paramTy = FD->getParamDecl(i)->getType();
+    // A constructor cannot write through a const reference.
+    bool passByRef = utils::isNonConstReferenceType(paramTy);
     setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
     TraverseStmt(arg);
     resetMode();
@@ -574,6 +637,11 @@ bool TBRAnalyzer::TraverseCXXConstructExpr(clang::CXXConstructExpr* CE) {
 }
 
 bool TBRAnalyzer::TraverseMemberExpr(clang::MemberExpr* ME) {
+  // As for a subscript, the base itself is not read, but what it is built of
+  // can be: the reverse sweep needs `i` in `arr[i].x`.
+  setMode(/*mode=*/0);
+  TraverseStmt(ME->getBase());
+  resetMode();
   setIsRequired(ME);
   return false;
 }

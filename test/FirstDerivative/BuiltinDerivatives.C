@@ -304,6 +304,70 @@ float f_builtin_fabsf(float x) {
   return __builtin_fabsf(x);
 }
 
+double f_builtin_sin(double x) {
+  return __builtin_sin(x);
+}
+
+float f_builtin_sinf(float x) {
+  return __builtin_sinf(x);
+}
+
+double f_builtin_cos(double x) {
+  return __builtin_cos(x);
+}
+
+float f_builtin_cosf(float x) {
+  return __builtin_cosf(x);
+}
+
+double f_builtin_tan(double x) {
+  return __builtin_tan(x);
+}
+
+float f_builtin_tanf(float x) {
+  return __builtin_tanf(x);
+}
+
+double f_builtin_asin(double x) {
+  return __builtin_asin(x);
+}
+
+float f_builtin_asinf(float x) {
+  return __builtin_asinf(x);
+}
+
+double f_builtin_acos(double x) {
+  return __builtin_acos(x);
+}
+
+float f_builtin_acosf(float x) {
+  return __builtin_acosf(x);
+}
+
+double f_builtin_atan(double x) {
+  return __builtin_atan(x);
+}
+
+float f_builtin_atanf(float x) {
+  return __builtin_atanf(x);
+}
+
+double f_builtin_exp(double x) {
+  return __builtin_exp(x);
+}
+
+float f_builtin_expf(float x) {
+  return __builtin_expf(x);
+}
+
+double f_builtin_sinh(double x) {
+  return __builtin_sinh(x);
+}
+
+float f_builtin_sinhf(float x) {
+  return __builtin_sinhf(x);
+}
+
 double f15(double y, double x) {
   return std::atan2(y, x);
 }
@@ -699,6 +763,118 @@ int main () { //expected-no-diagnostics
   auto f_builtin_fabsf_grad = clad::gradient(f_builtin_fabsf);
   f_builtin_fabsf_grad.execute(-5.F, &f_result[0]);
   printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = -1.000000
+
+  auto f_builtin_sin_darg0 = clad::differentiate(f_builtin_sin, 0);
+  printf("Result is = %f\n", f_builtin_sin_darg0.execute(0)); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_sinf_darg0 = clad::differentiate(f_builtin_sinf, 0);
+  printf("Result is = %f\n", f_builtin_sinf_darg0.execute(0.F)); //CHECK-EXEC: Result is = 1.000000
+
+  d_result[0] = 0;
+  auto f_builtin_sin_grad = clad::gradient(f_builtin_sin);
+  f_builtin_sin_grad.execute(0, &d_result[0]);
+  printf("Result is = %f\n", d_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  f_result[0] = 0;
+  auto f_builtin_sinf_grad = clad::gradient(f_builtin_sinf);
+  f_builtin_sinf_grad.execute(0.F, &f_result[0]);
+  printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_tan_darg0 = clad::differentiate(f_builtin_tan, 0);
+  printf("Result is = %f\n", f_builtin_tan_darg0.execute(0)); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_tanf_darg0 = clad::differentiate(f_builtin_tanf, 0);
+  printf("Result is = %f\n", f_builtin_tanf_darg0.execute(0.F)); //CHECK-EXEC: Result is = 1.000000
+
+  d_result[0] = 0;
+  auto f_builtin_tan_grad = clad::gradient(f_builtin_tan);
+  f_builtin_tan_grad.execute(0, &d_result[0]);
+  printf("Result is = %f\n", d_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  f_result[0] = 0;
+  auto f_builtin_tanf_grad = clad::gradient(f_builtin_tanf);
+  f_builtin_tanf_grad.execute(0.F, &f_result[0]);
+  printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_asin_darg0 = clad::differentiate(f_builtin_asin, 0);
+  printf("Result is = %f\n", f_builtin_asin_darg0.execute(0)); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_asinf_darg0 = clad::differentiate(f_builtin_asinf, 0);
+  printf("Result is = %f\n", f_builtin_asinf_darg0.execute(0.F)); //CHECK-EXEC: Result is = 1.000000
+
+  d_result[0] = 0;
+  auto f_builtin_asin_grad = clad::gradient(f_builtin_asin);
+  f_builtin_asin_grad.execute(0, &d_result[0]);
+  printf("Result is = %f\n", d_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  f_result[0] = 0;
+  auto f_builtin_asinf_grad = clad::gradient(f_builtin_asinf);
+  f_builtin_asinf_grad.execute(0.F, &f_result[0]);
+  printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_acos_darg0 = clad::differentiate(f_builtin_acos, 0);
+  printf("Result is = %f\n", f_builtin_acos_darg0.execute(0)); //CHECK-EXEC: Result is = -1.000000
+
+  auto f_builtin_acosf_darg0 = clad::differentiate(f_builtin_acosf, 0);
+  printf("Result is = %f\n", f_builtin_acosf_darg0.execute(0.F)); //CHECK-EXEC: Result is = -1.000000
+
+  d_result[0] = 0;
+  auto f_builtin_acos_grad = clad::gradient(f_builtin_acos);
+  f_builtin_acos_grad.execute(0, &d_result[0]);
+  printf("Result is = %f\n", d_result[0]); //CHECK-EXEC: Result is = -1.000000
+
+  f_result[0] = 0;
+  auto f_builtin_acosf_grad = clad::gradient(f_builtin_acosf);
+  f_builtin_acosf_grad.execute(0.F, &f_result[0]);
+  printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = -1.000000
+
+  auto f_builtin_atan_darg0 = clad::differentiate(f_builtin_atan, 0);
+  printf("Result is = %f\n", f_builtin_atan_darg0.execute(0)); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_atanf_darg0 = clad::differentiate(f_builtin_atanf, 0);
+  printf("Result is = %f\n", f_builtin_atanf_darg0.execute(0.F)); //CHECK-EXEC: Result is = 1.000000
+
+  d_result[0] = 0;
+  auto f_builtin_atan_grad = clad::gradient(f_builtin_atan);
+  f_builtin_atan_grad.execute(0, &d_result[0]);
+  printf("Result is = %f\n", d_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  f_result[0] = 0;
+  auto f_builtin_atanf_grad = clad::gradient(f_builtin_atanf);
+  f_builtin_atanf_grad.execute(0.F, &f_result[0]);
+  printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_exp_darg0 = clad::differentiate(f_builtin_exp, 0);
+  printf("Result is = %f\n", f_builtin_exp_darg0.execute(0)); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_expf_darg0 = clad::differentiate(f_builtin_expf, 0);
+  printf("Result is = %f\n", f_builtin_expf_darg0.execute(0.F)); //CHECK-EXEC: Result is = 1.000000
+
+  d_result[0] = 0;
+  auto f_builtin_exp_grad = clad::gradient(f_builtin_exp);
+  f_builtin_exp_grad.execute(0, &d_result[0]);
+  printf("Result is = %f\n", d_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  f_result[0] = 0;
+  auto f_builtin_expf_grad = clad::gradient(f_builtin_expf);
+  f_builtin_expf_grad.execute(0.F, &f_result[0]);
+  printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_sinh_darg0 = clad::differentiate(f_builtin_sinh, 0);
+  printf("Result is = %f\n", f_builtin_sinh_darg0.execute(0)); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_sinhf_darg0 = clad::differentiate(f_builtin_sinhf, 0);
+  printf("Result is = %f\n", f_builtin_sinhf_darg0.execute(0.F)); //CHECK-EXEC: Result is = 1.000000
+
+  d_result[0] = 0;
+  auto f_builtin_sinh_grad = clad::gradient(f_builtin_sinh);
+  f_builtin_sinh_grad.execute(0, &d_result[0]);
+  printf("Result is = %f\n", d_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  f_result[0] = 0;
+  auto f_builtin_sinhf_grad = clad::gradient(f_builtin_sinhf);
+  f_builtin_sinhf_grad.execute(0.F, &f_result[0]);
+  printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = 1.000000
 
   auto f15_darg0 = clad::differentiate(f15, 0);
   printf("Result is = %f\n", f15_darg0.execute(4, 3)); //CHECK-EXEC: Result is = 0.120000

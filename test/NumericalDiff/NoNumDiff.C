@@ -5,11 +5,11 @@
 #include <cmath>
 
 double func(double x) { return std::tgamma(x); } // expected-warning 2{{attempted differentiation of function 'tgamma' without definition and no suitable overload was found in namespace 'custom_derivatives'}}
-// expected-note@7 2{{fallback to numerical differentiation is disabled by the 'CLAD_NO_NUM_DIFF' macro}}
+// expected-note@7 2{{the numerical-diff fallback is off for this request}}
 
 //CHECK: double func_darg0(double x) {
 //CHECK-NEXT:     double _d_x = 1;
-//CHECK-NEXT:     return 0;
+//CHECK-NEXT:     return 0.;
 //CHECK-NEXT: }
 
 //CHECK: void func_grad(double x, double *_d_x) {

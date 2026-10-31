@@ -231,6 +231,11 @@ inline clang::QualType getCanonicalTagType(clang::ASTContext& /*C*/,
   return TD->getTypeForDecl()->getCanonicalTypeInternal();
 }
 
+inline bool hasSameUnqualifiedType(const clang::ASTContext& C,
+                                   clang::QualType T1, clang::QualType T2) {
+  return C.hasSameUnqualifiedType(T1, T2);
+}
+
 inline clang::QualType
 CheckTemplateIdType(clang::Sema& S, clang::TemplateName T,
                     clang::SourceLocation Loc,
@@ -342,6 +347,12 @@ inline clang::QualType getRecordType(clang::ASTContext& C,
 inline clang::QualType getCanonicalTagType(clang::ASTContext& C,
                                            const clang::TagDecl* TD) {
   return C.getCanonicalTagType(TD);
+}
+
+// Clang 22 made this type comparison a static member.
+inline bool hasSameUnqualifiedType(const clang::ASTContext& /*C*/,
+                                   clang::QualType T1, clang::QualType T2) {
+  return clang::ASTContext::hasSameUnqualifiedType(T1, T2);
 }
 
 // Clang 22: CheckTemplateIdType gained Keyword + Scope* +

@@ -89,21 +89,21 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     double *_d_device_c = nullptr;
 // CHECK-NEXT:     double *device_c = nullptr;
 // CHECK-NEXT:     unsigned long _t0 = sizeof(double);
-// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t1 = clad::custom_derivatives::cudaMalloc_pushforward(&device_a, n * _t0, &_d_device_a, _d_n * _t0 + n * sizeof(double));
+// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t1 = clad::custom_derivatives::cudaMalloc_pushforward(&device_a, n * _t0, &_d_device_a, _d_n * _t0);
 // CHECK-NEXT:     unsigned long _t2 = sizeof(double);
-// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t3 = clad::custom_derivatives::cudaMalloc_pushforward(&device_b, n * _t2, &_d_device_b, _d_n * _t2 + n * sizeof(double));
+// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t3 = clad::custom_derivatives::cudaMalloc_pushforward(&device_b, n * _t2, &_d_device_b, _d_n * _t2);
 // CHECK-NEXT:     unsigned long _t4 = sizeof(double);
-// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t5 = clad::custom_derivatives::cudaMalloc_pushforward(&device_c, n * _t4, &_d_device_c, _d_n * _t4 + n * sizeof(double));
+// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t5 = clad::custom_derivatives::cudaMalloc_pushforward(&device_c, n * _t4, &_d_device_c, _d_n * _t4);
 // CHECK-NEXT:     unsigned long _t6 = sizeof(double);
-// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t7 = clad::custom_derivatives::cudaMemcpy_pushforward(device_a, a, n * _t6, cudaMemcpyHostToDevice, _d_device_a, _d_a, _d_n * _t6 + n * sizeof(double));
+// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t7 = clad::custom_derivatives::cudaMemcpy_pushforward(device_a, a, n * _t6, cudaMemcpyHostToDevice, _d_device_a, _d_a, _d_n * _t6);
 // CHECK-NEXT:     unsigned long _t8 = sizeof(double);
-// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t9 = clad::custom_derivatives::cudaMemcpy_pushforward(device_b, b, n * _t8, cudaMemcpyHostToDevice, _d_device_b, _d_b, _d_n * _t8 + n * sizeof(double));
+// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t9 = clad::custom_derivatives::cudaMemcpy_pushforward(device_b, b, n * _t8, cudaMemcpyHostToDevice, _d_device_b, _d_b, _d_n * _t8);
 // CHECK-NEXT:     unsigned long _t10 = sizeof(double);
-// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t11 = clad::custom_derivatives::cudaMemcpy_pushforward(device_c, c, n * _t10, cudaMemcpyHostToDevice, _d_device_c, _d_c, _d_n * _t10 + n * sizeof(double));
+// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t11 = clad::custom_derivatives::cudaMemcpy_pushforward(device_c, c, n * _t10, cudaMemcpyHostToDevice, _d_device_c, _d_c, _d_n * _t10);
 // CHECK-NEXT:     add_pushforward<<<1, 700>>>(device_a, device_b, device_c, n, _d_device_a, _d_device_b, _d_device_c, _d_n);
 // CHECK-NEXT:     cudaDeviceSynchronize();
 // CHECK-NEXT:     unsigned long _t12 = sizeof(double);
-// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t13 = clad::custom_derivatives::cudaMemcpy_pushforward(c, device_c, n * _t12, cudaMemcpyDeviceToHost, _d_c, _d_device_c, _d_n * _t12 + n * sizeof(double));
+// CHECK-NEXT:     ValueAndPushforward<cudaError_t, cudaError_t> _t13 = clad::custom_derivatives::cudaMemcpy_pushforward(c, device_c, n * _t12, cudaMemcpyDeviceToHost, _d_c, _d_device_c, _d_n * _t12);
 // CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double sum = 0;
 // CHECK-NEXT:     {
@@ -117,8 +117,31 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     return _d_sum * i + sum * _d_i + (2 * _d_sum) * j + _t14 * _d_j;
 // CHECK-NEXT: }
 
+__global__ void convert_pushforward(double* result) {
+  clad::ValueAndPushforward<float, float> original{1.25F, 3.5F};
+  clad::ValueAndPushforward<double, double> widened = original;
+  clad::ValueAndPushforward<float, double> mixed = original;
+  result[0] = widened.value;
+  result[1] = widened.pushforward;
+  result[2] = mixed.value;
+  result[3] = mixed.pushforward;
+}
+
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
 
   TEST_DIFFERENTIATE(fn1, 3, 5);  // CHECK-EXEC: 8000.00
+
+  double* converted;
+  if (cudaMallocManaged(&converted, 4 * sizeof(double)) != cudaSuccess)
+    return 1;
+  convert_pushforward<<<1, 1>>>(converted);
+  if (cudaDeviceSynchronize() != cudaSuccess) {
+    cudaFree(converted);
+    return 1;
+  }
+  printf("pushforward conversion: %.2f,%.2f,%.2f,%.2f\n", converted[0],
+         converted[1], converted[2], converted[3]);
+  // CHECK-EXEC: pushforward conversion: 1.25,3.50,1.25,3.50
+  cudaFree(converted);
 }

@@ -9,6 +9,7 @@
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/Options.h"
+#include "clad/Differentiator/PerfAdvisor.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/Timers.h"
 #include "clad/Differentiator/Version.h"
@@ -56,8 +57,11 @@
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Lex/LexDiagnostic.h"
+#include "clang/Lex/MacroInfo.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -71,6 +75,7 @@
 #include "clad/Differentiator/DiffMode.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdlib>  // for getenv
 #include <iostream> // for std::cerr
@@ -186,6 +191,11 @@ void InitTimers();
     // doesn't throw an error.
     auto predefines = m_CI.getPreprocessor().getPredefines();
     predefines.append("#define __CLAD__ 1\n");
+    // A header cannot see clad's flags, and a built-in derivative that
+    // approximates by itself has to know when the fallback is off. It is the
+    // translation unit's setting; a request's own cannot reach a macro.
+    if (!m_DO.EnableNumericalDiffFallback)
+      predefines.append("#define CLAD_NUMERICAL_DIFF_FALLBACK_OFF 1\n");
     m_CI.getPreprocessor().setPredefines(predefines);
   }
 
@@ -727,17 +737,18 @@ void InitTimers();
             *it, getAttachedLoopLoc(request.Function, *it, SM));
     }
 
-    static void diagnoseUnusedPragma(Sema& S, DiffRequest& request) {
+    static void
+    diagnoseUnusedPragma(Sema& S, DiffRequest& request,
+                         std::set<SourceLocation>& DiagnosedCheckpoints) {
       if (request.Mode != DiffMode::reverse &&
           request.Mode != DiffMode::pullback)
         return;
 
-      static std::set<clang::SourceLocation> DiagnosedCladLoopCheckpoints;
       for (const auto& pair : request.m_CladLoopCheckpoints) {
         if (pair.second.isValid())
           continue;
 
-        if (!DiagnosedCladLoopCheckpoints.insert(pair.first).second)
+        if (!DiagnosedCheckpoints.insert(pair.first).second)
           continue;
 
         unsigned diagID = S.Diags.getCustomDiagID(
@@ -808,6 +819,7 @@ void InitTimers();
                                              1);
         auto DFI = getScheduler().getDerivedFns().Find(request);
         if (DFI.IsValid()) {
+          m_DerivativeBuilder->diagnoseFallbackConflict(request, DFI);
           DerivativeDecl = DFI.DerivedFn();
           OverloadedDerivativeDecl = DFI.OverloadedDerivedFn();
           alreadyDerived = true;
@@ -819,7 +831,7 @@ void InitTimers();
           // accidental numerical diff.
           if (isa<CXXConstructorDecl>(FD) &&
               (request.Mode == DiffMode::pullback) &&
-              utils::hasEmptyBody(DerivativeDecl))
+              utils::isNoopDerivative(DerivativeDecl))
             return nullptr;
           if (DerivativeDecl)
             getScheduler().getDerivedFns().Add(DerivedFnInfo(
@@ -828,7 +840,7 @@ void InitTimers();
       }
 
       // Propagate relevant pragmas to diffrequests
-      diagnoseUnusedPragma(S, request);
+      diagnoseUnusedPragma(S, request, m_DiagnosedLoopCheckpoints);
 
       if (OverloadedDerivativeDecl) {
         S.MarkFunctionReferenced(SourceLocation(), OverloadedDerivativeDecl);
@@ -846,6 +858,7 @@ void InitTimers();
           Generated G;
           G.Derivative = DerivativeDecl;
           G.AnalysisRan = request.EnableTBRAnalysis;
+          G.Mode = request.Mode;
           // Where a user asked for this derivative, when one did. Clad asks
           // for some itself -- the second derivative a hessian needs -- and
           // those were written on no line at all.
@@ -1034,6 +1047,17 @@ void InitTimers();
     }
 
     void CladPlugin::HandleTranslationUnit(ASTContext& C) {
+      // The fallback is a flag now: the macro that turned it off, ignored,
+      // would turn it back on without a word.
+      Preprocessor& PP = m_CI.getPreprocessor();
+      // Unless the fallback is off anyway: then the macro asks for what
+      // -fno-numerical-diff-fallback gives, and one build line can serve both
+      // a clad that knows the flag and one that only knew the macro.
+      const MacroInfo* MI =
+          PP.getMacroInfo(PP.getIdentifierInfo("CLAD_NO_NUM_DIFF"));
+      if (MI && m_DO.EnableNumericalDiffFallback)
+        utils::diag(m_CI.getSema(), CladDiag::err_no_num_diff_macro,
+                    MI->getDefinitionLoc());
       // In case of diagnostics, don't bother, just let the compiler finish.
       if (!m_CI.getDiagnostics().hasErrorOccurred()) {
         // Traverse all collected DeclGroupRef only once to create the static
@@ -1061,6 +1085,13 @@ void InitTimers();
         }
 
         FinalizeTranslationUnit();
+        if (m_DO.RemarkPerf) {
+          llvm::SmallVector<AdvisedDerivative, 16> Advised;
+          for (const Generated& G : m_Generated)
+            if (G.Derivative->doesThisDeclarationHaveABody())
+              Advised.push_back({G.Derivative, G.Original, G.Mode});
+          adviseOnPerformance(m_CI.getSema(), Advised);
+        }
         // Before the multiplexer: this is the last point at which every
         // derivative exists and none has reached code generation.
         materializeGeneratedCode();
@@ -1153,6 +1184,56 @@ X("clad", "Produces derivatives or arbitrary functions");
 
 static PragmaHandlerRegistry::Add<CladPragmaHandler>
     Y("clad", "Clad pragma directives handler.");
+
+namespace {
+/// [[clad::NAME]] attaches the annotation clad looks for to the declaration it
+/// appertains to; see CLAD_ELIDABLE_REVERSE_FORW in BuiltinDerivatives.h.
+class CladAttrInfo : public clang::ParsedAttrInfo {
+  const char* m_Annotation;
+
+protected:
+  CladAttrInfo(llvm::ArrayRef<Spelling> S, const char* Annotation)
+      : m_Annotation(Annotation) {
+    Spellings = S;
+  }
+
+public:
+  AttrHandling handleDeclAttribute(clang::Sema& S, clang::Decl* D,
+                                   const clang::ParsedAttr& A) const override {
+    D->addAttr(clang::AnnotateAttr::Create(S.Context, m_Annotation, nullptr, 0,
+                                           A.getRange()));
+    return AttributeApplied;
+  }
+};
+
+struct NonDifferentiableAttrInfo : CladAttrInfo {
+  static constexpr std::array<Spelling, 1> S = {
+      {{clang::ParsedAttr::AS_CXX11, "clad::non_differentiable"}}};
+  NonDifferentiableAttrInfo()
+      : CladAttrInfo(S, /*Annotation=*/"non_differentiable") {}
+};
+
+struct ElidableReverseForwAttrInfo : CladAttrInfo {
+  static constexpr std::array<Spelling, 1> S = {
+      {{clang::ParsedAttr::AS_CXX11, "clad::elidable_reverse_forw"}}};
+  ElidableReverseForwAttrInfo()
+      : CladAttrInfo(S, /*Annotation=*/"elidable_reverse_forw") {}
+};
+
+struct NoopDerivativeAttrInfo : CladAttrInfo {
+  static constexpr std::array<Spelling, 1> S = {
+      {{clang::ParsedAttr::AS_CXX11, "clad::noop_derivative"}}};
+  NoopDerivativeAttrInfo()
+      : CladAttrInfo(S, /*Annotation=*/"noop_derivative") {}
+};
+} // namespace
+
+static const clang::ParsedAttrInfoRegistry::Add<NonDifferentiableAttrInfo>
+    NonDifferentiableAttr("clad-non-differentiable", "");
+static const clang::ParsedAttrInfoRegistry::Add<ElidableReverseForwAttrInfo>
+    ElidableReverseForwAttr("clad-elidable-reverse-forw", "");
+static const clang::ParsedAttrInfoRegistry::Add<NoopDerivativeAttrInfo>
+    NoopDerivativeAttr("clad-noop-derivative", "");
 
 // Attach the backend plugin.
 #include "ClangBackendPlugin.h"

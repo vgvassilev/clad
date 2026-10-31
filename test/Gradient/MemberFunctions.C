@@ -5,8 +5,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-#define elidable_reverse_forw __attribute__((annotate("elidable_reverse_forw")))
-
 class SimpleFunctions {
 public:
   SimpleFunctions(double p_x = 0, double p_y = 0) : x(p_x), y(p_y) {}
@@ -557,11 +555,11 @@ class SafeTestClass {
 namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
-    clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
-    constructor_reverse_forw(clad::Tag<SafeTestClass>, double x, double* y, double d_x, double* d_y) elidable_reverse_forw;
+    CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
+    constructor_reverse_forw(clad::Tag<SafeTestClass>, double x, double* y, double d_x, double* d_y);
     
-    clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
-    constructor_reverse_forw(clad::Tag<SafeTestClass>, double &x, double &d_x) elidable_reverse_forw;
+    CLAD_ELIDABLE_REVERSE_FORW clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
+    constructor_reverse_forw(clad::Tag<SafeTestClass>, double &x, double &d_x);
 
     clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
     constructor_reverse_forw(clad::Tag<SafeTestClass>) {
@@ -661,7 +659,7 @@ double fn9(double x, double y) {
 // CHECK-NEXT:      double res = s->getVal();
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      s->getVal_pullback(_d_res, _d_s);
-// CHECK-NEXT:      *_d_x += *_d_s.val;
+// CHECK-NEXT:      *_d_x += (*_d_s).val;
 // CHECK-NEXT:      delete s;
 // CHECK-NEXT:      delete _d_s;
 // CHECK-NEXT:  }
@@ -740,7 +738,6 @@ double fn11(double u, double v) {
 // CHECK-NEXT:      a.setData(u);
 // CHECK-NEXT:      res += a.data * v;
 // CHECK-NEXT:      _tracker0.clear();
-// CHECK-NEXT:      a.increment_reverse_forw(&_d_a, _tracker0);
 // CHECK-NEXT:      _d_res += 1;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          _tracker0.restore();

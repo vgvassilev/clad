@@ -797,21 +797,21 @@ double multiplySimpleFunctionByValue(SimpleFunctions v, double value) {
 }
 
   // CHECK:   double addValueToSimpleFunction_darg1(SimpleFunctions v, double value) {
-  // CHECK-NEXT:       SimpleFunctions _d_v;
+  // CHECK-NEXT:       SimpleFunctions _d_v = clad::zero_like(v);
   // CHECK-NEXT:       double _d_value = 1;
   // CHECK-NEXT:       clad::ValueAndPushforward<SimpleFunctions, SimpleFunctions> _t0 = clad::custom_derivatives::class_functions::operator_plus_equal_pushforward(&v, value, &_d_v, _d_value);
   // CHECK-NEXT:       return _d_v.x;
   // CHECK-NEXT:   }
 
   // CHECK:   double subtractValueFromSimpleFunction_darg1(SimpleFunctions v, double value) {
-  // CHECK-NEXT:       SimpleFunctions _d_v;
+  // CHECK-NEXT:       SimpleFunctions _d_v = clad::zero_like(v);
   // CHECK-NEXT:       double _d_value = 1;
   // CHECK-NEXT:       clad::ValueAndPushforward<SimpleFunctions &, SimpleFunctions &> _t0 = clad::custom_derivatives::class_functions::operator_minus_equal_pushforward(&v, value, &_d_v, _d_value);
   // CHECK-NEXT:       return _d_v.x;
   // CHECK-NEXT:   }
 
   // CHECK:   double multiplySimpleFunctionByValue_darg1(SimpleFunctions v, double value) {
-  // CHECK-NEXT:       SimpleFunctions _d_v;
+  // CHECK-NEXT:       SimpleFunctions _d_v = clad::zero_like(v);
   // CHECK-NEXT:       double _d_value = 1;
   // CHECK-NEXT:       clad::ValueAndPushforward<SimpleFunctions &, SimpleFunctions &> _t0 = clad::custom_derivatives::class_functions::operator_star_equal_pushforward(&v, value, &_d_v, _d_value);
   // CHECK-NEXT:       return _d_v.x;

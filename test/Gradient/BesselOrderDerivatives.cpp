@@ -1,6 +1,6 @@
 // RUN: %cladclang -std=c++17 %s -I%S/../../include -oBesselOrderDerivatives.out
 // RUN: ./BesselOrderDerivatives.out | %filecheck_exec %s
-// RUN: %cladclang -std=c++17 -UCLAD_NO_NUM_DIFF -DNUM_DIFF %s \
+// RUN: %cladnumdiffclang -std=c++17 -DNUM_DIFF %s \
 // RUN:   -I%S/../../include -oBesselOrderDerivativesNum.out
 // RUN: ./BesselOrderDerivativesNum.out | %filecheck_exec %s
 // CHECK-EXEC: Bessel order derivatives: {{PASS|SKIP}}
@@ -8,7 +8,7 @@
 // The derivative of cyl_bessel_j, _i and _k with respect to the order nu, in
 // forward and reverse mode, against mpmath's derivative in nu at x = 2.5.
 // Integer orders use closed forms. A non-integer order needs a numerical
-// difference, which CLAD_NO_NUM_DIFF turns into NaN instead of zero.
+// difference, which -fno-numerical-diff-fallback turns into NaN instead of zero.
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>

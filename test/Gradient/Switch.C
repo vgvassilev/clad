@@ -34,28 +34,28 @@ double fn1(double i, double j) {
 // CHECK-NEXT:         switch (_cond0) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 0:
-// CHECK-NEXT:                 res += i * j;
 // CHECK-NEXT:                 _t0 = res;
+// CHECK-NEXT:                 res += i * j;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 1:
-// CHECK-NEXT:                 res += i * i;
 // CHECK-NEXT:                 _t1 = res;
+// CHECK-NEXT:                 res += i * i;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                   case 2:
-// CHECK-NEXT:                     res += j * j;
 // CHECK-NEXT:                     _t2 = res;
+// CHECK-NEXT:                     res += j * j;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               default:
-// CHECK-NEXT:                 res += i * i * j * j;
 // CHECK-NEXT:                 _t3 = res;
+// CHECK-NEXT:                 res += i * i * j * j;
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
@@ -147,29 +147,29 @@ double fn2(double i, double j) {
 // CHECK-NEXT:             res += 50 * i;
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 0:
-// CHECK-NEXT:                 res += i;
 // CHECK-NEXT:                 _t2 = res;
+// CHECK-NEXT:                 res += i;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 1:
-// CHECK-NEXT:                 res += j;
 // CHECK-NEXT:                 _t3 = res;
+// CHECK-NEXT:                 res += j;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 2:
-// CHECK-NEXT:                 res += i * j;
 // CHECK-NEXT:                 _t4 = res;
+// CHECK-NEXT:                 res += i * j;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               default:
-// CHECK-NEXT:                 res += i + j;
 // CHECK-NEXT:                 _t5 = res;
+// CHECK-NEXT:                 res += i + j;
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
@@ -267,8 +267,8 @@ double fn3(double i, double j) {
 // CHECK-NEXT:                 switch (clad::back(_cond0)) {
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                       case 0:
-// CHECK-NEXT:                         res += i * i * j * j;
 // CHECK-NEXT:                         clad::push(_t1, res);
+// CHECK-NEXT:                         res += i * i * j * j;
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                       case 1:
@@ -282,13 +282,13 @@ double fn3(double i, double j) {
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                       case 2:
-// CHECK-NEXT:                         res += j * j;
 // CHECK-NEXT:                         clad::push(_t3, res);
+// CHECK-NEXT:                         res += j * j;
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                       default:
-// CHECK-NEXT:                         res += i + j;
 // CHECK-NEXT:                         clad::push(_t4, res);
+// CHECK-NEXT:                         res += i + j;
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
@@ -379,8 +379,8 @@ double fn4(double i, double j) {
 // CHECK-NEXT:         switch (1) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 0:
-// CHECK-NEXT:                 res += i * i * j * j;
 // CHECK-NEXT:                 _t0 = res;
+// CHECK-NEXT:                 res += i * i * j * j;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 break;
@@ -458,8 +458,8 @@ double fn5(double i, double j) {
 // CHECK-NEXT:         _cond0 = count;
 // CHECK-NEXT:         switch (_cond0) {
 // CHECK-NEXT:           case 1:
-// CHECK-NEXT:             res += i * j;
 // CHECK-NEXT:             _t0 = res;
+// CHECK-NEXT:             res += i * j;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += 1;
@@ -503,8 +503,8 @@ double fn6(double u, double v) {
 // CHECK-NEXT:         switch (_cond0) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:               default:
-// CHECK-NEXT:                 temp = 1;
 // CHECK-NEXT:                 _t1 = temp;
+// CHECK-NEXT:                 temp = 1;
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
@@ -569,8 +569,8 @@ double fn7(double u, double v) {
 // CHECK-NEXT:                       case 1:
 // CHECK-NEXT:                         {
 // CHECK-NEXT:                           case 2:
-// CHECK-NEXT:                             res += u;
 // CHECK-NEXT:                             clad::push(_t1, res);
+// CHECK-NEXT:                             res += u;
 // CHECK-NEXT:                         }
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                 }
@@ -581,8 +581,8 @@ double fn7(double u, double v) {
 // CHECK-NEXT:                   case 3:
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                       default:
-// CHECK-NEXT:                         res += v;
 // CHECK-NEXT:                         clad::push(_t2, res);
+// CHECK-NEXT:                         res += v;
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 {
@@ -677,32 +677,32 @@ double fn24(double x, double y, Op op) {
 // CHECK-NEXT:         switch (_cond0) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case Add:
-// CHECK-NEXT:                 res = x + y;
 // CHECK-NEXT:                 _t0 = res;
+// CHECK-NEXT:                 res = x + y;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case Sub:
-// CHECK-NEXT:                 res = x - y;
 // CHECK-NEXT:                 _t1 = res;
+// CHECK-NEXT:                 res = x - y;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case Mul:
-// CHECK-NEXT:                 res = x * y;
 // CHECK-NEXT:                 _t2 = res;
+// CHECK-NEXT:                 res = x * y;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case Div:
-// CHECK-NEXT:                 res = x / y;
 // CHECK-NEXT:                 _t3 = res;
+// CHECK-NEXT:                 res = x / y;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 break;
@@ -856,6 +856,25 @@ double switchReturn(double x, double y, int k) {
   printf("{%.2f, %.2f}\n", result[0], result[1]);                              \
 }
 
+// What a case of a switch in a loop overwrites is stored before it is
+// overwritten. A declaration moved out of the loop leaves its case with no
+// statement of its own.
+double caseInLoop(double x) {
+  double s = 1;
+  for (int i = 0; i < 3; ++i) {
+    switch (i) {
+    case 0:
+      double t;
+      t = x * s;
+      s += t;
+      break;
+    default:
+      s *= x;
+    }
+  }
+  return s;
+}
+
 int main() {
   double result[2] = {};
 
@@ -879,4 +898,7 @@ int main() {
   TEST_2_Op(switchReturn, 3, 5, 0);  // CHECK-EXEC: {6.00, 0.00}
   TEST_2_Op(switchReturn, 3, 5, 1);  // CHECK-EXEC: {5.00, 3.00}
   TEST_2_Op(switchReturn, 3, 5, 2);  // CHECK-EXEC: {0.00, 10.00}
+
+  INIT_GRADIENT(caseInLoop);
+  TEST_GRADIENT(caseInLoop, 1, 1.5, &result[0]); // CHECK-EXEC: {9.75}
 }

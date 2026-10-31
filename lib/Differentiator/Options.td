@@ -90,8 +90,8 @@ def fno_validate_clang_version : Flag<["-"], "fno-validate-clang-version">,
   MarshallingInfoNegativeFlag<CladOpt<"ValidateClangVersion">>;
 
 def fprint_num_diff_errors : Flag<["-"], "fprint-num-diff-errors">,
-  HelpText<"Prints the calculated numerical diff errors; overridden by "
-           "-DCLAD_NO_NUM_DIFF.">,
+  HelpText<"Prints the calculated numerical diff errors; has no effect "
+           "where -fno-numerical-diff-fallback turns the fallback off.">,
   MarshallingInfoFlag<CladOpt<"PrintNumDiffErrorInfo">>;
 
 def fclad_porting_hints : Flag<["-"], "fclad-porting-hints">,
@@ -128,6 +128,16 @@ def Rclad_analysis_EQ : Joined<["-"], "Rclad-analysis=">,
   DocBrief<[{Reports what the named analysis left in the derivative, as remarks
 pointed at the generated code itself. The analogue of -Rpass-missed, which
 cannot reach an AST-level plugin.}]>;
+
+def Rclad_perf : Flag<["-"], "Rclad-perf">,
+  HelpText<"Reports where a hand-written derivative would do much less work "
+           "than the generated one.">,
+  DocBrief<[{Reports, as remarks on the functions differentiated, where a large
+share of a gradient's estimated work goes to what a hand-written derivative
+would not do: a pullback running its forward work again, or an object that is
+constant except for a few entries treated as wholly varying. Each remark says
+what to write instead.}]>,
+  MarshallingInfoFlag<CladOpt<"RemarkPerf">>;
 
 def fdump_analysis_EQ : Joined<["-"], "fdump-analysis=">,
   MetaVarName<"<name>">,

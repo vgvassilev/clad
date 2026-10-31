@@ -235,8 +235,9 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
     else {
       IdentifierInfo* newName = CreateUniqueIdentifier("arg");
       newPVD->setDeclName(newName);
-      m_DeclReplacements[PVD] = newPVD;
     }
+    // A lambda that captures the parameter finds its copy here.
+    m_DeclReplacements[PVD] = newPVD;
 
     auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
     if (it != std::end(diffParams)) {
@@ -271,14 +272,16 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
   return params;
 }
 
-StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(clang::Expr* E,
-                                                     llvm::StringRef prefix,
-                                                     bool moveToTape) {
+StmtDiff ReverseModeForwPassVisitor::StoreAndRestore(
+    clang::Expr* E, llvm::StringRef prefix, bool moveToTape,
+    llvm::SmallVectorImpl<clang::Stmt*>* /*restoreAgain*/) {
   if (!m_RestoreTracker)
     return {};
   // Storage owned by this function's locals is gone by the time the caller
   // restores the tracker; recording it would replay bytes into freed memory.
-  if (utils::designatesLocallyOwnedStorage(E))
+  // A local reference bound to such storage is no different.
+  if (utils::designatesLocallyOwnedStorage(E, /*asPointerValue=*/false,
+                                           /*followLocalReferences=*/true))
     return {};
   // Clone both the tracker base (reused across every store call) and the stored
   // expression E (the caller passes the same node it emits into the primal), so
@@ -376,16 +379,25 @@ ReverseModeForwPassVisitor::DifferentiateVarDecl(const clang::VarDecl* VD,
   StmtDiff initDiff;
   if (const Expr* init = VD->getInit())
     initDiff = Visit(init);
+  // A rebuilt lambda has a closure type of its own; let `auto` take it.
+  QualType DeclType = DerivedType;
+  TypeSourceInfo* TSI = nullptr;
+  if (isa_and_nonnull<LambdaExpr>(VD->getInit())) {
+    DeclType = m_Context.getAutoDeductType();
+    TSI = m_Context.getTrivialTypeSourceInfo(DeclType, noLoc);
+  }
+  auto* VDCloned =
+      BuildGlobalVarDecl(DeclType, VD->getNameAsString(), initDiff.getExpr(),
+                         VD->isDirectInit(), TSI);
   // Adjoints should always be initialized
   if (!initDiff.getExpr_dx()) {
-    Expr* zero = getZeroInit(DerivedType);
+    Expr* value = VD->hasInit() ? BuildDeclRef(VDCloned) : nullptr;
+    Expr* zero = BuildZeroAdjoint(value, DerivedType);
     initDiff.updateStmtDx(zero);
   }
-  auto* VDCloned = BuildGlobalVarDecl(DerivedType, VD->getNameAsString(),
-                                      initDiff.getExpr(), VD->isDirectInit());
   auto* VDDerived =
-      BuildGlobalVarDecl(DerivedType, "_d_" + VD->getNameAsString(),
-                         initDiff.getExpr_dx(), VD->isDirectInit());
+      BuildGlobalVarDecl(DeclType, "_d_" + VD->getNameAsString(),
+                         initDiff.getExpr_dx(), VD->isDirectInit(), TSI);
   m_Variables.emplace(VDCloned, AdjointInfo{VDDerived});
   // Register the primal clone unconditionally so references rebind by map
   // lookup rather than the scope-dependent name-lookup fallback (see the

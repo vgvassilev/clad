@@ -36,16 +36,31 @@ double f(double x) {
 
 // CHECK: void f_grad(double x, double *_d_x) {
 // CHECK: clad::push(_t1, s);
-// CHECK-NEXT: clad::push(_tracker0, clad::restore_tracker());
-// CHECK-NEXT: scale_reverse_forw(s, _d_s, clad::back(_tracker0));
-// CHECK: clad::back(_tracker0).restore();
-// CHECK-NEXT: {
-// CHECK-NEXT:     s = clad::back(_t1);
-// CHECK-NEXT:     clad::pop(_t1);
-// CHECK-NEXT: }
+// CHECK-NEXT: scale(s);
+// CHECK: s = clad::back(_t1);
 // CHECK-NEXT: scale_pullback(s, &_d_s);
-// CHECK-NEXT: clad::back(_tracker0).restore();
-// CHECK-NEXT: clad::pop(_tracker0);
+// CHECK-NEXT: s = clad::back(_t1);
+// CHECK-NEXT: clad::pop(_t1);
+
+// A record that points into other memory may be written through: its stored
+// copy would not restore that, so the call keeps its restore_tracker.
+struct P {
+  double v[1];
+  double* p;
+};
+
+void scaleThrough(P& q) { *q.p = 3 * *q.p; }
+
+double h(double x) {
+  double y = x;
+  P q{{0}, &y};
+  for (int i = 0; i < 1; i++)
+    scaleThrough(q);
+  return y;
+}
+
+// CHECK: void h_grad(double x, double *_d_x) {
+// CHECK: scaleThrough_reverse_forw(q, _d_q, clad::back(_tracker0));
 
 int main() {
   auto g = clad::gradient(f);
@@ -53,4 +68,7 @@ int main() {
   g.execute(1.0, &dx);
   // f = (3x)^2 + 6x => df/dx = 18x + 6
   printf("dx=%.2f\n", dx); // CHECK-EXEC: dx=24.00
+  dx = 0;
+  clad::gradient(h).execute(1.0, &dx);
+  printf("dx=%.2f\n", dx); // CHECK-EXEC: dx=3.00
 }
