@@ -595,6 +595,23 @@ StmtDiff BaseForwardModeVisitor::VisitAttributedStmt(const AttributedStmt* S) {
   return SubStmt == S ? VisitStmt(S) : Visit(SubStmt);
 }
 
+StmtDiff BaseForwardModeVisitor::VisitCXXRewrittenBinaryOperator(
+    const CXXRewrittenBinaryOperator* RBO) {
+  // A comparison rewritten to operator<=> or operator== is differentiated as
+  // a builtin one: the operands' tangents are evaluated, the result has none.
+  auto withTangent = [this](const Expr* E) -> Expr* {
+    StmtDiff D = Visit(E);
+    if (D.getExpr_dx() && !isUnusedResult(D.getExpr_dx()))
+      return BuildParens(BuildOp(BO_Comma, BuildParens(D.getExpr_dx()),
+                                 BuildParens(D.getExpr())));
+    return D.getExpr();
+  };
+  Expr* L = withTangent(RBO->getLHS());
+  Expr* R = withTangent(RBO->getRHS());
+  return StmtDiff(BuildOp(RBO->getOperator(), L, R),
+                  getZeroInit(RBO->getType()));
+}
+
 StmtDiff BaseForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
   ScopeRAII compoundScope(*this, Scope::DeclScope);
   beginBlock();

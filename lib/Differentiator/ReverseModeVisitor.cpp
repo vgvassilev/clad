@@ -933,6 +933,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return SubStmt == S ? VisitStmt(S) : Visit(SubStmt);
   }
 
+  StmtDiff ReverseModeVisitor::VisitCXXRewrittenBinaryOperator(
+      const CXXRewrittenBinaryOperator* RBO) {
+    // A comparison rewritten to operator<=> or operator== has no adjoint, as
+    // a builtin comparison has none.
+    return BuildOp(RBO->getOperator(), Visit(RBO->getLHS()).getExpr(),
+                   Visit(RBO->getRHS()).getExpr());
+  }
+
   StmtDiff
   ReverseModeVisitor::VisitCompoundLiteralExpr(const CompoundLiteralExpr* CLE) {
     StmtDiff result = Visit(CLE->getInitializer());
