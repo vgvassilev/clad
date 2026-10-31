@@ -287,6 +287,13 @@ double f11(double x, double y) {
   return r + d;
 }
 
+// Implicit captures, by reference and by copy.
+double f12(double x, double y) {
+  auto g = [&](double t) { return x * t; };
+  auto h = [=](double t) { return y * t; };
+  return g(y) + h(x);
+}
+
 int main() {
   auto df1 = clad::gradient(f1);
   double di = 0, dj = 0;
@@ -342,4 +349,9 @@ int main() {
   auto d_f11 = clad::gradient(f11);
   d_f11.execute(2, 3, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 10.00 0.00
+
+  di = 0, dj = 0;
+  auto d_f12 = clad::gradient(f12);
+  d_f12.execute(2, 3, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 6.00 4.00
 }
