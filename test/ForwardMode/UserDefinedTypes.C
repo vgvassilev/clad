@@ -1227,6 +1227,17 @@ void print(const Tensor<double, N>& t) {
   }
 }
 
+// The tangent of a default-initialized aggregate starts at zero, not at the
+// values its default member initializers give.
+struct Gain {
+  double k = 3;
+  double scale(double x) const { return k * x * x; }
+};
+double fn19(double x) {
+  Gain g;
+  return g.scale(x);
+}
+
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
   INIT_DIFFERENTIATE(fn2, "i");
@@ -1246,6 +1257,7 @@ int main() {
   INIT_DIFFERENTIATE(fn16, "v.second.second");
   INIT_DIFFERENTIATE(fn17, "b.mem");
   INIT_DIFFERENTIATE(fn18, "i");
+  INIT_DIFFERENTIATE(fn19, "x");
 
   TensorD5 t;
   t.updateTo(5);
@@ -1269,4 +1281,5 @@ int main() {
   TEST_DIFFERENTIATE(fn16, pair_of_pairdd(), pair_of_pairdd());   // CHECK-EXEC: {2.00}
   TEST_DIFFERENTIATE(fn17, A(3.00), B(5.00));   // CHECK-EXEC: {3.00}
   TEST_DIFFERENTIATE(fn18, 7, 3);   // CHECK-EXEC: {9.00}
+  TEST_DIFFERENTIATE(fn19, 2);   // CHECK-EXEC: {12.00}
 }
