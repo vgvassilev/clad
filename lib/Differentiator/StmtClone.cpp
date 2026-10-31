@@ -216,9 +216,18 @@ DEFINE_CREATE_EXPR(CXXFunctionalCastExpr,
 DEFINE_CREATE_EXPR(ExprWithCleanups, (Ctx, Clone(Node->getSubExpr()),
                                       Node->cleanupsHaveSideEffects(), {}))
 
-DEFINE_CREATE_EXPR(ConstantExpr, (Ctx, Clone(Node->getSubExpr()),
-                                  Node->getResultStorageKind(),
-                                  Node->isImmediateInvocation()))
+Stmt* StmtClone::VisitConstantExpr(ConstantExpr* Node) {
+  ConstantExpr* result = ConstantExpr::Create(Ctx, Clone(Node->getSubExpr()),
+                                              Node->getResultStorageKind(),
+                                              Node->isImmediateInvocation());
+  // The value is what codegen emits for an immediate invocation: without it,
+  // a call to a consteval function is emitted as a call at run time, which
+  // has no definition to link against.
+  if (Node->hasAPValueResult())
+    result->SetResult(Node->getAPValueResult(), Ctx);
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
 
 Stmt* StmtClone::VisitCXXNewExpr(CXXNewExpr* Node) {
   llvm::SmallVector<Expr*, 2> placementArgs;
