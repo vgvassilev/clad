@@ -368,6 +368,18 @@ float f_builtin_sinhf(float x) {
   return __builtin_sinhf(x);
 }
 
+double f_builtin_asinh(double x) {
+  return __builtin_asinh(x);
+}
+
+double f_builtin_acosh(double x) {
+  return __builtin_acosh(x);
+}
+
+double f_builtin_atanh(double x) {
+  return __builtin_atanh(x);
+}
+
 double f15(double y, double x) {
   return std::atan2(y, x);
 }
@@ -875,6 +887,15 @@ int main () { //expected-no-diagnostics
   auto f_builtin_sinhf_grad = clad::gradient(f_builtin_sinhf);
   f_builtin_sinhf_grad.execute(0.F, &f_result[0]);
   printf("Result is = %f\n", f_result[0]); //CHECK-EXEC: Result is = 1.000000
+
+  auto f_builtin_asinh_darg0 = clad::differentiate(f_builtin_asinh, 0);
+  printf("Result is = %.6f\n", f_builtin_asinh_darg0.execute(0.5)); //CHECK-EXEC: Result is = 0.894427
+
+  auto f_builtin_acosh_darg0 = clad::differentiate(f_builtin_acosh, 0);
+  printf("Result is = %.6f\n", f_builtin_acosh_darg0.execute(1.5)); //CHECK-EXEC: Result is = 0.894427
+
+  auto f_builtin_atanh_darg0 = clad::differentiate(f_builtin_atanh, 0);
+  printf("Result is = %.6f\n", f_builtin_atanh_darg0.execute(0.5)); //CHECK-EXEC: Result is = 1.333333
 
   auto f15_darg0 = clad::differentiate(f15, 0);
   printf("Result is = %f\n", f15_darg0.execute(4, 3)); //CHECK-EXEC: Result is = 0.120000
