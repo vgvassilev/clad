@@ -132,9 +132,30 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
 }
 
 void TBRAnalyzer::Analyze(const DiffRequest& request) {
+  const FunctionDecl* FD = request.Function;
+  // A function that calls itself reads, at that call, what it writes and
+  // reads of its parameters while that is still being found: run again
+  // until it grows no more. It only grows, so it settles.
+  while (true) {
+    ParamSet modified;
+    ParamSet used;
+    if (m_ModifiedParams && m_UsedParams) {
+      modified = (*m_ModifiedParams)[FD];
+      used = (*m_UsedParams)[FD];
+    }
+    AnalyzeOnce(request);
+    if (!m_CallsItself || !m_ModifiedParams || !m_UsedParams ||
+        ((*m_ModifiedParams)[FD] == modified && (*m_UsedParams)[FD] == used))
+      return;
+  }
+}
+
+void TBRAnalyzer::AnalyzeOnce(const DiffRequest& request) {
   m_Request = &request;
+  m_CallsItself = false;
+  m_BlockData.clear();
   m_BlockData.resize(request.m_AnalysisDC->getCFG()->size());
-  m_BlockPassCounter.resize(request.m_AnalysisDC->getCFG()->size(), 0);
+  m_BlockPassCounter.assign(request.m_AnalysisDC->getCFG()->size(), 0);
 
   // Set current block ID to the ID of entry the block.
   CFGBlock& entry = request.m_AnalysisDC->getCFG()->getEntry();
@@ -488,6 +509,8 @@ bool TBRAnalyzer::TraverseCallExpr(clang::CallExpr* CE) {
     resetMode();
     return false;
   }
+  if (FD->getCanonicalDecl() == m_Function->getCanonicalDecl())
+    m_CallsItself = true;
   // A lambda reads what it captures by reference when it is called, not where
   // it is created: mark those variables used here, as if passed by reference.
   if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
