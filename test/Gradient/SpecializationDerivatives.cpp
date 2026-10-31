@@ -10,6 +10,7 @@
 #include "clad/Differentiator/Differentiator.h"
 #include <cstdio>
 #include <type_traits>
+#include <utility>
 
 // expected-no-diagnostics
 
@@ -163,6 +164,15 @@ double usesOffset(double x) {
   return o.at(2);
 }
 
+// The operand of decltype is not evaluated, so std::declval, which has no
+// definition, needs no derivative.
+template <class U, class V> double product(U u, V v) {
+  using P = decltype(std::declval<U>() * std::declval<V>());
+  P p = u * v;
+  return p;
+}
+double usesProduct(double x) { return product(x, 2.5); }
+
 int main() {
   double d = 0, dx = 0, dy = 0;
   auto g = clad::gradient(usesPicks);
@@ -214,6 +224,10 @@ int main() {
   clad::gradient(usesOffset).execute(1, &d);
   std::printf("%g %g\n", d, clad::differentiate(usesOffset, "x").execute(1));
   // CHECK-EXEC: 2 2
+
+  d = 0;
+  clad::gradient(usesProduct).execute(1, &d);
+  std::printf("%g\n", d); // CHECK-EXEC: 2.5
 }
 
 // RUN: not %cladclang %s -I%S/../../include -fsyntax-only -DNOTYET 2>&1 \

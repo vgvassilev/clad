@@ -15,6 +15,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/SourceLocation.h"
 
@@ -869,6 +870,15 @@ public:
     bool TraverseBindingDecl(clang::BindingDecl* BD) {
       if (clang::VarDecl* Holding = BD->getHoldingVar())
         return TraverseDecl(Holding);
+      return true;
+    }
+    /// The operand of `decltype` or `sizeof` is never evaluated, so it needs
+    /// no derivative. clang-22 added a trailing bool (TraverseQualifier) to
+    /// TraverseDecltypeTypeLoc; a defaulted parameter matches both calls.
+    bool TraverseDecltypeTypeLoc(clang::DecltypeTypeLoc, bool = false) {
+      return true;
+    }
+    bool TraverseUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr*) {
       return true;
     }
     /// Here we use TraverseLambdaExpr and not VisitLambdaExpr to ensure the
