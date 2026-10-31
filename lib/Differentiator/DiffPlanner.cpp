@@ -3,6 +3,7 @@
 #include "clad/Differentiator/DiffMode.h"
 
 #include "ActivityAnalyzer.h"
+#include "EntryAdjointChecker.h"
 #include "TBRAnalyzer.h"
 #include "UsefulAnalyzer.h"
 
@@ -2375,6 +2376,25 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
                                                hasCustomPullback || nonDiff);
       TraverseFunctionDeclOnce(request);
 
+      // With every callee planned, a gradient can tell which calls its
+      // reverse sweep derives a pullback for.
+      if (&request == m_TopMostReq && request.Mode == DiffMode::reverse)
+        diagnoseUnknownEntryAdjoints(
+            m_Sema, request.Function, [this](const FunctionDecl* Callee) {
+              CallDerivative How = CallDerivative::None;
+              for (const DiffRequest& R : m_DiffRequestGraph.getNodes()) {
+                if (!R.Function || R.Function->getCanonicalDecl() !=
+                                       Callee->getCanonicalDecl())
+                  continue;
+                if (!R.CustomDerivative &&
+                    (R.Mode == DiffMode::pullback ||
+                     R.Mode == DiffMode::reverse_mode_forward_pass))
+                  return CallDerivative::Pullback;
+                How = CallDerivative::Opaque;
+              }
+              return How;
+            });
+
       if (requestTBR) {
         TimedAnalysisRegion R("TBR " + request.BaseFunctionName);
         ParamInfo& modifiedParams = request.getModifiedParams();
@@ -2833,7 +2853,11 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       return true;
 
     if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-      if (VD->isFileVarDecl() && !VD->getType().isConstQualified()) {
+      // A reference cannot be declared without what it binds to, and there
+      // is no adjoint to bind it to; diagnoseUnknownEntryAdjoints reports a
+      // use that needs one.
+      if (VD->isFileVarDecl() && !VD->getType().isConstQualified() &&
+          !VD->getType()->isReferenceType()) {
         DiffRequest request;
         request.DeclarationOnly = true;
         request.Global = VD;
