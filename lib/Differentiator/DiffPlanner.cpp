@@ -2358,12 +2358,20 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
       } else if (request.EnableVariedAnalysis && request->isDefined()) {
         // The opt-in analysis; requests it seeds are seeded by the collector.
         runVariedAnalysis(request, AnalysisDC.get());
+      } else if (request.EnableVariedAnalysis) {
+        // A function clad defines itself, such as a derivative asked for
+        // elsewhere, has no body yet to find what varies in: leave it all
+        // varied, as without the analysis.
+        request.EnableVariedAnalysis = false;
       }
 
-      if (m_TopMostReq->EnableUsefulAnalysis) {
+      if (m_TopMostReq->EnableUsefulAnalysis && request->isDefined()) {
         TimedAnalysisRegion R("UA " + request.BaseFunctionName);
         UsefulAnalyzer analyzer(AnalysisDC.get(), request.getUsefulDecls());
         analyzer.Analyze(request.Function);
+      } else if (m_TopMostReq->EnableUsefulAnalysis) {
+        // As for varied analysis: no body yet, nothing to find useful in.
+        request.EnableUsefulAnalysis = false;
       }
 
       m_AllAnalysisDC.push_back(std::move(AnalysisDC));
