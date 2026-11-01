@@ -139,6 +139,11 @@ void VariedAnalyzer::addVariedDeclWithAliases(const VarDecl* VD) {
     // setIsRequired already walks a REF_TYPE's targets to set their varied
     // bit; this walks the same edges to reach the request's varied-decl set,
     // which is what decides whether a declaration is given an adjoint.
+    auto Reached = m_ReachedThrough.find(cur);
+    if (Reached != m_ReachedThrough.end())
+      for (const VarDecl* target : Reached->second)
+        if (seen.insert(target).second)
+          worklist.push_back(target);
     const VarData* data = getVarDataFromDecl(cur);
     if (data && data->m_Type == VarData::REF_TYPE)
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
@@ -324,6 +329,17 @@ bool VariedAnalyzer::TraverseDeclStmt(DeclStmt* DS) {
 
         auto* VDExpr = &getCurBlockVarsData()[VD];
         QualType VDType = VD->getType();
+        // `Buf b{s}` keeps a pointer to s in b: writing through b.p writes s.
+        if (VDType->isRecordType() &&
+            !utils::reachesNoOtherMemory(m_AnalysisDC->getASTContext(),
+                                         VDType)) {
+          std::set<const VarDecl*> Named;
+          getDependencySet(init, Named);
+          for (const VarDecl* N : Named)
+            if (N &&
+                (N->getType()->isArrayType() || N->getType()->isPointerType()))
+              m_ReachedThrough[VD].insert(N);
+        }
         // if the declared variable is ref type attach its VarData to the
         // VarData of the RHS variable.
         if (VDExpr->m_Type == VarData::REF_TYPE || VDType->isPointerType()) {
