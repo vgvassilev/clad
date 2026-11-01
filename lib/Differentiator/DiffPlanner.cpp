@@ -385,8 +385,19 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
 
   bool DiffCollector::TraverseFunctionDeclOnce(const DiffRequest& request) {
     llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
-    if (llvm::is_contained(m_Traversed, request))
-      return true;
+    // An equal request walked for another call is walked again if more of
+    // its parameters vary here: the requests of what it calls are seeded
+    // from them. Varied sets only grow, so this ends.
+    auto Walked = llvm::find(m_Traversed, request);
+    if (Walked != m_Traversed.end()) {
+      const std::set<const VarDecl*>& Seen = Walked->getVariedDecls();
+      if (llvm::all_of(
+              request.Function->parameters(), [&](const ParmVarDecl* PVD) {
+                return !request.getVariedDecls().count(PVD) || Seen.count(PVD);
+              }))
+        return true;
+      Walked->mergeAnalyses(request);
+    }
     const FunctionDecl* FD = request.Function;
     bool walked = llvm::any_of(
         m_Traversed, [FD](const DiffRequest& R) { return R.Function == FD; });
@@ -2569,8 +2580,15 @@ static QualType GetDerivedFunctionType(const CallExpr* CE) {
         Saved.get()->CalleeGlobalWrites[E] = std::move(Globals);
     }
 
-    if (!nonDiff && request.Mode != DiffMode::unknown)
+    if (!nonDiff && request.Mode != DiffMode::unknown) {
+      // A request equal to one planned for another call shares its
+      // derivative, which has to be right for this call too.
+      std::pair<DiffRequest*, bool> Planned =
+          m_DiffRequestGraph.findNode(request);
+      if (Planned.first && !Planned.second)
+        Planned.first->mergeAnalyses(request);
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+    }
 
     if (m_IsTraversingTopLevelDecl) {
       m_TopMostReq = nullptr;

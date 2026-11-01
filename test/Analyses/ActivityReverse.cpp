@@ -622,6 +622,41 @@ double f21(double x) {
 // only the pointer holding its address. Leaving the pointee passive used to
 // deny it an adjoint, which both crashed the reverse mode on the adjoint's
 // missing initializer and dropped the dependency `return y` carries.
+// f22 calls h22 with a constant s, f23 with a varied one. The two calls ask
+// for one pullback, which has to give the adjoint of s to f23 although f22,
+// differentiated first, has none to take.
+double h22(double& p, double s) {
+  double r = s * 1.0;
+  double v = p * r;
+  p = 0;
+  return v;
+}
+double f22(double x) {
+  double p = x;
+  double v = h22(p, 2.0);
+  return v + p;
+}
+double f23(double x) {
+  double p = 3;
+  double v = h22(p, x);
+  return v + p;
+}
+
+// One gradient calls m24 twice, first with a constant s. Planned for the
+// second call, m24 has to be walked again for h24 to learn that s varies.
+double h24(double& p, double s) {
+  double r = s * 1.0;
+  double v = p * r;
+  p = 0;
+  return v;
+}
+double m24(double& p, double s) { return h24(p, s); }
+double f24(double x) {
+  double p = x, q = 3;
+  double v = m24(p, 2.0) + m24(q, x);
+  return v + p + q;
+}
+
 double f16(double x) {
   double y = 0;
   double* p = &y;
@@ -677,6 +712,9 @@ int main(){
     printf("{%.2f}\n", dx);// CHECK-EXEC: {2.00}
     TEST1(f10, 3);// CHECK-EXEC: {1.00}
     TEST1(f11, 3);// CHECK-EXEC: {1.00}
+    TEST1(f22, 3);// CHECK-EXEC: {2.00}
+    TEST1(f23, 3);// CHECK-EXEC: {3.00}
+    TEST1(f24, 3);// CHECK-EXEC: {5.00}
     TEST2(f12, 3, 1);// CHECK-EXEC: {-0.27, 0.27}
     dx = 0;
     auto grad13 = clad::gradient<clad::opts::enable_va>(f13, "x");
