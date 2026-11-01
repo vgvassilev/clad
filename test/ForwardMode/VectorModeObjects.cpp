@@ -249,6 +249,10 @@ double constructed(double x, double y) {
   C c(x); // refused-error {{vector mode cannot yet differentiate an object of type 'C', which has no default constructor}}
   return c.get() * y;
 }
+double object_array(double x, double y) {
+  M arr[2] = {{x}, {y}}; // refused-error {{vector mode cannot yet differentiate an array of objects}}
+  return arr[0].sq(x) * y; // refused-error {{vector mode cannot yet differentiate a call to a method of an object reached through a pointer or an array}}
+}
 
 void refused() {
   clad::differentiate<clad::opts::vector_mode>(assigned);
@@ -260,6 +264,7 @@ void refused() {
   clad::differentiate<clad::opts::vector_mode>(assigned_global);
   clad::differentiate<clad::opts::vector_mode>(through_pointer);
   clad::differentiate<clad::opts::vector_mode>(pointer);
+  clad::differentiate<clad::opts::vector_mode>(object_array);
   clad::differentiate<clad::opts::vector_mode>(constructed);
 }
 #endif // ACCEPTED

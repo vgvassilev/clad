@@ -1525,7 +1525,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
           return StmtDiff(Clone(CE),
                           getZeroInit(CE->getType().getNonReferenceType()));
         // The arguments drive the derivative through the pushforward.
-        diffArgs.push_back(thisTangentArgument(MD, baseOriginalE, nullptr));
+        diffArgs.push_back(
+            thisTangentArgument(MD, baseOriginalE, /*BaseDx=*/nullptr));
       } else {
         diffArgs.push_back(
             thisTangentArgument(MD, baseOriginalE, baseDerivative));

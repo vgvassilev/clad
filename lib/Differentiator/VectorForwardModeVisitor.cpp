@@ -6,18 +6,22 @@
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateName.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/OperatorKinds.h"
+#include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Lookup.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 
 using namespace clang;
@@ -411,9 +415,15 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
          "vector mode cannot yet differentiate a reference to a member of an "
          "object");
   const auto* RD = ObjTy->getAsCXXRecordDecl();
-  // A pointer to an object with tangents; one to what has none, such as a
-  // global, has none either.
-  if (RD && T->isPointerType() && initDx) {
+  // An array of objects is not an object: its elements have no tangents of
+  // their own yet.
+  if (RD && T->isArrayType()) {
+    diag(DiagnosticsEngine::Error, VD->getLocation(),
+         "vector mode cannot yet differentiate an array of objects");
+    initDx = nullptr;
+  } else if (RD && T->isPointerType() && initDx) {
+    // A pointer to an object with tangents; one to what has none, such as a
+    // global, has none either.
     diag(DiagnosticsEngine::Error, VD->getLocation(),
          "vector mode cannot yet differentiate a pointer to an object");
     initDx = nullptr;
@@ -680,7 +690,7 @@ Expr* VectorForwardModeVisitor::objectTangents(QualType T, const Expr* Init,
       Args.push_back(Dx);
       MemberTys.push_back(MemberTy.getCanonicalType());
     }
-    TemplateArgument TArgs[] = {
+    std::array<TemplateArgument, 2> TArgs = {
         T.getCanonicalType(),
         TemplateArgument::CreatePackCopy(m_Context, MemberTys)};
     return BuildCallExprToCladFunction("aggregate_vector", Args, TArgs);
@@ -738,11 +748,12 @@ Expr* VectorForwardModeVisitor::thisTangentArgument(const CXXMethodDecl* MD,
   }
   if (isObjectTangents(BaseDx))
     return BaseDx;
-  // A pointer's tangents are a clad::matrix of what it points to.
+  // The tangents of a pointer or an array are a vector of what they reach, and
+  // not one object per independent variable.
   if (BaseDx)
     diag(DiagnosticsEngine::Error, Base->getBeginLoc(),
-         "vector mode cannot yet differentiate an object reached through a "
-         "pointer");
+         "vector mode cannot yet differentiate a call to a method of an "
+         "object reached through a pointer or an array");
   QualType ObjTy = Base->getType();
   if (ObjTy->isPointerType())
     ObjTy = ObjTy->getPointeeType();
